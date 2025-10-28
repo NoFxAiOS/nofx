@@ -21,8 +21,8 @@
       "scan_interval_minutes": 3
     }
   ],
-  "coin_pool_api_url": "http://x.x.x.x:x/api/ai500/list?auth=",
-  "oi_top_api_url": "http://x.x.x.x:x/api/oi/top?auth=",
+  "coin_pool_api_url": "http://x.x.x.x:x/api/ai500/list?auth=YOUR_AUTH_TOKEN",
+  "oi_top_api_url": "http://x.x.x.x:x/api/oi/top?auth=YOUR_AUTH_TOKEN",
   "api_server_port": 8080,
   "max_daily_loss": 5.0,
   "max_drawdown": 10.0,

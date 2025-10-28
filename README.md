@@ -486,6 +486,14 @@ sudo apt-get install libta-lib0-dev
 
 ## 🔄 Changelog
 
+### v2.0.1 (2025-10-29)
+
+**Bug Fixes:**
+- ✅ Fixed ComparisonChart data processing logic - switched from cycle_number to timestamp grouping
+- ✅ Resolved chart freezing issue when backend restarts and cycle_number resets
+- ✅ Improved chart data display - now shows all historical data points chronologically
+- ✅ Enhanced debugging logs for better troubleshooting
+
 ### v2.0.0 (2025-10-28)
 
 **Major Updates:**
@@ -545,6 +553,6 @@ Issues and Pull Requests are welcome!
 
 ---
 
-**Last Updated**: 2025-10-28
+**Last Updated**: 2025-10-29
 
 **⚡ Explore the possibilities of quantitative trading with the power of AI!**

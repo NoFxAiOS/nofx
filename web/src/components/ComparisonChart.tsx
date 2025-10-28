@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -19,8 +19,6 @@ interface ComparisonChartProps {
 }
 
 export function ComparisonChart({ traders }: ComparisonChartProps) {
-  const [combinedData, setCombinedData] = useState<any[]>([]);
-
   // 获取所有trader的历史数据
   const traderHistories = traders.map((trader) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -30,47 +28,87 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     );
   });
 
-  useEffect(() => {
+  // 使用useMemo自动处理数据合并，直接使用data对象作为依赖
+  const combinedData = useMemo(() => {
     // 等待所有数据加载完成
     const allLoaded = traderHistories.every((h) => h.data);
-    if (!allLoaded) return;
+    if (!allLoaded) return [];
 
-    // 合并所有trader的数据 - 使用cycle_number作为key确保数据对齐
-    const cycleMap = new Map<number, any>();
+    console.log(`[${new Date().toISOString()}] Recalculating chart data...`);
+
+    // 新方案：按时间戳分组，不再依赖 cycle_number（因为后端会重置）
+    // 收集所有时间戳
+    const timestampMap = new Map<string, {
+      timestamp: string;
+      time: string;
+      traders: Map<string, { pnl_pct: number; equity: number }>;
+    }>();
 
     traderHistories.forEach((history, index) => {
       const trader = traders[index];
-      history.data?.forEach((point: any) => {
-        const cycleNumber = point.cycle_number || 0;
-        const time = new Date(point.timestamp).toLocaleTimeString('zh-CN', {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
+      if (!history.data) return;
 
-        if (!cycleMap.has(cycleNumber)) {
-          cycleMap.set(cycleNumber, {
-            cycle: cycleNumber,
+      console.log(`Trader ${trader.trader_id}: ${history.data.length} data points`);
+
+      history.data.forEach((point: any) => {
+        const ts = point.timestamp;
+
+        if (!timestampMap.has(ts)) {
+          const time = new Date(ts).toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          timestampMap.set(ts, {
+            timestamp: ts,
             time,
-            timestamp: point.timestamp
+            traders: new Map()
           });
         }
 
-        const entry = cycleMap.get(cycleNumber);
-        entry[`${trader.trader_id}_pnl_pct`] = point.total_pnl_pct;
-        entry[`${trader.trader_id}_equity`] = point.total_equity;
+        timestampMap.get(ts)!.traders.set(trader.trader_id, {
+          pnl_pct: point.total_pnl_pct,
+          equity: point.total_equity
+        });
       });
     });
 
-    // 转换为数组并按cycle排序
-    const combined = Array.from(cycleMap.values())
-      .filter(item => {
-        // 只保留所有trader都有数据的点
-        return traders.every(t => item[`${t.trader_id}_pnl_pct`] !== undefined);
-      })
-      .sort((a, b) => a.cycle - b.cycle);
+    // 按时间戳排序，转换为数组
+    const combined = Array.from(timestampMap.entries())
+      .sort(([tsA], [tsB]) => new Date(tsA).getTime() - new Date(tsB).getTime())
+      .map(([ts, data], index) => {
+        const entry: any = {
+          index: index + 1,  // 使用序号代替cycle
+          time: data.time,
+          timestamp: ts
+        };
 
-    setCombinedData(combined);
-  }, [traderHistories.map((h) => h.data).join(',')]);
+        traders.forEach((trader) => {
+          const traderData = data.traders.get(trader.trader_id);
+          if (traderData) {
+            entry[`${trader.trader_id}_pnl_pct`] = traderData.pnl_pct;
+            entry[`${trader.trader_id}_equity`] = traderData.equity;
+          }
+        });
+
+        return entry;
+      });
+
+    if (combined.length > 0) {
+      const lastPoint = combined[combined.length - 1];
+      console.log(`Chart: ${combined.length} data points, last time: ${lastPoint.time}, timestamp: ${lastPoint.timestamp}`);
+      console.log('Last 3 points:', combined.slice(-3).map(p => ({
+        time: p.time,
+        timestamp: p.timestamp,
+        deepseek: p.deepseek_trader_pnl_pct,
+        qwen: p.qwen_trader_pnl_pct
+      })));
+    }
+
+    return combined;
+  }, [
+    traderHistories[0]?.data,
+    traderHistories[1]?.data,
+  ]);
 
   const isLoading = traderHistories.some((h) => !h.data);
 
@@ -142,7 +180,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
       return (
         <div className="rounded p-3 shadow-xl" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
           <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
-            Cycle #{data.cycle} - {data.time}
+            {data.time} - #{data.index}
           </div>
           {traders.map((trader) => {
             const pnlPct = data[`${trader.trader_id}_pnl_pct`];

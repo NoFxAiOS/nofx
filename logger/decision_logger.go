@@ -13,7 +13,8 @@ import (
 type DecisionRecord struct {
 	Timestamp      time.Time          `json:"timestamp"`       // 决策时间
 	CycleNumber    int                `json:"cycle_number"`    // 周期编号
-	CoTTrace       string             `json:"cot_trace"`       // AI思维链
+	InputPrompt    string             `json:"input_prompt"`    // 发送给AI的输入prompt
+	CoTTrace       string             `json:"cot_trace"`       // AI思维链（输出）
 	DecisionJSON   string             `json:"decision_json"`   // 决策JSON
 	AccountState   AccountSnapshot    `json:"account_state"`   // 账户状态快照
 	Positions      []PositionSnapshot `json:"positions"`       // 持仓快照
@@ -469,13 +470,12 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 // 基于账户净值的变化计算风险调整后收益
 func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64 {
 	if len(records) < 2 {
-		return 0.0 // 至少需要2个数据点才能计算收益率
+		return 0.0
 	}
 
 	// 提取每个周期的账户净值
 	var equities []float64
 	for _, record := range records {
-		// 使用TotalBalance作为净值（包含未实现盈亏）
 		equity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
 		if equity > 0 {
 			equities = append(equities, equity)
@@ -533,19 +533,7 @@ func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64
 	}
 
 	// 计算夏普比率（假设无风险利率为0）
+	// 注：直接返回周期级别的夏普比率（非年化），正常范围 -2 到 +2
 	sharpeRatio := meanReturn / stdDev
-
-	// 年化夏普比率
-	// 假设每个周期是3分钟，一天有480个周期
-	// 年化因子 = sqrt(一年的周期数) = sqrt(480 * 365) ≈ sqrt(175200) ≈ 419
-	// 简化：使用每日周期数作为年化基准
-	periodsPerDay := 480.0 // 24小时 * 60分钟 / 3分钟
-	annualizationFactor := 1.0
-	for i := 0; i < 10; i++ {
-		annualizationFactor = (annualizationFactor + periodsPerDay/annualizationFactor) / 2
-	}
-
-	annualizedSharpe := sharpeRatio * annualizationFactor
-
-	return annualizedSharpe
+	return sharpeRatio
 }

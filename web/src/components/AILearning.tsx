@@ -47,6 +47,7 @@ interface AILearningProps {
 interface DecisionRecord {
   timestamp: string;
   cycle_number: number;
+  input_prompt: string;
   cot_trace: string;
   success: boolean;
 }
@@ -104,9 +105,6 @@ export default function AILearning({ traderId }: AILearningProps) {
     (a, b) => (b.total_pn_l || 0) - (a.total_pn_l || 0)
   );
 
-  // 提取AI的最新反思（从CoT trace中）
-  const latestReflection = extractReflectionFromCoT(latestDecisions?.[0]?.cot_trace);
-
   return (
     <div className="space-y-6">
       {/* 标题区 - 更简洁 */}
@@ -128,68 +126,8 @@ export default function AILearning({ traderId }: AILearningProps) {
       {/* 主要内容：现代化网格布局 */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        {/* 左侧大区域：AI反思 + 核心指标 (5列) */}
+        {/* 左侧大区域：核心指标 (5列) */}
         <div className="lg:col-span-5 space-y-6">
-          {/* AI最新反思 - 渐变卡片 */}
-          {latestReflection && latestDecisions && latestDecisions.length > 0 && (
-            <div className="rounded-2xl p-6 relative overflow-hidden" style={{
-              background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1E293B 100%)',
-              border: '1px solid rgba(139, 92, 246, 0.2)',
-              boxShadow: '0 10px 40px rgba(139, 92, 246, 0.15)'
-            }}>
-              {/* 背景装饰 */}
-              <div className="absolute top-0 right-0 w-64 h-64 rounded-full opacity-10" style={{
-                background: 'radial-gradient(circle, #8B5CF6 0%, transparent 70%)',
-                filter: 'blur(40px)'
-              }} />
-
-              <div className="relative">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl" style={{
-                    background: 'rgba(139, 92, 246, 0.2)',
-                    border: '1px solid rgba(139, 92, 246, 0.3)'
-                  }}>
-                    🎯
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold" style={{ color: '#C4B5FD' }}>
-                      {t('latestReflection', language)}
-                    </h3>
-                    <p className="text-xs" style={{ color: '#94A3B8' }}>
-                      {t('cycle', language)} #{latestDecisions[0].cycle_number} · {new Date(latestDecisions[0].timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap" style={{
-                  background: 'rgba(0, 0, 0, 0.4)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(139, 92, 246, 0.1)',
-                  color: '#DDD6FE',
-                  fontFamily: 'ui-sans-serif, system-ui'
-                }}>
-                  {latestReflection}
-                </div>
-
-                {latestDecisions[0].cot_trace && (
-                  <details className="mt-4">
-                    <summary className="cursor-pointer text-sm font-semibold flex items-center gap-2 hover:opacity-80 transition-opacity" style={{ color: '#A78BFA' }}>
-                      <span>{t('fullCoT', language)}</span>
-                    </summary>
-                    <div className="mt-3 rounded-xl p-4 text-xs leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto" style={{
-                      background: 'rgba(0, 0, 0, 0.5)',
-                      border: '1px solid rgba(139, 92, 246, 0.15)',
-                      color: '#A5B4FC',
-                      fontFamily: 'ui-monospace, monospace'
-                    }}>
-                      {latestDecisions[0].cot_trace}
-                    </div>
-                  </details>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* 核心指标网格 - 玻璃态设计 */}
           <div className="grid grid-cols-2 gap-4">
             {/* 总交易数 */}

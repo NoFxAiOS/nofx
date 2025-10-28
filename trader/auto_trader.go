@@ -224,8 +224,9 @@ func (at *AutoTrader) runCycle() error {
 	log.Println("🤖 正在请求AI分析并决策...")
 	decision, err := market.GetFullTradingDecision(ctx)
 
-	// 即使有错误，也保存思维链和决策（用于debug）
+	// 即使有错误，也保存思维链、决策和输入prompt（用于debug）
 	if decision != nil {
+		record.InputPrompt = decision.UserPrompt
 		record.CoTTrace = decision.CoTTrace
 		if len(decision.Decisions) > 0 {
 			decisionJSON, _ := json.MarshalIndent(decision.Decisions, "", "  ")
@@ -428,7 +429,8 @@ func (at *AutoTrader) buildTradingContext() (*market.TradingContext, error) {
 	performance, err := at.decisionLogger.AnalyzePerformance(20)
 	if err != nil {
 		log.Printf("⚠️  分析历史表现失败: %v", err)
-		// 不影响主流程，继续执行
+		// 不影响主流程，继续执行（但设置performance为nil以避免传递错误数据）
+		performance = nil
 	}
 
 	// 6. 构建上下文

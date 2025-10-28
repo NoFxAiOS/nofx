@@ -559,6 +559,7 @@ function StatCard({
 
 // Decision Card Component with CoT Trace - Binance Style
 function DecisionCard({ decision, language }: { decision: DecisionRecord; language: Language }) {
+  const [showInput, setShowInput] = useState(false);
   const [showCoT, setShowCoT] = useState(false);
 
   return (
@@ -582,6 +583,25 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
         </div>
       </div>
 
+      {/* AI Input Prompt - Collapsible */}
+      {decision.input_prompt && (
+        <div className="mb-3">
+          <button
+            onClick={() => setShowInput(!showInput)}
+            className="flex items-center gap-2 text-sm transition-colors"
+            style={{ color: '#8B5CF6' }}
+          >
+            <span className="font-semibold">📥 {t('inputPrompt', language)}</span>
+            <span className="text-xs">{showInput ? t('collapse', language) : t('expand', language)}</span>
+          </button>
+          {showInput && (
+            <div className="mt-2 rounded p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}>
+              {decision.input_prompt}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* AI Chain of Thought - Collapsible */}
       {decision.cot_trace && (
         <div className="mb-3">
@@ -590,7 +610,7 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
             className="flex items-center gap-2 text-sm transition-colors"
             style={{ color: '#F0B90B' }}
           >
-            <span className="font-semibold">{t('aiThinking', language)}</span>
+            <span className="font-semibold">📤 {t('aiThinking', language)}</span>
             <span className="text-xs">{showCoT ? t('collapse', language) : t('expand', language)}</span>
           </button>
           {showCoT && (

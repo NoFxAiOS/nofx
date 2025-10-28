@@ -71,6 +71,8 @@ type TradingDecision struct {
 	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
 	StopLoss        float64 `json:"stop_loss,omitempty"`
 	TakeProfit      float64 `json:"take_profit,omitempty"`
+	Confidence      int     `json:"confidence,omitempty"` // 信心度 (0-100)
+	RiskUSD         float64 `json:"risk_usd,omitempty"`   // 最大美元风险
 	Reasoning       string  `json:"reasoning"`
 }
 
@@ -88,11 +90,12 @@ func GetFullTradingDecision(ctx *TradingContext) (*AIFullDecision, error) {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)
 	}
 
-	// 2. 构建AI提示
-	prompt := buildFullDecisionPrompt(ctx)
+	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
+	systemPrompt := buildSystemPrompt(ctx.Account.TotalEquity)
+	userPrompt := buildUserPrompt(ctx)
 
-	// 3. 调用AI API
-	aiResponse, err := callDeepSeekAPI(prompt)
+	// 3. 调用AI API（使用 system + user prompt）
+	aiResponse, err := callAIWithMessages(systemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("调用AI API失败: %w", err)
 	}
@@ -189,7 +192,133 @@ func calculateMaxCandidates(ctx *TradingContext) int {
 	return len(ctx.CandidateCoins)
 }
 
-// buildFullDecisionPrompt 构建完整的AI决策提示
+// buildSystemPrompt 构建 System Prompt（固定规则，可缓存）
+func buildSystemPrompt(accountEquity float64) string {
+	var sb strings.Builder
+
+	// 角色定义
+	sb.WriteString("你是专业的加密货币交易AI，在币安合约市场进行自主交易。\n\n")
+	sb.WriteString("**使命**: 最大化风险调整后收益（Sharpe Ratio）\n\n")
+
+	// 仓位管理规则
+	sb.WriteString("## 仓位管理\n")
+	sb.WriteString("- 最多持有 **3个币种**（质量>数量）\n")
+	sb.WriteString(fmt.Sprintf("- 山寨币: %.0f-%.0f USDT/仓（推荐%.0f），杠杆20x\n",
+		accountEquity*0.8, accountEquity*1.5, accountEquity*1.2))
+	sb.WriteString(fmt.Sprintf("- BTC/ETH: %.0f-%.0f USDT/仓（推荐%.0f），杠杆50x\n",
+		accountEquity*3, accountEquity*10, accountEquity*5))
+	sb.WriteString("- 保证金使用率 ≤90%%\n")
+	sb.WriteString("- 风险回报比 ≥1:2\n\n")
+
+	// 决策流程
+	sb.WriteString("## 决策流程\n")
+	sb.WriteString("1. **反思历史**（如有）：总结教训，避免重复错误\n")
+	sb.WriteString("2. **评估持仓**：决定平仓/持有\n")
+	sb.WriteString("3. **寻找机会**：从候选币种中找1-2个高确定性机会\n")
+	sb.WriteString("4. **集中资金**：大仓位做高确定性交易\n\n")
+
+	// JSON 输出格式
+	sb.WriteString("## 输出格式\n\n")
+	sb.WriteString("**先输出思维链（纯文本），再输出JSON数组**\n\n")
+	sb.WriteString("JSON示例：\n")
+	sb.WriteString("```json\n")
+	sb.WriteString("[\n")
+	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_long\", \"leverage\": 50, \"position_size_usd\": %.0f, \"stop_loss\": 92000, \"take_profit\": 98000, \"confidence\": 85, \"risk_usd\": 200, \"reasoning\": \"强势突破\"},\n", accountEquity*5))
+	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\", \"reasoning\": \"止盈\"}\n")
+	sb.WriteString("]\n")
+	sb.WriteString("```\n\n")
+	sb.WriteString("**字段说明**:\n")
+	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `confidence`: 信心度0-100（必填，即使不确定也要给出）\n")
+	sb.WriteString("- `risk_usd`: 最大美元风险 = (entry_price - stop_loss) × quantity（开仓时必填）\n")
+	sb.WriteString("- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n\n")
+
+	// DeepSeek/Qwen 特定优化
+	sb.WriteString("**提示**: 运用技术分析原理，趋势确认>指标信号，不要过度依赖单一指标\n")
+
+	return sb.String()
+}
+
+// buildUserPrompt 构建 User Prompt（动态数据）
+func buildUserPrompt(ctx *TradingContext) string {
+	var sb strings.Builder
+
+	// 系统状态
+	sb.WriteString(fmt.Sprintf("**时间**: %s | **周期**: #%d | **运行**: %d分钟\n\n",
+		ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
+
+	// BTC 市场
+	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
+		sb.WriteString(fmt.Sprintf("**BTC**: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
+			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
+			btcData.CurrentMACD, btcData.CurrentRSI7))
+	}
+
+	// 账户
+	sb.WriteString(fmt.Sprintf("**账户**: 净值%.2f | 余额%.2f (%.1f%%) | 盈亏%+.2f%% | 保证金%.1f%% | 持仓%d个\n\n",
+		ctx.Account.TotalEquity,
+		ctx.Account.AvailableBalance,
+		(ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100,
+		ctx.Account.TotalPnLPct,
+		ctx.Account.MarginUsedPct,
+		ctx.Account.PositionCount))
+
+	// 持仓
+	if len(ctx.Positions) > 0 {
+		sb.WriteString("## 当前持仓\n")
+		for i, pos := range ctx.Positions {
+			sb.WriteString(fmt.Sprintf("%d. %s %s | %.4f→%.4f | %+.2f%% | 保证金%.0f\n",
+				i+1, pos.Symbol, strings.ToUpper(pos.Side),
+				pos.EntryPrice, pos.MarkPrice, pos.UnrealizedPnLPct, pos.MarginUsed))
+
+			if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
+				sb.WriteString(fmt.Sprintf("   MACD:%.4f RSI:%.2f EMA20:%.4f 资金费率:%.6f\n",
+					marketData.CurrentMACD, marketData.CurrentRSI7,
+					marketData.CurrentEMA20, marketData.FundingRate))
+			}
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("**当前持仓**: 无\n\n")
+	}
+
+	// 候选币种（简化版）
+	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n", len(ctx.MarketDataMap)))
+	displayedCount := 0
+	for _, coin := range ctx.CandidateCoins {
+		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
+		if !hasData {
+			continue
+		}
+		displayedCount++
+		if displayedCount > 10 { // 只显示前10个
+			break
+		}
+
+		sourceTags := ""
+		if len(coin.Sources) > 1 {
+			sourceTags = "⭐"
+		}
+
+		sb.WriteString(fmt.Sprintf("%d. %s%s: %.4f (1h:%+.2f%%) MACD:%.4f RSI:%.2f\n",
+			displayedCount, coin.Symbol, sourceTags,
+			marketData.CurrentPrice, marketData.PriceChange1h,
+			marketData.CurrentMACD, marketData.CurrentRSI7))
+	}
+	sb.WriteString("\n")
+
+	// 历史反馈
+	if ctx.Performance != nil {
+		sb.WriteString(formatPerformanceFeedback(ctx.Performance))
+	}
+
+	sb.WriteString("---\n\n")
+	sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")
+
+	return sb.String()
+}
+
+// buildFullDecisionPrompt 构建完整的AI决策提示（兼容旧代码，已废弃）
 func buildFullDecisionPrompt(ctx *TradingContext) string {
 	var sb strings.Builder
 

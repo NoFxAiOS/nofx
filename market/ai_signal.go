@@ -212,7 +212,13 @@ func formatMarketDataForAI(data *MarketData) string {
 }
 
 // callDeepSeekAPI 调用AI API（支持DeepSeek和Qwen），带重试机制
+// 兼容旧代码：只传user prompt
 func callDeepSeekAPI(prompt string) (string, error) {
+	return callAIWithMessages("", prompt)
+}
+
+// callAIWithMessages 使用 system + user prompt 调用AI API（推荐）
+func callAIWithMessages(systemPrompt, userPrompt string) (string, error) {
 	if defaultConfig.APIKey == "" {
 		return "", fmt.Errorf("AI API密钥未设置，请先调用 SetDeepSeekAPIKey() 或 SetQwenAPIKey()")
 	}
@@ -226,7 +232,7 @@ func callDeepSeekAPI(prompt string) (string, error) {
 			fmt.Printf("⚠️  AI API调用失败，正在重试 (%d/%d)...\n", attempt, maxRetries)
 		}
 
-		result, err := callDeepSeekAPIOnce(prompt)
+		result, err := callAIWithMessagesOnce(systemPrompt, userPrompt)
 		if err == nil {
 			if attempt > 1 {
 				fmt.Printf("✓ AI API重试成功\n")
@@ -251,17 +257,34 @@ func callDeepSeekAPI(prompt string) (string, error) {
 	return "", fmt.Errorf("重试%d次后仍然失败: %w", maxRetries, lastErr)
 }
 
-// callDeepSeekAPIOnce 单次调用AI API
+// callDeepSeekAPIOnce 单次调用AI API（兼容旧代码）
 func callDeepSeekAPIOnce(prompt string) (string, error) {
+	return callAIWithMessagesOnce("", prompt)
+}
+
+// callAIWithMessagesOnce 单次调用AI API（支持 system + user prompt）
+func callAIWithMessagesOnce(systemPrompt, userPrompt string) (string, error) {
+	// 构建 messages 数组
+	messages := []map[string]string{}
+
+	// 如果有 system prompt，添加 system message
+	if systemPrompt != "" {
+		messages = append(messages, map[string]string{
+			"role":    "system",
+			"content": systemPrompt,
+		})
+	}
+
+	// 添加 user message
+	messages = append(messages, map[string]string{
+		"role":    "user",
+		"content": userPrompt,
+	})
+
 	// 构建请求体
 	requestBody := map[string]interface{}{
-		"model": defaultConfig.Model,
-		"messages": []map[string]string{
-			{
-				"role":    "user",
-				"content": prompt,
-			},
-		},
+		"model":       defaultConfig.Model,
+		"messages":    messages,
 		"temperature": 0.5, // 降低temperature以提高JSON格式稳定性
 		"max_tokens":  2000,
 	}

@@ -267,42 +267,42 @@ type Statistics struct {
 
 // TradeOutcome 单笔交易结果
 type TradeOutcome struct {
-	Symbol      string    // 币种
-	Side        string    // long/short
-	OpenPrice   float64   // 开仓价
-	ClosePrice  float64   // 平仓价
-	PnL         float64   // 盈亏（USDT）
-	PnLPct      float64   // 盈亏百分比
-	Duration    string    // 持仓时长
-	OpenTime    time.Time // 开仓时间
-	CloseTime   time.Time // 平仓时间
-	WasStopLoss bool      // 是否止损
+	Symbol      string    `json:"symbol"`        // 币种
+	Side        string    `json:"side"`          // long/short
+	OpenPrice   float64   `json:"open_price"`    // 开仓价
+	ClosePrice  float64   `json:"close_price"`   // 平仓价
+	PnL         float64   `json:"pn_l"`          // 盈亏（USDT）
+	PnLPct      float64   `json:"pn_l_pct"`      // 盈亏百分比
+	Duration    string    `json:"duration"`      // 持仓时长
+	OpenTime    time.Time `json:"open_time"`     // 开仓时间
+	CloseTime   time.Time `json:"close_time"`    // 平仓时间
+	WasStopLoss bool      `json:"was_stop_loss"` // 是否止损
 }
 
 // PerformanceAnalysis 交易表现分析
 type PerformanceAnalysis struct {
-	TotalTrades   int                           // 总交易数
-	WinningTrades int                           // 盈利交易数
-	LosingTrades  int                           // 亏损交易数
-	WinRate       float64                       // 胜率
-	AvgWin        float64                       // 平均盈利
-	AvgLoss       float64                       // 平均亏损
-	ProfitFactor  float64                       // 盈亏比
-	RecentTrades  []TradeOutcome                // 最近N笔交易
-	SymbolStats   map[string]*SymbolPerformance // 各币种表现
-	BestSymbol    string                        // 表现最好的币种
-	WorstSymbol   string                        // 表现最差的币种
+	TotalTrades   int                           `json:"total_trades"`   // 总交易数
+	WinningTrades int                           `json:"winning_trades"` // 盈利交易数
+	LosingTrades  int                           `json:"losing_trades"`  // 亏损交易数
+	WinRate       float64                       `json:"win_rate"`       // 胜率
+	AvgWin        float64                       `json:"avg_win"`        // 平均盈利
+	AvgLoss       float64                       `json:"avg_loss"`       // 平均亏损
+	ProfitFactor  float64                       `json:"profit_factor"`  // 盈亏比
+	RecentTrades  []TradeOutcome                `json:"recent_trades"`  // 最近N笔交易
+	SymbolStats   map[string]*SymbolPerformance `json:"symbol_stats"`   // 各币种表现
+	BestSymbol    string                        `json:"best_symbol"`    // 表现最好的币种
+	WorstSymbol   string                        `json:"worst_symbol"`   // 表现最差的币种
 }
 
 // SymbolPerformance 币种表现统计
 type SymbolPerformance struct {
-	Symbol        string  // 币种
-	TotalTrades   int     // 交易次数
-	WinningTrades int     // 盈利次数
-	LosingTrades  int     // 亏损次数
-	WinRate       float64 // 胜率
-	TotalPnL      float64 // 总盈亏
-	AvgPnL        float64 // 平均盈亏
+	Symbol        string  `json:"symbol"`         // 币种
+	TotalTrades   int     `json:"total_trades"`   // 交易次数
+	WinningTrades int     `json:"winning_trades"` // 盈利次数
+	LosingTrades  int     `json:"losing_trades"`  // 亏损次数
+	WinRate       float64 `json:"win_rate"`       // 胜率
+	TotalPnL      float64 `json:"total_pn_l"`     // 总盈亏
+	AvgPnL        float64 `json:"avg_pn_l"`       // 平均盈亏
 }
 
 // AnalyzePerformance 分析最近N个周期的交易表现
@@ -314,12 +314,14 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 	if len(records) == 0 {
 		return &PerformanceAnalysis{
-			SymbolStats: make(map[string]*SymbolPerformance),
+			RecentTrades: []TradeOutcome{},
+			SymbolStats:  make(map[string]*SymbolPerformance),
 		}, nil
 	}
 
 	analysis := &PerformanceAnalysis{
-		SymbolStats: make(map[string]*SymbolPerformance),
+		RecentTrades: []TradeOutcome{},
+		SymbolStats:  make(map[string]*SymbolPerformance),
 	}
 
 	// 追踪持仓状态：symbol -> {side, openPrice, openTime}

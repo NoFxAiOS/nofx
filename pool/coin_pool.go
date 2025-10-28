@@ -19,7 +19,7 @@ type CoinPoolConfig struct {
 }
 
 var coinPoolConfig = CoinPoolConfig{
-	APIURL:   "", // 将通过config.json配置或SetCoinPoolAPI()设置
+	APIURL:   "",
 	Timeout:  30 * time.Second, // 增加到30秒
 	CacheDir: "coin_pool_cache",
 }
@@ -359,7 +359,7 @@ var oiTopConfig = struct {
 	Timeout  time.Duration
 	CacheDir string
 }{
-	APIURL:   "", // 将通过config.json配置或SetOITopAPI()设置
+	APIURL:   "",
 	Timeout:  30 * time.Second,
 	CacheDir: "coin_pool_cache",
 }

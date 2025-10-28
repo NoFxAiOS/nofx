@@ -262,9 +262,12 @@ func callDeepSeekAPIOnce(prompt string) (string, error) {
 				"content": prompt,
 			},
 		},
-		"temperature": 0.7,
+		"temperature": 0.5, // 降低temperature以提高JSON格式稳定性
 		"max_tokens":  2000,
 	}
+
+	// 注意：response_format 参数仅 OpenAI 支持，DeepSeek/Qwen 不支持
+	// 我们通过强化 prompt 和后处理来确保 JSON 格式正确
 
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {

@@ -3,6 +3,7 @@ import useSWR from 'swr';
 import { api } from './lib/api';
 import { EquityChart } from './components/EquityChart';
 import { CompetitionPage } from './components/CompetitionPage';
+import AILearning from './components/AILearning';
 import type {
   SystemStatus,
   AccountInfo,
@@ -97,7 +98,7 @@ function App() {
     <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
       {/* Header - Binance Style */}
       <header className="glass sticky top-0 z-50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-[1920px] mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
@@ -179,7 +180,7 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-[1920px] mx-auto px-6 py-6">
         {currentPage === 'competition' ? (
           <CompetitionPage />
         ) : (
@@ -197,7 +198,7 @@ function App() {
 
       {/* Footer */}
       <footer className="mt-16" style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}>
-        <div className="max-w-7xl mx-auto px-4 py-6 text-center text-sm" style={{ color: '#5E6673' }}>
+        <div className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm" style={{ color: '#5E6673' }}>
           <p>NOFX - AI Trading Competition System</p>
           <p className="mt-1">⚠️ Trading involves risk. Use at your own discretion.</p>
         </div>
@@ -312,46 +313,17 @@ function TraderDetailsPage({
         />
       </div>
 
-      {/* Equity Chart */}
-      <div className="mb-8 animate-slide-in" style={{ animationDelay: '0.1s' }}>
-        <EquityChart traderId={selectedTrader.trader_id} />
-      </div>
-
-      {/* Statistics */}
-      {stats && (
-        <div className="binance-card p-6 mb-6 animate-slide-in" style={{ animationDelay: '0.2s' }}>
-          <h2 className="text-xl font-bold mb-5 flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            📊 Statistics
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>Total Cycles</div>
-              <div className="text-2xl font-bold" style={{ color: '#EAECEF' }}>{stats.total_cycles}</div>
-            </div>
-            <div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>Successful</div>
-              <div className="text-2xl font-bold" style={{ color: '#0ECB81' }}>
-                {stats.successful_cycles}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>Failed</div>
-              <div className="text-2xl font-bold" style={{ color: '#F6465D' }}>{stats.failed_cycles}</div>
-            </div>
-            <div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>Open Positions</div>
-              <div className="text-2xl font-bold" style={{ color: '#EAECEF' }}>{stats.total_open_positions}</div>
-            </div>
-            <div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>Close Positions</div>
-              <div className="text-2xl font-bold" style={{ color: '#EAECEF' }}>{stats.total_close_positions}</div>
-            </div>
+      {/* 主要内容区：左右分屏 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* 左侧：图表 + 持仓 */}
+        <div className="space-y-6">
+          {/* Equity Chart */}
+          <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
+            <EquityChart traderId={selectedTrader.trader_id} />
           </div>
-        </div>
-      )}
 
-      {/* Positions */}
-      <div className="binance-card p-6 mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
+          {/* Current Positions */}
+          <div className="binance-card p-6 animate-slide-in" style={{ animationDelay: '0.15s' }}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
             📈 Current Positions
@@ -423,33 +395,51 @@ function TraderDetailsPage({
             <div className="text-sm">当前没有活跃的交易持仓</div>
           </div>
         )}
+          </div>
+        </div>
+        {/* 左侧结束 */}
+
+        {/* 右侧：Recent Decisions - 卡片容器 */}
+        <div className="binance-card p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)]" style={{ animationDelay: '0.2s' }}>
+          {/* 标题 */}
+          <div className="flex items-center gap-3 mb-5 pb-4 border-b" style={{ borderColor: '#2B3139' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{
+              background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+              boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
+            }}>
+              🧠
+            </div>
+            <div>
+              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>Recent Decisions</h2>
+              {decisions && decisions.length > 0 && (
+                <div className="text-xs" style={{ color: '#848E9C' }}>
+                  Last {decisions.length} trading cycles
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 决策列表 - 可滚动 */}
+          <div className="space-y-4 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+            {decisions && decisions.length > 0 ? (
+              decisions.map((decision, i) => (
+                <DecisionCard key={i} decision={decision} />
+              ))
+            ) : (
+              <div className="py-16 text-center">
+                <div className="text-6xl mb-4 opacity-30">🧠</div>
+                <div className="text-lg font-semibold mb-2" style={{ color: '#EAECEF' }}>No Decisions Yet</div>
+                <div className="text-sm" style={{ color: '#848E9C' }}>AI trading decisions will appear here</div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* 右侧结束 */}
       </div>
 
-      {/* Recent Decisions */}
-      <div className="binance-card p-6 animate-slide-in" style={{ animationDelay: '0.4s' }}>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            🧠 Recent Decisions
-          </h2>
-          {decisions && decisions.length > 0 && (
-            <div className="text-xs px-3 py-1 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', color: '#F0B90B', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
-              Last {decisions.length} Cycles
-            </div>
-          )}
-        </div>
-        {decisions && decisions.length > 0 ? (
-          <div className="space-y-4">
-            {decisions.map((decision, i) => (
-              <DecisionCard key={i} decision={decision} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16" style={{ color: '#848E9C' }}>
-            <div className="text-6xl mb-4 opacity-50">🧠</div>
-            <div className="text-lg font-semibold mb-2">暂无决策记录</div>
-            <div className="text-sm">AI交易决策将在这里显示</div>
-          </div>
-        )}
+      {/* AI Learning & Performance Analysis */}
+      <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
+        <AILearning traderId={selectedTrader.trader_id} />
       </div>
     </div>
   );

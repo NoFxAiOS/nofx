@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/pool"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -304,9 +305,10 @@ func buildFullDecisionPrompt(ctx *TradingContext) string {
 	// AI决策要求
 	sb.WriteString("## 🎯 任务\n\n")
 	sb.WriteString("分析市场数据，自主决策：\n")
-	sb.WriteString("1. 评估现有持仓 → 持有或平仓\n")
-	sb.WriteString(fmt.Sprintf("2. 从%d个候选币种中找交易机会\n", len(ctx.MarketDataMap)))
-	sb.WriteString("3. 开新仓（如果有机会）\n\n")
+	sb.WriteString("1. **如有历史数据，先进行自我反思**：回顾之前的交易，总结经验教训\n")
+	sb.WriteString("2. 评估现有持仓 → 持有或平仓\n")
+	sb.WriteString(fmt.Sprintf("3. 从%d个候选币种中找交易机会\n", len(ctx.MarketDataMap)))
+	sb.WriteString("4. 开新仓（如果有机会）\n\n")
 
 	sb.WriteString("## 📋 规则\n\n")
 	sb.WriteString(fmt.Sprintf("1. **单币种仓位上限**: 山寨币≤%.0f USDT | BTC/ETH≤%.0f USDT\n", ctx.Account.TotalEquity*1.5, ctx.Account.TotalEquity*10))
@@ -315,36 +317,41 @@ func buildFullDecisionPrompt(ctx *TradingContext) string {
 	sb.WriteString("4. **风险回报比**: ≥1:2\n\n")
 
 	sb.WriteString("### 📤 输出格式\n\n")
-	sb.WriteString("**思维链分析** (纯文本)\n")
-	sb.WriteString("- 分析持仓 → 找新机会 → 账户检查\n")
-	sb.WriteString("- **最后必须列出最终决策摘要**（例如：持有XX，平仓XX，开多XX，开空XX）\n\n")
+	sb.WriteString("**重要：严格按照JSON格式输出，所有字符串值必须用双引号包裹！**\n\n")
+	sb.WriteString("先输出思维链分析(纯文本)，然后输出JSON数组：\n\n")
+	sb.WriteString("**思维链分析**:\n")
+	sb.WriteString("1. **历史经验反思**（如有历史数据）: 回顾表现，总结教训\n")
+	sb.WriteString("2. **市场分析**: 分析BTC趋势和当前持仓\n")
+	sb.WriteString("3. **机会识别**: 从候选币种中找交易机会\n")
+	sb.WriteString("4. **风险控制**: 检查账户保证金和仓位限制\n")
+	sb.WriteString("5. **最终决策摘要**: 列出所有决策\n\n")
 	sb.WriteString("---\n\n")
-	sb.WriteString("**决策JSON** (不要用```标记)\n")
+	sb.WriteString("**JSON决策数组** (不要加```标记，所有字符串必须用双引号):\n")
 	sb.WriteString("[\n")
 	sb.WriteString("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_long\", \"leverage\": 50, \"position_size_usd\": 15000, \"stop_loss\": 92000, \"take_profit\": 98000, \"reasoning\": \"突破做多\"},\n")
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"hold\", \"reasoning\": \"持续观察\"}\n")
 	sb.WriteString("]\n\n")
 	sb.WriteString("**action类型**: open_long | open_short | close_long | close_short | hold | wait\n")
 	sb.WriteString("**开仓必填**: leverage, position_size_usd, stop_loss, take_profit\n")
-	sb.WriteString("**position_size_usd**: 仓位价值(非保证金)，保证金=position_size_usd/leverage\n\n")
+	sb.WriteString("**注意**: reasoning字段必须用双引号包裹！例如：\"reasoning\": \"这里是理由\"\n\n")
 
 	sb.WriteString("### 📝 完整示例\n\n")
 
 	// 简化示例仓位（使用新的仓位上限）
 	btcSize := ctx.Account.TotalEquity * 8 // BTC示例：8倍净值（不超过10倍上限）
-	altSize := ctx.Account.TotalEquity * 1 // 山寨币示例：1倍净值（不超过1.5倍上限）
 
-	sb.WriteString("**思维链**:\n")
-	sb.WriteString("当前持仓：ETHUSDT多头盈利+2.3%，趋势良好继续持有。\n")
-	sb.WriteString("新机会：BTC突破上涨，MACD金叉，资金费率低，做多信号强。\n")
-	sb.WriteString("         SOLUSDT回调至支撑位，出现反弹信号，可小仓位做多。\n")
-	sb.WriteString("账户：可用余额充足，保证金使用率32%，可分散开仓。\n")
-	sb.WriteString("**最终决策**：持有ETHUSDT，开多BTCUSDT(8倍净值)，开多SOLUSDT(1倍净值)。\n\n")
+	sb.WriteString("【历史经验反思】\n")
+	sb.WriteString("回顾最近10笔交易：胜率40%，盈亏比0.8:1，表现欠佳。\n")
+	sb.WriteString("SOLUSDT做多3次全部止损，该币种波动大，暂时避开。\n")
+	sb.WriteString("BTCUSDT做多2次，1胜1负，可继续关注。\n\n")
+	sb.WriteString("【市场分析】\n")
+	sb.WriteString("BTC突破上涨，MACD金叉，趋势向上。\n")
+	sb.WriteString("当前持仓：ETHUSDT多头盈利+2.3%，继续持有。\n\n")
+	sb.WriteString("【最终决策】持有ETHUSDT，开多BTCUSDT。\n\n")
 	sb.WriteString("---\n\n")
 	sb.WriteString("[\n")
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"hold\", \"reasoning\": \"盈利良好，趋势延续\"},\n")
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_long\", \"leverage\": 50, \"position_size_usd\": %.0f, \"stop_loss\": 92000, \"take_profit\": 98000, \"reasoning\": \"突破做多\"},\n", btcSize))
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"SOLUSDT\", \"action\": \"open_long\", \"leverage\": 20, \"position_size_usd\": %.0f, \"stop_loss\": 180, \"take_profit\": 210, \"reasoning\": \"支撑位反弹\"}\n", altSize))
+	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_long\", \"leverage\": 50, \"position_size_usd\": %.0f, \"stop_loss\": 92000, \"take_profit\": 98000, \"reasoning\": \"突破确认，历史表现佳\"}\n", btcSize))
 	sb.WriteString("]\n\n")
 
 	sb.WriteString("现在请开始分析并给出你的决策！\n")
@@ -481,22 +488,20 @@ func formatMarketDataBrief(data *MarketData) string {
 
 // parseFullDecisionResponse 解析AI的完整决策响应
 func parseFullDecisionResponse(aiResponse string, accountEquity float64) (*AIFullDecision, error) {
-	// 1. 提取 cot_trace（思维链）
+	// 1. 提取思维链
 	cotTrace := extractCoTTrace(aiResponse)
 
-	// 2. 提取 JSON 决策列表
+	// 2. 提取JSON决策列表
 	decisions, err := extractDecisions(aiResponse)
 	if err != nil {
-		// 即使JSON解析失败，也返回思维链
 		return &AIFullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: []TradingDecision{},
 		}, fmt.Errorf("提取决策失败: %w\n\n=== AI思维链分析 ===\n%s", err, cotTrace)
 	}
 
-	// 3. 验证决策（包含仓位价值上限检查）
+	// 3. 验证决策
 	if err := validateDecisions(decisions, accountEquity); err != nil {
-		// 验证失败时，也返回思维链和决策，但标记为错误
 		return &AIFullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
@@ -539,6 +544,12 @@ func extractDecisions(response string) ([]TradingDecision, error) {
 
 	jsonContent := strings.TrimSpace(response[arrayStart : arrayEnd+1])
 
+	// 🔧 修复常见的JSON格式错误：缺少引号的字段值
+	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}  (没有引号)
+	// 修复为: "reasoning": "内容"}
+	// 使用简单的字符串扫描而不是正则表达式
+	jsonContent = fixMissingQuotes(jsonContent)
+
 	// 解析JSON
 	var decisions []TradingDecision
 	if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
@@ -546,6 +557,15 @@ func extractDecisions(response string) ([]TradingDecision, error) {
 	}
 
 	return decisions, nil
+}
+
+// fixMissingQuotes 修复缺少引号的reasoning字段
+func fixMissingQuotes(jsonStr string) string {
+	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}
+	// 不匹配: "reasoning": "已经有引号"
+	// 替换为: "reasoning": "内容"}
+	re := regexp.MustCompile(`"reasoning":\s*([^"}\n,][^}\n,]*?)([}\n,])`)
+	return re.ReplaceAllString(jsonStr, `"reasoning": "$1"$2`)
 }
 
 // validateDecisions 验证所有决策（需要账户信息）

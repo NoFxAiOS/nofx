@@ -76,6 +76,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/decisions/latest", s.handleLatestDecisions)
 		api.GET("/statistics", s.handleStatistics)
 		api.GET("/equity-history", s.handleEquityHistory)
+		api.GET("/performance", s.handlePerformance)
 	}
 }
 
@@ -373,6 +374,32 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, history)
 }
 
+// handlePerformance AI历史表现分析（用于展示AI学习和反思）
+func (s *Server) handlePerformance(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 分析最近20个周期的交易表现
+	performance, err := trader.GetDecisionLogger().AnalyzePerformance(20)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("分析历史表现失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, performance)
+}
+
 // Start 启动服务器
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
@@ -387,6 +414,7 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
 	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
 	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 指定trader的收益率历史数据")
+	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
 	log.Printf("  • GET  /health               - 健康检查")
 	log.Println()
 

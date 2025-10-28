@@ -567,28 +567,28 @@ func formatPerformanceFeedback(perfInterface interface{}, accountEquity float64)
 
 	sb.WriteString("## 📊 历史表现反馈\n\n")
 
-	if perf.TotalTrades == 0 {
-		sb.WriteString("暂无历史交易数据\n\n")
-		return sb.String()
-	}
-
-	// 整体统计
-	sb.WriteString("### 整体表现\n")
-	sb.WriteString(fmt.Sprintf("- **总交易数**: %d 笔 (盈利: %d | 亏损: %d)\n",
-		perf.TotalTrades, perf.WinningTrades, perf.LosingTrades))
-	sb.WriteString(fmt.Sprintf("- **胜率**: %.1f%%\n", perf.WinRate))
-	sb.WriteString(fmt.Sprintf("- **平均盈利**: +%.2f%% | 平均亏损: %.2f%%\n",
-		perf.AvgWin, perf.AvgLoss))
-	if perf.ProfitFactor > 0 {
-		sb.WriteString(fmt.Sprintf("- **盈亏比**: %.2f:1\n", perf.ProfitFactor))
-	}
-
-	// 夏普比率（风险调整后收益）
+	// 夏普比率（风险调整后收益）- 即使没有完成交易也要显示！
 	if perf.SharpeRatio != 0 {
 		sharpeStatus := interpretSharpeRatio(perf.SharpeRatio)
-		sb.WriteString(fmt.Sprintf("- **夏普比率**: %.2f (%s)\n", perf.SharpeRatio, sharpeStatus))
+		sb.WriteString(fmt.Sprintf("**夏普比率**: %.2f (%s)\n\n", perf.SharpeRatio, sharpeStatus))
 	}
-	sb.WriteString("\n")
+
+	if perf.TotalTrades == 0 {
+		sb.WriteString("暂无已完成交易（仅基于账户净值变化计算夏普比率）\n\n")
+		// ⚠️ 不要提前返回！继续显示自适应建议
+	} else {
+		// 整体统计（有已完成交易时才显示）
+		sb.WriteString("### 整体表现\n")
+		sb.WriteString(fmt.Sprintf("- **总交易数**: %d 笔 (盈利: %d | 亏损: %d)\n",
+			perf.TotalTrades, perf.WinningTrades, perf.LosingTrades))
+		sb.WriteString(fmt.Sprintf("- **胜率**: %.1f%%\n", perf.WinRate))
+		sb.WriteString(fmt.Sprintf("- **平均盈利**: +%.2f%% | 平均亏损: %.2f%%\n",
+			perf.AvgWin, perf.AvgLoss))
+		if perf.ProfitFactor > 0 {
+			sb.WriteString(fmt.Sprintf("- **盈亏比**: %.2f:1\n", perf.ProfitFactor))
+		}
+		sb.WriteString("\n")
+	}
 
 	// 最近交易
 	if len(perf.RecentTrades) > 0 {

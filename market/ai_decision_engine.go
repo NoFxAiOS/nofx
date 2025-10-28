@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"nofx/pool"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -328,7 +327,6 @@ func buildFullDecisionPrompt(ctx *TradingContext) string {
 	sb.WriteString("- **及时止盈**: 盈利达到目标立即止盈，落袋为安\n\n")
 
 	sb.WriteString("### 📤 输出格式\n\n")
-	sb.WriteString("**重要：严格按照JSON格式输出，所有字符串值必须用双引号包裹！**\n\n")
 	sb.WriteString("先输出思维链分析(纯文本)，然后输出JSON数组：\n\n")
 	sb.WriteString("**思维链分析**:\n")
 	sb.WriteString("1. **历史经验反思**（如有历史数据）: 回顾表现，总结教训，是否仓位太分散？\n")
@@ -339,14 +337,13 @@ func buildFullDecisionPrompt(ctx *TradingContext) string {
 	sb.WriteString("6. **风险控制**: 检查账户保证金和仓位限制\n")
 	sb.WriteString("7. **最终决策摘要**: 列出所有决策（最多3个币种持仓）\n\n")
 	sb.WriteString("---\n\n")
-	sb.WriteString("**JSON决策数组** (不要加```标记，所有字符串必须用双引号):\n")
+	sb.WriteString("**JSON决策数组** (按此格式输出):\n")
 	sb.WriteString("[\n")
 	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_long\", \"leverage\": 50, \"position_size_usd\": %.0f, \"stop_loss\": 92000, \"take_profit\": 98000, \"reasoning\": \"强势突破，集中资金\"},\n", ctx.Account.TotalEquity*5))
 	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"SOLUSDT\", \"action\": \"open_long\", \"leverage\": 20, \"position_size_usd\": %.0f, \"stop_loss\": 180, \"take_profit\": 200, \"reasoning\": \"技术面强势\"}\n", ctx.Account.TotalEquity*1.2))
 	sb.WriteString("]\n\n")
-	sb.WriteString("**action类型**: open_long | open_short | close_long | close_short | hold | wait\n")
-	sb.WriteString("**开仓必填**: leverage, position_size_usd, stop_loss, take_profit\n")
-	sb.WriteString("**注意**: reasoning字段必须用双引号包裹！例如：\"reasoning\": \"这里是理由\"\n\n")
+	sb.WriteString("action类型: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("开仓必填: leverage, position_size_usd, stop_loss, take_profit\n\n")
 
 	sb.WriteString("### 📝 完整示例（集中资金策略）\n\n")
 
@@ -577,13 +574,13 @@ func extractDecisions(response string) ([]TradingDecision, error) {
 	return decisions, nil
 }
 
-// fixMissingQuotes 修复缺少引号的reasoning字段
+// fixMissingQuotes 替换中文引号为英文引号（避免输入法自动转换）
 func fixMissingQuotes(jsonStr string) string {
-	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}
-	// 不匹配: "reasoning": "已经有引号"
-	// 替换为: "reasoning": "内容"}
-	re := regexp.MustCompile(`"reasoning":\s*([^"}\n,][^}\n,]*?)([}\n,])`)
-	return re.ReplaceAllString(jsonStr, `"reasoning": "$1"$2`)
+	jsonStr = strings.ReplaceAll(jsonStr, "\u201c", "\"") // "
+	jsonStr = strings.ReplaceAll(jsonStr, "\u201d", "\"") // "
+	jsonStr = strings.ReplaceAll(jsonStr, "\u2018", "'")  // '
+	jsonStr = strings.ReplaceAll(jsonStr, "\u2019", "'")  // '
+	return jsonStr
 }
 
 // validateDecisions 验证所有决策（需要账户信息）

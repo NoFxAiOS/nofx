@@ -272,7 +272,8 @@ sudo apt-get install libta-lib0-dev
 
 ## 📬 Контакти
 
-Для питань або пропозицій, будь ласка, створіть [GitHub Issue](https://github.com/tinkle-community/nofx/issues)
+- **Twitter/X**: [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **GitHub Issues**: [Створити Issue](https://github.com/tinkle-community/nofx/issues)
 
 ---
 

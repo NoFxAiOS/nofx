@@ -609,7 +609,8 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 📬 联系方式
 
-如有问题或建议，请提交 [GitHub Issue](https://github.com/yourusername/nofx/issues)
+- **Twitter/X**: [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **GitHub Issues**: [提交Issue](https://github.com/tinkle-community/nofx/issues)
 
 ---
 

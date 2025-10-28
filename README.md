@@ -530,7 +530,8 @@ Issues and Pull Requests are welcome!
 
 ## 📬 Contact
 
-For questions or suggestions, please submit a [GitHub Issue](https://github.com/tinkle-community/nofx/issues)
+- **Twitter/X**: [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **GitHub Issues**: [Submit an Issue](https://github.com/tinkle-community/nofx/issues)
 
 ---
 

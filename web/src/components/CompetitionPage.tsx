@@ -2,8 +2,11 @@ import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { CompetitionData } from '../types';
 import { ComparisonChart } from './ComparisonChart';
+import { useLanguage } from '../contexts/LanguageContext';
+import { t } from '../i18n/translations';
 
 export function CompetitionPage() {
+  const { language } = useLanguage();
   const { data: competition } = useSWR<CompetitionData>(
     'competition',
     api.getCompetition,
@@ -57,18 +60,18 @@ export function CompetitionPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-              AI Competition
+              {t('aiCompetition', language)}
               <span className="text-xs font-normal px-2 py-1 rounded" style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}>
-                {competition.count} traders
+                {competition.count} {t('traders', language)}
               </span>
             </h1>
             <p className="text-xs" style={{ color: '#848E9C' }}>
-              Qwen vs DeepSeek · Live Battle
+              {t('liveBattle', language)}
             </p>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-xs mb-1" style={{ color: '#848E9C' }}>🥇 Leader</div>
+          <div className="text-xs mb-1" style={{ color: '#848E9C' }}>{t('leader', language)}</div>
           <div className="text-lg font-bold" style={{ color: '#F0B90B' }}>{leader?.trader_name}</div>
           <div className="text-sm font-semibold" style={{ color: leader.total_pnl >= 0 ? '#0ECB81' : '#F6465D' }}>
             {leader.total_pnl >= 0 ? '+' : ''}{leader.total_pnl_pct.toFixed(2)}%
@@ -82,10 +85,10 @@ export function CompetitionPage() {
         <div className="binance-card p-5 animate-slide-in" style={{ animationDelay: '0.1s' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-              📈 Performance Comparison
+              {t('performanceComparison', language)}
             </h2>
             <div className="text-xs" style={{ color: '#848E9C' }}>
-              Real-time PnL %
+              {t('realTimePnL', language)}
             </div>
           </div>
           <ComparisonChart traders={sortedTraders} />
@@ -95,10 +98,10 @@ export function CompetitionPage() {
         <div className="binance-card p-5 animate-slide-in" style={{ animationDelay: '0.1s' }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-              🥇 Leaderboard
+              {t('leaderboard', language)}
             </h2>
             <div className="text-xs px-2 py-1 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', color: '#F0B90B', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
-              LIVE
+              {t('live', language)}
             </div>
           </div>
           <div className="space-y-2">
@@ -134,7 +137,7 @@ export function CompetitionPage() {
                     <div className="flex items-center gap-3">
                       {/* Total Equity */}
                       <div className="text-right">
-                        <div className="text-xs" style={{ color: '#848E9C' }}>Equity</div>
+                        <div className="text-xs" style={{ color: '#848E9C' }}>{t('equity', language)}</div>
                         <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>
                           {trader.total_equity.toFixed(2)}
                         </div>
@@ -142,7 +145,7 @@ export function CompetitionPage() {
 
                       {/* P&L */}
                       <div className="text-right min-w-[90px]">
-                        <div className="text-xs" style={{ color: '#848E9C' }}>P&L</div>
+                        <div className="text-xs" style={{ color: '#848E9C' }}>{t('pnl', language)}</div>
                         <div
                           className="text-lg font-bold mono"
                           style={{ color: trader.total_pnl >= 0 ? '#0ECB81' : '#F6465D' }}
@@ -157,7 +160,7 @@ export function CompetitionPage() {
 
                       {/* Positions */}
                       <div className="text-right">
-                        <div className="text-xs" style={{ color: '#848E9C' }}>Pos</div>
+                        <div className="text-xs" style={{ color: '#848E9C' }}>{t('pos', language)}</div>
                         <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>
                           {trader.position_count}
                         </div>
@@ -191,7 +194,7 @@ export function CompetitionPage() {
       {competition.traders.length === 2 && (
         <div className="binance-card p-5 animate-slide-in" style={{ animationDelay: '0.3s' }}>
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            ⚔️ Head-to-Head Battle
+            {t('headToHead', language)}
           </h2>
           <div className="grid grid-cols-2 gap-4">
             {sortedTraders.map((trader, index) => {
@@ -228,12 +231,12 @@ export function CompetitionPage() {
                     </div>
                     {isWinning && gap > 0 && (
                       <div className="text-xs font-semibold" style={{ color: '#0ECB81' }}>
-                        Leading by {gap.toFixed(2)}%
+                        {t('leadingBy', language, { gap: gap.toFixed(2) })}
                       </div>
                     )}
                     {!isWinning && gap < 0 && (
                       <div className="text-xs font-semibold" style={{ color: '#F6465D' }}>
-                        Behind by {Math.abs(gap).toFixed(2)}%
+                        {t('behindBy', language, { gap: Math.abs(gap).toFixed(2) })}
                       </div>
                     )}
                   </div>

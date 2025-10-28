@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
+import { useLanguage } from '../contexts/LanguageContext';
+import { t } from '../i18n/translations';
 
 interface TradeOutcome {
   symbol: string;
@@ -52,6 +54,7 @@ interface DecisionRecord {
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function AILearning({ traderId }: AILearningProps) {
+  const { language } = useLanguage();
   const { data: performance, error } = useSWR<PerformanceAnalysis>(
     `http://localhost:8080/api/performance?trader_id=${traderId}`,
     fetcher,
@@ -68,7 +71,7 @@ export default function AILearning({ traderId }: AILearningProps) {
   if (error) {
     return (
       <div className="rounded p-6" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-        <div style={{ color: '#F6465D' }}>⚠️ 加载AI学习数据失败</div>
+        <div style={{ color: '#F6465D' }}>{t('loadingError', language)}</div>
       </div>
     );
   }
@@ -76,7 +79,7 @@ export default function AILearning({ traderId }: AILearningProps) {
   if (!performance) {
     return (
       <div className="rounded p-6" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-        <div style={{ color: '#848E9C' }}>📊 加载中...</div>
+        <div style={{ color: '#848E9C' }}>📊 {t('loading', language)}</div>
       </div>
     );
   }
@@ -86,10 +89,10 @@ export default function AILearning({ traderId }: AILearningProps) {
       <div className="rounded p-6" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-xl">🧠</span>
-          <h2 className="text-lg font-bold" style={{ color: '#EAECEF' }}>AI 学习分析</h2>
+          <h2 className="text-lg font-bold" style={{ color: '#EAECEF' }}>{t('aiLearning', language)}</h2>
         </div>
         <div style={{ color: '#848E9C' }}>
-          暂无完整交易数据（需要完成开仓→平仓的完整周期）
+          {t('noCompleteData', language)}
         </div>
       </div>
     );
@@ -115,9 +118,9 @@ export default function AILearning({ traderId }: AILearningProps) {
           🧠
         </div>
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>AI Learning & Reflection</h2>
+          <h2 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>{t('aiLearning', language)}</h2>
           <p className="text-sm" style={{ color: '#848E9C' }}>
-            {performance.total_trades} trades analyzed · Real-time evolution
+            {t('tradesAnalyzed', language, { count: performance.total_trades })}
           </p>
         </div>
       </div>
@@ -150,10 +153,10 @@ export default function AILearning({ traderId }: AILearningProps) {
                   </div>
                   <div>
                     <h3 className="text-base font-bold" style={{ color: '#C4B5FD' }}>
-                      Latest Reflection
+                      {t('latestReflection', language)}
                     </h3>
                     <p className="text-xs" style={{ color: '#94A3B8' }}>
-                      Cycle #{latestDecisions[0].cycle_number} · {new Date(latestDecisions[0].timestamp).toLocaleTimeString()}
+                      {t('cycle', language)} #{latestDecisions[0].cycle_number} · {new Date(latestDecisions[0].timestamp).toLocaleTimeString()}
                     </p>
                   </div>
                 </div>
@@ -171,7 +174,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                 {latestDecisions[0].cot_trace && (
                   <details className="mt-4">
                     <summary className="cursor-pointer text-sm font-semibold flex items-center gap-2 hover:opacity-80 transition-opacity" style={{ color: '#A78BFA' }}>
-                      <span>📋 Full Chain of Thought</span>
+                      <span>{t('fullCoT', language)}</span>
                     </summary>
                     <div className="mt-3 rounded-xl p-4 text-xs leading-relaxed whitespace-pre-wrap max-h-80 overflow-y-auto" style={{
                       background: 'rgba(0, 0, 0, 0.5)',
@@ -195,7 +198,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               border: '1px solid rgba(99, 102, 241, 0.2)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
             }}>
-              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>Total Trades</div>
+              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>{t('totalTrades', language)}</div>
               <div className="text-3xl font-bold mono" style={{ color: '#E0E7FF' }}>
                 {performance.total_trades}
               </div>
@@ -209,7 +212,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               border: `1px solid ${(performance.win_rate || 0) >= 50 ? 'rgba(14, 203, 129, 0.3)' : 'rgba(246, 70, 93, 0.3)'}`,
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
             }}>
-              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>Win Rate</div>
+              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>{t('winRate', language)}</div>
               <div className="text-3xl font-bold mono" style={{
                 color: (performance.win_rate || 0) >= 50 ? '#10B981' : '#F87171'
               }}>
@@ -226,7 +229,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               border: '1px solid rgba(14, 203, 129, 0.2)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
             }}>
-              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>Avg Win</div>
+              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>{t('avgWin', language)}</div>
               <div className="text-3xl font-bold mono" style={{ color: '#10B981' }}>
                 +{(performance.avg_win || 0).toFixed(2)}%
               </div>
@@ -238,7 +241,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               border: '1px solid rgba(246, 70, 93, 0.2)',
               boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
             }}>
-              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>Avg Loss</div>
+              <div className="text-xs font-semibold mb-2" style={{ color: '#94A3B8' }}>{t('avgLoss', language)}</div>
               <div className="text-3xl font-bold mono" style={{ color: '#F87171' }}>
                 {(performance.avg_loss || 0).toFixed(2)}%
               </div>
@@ -258,9 +261,9 @@ export default function AILearning({ traderId }: AILearningProps) {
 
             <div className="relative flex items-center justify-between">
               <div>
-                <div className="text-sm font-semibold mb-1" style={{ color: '#FCD34D' }}>Profit Factor</div>
+                <div className="text-sm font-semibold mb-1" style={{ color: '#FCD34D' }}>{t('profitFactor', language)}</div>
                 <div className="text-xs" style={{ color: '#94A3B8' }}>
-                  Avg Win ÷ Avg Loss
+                  {t('avgWinDivLoss', language)}
                 </div>
               </div>
               <div className="text-5xl font-bold mono" style={{
@@ -276,10 +279,10 @@ export default function AILearning({ traderId }: AILearningProps) {
               color: (performance.profit_factor || 0) >= 2.0 ? '#10B981' :
                      (performance.profit_factor || 0) >= 1.5 ? '#F0B90B' : '#94A3B8'
             }}>
-              {(performance.profit_factor || 0) >= 2.0 && '🔥 Excellent - Strong profitability'}
-              {(performance.profit_factor || 0) >= 1.5 && (performance.profit_factor || 0) < 2.0 && '✓ Good - Stable profits'}
-              {(performance.profit_factor || 0) >= 1.0 && (performance.profit_factor || 0) < 1.5 && '⚠️ Fair - Needs optimization'}
-              {(performance.profit_factor || 0) > 0 && (performance.profit_factor || 0) < 1.0 && '❌ Poor - Losses exceed gains'}
+              {(performance.profit_factor || 0) >= 2.0 && t('excellent', language)}
+              {(performance.profit_factor || 0) >= 1.5 && (performance.profit_factor || 0) < 2.0 && t('good', language)}
+              {(performance.profit_factor || 0) >= 1.0 && (performance.profit_factor || 0) < 1.5 && t('fair', language)}
+              {(performance.profit_factor || 0) > 0 && (performance.profit_factor || 0) < 1.0 && t('poor', language)}
             </div>
           </div>
         </div>
@@ -298,7 +301,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                 }}>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-xl">🏆</span>
-                    <span className="text-xs font-semibold" style={{ color: '#6EE7B7' }}>Best Performer</span>
+                    <span className="text-xs font-semibold" style={{ color: '#6EE7B7' }}>{t('bestPerformer', language)}</span>
                   </div>
                   <div className="text-2xl font-bold mono mb-1" style={{ color: '#10B981' }}>
                     {performance.best_symbol}
@@ -306,7 +309,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                   {symbolStats[performance.best_symbol] && (
                     <div className="text-sm font-semibold" style={{ color: '#6EE7B7' }}>
                       {symbolStats[performance.best_symbol].total_pn_l > 0 ? '+' : ''}
-                      {symbolStats[performance.best_symbol].total_pn_l.toFixed(2)}% P&L
+                      {symbolStats[performance.best_symbol].total_pn_l.toFixed(2)}% {t('pnl', language)}
                     </div>
                   )}
                 </div>
@@ -320,7 +323,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                 }}>
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-xl">📉</span>
-                    <span className="text-xs font-semibold" style={{ color: '#FCA5A5' }}>Worst Performer</span>
+                    <span className="text-xs font-semibold" style={{ color: '#FCA5A5' }}>{t('worstPerformer', language)}</span>
                   </div>
                   <div className="text-2xl font-bold mono mb-1" style={{ color: '#F87171' }}>
                     {performance.worst_symbol}
@@ -328,7 +331,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                   {symbolStats[performance.worst_symbol] && (
                     <div className="text-sm font-semibold" style={{ color: '#FCA5A5' }}>
                       {symbolStats[performance.worst_symbol].total_pn_l > 0 ? '+' : ''}
-                      {symbolStats[performance.worst_symbol].total_pn_l.toFixed(2)}% P&L
+                      {symbolStats[performance.worst_symbol].total_pn_l.toFixed(2)}% {t('pnl', language)}
                     </div>
                   )}
                 </div>
@@ -345,7 +348,7 @@ export default function AILearning({ traderId }: AILearningProps) {
             }}>
               <div className="p-5 border-b" style={{ borderColor: 'rgba(99, 102, 241, 0.2)', background: 'rgba(30, 35, 41, 0.6)' }}>
                 <h3 className="font-bold flex items-center gap-2" style={{ color: '#E0E7FF' }}>
-                  📊 Symbol Performance
+                  {t('symbolPerformance', language)}
                 </h3>
               </div>
               <div className="overflow-x-auto">
@@ -411,11 +414,11 @@ export default function AILearning({ traderId }: AILearningProps) {
               <div className="flex items-center gap-2">
                 <span className="text-xl">📜</span>
                 <div>
-                  <h3 className="font-bold text-sm" style={{ color: '#FCD34D' }}>Trade History</h3>
+                  <h3 className="font-bold text-sm" style={{ color: '#FCD34D' }}>{t('tradeHistory', language)}</h3>
                   <p className="text-xs" style={{ color: '#94A3B8' }}>
                     {performance?.recent_trades && performance.recent_trades.length > 0
-                      ? `Recent ${performance.recent_trades.length} completed trades`
-                      : 'Completed trades will appear here'}
+                      ? t('completedTrades', language, { count: performance.recent_trades.length })
+                      : t('completedTradesWillAppear', language)}
                   </p>
                 </div>
               </div>
@@ -459,7 +462,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                               background: 'rgba(240, 185, 11, 0.2)',
                               color: '#FCD34D'
                             }}>
-                              Latest
+                              {t('latest', language)}
                             </span>
                           )}
                         </div>
@@ -473,13 +476,13 @@ export default function AILearning({ traderId }: AILearningProps) {
                       {/* 价格信息 */}
                       <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
                         <div>
-                          <div style={{ color: '#94A3B8' }}>Entry</div>
+                          <div style={{ color: '#94A3B8' }}>{t('entry', language)}</div>
                           <div className="font-mono font-semibold" style={{ color: '#CBD5E1' }}>
                             {trade.open_price.toFixed(4)}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div style={{ color: '#94A3B8' }}>Exit</div>
+                          <div style={{ color: '#94A3B8' }}>{t('exit', language)}</div>
                           <div className="font-mono font-semibold" style={{ color: '#CBD5E1' }}>
                             {trade.close_price.toFixed(4)}
                           </div>
@@ -508,7 +511,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                             background: 'rgba(248, 113, 113, 0.2)',
                             color: '#FCA5A5'
                           }}>
-                            Stop Loss
+                            {t('stopLoss', language)}
                           </span>
                         )}
                       </div>
@@ -531,7 +534,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               ) : (
                 <div className="p-6 text-center">
                   <div className="text-4xl mb-2 opacity-50">📜</div>
-                  <div style={{ color: '#94A3B8' }}>No completed trades yet</div>
+                  <div style={{ color: '#94A3B8' }}>{t('noCompletedTrades', language)}</div>
                 </div>
               )}
             </div>
@@ -556,23 +559,23 @@ export default function AILearning({ traderId }: AILearningProps) {
             💡
           </div>
           <div>
-            <h3 className="font-bold mb-3 text-base" style={{ color: '#FCD34D' }}>How AI Learns & Evolves</h3>
+            <h3 className="font-bold mb-3 text-base" style={{ color: '#FCD34D' }}>{t('howAILearns', language)}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div className="flex items-start gap-2">
                 <span style={{ color: '#F0B90B' }}>•</span>
-                <span style={{ color: '#CBD5E1' }}>Analyzes last 20 trading cycles before each decision</span>
+                <span style={{ color: '#CBD5E1' }}>{t('aiLearningPoint1', language)}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span style={{ color: '#F0B90B' }}>•</span>
-                <span style={{ color: '#CBD5E1' }}>Identifies best & worst performing symbols</span>
+                <span style={{ color: '#CBD5E1' }}>{t('aiLearningPoint2', language)}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span style={{ color: '#F0B90B' }}>•</span>
-                <span style={{ color: '#CBD5E1' }}>Optimizes position sizing based on win rate</span>
+                <span style={{ color: '#CBD5E1' }}>{t('aiLearningPoint3', language)}</span>
               </div>
               <div className="flex items-start gap-2">
                 <span style={{ color: '#F0B90B' }}>•</span>
-                <span style={{ color: '#CBD5E1' }}>Avoids repeating past mistakes</span>
+                <span style={{ color: '#CBD5E1' }}>{t('aiLearningPoint4', language)}</span>
               </div>
             </div>
           </div>

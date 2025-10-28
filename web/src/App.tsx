@@ -4,6 +4,8 @@ import { api } from './lib/api';
 import { EquityChart } from './components/EquityChart';
 import { CompetitionPage } from './components/CompetitionPage';
 import AILearning from './components/AILearning';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { t, type Language } from './i18n/translations';
 import type {
   SystemStatus,
   AccountInfo,
@@ -16,6 +18,7 @@ import type {
 type Page = 'competition' | 'trader';
 
 function App() {
+  const { language, setLanguage } = useLanguage();
   const [currentPage, setCurrentPage] = useState<Page>('competition');
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>();
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
@@ -106,14 +109,62 @@ function App() {
               </div>
               <div>
                 <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                  AI Trading Competition
+                  {t('appTitle', language)}
                 </h1>
                 <p className="text-xs mono" style={{ color: '#848E9C' }}>
-                  Qwen vs DeepSeek · Real-time
+                  {t('subtitle', language)}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* GitHub Link */}
+              <a
+                href="https://github.com/tinkle-community/nofx"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+                style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#2B3139';
+                  e.currentTarget.style.color = '#EAECEF';
+                  e.currentTarget.style.borderColor = '#F0B90B';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#1E2329';
+                  e.currentTarget.style.color = '#848E9C';
+                  e.currentTarget.style.borderColor = '#2B3139';
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                <span>GitHub</span>
+              </a>
+
+              {/* Language Toggle */}
+              <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
+                <button
+                  onClick={() => setLanguage('zh')}
+                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
+                  style={language === 'zh'
+                    ? { background: '#F0B90B', color: '#000' }
+                    : { background: 'transparent', color: '#848E9C' }
+                  }
+                >
+                  中文
+                </button>
+                <button
+                  onClick={() => setLanguage('en')}
+                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
+                  style={language === 'en'
+                    ? { background: '#F0B90B', color: '#000' }
+                    : { background: 'transparent', color: '#848E9C' }
+                  }
+                >
+                  EN
+                </button>
+              </div>
+
               {/* Page Toggle */}
               <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
                 <button
@@ -126,7 +177,7 @@ function App() {
                     : { background: 'transparent', color: '#848E9C' }
                   }
                 >
-                  Competition
+                  {t('competition', language)}
                 </button>
                 <button
                   onClick={() => setCurrentPage('trader')}
@@ -136,7 +187,7 @@ function App() {
                     : { background: 'transparent', color: '#848E9C' }
                   }
                 >
-                  Details
+                  {t('details', language)}
                 </button>
               </div>
 
@@ -170,7 +221,7 @@ function App() {
                     style={{ background: status.is_running ? '#0ECB81' : '#F6465D' }}
                   />
                   <span className="font-semibold mono text-xs">
-                    {status.is_running ? 'RUNNING' : 'STOPPED'}
+                    {t(status.is_running ? 'running' : 'stopped', language)}
                   </span>
                 </div>
               )}
@@ -192,6 +243,7 @@ function App() {
             decisions={decisions}
             stats={stats}
             lastUpdate={lastUpdate}
+            language={language}
           />
         )}
       </main>
@@ -199,8 +251,32 @@ function App() {
       {/* Footer */}
       <footer className="mt-16" style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}>
         <div className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm" style={{ color: '#5E6673' }}>
-          <p>NOFX - AI Trading Competition System</p>
-          <p className="mt-1">⚠️ Trading involves risk. Use at your own discretion.</p>
+          <p>{t('footerTitle', language)}</p>
+          <p className="mt-1">{t('footerWarning', language)}</p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <a
+              href="https://github.com/tinkle-community/nofx"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+              style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#2B3139';
+                e.currentTarget.style.color = '#EAECEF';
+                e.currentTarget.style.borderColor = '#F0B90B';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#1E2329';
+                e.currentTarget.style.color = '#848E9C';
+                e.currentTarget.style.borderColor = '#2B3139';
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span>Star on GitHub</span>
+            </a>
+          </div>
         </div>
       </footer>
     </div>
@@ -216,6 +292,7 @@ function TraderDetailsPage({
   decisions,
   stats,
   lastUpdate,
+  language,
 }: {
   selectedTrader?: TraderInfo;
   status?: SystemStatus;
@@ -224,6 +301,7 @@ function TraderDetailsPage({
   decisions?: DecisionRecord[];
   stats?: Statistics;
   lastUpdate: string;
+  language: Language;
 }) {
   if (!selectedTrader) {
     return (
@@ -290,26 +368,26 @@ function TraderDetailsPage({
       {/* Account Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard
-          title="Total Equity"
+          title={t('totalEquity', language)}
           value={`${account?.total_equity.toFixed(2) || '0.00'} USDT`}
           change={account?.total_pnl_pct || 0}
           positive={account ? account.total_pnl > 0 : false}
         />
         <StatCard
-          title="Available Balance"
+          title={t('availableBalance', language)}
           value={`${account?.available_balance.toFixed(2) || '0.00'} USDT`}
-          subtitle={`${((account?.available_balance / account?.total_equity) * 100 || 0).toFixed(1)}% Free`}
+          subtitle={`${((account?.available_balance / account?.total_equity) * 100 || 0).toFixed(1)}% ${t('free', language)}`}
         />
         <StatCard
-          title="Total P&L"
+          title={t('totalPnL', language)}
           value={`${account?.total_pnl >= 0 ? '+' : ''}${account?.total_pnl.toFixed(2) || '0.00'} USDT`}
           change={account?.total_pnl_pct || 0}
           positive={account ? account.total_pnl >= 0 : false}
         />
         <StatCard
-          title="Positions"
+          title={t('positions', language)}
           value={`${account?.position_count || 0}`}
-          subtitle={`Margin: ${account?.margin_used_pct.toFixed(1) || '0.0'}%`}
+          subtitle={`${t('margin', language)}: ${account?.margin_used_pct.toFixed(1) || '0.0'}%`}
         />
       </div>
 
@@ -326,11 +404,11 @@ function TraderDetailsPage({
           <div className="binance-card p-6 animate-slide-in" style={{ animationDelay: '0.15s' }}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            📈 Current Positions
+            📈 {t('currentPositions', language)}
           </h2>
           {positions && positions.length > 0 && (
             <div className="text-xs px-3 py-1 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', color: '#F0B90B', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
-              {positions.length} Active
+              {positions.length} {t('active', language)}
             </div>
           )}
         </div>
@@ -339,15 +417,15 @@ function TraderDetailsPage({
             <table className="w-full text-sm">
               <thead className="text-left border-b border-gray-800">
                 <tr>
-                  <th className="pb-3 font-semibold text-gray-400">Symbol</th>
-                  <th className="pb-3 font-semibold text-gray-400">Side</th>
-                  <th className="pb-3 font-semibold text-gray-400">Entry Price</th>
-                  <th className="pb-3 font-semibold text-gray-400">Mark Price</th>
-                  <th className="pb-3 font-semibold text-gray-400">Quantity</th>
-                  <th className="pb-3 font-semibold text-gray-400">Position Value</th>
-                  <th className="pb-3 font-semibold text-gray-400">Leverage</th>
-                  <th className="pb-3 font-semibold text-gray-400">Unrealized P&L</th>
-                  <th className="pb-3 font-semibold text-gray-400">Liq. Price</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('symbol', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('side', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('entryPrice', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('markPrice', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('quantity', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('positionValue', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('leverage', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('unrealizedPnL', language)}</th>
+                  <th className="pb-3 font-semibold text-gray-400">{t('liqPrice', language)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -362,7 +440,7 @@ function TraderDetailsPage({
                           : { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }
                         }
                       >
-                        {pos.side.toUpperCase()}
+                        {t(pos.side === 'long' ? 'long' : 'short', language)}
                       </span>
                     </td>
                     <td className="py-3 font-mono" style={{ color: '#EAECEF' }}>{pos.entry_price.toFixed(4)}</td>
@@ -391,8 +469,8 @@ function TraderDetailsPage({
         ) : (
           <div className="text-center py-16" style={{ color: '#848E9C' }}>
             <div className="text-6xl mb-4 opacity-50">📊</div>
-            <div className="text-lg font-semibold mb-2">无持仓</div>
-            <div className="text-sm">当前没有活跃的交易持仓</div>
+            <div className="text-lg font-semibold mb-2">{t('noPositions', language)}</div>
+            <div className="text-sm">{t('noActivePositions', language)}</div>
           </div>
         )}
           </div>
@@ -410,10 +488,10 @@ function TraderDetailsPage({
               🧠
             </div>
             <div>
-              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>Recent Decisions</h2>
+              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>{t('recentDecisions', language)}</h2>
               {decisions && decisions.length > 0 && (
                 <div className="text-xs" style={{ color: '#848E9C' }}>
-                  Last {decisions.length} trading cycles
+                  {t('lastCycles', language, { count: decisions.length })}
                 </div>
               )}
             </div>
@@ -423,13 +501,13 @@ function TraderDetailsPage({
           <div className="space-y-4 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 280px)' }}>
             {decisions && decisions.length > 0 ? (
               decisions.map((decision, i) => (
-                <DecisionCard key={i} decision={decision} />
+                <DecisionCard key={i} decision={decision} language={language} />
               ))
             ) : (
               <div className="py-16 text-center">
                 <div className="text-6xl mb-4 opacity-30">🧠</div>
-                <div className="text-lg font-semibold mb-2" style={{ color: '#EAECEF' }}>No Decisions Yet</div>
-                <div className="text-sm" style={{ color: '#848E9C' }}>AI trading decisions will appear here</div>
+                <div className="text-lg font-semibold mb-2" style={{ color: '#EAECEF' }}>{t('noDecisionsYet', language)}</div>
+                <div className="text-sm" style={{ color: '#848E9C' }}>{t('aiDecisionsWillAppear', language)}</div>
               </div>
             )}
           </div>
@@ -480,7 +558,7 @@ function StatCard({
 }
 
 // Decision Card Component with CoT Trace - Binance Style
-function DecisionCard({ decision }: { decision: DecisionRecord }) {
+function DecisionCard({ decision, language }: { decision: DecisionRecord; language: Language }) {
   const [showCoT, setShowCoT] = useState(false);
 
   return (
@@ -488,7 +566,7 @@ function DecisionCard({ decision }: { decision: DecisionRecord }) {
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div>
-          <div className="font-semibold" style={{ color: '#EAECEF' }}>Cycle #{decision.cycle_number}</div>
+          <div className="font-semibold" style={{ color: '#EAECEF' }}>{t('cycle', language)} #{decision.cycle_number}</div>
           <div className="text-xs" style={{ color: '#848E9C' }}>
             {new Date(decision.timestamp).toLocaleString()}
           </div>
@@ -500,7 +578,7 @@ function DecisionCard({ decision }: { decision: DecisionRecord }) {
             : { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }
           }
         >
-          {decision.success ? 'Success' : 'Failed'}
+          {t(decision.success ? 'success' : 'failed', language)}
         </div>
       </div>
 
@@ -512,8 +590,8 @@ function DecisionCard({ decision }: { decision: DecisionRecord }) {
             className="flex items-center gap-2 text-sm transition-colors"
             style={{ color: '#F0B90B' }}
           >
-            <span className="font-semibold">💭 AI思维链分析</span>
-            <span className="text-xs">{showCoT ? '▼ 收起' : '▶ 展开'}</span>
+            <span className="font-semibold">{t('aiThinking', language)}</span>
+            <span className="text-xs">{showCoT ? t('collapse', language) : t('expand', language)}</span>
           </button>
           {showCoT && (
             <div className="mt-2 rounded p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}>
@@ -586,4 +664,11 @@ function DecisionCard({ decision }: { decision: DecisionRecord }) {
   );
 }
 
-export default App;
+// Wrap App with LanguageProvider
+export default function AppWithLanguage() {
+  return (
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
+  );
+}

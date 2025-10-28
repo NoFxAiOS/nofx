@@ -11,6 +11,8 @@ import {
 } from 'recharts';
 import useSWR from 'swr';
 import { api } from '../lib/api';
+import { useLanguage } from '../contexts/LanguageContext';
+import { t } from '../i18n/translations';
 
 interface EquityPoint {
   timestamp: string;
@@ -25,6 +27,7 @@ interface EquityChartProps {
 }
 
 export function EquityChart({ traderId }: EquityChartProps) {
+  const { language } = useLanguage();
   const [displayMode, setDisplayMode] = useState<'dollar' | 'percent'>('dollar');
 
   const { data: history, error } = useSWR<EquityPoint[]>(
@@ -49,7 +52,7 @@ export function EquityChart({ traderId }: EquityChartProps) {
         <div className="flex items-center gap-3 p-4 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', border: '1px solid rgba(246, 70, 93, 0.2)' }}>
           <div className="text-2xl">⚠️</div>
           <div>
-            <div className="font-semibold" style={{ color: '#F6465D' }}>加载失败</div>
+            <div className="font-semibold" style={{ color: '#F6465D' }}>{t('loadingError', language)}</div>
             <div className="text-sm" style={{ color: '#848E9C' }}>{error.message}</div>
           </div>
         </div>
@@ -60,11 +63,11 @@ export function EquityChart({ traderId }: EquityChartProps) {
   if (!history || history.length === 0) {
     return (
       <div className="binance-card p-6">
-        <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>账户净值曲线</h3>
+        <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>{t('accountEquityCurve', language)}</h3>
         <div className="text-center py-16" style={{ color: '#848E9C' }}>
           <div className="text-6xl mb-4 opacity-50">📊</div>
-          <div className="text-lg font-semibold mb-2">暂无历史数据</div>
-          <div className="text-sm">运行几个周期后将显示收益率曲线</div>
+          <div className="text-lg font-semibold mb-2">{t('noHistoricalData', language)}</div>
+          <div className="text-sm">{t('dataWillAppear', language)}</div>
         </div>
       </div>
     );
@@ -153,7 +156,7 @@ export function EquityChart({ traderId }: EquityChartProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-bold mb-2" style={{ color: '#EAECEF' }}>账户净值曲线</h3>
+          <h3 className="text-lg font-bold mb-2" style={{ color: '#EAECEF' }}>{t('accountEquityCurve', language)}</h3>
           <div className="flex items-baseline gap-4">
             <span className="text-3xl font-bold mono" style={{ color: '#EAECEF' }}>
               {account?.total_equity.toFixed(2) || '0.00'}
@@ -239,7 +242,7 @@ export function EquityChart({ traderId }: EquityChartProps) {
             stroke="#474D57"
             strokeDasharray="3 3"
             label={{
-              value: displayMode === 'dollar' ? '初始' : '0%',
+              value: displayMode === 'dollar' ? t('initialBalance', language).split(' ')[0] : '0%',
               fill: '#848E9C',
               fontSize: 12,
             }}
@@ -259,27 +262,27 @@ export function EquityChart({ traderId }: EquityChartProps) {
       {/* Footer Stats */}
       <div className="mt-3 grid grid-cols-4 gap-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
         <div className="p-2 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>初始余额</div>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('initialBalance', language)}</div>
           <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>
             {initialBalance.toFixed(2)} USDT
           </div>
         </div>
         <div className="p-2 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>当前净值</div>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('currentEquity', language)}</div>
           <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>
             {currentValue.raw_equity.toFixed(2)} USDT
           </div>
         </div>
         <div className="p-2 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>历史周期</div>
-          <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>{history.length} 个</div>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('historicalCycles', language)}</div>
+          <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>{history.length} {t('cycles', language)}</div>
         </div>
         <div className="p-2 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>显示范围</div>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('displayRange', language)}</div>
           <div className="text-sm font-bold mono" style={{ color: '#EAECEF' }}>
             {history.length > MAX_DISPLAY_POINTS
-              ? `最近 ${MAX_DISPLAY_POINTS}`
-              : '全部数据'
+              ? `${t('recent', language)} ${MAX_DISPLAY_POINTS}`
+              : t('allData', language)
             }
           </div>
         </div>

@@ -288,6 +288,7 @@ type PerformanceAnalysis struct {
 	AvgWin        float64                       `json:"avg_win"`        // 平均盈利
 	AvgLoss       float64                       `json:"avg_loss"`       // 平均亏损
 	ProfitFactor  float64                       `json:"profit_factor"`  // 盈亏比
+	SharpeRatio   float64                       `json:"sharpe_ratio"`   // 夏普比率（风险调整后收益）
 	RecentTrades  []TradeOutcome                `json:"recent_trades"`  // 最近N笔交易
 	SymbolStats   map[string]*SymbolPerformance `json:"symbol_stats"`   // 各币种表现
 	BestSymbol    string                        `json:"best_symbol"`    // 表现最好的币种
@@ -458,5 +459,93 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 		}
 	}
 
+	// 计算夏普比率（需要至少2个数据点）
+	analysis.SharpeRatio = l.calculateSharpeRatio(records)
+
 	return analysis, nil
+}
+
+// calculateSharpeRatio 计算夏普比率
+// 基于账户净值的变化计算风险调整后收益
+func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64 {
+	if len(records) < 2 {
+		return 0.0 // 至少需要2个数据点才能计算收益率
+	}
+
+	// 提取每个周期的账户净值
+	var equities []float64
+	for _, record := range records {
+		// 使用TotalBalance作为净值（包含未实现盈亏）
+		equity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
+		if equity > 0 {
+			equities = append(equities, equity)
+		}
+	}
+
+	if len(equities) < 2 {
+		return 0.0
+	}
+
+	// 计算周期收益率（period returns）
+	var returns []float64
+	for i := 1; i < len(equities); i++ {
+		if equities[i-1] > 0 {
+			periodReturn := (equities[i] - equities[i-1]) / equities[i-1]
+			returns = append(returns, periodReturn)
+		}
+	}
+
+	if len(returns) == 0 {
+		return 0.0
+	}
+
+	// 计算平均收益率
+	sumReturns := 0.0
+	for _, r := range returns {
+		sumReturns += r
+	}
+	meanReturn := sumReturns / float64(len(returns))
+
+	// 计算收益率标准差
+	sumSquaredDiff := 0.0
+	for _, r := range returns {
+		diff := r - meanReturn
+		sumSquaredDiff += diff * diff
+	}
+	variance := sumSquaredDiff / float64(len(returns))
+	stdDev := 0.0
+	if variance > 0 {
+		stdDev = 1.0
+		// 简单的平方根计算（牛顿迭代法）
+		for i := 0; i < 10; i++ {
+			stdDev = (stdDev + variance/stdDev) / 2
+		}
+	}
+
+	// 避免除以零
+	if stdDev == 0 {
+		if meanReturn > 0 {
+			return 999.0 // 无波动的正收益
+		} else if meanReturn < 0 {
+			return -999.0 // 无波动的负收益
+		}
+		return 0.0
+	}
+
+	// 计算夏普比率（假设无风险利率为0）
+	sharpeRatio := meanReturn / stdDev
+
+	// 年化夏普比率
+	// 假设每个周期是3分钟，一天有480个周期
+	// 年化因子 = sqrt(一年的周期数) = sqrt(480 * 365) ≈ sqrt(175200) ≈ 419
+	// 简化：使用每日周期数作为年化基准
+	periodsPerDay := 480.0 // 24小时 * 60分钟 / 3分钟
+	annualizationFactor := 1.0
+	for i := 0; i < 10; i++ {
+		annualizationFactor = (annualizationFactor + periodsPerDay/annualizationFactor) / 2
+	}
+
+	annualizedSharpe := sharpeRatio * annualizationFactor
+
+	return annualizedSharpe
 }

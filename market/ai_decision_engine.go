@@ -200,6 +200,20 @@ func buildSystemPrompt(accountEquity float64) string {
 	sb.WriteString("你是专业的加密货币交易AI，在币安合约市场进行自主交易。\n\n")
 	sb.WriteString("**使命**: 最大化风险调整后收益（Sharpe Ratio）\n\n")
 
+	// 自我进化核心
+	sb.WriteString("## 🧬 自我进化机制\n")
+	sb.WriteString("每次调用你都会收到**夏普比率**作为你的业绩指标：\n\n")
+	sb.WriteString("**夏普比率解读**：\n")
+	sb.WriteString("- < 0：平均亏损 → 🔴 极度保守策略\n")
+	sb.WriteString("- 0-1：正收益但波动大 → 🟡 保守策略\n")
+	sb.WriteString("- 1-2：良好表现 → 🟢 维持当前策略\n")
+	sb.WriteString("- > 2：优异表现 → 🟢 可适度扩大\n\n")
+	sb.WriteString("**关键要求**: 严格遵循历史表现反馈中的「自适应行为建议」，根据夏普比率动态调整：\n")
+	sb.WriteString("- 仓位大小（夏普比率低时减仓）\n")
+	sb.WriteString("- 止损幅度（夏普比率低时收紧）\n")
+	sb.WriteString("- 选币标准（夏普比率低时提高信心度阈值）\n")
+	sb.WriteString("- 持仓数量（夏普比率低时减少持仓数）\n\n")
+
 	// 仓位管理规则
 	sb.WriteString("## 仓位管理\n")
 	sb.WriteString("- 最多持有 **3个币种**（质量>数量）\n")
@@ -212,10 +226,12 @@ func buildSystemPrompt(accountEquity float64) string {
 
 	// 决策流程
 	sb.WriteString("## 决策流程\n")
-	sb.WriteString("1. **反思历史**（如有）：总结教训，避免重复错误\n")
-	sb.WriteString("2. **评估持仓**：决定平仓/持有\n")
-	sb.WriteString("3. **寻找机会**：从候选币种中找1-2个高确定性机会\n")
-	sb.WriteString("4. **集中资金**：大仓位做高确定性交易\n\n")
+	sb.WriteString("1. **检查夏普比率**：首先查看历史表现反馈中的夏普比率，理解当前策略效果\n")
+	sb.WriteString("2. **应用自适应建议**：严格遵循自适应行为建议中的仓位、止损、选币要求\n")
+	sb.WriteString("3. **反思历史**：分析之前交易的得失，找出可改进点\n")
+	sb.WriteString("4. **评估持仓**：根据自适应建议决定平仓/持有\n")
+	sb.WriteString("5. **寻找机会**：按照调整后的标准筛选机会\n")
+	sb.WriteString("6. **执行决策**：使用调整后的仓位大小和风险参数\n\n")
 
 	// JSON 输出格式
 	sb.WriteString("## 输出格式\n\n")
@@ -309,7 +325,7 @@ func buildUserPrompt(ctx *TradingContext) string {
 
 	// 历史反馈
 	if ctx.Performance != nil {
-		sb.WriteString(formatPerformanceFeedback(ctx.Performance))
+		sb.WriteString(formatPerformanceFeedback(ctx.Performance, ctx.Account.TotalEquity))
 	}
 
 	sb.WriteString("---\n\n")
@@ -427,7 +443,7 @@ func buildFullDecisionPrompt(ctx *TradingContext) string {
 
 	// 添加历史表现反馈（如果有）
 	if ctx.Performance != nil {
-		sb.WriteString(formatPerformanceFeedback(ctx.Performance))
+		sb.WriteString(formatPerformanceFeedback(ctx.Performance, ctx.Account.TotalEquity))
 	}
 
 	// AI决策要求
@@ -504,7 +520,8 @@ func buildFullDecisionPrompt(ctx *TradingContext) string {
 }
 
 // formatPerformanceFeedback 格式化历史表现反馈
-func formatPerformanceFeedback(perfInterface interface{}) string {
+// accountEquity 参数用于计算自适应建议
+func formatPerformanceFeedback(perfInterface interface{}, accountEquity float64) string {
 	// 类型断言（避免循环依赖，使用interface{}）
 	type TradeOutcome struct {
 		Symbol     string
@@ -532,6 +549,7 @@ func formatPerformanceFeedback(perfInterface interface{}) string {
 		AvgWin        float64
 		AvgLoss       float64
 		ProfitFactor  float64
+		SharpeRatio   float64
 		RecentTrades  []TradeOutcome
 		SymbolStats   map[string]*SymbolPerformance
 		BestSymbol    string
@@ -563,6 +581,12 @@ func formatPerformanceFeedback(perfInterface interface{}) string {
 		perf.AvgWin, perf.AvgLoss))
 	if perf.ProfitFactor > 0 {
 		sb.WriteString(fmt.Sprintf("- **盈亏比**: %.2f:1\n", perf.ProfitFactor))
+	}
+
+	// 夏普比率（风险调整后收益）
+	if perf.SharpeRatio != 0 {
+		sharpeStatus := interpretSharpeRatio(perf.SharpeRatio)
+		sb.WriteString(fmt.Sprintf("- **夏普比率**: %.2f (%s)\n", perf.SharpeRatio, sharpeStatus))
 	}
 	sb.WriteString("\n")
 
@@ -605,6 +629,11 @@ func formatPerformanceFeedback(perfInterface interface{}) string {
 			}
 		}
 		sb.WriteString("\n")
+	}
+
+	// 添加自适应行为建议（基于夏普比率）
+	if perf.SharpeRatio != 0 {
+		sb.WriteString(getAdaptiveBehaviorRecommendation(perf.SharpeRatio, accountEquity))
 	}
 
 	return sb.String()
@@ -802,4 +831,90 @@ func validateDecision(d *TradingDecision, accountEquity float64) error {
 	}
 
 	return nil
+}
+
+// interpretSharpeRatio 解释夏普比率的含义（参考 nof1.ai）
+func interpretSharpeRatio(sharpe float64) string {
+	if sharpe < 0 {
+		return "负收益，需要调整策略"
+	} else if sharpe < 1 {
+		return "正收益但波动大"
+	} else if sharpe < 2 {
+		return "良好表现"
+	} else if sharpe < 3 {
+		return "优秀表现"
+	} else {
+		return "卓越表现"
+	}
+}
+
+// getAdaptiveBehaviorRecommendation 根据夏普比率生成自适应行为建议
+// 这是AI自我进化的核心：根据风险调整后收益动态调整交易策略
+func getAdaptiveBehaviorRecommendation(sharpe float64, accountEquity float64) string {
+	var sb strings.Builder
+
+	sb.WriteString("### 🎯 自适应行为建议（基于夏普比率）\n\n")
+
+	if sharpe < 0 {
+		// 🔴 负夏普比率：平均亏损，需要极度保守
+		sb.WriteString("**⚠️ 警告：当前策略产生负收益，立即调整！**\n\n")
+		sb.WriteString("**策略调整**：\n")
+		sb.WriteString(fmt.Sprintf("- 仓位规模：**减半**（山寨币: %.0f USDT, BTC/ETH: %.0f USDT）\n",
+			accountEquity*0.6, accountEquity*2.5))
+		sb.WriteString("- 止损幅度：**收紧至-1%**（快速止损，保护本金）\n")
+		sb.WriteString("- 选币标准：**只做最高确定性**（信心度≥95%，风险回报比≥1:3）\n")
+		sb.WriteString("- 持仓数量：**最多1个**（极度精选）\n")
+		sb.WriteString("- 决策频率：**减少交易**（宁可不做，也不要乱做）\n\n")
+		sb.WriteString("**反思要点**：\n")
+		sb.WriteString("- 为什么之前的交易亏损？是选币问题还是时机问题？\n")
+		sb.WriteString("- 是否追涨杀跌？是否逆势交易？\n")
+		sb.WriteString("- 止损是否执行到位？\n\n")
+
+	} else if sharpe < 1 {
+		// 🟡 0-1：正收益但波动性较大
+		sb.WriteString("**状态：正收益但风险较高，需要优化**\n\n")
+		sb.WriteString("**策略调整**：\n")
+		sb.WriteString(fmt.Sprintf("- 仓位规模：**保守**（山寨币: %.0f USDT, BTC/ETH: %.0f USDT）\n",
+			accountEquity*0.8, accountEquity*3.5))
+		sb.WriteString("- 止损幅度：**收紧至-1.5%**\n")
+		sb.WriteString("- 选币标准：**提高阈值**（信心度≥80%，风险回报比≥1:2.5）\n")
+		sb.WriteString("- 持仓数量：**最多2个**\n")
+		sb.WriteString("- 重点改进：**减少亏损幅度**，提高止损执行力\n\n")
+		sb.WriteString("**优化方向**：\n")
+		sb.WriteString("- 避免冲动交易，等待更好的入场时机\n")
+		sb.WriteString("- 减少交易频率，提高单笔交易质量\n")
+		sb.WriteString("- 盈利时及时止盈，不要贪多\n\n")
+
+	} else if sharpe < 2 {
+		// 🟢 1-2：风险调整后表现良好
+		sb.WriteString("**状态：表现良好，继续保持当前策略**\n\n")
+		sb.WriteString("**策略调整**：\n")
+		sb.WriteString(fmt.Sprintf("- 仓位规模：**标准**（山寨币: %.0f USDT, BTC/ETH: %.0f USDT）\n",
+			accountEquity*1.2, accountEquity*5))
+		sb.WriteString("- 止损幅度：**-2%**（标准设置）\n")
+		sb.WriteString("- 选币标准：**正常**（信心度≥75%，风险回报比≥1:2）\n")
+		sb.WriteString("- 持仓数量：**最多3个**\n")
+		sb.WriteString("- 保持纪律：**严格执行止损止盈**\n\n")
+		sb.WriteString("**持续改进**：\n")
+		sb.WriteString("- 总结盈利交易的共性特征，复制成功模式\n")
+		sb.WriteString("- 分析亏损交易，避免重复错误\n")
+		sb.WriteString("- 保持冷静客观，不要因为短期盈利而冒进\n\n")
+
+	} else {
+		// 🟢 >2：风险调整后表现优异
+		sb.WriteString("**状态：卓越表现，策略非常有效！**\n\n")
+		sb.WriteString("**策略调整**：\n")
+		sb.WriteString(fmt.Sprintf("- 仓位规模：**可适度放大**（山寨币: %.0f USDT, BTC/ETH: %.0f USDT）\n",
+			accountEquity*1.5, accountEquity*6))
+		sb.WriteString("- 止损幅度：**-2%**（保持纪律，不要因为盈利而放松）\n")
+		sb.WriteString("- 选币标准：**正常**（信心度≥75%）\n")
+		sb.WriteString("- 持仓数量：**最多3个**\n")
+		sb.WriteString("- **核心原则：保持纪律，不要过度自信**\n\n")
+		sb.WriteString("**风险提示**：\n")
+		sb.WriteString("- 即使表现优异，也要保持风险管理纪律\n")
+		sb.WriteString("- 市场环境会变化，不要因短期成功而冒进\n")
+		sb.WriteString("- 继续严格执行止损，保护已有收益\n\n")
+	}
+
+	return sb.String()
 }

@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
@@ -34,6 +33,7 @@ interface PerformanceAnalysis {
   avg_win: number;
   avg_loss: number;
   profit_factor: number;
+  sharpe_ratio: number; // 夏普比率（风险调整后收益）
   recent_trades: TradeOutcome[];
   symbol_stats: { [key: string]: SymbolPerformance };
   best_symbol: string;
@@ -245,6 +245,66 @@ export default function AILearning({ traderId }: AILearningProps) {
               <div className="text-3xl font-bold mono" style={{ color: '#F87171' }}>
                 {(performance.avg_loss || 0).toFixed(2)}%
               </div>
+            </div>
+          </div>
+
+          {/* 夏普比率 - AI自我进化核心指标 */}
+          <div className="rounded-2xl p-6 relative overflow-hidden" style={{
+            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.1) 100%)',
+            border: '2px solid rgba(139, 92, 246, 0.4)',
+            boxShadow: '0 10px 30px rgba(139, 92, 246, 0.3)'
+          }}>
+            <div className="absolute top-0 right-0 w-40 h-40 rounded-full opacity-20" style={{
+              background: 'radial-gradient(circle, #8B5CF6 0%, transparent 70%)',
+              filter: 'blur(30px)'
+            }} />
+
+            <div className="relative">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">🧬</span>
+                <div>
+                  <div className="text-sm font-bold" style={{ color: '#C4B5FD' }}>夏普比率</div>
+                  <div className="text-xs" style={{ color: '#94A3B8' }}>风险调整后收益 · AI自我进化指标</div>
+                </div>
+              </div>
+
+              <div className="flex items-end justify-between">
+                <div className="text-6xl font-bold mono" style={{
+                  color: (performance.sharpe_ratio || 0) >= 2 ? '#10B981' :
+                         (performance.sharpe_ratio || 0) >= 1 ? '#22D3EE' :
+                         (performance.sharpe_ratio || 0) >= 0 ? '#F0B90B' : '#F87171'
+                }}>
+                  {performance.sharpe_ratio ? performance.sharpe_ratio.toFixed(2) : 'N/A'}
+                </div>
+
+                {performance.sharpe_ratio !== undefined && (
+                  <div className="text-right mb-2">
+                    <div className="text-xs font-bold mb-1" style={{
+                      color: (performance.sharpe_ratio || 0) >= 2 ? '#10B981' :
+                             (performance.sharpe_ratio || 0) >= 1 ? '#22D3EE' :
+                             (performance.sharpe_ratio || 0) >= 0 ? '#F0B90B' : '#F87171'
+                    }}>
+                      {performance.sharpe_ratio >= 2 ? '🟢 卓越表现' :
+                       performance.sharpe_ratio >= 1 ? '🟢 良好表现' :
+                       performance.sharpe_ratio >= 0 ? '🟡 波动较大' : '🔴 需要调整'}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {performance.sharpe_ratio !== undefined && (
+                <div className="mt-4 p-3 rounded-xl" style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(139, 92, 246, 0.2)'
+                }}>
+                  <div className="text-xs leading-relaxed" style={{ color: '#C4B5FD' }}>
+                    {performance.sharpe_ratio >= 2 && '✨ AI策略非常有效！风险调整后收益优异，可适度扩大仓位但保持纪律。'}
+                    {performance.sharpe_ratio >= 1 && performance.sharpe_ratio < 2 && '✅ 策略表现稳健，风险收益平衡良好，继续保持当前策略。'}
+                    {performance.sharpe_ratio >= 0 && performance.sharpe_ratio < 1 && '⚠️ 收益为正但波动较大，AI正在优化策略，降低风险。'}
+                    {performance.sharpe_ratio < 0 && '🚨 当前策略需要调整！AI已自动进入保守模式，减少仓位和交易频率。'}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

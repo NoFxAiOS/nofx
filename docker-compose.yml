@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nofx-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # 挂载配置文件（必须）
+      - ./config.json:/app/config.json:ro
+      # 持久化决策日志
+      - ./decision_logs:/app/decision_logs
+      # 持久化币种池缓存
+      - ./coin_pool_cache:/app/coin_pool_cache
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - nofx-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: nofx-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - nofx-network
+    environment:
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  nofx-network:
+    driver: bridge
+
+volumes:
+  decision_logs:
+  coin_pool_cache:

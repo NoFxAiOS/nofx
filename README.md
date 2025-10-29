@@ -166,6 +166,54 @@ Before using this system, you need a Binance Futures account. **Use our referral
 
 ## 🚀 Quick Start
 
+### 🐳 Option A: Docker One-Click Deployment (EASIEST - Recommended for Beginners!)
+
+**⚡ Start trading in 3 simple steps with Docker - No installation needed!**
+
+Docker automatically handles all dependencies (Go, Node.js, TA-Lib) and environment setup. Perfect for beginners!
+
+#### Step 1: Prepare Configuration
+```bash
+# Copy configuration template
+cp config.json.example config.json
+
+# Edit and fill in your API keys
+nano config.json  # or use any editor
+```
+
+#### Step 2: One-Click Start
+```bash
+# Option 1: Use convenience script (Recommended)
+chmod +x start.sh
+./start.sh start --build
+
+# Option 2: Use docker-compose directly
+docker-compose up -d --build
+```
+
+#### Step 3: Access Dashboard
+Open your browser and visit: **http://localhost:3000**
+
+**That's it! 🎉** Your AI trading system is now running!
+
+#### Manage Your System
+```bash
+./start.sh logs      # View logs
+./start.sh status    # Check status
+./start.sh stop      # Stop services
+./start.sh restart   # Restart services
+```
+
+**📖 For detailed Docker deployment guide, troubleshooting, and advanced configuration:**
+- **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
+- **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
+
+---
+
+### 📦 Option B: Manual Installation (For Developers)
+
+**Note**: If you used Docker deployment above, skip this section. Manual installation is only needed if you want to modify the code or run without Docker.
+
 ### 1. Environment Requirements
 
 - **Go 1.21+**

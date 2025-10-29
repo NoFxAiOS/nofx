@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+.github
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Build artifacts
+nofx
+nofx_test
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+test_*
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Runtime data
+decision_logs/
+coin_pool_cache/
+*.log
+
+# Config files (should be mounted)
+config.json
+
+# Web directory (has its own Dockerfile)
+web/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

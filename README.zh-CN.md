@@ -166,6 +166,54 @@ nofx/
 
 ## 🚀 快速开始
 
+### 🐳 方式A：Docker 一键部署（最简单 - 新手推荐！）
+
+**⚡ 使用Docker只需3步即可开始交易 - 无需安装任何环境！**
+
+Docker会自动处理所有依赖（Go、Node.js、TA-Lib）和环境配置，完美适合新手！
+
+#### 步骤1：准备配置文件
+```bash
+# 复制配置文件模板
+cp config.json.example config.json
+
+# 编辑并填入你的API密钥
+nano config.json  # 或使用其他编辑器
+```
+
+#### 步骤2：一键启动
+```bash
+# 方式1：使用便捷脚本（推荐）
+chmod +x start.sh
+./start.sh start --build
+
+# 方式2：直接使用docker-compose
+docker-compose up -d --build
+```
+
+#### 步骤3：访问控制台
+在浏览器中打开：**http://localhost:3000**
+
+**就是这么简单！🎉** 你的AI交易系统已经运行起来了！
+
+#### 管理你的系统
+```bash
+./start.sh logs      # 查看日志
+./start.sh status    # 检查状态
+./start.sh stop      # 停止服务
+./start.sh restart   # 重启服务
+```
+
+**📖 详细的Docker部署教程、故障排查和高级配置：**
+- **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
+- **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
+
+---
+
+### 📦 方式B：手动安装（开发者）
+
+**注意**：如果你使用了上面的Docker部署，请跳过本节。手动安装仅在你需要修改代码或不想使用Docker时需要。
+
 ### 1. 环境要求
 
 - **Go 1.21+**

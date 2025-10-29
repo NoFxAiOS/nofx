@@ -19,24 +19,32 @@ interface ComparisonChartProps {
 }
 
 export function ComparisonChart({ traders }: ComparisonChartProps) {
-  // 获取所有trader的历史数据 - 修复: 使用固定数量的Hook调用
-  // 始终调用最多2个trader的useSWR，即使实际trader数量不同
-  const trader1 = traders[0];
-  const trader2 = traders[1];
+  // 获取所有trader的历史数据 - 使用单个useSWR并发请求所有trader数据
+  // 生成唯一的key，当traders变化时会触发重新请求
+  const tradersKey = traders.map(t => t.trader_id).sort().join(',');
 
-  const history1 = useSWR(
-    trader1 ? `equity-history-${trader1.trader_id}` : null,
-    trader1 ? () => api.getEquityHistory(trader1.trader_id) : null,
-    { refreshInterval: 10000 }
+  const { data: allTraderHistories, isLoading } = useSWR(
+    traders.length > 0 ? `all-equity-histories-${tradersKey}` : null,
+    async () => {
+      // 并发请求所有trader的历史数据
+      const promises = traders.map(trader =>
+        api.getEquityHistory(trader.trader_id)
+      );
+      return Promise.all(promises);
+    },
+    {
+      refreshInterval: 10000,
+      revalidateOnFocus: false,
+    }
   );
 
-  const history2 = useSWR(
-    trader2 ? `equity-history-${trader2.trader_id}` : null,
-    trader2 ? () => api.getEquityHistory(trader2.trader_id) : null,
-    { refreshInterval: 10000 }
-  );
-
-  const traderHistories = [history1, history2].slice(0, traders.length);
+  // 将数据转换为与原格式兼容的结构
+  const traderHistories = useMemo(() => {
+    if (!allTraderHistories) {
+      return traders.map(() => ({ data: undefined }));
+    }
+    return allTraderHistories.map(data => ({ data }));
+  }, [allTraderHistories, traders.length]);
 
   // 使用useMemo自动处理数据合并，直接使用data对象作为依赖
   const combinedData = useMemo(() => {
@@ -115,12 +123,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     }
 
     return combined;
-  }, [
-    traderHistories[0]?.data,
-    traderHistories[1]?.data,
-  ]);
-
-  const isLoading = traderHistories.some((h) => !h.data);
+  }, [allTraderHistories, traders]);
 
   if (isLoading) {
     return (

@@ -13,6 +13,10 @@
       "scan_interval_minutes": 3
     }
   ],
+  "leverage": {
+    "btc_eth_leverage": 5,
+    "altcoin_leverage": 5
+  },
   "use_default_coins": true,
   "coin_pool_api_url": "",
   "oi_top_api_url": "",

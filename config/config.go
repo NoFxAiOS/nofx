@@ -20,6 +20,12 @@ type TraderConfig struct {
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 }
 
+// LeverageConfig 杠杆配置
+type LeverageConfig struct {
+	BTCETHLeverage  int `json:"btc_eth_leverage"`  // BTC和ETH的杠杆倍数（主账户建议5-50，子账户≤5）
+	AltcoinLeverage int `json:"altcoin_leverage"`  // 山寨币的杠杆倍数（主账户建议5-20，子账户≤5）
+}
+
 // Config 总配置
 type Config struct {
 	Traders            []TraderConfig `json:"traders"`
@@ -30,6 +36,7 @@ type Config struct {
 	MaxDailyLoss       float64        `json:"max_daily_loss"`
 	MaxDrawdown        float64        `json:"max_drawdown"`
 	StopTradingMinutes int            `json:"stop_trading_minutes"`
+	Leverage           LeverageConfig `json:"leverage"` // 杠杆配置
 }
 
 // LoadConfig 从文件加载配置
@@ -98,6 +105,20 @@ func (c *Config) Validate() error {
 
 	if c.APIServerPort <= 0 {
 		c.APIServerPort = 8080 // 默认8080端口
+	}
+
+	// 设置杠杆默认值（适配币安子账户限制，最大5倍）
+	if c.Leverage.BTCETHLeverage <= 0 {
+		c.Leverage.BTCETHLeverage = 5 // 默认5倍（安全值，适配子账户）
+	}
+	if c.Leverage.BTCETHLeverage > 5 {
+		fmt.Printf("⚠️  警告: BTC/ETH杠杆设置为%dx，如果使用子账户可能会失败（子账户限制≤5x）\n", c.Leverage.BTCETHLeverage)
+	}
+	if c.Leverage.AltcoinLeverage <= 0 {
+		c.Leverage.AltcoinLeverage = 5 // 默认5倍（安全值，适配子账户）
+	}
+	if c.Leverage.AltcoinLeverage > 5 {
+		fmt.Printf("⚠️  警告: 山寨币杠杆设置为%dx，如果使用子账户可能会失败（子账户限制≤5x）\n", c.Leverage.AltcoinLeverage)
 	}
 
 	return nil

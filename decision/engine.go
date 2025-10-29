@@ -97,7 +97,7 @@ func GetFullDecision(ctx *Context) (*FullDecision, error) {
 	}
 
 	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
-	systemPrompt := buildSystemPrompt(ctx.Account.TotalEquity)
+	systemPrompt := buildSystemPrompt(ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
 	userPrompt := buildUserPrompt(ctx)
 
 	// 3. 调用AI API（使用 system + user prompt）
@@ -200,7 +200,7 @@ func calculateMaxCandidates(ctx *Context) int {
 }
 
 // buildSystemPrompt 构建 System Prompt（固定规则，可缓存）
-func buildSystemPrompt(accountEquity float64) string {
+func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage int) string {
 	var sb strings.Builder
 
 	// === 核心使命 ===
@@ -222,8 +222,8 @@ func buildSystemPrompt(accountEquity float64) string {
 	sb.WriteString("# ⚖️ 硬约束（风险控制）\n\n")
 	sb.WriteString("1. **风险回报比**: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")
 	sb.WriteString("2. **最多持仓**: 3个币种（质量>数量）\n")
-	sb.WriteString(fmt.Sprintf("3. **单币仓位**: 山寨%.0f-%.0f U(20x杠杆) | BTC/ETH %.0f-%.0f U(50x杠杆)\n",
-		accountEquity*0.8, accountEquity*1.5, accountEquity*5, accountEquity*10))
+	sb.WriteString(fmt.Sprintf("3. **单币仓位**: 山寨%.0f-%.0f U(%dx杠杆) | BTC/ETH %.0f-%.0f U(%dx杠杆)\n",
+		accountEquity*0.8, accountEquity*1.5, altcoinLeverage, accountEquity*5, accountEquity*10, btcEthLeverage))
 	sb.WriteString("4. **保证金**: 总使用率 ≤ 90%\n\n")
 
 	// === 做空激励 ===
@@ -296,7 +296,7 @@ func buildSystemPrompt(accountEquity float64) string {
 	sb.WriteString("简洁分析你的思考过程\n\n")
 	sb.WriteString("**第二步: JSON决策数组**\n\n")
 	sb.WriteString("```json\n[\n")
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": 50, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300, \"reasoning\": \"下跌趋势+MACD死叉\"},\n", accountEquity*5))
+	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300, \"reasoning\": \"下跌趋势+MACD死叉\"},\n", btcEthLeverage, accountEquity*5))
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\", \"reasoning\": \"止盈离场\"}\n")
 	sb.WriteString("]\n```\n\n")
 	sb.WriteString("**字段说明**:\n")

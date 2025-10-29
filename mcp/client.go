@@ -16,6 +16,7 @@ type Provider string
 const (
 	ProviderDeepSeek Provider = "deepseek"
 	ProviderQwen     Provider = "qwen"
+	ProviderCustom   Provider = "custom"
 )
 
 // Config AI API配置
@@ -51,6 +52,15 @@ func SetQwenAPIKey(apiKey, secretKey string) {
 	defaultConfig.SecretKey = secretKey
 	defaultConfig.BaseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 	defaultConfig.Model = "qwen-plus" // 可选: qwen-turbo, qwen-plus, qwen-max
+}
+
+// SetCustomAPI 设置自定义OpenAI兼容API
+func SetCustomAPI(apiURL, apiKey, modelName string) {
+	defaultConfig.Provider = ProviderCustom
+	defaultConfig.APIKey = apiKey
+	defaultConfig.BaseURL = apiURL
+	defaultConfig.Model = modelName
+	defaultConfig.Timeout = 120 * time.Second
 }
 
 // SetConfig 设置完整的AI配置（高级用户）

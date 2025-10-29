@@ -21,7 +21,7 @@ type AutoTraderConfig struct {
 	AIModel string // AI模型: "qwen" 或 "deepseek"
 
 	// 交易平台选择
-	Exchange string // "binance" 或 "hyperliquid"
+	Exchange string // "binance", "hyperliquid" 或 "aster"
 
 	// 币安API配置
 	BinanceAPIKey    string
@@ -30,6 +30,11 @@ type AutoTraderConfig struct {
 	// Hyperliquid配置
 	HyperliquidPrivateKey string
 	HyperliquidTestnet    bool
+
+	// Aster配置
+	AsterUser       string // Aster主钱包地址
+	AsterSigner     string // Aster API钱包地址
+	AsterPrivateKey string // Aster API钱包私钥
 
 	CoinPoolAPIURL string
 
@@ -133,6 +138,12 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidTestnet)
 		if err != nil {
 			return nil, fmt.Errorf("初始化Hyperliquid交易器失败: %w", err)
+		}
+	case "aster":
+		log.Printf("🏦 [%s] 使用Aster交易", config.Name)
+		trader, err = NewAsterTrader(config.AsterUser, config.AsterSigner, config.AsterPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("初始化Aster交易器失败: %w", err)
 		}
 	default:
 		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)

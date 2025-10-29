@@ -24,6 +24,11 @@ type TraderConfig struct {
 	HyperliquidPrivateKey string `json:"hyperliquid_private_key,omitempty"`
 	HyperliquidTestnet    bool   `json:"hyperliquid_testnet,omitempty"`
 
+	// Aster配置
+	AsterUser       string `json:"aster_user,omitempty"`        // Aster主钱包地址
+	AsterSigner     string `json:"aster_signer,omitempty"`      // Aster API钱包地址
+	AsterPrivateKey string `json:"aster_private_key,omitempty"` // Aster API钱包私钥
+
 	// AI配置
 	QwenKey             string  `json:"qwen_key,omitempty"`
 	DeepSeekKey         string  `json:"deepseek_key,omitempty"`
@@ -108,8 +113,8 @@ func (c *Config) Validate() error {
 		if trader.Exchange == "" {
 			trader.Exchange = "binance" // 默认使用币安
 		}
-		if trader.Exchange != "binance" && trader.Exchange != "hyperliquid" {
-			return fmt.Errorf("trader[%d]: exchange必须是 'binance' 或 'hyperliquid'", i)
+		if trader.Exchange != "binance" && trader.Exchange != "hyperliquid" && trader.Exchange != "aster" {
+			return fmt.Errorf("trader[%d]: exchange必须是 'binance', 'hyperliquid' 或 'aster'", i)
 		}
 
 		// 根据平台验证对应的密钥
@@ -120,6 +125,10 @@ func (c *Config) Validate() error {
 		} else if trader.Exchange == "hyperliquid" {
 			if trader.HyperliquidPrivateKey == "" {
 				return fmt.Errorf("trader[%d]: 使用Hyperliquid时必须配置hyperliquid_private_key", i)
+			}
+		} else if trader.Exchange == "aster" {
+			if trader.AsterUser == "" || trader.AsterSigner == "" || trader.AsterPrivateKey == "" {
+				return fmt.Errorf("trader[%d]: 使用Aster时必须配置aster_user, aster_signer和aster_private_key", i)
 			}
 		}
 

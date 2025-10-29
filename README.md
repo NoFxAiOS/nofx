@@ -250,8 +250,11 @@ Create `config.json` file (use `config.json.example` as template):
 - `binance_api_key/secret_key`: Each trader uses independent Binance account
 - `initial_balance`: Initial balance (for calculating P/L%)
 - `scan_interval_minutes`: Decision cycle (recommended 3-5 minutes)
-- `coin_pool_api_url`: AI500 coin pool API (optional)
-- `oi_top_api_url`: OI Top open interest API (optional)
+- `coin_pool_api_url`: AI500 coin pool API (optional, if empty, uses default mainstream coins)
+- `oi_top_api_url`: OI Top open interest API (optional, if empty, OI Top data is skipped)
+
+**Default Coin List** (used when APIs are not configured):
+- BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
 
 ### 5. Run the System
 

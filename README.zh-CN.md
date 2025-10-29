@@ -250,8 +250,11 @@ cd ..
 - `binance_api_key/secret_key`: 每个trader使用独立的币安账户
 - `initial_balance`: 初始余额（用于计算盈亏%）
 - `scan_interval_minutes`: 决策周期（建议3-5分钟）
-- `coin_pool_api_url`: AI500币种池API（可选）
-- `oi_top_api_url`: OI Top持仓量API（可选）
+- `coin_pool_api_url`: AI500币种池API（可选，留空时使用默认主流币种）
+- `oi_top_api_url`: OI Top持仓量API（可选，留空时跳过OI Top数据）
+
+**默认币种列表**（当API未配置时使用）：
+- BTC、ETH、SOL、BNB、XRP、DOGE、ADA、HYPE
 
 ### 5. 运行系统
 

@@ -357,9 +357,9 @@ function TraderDetailsPage({
       {account && (
         <div className="mb-4 p-3 rounded text-xs font-mono" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
           <div style={{ color: '#848E9C' }}>
-            🔄 Last Update: {lastUpdate} | Total Equity: {account.total_equity.toFixed(2)} |
-            Available: {account.available_balance.toFixed(2)} | P&L: {account.total_pnl.toFixed(2)}{' '}
-            ({account.total_pnl_pct.toFixed(2)}%)
+            🔄 Last Update: {lastUpdate} | Total Equity: {account.total_equity?.toFixed(2) || '0.00'} |
+            Available: {account.available_balance?.toFixed(2) || '0.00'} | P&L: {account.total_pnl?.toFixed(2) || '0.00'}{' '}
+            ({account.total_pnl_pct?.toFixed(2) || '0.00'}%)
           </div>
         </div>
       )}

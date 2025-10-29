@@ -40,8 +40,9 @@ coin_pool_cache/
 # Config files (should be mounted)
 config.json
 
-# Web directory (has its own Dockerfile)
-web/
+# Web build artifacts (but include source for multi-stage build)
+web/node_modules/
+web/dist/
 
 # Temporary files
 tmp/

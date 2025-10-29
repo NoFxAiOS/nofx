@@ -290,7 +290,6 @@ function TraderDetailsPage({
   account,
   positions,
   decisions,
-  stats,
   lastUpdate,
   language,
 }: {
@@ -358,9 +357,9 @@ function TraderDetailsPage({
       {account && (
         <div className="mb-4 p-3 rounded text-xs font-mono" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
           <div style={{ color: '#848E9C' }}>
-            🔄 Last Update: {lastUpdate} | Total Equity: {account.total_equity.toFixed(2)} |
-            Available: {account.available_balance.toFixed(2)} | P&L: {account.total_pnl.toFixed(2)}{' '}
-            ({account.total_pnl_pct.toFixed(2)}%)
+            🔄 Last Update: {lastUpdate} | Total Equity: {account.total_equity?.toFixed(2) || '0.00'} |
+            Available: {account.available_balance?.toFixed(2) || '0.00'} | P&L: {account.total_pnl?.toFixed(2) || '0.00'}{' '}
+            ({account.total_pnl_pct?.toFixed(2) || '0.00'}%)
           </div>
         </div>
       )}
@@ -369,25 +368,25 @@ function TraderDetailsPage({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           title={t('totalEquity', language)}
-          value={`${account?.total_equity.toFixed(2) || '0.00'} USDT`}
+          value={`${account?.total_equity?.toFixed(2) || '0.00'} USDT`}
           change={account?.total_pnl_pct || 0}
-          positive={account ? account.total_pnl > 0 : false}
+          positive={(account?.total_pnl ?? 0) > 0}
         />
         <StatCard
           title={t('availableBalance', language)}
-          value={`${account?.available_balance.toFixed(2) || '0.00'} USDT`}
-          subtitle={`${((account?.available_balance / account?.total_equity) * 100 || 0).toFixed(1)}% ${t('free', language)}`}
+          value={`${account?.available_balance?.toFixed(2) || '0.00'} USDT`}
+          subtitle={`${(account?.available_balance && account?.total_equity ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '0.0')}% ${t('free', language)}`}
         />
         <StatCard
           title={t('totalPnL', language)}
-          value={`${account?.total_pnl >= 0 ? '+' : ''}${account?.total_pnl.toFixed(2) || '0.00'} USDT`}
+          value={`${account?.total_pnl !== undefined && account.total_pnl >= 0 ? '+' : ''}${account?.total_pnl?.toFixed(2) || '0.00'} USDT`}
           change={account?.total_pnl_pct || 0}
-          positive={account ? account.total_pnl >= 0 : false}
+          positive={(account?.total_pnl ?? 0) >= 0}
         />
         <StatCard
           title={t('positions', language)}
           value={`${account?.position_count || 0}`}
-          subtitle={`${t('margin', language)}: ${account?.margin_used_pct.toFixed(1) || '0.0'}%`}
+          subtitle={`${t('margin', language)}: ${account?.margin_used_pct?.toFixed(1) || '0.0'}%`}
         />
       </div>
 
@@ -559,7 +558,6 @@ function StatCard({
 
 // Decision Card Component with CoT Trace - Binance Style
 function DecisionCard({ decision, language }: { decision: DecisionRecord; language: Language }) {
-  const [showInput, setShowInput] = useState(false);
   const [showCoT, setShowCoT] = useState(false);
 
   return (
@@ -582,25 +580,6 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
           {t(decision.success ? 'success' : 'failed', language)}
         </div>
       </div>
-
-      {/* AI Input Prompt - Collapsible */}
-      {decision.input_prompt && (
-        <div className="mb-3">
-          <button
-            onClick={() => setShowInput(!showInput)}
-            className="flex items-center gap-2 text-sm transition-colors"
-            style={{ color: '#8B5CF6' }}
-          >
-            <span className="font-semibold">📥 {t('inputPrompt', language)}</span>
-            <span className="text-xs">{showInput ? t('collapse', language) : t('expand', language)}</span>
-          </button>
-          {showInput && (
-            <div className="mt-2 rounded p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}>
-              {decision.input_prompt}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* AI Chain of Thought - Collapsible */}
       {decision.cot_trace && (

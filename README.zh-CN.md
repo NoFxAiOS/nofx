@@ -50,7 +50,11 @@
 - **单币种仓位上限**:
   - 山寨币 ≤ 1.5倍账户净值
   - BTC/ETH ≤ 10倍账户净值
-- **固定杠杆**: 山寨币20倍 | BTC/ETH 50倍
+- **可配置杠杆** (v2.0.3+):
+  - 在config.json中设置最大杠杆
+  - 默认：所有币种5倍（子账户安全）
+  - 主账户可增加：山寨币最高20倍，BTC/ETH最高50倍
+  - ⚠️ 币安子账户限制≤5倍杠杆
 - **保证金管理**: 总使用率≤90%，AI自主决策使用率
 - **风险回报比**: 强制≥1:2（止损:止盈）
 - **防止仓位叠加**: 同币种同方向不允许重复开仓
@@ -331,6 +335,10 @@ cp config.json.example config.json
       "scan_interval_minutes": 3
     }
   ],
+  "leverage": {
+    "btc_eth_leverage": 5,
+    "altcoin_leverage": 5
+  },
   "use_default_coins": true,
   "coin_pool_api_url": "",
   "oi_top_api_url": "",
@@ -423,6 +431,9 @@ cp config.json.example config.json
 | `qwen_key` | Qwen API密钥 | `"sk-xxx"` | 使用Qwen时必填 |
 | `initial_balance` | 用于P/L计算的起始余额 | `1000.0` | ✅ 是 |
 | `scan_interval_minutes` | 决策频率（分钟） | `3`（建议3-5） | ✅ 是 |
+| **`leverage`** | **杠杆配置 (v2.0.3+)** | 见下文 | ✅ 是 |
+| `btc_eth_leverage` | BTC/ETH最大杠杆<br>⚠️ 子账户：≤5倍 | `5`（默认，安全）<br>`50`（主账户最大） | ✅ 是 |
+| `altcoin_leverage` | 山寨币最大杠杆<br>⚠️ 子账户：≤5倍 | `5`（默认，安全）<br>`20`（主账户最大） | ✅ 是 |
 | `use_default_coins` | 使用内置币种列表<br>**✨ 智能默认：`true`** (v2.0.2+)<br>未提供API时自动启用 | `true` 或省略 | ❌ 否<br>(可选，自动默认) |
 | `coin_pool_api_url` | 自定义币种池API<br>*仅当`use_default_coins: false`时需要* | `""`（空） | ❌ 否 |
 | `oi_top_api_url` | 持仓量API<br>*可选补充数据* | `""`（空） | ❌ 否 |
@@ -430,6 +441,63 @@ cp config.json.example config.json
 
 **默认交易币种**（当 `use_default_coins: true` 时）：
 - BTC、ETH、SOL、BNB、XRP、DOGE、ADA、HYPE
+
+---
+
+#### ⚙️ 杠杆配置 (v2.0.3+)
+
+**什么是杠杆配置？**
+
+杠杆设置控制AI每次交易可以使用的最大杠杆。这对于风险管理至关重要，特别是对于有杠杆限制的币安子账户。
+
+**配置格式：**
+
+```json
+"leverage": {
+  "btc_eth_leverage": 5,    // BTC和ETH的最大杠杆
+  "altcoin_leverage": 5      // 所有其他币种的最大杠杆
+}
+```
+
+**⚠️ 重要：币安子账户限制**
+
+- **子账户**：币安限制为**≤5倍杠杆**
+- **主账户**：可使用最高20倍（山寨币）或50倍（BTC/ETH）
+- 如果您使用子账户并设置杠杆>5倍，交易将**失败**，错误信息：`Subaccounts are restricted from using leverage greater than 5x`
+
+**推荐设置：**
+
+| 账户类型 | BTC/ETH杠杆 | 山寨币杠杆 | 风险级别 |
+|---------|------------|-----------|---------|
+| **子账户** | `5` | `5` | ✅ 安全（默认） |
+| **主账户（保守）** | `10` | `10` | 🟡 中等 |
+| **主账户（激进）** | `20` | `15` | 🔴 高 |
+| **主账户（最大）** | `50` | `20` | 🔴🔴 非常高 |
+
+**示例：**
+
+**安全配置（子账户或保守）：**
+```json
+"leverage": {
+  "btc_eth_leverage": 5,
+  "altcoin_leverage": 5
+}
+```
+
+**激进配置（仅主账户）：**
+```json
+"leverage": {
+  "btc_eth_leverage": 20,
+  "altcoin_leverage": 15
+}
+```
+
+**AI如何使用杠杆：**
+
+- AI可以选择**从1倍到您配置的最大值之间的任何杠杆**
+- 例如，当`altcoin_leverage: 20`时，AI可能根据市场情况决定使用5倍、10倍或20倍
+- 配置设置的是**上限**，而不是固定值
+- AI在选择杠杆时会考虑波动性、风险回报比和账户余额
 
 ---
 

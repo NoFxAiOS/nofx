@@ -79,7 +79,11 @@ See [Configuration Guide](#-alternative-using-hyperliquid-exchange) for details.
 - **Per-Coin Position Limit**:
   - Altcoins ≤ 1.5x account equity
   - BTC/ETH ≤ 10x account equity
-- **Fixed Leverage**: Altcoins 20x | BTC/ETH 50x
+- **Configurable Leverage** (v2.0.3+):
+  - Set maximum leverage in config.json
+  - Default: 5x for all coins (safe for subaccounts)
+  - Main accounts can increase: Altcoins up to 20x, BTC/ETH up to 50x
+  - ⚠️ Binance subaccounts restricted to ≤5x leverage
 - **Margin Management**: Total usage ≤90%, AI autonomous decision on usage rate
 - **Risk-Reward Ratio**: Mandatory ≥1:2 (stop-loss:take-profit)
 - **Prevent Position Stacking**: No duplicate opening of same coin/direction
@@ -360,6 +364,10 @@ cp config.json.example config.json
       "scan_interval_minutes": 3
     }
   ],
+  "leverage": {
+    "btc_eth_leverage": 5,
+    "altcoin_leverage": 5
+  },
   "use_default_coins": true,
   "coin_pool_api_url": "",
   "oi_top_api_url": "",
@@ -494,6 +502,9 @@ For running multiple AI traders competing against each other:
 | `qwen_key` | Qwen API key | `"sk-xxx"` | If using Qwen |
 | `initial_balance` | Starting balance for P/L calculation | `1000.0` | ✅ Yes |
 | `scan_interval_minutes` | How often to make decisions | `3` (3-5 recommended) | ✅ Yes |
+| **`leverage`** | **Leverage configuration (v2.0.3+)** | See below | ✅ Yes |
+| `btc_eth_leverage` | Maximum leverage for BTC/ETH<br>⚠️ Subaccounts: ≤5x | `5` (default, safe)<br>`50` (main account max) | ✅ Yes |
+| `altcoin_leverage` | Maximum leverage for altcoins<br>⚠️ Subaccounts: ≤5x | `5` (default, safe)<br>`20` (main account max) | ✅ Yes |
 | `use_default_coins` | Use built-in coin list<br>**✨ Smart Default: `true`** (v2.0.2+)<br>Auto-enabled if no API URL provided | `true` or omit | ❌ No<br>(Optional, auto-defaults) |
 | `coin_pool_api_url` | Custom coin pool API<br>*Only needed when `use_default_coins: false`* | `""` (empty) | ❌ No |
 | `oi_top_api_url` | Open interest API<br>*Optional supplement data* | `""` (empty) | ❌ No |
@@ -501,6 +512,63 @@ For running multiple AI traders competing against each other:
 
 **Default Trading Coins** (when `use_default_coins: true`):
 - BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
+
+---
+
+#### ⚙️ Leverage Configuration (v2.0.3+)
+
+**What is leverage configuration?**
+
+The leverage settings control the maximum leverage the AI can use for each trade. This is crucial for risk management, especially for Binance subaccounts which have leverage restrictions.
+
+**Configuration format:**
+
+```json
+"leverage": {
+  "btc_eth_leverage": 5,    // Maximum leverage for BTC and ETH
+  "altcoin_leverage": 5      // Maximum leverage for all other coins
+}
+```
+
+**⚠️ Important: Binance Subaccount Restrictions**
+
+- **Subaccounts**: Limited to **≤5x leverage** by Binance
+- **Main accounts**: Can use up to 20x (altcoins) or 50x (BTC/ETH)
+- If you're using a subaccount and set leverage >5x, trades will **fail** with error: `Subaccounts are restricted from using leverage greater than 5x`
+
+**Recommended settings:**
+
+| Account Type | BTC/ETH Leverage | Altcoin Leverage | Risk Level |
+|-------------|------------------|------------------|------------|
+| **Subaccount** | `5` | `5` | ✅ Safe (default) |
+| **Main (Conservative)** | `10` | `10` | 🟡 Medium |
+| **Main (Aggressive)** | `20` | `15` | 🔴 High |
+| **Main (Maximum)** | `50` | `20` | 🔴🔴 Very High |
+
+**Examples:**
+
+**Safe configuration (subaccount or conservative):**
+```json
+"leverage": {
+  "btc_eth_leverage": 5,
+  "altcoin_leverage": 5
+}
+```
+
+**Aggressive configuration (main account only):**
+```json
+"leverage": {
+  "btc_eth_leverage": 20,
+  "altcoin_leverage": 15
+}
+```
+
+**How AI uses leverage:**
+
+- AI can choose **any leverage from 1x up to your configured maximum**
+- For example, with `altcoin_leverage: 20`, AI might decide to use 5x, 10x, or 20x based on market conditions
+- The configuration sets the **upper limit**, not a fixed value
+- AI considers volatility, risk-reward ratio, and account balance when choosing leverage
 
 ---
 

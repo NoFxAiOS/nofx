@@ -55,17 +55,17 @@ type OITopData struct {
 
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
-	CurrentTime      string                  `json:"current_time"`
-	RuntimeMinutes   int                     `json:"runtime_minutes"`
-	CallCount        int                     `json:"call_count"`
-	Account          AccountInfo             `json:"account"`
-	Positions        []PositionInfo          `json:"positions"`
-	CandidateCoins   []CandidateCoin         `json:"candidate_coins"`
-	MarketDataMap    map[string]*market.Data `json:"-"` // 不序列化，但内部使用
-	OITopDataMap     map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance      interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
-	BTCETHLeverage   int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
-	AltcoinLeverage  int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	CurrentTime     string                  `json:"current_time"`
+	RuntimeMinutes  int                     `json:"runtime_minutes"`
+	CallCount       int                     `json:"call_count"`
+	Account         AccountInfo             `json:"account"`
+	Positions       []PositionInfo          `json:"positions"`
+	CandidateCoins  []CandidateCoin         `json:"candidate_coins"`
+	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
+	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
+	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
+	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }
 
 // Decision AI的交易决策
@@ -253,7 +253,7 @@ func buildSystemPrompt(accountEquity float64) string {
 	sb.WriteString("- 💰 **资金序列**：成交量序列、持仓量(OI)序列、资金费率\n")
 	sb.WriteString("- 🎯 **筛选标记**：AI500评分 / OI_Top排名（如果有标注）\n\n")
 	sb.WriteString("**分析方法**（完全由你自主决定）：\n")
-	sb.WriteString("- 自由运用序列数据，你可以做趋势分析、形态识别、支撑阻力计算\n")
+	sb.WriteString("- 自由运用序列数据，你可以做但不限于趋势分析、形态识别、支撑阻力、技术阻力位、斐波那契、波动带计算\n")
 	sb.WriteString("- 多维度交叉验证（价格+量+OI+指标+序列形态）\n")
 	sb.WriteString("- 用你认为最有效的方法发现高确定性机会\n")
 	sb.WriteString("- 综合信心度 ≥ 75 才开仓\n\n")

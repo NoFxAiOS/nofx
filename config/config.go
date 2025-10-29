@@ -28,6 +28,11 @@ type TraderConfig struct {
 	QwenKey             string  `json:"qwen_key,omitempty"`
 	DeepSeekKey         string  `json:"deepseek_key,omitempty"`
 
+	// 自定义AI API配置（支持任何OpenAI格式的API）
+	CustomAPIURL        string  `json:"custom_api_url,omitempty"`
+	CustomAPIKey        string  `json:"custom_api_key,omitempty"`
+	CustomModelName     string  `json:"custom_model_name,omitempty"`
+
 	InitialBalance      float64 `json:"initial_balance"`
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 }
@@ -95,8 +100,8 @@ func (c *Config) Validate() error {
 		if trader.Name == "" {
 			return fmt.Errorf("trader[%d]: Name不能为空", i)
 		}
-		if trader.AIModel != "qwen" && trader.AIModel != "deepseek" {
-			return fmt.Errorf("trader[%d]: ai_model必须是 'qwen' 或 'deepseek'", i)
+		if trader.AIModel != "qwen" && trader.AIModel != "deepseek" && trader.AIModel != "custom" {
+			return fmt.Errorf("trader[%d]: ai_model必须是 'qwen', 'deepseek' 或 'custom'", i)
 		}
 
 		// 验证交易平台配置
@@ -123,6 +128,17 @@ func (c *Config) Validate() error {
 		}
 		if trader.AIModel == "deepseek" && trader.DeepSeekKey == "" {
 			return fmt.Errorf("trader[%d]: 使用DeepSeek时必须配置deepseek_key", i)
+		}
+		if trader.AIModel == "custom" {
+			if trader.CustomAPIURL == "" {
+				return fmt.Errorf("trader[%d]: 使用自定义API时必须配置custom_api_url", i)
+			}
+			if trader.CustomAPIKey == "" {
+				return fmt.Errorf("trader[%d]: 使用自定义API时必须配置custom_api_key", i)
+			}
+			if trader.CustomModelName == "" {
+				return fmt.Errorf("trader[%d]: 使用自定义API时必须配置custom_model_name", i)
+			}
 		}
 		if trader.InitialBalance <= 0 {
 			return fmt.Errorf("trader[%d]: initial_balance必须大于0", i)

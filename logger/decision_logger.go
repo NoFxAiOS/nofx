@@ -429,6 +429,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 	if analysis.TotalTrades > 0 {
 		analysis.WinRate = (float64(analysis.WinningTrades) / float64(analysis.TotalTrades)) * 100
 
+		// 计算总盈利和总亏损
+		totalWinAmount := analysis.AvgWin   // 当前是累加的总和
+		totalLossAmount := analysis.AvgLoss // 当前是累加的总和（负数）
+
 		if analysis.WinningTrades > 0 {
 			analysis.AvgWin /= float64(analysis.WinningTrades)
 		}
@@ -436,8 +440,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 			analysis.AvgLoss /= float64(analysis.LosingTrades)
 		}
 
-		if analysis.AvgLoss != 0 {
-			analysis.ProfitFactor = analysis.AvgWin / (-analysis.AvgLoss)
+		// Profit Factor = 总盈利 / 总亏损（绝对值）
+		// 注意：totalLossAmount 是负数，所以取负号得到绝对值
+		if totalLossAmount != 0 {
+			analysis.ProfitFactor = totalWinAmount / (-totalLossAmount)
 		}
 	}
 

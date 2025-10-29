@@ -190,9 +190,9 @@ export default function AILearning({ traderId }: AILearningProps) {
               {t('avgWin', language)}
             </div>
             <div className="text-4xl font-bold mono mb-1" style={{ color: '#10B981' }}>
-              +{(performance.avg_win || 0).toFixed(2)}%
+              +{(performance.avg_win || 0).toFixed(2)}
             </div>
-            <div className="text-xs" style={{ color: '#6EE7B7' }}>📈 Average</div>
+            <div className="text-xs" style={{ color: '#6EE7B7' }}>📈 USDT Average</div>
           </div>
         </div>
 
@@ -211,9 +211,9 @@ export default function AILearning({ traderId }: AILearningProps) {
               {t('avgLoss', language)}
             </div>
             <div className="text-4xl font-bold mono mb-1" style={{ color: '#F87171' }}>
-              {(performance.avg_loss || 0).toFixed(2)}%
+              {(performance.avg_loss || 0).toFixed(2)}
             </div>
-            <div className="text-xs" style={{ color: '#FCA5A5' }}>📉 Average</div>
+            <div className="text-xs" style={{ color: '#FCA5A5' }}>📉 USDT Average</div>
           </div>
         </div>
       </div>
@@ -375,7 +375,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               {symbolStats[performance.best_symbol] && (
                 <div className="text-lg font-semibold" style={{ color: '#6EE7B7' }}>
                   {symbolStats[performance.best_symbol].total_pn_l > 0 ? '+' : ''}
-                  {symbolStats[performance.best_symbol].total_pn_l.toFixed(2)}% {t('pnl', language)}
+                  {symbolStats[performance.best_symbol].total_pn_l.toFixed(2)} USDT {t('pnl', language)}
                 </div>
               )}
             </div>
@@ -397,7 +397,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               {symbolStats[performance.worst_symbol] && (
                 <div className="text-lg font-semibold" style={{ color: '#FCA5A5' }}>
                   {symbolStats[performance.worst_symbol].total_pn_l > 0 ? '+' : ''}
-                  {symbolStats[performance.worst_symbol].total_pn_l.toFixed(2)}% {t('pnl', language)}
+                  {symbolStats[performance.worst_symbol].total_pn_l.toFixed(2)} USDT {t('pnl', language)}
                 </div>
               )}
             </div>
@@ -431,8 +431,8 @@ export default function AILearning({ traderId }: AILearningProps) {
                     <th className="text-left px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Symbol</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Trades</th>
                     <th className="text-right px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Win Rate</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Total P&L</th>
-                    <th className="text-right px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Avg P&L</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Total P&L (USDT)</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold" style={{ color: '#94A3B8' }}>Avg P&L (USDT)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -454,12 +454,12 @@ export default function AILearning({ traderId }: AILearningProps) {
                       <td className="px-4 py-3 text-right mono text-sm font-bold" style={{
                         color: (stat.total_pn_l || 0) > 0 ? '#10B981' : '#F87171'
                       }}>
-                        {(stat.total_pn_l || 0) > 0 ? '+' : ''}{(stat.total_pn_l || 0).toFixed(2)}%
+                        {(stat.total_pn_l || 0) > 0 ? '+' : ''}{(stat.total_pn_l || 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-right mono text-sm" style={{
                         color: (stat.avg_pn_l || 0) > 0 ? '#10B981' : '#F87171'
                       }}>
-                        {(stat.avg_pn_l || 0) > 0 ? '+' : ''}{(stat.avg_pn_l || 0).toFixed(2)}%
+                        {(stat.avg_pn_l || 0) > 0 ? '+' : ''}{(stat.avg_pn_l || 0).toFixed(2)}
                       </td>
                     </tr>
                   ))}

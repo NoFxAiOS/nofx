@@ -20,10 +20,18 @@ type AutoTraderConfig struct {
 	Name    string // Trader显示名称
 	AIModel string // AI模型: "qwen" 或 "deepseek"
 
-	// API配置
+	// 交易平台选择
+	Exchange string // "binance" 或 "hyperliquid"
+
+	// 币安API配置
 	BinanceAPIKey    string
 	BinanceSecretKey string
-	CoinPoolAPIURL   string
+
+	// Hyperliquid配置
+	HyperliquidPrivateKey string
+	HyperliquidTestnet    bool
+
+	CoinPoolAPIURL string
 
 	// AI配置
 	UseQwen     bool
@@ -51,8 +59,9 @@ type AutoTrader struct {
 	id                   string                 // Trader唯一标识
 	name                 string                 // Trader显示名称
 	aiModel              string                 // AI模型名称
+	exchange             string                 // 交易平台名称
 	config               AutoTraderConfig
-	trader               *FuturesTrader
+	trader               Trader                 // 使用Trader接口（支持多平台）
 	decisionLogger       *logger.DecisionLogger // 决策日志记录器
 	initialBalance       float64
 	dailyPnL             float64
@@ -95,8 +104,28 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		pool.SetCoinPoolAPI(config.CoinPoolAPIURL)
 	}
 
-	// 初始化币安合约交易器
-	trader := NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey)
+	// 设置默认交易平台
+	if config.Exchange == "" {
+		config.Exchange = "binance"
+	}
+
+	// 根据配置创建对应的交易器
+	var trader Trader
+	var err error
+
+	switch config.Exchange {
+	case "binance":
+		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
+		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey)
+	case "hyperliquid":
+		log.Printf("🏦 [%s] 使用Hyperliquid交易", config.Name)
+		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidTestnet)
+		if err != nil {
+			return nil, fmt.Errorf("初始化Hyperliquid交易器失败: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)
+	}
 
 	// 验证初始金额配置
 	if config.InitialBalance <= 0 {
@@ -111,6 +140,7 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		id:                   config.ID,
 		name:                 config.Name,
 		aiModel:              config.AIModel,
+		exchange:             config.Exchange,
 		config:               config,
 		trader:               trader,
 		decisionLogger:       decisionLogger,
@@ -693,6 +723,7 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		"trader_id":       at.id,
 		"trader_name":     at.name,
 		"ai_model":        at.aiModel,
+		"exchange":        at.exchange,
 		"is_running":      at.isRunning,
 		"start_time":      at.startTime.Format(time.RFC3339),
 		"runtime_minutes": int(time.Since(at.startTime).Minutes()),

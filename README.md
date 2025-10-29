@@ -1,4 +1,4 @@
-# 🤖 NOFX - AI-Driven Binance Futures Auto Trading Competition System
+# 🤖 NOFX - AI-Driven Crypto Futures Auto Trading Competition System
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
@@ -9,7 +9,7 @@
 
 ---
 
-An automated Binance futures trading system powered by **DeepSeek/Qwen AI**, supporting **multi-AI model live trading competition**, featuring comprehensive market analysis, AI decision-making, **self-learning mechanism**, and professional Web monitoring interface.
+An automated crypto futures trading system powered by **DeepSeek/Qwen AI**, supporting **Binance and Hyperliquid exchanges**, **multi-AI model live trading competition**, featuring comprehensive market analysis, AI decision-making, **self-learning mechanism**, and professional Web monitoring interface.
 
 > ⚠️ **Risk Warning**: This system is experimental. AI auto-trading carries significant risks. Strongly recommended for learning/research purposes or testing with small amounts only!
 
@@ -18,6 +18,35 @@ An automated Binance futures trading system powered by **DeepSeek/Qwen AI**, sup
 Join our Telegram developer community to discuss, share ideas, and get support:
 
 **💬 [NOFX Developer Community](https://t.me/nofx_dev_community)**
+
+---
+
+## 🆕 What's New (Latest Update)
+
+### 🚀 Hyperliquid Exchange Support Added!
+
+NOFX now supports **Hyperliquid** - a high-performance decentralized perpetual futures exchange!
+
+**Key Features:**
+- ✅ Full trading support (long/short, leverage, stop-loss/take-profit)
+- ✅ Automatic precision handling (order size & price)
+- ✅ Unified trader interface (seamless exchange switching)
+- ✅ Support for both mainnet and testnet
+- ✅ No API keys needed - just your Ethereum private key
+
+**Why Hyperliquid?**
+- 🔥 Lower fees than centralized exchanges
+- 🔒 Non-custodial - you control your funds
+- ⚡ Fast execution with on-chain settlement
+- 🌍 No KYC required
+
+**Quick Start:**
+1. Get your MetaMask private key (remove `0x` prefix)
+2. Set `"exchange": "hyperliquid"` in config.json
+3. Add `"hyperliquid_private_key": "your_key"`
+4. Start trading!
+
+See [Configuration Guide](#-alternative-using-hyperliquid-exchange) for details.
 
 ---
 
@@ -368,6 +397,48 @@ cp config.json.example config.json
 - [ ] `use_default_coins` set to `true` (for beginners)
 - [ ] `initial_balance` matches your account balance
 - [ ] File saved as `config.json` (not `.example`)
+
+---
+
+#### 🔷 Alternative: Using Hyperliquid Exchange
+
+**NOFX also supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid instead of Binance:
+
+**Step 1**: Get your Ethereum private key (for Hyperliquid authentication)
+
+1. Open **MetaMask** (or any Ethereum wallet)
+2. Export your private key
+3. **Remove the `0x` prefix** from the key
+4. Fund your wallet on [Hyperliquid](https://hyperliquid.xyz)
+
+**Step 2**: Configure `config.json` for Hyperliquid
+
+```json
+{
+  "traders": [
+    {
+      "id": "hyperliquid_trader",
+      "name": "My Hyperliquid Trader",
+      "ai_model": "deepseek",
+      "exchange": "hyperliquid",
+      "hyperliquid_private_key": "your_private_key_without_0x",
+      "hyperliquid_testnet": false,
+      "deepseek_key": "sk-xxxxxxxxxxxxx",
+      "initial_balance": 1000.0,
+      "scan_interval_minutes": 3
+    }
+  ],
+  "use_default_coins": true,
+  "api_server_port": 8080
+}
+```
+
+**Key Differences from Binance Config:**
+- Replace `binance_api_key` + `binance_secret_key` with `hyperliquid_private_key`
+- Add `"exchange": "hyperliquid"` field
+- Set `hyperliquid_testnet: false` for mainnet (or `true` for testnet)
+
+**⚠️ Security Warning**: Never share your private key! Use a dedicated wallet for trading, not your main wallet.
 
 ---
 

@@ -12,10 +12,22 @@ type TraderConfig struct {
 	ID                  string  `json:"id"`
 	Name                string  `json:"name"`
 	AIModel             string  `json:"ai_model"` // "qwen" or "deepseek"
-	BinanceAPIKey       string  `json:"binance_api_key"`
-	BinanceSecretKey    string  `json:"binance_secret_key"`
+
+	// 交易平台选择（二选一）
+	Exchange             string  `json:"exchange"` // "binance" or "hyperliquid"
+
+	// 币安配置
+	BinanceAPIKey       string  `json:"binance_api_key,omitempty"`
+	BinanceSecretKey    string  `json:"binance_secret_key,omitempty"`
+
+	// Hyperliquid配置
+	HyperliquidPrivateKey string `json:"hyperliquid_private_key,omitempty"`
+	HyperliquidTestnet    bool   `json:"hyperliquid_testnet,omitempty"`
+
+	// AI配置
 	QwenKey             string  `json:"qwen_key,omitempty"`
 	DeepSeekKey         string  `json:"deepseek_key,omitempty"`
+
 	InitialBalance      float64 `json:"initial_balance"`
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 }
@@ -86,9 +98,26 @@ func (c *Config) Validate() error {
 		if trader.AIModel != "qwen" && trader.AIModel != "deepseek" {
 			return fmt.Errorf("trader[%d]: ai_model必须是 'qwen' 或 'deepseek'", i)
 		}
-		if trader.BinanceAPIKey == "" || trader.BinanceSecretKey == "" {
-			return fmt.Errorf("trader[%d]: 币安API密钥不能为空", i)
+
+		// 验证交易平台配置
+		if trader.Exchange == "" {
+			trader.Exchange = "binance" // 默认使用币安
 		}
+		if trader.Exchange != "binance" && trader.Exchange != "hyperliquid" {
+			return fmt.Errorf("trader[%d]: exchange必须是 'binance' 或 'hyperliquid'", i)
+		}
+
+		// 根据平台验证对应的密钥
+		if trader.Exchange == "binance" {
+			if trader.BinanceAPIKey == "" || trader.BinanceSecretKey == "" {
+				return fmt.Errorf("trader[%d]: 使用币安时必须配置binance_api_key和binance_secret_key", i)
+			}
+		} else if trader.Exchange == "hyperliquid" {
+			if trader.HyperliquidPrivateKey == "" {
+				return fmt.Errorf("trader[%d]: 使用Hyperliquid时必须配置hyperliquid_private_key", i)
+			}
+		}
+
 		if trader.AIModel == "qwen" && trader.QwenKey == "" {
 			return fmt.Errorf("trader[%d]: 使用Qwen时必须配置qwen_key", i)
 		}

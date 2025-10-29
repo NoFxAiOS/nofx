@@ -36,7 +36,7 @@ check_docker() {
         exit 1
     fi
 
-    if ! command -v docker-compose &> /dev/null; then
+    if ! command -v docker compose &> /dev/null; then
         print_error "Docker Compose 未安装！请先安装 Docker Compose"
         exit 1
     fi
@@ -64,7 +64,7 @@ start() {
         print_info "重新构建镜像..."
         docker-compose up -d --build
     else
-        docker-compose up -d
+        docker compose up -d
     fi
 
     print_success "服务已启动！"
@@ -78,30 +78,30 @@ start() {
 # 停止服务
 stop() {
     print_info "正在停止服务..."
-    docker-compose stop
+    docker compose stop
     print_success "服务已停止"
 }
 
 # 重启服务
 restart() {
     print_info "正在重启服务..."
-    docker-compose restart
+    docker compose restart
     print_success "服务已重启"
 }
 
 # 查看日志
 logs() {
     if [ -z "$2" ]; then
-        docker-compose logs -f
+        docker compose logs -f
     else
-        docker-compose logs -f "$2"
+        docker compose logs -f "$2"
     fi
 }
 
 # 查看状态
 status() {
     print_info "服务状态:"
-    docker-compose ps
+    docker compose ps
     echo ""
     print_info "健康检查:"
     curl -s http://localhost:8080/health | jq '.' || echo "后端未响应"
@@ -113,7 +113,7 @@ clean() {
     read -p "确认删除？(yes/no): " confirm
     if [ "$confirm" == "yes" ]; then
         print_info "正在清理..."
-        docker-compose down -v
+        docker compose down -v
         print_success "清理完成"
     else
         print_info "已取消"
@@ -124,7 +124,7 @@ clean() {
 update() {
     print_info "正在更新..."
     git pull
-    docker-compose up -d --build
+    docker compose up -d --build
     print_success "更新完成"
 }
 

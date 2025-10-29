@@ -1,5 +1,5 @@
 # Multi-stage build for NOFX AI Trading System
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 
 # Install build dependencies including TA-Lib
 RUN apk add --no-cache \

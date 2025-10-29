@@ -173,11 +173,26 @@ cd ..
       "initial_balance": 1000.0
     }
   ],
+  "use_default_coins": false,
   "coin_pool_api_url": "http://x.x.x.x:xxx/api/ai500/list?auth=ВАШ_AUTH",
   "oi_top_api_url": "http://x.x.x.x:xxx/api/oi/top?auth=ВАШ_AUTH",
   "api_server_port": 8080
 }
 ```
+
+**Примітки до конфігурації:**
+- `traders`: Налаштуйте 1-N трейдерів (один AI або змагання кількох AI)
+- `id`: Унікальний ідентифікатор трейдера (використовується для директорії логів)
+- `ai_model`: "qwen" або "deepseek"
+- `binance_api_key/secret_key`: Кожен трейдер використовує незалежний акаунт Binance
+- `initial_balance`: Початковий баланс (для розрахунку P/L%)
+- `scan_interval_minutes`: Цикл прийняття рішень (рекомендується 3-5 хвилин)
+- `use_default_coins`: **true** = Використовувати 8 основних монет за замовчуванням | **false** = Використовувати API пул монет (рекомендується для новачків: true)
+- `coin_pool_api_url`: API пулу монет AI500 (опціонально, ігнорується при use_default_coins=true)
+- `oi_top_api_url`: API відкритого інтересу OI Top (опціонально, якщо порожньо, дані OI Top пропускаються)
+
+**Список монет за замовчуванням** (коли `use_default_coins: true`):
+- BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
 
 ### 5. Запуск системи
 

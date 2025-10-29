@@ -8,20 +8,35 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
+// defaultMainstreamCoins 默认主流币种池（当AI500和OI Top都失败时使用）
+var defaultMainstreamCoins = []string{
+	"BTCUSDT",
+	"ETHUSDT",
+	"SOLUSDT",
+	"BNBUSDT",
+	"XRPUSDT",
+	"DOGEUSDT",
+	"ADAUSDT",
+	"HYPEUSDT",
+}
+
 // CoinPoolConfig 币种池配置
 type CoinPoolConfig struct {
-	APIURL   string
-	Timeout  time.Duration
-	CacheDir string
+	APIURL          string
+	Timeout         time.Duration
+	CacheDir        string
+	UseDefaultCoins bool // 是否使用默认主流币种
 }
 
 var coinPoolConfig = CoinPoolConfig{
-	APIURL:   "",
-	Timeout:  30 * time.Second, // 增加到30秒
-	CacheDir: "coin_pool_cache",
+	APIURL:          "",
+	Timeout:         30 * time.Second, // 增加到30秒
+	CacheDir:        "coin_pool_cache",
+	UseDefaultCoins: false, // 默认不使用
 }
 
 // CoinPoolCache 币种池缓存
@@ -63,8 +78,25 @@ func SetOITopAPI(apiURL string) {
 	oiTopConfig.APIURL = apiURL
 }
 
+// SetUseDefaultCoins 设置是否使用默认主流币种
+func SetUseDefaultCoins(useDefault bool) {
+	coinPoolConfig.UseDefaultCoins = useDefault
+}
+
 // GetCoinPool 获取币种池列表（带重试和缓存机制）
 func GetCoinPool() ([]CoinInfo, error) {
+	// 优先检查是否启用默认币种列表
+	if coinPoolConfig.UseDefaultCoins {
+		log.Printf("✓ 已启用默认主流币种列表")
+		return convertSymbolsToCoins(defaultMainstreamCoins), nil
+	}
+
+	// 检查API URL是否配置
+	if strings.TrimSpace(coinPoolConfig.APIURL) == "" {
+		log.Printf("⚠️  未配置币种池API URL，使用默认主流币种列表")
+		return convertSymbolsToCoins(defaultMainstreamCoins), nil
+	}
+
 	maxRetries := 3
 	var lastErr error
 
@@ -99,8 +131,9 @@ func GetCoinPool() ([]CoinInfo, error) {
 		return cachedCoins, nil
 	}
 
-	log.Printf("❌ 无法加载缓存数据: %v", err)
-	return nil, fmt.Errorf("获取币种池失败（API重试%d次后，缓存也不可用）: %w", maxRetries, lastErr)
+	// 缓存也失败，使用默认主流币种
+	log.Printf("⚠️  无法加载缓存数据（最后错误: %v），使用默认主流币种列表", lastErr)
+	return convertSymbolsToCoins(defaultMainstreamCoins), nil
 }
 
 // fetchCoinPool 实际执行币种池请求
@@ -321,6 +354,19 @@ func endsWith(s, suffix string) bool {
 	return s[len(s)-len(suffix):] == suffix
 }
 
+// convertSymbolsToCoins 将币种符号列表转换为CoinInfo列表
+func convertSymbolsToCoins(symbols []string) []CoinInfo {
+	coins := make([]CoinInfo, 0, len(symbols))
+	for _, symbol := range symbols {
+		coins = append(coins, CoinInfo{
+			Pair:        symbol,
+			Score:       0,
+			IsAvailable: true,
+		})
+	}
+	return coins
+}
+
 // ========== OI Top（持仓量增长Top20）数据 ==========
 
 // OIPosition 持仓量数据
@@ -366,6 +412,12 @@ var oiTopConfig = struct {
 
 // GetOITopPositions 获取持仓量增长Top20数据（带重试和缓存）
 func GetOITopPositions() ([]OIPosition, error) {
+	// 检查API URL是否配置
+	if strings.TrimSpace(oiTopConfig.APIURL) == "" {
+		log.Printf("⚠️  未配置OI Top API URL，跳过OI Top数据获取")
+		return []OIPosition{}, nil // 返回空列表，不是错误
+	}
+
 	maxRetries := 3
 	var lastErr error
 
@@ -400,8 +452,9 @@ func GetOITopPositions() ([]OIPosition, error) {
 		return cachedPositions, nil
 	}
 
-	log.Printf("❌ 无法加载OI Top缓存数据: %v", err)
-	return nil, fmt.Errorf("获取OI Top数据失败（API重试%d次后，缓存也不可用）: %w", maxRetries, lastErr)
+	// 缓存也失败，返回空列表（OI Top是可选的）
+	log.Printf("⚠️  无法加载OI Top缓存数据（最后错误: %v），跳过OI Top数据", lastErr)
+	return []OIPosition{}, nil
 }
 
 // fetchOITop 实际执行OI Top请求

@@ -1,6 +1,7 @@
 import useSWR from 'swr';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
+import { api } from '../lib/api';
 
 interface TradeOutcome {
   symbol: string;
@@ -44,13 +45,11 @@ interface AILearningProps {
   traderId: string;
 }
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
-
 export default function AILearning({ traderId }: AILearningProps) {
   const { language } = useLanguage();
   const { data: performance, error } = useSWR<PerformanceAnalysis>(
-    `http://localhost:8080/api/performance?trader_id=${traderId}`,
-    fetcher,
+    traderId ? `performance-${traderId}` : 'performance',
+    () => api.getPerformance(traderId),
     { refreshInterval: 10000 }
   );
 

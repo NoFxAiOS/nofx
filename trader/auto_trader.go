@@ -38,6 +38,11 @@ type AutoTraderConfig struct {
 	DeepSeekKey string
 	QwenKey     string
 
+	// 自定义AI API配置
+	CustomAPIURL    string
+	CustomAPIKey    string
+	CustomModelName string
+
 	// 扫描配置
 	ScanInterval time.Duration // 扫描间隔（建议3分钟）
 
@@ -91,10 +96,16 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 	}
 
 	// 初始化AI
-	if config.UseQwen {
+	if config.AIModel == "custom" {
+		// 使用自定义API
+		mcp.SetCustomAPI(config.CustomAPIURL, config.CustomAPIKey, config.CustomModelName)
+		log.Printf("🤖 [%s] 使用自定义AI API: %s (模型: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
+	} else if config.UseQwen || config.AIModel == "qwen" {
+		// 使用Qwen
 		mcp.SetQwenAPIKey(config.QwenKey, "")
 		log.Printf("🤖 [%s] 使用阿里云Qwen AI", config.Name)
 	} else {
+		// 默认使用DeepSeek
 		mcp.SetDeepSeekAPIKey(config.DeepSeekKey)
 		log.Printf("🤖 [%s] 使用DeepSeek AI", config.Name)
 	}

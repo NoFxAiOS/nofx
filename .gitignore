@@ -6,6 +6,8 @@
 # 编译产物
 nofx-auto
 *.exe
+nofx
+nofx_test
 
 # Go 相关
 *.test

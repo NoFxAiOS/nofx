@@ -646,6 +646,26 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 
 // CloseLong 平多单
 func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	// 如果数量为0，获取当前持仓数量
+	if quantity == 0 {
+		positions, err := t.GetPositions()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, pos := range positions {
+			if pos["symbol"] == symbol && pos["side"] == "long" {
+				quantity = pos["positionAmt"].(float64)
+				break
+			}
+		}
+
+		if quantity == 0 {
+			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
+		}
+		log.Printf("  📊 获取到多仓数量: %.8f", quantity)
+	}
+
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
 		return nil, err
@@ -673,6 +693,9 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
+	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)", 
+		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
+
 	params := map[string]interface{}{
 		"symbol":       symbol,
 		"positionSide": "BOTH",
@@ -693,11 +716,33 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		return nil, err
 	}
 
+	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, qtyStr)
 	return result, nil
 }
 
 // CloseShort 平空单
 func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	// 如果数量为0，获取当前持仓数量
+	if quantity == 0 {
+		positions, err := t.GetPositions()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, pos := range positions {
+			if pos["symbol"] == symbol && pos["side"] == "short" {
+				// Aster的GetPositions已经将空仓数量转换为正数，直接使用
+				quantity = pos["positionAmt"].(float64)
+				break
+			}
+		}
+
+		if quantity == 0 {
+			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
+		}
+		log.Printf("  📊 获取到空仓数量: %.8f", quantity)
+	}
+
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
 		return nil, err
@@ -725,6 +770,9 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
+	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)", 
+		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
+
 	params := map[string]interface{}{
 		"symbol":       symbol,
 		"positionSide": "BOTH",
@@ -745,6 +793,7 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		return nil, err
 	}
 
+	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, qtyStr)
 	return result, nil
 }
 

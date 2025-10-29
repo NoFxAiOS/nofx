@@ -44,19 +44,20 @@ type AutoTraderConfig struct {
 
 // AutoTrader 自动交易器
 type AutoTrader struct {
-	id             string // Trader唯一标识
-	name           string // Trader显示名称
-	aiModel        string // AI模型名称
-	config         AutoTraderConfig
-	trader         *FuturesTrader
-	decisionLogger *logger.DecisionLogger // 决策日志记录器
-	initialBalance float64
-	dailyPnL       float64
-	lastResetTime  time.Time
-	stopUntil      time.Time
-	isRunning      bool
-	startTime      time.Time // 系统启动时间
-	callCount      int       // AI调用次数
+	id                   string                 // Trader唯一标识
+	name                 string                 // Trader显示名称
+	aiModel              string                 // AI模型名称
+	config               AutoTraderConfig
+	trader               *FuturesTrader
+	decisionLogger       *logger.DecisionLogger // 决策日志记录器
+	initialBalance       float64
+	dailyPnL             float64
+	lastResetTime        time.Time
+	stopUntil            time.Time
+	isRunning            bool
+	startTime            time.Time                 // 系统启动时间
+	callCount            int                       // AI调用次数
+	positionFirstSeenTime map[string]int64         // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
 }
 
 // NewAutoTrader 创建自动交易器
@@ -103,17 +104,18 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 	decisionLogger := logger.NewDecisionLogger(logDir)
 
 	return &AutoTrader{
-		id:             config.ID,
-		name:           config.Name,
-		aiModel:        config.AIModel,
-		config:         config,
-		trader:         trader,
-		decisionLogger: decisionLogger,
-		initialBalance: config.InitialBalance,
-		lastResetTime:  time.Now(),
-		startTime:      time.Now(),
-		callCount:      0,
-		isRunning:      false,
+		id:                   config.ID,
+		name:                 config.Name,
+		aiModel:              config.AIModel,
+		config:               config,
+		trader:               trader,
+		decisionLogger:       decisionLogger,
+		initialBalance:       config.InitialBalance,
+		lastResetTime:        time.Now(),
+		startTime:            time.Now(),
+		callCount:            0,
+		isRunning:            false,
+		positionFirstSeenTime: make(map[string]int64),
 	}, nil
 }
 
@@ -349,6 +351,9 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	var positionInfos []decision.PositionInfo
 	totalMarginUsed := 0.0
 
+	// 当前持仓的key集合（用于清理已平仓的记录）
+	currentPositionKeys := make(map[string]bool)
+
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
 		side := pos["side"].(string)
@@ -377,6 +382,15 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		marginUsed := (quantity * markPrice) / float64(leverage)
 		totalMarginUsed += marginUsed
 
+		// 跟踪持仓首次出现时间
+		posKey := symbol + "_" + side
+		currentPositionKeys[posKey] = true
+		if _, exists := at.positionFirstSeenTime[posKey]; !exists {
+			// 新持仓，记录当前时间
+			at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
+		}
+		updateTime := at.positionFirstSeenTime[posKey]
+
 		positionInfos = append(positionInfos, decision.PositionInfo{
 			Symbol:           symbol,
 			Side:             side,
@@ -388,7 +402,15 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			UnrealizedPnLPct: pnlPct,
 			LiquidationPrice: liquidationPrice,
 			MarginUsed:       marginUsed,
+			UpdateTime:       updateTime,
 		})
+	}
+
+	// 清理已平仓的持仓记录
+	for key := range at.positionFirstSeenTime {
+		if !currentPositionKeys[key] {
+			delete(at.positionFirstSeenTime, key)
+		}
 	}
 
 	// 3. 获取合并的候选币种池（AI500 + OI Top，去重）
@@ -514,6 +536,10 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 
 	log.Printf("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantity)
 
+	// 记录开仓时间
+	posKey := decision.Symbol + "_long"
+	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
+
 	// 设置止损止盈
 	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
 		log.Printf("  ⚠ 设置止损失败: %v", err)
@@ -562,6 +588,10 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	}
 
 	log.Printf("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantity)
+
+	// 记录开仓时间
+	posKey := decision.Symbol + "_short"
+	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
 	// 设置止损止盈
 	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {

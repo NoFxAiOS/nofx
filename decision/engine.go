@@ -23,6 +23,7 @@ type PositionInfo struct {
 	UnrealizedPnLPct float64 `json:"unrealized_pnl_pct"`
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
+	UpdateTime       int64   `json:"update_time"` // 持仓更新时间戳（毫秒）
 }
 
 // AccountInfo 账户信息
@@ -335,10 +336,24 @@ func buildUserPrompt(ctx *Context) string {
 	if len(ctx.Positions) > 0 {
 		sb.WriteString("## 当前持仓\n")
 		for i, pos := range ctx.Positions {
-			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 盈亏%+.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f\n\n",
+			// 计算持仓时长
+			holdingDuration := ""
+			if pos.UpdateTime > 0 {
+				durationMs := time.Now().UnixMilli() - pos.UpdateTime
+				durationMin := durationMs / (1000 * 60) // 转换为分钟
+				if durationMin < 60 {
+					holdingDuration = fmt.Sprintf(" | 持仓时长%d分钟", durationMin)
+				} else {
+					durationHour := durationMin / 60
+					durationMinRemainder := durationMin % 60
+					holdingDuration = fmt.Sprintf(" | 持仓时长%d小时%d分钟", durationHour, durationMinRemainder)
+				}
+			}
+
+			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 盈亏%+.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f%s\n\n",
 				i+1, pos.Symbol, strings.ToUpper(pos.Side),
 				pos.EntryPrice, pos.MarkPrice, pos.UnrealizedPnLPct,
-				pos.Leverage, pos.MarginUsed, pos.LiquidationPrice))
+				pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
 
 			// 使用FormatMarketData输出完整市场数据
 			if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {

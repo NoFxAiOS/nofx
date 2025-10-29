@@ -594,3 +594,9 @@ Issues and Pull Requests are welcome!
 **Last Updated**: 2025-10-29
 
 **⚡ Explore the possibilities of quantitative trading with the power of AI!**
+
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tinkle-community/nofx&type=Date)](https://star-history.com/#tinkle-community/nofx&Date)

@@ -32,6 +32,7 @@ coin_pool_cache/
 nofx_test
 
 # Node.js
+web/node_modules/
 node_modules/
 web/dist/
 web/.vite/

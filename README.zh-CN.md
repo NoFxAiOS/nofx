@@ -673,3 +673,9 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 **最后更新**: 2025-10-29
 
 **⚡ 用AI的力量，探索量化交易的可能性！**
+
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tinkle-community/nofx&type=Date)](https://star-history.com/#tinkle-community/nofx&Date)

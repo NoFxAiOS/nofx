@@ -345,3 +345,9 @@ sudo apt-get install libta-lib0-dev
 **Последнее обновление**: 2025-10-29
 
 **⚡ Исследуйте возможности количественной торговли с силой AI!**
+
+---
+
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=tinkle-community/nofx&type=Date)](https://star-history.com/#tinkle-community/nofx&Date)

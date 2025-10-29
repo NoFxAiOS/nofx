@@ -94,31 +94,31 @@ check_config() {
 # ------------------------------------------------------------------------
 # Build: Frontend (Node.js Based)
 # ------------------------------------------------------------------------
-build_frontend() {
-    print_info "检查前端构建环境..."
+# build_frontend() {
+#     print_info "检查前端构建环境..."
 
-    if ! command -v node &> /dev/null; then
-        print_error "Node.js 未安装！请先安装 Node.js"
-        exit 1
-    fi
+#     if ! command -v node &> /dev/null; then
+#         print_error "Node.js 未安装！请先安装 Node.js"
+#         exit 1
+#     fi
 
-    if ! command -v npm &> /dev/null; then
-        print_error "npm 未安装！请先安装 npm"
-        exit 1
-    fi
+#     if ! command -v npm &> /dev/null; then
+#         print_error "npm 未安装！请先安装 npm"
+#         exit 1
+#     fi
 
-    print_info "正在构建前端..."
-    cd web
+#     print_info "正在构建前端..."
+#     cd web
 
-    print_info "安装 Node.js 依赖..."
-    npm install
+#     print_info "安装 Node.js 依赖..."
+#     npm install
 
-    print_info "构建前端应用..."
-    npm run build
+#     print_info "构建前端应用..."
+#     npm run build
 
-    cd ..
-    print_success "前端构建完成"
-}
+#     cd ..
+#     print_success "前端构建完成"
+# }
 
 # ------------------------------------------------------------------------
 # Service Management: Start
@@ -127,9 +127,9 @@ start() {
     print_info "正在启动 NOFX AI Trading System..."
 
     # Auto-build frontend if missing or forced
-    if [ ! -d "web/dist" ] || [ "$1" == "--build" ]; then
-        build_frontend
-    fi
+    # if [ ! -d "web/dist" ] || [ "$1" == "--build" ]; then
+    #     build_frontend
+    # fi
 
     # Rebuild images if flag set
     if [ "$1" == "--build" ]; then

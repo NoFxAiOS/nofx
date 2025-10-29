@@ -136,6 +136,34 @@ nofx/
 
 ---
 
+## 💰 Register Binance Account (Save on Fees!)
+
+Before using this system, you need a Binance Futures account. **Use our referral link to save on trading fees:**
+
+**🎁 [Register Binance - Get Fee Discount](https://www.binance.com/join?ref=TINKLEVIP)**
+
+### Registration Steps:
+
+1. **Click the link above** to visit Binance registration page
+2. **Complete registration** with email/phone number
+3. **Complete KYC verification** (required for futures trading)
+4. **Enable Futures account**:
+   - Go to Binance homepage → Derivatives → USD-M Futures
+   - Click "Open Now" to activate futures trading
+5. **Create API Key**:
+   - Go to Account → API Management
+   - Create new API key, **enable "Futures" permission**
+   - Save API Key and Secret Key (needed for config.json)
+   - **Important**: Whitelist your IP address for security
+
+### Fee Discount Benefits:
+
+- ✅ **Spot trading**: Up to 20% fee discount
+- ✅ **Futures trading**: Up to 10% fee discount
+- ✅ **Lifetime validity**: Permanent discount on all trades
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Environment Requirements

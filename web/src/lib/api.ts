@@ -100,4 +100,14 @@ export const api = {
     if (!res.ok) throw new Error('获取历史数据失败');
     return res.json();
   },
+
+  // 获取AI学习表现分析（支持trader_id）
+  async getPerformance(traderId?: string): Promise<any> {
+    const url = traderId
+      ? `${API_BASE}/performance?trader_id=${traderId}`
+      : `${API_BASE}/performance`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('获取AI学习数据失败');
+    return res.json();
+  },
 };

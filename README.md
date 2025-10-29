@@ -158,8 +158,8 @@ Before using this system, you need a Binance Futures account. **Use our referral
 
 ### Fee Discount Benefits:
 
-- ✅ **Spot trading**: Up to 20% fee discount
-- ✅ **Futures trading**: Up to 10% fee discount
+- ✅ **Spot trading**: Up to 30% fee discount
+- ✅ **Futures trading**: Up to 30% fee discount
 - ✅ **Lifetime validity**: Permanent discount on all trades
 
 ---

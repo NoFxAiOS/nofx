@@ -56,6 +56,7 @@ export interface DecisionAction {
 export interface DecisionRecord {
   timestamp: string;
   cycle_number: number;
+  input_prompt: string;
   cot_trace: string;
   decision_json: string;
   account_state: {

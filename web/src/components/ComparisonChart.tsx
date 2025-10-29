@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   LineChart,
   Line,
@@ -275,7 +275,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
             }}
           />
 
-          {traders.map((trader, index) => (
+          {traders.map((trader) => (
             <Line
               key={trader.trader_id}
               type="monotone"

@@ -44,6 +44,11 @@ func LoadConfig(filename string) (*Config, error) {
 		return nil, fmt.Errorf("解析配置文件失败: %w", err)
 	}
 
+	// 设置默认值：如果use_default_coins未设置（为false）且没有配置coin_pool_api_url，则默认使用默认币种列表
+	if !config.UseDefaultCoins && config.CoinPoolAPIURL == "" {
+		config.UseDefaultCoins = true
+	}
+
 	// 验证配置
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("配置验证失败: %w", err)

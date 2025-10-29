@@ -207,9 +207,117 @@ npm install
 cd ..
 ```
 
-### 4. System Configuration
+### 4. Get AI API Keys
 
-Create `config.json` file (use `config.json.example` as template):
+Before configuring the system, you need to obtain AI API keys. Choose one of the following AI providers:
+
+#### Option 1: DeepSeek (Recommended for Beginners)
+
+**Why DeepSeek?**
+- 💰 Cheaper than GPT-4 (about 1/10 the cost)
+- 🚀 Fast response time
+- 🎯 Excellent trading decision quality
+- 🌍 Works globally without VPN
+
+**How to get DeepSeek API Key:**
+
+1. **Visit**: [https://platform.deepseek.com](https://platform.deepseek.com)
+2. **Register**: Sign up with email/phone number
+3. **Verify**: Complete email/phone verification
+4. **Top-up**: Add credits to your account
+   - Minimum: ~$5 USD
+   - Recommended: $20-50 USD for testing
+5. **Create API Key**:
+   - Go to API Keys section
+   - Click "Create New Key"
+   - Copy and save the key (starts with `sk-`)
+   - ⚠️ **Important**: Save it immediately - you can't see it again!
+
+**Pricing**: ~$0.14 per 1M tokens (very cheap!)
+
+#### Option 2: Qwen (Alibaba Cloud)
+
+**How to get Qwen API Key:**
+
+1. **Visit**: [https://dashscope.aliyuncs.com](https://dashscope.aliyuncs.com)
+2. **Register**: Sign up with Alibaba Cloud account
+3. **Enable Service**: Activate DashScope service
+4. **Create API Key**:
+   - Go to API Key Management
+   - Create new key
+   - Copy and save (starts with `sk-`)
+
+**Note**: May require Chinese phone number for registration
+
+---
+
+### 5. System Configuration
+
+**Two configuration modes available:**
+- **🌟 Beginner Mode**: Single trader + default coins (recommended!)
+- **⚔️ Expert Mode**: Multiple traders competition
+
+#### 🌟 Beginner Mode Configuration (Recommended)
+
+**Step 1**: Copy and rename the example config file
+
+```bash
+cp config.json.example config.json
+```
+
+**Step 2**: Edit `config.json` with your API keys
+
+```json
+{
+  "traders": [
+    {
+      "id": "my_trader",
+      "name": "My AI Trader",
+      "ai_model": "deepseek",
+      "binance_api_key": "YOUR_BINANCE_API_KEY",
+      "binance_secret_key": "YOUR_BINANCE_SECRET_KEY",
+      "use_qwen": false,
+      "deepseek_key": "sk-xxxxxxxxxxxxx",
+      "qwen_key": "",
+      "initial_balance": 1000.0,
+      "scan_interval_minutes": 3
+    }
+  ],
+  "use_default_coins": true,
+  "coin_pool_api_url": "",
+  "oi_top_api_url": "",
+  "api_server_port": 8080
+}
+```
+
+**Step 3**: Replace placeholders with your actual keys
+
+| Placeholder | Replace With | Where to Get |
+|------------|--------------|--------------|
+| `YOUR_BINANCE_API_KEY` | Your Binance API Key | Binance → Account → API Management |
+| `YOUR_BINANCE_SECRET_KEY` | Your Binance Secret Key | Same as above |
+| `sk-xxxxxxxxxxxxx` | Your DeepSeek API Key | [platform.deepseek.com](https://platform.deepseek.com) |
+
+**Step 4**: Adjust initial balance (optional)
+
+- `initial_balance`: Set to your actual Binance futures account balance
+- Used to calculate profit/loss percentage
+- Example: If you have 500 USDT, set `"initial_balance": 500.0`
+
+**✅ Configuration Checklist:**
+
+- [ ] Binance API key filled in (no quotes issues)
+- [ ] Binance Secret key filled in (no quotes issues)
+- [ ] DeepSeek API key filled in (starts with `sk-`)
+- [ ] `use_default_coins` set to `true` (for beginners)
+- [ ] `initial_balance` matches your account balance
+- [ ] File saved as `config.json` (not `.example`)
+
+---
+
+#### ⚔️ Expert Mode: Multi-Trader Competition
+
+For running multiple AI traders competing against each other:
 
 ```json
 {
@@ -218,12 +326,13 @@ Create `config.json` file (use `config.json.example` as template):
       "id": "qwen_trader",
       "name": "Qwen AI Trader",
       "ai_model": "qwen",
-      "binance_api_key": "YOUR_BINANCE_API_KEY",
-      "binance_secret_key": "YOUR_BINANCE_SECRET_KEY",
+      "binance_api_key": "YOUR_BINANCE_API_KEY_1",
+      "binance_secret_key": "YOUR_BINANCE_SECRET_KEY_1",
       "use_qwen": true,
       "qwen_key": "sk-xxxxx",
-      "scan_interval_minutes": 3,
-      "initial_balance": 1000.0
+      "deepseek_key": "",
+      "initial_balance": 1000.0,
+      "scan_interval_minutes": 3
     },
     {
       "id": "deepseek_trader",
@@ -232,125 +341,349 @@ Create `config.json` file (use `config.json.example` as template):
       "binance_api_key": "YOUR_BINANCE_API_KEY_2",
       "binance_secret_key": "YOUR_BINANCE_SECRET_KEY_2",
       "use_qwen": false,
+      "qwen_key": "",
       "deepseek_key": "sk-xxxxx",
-      "scan_interval_minutes": 3,
-      "initial_balance": 1000.0
+      "initial_balance": 1000.0,
+      "scan_interval_minutes": 3
     }
   ],
-  "coin_pool_api_url": "http://x.x.x.x:xxx/api/ai500/list?auth=YOUR_AUTH",
-  "oi_top_api_url": "http://x.x.x.x:xxx/api/oi/top?auth=YOUR_AUTH",
+  "use_default_coins": true,
+  "coin_pool_api_url": "",
+  "oi_top_api_url": "",
   "api_server_port": 8080
 }
 ```
 
-**Configuration Notes:**
-- `traders`: Configure 1-N traders (single AI or multi-AI competition)
-- `id`: Unique trader identifier (used for log directory)
-- `ai_model`: "qwen" or "deepseek"
-- `binance_api_key/secret_key`: Each trader uses independent Binance account
-- `initial_balance`: Initial balance (for calculating P/L%)
-- `scan_interval_minutes`: Decision cycle (recommended 3-5 minutes)
-- `use_default_coins`: **true** = Use default 8 mainstream coins | **false** = Use API coin pool (recommended for beginners: true)
-- `coin_pool_api_url`: AI500 coin pool API (optional, ignored when use_default_coins=true)
-- `oi_top_api_url`: OI Top open interest API (optional, if empty, OI Top data is skipped)
+**Requirements for Competition Mode:**
+- 2 separate Binance futures accounts (different API keys)
+- Both AI API keys (Qwen + DeepSeek)
+- More capital for testing (recommended: 500+ USDT per account)
 
-**Default Coin List** (when `use_default_coins: true`):
+---
+
+#### 📚 Configuration Field Explanations
+
+| Field | Description | Example Value | Required? |
+|-------|-------------|---------------|-----------|
+| `id` | Unique identifier for this trader | `"my_trader"` | ✅ Yes |
+| `name` | Display name | `"My AI Trader"` | ✅ Yes |
+| `ai_model` | AI provider to use | `"deepseek"` or `"qwen"` | ✅ Yes |
+| `binance_api_key` | Binance API key | `"abc123..."` | ✅ Yes |
+| `binance_secret_key` | Binance Secret key | `"xyz789..."` | ✅ Yes |
+| `use_qwen` | Whether to use Qwen | `true` or `false` | ✅ Yes |
+| `deepseek_key` | DeepSeek API key | `"sk-xxx"` | If using DeepSeek |
+| `qwen_key` | Qwen API key | `"sk-xxx"` | If using Qwen |
+| `initial_balance` | Starting balance for P/L calculation | `1000.0` | ✅ Yes |
+| `scan_interval_minutes` | How often to make decisions | `3` (3-5 recommended) | ✅ Yes |
+| `use_default_coins` | Use built-in coin list<br>**✨ Smart Default: `true`** (v2.0.2+)<br>Auto-enabled if no API URL provided | `true` or omit | ❌ No<br>(Optional, auto-defaults) |
+| `coin_pool_api_url` | Custom coin pool API<br>*Only needed when `use_default_coins: false`* | `""` (empty) | ❌ No |
+| `oi_top_api_url` | Open interest API<br>*Optional supplement data* | `""` (empty) | ❌ No |
+| `api_server_port` | Web dashboard port | `8080` | ✅ Yes |
+
+**Default Trading Coins** (when `use_default_coins: true`):
 - BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
 
-### 5. Run the System
+---
 
-**Start backend (AI trading system + API server):**
+#### ⚠️ Important: `use_default_coins` Field
+
+**Smart Default Behavior (v2.0.2+):**
+
+The system now automatically defaults to `use_default_coins: true` if:
+- You don't include this field in config.json, OR
+- You set it to `false` but don't provide `coin_pool_api_url`
+
+This makes it beginner-friendly! You can even omit this field entirely.
+
+**Configuration Examples:**
+
+✅ **Option 1: Explicitly set (Recommended for clarity)**
+```json
+"use_default_coins": true,
+"coin_pool_api_url": "",
+"oi_top_api_url": ""
+```
+
+✅ **Option 2: Omit the field (uses default coins automatically)**
+```json
+// Just don't include "use_default_coins" at all
+"coin_pool_api_url": "",
+"oi_top_api_url": ""
+```
+
+⚙️ **Advanced: Use external API**
+```json
+"use_default_coins": false,
+"coin_pool_api_url": "http://your-api.com/coins",
+"oi_top_api_url": "http://your-api.com/oi"
+```
+
+---
+
+### 6. Run the System
+
+#### 🚀 Starting the System (2 steps)
+
+The system has **2 parts** that run separately:
+1. **Backend** (AI trading brain + API)
+2. **Frontend** (Web dashboard for monitoring)
+
+---
+
+#### **Step 1: Start the Backend**
+
+Open a terminal and run:
 
 ```bash
+# Build the program (first time only, or after code changes)
 go build -o nofx
+
+# Start the backend
 ./nofx
 ```
 
-**Start frontend (Web Dashboard):**
+**What you should see:**
 
-Open a new terminal:
+```
+🚀 启动自动交易系统...
+✓ Trader [my_trader] 已初始化
+✓ API服务器启动在端口 8080
+📊 开始交易监控...
+```
+
+**⚠️ If you see errors:**
+
+| Error Message | Solution |
+|--------------|----------|
+| `invalid API key` | Check your Binance API key in config.json |
+| `TA-Lib not found` | Run `brew install ta-lib` (macOS) |
+| `port 8080 already in use` | Change `api_server_port` in config.json |
+| `DeepSeek API error` | Verify your DeepSeek API key and balance |
+
+**✅ Backend is running correctly when you see:**
+- No error messages
+- "开始交易监控..." appears
+- System shows account balance
+- Keep this terminal window open!
+
+---
+
+#### **Step 2: Start the Frontend**
+
+Open a **NEW terminal window** (keep the first one running!), then:
 
 ```bash
 cd web
 npm run dev
 ```
 
-**Access the interface:**
+**What you should see:**
+
 ```
-Web Dashboard: http://localhost:3000
-API Server: http://localhost:8080
+VITE v5.x.x  ready in xxx ms
+
+➜  Local:   http://localhost:3000/
+➜  Network: use --host to expose
 ```
 
-### 6. Stop the System
+**✅ Frontend is running when you see:**
+- "Local: http://localhost:3000/" message
+- No error messages
+- Keep this terminal window open too!
 
-Press `Ctrl+C` in both terminals
+---
+
+#### **Step 3: Access the Dashboard**
+
+Open your web browser and visit:
+
+**🌐 http://localhost:3000**
+
+**What you'll see:**
+- 📊 Real-time account balance
+- 📈 Open positions (if any)
+- 🤖 AI decision logs
+- 📉 Equity curve chart
+
+**First-time tips:**
+- It may take 3-5 minutes for the first AI decision
+- Initial decisions might say "观望" (wait) - this is normal
+- AI needs to analyze market conditions first
+
+---
+
+### 7. Monitor the System
+
+**What to watch:**
+
+✅ **Healthy System Signs:**
+- Backend terminal shows decision cycles every 3-5 minutes
+- No continuous error messages
+- Account balance updates
+- Web dashboard refreshes automatically
+
+⚠️ **Warning Signs:**
+- Repeated API errors
+- No decisions for 10+ minutes
+- Balance decreasing rapidly
+
+**Checking System Status:**
+
+```bash
+# In a new terminal window
+curl http://localhost:8080/health
+```
+
+Should return: `{"status":"ok"}`
+
+---
+
+### 8. Stop the System
+
+**Graceful Shutdown (Recommended):**
+
+1. Go to the **backend terminal** (the first one)
+2. Press `Ctrl+C`
+3. Wait for "系统已停止" message
+4. Go to the **frontend terminal** (the second one)
+5. Press `Ctrl+C`
+
+**⚠️ Important:**
+- Always stop the backend first
+- Wait for confirmation before closing terminals
+- Don't force quit (don't close terminal directly)
 
 ---
 
 ## 📖 AI Decision Flow
 
-Each decision cycle (default 3 minutes), the system runs the following process:
+Each decision cycle (default 3 minutes), the system executes the following intelligent process:
 
 ```
-┌─────────────────────────────────────────────────────┐
-│ 1. Analyze Historical Performance (last 20 cycles)  │
-├─────────────────────────────────────────────────────┤
-│  ✓ Calculate overall win rate, avg profit, P/L ratio│
-│  ✓ Statistics for each coin (win rate, avg P/L)    │
-│  ✓ Identify best/worst coins                        │
-│  ✓ List last 5 trade details                        │
-└─────────────────────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│ 2. Get Account Status                               │
-├─────────────────────────────────────────────────────┤
-│  • Account equity, available balance                │
-│  • Number of positions, total P/L                   │
-│  • Margin usage rate                                │
-└─────────────────────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│ 3. Analyze Existing Positions (if any)              │
-├─────────────────────────────────────────────────────┤
-│  • Get market data for each position                │
-│  • Calculate technical indicators (RSI, MACD, EMA)  │
-│  • AI decides whether to close positions            │
-└─────────────────────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│ 4. Evaluate New Opportunities (candidate coin pool) │
-├─────────────────────────────────────────────────────┤
-│  • Get AI500 high-score coins (top 20)              │
-│  • Get OI Top growing coins (top 20)                │
-│  • Merge and deduplicate, filter low liquidity      │
-│  • Batch fetch market data and technical indicators │
-└─────────────────────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│ 5. AI Comprehensive Decision                        │
-├─────────────────────────────────────────────────────┤
-│  • Review historical feedback (win rate, best/worst)│
-│  • Chain of Thought analysis                        │
-│  • Output decision: close/open/hold/wait            │
-│  • Includes leverage, position size, SL, TP         │
-└─────────────────────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│ 6. Execute Trades                                   │
-├─────────────────────────────────────────────────────┤
-│  • Priority: close first, then open                 │
-│  • Auto-adapt precision (LOT_SIZE)                  │
-│  • Prevent position stacking (reject duplicate)     │
-│  • Auto-cancel all orders after closing             │
-└─────────────────────────────────────────────────────┘
-                       ↓
-┌─────────────────────────────────────────────────────┐
-│ 7. Record Logs                                      │
-├─────────────────────────────────────────────────────┤
-│  • Save complete decision to decision_logs/         │
-│  • Includes CoT, decision JSON, account snapshot    │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ 1. 📊 Analyze Historical Performance (last 20 cycles)    │
+├──────────────────────────────────────────────────────────┤
+│  ✓ Calculate overall win rate, avg profit, P/L ratio    │
+│  ✓ Per-coin statistics (win rate, avg P/L in USDT)      │
+│  ✓ Identify best/worst performing coins                 │
+│  ✓ List last 5 trade details with accurate PnL          │
+│  ✓ Calculate Sharpe ratio for risk-adjusted performance │
+│  📌 NEW (v2.0.2): Accurate USDT PnL with leverage       │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│ 2. 💰 Get Account Status                                 │
+├──────────────────────────────────────────────────────────┤
+│  • Total equity & available balance                      │
+│  • Number of open positions & unrealized P/L            │
+│  • Margin usage rate (AI manages up to 90%)             │
+│  • Daily P/L tracking & drawdown monitoring             │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│ 3. 🔍 Analyze Existing Positions (if any)                │
+├──────────────────────────────────────────────────────────┤
+│  • For each position, fetch latest market data          │
+│  • Calculate real-time technical indicators:            │
+│    - 3min K-line: RSI(7), MACD, EMA20                   │
+│    - 4hour K-line: RSI(14), EMA20/50, ATR               │
+│  • Track position holding duration (e.g., "2h 15min")   │
+│    📌 NEW (v2.0.2): Shows how long each position held   │
+│  • Display: Entry price, current price, P/L%, duration  │
+│  • AI evaluates: Should hold or close?                  │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│ 4. 🎯 Evaluate New Opportunities (candidate coins)       │
+├──────────────────────────────────────────────────────────┤
+│  • Fetch coin pool (2 modes):                           │
+│    🌟 Default Mode: BTC, ETH, SOL, BNB, XRP, etc.       │
+│    ⚙️  Advanced Mode: AI500 (top 20) + OI Top (top 20) │
+│  • Merge & deduplicate candidate coins                  │
+│  • Filter: Remove low liquidity (<15M USD OI value)     │
+│  • Batch fetch market data + technical indicators       │
+│  • Calculate volatility, trend strength, volume surge   │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│ 5. 🧠 AI Comprehensive Decision (DeepSeek/Qwen)          │
+├──────────────────────────────────────────────────────────┤
+│  • Review historical feedback:                          │
+│    - Recent win rate & profit factor                    │
+│    - Best/worst coins performance                       │
+│    - Avoid repeating mistakes                           │
+│  • Analyze all raw sequence data:                       │
+│    - 3min price序列, 4hour K-line序列                     │
+│    - Complete indicator sequences (not just latest)     │
+│    📌 NEW (v2.0.2): AI has full freedom to analyze     │
+│  • Chain of Thought (CoT) reasoning process             │
+│  • Output structured decisions:                         │
+│    - Action: close_long/close_short/open_long/open_short│
+│    - Coin symbol, quantity, leverage                    │
+│    - Stop-loss & take-profit levels (≥1:2 ratio)        │
+│  • Decision: Wait/Hold/Close/Open                       │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│ 6. ⚡ Execute Trades                                      │
+├──────────────────────────────────────────────────────────┤
+│  • Priority order: Close existing → Then open new       │
+│  • Risk checks before execution:                        │
+│    - Position size limits (1.5x for altcoins, 10x BTC) │
+│    - No duplicate positions (same coin + direction)     │
+│    - Margin usage within 90% limit                      │
+│  • Auto-fetch & apply Binance LOT_SIZE precision        │
+│  • Execute orders via Binance Futures API               │
+│  • After closing: Auto-cancel all pending orders        │
+│  • Record actual execution price & order ID             │
+│  📌 Track position open time for duration calculation   │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+┌──────────────────────────────────────────────────────────┐
+│ 7. 📝 Record Complete Logs & Update Performance          │
+├──────────────────────────────────────────────────────────┤
+│  • Save decision log to decision_logs/{trader_id}/      │
+│  • Log includes:                                        │
+│    - Complete Chain of Thought (CoT)                    │
+│    - Input prompt with all market data                  │
+│    - Structured decision JSON                           │
+│    - Account snapshot (balance, positions, margin)      │
+│    - Execution results (success/failure, prices)        │
+│  • Update performance database:                         │
+│    - Match open/close pairs by symbol_side key          │
+│      📌 NEW: Prevents long/short conflicts             │
+│    - Calculate accurate USDT PnL:                       │
+│      PnL = Position Value × Price Δ% × Leverage         │
+│      📌 NEW: Considers quantity + leverage              │
+│    - Store: quantity, leverage, open time, close time   │
+│    - Update win rate, profit factor, Sharpe ratio       │
+│  • Performance data feeds back into next cycle          │
+└──────────────────────────────────────────────────────────┘
+                           ↓
+                    (Repeat every 3-5 min)
 ```
+
+### Key Improvements in v2.0.2
+
+**📌 Position Duration Tracking:**
+- System now tracks how long each position has been held
+- Displayed in user prompt: "持仓时长2小时15分钟"
+- Helps AI make better decisions on when to exit
+
+**📌 Accurate PnL Calculation:**
+- Previously: Only percentage (100U@5% = 1000U@5% = both showed "5.0")
+- Now: Real USDT profit = Position Value × Price Change × Leverage
+- Example: 1000 USDT × 5% × 20x = 1000 USDT actual profit
+
+**📌 Enhanced AI Freedom:**
+- AI can freely analyze all raw sequence data
+- No longer restricted to predefined indicator combinations
+- Can perform own trend analysis, support/resistance calculation
+
+**📌 Improved Position Tracking:**
+- Uses `symbol_side` key (e.g., "BTCUSDT_long")
+- Prevents conflicts when holding both long & short
+- Stores complete data: quantity, leverage, open/close times
 
 ---
 
@@ -528,6 +861,50 @@ sudo apt-get install libta-lib0-dev
 
 ## 🔄 Changelog
 
+### v2.0.2 (2025-10-29)
+
+**Critical Bug Fixes - Trade History & Performance Analysis:**
+
+This version fixes **critical calculation errors** in the historical trade record and performance analysis system that significantly affected profitability statistics.
+
+**1. PnL Calculation - Major Error Fixed** (logger/decision_logger.go)
+- **Problem**: Previously calculated PnL as percentage only, completely ignoring position size and leverage
+  - Example: 100 USDT position earning 5% and 1000 USDT position earning 5% both showed `5.0` as profit
+  - This made performance analysis completely inaccurate
+- **Solution**: Now calculates actual USDT profit amount
+  ```
+  PnL (USDT) = Position Value × Price Change % × Leverage
+  Example: 1000 USDT × 5% × 20x = 1000 USDT actual profit
+  ```
+- **Impact**: Win rate, profit factor, and Sharpe ratio now based on accurate USDT amounts
+
+**2. Position Tracking - Missing Critical Data**
+- **Problem**: Open position records only stored price and time, missing quantity and leverage
+- **Solution**: Now stores complete trade data:
+  - `quantity`: Position size (in coins)
+  - `leverage`: Leverage multiplier (e.g., 20x)
+  - These are essential for accurate PnL calculations
+
+**3. Position Key Logic - Long/Short Conflict**
+- **Problem**: Used `symbol` as position key, causing data conflicts when holding both long and short
+  - Example: BTCUSDT long and BTCUSDT short would overwrite each other
+- **Solution**: Changed to `symbol_side` format (e.g., `BTCUSDT_long`, `BTCUSDT_short`)
+  - Now properly distinguishes between long and short positions
+
+**4. Sharpe Ratio Calculation - Code Optimization**
+- **Problem**: Used custom Newton's method for square root calculation
+- **Solution**: Replaced with standard library `math.Sqrt`
+  - More reliable, maintainable, and efficient
+
+**Why This Update Matters:**
+- ✅ Historical trade statistics now show **real USDT profit/loss** instead of meaningless percentages
+- ✅ Performance comparison between different leverage trades is now accurate
+- ✅ AI self-learning mechanism receives correct historical feedback
+- ✅ Profit factor and Sharpe ratio calculations are now meaningful
+- ✅ Multi-position tracking (long + short simultaneously) works correctly
+
+**Recommendation**: If you were running the system before this update, your historical statistics were inaccurate. After updating to v2.0.2, new trades will be calculated correctly.
+
 ### v2.0.1 (2025-10-29)
 
 **Bug Fixes:**
@@ -595,7 +972,7 @@ Issues and Pull Requests are welcome!
 
 ---
 
-**Last Updated**: 2025-10-29
+**Last Updated**: 2025-10-29 (v2.0.2)
 
 **⚡ Explore the possibilities of quantitative trading with the power of AI!**
 

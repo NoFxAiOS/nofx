@@ -1,59 +1,103 @@
-# 构建阶段
-FROM golang:1.21-alpine AS builder
+# Multi-stage build for NOFX AI Trading System
+FROM golang:1.24-alpine AS backend-builder
 
-# 安装必要的构建工具
-RUN apk add --no-cache git gcc musl-dev
+# Install build dependencies including TA-Lib
+RUN apk add --no-cache \
+    git \
+    make \
+    gcc \
+    g++ \
+    musl-dev \
+    wget \
+    tar
 
-# 设置工作目录
+# Install TA-Lib
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+
+# Set working directory
 WORKDIR /app
 
-# 复制 go mod 文件
+# Copy go mod files
 COPY go.mod go.sum ./
 
-# 下载依赖
+# Download dependencies
 RUN go mod download
 
-# 复制源代码
+# Copy backend source code
 COPY . .
 
-# 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o nofx .
+# Build the application
+RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o nofx .
 
-# 运行阶段
+# Frontend build stage
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app/web
+
+# Copy package files
+COPY web/package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy frontend source
+COPY web/ ./
+
+# Build frontend
+RUN npm run build
+
+# Final stage
 FROM alpine:latest
 
-# 安装 ca-certificates（HTTPS 请求需要）
-RUN apk --no-cache add ca-certificates tzdata
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    wget \
+    tar \
+    make \
+    gcc \
+    g++ \
+    musl-dev
 
-# 设置时区为上海
-ENV TZ=Asia/Shanghai
+# Install TA-Lib runtime
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+    tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
 
-# 创建非 root 用户
-RUN addgroup -g 1000 nofx && \
-    adduser -D -u 1000 -G nofx nofx
+# Set timezone to UTC
+ENV TZ=UTC
 
-# 设置工作目录
 WORKDIR /app
 
-# 从构建阶段复制二进制文件
-COPY --from=builder /app/nofx .
+# Copy backend binary from builder
+COPY --from=backend-builder /app/nofx .
 
-# 复制配置文件示例
-COPY config.json.example ./config.json.example
+# Copy frontend build from builder
+COPY --from=frontend-builder /app/web/dist ./web/dist
 
-# 创建必要的目录
-RUN mkdir -p decision_logs coin_pool_cache && \
-    chown -R nofx:nofx /app
+# Create directories for logs and data
+RUN mkdir -p /app/decision_logs
 
-# 切换到非 root 用户
-USER nofx
-
-# 暴露 API 端口
+# Expose ports
+# 8080 for backend API
 EXPOSE 8080
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# 启动应用
+# Run the application
 CMD ["./nofx"]

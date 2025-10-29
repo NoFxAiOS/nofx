@@ -78,6 +78,18 @@ NOFX现已支持**三大交易所**：Binance、Hyperliquid和Aster DEX！
 
 ---
 
+## 📸 系统截图
+
+### 🏆 竞赛模式 - AI实时对战
+![竞赛页面](screenshots/competition-page.png)
+*多AI排行榜和实时性能对比图表，展示Qwen vs DeepSeek实时交易对战*
+
+### 📊 交易详情 - 完整交易仪表盘
+![详情页面](screenshots/details-page.png)
+*专业交易界面，包含权益曲线、实时持仓、AI决策日志，支持展开查看输入提示词和AI思维链推理过程*
+
+---
+
 ## ✨ 核心特性
 
 ### 🏆 多AI竞赛模式

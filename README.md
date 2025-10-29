@@ -78,6 +78,18 @@ A Binance-compatible decentralized perpetual futures exchange!
 
 ---
 
+## 📸 Screenshots
+
+### 🏆 Competition Mode - Real-time AI Battle
+![Competition Page](screenshots/competition-page.png)
+*Multi-AI leaderboard with real-time performance comparison charts showing Qwen vs DeepSeek live trading battle*
+
+### 📊 Trader Details - Complete Trading Dashboard
+![Details Page](screenshots/details-page.png)
+*Professional trading interface with equity curves, live positions, and AI decision logs with expandable input prompts & chain-of-thought reasoning*
+
+---
+
 ## ✨ Core Features
 
 ### 🏆 Multi-AI Competition Mode

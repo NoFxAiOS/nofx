@@ -28,3 +28,8 @@ config.json
 decision_logs/
 coin_pool_cache/
 nofx_test
+
+# Node.js
+node_modules/
+web/dist/
+web/.vite/

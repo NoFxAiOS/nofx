@@ -19,14 +19,24 @@ interface ComparisonChartProps {
 }
 
 export function ComparisonChart({ traders }: ComparisonChartProps) {
-  // 获取所有trader的历史数据
-  const traderHistories = traders.map((trader) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useSWR(`equity-history-${trader.trader_id}`, () =>
-      api.getEquityHistory(trader.trader_id),
-      { refreshInterval: 10000 }
-    );
-  });
+  // 获取所有trader的历史数据 - 修复: 使用固定数量的Hook调用
+  // 始终调用最多2个trader的useSWR，即使实际trader数量不同
+  const trader1 = traders[0];
+  const trader2 = traders[1];
+
+  const history1 = useSWR(
+    trader1 ? `equity-history-${trader1.trader_id}` : null,
+    trader1 ? () => api.getEquityHistory(trader1.trader_id) : null,
+    { refreshInterval: 10000 }
+  );
+
+  const history2 = useSWR(
+    trader2 ? `equity-history-${trader2.trader_id}` : null,
+    trader2 ? () => api.getEquityHistory(trader2.trader_id) : null,
+    { refreshInterval: 10000 }
+  );
+
+  const traderHistories = [history1, history2].slice(0, traders.length);
 
   // 使用useMemo自动处理数据合并，直接使用data对象作为依赖
   const combinedData = useMemo(() => {

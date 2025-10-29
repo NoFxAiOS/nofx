@@ -1,20 +1,30 @@
 # Multi-stage build for NOFX AI Trading System
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 
 # Install build dependencies including TA-Lib
-RUN apk add --no-cache \
+RUN apk update && \
+    apk add --no-cache \
     git \
     make \
     gcc \
     g++ \
     musl-dev \
     wget \
-    tar
+    tar \
+    autoconf \
+    automake
 
 # Install TA-Lib
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib && \
+    if [ "$(uname -m)" = "aarch64" ]; then \
+        CONFIG_GUESS=$(find /usr/share -name config.guess | head -1) && \
+        CONFIG_SUB=$(find /usr/share -name config.sub | head -1) && \
+        cp "$CONFIG_GUESS" config.guess && \
+        cp "$CONFIG_SUB" config.sub && \
+        chmod +x config.guess config.sub; \
+    fi && \
     ./configure --prefix=/usr && \
     make && \
     make install && \
@@ -56,8 +66,9 @@ RUN npm run build
 # Final stage
 FROM alpine:latest
 
-# Install runtime dependencies
-RUN apk add --no-cache \
+# Update package index and install runtime dependencies
+RUN apk update && \
+    apk add --no-cache \
     ca-certificates \
     tzdata \
     wget \
@@ -65,12 +76,21 @@ RUN apk add --no-cache \
     make \
     gcc \
     g++ \
-    musl-dev
+    musl-dev \
+    autoconf \
+    automake
 
 # Install TA-Lib runtime
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
     tar -xzf ta-lib-0.4.0-src.tar.gz && \
     cd ta-lib && \
+    if [ "$(uname -m)" = "aarch64" ]; then \
+        CONFIG_GUESS=$(find /usr/share -name config.guess | head -1) && \
+        CONFIG_SUB=$(find /usr/share -name config.sub | head -1) && \
+        cp "$CONFIG_GUESS" config.guess && \
+        cp "$CONFIG_SUB" config.sub && \
+        chmod +x config.guess config.sub; \
+    fi && \
     ./configure --prefix=/usr && \
     make && \
     make install && \

@@ -55,15 +55,17 @@ type OITopData struct {
 
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
-	CurrentTime    string                  `json:"current_time"`
-	RuntimeMinutes int                     `json:"runtime_minutes"`
-	CallCount      int                     `json:"call_count"`
-	Account        AccountInfo             `json:"account"`
-	Positions      []PositionInfo          `json:"positions"`
-	CandidateCoins []CandidateCoin         `json:"candidate_coins"`
-	MarketDataMap  map[string]*market.Data `json:"-"` // 不序列化，但内部使用
-	OITopDataMap   map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance    interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	CurrentTime      string                  `json:"current_time"`
+	RuntimeMinutes   int                     `json:"runtime_minutes"`
+	CallCount        int                     `json:"call_count"`
+	Account          AccountInfo             `json:"account"`
+	Positions        []PositionInfo          `json:"positions"`
+	CandidateCoins   []CandidateCoin         `json:"candidate_coins"`
+	MarketDataMap    map[string]*market.Data `json:"-"` // 不序列化，但内部使用
+	OITopDataMap     map[string]*OITopData   `json:"-"` // OI Top数据映射
+	Performance      interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	BTCETHLeverage   int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
+	AltcoinLeverage  int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }
 
 // Decision AI的交易决策
@@ -105,7 +107,7 @@ func GetFullDecision(ctx *Context) (*FullDecision, error) {
 	}
 
 	// 4. 解析AI响应
-	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity)
+	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
 	if err != nil {
 		return nil, fmt.Errorf("解析AI响应失败: %w", err)
 	}
@@ -415,7 +417,7 @@ func buildUserPrompt(ctx *Context) string {
 }
 
 // parseFullDecisionResponse 解析AI的完整决策响应
-func parseFullDecisionResponse(aiResponse string, accountEquity float64) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
 	// 1. 提取思维链
 	cotTrace := extractCoTTrace(aiResponse)
 
@@ -429,7 +431,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64) (*FullD
 	}
 
 	// 3. 验证决策
-	if err := validateDecisions(decisions, accountEquity); err != nil {
+	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
@@ -496,10 +498,10 @@ func fixMissingQuotes(jsonStr string) string {
 	return jsonStr
 }
 
-// validateDecisions 验证所有决策（需要账户信息）
-func validateDecisions(decisions []Decision, accountEquity float64) error {
+// validateDecisions 验证所有决策（需要账户信息和杠杆配置）
+func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity); err != nil {
+		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
 		}
 	}
@@ -529,7 +531,7 @@ func findMatchingBracket(s string, start int) int {
 }
 
 // validateDecision 验证单个决策的有效性
-func validateDecision(d *Decision, accountEquity float64) error {
+func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	// 验证action
 	validActions := map[string]bool{
 		"open_long":   true,
@@ -546,16 +548,16 @@ func validateDecision(d *Decision, accountEquity float64) error {
 
 	// 开仓操作必须提供完整参数
 	if d.Action == "open_long" || d.Action == "open_short" {
-		// 根据币种判断杠杆上限和仓位价值上限
-		maxLeverage := 20                       // 山寨币固定20倍
+		// 根据币种使用配置的杠杆上限
+		maxLeverage := altcoinLeverage          // 山寨币使用配置的杠杆
 		maxPositionValue := accountEquity * 1.5 // 山寨币最多1.5倍账户净值
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			maxLeverage = 50                      // BTC和ETH固定50倍
+			maxLeverage = btcEthLeverage          // BTC和ETH使用配置的杠杆
 			maxPositionValue = accountEquity * 10 // BTC/ETH最多10倍账户净值
 		}
 
 		if d.Leverage <= 0 || d.Leverage > maxLeverage {
-			return fmt.Errorf("杠杆必须在1-%d之间（%s）: %d", maxLeverage, d.Symbol, d.Leverage)
+			return fmt.Errorf("杠杆必须在1-%d之间（%s，当前配置上限%d倍）: %d", maxLeverage, d.Symbol, maxLeverage, d.Leverage)
 		}
 		if d.PositionSizeUSD <= 0 {
 			return fmt.Errorf("仓位大小必须大于0: %.2f", d.PositionSizeUSD)

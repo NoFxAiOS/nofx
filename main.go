@@ -64,6 +64,7 @@ func main() {
 			cfg.MaxDailyLoss,
 			cfg.MaxDrawdown,
 			cfg.StopTradingMinutes,
+			cfg.Leverage, // 传递杠杆配置
 		)
 		if err != nil {
 			log.Fatalf("❌ 初始化trader失败: %v", err)
@@ -79,7 +80,8 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("🤖 AI全权决策模式:")
-	fmt.Println("  • AI将自主决定每笔交易的杠杆倍数（山寨币1-20倍，BTC/ETH最高50倍）")
+	fmt.Printf("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高%d倍，BTC/ETH最高%d倍）\n",
+		cfg.Leverage.AltcoinLeverage, cfg.Leverage.BTCETHLeverage)
 	fmt.Println("  • AI将自主决定每笔交易的仓位大小")
 	fmt.Println("  • AI将自主设置止损和止盈价格")
 	fmt.Println("  • AI将基于市场数据、技术指标、账户状态做出全面分析")

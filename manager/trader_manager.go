@@ -23,7 +23,7 @@ func NewTraderManager() *TraderManager {
 }
 
 // AddTrader 添加一个trader
-func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
+func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, leverage config.LeverageConfig) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -44,6 +44,8 @@ func (tm *TraderManager) AddTrader(cfg config.TraderConfig, coinPoolURL string, 
 		QwenKey:          cfg.QwenKey,
 		ScanInterval:     cfg.GetScanInterval(),
 		InitialBalance:   cfg.InitialBalance,
+		BTCETHLeverage:   leverage.BTCETHLeverage,   // 使用配置的杠杆倍数
+		AltcoinLeverage:  leverage.AltcoinLeverage,  // 使用配置的杠杆倍数
 		MaxDailyLoss:     maxDailyLoss,
 		MaxDrawdown:      maxDrawdown,
 		StopTradingTime:  time.Duration(stopTradingMinutes) * time.Minute,

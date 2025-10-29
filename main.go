@@ -34,6 +34,12 @@ func main() {
 	log.Printf("✓ 配置加载成功，共%d个trader参赛", len(cfg.Traders))
 	fmt.Println()
 
+	// 设置是否使用默认主流币种
+	pool.SetUseDefaultCoins(cfg.UseDefaultCoins)
+	if cfg.UseDefaultCoins {
+		log.Printf("✓ 已启用默认主流币种列表（BTC、ETH、SOL、BNB、XRP、DOGE、ADA、HYPE）")
+	}
+
 	// 设置币种池API URL
 	if cfg.CoinPoolAPIURL != "" {
 		pool.SetCoinPoolAPI(cfg.CoinPoolAPIURL)

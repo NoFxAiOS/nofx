@@ -21,6 +21,7 @@
       "scan_interval_minutes": 3
     }
   ],
+  "use_default_coins": false,
   "coin_pool_api_url": "http://x.x.x.x:x/api/ai500/list?auth=",
   "oi_top_api_url": "http://x.x.x.x:x/api/oi/top?auth=",
   "api_server_port": 8080,

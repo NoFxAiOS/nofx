@@ -26,15 +26,17 @@ var defaultMainstreamCoins = []string{
 
 // CoinPoolConfig 币种池配置
 type CoinPoolConfig struct {
-	APIURL   string
-	Timeout  time.Duration
-	CacheDir string
+	APIURL          string
+	Timeout         time.Duration
+	CacheDir        string
+	UseDefaultCoins bool // 是否使用默认主流币种
 }
 
 var coinPoolConfig = CoinPoolConfig{
-	APIURL:   "",
-	Timeout:  30 * time.Second, // 增加到30秒
-	CacheDir: "coin_pool_cache",
+	APIURL:          "",
+	Timeout:         30 * time.Second, // 增加到30秒
+	CacheDir:        "coin_pool_cache",
+	UseDefaultCoins: false, // 默认不使用
 }
 
 // CoinPoolCache 币种池缓存
@@ -76,8 +78,19 @@ func SetOITopAPI(apiURL string) {
 	oiTopConfig.APIURL = apiURL
 }
 
+// SetUseDefaultCoins 设置是否使用默认主流币种
+func SetUseDefaultCoins(useDefault bool) {
+	coinPoolConfig.UseDefaultCoins = useDefault
+}
+
 // GetCoinPool 获取币种池列表（带重试和缓存机制）
 func GetCoinPool() ([]CoinInfo, error) {
+	// 优先检查是否启用默认币种列表
+	if coinPoolConfig.UseDefaultCoins {
+		log.Printf("✓ 已启用默认主流币种列表")
+		return convertSymbolsToCoins(defaultMainstreamCoins), nil
+	}
+
 	// 检查API URL是否配置
 	if strings.TrimSpace(coinPoolConfig.APIURL) == "" {
 		log.Printf("⚠️  未配置币种池API URL，使用默认主流币种列表")

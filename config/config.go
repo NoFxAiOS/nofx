@@ -23,6 +23,7 @@ type TraderConfig struct {
 // Config 总配置
 type Config struct {
 	Traders            []TraderConfig `json:"traders"`
+	UseDefaultCoins    bool           `json:"use_default_coins"`     // 是否使用默认主流币种列表
 	CoinPoolAPIURL     string         `json:"coin_pool_api_url"`
 	OITopAPIURL        string         `json:"oi_top_api_url"`
 	APIServerPort      int            `json:"api_server_port"`

@@ -494,9 +494,12 @@ func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64
 	}
 
 	// 提取每个周期的账户净值
+	// 注意：TotalBalance字段实际存储的是TotalEquity（账户总净值）
+	// TotalUnrealizedProfit字段实际存储的是TotalPnL（相对初始余额的盈亏）
 	var equities []float64
 	for _, record := range records {
-		equity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
+		// 直接使用TotalBalance，因为它已经是完整的账户净值
+		equity := record.AccountState.TotalBalance
 		if equity > 0 {
 			equities = append(equities, equity)
 		}

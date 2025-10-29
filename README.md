@@ -89,10 +89,14 @@ nofx/
 ├── manager/                        # Multi-trader management
 │   └── trader_manager.go           # Manages multiple trader instances
 │
-├── market/                         # Market data & AI decisions
-│   ├── market_data.go              # Market data fetching (K-line, indicators)
-│   ├── ai_decision_engine.go       # AI decision engine (with historical feedback)
-│   └── ai_signal.go                # AI API calls (DeepSeek/Qwen)
+├── mcp/                            # Model Context Protocol - AI communication
+│   └── client.go                   # AI API client (DeepSeek/Qwen integration)
+│
+├── decision/                       # AI decision engine
+│   └── engine.go                   # Decision logic with historical feedback
+│
+├── market/                         # Market data fetching
+│   └── data.go                     # Market data & technical indicators (K-line, RSI, MACD)
 │
 ├── pool/                           # Coin pool management
 │   └── coin_pool.go                # AI500 + OI Top merged pool
@@ -101,8 +105,8 @@ nofx/
 │   └── decision_logger.go          # Decision recording + performance analysis
 │
 ├── decision_logs/                  # Decision log storage
-│   ├── trader1/                    # Trader 1 logs
-│   └── trader2/                    # Trader 2 logs
+│   ├── qwen_trader/                # Qwen trader logs
+│   └── deepseek_trader/            # DeepSeek trader logs
 │
 └── web/                            # React frontend
     ├── src/

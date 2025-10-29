@@ -89,10 +89,14 @@ nofx/
 ├── manager/                        # 多trader管理
 │   └── trader_manager.go           # 管理多个trader实例
 │
-├── market/                         # 市场数据与AI决策
-│   ├── market_data.go              # 市场数据获取（K线、指标）
-│   ├── ai_decision_engine.go       # AI决策引擎（含历史反馈）
-│   └── ai_signal.go                # AI API调用（DeepSeek/Qwen）
+├── mcp/                            # Model Context Protocol - AI通信
+│   └── client.go                   # AI API客户端（DeepSeek/Qwen集成）
+│
+├── decision/                       # AI决策引擎
+│   └── engine.go                   # 决策逻辑（含历史反馈）
+│
+├── market/                         # 市场数据获取
+│   └── data.go                     # 市场数据与技术指标（K线、RSI、MACD）
 │
 ├── pool/                           # 币种池管理
 │   └── coin_pool.go                # AI500 + OI Top合并池
@@ -101,8 +105,8 @@ nofx/
 │   └── decision_logger.go          # 决策记录 + 表现分析
 │
 ├── decision_logs/                  # 决策日志存储
-│   ├── trader1/                    # Trader 1的日志
-│   └── trader2/                    # Trader 2的日志
+│   ├── qwen_trader/                # Qwen trader日志
+│   └── deepseek_trader/            # DeepSeek trader日志
 │
 └── web/                            # React前端
     ├── src/

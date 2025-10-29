@@ -62,7 +62,7 @@ start() {
 
     if [ "$1" == "--build" ]; then
         print_info "重新构建镜像..."
-        docker-compose up -d --build
+        docker compose up -d --build
     else
         docker compose up -d
     fi

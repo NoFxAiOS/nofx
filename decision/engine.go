@@ -55,17 +55,17 @@ type OITopData struct {
 
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
-	CurrentTime      string                  `json:"current_time"`
-	RuntimeMinutes   int                     `json:"runtime_minutes"`
-	CallCount        int                     `json:"call_count"`
-	Account          AccountInfo             `json:"account"`
-	Positions        []PositionInfo          `json:"positions"`
-	CandidateCoins   []CandidateCoin         `json:"candidate_coins"`
-	MarketDataMap    map[string]*market.Data `json:"-"` // 不序列化，但内部使用
-	OITopDataMap     map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance      interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
-	BTCETHLeverage   int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
-	AltcoinLeverage  int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	CurrentTime     string                  `json:"current_time"`
+	RuntimeMinutes  int                     `json:"runtime_minutes"`
+	CallCount       int                     `json:"call_count"`
+	Account         AccountInfo             `json:"account"`
+	Positions       []PositionInfo          `json:"positions"`
+	CandidateCoins  []CandidateCoin         `json:"candidate_coins"`
+	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
+	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
+	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
+	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }
 
 // Decision AI的交易决策
@@ -222,7 +222,7 @@ func buildSystemPrompt(accountEquity float64) string {
 	sb.WriteString("# ⚖️ 硬约束（风险控制）\n\n")
 	sb.WriteString("1. **风险回报比**: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")
 	sb.WriteString("2. **最多持仓**: 3个币种（质量>数量）\n")
-	sb.WriteString(fmt.Sprintf("3. **单币仓位**: 山寨%.0f-%.0f U(20x杠杆) | BTC/ETH %.0f-%.0f U(50x杠杆)\n",
+	sb.WriteString(fmt.Sprintf("3. **单币仓位**: 山寨%.0f-%.0f U(2x杠杆) | BTC/ETH %.0f-%.0f U(5x杠杆)\n",
 		accountEquity*0.8, accountEquity*1.5, accountEquity*5, accountEquity*10))
 	sb.WriteString("4. **保证金**: 总使用率 ≤ 90%\n\n")
 

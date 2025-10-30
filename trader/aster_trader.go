@@ -522,6 +522,11 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 
 // OpenLong 开多单
 func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	// 开仓前先取消所有挂单,防止残留挂单导致仓位叠加
+	if err := t.CancelAllOrders(symbol); err != nil {
+		log.Printf("  ⚠ 取消挂单失败(继续开仓): %v", err)
+	}
+
 	// 先设置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		return nil, fmt.Errorf("设置杠杆失败: %w", err)
@@ -584,6 +589,11 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 
 // OpenShort 开空单
 func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	// 开仓前先取消所有挂单,防止残留挂单导致仓位叠加
+	if err := t.CancelAllOrders(symbol); err != nil {
+		log.Printf("  ⚠ 取消挂单失败(继续开仓): %v", err)
+	}
+
 	// 先设置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		return nil, fmt.Errorf("设置杠杆失败: %w", err)

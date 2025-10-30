@@ -177,14 +177,25 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     ];
   };
 
-  // Trader颜色配置 - 使用更鲜艳对比度更高的颜色
+  // Trader颜色配置 - 为每个trader分配不同的颜色
+  // 使用更丰富的颜色池，确保多个trader时不重复
+  const TRADER_COLORS = [
+    '#60a5fa', // blue-400
+    '#c084fc', // purple-400
+    '#34d399', // emerald-400
+    '#fb923c', // orange-400
+    '#f472b6', // pink-400
+    '#fbbf24', // amber-400
+    '#38bdf8', // sky-400
+    '#a78bfa', // violet-400
+    '#4ade80', // green-400
+    '#fb7185', // rose-400
+  ];
+
   const getTraderColor = (traderId: string) => {
-    const trader = traders.find((t) => t.trader_id === traderId);
-    if (trader?.ai_model === 'qwen') {
-      return '#c084fc'; // purple-400 (更亮)
-    } else {
-      return '#60a5fa'; // blue-400 (更亮)
-    }
+    const traderIndex = traders.findIndex((t) => t.trader_id === traderId);
+    // 如果超出颜色池大小，循环使用
+    return TRADER_COLORS[traderIndex % TRADER_COLORS.length];
   };
 
   // 自定义Tooltip - Binance Style

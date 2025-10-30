@@ -470,9 +470,11 @@ Open your browser and visit: **🌐 http://localhost:3000**
     {
       "id": "hyperliquid_trader",
       "name": "My Hyperliquid Trader",
+      "enabled": true,
       "ai_model": "deepseek",
       "exchange": "hyperliquid",
       "hyperliquid_private_key": "your_private_key_without_0x",
+      "hyperliquid_wallet_addr": "your_ethereum_address",
       "hyperliquid_testnet": false,
       "deepseek_key": "sk-xxxxxxxxxxxxx",
       "initial_balance": 1000.0,
@@ -522,13 +524,14 @@ Open your browser and visit: **🌐 http://localhost:3000**
     {
       "id": "aster_deepseek",
       "name": "Aster DeepSeek Trader",
+      "enabled": true,
       "ai_model": "deepseek",
       "exchange": "aster",
-      
+
       "aster_user": "0x63DD5aCC6b1aa0f563956C0e534DD30B6dcF7C4e",
       "aster_signer": "0x21cF8Ae13Bb72632562c6Fff438652Ba1a151bb0",
       "aster_private_key": "4fd0a42218f3eae43a6ce26d22544e986139a01e5b34a62db53757ffca81bae1",
-      
+
       "deepseek_key": "sk-xxxxxxxxxxxxx",
       "initial_balance": 1000.0,
       "scan_interval_minutes": 3
@@ -610,9 +613,14 @@ For running multiple AI traders competing against each other:
 |-------|-------------|---------------|-----------|
 | `id` | Unique identifier for this trader | `"my_trader"` | ✅ Yes |
 | `name` | Display name | `"My AI Trader"` | ✅ Yes |
-| `ai_model` | AI provider to use | `"deepseek"` or `"qwen"` | ✅ Yes |
-| `binance_api_key` | Binance API key | `"abc123..."` | ✅ Yes |
-| `binance_secret_key` | Binance Secret key | `"xyz789..."` | ✅ Yes |
+| `enabled` | Whether this trader is enabled<br>Set to `false` to skip startup | `true` or `false` | ✅ Yes |
+| `ai_model` | AI provider to use | `"deepseek"` or `"qwen"` or `"custom"` | ✅ Yes |
+| `exchange` | Exchange to use | `"binance"` or `"hyperliquid"` or `"aster"` | ✅ Yes |
+| `binance_api_key` | Binance API key | `"abc123..."` | Required when using Binance |
+| `binance_secret_key` | Binance Secret key | `"xyz789..."` | Required when using Binance |
+| `hyperliquid_private_key` | Hyperliquid private key<br>⚠️ Remove `0x` prefix | `"your_key..."` | Required when using Hyperliquid |
+| `hyperliquid_wallet_addr` | Hyperliquid wallet address | `"0xabc..."` | Required when using Hyperliquid |
+| `hyperliquid_testnet` | Use testnet | `true` or `false` | ❌ No (defaults to false) |
 | `use_qwen` | Whether to use Qwen | `true` or `false` | ✅ Yes |
 | `deepseek_key` | DeepSeek API key | `"sk-xxx"` | If using DeepSeek |
 | `qwen_key` | Qwen API key | `"sk-xxx"` | If using Qwen |

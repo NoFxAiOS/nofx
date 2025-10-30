@@ -2,6 +2,7 @@ import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { CompetitionData } from '../types';
 import { ComparisonChart } from './ComparisonChart';
+import { getTraderColor } from '../utils/traderColors';
 
 export function CompetitionPage() {
   const { data: competition } = useSWR<CompetitionData>(
@@ -105,7 +106,7 @@ export function CompetitionPage() {
           <div className="space-y-2">
             {sortedTraders.map((trader, index) => {
               const isLeader = index === 0;
-              const aiModelColor = trader.ai_model === 'qwen' ? '#c084fc' : '#60a5fa';
+              const traderColor = getTraderColor(sortedTraders, trader.trader_id);
 
               return (
                 <div
@@ -125,7 +126,7 @@ export function CompetitionPage() {
                       </div>
                       <div>
                         <div className="font-bold text-sm" style={{ color: '#EAECEF' }}>{trader.trader_name}</div>
-                        <div className="text-xs mono font-semibold" style={{ color: aiModelColor }}>
+                        <div className="text-xs mono font-semibold" style={{ color: traderColor }}>
                           {trader.ai_model.toUpperCase()}
                         </div>
                       </div>
@@ -220,7 +221,7 @@ export function CompetitionPage() {
                   <div className="text-center">
                     <div
                       className="text-base font-bold mb-2"
-                      style={{ color: trader.ai_model === 'qwen' ? '#c084fc' : '#60a5fa' }}
+                      style={{ color: getTraderColor(sortedTraders, trader.trader_id) }}
                     >
                       {trader.trader_name}
                     </div>

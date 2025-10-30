@@ -47,9 +47,37 @@ function App() {
   const { user, token, logout, isLoading } = useAuth();
   const { config: systemConfig, loading: configLoading } = useSystemConfig();
   const [route, setRoute] = useState(window.location.pathname);
-  const [currentPage, setCurrentPage] = useState<Page>('competition');
+
+  // 从URL hash读取初始页面状态（支持刷新保持页面）
+  const getInitialPage = (): Page => {
+    const hash = window.location.hash.slice(1); // 去掉 #
+    return hash === 'trader' || hash === 'details' ? 'trader' : 'competition';
+  };
+
+  const [currentPage, setCurrentPage] = useState<Page>(getInitialPage());
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>();
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
+
+  // 监听URL hash变化，同步页面状态
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === 'trader' || hash === 'details') {
+        setCurrentPage('trader');
+      } else if (hash === 'competition' || hash === '') {
+        setCurrentPage('competition');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // 切换页面时更新URL hash
+  const navigateToPage = (page: Page) => {
+    setCurrentPage(page);
+    window.location.hash = page === 'competition' ? '' : 'trader';
+  };
 
   // 获取trader列表
   const { data: traders } = useSWR<TraderInfo[]>('traders', api.getTraders, {
@@ -273,25 +301,6 @@ function App() {
                 >
                   退出
                 </button>
-              )}
-
-              {/* Status Indicator (only show on trader page) */}
-              {currentPage === 'trader' && status && (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 rounded"
-                  style={status.is_running
-                    ? { background: 'rgba(14, 203, 129, 0.1)', color: '#0ECB81', border: '1px solid rgba(14, 203, 129, 0.2)' }
-                    : { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }
-                  }
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${status.is_running ? 'pulse-glow' : ''}`}
-                    style={{ background: status.is_running ? '#0ECB81' : '#F6465D' }}
-                  />
-                  <span className="font-semibold mono text-xs">
-                    {t(status.is_running ? 'running' : 'stopped', language)}
-                  </span>
-                </div>
               )}
             </div>
           </div>

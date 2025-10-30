@@ -109,7 +109,7 @@ func GetFullDecision(ctx *Context, mcpClient *mcp.Client) (*FullDecision, error)
 	// 4. 解析AI响应
 	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
 	if err != nil {
-		return nil, fmt.Errorf("解析AI响应失败: %w", err)
+		return decision, fmt.Errorf("解析AI响应失败: %w", err)
 	}
 
 	decision.Timestamp = time.Now()
@@ -427,7 +427,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: []Decision{},
-		}, fmt.Errorf("提取决策失败: %w\n\n=== AI思维链分析 ===\n%s", err, cotTrace)
+		}, fmt.Errorf("提取决策失败: %w", err)
 	}
 
 	// 3. 验证决策
@@ -435,7 +435,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
-		}, fmt.Errorf("决策验证失败: %w\n\n=== AI思维链分析 ===\n%s", err, cotTrace)
+		}, fmt.Errorf("决策验证失败: %w", err)
 	}
 
 	return &FullDecision{

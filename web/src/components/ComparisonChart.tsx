@@ -13,6 +13,7 @@ import {
 import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { CompetitionTraderData } from '../types';
+import { getTraderColor } from '../utils/traderColors';
 
 interface ComparisonChartProps {
   traders: CompetitionTraderData[];
@@ -177,26 +178,8 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     ];
   };
 
-  // Trader颜色配置 - 为每个trader分配不同的颜色
-  // 使用更丰富的颜色池，确保多个trader时不重复
-  const TRADER_COLORS = [
-    '#60a5fa', // blue-400
-    '#c084fc', // purple-400
-    '#34d399', // emerald-400
-    '#fb923c', // orange-400
-    '#f472b6', // pink-400
-    '#fbbf24', // amber-400
-    '#38bdf8', // sky-400
-    '#a78bfa', // violet-400
-    '#4ade80', // green-400
-    '#fb7185', // rose-400
-  ];
-
-  const getTraderColor = (traderId: string) => {
-    const traderIndex = traders.findIndex((t) => t.trader_id === traderId);
-    // 如果超出颜色池大小，循环使用
-    return TRADER_COLORS[traderIndex % TRADER_COLORS.length];
-  };
+  // 使用统一的颜色分配逻辑（与Leaderboard保持一致）
+  const traderColor = (traderId: string) => getTraderColor(traders, traderId);
 
   // 自定义Tooltip - Binance Style
   const CustomTooltip = ({ active, payload }: any) => {
@@ -216,7 +199,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
               <div key={trader.trader_id} className="mb-1.5 last:mb-0">
                 <div
                   className="text-xs font-semibold mb-0.5"
-                  style={{ color: getTraderColor(trader.trader_id) }}
+                  style={{ color: traderColor(trader.trader_id) }}
                 >
                   {trader.trader_name}
                 </div>
@@ -257,8 +240,8 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
                 x2="0"
                 y2="1"
               >
-                <stop offset="5%" stopColor={getTraderColor(trader.trader_id)} stopOpacity={0.9} />
-                <stop offset="95%" stopColor={getTraderColor(trader.trader_id)} stopOpacity={0.2} />
+                <stop offset="5%" stopColor={traderColor(trader.trader_id)} stopOpacity={0.9} />
+                <stop offset="95%" stopColor={traderColor(trader.trader_id)} stopOpacity={0.2} />
               </linearGradient>
             ))}
           </defs>
@@ -305,10 +288,10 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
               key={trader.trader_id}
               type="monotone"
               dataKey={`${trader.trader_id}_pnl_pct`}
-              stroke={getTraderColor(trader.trader_id)}
+              stroke={traderColor(trader.trader_id)}
               strokeWidth={3}
-              dot={displayData.length < 50 ? { fill: getTraderColor(trader.trader_id), r: 3 } : false}
-              activeDot={{ r: 6, fill: getTraderColor(trader.trader_id), stroke: '#fff', strokeWidth: 2 }}
+              dot={displayData.length < 50 ? { fill: traderColor(trader.trader_id), r: 3 } : false}
+              activeDot={{ r: 6, fill: traderColor(trader.trader_id), stroke: '#fff', strokeWidth: 2 }}
               name={trader.trader_name}
               connectNulls
             />

@@ -60,7 +60,10 @@ export function EquityChart({ traderId }: EquityChartProps) {
     );
   }
 
-  if (!history || history.length === 0) {
+  // 过滤掉无效数据：total_equity为0或小于1的数据点（API失败导致）
+  const validHistory = history?.filter(point => point.total_equity > 1) || [];
+
+  if (!validHistory || validHistory.length === 0) {
     return (
       <div className="binance-card p-6">
         <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>{t('accountEquityCurve', language)}</h3>
@@ -76,12 +79,12 @@ export function EquityChart({ traderId }: EquityChartProps) {
   // 限制显示最近的数据点（性能优化）
   // 如果数据超过2000个点，只显示最近2000个
   const MAX_DISPLAY_POINTS = 2000;
-  const displayHistory = history.length > MAX_DISPLAY_POINTS
-    ? history.slice(-MAX_DISPLAY_POINTS)
-    : history;
+  const displayHistory = validHistory.length > MAX_DISPLAY_POINTS
+    ? validHistory.slice(-MAX_DISPLAY_POINTS)
+    : validHistory;
 
-  // 计算初始余额（使用第一个数据点，如果无数据则从account获取，最后才用默认值）
-  const initialBalance = history[0]?.total_equity
+  // 计算初始余额（使用第一个有效数据点，如果无数据则从account获取，最后才用默认值）
+  const initialBalance = validHistory[0]?.total_equity
     || account?.total_equity
     || 100;  // 默认值改为100，与常见配置一致
 
@@ -250,12 +253,13 @@ export function EquityChart({ traderId }: EquityChartProps) {
             }}
           />
           <Line
-            type="monotone"
+            type="natural"
             dataKey="value"
             stroke="url(#colorGradient)"
-            strokeWidth={2.5}
+            strokeWidth={3}
             dot={chartData.length > 50 ? false : { fill: '#F0B90B', r: 3 }}
             activeDot={{ r: 6, fill: '#FCD535', stroke: '#F0B90B', strokeWidth: 2 }}
+            connectNulls={true}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -277,12 +281,12 @@ export function EquityChart({ traderId }: EquityChartProps) {
         </div>
         <div className="p-2 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
           <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('historicalCycles', language)}</div>
-          <div className="text-xs sm:text-sm font-bold mono" style={{ color: '#EAECEF' }}>{history.length} {t('cycles', language)}</div>
+          <div className="text-xs sm:text-sm font-bold mono" style={{ color: '#EAECEF' }}>{validHistory.length} {t('cycles', language)}</div>
         </div>
         <div className="p-2 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
           <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('displayRange', language)}</div>
           <div className="text-xs sm:text-sm font-bold mono" style={{ color: '#EAECEF' }}>
-            {history.length > MAX_DISPLAY_POINTS
+            {validHistory.length > MAX_DISPLAY_POINTS
               ? `${t('recent', language)} ${MAX_DISPLAY_POINTS}`
               : t('allData', language)
             }

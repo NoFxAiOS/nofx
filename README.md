@@ -10,7 +10,7 @@
 
 ---
 
-A modern automated crypto futures trading platform powered by **DeepSeek/Qwen AI**, supporting **Binance and Hyperliquid exchanges**. Create and manage multiple AI traders with dynamic configuration through a web interface. Features comprehensive market analysis, AI decision-making, and professional monitoring dashboard.
+A modern automated crypto futures trading platform powered by **DeepSeek/Qwen AI**, supporting **Binance, Hyperliquid, and Aster DEX exchanges**. Create and manage multiple AI traders with dynamic configuration through a web interface. Features comprehensive market analysis, AI decision-making, **multi-AI model live trading competition**, **self-learning mechanism**, and professional monitoring dashboard.
 
 > ⚠️ **Risk Warning**: This system is experimental. AI auto-trading carries significant risks. Strongly recommended for learning/research purposes or testing with small amounts only!
 
@@ -26,7 +26,15 @@ Join our Telegram developer community to discuss, share ideas, and get support:
 
 ### 🚀 Complete System Transformation - Web-Based Configuration!
 
-NOFX has been **completely transformed** from a static config-based system to a **dynamic web-based trading platform**!
+NOFX has been **completely transformed** from a static config-based system to a **dynamic web-based trading platform** with **multi-exchange support**!
+
+#### **Multi-Exchange Support**
+
+NOFX now supports **three major exchanges**: Binance, Hyperliquid, and Aster DEX!
+
+#### **Hyperliquid Exchange**
+
+A high-performance decentralized perpetual futures exchange!
 
 **Major Changes:**
 - ✅ **Web-Based Configuration**: Create and manage AI traders through a modern web interface
@@ -49,6 +57,42 @@ NOFX has been **completely transformed** from a static config-based system to a 
 - 🔒 **Secure**: Database storage with proper data management
 
 See [Quick Start](#-quick-start) for the new setup process!
+
+#### **Aster DEX Exchange** (NEW! v2.0.2)
+
+A Binance-compatible decentralized perpetual futures exchange!
+
+**Key Features:**
+- ✅ Binance-style API (easy migration from Binance)
+- ✅ Web3 wallet authentication (secure and decentralized)
+- ✅ Full trading support with automatic precision handling
+- ✅ Lower trading fees than CEX
+- ✅ EVM-compatible (Ethereum, BSC, Polygon, etc.)
+
+**Why Aster?**
+- 🎯 **Binance-compatible API** - minimal code changes required
+- 🔐 **API Wallet System** - separate trading wallet for security
+- 💰 **Competitive fees** - lower than most centralized exchanges
+- 🌐 **Multi-chain support** - trade on your preferred EVM chain
+
+**Quick Start:**
+1. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
+2. Connect your main wallet and create an API wallet
+3. Copy the API Signer address and Private Key
+4. Set `"exchange": "aster"` in config.json
+5. Add `"aster_user"`, `"aster_signer"`, and `"aster_private_key"`
+
+---
+
+## 📸 Screenshots
+
+### 🏆 Competition Mode - Real-time AI Battle
+![Competition Page](screenshots/competition-page.png)
+*Multi-AI leaderboard with real-time performance comparison charts showing Qwen vs DeepSeek live trading battle*
+
+### 📊 Trader Details - Complete Trading Dashboard
+![Details Page](screenshots/details-page.png)
+*Professional trading interface with equity curves, live positions, and AI decision logs with expandable input prompts & chain-of-thought reasoning*
 
 ---
 
@@ -81,7 +125,11 @@ See [Quick Start](#-quick-start) for the new setup process!
 - **Per-Coin Position Limit**:
   - Altcoins ≤ 1.5x account equity
   - BTC/ETH ≤ 10x account equity
-- **Fixed Leverage**: Altcoins 20x | BTC/ETH 50x
+- **Configurable Leverage** (v2.0.3+):
+  - Set maximum leverage in config.json
+  - Default: 5x for all coins (safe for subaccounts)
+  - Main accounts can increase: Altcoins up to 20x, BTC/ETH up to 50x
+  - ⚠️ Binance subaccounts restricted to ≤5x leverage
 - **Margin Management**: Total usage ≤90%, AI autonomous decision on usage rate
 - **Risk-Reward Ratio**: Mandatory ≥1:2 (stop-loss:take-profit)
 - **Prevent Position Stacking**: No duplicate opening of same coin/direction
@@ -209,8 +257,14 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 chmod +x start.sh
 ./start.sh start --build
 
-# Option 2: Use docker-compose directly
-docker-compose up -d --build
+> #### Docker Compose Version Notes
+>
+> **This project uses Docker Compose V2 syntax (with spaces)**
+>
+> If you have the older standalone `docker-compose` installed, please upgrade to Docker Desktop or Docker 20.10+
+
+# Option 2: Use docker compose directly
+docker compose up -d --build
 ```
 
 #### Step 2: Access Web Interface
@@ -439,6 +493,71 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
+#### 🔶 Alternative: Using Aster DEX Exchange
+
+**NOFX also supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
+
+**Why Choose Aster?**
+- 🎯 Binance-compatible API (easy migration)
+- 🔐 API Wallet security system
+- 💰 Lower trading fees
+- 🌐 Multi-chain support (ETH, BSC, Polygon)
+- 🌍 No KYC required
+
+**Step 1**: Create Aster API Wallet
+
+1. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
+2. Connect your main wallet (MetaMask, WalletConnect, etc.)
+3. Click "Create API Wallet"
+4. **Save these 3 items immediately:**
+   - Main Wallet address (User)
+   - API Wallet address (Signer)
+   - API Wallet Private Key (⚠️ shown only once!)
+
+**Step 2**: Configure `config.json` for Aster
+
+```json
+{
+  "traders": [
+    {
+      "id": "aster_deepseek",
+      "name": "Aster DeepSeek Trader",
+      "ai_model": "deepseek",
+      "exchange": "aster",
+      
+      "aster_user": "0x63DD5aCC6b1aa0f563956C0e534DD30B6dcF7C4e",
+      "aster_signer": "0x21cF8Ae13Bb72632562c6Fff438652Ba1a151bb0",
+      "aster_private_key": "4fd0a42218f3eae43a6ce26d22544e986139a01e5b34a62db53757ffca81bae1",
+      
+      "deepseek_key": "sk-xxxxxxxxxxxxx",
+      "initial_balance": 1000.0,
+      "scan_interval_minutes": 3
+    }
+  ],
+  "use_default_coins": true,
+  "api_server_port": 8080,
+  "leverage": {
+    "btc_eth_leverage": 5,
+    "altcoin_leverage": 5
+  }
+}
+```
+
+**Key Configuration Fields:**
+- `"exchange": "aster"` - Set exchange to Aster
+- `aster_user` - Your main wallet address
+- `aster_signer` - API wallet address (from Step 1)
+- `aster_private_key` - API wallet private key (without `0x` prefix)
+
+**📖 For detailed setup instructions, see**: [Aster Integration Guide](ASTER_INTEGRATION.md)
+
+**⚠️ Security Notes**:
+- API wallet is separate from your main wallet (extra security layer)
+- Never share your API private key
+- You can revoke API wallet access anytime at [asterdex.com](https://www.asterdex.com/en/api-wallet)
+
+---
+
 #### ⚔️ Expert Mode: Multi-Trader Competition
 
 For running multiple AI traders competing against each other:
@@ -499,6 +618,9 @@ For running multiple AI traders competing against each other:
 | `qwen_key` | Qwen API key | `"sk-xxx"` | If using Qwen |
 | `initial_balance` | Starting balance for P/L calculation | `1000.0` | ✅ Yes |
 | `scan_interval_minutes` | How often to make decisions | `3` (3-5 recommended) | ✅ Yes |
+| **`leverage`** | **Leverage configuration (v2.0.3+)** | See below | ✅ Yes |
+| `btc_eth_leverage` | Maximum leverage for BTC/ETH<br>⚠️ Subaccounts: ≤5x | `5` (default, safe)<br>`50` (main account max) | ✅ Yes |
+| `altcoin_leverage` | Maximum leverage for altcoins<br>⚠️ Subaccounts: ≤5x | `5` (default, safe)<br>`20` (main account max) | ✅ Yes |
 | `use_default_coins` | Use built-in coin list<br>**✨ Smart Default: `true`** (v2.0.2+)<br>Auto-enabled if no API URL provided | `true` or omit | ❌ No<br>(Optional, auto-defaults) |
 | `coin_pool_api_url` | Custom coin pool API<br>*Only needed when `use_default_coins: false`* | `""` (empty) | ❌ No |
 | `oi_top_api_url` | Open interest API<br>*Optional supplement data* | `""` (empty) | ❌ No |
@@ -506,6 +628,63 @@ For running multiple AI traders competing against each other:
 
 **Default Trading Coins** (when `use_default_coins: true`):
 - BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
+
+---
+
+#### ⚙️ Leverage Configuration (v2.0.3+)
+
+**What is leverage configuration?**
+
+The leverage settings control the maximum leverage the AI can use for each trade. This is crucial for risk management, especially for Binance subaccounts which have leverage restrictions.
+
+**Configuration format:**
+
+```json
+"leverage": {
+  "btc_eth_leverage": 5,    // Maximum leverage for BTC and ETH
+  "altcoin_leverage": 5      // Maximum leverage for all other coins
+}
+```
+
+**⚠️ Important: Binance Subaccount Restrictions**
+
+- **Subaccounts**: Limited to **≤5x leverage** by Binance
+- **Main accounts**: Can use up to 20x (altcoins) or 50x (BTC/ETH)
+- If you're using a subaccount and set leverage >5x, trades will **fail** with error: `Subaccounts are restricted from using leverage greater than 5x`
+
+**Recommended settings:**
+
+| Account Type | BTC/ETH Leverage | Altcoin Leverage | Risk Level |
+|-------------|------------------|------------------|------------|
+| **Subaccount** | `5` | `5` | ✅ Safe (default) |
+| **Main (Conservative)** | `10` | `10` | 🟡 Medium |
+| **Main (Aggressive)** | `20` | `15` | 🔴 High |
+| **Main (Maximum)** | `50` | `20` | 🔴🔴 Very High |
+
+**Examples:**
+
+**Safe configuration (subaccount or conservative):**
+```json
+"leverage": {
+  "btc_eth_leverage": 5,
+  "altcoin_leverage": 5
+}
+```
+
+**Aggressive configuration (main account only):**
+```json
+"leverage": {
+  "btc_eth_leverage": 20,
+  "altcoin_leverage": 15
+}
+```
+
+**How AI uses leverage:**
+
+- AI can choose **any leverage from 1x up to your configured maximum**
+- For example, with `altcoin_leverage: 20`, AI might decide to use 5x, 10x, or 20x based on market conditions
+- The configuration sets the **upper limit**, not a fixed value
+- AI considers volatility, risk-reward ratio, and account balance when choosing leverage
 
 ---
 
@@ -1095,6 +1274,19 @@ This version fixes **critical calculation errors** in the historical trade recor
 - ✅ Multi-position tracking (long + short simultaneously) works correctly
 
 **Recommendation**: If you were running the system before this update, your historical statistics were inaccurate. After updating to v2.0.2, new trades will be calculated correctly.
+
+### v2.0.2 (2025-10-29)
+
+**Bug Fixes:**
+- ✅ Fixed Aster exchange precision error (code -1111: "Precision is over the maximum defined for this asset")
+- ✅ Improved price and quantity formatting to match exchange precision requirements
+- ✅ Added detailed precision processing logs for debugging
+- ✅ Enhanced all order functions (OpenLong, OpenShort, CloseLong, CloseShort, SetStopLoss, SetTakeProfit) with proper precision handling
+
+**Technical Details:**
+- Added `formatFloatWithPrecision` function to convert float64 to strings with correct precision
+- Price and quantity parameters are now formatted according to exchange's `pricePrecision` and `quantityPrecision` specifications
+- Trailing zeros are removed from formatted values to optimize API requests
 
 ### v2.0.1 (2025-10-29)
 

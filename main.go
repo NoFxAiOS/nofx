@@ -41,6 +41,10 @@ func main() {
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()
 
+	// 设置默认主流币种列表
+	defaultCoins := []string{"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "HYPE"}
+	pool.SetDefaultCoins(defaultCoins)
+
 	// 设置是否使用默认主流币种
 	pool.SetUseDefaultCoins(useDefaultCoins)
 	if useDefaultCoins {
@@ -94,7 +98,7 @@ func main() {
 
 	fmt.Println()
 	fmt.Println("🤖 AI全权决策模式:")
-	fmt.Println("  • AI将自主决定每笔交易的杠杆倍数（山寨币1-20倍，BTC/ETH最高50倍）")
+	fmt.Printf("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高5倍，BTC/ETH最高5倍）\n")
 	fmt.Println("  • AI将自主决定每笔交易的仓位大小")
 	fmt.Println("  • AI将自主设置止损和止盈价格")
 	fmt.Println("  • AI将基于市场数据、技术指标、账户状态做出全面分析")

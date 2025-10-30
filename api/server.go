@@ -61,7 +61,7 @@ func corsMiddleware() gin.HandlerFunc {
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
 	// 健康检查
-	s.router.GET("/health", s.handleHealth)
+	s.router.Any("/health", s.handleHealth)
 
 	// API路由组
 	api := s.router.Group("/api")
@@ -639,8 +639,9 @@ func (s *Server) handlePerformance(c *gin.Context) {
 		return
 	}
 
-	// 分析最近20个周期的交易表现
-	performance, err := trader.GetDecisionLogger().AnalyzePerformance(20)
+	// 分析最近100个周期的交易表现（避免长期持仓的交易记录丢失）
+	// 假设每3分钟一个周期，100个周期 = 5小时，足够覆盖大部分交易
+	performance, err := trader.GetDecisionLogger().AnalyzePerformance(100)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("分析历史表现失败: %v", err),

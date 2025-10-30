@@ -91,13 +91,18 @@ type FullDecision struct {
 
 // GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
 func GetFullDecision(ctx *Context, mcpClient *mcp.Client) (*FullDecision, error) {
+	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false)
+}
+
+// GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt）
+func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, customPrompt string, overrideBase bool) (*FullDecision, error) {
 	// 1. 为所有币种获取市场数据
 	if err := fetchMarketDataForContext(ctx); err != nil {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)
 	}
 
 	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
-	systemPrompt := buildSystemPrompt(ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
+	systemPrompt := buildSystemPromptWithCustom(ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage, customPrompt, overrideBase)
 	userPrompt := buildUserPrompt(ctx)
 
 	// 3. 调用AI API（使用 system + user prompt）
@@ -197,6 +202,33 @@ func calculateMaxCandidates(ctx *Context) int {
 	// 因为候选池已经在 auto_trader.go 中筛选过了
 	// 固定分析前20个评分最高的币种（来自AI500）
 	return len(ctx.CandidateCoins)
+}
+
+// buildSystemPromptWithCustom 构建包含自定义内容的 System Prompt
+func buildSystemPromptWithCustom(accountEquity float64, btcEthLeverage, altcoinLeverage int, customPrompt string, overrideBase bool) string {
+	// 如果覆盖基础prompt且有自定义prompt，只使用自定义prompt
+	if overrideBase && customPrompt != "" {
+		return customPrompt
+	}
+	
+	// 获取基础prompt
+	basePrompt := buildSystemPrompt(accountEquity, btcEthLeverage, altcoinLeverage)
+	
+	// 如果没有自定义prompt，直接返回基础prompt
+	if customPrompt == "" {
+		return basePrompt
+	}
+	
+	// 添加自定义prompt部分到基础prompt
+	var sb strings.Builder
+	sb.WriteString(basePrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString("# 📌 个性化交易策略\n\n")
+	sb.WriteString(customPrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString("**注意**: 以上个性化策略是对基础规则的补充，不能违背基础风险控制原则。\n")
+	
+	return sb.String()
 }
 
 // buildSystemPrompt 构建 System Prompt（固定规则，可缓存）

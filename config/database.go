@@ -1,8 +1,11 @@
 package config
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base32"
 	"fmt"
+	"log"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -38,30 +41,41 @@ func (d *Database) createTables() error {
 		// AI模型配置表
 		`CREATE TABLE IF NOT EXISTS ai_models (
 			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'default',
 			name TEXT NOT NULL,
 			provider TEXT NOT NULL,
 			enabled BOOLEAN DEFAULT 0,
 			api_key TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
 
 		// 交易所配置表
 		`CREATE TABLE IF NOT EXISTS exchanges (
 			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'default',
 			name TEXT NOT NULL,
 			type TEXT NOT NULL, -- 'cex' or 'dex'
 			enabled BOOLEAN DEFAULT 0,
 			api_key TEXT DEFAULT '',
 			secret_key TEXT DEFAULT '',
 			testnet BOOLEAN DEFAULT 0,
+			-- Hyperliquid 特定字段
+			hyperliquid_wallet_addr TEXT DEFAULT '',
+			-- Aster 特定字段
+			aster_user TEXT DEFAULT '',
+			aster_signer TEXT DEFAULT '',
+			aster_private_key TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
 
 		// 交易员配置表
 		`CREATE TABLE IF NOT EXISTS traders (
 			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'default',
 			name TEXT NOT NULL,
 			ai_model_id TEXT NOT NULL,
 			exchange_id TEXT NOT NULL,
@@ -70,8 +84,20 @@ func (d *Database) createTables() error {
 			is_running BOOLEAN DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY (ai_model_id) REFERENCES ai_models(id),
 			FOREIGN KEY (exchange_id) REFERENCES exchanges(id)
+		)`,
+
+		// 用户表
+		`CREATE TABLE IF NOT EXISTS users (
+			id TEXT PRIMARY KEY,
+			email TEXT UNIQUE NOT NULL,
+			password_hash TEXT NOT NULL,
+			otp_secret TEXT,
+			otp_verified BOOLEAN DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
 		// 系统配置表
@@ -82,6 +108,12 @@ func (d *Database) createTables() error {
 		)`,
 
 		// 触发器：自动更新 updated_at
+		`CREATE TRIGGER IF NOT EXISTS update_users_updated_at
+			AFTER UPDATE ON users
+			BEGIN
+				UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+			END`,
+
 		`CREATE TRIGGER IF NOT EXISTS update_ai_models_updated_at
 			AFTER UPDATE ON ai_models
 			BEGIN
@@ -113,12 +145,33 @@ func (d *Database) createTables() error {
 		}
 	}
 
+	// 为现有数据库添加新字段（向后兼容）
+	alterQueries := []string{
+		`ALTER TABLE exchanges ADD COLUMN hyperliquid_wallet_addr TEXT DEFAULT ''`,
+		`ALTER TABLE exchanges ADD COLUMN aster_user TEXT DEFAULT ''`,
+		`ALTER TABLE exchanges ADD COLUMN aster_signer TEXT DEFAULT ''`,
+		`ALTER TABLE exchanges ADD COLUMN aster_private_key TEXT DEFAULT ''`,
+		`ALTER TABLE traders ADD COLUMN custom_prompt TEXT DEFAULT ''`,
+		`ALTER TABLE traders ADD COLUMN override_base_prompt BOOLEAN DEFAULT 0`,
+	}
+
+	for _, query := range alterQueries {
+		// 忽略已存在字段的错误
+		d.db.Exec(query)
+	}
+
+	// 检查是否需要迁移exchanges表的主键结构
+	err := d.migrateExchangesTable()
+	if err != nil {
+		log.Printf("⚠️ 迁移exchanges表失败: %v", err)
+	}
+
 	return nil
 }
 
 // initDefaultData 初始化默认数据
 func (d *Database) initDefaultData() error {
-	// 初始化AI模型
+	// 初始化AI模型（使用default用户）
 	aiModels := []struct {
 		id, name, provider string
 	}{
@@ -128,26 +181,27 @@ func (d *Database) initDefaultData() error {
 
 	for _, model := range aiModels {
 		_, err := d.db.Exec(`
-			INSERT OR IGNORE INTO ai_models (id, name, provider, enabled) 
-			VALUES (?, ?, ?, 0)
+			INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled) 
+			VALUES (?, 'default', ?, ?, 0)
 		`, model.id, model.name, model.provider)
 		if err != nil {
 			return fmt.Errorf("初始化AI模型失败: %w", err)
 		}
 	}
 
-	// 初始化交易所
+	// 初始化交易所（使用default用户）
 	exchanges := []struct {
 		id, name, typ string
 	}{
-		{"binance", "Binance", "cex"},
-		{"hyperliquid", "Hyperliquid", "dex"},
+		{"binance", "Binance Futures", "binance"},
+		{"hyperliquid", "Hyperliquid", "hyperliquid"},
+		{"aster", "Aster DEX", "aster"},
 	}
 
 	for _, exchange := range exchanges {
 		_, err := d.db.Exec(`
-			INSERT OR IGNORE INTO exchanges (id, name, type, enabled) 
-			VALUES (?, ?, ?, 0)
+			INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled) 
+			VALUES (?, 'default', ?, ?, 0)
 		`, exchange.id, exchange.name, exchange.typ)
 		if err != nil {
 			return fmt.Errorf("初始化交易所失败: %w", err)
@@ -156,7 +210,7 @@ func (d *Database) initDefaultData() error {
 
 	// 初始化系统配置
 	systemConfigs := map[string]string{
-		"api_server_port":       "8081",
+		"api_server_port":       "8080",
 		"use_default_coins":     "true",
 		"coin_pool_api_url":     "",
 		"oi_top_api_url":        "",
@@ -178,9 +232,103 @@ func (d *Database) initDefaultData() error {
 	return nil
 }
 
+// migrateExchangesTable 迁移exchanges表支持多用户
+func (d *Database) migrateExchangesTable() error {
+	// 检查是否已经迁移过
+	var count int
+	err := d.db.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master 
+		WHERE type='table' AND name='exchanges_new'
+	`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	
+	// 如果已经迁移过，直接返回
+	if count > 0 {
+		return nil
+	}
+	
+	log.Printf("🔄 开始迁移exchanges表...")
+	
+	// 创建新的exchanges表，使用复合主键
+	_, err = d.db.Exec(`
+		CREATE TABLE exchanges_new (
+			id TEXT NOT NULL,
+			user_id TEXT NOT NULL DEFAULT 'default',
+			name TEXT NOT NULL,
+			type TEXT NOT NULL,
+			enabled BOOLEAN DEFAULT 0,
+			api_key TEXT DEFAULT '',
+			secret_key TEXT DEFAULT '',
+			testnet BOOLEAN DEFAULT 0,
+			hyperliquid_wallet_addr TEXT DEFAULT '',
+			aster_user TEXT DEFAULT '',
+			aster_signer TEXT DEFAULT '',
+			aster_private_key TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id, user_id),
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("创建新exchanges表失败: %w", err)
+	}
+	
+	// 复制数据到新表
+	_, err = d.db.Exec(`
+		INSERT INTO exchanges_new 
+		SELECT * FROM exchanges
+	`)
+	if err != nil {
+		return fmt.Errorf("复制数据失败: %w", err)
+	}
+	
+	// 删除旧表
+	_, err = d.db.Exec(`DROP TABLE exchanges`)
+	if err != nil {
+		return fmt.Errorf("删除旧表失败: %w", err)
+	}
+	
+	// 重命名新表
+	_, err = d.db.Exec(`ALTER TABLE exchanges_new RENAME TO exchanges`)
+	if err != nil {
+		return fmt.Errorf("重命名表失败: %w", err)
+	}
+	
+	// 重新创建触发器
+	_, err = d.db.Exec(`
+		CREATE TRIGGER IF NOT EXISTS update_exchanges_updated_at
+			AFTER UPDATE ON exchanges
+			BEGIN
+				UPDATE exchanges SET updated_at = CURRENT_TIMESTAMP 
+				WHERE id = NEW.id AND user_id = NEW.user_id;
+			END
+	`)
+	if err != nil {
+		return fmt.Errorf("创建触发器失败: %w", err)
+	}
+	
+	log.Printf("✅ exchanges表迁移完成")
+	return nil
+}
+
+// User 用户配置
+type User struct {
+	ID          string    `json:"id"`
+	Email       string    `json:"email"`
+	PasswordHash string   `json:"-"` // 不返回到前端
+	OTPSecret   string    `json:"-"` // 不返回到前端
+	OTPVerified bool      `json:"otp_verified"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // AIModelConfig AI模型配置
 type AIModelConfig struct {
 	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
 	Name      string    `json:"name"`
 	Provider  string    `json:"provider"`
 	Enabled   bool      `json:"enabled"`
@@ -192,45 +340,139 @@ type AIModelConfig struct {
 // ExchangeConfig 交易所配置
 type ExchangeConfig struct {
 	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
 	Enabled   bool      `json:"enabled"`
 	APIKey    string    `json:"apiKey"`
 	SecretKey string    `json:"secretKey"`
 	Testnet   bool      `json:"testnet"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	// Hyperliquid 特定字段
+	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"`
+	// Aster 特定字段
+	AsterUser       string `json:"asterUser"`
+	AsterSigner     string `json:"asterSigner"`
+	AsterPrivateKey string `json:"asterPrivateKey"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // TraderConfig 交易员配置
 type TraderConfig struct {
 	ID                 string    `json:"id"`
+	UserID             string    `json:"user_id"`
 	Name               string    `json:"name"`
 	AIModelID          string    `json:"ai_model_id"`
 	ExchangeID         string    `json:"exchange_id"`
 	InitialBalance     float64   `json:"initial_balance"`
 	ScanIntervalMinutes int      `json:"scan_interval_minutes"`
 	IsRunning          bool      `json:"is_running"`
+	CustomPrompt       string    `json:"custom_prompt"` // 自定义交易策略prompt
+	OverrideBasePrompt bool   `json:"override_base_prompt"` // 是否覆盖基础prompt
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 }
 
-// GetAIModels 获取所有AI模型配置
-func (d *Database) GetAIModels() ([]*AIModelConfig, error) {
+// GenerateOTPSecret 生成OTP密钥
+func GenerateOTPSecret() (string, error) {
+	secret := make([]byte, 20)
+	_, err := rand.Read(secret)
+	if err != nil {
+		return "", err
+	}
+	return base32.StdEncoding.EncodeToString(secret), nil
+}
+
+// CreateUser 创建用户
+func (d *Database) CreateUser(user *User) error {
+	_, err := d.db.Exec(`
+		INSERT INTO users (id, email, password_hash, otp_secret, otp_verified)
+		VALUES (?, ?, ?, ?, ?)
+	`, user.ID, user.Email, user.PasswordHash, user.OTPSecret, user.OTPVerified)
+	return err
+}
+
+// EnsureAdminUser 确保admin用户存在（用于管理员模式）
+func (d *Database) EnsureAdminUser() error {
+	// 检查admin用户是否已存在
+	var count int
+	err := d.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id = 'admin'`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	
+	// 如果已存在，直接返回
+	if count > 0 {
+		return nil
+	}
+	
+	// 创建admin用户（密码为空，因为管理员模式下不需要密码）
+	adminUser := &User{
+		ID:           "admin",
+		Email:        "admin@localhost",
+		PasswordHash: "", // 管理员模式下不使用密码
+		OTPSecret:    "",
+		OTPVerified:  true,
+	}
+	
+	return d.CreateUser(adminUser)
+}
+
+// GetUserByEmail 通过邮箱获取用户
+func (d *Database) GetUserByEmail(email string) (*User, error) {
+	var user User
+	err := d.db.QueryRow(`
+		SELECT id, email, password_hash, otp_secret, otp_verified, created_at, updated_at
+		FROM users WHERE email = ?
+	`, email).Scan(
+		&user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret, 
+		&user.OTPVerified, &user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetUserByID 通过ID获取用户
+func (d *Database) GetUserByID(userID string) (*User, error) {
+	var user User
+	err := d.db.QueryRow(`
+		SELECT id, email, password_hash, otp_secret, otp_verified, created_at, updated_at
+		FROM users WHERE id = ?
+	`, userID).Scan(
+		&user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret, 
+		&user.OTPVerified, &user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// UpdateUserOTPVerified 更新用户OTP验证状态
+func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
+	_, err := d.db.Exec(`UPDATE users SET otp_verified = ? WHERE id = ?`, verified, userID)
+	return err
+}
+
+// GetAIModels 获取用户的AI模型配置
+func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 	rows, err := d.db.Query(`
-		SELECT id, name, provider, enabled, api_key, created_at, updated_at 
-		FROM ai_models ORDER BY id
-	`)
+		SELECT id, user_id, name, provider, enabled, api_key, created_at, updated_at 
+		FROM ai_models WHERE user_id = ? ORDER BY id
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var models []*AIModelConfig
+	// 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
+	models := make([]*AIModelConfig, 0)
 	for rows.Next() {
 		var model AIModelConfig
 		err := rows.Scan(
-			&model.ID, &model.Name, &model.Provider, 
+			&model.ID, &model.UserID, &model.Name, &model.Provider, 
 			&model.Enabled, &model.APIKey,
 			&model.CreatedAt, &model.UpdatedAt,
 		)
@@ -243,31 +485,80 @@ func (d *Database) GetAIModels() ([]*AIModelConfig, error) {
 	return models, nil
 }
 
-// UpdateAIModel 更新AI模型配置
-func (d *Database) UpdateAIModel(id string, enabled bool, apiKey string) error {
-	_, err := d.db.Exec(`
-		UPDATE ai_models SET enabled = ?, api_key = ? WHERE id = ?
-	`, enabled, apiKey, id)
-	return err
+// UpdateAIModel 更新AI模型配置，如果不存在则创建用户特定配置
+func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey string) error {
+	// 首先尝试更新现有的用户配置
+	result, err := d.db.Exec(`
+		UPDATE ai_models SET enabled = ?, api_key = ? WHERE id = ? AND user_id = ?
+	`, enabled, apiKey, id, userID)
+	if err != nil {
+		return err
+	}
+	
+	// 检查是否有行被更新
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	// 如果没有行被更新，说明用户没有这个模型的配置，需要创建
+	if rowsAffected == 0 {
+		// 获取模型的基本信息
+		var name, provider string
+		err = d.db.QueryRow(`
+			SELECT name, provider FROM ai_models WHERE provider = ? LIMIT 1
+		`, id).Scan(&name, &provider)
+		if err != nil {
+			// 如果找不到基本信息，使用默认值
+			if id == "deepseek" {
+				name = "DeepSeek AI"
+				provider = "deepseek"
+			} else if id == "qwen" {
+				name = "Qwen AI"
+				provider = "qwen"
+			} else {
+				name = id + " AI"
+				provider = id
+			}
+		}
+		
+		// 创建用户特定的配置
+		userModelID := fmt.Sprintf("%s_%s", userID, id)
+		_, err = d.db.Exec(`
+			INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		`, userModelID, userID, name, provider, enabled, apiKey)
+		return err
+	}
+	
+	return nil
 }
 
-// GetExchanges 获取所有交易所配置
-func (d *Database) GetExchanges() ([]*ExchangeConfig, error) {
+// GetExchanges 获取用户的交易所配置
+func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 	rows, err := d.db.Query(`
-		SELECT id, name, type, enabled, api_key, secret_key, testnet, created_at, updated_at 
-		FROM exchanges ORDER BY id
-	`)
+		SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet, 
+		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+		       COALESCE(aster_user, '') as aster_user,
+		       COALESCE(aster_signer, '') as aster_signer,
+		       COALESCE(aster_private_key, '') as aster_private_key,
+		       created_at, updated_at 
+		FROM exchanges WHERE user_id = ? ORDER BY id
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var exchanges []*ExchangeConfig
+	// 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
+	exchanges := make([]*ExchangeConfig, 0)
 	for rows.Next() {
 		var exchange ExchangeConfig
 		err := rows.Scan(
-			&exchange.ID, &exchange.Name, &exchange.Type,
+			&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
 			&exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
+			&exchange.HyperliquidWalletAddr, &exchange.AsterUser, 
+			&exchange.AsterSigner, &exchange.AsterPrivateKey,
 			&exchange.CreatedAt, &exchange.UpdatedAt,
 		)
 		if err != nil {
@@ -279,29 +570,105 @@ func (d *Database) GetExchanges() ([]*ExchangeConfig, error) {
 	return exchanges, nil
 }
 
-// UpdateExchange 更新交易所配置
-func (d *Database) UpdateExchange(id string, enabled bool, apiKey, secretKey string, testnet bool) error {
+// UpdateExchange 更新交易所配置，如果不存在则创建用户特定配置
+func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
+	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
+	
+	// 首先尝试更新现有的用户配置
+	result, err := d.db.Exec(`
+		UPDATE exchanges SET enabled = ?, api_key = ?, secret_key = ?, testnet = ?, 
+		       hyperliquid_wallet_addr = ?, aster_user = ?, aster_signer = ?, aster_private_key = ?, updated_at = datetime('now')
+		WHERE id = ? AND user_id = ?
+	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, id, userID)
+	if err != nil {
+		log.Printf("❌ UpdateExchange: 更新失败: %v", err)
+		return err
+	}
+	
+	// 检查是否有行被更新
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		log.Printf("❌ UpdateExchange: 获取影响行数失败: %v", err)
+		return err
+	}
+	
+	log.Printf("📊 UpdateExchange: 影响行数 = %d", rowsAffected)
+	
+	// 如果没有行被更新，说明用户没有这个交易所的配置，需要创建
+	if rowsAffected == 0 {
+		log.Printf("💡 UpdateExchange: 没有现有记录，创建新记录")
+		
+		// 根据交易所ID确定基本信息
+		var name, typ string
+		if id == "binance" {
+			name = "Binance Futures"
+			typ = "cex"
+		} else if id == "hyperliquid" {
+			name = "Hyperliquid"
+			typ = "dex"
+		} else if id == "aster" {
+			name = "Aster DEX"
+			typ = "dex"
+		} else {
+			name = id + " Exchange"
+			typ = "cex"
+		}
+		
+		log.Printf("🆕 UpdateExchange: 创建新记录 ID=%s, name=%s, type=%s", id, name, typ)
+		
+		// 创建用户特定的配置，使用原始的交易所ID
+		_, err = d.db.Exec(`
+			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, 
+			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+		
+		if err != nil {
+			log.Printf("❌ UpdateExchange: 创建记录失败: %v", err)
+		} else {
+			log.Printf("✅ UpdateExchange: 创建记录成功")
+		}
+		return err
+	}
+	
+	log.Printf("✅ UpdateExchange: 更新现有记录成功")
+	return nil
+}
+
+// CreateAIModel 创建AI模型配置
+func (d *Database) CreateAIModel(userID, id, name, provider string, enabled bool, apiKey string) error {
 	_, err := d.db.Exec(`
-		UPDATE exchanges SET enabled = ?, api_key = ?, secret_key = ?, testnet = ? WHERE id = ?
-	`, enabled, apiKey, secretKey, testnet, id)
+		INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled, api_key) 
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, id, userID, name, provider, enabled, apiKey)
+	return err
+}
+
+// CreateExchange 创建交易所配置
+func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
+	_, err := d.db.Exec(`
+		INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
 	return err
 }
 
 // CreateTrader 创建交易员
 func (d *Database) CreateTrader(trader *TraderConfig) error {
 	_, err := d.db.Exec(`
-		INSERT INTO traders (id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, trader.ID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning)
+		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, custom_prompt, override_base_prompt)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.CustomPrompt, trader.OverrideBasePrompt)
 	return err
 }
 
-// GetTraders 获取所有交易员
-func (d *Database) GetTraders() ([]*TraderConfig, error) {
+// GetTraders 获取用户的交易员
+func (d *Database) GetTraders(userID string) ([]*TraderConfig, error) {
 	rows, err := d.db.Query(`
-		SELECT id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, created_at, updated_at
-		FROM traders ORDER BY created_at DESC
-	`)
+		SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, 
+		       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, 0) as override_base_prompt, created_at, updated_at
+		FROM traders WHERE user_id = ? ORDER BY created_at DESC
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,9 +678,9 @@ func (d *Database) GetTraders() ([]*TraderConfig, error) {
 	for rows.Next() {
 		var trader TraderConfig
 		err := rows.Scan(
-			&trader.ID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
+			&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
 			&trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
-			&trader.CreatedAt, &trader.UpdatedAt,
+			&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.CreatedAt, &trader.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -325,40 +692,52 @@ func (d *Database) GetTraders() ([]*TraderConfig, error) {
 }
 
 // UpdateTraderStatus 更新交易员状态
-func (d *Database) UpdateTraderStatus(id string, isRunning bool) error {
-	_, err := d.db.Exec(`UPDATE traders SET is_running = ? WHERE id = ?`, isRunning, id)
+func (d *Database) UpdateTraderStatus(userID, id string, isRunning bool) error {
+	_, err := d.db.Exec(`UPDATE traders SET is_running = ? WHERE id = ? AND user_id = ?`, isRunning, id, userID)
+	return err
+}
+
+// UpdateTraderCustomPrompt 更新交易员自定义Prompt
+func (d *Database) UpdateTraderCustomPrompt(userID, id string, customPrompt string, overrideBase bool) error {
+	_, err := d.db.Exec(`UPDATE traders SET custom_prompt = ?, override_base_prompt = ? WHERE id = ? AND user_id = ?`, customPrompt, overrideBase, id, userID)
 	return err
 }
 
 // DeleteTrader 删除交易员
-func (d *Database) DeleteTrader(id string) error {
-	_, err := d.db.Exec(`DELETE FROM traders WHERE id = ?`, id)
+func (d *Database) DeleteTrader(userID, id string) error {
+	_, err := d.db.Exec(`DELETE FROM traders WHERE id = ? AND user_id = ?`, id, userID)
 	return err
 }
 
 // GetTraderConfig 获取交易员完整配置（包含AI模型和交易所信息）
-func (d *Database) GetTraderConfig(traderID string) (*TraderConfig, *AIModelConfig, *ExchangeConfig, error) {
+func (d *Database) GetTraderConfig(userID, traderID string) (*TraderConfig, *AIModelConfig, *ExchangeConfig, error) {
 	var trader TraderConfig
 	var aiModel AIModelConfig
 	var exchange ExchangeConfig
 
 	err := d.db.QueryRow(`
 		SELECT 
-			t.id, t.name, t.ai_model_id, t.exchange_id, t.initial_balance, t.scan_interval_minutes, t.is_running, t.created_at, t.updated_at,
-			a.id, a.name, a.provider, a.enabled, a.api_key, a.created_at, a.updated_at,
-			e.id, e.name, e.type, e.enabled, e.api_key, e.secret_key, e.testnet, e.created_at, e.updated_at
+			t.id, t.user_id, t.name, t.ai_model_id, t.exchange_id, t.initial_balance, t.scan_interval_minutes, t.is_running, t.created_at, t.updated_at,
+			a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key, a.created_at, a.updated_at,
+			e.id, e.user_id, e.name, e.type, e.enabled, e.api_key, e.secret_key, e.testnet,
+			COALESCE(e.hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+			COALESCE(e.aster_user, '') as aster_user,
+			COALESCE(e.aster_signer, '') as aster_signer,
+			COALESCE(e.aster_private_key, '') as aster_private_key,
+			e.created_at, e.updated_at
 		FROM traders t
-		JOIN ai_models a ON t.ai_model_id = a.id
-		JOIN exchanges e ON t.exchange_id = e.id
-		WHERE t.id = ?
-	`, traderID).Scan(
-		&trader.ID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
+		JOIN ai_models a ON t.ai_model_id = a.id AND t.user_id = a.user_id
+		JOIN exchanges e ON t.exchange_id = e.id AND t.user_id = e.user_id
+		WHERE t.id = ? AND t.user_id = ?
+	`, traderID, userID).Scan(
+		&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
 		&trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
 		&trader.CreatedAt, &trader.UpdatedAt,
-		&aiModel.ID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
+		&aiModel.ID, &aiModel.UserID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
 		&aiModel.CreatedAt, &aiModel.UpdatedAt,
-		&exchange.ID, &exchange.Name, &exchange.Type, &exchange.Enabled,
+		&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type, &exchange.Enabled,
 		&exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
+		&exchange.HyperliquidWalletAddr, &exchange.AsterUser, &exchange.AsterSigner, &exchange.AsterPrivateKey,
 		&exchange.CreatedAt, &exchange.UpdatedAt,
 	)
 

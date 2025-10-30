@@ -4,8 +4,34 @@ import { api } from '../lib/api';
 import type { TraderInfo, CreateTraderRequest, AIModel, Exchange } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
+import { getExchangeIcon } from './ExchangeIcons';
+import { getModelIcon } from './ModelIcons';
 
-export function AITradersPage() {
+// 获取友好的AI模型名称
+function getModelDisplayName(modelId: string): string {
+  switch (modelId.toLowerCase()) {
+    case 'deepseek':
+      return 'DeepSeek';
+    case 'qwen':
+      return 'Qwen';
+    case 'claude':
+      return 'Claude';
+    case 'gpt4':
+    case 'gpt-4':
+      return 'GPT-4';
+    case 'gpt3.5':
+    case 'gpt-3.5':
+      return 'GPT-3.5';
+    default:
+      return modelId.toUpperCase();
+  }
+}
+
+interface AITradersPageProps {
+  onTraderSelect?: (traderId: string) => void;
+}
+
+export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showModelModal, setShowModelModal] = useState(false);
@@ -14,6 +40,8 @@ export function AITradersPage() {
   const [editingExchange, setEditingExchange] = useState<string | null>(null);
   const [allModels, setAllModels] = useState<AIModel[]>([]);
   const [allExchanges, setAllExchanges] = useState<Exchange[]>([]);
+  const [supportedModels, setSupportedModels] = useState<AIModel[]>([]);
+  const [supportedExchanges, setSupportedExchanges] = useState<Exchange[]>([]);
 
   const { data: traders, mutate: mutateTraders } = useSWR<TraderInfo[]>(
     'traders',
@@ -25,22 +53,41 @@ export function AITradersPage() {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        const [modelConfigs, exchangeConfigs] = await Promise.all([
+        console.log('🔄 开始加载模型和交易所配置...');
+        const [modelConfigs, exchangeConfigs, supportedModels, supportedExchanges] = await Promise.all([
           api.getModelConfigs(),
-          api.getExchangeConfigs()
+          api.getExchangeConfigs(),
+          api.getSupportedModels(),
+          api.getSupportedExchanges()
         ]);
+        console.log('✅ 用户模型配置加载成功:', modelConfigs);
+        console.log('✅ 用户交易所配置加载成功:', exchangeConfigs);
+        console.log('✅ 支持的模型加载成功:', supportedModels);
+        console.log('✅ 支持的交易所加载成功:', supportedExchanges);
         setAllModels(modelConfigs);
         setAllExchanges(exchangeConfigs);
+        setSupportedModels(supportedModels);
+        setSupportedExchanges(supportedExchanges);
       } catch (error) {
-        console.error('Failed to load configs:', error);
+        console.error('❌ 加载配置失败:', error);
       }
     };
     loadConfigs();
   }, []);
 
-  // 只显示已配置的模型和交易所
-  const configuredModels = allModels.filter(m => m.enabled && m.apiKey);
-  const configuredExchanges = allExchanges.filter(e => e.enabled && e.apiKey && (e.id === 'hyperliquid' || e.secretKey));
+  // 显示所有用户的模型和交易所配置（用于调试）
+  const configuredModels = allModels || [];
+  const configuredExchanges = allExchanges || [];
+  
+  // 只在创建交易员时使用已启用且配置完整的
+  const enabledModels = allModels?.filter(m => m.enabled && m.apiKey) || [];
+  const enabledExchanges = allExchanges?.filter(e => {
+    if (!e.enabled || !e.apiKey) return false;
+    // Hyperliquid 只需要私钥（作为apiKey），不需要secretKey
+    if (e.id === 'hyperliquid') return true;
+    // 其他交易所需要secretKey
+    return e.secretKey && e.secretKey.trim() !== '';
+  }) || [];
 
   // 检查模型是否正在被运行中的交易员使用
   const isModelInUse = (modelId: string) => {
@@ -52,10 +99,10 @@ export function AITradersPage() {
     return traders?.some(t => t.exchange_id === exchangeId && t.is_running) || false;
   };
 
-  const handleCreateTrader = async (modelId: string, exchangeId: string, name: string, initialBalance: number) => {
+  const handleCreateTrader = async (modelId: string, exchangeId: string, name: string, initialBalance: number, customPrompt?: string, overrideBase?: boolean) => {
     try {
-      const model = allModels.find(m => m.id === modelId);
-      const exchange = allExchanges.find(e => e.id === exchangeId);
+      const model = allModels?.find(m => m.id === modelId);
+      const exchange = allExchanges?.find(e => e.id === exchangeId);
       
       if (!model?.enabled) {
         alert(t('modelNotConfigured', language));
@@ -71,7 +118,9 @@ export function AITradersPage() {
         name,
         ai_model_id: modelId,
         exchange_id: exchangeId,
-        initial_balance: initialBalance
+        initial_balance: initialBalance,
+        custom_prompt: customPrompt,
+        override_base_prompt: overrideBase
       };
       
       await api.createTrader(request);
@@ -127,9 +176,9 @@ export function AITradersPage() {
     if (!confirm('确定要删除此AI模型配置吗？')) return;
     
     try {
-      const updatedModels = allModels.map(m => 
+      const updatedModels = allModels?.map(m => 
         m.id === modelId ? { ...m, apiKey: '', enabled: false } : m
-      );
+      ) || [];
       
       const request = {
         models: Object.fromEntries(
@@ -155,9 +204,27 @@ export function AITradersPage() {
 
   const handleSaveModelConfig = async (modelId: string, apiKey: string) => {
     try {
-      const updatedModels = allModels.map(m => 
-        m.id === modelId ? { ...m, apiKey, enabled: true } : m
-      );
+      // 找到要配置的模型（从supportedModels中）
+      const modelToUpdate = supportedModels?.find(m => m.id === modelId);
+      if (!modelToUpdate) {
+        alert('模型不存在');
+        return;
+      }
+
+      // 创建或更新用户的模型配置
+      const existingModel = allModels?.find(m => m.id === modelId);
+      let updatedModels;
+      
+      if (existingModel) {
+        // 更新现有配置
+        updatedModels = allModels?.map(m => 
+          m.id === modelId ? { ...m, apiKey, enabled: true } : m
+        ) || [];
+      } else {
+        // 添加新配置
+        const newModel = { ...modelToUpdate, apiKey, enabled: true };
+        updatedModels = [...(allModels || []), newModel];
+      }
       
       const request = {
         models: Object.fromEntries(
@@ -172,7 +239,11 @@ export function AITradersPage() {
       };
       
       await api.updateModelConfigs(request);
-      setAllModels(updatedModels);
+      
+      // 重新获取用户配置以确保数据同步
+      const refreshedModels = await api.getModelConfigs();
+      setAllModels(refreshedModels);
+      
       setShowModelModal(false);
       setEditingModel(null);
     } catch (error) {
@@ -185,9 +256,9 @@ export function AITradersPage() {
     if (!confirm('确定要删除此交易所配置吗？')) return;
     
     try {
-      const updatedExchanges = allExchanges.map(e => 
+      const updatedExchanges = allExchanges?.map(e => 
         e.id === exchangeId ? { ...e, apiKey: '', secretKey: '', enabled: false } : e
-      );
+      ) || [];
       
       const request = {
         exchanges: Object.fromEntries(
@@ -213,11 +284,29 @@ export function AITradersPage() {
     }
   };
 
-  const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean) => {
+  const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => {
     try {
-      const updatedExchanges = allExchanges.map(e => 
-        e.id === exchangeId ? { ...e, apiKey, secretKey, testnet, enabled: true } : e
-      );
+      // 找到要配置的交易所（从supportedExchanges中）
+      const exchangeToUpdate = supportedExchanges?.find(e => e.id === exchangeId);
+      if (!exchangeToUpdate) {
+        alert('交易所不存在');
+        return;
+      }
+
+      // 创建或更新用户的交易所配置
+      const existingExchange = allExchanges?.find(e => e.id === exchangeId);
+      let updatedExchanges;
+      
+      if (existingExchange) {
+        // 更新现有配置
+        updatedExchanges = allExchanges?.map(e => 
+          e.id === exchangeId ? { ...e, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, enabled: true } : e
+        ) || [];
+      } else {
+        // 添加新配置
+        const newExchange = { ...exchangeToUpdate, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, enabled: true };
+        updatedExchanges = [...(allExchanges || []), newExchange];
+      }
       
       const request = {
         exchanges: Object.fromEntries(
@@ -227,14 +316,22 @@ export function AITradersPage() {
               enabled: exchange.enabled,
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
-              testnet: exchange.testnet || false
+              testnet: exchange.testnet || false,
+              hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
+              aster_user: exchange.asterUser || '',
+              aster_signer: exchange.asterSigner || '',
+              aster_private_key: exchange.asterPrivateKey || ''
             }
           ])
         )
       };
       
       await api.updateExchangeConfigs(request);
-      setAllExchanges(updatedExchanges);
+      
+      // 重新获取用户配置以确保数据同步
+      const refreshedExchanges = await api.getExchangeConfigs();
+      setAllExchanges(refreshedExchanges);
+      
       setShowExchangeModal(false);
       setEditingExchange(null);
     } catch (error) {
@@ -339,21 +436,25 @@ export function AITradersPage() {
                   onClick={() => handleModelClick(model.id)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                         style={{ 
-                           background: model.id === 'deepseek' ? '#60a5fa' : '#c084fc',
-                           color: '#fff'
-                         }}>
-                      {model.name[0]}
+                    <div className="w-8 h-8 flex items-center justify-center">
+                      {getModelIcon(model.provider || model.id, { width: 32, height: 32 }) || (
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                             style={{ 
+                               background: model.id === 'deepseek' ? '#60a5fa' : '#c084fc',
+                               color: '#fff'
+                             }}>
+                          {model.name[0]}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div className="font-semibold" style={{ color: '#EAECEF' }}>{model.name}</div>
                       <div className="text-xs" style={{ color: '#848E9C' }}>
-                        {t('configured', language)}
+                        {inUse ? '正在使用' : model.enabled ? '已启用' : '已配置'}
                       </div>
                     </div>
                   </div>
-                  <div className={`w-3 h-3 rounded-full bg-green-400`} />
+                  <div className={`w-3 h-3 rounded-full ${model.enabled && model.apiKey ? 'bg-green-400' : 'bg-gray-500'}`} />
                 </div>
               );
             })}
@@ -384,21 +485,17 @@ export function AITradersPage() {
                   onClick={() => handleExchangeClick(exchange.id)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                         style={{ 
-                           background: exchange.type === 'cex' ? '#F0B90B' : '#0ECB81',
-                           color: '#000'
-                         }}>
-                      {exchange.name[0]}
+                    <div className="w-8 h-8 flex items-center justify-center">
+                      {getExchangeIcon(exchange.id, { width: 32, height: 32 })}
                     </div>
                     <div>
                       <div className="font-semibold" style={{ color: '#EAECEF' }}>{exchange.name}</div>
                       <div className="text-xs" style={{ color: '#848E9C' }}>
-                        {exchange.type.toUpperCase()} • {t('configured', language)}
+                        {exchange.type.toUpperCase()} • {inUse ? '正在使用' : exchange.enabled ? '已启用' : '已配置'}
                       </div>
                     </div>
                   </div>
-                  <div className={`w-3 h-3 rounded-full bg-green-400`} />
+                  <div className={`w-3 h-3 rounded-full ${exchange.enabled && exchange.apiKey ? 'bg-green-400' : 'bg-gray-500'}`} />
                 </div>
               );
             })}
@@ -429,7 +526,7 @@ export function AITradersPage() {
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
                        style={{ 
-                         background: trader.ai_model === 'deepseek' ? '#60a5fa' : '#c084fc',
+                         background: trader.ai_model.includes('deepseek') ? '#60a5fa' : '#c084fc',
                          color: '#fff'
                        }}>
                     🤖
@@ -439,9 +536,9 @@ export function AITradersPage() {
                       {trader.trader_name}
                     </div>
                     <div className="text-sm" style={{ 
-                      color: trader.ai_model === 'deepseek' ? '#60a5fa' : '#c084fc' 
+                      color: trader.ai_model.includes('deepseek') ? '#60a5fa' : '#c084fc' 
                     }}>
-                      {trader.ai_model.toUpperCase()} Model • {trader.exchange_id?.toUpperCase()}
+                      {getModelDisplayName(trader.ai_model.split('_').pop() || trader.ai_model)} Model • {trader.exchange_id?.toUpperCase()}
                     </div>
                   </div>
                 </div>
@@ -463,7 +560,15 @@ export function AITradersPage() {
                   {/* Actions */}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleToggleTrader(trader.trader_id, trader.is_running)}
+                      onClick={() => onTraderSelect?.(trader.trader_id)}
+                      className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+                      style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366F1' }}
+                    >
+                      📊 查看
+                    </button>
+                    
+                    <button
+                      onClick={() => handleToggleTrader(trader.trader_id, trader.is_running || false)}
                       className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
                       style={trader.is_running 
                         ? { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }
@@ -507,8 +612,8 @@ export function AITradersPage() {
       {/* Create Trader Modal */}
       {showCreateModal && (
         <CreateTraderModal
-          enabledModels={configuredModels}
-          enabledExchanges={configuredExchanges}
+          enabledModels={enabledModels}
+          enabledExchanges={enabledExchanges}
           onCreate={handleCreateTrader}
           onClose={() => setShowCreateModal(false)}
           language={language}
@@ -518,7 +623,7 @@ export function AITradersPage() {
       {/* Model Configuration Modal */}
       {showModelModal && (
         <ModelConfigModal
-          allModels={allModels}
+          allModels={supportedModels}
           editingModelId={editingModel}
           onSave={handleSaveModelConfig}
           onDelete={handleDeleteModelConfig}
@@ -533,7 +638,7 @@ export function AITradersPage() {
       {/* Exchange Configuration Modal */}
       {showExchangeModal && (
         <ExchangeConfigModal
-          allExchanges={allExchanges}
+          allExchanges={supportedExchanges}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
           onDelete={handleDeleteExchangeConfig}
@@ -558,7 +663,7 @@ function CreateTraderModal({
 }: {
   enabledModels: AIModel[];
   enabledExchanges: Exchange[];
-  onCreate: (modelId: string, exchangeId: string, name: string, initialBalance: number) => void;
+  onCreate: (modelId: string, exchangeId: string, name: string, initialBalance: number, customPrompt?: string, overrideBase?: boolean) => void;
   onClose: () => void;
   language: any;
 }) {
@@ -571,12 +676,15 @@ function CreateTraderModal({
   const [selectedExchange, setSelectedExchange] = useState(defaultExchange?.id || '');
   const [traderName, setTraderName] = useState('');
   const [initialBalance, setInitialBalance] = useState(1000);
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [overrideBase, setOverrideBase] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedModel || !selectedExchange || !traderName.trim()) return;
     
-    onCreate(selectedModel, selectedExchange, traderName.trim(), initialBalance);
+    onCreate(selectedModel, selectedExchange, traderName.trim(), initialBalance, customPrompt.trim() || undefined, overrideBase);
   };
 
   return (
@@ -655,6 +763,68 @@ function CreateTraderModal({
               required
             />
           </div>
+          
+          {/* Advanced Settings Toggle */}
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm font-semibold"
+              style={{ color: '#F0B90B' }}
+            >
+              <span style={{ transform: showAdvanced ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.2s' }}>▶</span>
+              高级设置
+            </button>
+          </div>
+          
+          {/* Custom Prompt Field - Show when advanced is toggled */}
+          {showAdvanced && (
+            <div className="mt-4">
+              <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                自定义交易策略 (可选)
+              </label>
+              <textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="例如：专注于主流币种BTC/ETH/SOL，避免MEME币。使用保守策略，单笔仓位不超过账户的30%..."
+                rows={5}
+                className="w-full px-3 py-2 rounded resize-none"
+                style={{ 
+                  background: '#0B0E11', 
+                  border: '1px solid #2B3139', 
+                  color: '#EAECEF',
+                  fontSize: '14px'
+                }}
+              />
+              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                输入自定义的交易策略和规则，将作为AI交易员的额外指导。留空使用默认策略。
+              </div>
+              
+              {/* Override Base Strategy Checkbox */}
+              {customPrompt.trim() && (
+                <div className="mt-3 p-3 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', border: '1px solid rgba(246, 70, 93, 0.2)' }}>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={overrideBase}
+                      onChange={(e) => setOverrideBase(e.target.checked)}
+                      className="mt-1"
+                      style={{ accentColor: '#F6465D' }}
+                    />
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: '#F6465D' }}>
+                        覆盖基础交易策略
+                      </div>
+                      <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                        ⚠️ 警告：勾选后将完全使用您的自定义策略，不再使用系统默认的风控和交易逻辑。
+                        这可能导致交易风险增加。仅在您完全理解交易逻辑时使用此选项。
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 mt-6">
             <button
@@ -699,7 +869,7 @@ function ModelConfigModal({
   const [apiKey, setApiKey] = useState('');
 
   // 获取当前编辑的模型信息
-  const selectedModel = allModels.find(m => m.id === selectedModelId);
+  const selectedModel = allModels?.find(m => m.id === selectedModelId);
 
   // 如果是编辑现有模型，初始化API Key
   useEffect(() => {
@@ -715,17 +885,32 @@ function ModelConfigModal({
     onSave(selectedModelId, apiKey.trim());
   };
 
-  // 可选择的模型列表（排除已配置的，除非是当前编辑的）
-  const availableModels = allModels.filter(m => 
-    !m.enabled || !m.apiKey || m.id === editingModelId
-  );
+  // 可选择的模型列表（所有支持的模型）
+  const availableModels = allModels || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg" style={{ background: '#1E2329' }}>
-        <h3 className="text-xl font-bold mb-4" style={{ color: '#EAECEF' }}>
-          {editingModelId ? '编辑AI模型' : '添加AI模型'}
-        </h3>
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative" style={{ background: '#1E2329' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+            {editingModelId ? '编辑AI模型' : '添加AI模型'}
+          </h3>
+          {editingModelId && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('确定要删除此AI模型配置吗？')) {
+                  onDelete(editingModelId);
+                }
+              }}
+              className="p-2 rounded hover:bg-red-100 transition-colors"
+              style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
+              title="删除配置"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editingModelId && (
@@ -753,12 +938,16 @@ function ModelConfigModal({
           {selectedModel && (
             <div className="p-4 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                     style={{ 
-                       background: selectedModel.id === 'deepseek' ? '#60a5fa' : '#c084fc',
-                       color: '#fff'
-                     }}>
-                  {selectedModel.name[0]}
+                <div className="w-8 h-8 flex items-center justify-center">
+                  {getModelIcon(selectedModel.provider || selectedModel.id, { width: 32, height: 32 }) || (
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                         style={{ 
+                           background: selectedModel.id === 'deepseek' ? '#60a5fa' : '#c084fc',
+                           color: '#fff'
+                         }}>
+                      {selectedModel.name[0]}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <div className="font-semibold" style={{ color: '#EAECEF' }}>{selectedModel.name}</div>
@@ -792,18 +981,6 @@ function ModelConfigModal({
             >
               {t('cancel', language)}
             </button>
-            {editingModelId && (
-              <button
-                type="button"
-                onClick={() => {
-                  onDelete(editingModelId);
-                }}
-                className="px-4 py-2 rounded text-sm font-semibold"
-                style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              >
-                🗑️
-              </button>
-            )}
             <button
               type="submit"
               disabled={!selectedModelId || !apiKey.trim()}
@@ -830,7 +1007,7 @@ function ExchangeConfigModal({
 }: {
   allExchanges: Exchange[];
   editingExchangeId: string | null;
-  onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean) => void;
+  onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => void;
   onDelete: (exchangeId: string) => void;
   onClose: () => void;
   language: any;
@@ -839,9 +1016,15 @@ function ExchangeConfigModal({
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [testnet, setTestnet] = useState(false);
+  // Hyperliquid 特定字段
+  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
+  // Aster 特定字段
+  const [asterUser, setAsterUser] = useState('');
+  const [asterSigner, setAsterSigner] = useState('');
+  const [asterPrivateKey, setAsterPrivateKey] = useState('');
 
   // 获取当前编辑的交易所信息
-  const selectedExchange = allExchanges.find(e => e.id === selectedExchangeId);
+  const selectedExchange = allExchanges?.find(e => e.id === selectedExchangeId);
 
   // 如果是编辑现有交易所，初始化表单数据
   useEffect(() => {
@@ -849,28 +1032,57 @@ function ExchangeConfigModal({
       setApiKey(selectedExchange.apiKey || '');
       setSecretKey(selectedExchange.secretKey || '');
       setTestnet(selectedExchange.testnet || false);
+      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '');
+      setAsterUser(selectedExchange.asterUser || '');
+      setAsterSigner(selectedExchange.asterSigner || '');
+      setAsterPrivateKey(selectedExchange.asterPrivateKey || '');
     }
   }, [editingExchangeId, selectedExchange]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedExchangeId || !apiKey.trim()) return;
-    if (selectedExchange?.id !== 'hyperliquid' && !secretKey.trim()) return;
+    if (!selectedExchangeId) return;
     
-    onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
+    // 根据交易所类型验证不同字段
+    if (selectedExchange?.id === 'hyperliquid') {
+      if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return;
+    } else if (selectedExchange?.id === 'aster') {
+      if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return;
+    } else {
+      // Binance 等其他交易所
+      if (!apiKey.trim() || !secretKey.trim()) return;
+    }
+    
+    onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet, 
+           hyperliquidWalletAddr.trim(), asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim());
   };
 
-  // 可选择的交易所列表（排除已配置的，除非是当前编辑的）
-  const availableExchanges = allExchanges.filter(e => 
-    !e.enabled || !e.apiKey || e.id === editingExchangeId
-  );
+  // 可选择的交易所列表（所有支持的交易所）
+  const availableExchanges = allExchanges || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg" style={{ background: '#1E2329' }}>
-        <h3 className="text-xl font-bold mb-4" style={{ color: '#EAECEF' }}>
-          {editingExchangeId ? '编辑交易所' : '添加交易所'}
-        </h3>
+      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative" style={{ background: '#1E2329' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+            {editingExchangeId ? '编辑交易所' : '添加交易所'}
+          </h3>
+          {editingExchangeId && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('确定要删除此交易所配置吗？')) {
+                  onDelete(editingExchangeId);
+                }
+              }}
+              className="p-2 rounded hover:bg-red-100 transition-colors"
+              style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
+              title="删除配置"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editingExchangeId && (
@@ -898,12 +1110,8 @@ function ExchangeConfigModal({
           {selectedExchange && (
             <div className="p-4 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                     style={{ 
-                       background: selectedExchange.type === 'cex' ? '#F0B90B' : '#0ECB81',
-                       color: '#000'
-                     }}>
-                  {selectedExchange.name[0]}
+                <div className="w-8 h-8 flex items-center justify-center">
+                  {getExchangeIcon(selectedExchange.id, { width: 32, height: 32 })}
                 </div>
                 <div>
                   <div className="font-semibold" style={{ color: '#EAECEF' }}>{selectedExchange.name}</div>
@@ -912,50 +1120,131 @@ function ExchangeConfigModal({
               </div>
               
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                    {selectedExchange.id === 'hyperliquid' ? 'Private Key (无需0x前缀)' : 'API Key'}
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder={selectedExchange.id === 'hyperliquid' ? '请输入以太坊私钥' : `请输入 ${selectedExchange.name} API Key`}
-                    className="w-full px-3 py-2 rounded"
-                    style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    required
-                  />
-                </div>
-                
-                {selectedExchange.id !== 'hyperliquid' && (
-                  <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                      Secret Key
-                    </label>
-                    <input
-                      type="password"
-                      value={secretKey}
-                      onChange={(e) => setSecretKey(e.target.value)}
-                      placeholder={`请输入 ${selectedExchange.name} Secret Key`}
-                      className="w-full px-3 py-2 rounded"
-                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                      required
-                    />
-                  </div>
+                {/* Binance 配置 */}
+                {selectedExchange.id === 'binance' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        API Key
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="请输入 Binance API Key"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        Secret Key
+                      </label>
+                      <input
+                        type="password"
+                        value={secretKey}
+                        onChange={(e) => setSecretKey(e.target.value)}
+                        placeholder="请输入 Binance Secret Key"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                  </>
                 )}
 
-                {selectedExchange.type === 'dex' && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={testnet}
-                      onChange={(e) => setTestnet(e.target.checked)}
-                      className="w-4 h-4"
-                    />
-                    <label className="text-sm" style={{ color: '#EAECEF' }}>
-                      {t('useTestnet', language)}
-                    </label>
-                  </div>
+                {/* Hyperliquid 配置 */}
+                {selectedExchange.id === 'hyperliquid' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        Private Key (无需0x前缀)
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder="请输入以太坊私钥"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        钱包地址
+                      </label>
+                      <input
+                        type="text"
+                        value={hyperliquidWalletAddr}
+                        onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
+                        placeholder="请输入以太坊钱包地址"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={testnet}
+                        onChange={(e) => setTestnet(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <label className="text-sm" style={{ color: '#EAECEF' }}>
+                        使用测试网
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {/* Aster 配置 */}
+                {selectedExchange.id === 'aster' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        用户地址
+                      </label>
+                      <input
+                        type="text"
+                        value={asterUser}
+                        onChange={(e) => setAsterUser(e.target.value)}
+                        placeholder="请输入 Aster 用户地址"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        签名者地址
+                      </label>
+                      <input
+                        type="text"
+                        value={asterSigner}
+                        onChange={(e) => setAsterSigner(e.target.value)}
+                        placeholder="请输入 Aster 签名者地址"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        私钥
+                      </label>
+                      <input
+                        type="password"
+                        value={asterPrivateKey}
+                        onChange={(e) => setAsterPrivateKey(e.target.value)}
+                        placeholder="请输入 Aster 私钥"
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        required
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -970,21 +1259,14 @@ function ExchangeConfigModal({
             >
               {t('cancel', language)}
             </button>
-            {editingExchangeId && (
-              <button
-                type="button"
-                onClick={() => {
-                  onDelete(editingExchangeId);
-                }}
-                className="px-4 py-2 rounded text-sm font-semibold"
-                style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              >
-                🗑️
-              </button>
-            )}
             <button
               type="submit"
-              disabled={!selectedExchangeId || !apiKey.trim() || (selectedExchange?.id !== 'hyperliquid' && !secretKey.trim())}
+              disabled={
+                !selectedExchangeId || 
+                (selectedExchange?.id === 'binance' && (!apiKey.trim() || !secretKey.trim())) ||
+                (selectedExchange?.id === 'hyperliquid' && (!apiKey.trim() || !hyperliquidWalletAddr.trim())) ||
+                (selectedExchange?.id === 'aster' && (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()))
+              }
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               style={{ background: '#F0B90B', color: '#000' }}
             >

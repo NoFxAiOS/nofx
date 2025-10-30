@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/api"
+	"nofx/auth"
 	"nofx/config"
 	"nofx/manager"
 	"nofx/pool"
@@ -37,6 +38,29 @@ func main() {
 	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
+	
+	// 获取管理员模式配置
+	adminModeStr, _ := database.GetSystemConfig("admin_mode")
+	adminMode := adminModeStr != "false" // 默认为true
+	
+	// 设置JWT密钥
+	jwtSecret, _ := database.GetSystemConfig("jwt_secret")
+	if jwtSecret == "" {
+		jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
+		log.Printf("⚠️  使用默认JWT密钥，建议在生产环境中配置")
+	}
+	auth.SetJWTSecret(jwtSecret)
+	
+	// 在管理员模式下，确保admin用户存在
+	if adminMode {
+		err := database.EnsureAdminUser()
+		if err != nil {
+			log.Printf("⚠️  创建admin用户失败: %v", err)
+		} else {
+			log.Printf("✓ 管理员模式已启用，无需登录")
+		}
+		auth.SetAdminMode(true)
+	}
 	
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()
@@ -73,8 +97,8 @@ func main() {
 		log.Fatalf("❌ 加载交易员失败: %v", err)
 	}
 
-	// 获取数据库中的所有交易员配置（用于显示）
-	traders, err := database.GetTraders()
+	// 获取数据库中的所有交易员配置（用于显示，使用default用户）
+	traders, err := database.GetTraders("default")
 	if err != nil {
 		log.Fatalf("❌ 获取交易员列表失败: %v", err)
 	}
@@ -110,7 +134,7 @@ func main() {
 	fmt.Println()
 
 	// 获取API服务器端口
-	apiPort := 8081 // 默认端口
+    apiPort := 8080 // 默认端口
 	if apiPortStr != "" {
 		if port, err := strconv.Atoi(apiPortStr); err == nil {
 			apiPort = port

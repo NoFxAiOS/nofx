@@ -89,7 +89,9 @@ export interface TraderInfo {
   trader_id: string;
   trader_name: string;
   ai_model: string;
+  exchange_id?: string;
   is_running?: boolean;
+  custom_prompt?: string;
 }
 
 export interface AIModel {
@@ -108,6 +110,12 @@ export interface Exchange {
   apiKey?: string;
   secretKey?: string;
   testnet?: boolean;
+  // Hyperliquid 特定字段
+  hyperliquidWalletAddr?: string;
+  // Aster 特定字段
+  asterUser?: string;
+  asterSigner?: string;
+  asterPrivateKey?: string;
 }
 
 export interface CreateTraderRequest {
@@ -115,6 +123,8 @@ export interface CreateTraderRequest {
   ai_model_id: string;
   exchange_id: string;
   initial_balance: number;
+  custom_prompt?: string;
+  override_base_prompt?: boolean;
 }
 
 export interface UpdateModelConfigRequest {
@@ -133,6 +143,30 @@ export interface UpdateExchangeConfigRequest {
       api_key: string;
       secret_key: string;
       testnet?: boolean;
+      // Hyperliquid 特定字段
+      hyperliquid_wallet_addr?: string;
+      // Aster 特定字段
+      aster_user?: string;
+      aster_signer?: string;
+      aster_private_key?: string;
     };
   };
+}
+
+// Competition related types
+export interface CompetitionTraderData {
+  trader_id: string;
+  trader_name: string;
+  ai_model: string;
+  total_equity: number;
+  total_pnl: number;
+  total_pnl_pct: number;
+  position_count: number;
+  margin_used_pct: number;
+  is_running: boolean;
+}
+
+export interface CompetitionData {
+  traders: CompetitionTraderData[];
+  count: number;
 }

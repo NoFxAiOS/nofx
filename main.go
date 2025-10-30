@@ -9,72 +9,87 @@ import (
 	"nofx/pool"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 )
 
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║    🏆 AI模型交易竞赛系统 - Qwen vs DeepSeek               ║")
+	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// 加载配置文件
-	configFile := "config.json"
+	// 初始化数据库配置
+	dbPath := "config.db"
 	if len(os.Args) > 1 {
-		configFile = os.Args[1]
+		dbPath = os.Args[1]
 	}
 
-	log.Printf("📋 加载配置文件: %s", configFile)
-	cfg, err := config.LoadConfig(configFile)
+	log.Printf("📋 初始化配置数据库: %s", dbPath)
+	database, err := config.NewDatabase(dbPath)
 	if err != nil {
-		log.Fatalf("❌ 加载配置失败: %v", err)
+		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
+	defer database.Close()
 
-	log.Printf("✓ 配置加载成功，共%d个trader参赛", len(cfg.Traders))
+	// 获取系统配置
+	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
+	useDefaultCoins := useDefaultCoinsStr == "true"
+	apiPortStr, _ := database.GetSystemConfig("api_server_port")
+	
+	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()
 
 	// 设置是否使用默认主流币种
-	pool.SetUseDefaultCoins(cfg.UseDefaultCoins)
-	if cfg.UseDefaultCoins {
+	pool.SetUseDefaultCoins(useDefaultCoins)
+	if useDefaultCoins {
 		log.Printf("✓ 已启用默认主流币种列表（BTC、ETH、SOL、BNB、XRP、DOGE、ADA、HYPE）")
 	}
 
 	// 设置币种池API URL
-	if cfg.CoinPoolAPIURL != "" {
-		pool.SetCoinPoolAPI(cfg.CoinPoolAPIURL)
+	coinPoolAPIURL, _ := database.GetSystemConfig("coin_pool_api_url")
+	if coinPoolAPIURL != "" {
+		pool.SetCoinPoolAPI(coinPoolAPIURL)
 		log.Printf("✓ 已配置AI500币种池API")
 	}
-	if cfg.OITopAPIURL != "" {
-		pool.SetOITopAPI(cfg.OITopAPIURL)
+	
+	oiTopAPIURL, _ := database.GetSystemConfig("oi_top_api_url")
+	if oiTopAPIURL != "" {
+		pool.SetOITopAPI(oiTopAPIURL)
 		log.Printf("✓ 已配置OI Top API")
 	}
 
 	// 创建TraderManager
 	traderManager := manager.NewTraderManager()
 
-	// 添加所有trader
-	for i, traderCfg := range cfg.Traders {
-		log.Printf("📦 [%d/%d] 初始化 %s (%s模型)...",
-			i+1, len(cfg.Traders), traderCfg.Name, strings.ToUpper(traderCfg.AIModel))
-
-		err := traderManager.AddTrader(
-			traderCfg,
-			cfg.CoinPoolAPIURL,
-			cfg.MaxDailyLoss,
-			cfg.MaxDrawdown,
-			cfg.StopTradingMinutes,
-		)
-		if err != nil {
-			log.Fatalf("❌ 初始化trader失败: %v", err)
-		}
+	// 从数据库加载所有交易员到内存
+	err = traderManager.LoadTradersFromDatabase(database)
+	if err != nil {
+		log.Fatalf("❌ 加载交易员失败: %v", err)
 	}
 
+	// 获取数据库中的所有交易员配置（用于显示）
+	traders, err := database.GetTraders()
+	if err != nil {
+		log.Fatalf("❌ 获取交易员列表失败: %v", err)
+	}
+
+	// 显示加载的交易员信息
 	fmt.Println()
-	fmt.Println("🏁 竞赛参赛者:")
-	for _, traderCfg := range cfg.Traders {
-		fmt.Printf("  • %s (%s) - 初始资金: %.0f USDT\n",
-			traderCfg.Name, strings.ToUpper(traderCfg.AIModel), traderCfg.InitialBalance)
+	fmt.Println("🤖 数据库中的AI交易员配置:")
+	if len(traders) == 0 {
+		fmt.Println("  • 暂无配置的交易员，请通过Web界面创建")
+	} else {
+		for _, trader := range traders {
+			status := "停止"
+			if trader.IsRunning {
+				status = "运行中"
+			}
+			fmt.Printf("  • %s (%s + %s) - 初始资金: %.0f USDT [%s]\n",
+				trader.Name, strings.ToUpper(trader.AIModelID), strings.ToUpper(trader.ExchangeID), 
+				trader.InitialBalance, status)
+		}
 	}
 
 	fmt.Println()
@@ -90,8 +105,16 @@ func main() {
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
 
+	// 获取API服务器端口
+	apiPort := 8081 // 默认端口
+	if apiPortStr != "" {
+		if port, err := strconv.Atoi(apiPortStr); err == nil {
+			apiPort = port
+		}
+	}
+
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, cfg.APIServerPort)
+	apiServer := api.NewServer(traderManager, database, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)
@@ -102,8 +125,8 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// 启动所有trader
-	traderManager.StartAll()
+	// TODO: 启动数据库中配置为运行状态的交易员
+	// traderManager.StartAll()
 
 	// 等待退出信号
 	<-sigChan
@@ -113,5 +136,5 @@ func main() {
 	traderManager.StopAll()
 
 	fmt.Println()
-	fmt.Println("👋 感谢使用AI交易竞赛系统！")
+	fmt.Println("👋 感谢使用AI交易系统！")
 }

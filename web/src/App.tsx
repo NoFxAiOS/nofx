@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { api } from './lib/api';
 import { EquityChart } from './components/EquityChart';
-import { CompetitionPage } from './components/CompetitionPage';
+import { AITradersPage } from './components/AITradersPage';
 import AILearning from './components/AILearning';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { t, type Language } from './i18n/translations';
@@ -15,11 +15,11 @@ import type {
   TraderInfo,
 } from './types';
 
-type Page = 'competition' | 'trader';
+type Page = 'traders' | 'trader';
 
 function App() {
   const { language, setLanguage } = useLanguage();
-  const [currentPage, setCurrentPage] = useState<Page>('competition');
+  const [currentPage, setCurrentPage] = useState<Page>('traders');
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>();
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
 
@@ -102,7 +102,8 @@ function App() {
       {/* Header - Binance Style */}
       <header className="glass sticky top-0 z-50 backdrop-blur-xl">
         <div className="max-w-[1920px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="relative flex items-center">
+            {/* Left - Logo and Title */}
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
                 ⚡
@@ -116,30 +117,48 @@ function App() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {/* GitHub Link */}
-              <a
-                href="https://github.com/tinkle-community/nofx"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#2B3139';
-                  e.currentTarget.style.color = '#EAECEF';
-                  e.currentTarget.style.borderColor = '#F0B90B';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#1E2329';
-                  e.currentTarget.style.color = '#848E9C';
-                  e.currentTarget.style.borderColor = '#2B3139';
-                }}
+            
+            {/* Center - Page Toggle (absolutely positioned) */}
+            <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
+              <button
+                onClick={() => setCurrentPage('traders')}
+                className={`px-4 py-2 rounded text-sm font-semibold transition-all`}
+                style={currentPage === 'traders'
+                  ? { background: '#F0B90B', color: '#000' }
+                  : { background: 'transparent', color: '#848E9C' }
+                }
               >
-                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                </svg>
-                <span>GitHub</span>
-              </a>
+                {t('aiTraders', language)}
+              </button>
+              <button
+                onClick={() => setCurrentPage('trader')}
+                className={`px-4 py-2 rounded text-sm font-semibold transition-all`}
+                style={currentPage === 'trader'
+                  ? { background: '#F0B90B', color: '#000' }
+                  : { background: 'transparent', color: '#848E9C' }
+                }
+              >
+                {t('tradingPanel', language)}
+              </button>
+            </div>
+            
+            {/* Right - Actions */}
+            <div className="ml-auto flex items-center gap-3">
+              {/* Trader Selector (only show on trader page) */}
+              {currentPage === 'trader' && traders && traders.length > 0 && (
+                <select
+                  value={selectedTraderId}
+                  onChange={(e) => setSelectedTraderId(e.target.value)}
+                  className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
+                  style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                >
+                  {traders.map((trader) => (
+                    <option key={trader.trader_id} value={trader.trader_id}>
+                      {trader.trader_name} ({trader.ai_model.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {/* Language Toggle */}
               <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
@@ -164,48 +183,6 @@ function App() {
                   EN
                 </button>
               </div>
-
-              {/* Page Toggle */}
-              <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
-                <button
-                  onClick={() => setCurrentPage('competition')}
-                  className={`px-4 py-2 rounded text-sm font-semibold transition-all ${
-                    currentPage === 'competition' ? '' : ''
-                  }`}
-                  style={currentPage === 'competition'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  {t('competition', language)}
-                </button>
-                <button
-                  onClick={() => setCurrentPage('trader')}
-                  className={`px-4 py-2 rounded text-sm font-semibold transition-all`}
-                  style={currentPage === 'trader'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  {t('details', language)}
-                </button>
-              </div>
-
-              {/* Trader Selector (only show on trader page) */}
-              {currentPage === 'trader' && traders && traders.length > 0 && (
-                <select
-                  value={selectedTraderId}
-                  onChange={(e) => setSelectedTraderId(e.target.value)}
-                  className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
-                  style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                >
-                  {traders.map((trader) => (
-                    <option key={trader.trader_id} value={trader.trader_id}>
-                      {trader.trader_name} ({trader.ai_model.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-              )}
 
               {/* Status Indicator (only show on trader page) */}
               {currentPage === 'trader' && status && (
@@ -232,8 +209,8 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-[1920px] mx-auto px-6 py-6">
-        {currentPage === 'competition' ? (
-          <CompetitionPage />
+        {currentPage === 'traders' ? (
+          <AITradersPage />
         ) : (
           <TraderDetailsPage
             selectedTrader={selectedTrader}
@@ -253,30 +230,6 @@ function App() {
         <div className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm" style={{ color: '#5E6673' }}>
           <p>{t('footerTitle', language)}</p>
           <p className="mt-1">{t('footerWarning', language)}</p>
-          <div className="mt-4 flex items-center justify-center gap-2">
-            <a
-              href="https://github.com/tinkle-community/nofx"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-              style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#2B3139';
-                e.currentTarget.style.color = '#EAECEF';
-                e.currentTarget.style.borderColor = '#F0B90B';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#1E2329';
-                e.currentTarget.style.color = '#848E9C';
-                e.currentTarget.style.borderColor = '#2B3139';
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-              </svg>
-              <span>Star on GitHub</span>
-            </a>
-          </div>
         </div>
       </footer>
     </div>
@@ -290,7 +243,6 @@ function TraderDetailsPage({
   account,
   positions,
   decisions,
-  stats,
   lastUpdate,
   language,
 }: {
@@ -358,9 +310,9 @@ function TraderDetailsPage({
       {account && (
         <div className="mb-4 p-3 rounded text-xs font-mono" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
           <div style={{ color: '#848E9C' }}>
-            🔄 Last Update: {lastUpdate} | Total Equity: {account.total_equity.toFixed(2)} |
-            Available: {account.available_balance.toFixed(2)} | P&L: {account.total_pnl.toFixed(2)}{' '}
-            ({account.total_pnl_pct.toFixed(2)}%)
+            🔄 Last Update: {lastUpdate} | Total Equity: {account?.total_equity?.toFixed(2) || '0.00'} |
+            Available: {account?.available_balance?.toFixed(2) || '0.00'} | P&L: {account?.total_pnl?.toFixed(2) || '0.00'}{' '}
+            ({account?.total_pnl_pct?.toFixed(2) || '0.00'}%)
           </div>
         </div>
       )}
@@ -369,20 +321,20 @@ function TraderDetailsPage({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           title={t('totalEquity', language)}
-          value={`${account?.total_equity.toFixed(2) || '0.00'} USDT`}
+          value={`${account?.total_equity?.toFixed(2) || '0.00'} USDT`}
           change={account?.total_pnl_pct || 0}
-          positive={account ? account.total_pnl > 0 : false}
+          positive={account ? (account.total_pnl || 0) > 0 : false}
         />
         <StatCard
           title={t('availableBalance', language)}
-          value={`${account?.available_balance.toFixed(2) || '0.00'} USDT`}
-          subtitle={`${((account?.available_balance / account?.total_equity) * 100 || 0).toFixed(1)}% ${t('free', language)}`}
+          value={`${account?.available_balance?.toFixed(2) || '0.00'} USDT`}
+          subtitle={`${((account?.available_balance && account?.total_equity ? (account.available_balance / account.total_equity) * 100 : 0)).toFixed(1)}% ${t('free', language)}`}
         />
         <StatCard
           title={t('totalPnL', language)}
-          value={`${account?.total_pnl >= 0 ? '+' : ''}${account?.total_pnl.toFixed(2) || '0.00'} USDT`}
+          value={`${(account?.total_pnl || 0) >= 0 ? '+' : ''}${account?.total_pnl?.toFixed(2) || '0.00'} USDT`}
           change={account?.total_pnl_pct || 0}
-          positive={account ? account.total_pnl >= 0 : false}
+          positive={account ? (account.total_pnl || 0) >= 0 : false}
         />
         <StatCard
           title={t('positions', language)}
@@ -584,7 +536,7 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
       </div>
 
       {/* AI Input Prompt - Collapsible */}
-      {decision.input_prompt && (
+      {(decision as any).input_prompt && (
         <div className="mb-3">
           <button
             onClick={() => setShowInput(!showInput)}
@@ -596,7 +548,7 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
           </button>
           {showInput && (
             <div className="mt-2 rounded p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}>
-              {decision.input_prompt}
+              {(decision as any).input_prompt}
             </div>
           )}
         </div>

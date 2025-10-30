@@ -3,15 +3,16 @@ export type Language = 'en' | 'zh';
 export const translations = {
   en: {
     // Header
-    appTitle: 'AI Trading Competition',
-    subtitle: 'Qwen vs DeepSeek · Real-time',
-    competition: 'Competition',
+    appTitle: 'AI Trading System',
+    subtitle: 'Multi-AI Model Trading Platform',
+    aiTraders: 'AI Traders',
     details: 'Details',
+    tradingPanel: 'Trading Panel',
     running: 'RUNNING',
     stopped: 'STOPPED',
 
     // Footer
-    footerTitle: 'NOFX - AI Trading Competition System',
+    footerTitle: 'NOFX - AI Trading System',
     footerWarning: '⚠️ Trading involves risk. Use at your own discretion.',
 
     // Stats Cards
@@ -114,6 +115,39 @@ export const translations = {
     aiLearningPoint3: 'Optimizes position sizing based on win rate',
     aiLearningPoint4: 'Avoids repeating past mistakes',
 
+    // AI Traders Management
+    manageAITraders: 'Manage your AI trading bots',
+    aiModels: 'AI Models',
+    exchanges: 'Exchanges',
+    createTrader: 'Create Trader',
+    modelConfiguration: 'Model Configuration',
+    configured: 'Configured',
+    notConfigured: 'Not Configured',
+    currentTraders: 'Current Traders',
+    noTraders: 'No AI Traders',
+    createFirstTrader: 'Create your first AI trader to get started',
+    configureModelsFirst: 'Please configure AI models first',
+    configureExchangesFirst: 'Please configure exchanges first',
+    configureModelsAndExchangesFirst: 'Please configure AI models and exchanges first',
+    modelNotConfigured: 'Selected model is not configured',
+    exchangeNotConfigured: 'Selected exchange is not configured',
+    confirmDeleteTrader: 'Are you sure you want to delete this trader?',
+    status: 'Status',
+    start: 'Start',
+    stop: 'Stop',
+    createNewTrader: 'Create New AI Trader',
+    selectAIModel: 'Select AI Model',
+    selectExchange: 'Select Exchange',
+    traderName: 'Trader Name',
+    enterTraderName: 'Enter trader name',
+    cancel: 'Cancel',
+    create: 'Create',
+    configureAIModels: 'Configure AI Models',
+    configureExchanges: 'Configure Exchanges',
+    useTestnet: 'Use Testnet',
+    enabled: 'Enabled',
+    save: 'Save',
+
     // Loading & Error
     loading: 'Loading...',
     loadingError: '⚠️ Failed to load AI learning data',
@@ -121,15 +155,16 @@ export const translations = {
   },
   zh: {
     // Header
-    appTitle: 'AI交易竞赛',
-    subtitle: 'Qwen vs DeepSeek · 实时',
-    competition: '竞赛',
+    appTitle: 'AI交易系统',
+    subtitle: '多AI模型交易平台',
+    aiTraders: 'AI交易员',
     details: '详情',
+    tradingPanel: '交易面板',
     running: '运行中',
     stopped: '已停止',
 
     // Footer
-    footerTitle: 'NOFX - AI交易竞赛系统',
+    footerTitle: 'NOFX - AI交易系统',
     footerWarning: '⚠️ 交易有风险，请谨慎使用。',
 
     // Stats Cards
@@ -231,6 +266,39 @@ export const translations = {
     aiLearningPoint2: '识别表现最好和最差的币种',
     aiLearningPoint3: '根据胜率优化仓位大小',
     aiLearningPoint4: '避免重复过去的错误',
+
+    // AI Traders Management
+    manageAITraders: '管理您的AI交易机器人',
+    aiModels: 'AI模型',
+    exchanges: '交易所',
+    createTrader: '创建交易员',
+    modelConfiguration: '模型配置',
+    configured: '已配置',
+    notConfigured: '未配置',
+    currentTraders: '当前交易员',
+    noTraders: '暂无AI交易员',
+    createFirstTrader: '创建您的第一个AI交易员开始使用',
+    configureModelsFirst: '请先配置AI模型',
+    configureExchangesFirst: '请先配置交易所',
+    configureModelsAndExchangesFirst: '请先配置AI模型和交易所',
+    modelNotConfigured: '所选模型未配置',
+    exchangeNotConfigured: '所选交易所未配置',
+    confirmDeleteTrader: '确定要删除这个交易员吗？',
+    status: '状态',
+    start: '启动',
+    stop: '停止',
+    createNewTrader: '创建新的AI交易员',
+    selectAIModel: '选择AI模型',
+    selectExchange: '选择交易所',
+    traderName: '交易员名称',
+    enterTraderName: '输入交易员名称',
+    cancel: '取消',
+    create: '创建',
+    configureAIModels: '配置AI模型',
+    configureExchanges: '配置交易所',
+    useTestnet: '使用测试网',
+    enabled: '启用',
+    save: '保存',
 
     // Loading & Error
     loading: '加载中...',

@@ -83,27 +83,55 @@ export interface Statistics {
   total_close_positions: number;
 }
 
-// 新增：竞赛相关类型
+// AI Trading相关类型
 export interface TraderInfo {
   trader_id: string;
   trader_name: string;
   ai_model: string;
+  is_running?: boolean;
 }
 
-export interface CompetitionTraderData {
-  trader_id: string;
-  trader_name: string;
-  ai_model: string;
-  total_equity: number;
-  total_pnl: number;
-  total_pnl_pct: number;
-  position_count: number;
-  margin_used_pct: number;
-  call_count: number;
-  is_running: boolean;
+export interface AIModel {
+  id: string;
+  name: string;
+  provider: string;
+  enabled: boolean;
+  apiKey?: string;
 }
 
-export interface CompetitionData {
-  traders: CompetitionTraderData[];
-  count: number;
+export interface Exchange {
+  id: string;
+  name: string;
+  type: 'cex' | 'dex';
+  enabled: boolean;
+  apiKey?: string;
+  secretKey?: string;
+  testnet?: boolean;
+}
+
+export interface CreateTraderRequest {
+  name: string;
+  ai_model_id: string;
+  exchange_id: string;
+  initial_balance: number;
+}
+
+export interface UpdateModelConfigRequest {
+  models: {
+    [key: string]: {
+      enabled: boolean;
+      api_key: string;
+    };
+  };
+}
+
+export interface UpdateExchangeConfigRequest {
+  exchanges: {
+    [key: string]: {
+      enabled: boolean;
+      api_key: string;
+      secret_key: string;
+      testnet?: boolean;
+    };
+  };
 }

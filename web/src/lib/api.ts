@@ -5,23 +5,84 @@ import type {
   DecisionRecord,
   Statistics,
   TraderInfo,
-  CompetitionData,
+  AIModel,
+  Exchange,
+  CreateTraderRequest,
+  UpdateModelConfigRequest,
+  UpdateExchangeConfigRequest,
 } from '../types';
 
 const API_BASE = '/api';
 
 export const api = {
-  // 竞赛相关接口
-  async getCompetition(): Promise<CompetitionData> {
-    const res = await fetch(`${API_BASE}/competition`);
-    if (!res.ok) throw new Error('获取竞赛数据失败');
-    return res.json();
-  },
-
+  // AI交易员管理接口
   async getTraders(): Promise<TraderInfo[]> {
     const res = await fetch(`${API_BASE}/traders`);
     if (!res.ok) throw new Error('获取trader列表失败');
     return res.json();
+  },
+
+  async createTrader(request: CreateTraderRequest): Promise<TraderInfo> {
+    const res = await fetch(`${API_BASE}/traders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error('创建交易员失败');
+    return res.json();
+  },
+
+  async deleteTrader(traderId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/traders/${traderId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('删除交易员失败');
+  },
+
+  async startTrader(traderId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/traders/${traderId}/start`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('启动交易员失败');
+  },
+
+  async stopTrader(traderId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/traders/${traderId}/stop`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('停止交易员失败');
+  },
+
+  // AI模型配置接口
+  async getModelConfigs(): Promise<AIModel[]> {
+    const res = await fetch(`${API_BASE}/models`);
+    if (!res.ok) throw new Error('获取模型配置失败');
+    return res.json();
+  },
+
+  async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
+    const res = await fetch(`${API_BASE}/models`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error('更新模型配置失败');
+  },
+
+  // 交易所配置接口
+  async getExchangeConfigs(): Promise<Exchange[]> {
+    const res = await fetch(`${API_BASE}/exchanges`);
+    if (!res.ok) throw new Error('获取交易所配置失败');
+    return res.json();
+  },
+
+  async updateExchangeConfigs(request: UpdateExchangeConfigRequest): Promise<void> {
+    const res = await fetch(`${API_BASE}/exchanges`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+    if (!res.ok) throw new Error('更新交易所配置失败');
   },
 
   // 获取系统状态（支持trader_id）

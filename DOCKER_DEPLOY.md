@@ -64,22 +64,22 @@ nano config.json  # 或使用其他编辑器
 **必须配置的字段：**
 ```json
 {
-  "traders": [
-    {
-      "id": "my_trader",
-      "name": "My AI Trader",
-      "ai_model": "deepseek",
-      "binance_api_key": "YOUR_BINANCE_API_KEY",       // ← 填入你的币安 API Key
-      "binance_secret_key": "YOUR_BINANCE_SECRET_KEY", // ← 填入你的币安 Secret Key
-      "deepseek_key": "YOUR_DEEPSEEK_API_KEY",         // ← 填入你的 DeepSeek API Key
-      "initial_balance": 1000.0,
-      "scan_interval_minutes": 3
-    }
-  ],
   "use_default_coins": true,
-  "api_server_port": 8080
+  "api_server_port": 8081,
+  "jwt_secret": "YOUR_JWT_SECRET_CHANGE_IN_PRODUCTION"  // ← 填入一个长随机字符串作为JWT密钥
 }
 ```
+
+> **⚠️ 重要安全提醒**：
+> - `jwt_secret` 字段是用户认证系统的关键安全配置
+> - **必须设置一个长度至少32位的随机字符串**
+> - 在生产环境中，建议使用64位以上的随机字符串
+> - 可以使用命令生成：`openssl rand -base64 64`
+
+**配置说明：**
+- 🔐 **用户认证**：系统现在支持用户注册登录，每个用户都有独立的AI模型和交易所配置
+- 🚫 **移除traders配置**：不再需要在config.json中预配置交易员，用户可以通过Web界面创建
+- 🔑 **JWT密钥**：用于保护用户会话安全，强烈建议在生产环境中设置复杂密钥
 
 ### 第 2 步：一键启动
 
@@ -310,23 +310,38 @@ docker system prune -a --volumes
 
 ## 🔐 安全建议
 
-1. **不要将 config.json 提交到 Git**
+1. **JWT密钥安全配置**
+   ```bash
+   # 生成强随机JWT密钥
+   openssl rand -base64 64
+   
+   # 或者使用其他工具生成
+   head -c 64 /dev/urandom | base64
+   ```
+   
+   **JWT密钥要求：**
+   - 长度至少32位，推荐64位以上
+   - 使用随机生成的字符串
+   - 在生产环境中绝不使用默认值
+   - 定期更换（会使现有用户需要重新登录）
+
+2. **不要将 config.json 提交到 Git**
    ```bash
    # 确保 config.json 在 .gitignore 中
    echo "config.json" >> .gitignore
    ```
 
-2. **使用环境变量存储敏感信息**
+3. **使用环境变量存储敏感信息**
    ```yaml
    # docker-compose.yml
    services:
      backend:
        environment:
-         - BINANCE_API_KEY=${BINANCE_API_KEY}
-         - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY}
+         - JWT_SECRET=${JWT_SECRET}
+       # 用户的API密钥现在通过Web界面配置，不再需要环境变量
    ```
 
-3. **限制 API 访问**
+4. **限制 API 访问**
    ```yaml
    # 只允许本地访问
    services:

@@ -116,12 +116,6 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     if (combined.length > 0) {
       const lastPoint = combined[combined.length - 1];
       console.log(`Chart: ${combined.length} data points, last time: ${lastPoint.time}, timestamp: ${lastPoint.timestamp}`);
-      console.log('Last 3 points:', combined.slice(-3).map(p => ({
-        time: p.time,
-        timestamp: p.timestamp,
-        deepseek: p.deepseek_trader_pnl_pct,
-        qwen: p.qwen_trader_pnl_pct
-      })));
     }
 
     return combined;

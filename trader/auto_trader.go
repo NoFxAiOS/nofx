@@ -77,6 +77,8 @@ type AutoTrader struct {
 	decisionLogger        *logger.DecisionLogger // 决策日志记录器
 	initialBalance        float64
 	dailyPnL              float64
+	customPrompt          string // 自定义交易策略prompt
+	overrideBasePrompt    bool   // 是否覆盖基础prompt
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
@@ -287,7 +289,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 4. 调用AI获取完整决策
 	log.Println("🤖 正在请求AI分析并决策...")
-	decision, err := decision.GetFullDecision(ctx, at.mcpClient)
+	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt)
 
 	// 即使有错误，也保存思维链、决策和输入prompt（用于debug）
 	if decision != nil {
@@ -427,6 +429,14 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		liquidationPrice := pos["liquidationPrice"].(float64)
 
+		// 计算盈亏百分比
+		pnlPct := 0.0
+		if side == "long" {
+			pnlPct = ((markPrice - entryPrice) / entryPrice) * 100
+		} else {
+			pnlPct = ((entryPrice - markPrice) / entryPrice) * 100
+		}
+
 		// 计算占用保证金（估算）
 		leverage := 10 // 默认值，实际应该从持仓信息获取
 		if lev, ok := pos["leverage"].(float64); ok {
@@ -434,14 +444,6 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		}
 		marginUsed := (quantity * markPrice) / float64(leverage)
 		totalMarginUsed += marginUsed
-
-		// 计算盈亏百分比
-		pnlPct := 0.0
-		if side == "long" {
-			pnlPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
-		} else {
-			pnlPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
-		}
 
 		// 跟踪持仓首次出现时间
 		posKey := symbol + "_" + side
@@ -735,6 +737,16 @@ func (at *AutoTrader) GetAIModel() string {
 	return at.aiModel
 }
 
+// SetCustomPrompt 设置自定义交易策略prompt
+func (at *AutoTrader) SetCustomPrompt(prompt string) {
+	at.customPrompt = prompt
+}
+
+// SetOverrideBasePrompt 设置是否覆盖基础prompt
+func (at *AutoTrader) SetOverrideBasePrompt(override bool) {
+	at.overrideBasePrompt = override
+}
+
 // GetDecisionLogger 获取决策日志记录器
 func (at *AutoTrader) GetDecisionLogger() *logger.DecisionLogger {
 	return at.decisionLogger
@@ -871,14 +883,15 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			leverage = int(lev)
 		}
 
-		pnlPct := 0.0
-		if side == "long" {
-			pnlPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
-		} else {
-			pnlPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
-		}
-
+		// 计算占用保证金
 		marginUsed := (quantity * markPrice) / float64(leverage)
+		
+		// 计算盈亏百分比（基于保证金）
+		// 收益率 = 未实现盈亏 / 保证金 × 100%
+		pnlPct := 0.0
+		if marginUsed > 0 {
+			pnlPct = (unrealizedPnl / marginUsed) * 100
+		}
 
 		result = append(result, map[string]interface{}{
 			"symbol":             symbol,

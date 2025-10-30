@@ -222,8 +222,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	// 生成交易员ID
 	traderID := fmt.Sprintf("%s_%s_%d", req.ExchangeID, req.AIModelID, time.Now().Unix())
 	
-	// 创建交易员配置
-	trader := &config.TraderConfig{
+    // 创建交易员配置（数据库实体）
+    trader := &config.TraderRecord{
 		ID:                  traderID,
 		UserID:              userID,
 		Name:                req.Name,

@@ -66,7 +66,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 	}
 
 	// 为每个交易员获取AI模型和交易所配置
-	for _, traderCfg := range traders {
+    for _, traderCfg := range traders {
 		// 获取AI模型配置
 		aiModels, err := database.GetAIModels(userID)
 		if err != nil {
@@ -118,7 +118,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 		}
 
 		// 添加到TraderManager
-		err = tm.addTraderFromConfig(traderCfg, aiModelCfg, exchangeCfg, coinPoolURL, maxDailyLoss, maxDrawdown, stopTradingMinutes)
+        err = tm.addTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, coinPoolURL, maxDailyLoss, maxDrawdown, stopTradingMinutes)
 		if err != nil {
 			log.Printf("❌ 添加交易员 %s 失败: %v", traderCfg.Name, err)
 			continue
@@ -130,13 +130,13 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 }
 
 // addTraderFromConfig 内部方法：从配置添加交易员（不加锁，因为调用方已加锁）
-func (tm *TraderManager) addTraderFromConfig(traderCfg *config.TraderConfig, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
+func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
 	if _, exists := tm.traders[traderCfg.ID]; exists {
 		return fmt.Errorf("trader ID '%s' 已存在", traderCfg.ID)
 	}
 
 	// 构建AutoTraderConfig
-	traderConfig := trader.AutoTraderConfig{
+    traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
 		Name:                  traderCfg.Name,
 		AIModel:               aiModelCfg.Provider, // 使用provider作为模型标识
@@ -201,7 +201,7 @@ func (tm *TraderManager) addTraderFromConfig(traderCfg *config.TraderConfig, aiM
 // AddTrader 从数据库配置添加trader (移除旧版兼容性)
 
 // AddTraderFromDB 从数据库配置添加trader
-func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderConfig, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
+func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -547,7 +547,7 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 }
 
 // loadSingleTrader 加载单个交易员（从现有代码提取的公共逻辑）
-func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderConfig, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
+func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int) error {
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,

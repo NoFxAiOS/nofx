@@ -357,8 +357,8 @@ type ExchangeConfig struct {
 	UpdatedAt       time.Time `json:"updated_at"`
 }
 
-// TraderConfig 交易员配置
-type TraderConfig struct {
+// TraderRecord 交易员配置（数据库实体）
+type TraderRecord struct {
 	ID                 string    `json:"id"`
 	UserID             string    `json:"user_id"`
 	Name               string    `json:"name"`
@@ -654,7 +654,7 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 }
 
 // CreateTrader 创建交易员
-func (d *Database) CreateTrader(trader *TraderConfig) error {
+func (d *Database) CreateTrader(trader *TraderRecord) error {
 	_, err := d.db.Exec(`
 		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, custom_prompt, override_base_prompt)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -663,7 +663,7 @@ func (d *Database) CreateTrader(trader *TraderConfig) error {
 }
 
 // GetTraders 获取用户的交易员
-func (d *Database) GetTraders(userID string) ([]*TraderConfig, error) {
+func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 	rows, err := d.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, 
 		       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, 0) as override_base_prompt, created_at, updated_at
@@ -674,9 +674,9 @@ func (d *Database) GetTraders(userID string) ([]*TraderConfig, error) {
 	}
 	defer rows.Close()
 
-	var traders []*TraderConfig
+    var traders []*TraderRecord
 	for rows.Next() {
-		var trader TraderConfig
+        var trader TraderRecord
 		err := rows.Scan(
 			&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
 			&trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
@@ -710,8 +710,8 @@ func (d *Database) DeleteTrader(userID, id string) error {
 }
 
 // GetTraderConfig 获取交易员完整配置（包含AI模型和交易所信息）
-func (d *Database) GetTraderConfig(userID, traderID string) (*TraderConfig, *AIModelConfig, *ExchangeConfig, error) {
-	var trader TraderConfig
+func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIModelConfig, *ExchangeConfig, error) {
+    var trader TraderRecord
 	var aiModel AIModelConfig
 	var exchange ExchangeConfig
 

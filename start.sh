@@ -118,7 +118,10 @@ read_env_vars() {
 # ------------------------------------------------------------------------
 check_database() {
     if [ ! -f "config.db" ]; then
-        print_info "数据库文件不存在，系统将在启动时自动创建"
+        print_warning "数据库文件不存在，创建空数据库文件..."
+        # 创建空文件以避免Docker创建目录
+        touch config.db
+        print_info "✓ 已创建空数据库文件，系统将在启动时初始化"
     else
         print_success "数据库文件存在"
     fi

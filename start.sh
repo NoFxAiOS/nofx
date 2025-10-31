@@ -70,9 +70,8 @@ check_env() {
     if [ ! -f ".env" ]; then
         print_warning ".env 不存在，从模板复制..."
         cp .env.example .env
-        print_info "请编辑 .env 填入你的环境变量配置"
-        print_info "运行: nano .env 或使用其他编辑器"
-        exit 1
+        print_info "✓ 已使用默认环境变量创建 .env"
+        print_info "💡 如需修改端口等设置，可编辑 .env 文件"
     fi
     print_success "环境变量文件存在"
 }

@@ -137,6 +137,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('auth_token', data.token);
         localStorage.setItem('auth_user', JSON.stringify(userInfo));
         
+        // 跳转到首页
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        
         return { success: true, message: data.message };
       } else {
         return { success: false, message: data.error };
@@ -165,6 +169,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userInfo);
         localStorage.setItem('auth_token', data.token);
         localStorage.setItem('auth_user', JSON.stringify(userInfo));
+        
+        // 跳转到首页
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
         
         return { success: true, message: data.message };
       } else {

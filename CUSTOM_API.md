@@ -10,7 +10,9 @@
 
 ## 配置方式
 
-在 `config.json` 中添加使用自定义 API 的 trader：
+~~在 `config.json` 中添加使用自定义 API 的 trader：~~ 
+
+*注意：现在通过Web界面配置自定义API，不再使用config.json文件*
 
 ```json
 {

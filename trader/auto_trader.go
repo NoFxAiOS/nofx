@@ -63,6 +63,9 @@ type AutoTraderConfig struct {
 	MaxDailyLoss    float64       // 最大日亏损百分比（提示）
 	MaxDrawdown     float64       // 最大回撤百分比（提示）
 	StopTradingTime time.Duration // 触发风控后暂停时长
+
+	// 仓位模式
+	IsCrossMargin bool // true=全仓模式, false=逐仓模式
 }
 
 // AutoTrader 自动交易器
@@ -134,6 +137,13 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 	// 根据配置创建对应的交易器
 	var trader Trader
 	var err error
+
+	// 记录仓位模式（通用）
+	marginModeStr := "全仓"
+	if !config.IsCrossMargin {
+		marginModeStr = "逐仓"
+	}
+	log.Printf("📊 [%s] 仓位模式: %s", config.Name, marginModeStr)
 
 	switch config.Exchange {
 	case "binance":
@@ -589,6 +599,12 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
 
+	// 设置仓位模式
+	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
+		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
+		// 继续执行，不影响交易
+	}
+
 	// 开仓
 	order, err := at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
 	if err != nil {
@@ -641,6 +657,12 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
+
+	// 设置仓位模式
+	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
+		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
+		// 继续执行，不影响交易
+	}
 
 	// 开仓
 	order, err := at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
@@ -885,7 +907,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		// 计算占用保证金
 		marginUsed := (quantity * markPrice) / float64(leverage)
-		
+
 		// 计算盈亏百分比（基于保证金）
 		// 收益率 = 未实现盈亏 / 保证金 × 100%
 		pnlPct := 0.0

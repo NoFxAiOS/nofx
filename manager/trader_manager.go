@@ -154,6 +154,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		MaxDailyLoss:          maxDailyLoss,
 		MaxDrawdown:           maxDrawdown,
 		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
+		IsCrossMargin:         traderCfg.IsCrossMargin,
 	}
 
 	// 根据交易所类型设置API密钥
@@ -228,6 +229,7 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		MaxDailyLoss:          maxDailyLoss,
 		MaxDrawdown:           maxDrawdown,
 		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
+		IsCrossMargin:         traderCfg.IsCrossMargin,
 	}
 
 	// 根据交易所类型设置API密钥
@@ -560,6 +562,7 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		MaxDailyLoss:          maxDailyLoss,
 		MaxDrawdown:           maxDrawdown,
 		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
+		IsCrossMargin:         traderCfg.IsCrossMargin,
 	}
 
 	// 根据交易所类型设置API密钥

@@ -125,6 +125,7 @@ export interface CreateTraderRequest {
   initial_balance: number;
   custom_prompt?: string;
   override_base_prompt?: boolean;
+  is_cross_margin?: boolean;
 }
 
 export interface UpdateModelConfigRequest {

@@ -694,7 +694,7 @@ go build -o nofx
 |--------------------------|---------|
 | `invalid API key` | Перевірте Binance API ключі в config.json |
 | `TA-Lib not found` | Виконайте `brew install ta-lib` (macOS) |
-| `port 8080 already in use` | Змініть `api_server_port` в config.json |
+| `port 8080 already in use` | ~~Змініть `api_server_port` в config.json~~ *Змініть `API_PORT` у файлі .env* |
 | `DeepSeek API error` | Перевірте DeepSeek API ключ та баланс |
 
 **✅ Ознаки роботи Backend:**

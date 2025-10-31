@@ -78,24 +78,14 @@ check_env() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Configuration File (config.json)
+# Validation: Database File (trading.db)
 # ------------------------------------------------------------------------
-check_config() {
-    if [ ! -f "config.json" ]; then
-        print_warning "config.json 不存在，正在从 config.example.jsonc 生成..."
-
-        # 生成 config.json（安全去除 JSONC 注释，不破坏 https://）
-        perl -0777 -pe 's:/\*.*?\*/::gs' config.example.jsonc \
-          | sed -E 's/^[[:space:]]*\/\/.*$//' \
-          | jq '.' > config.json
-
-        print_success "已生成 config.json"
-        print_info "请编辑 config.json 填入你的 API 密钥"
-        print_info "运行: nano config.json 或使用其他编辑器"
-        exit 1
+check_database() {
+    if [ ! -f "trading.db" ]; then
+        print_info "数据库文件不存在，系统将在启动时自动创建"
+    else
+        print_success "数据库文件存在"
     fi
-
-    print_success "配置文件存在"
 }
 
 # ------------------------------------------------------------------------
@@ -253,7 +243,7 @@ main() {
     case "${1:-start}" in
         start)
             check_env
-            check_config
+            check_database
             start "$2"
             ;;
         stop)

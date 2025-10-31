@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
+import { Zap, Smartphone, Lock } from 'lucide-react';
 
 export function RegisterPage() {
   const { language } = useLanguage();
@@ -75,9 +76,9 @@ export function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl"
+          <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
                style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-            ⚡
+            <Zap className="w-8 h-8" style={{ color: '#000' }} />
           </div>
           <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
             {t('appTitle', language)}
@@ -158,7 +159,9 @@ export function RegisterPage() {
           {step === 'setup-otp' && (
             <div className="space-y-4">
               <div className="text-center">
-                <div className="text-4xl mb-2">📱</div>
+                <div className="mb-2 flex justify-center">
+                  <Smartphone className="w-10 h-10" style={{ color: '#F0B90B' }} />
+                </div>
                 <h3 className="text-lg font-semibold mb-2" style={{ color: '#EAECEF' }}>
                   {t('setupTwoFactor', language)}
                 </h3>
@@ -236,7 +239,9 @@ export function RegisterPage() {
           {step === 'verify-otp' && (
             <form onSubmit={handleOTPVerify} className="space-y-4">
               <div className="text-center mb-4">
-                <div className="text-4xl mb-2">🔐</div>
+                <div className="mb-2 flex justify-center">
+                  <Lock className="w-10 h-10" style={{ color: '#F0B90B' }} />
+                </div>
                 <p className="text-sm" style={{ color: '#848E9C' }}>
                   {t('enterOTPCode', language)}<br />
                   {t('completeRegistrationSubtitle', language)}

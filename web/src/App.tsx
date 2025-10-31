@@ -11,6 +11,7 @@ import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
 import { useSystemConfig } from './hooks/useSystemConfig';
+import { Bot, RefreshCw, TrendingUp, BarChart3, Brain, Download, Upload, Check, X, AlertCircle, Zap, TrendingUp as ArrowUp, TrendingDown as ArrowDown } from 'lucide-react';
 import type {
   SystemStatus,
   AccountInfo,
@@ -175,9 +176,8 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
         <div className="text-center">
-          <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl animate-spin"
-               style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-            ⚡
+          <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 animate-pulse" />
           </div>
           <p style={{ color: '#EAECEF' }}>加载中...</p>
         </div>
@@ -201,9 +201,7 @@ function App() {
           <div className="relative flex items-center">
             {/* Left - Logo and Title */}
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-                ⚡
-              </div>
+              <img src="/images/logo.png" alt="NoFx Logo" className="w-8 h-8" />
               <div>
                 <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
                   {t('appTitle', language)}
@@ -264,7 +262,8 @@ function App() {
               {/* Admin Mode Indicator */}
               {systemConfig?.admin_mode && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <span className="text-sm font-semibold" style={{ color: '#F0B90B' }}>⚡ 管理员模式</span>
+                  <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                  <span className="text-sm font-semibold" style={{ color: '#F0B90B' }}>管理员模式</span>
                 </div>
               )}
 
@@ -429,9 +428,9 @@ function TraderDetailsPage({
       <div className="mb-6 rounded p-6 animate-scale-in" style={{ background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(252, 213, 53, 0.05) 100%)', border: '1px solid rgba(240, 185, 11, 0.2)', boxShadow: '0 0 30px rgba(240, 185, 11, 0.15)' }}>
         <div className="flex items-start justify-between mb-3">
           <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            <span className="w-10 h-10 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-              🤖
-            </span>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
+              <Bot className="w-6 h-6" style={{ color: '#000' }} />
+            </div>
             {selectedTrader.trader_name}
           </h2>
           
@@ -470,8 +469,9 @@ function TraderDetailsPage({
       {/* Debug Info */}
       {account && (
         <div className="mb-4 p-3 rounded text-xs font-mono" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-          <div style={{ color: '#848E9C' }}>
-            🔄 Last Update: {lastUpdate} | Total Equity: {account?.total_equity?.toFixed(2) || '0.00'} |
+          <div className="flex items-center gap-2" style={{ color: '#848E9C' }}>
+            <RefreshCw className="w-3 h-3" />
+            Last Update: {lastUpdate} | Total Equity: {account?.total_equity?.toFixed(2) || '0.00'} |
             Available: {account?.available_balance?.toFixed(2) || '0.00'} | P&L: {account?.total_pnl?.toFixed(2) || '0.00'}{' '}
             ({account?.total_pnl_pct?.toFixed(2) || '0.00'}%)
           </div>
@@ -517,7 +517,8 @@ function TraderDetailsPage({
           <div className="binance-card p-6 animate-slide-in" style={{ animationDelay: '0.15s' }}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            📈 {t('currentPositions', language)}
+            <TrendingUp className="w-5 h-5" style={{ color: '#0ECB81' }} />
+            {t('currentPositions', language)}
           </h2>
           {positions && positions.length > 0 && (
             <div className="text-xs px-3 py-1 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', color: '#F0B90B', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
@@ -581,7 +582,9 @@ function TraderDetailsPage({
           </div>
         ) : (
           <div className="text-center py-16" style={{ color: '#848E9C' }}>
-            <div className="text-6xl mb-4 opacity-50">📊</div>
+            <div className="mb-4 flex justify-center opacity-50">
+              <BarChart3 className="w-16 h-16" />
+            </div>
             <div className="text-lg font-semibold mb-2">{t('noPositions', language)}</div>
             <div className="text-sm">{t('noActivePositions', language)}</div>
           </div>
@@ -594,11 +597,11 @@ function TraderDetailsPage({
         <div className="binance-card p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)]" style={{ animationDelay: '0.2s' }}>
           {/* 标题 */}
           <div className="flex items-center gap-3 mb-5 pb-4 border-b" style={{ borderColor: '#2B3139' }}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{
               background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
               boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)'
             }}>
-              🧠
+              <Brain className="w-6 h-6" style={{ color: '#FFF' }} />
             </div>
             <div>
               <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>{t('recentDecisions', language)}</h2>
@@ -618,7 +621,9 @@ function TraderDetailsPage({
               ))
             ) : (
               <div className="py-16 text-center">
-                <div className="text-6xl mb-4 opacity-30">🧠</div>
+                <div className="mb-4 flex justify-center opacity-30">
+                  <Brain className="w-16 h-16" style={{ color: '#8B5CF6' }} />
+                </div>
                 <div className="text-lg font-semibold mb-2" style={{ color: '#EAECEF' }}>{t('noDecisionsYet', language)}</div>
                 <div className="text-sm" style={{ color: '#848E9C' }}>{t('aiDecisionsWillAppear', language)}</div>
               </div>
@@ -657,10 +662,11 @@ function StatCard({
       {change !== undefined && (
         <div className="flex items-center gap-1">
           <div
-            className="text-sm mono font-bold"
+            className="text-sm mono font-bold flex items-center gap-1"
             style={{ color: positive ? '#0ECB81' : '#F6465D' }}
           >
-            {positive ? '▲' : '▼'} {positive ? '+' : ''}
+            {positive ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+            {positive ? '+' : ''}
             {change.toFixed(2)}%
           </div>
         </div>
@@ -704,7 +710,8 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
             className="flex items-center gap-2 text-sm transition-colors"
             style={{ color: '#60a5fa' }}
           >
-            <span className="font-semibold">📥 {t('inputPrompt', language)}</span>
+            <Download className="w-4 h-4" />
+            <span className="font-semibold">{t('inputPrompt', language)}</span>
             <span className="text-xs">{showInputPrompt ? t('collapse', language) : t('expand', language)}</span>
           </button>
           {showInputPrompt && (
@@ -723,7 +730,8 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
             className="flex items-center gap-2 text-sm transition-colors"
             style={{ color: '#F0B90B' }}
           >
-            <span className="font-semibold">📤 {t('aiThinking', language)}</span>
+            <Upload className="w-4 h-4" />
+            <span className="font-semibold">{t('aiThinking', language)}</span>
             <span className="text-xs">{showCoT ? t('collapse', language) : t('expand', language)}</span>
           </button>
           {showCoT && (
@@ -753,9 +761,11 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
               {action.price > 0 && (
                 <span className="font-mono text-xs" style={{ color: '#848E9C' }}>@{action.price.toFixed(4)}</span>
               )}
-              <span style={{ color: action.success ? '#0ECB81' : '#F6465D' }}>
-                {action.success ? '✓' : '✗'}
-              </span>
+              {action.success ? (
+                <Check className="w-4 h-4" style={{ color: '#0ECB81' }} />
+              ) : (
+                <X className="w-4 h-4" style={{ color: '#F6465D' }} />
+              )}
               {action.error && <span className="text-xs ml-2" style={{ color: '#F6465D' }}>{action.error}</span>}
             </div>
           ))}
@@ -789,8 +799,9 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
 
       {/* Error Message */}
       {decision.error_message && (
-        <div className="text-sm rounded px-3 py-2 mt-3" style={{ color: '#F6465D', background: 'rgba(246, 70, 93, 0.1)' }}>
-          ❌ {decision.error_message}
+        <div className="text-sm rounded px-3 py-2 mt-3 flex items-center gap-2" style={{ color: '#F6465D', background: 'rgba(246, 70, 93, 0.1)' }}>
+          <AlertCircle className="w-4 h-4" />
+          {decision.error_message}
         </div>
       )}
     </div>

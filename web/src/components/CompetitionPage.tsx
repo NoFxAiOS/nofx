@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import type { CompetitionData } from '../types';
 import { ComparisonChart } from './ComparisonChart';
 import { getTraderColor } from '../utils/traderColors';
+import { Trophy, Medal, Circle, CircleDot } from 'lucide-react';
 
 export function CompetitionPage() {
   const { data: competition } = useSWR<CompetitionData>(
@@ -51,11 +52,11 @@ export function CompetitionPage() {
       {/* Competition Header - 精简版 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{
             background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
             boxShadow: '0 4px 14px rgba(240, 185, 11, 0.4)'
           }}>
-            🏆
+            <Trophy className="w-7 h-7" style={{ color: '#000' }} />
           </div>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
@@ -121,8 +122,12 @@ export function CompetitionPage() {
                   <div className="flex items-center justify-between">
                     {/* Rank & Name */}
                     <div className="flex items-center gap-3">
-                      <div className="text-2xl w-6">
-                        {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{
+                        background: index === 0 ? 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)' :
+                                   index === 1 ? 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)' :
+                                   'linear-gradient(135deg, #CD7F32 0%, #8B4513 100%)'
+                      }}>
+                        <Medal className="w-5 h-5" style={{ color: '#000' }} />
                       </div>
                       <div>
                         <div className="font-bold text-sm" style={{ color: '#EAECEF' }}>{trader.trader_name}</div>
@@ -171,13 +176,17 @@ export function CompetitionPage() {
                       {/* Status */}
                       <div>
                         <div
-                          className="px-2 py-1 rounded text-xs font-bold"
+                          className="px-2 py-1 rounded text-xs font-bold flex items-center justify-center"
                           style={trader.is_running
                             ? { background: 'rgba(14, 203, 129, 0.1)', color: '#0ECB81' }
                             : { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }
                           }
                         >
-                          {trader.is_running ? '●' : '○'}
+                          {trader.is_running ? (
+                            <CircleDot className="w-3 h-3" />
+                          ) : (
+                            <Circle className="w-3 h-3" />
+                          )}
                         </div>
                       </div>
                     </div>

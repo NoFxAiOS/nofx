@@ -184,7 +184,7 @@ Docker автоматично обробляє всі залежності (Go, 
 #### Крок 1: Підготуйте конфігурацію
 ```bash
 # Скопіюйте шаблон конфігурації
-cp config.json.example config.json
+cp config.example.jsonc config.json
 
 # Відредагуйте та заповніть ваші API ключі
 nano config.json  # або використайте будь-який редактор
@@ -322,7 +322,7 @@ cd ..
 **Крок 1**: Скопіюйте та перейменуйте файл прикладу конфігурації
 
 ```bash
-cp config.json.example config.json
+cp config.example.jsonc config.json
 ```
 
 **Крок 2**: Відредагуйте `config.json` та заповніть ваші API ключі
@@ -694,7 +694,7 @@ go build -o nofx
 |--------------------------|---------|
 | `invalid API key` | Перевірте Binance API ключі в config.json |
 | `TA-Lib not found` | Виконайте `brew install ta-lib` (macOS) |
-| `port 8080 already in use` | Змініть `api_server_port` в config.json |
+| `port 8080 already in use` | ~~Змініть `api_server_port` в config.json~~ *Змініть `API_PORT` у файлі .env* |
 | `DeepSeek API error` | Перевірте DeepSeek API ключ та баланс |
 
 **✅ Ознаки роботи Backend:**

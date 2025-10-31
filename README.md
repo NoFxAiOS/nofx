@@ -79,7 +79,7 @@ A Binance-compatible decentralized perpetual futures exchange!
 1. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
 2. Connect your main wallet and create an API wallet
 3. Copy the API Signer address and Private Key
-4. Set `"exchange": "aster"` in config.json
+4. ~~Set `"exchange": "aster"` in config.json~~ *Configure through web interface*
 5. Add `"aster_user"`, `"aster_signer"`, and `"aster_private_key"`
 
 ---
@@ -156,7 +156,7 @@ A Binance-compatible decentralized perpetual futures exchange!
 ```
 nofx/
 ├── main.go                          # Program entry (multi-trader manager)
-├── config.json                      # Configuration file (API keys, multi-trader config)
+├── ~~config.json~~                      # ~~Configuration file (API keys, multi-trader config)~~ (Deprecated: Use web interface)
 │
 ├── api/                            # HTTP API service
 │   └── server.go                   # Gin framework, RESTful API
@@ -232,7 +232,7 @@ Before using this system, you need a Binance Futures account. **Use our referral
 5. **Create API Key**:
    - Go to Account → API Management
    - Create new API key, **enable "Futures" permission**
-   - Save API Key and Secret Key (needed for config.json)
+   - Save API Key and Secret Key (~~needed for config.json~~) *needed for web interface*
    - **Important**: Whitelist your IP address for security
 
 ### Fee Discount Benefits:
@@ -251,7 +251,17 @@ Before using this system, you need a Binance Futures account. **Use our referral
 
 Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and environment setup.
 
-#### Step 1: One-Click Start
+#### ~~Step 1: Prepare Configuration~~ (Deprecated)
+```bash
+# ~~Copy configuration template~~
+# ~~cp config.example.jsonc config.json~~
+
+# ~~Edit and fill in your API keys~~
+# ~~nano config.json  # or use any editor~~
+```
+⚠️ **Note**: Configuration is now done through the web interface, not JSON files.
+
+#### Step 2: One-Click Start
 ```bash
 # Option 1: Use convenience script (Recommended)
 chmod +x start.sh
@@ -462,7 +472,7 @@ Open your browser and visit: **🌐 http://localhost:3000**
 3. **Remove the `0x` prefix** from the key
 4. Fund your wallet on [Hyperliquid](https://hyperliquid.xyz)
 
-**Step 2**: Configure `config.json` for Hyperliquid
+**Step 2**: ~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
 
 ```json
 {
@@ -516,7 +526,7 @@ Open your browser and visit: **🌐 http://localhost:3000**
    - API Wallet address (Signer)
    - API Wallet Private Key (⚠️ shown only once!)
 
-**Step 2**: Configure `config.json` for Aster
+**Step 2**: ~~Configure `config.json` for Aster~~ *Configure through web interface*
 
 ```json
 {
@@ -634,8 +644,10 @@ For running multiple AI traders competing against each other:
 | `oi_top_api_url` | Open interest API<br>*Optional supplement data* | `""` (empty) | ❌ No |
 | `api_server_port` | Web dashboard port | `8080` | ✅ Yes |
 
-**Default Trading Coins** (when `use_default_coins: true`):
-- BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
+~~**Default Trading Coins** (when `use_default_coins: true`):
+- BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE~~
+
+*Note: Trading coins are now configured through the web interface*
 
 ---
 
@@ -645,14 +657,16 @@ For running multiple AI traders competing against each other:
 
 The leverage settings control the maximum leverage the AI can use for each trade. This is crucial for risk management, especially for Binance subaccounts which have leverage restrictions.
 
-**Configuration format:**
+~~**Configuration format:**~~
 
-```json
+~~```json
 "leverage": {
   "btc_eth_leverage": 5,    // Maximum leverage for BTC and ETH
   "altcoin_leverage": 5      // Maximum leverage for all other coins
 }
-```
+```~~
+
+*Note: Leverage is now configured through the web interface*
 
 **⚠️ Important: Binance Subaccount Restrictions**
 
@@ -671,21 +685,23 @@ The leverage settings control the maximum leverage the AI can use for each trade
 
 **Examples:**
 
-**Safe configuration (subaccount or conservative):**
-```json
+~~**Safe configuration (subaccount or conservative):**~~
+~~```json
 "leverage": {
   "btc_eth_leverage": 5,
   "altcoin_leverage": 5
 }
-```
+```~~
 
-**Aggressive configuration (main account only):**
-```json
+~~**Aggressive configuration (main account only):**~~
+~~```json
 "leverage": {
   "btc_eth_leverage": 20,
   "altcoin_leverage": 15
 }
-```
+```~~
+
+*Note: Leverage configuration is now done through the web interface*
 
 **How AI uses leverage:**
 
@@ -768,7 +784,7 @@ go build -o nofx
 |--------------|----------|
 | `invalid API key` | Check your Binance API key in config.json |
 | `TA-Lib not found` | Run `brew install ta-lib` (macOS) |
-| `port 8080 already in use` | Change `api_server_port` in config.json |
+| `port 8080 already in use` | ~~Change `api_server_port` in config.json~~ *Change `API_PORT` in .env file* |
 | `DeepSeek API error` | Verify your DeepSeek API key and balance |
 
 **✅ Backend is running correctly when you see:**
@@ -1168,7 +1184,7 @@ sudo apt-get install libta-lib0-dev
 **Solution**:
 - Coin pool API is optional
 - If API fails, system uses default mainstream coins (BTC, ETH, etc.)
-- Check API URL and auth parameter in config.json
+- ~~Check API URL and auth parameter in config.json~~ *Check configuration in web interface*
 
 ---
 
@@ -1227,7 +1243,7 @@ This is a **major breaking update** that completely transforms NOFX from a stati
 - ✅ **Code Organization**: Better separation between database, API, and business logic
 
 **Migration Notes:**
-- ⚠️ **Breaking Change**: Old `config.json` files are no longer used
+- ⚠️ **Breaking Change**: Old ~~`config.json`~~ files are no longer used
 - ⚠️ **Fresh Start**: All configurations must be redone through web interface
 - ✅ **Easier Setup**: Web-based configuration is much more user-friendly
 - ✅ **Better UX**: No more server restarts for configuration changes

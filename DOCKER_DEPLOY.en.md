@@ -49,11 +49,13 @@ docker compose --version  # Docker 24+ includes this, no separate installation n
 ### Step 1: Prepare Configuration File
 
 ```bash
-# Copy configuration template
-cp config.json.example config.json
+# ~~Copy configuration template~~
+# ~~cp config.example.jsonc config.json~~
 
-# Edit configuration file with your API keys
-nano config.json  # or use any other editor
+# ~~Edit configuration file with your API keys~~
+# ~~nano config.json  # or use any other editor~~
+
+⚠️ **Note**: Configuration is now done through the web interface, no longer using JSON files.
 ```
 
 **Required fields:**
@@ -216,7 +218,7 @@ The system automatically persists data to local directories:
 
 - `./decision_logs/`: AI decision logs
 - `./coin_pool_cache/`: Coin pool cache
-- `./config.json`: Configuration file (mounted)
+- ~~`./config.json`: Configuration file (mounted)~~ (Deprecated)
 
 **Data locations:**
 ```bash
@@ -225,7 +227,7 @@ ls -la decision_logs/
 ls -la coin_pool_cache/
 
 # Backup data
-tar -czf backup_$(date +%Y%m%d).tar.gz decision_logs/ coin_pool_cache/ config.json
+tar -czf backup_$(date +%Y%m%d).tar.gz decision_logs/ coin_pool_cache/ ~~config.json~~ trading.db
 
 # Restore data
 tar -xzf backup_20241029.tar.gz
@@ -261,11 +263,13 @@ kill -9 <PID>
 ### Configuration File Not Found
 
 ```bash
-# Ensure config.json exists
-ls -la config.json
+# ~~Ensure config.json exists~~
+# ~~ls -la config.json~~
 
-# If not exists, copy template
-cp config.json.example config.json
+# ~~If not exists, copy template~~
+# ~~cp config.example.jsonc config.json~~
+
+*Note: Now using SQLite database for configuration storage, no longer need config.json*
 ```
 
 ### Health Check Failing
@@ -305,11 +309,13 @@ docker system prune -a --volumes
 
 ## 🔐 Security Recommendations
 
-1. **Don't commit config.json to Git**
+1. ~~**Don't commit config.json to Git**~~
    ```bash
-   # Ensure config.json is in .gitignore
-   echo "config.json" >> .gitignore
+   # ~~Ensure config.json is in .gitignore~~
+   # ~~echo "config.json" >> .gitignore~~
    ```
+   
+   *Note: Now using trading.db database, ensure not to commit sensitive data*
 
 2. **Use environment variables for sensitive data**
    ```yaml

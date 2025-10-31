@@ -206,8 +206,11 @@ go build -o nofx
 ### 后端无法启动
 
 ```bash
-# 检查 config.json 是否存在
-ls -l config.json
+# ~~检查 config.json 是否存在~~
+# ~~ls -l config.json~~
+
+# 检查数据库文件是否存在
+ls -l trading.db
 
 # 检查权限
 chmod +x nofx

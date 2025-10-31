@@ -55,7 +55,7 @@ docker compose --version  # Docker 24+ 自带，无需单独安装
 
 ```bash
 # 复制配置文件模板
-cp config.json.example config.json
+cp config.example.jsonc config.json
 
 # 编辑配置文件，填入你的 API 密钥
 nano config.json  # 或使用其他编辑器
@@ -270,7 +270,7 @@ kill -9 <PID>
 ls -la config.json
 
 # 如果不存在，复制模板
-cp config.json.example config.json
+cp config.example.jsonc config.json
 ```
 
 ### 健康检查失败
@@ -325,11 +325,13 @@ docker system prune -a --volumes
    - 在生产环境中绝不使用默认值
    - 定期更换（会使现有用户需要重新登录）
 
-2. **不要将 config.json 提交到 Git**
+2. ~~**不要将 config.json 提交到 Git**~~
    ```bash
-   # 确保 config.json 在 .gitignore 中
-   echo "config.json" >> .gitignore
+   # ~~确保 config.json 在 .gitignore 中~~
+   # ~~echo "config.json" >> .gitignore~~
    ```
+   
+   *注意：现在使用trading.db数据库，请确保不提交敏感数据*
 
 3. **使用环境变量存储敏感信息**
    ```yaml

@@ -78,16 +78,18 @@ check_env() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Configuration File (config.json) - DEPRECATED
+# Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
 # ------------------------------------------------------------------------
 check_config() {
     if [ ! -f "config.json" ]; then
         print_warning "config.json 不存在，从模板复制..."
-        cp config.example.jsonc config.json
-        print_info "⚠️  注意：config.json 已弃用，请使用Web界面进行配置"
-        print_info "此文件仅作为参考保留"
+        cp config.json.example config.json
+        print_info "⚠️  请编辑 config.json 配置基础设置（管理员模式、JWT密钥等）"
+        print_info "💡 交易员配置请使用Web界面，不再需要在config.json中配置"
+        print_info "运行: nano config.json 或使用其他编辑器"
+        exit 1
     fi
-    print_success "配置文件存在（已弃用，使用Web界面配置）"
+    print_success "配置文件存在"
 }
 
 # ------------------------------------------------------------------------

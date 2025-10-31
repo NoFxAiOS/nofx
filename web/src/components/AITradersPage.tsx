@@ -99,7 +99,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     return traders?.some(t => t.exchange_id === exchangeId && t.is_running) || false;
   };
 
-  const handleCreateTrader = async (modelId: string, exchangeId: string, name: string, initialBalance: number, customPrompt?: string, overrideBase?: boolean) => {
+  const handleCreateTrader = async (modelId: string, exchangeId: string, name: string, initialBalance: number, customPrompt?: string, overrideBase?: boolean, isCrossMargin?: boolean) => {
     try {
       const model = allModels?.find(m => m.id === modelId);
       const exchange = allExchanges?.find(e => e.id === exchangeId);
@@ -120,7 +120,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         exchange_id: exchangeId,
         initial_balance: initialBalance,
         custom_prompt: customPrompt,
-        override_base_prompt: overrideBase
+        override_base_prompt: overrideBase,
+        is_cross_margin: isCrossMargin
       };
       
       await api.createTrader(request);
@@ -663,7 +664,7 @@ function CreateTraderModal({
 }: {
   enabledModels: AIModel[];
   enabledExchanges: Exchange[];
-  onCreate: (modelId: string, exchangeId: string, name: string, initialBalance: number, customPrompt?: string, overrideBase?: boolean) => void;
+  onCreate: (modelId: string, exchangeId: string, name: string, initialBalance: number, customPrompt?: string, overrideBase?: boolean, isCrossMargin?: boolean) => void;
   onClose: () => void;
   language: any;
 }) {
@@ -679,12 +680,13 @@ function CreateTraderModal({
   const [customPrompt, setCustomPrompt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [overrideBase, setOverrideBase] = useState(false);
+  const [isCrossMargin, setIsCrossMargin] = useState(true); // 默认为全仓模式
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedModel || !selectedExchange || !traderName.trim()) return;
     
-    onCreate(selectedModel, selectedExchange, traderName.trim(), initialBalance, customPrompt.trim() || undefined, overrideBase);
+    onCreate(selectedModel, selectedExchange, traderName.trim(), initialBalance, customPrompt.trim() || undefined, overrideBase, isCrossMargin);
   };
 
   return (
@@ -762,6 +764,44 @@ function CreateTraderModal({
               style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
               required
             />
+          </div>
+
+          {/* Margin Mode Selection */}
+          <div>
+            <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+              仓位模式
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCrossMargin(true)}
+                className={`px-3 py-2 rounded text-sm font-semibold transition-all ${
+                  isCrossMargin 
+                    ? 'bg-yellow-500 text-black' 
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+                style={isCrossMargin ? { background: '#F0B90B', color: '#000' } : { background: '#2B3139', color: '#848E9C' }}
+              >
+                全仓模式
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCrossMargin(false)}
+                className={`px-3 py-2 rounded text-sm font-semibold transition-all ${
+                  !isCrossMargin 
+                    ? 'bg-yellow-500 text-black' 
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+                style={!isCrossMargin ? { background: '#F0B90B', color: '#000' } : { background: '#2B3139', color: '#848E9C' }}
+              >
+                逐仓模式
+              </button>
+            </div>
+            <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+              {isCrossMargin 
+                ? '全仓模式：所有仓位共享账户余额作为保证金'
+                : '逐仓模式：每个仓位独立管理保证金，风险隔离'}
+            </div>
           </div>
           
           {/* Advanced Settings Toggle */}

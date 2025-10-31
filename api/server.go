@@ -170,6 +170,7 @@ type CreateTraderRequest struct {
 	InitialBalance float64 `json:"initial_balance"`
 	CustomPrompt   string  `json:"custom_prompt"`
 	OverrideBasePrompt bool `json:"override_base_prompt"`
+	IsCrossMargin  *bool   `json:"is_cross_margin"` // 指针类型，nil表示使用默认值true
 }
 
 type ModelConfig struct {
@@ -222,6 +223,12 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	// 生成交易员ID
 	traderID := fmt.Sprintf("%s_%s_%d", req.ExchangeID, req.AIModelID, time.Now().Unix())
 	
+	// 设置默认值
+	isCrossMargin := true // 默认为全仓模式
+	if req.IsCrossMargin != nil {
+		isCrossMargin = *req.IsCrossMargin
+	}
+	
     // 创建交易员配置（数据库实体）
     trader := &config.TraderRecord{
 		ID:                  traderID,
@@ -232,6 +239,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		InitialBalance:      req.InitialBalance,
 		CustomPrompt:        req.CustomPrompt,
 		OverrideBasePrompt:  req.OverrideBasePrompt,
+		IsCrossMargin:       isCrossMargin,
 		ScanIntervalMinutes: 3, // 默认3分钟
 		IsRunning:           false,
 	}

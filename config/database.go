@@ -153,6 +153,7 @@ func (d *Database) createTables() error {
 		`ALTER TABLE exchanges ADD COLUMN aster_private_key TEXT DEFAULT ''`,
 		`ALTER TABLE traders ADD COLUMN custom_prompt TEXT DEFAULT ''`,
 		`ALTER TABLE traders ADD COLUMN override_base_prompt BOOLEAN DEFAULT 0`,
+		`ALTER TABLE traders ADD COLUMN is_cross_margin BOOLEAN DEFAULT 1`, // 默认为全仓模式
 	}
 
 	for _, query := range alterQueries {
@@ -369,6 +370,7 @@ type TraderRecord struct {
 	IsRunning          bool      `json:"is_running"`
 	CustomPrompt       string    `json:"custom_prompt"` // 自定义交易策略prompt
 	OverrideBasePrompt bool   `json:"override_base_prompt"` // 是否覆盖基础prompt
+	IsCrossMargin      bool   `json:"is_cross_margin"` // 是否为全仓模式（true=全仓，false=逐仓）
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 }
@@ -656,9 +658,9 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 // CreateTrader 创建交易员
 func (d *Database) CreateTrader(trader *TraderRecord) error {
 	_, err := d.db.Exec(`
-		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, custom_prompt, override_base_prompt)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.CustomPrompt, trader.OverrideBasePrompt)
+		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, custom_prompt, override_base_prompt, is_cross_margin)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.CustomPrompt, trader.OverrideBasePrompt, trader.IsCrossMargin)
 	return err
 }
 
@@ -666,7 +668,8 @@ func (d *Database) CreateTrader(trader *TraderRecord) error {
 func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 	rows, err := d.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, 
-		       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, 0) as override_base_prompt, created_at, updated_at
+		       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, 0) as override_base_prompt, 
+		       COALESCE(is_cross_margin, 1) as is_cross_margin, created_at, updated_at
 		FROM traders WHERE user_id = ? ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
@@ -680,7 +683,8 @@ func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 		err := rows.Scan(
 			&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
 			&trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
-			&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.CreatedAt, &trader.UpdatedAt,
+			&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.IsCrossMargin,
+			&trader.CreatedAt, &trader.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

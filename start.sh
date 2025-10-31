@@ -78,6 +78,42 @@ check_env() {
 }
 
 # ------------------------------------------------------------------------
+# Validation: Configuration File (config.json) - DEPRECATED
+# ------------------------------------------------------------------------
+check_config() {
+    if [ ! -f "config.json" ]; then
+        print_warning "config.json 不存在，从模板复制..."
+        cp config.example.jsonc config.json
+        print_info "⚠️  注意：config.json 已弃用，请使用Web界面进行配置"
+        print_info "此文件仅作为参考保留"
+    fi
+    print_success "配置文件存在（已弃用，使用Web界面配置）"
+}
+
+# ------------------------------------------------------------------------
+# Utility: Read Environment Variables
+# ------------------------------------------------------------------------
+read_env_vars() {
+    if [ -f ".env" ]; then
+        # 读取端口配置，设置默认值
+        NOFX_FRONTEND_PORT=$(grep "^NOFX_FRONTEND_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "3000")
+        NOFX_BACKEND_PORT=$(grep "^NOFX_BACKEND_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "8080")
+        
+        # 去除可能的引号和空格
+        NOFX_FRONTEND_PORT=$(echo "$NOFX_FRONTEND_PORT" | tr -d '"'"'" | tr -d ' ')
+        NOFX_BACKEND_PORT=$(echo "$NOFX_BACKEND_PORT" | tr -d '"'"'" | tr -d ' ')
+        
+        # 如果为空则使用默认值
+        NOFX_FRONTEND_PORT=${NOFX_FRONTEND_PORT:-3000}
+        NOFX_BACKEND_PORT=${NOFX_BACKEND_PORT:-8080}
+    else
+        # 如果.env不存在，使用默认端口
+        NOFX_FRONTEND_PORT=3000
+        NOFX_BACKEND_PORT=8080
+    fi
+}
+
+# ------------------------------------------------------------------------
 # Validation: Database File (trading.db)
 # ------------------------------------------------------------------------
 check_database() {
@@ -123,6 +159,9 @@ check_database() {
 start() {
     print_info "正在启动 NOFX AI Trading System..."
 
+    # 读取环境变量
+    read_env_vars
+
     # Auto-build frontend if missing or forced
     # if [ ! -d "web/dist" ] || [ "$1" == "--build" ]; then
     #     build_frontend
@@ -138,8 +177,8 @@ start() {
     fi
 
     print_success "服务已启动！"
-    print_info "Web 界面: http://localhost:3000"
-    print_info "API 端点: http://localhost:8080"
+    print_info "Web 界面: http://localhost:${NOFX_FRONTEND_PORT}"
+    print_info "API 端点: http://localhost:${NOFX_BACKEND_PORT}"
     print_info ""
     print_info "查看日志: ./start.sh logs"
     print_info "停止服务: ./start.sh stop"
@@ -178,11 +217,14 @@ logs() {
 # Monitoring: Status
 # ------------------------------------------------------------------------
 status() {
+    # 读取环境变量
+    read_env_vars
+    
     print_info "服务状态:"
     $COMPOSE_CMD ps
     echo ""
     print_info "健康检查:"
-    curl -s http://localhost:8080/health | jq '.' || echo "后端未响应"
+    curl -s "http://localhost:${NOFX_BACKEND_PORT}/health" | jq '.' || echo "后端未响应"
 }
 
 # ------------------------------------------------------------------------
@@ -243,6 +285,7 @@ main() {
     case "${1:-start}" in
         start)
             check_env
+            check_config
             check_database
             start "$2"
             ;;

@@ -150,7 +150,7 @@ NOFX现已支持**三大交易所**：Binance、Hyperliquid和Aster DEX！
 ```
 nofx/
 ├── main.go                          # 程序入口（多trader管理器）
-├── ~~config.json~~                      # ~~配置文件（API密钥、多trader配置）~~ (已弃用：使用Web界面)
+├── config.json                      # 配置文件（API密钥、~~多trader配置~~）(交易员配置通过Web界面)
 │
 ├── api/                            # HTTP API服务
 │   └── server.go                   # Gin框架，RESTful API
@@ -245,15 +245,16 @@ nofx/
 
 Docker会自动处理所有依赖（Go、Node.js、TA-Lib）和环境配置，完美适合新手！
 
-#### ~~步骤1：准备配置文件~~ (已弃用)
+#### 步骤1：准备配置文件
 ```bash
-# ~~复制配置文件模板~~
-# ~~cp config.example.jsonc config.json~~
+# 复制配置文件模板
+cp config.example.jsonc config.json
 
-# ~~编辑并填入你的API密钥~~
-# ~~nano config.json  # 或使用其他编辑器~~
+# 编辑并填入你的API密钥
+nano config.json  # 或使用其他编辑器
 ```
-⚠️ **注意**: 现在通过Web界面进行配置，不再使用JSON文件。
+
+⚠️ **注意**: 基础config.json仍需要一些设置，但~~交易员配置~~现在通过Web界面进行。
 
 #### 步骤2：一键启动
 ```bash

@@ -49,13 +49,13 @@ docker compose --version  # Docker 24+ includes this, no separate installation n
 ### Step 1: Prepare Configuration File
 
 ```bash
-# ~~Copy configuration template~~
-# ~~cp config.example.jsonc config.json~~
+# Copy configuration template
+cp config.example.jsonc config.json
 
-# ~~Edit configuration file with your API keys~~
-# ~~nano config.json  # or use any other editor~~
+# Edit configuration file with your API keys
+nano config.json  # or use any other editor
 
-⚠️ **Note**: Configuration is now done through the web interface, no longer using JSON files.
+⚠️ **Note**: Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
 ```
 
 **Required fields:**

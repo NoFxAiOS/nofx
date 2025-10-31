@@ -758,8 +758,7 @@ function CreateTraderModal({
               type="number"
               value={initialBalance}
               onChange={(e) => setInitialBalance(Number(e.target.value))}
-              min="100"
-              max="100000"
+              min="50"
               className="w-full px-3 py-2 rounded"
               style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
               required

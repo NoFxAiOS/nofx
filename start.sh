@@ -78,17 +78,14 @@ check_env() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Configuration File (config.json)
+# Validation: Database File (trading.db)
 # ------------------------------------------------------------------------
-check_config() {
-    if [ ! -f "config.json" ]; then
-        print_warning "config.json 不存在，从模板复制..."
-        cp config.json.example config.json
-        print_info "请编辑 config.json 填入你的 API 密钥"
-        print_info "运行: nano config.json 或使用其他编辑器"
-        exit 1
+check_database() {
+    if [ ! -f "trading.db" ]; then
+        print_info "数据库文件不存在，系统将在启动时自动创建"
+    else
+        print_success "数据库文件存在"
     fi
-    print_success "配置文件存在"
 }
 
 # ------------------------------------------------------------------------
@@ -246,7 +243,7 @@ main() {
     case "${1:-start}" in
         start)
             check_env
-            check_config
+            check_database
             start "$2"
             ;;
         stop)

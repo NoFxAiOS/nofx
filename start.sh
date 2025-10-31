@@ -84,10 +84,9 @@ check_config() {
     if [ ! -f "config.json" ]; then
         print_warning "config.json 不存在，从模板复制..."
         cp config.json.example config.json
-        print_info "⚠️  请编辑 config.json 配置基础设置（管理员模式、JWT密钥等）"
-        print_info "💡 交易员配置请使用Web界面，不再需要在config.json中配置"
-        print_info "运行: nano config.json 或使用其他编辑器"
-        exit 1
+        print_info "✓ 已使用默认配置创建 config.json"
+        print_info "💡 如需修改基础设置（杠杆大小、开仓币种、管理员模式、JWT密钥等），可编辑 config.json"
+        print_info "💡 模型/交易所/交易员配置请使用Web界面"
     fi
     print_success "配置文件存在"
 }

@@ -156,7 +156,7 @@ A Binance-compatible decentralized perpetual futures exchange!
 ```
 nofx/
 ├── main.go                          # Program entry (multi-trader manager)
-├── ~~config.json~~                      # ~~Configuration file (API keys, multi-trader config)~~ (Deprecated: Use web interface)
+├── config.json                      # Configuration file (API keys, ~~multi-trader config~~) (Trader config via web interface)
 │
 ├── api/                            # HTTP API service
 │   └── server.go                   # Gin framework, RESTful API
@@ -251,15 +251,16 @@ Before using this system, you need a Binance Futures account. **Use our referral
 
 Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and environment setup.
 
-#### ~~Step 1: Prepare Configuration~~ (Deprecated)
+#### Step 1: Prepare Configuration
 ```bash
-# ~~Copy configuration template~~
-# ~~cp config.example.jsonc config.json~~
+# Copy configuration template
+cp config.example.jsonc config.json
 
-# ~~Edit and fill in your API keys~~
-# ~~nano config.json  # or use any editor~~
+# Edit and fill in your API keys
+nano config.json  # or use any editor
 ```
-⚠️ **Note**: Configuration is now done through the web interface, not JSON files.
+
+⚠️ **Note**: Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
 
 #### Step 2: One-Click Start
 ```bash

@@ -209,15 +209,20 @@ func (d *Database) initDefaultData() error {
 		}
 	}
 
-	// 初始化系统配置
+	// 初始化系统配置 - 创建所有字段，设置默认值，后续由config.json同步更新
 	systemConfigs := map[string]string{
-		"api_server_port":       "8080",
-		"use_default_coins":     "true",
-		"coin_pool_api_url":     "",
-		"oi_top_api_url":        "",
-		"max_daily_loss":        "10.0",
-		"max_drawdown":          "20.0",
-		"stop_trading_minutes":  "60",
+		"admin_mode":            "true",                                                               // 默认开启管理员模式，便于首次使用
+		"api_server_port":       "8080",                                                              // 默认API端口
+		"use_default_coins":     "true",                                                              // 默认使用内置币种列表
+		"default_coins":         `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`, // 默认币种列表（JSON格式）
+		"coin_pool_api_url":     "",                                                                  // 币种池API URL，默认为空
+		"oi_top_api_url":        "",                                                                  // 持仓量API URL，默认为空
+		"max_daily_loss":        "10.0",                                                              // 最大日损失百分比
+		"max_drawdown":          "20.0",                                                              // 最大回撤百分比
+		"stop_trading_minutes":  "60",                                                                // 停止交易时间（分钟）
+		"btc_eth_leverage":      "5",                                                                 // BTC/ETH杠杆倍数
+		"altcoin_leverage":      "5",                                                                 // 山寨币杠杆倍数
+		"jwt_secret":            "",                                                                  // JWT密钥，默认为空，由config.json或系统生成
 	}
 
 	for key, value := range systemConfigs {

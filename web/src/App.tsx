@@ -176,9 +176,7 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 animate-pulse" />
-          </div>
+          <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 mx-auto mb-4 animate-pulse" />
           <p style={{ color: '#EAECEF' }}>加载中...</p>
         </div>
       </div>

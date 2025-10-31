@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
 import { Header } from './Header';
-import { Zap, Smartphone } from 'lucide-react';
+import { Smartphone } from 'lucide-react';
 
 export function LoginPage() {
   const { language } = useLanguage();
@@ -58,9 +58,8 @@ export function LoginPage() {
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-                 style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-              <Zap className="w-8 h-8" style={{ color: '#000' }} />
+            <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <img src="/images/logo.png" alt="NoFx Logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
               {t('loginTitle', language)}

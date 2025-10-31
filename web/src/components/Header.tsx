@@ -1,6 +1,5 @@
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
-import { Zap } from 'lucide-react';
 
 interface HeaderProps {
   simple?: boolean; // For login/register pages
@@ -15,9 +14,8 @@ export function Header({ simple = false }: HeaderProps) {
         <div className="flex items-center justify-between">
           {/* Left - Logo and Title */}
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                 style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-              <Zap className="w-5 h-5" style={{ color: '#000' }} />
+            <div className="w-8 h-8 flex items-center justify-center">
+              <img src="/images/logo.png" alt="NoFx Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>

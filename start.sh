@@ -114,10 +114,10 @@ read_env_vars() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Database File (trading.db)
+# Validation: Database File (config.db)
 # ------------------------------------------------------------------------
 check_database() {
-    if [ ! -f "trading.db" ]; then
+    if [ ! -f "config.db" ]; then
         print_info "数据库文件不存在，系统将在启动时自动创建"
     else
         print_success "数据库文件存在"

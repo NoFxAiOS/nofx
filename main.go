@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"nofx/api"
@@ -14,6 +15,95 @@ import (
 	"strings"
 	"syscall"
 )
+
+// LeverageConfig 杠杆配置
+type LeverageConfig struct {
+	BTCETHLeverage  int `json:"btc_eth_leverage"`
+	AltcoinLeverage int `json:"altcoin_leverage"`
+}
+
+// ConfigFile 配置文件结构，只包含需要同步到数据库的字段
+type ConfigFile struct {
+	AdminMode          bool           `json:"admin_mode"`
+	APIServerPort      int            `json:"api_server_port"`
+	UseDefaultCoins    bool           `json:"use_default_coins"`
+	DefaultCoins       []string       `json:"default_coins"`
+	CoinPoolAPIURL     string         `json:"coin_pool_api_url"`
+	OITopAPIURL        string         `json:"oi_top_api_url"`
+	MaxDailyLoss       float64        `json:"max_daily_loss"`
+	MaxDrawdown        float64        `json:"max_drawdown"`
+	StopTradingMinutes int            `json:"stop_trading_minutes"`
+	Leverage           LeverageConfig `json:"leverage"`
+	JWTSecret          string         `json:"jwt_secret"`
+}
+
+// syncConfigToDatabase 从config.json读取配置并同步到数据库
+func syncConfigToDatabase(database *config.Database) error {
+	// 检查config.json是否存在
+	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
+		log.Printf("📄 config.json不存在，跳过同步")
+		return nil
+	}
+
+	// 读取config.json
+	data, err := os.ReadFile("config.json")
+	if err != nil {
+		return fmt.Errorf("读取config.json失败: %w", err)
+	}
+
+	// 解析JSON
+	var configFile ConfigFile
+	if err := json.Unmarshal(data, &configFile); err != nil {
+		return fmt.Errorf("解析config.json失败: %w", err)
+	}
+
+	log.Printf("🔄 开始同步config.json到数据库...")
+
+	// 同步各配置项到数据库
+	configs := map[string]string{
+		"admin_mode":            fmt.Sprintf("%t", configFile.AdminMode),
+		"api_server_port":       strconv.Itoa(configFile.APIServerPort),
+		"use_default_coins":     fmt.Sprintf("%t", configFile.UseDefaultCoins),
+		"coin_pool_api_url":     configFile.CoinPoolAPIURL,
+		"oi_top_api_url":        configFile.OITopAPIURL,
+		"max_daily_loss":        fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
+		"max_drawdown":          fmt.Sprintf("%.1f", configFile.MaxDrawdown),
+		"stop_trading_minutes":  strconv.Itoa(configFile.StopTradingMinutes),
+	}
+
+	// 同步default_coins（转换为JSON字符串存储）
+	if len(configFile.DefaultCoins) > 0 {
+		defaultCoinsJSON, err := json.Marshal(configFile.DefaultCoins)
+		if err == nil {
+			configs["default_coins"] = string(defaultCoinsJSON)
+		}
+	}
+
+	// 同步杠杆配置
+	if configFile.Leverage.BTCETHLeverage > 0 {
+		configs["btc_eth_leverage"] = strconv.Itoa(configFile.Leverage.BTCETHLeverage)
+	}
+	if configFile.Leverage.AltcoinLeverage > 0 {
+		configs["altcoin_leverage"] = strconv.Itoa(configFile.Leverage.AltcoinLeverage)
+	}
+
+	// 如果JWT密钥不为空，也同步
+	if configFile.JWTSecret != "" {
+		configs["jwt_secret"] = configFile.JWTSecret
+	}
+
+	// 更新数据库配置
+	for key, value := range configs {
+		if err := database.SetSystemConfig(key, value); err != nil {
+			log.Printf("⚠️  更新配置 %s 失败: %v", key, err)
+		} else {
+			log.Printf("✓ 同步配置: %s = %s", key, value)
+		}
+	}
+
+	log.Printf("✅ config.json同步完成")
+	return nil
+}
 
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
@@ -33,6 +123,11 @@ func main() {
 		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
 	defer database.Close()
+
+	// 同步config.json到数据库
+	if err := syncConfigToDatabase(database); err != nil {
+		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
+	}
 
 	// 获取系统配置
 	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")

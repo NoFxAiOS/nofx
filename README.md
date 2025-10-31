@@ -251,7 +251,16 @@ Before using this system, you need a Binance Futures account. **Use our referral
 
 Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and environment setup.
 
-#### Step 1: One-Click Start
+#### Step 1: Prepare Configuration
+```bash
+# Copy configuration template
+cp config.example.jsonc config.json
+
+# Edit and fill in your API keys
+nano config.json  # or use any editor
+```
+
+#### Step 2: One-Click Start
 ```bash
 # Option 1: Use convenience script (Recommended)
 chmod +x start.sh

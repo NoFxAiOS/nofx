@@ -211,6 +211,7 @@ func (d *Database) initDefaultData() error {
 
 	// 初始化系统配置
 	systemConfigs := map[string]string{
+		"admin_mode":            "true",
 		"api_server_port":       "8080",
 		"use_default_coins":     "true",
 		"coin_pool_api_url":     "",

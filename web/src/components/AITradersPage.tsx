@@ -6,6 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
 import { getExchangeIcon } from './ExchangeIcons';
 import { getModelIcon } from './ModelIcons';
+import { Bot, Brain, Landmark, BarChart3, Trash2, Plus, Users, AlertTriangle } from 'lucide-react';
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -360,11 +361,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{
             background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
             boxShadow: '0 4px 14px rgba(240, 185, 11, 0.4)'
           }}>
-            🤖
+            <Bot className="w-6 h-6" style={{ color: '#000' }} />
           </div>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
@@ -385,38 +386,41 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         <div className="flex gap-3">
           <button
             onClick={handleAddModel}
-            className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-            style={{ 
-              background: '#2B3139', 
-              color: '#EAECEF', 
-              border: '1px solid #474D57' 
+            className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 flex items-center gap-2"
+            style={{
+              background: '#2B3139',
+              color: '#EAECEF',
+              border: '1px solid #474D57'
             }}
           >
-            ➕ {t('aiModels', language)}
+            <Plus className="w-4 h-4" />
+            {t('aiModels', language)}
           </button>
-          
+
           <button
             onClick={handleAddExchange}
-            className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-            style={{ 
-              background: '#2B3139', 
-              color: '#EAECEF', 
-              border: '1px solid #474D57' 
+            className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 flex items-center gap-2"
+            style={{
+              background: '#2B3139',
+              color: '#EAECEF',
+              border: '1px solid #474D57'
             }}
           >
-            ➕ {t('exchanges', language)}
+            <Plus className="w-4 h-4" />
+            {t('exchanges', language)}
           </button>
-          
+
           <button
             onClick={() => setShowCreateModal(true)}
             disabled={configuredModels.length === 0 || configuredExchanges.length === 0}
-            className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ 
-              background: (configuredModels.length > 0 && configuredExchanges.length > 0) ? '#F0B90B' : '#2B3139', 
-              color: (configuredModels.length > 0 && configuredExchanges.length > 0) ? '#000' : '#848E9C' 
+            className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            style={{
+              background: (configuredModels.length > 0 && configuredExchanges.length > 0) ? '#F0B90B' : '#2B3139',
+              color: (configuredModels.length > 0 && configuredExchanges.length > 0) ? '#000' : '#848E9C'
             }}
           >
-            ➕ {t('createTrader', language)}
+            <Plus className="w-4 h-4" />
+            {t('createTrader', language)}
           </button>
         </div>
       </div>
@@ -425,8 +429,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* AI Models */}
         <div className="binance-card p-4">
-          <h3 className="text-lg font-semibold mb-3" style={{ color: '#EAECEF' }}>
-            🧠 {t('aiModels', language)}
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#EAECEF' }}>
+            <Brain className="w-5 h-5" style={{ color: '#60a5fa' }} />
+            {t('aiModels', language)}
           </h3>
           <div className="space-y-3">
             {configuredModels.map(model => {
@@ -465,7 +470,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             })}
             {configuredModels.length === 0 && (
               <div className="text-center py-8" style={{ color: '#848E9C' }}>
-                <div className="text-2xl mb-2">🧠</div>
+                <Brain className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <div className="text-sm">暂无已配置的AI模型</div>
               </div>
             )}
@@ -474,8 +479,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
         {/* Exchanges */}
         <div className="binance-card p-4">
-          <h3 className="text-lg font-semibold mb-3" style={{ color: '#EAECEF' }}>
-            🏦 {t('exchanges', language)}
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" style={{ color: '#EAECEF' }}>
+            <Landmark className="w-5 h-5" style={{ color: '#F0B90B' }} />
+            {t('exchanges', language)}
           </h3>
           <div className="space-y-3">
             {configuredExchanges.map(exchange => {
@@ -506,7 +512,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             })}
             {configuredExchanges.length === 0 && (
               <div className="text-center py-8" style={{ color: '#848E9C' }}>
-                <div className="text-2xl mb-2">🏦</div>
+                <Landmark className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <div className="text-sm">暂无已配置的交易所</div>
               </div>
             )}
@@ -518,23 +524,24 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       <div className="binance-card p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
-            👥 {t('currentTraders', language)}
+            <Users className="w-6 h-6" style={{ color: '#F0B90B' }} />
+            {t('currentTraders', language)}
           </h2>
         </div>
 
         {traders && traders.length > 0 ? (
           <div className="space-y-4">
             {traders.map(trader => (
-              <div key={trader.trader_id} 
+              <div key={trader.trader_id}
                    className="flex items-center justify-between p-4 rounded transition-all hover:translate-y-[-1px]"
                    style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl"
-                       style={{ 
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                       style={{
                          background: trader.ai_model.includes('deepseek') ? '#60a5fa' : '#c084fc',
                          color: '#fff'
                        }}>
-                    🤖
+                    <Bot className="w-6 h-6" />
                   </div>
                   <div>
                     <div className="font-bold text-lg" style={{ color: '#EAECEF' }}>
@@ -566,29 +573,30 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => onTraderSelect?.(trader.trader_id)}
-                      className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+                      className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1"
                       style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366F1' }}
                     >
-                      📊 查看
+                      <BarChart3 className="w-4 h-4" />
+                      查看
                     </button>
-                    
+
                     <button
                       onClick={() => handleToggleTrader(trader.trader_id, trader.is_running || false)}
                       className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                      style={trader.is_running 
+                      style={trader.is_running
                         ? { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }
                         : { background: 'rgba(14, 203, 129, 0.1)', color: '#0ECB81' }
                       }
                     >
                       {trader.is_running ? t('stop', language) : t('start', language)}
                     </button>
-                    
+
                     <button
                       onClick={() => handleDeleteTrader(trader.trader_id)}
                       className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
                       style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
                     >
-                      🗑️
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -597,7 +605,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         ) : (
           <div className="text-center py-16" style={{ color: '#848E9C' }}>
-            <div className="text-6xl mb-4 opacity-50">🤖</div>
+            <Bot className="w-24 h-24 mx-auto mb-4 opacity-50" />
             <div className="text-lg font-semibold mb-2">{t('noTraders', language)}</div>
             <div className="text-sm mb-4">{t('createFirstTrader', language)}</div>
             {(configuredModels.length === 0 || configuredExchanges.length === 0) && (
@@ -855,11 +863,12 @@ function CreateTraderModal({
                       style={{ accentColor: '#F6465D' }}
                     />
                     <div>
-                      <div className="text-sm font-semibold" style={{ color: '#F6465D' }}>
+                      <div className="text-sm font-semibold flex items-center gap-2" style={{ color: '#F6465D' }}>
+                        <AlertTriangle className="w-4 h-4" />
                         覆盖基础交易策略
                       </div>
                       <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                        ⚠️ 警告：勾选后将完全使用您的自定义策略，不再使用系统默认的风控和交易逻辑。
+                        警告：勾选后将完全使用您的自定义策略，不再使用系统默认的风控和交易逻辑。
                         这可能导致交易风险增加。仅在您完全理解交易逻辑时使用此选项。
                       </div>
                     </div>
@@ -950,7 +959,7 @@ function ModelConfigModal({
               style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
               title="删除配置"
             >
-              🗑️
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -1122,7 +1131,7 @@ function ExchangeConfigModal({
               style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
               title="删除配置"
             >
-              🗑️
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>

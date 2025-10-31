@@ -14,6 +14,7 @@ import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { CompetitionTraderData } from '../types';
 import { getTraderColor } from '../utils/traderColors';
+import { BarChart3 } from 'lucide-react';
 
 interface ComparisonChartProps {
   traders: CompetitionTraderData[];
@@ -133,7 +134,9 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
   if (combinedData.length === 0) {
     return (
       <div className="text-center py-16" style={{ color: '#848E9C' }}>
-        <div className="text-6xl mb-4 opacity-50">📊</div>
+        <div className="mb-4 flex justify-center opacity-50">
+          <BarChart3 className="w-16 h-16" />
+        </div>
         <div className="text-lg font-semibold mb-2">暂无历史数据</div>
         <div className="text-sm">运行几个周期后将显示对比曲线</div>
       </div>

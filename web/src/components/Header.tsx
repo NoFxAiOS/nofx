@@ -22,13 +22,15 @@ export function Header({ simple = false }: HeaderProps) {
               <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
                 {t('appTitle', language)}
               </h1>
-              <p className="text-xs mono" style={{ color: '#848E9C' }}>
-                {t('subtitle', language)}
-              </p>
+              {!simple && (
+                <p className="text-xs mono" style={{ color: '#848E9C' }}>
+                  {t('subtitle', language)}
+                </p>
+              )}
             </div>
           </div>
           
-          {/* Right - Language Toggle */}
+          {/* Right - Language Toggle (always show) */}
           <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
             <button
               onClick={() => setLanguage('zh')}

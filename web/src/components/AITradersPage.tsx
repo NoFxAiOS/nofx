@@ -53,23 +53,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   useEffect(() => {
     const loadConfigs = async () => {
       try {
-        console.log('🔄 开始加载模型和交易所配置...');
         const [modelConfigs, exchangeConfigs, supportedModels, supportedExchanges] = await Promise.all([
           api.getModelConfigs(),
           api.getExchangeConfigs(),
           api.getSupportedModels(),
           api.getSupportedExchanges()
         ]);
-        console.log('✅ 用户模型配置加载成功:', modelConfigs);
-        console.log('✅ 用户交易所配置加载成功:', exchangeConfigs);
-        console.log('✅ 支持的模型加载成功:', supportedModels);
-        console.log('✅ 支持的交易所加载成功:', supportedExchanges);
         setAllModels(modelConfigs);
         setAllExchanges(exchangeConfigs);
         setSupportedModels(supportedModels);
         setSupportedExchanges(supportedExchanges);
       } catch (error) {
-        console.error('❌ 加载配置失败:', error);
+        console.error('Failed to load configs:', error);
       }
     };
     loadConfigs();
@@ -82,11 +77,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter(m => m.enabled && m.apiKey) || [];
   const enabledExchanges = allExchanges?.filter(e => {
-    if (!e.enabled || !e.apiKey) return false;
+    if (!e.enabled) return false;
+
+    // Aster 交易所需要特殊字段
+    if (e.id === 'aster') {
+      return e.asterUser && e.asterSigner && e.asterPrivateKey;
+    }
+
     // Hyperliquid 只需要私钥（作为apiKey），不需要secretKey
-    if (e.id === 'hyperliquid') return true;
-    // 其他交易所需要secretKey
-    return e.secretKey && e.secretKey.trim() !== '';
+    if (e.id === 'hyperliquid') {
+      return e.apiKey && e.hyperliquidWalletAddr;
+    }
+
+    // Binance 等其他交易所需要 apiKey 和 secretKey
+    return e.apiKey && e.apiKey.trim() !== '' && e.secretKey && e.secretKey.trim() !== '';
   }) || [];
 
   // 检查模型是否正在被运行中的交易员使用

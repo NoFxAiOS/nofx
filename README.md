@@ -1311,19 +1311,8 @@ Issues and Pull Requests are welcome!
 
 ---
 
-## 📬 Contact & Business Inquiries
+## 📬 Contact
 
-### 💼 Investment & Fundraising
-We are currently raising our **seed round**. For investment opportunities:
-
-- **Contact**: Zack (Market & Fundraising Lead)
-- **Twitter/X**: *[To be filled]*
-
-### 🤝 Business Partnerships & Technical Collaborations
-For strategic partnerships and developer collaborations:
-
-- **Contact**: Tinkle (Technology Lead)
-- **Twitter/X**: [@Web3Tinkle](https://x.com/Web3Tinkle)
 
 ### 🐛 Technical Support
 - **GitHub Issues**: [Submit an Issue](https://github.com/tinkle-community/nofx/issues)

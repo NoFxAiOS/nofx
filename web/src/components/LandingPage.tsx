@@ -7,7 +7,6 @@ import {
   GitBranch,
   Shield,
   ArrowRight,
-  ChevronDown,
   Sparkles,
   Target,
   Rocket,
@@ -61,52 +60,13 @@ export function LandingPage() {
         color: 'var(--brand-light-gray)',
       }}
     >
-      {/* Animated Background */}
-      <div className='fixed inset-0 overflow-hidden pointer-events-none'>
-        <motion.div
-          className='absolute top-0 right-0 w-[800px] h-[800px] rounded-full opacity-10'
-          style={{
-            background:
-              'radial-gradient(circle, var(--brand-yellow) 0%, transparent 70%)',
-          }}
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.1, 0.15, 0.1],
-          }}
-          transition={{ duration: 8, repeat: Infinity }}
-        />
-        <motion.div
-          className='absolute bottom-0 left-0 w-[600px] h-[600px] rounded-full opacity-10'
-          style={{
-            background: 'radial-gradient(circle, #6366F1 0%, transparent 70%)',
-          }}
-          animate={{
-            scale: [1, 1.3, 1],
-            opacity: [0.1, 0.2, 0.1],
-          }}
-          transition={{ duration: 10, repeat: Infinity, delay: 1 }}
-        />
-      </div>
 
       {/* Navbar */}
-      <motion.nav
-        className='fixed top-0 w-full z-50 backdrop-blur-xl'
-        style={{
-          background: 'rgba(12, 14, 18, 0.8)',
-          borderBottom: '1px solid rgba(240, 185, 11, 0.1)',
-        }}
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
+      <nav className='fixed top-0 w-full z-50 header-bar'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='flex items-center justify-between h-16'>
             {/* Logo */}
-            <motion.div
-              className='flex items-center gap-3'
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: 'spring', stiffness: 400 }}
-            >
+            <div className='flex items-center gap-3'>
               <img src='/images/logo.png' alt='NOFX Logo' className='w-8 h-8' />
               <span
                 className='text-xl font-bold'
@@ -120,12 +80,12 @@ export function LandingPage() {
               >
                 Agentic Trading OS
               </span>
-            </motion.div>
+            </div>
 
             {/* Desktop Menu */}
             <div className='hidden md:flex items-center gap-6'>
-              {['功能', '如何运作', 'GitHub', '社区'].map((item, index) => (
-                <motion.a
+              {['功能', '如何运作', 'GitHub', '社区'].map((item) => (
+                <a
                   key={item}
                   href={
                     item === 'GitHub'
@@ -144,33 +104,24 @@ export function LandingPage() {
                   }
                   className='text-sm transition-colors relative group'
                   style={{ color: 'var(--brand-light-gray)' }}
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ color: 'var(--brand-yellow)' }}
                 >
                   {item}
-                  <motion.span
+                  <span
                     className='absolute -bottom-1 left-0 w-0 h-0.5 group-hover:w-full transition-all duration-300'
                     style={{ background: 'var(--brand-yellow)' }}
                   />
-                </motion.a>
+                </a>
               ))}
-              <motion.button
+              <button
                 onClick={() => setShowLoginModal(true)}
                 className='px-4 py-2 rounded font-semibold text-sm'
                 style={{
                   background: 'var(--brand-yellow)',
                   color: 'var(--brand-black)',
                 }}
-                whileHover={{
-                  scale: 1.05,
-                  boxShadow: '0 0 20px rgba(240, 185, 11, 0.4)',
-                }}
-                whileTap={{ scale: 0.95 }}
               >
                 登录 / 注册
-              </motion.button>
+              </button>
             </div>
 
             {/* Mobile Menu Button */}
@@ -230,10 +181,10 @@ export function LandingPage() {
             </button>
           </div>
         </motion.div>
-      </motion.nav>
+      </nav>
 
       {/* Hero Section */}
-      <section className='relative pt-32 pb-20 px-4 overflow-hidden'>
+      <section className='relative pt-32 pb-20 px-4'>
         <div className='max-w-7xl mx-auto'>
           <div className='grid lg:grid-cols-2 gap-12 items-center'>
             {/* Left Content */}
@@ -269,27 +220,14 @@ export function LandingPage() {
                 </motion.div>
               </motion.div>
 
-              <motion.h1
+              <h1
                 className='text-5xl lg:text-7xl font-bold leading-tight'
                 style={{ color: 'var(--brand-light-gray)' }}
-                variants={fadeInUp}
               >
                 Read the Market.
                 <br />
-                <motion.span
-                  style={{ color: 'var(--brand-yellow)' }}
-                  animate={{
-                    textShadow: [
-                      '0 0 20px rgba(240, 185, 11, 0.5)',
-                      '0 0 40px rgba(240, 185, 11, 0.8)',
-                      '0 0 20px rgba(240, 185, 11, 0.5)',
-                    ],
-                  }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  Write the Trade.
-                </motion.span>
-              </motion.h1>
+                <span style={{ color: 'var(--brand-yellow)' }}>Write the Trade.</span>
+              </h1>
 
               <motion.p
                 className='text-xl leading-relaxed'
@@ -302,10 +240,7 @@ export function LandingPage() {
                 为你自动决策、执行和优化交易。
               </motion.p>
 
-              <motion.div
-                className='flex items-center gap-3 flex-wrap'
-                variants={fadeInUp}
-              >
+              <div className='flex items-center gap-3 flex-wrap'>
                 <motion.a
                   href='https://github.com/tinkle-community/nofx'
                   target='_blank'
@@ -345,7 +280,7 @@ export function LandingPage() {
                     className='h-7'
                   />
                 </motion.a>
-              </motion.div>
+              </div>
 
               <motion.p
                 className='text-xs pt-4'
@@ -366,9 +301,8 @@ export function LandingPage() {
               <motion.div
                 className='rounded-2xl p-8 relative z-10'
                 style={{
-                  background:
-                    'linear-gradient(135deg, rgba(240, 185, 11, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%)',
-                  border: '1px solid rgba(240, 185, 11, 0.2)',
+                  background: 'var(--panel-bg)',
+                  border: '1px solid var(--panel-border)',
                 }}
                 animate={floatingAnimation}
               >
@@ -385,17 +319,7 @@ export function LandingPage() {
           </div>
         </div>
 
-        {/* Scroll Indicator */}
-        <motion.div
-          className='absolute bottom-8 left-1/2 transform -translate-x-1/2'
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-        >
-          <ChevronDown
-            className='w-8 h-8'
-            style={{ color: 'var(--brand-yellow)' }}
-          />
-        </motion.div>
+        {/* Scroll Indicator removed for cleaner Binance-like style */}
       </section>
 
       {/* About Section */}
@@ -481,21 +405,12 @@ export function LandingPage() {
               </motion.div>
             </motion.div>
 
-            <motion.div
-              className='relative'
-              initial={{ opacity: 0, x: 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <motion.div
+            <div className='relative'>
+              <div
                 className='rounded-2xl p-8'
                 style={{
                   background: 'var(--brand-black)',
-                  border: '1px solid rgba(240, 185, 11, 0.2)',
-                }}
-                whileHover={{
-                  boxShadow: '0 20px 60px rgba(240, 185, 11, 0.2)',
+                  border: '1px solid var(--panel-border)',
                 }}
               >
                 <Typewriter
@@ -508,13 +423,13 @@ export function LandingPage() {
                     '✓ API服务器启动在端口 8080',
                     '🌐 Web 控制台 http://localhost:3000',
                   ]}
-                  typingSpeed={65}
-                  lineDelay={800}
+                  typingSpeed={70}
+                  lineDelay={900}
                   className='text-sm font-mono'
                   style={{ color: '#00FF41', textShadow: '0 0 6px rgba(0,255,65,0.6)' }}
                 />
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           </div>
         </div>
       </AnimatedSection>
@@ -713,7 +628,7 @@ export function LandingPage() {
       </AnimatedSection>
 
       {/* CTA Section */}
-      <AnimatedSection backgroundColor='linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%)'>
+      <AnimatedSection backgroundColor='var(--panel-bg)'>
         <div className='max-w-4xl mx-auto text-center'>
           <motion.h2
             className='text-5xl font-bold mb-6'
@@ -961,11 +876,7 @@ function StepCard({ number, title, description, delay }: any) {
     >
       <motion.div
         className='flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center font-bold text-2xl'
-        style={{
-          background:
-            'linear-gradient(135deg, var(--brand-yellow) 0%, #FCD535 100%)',
-          color: 'var(--brand-black)',
-        }}
+        style={{ background: 'var(--binance-yellow)', color: 'var(--brand-black)' }}
         whileHover={{ scale: 1.2, rotate: 360 }}
         transition={{ type: 'spring', stiffness: 260, damping: 20 }}
       >
@@ -1011,10 +922,7 @@ function TestimonialCard({ quote, author, delay }: any) {
       <div className='flex items-center gap-2'>
         <motion.div
           className='w-8 h-8 rounded-full'
-          style={{
-            background:
-              'linear-gradient(135deg, var(--brand-yellow) 0%, #FCD535 100%)',
-          }}
+          style={{ background: 'var(--binance-yellow)' }}
           whileHover={{ rotate: 180 }}
         />
         <span

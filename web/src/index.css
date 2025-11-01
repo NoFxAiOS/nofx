@@ -20,7 +20,8 @@
   --binance-yellow-light: #FCD535;
   --binance-yellow-glow: rgba(240, 185, 11, 0.2);
 
-  --background: #0C0E12;
+  --background: #181A20; /* Binance body bg */
+  --header-bg: #0B0E11;  /* Binance header bg */
   --background-elevated: #181A20;
   --foreground: #EAECEF;
   --panel-bg: #1E2329;
@@ -179,12 +180,9 @@ body {
 }
 
 /* Glass effect - Binance header style */
-.glass {
-  background: var(--background-elevated);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+.header-bar {
+  background: var(--header-bg);
   border-bottom: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Monospace numbers */

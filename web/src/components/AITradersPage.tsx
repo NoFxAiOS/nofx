@@ -3,7 +3,7 @@ import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { TraderInfo, CreateTraderRequest, AIModel, Exchange } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { t } from '../i18n/translations';
+import { t, type Language } from '../i18n/translations';
 import { getExchangeIcon } from './ExchangeIcons';
 import { getModelIcon } from './ModelIcons';
 import { TraderConfigModal } from './TraderConfigModal';
@@ -149,7 +149,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders();
     } catch (error) {
       console.error('Failed to create trader:', error);
-      alert('创建交易员失败');
+      alert(t('createTraderFailed', language));
     }
   };
 
@@ -160,7 +160,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setShowEditModal(true);
     } catch (error) {
       console.error('Failed to fetch trader config:', error);
-      alert('获取交易员配置失败');
+      alert(t('getTraderConfigFailed', language));
     }
   };
 
@@ -170,14 +170,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       const model = enabledModels?.find(m => m.id === data.ai_model_id);
       const exchange = enabledExchanges?.find(e => e.id === data.exchange_id);
-      
+
       if (!model) {
-        alert('AI模型配置不存在或未启用');
+        alert(t('modelConfigNotExist', language));
         return;
       }
-      
+
       if (!exchange) {
-        alert('交易所配置不存在或未启用');
+        alert(t('exchangeConfigNotExist', language));
         return;
       }
       
@@ -202,19 +202,19 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders();
     } catch (error) {
       console.error('Failed to update trader:', error);
-      alert('更新交易员失败');
+      alert(t('updateTraderFailed', language));
     }
   };
 
   const handleDeleteTrader = async (traderId: string) => {
     if (!confirm(t('confirmDeleteTrader', language))) return;
-    
+
     try {
       await api.deleteTrader(traderId);
       mutateTraders();
     } catch (error) {
       console.error('Failed to delete trader:', error);
-      alert('删除交易员失败');
+      alert(t('deleteTraderFailed', language));
     }
   };
 
@@ -228,7 +228,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders();
     } catch (error) {
       console.error('Failed to toggle trader:', error);
-      alert('操作失败');
+      alert(t('operationFailed', language));
     }
   };
 
@@ -247,7 +247,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   };
 
   const handleDeleteModelConfig = async (modelId: string) => {
-    if (!confirm('确定要删除此AI模型配置吗？')) return;
+    if (!confirm(t('confirmDeleteModel', language))) return;
     
     try {
       const updatedModels = allModels?.map(m => 
@@ -272,7 +272,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingModel(null);
     } catch (error) {
       console.error('Failed to delete model config:', error);
-      alert('删除配置失败');
+      alert(t('deleteConfigFailed', language));
     }
   };
 
@@ -281,7 +281,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       // 找到要配置的模型（从supportedModels中）
       const modelToUpdate = supportedModels?.find(m => m.id === modelId);
       if (!modelToUpdate) {
-        alert('模型不存在');
+        alert(t('modelNotExist', language));
         return;
       }
 
@@ -323,12 +323,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingModel(null);
     } catch (error) {
       console.error('Failed to save model config:', error);
-      alert('保存配置失败');
+      alert(t('saveConfigFailed', language));
     }
   };
 
   const handleDeleteExchangeConfig = async (exchangeId: string) => {
-    if (!confirm('确定要删除此交易所配置吗？')) return;
+    if (!confirm(t('confirmDeleteExchange', language))) return;
     
     try {
       const updatedExchanges = allExchanges?.map(e => 
@@ -355,7 +355,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingExchange(null);
     } catch (error) {
       console.error('Failed to delete exchange config:', error);
-      alert('删除交易所配置失败');
+      alert(t('deleteExchangeConfigFailed', language));
     }
   };
 
@@ -364,7 +364,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       // 找到要配置的交易所（从supportedExchanges中）
       const exchangeToUpdate = supportedExchanges?.find(e => e.id === exchangeId);
       if (!exchangeToUpdate) {
-        alert('交易所不存在');
+        alert(t('exchangeNotExist', language));
         return;
       }
 
@@ -411,7 +411,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingExchange(null);
     } catch (error) {
       console.error('Failed to save exchange config:', error);
-      alert('保存交易所配置失败');
+      alert(t('saveConfigFailed', language));
     }
   };
 
@@ -432,7 +432,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setShowSignalSourceModal(false);
     } catch (error) {
       console.error('Failed to save signal source:', error);
-      alert('保存信号源配置失败');
+      alert(t('saveSignalSourceFailed', language));
     }
   };
 
@@ -493,13 +493,13 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           <button
             onClick={() => setShowSignalSourceModal(true)}
             className="px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-            style={{ 
-              background: '#2B3139', 
-              color: '#EAECEF', 
-              border: '1px solid #474D57' 
+            style={{
+              background: '#2B3139',
+              color: '#EAECEF',
+              border: '1px solid #474D57'
             }}
           >
-            📡 信号源
+            📡 {t('signalSource', language)}
           </button>
           
           <button
@@ -552,7 +552,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     <div>
                       <div className="font-semibold" style={{ color: '#EAECEF' }}>{getShortName(model.name)}</div>
                       <div className="text-xs" style={{ color: '#848E9C' }}>
-                        {inUse ? '正在使用' : model.enabled ? '已启用' : '已配置'}
+                        {inUse ? t('inUse', language) : model.enabled ? t('enabled', language) : t('configured', language)}
                       </div>
                     </div>
                   </div>
@@ -563,7 +563,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             {configuredModels.length === 0 && (
               <div className="text-center py-8" style={{ color: '#848E9C' }}>
                 <Brain className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <div className="text-sm">暂无已配置的AI模型</div>
+                <div className="text-sm">{t('noModelsConfigured', language)}</div>
               </div>
             )}
           </div>
@@ -594,7 +594,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     <div>
                       <div className="font-semibold" style={{ color: '#EAECEF' }}>{getShortName(exchange.name)}</div>
                       <div className="text-xs" style={{ color: '#848E9C' }}>
-                        {exchange.type.toUpperCase()} • {inUse ? '正在使用' : exchange.enabled ? '已启用' : '已配置'}
+                        {exchange.type.toUpperCase()} • {inUse ? t('inUse', language) : exchange.enabled ? t('enabled', language) : t('configured', language)}
                       </div>
                     </div>
                   </div>
@@ -605,7 +605,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             {configuredExchanges.length === 0 && (
               <div className="text-center py-8" style={{ color: '#848E9C' }}>
                 <Landmark className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <div className="text-sm">暂无已配置的交易所</div>
+                <div className="text-sm">{t('noExchangesConfigured', language)}</div>
               </div>
             )}
           </div>
@@ -669,19 +669,19 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                       style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366F1' }}
                     >
                       <BarChart3 className="w-4 h-4" />
-                      查看
+                      {t('view', language)}
                     </button>
 
                     <button
                       onClick={() => handleEditTrader(trader.trader_id)}
                       disabled={trader.is_running}
                       className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{ 
-                        background: trader.is_running ? 'rgba(132, 142, 156, 0.1)' : 'rgba(255, 193, 7, 0.1)', 
-                        color: trader.is_running ? '#848E9C' : '#FFC107' 
+                      style={{
+                        background: trader.is_running ? 'rgba(132, 142, 156, 0.1)' : 'rgba(255, 193, 7, 0.1)',
+                        color: trader.is_running ? '#848E9C' : '#FFC107'
                       }}
                     >
-                      ✏️ 编辑
+                      ✏️ {t('edit', language)}
                     </button>
                     
                     <button
@@ -766,6 +766,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             setShowModelModal(false);
             setEditingModel(null);
           }}
+          language={language}
         />
       )}
 
@@ -780,6 +781,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             setShowExchangeModal(false);
             setEditingExchange(null);
           }}
+          language={language}
         />
       )}
 
@@ -790,6 +792,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           oiTopUrl={userSignalSource.oiTopUrl}
           onSave={handleSaveSignalSource}
           onClose={() => setShowSignalSourceModal(false)}
+          language={language}
         />
       )}
     </div>
@@ -801,12 +804,14 @@ function SignalSourceModal({
   coinPoolUrl,
   oiTopUrl,
   onSave,
-  onClose
+  onClose,
+  language
 }: {
   coinPoolUrl: string;
   oiTopUrl: string;
   onSave: (coinPoolUrl: string, oiTopUrl: string) => void;
   onClose: () => void;
+  language: Language;
 }) {
   const [coinPool, setCoinPool] = useState(coinPoolUrl || '');
   const [oiTop, setOiTop] = useState(oiTopUrl || '');
@@ -820,7 +825,7 @@ function SignalSourceModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative" style={{ background: '#1E2329' }}>
         <h3 className="text-xl font-bold mb-4" style={{ color: '#EAECEF' }}>
-          📡 信号源配置
+          📡 {t('signalSourceConfig', language)}
         </h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -837,7 +842,7 @@ function SignalSourceModal({
               style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
             />
             <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-              用于获取币种池数据的API地址，留空则不使用此信号源
+              {t('coinPoolDescription', language)}
             </div>
           </div>
 
@@ -854,18 +859,18 @@ function SignalSourceModal({
               style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
             />
             <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-              用于获取持仓量排行数据的API地址，留空则不使用此信号源
+              {t('oiTopDescription', language)}
             </div>
           </div>
 
           <div className="p-4 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
             <div className="text-sm font-semibold mb-2" style={{ color: '#F0B90B' }}>
-              ℹ️ 说明
+              ℹ️ {t('information', language)}
             </div>
             <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-              <div>• 信号源配置为用户级别，每个用户可以设置自己的信号源URL</div>
-              <div>• 在创建交易员时可以选择是否使用这些信号源</div>
-              <div>• 配置的URL将用于获取市场数据和交易信号</div>
+              <div>{t('signalSourceInfo1', language)}</div>
+              <div>{t('signalSourceInfo2', language)}</div>
+              <div>{t('signalSourceInfo3', language)}</div>
             </div>
           </div>
 
@@ -876,14 +881,14 @@ function SignalSourceModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold"
               style={{ background: '#2B3139', color: '#848E9C' }}
             >
-              取消
+              {t('cancel', language)}
             </button>
             <button
               type="submit"
               className="flex-1 px-4 py-2 rounded text-sm font-semibold"
               style={{ background: '#F0B90B', color: '#000' }}
             >
-              保存
+              {t('save', language)}
             </button>
           </div>
         </form>
@@ -899,7 +904,8 @@ function ModelConfigModal({
   editingModelId,
   onSave,
   onDelete,
-  onClose
+  onClose,
+  language
 }: {
   allModels: AIModel[];
   configuredModels: AIModel[];
@@ -907,6 +913,7 @@ function ModelConfigModal({
   onSave: (modelId: string, apiKey: string, baseUrl?: string) => void;
   onDelete: (modelId: string) => void;
   onClose: () => void;
+  language: Language;
 }) {
   const [selectedModelId, setSelectedModelId] = useState(editingModelId || '');
   const [apiKey, setApiKey] = useState('');
@@ -940,30 +947,30 @@ function ModelConfigModal({
       <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative" style={{ background: '#1E2329' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-            {editingModelId ? '编辑AI模型' : '添加AI模型'}
+            {editingModelId ? t('editAIModel', language) : t('addAIModel', language)}
           </h3>
           {editingModelId && (
             <button
               type="button"
               onClick={() => {
-                if (confirm('确定要删除此AI模型配置吗？')) {
+                if (confirm(t('confirmDeleteModel', language))) {
                   onDelete(editingModelId);
                 }
               }}
               className="p-2 rounded hover:bg-red-100 transition-colors"
               style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              title="删除配置"
+              title={t('deleteConfigFailed', language)}
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editingModelId && (
             <div>
               <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                选择AI模型
+                {t('selectModel', language)}
               </label>
               <select
                 value={selectedModelId}
@@ -972,7 +979,7 @@ function ModelConfigModal({
                 style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                 required
               >
-                <option value="">请选择模型</option>
+                <option value="">{t('pleaseSelectModel', language)}</option>
                 {availableModels.map(model => (
                   <option key={model.id} value={model.id}>
                     {getShortName(model.name)} ({model.provider})
@@ -1016,7 +1023,7 @@ function ModelConfigModal({
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="输入API密钥"
+                  placeholder={t('enterAPIKey', language)}
                   className="w-full px-3 py-2 rounded"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   required
@@ -1025,29 +1032,29 @@ function ModelConfigModal({
 
               <div>
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                  Base URL (可选)
+                  {t('customBaseURL', language)}
                 </label>
                 <input
                   type="url"
                   value={baseUrl}
                   onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="自定义API基础URL，如: https://api.openai.com/v1"
+                  placeholder={t('customBaseURLPlaceholder', language)}
                   className="w-full px-3 py-2 rounded"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                 />
                 <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  留空则使用默认API地址
+                  {t('leaveBlankForDefault', language)}
                 </div>
               </div>
 
               <div className="p-4 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
                 <div className="text-sm font-semibold mb-2" style={{ color: '#F0B90B' }}>
-                  ℹ️ 说明
+                  ℹ️ {t('information', language)}
                 </div>
                 <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                  <div>• API Key将被加密存储，请确保密钥有效</div>
-                  <div>• Base URL用于自定义API服务器地址</div>
-                  <div>• 删除配置后，使用此模型的交易员将无法正常工作</div>
+                  <div>{t('modelConfigInfo1', language)}</div>
+                  <div>{t('modelConfigInfo2', language)}</div>
+                  <div>{t('modelConfigInfo3', language)}</div>
                 </div>
               </div>
             </>
@@ -1060,7 +1067,7 @@ function ModelConfigModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold"
               style={{ background: '#2B3139', color: '#848E9C' }}
             >
-              取消
+              {t('cancel', language)}
             </button>
             <button
               type="submit"
@@ -1068,7 +1075,7 @@ function ModelConfigModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               style={{ background: '#F0B90B', color: '#000' }}
             >
-              保存配置
+              {t('saveConfig', language)}
             </button>
           </div>
         </form>
@@ -1083,13 +1090,15 @@ function ExchangeConfigModal({
   editingExchangeId,
   onSave,
   onDelete,
-  onClose
+  onClose,
+  language
 }: {
   allExchanges: Exchange[];
   editingExchangeId: string | null;
   onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => Promise<void>;
   onDelete: (exchangeId: string) => void;
   onClose: () => void;
+  language: Language;
 }) {
   const [selectedExchangeId, setSelectedExchangeId] = useState(editingExchangeId || '');
   const [apiKey, setApiKey] = useState('');
@@ -1132,30 +1141,30 @@ function ExchangeConfigModal({
       <div className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative" style={{ background: '#1E2329' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-            {editingExchangeId ? '编辑交易所' : '添加交易所'}
+            {editingExchangeId ? t('editExchange', language) : t('addExchange', language)}
           </h3>
           {editingExchangeId && (
             <button
               type="button"
               onClick={() => {
-                if (confirm('确定要删除此交易所配置吗？')) {
+                if (confirm(t('confirmDeleteExchange', language))) {
                   onDelete(editingExchangeId);
                 }
               }}
               className="p-2 rounded hover:bg-red-100 transition-colors"
               style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              title="删除配置"
+              title={t('deleteConfigFailed', language)}
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editingExchangeId && (
             <div>
               <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                选择交易所
+                {t('selectExchange', language)}
               </label>
               <select
                 value={selectedExchangeId}
@@ -1164,7 +1173,7 @@ function ExchangeConfigModal({
                 style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                 required
               >
-                <option value="">请选择交易所</option>
+                <option value="">{t('pleaseSelectExchange', language)}</option>
                 {availableExchanges.map(exchange => (
                   <option key={exchange.id} value={exchange.id}>
                     {getShortName(exchange.name)} ({exchange.type.toUpperCase()})
@@ -1200,7 +1209,7 @@ function ExchangeConfigModal({
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="输入API密钥"
+                  placeholder={t('enterAPIKey', language)}
                   className="w-full px-3 py-2 rounded"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   required
@@ -1215,7 +1224,7 @@ function ExchangeConfigModal({
                   type="password"
                   value={secretKey}
                   onChange={(e) => setSecretKey(e.target.value)}
-                  placeholder="输入密钥"
+                  placeholder={t('enterSecretKey', language)}
                   className="w-full px-3 py-2 rounded"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   required
@@ -1231,7 +1240,7 @@ function ExchangeConfigModal({
                     type="password"
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="输入Passphrase (OKX必填)"
+                    placeholder={t('enterPassphrase', language)}
                     className="w-full px-3 py-2 rounded"
                     style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                     required
@@ -1248,21 +1257,21 @@ function ExchangeConfigModal({
                     className="form-checkbox rounded"
                     style={{ accentColor: '#F0B90B' }}
                   />
-                  <span style={{ color: '#EAECEF' }}>使用测试网</span>
+                  <span style={{ color: '#EAECEF' }}>{t('useTestnet', language)}</span>
                 </label>
                 <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  启用后将连接到交易所测试环境，用于模拟交易
+                  {t('testnetDescription', language)}
                 </div>
               </div>
 
               <div className="p-4 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
                 <div className="text-sm font-semibold mb-2" style={{ color: '#F0B90B' }}>
-                  ⚠️ 安全提示
+                  ⚠️ {t('securityWarning', language)}
                 </div>
                 <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                  <div>• API密钥将被加密存储，建议使用只读或期货交易权限</div>
-                  <div>• 不要授予提现权限，确保资金安全</div>
-                  <div>• 删除配置后，相关交易员将无法正常交易</div>
+                  <div>{t('exchangeConfigWarning1', language)}</div>
+                  <div>{t('exchangeConfigWarning2', language)}</div>
+                  <div>{t('exchangeConfigWarning3', language)}</div>
                 </div>
               </div>
             </>
@@ -1275,7 +1284,7 @@ function ExchangeConfigModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold"
               style={{ background: '#2B3139', color: '#848E9C' }}
             >
-              取消
+              {t('cancel', language)}
             </button>
             <button
               type="submit"
@@ -1283,7 +1292,7 @@ function ExchangeConfigModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               style={{ background: '#F0B90B', color: '#000' }}
             >
-              保存配置
+              {t('saveConfig', language)}
             </button>
           </div>
         </form>

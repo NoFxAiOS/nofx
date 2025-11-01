@@ -511,32 +511,25 @@ func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 		return fmt.Errorf("获取挂单失败: %w", err)
 	}
 
-	// 过滤出止盈止损单并取消
+	// 注意：Hyperliquid SDK 的 OpenOrder 结构不暴露 trigger 字段
+	// 因此暂时取消该币种的所有挂单（包括止盈止损单）
+	// 这是安全的，因为在设置新的止盈止损之前，应该清理所有旧订单
 	canceledCount := 0
 	for _, order := range openOrders {
 		if order.Coin == coin {
-			// Hyperliquid 的止损止盈订单通常是 trigger 订单
-			// 检查是否有 triggerPx 字段（表示触发价格）
-			isTriggerOrder := order.TriggerPx != "" && order.TriggerPx != "0"
-
-			if isTriggerOrder {
-				_, err := t.exchange.Cancel(t.ctx, coin, order.Oid)
-				if err != nil {
-					log.Printf("  ⚠ 取消止盈/止损单失败 (oid=%d): %v", order.Oid, err)
-					continue
-				}
-
-				canceledCount++
-				log.Printf("  ✓ 已取消 %s 的止盈/止损单 (订单ID: %d, 触发价: %s)",
-					symbol, order.Oid, order.TriggerPx)
+			_, err := t.exchange.Cancel(t.ctx, coin, order.Oid)
+			if err != nil {
+				log.Printf("  ⚠ 取消订单失败 (oid=%d): %v", order.Oid, err)
+				continue
 			}
+			canceledCount++
 		}
 	}
 
 	if canceledCount == 0 {
-		log.Printf("  ℹ %s 没有止盈/止损单需要取消", symbol)
+		log.Printf("  ℹ %s 没有挂单需要取消", symbol)
 	} else {
-		log.Printf("  ✓ 已取消 %s 的 %d 个止盈/止损单", symbol, canceledCount)
+		log.Printf("  ✓ 已取消 %s 的 %d 个挂单（包括止盈/止损单）", symbol, canceledCount)
 	}
 
 	return nil

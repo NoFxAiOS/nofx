@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 interface TypewriterProps {
   lines: string[]
@@ -21,21 +21,23 @@ export default function Typewriter({
   const charIndexRef = useRef(0)
   const timerRef = useRef<number | null>(null)
   const blinkRef = useRef<number | null>(null)
+  const sanitizedLines = useMemo(() => lines.map((l) => String(l ?? '')), [lines])
 
   useEffect(() => {
     function typeNext() {
-      const currentLine = lines[lineIndexRef.current] ?? ''
+      const currentLine = sanitizedLines[lineIndexRef.current] ?? ''
       if (charIndexRef.current < currentLine.length) {
         setTypedLines((prev) => {
           const next = [...prev]
-          next[next.length - 1] = (next[next.length - 1] || '') + currentLine[charIndexRef.current]
+          const ch = currentLine.charAt(charIndexRef.current)
+          next[next.length - 1] = (next[next.length - 1] || '') + ch
           return next
         })
         charIndexRef.current += 1
         timerRef.current = window.setTimeout(typeNext, typingSpeed)
       } else {
         // 行结束
-        if (lineIndexRef.current < lines.length - 1) {
+        if (lineIndexRef.current < sanitizedLines.length - 1) {
           lineIndexRef.current += 1
           charIndexRef.current = 0
           setTypedLines((prev) => [...prev, ''])
@@ -61,7 +63,7 @@ export default function Typewriter({
   }, [lines, typingSpeed, lineDelay])
 
   return (
-    <pre className={className} style={style}>
+    <pre className={className} style={{ whiteSpace: 'pre-wrap', ...style }}>
       {typedLines.join('\n')}
       <span style={{ opacity: showCursor ? 1 : 0 }}> ▍</span>
     </pre>

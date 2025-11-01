@@ -1,14 +1,18 @@
 package decision
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
+	"path/filepath"
 	"strings"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // PositionInfo 持仓信息
@@ -53,6 +57,19 @@ type OITopData struct {
 	NetShort          float64 // 净空仓
 }
 
+// EconomicEvent 经济日历事件（简化版，用于AI决策）
+type EconomicEvent struct {
+	Time       string  `json:"time"`       // 事件时间 (HH:MM 或 "全天")
+	Event      string  `json:"event"`      // 事件名称
+	Importance string  `json:"importance"` // 重要性 (高/中/低)
+	Currency   string  `json:"currency"`   // 相关货币
+	Zone       string  `json:"zone"`       // 地区/国家
+	TimeUntil  string  `json:"time_until"` // 距离现在的时间描述
+	Actual     *string `json:"actual"`     // 实际值（可能为空）
+	Forecast   *string `json:"forecast"`   // 预期值
+	Previous   *string `json:"previous"`   // 前值
+}
+
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
 	CurrentTime     string                  `json:"current_time"`
@@ -66,6 +83,7 @@ type Context struct {
 	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
 	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	EconomicEvents  []EconomicEvent         `json:"economic_events"` // 经济日历事件（新增）
 }
 
 // Decision AI的交易决策
@@ -100,6 +118,13 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 	// 1. 为所有币种获取市场数据
 	if err := fetchMarketDataForContext(ctx); err != nil {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)
+	}
+
+	// 1.5 经济日历事件
+	// 注意: EconomicEvents 应该在调用此函数前由外部填充到 ctx 中
+	// 如果 ctx.EconomicEvents 已有数据，会自动展示在 AI prompt 中
+	if len(ctx.EconomicEvents) > 0 {
+		log.Printf("✓ 使用 %d 个经济日历事件进行决策", len(ctx.EconomicEvents))
 	}
 
 	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
@@ -380,6 +405,38 @@ func buildUserPrompt(ctx *Context) string {
 		}
 	}
 
+	// 经济日历事件（新增）
+	if len(ctx.EconomicEvents) > 0 {
+		sb.WriteString("## 📅 未来24小时重要经济事件\n\n")
+		for i, event := range ctx.EconomicEvents {
+			// 基本信息
+			sb.WriteString(fmt.Sprintf("%d. [%s] %s (%s) - %s重要性\n",
+				i+1, event.TimeUntil, event.Event, event.Zone, event.Importance))
+
+			// 如果有预期值和前值，显示出来
+			if event.Forecast != nil || event.Previous != nil {
+				sb.WriteString("   ")
+				if event.Forecast != nil {
+					sb.WriteString(fmt.Sprintf("预期: %s", *event.Forecast))
+				}
+				if event.Previous != nil {
+					if event.Forecast != nil {
+						sb.WriteString(" | ")
+					}
+					sb.WriteString(fmt.Sprintf("前值: %s", *event.Previous))
+				}
+				if event.Actual != nil {
+					sb.WriteString(fmt.Sprintf(" | 实际: %s", *event.Actual))
+				}
+				sb.WriteString("\n")
+			}
+		}
+		sb.WriteString("\n⚠️ 注意: 高影响事件可能导致市场剧烈波动，建议:\n")
+		sb.WriteString("- 事件前1-2小时避免新开仓\n")
+		sb.WriteString("- 适当降低杠杆或减少仓位\n")
+		sb.WriteString("- 设置更宽的止损范围防止插针\n\n")
+	}
+
 	sb.WriteString("---\n\n")
 	sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")
 
@@ -590,4 +647,156 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	}
 
 	return nil
+}
+
+// ============================================================================
+// 经济日历数据读取
+// ============================================================================
+
+// LoadEconomicEvents 从经济日历数据库读取未来N小时的重要事件 (公开函数)
+// dbPath: 数据库文件路径 (例如: "world/经济日历/economic_calendar.db")
+// hoursAhead: 查询未来多少小时内的事件
+// minImportance: 最低重要性 ("高"/"中"/"低"，空字符串表示所有)
+func LoadEconomicEvents(dbPath string, hoursAhead int, minImportance string) ([]EconomicEvent, error) {
+	// 如果数据库路径为空,返回空列表(不影响主流程)
+	if dbPath == "" {
+		return []EconomicEvent{}, nil
+	}
+
+	// 检查文件是否存在
+	absPath, err := filepath.Abs(dbPath)
+	if err != nil {
+		log.Printf("⚠️  无法解析经济日历数据库路径: %v", err)
+		return []EconomicEvent{}, nil
+	}
+
+	// 连接数据库
+	db, err := sql.Open("sqlite3", absPath)
+	if err != nil {
+		log.Printf("⚠️  打开经济日历数据库失败: %v (跳过经济日历数据)", err)
+		return []EconomicEvent{}, nil
+	}
+	defer db.Close()
+
+	// 解析当前时间和查询范围
+	now := time.Now()
+	endTime := now.Add(time.Duration(hoursAhead) * time.Hour)
+
+	// 构建SQL查询
+	// 注意: 数据库中的date格式是 "dd/mm/yyyy", time是 "HH:MM" 或 "全天"
+	query := `
+		SELECT date, time, zone, currency, event, importance, actual, forecast, previous
+		FROM events
+		WHERE importance IN (?, ?)
+		ORDER BY date ASC, time ASC
+		LIMIT 50
+	`
+
+	// 根据minImportance过滤
+	var importanceFilter1, importanceFilter2 string
+	if minImportance == "高" {
+		importanceFilter1 = "高"
+		importanceFilter2 = "高" // 只查高重要性
+	} else if minImportance == "中" {
+		importanceFilter1 = "高"
+		importanceFilter2 = "中" // 查高和中
+	} else {
+		importanceFilter1 = "高"
+		importanceFilter2 = "中" // 默认查高和中
+	}
+
+	rows, err := db.Query(query, importanceFilter1, importanceFilter2)
+	if err != nil {
+		log.Printf("⚠️  查询经济日历失败: %v", err)
+		return []EconomicEvent{}, nil
+	}
+	defer rows.Close()
+
+	var events []EconomicEvent
+	for rows.Next() {
+		var date, eventTime, zone, currency, event, importance string
+		var actual, forecast, previous sql.NullString
+
+		err := rows.Scan(&date, &eventTime, &zone, &currency, &event, &importance, &actual, &forecast, &previous)
+		if err != nil {
+			log.Printf("⚠️  读取经济事件失败: %v", err)
+			continue
+		}
+
+		// 解析事件时间并计算距离现在的时间
+		eventDateTime, err := parseEventTime(date, eventTime)
+		if err != nil {
+			// 跳过无法解析的事件
+			continue
+		}
+
+		// 过滤:只保留未来hoursAhead小时内的事件
+		if eventDateTime.After(now) && eventDateTime.Before(endTime) {
+			timeUntil := formatTimeUntil(eventDateTime, now)
+
+			ev := EconomicEvent{
+				Time:       eventTime,
+				Event:      event,
+				Importance: importance,
+				Currency:   currency,
+				Zone:       zone,
+				TimeUntil:  timeUntil,
+			}
+
+			if actual.Valid {
+				ev.Actual = &actual.String
+			}
+			if forecast.Valid {
+				ev.Forecast = &forecast.String
+			}
+			if previous.Valid {
+				ev.Previous = &previous.String
+			}
+
+			events = append(events, ev)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		log.Printf("⚠️  读取经济日历行失败: %v", err)
+		return []EconomicEvent{}, nil
+	}
+
+	return events, nil
+}
+
+// parseEventTime 解析事件日期和时间 (格式: "dd/mm/yyyy" 和 "HH:MM")
+func parseEventTime(date, eventTime string) (time.Time, error) {
+	// 如果时间是"全天"或"待定",默认设置为当天的12:00
+	if eventTime == "全天" || eventTime == "待定" || eventTime == "" {
+		eventTime = "12:00"
+	}
+
+	// 组合日期和时间
+	dateTimeStr := date + " " + eventTime
+	return time.Parse("02/01/2006 15:04", dateTimeStr)
+}
+
+// formatTimeUntil 格式化"距离现在的时间"
+func formatTimeUntil(eventTime, now time.Time) string {
+	duration := eventTime.Sub(now)
+
+	if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		return fmt.Sprintf("%d分钟后", minutes)
+	} else if duration < 24*time.Hour {
+		hours := int(duration.Hours())
+		minutes := int(duration.Minutes()) % 60
+		if minutes > 0 {
+			return fmt.Sprintf("%d小时%d分钟后", hours, minutes)
+		}
+		return fmt.Sprintf("%d小时后", hours)
+	} else {
+		days := int(duration.Hours() / 24)
+		hours := int(duration.Hours()) % 24
+		if hours > 0 {
+			return fmt.Sprintf("%d天%d小时后", days, hours)
+		}
+		return fmt.Sprintf("%d天后", days)
+	}
 }

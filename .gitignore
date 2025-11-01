@@ -38,3 +38,11 @@ web/node_modules/
 node_modules/
 web/dist/
 web/.vite/
+
+# Economic Calendar (经济日历)
+world/经济日历/*.db
+world/经济日历/*.log
+world/经济日历/.env
+world/经济日历/.ruff_cache/
+world/经济日历/__pycache__/
+economic_calendar.db

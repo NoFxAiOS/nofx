@@ -10,7 +10,9 @@ import (
 	"nofx/manager"
 	"nofx/pool"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -20,6 +22,80 @@ import (
 type LeverageConfig struct {
 	BTCETHLeverage  int `json:"btc_eth_leverage"`
 	AltcoinLeverage int `json:"altcoin_leverage"`
+}
+
+// EconomicCalendarConfig 经济日历配置
+type EconomicCalendarConfig struct {
+	Enabled               bool   `json:"enabled"`                  // 是否启用经济日历功能
+	DBPath                string `json:"db_path"`                  // 数据库文件路径
+	ScriptPath            string `json:"script_path"`              // Python脚本路径
+	UpdateIntervalSeconds int    `json:"update_interval_seconds"`  // 数据更新间隔(秒)
+	HoursAhead            int    `json:"hours_ahead"`              // 查询未来多少小时的事件
+	MinImportance         string `json:"min_importance"`           // 最低重要性("高"/"中"/"低")
+}
+
+// startEconomicCalendarService 启动经济日历数据采集服务
+func startEconomicCalendarService(cfg *EconomicCalendarConfig) *exec.Cmd {
+	if cfg == nil || !cfg.Enabled {
+		log.Printf("⏭️  经济日历功能未启用")
+		return nil
+	}
+
+	// 从配置中获取路径
+	scriptPath := cfg.ScriptPath
+	if scriptPath == "" {
+		scriptPath = "world/经济日历/economic_calendar_minimal.py"
+	}
+
+	// 获取脚本目录
+	calendarDir := filepath.Dir(scriptPath)
+	calendarScript := filepath.Base(scriptPath)
+	calendarPath := filepath.Join(calendarDir, calendarScript)
+
+	// 检查脚本是否存在
+	if _, err := os.Stat(calendarPath); os.IsNotExist(err) {
+		log.Printf("⚠️  经济日历脚本不存在: %s (跳过自动启动)", calendarPath)
+		return nil
+	}
+
+	// 检查Python是否可用
+	pythonCmd := "python3"
+	if _, err := exec.LookPath(pythonCmd); err != nil {
+		pythonCmd = "python" // 尝试python命令
+		if _, err := exec.LookPath(pythonCmd); err != nil {
+			log.Printf("⚠️  未找到Python环境 (跳过经济日历服务)")
+			return nil
+		}
+	}
+
+	// 启动Python服务
+	log.Printf("🚀 启动经济日历数据采集服务...")
+	intervalStr := strconv.Itoa(cfg.UpdateIntervalSeconds)
+	if intervalStr == "0" {
+		intervalStr = "300" // 默认5分钟
+	}
+	cmd := exec.Command(pythonCmd, calendarScript, "--interval", intervalStr)
+	cmd.Dir = calendarDir
+
+	// 设置输出到日志文件
+	logFile, err := os.Create(filepath.Join(calendarDir, "calendar.log"))
+	if err != nil {
+		log.Printf("⚠️  创建日志文件失败: %v", err)
+		return nil
+	}
+
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+
+	// 启动服务
+	if err := cmd.Start(); err != nil {
+		log.Printf("⚠️  启动经济日历服务失败: %v", err)
+		logFile.Close()
+		return nil
+	}
+
+	log.Printf("✓ 经济日历服务已启动 (PID: %d, 日志: %s/calendar.log)", cmd.Process.Pid, calendarDir)
+	return cmd
 }
 
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
@@ -184,6 +260,30 @@ func main() {
 	pool.SetUseDefaultCoins(useDefaultCoins)
 	if useDefaultCoins {
 		log.Printf("✓ 已启用默认主流币种列表")
+	}
+
+	// 启动经济日历服务(新增)
+	// 从config.json读取经济日历配置
+	var economicCalendarCfg *EconomicCalendarConfig
+	rawCfg, err := os.ReadFile("config.json")
+	if err == nil {
+		var tmpCfg struct {
+			EconomicCalendar *EconomicCalendarConfig `json:"economic_calendar"`
+		}
+		if err := json.Unmarshal(rawCfg, &tmpCfg); err == nil {
+			economicCalendarCfg = tmpCfg.EconomicCalendar
+		}
+	}
+
+	calendarCmd := startEconomicCalendarService(economicCalendarCfg)
+	if calendarCmd != nil {
+		// 确保退出时停止经济日历服务
+		defer func() {
+			if calendarCmd.Process != nil {
+				log.Printf("🛑 停止经济日历服务 (PID: %d)...", calendarCmd.Process.Pid)
+				calendarCmd.Process.Kill()
+			}
+		}()
 	}
 
 	// 设置币种池API URL

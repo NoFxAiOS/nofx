@@ -19,5 +19,13 @@
   "max_daily_loss": 10.0,
   "max_drawdown": 20.0,
   "stop_trading_minutes": 60,
-  "jwt_secret": "Qk0kAa+d0iIEzXVHXbNbm+UaN3RNabmWtH8rDWZ5OPf+4GX8pBflAHodfpbipVMyrw1fsDanHsNBjhgbDeK9Jg=="
+  "jwt_secret": "Qk0kAa+d0iIEzXVHXbNbm+UaN3RNabmWtH8rDWZ5OPf+4GX8pBflAHodfpbipVMyrw1fsDanHsNBjhgbDeK9Jg==",
+  "economic_calendar": {
+    "enabled": true,
+    "db_path": "world/经济日历/economic_calendar.db",
+    "script_path": "world/经济日历/economic_calendar_minimal.py",
+    "update_interval_seconds": 300,
+    "hours_ahead": 24,
+    "min_importance": "高"
+  }
 }

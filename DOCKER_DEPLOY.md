@@ -29,7 +29,7 @@
 **安装后验证：**
 ```bash
 docker --version
-docker compose --version  # 注意：使用空格，不再是连字符
+docker compose version  # 注意：使用空格，不再是连字符
 ```
 
 #### Linux (Ubuntu/Debian)

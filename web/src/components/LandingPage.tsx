@@ -500,15 +500,16 @@ export function LandingPage() {
               >
                 <Typewriter
                   lines={[
-                    '$ git clone https://github.com/tinkle-community/nofx',
-                    '$ cd nofx/web',
-                    '$ npm install',
-                    '$ npm run dev',
-                    '🚀 前端已启动 http://localhost:3000',
-                    '✓ 就绪',
+                    '$ git clone https://github.com/tinkle-community/nofx.git',
+                    '$ cd nofx',
+                    '$ chmod +x start.sh',
+                    '$ ./start.sh start --build',
+                    '🚀 启动自动交易系统...',
+                    '✓ API服务器启动在端口 8080',
+                    '🌐 Web 控制台 http://localhost:3000',
                   ]}
-                  typingSpeed={55}
-                  lineDelay={700}
+                  typingSpeed={65}
+                  lineDelay={800}
                   className='text-sm font-mono'
                   style={{ color: '#00FF41', textShadow: '0 0 6px rgba(0,255,65,0.6)' }}
                 />

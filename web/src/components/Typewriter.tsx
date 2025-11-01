@@ -62,9 +62,11 @@ export default function Typewriter({
     }
   }, [lines, typingSpeed, lineDelay])
 
+  const displayText = useMemo(() => typedLines.join('\n').replace(/undefined/g, ''), [typedLines])
+
   return (
     <pre className={className} style={{ whiteSpace: 'pre-wrap', ...style }}>
-      {typedLines.join('\n')}
+      {displayText}
       <span style={{ opacity: showCursor ? 1 : 0 }}> ▍</span>
     </pre>
   )

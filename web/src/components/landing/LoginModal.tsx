@@ -1,7 +1,13 @@
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
+import { t, Language } from '../../i18n/translations'
 
-export default function LoginModal({ onClose }: { onClose: () => void }) {
+interface LoginModalProps {
+  onClose: () => void
+  language: Language
+}
+
+export default function LoginModal({ onClose, language }: LoginModalProps) {
   return (
     <motion.div
       className='fixed inset-0 z-50 flex items-center justify-center p-4'
@@ -23,10 +29,10 @@ export default function LoginModal({ onClose }: { onClose: () => void }) {
           <X className='w-6 h-6' />
         </motion.button>
         <h2 className='text-2xl font-bold mb-6' style={{ color: 'var(--brand-light-gray)' }}>
-          访问 NOFX 平台
+          {t('accessNofxPlatform', language)}
         </h2>
         <p className='text-sm mb-6' style={{ color: 'var(--text-secondary)' }}>
-          请选择登录或注册以访问完整的 AI 交易平台
+          {t('loginRegisterPrompt', language)}
         </p>
         <div className='space-y-3'>
           <motion.button
@@ -40,7 +46,7 @@ export default function LoginModal({ onClose }: { onClose: () => void }) {
             whileHover={{ scale: 1.05, boxShadow: '0 10px 30px rgba(240, 185, 11, 0.4)' }}
             whileTap={{ scale: 0.95 }}
           >
-            登录
+            {t('signIn', language)}
           </motion.button>
           <motion.button
             onClick={() => {
@@ -53,7 +59,7 @@ export default function LoginModal({ onClose }: { onClose: () => void }) {
             whileHover={{ scale: 1.05, borderColor: 'var(--brand-yellow)' }}
             whileTap={{ scale: 0.95 }}
           >
-            注册新账号
+            {t('registerNewAccount', language)}
           </motion.button>
         </div>
       </motion.div>

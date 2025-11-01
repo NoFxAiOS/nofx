@@ -185,6 +185,7 @@ func (d *Database) createTables() error {
 		`ALTER TABLE traders ADD COLUMN use_coin_pool BOOLEAN DEFAULT 0`, // 是否使用COIN POOL信号源
 		`ALTER TABLE traders ADD COLUMN use_oi_top BOOLEAN DEFAULT 0`, // 是否使用OI TOP信号源
 		`ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`, // 自定义API地址
+		`ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`, // 自定义模型名称
 	}
 
 	for _, query := range alterQueries {
@@ -362,15 +363,16 @@ type User struct {
 
 // AIModelConfig AI模型配置
 type AIModelConfig struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"user_id"`
-	Name         string    `json:"name"`
-	Provider     string    `json:"provider"`
-	Enabled      bool      `json:"enabled"`
-	APIKey       string    `json:"apiKey"`
-	CustomAPIURL string    `json:"customApiUrl"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	UserID          string    `json:"user_id"`
+	Name            string    `json:"name"`
+	Provider        string    `json:"provider"`
+	Enabled         bool      `json:"enabled"`
+	APIKey          string    `json:"apiKey"`
+	CustomAPIURL    string    `json:"customApiUrl"`
+	CustomModelName string    `json:"customModelName"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // ExchangeConfig 交易所配置
@@ -530,7 +532,10 @@ func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
 // GetAIModels 获取用户的AI模型配置
 func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 	rows, err := d.db.Query(`
-		SELECT id, user_id, name, provider, enabled, api_key, COALESCE(custom_api_url, '') as custom_api_url, created_at, updated_at 
+		SELECT id, user_id, name, provider, enabled, api_key,
+		       COALESCE(custom_api_url, '') as custom_api_url,
+		       COALESCE(custom_model_name, '') as custom_model_name,
+		       created_at, updated_at
 		FROM ai_models WHERE user_id = ? ORDER BY id
 	`, userID)
 	if err != nil {
@@ -543,8 +548,8 @@ func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 	for rows.Next() {
 		var model AIModelConfig
 		err := rows.Scan(
-			&model.ID, &model.UserID, &model.Name, &model.Provider, 
-			&model.Enabled, &model.APIKey, &model.CustomAPIURL,
+			&model.ID, &model.UserID, &model.Name, &model.Provider,
+			&model.Enabled, &model.APIKey, &model.CustomAPIURL, &model.CustomModelName,
 			&model.CreatedAt, &model.UpdatedAt,
 		)
 		if err != nil {
@@ -557,52 +562,50 @@ func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 }
 
 // UpdateAIModel 更新AI模型配置，如果不存在则创建用户特定配置
-func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL string) error {
-	// 首先尝试更新现有的用户配置
-	result, err := d.db.Exec(`
-		UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ? WHERE id = ? AND user_id = ?
-	`, enabled, apiKey, customAPIURL, id, userID)
-	if err != nil {
-		return err
-	}
-	
-	// 检查是否有行被更新
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	
-	// 如果没有行被更新，说明用户没有这个模型的配置，需要创建
-	if rowsAffected == 0 {
-		// 获取模型的基本信息
-		var name, provider string
-		err = d.db.QueryRow(`
-			SELECT name, provider FROM ai_models WHERE provider = ? LIMIT 1
-		`, id).Scan(&name, &provider)
-		if err != nil {
-			// 如果找不到基本信息，使用默认值
-			if id == "deepseek" {
-				name = "DeepSeek AI"
-				provider = "deepseek"
-			} else if id == "qwen" {
-				name = "Qwen AI"
-				provider = "qwen"
-			} else {
-				name = id + " AI"
-				provider = id
-			}
-		}
-		
-		// 创建用户特定的配置
-		userModelID := fmt.Sprintf("%s_%s", userID, id)
+func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
+	// id 参数实际上是 provider（如 "deepseek", "qwen"）
+	provider := id
+
+	// 先查找用户是否已有这个 provider 的配置
+	var existingID string
+	err := d.db.QueryRow(`
+		SELECT id FROM ai_models WHERE user_id = ? AND provider = ? LIMIT 1
+	`, userID, provider).Scan(&existingID)
+
+	if err == nil {
+		// 找到了现有配置，更新它
 		_, err = d.db.Exec(`
-			INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-		`, userModelID, userID, name, provider, enabled, apiKey, customAPIURL)
+			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
+			WHERE id = ? AND user_id = ?
+		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
 		return err
 	}
-	
-	return nil
+
+	// 没有找到现有配置，创建新的
+	// 获取模型的基本信息
+	var name string
+	err = d.db.QueryRow(`
+		SELECT name FROM ai_models WHERE provider = ? LIMIT 1
+	`, provider).Scan(&name)
+	if err != nil {
+		// 如果找不到基本信息，使用默认值
+		if provider == "deepseek" {
+			name = "DeepSeek AI"
+		} else if provider == "qwen" {
+			name = "Qwen AI"
+		} else {
+			name = provider + " AI"
+		}
+	}
+
+	// 创建用户特定的配置
+	userModelID := fmt.Sprintf("%s_%s", userID, provider)
+	_, err = d.db.Exec(`
+		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+	`, userModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+
+	return err
 }
 
 // GetExchanges 获取用户的交易所配置

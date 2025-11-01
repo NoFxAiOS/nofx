@@ -57,7 +57,7 @@ export function LoginPage() {
         isHomePage={false}
         currentPage="login"
         language={language}
-        onLanguageChange={(lang) => {}}
+        onLanguageChange={() => {}}
         onPageChange={(page) => {
           console.log('LoginPage onPageChange called with:', page);
           if (page === 'competition') {

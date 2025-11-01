@@ -1,22 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Menu, X, ChevronDown } from 'lucide-react'
-import { t } from '../../i18n/translations'
+import { t, type Language } from '../../i18n/translations'
 
 interface HeaderBarProps {
-  onLoginClick: () => void
+  onLoginClick?: () => void
   isLoggedIn?: boolean
   isHomePage?: boolean
   currentPage?: string
-  language?: string
-  onLanguageChange?: (lang: string) => void
+  language?: Language
+  onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
   isAdminMode?: boolean
   onPageChange?: (page: string) => void
 }
 
-export default function HeaderBar({ onLoginClick, isLoggedIn = false, isHomePage = false, currentPage, language = 'zh', onLanguageChange, user, onLogout, isAdminMode = false, onPageChange }: HeaderBarProps) {
+export default function HeaderBar({ isLoggedIn = false, isHomePage = false, currentPage, language = 'zh' as Language, onLanguageChange, user, onLogout, isAdminMode = false, onPageChange }: HeaderBarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)

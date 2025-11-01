@@ -8,13 +8,11 @@ import { RegisterPage } from './components/RegisterPage';
 import { CompetitionPage } from './components/CompetitionPage';
 import { LandingPage } from './pages/LandingPage';
 import HeaderBar from './components/landing/HeaderBar';
-import LoginModal from './components/landing/LoginModal';
 import AILearning from './components/AILearning';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
 import { useSystemConfig } from './hooks/useSystemConfig';
-import { Zap } from 'lucide-react';
 import type {
   SystemStatus,
   AccountInfo,
@@ -45,7 +43,6 @@ function App() {
   const { user, token, logout, isLoading } = useAuth();
   const { config: systemConfig, loading: configLoading } = useSystemConfig();
   const [route, setRoute] = useState(window.location.pathname);
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // 从URL路径读取初始页面状态（支持刷新保持页面）
   const getInitialPage = (): Page => {
@@ -216,7 +213,7 @@ function App() {
     return (
       <div className="min-h-screen" style={{ background: '#000000', color: '#EAECEF' }}>
         <HeaderBar 
-          onLoginClick={() => setShowLoginModal(true)} 
+ 
           isLoggedIn={!!user} 
           currentPage="competition"
           language={language}
@@ -269,7 +266,7 @@ function App() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--brand-black)', color: 'var(--brand-light-gray)' }}>
       <HeaderBar 
-        onLoginClick={() => setShowLoginModal(true)} 
+ 
         isLoggedIn={!!user} 
         isHomePage={false}
         currentPage={currentPage}

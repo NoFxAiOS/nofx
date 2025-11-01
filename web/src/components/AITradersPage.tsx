@@ -18,12 +18,6 @@ function getModelDisplayName(modelId: string): string {
       return 'Qwen';
     case 'claude':
       return 'Claude';
-    case 'gpt4':
-    case 'gpt-4':
-      return 'GPT-4';
-    case 'gpt3.5':
-    case 'gpt-3.5':
-      return 'GPT-3.5';
     default:
       return modelId.toUpperCase();
   }
@@ -1060,7 +1054,7 @@ function ModelConfigModal({
                   type="text"
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
-                  placeholder="例如: deepseek-chat, qwen-plus, gpt-4"
+                  placeholder="例如: deepseek-chat, qwen-max, gpt-5"
                   className="w-full px-3 py-2 rounded"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                 />

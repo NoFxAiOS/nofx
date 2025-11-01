@@ -94,7 +94,9 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 
 		var aiModelCfg *config.AIModelConfig
 		for _, model := range aiModels {
-			if model.ID == traderCfg.AIModelID {
+			// 使用 provider 来匹配，因为 AIModelID 存储的是 provider（如 "deepseek"）
+			// 而 model.ID 可能是 "admin_deepseek"
+			if model.Provider == traderCfg.AIModelID {
 				aiModelCfg = model
 				break
 			}
@@ -202,6 +204,8 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		UseQwen:               aiModelCfg.Provider == "qwen",
 		DeepSeekKey:           "",
 		QwenKey:               "",
+		CustomAPIURL:          aiModelCfg.CustomAPIURL,    // 自定义API URL
+		CustomModelName:       aiModelCfg.CustomModelName, // 自定义模型名称
 		ScanInterval:          time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
 		InitialBalance:        traderCfg.InitialBalance,
 		BTCETHLeverage:        traderCfg.BTCETHLeverage,
@@ -306,6 +310,8 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		UseQwen:               aiModelCfg.Provider == "qwen",
 		DeepSeekKey:           "",
 		QwenKey:               "",
+		CustomAPIURL:          aiModelCfg.CustomAPIURL,    // 自定义API URL
+		CustomModelName:       aiModelCfg.CustomModelName, // 自定义模型名称
 		ScanInterval:          time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
 		InitialBalance:        traderCfg.InitialBalance,
 		BTCETHLeverage:        traderCfg.BTCETHLeverage,
@@ -616,7 +622,8 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 
 		var aiModelCfg *config.AIModelConfig
 		for _, model := range aiModels {
-			if model.ID == traderCfg.AIModelID {
+			// 使用 provider 来匹配，因为 AIModelID 存储的是 provider（如 "deepseek"）
+			if model.Provider == traderCfg.AIModelID {
 				aiModelCfg = model
 				break
 			}

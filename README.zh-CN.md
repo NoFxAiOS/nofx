@@ -26,21 +26,16 @@
 
 ### 👥 核心团队
 
-- **Tinkle** - 技术与开发者关系负责人
-  - 负责所有技术开发和架构设计
-  - 建设开发者社区
-  - Twitter/X: [@Web3Tinkle](https://x.com/Web3Tinkle)
-
-- **Zack** - 市场与融资负责人
-  - 负责市场战略和业务拓展
-  - 管理融资和投资者关系
-  - Twitter/X: [@0x_ZackH](https://x.com/0x_ZackH)
+- **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **Zack** - [@0x_ZackH](https://x.com/0x_ZackH)
 
 ### 💼 种子轮融资进行中
 
 我们正在进行**种子轮融资**。
 
-**投资咨询请联系 Zack**，通过 Twitter 私信。
+**投资咨询**，请通过 Twitter 私信联系 **Tinkle** 或 **Zack**。
+
+**商务合作**，请私信官方推特 [@nofx_ai](https://x.com/nofx_ai)。
 
 ---
 

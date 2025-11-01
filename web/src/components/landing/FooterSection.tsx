@@ -1,6 +1,5 @@
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
-import { getExchangeIcon } from '../ExchangeIcons'
 
 export default function FooterSection() {
   const { language } = useLanguage()
@@ -38,27 +37,18 @@ export default function FooterSection() {
 
           <div>
             <h3 className="text-sm font-semibold mb-3" style={{ color: '#EAECEF' }}>支持方</h3>
-            <ul className="space-y-3 text-sm" style={{ color: '#848E9C' }}>
+            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
               <li>
-                <a className="hover:text-[#F0B90B] inline-flex items-center gap-2" href="https://aster.network/" target="_blank" rel="noopener noreferrer">
-                  <span className="inline-flex items-center" style={{ width: 20, height: 20 }}>
-                    {getExchangeIcon('aster', { width: 20, height: 20 })}
-                  </span>
-                  Aster DEX
-                </a>
+                <a className="hover:text-[#F0B90B]" href="https://aster.network/" target="_blank" rel="noopener noreferrer">Aster DEX</a>
               </li>
               <li>
-                <a className="hover:text-[#F0B90B] inline-flex items-center gap-2" href="https://www.binance.com/" target="_blank" rel="noopener noreferrer">
-                  <span className="inline-flex items-center" style={{ width: 20, height: 20 }}>
-                    {getExchangeIcon('binance', { width: 20, height: 20 })}
-                  </span>
-                  Binance
-                </a>
+                <a className="hover:text-[#F0B90B]" href="https://www.binance.com/" target="_blank" rel="noopener noreferrer">Binance</a>
               </li>
               <li>
-                <a className="hover:text-[#F0B90B] inline-flex items-center gap-2" href="https://amber.ac/" target="_blank" rel="noopener noreferrer">
-                  Amber.ac <span className="opacity-70">(战略投资)</span>
-                </a>
+                <a className="hover:text-[#F0B90B]" href="https://hyperliquid.xyz/" target="_blank" rel="noopener noreferrer">Hyperliquid</a>
+              </li>
+              <li>
+                <a className="hover:text-[#F0B90B]" href="https://amber.ac/" target="_blank" rel="noopener noreferrer">Amber.ac <span className="opacity-70">(战略投资)</span></a>
               </li>
             </ul>
           </div>

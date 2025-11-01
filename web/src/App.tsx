@@ -12,6 +12,7 @@ import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
 import { useSystemConfig } from './hooks/useSystemConfig';
+import { Zap } from 'lucide-react';
 import type {
   SystemStatus,
   AccountInfo,
@@ -260,7 +261,8 @@ function App() {
               {/* Admin Mode Indicator */}
               {systemConfig?.admin_mode && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <span className="text-sm font-semibold" style={{ color: '#F0B90B' }}>⚡ {t('adminMode', language)}</span>
+                  <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                  <span className="text-sm font-semibold" style={{ color: '#F0B90B' }}>{t('adminMode', language)}</span>
                 </div>
               )}
 

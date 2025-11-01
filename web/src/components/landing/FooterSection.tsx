@@ -5,35 +5,52 @@ export default function FooterSection() {
   const { language } = useLanguage()
   return (
     <footer style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}>
-      <div className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm" style={{ color: '#5E6673' }}>
-        <p>{t('footerTitle', language)}</p>
-        <p className="mt-1">{t('footerWarning', language)}</p>
-        <div className="mt-4">
-          <a
-            href="https://github.com/tinkle-community/nofx"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-            style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#2B3139'
-              e.currentTarget.style.color = '#EAECEF'
-              e.currentTarget.style.borderColor = '#F0B90B'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#1E2329'
-              e.currentTarget.style.color = '#848E9C'
-              e.currentTarget.style.borderColor = '#2B3139'
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-            GitHub
-          </a>
+      <div className="max-w-[1200px] mx-auto px-6 py-10">
+        {/* Multi-link columns */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8">
+          <div>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: '#EAECEF' }}>链接</h3>
+            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
+              <li><a className="hover:text-[#F0B90B]" href="https://github.com/tinkle-community/nofx" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="https://t.me/nofx_dev_community" target="_blank" rel="noopener noreferrer">Telegram</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="https://x.com/nofx_ai" target="_blank" rel="noopener noreferrer">X (Twitter)</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: '#EAECEF' }}>资源</h3>
+            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
+              <li><a className="hover:text-[#F0B90B]" href="/README.zh-CN.md" target="_blank" rel="noopener noreferrer">文档</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="/DOCKER_DEPLOY.md" target="_blank" rel="noopener noreferrer">Docker 部署</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="/PM2_DEPLOYMENT.md" target="_blank" rel="noopener noreferrer">PM2 部署</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: '#EAECEF' }}>产品</h3>
+            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
+              <li><a className="hover:text-[#F0B90B]" href="#how-it-works">如何开始</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="#features">核心功能</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="#">开源生态</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: '#EAECEF' }}>支持</h3>
+            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
+              <li><a className="hover:text-[#F0B90B]" href="/README.zh-CN.md#%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98" target="_blank" rel="noopener noreferrer">常见问题</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="https://github.com/tinkle-community/nofx/issues" target="_blank" rel="noopener noreferrer">报告问题</a></li>
+              <li><a className="hover:text-[#F0B90B]" href="/README.md#contributing" target="_blank" rel="noopener noreferrer">贡献指南</a></li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom note */}
+        <div className="pt-8 mt-8 text-center text-xs" style={{ color: '#5E6673', borderTop: '1px solid #2B3139' }}>
+          <p>{t('footerTitle', language)}</p>
+          <p className="mt-1">{t('footerWarning', language)}</p>
         </div>
       </div>
     </footer>
   )
 }
-

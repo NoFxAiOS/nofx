@@ -179,7 +179,7 @@ function App() {
                style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
             ⚡
           </div>
-          <p style={{ color: '#EAECEF' }}>加载中...</p>
+          <p style={{ color: '#EAECEF' }}>{t('loading', language)}</p>
         </div>
       </div>
     );
@@ -299,7 +299,7 @@ function App() {
                   className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
                   style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }}
                 >
-                  退出
+                  {t('logout', language)}
                 </button>
               )}
             </div>

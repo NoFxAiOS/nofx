@@ -6,6 +6,7 @@ import (
 	"encoding/base32"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -123,6 +124,15 @@ func (d *Database) createTables() error {
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		// 内测码表
+		`CREATE TABLE IF NOT EXISTS beta_codes (
+			code TEXT PRIMARY KEY,
+			used BOOLEAN DEFAULT 0,
+			used_by TEXT DEFAULT '',
+			used_at DATETIME DEFAULT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
 		// 触发器：自动更新 updated_at
@@ -246,6 +256,7 @@ func (d *Database) initDefaultData() error {
 	// 初始化系统配置 - 创建所有字段，设置默认值，后续由config.json同步更新
 	systemConfigs := map[string]string{
 		"admin_mode":            "true",                                                               // 默认开启管理员模式，便于首次使用
+		"beta_mode":             "false",                                                             // 默认关闭内测模式
 		"api_server_port":       "8080",                                                              // 默认API端口
 		"use_default_coins":     "true",                                                              // 默认使用内置币种列表
 		"default_coins":         `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`, // 默认币种列表（JSON格式）
@@ -943,4 +954,106 @@ func (d *Database) UpdateUserSignalSource(userID, coinPoolURL, oiTopURL string) 
 // Close 关闭数据库连接
 func (d *Database) Close() error {
 	return d.db.Close()
+}
+
+// LoadBetaCodesFromFile 从文件加载内测码到数据库
+func (d *Database) LoadBetaCodesFromFile(filePath string) error {
+	// 读取文件内容
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("读取内测码文件失败: %w", err)
+	}
+
+	// 按行分割内测码
+	lines := strings.Split(string(content), "\n")
+	var codes []string
+	for _, line := range lines {
+		code := strings.TrimSpace(line)
+		if code != "" && !strings.HasPrefix(code, "#") {
+			codes = append(codes, code)
+		}
+	}
+
+	// 批量插入内测码
+	tx, err := d.db.Begin()
+	if err != nil {
+		return fmt.Errorf("开始事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO beta_codes (code) VALUES (?)`)
+	if err != nil {
+		return fmt.Errorf("准备语句失败: %w", err)
+	}
+	defer stmt.Close()
+
+	insertedCount := 0
+	for _, code := range codes {
+		result, err := stmt.Exec(code)
+		if err != nil {
+			log.Printf("插入内测码 %s 失败: %v", code, err)
+			continue
+		}
+		
+		if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
+			insertedCount++
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	log.Printf("✅ 成功加载 %d 个内测码到数据库 (总计 %d 个)", insertedCount, len(codes))
+	return nil
+}
+
+// ValidateBetaCode 验证内测码是否有效且未使用
+func (d *Database) ValidateBetaCode(code string) (bool, error) {
+	var used bool
+	err := d.db.QueryRow(`SELECT used FROM beta_codes WHERE code = ?`, code).Scan(&used)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // 内测码不存在
+		}
+		return false, err
+	}
+	return !used, nil // 内测码存在且未使用
+}
+
+// UseBetaCode 使用内测码（标记为已使用）
+func (d *Database) UseBetaCode(code, userEmail string) error {
+	result, err := d.db.Exec(`
+		UPDATE beta_codes SET used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP 
+		WHERE code = ? AND used = 0
+	`, userEmail, code)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("内测码无效或已被使用")
+	}
+
+	return nil
+}
+
+// GetBetaCodeStats 获取内测码统计信息
+func (d *Database) GetBetaCodeStats() (total, used int, err error) {
+	err = d.db.QueryRow(`SELECT COUNT(*) FROM beta_codes`).Scan(&total)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	err = d.db.QueryRow(`SELECT COUNT(*) FROM beta_codes WHERE used = 1`).Scan(&used)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return total, used, nil
 }

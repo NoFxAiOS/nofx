@@ -6,7 +6,7 @@ import { AITradersPage } from './components/AITradersPage';
 import { LoginPage } from './components/LoginPage';
 import { RegisterPage } from './components/RegisterPage';
 import { CompetitionPage } from './components/CompetitionPage';
-import { LandingPage } from './components/LandingPage';
+import { LandingPage } from './pages/LandingPage';
 import AILearning from './components/AILearning';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';

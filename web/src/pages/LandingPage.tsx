@@ -13,8 +13,8 @@ import {
   Lock,
   Cpu,
 } from 'lucide-react'
-import { CryptoFeatureCard } from './CryptoFeatureCard'
-import Typewriter from './Typewriter'
+import { CryptoFeatureCard } from '../components/CryptoFeatureCard'
+import Typewriter from '../components/Typewriter'
 
 // Animation variants
 const fadeInUp = {
@@ -37,13 +37,7 @@ const staggerContainer = {
   },
 }
 
-const floatingAnimation = {
-  y: [0, -20, 0],
-  transition: {
-    duration: 3,
-    repeat: Infinity,
-  },
-}
+// removed floatingAnimation to match simplified style
 
 export function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)

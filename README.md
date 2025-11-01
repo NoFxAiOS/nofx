@@ -26,21 +26,16 @@
 
 ### 👥 Core Team
 
-- **Tinkle** - Technology & Developer Relations
-  - Leading all technical development and architecture
-  - Building the developer community
-  - Twitter/X: [@Web3Tinkle](https://x.com/Web3Tinkle)
-
-- **Zack** - Market & Fundraising
-  - Leading market strategy and business development
-  - Managing fundraising and investor relations
-  - Twitter/X: [@0x_ZackH](https://x.com/0x_ZackH)
+- **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **Zack** - [@0x_ZackH](https://x.com/0x_ZackH)
 
 ### 💼 Seed Funding Round Open
 
 We are currently raising our **seed round**. 
 
-**For investment inquiries, please contact Zack** via Twitter DM.
+**For investment inquiries**, please DM **Tinkle** or **Zack** via Twitter.
+
+**For partnerships and collaborations**, please DM our official Twitter [@nofx_ai](https://x.com/nofx_ai).
 
 ---
 

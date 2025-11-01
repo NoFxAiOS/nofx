@@ -60,7 +60,6 @@ export function LandingPage() {
         color: 'var(--brand-light-gray)',
       }}
     >
-
       {/* Navbar */}
       <nav className='fixed top-0 w-full z-50 header-bar'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
@@ -226,7 +225,9 @@ export function LandingPage() {
               >
                 Read the Market.
                 <br />
-                <span style={{ color: 'var(--brand-yellow)' }}>Write the Trade.</span>
+                <span style={{ color: 'var(--brand-yellow)' }}>
+                  Write the Trade.
+                </span>
               </h1>
 
               <motion.p
@@ -292,30 +293,14 @@ export function LandingPage() {
             </motion.div>
 
             {/* Right Content - Visual */}
-            <motion.div
-              className='relative'
-              initial={{ opacity: 0, x: 100 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
-              <motion.div
-                className='rounded-2xl p-8 relative z-10'
-                style={{
-                  background: 'var(--panel-bg)',
-                  border: '1px solid var(--panel-border)',
-                }}
-                animate={floatingAnimation}
-              >
-                <motion.img
-                  src='/images/main.png'
-                  alt='NOFX Platform'
-                  className='w-full opacity-90'
-                  whileHover={{ scale: 1.05, rotate: 5 }}
-                  transition={{ type: 'spring', stiffness: 300 }}
-                />
-              </motion.div>
 
-            </motion.div>
+            <motion.img
+              src='/images/main.png'
+              alt='NOFX Platform'
+              className='w-full opacity-90'
+              whileHover={{ scale: 1.05, rotate: 5 }}
+              transition={{ type: 'spring', stiffness: 300 }}
+            />
           </div>
         </div>
 
@@ -426,7 +411,10 @@ export function LandingPage() {
                   typingSpeed={70}
                   lineDelay={900}
                   className='text-sm font-mono'
-                  style={{ color: '#00FF41', textShadow: '0 0 6px rgba(0,255,65,0.6)' }}
+                  style={{
+                    color: '#00FF41',
+                    textShadow: '0 0 6px rgba(0,255,65,0.6)',
+                  }}
                 />
               </div>
             </div>
@@ -766,7 +754,12 @@ export function LandingPage() {
               },
               {
                 title: '支持方',
-                items: ['Aster DEX', 'Binance', 'Amber.ac (战略投资)'],
+                items: [
+                  'Aster DEX',
+                  'Binance',
+                  'HyperLiquid',
+                  'Amber.ac (战略投资)',
+                ],
               },
             ].map((section, index) => (
               <motion.div

@@ -122,7 +122,7 @@ export function RegisterPage() {
         </div>
 
         {/* Registration Form */}
-        <div className="rounded-lg p-6" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
+        <div className="rounded-lg p-6" style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)' }}>
           {step === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>

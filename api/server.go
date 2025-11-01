@@ -166,8 +166,13 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 		altcoinLeverage = val
 	}
 	
+	// 获取内测模式配置
+	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+	betaMode := betaModeStr == "true"
+
 	c.JSON(http.StatusOK, gin.H{
 		"admin_mode": auth.IsAdminMode(),
+		"beta_mode": betaMode,
 		"default_coins": defaultCoins,
 		"btc_eth_leverage": btcEthLeverage,
 		"altcoin_leverage": altcoinLeverage,
@@ -1168,11 +1173,33 @@ func (s *Server) handleRegister(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`
+		BetaCode string `json:"beta_code"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 检查是否开启了内测模式
+	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+	if betaModeStr == "true" {
+		// 内测模式下必须提供有效的内测码
+		if req.BetaCode == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "内测期间，注册需要提供内测码"})
+			return
+		}
+
+		// 验证内测码
+		isValid, err := s.database.ValidateBetaCode(req.BetaCode)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "验证内测码失败"})
+			return
+		}
+		if !isValid {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "内测码无效或已被使用"})
+			return
+		}
 	}
 
 	// 检查邮箱是否已存在
@@ -1210,6 +1237,18 @@ func (s *Server) handleRegister(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
 		return
+	}
+
+	// 如果是内测模式，标记内测码为已使用
+	betaModeStr2, _ := s.database.GetSystemConfig("beta_mode")
+	if betaModeStr2 == "true" && req.BetaCode != "" {
+		err := s.database.UseBetaCode(req.BetaCode, req.Email)
+		if err != nil {
+			log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
+			// 这里不返回错误，因为用户已经创建成功
+		} else {
+			log.Printf("✓ 内测码 %s 已被用户 %s 使用", req.BetaCode, req.Email)
+		}
 	}
 
 	// 返回OTP设置信息

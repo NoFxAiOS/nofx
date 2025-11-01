@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
+import { getSystemConfig } from '../lib/config';
 
 export function RegisterPage() {
   const { language } = useLanguage();
@@ -10,12 +11,23 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [betaCode, setBetaCode] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [userID, setUserID] = useState('');
   const [otpSecret, setOtpSecret] = useState('');
   const [qrCodeURL, setQrCodeURL] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [betaMode, setBetaMode] = useState(false);
+
+  useEffect(() => {
+    // 获取系统配置，检查是否开启内测模式
+    getSystemConfig().then(config => {
+      setBetaMode(config.beta_mode || false);
+    }).catch(err => {
+      console.error('Failed to fetch system config:', err);
+    });
+  }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,9 +43,14 @@ export function RegisterPage() {
       return;
     }
 
+    if (betaMode && !betaCode.trim()) {
+      setError('内测期间，注册需要提供内测码');
+      return;
+    }
+
     setLoading(true);
 
-    const result = await register(email, password);
+    const result = await register(email, password, betaCode.trim() || undefined);
     
     if (result.success && result.userID) {
       setUserID(result.userID);
@@ -137,6 +154,27 @@ export function RegisterPage() {
                 />
               </div>
 
+              {betaMode && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                    内测码 *
+                  </label>
+                  <input
+                    type="text"
+                    value={betaCode}
+                    onChange={(e) => setBetaCode(e.target.value.replace(/[^a-z0-9]/gi, '').toLowerCase())}
+                    className="w-full px-3 py-2 rounded font-mono"
+                    style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    placeholder="请输入6位内测码"
+                    maxLength={6}
+                    required={betaMode}
+                  />
+                  <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                    内测码由6位字母数字组成，区分大小写
+                  </p>
+                </div>
+              )}
+
               {error && (
                 <div className="text-sm px-3 py-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
                   {error}
@@ -145,7 +183,7 @@ export function RegisterPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (betaMode && !betaCode.trim())}
                 className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
                 style={{ background: '#F0B90B', color: '#000' }}
               >

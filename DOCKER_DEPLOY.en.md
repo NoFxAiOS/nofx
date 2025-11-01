@@ -41,7 +41,7 @@ newgrp docker
 
 # Verify installation (new command)
 docker --version
-docker compose --version  # Docker 24+ includes this, no separate installation needed
+docker compose version  # Docker 24+ includes this, no separate installation needed
 ```
 
 ## 🚀 Quick Start (3 Steps)

@@ -131,19 +131,19 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleCreateTrader = async (data: CreateTraderRequest) => {
     try {
-      const model = allModels?.find(m => m.id === data.ai_model_id);
+      const model = allModels?.find(m => m.provider === data.ai_model_id);
       const exchange = allExchanges?.find(e => e.id === data.exchange_id);
-      
+
       if (!model?.enabled) {
         alert(t('modelNotConfigured', language));
         return;
       }
-      
+
       if (!exchange?.enabled) {
         alert(t('exchangeNotConfigured', language));
         return;
       }
-      
+
       await api.createTrader(data);
       setShowCreateModal(false);
       mutateTraders();
@@ -166,9 +166,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleSaveEditTrader = async (data: CreateTraderRequest) => {
     if (!editingTrader) return;
-    
+
     try {
-      const model = enabledModels?.find(m => m.id === data.ai_model_id);
+      const model = enabledModels?.find(m => m.provider === data.ai_model_id);
       const exchange = enabledExchanges?.find(e => e.id === data.exchange_id);
 
       if (!model) {
@@ -248,24 +248,26 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleDeleteModelConfig = async (modelId: string) => {
     if (!confirm(t('confirmDeleteModel', language))) return;
-    
+
     try {
-      const updatedModels = allModels?.map(m => 
-        m.id === modelId ? { ...m, apiKey: '', enabled: false } : m
+      const updatedModels = allModels?.map(m =>
+        m.id === modelId ? { ...m, apiKey: '', customApiUrl: '', customModelName: '', enabled: false } : m
       ) || [];
-      
+
       const request = {
         models: Object.fromEntries(
           updatedModels.map(model => [
-            model.id,
+            model.provider, // 使用 provider 而不是 id
             {
               enabled: model.enabled,
-              api_key: model.apiKey || ''
+              api_key: model.apiKey || '',
+              custom_api_url: model.customApiUrl || '',
+              custom_model_name: model.customModelName || ''
             }
           ])
         )
       };
-      
+
       await api.updateModelConfigs(request);
       setAllModels(updatedModels);
       setShowModelModal(false);
@@ -276,7 +278,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   };
 
-  const handleSaveModelConfig = async (modelId: string, apiKey: string, customApiUrl?: string) => {
+  const handleSaveModelConfig = async (modelId: string, apiKey: string, customApiUrl?: string, customModelName?: string) => {
     try {
       // 找到要配置的模型（从supportedModels中）
       const modelToUpdate = supportedModels?.find(m => m.id === modelId);
@@ -288,37 +290,38 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       // 创建或更新用户的模型配置
       const existingModel = allModels?.find(m => m.id === modelId);
       let updatedModels;
-      
+
       if (existingModel) {
         // 更新现有配置
-        updatedModels = allModels?.map(m => 
-          m.id === modelId ? { ...m, apiKey, customApiUrl: customApiUrl || '', enabled: true } : m
+        updatedModels = allModels?.map(m =>
+          m.id === modelId ? { ...m, apiKey, customApiUrl: customApiUrl || '', customModelName: customModelName || '', enabled: true } : m
         ) || [];
       } else {
         // 添加新配置
-        const newModel = { ...modelToUpdate, apiKey, customApiUrl: customApiUrl || '', enabled: true };
+        const newModel = { ...modelToUpdate, apiKey, customApiUrl: customApiUrl || '', customModelName: customModelName || '', enabled: true };
         updatedModels = [...(allModels || []), newModel];
       }
-      
+
       const request = {
         models: Object.fromEntries(
           updatedModels.map(model => [
-            model.id,
+            model.provider, // 使用 provider 而不是 id
             {
               enabled: model.enabled,
               api_key: model.apiKey || '',
-              custom_api_url: model.customApiUrl || ''
+              custom_api_url: model.customApiUrl || '',
+              custom_model_name: model.customModelName || ''
             }
           ])
         )
       };
-      
+
       await api.updateModelConfigs(request);
-      
+
       // 重新获取用户配置以确保数据同步
       const refreshedModels = await api.getModelConfigs();
       setAllModels(refreshedModels);
-      
+
       setShowModelModal(false);
       setEditingModel(null);
     } catch (error) {
@@ -910,7 +913,7 @@ function ModelConfigModal({
   allModels: AIModel[];
   configuredModels: AIModel[];
   editingModelId: string | null;
-  onSave: (modelId: string, apiKey: string, baseUrl?: string) => void;
+  onSave: (modelId: string, apiKey: string, baseUrl?: string, modelName?: string) => void;
   onDelete: (modelId: string) => void;
   onClose: () => void;
   language: Language;
@@ -918,25 +921,27 @@ function ModelConfigModal({
   const [selectedModelId, setSelectedModelId] = useState(editingModelId || '');
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
+  const [modelName, setModelName] = useState('');
 
   // 获取当前编辑的模型信息 - 编辑时从已配置的模型中查找，新建时从所有支持的模型中查找
-  const selectedModel = editingModelId 
-    ? configuredModels?.find(m => m.id === selectedModelId) 
+  const selectedModel = editingModelId
+    ? configuredModels?.find(m => m.id === selectedModelId)
     : allModels?.find(m => m.id === selectedModelId);
 
-  // 如果是编辑现有模型，初始化API Key和Base URL
+  // 如果是编辑现有模型，初始化API Key、Base URL和Model Name
   useEffect(() => {
     if (editingModelId && selectedModel) {
       setApiKey(selectedModel.apiKey || '');
       setBaseUrl(selectedModel.customApiUrl || '');
+      setModelName(selectedModel.customModelName || '');
     }
   }, [editingModelId, selectedModel]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedModelId || !apiKey.trim()) return;
-    
-    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined);
+
+    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined);
   };
 
   // 可选择的模型列表（所有支持的模型）
@@ -1044,6 +1049,23 @@ function ModelConfigModal({
                 />
                 <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
                   {t('leaveBlankForDefault', language)}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                  Model Name (可选)
+                </label>
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder="例如: deepseek-chat, qwen-plus, gpt-4"
+                  className="w-full px-3 py-2 rounded"
+                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                />
+                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                  留空使用默认模型名称
                 </div>
               </div>
 

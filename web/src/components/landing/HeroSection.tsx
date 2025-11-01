@@ -1,10 +1,16 @@
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { motion, useScroll, useTransform, useAnimation } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
+import { t, Language } from '../../i18n/translations'
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  language: Language
+}
+
+export default function HeroSection({ language }: HeroSectionProps) {
   const { scrollYProgress } = useScroll()
   const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0])
   const scale = useTransform(scrollYProgress, [0, 0.2], [1, 0.8])
+  const handControls = useAnimation()
 
   const fadeInUp = {
     initial: { opacity: 0, y: 60 },
@@ -27,40 +33,39 @@ export default function HeroSection() {
               >
                 <Sparkles className='w-4 h-4' style={{ color: 'var(--brand-yellow)' }} />
                 <span className='text-sm font-semibold' style={{ color: 'var(--brand-yellow)' }}>
-                  3 天内 2.5K+ GitHub Stars
+{t('githubStarsInDays', language)}
                 </span>
               </motion.div>
             </motion.div>
 
             <h1 className='text-5xl lg:text-7xl font-bold leading-tight' style={{ color: 'var(--brand-light-gray)' }}>
-              Read the Market.
+              {t('heroTitle1', language)}
               <br />
-              <span style={{ color: 'var(--brand-yellow)' }}>Write the Trade.</span>
+              <span style={{ color: 'var(--brand-yellow)' }}>{t('heroTitle2', language)}</span>
             </h1>
 
             <motion.p className='text-xl leading-relaxed' style={{ color: 'var(--text-secondary)' }} variants={fadeInUp}>
-              NOFX 是 AI 交易的未来标准——一个开放、社区驱动的代理式交易操作系统。支持 Binance、Aster DEX 等交易所，
-              自托管、多代理竞争，让 AI 为你自动决策、执行和优化交易。
+              {t('heroDescription', language)}
             </motion.p>
 
             <div className='flex items-center gap-3 flex-wrap'>
               <motion.a href='https://github.com/tinkle-community/nofx' target='_blank' rel='noopener noreferrer' whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 400 }}>
                 <img
-                  src='https://img.shields.io/github/stars/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=1E2329'
+                  src='https://img.shields.io/github/stars/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=0A0A0A'
                   alt='GitHub Stars'
                   className='h-7'
                 />
               </motion.a>
               <motion.a href='https://github.com/tinkle-community/nofx/network/members' target='_blank' rel='noopener noreferrer' whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 400 }}>
                 <img
-                  src='https://img.shields.io/github/forks/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=1E2329'
+                  src='https://img.shields.io/github/forks/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=0A0A0A'
                   alt='GitHub Forks'
                   className='h-7'
                 />
               </motion.a>
               <motion.a href='https://github.com/tinkle-community/nofx/graphs/contributors' target='_blank' rel='noopener noreferrer' whileHover={{ scale: 1.05 }} transition={{ type: 'spring', stiffness: 400 }}>
                 <img
-                  src='https://img.shields.io/github/contributors/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=1E2329'
+                  src='https://img.shields.io/github/contributors/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=0A0A0A'
                   alt='GitHub Contributors'
                   className='h-7'
                 />
@@ -68,12 +73,62 @@ export default function HeroSection() {
             </div>
 
             <motion.p className='text-xs pt-4' style={{ color: 'var(--text-tertiary)' }} variants={fadeInUp}>
-              由 Aster DEX 和 Binance 提供支持，Amber.ac 战略投资。
+{t('poweredBy', language)}
             </motion.p>
           </motion.div>
 
-          {/* Right Visual */}
-          <motion.img src='/images/main.png' alt='NOFX Platform' className='w-full opacity-90' whileHover={{ scale: 1.05, rotate: 5 }} transition={{ type: 'spring', stiffness: 300 }} />
+          {/* Right Visual - Interactive Robot */}
+          <div 
+            className='relative w-full cursor-pointer'
+            onMouseEnter={() => {
+              handControls.start({
+                y: [-8, 8, -8],
+                rotate: [-3, 3, -3],
+                x: [-2, 2, -2],
+                transition: {
+                  duration: 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  times: [0, 0.5, 1]
+                }
+              })
+            }}
+            onMouseLeave={() => {
+              handControls.start({
+                y: 0,
+                rotate: 0,
+                x: 0,
+                transition: {
+                  duration: 0.6,
+                  ease: "easeOut"
+                }
+              })
+            }}
+          >
+            {/* Background Layer */}
+            <motion.img 
+              src='/images/hand-bg.png' 
+              alt='NOFX Platform Background' 
+              className='w-full opacity-90'
+              style={{ opacity, scale }}
+              whileHover={{ scale: 1.02 }}
+              transition={{ type: 'spring', stiffness: 300 }}
+            />
+            
+            {/* Hand Layer - Animated */}
+            <motion.img 
+              src='/images/hand.png' 
+              alt='Robot Hand' 
+              className='absolute top-0 left-0 w-full'
+              style={{ opacity }}
+              animate={handControls}
+              initial={{ y: 0, rotate: 0, x: 0 }}
+              whileHover={{
+                scale: 1.05,
+                transition: { type: 'spring', stiffness: 400 }
+              }}
+            />
+          </div>
         </div>
       </div>
     </section>

@@ -5,11 +5,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 强制显示滚动条以确保所有页面布局一致 */
+html {
+  overflow-y: scroll;
+}
+
 :root {
   /* Binance Brand Colors */
   --brand-yellow: #F0B90B;
-  --brand-black: #0C0E12;
-  --brand-dark-gray: #1E2329;
+  --brand-black: #000000;
+  --brand-dark-gray: #0A0A0A;
   --brand-light-gray: #EAECEF;
   --brand-almost-white: #FAFAFA;
   --brand-white: #FFFFFF;
@@ -20,14 +25,14 @@
   --binance-yellow-light: #FCD535;
   --binance-yellow-glow: rgba(240, 185, 11, 0.2);
 
-  --background: #181A20; /* Binance body bg */
-  --header-bg: #0B0E11;  /* Binance header bg */
-  --background-elevated: #181A20;
+  --background: #000000; /* Binance body bg */
+  --header-bg: #000000;  /* Binance header bg */
+  --background-elevated: #000000;
   --foreground: #EAECEF;
-  --panel-bg: #1E2329;
-  --panel-bg-hover: #252930;
-  --panel-border: #2B3139;
-  --panel-border-hover: #474D57;
+  --panel-bg: #0A0A0A;
+  --panel-bg-hover: #111111;
+  --panel-border: #1A1A1A;
+  --panel-border-hover: #2A2A2A;
 
   /* Binance Signature Colors */
   --binance-green: #0ECB81;
@@ -44,7 +49,7 @@
   --text-disabled: #474D57;
 
   /* Chart Colors */
-  --grid-stroke: #2B3139;
+  --grid-stroke: #1A1A1A;
   --axis-tick: #5E6673;
   --ref-line: #474D57;
 

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
 import { getSystemConfig } from '../lib/config';
-import { ArrowLeft } from 'lucide-react';
+import HeaderBar from './landing/HeaderBar';
 
 export function RegisterPage() {
   const { language } = useLanguage();
@@ -13,13 +13,13 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [betaCode, setBetaCode] = useState('');
+  const [betaMode, setBetaMode] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [userID, setUserID] = useState('');
   const [otpSecret, setOtpSecret] = useState('');
   const [qrCodeURL, setQrCodeURL] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [betaMode, setBetaMode] = useState(false);
 
   useEffect(() => {
     // 获取系统配置，检查是否开启内测模式
@@ -89,27 +89,28 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
-      <div className="w-full max-w-md">
-        {/* Back to Home */}
-        {step === 'register' && (
-          <button
-            onClick={() => {
-              window.history.pushState({}, '', '/');
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }}
-            className="flex items-center gap-2 mb-6 text-sm hover:text-[#F0B90B] transition-colors"
-            style={{ color: '#848E9C' }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            返回首页
-          </button>
-        )}
+    <div className="min-h-screen" style={{ background: 'var(--brand-black)' }}>
+      <HeaderBar 
+        isLoggedIn={false} 
+        isHomePage={false}
+        currentPage="register"
+        language={language}
+        onLanguageChange={() => {}}
+        onPageChange={(page) => {
+          console.log('RegisterPage onPageChange called with:', page);
+          if (page === 'competition') {
+            window.location.href = '/competition';
+          }
+        }}
+      />
 
-        {/* Logo */}
-        <div className="text-center mb-8">
+      <div className="flex items-center justify-center pt-20" style={{ minHeight: 'calc(100vh - 80px)' }}>
+        <div className="w-full max-w-md">
+
+          {/* Logo */}
+          <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 object-contain" />
+            <img src="/icons/nofx.svg" alt="NoFx Logo" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
             {t('appTitle', language)}
@@ -122,11 +123,11 @@ export function RegisterPage() {
         </div>
 
         {/* Registration Form */}
-        <div className="rounded-lg p-6" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
+        <div className="rounded-lg p-6" style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)' }}>
           {step === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('email', language)}
                 </label>
                 <input
@@ -134,14 +135,14 @@ export function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('emailPlaceholder', language)}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('password', language)}
                 </label>
                 <input
@@ -149,14 +150,14 @@ export function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('passwordPlaceholder', language)}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('confirmPassword', language)}
                 </label>
                 <input
@@ -164,7 +165,7 @@ export function RegisterPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('confirmPasswordPlaceholder', language)}
                   required
                 />
@@ -192,7 +193,7 @@ export function RegisterPage() {
               )}
 
               {error && (
-                <div className="text-sm px-3 py-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
+                <div className="text-sm px-3 py-2 rounded" style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}>
                   {error}
                 </div>
               )}
@@ -201,7 +202,7 @@ export function RegisterPage() {
                 type="submit"
                 disabled={loading || (betaMode && !betaCode.trim())}
                 className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                style={{ background: '#F0B90B', color: '#000' }}
+                style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
               >
                 {loading ? t('loading', language) : t('registerButton', language)}
               </button>
@@ -221,21 +222,21 @@ export function RegisterPage() {
               </div>
 
               <div className="space-y-3">
-                <div className="p-3 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-                  <p className="text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                    {t('step1Title', language)}
+                <div className="p-3 rounded" style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)' }}>
+                  <p className="text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
+                    {t('authStep1Title', language)}
                   </p>
-                  <p className="text-xs" style={{ color: '#848E9C' }}>
-                    {t('step1Desc', language)}
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {t('authStep1Desc', language)}
                   </p>
                 </div>
 
-                <div className="p-3 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-                  <p className="text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                    {t('step2Title', language)}
+                <div className="p-3 rounded" style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)' }}>
+                  <p className="text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
+                    {t('authStep2Title', language)}
                   </p>
                   <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                    {t('step2Desc', language)}
+                    {t('authStep2Desc', language)}
                   </p>
                   
                   {qrCodeURL && (
@@ -252,13 +253,13 @@ export function RegisterPage() {
                     <p className="text-xs mb-1" style={{ color: '#848E9C' }}>{t('otpSecret', language)}</p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 px-2 py-1 text-xs rounded font-mono" 
-                            style={{ background: '#2B3139', color: '#EAECEF' }}>
+                            style={{ background: 'var(--panel-bg-hover)', color: 'var(--brand-light-gray)' }}>
                         {otpSecret}
                       </code>
                       <button
                         onClick={() => copyToClipboard(otpSecret)}
                         className="px-2 py-1 text-xs rounded"
-                        style={{ background: '#F0B90B', color: '#000' }}
+                        style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
                       >
                         {t('copy', language)}
                       </button>
@@ -266,12 +267,12 @@ export function RegisterPage() {
                   </div>
                 </div>
 
-                <div className="p-3 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-                  <p className="text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                    {t('step3Title', language)}
+                <div className="p-3 rounded" style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)' }}>
+                  <p className="text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
+                    {t('authStep3Title', language)}
                   </p>
-                  <p className="text-xs" style={{ color: '#848E9C' }}>
-                    {t('step3Desc', language)}
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    {t('authStep3Desc', language)}
                   </p>
                 </div>
               </div>
@@ -297,7 +298,7 @@ export function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('otpCode', language)}
                 </label>
                 <input
@@ -305,7 +306,7 @@ export function RegisterPage() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   className="w-full px-3 py-2 rounded text-center text-2xl font-mono"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('otpPlaceholder', language)}
                   maxLength={6}
                   required
@@ -313,7 +314,7 @@ export function RegisterPage() {
               </div>
 
               {error && (
-                <div className="text-sm px-3 py-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
+                <div className="text-sm px-3 py-2 rounded" style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}>
                   {error}
                 </div>
               )}
@@ -323,7 +324,7 @@ export function RegisterPage() {
                   type="button"
                   onClick={() => setStep('setup-otp')}
                   className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-                  style={{ background: '#2B3139', color: '#848E9C' }}
+                  style={{ background: 'var(--panel-bg-hover)', color: 'var(--text-secondary)' }}
                 >
                   {t('back', language)}
                 </button>
@@ -343,21 +344,22 @@ export function RegisterPage() {
         {/* Login Link */}
         {step === 'register' && (
           <div className="text-center mt-6">
-            <p className="text-sm" style={{ color: '#848E9C' }}>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               已有账户？{' '}
               <button
                 onClick={() => {
                   window.history.pushState({}, '', '/login');
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }}
-                className="font-semibold hover:underline"
-                style={{ color: '#F0B90B' }}
+                className="font-semibold hover:underline transition-colors"
+                style={{ color: 'var(--brand-yellow)' }}
               >
                 立即登录
               </button>
             </p>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

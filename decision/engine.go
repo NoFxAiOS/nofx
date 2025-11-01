@@ -71,11 +71,20 @@ type Context struct {
 // Decision AI的交易决策
 type Decision struct {
 	Symbol          string  `json:"symbol"`
-	Action          string  `json:"action"` // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+	Action          string  `json:"action"` // "open_long", "open_short", "close_long", "close_short", "update_stop_loss", "update_take_profit", "partial_close", "hold", "wait"
+
+	// 开仓参数
 	Leverage        int     `json:"leverage,omitempty"`
 	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
 	StopLoss        float64 `json:"stop_loss,omitempty"`
 	TakeProfit      float64 `json:"take_profit,omitempty"`
+
+	// 调整参数（新增）
+	NewStopLoss     float64 `json:"new_stop_loss,omitempty"`     // 用于 adjust_stop_loss
+	NewTakeProfit   float64 `json:"new_take_profit,omitempty"`   // 用于 adjust_take_profit
+	ClosePercentage float64 `json:"close_percentage,omitempty"`  // 用于 partial_close (0-100)
+
+	// 通用参数
 	Confidence      int     `json:"confidence,omitempty"` // 信心度 (0-100)
 	RiskUSD         float64 `json:"risk_usd,omitempty"`   // 最大美元风险
 	Reasoning       string  `json:"reasoning"`

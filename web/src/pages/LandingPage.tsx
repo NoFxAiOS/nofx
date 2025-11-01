@@ -9,6 +9,7 @@ import HowItWorksSection from '../components/landing/HowItWorksSection'
 import CommunitySection from '../components/landing/CommunitySection'
 import AnimatedSection from '../components/landing/AnimatedSection'
 import LoginModal from '../components/landing/LoginModal'
+import FooterSection from '../components/landing/FooterSection'
 
 export function LandingPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
@@ -45,6 +46,7 @@ export function LandingPage() {
       </AnimatedSection>
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      <FooterSection />
     </div>
   )
 }

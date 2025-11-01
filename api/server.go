@@ -754,19 +754,12 @@ func (s *Server) handleTraderList(c *gin.Context) {
 			}
 		}
 
-		// AIModelID 应该已经是 provider（如 "deepseek"），直接使用
-		// 如果是旧数据格式（如 "admin_deepseek"），提取 provider 部分
-		aiModelID := trader.AIModelID
-		// 兼容旧数据：如果包含下划线，提取最后一部分作为 provider
-		if strings.Contains(aiModelID, "_") {
-			parts := strings.Split(aiModelID, "_")
-			aiModelID = parts[len(parts)-1]
-		}
-
+		// 返回完整的 AIModelID（如 "admin_deepseek"），不要截断
+		// 前端需要完整 ID 来验证模型是否存在（与 handleGetTraderConfig 保持一致）
 		result = append(result, map[string]interface{}{
 			"trader_id":       trader.ID,
 			"trader_name":     trader.Name,
-			"ai_model":        aiModelID,
+			"ai_model":        trader.AIModelID,  // 使用完整 ID
 			"exchange_id":     trader.ExchangeID,
 			"is_running":      isRunning,
 			"initial_balance": trader.InitialBalance,

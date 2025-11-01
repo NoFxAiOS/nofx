@@ -15,6 +15,7 @@ import {
   Cpu,
 } from 'lucide-react'
 import { CryptoFeatureCard } from './CryptoFeatureCard'
+import Typewriter from './Typewriter'
 
 // Animation variants
 const fadeInUp = {
@@ -515,14 +516,19 @@ export function LandingPage() {
                   boxShadow: '0 20px 60px rgba(240, 185, 11, 0.2)',
                 }}
               >
-                <pre className='text-sm font-mono' style={{ color: '#0ECB81' }}>
-                  {`$ git clone https://github.com/...
-$ docker compose up -d
-🚀 NOFX 已启动
-✓ AI 代理运行中
-✓ 交易所已连接
-✓ 策略已激活`}
-                </pre>
+                <Typewriter
+                  lines={[
+                    '$ git clone https://github.com/tinkle-community/nofx',
+                    '$ docker compose up -d',
+                    '🚀 NOFX 已启动',
+                    '✓ AI 代理运行中',
+                    '✓ 交易所已连接',
+                    '✓ 策略已激活',
+                  ]}
+                  typingSpeed={24}
+                  lineDelay={350}
+                  className='text-sm font-mono'
+                />
               </motion.div>
             </motion.div>
           </div>

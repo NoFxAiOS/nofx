@@ -84,6 +84,10 @@ func (s *Server) setupRoutes() {
 		
 		// 系统配置（无需认证）
 		api.GET("/config", s.handleGetSystemConfig)
+		
+		// 系统提示词模板管理（无需认证）
+		api.GET("/prompt-templates", s.handleGetPromptTemplates)
+		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -110,9 +114,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
 
-			// 系统提示词模板管理
-			protected.GET("/prompt-templates", s.handleGetPromptTemplates)
-			protected.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
 
 			// 竞赛总览
 			protected.GET("/competition", s.handleCompetition)

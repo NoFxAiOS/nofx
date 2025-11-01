@@ -8,6 +8,8 @@
 
 **语言 / Languages:** [English](README.md) | [中文](README.zh-CN.md) | [Українська](README.uk.md) | [Русский](README.ru.md)
 
+**官方推特:** [@nofx_ai](https://x.com/nofx_ai)
+
 ---
 
 ## 🚀 通用AI交易操作系统

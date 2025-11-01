@@ -8,6 +8,8 @@
 
 **Languages:** [English](README.md) | [中文](README.zh-CN.md) | [Українська](README.uk.md) | [Русский](README.ru.md)
 
+**Official Twitter:** [@nofx_ai](https://x.com/nofx_ai)
+
 ---
 
 ## 🚀 Universal AI Trading Operating System

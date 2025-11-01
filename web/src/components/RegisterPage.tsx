@@ -357,7 +357,6 @@ export function RegisterPage() {
             </p>
           </div>
         )}
-        </div>
       </div>
     </div>
   );

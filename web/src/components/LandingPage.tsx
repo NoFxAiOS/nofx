@@ -381,24 +381,6 @@ export function LandingPage() {
                 />
               </motion.div>
 
-              <FloatingCard
-                delay={0.7}
-                position={{ bottom: '-6', left: '-6' }}
-                color='yellow'
-              >
-                <div
-                  className='text-2xl font-bold'
-                  style={{ color: 'var(--brand-yellow)' }}
-                >
-                  24/7
-                </div>
-                <div
-                  className='text-xs'
-                  style={{ color: 'var(--text-secondary)' }}
-                >
-                  自动交易
-                </div>
-              </FloatingCard>
             </motion.div>
           </div>
         </div>
@@ -519,15 +501,16 @@ export function LandingPage() {
                 <Typewriter
                   lines={[
                     '$ git clone https://github.com/tinkle-community/nofx',
-                    '$ docker compose up -d',
-                    '🚀 NOFX 已启动',
-                    '✓ AI 代理运行中',
-                    '✓ 交易所已连接',
-                    '✓ 策略已激活',
+                    '$ cd nofx/web',
+                    '$ npm install',
+                    '$ npm run dev',
+                    '🚀 前端已启动 http://localhost:3000',
+                    '✓ 就绪',
                   ]}
-                  typingSpeed={24}
-                  lineDelay={350}
+                  typingSpeed={55}
+                  lineDelay={700}
                   className='text-sm font-mono'
+                  style={{ color: '#00FF41', textShadow: '0 0 6px rgba(0,255,65,0.6)' }}
                 />
               </motion.div>
             </motion.div>
@@ -937,33 +920,6 @@ export function LandingPage() {
         <LoginModal onClose={() => setShowLoginModal(false)} />
       )}
     </div>
-  )
-}
-
-// Helper Components
-function FloatingCard({ children, delay, position, color }: any) {
-  return (
-    <motion.div
-      className={`absolute rounded-xl px-4 py-3 backdrop-blur-xl z-20`}
-      style={{
-        background: 'rgba(30, 35, 41, 0.9)',
-        border: `1px solid ${
-          color === 'green'
-            ? 'rgba(14, 203, 129, 0.3)'
-            : 'rgba(240, 185, 11, 0.3)'
-        }`,
-        ...Object.keys(position).reduce((acc: any, key) => {
-          acc[key] = position[key] + 'rem'
-          return acc
-        }, {}),
-      }}
-      initial={{ opacity: 0, scale: 0 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay, type: 'spring', stiffness: 260, damping: 20 }}
-      whileHover={{ scale: 1.1, rotate: 5 }}
-    >
-      {children}
-    </motion.div>
   )
 }
 

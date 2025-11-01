@@ -170,10 +170,7 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
         <div className="text-center">
-          <div className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl animate-spin"
-               style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-            ⚡
-          </div>
+          <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 mx-auto mb-4 animate-pulse" />
           <p style={{ color: '#EAECEF' }}>{t('loading', language)}</p>
         </div>
       </div>

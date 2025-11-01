@@ -72,7 +72,7 @@ export function LoginPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <img src="/icons/nofx.svg?v=2" alt="NOFX" className="w-16 h-16" />
+              <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 object-contain" />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
               {t('loginTitle', language)}

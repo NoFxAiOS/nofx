@@ -105,11 +105,7 @@ export const CryptoFeatureCard = React.forwardRef<HTMLDivElement, CryptoFeatureC
             </div>
 
           </div>
-
-          {/* Corner accent */}
-          <div className="absolute bottom-0 right-0 w-32 h-32 opacity-10">
-            <div className="absolute inset-0 bg-gradient-to-tl from-[#F0B90B] to-transparent" />
-          </div>
+          
         </div>
       </motion.div>
     );

@@ -823,6 +823,12 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 		return fmt.Errorf("空单止损必须高于当前价格 (当前: %.2f, 新止损: %.2f)", marketData.CurrentPrice, decision.NewStopLoss)
 	}
 
+	// 取消旧的止损单（避免多个止损单共存）
+	if err := at.trader.CancelStopOrders(decision.Symbol); err != nil {
+		log.Printf("  ⚠ 取消旧止损单失败: %v", err)
+		// 不中断执行，继续设置新止损
+	}
+
 	// 调用交易所 API 修改止损
 	quantity := math.Abs(positionAmt)
 	err = at.trader.SetStopLoss(decision.Symbol, positionSide, quantity, decision.NewStopLoss)
@@ -877,6 +883,12 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	}
 	if positionSide == "SHORT" && decision.NewTakeProfit >= marketData.CurrentPrice {
 		return fmt.Errorf("空单止盈必须低于当前价格 (当前: %.2f, 新止盈: %.2f)", marketData.CurrentPrice, decision.NewTakeProfit)
+	}
+
+	// 取消旧的止盈单（避免多个止盈单共存）
+	if err := at.trader.CancelStopOrders(decision.Symbol); err != nil {
+		log.Printf("  ⚠ 取消旧止盈单失败: %v", err)
+		// 不中断执行，继续设置新止盈
 	}
 
 	// 调用交易所 API 修改止盈

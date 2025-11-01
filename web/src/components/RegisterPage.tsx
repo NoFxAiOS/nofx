@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
+import { getSystemConfig } from '../lib/config';
 import { ArrowLeft } from 'lucide-react';
 
 export function RegisterPage() {
@@ -11,6 +12,8 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [betaCode, setBetaCode] = useState('');
+  const [betaMode, setBetaMode] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [userID, setUserID] = useState('');
   const [otpSecret, setOtpSecret] = useState('');
@@ -67,6 +70,19 @@ export function RegisterPage() {
     setLoading(false);
   };
 
+  // Check for beta mode on component mount
+  useEffect(() => {
+    const checkBetaMode = async () => {
+      try {
+        const config = await getSystemConfig();
+        setBetaMode(config.beta_mode || false);
+      } catch (error) {
+        console.error('Failed to get system config:', error);
+      }
+    };
+    checkBetaMode();
+  }, []);
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
@@ -92,7 +108,7 @@ export function RegisterPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 object-contain" />
+            <img src="/icons/nofx.svg" alt="NoFx Logo" className="w-16 h-16 object-contain" />
           </div>
           <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
             {t('appTitle', language)}
@@ -109,7 +125,7 @@ export function RegisterPage() {
           {step === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('email', language)}
                 </label>
                 <input
@@ -117,14 +133,14 @@ export function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('emailPlaceholder', language)}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('password', language)}
                 </label>
                 <input
@@ -132,14 +148,14 @@ export function RegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('passwordPlaceholder', language)}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('confirmPassword', language)}
                 </label>
                 <input
@@ -147,14 +163,35 @@ export function RegisterPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('confirmPasswordPlaceholder', language)}
                   required
                 />
               </div>
 
+              {betaMode && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                    内测码 *
+                  </label>
+                  <input
+                    type="text"
+                    value={betaCode}
+                    onChange={(e) => setBetaCode(e.target.value.replace(/[^a-z0-9]/gi, '').toLowerCase())}
+                    className="w-full px-3 py-2 rounded font-mono"
+                    style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    placeholder="请输入6位内测码"
+                    maxLength={6}
+                    required={betaMode}
+                  />
+                  <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                    内测码由6位字母数字组成，区分大小写
+                  </p>
+                </div>
+              )}
+
               {error && (
-                <div className="text-sm px-3 py-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
+                <div className="text-sm px-3 py-2 rounded" style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}>
                   {error}
                 </div>
               )}
@@ -163,7 +200,7 @@ export function RegisterPage() {
                 type="submit"
                 disabled={loading}
                 className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                style={{ background: '#F0B90B', color: '#000' }}
+                style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
               >
                 {loading ? t('loading', language) : t('registerButton', language)}
               </button>
@@ -183,17 +220,17 @@ export function RegisterPage() {
               </div>
 
               <div className="space-y-3">
-                <div className="p-3 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-                  <p className="text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <div className="p-3 rounded" style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)' }}>
+                  <p className="text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                     {t('step1Title', language)}
                   </p>
-                  <p className="text-xs" style={{ color: '#848E9C' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                     {t('step1Desc', language)}
                   </p>
                 </div>
 
-                <div className="p-3 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-                  <p className="text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <div className="p-3 rounded" style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)' }}>
+                  <p className="text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                     {t('step2Title', language)}
                   </p>
                   <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
@@ -214,13 +251,13 @@ export function RegisterPage() {
                     <p className="text-xs mb-1" style={{ color: '#848E9C' }}>{t('otpSecret', language)}</p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 px-2 py-1 text-xs rounded font-mono" 
-                            style={{ background: '#2B3139', color: '#EAECEF' }}>
+                            style={{ background: 'var(--panel-bg-hover)', color: 'var(--brand-light-gray)' }}>
                         {otpSecret}
                       </code>
                       <button
                         onClick={() => copyToClipboard(otpSecret)}
                         className="px-2 py-1 text-xs rounded"
-                        style={{ background: '#F0B90B', color: '#000' }}
+                        style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
                       >
                         {t('copy', language)}
                       </button>
@@ -228,11 +265,11 @@ export function RegisterPage() {
                   </div>
                 </div>
 
-                <div className="p-3 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-                  <p className="text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <div className="p-3 rounded" style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)' }}>
+                  <p className="text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                     {t('step3Title', language)}
                   </p>
-                  <p className="text-xs" style={{ color: '#848E9C' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                     {t('step3Desc', language)}
                   </p>
                 </div>
@@ -259,7 +296,7 @@ export function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
                   {t('otpCode', language)}
                 </label>
                 <input
@@ -267,7 +304,7 @@ export function RegisterPage() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   className="w-full px-3 py-2 rounded text-center text-2xl font-mono"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
                   placeholder={t('otpPlaceholder', language)}
                   maxLength={6}
                   required
@@ -275,7 +312,7 @@ export function RegisterPage() {
               </div>
 
               {error && (
-                <div className="text-sm px-3 py-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
+                <div className="text-sm px-3 py-2 rounded" style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}>
                   {error}
                 </div>
               )}
@@ -285,7 +322,7 @@ export function RegisterPage() {
                   type="button"
                   onClick={() => setStep('setup-otp')}
                   className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-                  style={{ background: '#2B3139', color: '#848E9C' }}
+                  style={{ background: 'var(--panel-bg-hover)', color: 'var(--text-secondary)' }}
                 >
                   {t('back', language)}
                 </button>
@@ -305,21 +342,22 @@ export function RegisterPage() {
         {/* Login Link */}
         {step === 'register' && (
           <div className="text-center mt-6">
-            <p className="text-sm" style={{ color: '#848E9C' }}>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               已有账户？{' '}
               <button
                 onClick={() => {
                   window.history.pushState({}, '', '/login');
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }}
-                className="font-semibold hover:underline"
-                style={{ color: '#F0B90B' }}
+                className="font-semibold hover:underline transition-colors"
+                style={{ color: 'var(--brand-yellow)' }}
               >
                 立即登录
               </button>
             </p>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

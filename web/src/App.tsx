@@ -7,6 +7,8 @@ import { LoginPage } from './components/LoginPage';
 import { RegisterPage } from './components/RegisterPage';
 import { CompetitionPage } from './components/CompetitionPage';
 import { LandingPage } from './pages/LandingPage';
+import HeaderBar from './components/landing/HeaderBar';
+import LoginModal from './components/landing/LoginModal';
 import AILearning from './components/AILearning';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -43,30 +45,44 @@ function App() {
   const { user, token, logout, isLoading } = useAuth();
   const { config: systemConfig, loading: configLoading } = useSystemConfig();
   const [route, setRoute] = useState(window.location.pathname);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // 从URL hash读取初始页面状态（支持刷新保持页面）
+  // 从URL路径读取初始页面状态（支持刷新保持页面）
   const getInitialPage = (): Page => {
+    const path = window.location.pathname;
     const hash = window.location.hash.slice(1); // 去掉 #
-    return hash === 'trader' || hash === 'details' ? 'trader' : 'competition';
+    
+    if (path === '/traders' || hash === 'traders') return 'traders';
+    if (path === '/dashboard' || hash === 'trader' || hash === 'details') return 'trader';
+    return 'competition'; // 默认为竞赛页面
   };
 
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage());
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>();
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
 
-  // 监听URL hash变化，同步页面状态
+  // 监听URL变化，同步页面状态
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleRouteChange = () => {
+      const path = window.location.pathname;
       const hash = window.location.hash.slice(1);
-      if (hash === 'trader' || hash === 'details') {
+      
+      if (path === '/traders' || hash === 'traders') {
+        setCurrentPage('traders');
+      } else if (path === '/dashboard' || hash === 'trader' || hash === 'details') {
         setCurrentPage('trader');
-      } else if (hash === 'competition' || hash === '') {
+      } else if (path === '/competition' || hash === 'competition' || hash === '') {
         setCurrentPage('competition');
       }
+      setRoute(path);
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, []);
 
   // 切换页面时更新URL hash (当前通过按钮直接调用setCurrentPage，这个函数暂时保留用于未来扩展)
@@ -166,153 +182,137 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Set current page based on route for consistent navigation state
+  useEffect(() => {
+    if (route === '/competition') {
+      setCurrentPage('competition');
+    } else if (route === '/traders') {
+      setCurrentPage('traders');
+    } else if (route === '/dashboard') {
+      setCurrentPage('trader');
+    }
+  }, [route]);
+
   // Show loading spinner while checking auth or config
   if (isLoading || configLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
         <div className="text-center">
-          <img src="/images/logo.png" alt="NoFx Logo" className="w-16 h-16 mx-auto mb-4 animate-pulse" />
+          <img src="/icons/nofx.svg" alt="NoFx Logo" className="w-16 h-16 mx-auto mb-4 animate-pulse" />
           <p style={{ color: '#EAECEF' }}>{t('loading', language)}</p>
         </div>
       </div>
     );
   }
 
-  // Show landing page for root route when not authenticated
+  // Handle specific routes regardless of authentication
+  if (route === '/login') {
+    return <LoginPage />;
+  }
+  if (route === '/register') {
+    return <RegisterPage />;
+  }
+  if (route === '/competition') {
+    return (
+      <div className="min-h-screen" style={{ background: '#000000', color: '#EAECEF' }}>
+        <HeaderBar 
+          onLoginClick={() => setShowLoginModal(true)} 
+          isLoggedIn={!!user} 
+          currentPage="competition"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          isAdminMode={systemConfig?.admin_mode}
+          onPageChange={(page) => {
+            console.log('Competition page onPageChange called with:', page);
+            console.log('Current route:', route, 'Current page:', currentPage);
+            
+            if (page === 'competition') {
+              console.log('Navigating to competition');
+              window.history.pushState({}, '', '/competition');
+              setRoute('/competition');
+              setCurrentPage('competition');
+            } else if (page === 'traders') {
+              console.log('Navigating to traders');
+              window.history.pushState({}, '', '/traders');
+              setRoute('/traders');
+              setCurrentPage('traders');
+            } else if (page === 'trader') {
+              console.log('Navigating to trader/dashboard');
+              window.history.pushState({}, '', '/dashboard');
+              setRoute('/dashboard');
+              setCurrentPage('trader');
+            }
+            
+            console.log('After navigation - route:', route, 'currentPage:', currentPage);
+          }}
+        />
+        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+          <CompetitionPage />
+        </main>
+      </div>
+    );
+  }
+  
+  // Show landing page for root route
+  if (route === '/' || route === '') {
+    return <LandingPage />;
+  }
+  
+  // Show main app for authenticated users on other routes
   if (!systemConfig?.admin_mode && (!user || !token)) {
-    if (route === '/login') {
-      return <LoginPage />;
-    }
-    if (route === '/register') {
-      return <RegisterPage />;
-    }
-    // Default to landing page when not authenticated
+    // Default to landing page when not authenticated and no specific route
     return <LandingPage />;
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
-      {/* Header - Binance Style */}
-      <header className="glass sticky top-0 z-50 backdrop-blur-xl">
-        <div className="max-w-[1920px] mx-auto px-6 py-4">
-          <div className="relative flex items-center">
-            {/* Left - Logo and Title */}
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 flex items-center justify-center">
-                <img src="/icons/nofx.svg?v=2" alt="NOFX" className="w-8 h-8" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                  {t('appTitle', language)}
-                </h1>
-                <p className="text-xs mono" style={{ color: '#848E9C' }}>
-                  {t('subtitle', language)}
-                </p>
-              </div>
-            </div>
-            
-            {/* Center - Page Toggle (absolutely positioned) */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
-              <button
-                onClick={() => setCurrentPage('competition')}
-                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
-                style={currentPage === 'competition'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('aiCompetition', language)}
-              </button>
-              <button
-                onClick={() => setCurrentPage('traders')}
-                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
-                style={currentPage === 'traders'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('aiTraders', language)}
-              </button>
-              <button
-                onClick={() => setCurrentPage('trader')}
-                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
-                style={currentPage === 'trader'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('tradingPanel', language)}
-              </button>
-            </div>
-            
-            {/* Right - Actions */}
-            <div className="ml-auto flex items-center gap-3">
-
-              {/* User Info - Only show if not in admin mode */}
-              {!systemConfig?.admin_mode && user && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: '#F0B90B', color: '#000' }}>
-                    {user.email[0].toUpperCase()}
-                  </div>
-                  <span className="text-sm" style={{ color: '#EAECEF' }}>{user.email}</span>
-                </div>
-              )}
-              
-              {/* Admin Mode Indicator */}
-              {systemConfig?.admin_mode && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                  <span className="text-sm font-semibold" style={{ color: '#F0B90B' }}>{t('adminMode', language)}</span>
-                </div>
-              )}
-
-              {/* Language Toggle */}
-              <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
-                <button
-                  onClick={() => setLanguage('zh')}
-                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-                  style={language === 'zh'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  中文
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-                  style={language === 'en'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  EN
-                </button>
-              </div>
-
-              {/* Logout Button - Only show if not in admin mode */}
-              {!systemConfig?.admin_mode && (
-                <button
-                  onClick={logout}
-                  className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                  style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }}
-                >
-                  {t('logout', language)}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen" style={{ background: 'var(--brand-black)', color: 'var(--brand-light-gray)' }}>
+      <HeaderBar 
+        onLoginClick={() => setShowLoginModal(true)} 
+        isLoggedIn={!!user} 
+        isHomePage={false}
+        currentPage={currentPage}
+        language={language}
+        onLanguageChange={setLanguage}
+        user={user}
+        onLogout={logout}
+        isAdminMode={systemConfig?.admin_mode}
+        onPageChange={(page) => {
+          console.log('App.tsx onPageChange called with:', page);
+          console.log('Current route:', route, 'Current page:', currentPage);
+          
+          if (page === 'competition') {
+            console.log('Navigating to competition');
+            window.history.pushState({}, '', '/competition');
+            setRoute('/competition');
+            setCurrentPage('competition');
+          } else if (page === 'traders') {
+            console.log('Navigating to traders');
+            window.history.pushState({}, '', '/traders');
+            setRoute('/traders');
+            setCurrentPage('traders');
+          } else if (page === 'trader') {
+            console.log('Navigating to trader/dashboard');
+            window.history.pushState({}, '', '/dashboard');
+            setRoute('/dashboard');
+            setCurrentPage('trader');
+          }
+          
+          console.log('After navigation - route:', route, 'currentPage:', currentPage);
+        }}
+      />
 
       {/* Main Content */}
-      <main className="max-w-[1920px] mx-auto px-6 py-6">
+      <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
         {currentPage === 'competition' ? (
           <CompetitionPage />
         ) : currentPage === 'traders' ? (
           <AITradersPage 
             onTraderSelect={(traderId) => {
               setSelectedTraderId(traderId);
+              window.history.pushState({}, '', '/dashboard');
+              setRoute('/dashboard');
               setCurrentPage('trader');
             }}
           />

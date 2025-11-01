@@ -88,12 +88,16 @@ func (s *Server) setupRoutes() {
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)
 		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
+		
+		// 公开的竞赛数据（无需认证）
+		api.GET("/traders", s.handlePublicTraderList)
+		api.GET("/competition", s.handlePublicCompetition)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
 		{
 			// AI交易员管理
-			protected.GET("/traders", s.handleTraderList)
+			protected.GET("/my-traders", s.handleTraderList)
 			protected.GET("/traders/:id/config", s.handleGetTraderConfig)
 			protected.POST("/traders", s.handleCreateTrader)
 			protected.PUT("/traders/:id", s.handleUpdateTrader)
@@ -115,8 +119,6 @@ func (s *Server) setupRoutes() {
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
 
 
-			// 竞赛总览
-			protected.GET("/competition", s.handleCompetition)
 			
 			// 指定trader的数据（使用query参数 ?trader_id=xxx）
 			protected.GET("/status", s.handleStatus)
@@ -1454,4 +1456,63 @@ func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 		"name":    template.Name,
 		"content": template.Content,
 	})
+}
+
+// handlePublicTraderList 获取公开的交易员列表（无需认证）
+func (s *Server) handlePublicTraderList(c *gin.Context) {
+	// 从所有用户获取交易员信息
+	competition, err := s.traderManager.GetCompetitionData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取交易员列表失败: %v", err),
+		})
+		return
+	}
+
+	// 获取traders数组
+	tradersData, exists := competition["traders"]
+	if !exists {
+		c.JSON(http.StatusOK, []map[string]interface{}{})
+		return
+	}
+
+	traders, ok := tradersData.([]map[string]interface{})
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "交易员数据格式错误",
+		})
+		return
+	}
+
+	// 返回交易员基本信息，过滤敏感信息
+	result := make([]map[string]interface{}, 0, len(traders))
+	for _, trader := range traders {
+		result = append(result, map[string]interface{}{
+			"trader_id":       trader["trader_id"],
+			"trader_name":     trader["trader_name"],
+			"ai_model":        trader["ai_model"],
+			"exchange":        trader["exchange"],
+			"is_running":      trader["is_running"],
+			"total_equity":    trader["total_equity"],
+			"total_pnl":       trader["total_pnl"],
+			"total_pnl_pct":   trader["total_pnl_pct"],
+			"position_count":  trader["position_count"],
+			"margin_used_pct": trader["margin_used_pct"],
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// handlePublicCompetition 获取公开的竞赛数据（无需认证）
+func (s *Server) handlePublicCompetition(c *gin.Context) {
+	competition, err := s.traderManager.GetCompetitionData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取竞赛数据失败: %v", err),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, competition)
 }

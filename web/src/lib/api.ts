@@ -32,10 +32,17 @@ function getAuthHeaders(): Record<string, string> {
 export const api = {
   // AI交易员管理接口
   async getTraders(): Promise<TraderInfo[]> {
-    const res = await fetch(`${API_BASE}/traders`, {
+    const res = await fetch(`${API_BASE}/my-traders`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('获取trader列表失败');
+    return res.json();
+  },
+
+  // 获取公开的交易员列表（无需认证）
+  async getPublicTraders(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/traders`);
+    if (!res.ok) throw new Error('获取公开trader列表失败');
     return res.json();
   },
 
@@ -252,11 +259,9 @@ export const api = {
     return res.json();
   },
 
-  // 获取竞赛数据
+  // 获取竞赛数据（无需认证）
   async getCompetition(): Promise<CompetitionData> {
-    const res = await fetch(`${API_BASE}/competition`, {
-      headers: getAuthHeaders(),
-    });
+    const res = await fetch(`${API_BASE}/competition`);
     if (!res.ok) throw new Error('获取竞赛数据失败');
     return res.json();
   },

@@ -15,7 +15,7 @@ export function Header({ simple = false }: HeaderProps) {
           {/* Left - Logo and Title */}
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center">
-              <img src="/images/logo.png" alt="NoFx Logo" className="w-8 h-8" />
+              <img src="/icons/nofx.svg" alt="NoFx Logo" className="w-8 h-8" />
             </div>
             <div>
               <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>

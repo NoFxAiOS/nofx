@@ -1,0 +1,38 @@
+# Disallow all bots and crawlers from the entire site
+User-agent: *
+Disallow: /
+
+# Alternatively, if you want to allow some crawlers but block specific paths:
+# User-agent: *
+# Disallow: /api/
+# Disallow: /admin/
+# Disallow: /private/
+# Allow: /
+
+# Block common aggressive crawlers
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: PiplBot
+Disallow: /
+
+# Crawl-delay for any allowed bots (in seconds)
+Crawl-delay: 10

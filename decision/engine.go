@@ -519,11 +519,11 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	// 开仓操作必须提供完整参数
 	if d.Action == "open_long" || d.Action == "open_short" {
 		// 根据币种使用配置的杠杆上限
-		maxLeverage := altcoinLeverage                               // 山寨币使用配置的杠杆
-		maxPositionValue := accountEquity * float64(altcoinLeverage) // 山寨币最大仓位 = 账户净值 × 杠杆倍数
+		maxLeverage := altcoinLeverage                                     // 山寨币使用配置的杠杆
+		maxPositionValue := accountEquity * float64(altcoinLeverage) * 0.5 // 山寨币最大仓位 = 账户净值 * 杠杆倍数 * 0.5
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			maxLeverage = btcEthLeverage                               // BTC和ETH使用配置的杠杆
-			maxPositionValue = accountEquity * float64(btcEthLeverage) // 主流币最大仓位 = 账户净值 × 杠杆倍数
+			maxLeverage = btcEthLeverage                                     // BTC和ETH使用配置的杠杆
+			maxPositionValue = accountEquity * float64(btcEthLeverage) * 0.9 // 主流币最大仓位 = 账户净值 * 杠杆倍数	* 0.9
 		}
 
 		if d.Leverage <= 0 || d.Leverage > maxLeverage {

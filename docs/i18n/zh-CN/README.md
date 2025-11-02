@@ -126,11 +126,12 @@ NOFX现已支持**三大交易所**：Binance、Hyperliquid和Aster DEX！
 - 🌐 **多链支持** - 在你喜欢的EVM链上交易
 
 **快速开始：**
-1. 访问[Aster API钱包](https://www.asterdex.com/en/api-wallet)
-2. 连接你的主钱包并创建API钱包
-3. 复制API Signer地址和私钥
-4. ~~在config.json中设置`"exchange": "aster"`~~ *通过Web界面配置*
-5. 添加`"aster_user"`、`"aster_signer"`和`"aster_private_key"`
+1. 通过[推荐链接注册Aster](https://www.asterdex.com/en/referral/fdfc0e)（享手续费优惠）
+2. 访问[Aster API钱包](https://www.asterdex.com/en/api-wallet)
+3. 连接你的主钱包并创建API钱包
+4. 复制API Signer地址和私钥
+5. 在config.json中设置`"exchange": "aster"`
+6. 添加`"aster_user"`、`"aster_signer"`和`"aster_private_key"`
 
 ---
 
@@ -398,7 +399,7 @@ cd ..
 
 **如何获取Qwen API密钥：**
 
-1. **访问**：[https://dashscope.aliyuncs.com](https://dashscope.aliyuncs.com)
+1. **访问**：[https://dashscope.console.aliyun.com](https://dashscope.console.aliyun.com)
 2. **注册**：使用阿里云账户注册
 3. **开通服务**：激活DashScope服务
 4. **创建API密钥**：
@@ -535,12 +536,13 @@ cp config.example.jsonc config.json
 - 🌐 多链支持（ETH、BSC、Polygon）
 - 🌍 无需KYC
 
-**步骤1**：创建Aster API钱包
+**步骤1**：注册并创建Aster API钱包
 
-1. 访问[Aster API钱包](https://www.asterdex.com/en/api-wallet)
-2. 连接你的主钱包（MetaMask、WalletConnect等）
-3. 点击"创建API钱包"
-4. **立即保存这3项：**
+1. 通过[推荐链接注册Aster](https://www.asterdex.com/en/referral/fdfc0e)（享手续费优惠）
+2. 访问[Aster API钱包](https://www.asterdex.com/en/api-wallet)
+3. 连接你的主钱包（MetaMask、WalletConnect等）
+4. 点击"创建API钱包"
+5. **立即保存这3项：**
    - 主钱包地址（User）
    - API钱包地址（Signer）
    - API钱包私钥（⚠️ 仅显示一次！）
@@ -1290,7 +1292,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 - [Binance API](https://binance-docs.github.io/apidocs/futures/cn/) - 币安合约API
 - [DeepSeek](https://platform.deepseek.com/) - DeepSeek AI API
-- [Qwen](https://dashscope.aliyuncs.com/) - 阿里云通义千问
+- [Qwen](https://dashscope.console.aliyun.com/) - 阿里云通义千问
 - [TA-Lib](https://ta-lib.org/) - 技术指标库
 - [Recharts](https://recharts.org/) - React图表库
 

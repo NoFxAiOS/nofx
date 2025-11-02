@@ -1,0 +1,127 @@
+# Auto-labeler configuration
+# Automatically adds labels based on changed files
+
+# Area: Frontend
+'area: frontend':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'web/**/*'
+      - '*.tsx'
+      - '*.ts'
+      - '*.jsx'
+      - '*.js'
+      - '*.css'
+
+# Area: Backend
+'area: backend':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'cmd/**/*'
+      - 'internal/**/*'
+      - 'pkg/**/*'
+
+# Area: Exchange
+'area: exchange':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'internal/exchange/**/*'
+      - 'pkg/exchange/**/*'
+      - '**/binance*.go'
+      - '**/hyperliquid*.go'
+      - '**/aster*.go'
+      - '**/okx*.go'
+      - '**/bybit*.go'
+
+# Area: AI
+'area: ai':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'internal/ai/**/*'
+      - 'pkg/ai/**/*'
+      - '**/deepseek*.go'
+      - '**/qwen*.go'
+      - '**/openai*.go'
+      - '**/claude*.go'
+
+# Area: API
+'area: api':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'internal/api/**/*'
+      - 'pkg/api/**/*'
+      - '**/handler*.go'
+      - '**/router*.go'
+
+# Area: Security
+'area: security':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/auth*.go'
+      - '**/jwt*.go'
+      - '**/encryption*.go'
+      - '**/crypto*.go'
+      - 'SECURITY.md'
+
+# Area: Database
+'area: database':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'internal/database/**/*'
+      - 'internal/db/**/*'
+      - '**/migration*.go'
+      - '**/*.sql'
+      - '**/schema*.go'
+
+# Area: UI/UX
+'area: ui/ux':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'web/src/components/**/*'
+      - 'web/src/pages/**/*'
+      - '**/*.css'
+      - '**/style*.ts'
+
+# Area: Deployment
+'area: deployment':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Dockerfile'
+      - 'docker-compose*.yml'
+      - '.github/workflows/**/*'
+      - 'start.sh'
+      - '**/*deploy*.md'
+
+# Type: Documentation
+'type: documentation':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'docs/**/*'
+      - '*.md'
+      - 'README*'
+      - 'CHANGELOG*'
+      - 'CONTRIBUTING.md'
+      - 'CODE_OF_CONDUCT.md'
+
+# Type: Test
+'type: test':
+  - changed-files:
+    - any-glob-to-any-file:
+      - '**/*_test.go'
+      - 'test/**/*'
+      - '**/*.test.ts'
+      - '**/*.test.tsx'
+      - '**/*.spec.ts'
+
+# Dependencies
+'dependencies':
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'go.mod'
+      - 'go.sum'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'web/package.json'
+      - 'web/package-lock.json'

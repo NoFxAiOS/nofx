@@ -138,6 +138,98 @@ cat decision_logs/your_trader_id/$(ls -t decision_logs/your_trader_id/ | head -1
 
 ### 3. 连接和 API 问题
 
+#### ❌ Docker 镜像下载失败 (中国大陆)
+
+**错误:** `ERROR [internal] load metadata for docker.io/library/...`
+
+**症状:**
+- `docker compose build` 或 `docker compose up` 卡住
+- 超时错误: `timeout`、`connection refused`
+- 无法从 Docker Hub 拉取镜像
+
+**根本原因:**
+中国大陆访问 Docker Hub 受限或速度极慢。
+
+**解决方案 1: 配置 Docker 镜像加速器（推荐）**
+
+1. **编辑 Docker 配置文件:**
+   ```bash
+   # Linux
+   sudo nano /etc/docker/daemon.json
+
+   # macOS (Docker Desktop)
+   # Settings → Docker Engine
+   ```
+
+2. **添加国内镜像源:**
+   ```json
+   {
+     "registry-mirrors": [
+       "https://docker.m.daocloud.io",
+       "https://docker.1panel.live",
+       "https://hub.rat.dev",
+       "https://dockerpull.com",
+       "https://dockerhub.icu"
+     ]
+   }
+   ```
+
+3. **重启 Docker:**
+   ```bash
+   # Linux
+   sudo systemctl restart docker
+
+   # macOS/Windows
+   # 重启 Docker Desktop
+   ```
+
+4. **重新构建:**
+   ```bash
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+**解决方案 2: 使用 VPN**
+
+1. 连接 VPN（推荐台湾节点）
+2. 确保使用**全局模式**而非规则模式
+3. 重新运行 `docker compose build`
+
+**解决方案 3: 离线下载镜像**
+
+如果上述方法都不行:
+
+1. **使用镜像代理网站下载:**
+   - https://proxy.vvvv.ee/images.html （可离线下载）
+   - https://github.com/dongyubin/DockerHub （镜像加速列表）
+
+2. **手动导入镜像:**
+   ```bash
+   # 下载镜像文件后
+   docker load -i golang-1.25-alpine.tar
+   docker load -i node-20-alpine.tar
+   docker load -i nginx-alpine.tar
+   ```
+
+3. **验证镜像已加载:**
+   ```bash
+   docker images | grep golang
+   docker images | grep node
+   docker images | grep nginx
+   ```
+
+**验证镜像加速器是否生效:**
+```bash
+# 查看 Docker 信息
+docker info | grep -A 10 "Registry Mirrors"
+
+# 应该显示你配置的镜像源
+```
+
+**相关 Issue:** [#168](https://github.com/tinkle-community/nofx/issues/168)
+
+---
+
 #### ❌ 后端无法启动
 
 **错误:** `port 8080 already in use`

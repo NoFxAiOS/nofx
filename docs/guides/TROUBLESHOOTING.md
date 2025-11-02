@@ -138,6 +138,98 @@ Look at the AI's Chain-of-Thought reasoning section.
 
 ### 3. Connection & API Issues
 
+#### ❌ Docker Image Pull Failed (China Mainland)
+
+**Error:** `ERROR [internal] load metadata for docker.io/library/...`
+
+**Symptoms:**
+- `docker compose build` or `docker compose up` hangs
+- Timeout errors: `timeout`, `connection refused`
+- Cannot pull images from Docker Hub
+
+**Root Cause:**
+Access to Docker Hub is restricted or extremely slow in mainland China.
+
+**Solution 1: Configure Docker Registry Mirror (Recommended)**
+
+1. **Edit Docker configuration file:**
+   ```bash
+   # Linux
+   sudo nano /etc/docker/daemon.json
+
+   # macOS (Docker Desktop)
+   # Settings → Docker Engine
+   ```
+
+2. **Add China registry mirrors:**
+   ```json
+   {
+     "registry-mirrors": [
+       "https://docker.m.daocloud.io",
+       "https://docker.1panel.live",
+       "https://hub.rat.dev",
+       "https://dockerpull.com",
+       "https://dockerhub.icu"
+     ]
+   }
+   ```
+
+3. **Restart Docker:**
+   ```bash
+   # Linux
+   sudo systemctl restart docker
+
+   # macOS/Windows
+   # Restart Docker Desktop
+   ```
+
+4. **Rebuild:**
+   ```bash
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+**Solution 2: Use VPN**
+
+1. Connect to VPN (Taiwan nodes recommended)
+2. Ensure **global mode** instead of rule-based mode
+3. Re-run `docker compose build`
+
+**Solution 3: Offline Image Download**
+
+If above methods don't work:
+
+1. **Use image proxy websites:**
+   - https://proxy.vvvv.ee/images.html (offline download available)
+   - https://github.com/dongyubin/DockerHub (mirror list)
+
+2. **Manually import images:**
+   ```bash
+   # After downloading image files
+   docker load -i golang-1.25-alpine.tar
+   docker load -i node-20-alpine.tar
+   docker load -i nginx-alpine.tar
+   ```
+
+3. **Verify images are loaded:**
+   ```bash
+   docker images | grep golang
+   docker images | grep node
+   docker images | grep nginx
+   ```
+
+**Verify registry mirror is working:**
+```bash
+# Check Docker info
+docker info | grep -A 10 "Registry Mirrors"
+
+# Should show your configured mirrors
+```
+
+**Related Issue:** [#168](https://github.com/tinkle-community/nofx/issues/168)
+
+---
+
 #### ❌ Backend Won't Start
 
 **Error:** `port 8080 already in use`

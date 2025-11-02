@@ -1168,6 +1168,8 @@ GET /api/health                   # Health check
 
 ## 🛠️ Common Issues
 
+> 📖 **For detailed troubleshooting:** See the comprehensive [Troubleshooting Guide](docs/guides/TROUBLESHOOTING.md) ([中文版](docs/guides/TROUBLESHOOTING.zh-CN.md))
+
 ### 1. Compilation error: TA-Lib not found
 
 **Solution**: Install TA-Lib library

@@ -1,0 +1,14 @@
+# JT-Bot dependency bundle
+#
+# 所有运行组件（Telegram 监听与消息入库）统一依赖清单。
+# 初次部署执行 `./start.sh setup` 会安装本文件中的依赖。
+
+# --- Core runtime ---
+telethon==1.34.0
+colorama==0.4.6
+python-dotenv==1.0.0
+PySocks==1.7.1
+
+# --- Optional performance tweaks ---
+uvloop==0.19.0; sys_platform != "win32"
+# cchardet==2.1.7  # 可手动启用，需编译环境支持

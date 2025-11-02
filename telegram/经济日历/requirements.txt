@@ -1,0 +1,6 @@
+rich>=13.7.0
+discord.py>=2.3.0
+python-dotenv>=1.0.0
+APScheduler>=3.10.0
+pytz>=2023.3
+aiohttp>=3.8.0

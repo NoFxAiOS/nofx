@@ -662,9 +662,58 @@ For running multiple AI traders competing against each other:
 | `coin_pool_api_url` | Custom coin pool API<br>*Only needed when `use_default_coins: false`* | `""` (empty) | ❌ No |
 | `oi_top_api_url` | Open interest API<br>*Optional supplement data* | `""` (empty) | ❌ No |
 | `api_server_port` | Web dashboard port | `8080` | ✅ Yes |
+| `lang` | Language for system logs and messages<br>**✨ New in v2.0.4** | `"en"` (English)<br>`"zh"` (Chinese, default) | ❌ No<br>(Defaults to Chinese) |
 
 **Default Trading Coins** (when `use_default_coins: true`):
 - BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE
+
+---
+
+#### 🌐 Language Configuration - English Output
+
+**NOFX now supports bilingual output!** You can switch all system logs and messages to English.
+
+**Why use English output?**
+
+- 🌍 Better for international users
+- 📚 Easier to share logs with global community
+- 🤖 More accessible for non-Chinese speakers
+
+**How to enable English output:**
+
+Simply add the `"lang"` field to your `config.json`:
+
+```json
+{
+  "lang": "en",
+  "traders": [
+    {
+      "id": "my_trader",
+      "name": "My AI Trader",
+      ...
+    }
+  ],
+  ...
+}
+```
+
+**Configuration options:**
+
+| Value | Language | Description |
+|-------|----------|-------------|
+| `"en"` | English | All logs in English |
+| `"zh"` | Chinese | All logs in Chinese (default) |
+| *omit field* | Chinese | Defaults to Chinese if not specified |
+
+**What gets translated:**
+
+- ✅ System startup messages
+- ✅ Configuration loading and validation
+- ✅ Trader initialization logs
+- ✅ API server documentation
+- ✅ Error messages and warnings
+- ✅ Competition participant information
+- ✅ Shutdown messages
 
 ---
 

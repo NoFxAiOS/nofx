@@ -402,7 +402,7 @@ cd ..
 
 **Як отримати Qwen API ключ:**
 
-1. **Відвідайте**: [https://dashscope.aliyuncs.com](https://dashscope.aliyuncs.com)
+1. **Відвідайте**: [https://dashscope.console.aliyun.com](https://dashscope.console.aliyun.com)
 2. **Зареєструйтеся**: Використовуючи акаунт Alibaba Cloud
 3. **Активуйте сервіс**: Активуйте DashScope сервіс
 4. **Створіть API ключ**:

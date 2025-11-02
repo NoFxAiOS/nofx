@@ -190,6 +190,11 @@ export const translations = {
     testnetDescription: 'Enable to connect to exchange test environment for simulated trading',
     securityWarning: 'Security Warning',
     saveConfiguration: 'Save Configuration',
+    binanceAPIKeyType: 'Binance API Key Type',
+    binanceAPIKeyTypeDescription: 'Select the signature algorithm for your Binance API key',
+    binanceAPIKeyTypeHMAC: 'HMAC (Default)',
+    binanceAPIKeyTypeED25519: 'Ed25519',
+    binanceAPIKeyTypeRSA: 'RSA',
 
     // Trader Configuration
     positionMode: 'Position Mode',
@@ -507,6 +512,11 @@ export const translations = {
     testnetDescription: '启用后将连接到交易所测试环境，用于模拟交易',
     securityWarning: '安全提示',
     saveConfiguration: '保存配置',
+    binanceAPIKeyType: '币安API密钥类型',
+    binanceAPIKeyTypeDescription: '选择您的币安API密钥的签名算法',
+    binanceAPIKeyTypeHMAC: 'HMAC (默认)',
+    binanceAPIKeyTypeED25519: 'Ed25519',
+    binanceAPIKeyTypeRSA: 'RSA',
 
     // Trader Configuration
     positionMode: '仓位模式',

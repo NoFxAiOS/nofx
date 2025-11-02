@@ -60,25 +60,19 @@ export default function CommunitySection() {
         '前不久非常火的 AI 量化交易系统 NOF1，在 GitHub 上有人将其复刻并开源，这就是 NOFX 项目。基于 DeepSeek、Qwen 等大语言模型，打造的通用架构 AI 交易操作系统，完成了从决策、到交易、再到复盘的闭环。GitHub: https://github.com/NoFxAiOS/nofx',
       authorName: 'Michael Williams',
       handle: '@MichaelWil93725',
-      avatarUrl: 'https://unavatar.io/twitter/MichaelWil93725',
-      tweetUrl: 'https://twitter.com/MichaelWil93725/status/1984980920395604008',
+      avatarUrl:
+        'https://pbs.twimg.com/profile_images/1767615411594694659/Mj8Fdt6o_400x400.jpg',
+      tweetUrl:
+        'https://twitter.com/MichaelWil93725/status/1984980920395604008',
       delay: 0,
-    },
-    {
-      quote: '🔥 Just discovered: nofx - A trending GitHub project!',
-      authorName: 'NiLeSh KhEdKaR®',
-      handle: '@nileshb4u',
-      // 优先使用 GitHub 头像，稳定可访问
-      avatarUrl: 'https://avatars.githubusercontent.com/u/200875050?v=4',
-      tweetUrl: 'https://twitter.com/nileshb4u/status/1984966234878722545',
-      delay: 0.05,
     },
     {
       quote:
         '跑了一晚上 @nofx_ai 开源的 AI 自动交易，太有意思了，就看 AI 在那一会开空一会开多，一顿操作，虽然看不懂为什么，但是一晚上帮我赚了 6% 收益',
       authorName: 'DIŸgöd',
       handle: '@DIYgod',
-      avatarUrl: 'https://avatars.githubusercontent.com/u/8266075?v=4',
+      avatarUrl:
+        'https://pbs.twimg.com/profile_images/1628393369029181440/r23HDDJk_400x400.jpg',
       tweetUrl: 'https://twitter.com/DIYgod/status/1984442354515017923',
       delay: 0.1,
     },
@@ -87,7 +81,8 @@ export default function CommunitySection() {
         'Open-source NOFX revives the legendary Alpha Arena, an AI-powered crypto futures battleground. Built on DeepSeek/Qwen AI, it trades live on Binance, Hyperliquid, and Aster DEX, featuring multi-AI battles and self-learning bots',
       authorName: 'Kai',
       handle: '@hqmank',
-      avatarUrl: 'https://avatars.githubusercontent.com/u/49855507?v=4',
+      avatarUrl:
+        'https://pbs.twimg.com/profile_images/1905441261911506945/4YhLIqUm_400x400.jpg',
       tweetUrl: 'https://twitter.com/hqmank/status/1984227431994290340',
       delay: 0.15,
     },

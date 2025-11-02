@@ -66,7 +66,37 @@ export function TraderConfigModal({
 
   useEffect(() => {
     if (traderData) {
-      setFormData(traderData);
+      // 规范化后端返回的 ai_model（可能为 provider 或含下划线的旧格式）为前端模型 id
+      const normalizeModelId = (raw: string): string => {
+        if (!raw) return raw;
+        // 如果包含下划线，取最后一段（如 deepseek_chat -> chat，或 provider_model -> model）
+        const parts = raw.split('_');
+        const tail = parts.length > 1 ? parts[parts.length - 1] : raw;
+        // 将 provider 名称映射到已知模型 id
+        const providerToId: Record<string, string> = {
+          deepseek: 'deepseek',
+          qwen: 'qwen',
+          claude: 'claude'
+        };
+        if (providerToId[raw]) return providerToId[raw];
+        if (providerToId[tail]) return providerToId[tail];
+        // 如果 raw 恰好等于可用模型之一的 id，则直接返回
+        const matched = availableModels.find(m => m.id === raw || m.id === tail);
+        return matched ? matched.id : raw;
+      };
+
+      const normalizeExchangeId = (raw: string): string => {
+        if (!raw) return raw;
+        // exchange id 已使用标准 id（binance/hyperliquid/aster/okx），但做一次就地匹配
+        const matched = availableExchanges.find(e => e.id === raw);
+        return matched ? matched.id : raw;
+      };
+
+      setFormData({
+        ...traderData,
+        ai_model: normalizeModelId(traderData.ai_model),
+        exchange_id: normalizeExchangeId(traderData.exchange_id)
+      });
       // 设置已选择的币种
       if (traderData.trading_symbols) {
         const coins = traderData.trading_symbols.split(',').map(s => s.trim()).filter(s => s);
@@ -167,10 +197,18 @@ export function TraderConfigModal({
 
     setIsSaving(true);
     try {
+      // 确保提交的 ai_model_id 与可选模型 id 对齐
+      const selectedModel = availableModels.find(m => m.id === formData.ai_model || m.provider === formData.ai_model);
+      const aiModelId = selectedModel ? selectedModel.id : formData.ai_model;
+
+      // 交易所 id 本身已标准化，这里直接使用
+      const selectedExchange = availableExchanges.find(e => e.id === formData.exchange_id);
+      const exchangeId = selectedExchange ? selectedExchange.id : formData.exchange_id;
+
       const saveData: CreateTraderRequest = {
         name: formData.trader_name,
-        ai_model_id: formData.ai_model,
-        exchange_id: formData.exchange_id,
+        ai_model_id: aiModelId,
+        exchange_id: exchangeId,
         btc_eth_leverage: formData.btc_eth_leverage,
         altcoin_leverage: formData.altcoin_leverage,
         trading_symbols: formData.trading_symbols,

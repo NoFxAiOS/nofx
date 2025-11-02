@@ -1,0 +1,180 @@
+# GitHub Labels Configuration
+# Use https://github.com/crazy-max/ghaction-github-labeler to sync labels
+
+# Priority Labels
+- name: "priority: critical"
+  color: "d73a4a"
+  description: "Critical priority - requires immediate attention"
+
+- name: "priority: high"
+  color: "ff6b6b"
+  description: "High priority - should be addressed soon"
+
+- name: "priority: medium"
+  color: "fbca04"
+  description: "Medium priority - normal queue"
+
+- name: "priority: low"
+  color: "0e8a16"
+  description: "Low priority - nice to have"
+
+# Type Labels
+- name: "type: bug"
+  color: "d73a4a"
+  description: "Something isn't working"
+
+- name: "type: feature"
+  color: "a2eeef"
+  description: "New feature or request"
+
+- name: "type: enhancement"
+  color: "84b6eb"
+  description: "Improvement to existing feature"
+
+- name: "type: documentation"
+  color: "0075ca"
+  description: "Documentation improvements"
+
+- name: "type: security"
+  color: "ee0701"
+  description: "Security-related changes"
+
+- name: "type: performance"
+  color: "f9d0c4"
+  description: "Performance improvements"
+
+- name: "type: refactor"
+  color: "fbca04"
+  description: "Code refactoring"
+
+- name: "type: test"
+  color: "c5def5"
+  description: "Test-related changes"
+
+# Status Labels
+- name: "status: needs review"
+  color: "fbca04"
+  description: "PR is ready for review"
+
+- name: "status: needs changes"
+  color: "d93f0b"
+  description: "PR needs changes based on review"
+
+- name: "status: on hold"
+  color: "fef2c0"
+  description: "PR/issue is on hold"
+
+- name: "status: in progress"
+  color: "0e8a16"
+  description: "Currently being worked on"
+
+- name: "status: blocked"
+  color: "d93f0b"
+  description: "Blocked by another issue/PR"
+
+# Area Labels (aligned with roadmap)
+- name: "area: security"
+  color: "ee0701"
+  description: "Security enhancements (Phase 1.1)"
+
+- name: "area: ai"
+  color: "7057ff"
+  description: "AI capabilities and models (Phase 1.2)"
+
+- name: "area: exchange"
+  color: "0075ca"
+  description: "Exchange integrations (Phase 1.3)"
+
+- name: "area: architecture"
+  color: "d4c5f9"
+  description: "Project structure refactoring (Phase 1.4)"
+
+- name: "area: ui/ux"
+  color: "c2e0c6"
+  description: "User experience improvements (Phase 1.5)"
+
+- name: "area: frontend"
+  color: "bfdadc"
+  description: "Frontend (React/TypeScript)"
+
+- name: "area: backend"
+  color: "c5def5"
+  description: "Backend (Go)"
+
+- name: "area: api"
+  color: "0e8a16"
+  description: "API endpoints"
+
+- name: "area: database"
+  color: "f9d0c4"
+  description: "Database changes"
+
+- name: "area: deployment"
+  color: "fbca04"
+  description: "Deployment and CI/CD"
+
+# Special Labels
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+
+- name: "help wanted"
+  color: "008672"
+  description: "Extra attention is needed"
+
+- name: "bounty"
+  color: "1d76db"
+  description: "Bounty available for this issue"
+
+- name: "bounty: claimed"
+  color: "5319e7"
+  description: "Bounty has been claimed"
+
+- name: "bounty: paid"
+  color: "0e8a16"
+  description: "Bounty has been paid"
+
+- name: "RFC"
+  color: "d4c5f9"
+  description: "Request for Comments - needs discussion"
+
+- name: "breaking change"
+  color: "d73a4a"
+  description: "Includes breaking changes"
+
+- name: "duplicate"
+  color: "cfd3d7"
+  description: "This issue or pull request already exists"
+
+- name: "invalid"
+  color: "e4e669"
+  description: "This doesn't seem right"
+
+- name: "wontfix"
+  color: "ffffff"
+  description: "This will not be worked on"
+
+- name: "dependencies"
+  color: "0366d6"
+  description: "Dependency updates"
+
+# Roadmap Phases
+- name: "roadmap: phase-1"
+  color: "0e8a16"
+  description: "Core Infrastructure Enhancement"
+
+- name: "roadmap: phase-2"
+  color: "fbca04"
+  description: "Testing & Stability"
+
+- name: "roadmap: phase-3"
+  color: "0075ca"
+  description: "Universal Market Expansion"
+
+- name: "roadmap: phase-4"
+  color: "7057ff"
+  description: "Advanced AI & Automation"
+
+- name: "roadmap: phase-5"
+  color: "d73a4a"
+  description: "Enterprise & Scaling"

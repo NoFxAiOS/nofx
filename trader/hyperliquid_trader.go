@@ -2,9 +2,9 @@ package trader
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
+	"nofx/utils"
 	"strconv"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -72,12 +72,17 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 
 // GetBalance 获取账户余额
 func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
-	log.Printf("🔄 正在调用Hyperliquid API获取账户余额...")
+	utils.LogInfo("正在调用Hyperliquid API获取账户余额...")
 
-	// 获取账户状态
-	accountState, err := t.exchange.Info().UserState(t.ctx, t.walletAddr)
+	// 获取账户状态（带重试机制）
+	var accountState *hyperliquid.UserState
+	err := utils.RetryAPI(func() error {
+		var apiErr error
+		accountState, apiErr = t.exchange.Info().UserState(t.ctx, t.walletAddr)
+		return apiErr
+	}, "Hyperliquid", "获取账户状态")
+
 	if err != nil {
-		log.Printf("❌ Hyperliquid API调用失败: %v", err)
 		return nil, fmt.Errorf("获取账户信息失败: %w", err)
 	}
 
@@ -85,9 +90,7 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	result := make(map[string]interface{})
 
 	// 🔍 调试：打印API返回的完整CrossMarginSummary结构
-	summaryJSON, _ := json.MarshalIndent(accountState.MarginSummary, "  ", "  ")
-	log.Printf("🔍 [DEBUG] Hyperliquid API CrossMarginSummary完整数据:")
-	log.Printf("%s", string(summaryJSON))
+	utils.LogDebug("Hyperliquid API CrossMarginSummary完整数据", accountState.MarginSummary)
 
 	accountValue, _ := strconv.ParseFloat(accountState.MarginSummary.AccountValue, 64)
 	totalMarginUsed, _ := strconv.ParseFloat(accountState.MarginSummary.TotalMarginUsed, 64)
@@ -123,8 +126,14 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 
 // GetPositions 获取所有持仓
 func (t *HyperliquidTrader) GetPositions() ([]map[string]interface{}, error) {
-	// 获取账户状态
-	accountState, err := t.exchange.Info().UserState(t.ctx, t.walletAddr)
+	// 获取账户状态（带重试机制）
+	var accountState *hyperliquid.UserState
+	err := utils.RetryAPI(func() error {
+		var apiErr error
+		accountState, apiErr = t.exchange.Info().UserState(t.ctx, t.walletAddr)
+		return apiErr
+	}, "Hyperliquid", "获取持仓")
+
 	if err != nil {
 		return nil, fmt.Errorf("获取持仓失败: %w", err)
 	}

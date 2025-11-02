@@ -1,0 +1,165 @@
+name: Auto Translate Issues
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Translate Issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python3 << 'EOF'
+          import os
+          import re
+          import json
+          import requests
+
+          def detect_language(text):
+              """Detect if text is primarily Chinese or English"""
+              # Count Chinese characters
+              chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+              # Count English words (rough estimate)
+              english_words = len(re.findall(r'[a-zA-Z]+', text))
+
+              if chinese_chars > english_words * 2:
+                  return 'zh'
+              else:
+                  return 'en'
+
+          def translate_text(text, target_lang, api_key):
+              """Translate text using DeepSeek API"""
+              if target_lang == 'zh':
+                  system_prompt = "You are a professional translator. Translate the following GitHub issue from English to Chinese. Preserve markdown formatting, code blocks, and links. Only output the translation, no explanations."
+              else:
+                  system_prompt = "You are a professional translator. Translate the following GitHub issue from Chinese to English. Preserve markdown formatting, code blocks, and links. Only output the translation, no explanations."
+
+              url = "https://api.deepseek.com/v1/chat/completions"
+              headers = {
+                  "Authorization": f"Bearer {api_key}",
+                  "Content-Type": "application/json"
+              }
+              data = {
+                  "model": "deepseek-chat",
+                  "messages": [
+                      {"role": "system", "content": system_prompt},
+                      {"role": "user", "content": text}
+                  ],
+                  "temperature": 0.3
+              }
+
+              response = requests.post(url, headers=headers, json=data, timeout=60)
+              response.raise_for_status()
+
+              result = response.json()
+              return result['choices'][0]['message']['content']
+
+          def add_translation_comment(issue_number, translation, original_lang, repo, token):
+              """Add translation as a comment"""
+              if original_lang == 'zh':
+                  comment_body = f"## 🌐 Auto Translation (EN)\n\n{translation}\n\n---\n*Translated by DeepSeek API*"
+              else:
+                  comment_body = f"## 🌐 自动翻译 (中文)\n\n{translation}\n\n---\n*由 DeepSeek API 翻译*"
+
+              url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+              headers = {
+                  "Authorization": f"token {token}",
+                  "Accept": "application/vnd.github.v3+json"
+              }
+              data = {"body": comment_body}
+
+              response = requests.post(url, headers=headers, json=data)
+              response.raise_for_status()
+
+          def main():
+              # Get environment variables
+              github_token = os.environ.get('GITHUB_TOKEN')
+              deepseek_api_key = os.environ.get('DEEPSEEK_API_KEY')
+              github_event_path = os.environ.get('GITHUB_EVENT_PATH')
+
+              if not deepseek_api_key:
+                  print("⚠️  DEEPSEEK_API_KEY not set. Skipping translation.")
+                  return
+
+              # Read GitHub event
+              with open(github_event_path, 'r') as f:
+                  event = json.load(f)
+
+              # Get issue data
+              issue = event.get('issue')
+              if not issue:
+                  print("No issue found in event")
+                  return
+
+              issue_number = issue['number']
+              issue_title = issue['title']
+              issue_body = issue.get('body', '')
+              repo = os.environ.get('GITHUB_REPOSITORY')
+
+              # Skip if issue is empty
+              if not issue_body or len(issue_body.strip()) < 10:
+                  print(f"Issue #{issue_number} body too short, skipping")
+                  return
+
+              # Check if already translated (look for translation comment)
+              comments_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
+              headers = {
+                  "Authorization": f"token {github_token}",
+                  "Accept": "application/vnd.github.v3+json"
+              }
+              comments_response = requests.get(comments_url, headers=headers)
+              comments = comments_response.json()
+
+              for comment in comments:
+                  if "Auto Translation" in comment['body'] or "自动翻译" in comment['body']:
+                      print(f"Issue #{issue_number} already has translation")
+                      return
+
+              # Detect language
+              combined_text = f"{issue_title}\n\n{issue_body}"
+              original_lang = detect_language(combined_text)
+
+              print(f"Detected language: {original_lang}")
+
+              # Determine target language
+              if original_lang == 'zh':
+                  target_lang = 'en'
+              else:
+                  target_lang = 'zh'
+
+              # Translate
+              print(f"Translating to {target_lang}...")
+              try:
+                  translation = translate_text(combined_text, target_lang, deepseek_api_key)
+
+                  # Add translation as comment
+                  add_translation_comment(issue_number, translation, original_lang, repo, github_token)
+                  print(f"✅ Translation added to issue #{issue_number}")
+              except Exception as e:
+                  print(f"❌ Translation failed: {e}")
+
+          if __name__ == '__main__':
+              main()
+          EOF

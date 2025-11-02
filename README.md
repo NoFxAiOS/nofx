@@ -124,11 +124,12 @@ A Binance-compatible decentralized perpetual futures exchange!
 - 🌐 **Multi-chain support** - trade on your preferred EVM chain
 
 **Quick Start:**
-1. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
-2. Connect your main wallet and create an API wallet
-3. Copy the API Signer address and Private Key
-4. ~~Set `"exchange": "aster"` in config.json~~ *Configure through web interface*
-5. Add `"aster_user"`, `"aster_signer"`, and `"aster_private_key"`
+1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/fdfc0e) (get fee discounts!)
+2. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
+3. Connect your main wallet and create an API wallet
+4. Copy the API Signer address and Private Key
+5. Set `"exchange": "aster"` in config.json
+6. Add `"aster_user"`, `"aster_signer"`, and `"aster_private_key"`
 
 ---
 
@@ -543,12 +544,13 @@ Open your browser and visit: **🌐 http://localhost:3000**
 - 🌐 Multi-chain support (ETH, BSC, Polygon)
 - 🌍 No KYC required
 
-**Step 1**: Create Aster API Wallet
+**Step 1**: Register and Create Aster API Wallet
 
-1. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
-2. Connect your main wallet (MetaMask, WalletConnect, etc.)
-3. Click "Create API Wallet"
-4. **Save these 3 items immediately:**
+1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/fdfc0e) (get fee discounts!)
+2. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
+3. Connect your main wallet (MetaMask, WalletConnect, etc.)
+4. Click "Create API Wallet"
+5. **Save these 3 items immediately:**
    - Main Wallet address (User)
    - API Wallet address (Signer)
    - API Wallet Private Key (⚠️ shown only once!)

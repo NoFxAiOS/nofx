@@ -1,16 +1,7 @@
 import { motion } from 'framer-motion'
 import AnimatedSection from './AnimatedSection'
 
-type CardProps = {
-  quote: string
-  authorName: string
-  handle: string
-  avatarUrl: string
-  tweetUrl?: string
-  delay?: number
-}
-
-function TestimonialCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay = 0 }: CardProps) {
+function TestimonialCard({ quote, author, delay }: any) {
   return (
     <motion.div
       className='p-6 rounded-xl'
@@ -19,32 +10,16 @@ function TestimonialCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay }}
-      whileHover={{ scale: 1.02 }}
+      whileHover={{ scale: 1.05 }}
     >
-      <p className='text-lg mb-4 leading-relaxed' style={{ color: 'var(--brand-light-gray)' }}>
-        “{quote}”
+      <p className='text-lg mb-4' style={{ color: 'var(--brand-light-gray)' }}>
+        "{quote}"
       </p>
-      <div className='flex items-center gap-3'>
-        {/* 头像：优先使用传入头像，失败则退回到首字母头像 */}
-        <img
-          src={avatarUrl}
-          alt={`${authorName} avatar`}
-          className='w-8 h-8 rounded-full object-cover'
-          onError={(e) => {
-            const target = e.currentTarget as HTMLImageElement
-            target.onerror = null
-            target.src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(authorName)}`
-          }}
-        />
-        {tweetUrl ? (
-          <a href={tweetUrl} target='_blank' rel='noopener noreferrer' className='text-sm font-semibold hover:underline' style={{ color: 'var(--text-secondary)' }}>
-            {authorName} ({handle})
-          </a>
-        ) : (
-          <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
-            {authorName} ({handle})
-          </span>
-        )}
+      <div className='flex items-center gap-2'>
+        <div className='w-8 h-8 rounded-full' style={{ background: 'var(--binance-yellow)' }} />
+        <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
+          {author}
+        </span>
       </div>
     </motion.div>
   )

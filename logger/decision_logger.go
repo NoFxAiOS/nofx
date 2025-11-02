@@ -243,7 +243,7 @@ func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 				switch action.Action {
 				case "open_long", "open_short":
 					stats.TotalOpenPositions++
-				case "close_long", "close_short":
+				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					stats.TotalClosePositions++
 				}
 			}
@@ -348,9 +348,9 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 				symbol := action.Symbol
 				side := ""
-				if action.Action == "open_long" || action.Action == "close_long" {
+				if action.Action == "open_long" || action.Action == "close_long" || action.Action == "auto_close_long" {
 					side = "long"
-				} else if action.Action == "open_short" || action.Action == "close_short" {
+				} else if action.Action == "open_short" || action.Action == "close_short" || action.Action == "auto_close_short" {
 					side = "short"
 				}
 				posKey := symbol + "_" + side
@@ -365,7 +365,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						"quantity":  action.Quantity,
 						"leverage":  action.Leverage,
 					}
-				case "close_long", "close_short":
+				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					// 移除已平仓记录
 					delete(openPositions, posKey)
 				}
@@ -382,9 +382,9 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 			symbol := action.Symbol
 			side := ""
-			if action.Action == "open_long" || action.Action == "close_long" {
+			if action.Action == "open_long" || action.Action == "close_long" || action.Action == "auto_close_long" {
 				side = "long"
-			} else if action.Action == "open_short" || action.Action == "close_short" {
+			} else if action.Action == "open_short" || action.Action == "close_short" || action.Action == "auto_close_short" {
 				side = "short"
 			}
 			posKey := symbol + "_" + side // 使用symbol_side作为key，区分多空持仓
@@ -400,7 +400,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					"leverage":  action.Leverage,
 				}
 
-			case "close_long", "close_short":
+			case "close_long", "close_short", "auto_close_long", "auto_close_short":
 				// 查找对应的开仓记录（可能来自预填充或当前窗口）
 				if openPos, exists := openPositions[posKey]; exists {
 					openPrice := openPos["openPrice"].(float64)

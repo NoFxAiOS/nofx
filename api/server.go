@@ -77,6 +77,10 @@ func (s *Server) setupRoutes() {
 		api.GET("/statistics", s.handleStatistics)
 		api.GET("/equity-history", s.handleEquityHistory)
 		api.GET("/performance", s.handlePerformance)
+
+		// 导出功能
+		api.GET("/export/csv", s.handleExportCSV)
+		api.GET("/export/pdf", s.handleExportPDF)
 	}
 }
 
@@ -416,6 +420,8 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
 	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 指定trader的收益率历史数据")
 	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
+	log.Printf("  • GET  /api/export/csv?trader_id=xxx&type=[positions|decisions|equity|statistics] - 导出CSV")
+	log.Printf("  • GET  /api/export/pdf?trader_id=xxx&type=[full|positions] - 导出PDF报告")
 	log.Printf("  • GET  /health               - 健康检查")
 	log.Println()
 

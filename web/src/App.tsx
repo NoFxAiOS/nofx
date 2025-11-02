@@ -340,6 +340,32 @@ function TraderDetailsPage({
   lastUpdate: string;
   language: Language;
 }) {
+  const [isExporting, setIsExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // 导出处理函数
+  const handleExport = async (type: 'positions' | 'decisions' | 'equity' | 'statistics', format: 'csv' | 'pdf') => {
+    if (!selectedTrader) return;
+
+    setIsExporting(true);
+    setShowExportMenu(false);
+
+    try {
+      if (format === 'csv') {
+        await api.exportCSV(selectedTrader.trader_id, type);
+      } else {
+        // PDF只支持full和positions
+        const pdfType = type === 'positions' ? 'positions' : 'full';
+        await api.exportPDF(selectedTrader.trader_id, pdfType);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert(t('exportError', language));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   if (!selectedTrader) {
     return (
       <div className="space-y-6">
@@ -372,22 +398,112 @@ function TraderDetailsPage({
     <div>
       {/* Trader Header */}
       <div className="mb-6 rounded p-6 animate-scale-in" style={{ background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(252, 213, 53, 0.05) 100%)', border: '1px solid rgba(240, 185, 11, 0.2)', boxShadow: '0 0 30px rgba(240, 185, 11, 0.15)' }}>
-        <h2 className="text-2xl font-bold mb-3 flex items-center gap-2" style={{ color: '#EAECEF' }}>
-          <span className="w-10 h-10 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-            🤖
-          </span>
-          {selectedTrader.trader_name}
-        </h2>
-        <div className="flex items-center gap-4 text-sm" style={{ color: '#848E9C' }}>
-          <span>AI Model: <span className="font-semibold" style={{ color: selectedTrader.ai_model === 'qwen' ? '#c084fc' : '#60a5fa' }}>{selectedTrader.ai_model.toUpperCase()}</span></span>
-          {status && (
-            <>
-              <span>•</span>
-              <span>Cycles: {status.call_count}</span>
-              <span>•</span>
-              <span>Runtime: {status.runtime_minutes} min</span>
-            </>
-          )}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-10 h-10 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
+              🤖
+            </span>
+            <div>
+              <h2 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
+                {selectedTrader.trader_name}
+              </h2>
+              <div className="flex items-center gap-4 text-sm" style={{ color: '#848E9C' }}>
+                <span>AI Model: <span className="font-semibold" style={{ color: selectedTrader.ai_model === 'qwen' ? '#c084fc' : '#60a5fa' }}>{selectedTrader.ai_model.toUpperCase()}</span></span>
+                {status && (
+                  <>
+                    <span>•</span>
+                    <span>Cycles: {status.call_count}</span>
+                    <span>•</span>
+                    <span>Runtime: {status.runtime_minutes} min</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Export Button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 rounded font-semibold transition-all hover:scale-105"
+              style={{ background: '#F0B90B', color: '#000', border: '1px solid #FCD535' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              {isExporting ? t('exporting', language) : t('export', language)}
+            </button>
+
+            {/* Export Menu */}
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-64 rounded shadow-lg z-50" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
+                <div className="p-2">
+                  <div className="text-xs font-semibold mb-2 px-2" style={{ color: '#848E9C' }}>CSV {t('export', language)}</div>
+                  <button
+                    onClick={() => handleExport('positions', 'csv')}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-opacity-10 text-sm transition-colors"
+                    style={{ color: '#EAECEF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(240, 185, 11, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📊 {t('exportPositions', language)}
+                  </button>
+                  <button
+                    onClick={() => handleExport('decisions', 'csv')}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-opacity-10 text-sm transition-colors"
+                    style={{ color: '#EAECEF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(240, 185, 11, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    🧠 {t('exportDecisions', language)}
+                  </button>
+                  <button
+                    onClick={() => handleExport('equity', 'csv')}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-opacity-10 text-sm transition-colors"
+                    style={{ color: '#EAECEF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(240, 185, 11, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📈 {t('exportEquity', language)}
+                  </button>
+                  <button
+                    onClick={() => handleExport('statistics', 'csv')}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-opacity-10 text-sm transition-colors"
+                    style={{ color: '#EAECEF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(240, 185, 11, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📊 {t('exportStatistics', language)}
+                  </button>
+
+                  <div className="border-t my-2" style={{ borderColor: '#2B3139' }}></div>
+
+                  <div className="text-xs font-semibold mb-2 px-2" style={{ color: '#848E9C' }}>PDF {t('export', language)}</div>
+                  <button
+                    onClick={() => handleExport('positions', 'pdf')}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-opacity-10 text-sm transition-colors"
+                    style={{ color: '#EAECEF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(240, 185, 11, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📄 {t('exportPositions', language)}
+                  </button>
+                  <button
+                    onClick={() => handleExport('equity', 'pdf')}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-opacity-10 text-sm transition-colors"
+                    style={{ color: '#EAECEF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(240, 185, 11, 0.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📑 {t('exportFullReport', language)}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

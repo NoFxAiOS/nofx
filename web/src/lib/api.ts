@@ -110,4 +110,62 @@ export const api = {
     if (!res.ok) throw new Error('获取AI学习数据失败');
     return res.json();
   },
+
+  // 导出CSV
+  async exportCSV(
+    traderId: string,
+    type: 'positions' | 'decisions' | 'equity' | 'statistics'
+  ): Promise<void> {
+    const url = `${API_BASE}/export/csv?trader_id=${traderId}&type=${type}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('导出CSV失败');
+
+    // 获取文件名
+    const contentDisposition = res.headers.get('Content-Disposition');
+    let filename = `export_${type}_${new Date().getTime()}.csv`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename=(.+)/);
+      if (match) filename = match[1];
+    }
+
+    // 下载文件
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(downloadUrl);
+  },
+
+  // 导出PDF
+  async exportPDF(
+    traderId: string,
+    type: 'full' | 'positions'
+  ): Promise<void> {
+    const url = `${API_BASE}/export/pdf?trader_id=${traderId}&type=${type}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('导出PDF失败');
+
+    // 获取文件名
+    const contentDisposition = res.headers.get('Content-Disposition');
+    let filename = `report_${type}_${new Date().getTime()}.pdf`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename=(.+)/);
+      if (match) filename = match[1];
+    }
+
+    // 下载文件
+    const blob = await res.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(downloadUrl);
+  },
 };

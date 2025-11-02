@@ -118,6 +118,20 @@ export const translations = {
     loading: 'Loading...',
     loadingError: '⚠️ Failed to load AI learning data',
     noCompleteData: 'No complete trading data (needs to complete open → close cycle)',
+
+    // Export
+    export: 'Export',
+    exportData: 'Export Data',
+    exportPositions: 'Export Positions',
+    exportDecisions: 'Export Decisions',
+    exportEquity: 'Export Equity History',
+    exportStatistics: 'Export Statistics',
+    exportFullReport: 'Export Full Report',
+    exportAsCSV: 'Export as CSV',
+    exportAsPDF: 'Export as PDF',
+    exporting: 'Exporting...',
+    exportSuccess: 'Export successful',
+    exportError: 'Export failed',
   },
   zh: {
     // Header
@@ -236,6 +250,20 @@ export const translations = {
     loading: '加载中...',
     loadingError: '⚠️ 加载AI学习数据失败',
     noCompleteData: '暂无完整交易数据（需要完成开仓→平仓的完整周期）',
+
+    // Export
+    export: '导出',
+    exportData: '导出数据',
+    exportPositions: '导出持仓',
+    exportDecisions: '导出决策日志',
+    exportEquity: '导出收益历史',
+    exportStatistics: '导出统计数据',
+    exportFullReport: '导出完整报告',
+    exportAsCSV: '导出为CSV',
+    exportAsPDF: '导出为PDF',
+    exporting: '导出中...',
+    exportSuccess: '导出成功',
+    exportError: '导出失败',
   }
 };
 

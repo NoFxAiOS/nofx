@@ -5,6 +5,7 @@ import (
 	"log"
 	"nofx/api"
 	"nofx/config"
+	"nofx/i18n"
 	"nofx/manager"
 	"nofx/pool"
 	"os"
@@ -12,6 +13,9 @@ import (
 	"strings"
 	"syscall"
 )
+
+// t is a shorthand for i18n.T
+var t = i18n.T
 
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
@@ -25,13 +29,13 @@ func main() {
 		configFile = os.Args[1]
 	}
 
-	log.Printf("📋 加载配置文件: %s", configFile)
+	log.Printf(t("loading_config"), configFile)
 	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
-		log.Fatalf("❌ 加载配置失败: %v", err)
+		log.Fatalf(t("config_load_failed"), err)
 	}
 
-	log.Printf("✓ 配置加载成功，共%d个trader参赛", len(cfg.Traders))
+	log.Printf(t("config_loaded"), len(cfg.Traders))
 	fmt.Println()
 
 	// 设置默认主流币种列表
@@ -40,17 +44,17 @@ func main() {
 	// 设置是否使用默认主流币种
 	pool.SetUseDefaultCoins(cfg.UseDefaultCoins)
 	if cfg.UseDefaultCoins {
-		log.Printf("✓ 已启用默认主流币种列表（共%d个币种）: %v", len(cfg.DefaultCoins), cfg.DefaultCoins)
+		log.Printf(t("default_coins_enabled"), len(cfg.DefaultCoins), cfg.DefaultCoins)
 	}
 
 	// 设置币种池API URL
 	if cfg.CoinPoolAPIURL != "" {
 		pool.SetCoinPoolAPI(cfg.CoinPoolAPIURL)
-		log.Printf("✓ 已配置AI500币种池API")
+		log.Println(t("ai500_configured"))
 	}
 	if cfg.OITopAPIURL != "" {
 		pool.SetOITopAPI(cfg.OITopAPIURL)
-		log.Printf("✓ 已配置OI Top API")
+		log.Println(t("oi_top_configured"))
 	}
 
 	// 创建TraderManager
@@ -61,12 +65,12 @@ func main() {
 	for i, traderCfg := range cfg.Traders {
 		// 跳过未启用的trader
 		if !traderCfg.Enabled {
-			log.Printf("⏭️  [%d/%d] 跳过未启用的 %s", i+1, len(cfg.Traders), traderCfg.Name)
+			log.Printf(t("skip_disabled_trader"), i+1, len(cfg.Traders), traderCfg.Name)
 			continue
 		}
 
 		enabledCount++
-		log.Printf("📦 [%d/%d] 初始化 %s (%s模型)...",
+		log.Printf(t("initializing_trader"),
 			i+1, len(cfg.Traders), traderCfg.Name, strings.ToUpper(traderCfg.AIModel))
 
 		err := traderManager.AddTrader(
@@ -78,37 +82,37 @@ func main() {
 			cfg.Leverage, // 传递杠杆配置
 		)
 		if err != nil {
-			log.Fatalf("❌ 初始化trader失败: %v", err)
+			log.Fatalf(t("trader_init_failed"), err)
 		}
 	}
 
 	// 检查是否至少有一个启用的trader
 	if enabledCount == 0 {
-		log.Fatalf("❌ 没有启用的trader，请在config.json中设置至少一个trader的enabled=true")
+		log.Fatalf(t("no_enabled_traders"))
 	}
 
 	fmt.Println()
-	fmt.Println("🏁 竞赛参赛者:")
+	fmt.Println(t("competition_participants"))
 	for _, traderCfg := range cfg.Traders {
 		// 只显示启用的trader
 		if !traderCfg.Enabled {
 			continue
 		}
-		fmt.Printf("  • %s (%s) - 初始资金: %.0f USDT\n",
+		fmt.Printf(t("initial_capital"),
 			traderCfg.Name, strings.ToUpper(traderCfg.AIModel), traderCfg.InitialBalance)
 	}
 
 	fmt.Println()
-	fmt.Println("🤖 AI全权决策模式:")
-	fmt.Printf("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高%d倍，BTC/ETH最高%d倍）\n",
+	fmt.Println(t("ai_full_control_mode"))
+	fmt.Printf(t("ai_leverage_info")+"\n",
 		cfg.Leverage.AltcoinLeverage, cfg.Leverage.BTCETHLeverage)
-	fmt.Println("  • AI将自主决定每笔交易的仓位大小")
-	fmt.Println("  • AI将自主设置止损和止盈价格")
-	fmt.Println("  • AI将基于市场数据、技术指标、账户状态做出全面分析")
+	fmt.Println(t("ai_position_size"))
+	fmt.Println(t("ai_stop_loss"))
+	fmt.Println(t("ai_analysis"))
 	fmt.Println()
-	fmt.Println("⚠️  风险提示: AI自动交易有风险，建议小额资金测试！")
+	fmt.Println(t("risk_warning"))
 	fmt.Println()
-	fmt.Println("按 Ctrl+C 停止运行")
+	fmt.Println(t("press_ctrl_c"))
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
 
@@ -116,7 +120,7 @@ func main() {
 	apiServer := api.NewServer(traderManager, cfg.APIServerPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
-			log.Printf("❌ API服务器错误: %v", err)
+			log.Printf(t("api_server_error"), err)
 		}
 	}()
 
@@ -131,9 +135,9 @@ func main() {
 	<-sigChan
 	fmt.Println()
 	fmt.Println()
-	log.Println("📛 收到退出信号，正在停止所有trader...")
+	log.Println(t("shutdown_signal"))
 	traderManager.StopAll()
 
 	fmt.Println()
-	fmt.Println("👋 感谢使用AI交易竞赛系统！")
+	fmt.Println(t("thank_you"))
 }

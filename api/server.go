@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"nofx/i18n"
 	"nofx/manager"
 
 	"github.com/gin-gonic/gin"
 )
+
+// t is a shorthand for i18n.T
+var t = i18n.T
 
 // Server HTTP API服务器
 type Server struct {
@@ -95,7 +99,7 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 		// 如果没有指定trader_id，返回第一个trader
 		ids := s.traderManager.GetTraderIDs()
 		if len(ids) == 0 {
-			return nil, "", fmt.Errorf("没有可用的trader")
+			return nil, "", fmt.Errorf(t("no_available_trader"))
 		}
 		traderID = ids[0]
 	}
@@ -107,7 +111,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 	comparison, err := s.traderManager.GetComparisonData()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("获取对比数据失败: %v", err),
+			"error": fmt.Sprintf(t("comparison_data_failed"), err),
 		})
 		return
 	}
@@ -404,19 +408,19 @@ func (s *Server) handlePerformance(c *gin.Context) {
 // Start 启动服务器
 func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
-	log.Printf("🌐 API服务器启动在 http://localhost%s", addr)
-	log.Printf("📊 API文档:")
-	log.Printf("  • GET  /api/competition      - 竞赛总览（对比所有trader）")
-	log.Printf("  • GET  /api/traders          - Trader列表")
-	log.Printf("  • GET  /api/status?trader_id=xxx     - 指定trader的系统状态")
-	log.Printf("  • GET  /api/account?trader_id=xxx    - 指定trader的账户信息")
-	log.Printf("  • GET  /api/positions?trader_id=xxx  - 指定trader的持仓列表")
-	log.Printf("  • GET  /api/decisions?trader_id=xxx  - 指定trader的决策日志")
-	log.Printf("  • GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
-	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
-	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 指定trader的收益率历史数据")
-	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
-	log.Printf("  • GET  /health               - 健康检查")
+	log.Printf(t("api_server_started"), addr)
+	log.Println(t("api_documentation"))
+	log.Println(t("api_competition"))
+	log.Println(t("api_traders"))
+	log.Println(t("api_status"))
+	log.Println(t("api_account"))
+	log.Println(t("api_positions"))
+	log.Println(t("api_decisions"))
+	log.Println(t("api_decisions_latest"))
+	log.Println(t("api_statistics"))
+	log.Println(t("api_equity_history"))
+	log.Println(t("api_performance"))
+	log.Println(t("api_health"))
 	log.Println()
 
 	return s.router.Run(addr)

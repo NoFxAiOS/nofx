@@ -3,15 +3,38 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"nofx/i18n"
 	"os"
+	"strings"
 	"time"
 )
+
+// t is a shorthand for i18n.T
+var t = i18n.T
+
+// GetLanguage returns the language setting, defaults to Chinese
+func (c *Config) GetLanguage() string {
+	// First check root level language setting
+	if c.Language == "en" {
+		return "en"
+	}
+	return "zh"
+}
+
+// detectLanguageFromJSON tries to detect language setting from JSON data
+func detectLanguageFromJSON(data []byte) string {
+	// Simple detection: look for "lang": "en" in the JSON
+	if strings.Contains(string(data), `"lang":"en"`) || strings.Contains(string(data), `"lang": "en"`) {
+		return "en"
+	}
+	return "zh"
+}
 
 // TraderConfig 单个trader的配置
 type TraderConfig struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
-	Enabled bool   `json:"enabled"` // 是否启用该trader
+	Enabled bool   `json:"enabled"`  // 是否启用该trader
 	AIModel string `json:"ai_model"` // "qwen" or "deepseek"
 
 	// 交易平台选择（二选一）
@@ -62,18 +85,26 @@ type Config struct {
 	MaxDrawdown        float64        `json:"max_drawdown"`
 	StopTradingMinutes int            `json:"stop_trading_minutes"`
 	Leverage           LeverageConfig `json:"leverage"` // 杠杆配置
+	// Language config (default: zh)
+	Language string `json:"lang"` // 语言设置: "en" or "zh"
 }
 
 // LoadConfig 从文件加载配置
 func LoadConfig(filename string) (*Config, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+		// Try to detect language from file content before returning error
+		lang := detectLanguageFromJSON(data)
+		i18n.SetLanguage(lang)
+		return nil, fmt.Errorf("%s: %w", t("failed_to_read_config"), err)
 	}
 
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+		// Try to detect language from file content before returning error
+		lang := detectLanguageFromJSON(data)
+		i18n.SetLanguage(lang)
+		return nil, fmt.Errorf("%s: %w", t("failed_to_parse_config"), err)
 	}
 
 	// 设置默认值：如果use_default_coins未设置（为false）且没有配置coin_pool_api_url，则默认使用默认币种列表
@@ -95,9 +126,12 @@ func LoadConfig(filename string) (*Config, error) {
 		}
 	}
 
+	// Set language from config
+	i18n.SetLanguage(config.GetLanguage())
+
 	// 验证配置
 	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("配置验证失败: %w", err)
+		return nil, fmt.Errorf("%s: %w", t("config_validation_failed"), err)
 	}
 
 	return &config, nil
@@ -106,24 +140,24 @@ func LoadConfig(filename string) (*Config, error) {
 // Validate 验证配置有效性
 func (c *Config) Validate() error {
 	if len(c.Traders) == 0 {
-		return fmt.Errorf("至少需要配置一个trader")
+		return fmt.Errorf(t("at_least_one_trader"))
 	}
 
 	traderIDs := make(map[string]bool)
-	for i, trader := range c.Traders {
+	for idx, trader := range c.Traders {
 		if trader.ID == "" {
-			return fmt.Errorf("trader[%d]: ID不能为空", i)
+			return fmt.Errorf(t("trader_id_empty", idx))
 		}
 		if traderIDs[trader.ID] {
-			return fmt.Errorf("trader[%d]: ID '%s' 重复", i, trader.ID)
+			return fmt.Errorf(t("trader_id_duplicated", idx, trader.ID))
 		}
 		traderIDs[trader.ID] = true
 
 		if trader.Name == "" {
-			return fmt.Errorf("trader[%d]: Name不能为空", i)
+			return fmt.Errorf(t("trader_name_empty", idx))
 		}
 		if trader.AIModel != "qwen" && trader.AIModel != "deepseek" && trader.AIModel != "custom" {
-			return fmt.Errorf("trader[%d]: ai_model必须是 'qwen', 'deepseek' 或 'custom'", i)
+			return fmt.Errorf(t("invalid_ai_model", idx))
 		}
 
 		// 验证交易平台配置
@@ -131,43 +165,43 @@ func (c *Config) Validate() error {
 			trader.Exchange = "binance" // 默认使用币安
 		}
 		if trader.Exchange != "binance" && trader.Exchange != "hyperliquid" && trader.Exchange != "aster" {
-			return fmt.Errorf("trader[%d]: exchange必须是 'binance', 'hyperliquid' 或 'aster'", i)
+			return fmt.Errorf(t("invalid_exchange", idx))
 		}
 
 		// 根据平台验证对应的密钥
 		if trader.Exchange == "binance" {
 			if trader.BinanceAPIKey == "" || trader.BinanceSecretKey == "" {
-				return fmt.Errorf("trader[%d]: 使用币安时必须配置binance_api_key和binance_secret_key", i)
+				return fmt.Errorf(t("binance_api_keys_required", idx))
 			}
 		} else if trader.Exchange == "hyperliquid" {
 			if trader.HyperliquidPrivateKey == "" {
-				return fmt.Errorf("trader[%d]: 使用Hyperliquid时必须配置hyperliquid_private_key", i)
+				return fmt.Errorf(t("hyperliquid_key_required", idx))
 			}
 		} else if trader.Exchange == "aster" {
 			if trader.AsterUser == "" || trader.AsterSigner == "" || trader.AsterPrivateKey == "" {
-				return fmt.Errorf("trader[%d]: 使用Aster时必须配置aster_user, aster_signer和aster_private_key", i)
+				return fmt.Errorf(t("aster_keys_required", idx))
 			}
 		}
 
 		if trader.AIModel == "qwen" && trader.QwenKey == "" {
-			return fmt.Errorf("trader[%d]: 使用Qwen时必须配置qwen_key", i)
+			return fmt.Errorf(t("qwen_key_required", idx))
 		}
 		if trader.AIModel == "deepseek" && trader.DeepSeekKey == "" {
-			return fmt.Errorf("trader[%d]: 使用DeepSeek时必须配置deepseek_key", i)
+			return fmt.Errorf(t("deepseek_key_required", idx))
 		}
 		if trader.AIModel == "custom" {
 			if trader.CustomAPIURL == "" {
-				return fmt.Errorf("trader[%d]: 使用自定义API时必须配置custom_api_url", i)
+				return fmt.Errorf(t("custom_api_url_required", idx))
 			}
 			if trader.CustomAPIKey == "" {
-				return fmt.Errorf("trader[%d]: 使用自定义API时必须配置custom_api_key", i)
+				return fmt.Errorf(t("custom_api_key_required", idx))
 			}
 			if trader.CustomModelName == "" {
-				return fmt.Errorf("trader[%d]: 使用自定义API时必须配置custom_model_name", i)
+				return fmt.Errorf(t("custom_model_name_required", idx))
 			}
 		}
 		if trader.InitialBalance <= 0 {
-			return fmt.Errorf("trader[%d]: initial_balance必须大于0", i)
+			return fmt.Errorf(t("initial_balance_invalid", idx))
 		}
 		if trader.ScanIntervalMinutes <= 0 {
 			trader.ScanIntervalMinutes = 3 // 默认3分钟
@@ -183,13 +217,13 @@ func (c *Config) Validate() error {
 		c.Leverage.BTCETHLeverage = 5 // 默认5倍（安全值，适配子账户）
 	}
 	if c.Leverage.BTCETHLeverage > 5 {
-		fmt.Printf("⚠️  警告: BTC/ETH杠杆设置为%dx，如果使用子账户可能会失败（子账户限制≤5x）\n", c.Leverage.BTCETHLeverage)
+		fmt.Println(t("btc_eth_leverage_warning", c.Leverage.BTCETHLeverage))
 	}
 	if c.Leverage.AltcoinLeverage <= 0 {
 		c.Leverage.AltcoinLeverage = 5 // 默认5倍（安全值，适配子账户）
 	}
 	if c.Leverage.AltcoinLeverage > 5 {
-		fmt.Printf("⚠️  警告: 山寨币杠杆设置为%dx，如果使用子账户可能会失败（子账户限制≤5x）\n", c.Leverage.AltcoinLeverage)
+		fmt.Println(t("altcoin_leverage_warning", c.Leverage.AltcoinLeverage))
 	}
 
 	return nil

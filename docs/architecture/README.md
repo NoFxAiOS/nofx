@@ -51,7 +51,12 @@ nofx/
 │
 ├── market/                         # Market data fetching
 │   └── data.go                     # Market data & technical indicators (TA-Lib)
-│
+│   └── api_client.go               # Market data acquisition API
+│   └── websocket_client.go         # Market data acquisition WebSocket interface
+│   └── combined_streams.go         # Market data acquisition: Combined streaming (single link to subscribe to multiple cryptocurrencies)
+│   └── monitor.go                  # Market data cache
+│   └── types.go                    # market structure
+
 ├── pool/                           # Coin pool management
 │   └── coin_pool.go                # AI500 + OI Top merged pool
 │

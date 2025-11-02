@@ -129,16 +129,17 @@ docker compose up -d
 ## AI & Model Questions
 
 ### Which AI models are supported?
-- DeepSeek (recommended for cost/performance)
-- OpenAI GPT-4
-- Claude (Anthropic)
-- Custom models via API
+- **DeepSeek** (recommended for cost/performance)
+- **Qwen** (Alibaba Cloud Tongyi Qianwen)
+- **Custom OpenAI-compatible APIs** (can be used for OpenAI, Claude via proxy, or other providers)
 
 ### How much do API calls cost?
 Depends on your model and decision frequency:
 - **DeepSeek**: ~$0.10-0.50 per day (1 trader, 5min intervals)
-- **GPT-4**: ~$2-5 per day
-- **Claude**: ~$1-3 per day
+- **Qwen**: ~$0.20-0.80 per day
+- **Custom API** (e.g., OpenAI GPT-4): ~$2-5 per day
+
+*Estimates based on typical usage. Actual costs vary by provider and usage.*
 
 ### Can I use multiple AI models?
 Yes! Each trader can use a different AI model. You can even A/B test different models.

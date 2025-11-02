@@ -280,6 +280,8 @@ func isRetryableError(err error) bool {
 		"connection refused",
 		"temporary failure",
 		"no such host",
+		"stream error",      // HTTP/2 stream 错误
+		"INTERNAL_ERROR",    // 服务端内部错误
 	}
 	for _, retryable := range retryableErrors {
 		if strings.Contains(errStr, retryable) {

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/adshao/go-binance/v2/common"
 	"github.com/adshao/go-binance/v2/futures"
 )
 
@@ -30,8 +31,19 @@ type FuturesTrader struct {
 }
 
 // NewFuturesTrader 创建合约交易器
-func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
-	client := futures.NewClient(apiKey, secretKey)
+// 支持指定API密钥类型: HMAC(默认), ED25519, RSA
+func NewFuturesTrader(apiKey, secretKey string, keyType ...string) *FuturesTrader {
+	var client *futures.Client
+
+	// 确定密钥类型，默认为HMAC
+	actualKeyType := common.KeyTypeHmac
+	if len(keyType) > 0 && keyType[0] != "" {
+		actualKeyType = keyType[0]
+	}
+
+	client = futures.NewClient(apiKey, secretKey)
+	client.KeyType = actualKeyType
+
 	return &FuturesTrader{
 		client:        client,
 		cacheDuration: 15 * time.Second, // 15秒缓存
@@ -139,18 +151,18 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	} else {
 		marginType = futures.MarginTypeIsolated
 	}
-	
+
 	// 尝试设置仓位模式
 	err := t.client.NewChangeMarginTypeService().
 		Symbol(symbol).
 		MarginType(marginType).
 		Do(context.Background())
-	
+
 	marginModeStr := "全仓"
 	if !isCrossMargin {
 		marginModeStr = "逐仓"
 	}
-	
+
 	if err != nil {
 		// 如果错误信息包含"No need to change"，说明仓位模式已经是目标值
 		if contains(err.Error(), "No need to change margin type") {
@@ -166,7 +178,7 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 		// 不返回错误，让交易继续
 		return nil
 	}
-	
+
 	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginModeStr)
 	return nil
 }
@@ -198,7 +210,6 @@ func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 		Symbol(symbol).
 		Leverage(leverage).
 		Do(context.Background())
-
 	if err != nil {
 		// 如果错误信息包含"No need to change"，说明杠杆已经是目标值
 		if contains(err.Error(), "No need to change") {
@@ -245,7 +256,6 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
 		Do(context.Background())
-
 	if err != nil {
 		return nil, fmt.Errorf("开多仓失败: %w", err)
 	}
@@ -288,7 +298,6 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
 		Do(context.Background())
-
 	if err != nil {
 		return nil, fmt.Errorf("开空仓失败: %w", err)
 	}
@@ -338,7 +347,6 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
 		Do(context.Background())
-
 	if err != nil {
 		return nil, fmt.Errorf("平多仓失败: %w", err)
 	}
@@ -392,7 +400,6 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
 		Do(context.Background())
-
 	if err != nil {
 		return nil, fmt.Errorf("平空仓失败: %w", err)
 	}
@@ -416,7 +423,6 @@ func (t *FuturesTrader) CancelAllOrders(symbol string) error {
 	err := t.client.NewCancelAllOpenOrdersService().
 		Symbol(symbol).
 		Do(context.Background())
-
 	if err != nil {
 		return fmt.Errorf("取消挂单失败: %w", err)
 	}
@@ -481,7 +487,6 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
 		Do(context.Background())
-
 	if err != nil {
 		return fmt.Errorf("设置止损失败: %w", err)
 	}
@@ -519,7 +524,6 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
 		Do(context.Background())
-
 	if err != nil {
 		return fmt.Errorf("设置止盈失败: %w", err)
 	}

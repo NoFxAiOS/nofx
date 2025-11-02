@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"nofx/market"
 	"slices"
 	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"nofx/market"
 )
 
 // Database 配置数据库
@@ -65,6 +66,8 @@ func (d *Database) createTables() error {
 			api_key TEXT DEFAULT '',
 			secret_key TEXT DEFAULT '',
 			testnet BOOLEAN DEFAULT 0,
+			-- Binance特定字段
+			binance_api_key_type TEXT DEFAULT 'HMAC',
 			-- Hyperliquid 特定字段
 			hyperliquid_wallet_addr TEXT DEFAULT '',
 			-- Aster 特定字段
@@ -178,6 +181,7 @@ func (d *Database) createTables() error {
 		`ALTER TABLE exchanges ADD COLUMN aster_user TEXT DEFAULT ''`,
 		`ALTER TABLE exchanges ADD COLUMN aster_signer TEXT DEFAULT ''`,
 		`ALTER TABLE exchanges ADD COLUMN aster_private_key TEXT DEFAULT ''`,
+		`ALTER TABLE exchanges ADD COLUMN binance_api_key_type TEXT DEFAULT 'HMAC'`, // Binance API密钥类型
 		`ALTER TABLE traders ADD COLUMN custom_prompt TEXT DEFAULT ''`,
 		`ALTER TABLE traders ADD COLUMN override_base_prompt BOOLEAN DEFAULT 0`,
 		`ALTER TABLE traders ADD COLUMN is_cross_margin BOOLEAN DEFAULT 1`,             // 默认为全仓模式
@@ -304,6 +308,8 @@ func (d *Database) migrateExchangesTable() error {
 			api_key TEXT DEFAULT '',
 			secret_key TEXT DEFAULT '',
 			testnet BOOLEAN DEFAULT 0,
+			-- Binance特定字段
+			binance_api_key_type TEXT DEFAULT 'HMAC',
 			hyperliquid_wallet_addr TEXT DEFAULT '',
 			aster_user TEXT DEFAULT '',
 			aster_signer TEXT DEFAULT '',
@@ -391,6 +397,8 @@ type ExchangeConfig struct {
 	APIKey    string `json:"apiKey"`
 	SecretKey string `json:"secretKey"`
 	Testnet   bool   `json:"testnet"`
+	// Binance特定字段
+	BinanceAPIKeyType string `json:"binanceAPIKeyType"`
 	// Hyperliquid 特定字段
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"`
 	// Aster 特定字段
@@ -654,11 +662,12 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 	rows, err := d.db.Query(`
 		SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet, 
-		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-		       COALESCE(aster_user, '') as aster_user,
-		       COALESCE(aster_signer, '') as aster_signer,
-		       COALESCE(aster_private_key, '') as aster_private_key,
-		       created_at, updated_at 
+			COALESCE(binance_api_key_type, 'HMAC') as binance_api_key_type,
+			COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+			COALESCE(aster_user, '') as aster_user,
+			COALESCE(aster_signer, '') as aster_signer,
+			COALESCE(aster_private_key, '') as aster_private_key,
+			created_at, updated_at 
 		FROM exchanges WHERE user_id = ? ORDER BY id
 	`, userID)
 	if err != nil {
@@ -673,7 +682,7 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 		err := rows.Scan(
 			&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
 			&exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
-			&exchange.HyperliquidWalletAddr, &exchange.AsterUser,
+			&exchange.BinanceAPIKeyType, &exchange.HyperliquidWalletAddr, &exchange.AsterUser,
 			&exchange.AsterSigner, &exchange.AsterPrivateKey,
 			&exchange.CreatedAt, &exchange.UpdatedAt,
 		)
@@ -687,15 +696,15 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 }
 
 // UpdateExchange 更新交易所配置，如果不存在则创建用户特定配置
-func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
+func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string, binanceAPIKeyType string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
 	// 首先尝试更新现有的用户配置
 	result, err := d.db.Exec(`
 		UPDATE exchanges SET enabled = ?, api_key = ?, secret_key = ?, testnet = ?, 
-		       hyperliquid_wallet_addr = ?, aster_user = ?, aster_signer = ?, aster_private_key = ?, updated_at = datetime('now')
+		       hyperliquid_wallet_addr = ?, aster_user = ?, aster_signer = ?, aster_private_key = ?, binance_api_key_type = ?, updated_at = datetime('now')
 		WHERE id = ? AND user_id = ?
-	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, id, userID)
+	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, binanceAPIKeyType, id, userID)
 	if err != nil {
 		log.Printf("❌ UpdateExchange: 更新失败: %v", err)
 		return err
@@ -735,9 +744,9 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 		// 创建用户特定的配置，使用原始的交易所ID
 		_, err = d.db.Exec(`
 			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, 
-			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, binance_api_key_type, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, binanceAPIKeyType)
 
 		if err != nil {
 			log.Printf("❌ UpdateExchange: 创建记录失败: %v", err)
@@ -881,7 +890,6 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 		&exchange.HyperliquidWalletAddr, &exchange.AsterUser, &exchange.AsterSigner, &exchange.AsterPrivateKey,
 		&exchange.CreatedAt, &exchange.UpdatedAt,
 	)
-
 	if err != nil {
 		return nil, nil, nil, err
 	}

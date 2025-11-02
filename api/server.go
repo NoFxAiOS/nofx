@@ -238,6 +238,8 @@ type ExchangeConfig struct {
 	APIKey    string `json:"apiKey,omitempty"`
 	SecretKey string `json:"secretKey,omitempty"`
 	Testnet   bool   `json:"testnet,omitempty"`
+	// Binance特定字段
+	BinanceAPIKeyType string `json:"binanceAPIKeyType,omitempty"`
 }
 
 type UpdateModelConfigRequest struct {
@@ -255,6 +257,7 @@ type UpdateExchangeConfigRequest struct {
 		APIKey                string `json:"api_key"`
 		SecretKey             string `json:"secret_key"`
 		Testnet               bool   `json:"testnet"`
+		BinanceAPIKeyType     string `json:"binance_api_key_type"`
 		HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"`
 		AsterUser             string `json:"aster_user"`
 		AsterSigner           string `json:"aster_signer"`
@@ -674,7 +677,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 	// 更新每个交易所的配置
 	for exchangeID, exchangeData := range req.Exchanges {
-		err := s.database.UpdateExchange(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey)
+		err := s.database.UpdateExchange(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.BinanceAPIKeyType)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
 			return
@@ -1455,3 +1458,9 @@ func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 		"content": template.Content,
 	})
 }
+
+
+
+
+
+

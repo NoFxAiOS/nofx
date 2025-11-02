@@ -18,8 +18,9 @@ type TraderConfig struct {
 	Exchange string `json:"exchange"` // "binance" or "hyperliquid"
 
 	// 币安配置
-	BinanceAPIKey    string `json:"binance_api_key,omitempty"`
-	BinanceSecretKey string `json:"binance_secret_key,omitempty"`
+	BinanceAPIKey     string `json:"binance_api_key,omitempty"`
+	BinanceSecretKey  string `json:"binance_secret_key,omitempty"`
+	BinanceAPIKeyType string `json:"binance_api_key_type,omitempty"` // "HMAC"(default), "ED25519", "RSA"
 
 	// Hyperliquid配置
 	HyperliquidPrivateKey string `json:"hyperliquid_private_key,omitempty"`

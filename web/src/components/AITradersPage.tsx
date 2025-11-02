@@ -359,7 +359,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   };
 
-  const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => {
+  const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string, binanceAPIKeyType?: string) => {
     try {
       // 找到要配置的交易所（从supportedExchanges中）
       const exchangeToUpdate = supportedExchanges?.find(e => e.id === exchangeId);
@@ -383,7 +383,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             hyperliquidWalletAddr, 
             asterUser, 
             asterSigner, 
-            asterPrivateKey, 
+            asterPrivateKey,
+            binanceAPIKeyType,
             enabled: true 
           } : e
         ) || [];
@@ -397,7 +398,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           hyperliquidWalletAddr, 
           asterUser, 
           asterSigner, 
-          asterPrivateKey, 
+          asterPrivateKey,
+          binanceAPIKeyType,
           enabled: true 
         };
         updatedExchanges = [...(allExchanges || []), newExchange];
@@ -412,6 +414,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
               testnet: exchange.testnet || false,
+              binance_api_key_type: exchange.binanceAPIKeyType || 'HMAC',
               hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
               aster_user: exchange.asterUser || '',
               aster_signer: exchange.asterSigner || '',
@@ -457,7 +460,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -1134,7 +1137,7 @@ function ExchangeConfigModal({
 }: {
   allExchanges: Exchange[];
   editingExchangeId: string | null;
-  onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => Promise<void>;
+  onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string, binanceAPIKeyType?: string) => Promise<void>;
   onDelete: (exchangeId: string) => void;
   onClose: () => void;
   language: Language;
@@ -1144,6 +1147,8 @@ function ExchangeConfigModal({
   const [secretKey, setSecretKey] = useState('');
   const [passphrase, setPassphrase] = useState('');
   const [testnet, setTestnet] = useState(false);
+  // Binance特定字段
+  const [binanceAPIKeyType, setBinanceAPIKeyType] = useState('HMAC');
   
   // Hyperliquid 特定字段
   const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
@@ -1163,6 +1168,8 @@ function ExchangeConfigModal({
       setSecretKey(selectedExchange.secretKey || '');
       setPassphrase(''); // Don't load existing passphrase for security
       setTestnet(selectedExchange.testnet || false);
+      // Binance特定字段
+      setBinanceAPIKeyType(selectedExchange.binanceAPIKeyType || 'HMAC');
       
       // Hyperliquid 字段
       setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '');
@@ -1181,7 +1188,7 @@ function ExchangeConfigModal({
     // 根据交易所类型验证不同字段
     if (selectedExchange?.id === 'binance') {
       if (!apiKey.trim() || !secretKey.trim()) return;
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
+      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet, undefined, undefined, undefined, undefined, binanceAPIKeyType);
     } else if (selectedExchange?.id === 'hyperliquid') {
       if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return;
       await onSave(selectedExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim());
@@ -1288,16 +1295,42 @@ function ExchangeConfigModal({
                     <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                       {t('secretKey', language)}
                     </label>
-                    <input
-                      type="password"
+                    <textarea
                       value={secretKey}
                       onChange={(e) => setSecretKey(e.target.value)}
                       placeholder={t('enterSecretKey', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      className="w-full px-3 py-2 rounded h-20 resize-none"
+                      style={{ 
+                        background: '#0B0E11', 
+                        border: '1px solid #2B3139', 
+                        color: '#EAECEF',
+                        minHeight: '120px'
+                      }}
                       required
                     />
                   </div>
+
+                  {/* Binance API Key Type Selection */}
+                  {selectedExchange.id === 'binance' && (
+                    <div>
+                      <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                        {t('binanceAPIKeyType', language)}
+                      </label>
+                      <select
+                        value={binanceAPIKeyType}
+                        onChange={(e) => setBinanceAPIKeyType(e.target.value)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      >
+                        <option value="HMAC">HMAC(Default)</option>
+                        <option value="ED25519">Ed25519</option>
+                        <option value="RSA">RSA</option>
+                      </select>
+                      <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                        {t('binanceAPIKeyTypeDescription', language)}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedExchange.id === 'okx' && (
                     <div>

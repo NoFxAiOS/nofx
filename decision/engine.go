@@ -442,30 +442,53 @@ func extractCoTTrace(response string) string {
 
 // extractDecisions 提取JSON决策列表
 func extractDecisions(response string) ([]Decision, error) {
-	// 直接查找JSON数组 - 找第一个完整的JSON数组
+	// 查找JSON数组的开始位置
 	arrayStart := strings.Index(response, "[")
-	if arrayStart == -1 {
-		return nil, fmt.Errorf("无法找到JSON数组起始")
-	}
+	// 查找JSON对象的开始位置
+	objectStart := strings.Index(response, "{")
 
-	// 从 [ 开始，匹配括号找到对应的 ]
-	arrayEnd := findMatchingBracket(response, arrayStart)
-	if arrayEnd == -1 {
-		return nil, fmt.Errorf("无法找到JSON数组结束")
-	}
+	var jsonContent string
+	var isArray bool
 
-	jsonContent := strings.TrimSpace(response[arrayStart : arrayEnd+1])
+	// 确定是数组还是单个对象（哪个先出现）
+	if arrayStart != -1 && (objectStart == -1 || arrayStart < objectStart) {
+		// 找到数组，尝试解析数组
+		arrayEnd := findMatchingBracket(response, arrayStart)
+		if arrayEnd == -1 {
+			return nil, fmt.Errorf("无法找到JSON数组结束")
+		}
+		jsonContent = strings.TrimSpace(response[arrayStart : arrayEnd+1])
+		isArray = true
+	} else if objectStart != -1 {
+		// 找到对象，尝试解析单个对象
+		objectEnd := findMatchingBrace(response, objectStart)
+		if objectEnd == -1 {
+			return nil, fmt.Errorf("无法找到JSON对象结束")
+		}
+		jsonContent = strings.TrimSpace(response[objectStart : objectEnd+1])
+		isArray = false
+	} else {
+		return nil, fmt.Errorf("无法找到JSON数组或对象起始")
+	}
 
 	// 🔧 修复常见的JSON格式错误：缺少引号的字段值
-	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}  (没有引号)
-	// 修复为: "reasoning": "内容"}
-	// 使用简单的字符串扫描而不是正则表达式
 	jsonContent = fixMissingQuotes(jsonContent)
 
 	// 解析JSON
 	var decisions []Decision
-	if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-		return nil, fmt.Errorf("JSON解析失败: %w\nJSON内容: %s", err, jsonContent)
+	if isArray {
+		// 解析为数组
+		if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
+			return nil, fmt.Errorf("JSON数组解析失败: %w\nJSON内容: %s", err, jsonContent)
+		}
+	} else {
+		// 解析为单个对象，然后包装成数组
+		var decision Decision
+		if err := json.Unmarshal([]byte(jsonContent), &decision); err != nil {
+			return nil, fmt.Errorf("JSON对象解析失败: %w\nJSON内容: %s", err, jsonContent)
+		}
+		decisions = []Decision{decision}
+		log.Printf("⚠️  AI返回单个JSON对象而非数组，已自动转换为数组格式")
 	}
 
 	return decisions, nil
@@ -505,6 +528,48 @@ func findMatchingBracket(s string, start int) int {
 			depth--
 			if depth == 0 {
 				return i
+			}
+		}
+	}
+
+	return -1
+}
+
+// findMatchingBrace 查找匹配的右大括号
+func findMatchingBrace(s string, start int) int {
+	if start >= len(s) || s[start] != '{' {
+		return -1
+	}
+
+	depth := 0
+	inString := false
+	escape := false
+
+	for i := start; i < len(s); i++ {
+		char := s[i]
+
+		// 处理字符串内的引号（避免误判）
+		if char == '\\' && !escape {
+			escape = true
+			continue
+		}
+
+		if char == '"' && !escape {
+			inString = !inString
+		}
+
+		escape = false
+
+		// 只在非字符串内统计括号
+		if !inString {
+			switch char {
+			case '{':
+				depth++
+			case '}':
+				depth--
+				if depth == 0 {
+					return i
+				}
 			}
 		}
 	}

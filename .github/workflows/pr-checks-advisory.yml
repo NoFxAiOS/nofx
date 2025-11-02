@@ -8,12 +8,16 @@ on:
 # These checks are advisory only - they won't block PR merging
 # Results will be posted as comments to help contributors improve their PRs
 
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  issues: write
+
 jobs:
   pr-info:
     name: PR Information
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     steps:
       - name: Check PR title format
         id: check-title
@@ -98,8 +102,6 @@ jobs:
   backend-checks:
     name: Backend Checks (Advisory)
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -208,8 +210,6 @@ jobs:
   frontend-checks:
     name: Frontend Checks (Advisory)
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

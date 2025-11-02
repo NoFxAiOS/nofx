@@ -51,6 +51,11 @@ nofx/
 │
 ├── market/                         # 市场数据获取
 │   └── data.go                     # 市场数据与技术指标（TA-Lib）
+│   └── api_client.go               # 行情获取 Api接口
+│   └── websocket_client.go         # 行情获取 Websocket接口
+│   └── combined_streams.go         # 行情获取 组合流式(单链接订阅多个币种)
+│   └── monitor.go                  # 行情数据缓存
+│   └── types.go                    # market结构体
 │
 ├── pool/                           # 币种池管理
 │   └── coin_pool.go                # AI500 + OI Top 合并池

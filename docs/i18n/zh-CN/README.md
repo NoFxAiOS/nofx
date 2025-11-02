@@ -291,7 +291,34 @@ nano config.json  # 或使用其他编辑器
 
 ⚠️ **注意**: 基础config.json仍需要一些设置，但~~交易员配置~~现在通过Web界面进行。
 
-#### 步骤2：一键启动
+#### 步骤2：设置加密主密钥（推荐）
+
+**⚠️ 重要安全设置：保护您的API密钥**
+
+NOFX 使用 AES-256-GCM 加密存储所有敏感信息（交易所API密钥、AI模型密钥等）。在首次启动前，强烈建议设置主加密密钥：
+
+```bash
+# 1. 生成随机主密钥
+openssl rand -base64 32
+# 示例输出: J8X5k9mPqR7tV2wN3yH4bC6dF1gL0sA8
+
+# 2. 将上面生成的密钥设置到环境变量（替换为你实际生成的密钥）
+export NOFX_MASTER_KEY="J8X5k9mPqR7tV2wN3yH4bC6dF1gL0sA8"
+```
+
+**Docker Compose 部署**：
+创建 `.env` 文件并添加密钥：
+```bash
+NOFX_MASTER_KEY=J8X5k9mPqR7tV2wN3yH4bC6dF1gL0sA8
+```
+
+**安全提示**：
+- ✅ 主密钥应保密，不要提交到版本控制（.env 已在 .gitignore 中）
+- ✅ 生产环境必须设置，否则使用不安全的默认密钥
+- ✅ 主密钥丢失将导致已加密的密钥无法解密，请妥善保管
+- ⚠️ **密钥一旦设置不要更改**，否则已加密的数据将无法解密
+
+#### 步骤3：一键启动
 ```bash
 # 方式1：使用便捷脚本（推荐）
 chmod +x start.sh
@@ -303,7 +330,7 @@ chmod +x start.sh
 docker compose up -d --build
 ```
 
-#### 步骤3：访问控制台
+#### 步骤4：访问控制台
 在浏览器中打开：**http://localhost:3000**
 
 **就是这么简单！🎉** 你的AI交易系统已经运行起来了！

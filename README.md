@@ -289,7 +289,34 @@ nano config.json  # or use any editor
 
 ⚠️ **Note**: Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
 
-#### Step 2: One-Click Start
+#### Step 2: Set Up Encryption Master Key (Recommended)
+
+**⚠️ Important Security Setup: Protect Your API Keys**
+
+NOFX uses AES-256-GCM encryption to store all sensitive information (exchange API keys, AI model keys, etc.). Before first launch, it's strongly recommended to set up a master encryption key:
+
+```bash
+# 1. Generate a random master key
+openssl rand -base64 32
+# Example output: J8X5k9mPqR7tV2wN3yH4bC6dF1gL0sA8
+
+# 2. Set the generated key to environment variable (replace with your actual key)
+export NOFX_MASTER_KEY="J8X5k9mPqR7tV2wN3yH4bC6dF1gL0sA8"
+```
+
+**For Docker Compose Deployment**:
+Create a `.env` file and add your key:
+```bash
+NOFX_MASTER_KEY=J8X5k9mPqR7tV2wN3yH4bC6dF1gL0sA8
+```
+
+**Security Notes**:
+- ✅ Keep the master key secret, never commit to version control (.env is in .gitignore)
+- ✅ Production environments MUST set this, otherwise uses insecure default key
+- ✅ Losing the master key means encrypted data cannot be decrypted, keep it safe
+- ⚠️ **Do not change the key once set**, otherwise encrypted data will be unrecoverable
+
+#### Step 3: One-Click Start
 ```bash
 # Option 1: Use convenience script (Recommended)
 chmod +x start.sh
@@ -305,7 +332,7 @@ chmod +x start.sh
 docker compose up -d --build
 ```
 
-#### Step 2: Access Web Interface
+#### Step 4: Access Web Interface
 Open your browser and visit: **http://localhost:3000**
 
 **That's it! 🎉** Your AI trading platform is now running!

@@ -17,7 +17,8 @@ import (
 
 // Database 配置数据库
 type Database struct {
-	db *sql.DB
+	db            *sql.DB
+	encryptionMgr *EncryptionManager
 }
 
 // NewDatabase 创建配置数据库
@@ -27,7 +28,16 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
-	database := &Database{db: db}
+	// 初始化加密管理器
+	encryptionMgr, err := NewEncryptionManager()
+	if err != nil {
+		return nil, fmt.Errorf("初始化加密管理器失败: %w", err)
+	}
+
+	database := &Database{
+		db:            db,
+		encryptionMgr: encryptionMgr,
+	}
 	if err := database.createTables(); err != nil {
 		return nil, fmt.Errorf("创建表失败: %w", err)
 	}
@@ -555,22 +565,80 @@ func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 	models := make([]*AIModelConfig, 0)
 	for rows.Next() {
 		var model AIModelConfig
+		var encryptedAPIKey string
 		err := rows.Scan(
 			&model.ID, &model.UserID, &model.Name, &model.Provider,
-			&model.Enabled, &model.APIKey, &model.CustomAPIURL, &model.CustomModelName,
+			&model.Enabled, &encryptedAPIKey, &model.CustomAPIURL, &model.CustomModelName,
 			&model.CreatedAt, &model.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// 解密 API Key（但不返回完整值，只返回脱敏值）
+		if encryptedAPIKey != "" {
+			decryptedAPIKey, err := d.encryptionMgr.Decrypt(encryptedAPIKey)
+			if err != nil {
+				log.Printf("⚠️  解密 API Key 失败 (model=%s): %v", model.ID, err)
+				model.APIKey = "" // 解密失败，返回空
+			} else {
+				// 脱敏显示
+				model.APIKey = MaskSecret(decryptedAPIKey)
+			}
+		} else {
+			model.APIKey = ""
+		}
+
 		models = append(models, &model)
 	}
 
 	return models, nil
 }
 
+// GetAIModelDecrypted 获取AI模型配置（内部使用，返回解密后的完整密钥）
+func (d *Database) GetAIModelDecrypted(userID, modelID string) (*AIModelConfig, error) {
+	var model AIModelConfig
+	var encryptedAPIKey string
+
+	err := d.db.QueryRow(`
+		SELECT id, user_id, name, provider, enabled, api_key,
+		       COALESCE(custom_api_url, '') as custom_api_url,
+		       COALESCE(custom_model_name, '') as custom_model_name,
+		       created_at, updated_at
+		FROM ai_models WHERE user_id = ? AND id = ?
+	`, userID, modelID).Scan(
+		&model.ID, &model.UserID, &model.Name, &model.Provider,
+		&model.Enabled, &encryptedAPIKey, &model.CustomAPIURL, &model.CustomModelName,
+		&model.CreatedAt, &model.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解密 API Key（返回完整密钥，仅供内部使用）
+	if encryptedAPIKey != "" {
+		decryptedAPIKey, err := d.encryptionMgr.Decrypt(encryptedAPIKey)
+		if err != nil {
+			return nil, fmt.Errorf("解密 API Key 失败: %w", err)
+		}
+		model.APIKey = decryptedAPIKey
+	}
+
+	return &model, nil
+}
+
 // UpdateAIModel 更新AI模型配置，如果不存在则创建用户特定配置
 func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
+	// 加密 API Key（如果不为空且未加密）
+	encryptedAPIKey := apiKey
+	if apiKey != "" && !IsEncrypted(apiKey) {
+		var err error
+		encryptedAPIKey, err = d.encryptionMgr.Encrypt(apiKey)
+		if err != nil {
+			return fmt.Errorf("加密 API Key 失败: %w", err)
+		}
+	}
+
 	// 先尝试精确匹配 ID（新版逻辑，支持多个相同 provider 的模型）
 	var existingID string
 	err := d.db.QueryRow(`
@@ -582,7 +650,7 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 		_, err = d.db.Exec(`
 			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
 			WHERE id = ? AND user_id = ?
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
+		`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
 		return err
 	}
 
@@ -598,7 +666,7 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 		_, err = d.db.Exec(`
 			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
 			WHERE id = ? AND user_id = ?
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
+		`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
 		return err
 	}
 
@@ -645,7 +713,7 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 	_, err = d.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-	`, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+	`, newModelID, userID, name, provider, enabled, encryptedAPIKey, customAPIURL, customModelName)
 
 	return err
 }
@@ -670,32 +738,149 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 	exchanges := make([]*ExchangeConfig, 0)
 	for rows.Next() {
 		var exchange ExchangeConfig
+		var encryptedAPIKey, encryptedSecretKey, encryptedAsterPrivateKey string
 		err := rows.Scan(
 			&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
-			&exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
+			&exchange.Enabled, &encryptedAPIKey, &encryptedSecretKey, &exchange.Testnet,
 			&exchange.HyperliquidWalletAddr, &exchange.AsterUser,
-			&exchange.AsterSigner, &exchange.AsterPrivateKey,
+			&exchange.AsterSigner, &encryptedAsterPrivateKey,
 			&exchange.CreatedAt, &exchange.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// 解密并脱敏 API Key
+		if encryptedAPIKey != "" {
+			decryptedAPIKey, err := d.encryptionMgr.Decrypt(encryptedAPIKey)
+			if err != nil {
+				log.Printf("⚠️  解密 API Key 失败 (exchange=%s): %v", exchange.ID, err)
+				exchange.APIKey = ""
+			} else {
+				exchange.APIKey = MaskSecret(decryptedAPIKey)
+			}
+		}
+
+		// 解密并脱敏 Secret Key
+		if encryptedSecretKey != "" {
+			decryptedSecretKey, err := d.encryptionMgr.Decrypt(encryptedSecretKey)
+			if err != nil {
+				log.Printf("⚠️  解密 Secret Key 失败 (exchange=%s): %v", exchange.ID, err)
+				exchange.SecretKey = ""
+			} else {
+				exchange.SecretKey = MaskSecret(decryptedSecretKey)
+			}
+		}
+
+		// 解密并脱敏 Aster Private Key
+		if encryptedAsterPrivateKey != "" {
+			decryptedAsterPrivateKey, err := d.encryptionMgr.Decrypt(encryptedAsterPrivateKey)
+			if err != nil {
+				log.Printf("⚠️  解密 Aster Private Key 失败 (exchange=%s): %v", exchange.ID, err)
+				exchange.AsterPrivateKey = ""
+			} else {
+				exchange.AsterPrivateKey = MaskSecret(decryptedAsterPrivateKey)
+			}
+		}
+
 		exchanges = append(exchanges, &exchange)
 	}
 
 	return exchanges, nil
 }
 
+// GetExchangeDecrypted 获取用户的交易所配置（内部使用，返回解密后的完整密钥）
+func (d *Database) GetExchangeDecrypted(userID, exchangeID string) (*ExchangeConfig, error) {
+	var exchange ExchangeConfig
+	var encryptedAPIKey, encryptedSecretKey, encryptedAsterPrivateKey string
+
+	err := d.db.QueryRow(`
+		SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet, 
+		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+		       COALESCE(aster_user, '') as aster_user,
+		       COALESCE(aster_signer, '') as aster_signer,
+		       COALESCE(aster_private_key, '') as aster_private_key,
+		       created_at, updated_at 
+		FROM exchanges WHERE user_id = ? AND id = ?
+	`, userID, exchangeID).Scan(
+		&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
+		&exchange.Enabled, &encryptedAPIKey, &encryptedSecretKey, &exchange.Testnet,
+		&exchange.HyperliquidWalletAddr, &exchange.AsterUser,
+		&exchange.AsterSigner, &encryptedAsterPrivateKey,
+		&exchange.CreatedAt, &exchange.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解密 API Key（返回完整密钥，仅供内部使用）
+	if encryptedAPIKey != "" {
+		decryptedAPIKey, err := d.encryptionMgr.Decrypt(encryptedAPIKey)
+		if err != nil {
+			return nil, fmt.Errorf("解密 API Key 失败: %w", err)
+		}
+		exchange.APIKey = decryptedAPIKey
+	}
+
+	// 解密 Secret Key
+	if encryptedSecretKey != "" {
+		decryptedSecretKey, err := d.encryptionMgr.Decrypt(encryptedSecretKey)
+		if err != nil {
+			return nil, fmt.Errorf("解密 Secret Key 失败: %w", err)
+		}
+		exchange.SecretKey = decryptedSecretKey
+	}
+
+	// 解密 Aster Private Key
+	if encryptedAsterPrivateKey != "" {
+		decryptedAsterPrivateKey, err := d.encryptionMgr.Decrypt(encryptedAsterPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("解密 Aster Private Key 失败: %w", err)
+		}
+		exchange.AsterPrivateKey = decryptedAsterPrivateKey
+	}
+
+	return &exchange, nil
+}
+
 // UpdateExchange 更新交易所配置，如果不存在则创建用户特定配置
 func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
+
+	// 加密所有敏感字段（如果不为空且未加密）
+	encryptedAPIKey := apiKey
+	if apiKey != "" && !IsEncrypted(apiKey) {
+		var err error
+		encryptedAPIKey, err = d.encryptionMgr.Encrypt(apiKey)
+		if err != nil {
+			return fmt.Errorf("加密 API Key 失败: %w", err)
+		}
+	}
+
+	encryptedSecretKey := secretKey
+	if secretKey != "" && !IsEncrypted(secretKey) {
+		var err error
+		encryptedSecretKey, err = d.encryptionMgr.Encrypt(secretKey)
+		if err != nil {
+			return fmt.Errorf("加密 Secret Key 失败: %w", err)
+		}
+	}
+
+	encryptedAsterPrivateKey := asterPrivateKey
+	if asterPrivateKey != "" && !IsEncrypted(asterPrivateKey) {
+		var err error
+		encryptedAsterPrivateKey, err = d.encryptionMgr.Encrypt(asterPrivateKey)
+		if err != nil {
+			return fmt.Errorf("加密 Aster Private Key 失败: %w", err)
+		}
+	}
 
 	// 首先尝试更新现有的用户配置
 	result, err := d.db.Exec(`
 		UPDATE exchanges SET enabled = ?, api_key = ?, secret_key = ?, testnet = ?, 
 		       hyperliquid_wallet_addr = ?, aster_user = ?, aster_signer = ?, aster_private_key = ?, updated_at = datetime('now')
 		WHERE id = ? AND user_id = ?
-	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, id, userID)
+	`, enabled, encryptedAPIKey, encryptedSecretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, encryptedAsterPrivateKey, id, userID)
 	if err != nil {
 		log.Printf("❌ UpdateExchange: 更新失败: %v", err)
 		return err
@@ -737,7 +922,7 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, 
 			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+		`, id, userID, name, typ, enabled, encryptedAPIKey, encryptedSecretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, encryptedAsterPrivateKey)
 
 		if err != nil {
 			log.Printf("❌ UpdateExchange: 创建记录失败: %v", err)

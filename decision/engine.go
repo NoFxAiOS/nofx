@@ -205,8 +205,8 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	// 从文件加载系统提示词
 	content, err := os.ReadFile("prompts/trending_system_prompt.md")
 	if err != nil {
-		log.Printf("❌ 无法加载 prompts/trending_system_prompt.md: %v", err)
-		panic("System prompt file not found: prompts/trending_system_prompt.md")
+		log.Printf("❌ 无法加载系统提示词文件: %v", err)
+		panic("System prompt file not found!")
 	}
 
 	prompt := string(content)

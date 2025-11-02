@@ -11,6 +11,12 @@ import (
 	"github.com/adshao/go-binance/v2/futures"
 )
 
+// 币安API URL常量
+const (
+	BinanceMainnetURL = "https://fapi.binance.com"
+	BinanceTestnetURL = "https://testnet.binancefuture.com"
+)
+
 // FuturesTrader 币安合约交易器
 type FuturesTrader struct {
 	client *futures.Client
@@ -30,8 +36,18 @@ type FuturesTrader struct {
 }
 
 // NewFuturesTrader 创建合约交易器
-func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
+func NewFuturesTrader(apiKey, secretKey string, testnet bool) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
+	
+	// 选择API URL
+	apiURL := BinanceMainnetURL
+	if testnet {
+		apiURL = BinanceTestnetURL
+	}
+	client.BaseURL = apiURL
+	
+	log.Printf("✓ 币安合约交易器初始化成功 (testnet=%v, url=%s)", testnet, apiURL)
+	
 	return &FuturesTrader{
 		client:        client,
 		cacheDuration: 15 * time.Second, // 15秒缓存

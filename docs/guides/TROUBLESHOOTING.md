@@ -275,24 +275,72 @@ NOFX_BACKEND_PORT=8081
 
 #### ❌ Exchange API Errors
 
-**Error:** `invalid signature` / `timestamp` errors
+**Common Errors:**
+- `code=-1021, msg=Timestamp for this request is outside of the recvWindow`
+- `invalid signature`
+- `timestamp` errors
 
-**Solutions:**
-1. **Check System Time:**
-   ```bash
-   date  # Should be accurate
-   # If wrong, sync with NTP:
-   sudo ntpdate -s time.nist.gov
-   ```
+**Root Cause:**
+System time is inaccurate, differing from Binance server time by more than allowed range (typically 5 seconds).
 
-2. **Verify API Keys:**
+**Solution 1: Sync System Time (Recommended)**
+
+```bash
+# Method 1: Use ntpdate (most common)
+sudo ntpdate pool.ntp.org
+
+# Method 2: Use other NTP servers
+sudo ntpdate -s time.nist.gov
+sudo ntpdate -s ntp.aliyun.com  # Aliyun NTP (fast in China)
+
+# Method 3: Enable automatic time sync (Linux)
+sudo timedatectl set-ntp true
+
+# Verify time is correct
+date
+# Should show current accurate time
+```
+
+**Docker Environment Special Note:**
+
+If using Docker, container time may be out of sync with host:
+
+```bash
+# Check container time
+docker exec nofx-backend date
+
+# If time is wrong, restart Docker service
+sudo systemctl restart docker
+
+# Or add timezone in docker-compose.yml
+environment:
+  - TZ=Asia/Shanghai  # or your timezone
+```
+
+**Solution 2: Verify API Keys**
+
+If errors persist after time sync:
+
+1. **Check API Keys:**
    - Not expired
    - Have correct permissions (Futures enabled)
    - IP whitelist includes your server IP
 
-3. **Rate Limits:**
-   - Binance has strict rate limits
-   - Reduce number of traders or decision frequency
+2. **Regenerate API Keys:**
+   - Login to Binance → API Management
+   - Delete old key
+   - Create new key
+   - Update NOFX configuration
+
+**Solution 3: Check Rate Limits**
+
+Binance has strict API rate limits:
+
+- **Requests per minute limit**
+- Reduce number of traders
+- Increase decision interval (e.g., from 1min to 3-5min)
+
+**Related Issue:** [#60](https://github.com/tinkle-community/nofx/issues/60)
 
 ---
 

@@ -275,24 +275,72 @@ NOFX_BACKEND_PORT=8081
 
 #### ❌ 交易所 API 错误
 
-**错误:** `invalid signature` / `timestamp` 错误
+**常见错误:**
+- `code=-1021, msg=Timestamp for this request is outside of the recvWindow`
+- `invalid signature`
+- `timestamp` 错误
 
-**解决方案:**
-1. **检查系统时间:**
-   ```bash
-   date  # 应该准确
-   # 如果错误，与 NTP 同步:
-   sudo ntpdate -s time.nist.gov
-   ```
+**根本原因:**
+系统时间不准确，与币安服务器时间相差超过允许范围（通常是 5 秒）。
 
-2. **验证 API 密钥:**
+**解决方案 1: 同步系统时间（推荐）**
+
+```bash
+# 方法 1: 使用 ntpdate (最常用)
+sudo ntpdate pool.ntp.org
+
+# 方法 2: 使用其他 NTP 服务器
+sudo ntpdate -s time.nist.gov
+sudo ntpdate -s ntp.aliyun.com  # 阿里云 NTP (中国大陆快)
+
+# 方法 3: 启用自动时间同步 (Linux)
+sudo timedatectl set-ntp true
+
+# 验证时间是否正确
+date
+# 应该显示正确的当前时间
+```
+
+**Docker 环境特别注意:**
+
+如果使用 Docker，容器时间可能与宿主机不同步：
+
+```bash
+# 检查容器时间
+docker exec nofx-backend date
+
+# 如果时间错误，重启 Docker 服务
+sudo systemctl restart docker
+
+# 或在 docker-compose.yml 中添加时区设置
+environment:
+  - TZ=Asia/Shanghai  # 或您的时区
+```
+
+**解决方案 2: 验证 API 密钥**
+
+如果时间同步后仍有错误：
+
+1. **检查 API 密钥:**
    - 未过期
    - 有正确权限（已启用合约）
    - IP 白名单包含您的服务器 IP
 
-3. **速率限制:**
-   - 币安有严格的速率限制
-   - 减少交易员数量或决策频率
+2. **重新生成 API 密钥:**
+   - 登录币安 → API 管理
+   - 删除旧密钥
+   - 创建新密钥
+   - 更新 NOFX 配置
+
+**解决方案 3: 检查速率限制**
+
+币安有严格的 API 速率限制：
+
+- **每分钟请求数限制**
+- 减少交易员数量
+- 增加决策间隔时间（例如从 1 分钟改为 3-5 分钟）
+
+**相关 Issue:** [#60](https://github.com/tinkle-community/nofx/issues/60)
 
 ---
 

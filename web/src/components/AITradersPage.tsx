@@ -277,16 +277,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleSaveModelConfig = async (modelId: string, apiKey: string, customApiUrl?: string, customModelName?: string) => {
     try {
-      // 找到要配置的模型（从supportedModels中）
-      const modelToUpdate = supportedModels?.find(m => m.id === modelId);
+      // 创建或更新用户的模型配置
+      const existingModel = allModels?.find(m => m.id === modelId);
+      let updatedModels;
+
+      // 找到要配置的模型（优先从已配置列表，其次从支持列表）
+      const modelToUpdate = existingModel || supportedModels?.find(m => m.id === modelId);
       if (!modelToUpdate) {
         alert(t('modelNotExist', language));
         return;
       }
-
-      // 创建或更新用户的模型配置
-      const existingModel = allModels?.find(m => m.id === modelId);
-      let updatedModels;
 
       if (existingModel) {
         // 更新现有配置

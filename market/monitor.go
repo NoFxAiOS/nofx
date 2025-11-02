@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,7 +12,6 @@ import (
 type WSMonitor struct {
 	wsClient       *WSClient
 	combinedClient *CombinedStreamsClient
-	featureEngine  *FeatureEngine
 	symbols        []string
 	featuresMap    sync.Map
 	alertsChan     chan Alert
@@ -41,7 +38,6 @@ func NewWSMonitor(batchSize int) *WSMonitor {
 	WSMonitorCli = &WSMonitor{
 		wsClient:       NewWSClient(),
 		combinedClient: NewCombinedStreamsClient(batchSize),
-		featureEngine:  NewFeatureEngine(config.AlertThresholds),
 		alertsChan:     make(chan Alert, 1000),
 		batchSize:      batchSize,
 	}
@@ -63,6 +59,7 @@ func (m *WSMonitor) Initialize(coins []string) error {
 		for _, symbol := range exchangeInfo.Symbols {
 			if symbol.Status == "TRADING" && symbol.ContractType == "PERPETUAL" && strings.ToUpper(symbol.Symbol[len(symbol.Symbol)-4:]) == "USDT" {
 				m.symbols = append(m.symbols, symbol.Symbol)
+				m.filterSymbols.Store(symbol.Symbol, true)
 			}
 		}
 	} else {
@@ -133,12 +130,6 @@ func (m *WSMonitor) Start(coins []string) {
 		log.Fatalf("❌ 批量订阅流: %v", err)
 		return
 	}
-	// 启动警报处理器
-	//go m.handleAlerts()
-	// 启动定期清理任务
-	//go m.cleanupInactiveSymbols()
-	// 输出监控统计 - 评分前十名
-	//go m.printFilterStats(20)
 	// 订阅所有交易对
 	err = m.subscribeAll()
 	if err != nil {
@@ -239,60 +230,6 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 	}
 
 	klineDataMap.Store(symbol, klines)
-	// 计算特征并检测警报
-	if len(klines) >= 20 {
-		features := m.featureEngine.CalculateFeatures(symbol, klines)
-		if features != nil {
-			m.featuresMap.Store(symbol, features)
-
-			alerts := m.featureEngine.DetectAlerts(features)
-			hasAlert := len(alerts) > 0
-
-			// 更新统计信息
-			m.updateSymbolStats(symbol, features, hasAlert)
-
-			for _, alert := range alerts {
-				m.alertsChan <- alert
-			}
-
-			// 实时日志输出重要特征
-			if len(alerts) > 0 || features.VolumeRatio5 > 2.0 || math.Abs(features.PriceChange15Min) > 0.02 {
-				//log.Printf("📊 %s - 价格: %.4f, 15分钟变动: %.2f%%, 交易量倍数: %.2f, RSI: %.1f",
-				//	symbol, features.Price, features.PriceChange15Min*100,
-				//	features.VolumeRatio5, features.RSI14)
-			}
-		}
-	}
-}
-
-func (m *WSMonitor) processTickerUpdate(symbol string, tickerData TickerWSData) {
-	// 存储ticker数据
-	m.tickerDataMap.Store(symbol, tickerData)
-}
-
-func (m *WSMonitor) handleAlerts() {
-	alertCounts := make(map[string]int)
-	lastReset := time.Now()
-
-	for alert := range m.alertsChan {
-		// 重置计数器（每小时）
-		if time.Since(lastReset) > time.Hour {
-			alertCounts = make(map[string]int)
-			lastReset = time.Now()
-		}
-
-		// 警报去重和频率控制
-		alertKey := fmt.Sprintf("%s_%s", alert.Symbol, alert.Type)
-		alertCounts[alertKey]++
-		m.filterSymbols.Store(alert.Symbol, true)
-
-		//log.Printf("✅ 自动添加监控: %s (因警报: %s)", alert.Symbol, alert.Message)
-		if alertCounts[alertKey] <= 3 { // 每小时最多3次相同警报
-			//log.Printf("🚨 实时警报: %s", alert.Message)
-
-			// 这里可以添加其他警报处理逻辑
-		}
-	}
 }
 
 func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, error) {
@@ -317,204 +254,7 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, erro
 	return value.([]Kline), nil
 }
 
-func (m *WSMonitor) GetCurrentFeatures(symbol string) (*SymbolFeatures, bool) {
-	value, exists := m.featuresMap.Load(symbol)
-	if !exists {
-		return nil, false
-	}
-	return value.(*SymbolFeatures), true
-}
-
-func (m *WSMonitor) GetAllFeatures() map[string]*SymbolFeatures {
-	features := make(map[string]*SymbolFeatures)
-	m.featuresMap.Range(func(key, value interface{}) bool {
-		features[key.(string)] = value.(*SymbolFeatures)
-		return true
-	})
-	return features
-}
-
 func (m *WSMonitor) Close() {
 	m.wsClient.Close()
 	close(m.alertsChan)
-}
-func (m *WSMonitor) printFilterStats(nember int) {
-	ticker := time.NewTicker(2 * time.Minute)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		var monitoredSymbols []string
-		m.filterSymbols.Range(func(key, value interface{}) bool {
-			monitoredSymbols = append(monitoredSymbols, key.(string))
-			return true
-		})
-
-		log.Printf("🎯 监控统计 - 总数: %d, 币种: %v",
-			len(monitoredSymbols), monitoredSymbols)
-
-		// 打印前5个评分最高的币种
-		type symbolScore struct {
-			symbol string
-			score  float64
-		}
-		var topScores []symbolScore
-
-		m.symbolStats.Range(func(key, value interface{}) bool {
-			symbol := key.(string)
-			stats := value.(*SymbolStats)
-			topScores = append(topScores, symbolScore{symbol, stats.Score})
-			return true
-		})
-
-		// 按评分排序
-		sort.Slice(topScores, func(i, j int) bool {
-			return topScores[i].score > topScores[j].score
-		})
-		m.FilterSymbol = nil
-		if len(topScores) > 0 {
-			log.Printf("🏆 评分TOP%v:", nember)
-			for i := 0; i < len(topScores) && i < nember; i++ {
-				m.FilterSymbol = append(m.FilterSymbol, topScores[i].symbol)
-				log.Printf("   %d. %s: %.1f分", i+1, topScores[i].symbol, topScores[i].score)
-			}
-		}
-	}
-}
-
-// evaluateSymbolScore 评估币种得分，决定是否保留
-func (m *WSMonitor) evaluateSymbolScore(symbol string, features *SymbolFeatures) float64 {
-	score := 0.0
-
-	// 交易量活跃度评分 (权重: 40%)
-	if features.VolumeRatio5 > 1.5 {
-		score += 40 * math.Min(features.VolumeRatio5/5.0, 1.0)
-	}
-
-	// 价格波动评分 (权重: 30%)
-	volatilityScore := math.Abs(features.PriceChange15Min) * 1000 // 放大系数
-	score += 30 * math.Min(volatilityScore/10.0, 1.0)             // 最大10%波动得满分
-
-	// RSI活跃度评分 (权重: 20%)
-	if features.RSI14 < 30 || features.RSI14 > 70 {
-		score += 20 // RSI在极端区域
-	} else if features.RSI14 < 40 || features.RSI14 > 60 {
-		score += 10 // RSI在活跃区域
-	}
-
-	// 交易量趋势评分 (权重: 10%)
-	if features.VolumeTrend > 1.2 {
-		score += 10 * math.Min(features.VolumeTrend/3.0, 1.0)
-	}
-
-	return score
-}
-
-// shouldRemoveFromFilter 判断是否应该从FilterSymbols中移除
-func (m *WSMonitor) shouldRemoveFromFilter(symbol string) bool {
-	value, exists := m.symbolStats.Load(symbol)
-	if !exists {
-		return true // 没有统计信息，移除
-	}
-
-	stats := value.(*SymbolStats)
-
-	// 规则1: 超过30分钟没有活跃迹象
-	if time.Since(stats.LastActiveTime) > 30*time.Minute {
-		log.Printf("🔻 %s 因长时间不活跃被移除", symbol)
-		return true
-	}
-
-	// 规则2: 评分持续低于阈值 (最近5次评分平均)
-	if stats.Score < 15 { // 调整这个阈值
-		log.Printf("🔻 %s 因评分过低(%.1f)被移除", symbol, stats.Score)
-		return true
-	}
-
-	// 规则3: 超过2小时没有产生警报
-	if time.Since(stats.LastAlertTime) > 2*time.Hour && stats.AlertCount > 0 {
-		log.Printf("🔻 %s 因长时间无新警报被移除", symbol)
-		return true
-	}
-
-	return false
-}
-
-// updateSymbolStats 更新币种统计信息
-func (m *WSMonitor) updateSymbolStats(symbol string, features *SymbolFeatures, hasAlert bool) {
-	now := time.Now()
-
-	value, exists := m.symbolStats.Load(symbol)
-	var stats *SymbolStats
-
-	if !exists {
-		stats = &SymbolStats{
-			LastActiveTime: now,
-			Score:          m.evaluateSymbolScore(symbol, features),
-		}
-	} else {
-		stats = value.(*SymbolStats)
-		stats.LastActiveTime = now
-
-		// 平滑更新评分 (指数移动平均)
-		newScore := m.evaluateSymbolScore(symbol, features)
-		stats.Score = 0.7*stats.Score + 0.3*newScore
-	}
-
-	if hasAlert {
-		stats.AlertCount++
-		stats.LastAlertTime = now
-	}
-
-	if features.VolumeRatio5 > 2.0 {
-		stats.VolumeSpikeCount++
-	}
-
-	m.symbolStats.Store(symbol, stats)
-}
-
-// removeFromFilter 从FilterSymbols中移除币种
-func (m *WSMonitor) removeFromFilter(symbol string) {
-
-	// 从filterSymbols中移除
-	m.filterSymbols.Delete(symbol)
-	m.symbolStats.Delete(symbol)
-
-	log.Printf("🗑️ 已移除币种监控: %s", symbol)
-}
-
-// cleanupInactiveSymbols 定期清理不活跃的币种
-func (m *WSMonitor) cleanupInactiveSymbols() {
-	ticker := time.NewTicker(5 * time.Minute) // 每5分钟检查一次
-	defer ticker.Stop()
-
-	for range ticker.C {
-		var symbolsToRemove []string
-
-		// 收集需要移除的币种
-		m.filterSymbols.Range(func(key, value interface{}) bool {
-			symbol := key.(string)
-			if m.shouldRemoveFromFilter(symbol) {
-				symbolsToRemove = append(symbolsToRemove, symbol)
-			}
-			return true
-		})
-
-		// 执行移除操作
-		for _, symbol := range symbolsToRemove {
-			m.removeFromFilter(symbol)
-		}
-
-		if len(symbolsToRemove) > 0 {
-			log.Printf("🧹 清理完成，移除了 %d 个不活跃币种", len(symbolsToRemove))
-		}
-	}
-}
-
-// getSymbolScore 获取币种当前评分
-func (m *WSMonitor) getSymbolScore(symbol string) float64 {
-	value, exists := m.symbolStats.Load(symbol)
-	if !exists {
-		return 0
-	}
-	return value.(*SymbolStats).Score
 }

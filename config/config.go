@@ -54,7 +54,6 @@ type LeverageConfig struct {
 type Config struct {
 	Traders            []TraderConfig `json:"traders"`
 	UseDefaultCoins    bool           `json:"use_default_coins"` // 是否使用默认主流币种列表
-	UseInsideCoins     bool           `json:"use_inside_coins"`  // 是否使用内置AI评分币种列表
 	DefaultCoins       []string       `json:"default_coins"`     // 默认主流币种池
 	APIServerPort      int            `json:"api_server_port"`
 	MaxDailyLoss       float64        `json:"max_daily_loss"`

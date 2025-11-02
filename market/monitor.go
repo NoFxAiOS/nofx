@@ -35,6 +35,7 @@ type SymbolStats struct {
 }
 
 var WSMonitorCli *WSMonitor
+var subKlineTime = []string{"3m", "4h"} // 管理订阅流的K线周期
 
 func NewWSMonitor(batchSize int) *WSMonitor {
 	WSMonitorCli = &WSMonitor{
@@ -47,23 +48,27 @@ func NewWSMonitor(batchSize int) *WSMonitor {
 	return WSMonitorCli
 }
 
-func (m *WSMonitor) Initialize() error {
+func (m *WSMonitor) Initialize(coins []string) error {
 	log.Println("初始化WebSocket监控器...")
-
 	// 获取交易对信息
 	apiClient := NewAPIClient()
-	exchangeInfo, err := apiClient.GetExchangeInfo()
-	if err != nil {
-		return err
+	// 如果不指定交易对，则使用market市场的所有交易对币种
+	if len(coins) == 0 {
+		exchangeInfo, err := apiClient.GetExchangeInfo()
+		if err != nil {
+			return err
+		}
+		// 筛选永续合约交易对 --仅测试时使用
+		//exchangeInfo.Symbols = exchangeInfo.Symbols[0:2]
+		for _, symbol := range exchangeInfo.Symbols {
+			if symbol.Status == "TRADING" && symbol.ContractType == "PERPETUAL" && strings.ToUpper(symbol.Symbol[len(symbol.Symbol)-4:]) == "USDT" {
+				m.symbols = append(m.symbols, symbol.Symbol)
+			}
+		}
+	} else {
+		m.symbols = coins
 	}
 
-	// 筛选永续合约交易对 --仅测试时使用
-	//exchangeInfo.Symbols = exchangeInfo.Symbols[0:2]
-	for _, symbol := range exchangeInfo.Symbols {
-		if symbol.Status == "TRADING" && symbol.ContractType == "PERPETUAL" {
-			m.symbols = append(m.symbols, Normalize(symbol.Symbol))
-		}
-	}
 	log.Printf("找到 %d 个交易对", len(m.symbols))
 	// 初始化历史数据
 	if err := m.initializeHistoricalData(); err != nil {
@@ -114,10 +119,10 @@ func (m *WSMonitor) initializeHistoricalData() error {
 	return nil
 }
 
-func (m *WSMonitor) Start() {
+func (m *WSMonitor) Start(coins []string) {
 	log.Printf("启动WebSocket实时监控...")
 	// 初始化交易对
-	err := m.Initialize()
+	err := m.Initialize(coins)
 	if err != nil {
 		log.Fatalf("❌ 初始化币种: %v", err)
 		return
@@ -129,42 +134,43 @@ func (m *WSMonitor) Start() {
 		return
 	}
 	// 启动警报处理器
-	go m.handleAlerts()
+	//go m.handleAlerts()
 	// 启动定期清理任务
-	go m.cleanupInactiveSymbols()
+	//go m.cleanupInactiveSymbols()
 	// 输出监控统计 - 评分前十名
-	go m.printFilterStats(50)
+	//go m.printFilterStats(20)
 	// 订阅所有交易对
 	err = m.subscribeAll()
-
 	if err != nil {
 		log.Fatalf("❌ 订阅币种交易对: %v", err)
 		return
 	}
 }
 
+// subscribeSymbol 注册监听
+func (m *WSMonitor) subscribeSymbol(symbol, st string) []string {
+	var streams []string
+	stream := fmt.Sprintf("%s@kline_%s", strings.ToLower(symbol), st)
+	ch := m.combinedClient.AddSubscriber(stream, 100)
+	streams = append(streams, stream)
+	go m.handleKlineData(symbol, ch, st)
+
+	return streams
+}
 func (m *WSMonitor) subscribeAll() error {
 	// 执行批量订阅
 	log.Println("开始订阅所有交易对...")
 	for _, symbol := range m.symbols {
-		stream3m := fmt.Sprintf("%s@kline_3m", strings.ToLower(symbol))
-		ch3m := m.combinedClient.AddSubscriber(stream3m, 100)
-		go m.handleKlineData(symbol, ch3m, "3m")
-
-		stream4h := fmt.Sprintf("%s@kline_4h", strings.ToLower(symbol))
-		ch4h := m.combinedClient.AddSubscriber(stream4h, 100)
-		go m.handleKlineData(symbol, ch4h, "4h")
+		for _, st := range subKlineTime {
+			m.subscribeSymbol(symbol, st)
+		}
 	}
-
-	err := m.combinedClient.BatchSubscribeKlines(m.symbols, "3m")
-	if err != nil {
-		log.Fatalf("❌ 订阅3m K线: %v", err)
-		return err
-	}
-	err = m.combinedClient.BatchSubscribeKlines(m.symbols, "4h")
-	if err != nil {
-		log.Fatalf("❌ 订阅4h K线: %v", err)
-		return err
+	for _, st := range subKlineTime {
+		err := m.combinedClient.BatchSubscribeKlines(m.symbols, st)
+		if err != nil {
+			log.Fatalf("❌ 订阅3m K线: %v", err)
+			return err
+		}
 	}
 	log.Println("所有交易对订阅完成")
 	return nil
@@ -181,34 +187,14 @@ func (m *WSMonitor) handleKlineData(symbol string, ch <-chan []byte, _time strin
 	}
 }
 
-func (m *WSMonitor) handleTickerData(symbol string, ch <-chan []byte) {
-	for data := range ch {
-		var tickerData TickerWSData
-		if err := json.Unmarshal(data, &tickerData); err != nil {
-			log.Printf("解析Ticker数据失败: %v", err)
-			continue
-		}
-
-		m.processTickerUpdate(symbol, tickerData)
-	}
-}
-func (m *WSMonitor) handleTickerDatas(ch <-chan []byte) {
-	for data := range ch {
-		var tickerData []TickerWSData
-		if err := json.Unmarshal(data, &tickerData); err != nil {
-			log.Printf("解析Ticker数据失败: %v", err)
-			continue
-		}
-		log.Fatalln(tickerData)
-		//m.processTickerUpdate(symbol, tickerData)
-	}
-}
 func (m *WSMonitor) getKlineDataMap(_time string) *sync.Map {
 	var klineDataMap *sync.Map
 	if _time == "3m" {
 		klineDataMap = &m.klineDataMap3m
-	} else {
+	} else if _time == "4h" {
 		klineDataMap = &m.klineDataMap4h
+	} else {
+		klineDataMap = &sync.Map{}
 	}
 	return klineDataMap
 }
@@ -310,11 +296,19 @@ func (m *WSMonitor) handleAlerts() {
 }
 
 func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, error) {
+	// 对每一个进来的symbol检测是否存在内类 是否的话就订阅它
 	value, exists := m.getKlineDataMap(_time).Load(symbol)
 	if !exists {
 		// 如果Ws数据未初始化完成时,单独使用api获取 - 兼容性代码 (防止在未初始化完成是,已经有交易员运行)
 		apiClient := NewAPIClient()
-		klines, err := apiClient.GetKlines(symbol, _time, 40)
+		klines, err := apiClient.GetKlines(symbol, _time, 100)
+		m.getKlineDataMap(_time).Store(strings.ToUpper(symbol), klines) //动态缓存进缓存
+		subStr := m.subscribeSymbol(symbol, _time)
+		subErr := m.combinedClient.subscribeStreams(subStr)
+		log.Printf("动态订阅流: %v", subStr)
+		if subErr != nil {
+			return nil, fmt.Errorf("动态订阅%v分钟K线失败: %v", _time, subErr)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("获取%v分钟K线失败: %v", _time, err)
 		}

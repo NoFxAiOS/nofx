@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 )
 
 // LeverageConfig 杠杆配置
@@ -30,9 +29,9 @@ type ConfigFile struct {
 	APIServerPort      int            `json:"api_server_port"`
 	UseDefaultCoins    bool           `json:"use_default_coins"`
 	DefaultCoins       []string       `json:"default_coins"`
-	InsideCoins        bool           `json:"inside_coins"`
 	CoinPoolAPIURL     string         `json:"coin_pool_api_url"`
 	OITopAPIURL        string         `json:"oi_top_api_url"`
+	InsideCoins        bool           `json:"inside_coins"`
 	MaxDailyLoss       float64        `json:"max_daily_loss"`
 	MaxDrawdown        float64        `json:"max_drawdown"`
 	StopTradingMinutes int            `json:"stop_trading_minutes"`
@@ -68,9 +67,9 @@ func syncConfigToDatabase(database *config.Database) error {
 		"admin_mode":           fmt.Sprintf("%t", configFile.AdminMode),
 		"api_server_port":      strconv.Itoa(configFile.APIServerPort),
 		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
-		"inside_coins":         fmt.Sprintf("%t", configFile.InsideCoins),
 		"coin_pool_api_url":    configFile.CoinPoolAPIURL,
 		"oi_top_api_url":       configFile.OITopAPIURL,
+		"inside_coins":         fmt.Sprintf("%t", configFile.InsideCoins),
 		"max_daily_loss":       fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
 		"max_drawdown":         fmt.Sprintf("%.1f", configFile.MaxDrawdown),
 		"stop_trading_minutes": strconv.Itoa(configFile.StopTradingMinutes),
@@ -137,8 +136,6 @@ func main() {
 	// 获取系统配置
 	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
-	InsideCoinsStr, _ := database.GetSystemConfig("inside_coins")
-	insideCoins := InsideCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
 	// 获取管理员模式配置
@@ -186,26 +183,6 @@ func main() {
 	}
 
 	pool.SetDefaultCoins(defaultCoins)
-
-	//内置AI评分
-	if insideCoins {
-		log.Printf("✓ 启用内置AI评分币种列表")
-		monitor := market.NewWSMonitor(150)
-		go func() {
-			monitor.Start()
-			// 定时器设置默认的币种列表 - 覆蓋defaultCoins设置
-			for {
-				if len(monitor.FilterSymbol) > 0 {
-					for _, coin := range defaultCoins {
-						monitor.FilterSymbol = append(monitor.FilterSymbol, coin)
-					}
-					pool.SetDefaultCoins(monitor.FilterSymbol)
-					monitor.FilterSymbol = nil
-				}
-				time.Sleep(1 * time.Minute)
-			}
-		}()
-	}
 	// 设置是否使用默认主流币种
 	pool.SetUseDefaultCoins(useDefaultCoins)
 	if useDefaultCoins {
@@ -286,6 +263,8 @@ func main() {
 		}
 	}()
 
+	// 启动流行情数据 - 默认使用所有交易员设置的币种 如果没有设置币种 则优先使用系统默认
+	go market.NewWSMonitor(150).Start(database.GetCustomCoins())
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

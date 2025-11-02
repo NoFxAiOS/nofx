@@ -607,6 +607,7 @@ cp config.json.example config.json
 | `exchange` | 使用的交易所 | `"binance"` 或 `"hyperliquid"` 或 `"aster"` | ✅ 是 |
 | `binance_api_key` | 币安API密钥 | `"abc123..."` | 使用Binance时必填 |
 | `binance_secret_key` | 币安Secret密钥 | `"xyz789..."` | 使用Binance时必填 |
+| `binance_api_key_type` | 币安API签名类型 | `"Hmac"` 或 `"Ed25519"` | 可选，默认为 `"Hmac"` |
 | `hyperliquid_private_key` | Hyperliquid私钥<br>⚠️ 去掉`0x`前缀 | `"your_key..."` | 使用Hyperliquid时必填 |
 | `hyperliquid_wallet_addr` | Hyperliquid钱包地址 | `"0xabc..."` | 使用Hyperliquid时必填 |
 | `hyperliquid_testnet` | 是否使用测试网 | `true` 或 `false` | ❌ 否（默认false） |
@@ -705,7 +706,7 @@ cp config.json.example config.json
 ```
 
 ✅ **选项2：省略字段（自动使用默认币种）**
-```json
+```
 // 完全不包含"use_default_coins"
 "coin_pool_api_url": "",
 "oi_top_api_url": ""
@@ -961,7 +962,7 @@ curl http://localhost:8080/health
 
 ### 历史反馈（Prompt中自动添加）
 
-```markdown
+```
 ## 📊 历史表现反馈
 
 ### 整体表现

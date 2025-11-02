@@ -613,6 +613,7 @@ For running multiple AI traders competing against each other:
 | `exchange` | Exchange to use | `"binance"` or `"hyperliquid"` or `"aster"` | ✅ Yes |
 | `binance_api_key` | Binance API key | `"abc123..."` | Required when using Binance |
 | `binance_secret_key` | Binance Secret key | `"xyz789..."` | Required when using Binance |
+| `binance_api_key_type` | Binance API key signature type | `"Hmac"` or `"Ed25519"` | Optional, defaults to `"Hmac"` |
 | `hyperliquid_private_key` | Hyperliquid private key<br>⚠️ Remove `0x` prefix | `"your_key..."` | Required when using Hyperliquid |
 | `hyperliquid_wallet_addr` | Hyperliquid wallet address | `"0xabc..."` | Required when using Hyperliquid |
 | `hyperliquid_testnet` | Use testnet | `true` or `false` | ❌ No (defaults to false) |
@@ -997,7 +998,7 @@ Each decision cycle (default 3 minutes), the system executes the following intel
 
 ### Historical Feedback (Auto-added to Prompt)
 
-```markdown
+```
 ## 📊 Historical Performance Feedback
 
 ### Overall Performance

@@ -544,6 +544,7 @@ cp config.json.example config.json
 | `exchange` | Використовувана біржа | `"binance"` або `"hyperliquid"` або `"aster"` | ✅ Так |
 | `binance_api_key` | Binance API ключ | `"abc123..."` | Потрібно при використанні Binance |
 | `binance_secret_key` | Binance Secret ключ | `"xyz789..."` | Потрібно при використанні Binance |
+| `binance_api_key_type` | Тип підпису Binance API | `"Hmac"` або `"Ed25519"` | Опціонально, за замовчуванням `"Hmac"` |
 | `hyperliquid_private_key` | Hyperliquid приватний ключ<br>⚠️ Видаліть префікс `0x` | `"your_key..."` | Потрібно при використанні Hyperliquid |
 | `hyperliquid_wallet_addr` | Hyperliquid адреса гаманця | `"0xabc..."` | Потрібно при використанні Hyperliquid |
 | `hyperliquid_testnet` | Використовувати тестнет | `true` або `false` | ❌ Ні (за замовчуванням false) |

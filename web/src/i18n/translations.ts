@@ -212,6 +212,8 @@ export const translations = {
     btcEthLeverageValidation: 'BTC/ETH leverage must be between 1-50x',
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
     invalidSymbolFormat: 'Invalid symbol format: {symbol}, must end with USDT',
+    promptTemplateWarningTitle: 'Risk Warning',
+    promptTemplateWarningMessage: 'Prompt templates are community-contributed. Non-default templates may carry trading risks. Please trade with caution.',
 
     // Loading & Error
     loading: 'Loading...',
@@ -529,6 +531,8 @@ export const translations = {
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
     invalidSymbolFormat: '无效的币种格式：{symbol}，必须以USDT结尾',
+    promptTemplateWarningTitle: '风险提示',
+    promptTemplateWarningMessage: '提示词由社区贡献，非默认提示词存在交易风险，请谨慎交易。',
 
     // Loading & Error
     loading: '加载中...',

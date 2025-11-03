@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { AIModel, Exchange, CreateTraderRequest } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import { t } from '../i18n/translations';
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -35,15 +37,16 @@ interface TraderConfigModalProps {
   onSave?: (data: CreateTraderRequest) => Promise<void>;
 }
 
-export function TraderConfigModal({ 
-  isOpen, 
-  onClose, 
-  traderData, 
+export function TraderConfigModal({
+  isOpen,
+  onClose,
+  traderData,
   isEditMode = false,
   availableModels = [],
   availableExchanges = [],
-  onSave 
+  onSave
 }: TraderConfigModalProps) {
+  const { language } = useLanguage();
   const [formData, setFormData] = useState<TraderConfigData>({
     trader_name: '',
     ai_model: '',
@@ -465,6 +468,23 @@ export function TraderConfigModal({
                 <p className="text-xs text-[#848E9C] mt-1">
                   选择预设的交易策略模板（包含交易哲学、风控原则等）
                 </p>
+
+                {/* 非默认提示词警告 */}
+                {formData.system_prompt_template !== 'default' && (
+                  <div className="mt-3 p-3 bg-[#FFF3CD] border border-[#FFE69C] rounded-lg flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-[#856404] flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/>
+                      <line x1="12" x2="12" y1="9" y2="13"/>
+                      <line x1="12" x2="12.01" y1="17" y2="17"/>
+                    </svg>
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-[#856404] mb-1">{t('promptTemplateWarningTitle', language)}</div>
+                      <div className="text-xs text-[#856404]">
+                        {t('promptTemplateWarningMessage', language)}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3">

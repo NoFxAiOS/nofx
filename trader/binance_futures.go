@@ -2,12 +2,14 @@ package trader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/adshao/go-binance/v2/common"
 	"github.com/adshao/go-binance/v2/futures"
 )
 
@@ -27,15 +29,74 @@ type FuturesTrader struct {
 
 	// 缓存有效期（15秒）
 	cacheDuration time.Duration
+
+	// 服务器时间同步
+	timeSyncMutex    sync.Mutex
+	lastTimeSync     time.Time
+	timeSyncInterval time.Duration
 }
 
 // NewFuturesTrader 创建合约交易器
 func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
-	return &FuturesTrader{
-		client:        client,
-		cacheDuration: 15 * time.Second, // 15秒缓存
+	trader := &FuturesTrader{
+		client:           client,
+		cacheDuration:    15 * time.Second, // 15秒缓存
+		timeSyncInterval: 30 * time.Second,
 	}
+
+	if err := trader.syncServerTime(context.Background(), true); err != nil {
+		log.Printf("⚠️ 初始化同步币安服务器时间失败: %v", err)
+	}
+
+	return trader
+}
+
+// syncServerTime 同步本地与币安服务器的时间偏移
+func (t *FuturesTrader) syncServerTime(ctx context.Context, force bool) error {
+	t.timeSyncMutex.Lock()
+	defer t.timeSyncMutex.Unlock()
+
+	if !force && !t.lastTimeSync.IsZero() && time.Since(t.lastTimeSync) < t.timeSyncInterval {
+		return nil
+	}
+
+	offset, err := t.client.NewSetServerTimeService().Do(ctx)
+	if err != nil {
+		return err
+	}
+
+	t.lastTimeSync = time.Now()
+	drift := time.Duration(offset) * time.Millisecond
+	log.Printf("✓ Binance服务器时间同步成功 (offset=%s)", drift)
+	return nil
+}
+
+// callWithTimeSync 在调用需要签名的接口前后处理服务器时间同步，并在时间偏差错误时重试一次
+func (t *FuturesTrader) callWithTimeSync(operation string, call func() error) error {
+	ctx := context.Background()
+
+	if err := t.syncServerTime(ctx, false); err != nil {
+		log.Printf("⚠️ 同步Binance服务器时间失败（%s）: %v", operation, err)
+	}
+
+	err := call()
+	if err == nil {
+		return nil
+	}
+
+	var apiErr *common.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == -1021 {
+		log.Printf("⚠️ Binance返回时间偏差错误（%s），尝试强制同步后重试: %s", operation, apiErr.Message)
+		if syncErr := t.syncServerTime(ctx, true); syncErr != nil {
+			log.Printf("❌ Binance服务器时间强制同步失败: %v", syncErr)
+			return err
+		}
+
+		err = call()
+	}
+
+	return err
 }
 
 // GetBalance 获取账户余额（带缓存）
@@ -52,7 +113,13 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 
 	// 缓存过期或不存在，调用API
 	log.Printf("🔄 缓存过期，正在调用币安API获取账户余额...")
-	account, err := t.client.NewGetAccountService().Do(context.Background())
+
+	var account *futures.Account
+	err := t.callWithTimeSync("获取账户信息", func() error {
+		var innerErr error
+		account, innerErr = t.client.NewGetAccountService().Do(context.Background())
+		return innerErr
+	})
 	if err != nil {
 		log.Printf("❌ 币安API调用失败: %v", err)
 		return nil, fmt.Errorf("获取账户信息失败: %w", err)
@@ -91,7 +158,13 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	// 缓存过期或不存在，调用API
 	log.Printf("🔄 缓存过期，正在调用币安API获取持仓信息...")
-	positions, err := t.client.NewGetPositionRiskService().Do(context.Background())
+
+	var positions []*futures.PositionRisk
+	err := t.callWithTimeSync("获取持仓信息", func() error {
+		var innerErr error
+		positions, innerErr = t.client.NewGetPositionRiskService().Do(context.Background())
+		return innerErr
+	})
 	if err != nil {
 		return nil, fmt.Errorf("获取持仓失败: %w", err)
 	}
@@ -139,18 +212,20 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	} else {
 		marginType = futures.MarginTypeIsolated
 	}
-	
+
 	// 尝试设置仓位模式
-	err := t.client.NewChangeMarginTypeService().
-		Symbol(symbol).
-		MarginType(marginType).
-		Do(context.Background())
-	
+	err := t.callWithTimeSync("设置仓位模式", func() error {
+		return t.client.NewChangeMarginTypeService().
+			Symbol(symbol).
+			MarginType(marginType).
+			Do(context.Background())
+	})
+
 	marginModeStr := "全仓"
 	if !isCrossMargin {
 		marginModeStr = "逐仓"
 	}
-	
+
 	if err != nil {
 		// 如果错误信息包含"No need to change"，说明仓位模式已经是目标值
 		if contains(err.Error(), "No need to change margin type") {
@@ -166,7 +241,7 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 		// 不返回错误，让交易继续
 		return nil
 	}
-	
+
 	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginModeStr)
 	return nil
 }
@@ -194,10 +269,13 @@ func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 	}
 
 	// 切换杠杆
-	_, err = t.client.NewChangeLeverageService().
-		Symbol(symbol).
-		Leverage(leverage).
-		Do(context.Background())
+	err = t.callWithTimeSync("设置杠杆", func() error {
+		_, innerErr := t.client.NewChangeLeverageService().
+			Symbol(symbol).
+			Leverage(leverage).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		// 如果错误信息包含"No need to change"，说明杠杆已经是目标值
@@ -238,13 +316,18 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 	}
 
 	// 创建市价买入订单
-	order, err := t.client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(futures.SideTypeBuy).
-		PositionSide(futures.PositionSideTypeLong).
-		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+	var order *futures.CreateOrderResponse
+	err = t.callWithTimeSync("开多仓", func() error {
+		var innerErr error
+		order, innerErr = t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(futures.SideTypeBuy).
+			PositionSide(futures.PositionSideTypeLong).
+			Type(futures.OrderTypeMarket).
+			Quantity(quantityStr).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("开多仓失败: %w", err)
@@ -281,13 +364,18 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 	}
 
 	// 创建市价卖出订单
-	order, err := t.client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(futures.SideTypeSell).
-		PositionSide(futures.PositionSideTypeShort).
-		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+	var order *futures.CreateOrderResponse
+	err = t.callWithTimeSync("开空仓", func() error {
+		var innerErr error
+		order, innerErr = t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(futures.SideTypeSell).
+			PositionSide(futures.PositionSideTypeShort).
+			Type(futures.OrderTypeMarket).
+			Quantity(quantityStr).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("开空仓失败: %w", err)
@@ -331,13 +419,18 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 	}
 
 	// 创建市价卖出订单（平多）
-	order, err := t.client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(futures.SideTypeSell).
-		PositionSide(futures.PositionSideTypeLong).
-		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+	var order *futures.CreateOrderResponse
+	err = t.callWithTimeSync("平多仓", func() error {
+		var innerErr error
+		order, innerErr = t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(futures.SideTypeSell).
+			PositionSide(futures.PositionSideTypeLong).
+			Type(futures.OrderTypeMarket).
+			Quantity(quantityStr).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("平多仓失败: %w", err)
@@ -385,13 +478,18 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 	}
 
 	// 创建市价买入订单（平空）
-	order, err := t.client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(futures.SideTypeBuy).
-		PositionSide(futures.PositionSideTypeShort).
-		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+	var order *futures.CreateOrderResponse
+	err = t.callWithTimeSync("平空仓", func() error {
+		var innerErr error
+		order, innerErr = t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(futures.SideTypeBuy).
+			PositionSide(futures.PositionSideTypeShort).
+			Type(futures.OrderTypeMarket).
+			Quantity(quantityStr).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("平空仓失败: %w", err)
@@ -413,9 +511,11 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 
 // CancelAllOrders 取消该币种的所有挂单
 func (t *FuturesTrader) CancelAllOrders(symbol string) error {
-	err := t.client.NewCancelAllOpenOrdersService().
-		Symbol(symbol).
-		Do(context.Background())
+	err := t.callWithTimeSync("取消挂单", func() error {
+		return t.client.NewCancelAllOpenOrdersService().
+			Symbol(symbol).
+			Do(context.Background())
+	})
 
 	if err != nil {
 		return fmt.Errorf("取消挂单失败: %w", err)
@@ -471,16 +571,19 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		return err
 	}
 
-	_, err = t.client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(side).
-		PositionSide(posSide).
-		Type(futures.OrderTypeStopMarket).
-		StopPrice(fmt.Sprintf("%.8f", stopPrice)).
-		Quantity(quantityStr).
-		WorkingType(futures.WorkingTypeContractPrice).
-		ClosePosition(true).
-		Do(context.Background())
+	err = t.callWithTimeSync("设置止损", func() error {
+		_, innerErr := t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(side).
+			PositionSide(posSide).
+			Type(futures.OrderTypeStopMarket).
+			StopPrice(fmt.Sprintf("%.8f", stopPrice)).
+			Quantity(quantityStr).
+			WorkingType(futures.WorkingTypeContractPrice).
+			ClosePosition(true).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		return fmt.Errorf("设置止损失败: %w", err)
@@ -509,16 +612,19 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		return err
 	}
 
-	_, err = t.client.NewCreateOrderService().
-		Symbol(symbol).
-		Side(side).
-		PositionSide(posSide).
-		Type(futures.OrderTypeTakeProfitMarket).
-		StopPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
-		Quantity(quantityStr).
-		WorkingType(futures.WorkingTypeContractPrice).
-		ClosePosition(true).
-		Do(context.Background())
+	err = t.callWithTimeSync("设置止盈", func() error {
+		_, innerErr := t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(side).
+			PositionSide(posSide).
+			Type(futures.OrderTypeTakeProfitMarket).
+			StopPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
+			Quantity(quantityStr).
+			WorkingType(futures.WorkingTypeContractPrice).
+			ClosePosition(true).
+			Do(context.Background())
+		return innerErr
+	})
 
 	if err != nil {
 		return fmt.Errorf("设置止盈失败: %w", err)

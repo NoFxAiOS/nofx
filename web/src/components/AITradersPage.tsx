@@ -181,20 +181,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return;
       }
 
-      // 3. 验证模型存在
-      console.log('验证 AI 模型:', { ai_model_id, enabledModels: enabledModels?.map(m => m.id) });
-      const model = enabledModels?.find(m => m.id === ai_model_id);
+      // 3. 验证模型存在（使用 allModels 以支持编辑禁用模型的 trader - Issue #227）
+      console.log('验证 AI 模型:', { ai_model_id, allModels: allModels?.map(m => m.id) });
+      const model = allModels?.find(m => m.id === ai_model_id);
       if (!model) {
         console.error('找不到模型:', {
           ai_model_id,
-          availableModels: enabledModels?.map(m => ({ id: m.id, name: m.name }))
+          availableModels: allModels?.map(m => ({ id: m.id, name: m.name }))
         });
-        alert(`AI模型配置不存在或未启用: ${ai_model_id}\n\n可用的模型: ${enabledModels?.map(m => m.name).join(', ')}`);
+        alert(`AI模型配置不存在: ${ai_model_id}\n\n可用的模型: ${allModels?.map(m => m.name).join(', ')}`);
         return;
       }
 
-      // 4. 验证交易所存在
-      const exchange = enabledExchanges?.find(e => e.id === exchange_id);
+      // 4. 验证交易所存在（使用 allExchanges 以支持编辑禁用交易所的 trader）
+      const exchange = allExchanges?.find(e => e.id === exchange_id);
       if (!exchange) {
         console.error('找不到交易所:', { exchange_id });
         alert(t('exchangeConfigNotExist', language));
@@ -791,8 +791,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           isOpen={showEditModal}
           isEditMode={true}
           traderData={editingTrader}
-          availableModels={enabledModels}
-          availableExchanges={enabledExchanges}
+          availableModels={allModels}
+          availableExchanges={allExchanges}
           onSave={handleSaveEditTrader}
           onClose={() => {
             setShowEditModal(false);

@@ -9,6 +9,16 @@ function getShortName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : fullName;
 }
 
+// 获取友好的交易所显示名称
+function getExchangeDisplayName(exchange: Exchange): string {
+  // 如果ID包含下划线，说明是自定义ID（如 binance_子账户1）
+  if (exchange.id.includes('_')) {
+    return exchange.id; // 显示完整ID
+  }
+  // 否则显示交易所名称
+  return exchange.name || exchange.id;
+}
+
 interface TraderConfigData {
   trader_id?: string;
   trader_name: string;
@@ -269,7 +279,7 @@ export function TraderConfigModal({
                   >
                     {availableExchanges.map(exchange => (
                       <option key={exchange.id} value={exchange.id}>
-                        {getShortName(exchange.name || exchange.id).toUpperCase()}
+                        {getExchangeDisplayName(exchange)}
                       </option>
                     ))}
                   </select>

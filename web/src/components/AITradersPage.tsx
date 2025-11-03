@@ -265,25 +265,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!confirm(t('confirmDeleteModel', language))) return;
 
     try {
-      const updatedModels = allModels?.map(m =>
-        m.id === modelId ? { ...m, apiKey: '', customApiUrl: '', customModelName: '', enabled: false } : m
-      ) || [];
-
-      const request = {
-        models: Object.fromEntries(
-          updatedModels.map(model => [
-            model.provider, // 使用 provider 而不是 id
-            {
-              enabled: model.enabled,
-              api_key: model.apiKey || '',
-              custom_api_url: model.customApiUrl || '',
-              custom_model_name: model.customModelName || ''
-            }
-          ])
-        )
-      };
-
-      await api.updateModelConfigs(request);
+      // 真正删除AI模型配置
+      await api.deleteModel(modelId);
+      
+      // 从本地状态中移除
+      const updatedModels = allModels?.filter(m => m.id !== modelId) || [];
       setAllModels(updatedModels);
       setShowModelModal(false);
       setEditingModel(null);
@@ -349,25 +335,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!confirm(t('confirmDeleteExchange', language))) return;
     
     try {
-      const updatedExchanges = allExchanges?.map(e => 
-        e.id === exchangeId ? { ...e, apiKey: '', secretKey: '', enabled: false } : e
-      ) || [];
+      // 真正删除交易所配置
+      await api.deleteExchange(exchangeId);
       
-      const request = {
-        exchanges: Object.fromEntries(
-          updatedExchanges.map(exchange => [
-            exchange.id,
-            {
-              enabled: exchange.enabled,
-              api_key: exchange.apiKey || '',
-              secret_key: exchange.secretKey || '',
-              testnet: exchange.testnet || false
-            }
-          ])
-        )
-      };
-      
-      await api.updateExchangeConfigs(request);
+      // 从本地状态中移除
+      const updatedExchanges = allExchanges?.filter(e => e.id !== exchangeId) || [];
       setAllExchanges(updatedExchanges);
       setShowExchangeModal(false);
       setEditingExchange(null);
@@ -379,8 +351,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => {
     try {
-      // 找到要配置的交易所（从supportedExchanges中）
-      const exchangeToUpdate = supportedExchanges?.find(e => e.id === exchangeId);
+      // 从exchangeId中提取基础类型（如 binance_子账户1 -> binance）
+      const baseExchangeType = exchangeId.split('_')[0];
+      
+      // 找到要配置的交易所（从supportedExchanges中用基础类型查找）
+      const exchangeToUpdate = supportedExchanges?.find(e => e.id === baseExchangeType);
       if (!exchangeToUpdate) {
         alert(t('exchangeNotExist', language));
         return;
@@ -406,9 +381,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           } : e
         ) || [];
       } else {
-        // 添加新配置
+        // 添加新配置（使用完整的自定义ID）
         const newExchange = { 
-          ...exchangeToUpdate, 
+          ...exchangeToUpdate,
+          id: exchangeId, // 使用完整的自定义ID（如 binance_子账户1）
+          name: exchangeId, // 使用完整ID作为名称
           apiKey, 
           secretKey, 
           testnet, 
@@ -811,7 +788,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Exchange Configuration Modal */}
       {showExchangeModal && (
         <ExchangeConfigModal
-          allExchanges={supportedExchanges}
+          supportedExchanges={supportedExchanges}
+          configuredExchanges={allExchanges}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
           onDelete={handleDeleteExchangeConfig}
@@ -1143,14 +1121,16 @@ function ModelConfigModal({
 
 // Exchange Configuration Modal Component
 function ExchangeConfigModal({
-  allExchanges,
+  supportedExchanges,
+  configuredExchanges,
   editingExchangeId,
   onSave,
   onDelete,
   onClose,
   language
 }: {
-  allExchanges: Exchange[];
+  supportedExchanges: Exchange[];
+  configuredExchanges: Exchange[];
   editingExchangeId: string | null;
   onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => Promise<void>;
   onDelete: (exchangeId: string) => void;
@@ -1158,6 +1138,7 @@ function ExchangeConfigModal({
   language: Language;
 }) {
   const [selectedExchangeId, setSelectedExchangeId] = useState(editingExchangeId || '');
+  const [customId, setCustomId] = useState(''); // 新增：自定义ID
   const [apiKey, setApiKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [passphrase, setPassphrase] = useState('');
@@ -1171,53 +1152,102 @@ function ExchangeConfigModal({
   const [asterSigner, setAsterSigner] = useState('');
   const [asterPrivateKey, setAsterPrivateKey] = useState('');
 
-  // 获取当前编辑的交易所信息
-  const selectedExchange = allExchanges?.find(e => e.id === selectedExchangeId);
+  // 获取当前编辑的交易所信息（从已配置列表中查找）
+  const editingExchange = configuredExchanges?.find(e => e.id === editingExchangeId);
+  // 获取当前选择的交易所基本信息（从支持列表中查找）
+  const selectedExchange = supportedExchanges?.find(e => e.id === selectedExchangeId) || editingExchange;
 
   // 如果是编辑现有交易所，初始化表单数据
   useEffect(() => {
-    if (editingExchangeId && selectedExchange) {
-      setApiKey(selectedExchange.apiKey || '');
-      setSecretKey(selectedExchange.secretKey || '');
+    if (editingExchangeId && editingExchange) {
+      setApiKey(editingExchange.apiKey || '');
+      setSecretKey(editingExchange.secretKey || '');
       setPassphrase(''); // Don't load existing passphrase for security
-      setTestnet(selectedExchange.testnet || false);
+      setTestnet(editingExchange.testnet || false);
       
       // Hyperliquid 字段
-      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '');
+      setHyperliquidWalletAddr(editingExchange.hyperliquidWalletAddr || '');
       
       // Aster 字段
-      setAsterUser(selectedExchange.asterUser || '');
-      setAsterSigner(selectedExchange.asterSigner || '');
+      setAsterUser(editingExchange.asterUser || '');
+      setAsterSigner(editingExchange.asterSigner || '');
       setAsterPrivateKey(''); // Don't load existing private key for security
     }
-  }, [editingExchangeId, selectedExchange]);
+  }, [editingExchangeId, editingExchange]);
+
+  // 自动生成下一个可用ID（智能序号填补）
+  useEffect(() => {
+    if (!editingExchangeId && selectedExchangeId) {
+      // 找出所有同类型的exchange
+      const sameTypeExchanges = configuredExchanges?.filter(e => 
+        e.id.toLowerCase().startsWith(selectedExchangeId.toLowerCase())
+      ) || [];
+      
+      // 提取已使用的序号
+      const usedNumbers = sameTypeExchanges
+        .map(e => {
+          const match = e.id.match(/_子账户(\d+)$/);
+          return match ? parseInt(match[1]) : 0;
+        })
+        .filter(n => n > 0);
+      
+      // 找出最小的未使用序号
+      let nextNumber = 1;
+      while (usedNumbers.includes(nextNumber)) {
+        nextNumber++;
+      }
+      
+      const suggestedId = `${selectedExchangeId}_子账户${nextNumber}`;
+      setCustomId(suggestedId);
+    }
+  }, [selectedExchangeId, editingExchangeId, configuredExchanges]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExchangeId) return;
     
+    // 使用自定义ID（如果提供）或原始ID
+    const finalExchangeId = editingExchangeId || (customId.trim() || selectedExchangeId);
+    
+    // 检查ID是否已存在（仅在新建时检查）
+    if (!editingExchangeId) {
+      const existingExchange = configuredExchanges?.find(ex => ex.id === finalExchangeId);
+      if (existingExchange) {
+        const confirmOverwrite = confirm(
+          `交易所ID "${finalExchangeId}" 已存在（${existingExchange.name}）。\n\n` +
+          `是否要覆盖现有配置？\n\n` +
+          `点击"确定"覆盖，点击"取消"修改ID`
+        );
+        if (!confirmOverwrite) {
+          return;
+        }
+      }
+    }
+    
     // 根据交易所类型验证不同字段
-    if (selectedExchange?.id === 'binance') {
+    const baseExchangeType = selectedExchangeId.split('_')[0]; // 提取基础类型，如 binance_子账户1 -> binance
+    
+    if (baseExchangeType === 'binance') {
       if (!apiKey.trim() || !secretKey.trim()) return;
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
-    } else if (selectedExchange?.id === 'hyperliquid') {
+      await onSave(finalExchangeId, apiKey.trim(), secretKey.trim(), testnet);
+    } else if (baseExchangeType === 'hyperliquid') {
       if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return;
-      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim());
-    } else if (selectedExchange?.id === 'aster') {
+      await onSave(finalExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim());
+    } else if (baseExchangeType === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return;
-      await onSave(selectedExchangeId, '', '', testnet, undefined, asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim());
-    } else if (selectedExchange?.id === 'okx') {
+      await onSave(finalExchangeId, '', '', testnet, undefined, asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim());
+    } else if (baseExchangeType === 'okx') {
       if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return;
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
+      await onSave(finalExchangeId, apiKey.trim(), secretKey.trim(), testnet);
     } else {
       // 默认情况（其他CEX交易所）
       if (!apiKey.trim() || !secretKey.trim()) return;
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
+      await onSave(finalExchangeId, apiKey.trim(), secretKey.trim(), testnet);
     }
   };
 
   // 可选择的交易所列表（所有支持的交易所）
-  const availableExchanges = allExchanges || [];
+  const availableExchanges = supportedExchanges || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1245,25 +1275,61 @@ function ExchangeConfigModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!editingExchangeId && (
-            <div>
-              <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                {t('selectExchange', language)}
-              </label>
-              <select
-                value={selectedExchangeId}
-                onChange={(e) => setSelectedExchangeId(e.target.value)}
-                className="w-full px-3 py-2 rounded"
-                style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                required
-              >
-                <option value="">{t('pleaseSelectExchange', language)}</option>
-                {availableExchanges.map(exchange => (
-                  <option key={exchange.id} value={exchange.id}>
-                    {getShortName(exchange.name)} ({exchange.type.toUpperCase()})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                  {t('selectExchange', language)}
+                </label>
+                <select
+                  value={selectedExchangeId}
+                  onChange={(e) => setSelectedExchangeId(e.target.value)}
+                  className="w-full px-3 py-2 rounded"
+                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  required
+                >
+                  <option value="">{t('pleaseSelectExchange', language)}</option>
+                  {availableExchanges.map(exchange => (
+                    <option key={exchange.id} value={exchange.id}>
+                      {getShortName(exchange.name)} ({exchange.type.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 自定义ID输入框（新增） */}
+              {selectedExchangeId && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
+                    配置ID（支持多个{getShortName(selectedExchange?.name || '')}账户）
+                  </label>
+                  <input
+                    type="text"
+                    value={customId}
+                    onChange={(e) => setCustomId(e.target.value)}
+                    placeholder={`例如: ${selectedExchangeId}_子账户1`}
+                    className="w-full px-3 py-2 rounded"
+                    style={{ 
+                      background: '#0B0E11', 
+                      border: configuredExchanges?.find(e => e.id === customId.trim()) 
+                        ? '1px solid #F6465D' 
+                        : '1px solid #2B3139', 
+                      color: '#EAECEF' 
+                    }}
+                    required
+                  />
+                  <div className="text-xs mt-1 space-y-1">
+                    <div style={{ color: '#848E9C' }}>
+                      💡 系统已自动生成建议ID，你可以直接使用或修改
+                    </div>
+                    {configuredExchanges?.find(e => e.id === customId.trim()) && (
+                      <div style={{ color: '#F6465D' }}>
+                        ⚠️ 此ID已存在，保存时将覆盖现有配置
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {selectedExchange && (

@@ -14,6 +14,19 @@ import (
 	"time"
 )
 
+// extractExchangeType 从ID中提取交易所类型（如 binance_子账户1 → binance）
+func extractExchangeType(id string) string {
+	// 支持的交易所类型
+	types := []string{"binance", "hyperliquid", "aster", "okx", "bybit"}
+	idLower := strings.ToLower(id)
+	for _, typ := range types {
+		if strings.HasPrefix(idLower, typ) {
+			return typ
+		}
+	}
+	return "binance" // 默认
+}
+
 // CompetitionCache 竞赛数据缓存
 type CompetitionCache struct {
 	data      map[string]interface{}
@@ -241,14 +254,15 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
 	}
 
-	// 根据交易所类型设置API密钥
-	if exchangeCfg.ID == "binance" {
+	// 根据交易所类型设置API密钥（支持自定义ID如 binance_子账户1）
+	exchangeType := extractExchangeType(exchangeCfg.ID)
+	if exchangeType == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "hyperliquid" {
+	} else if exchangeType == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-	} else if exchangeCfg.ID == "aster" {
+	} else if exchangeType == "aster" {
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
@@ -347,14 +361,15 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		TradingCoins:          tradingCoins,
 	}
 
-	// 根据交易所类型设置API密钥
-	if exchangeCfg.ID == "binance" {
+	// 根据交易所类型设置API密钥（支持自定义ID如 binance_子账户1）
+	exchangeType := extractExchangeType(exchangeCfg.ID)
+	if exchangeType == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "hyperliquid" {
+	} else if exchangeType == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-	} else if exchangeCfg.ID == "aster" {
+	} else if exchangeType == "aster" {
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
@@ -891,14 +906,15 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
 	}
 
-	// 根据交易所类型设置API密钥
-	if exchangeCfg.ID == "binance" {
+	// 根据交易所类型设置API密钥（支持自定义ID如 binance_子账户1）
+	exchangeType := extractExchangeType(exchangeCfg.ID)
+	if exchangeType == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "hyperliquid" {
+	} else if exchangeType == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-	} else if exchangeCfg.ID == "aster" {
+	} else if exchangeType == "aster" {
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey

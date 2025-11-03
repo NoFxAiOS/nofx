@@ -13,6 +13,19 @@ import (
 	"time"
 )
 
+// extractExchangeType 从ID中提取交易所类型（如 binance_子账户1 → binance）
+func extractExchangeType(id string) string {
+	// 支持的交易所类型
+	types := []string{"binance", "hyperliquid", "aster", "okx", "bybit"}
+	idLower := strings.ToLower(id)
+	for _, typ := range types {
+		if strings.HasPrefix(idLower, typ) {
+			return typ
+		}
+	}
+	return "binance" // 默认
+}
+
 // AutoTraderConfig 自动交易配置（简化版 - AI全权决策）
 type AutoTraderConfig struct {
 	// Trader标识
@@ -163,7 +176,11 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 	}
 	log.Printf("📊 [%s] 仓位模式: %s", config.Name, marginModeStr)
 
-	switch config.Exchange {
+	// 从Exchange ID中提取基础类型（支持自定义ID如 binance_子账户1）
+	exchangeType := extractExchangeType(config.Exchange)
+	log.Printf("🔍 [%s] 交易所ID: %s, 提取类型: %s", config.Name, config.Exchange, exchangeType)
+
+	switch exchangeType {
 	case "binance":
 		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
 		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey)
@@ -180,7 +197,7 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 			return nil, fmt.Errorf("初始化Aster交易器失败: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)
+		return nil, fmt.Errorf("不支持的交易平台: %s (提取类型: %s)", config.Exchange, exchangeType)
 	}
 
 	// 验证初始金额配置

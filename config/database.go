@@ -16,6 +16,19 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// extractExchangeType 从ID中提取交易所类型（如 binance_子账户1 → binance）
+func extractExchangeType(id string) string {
+	// 支持的交易所类型
+	types := []string{"binance", "hyperliquid", "aster", "okx", "bybit"}
+	idLower := strings.ToLower(id)
+	for _, typ := range types {
+		if strings.HasPrefix(idLower, typ) {
+			return typ
+		}
+	}
+	return "binance" // 默认
+}
+
 // Database 配置数据库
 type Database struct {
 	db *sql.DB
@@ -241,9 +254,9 @@ func (d *Database) initDefaultData() error {
 	exchanges := []struct {
 		id, name, typ string
 	}{
-		{"binance", "Binance Futures", "binance"},
-		{"hyperliquid", "Hyperliquid", "hyperliquid"},
-		{"aster", "Aster DEX", "aster"},
+		{"binance", "Binance Futures", "cex"},
+		{"hyperliquid", "Hyperliquid", "dex"},
+		{"aster", "Aster DEX", "dex"},
 	}
 
 	for _, exchange := range exchanges {
@@ -723,20 +736,25 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 	if rowsAffected == 0 {
 		log.Printf("💡 UpdateExchange: 没有现有记录，创建新记录")
 
-		// 根据交易所ID确定基本信息
-		var name, typ string
-		if id == "binance" {
-			name = "Binance Futures"
-			typ = "cex"
-		} else if id == "hyperliquid" {
-			name = "Hyperliquid"
-			typ = "dex"
-		} else if id == "aster" {
-			name = "Aster DEX"
-			typ = "dex"
+		// 从ID中提取类型（支持自定义ID如 binance_子账户1）
+		exchangeType := extractExchangeType(id)
+
+		// 根据类型确定显示名称
+		var name string
+		if exchangeType == "binance" {
+			name = id // 使用完整ID作为名称（如 binance_子账户1）
+		} else if exchangeType == "hyperliquid" {
+			name = id
+		} else if exchangeType == "aster" {
+			name = id
 		} else {
 			name = id + " Exchange"
-			typ = "cex"
+		}
+
+		// 确定类型（cex/dex）
+		typ := "cex"
+		if exchangeType == "hyperliquid" || exchangeType == "aster" {
+			typ = "dex"
 		}
 
 		log.Printf("🆕 UpdateExchange: 创建新记录 ID=%s, name=%s, type=%s", id, name, typ)
@@ -775,6 +793,18 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 		INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+	return err
+}
+
+// DeleteExchange 删除交易所配置
+func (d *Database) DeleteExchange(userID, id string) error {
+	_, err := d.db.Exec(`DELETE FROM exchanges WHERE id = ? AND user_id = ?`, id, userID)
+	return err
+}
+
+// DeleteAIModel 删除AI模型配置
+func (d *Database) DeleteAIModel(userID, id string) error {
+	_, err := d.db.Exec(`DELETE FROM ai_models WHERE id = ? AND user_id = ?`, id, userID)
 	return err
 }
 

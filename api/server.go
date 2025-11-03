@@ -113,10 +113,12 @@ func (s *Server) setupRoutes() {
 			// AI模型配置
 			protected.GET("/models", s.handleGetModelConfigs)
 			protected.PUT("/models", s.handleUpdateModelConfigs)
+			protected.DELETE("/models/:id", s.handleDeleteModel)
 
 			// 交易所配置
 			protected.GET("/exchanges", s.handleGetExchangeConfigs)
 			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
+			protected.DELETE("/exchanges/:id", s.handleDeleteExchange)
 
 			// 用户信号源配置
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
@@ -685,6 +687,31 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "模型配置已更新"})
 }
 
+// handleDeleteModel 删除AI模型配置
+func (s *Server) handleDeleteModel(c *gin.Context) {
+	userID := c.GetString("user_id")
+	modelID := c.Param("id")
+
+	// 检查是否有trader在使用
+	traders, _ := s.database.GetTraders(userID)
+	for _, t := range traders {
+		if t.AIModelID == modelID && t.IsRunning {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "该AI模型正在被运行中的交易员使用，请先停止相关交易员"})
+			return
+		}
+	}
+
+	// 从数据库删除
+	err := s.database.DeleteAIModel(userID, modelID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除AI模型失败: %v", err)})
+		return
+	}
+
+	log.Printf("✓ 已删除AI模型配置: %s (用户: %s)", modelID, userID)
+	c.JSON(http.StatusOK, gin.H{"message": "AI模型已删除"})
+}
+
 // handleGetExchangeConfigs 获取交易所配置
 func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -727,6 +754,31 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 	log.Printf("✓ 交易所配置已更新: %+v", req.Exchanges)
 	c.JSON(http.StatusOK, gin.H{"message": "交易所配置已更新"})
+}
+
+// handleDeleteExchange 删除交易所配置
+func (s *Server) handleDeleteExchange(c *gin.Context) {
+	userID := c.GetString("user_id")
+	exchangeID := c.Param("id")
+
+	// 检查是否有trader在使用
+	traders, _ := s.database.GetTraders(userID)
+	for _, t := range traders {
+		if t.ExchangeID == exchangeID && t.IsRunning {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "该交易所正在被运行中的交易员使用，请先停止相关交易员"})
+			return
+		}
+	}
+
+	// 从数据库删除
+	err := s.database.DeleteExchange(userID, exchangeID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除交易所失败: %v", err)})
+		return
+	}
+
+	log.Printf("✓ 已删除交易所配置: %s (用户: %s)", exchangeID, userID)
+	c.JSON(http.StatusOK, gin.H{"message": "交易所已删除"})
 }
 
 // handleGetUserSignalSource 获取用户信号源配置

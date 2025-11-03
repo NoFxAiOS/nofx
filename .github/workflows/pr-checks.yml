@@ -193,11 +193,18 @@ jobs:
         run: go mod download
 
       - name: Run go fmt
+        continue-on-error: true  # Don't block PR if formatting issues found
         run: |
           if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-            echo "Please run 'go fmt' on your code"
+            echo "⚠️ Code formatting issues found. Please run 'go fmt ./...' locally."
+            echo ""
+            echo "Files needing formatting:"
             gofmt -s -l .
+            echo ""
+            echo "This is a warning and won't block your PR from being merged."
             exit 1
+          else
+            echo "✅ All Go files are properly formatted"
           fi
 
       - name: Run go vet

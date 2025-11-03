@@ -31,11 +31,14 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
   const { data: allTraderHistories, isLoading } = useSWR(
     traders.length > 0 ? `all-equity-histories-${tradersKey}` : null,
     async () => {
-      // 并发请求所有trader的历史数据
-      const promises = traders.map(trader =>
-        api.getEquityHistory(trader.trader_id)
-      );
-      return Promise.all(promises);
+      // 使用批量API一次性获取所有trader的历史数据
+      const traderIds = traders.map(trader => trader.trader_id);
+      const batchData = await api.getEquityHistoryBatch(traderIds);
+      
+      // 转换为原格式，保持与原有代码兼容
+      return traders.map(trader => {
+        return batchData.histories[trader.trader_id] || [];
+      });
     },
     {
       refreshInterval: 30000, // 30秒刷新（对比图表数据更新频率较低）

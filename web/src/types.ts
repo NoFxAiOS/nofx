@@ -195,7 +195,7 @@ export interface TraderConfigData {
   trading_symbols: string;
   custom_prompt: string;
   override_base_prompt: boolean;
-  system_prompt_template: string; // 添加系统提示词模板字段
+  system_prompt_template: string;
   is_cross_margin: boolean;
   use_coin_pool: boolean;
   use_oi_top: boolean;

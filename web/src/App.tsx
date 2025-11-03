@@ -270,226 +270,32 @@ function App() {
 
   return (
     <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
-      {/* Header - Binance Style */}
-      <header className="glass sticky top-0 z-50 backdrop-blur-xl">
-        <div className="max-w-[1920px] mx-auto px-3 md:px-6 py-4">
-          {/* Desktop Layout */}
-          <div className="hidden md:flex relative items-center">
-            {/* Left - Logo and Title */}
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 flex items-center justify-center">
-                <img src="/icons/nofx.svg?v=2" alt="NOFX" className="w-8 h-8" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                  {t('appTitle', language)}
-                </h1>
-                <p className="text-xs mono" style={{ color: '#848E9C' }}>
-                  {t('subtitle', language)}
-                </p>
-              </div>
-            </div>
-
-            {/* Center - Page Toggle (absolutely positioned) */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
-              <button
-                onClick={() => setCurrentPage('competition')}
-                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
-                style={currentPage === 'competition'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('aiCompetition', language)}
-              </button>
-              <button
-                onClick={() => setCurrentPage('traders')}
-                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
-                style={currentPage === 'traders'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('aiTraders', language)}
-              </button>
-              <button
-                onClick={() => setCurrentPage('trader')}
-                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
-                style={currentPage === 'trader'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('tradingPanel', language)}
-              </button>
-            </div>
-
-            {/* Right - Actions */}
-            <div className="ml-auto flex items-center gap-3">
-
-              {/* User Info - Only show if not in admin mode */}
-              {!systemConfig?.admin_mode && user && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: '#F0B90B', color: '#000' }}>
-                    {user.email[0].toUpperCase()}
-                  </div>
-                  <span className="text-sm" style={{ color: '#EAECEF' }}>{user.email}</span>
-                </div>
-              )}
-
-              {/* Admin Mode Indicator */}
-              {systemConfig?.admin_mode && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                  <span className="text-sm font-semibold" style={{ color: '#F0B90B' }}>{t('adminMode', language)}</span>
-                </div>
-              )}
-
-              {/* Language Toggle */}
-              <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
-                <button
-                  onClick={() => setLanguage('zh')}
-                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-                  style={language === 'zh'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  中文
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-                  style={language === 'en'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  EN
-                </button>
-              </div>
-
-              {/* Logout Button - Only show if not in admin mode */}
-              {!systemConfig?.admin_mode && (
-                <button
-                  onClick={logout}
-                  className="px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                  style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }}
-                >
-                  {t('logout', language)}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Mobile Layout */}
-          <div className="flex md:hidden flex-col gap-3">
-            {/* Top Row - Logo, Title and Language */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <img src="/icons/nofx.svg?v=2" alt="NOFX" className="w-7 h-7" />
-                <div>
-                  <h1 className="text-base font-bold" style={{ color: '#EAECEF' }}>
-                    {t('appTitle', language)}
-                  </h1>
-                  <p className="text-xs mono" style={{ color: '#848E9C' }}>
-                    {t('subtitle', language)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Language Toggle - Right side on mobile */}
-              <div className="flex gap-1 rounded p-0.5" style={{ background: '#1E2329' }}>
-                <button
-                  onClick={() => setLanguage('zh')}
-                  className="px-2 py-1 rounded text-xs font-semibold transition-all"
-                  style={language === 'zh'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  中文
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className="px-2 py-1 rounded text-xs font-semibold transition-all"
-                  style={language === 'en'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  EN
-                </button>
-              </div>
-            </div>
-
-            {/* Second Row - Page Toggle */}
-            <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
-              <button
-                onClick={() => setCurrentPage('competition')}
-                className={`flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all`}
-                style={currentPage === 'competition'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('aiCompetition', language)}
-              </button>
-              <button
-                onClick={() => setCurrentPage('traders')}
-                className={`flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all`}
-                style={currentPage === 'traders'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('aiTraders', language)}
-              </button>
-              <button
-                onClick={() => setCurrentPage('trader')}
-                className={`flex-1 px-2 py-1.5 rounded text-xs font-semibold transition-all`}
-                style={currentPage === 'trader'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-                }
-              >
-                {t('tradingPanel', language)}
-              </button>
-            </div>
-
-            {/* Third Row - User Info and Logout */}
-            <div className="flex items-center gap-2">
-              {/* User Info or Admin Mode */}
-              {!systemConfig?.admin_mode && user && (
-                <div className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: '#F0B90B', color: '#000' }}>
-                    {user.email[0].toUpperCase()}
-                  </div>
-                  <span className="text-xs truncate" style={{ color: '#EAECEF' }}>{user.email}</span>
-                </div>
-              )}
-
-              {systemConfig?.admin_mode && (
-                <div className="flex-1 flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
-                  <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                  <span className="text-xs font-semibold" style={{ color: '#F0B90B' }}>{t('adminMode', language)}</span>
-                </div>
-              )}
-
-              {/* Logout Button */}
-              {!systemConfig?.admin_mode && (
-                <button
-                  onClick={logout}
-                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-                  style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }}
-                >
-                  {t('logout', language)}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <HeaderBar 
+        isLoggedIn={!!user} 
+        currentPage={currentPage}
+        language={language}
+        onLanguageChange={setLanguage}
+        user={user}
+        onLogout={logout}
+        isAdminMode={systemConfig?.admin_mode}
+        onPageChange={(page) => {
+          console.log('Main app onPageChange called with:', page);
+          
+          if (page === 'competition') {
+            window.history.pushState({}, '', '/competition');
+            setRoute('/competition');
+            setCurrentPage('competition');
+          } else if (page === 'traders') {
+            window.history.pushState({}, '', '/traders');
+            setRoute('/traders');
+            setCurrentPage('traders');
+          } else if (page === 'trader') {
+            window.history.pushState({}, '', '/dashboard');
+            setRoute('/dashboard');
+            setCurrentPage('trader');
+          }
+        }}
+      />
 
       {/* Main Content */}
       <main className="max-w-[1920px] mx-auto px-3 md:px-6 py-4 md:py-6">

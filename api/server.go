@@ -393,11 +393,10 @@ type UpdateTraderRequest struct {
 	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
 	BTCETHLeverage       int     `json:"btc_eth_leverage"`
 	AltcoinLeverage      int     `json:"altcoin_leverage"`
-	TradingSymbols       string  `json:"trading_symbols"`
-	CustomPrompt         string  `json:"custom_prompt"`
-	OverrideBasePrompt   bool    `json:"override_base_prompt"`
-	SystemPromptTemplate string  `json:"system_prompt_template"`
-	IsCrossMargin        *bool   `json:"is_cross_margin"`
+	TradingSymbols     string `json:"trading_symbols"`
+	CustomPrompt       string `json:"custom_prompt"`
+	OverrideBasePrompt bool   `json:"override_base_prompt"`
+	IsCrossMargin      *bool  `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -453,12 +452,6 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // 保持原值
 	}
 
-	// 设置系统提示词模板，允许更新
-	systemPromptTemplate := req.SystemPromptTemplate
-	if systemPromptTemplate == "" {
-		systemPromptTemplate = existingTrader.SystemPromptTemplate // 保持原值
-	}
-
     // 更新交易员配置
     trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -472,7 +465,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		TradingSymbols:       req.TradingSymbols,
 		CustomPrompt:         req.CustomPrompt,
 		OverrideBasePrompt:   req.OverrideBasePrompt,
-		SystemPromptTemplate: systemPromptTemplate,
+		SystemPromptTemplate: existingTrader.SystemPromptTemplate, // 保持原值
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // 保持原值

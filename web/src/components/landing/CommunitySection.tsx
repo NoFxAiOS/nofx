@@ -1,7 +1,20 @@
 import { motion } from 'framer-motion'
 import AnimatedSection from './AnimatedSection'
 
-function TestimonialCard({ quote, author, delay }: any) {
+// 1. 在使用前定义 CardProps 类型
+type CardProps = {
+  quote: string
+  authorName: string
+  handle: string
+  avatarUrl: string
+  tweetUrl: string
+  delay: number
+}
+
+// 2. 修改 TestimonialCard 组件以正确接收和使用 props
+//    - 将 props 类型从 `any` 改为 `CardProps`
+//    - 将解构的 `author` 改为 `authorName`
+function TestimonialCard({ quote, authorName, delay }: CardProps) {
   return (
     <motion.div
       className='p-6 rounded-xl'
@@ -18,7 +31,8 @@ function TestimonialCard({ quote, author, delay }: any) {
       <div className='flex items-center gap-2'>
         <div className='w-8 h-8 rounded-full' style={{ background: 'var(--binance-yellow)' }} />
         <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
-          {author}
+          {/* 3. 在 JSX 中使用正确的变量 `authorName` */}
+          {authorName}
         </span>
       </div>
     </motion.div>

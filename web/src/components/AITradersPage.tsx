@@ -165,8 +165,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!editingTrader) return;
 
     try {
-      const model = allModels?.find(m => m.id === data.ai_model_id);
-      const exchange = allExchanges?.find(e => e.id === data.exchange_id);
+      const model = enabledModels?.find(m => m.id === data.ai_model_id);
+      const exchange = enabledExchanges?.find(e => e.id === data.exchange_id);
 
       if (!model) {
         alert(t('modelConfigNotExist', language));
@@ -764,8 +764,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           isOpen={showEditModal}
           isEditMode={true}
           traderData={editingTrader}
-          availableModels={allModels}
-          availableExchanges={allExchanges}
+          availableModels={enabledModels}
+          availableExchanges={enabledExchanges}
           onSave={handleSaveEditTrader}
           onClose={() => {
             setShowEditModal(false);

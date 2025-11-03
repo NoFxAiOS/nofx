@@ -247,6 +247,33 @@ export const api = {
     return res.json();
   },
 
+  // 批量获取多个交易员的历史数据（无需认证）
+  async getEquityHistoryBatch(traderIds: string[]): Promise<any> {
+    const res = await fetch(`${API_BASE}/equity-history-batch`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trader_ids: traderIds }),
+    });
+    if (!res.ok) throw new Error('获取批量历史数据失败');
+    return res.json();
+  },
+
+  // 获取前10名交易员数据（无需认证）
+  async getTopTraders(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/top-traders`);
+    if (!res.ok) throw new Error('获取前10名交易员失败');
+    return res.json();
+  },
+
+  // 获取公开交易员配置（无需认证）
+  async getPublicTraderConfig(traderId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/trader/${traderId}/config`);
+    if (!res.ok) throw new Error('获取公开交易员配置失败');
+    return res.json();
+  },
+
   // 获取AI学习表现分析（支持trader_id）
   async getPerformance(traderId?: string): Promise<any> {
     const url = traderId

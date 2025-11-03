@@ -75,6 +75,15 @@ type AutoTraderConfig struct {
 	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
 }
 
+// PositionSnapshot 持仓快照（用于检测自动平仓）
+type PositionSnapshot struct {
+	Symbol     string
+	Side       string
+	Quantity   float64
+	EntryPrice float64
+	Leverage   int
+}
+
 // AutoTrader 自动交易器
 type AutoTrader struct {
 	id                    string // Trader唯一标识
@@ -98,6 +107,7 @@ type AutoTrader struct {
 	startTime             time.Time        // 系统启动时间
 	callCount             int              // AI调用次数
 	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	lastPositions         map[string]*PositionSnapshot // 上一个周期的持仓快照 (symbol_side -> snapshot)
 }
 
 // NewAutoTrader 创建自动交易器
@@ -216,6 +226,7 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		callCount:             0,
 		isRunning:             false,
 		positionFirstSeenTime: make(map[string]int64),
+		lastPositions:         make(map[string]*PositionSnapshot),
 	}, nil
 }
 
@@ -257,9 +268,9 @@ func (at *AutoTrader) Stop() {
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
 
-	log.Printf("\n" + strings.Repeat("=", 70))
+	log.Print("\n" + strings.Repeat("=", 70))
 	log.Printf("⏰ %s - AI决策周期 #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
-	log.Printf(strings.Repeat("=", 70))
+	log.Print(strings.Repeat("=", 70))
 
 	// 创建决策记录
 	record := &logger.DecisionRecord{
@@ -291,6 +302,15 @@ func (at *AutoTrader) runCycle() error {
 		record.ErrorMessage = fmt.Sprintf("构建交易上下文失败: %v", err)
 		at.decisionLogger.LogDecision(record)
 		return fmt.Errorf("构建交易上下文失败: %w", err)
+	}
+
+	// 3.1 检测自动平仓（止损/止盈触发）
+	autoClosedActions := at.detectAutoClosedPositions(ctx.Positions)
+	for _, action := range autoClosedActions {
+		log.Printf("[AUTO-CLOSE] 检测到自动平仓: %s %s (价格: %.4f)", action.Symbol, action.Action, action.Price)
+		record.Decisions = append(record.Decisions, action)
+		record.ExecutionLog = append(record.ExecutionLog, 
+			fmt.Sprintf("[AUTO-CLOSE] 自动平仓: %s %s (止损/止盈触发)", action.Symbol, action.Action))
 	}
 
 	// 保存账户状态快照
@@ -346,19 +366,19 @@ func (at *AutoTrader) runCycle() error {
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
 		if decision != nil {
 			if decision.SystemPrompt != "" {
-				log.Printf("\n" + strings.Repeat("=", 70))
+				log.Print("\n" + strings.Repeat("=", 70))
 				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
 				log.Println(strings.Repeat("=", 70))
 				log.Println(decision.SystemPrompt)
-				log.Printf(strings.Repeat("=", 70) + "\n")
+				log.Print(strings.Repeat("=", 70) + "\n")
 			}
 
 			if decision.CoTTrace != "" {
-				log.Printf("\n" + strings.Repeat("-", 70))
+				log.Print("\n" + strings.Repeat("-", 70))
 				log.Println("💭 AI思维链分析（错误情况）:")
 				log.Println(strings.Repeat("-", 70))
 				log.Println(decision.CoTTrace)
-				log.Printf(strings.Repeat("-", 70) + "\n")
+				log.Print(strings.Repeat("-", 70) + "\n")
 			}
 		}
 
@@ -426,7 +446,47 @@ func (at *AutoTrader) runCycle() error {
 		record.Decisions = append(record.Decisions, actionRecord)
 	}
 
-	// 9. 保存决策记录
+	// 9. 更新持仓快照（用于下一周期检测自动平仓）
+	// 注意：需要重新获取当前持仓，因为 AI 可能在本周期执行了平仓操作
+	// ctx.Positions 是周期开始时的持仓，不反映本周期的变化
+	currentPositionsAfterExecution, err := at.trader.GetPositions()
+	if err != nil {
+		log.Printf("⚠ 更新持仓快照失败，无法获取当前持仓: %v", err)
+		// 即使失败也不影响主流程，下一周期可能会有误报但不会崩溃
+	} else {
+		// 将原始持仓数据转换为快照格式
+		snapshots := make([]PositionSnapshot, 0, len(currentPositionsAfterExecution))
+		for _, pos := range currentPositionsAfterExecution {
+			symbol := pos["symbol"].(string)
+			side := pos["side"].(string)
+			entryPrice := pos["entryPrice"].(float64)
+			quantity := pos["positionAmt"].(float64)
+			if quantity < 0 {
+				quantity = -quantity // 空仓数量为负，转为正数
+			}
+			leverage := 10
+			if lev, ok := pos["leverage"].(float64); ok {
+				leverage = int(lev)
+			}
+			
+			snapshots = append(snapshots, PositionSnapshot{
+				Symbol:     symbol,
+				Side:       side,
+				EntryPrice: entryPrice,
+				Quantity:   quantity,
+				Leverage:   leverage,
+			})
+		}
+		at.lastPositions = make(map[string]*PositionSnapshot)
+		for _, snap := range snapshots {
+			posKey := snap.Symbol + "_" + snap.Side
+			// 创建副本避免指针问题
+			snapshot := snap
+			at.lastPositions[posKey] = &snapshot
+		}
+	}
+
+	// 10. 保存决策记录
 	if err := at.decisionLogger.LogDecision(record); err != nil {
 		log.Printf("⚠ 保存决策记录失败: %v", err)
 	}
@@ -974,6 +1034,70 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 	return result, nil
 }
 
+// CloseAllPositions 关闭所有持仓
+func (at *AutoTrader) CloseAllPositions() error {
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+	  return fmt.Errorf("获取持仓失败: %w", err)
+	}
+  
+	if len(positions) == 0 {
+	  log.Printf("📊 [%s] 当前无持仓，无需平仓", at.name)
+	  return nil
+	}
+  
+	log.Printf("🔄 [%s] 开始平仓所有持仓 (%d个)", at.name, len(positions))
+  
+	var errors []string
+	for _, pos := range positions {
+	  symbol := pos["symbol"].(string)
+	  side := pos["side"].(string)
+  
+	  var err error
+	  if side == "long" {
+		_, err = at.trader.CloseLong(symbol, 0) // 0表示全部平仓
+	  } else if side == "short" {
+		_, err = at.trader.CloseShort(symbol, 0) // 0表示全部平仓
+	  }
+  
+	  if err != nil {
+		log.Printf("❌ [%s] 平仓失败 %s %s: %v", at.name, symbol, side, err)
+		errors = append(errors, fmt.Sprintf("%s %s: %v", symbol, side, err))
+	  } else {
+		log.Printf("✓ [%s] 成功平仓 %s %s", at.name, symbol, side)
+	  }
+	  // 短暂延迟，避免请求过快
+	  time.Sleep(500 * time.Millisecond)
+	}
+  
+	if len(errors) > 0 {
+	  return fmt.Errorf("部分平仓失败: %s", strings.Join(errors, "; "))
+	}
+  
+	log.Printf("✓ [%s] 所有持仓已平仓", at.name)
+	return nil
+  }
+  
+  // ClosePosition 关闭指定持仓
+  func (at *AutoTrader) ClosePosition(symbol string, side string) error {
+	var err error
+	if side == "long" {
+	  _, err = at.trader.CloseLong(symbol, 0) // 0表示全部平仓
+	} else if side == "short" {
+	  _, err = at.trader.CloseShort(symbol, 0) // 0表示全部平仓
+	} else {
+	  return fmt.Errorf("无效的持仓方向: %s，必须是 'long' 或 'short'", side)
+	}
+  
+	if err != nil {
+	  log.Printf("❌ [%s] 平仓失败 %s %s: %v", at.name, symbol, side, err)
+	  return fmt.Errorf("平仓失败: %w", err)
+	}
+  
+	log.Printf("✓ [%s] 成功平仓 %s %s", at.name, symbol, side)
+	return nil
+  }
+
 // sortDecisionsByPriority 对决策排序：先平仓，再开仓，最后hold/wait
 // 这样可以避免换仓时仓位叠加超限
 func sortDecisionsByPriority(decisions []decision.Decision) []decision.Decision {
@@ -1080,4 +1204,75 @@ func normalizeSymbol(symbol string) string {
 	}
 	
 	return symbol
+}
+
+// detectAutoClosedPositions 检测自动平仓的持仓（止损/止盈触发）
+func (at *AutoTrader) detectAutoClosedPositions(currentPositions []decision.PositionInfo) []logger.DecisionAction {
+	var autoClosedActions []logger.DecisionAction
+
+	// 创建当前持仓的map便于查找
+	currentPosMap := make(map[string]bool)
+	for _, pos := range currentPositions {
+		posKey := pos.Symbol + "_" + pos.Side
+		currentPosMap[posKey] = true
+	}
+
+	// 检查上一个周期的持仓，哪些现在消失了
+	for posKey, lastPos := range at.lastPositions {
+		if !currentPosMap[posKey] {
+			// 这个持仓消失了，说明被自动平仓了（止损/止盈触发）
+			// 获取当前价格作为平仓价格的近似值
+			marketData, err := market.Get(lastPos.Symbol)
+			closePrice := 0.0
+			if err == nil {
+				closePrice = marketData.CurrentPrice
+			} else {
+				// 如果无法获取当前价格，使用入场价作为fallback
+				closePrice = lastPos.EntryPrice
+			}
+
+			// 确定是平多仓还是平空仓
+			action := "auto_close_long"
+			if lastPos.Side == "short" {
+				action = "auto_close_short"
+			}
+
+			// 创建自动平仓记录
+			autoClosedAction := logger.DecisionAction{
+				Action:    action,
+				Symbol:    lastPos.Symbol,
+				Quantity:  lastPos.Quantity,
+				Leverage:  lastPos.Leverage,
+				Price:     closePrice,
+				OrderID:   0, // 自动平仓没有特定的订单ID
+				Timestamp: time.Now(),
+				Success:   true,
+				Error:     "",
+			}
+
+			autoClosedActions = append(autoClosedActions, autoClosedAction)
+			log.Printf("[AUTO-CLOSE] 检测到自动平仓: %s %s @ %.4f (可能由止损/止盈触发)", 
+				lastPos.Symbol, action, closePrice)
+		}
+	}
+
+	return autoClosedActions
+}
+
+// updatePositionSnapshots 更新持仓快照（用于下一周期检测自动平仓）
+func (at *AutoTrader) updatePositionSnapshots(currentPositions []decision.PositionInfo) {
+	// 清空旧的快照
+	at.lastPositions = make(map[string]*PositionSnapshot)
+
+	// 记录当前所有持仓
+	for _, pos := range currentPositions {
+		posKey := pos.Symbol + "_" + pos.Side
+		at.lastPositions[posKey] = &PositionSnapshot{
+			Symbol:     pos.Symbol,
+			Side:       pos.Side,
+			Quantity:   pos.Quantity,
+			EntryPrice: pos.EntryPrice,
+			Leverage:   pos.Leverage,
+		}
+	}
 }

@@ -437,7 +437,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 保存到数据库
-	err = s.database.CreateTrader(traderRecord)
+	err = s.database.CreateTrader(trader)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("创建交易员失败: %v", err)})
 		return

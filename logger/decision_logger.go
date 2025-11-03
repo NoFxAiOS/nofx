@@ -245,7 +245,7 @@ func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 					stats.TotalOpenPositions++
 				case "close_long", "close_short", "partial_close":
 					stats.TotalClosePositions++
-				// update_stop_loss 和 update_take_profit 不計入統計
+					// update_stop_loss 和 update_take_profit 不計入統計
 				}
 			}
 		}
@@ -380,7 +380,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				case "close_long", "close_short":
 					// 移除已平仓记录
 					delete(openPositions, posKey)
-				// partial_close 不處理，保留持倉記錄
+					// partial_close 不處理，保留持倉記錄
 				}
 			}
 		}

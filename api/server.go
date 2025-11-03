@@ -798,9 +798,8 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 	// 如果是旧数据格式（如 "admin_deepseek"），提取 provider 部分
 	aiModelID := traderConfig.AIModelID
 	// 兼容旧数据：如果包含下划线，提取最后一部分作为 provider
-	if strings.Contains(aiModelID, "_") {
-		parts := strings.Split(aiModelID, "_")
-		aiModelID = parts[len(parts)-1]
+	if idx := strings.LastIndex(aiModelID, "_"); idx != -1 {
+		aiModelID = aiModelID[idx+1:]
 	}
 
 	result := map[string]interface{}{

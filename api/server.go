@@ -400,7 +400,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 创建交易员配置（数据库实体）
-	traderRecord := &config.TraderRecord{
+	trader := &config.TraderRecord{
 		ID:                   traderID,
 		UserID:               userID,
 		Name:                 req.Name,
@@ -421,7 +421,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 保存到数据库
-	err = s.database.CreateTrader(traderRecord)
+	err = s.database.CreateTrader(trader)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("创建交易员失败: %v", err)})
 		return

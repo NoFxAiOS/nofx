@@ -441,20 +441,23 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	// 查找USDT余额
 	availableBalance := 0.0
 	crossUnPnl := 0.0
+	crossWalletBalance := 0.0
 	foundUSDT := false
 
 	for _, bal := range balances {
 		if asset, ok := bal["asset"].(string); ok && asset == "USDT" {
 			foundUSDT = true
 
-			// 解析Aster返回的字段
+			// 解析Aster字段（参考: https://github.com/asterdex/api-docs）
 			if avail, ok := bal["availableBalance"].(string); ok {
 				availableBalance, _ = strconv.ParseFloat(avail, 64)
 			}
 			if unpnl, ok := bal["crossUnPnl"].(string); ok {
 				crossUnPnl, _ = strconv.ParseFloat(unpnl, 64)
 			}
-			// 注：crossWalletBalance字段在Aster中为0，不使用
+			if cwb, ok := bal["crossWalletBalance"].(string); ok {
+				crossWalletBalance, _ = strconv.ParseFloat(cwb, 64)
+			}
 			break
 		}
 	}
@@ -463,20 +466,18 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		log.Printf("⚠️  未找到USDT资产记录！")
 	}
 
-	// 获取持仓计算保证金
+	// 获取持仓计算保证金占用
 	positions, err := t.GetPositions()
 	if err != nil {
 		log.Printf("⚠️  获取持仓信息失败: %v", err)
-		// 无法获取持仓，使用fallback逻辑
-		totalWalletBalance := availableBalance
+		// fallback: 无法获取持仓时使用简单计算
 		return map[string]interface{}{
-			"totalWalletBalance":    totalWalletBalance,
+			"totalWalletBalance":    crossWalletBalance,
 			"availableBalance":      availableBalance,
 			"totalUnrealizedProfit": crossUnPnl,
 		}, nil
 	}
 
-	// 计算总保证金占用
 	totalMarginUsed := 0.0
 	for _, pos := range positions {
 		markPrice := pos["markPrice"].(float64)
@@ -484,7 +485,7 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		leverage := 10 // 默认杠杆
+		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
 		}
@@ -492,18 +493,11 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		totalMarginUsed += marginUsed
 	}
 
-	// ✅ 关键逻辑：
-	// Aster账户总资产 = availableBalance + marginUsed (这个值已经包含了未实现盈亏！)
-	// 例如：真实显示95.44 = 41.46(可用) + 54(保证金)
-	// 而 crossUnPnl = 11.13 表示这95.44中有11.13是浮盈
-	//
-	// 因此：totalWalletBalance = (availableBalance + marginUsed) - crossUnPnl
-	//       即：不含盈亏的本金 = 真实总资产 - 未实现盈亏
+	// ✅ Aster特殊处理：crossWalletBalance为负数时不可用
+	// 正确的计算方式：总净值 = 可用余额 + 保证金占用
+	totalEquity := availableBalance + totalMarginUsed
+	totalWalletBalance := totalEquity - crossUnPnl
 
-	asterTotalAssets := availableBalance + totalMarginUsed // Aster显示的总资产
-	totalWalletBalance := asterTotalAssets - crossUnPnl    // 扣除盈亏，得到本金
-
-	// 返回标准格式（与Binance/Hyperliquid兼容）
 	return map[string]interface{}{
 		"totalWalletBalance":    totalWalletBalance, // 钱包余额（不含未实现盈亏）
 		"availableBalance":      availableBalance,   // 可用余额
@@ -872,18 +866,18 @@ func (t *AsterTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	if !isCrossMargin {
 		marginType = "ISOLATED"
 	}
-	
+
 	params := map[string]interface{}{
 		"symbol":     symbol,
 		"marginType": marginType,
 	}
-	
+
 	// 使用request方法调用API
 	_, err := t.request("POST", "/fapi/v3/marginType", params)
 	if err != nil {
 		// 如果错误表示无需更改，忽略错误
-		if strings.Contains(err.Error(), "No need to change") || 
-		   strings.Contains(err.Error(), "Margin type cannot be changed") {
+		if strings.Contains(err.Error(), "No need to change") ||
+			strings.Contains(err.Error(), "Margin type cannot be changed") {
 			log.Printf("  ✓ %s 仓位模式已是 %s 或有持仓无法更改", symbol, marginType)
 			return nil
 		}
@@ -891,7 +885,7 @@ func (t *AsterTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 		// 不返回错误，让交易继续
 		return nil
 	}
-	
+
 	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginType)
 	return nil
 }

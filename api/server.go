@@ -1470,7 +1470,7 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/health           - 健康检查")
 	log.Printf("  • GET  /api/traders          - 公开的AI交易员排行榜前50名（无需认证）")
 	log.Printf("  • GET  /api/competition      - 公开的竞赛数据（无需认证）")
-	log.Printf("  • GET  /api/top-traders      - 前10名交易员数据（无需认证，表现对比用）")
+	log.Printf("  • GET  /api/top-traders      - 前5名交易员数据（无需认证，表现对比用）")
 	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 公开的收益率历史数据（无需认证，竞赛用）")
 	log.Printf("  • GET  /api/equity-history-batch?trader_ids=a,b,c - 批量获取历史数据（无需认证，表现对比优化）")
 	log.Printf("  • GET  /api/traders/:id/public-config - 公开的交易员配置（无需认证，不含敏感信息）")
@@ -1587,7 +1587,7 @@ func (s *Server) handlePublicCompetition(c *gin.Context) {
 	c.JSON(http.StatusOK, competition)
 }
 
-// handleTopTraders 获取前10名交易员数据（无需认证，用于表现对比）
+// handleTopTraders 获取前5名交易员数据（无需认证，用于表现对比）
 func (s *Server) handleTopTraders(c *gin.Context) {
 	topTraders, err := s.traderManager.GetTopTradersData()
 	if err != nil {
@@ -1611,11 +1611,11 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 		// 如果JSON解析失败，尝试从query参数获取（兼容GET请求）
 		traderIDsParam := c.Query("trader_ids")
 		if traderIDsParam == "" {
-			// 如果没有指定trader_ids，则返回前10名的历史数据
+			// 如果没有指定trader_ids，则返回前5名的历史数据
 			topTraders, err := s.traderManager.GetTopTradersData()
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": fmt.Sprintf("获取前10名交易员失败: %v", err),
+					"error": fmt.Sprintf("获取前5名交易员失败: %v", err),
 				})
 				return
 			}

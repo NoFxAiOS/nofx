@@ -18,6 +18,11 @@ const (
 	ProviderDeepSeek Provider = "deepseek"
 	ProviderQwen     Provider = "qwen"
 	ProviderCustom   Provider = "custom"
+
+	DefaultDeepSeekBaseURL = "https://api.deepseek.com/v1" // https://api-docs.deepseek.com/zh-cn/
+	DefaultDeepSeekModel   = "deepseek-chat"
+	DefaultQwenBaseURL     = "https://dashscope.aliyuncs.com/compatible-mode/v1" // https://help.aliyun.com/zh/model-studio/use-qwen-by-calling-api#b30677f6e9437
+	DefaultQwenModel       = "qwen-plus"                                         // qwen-turbo, qwen-plus, qwen-max
 )
 
 // Client AI API配置
@@ -34,8 +39,8 @@ func New() *Client {
 	// 默认配置
 	return &Client{
 		Provider: ProviderDeepSeek,
-		BaseURL:  "https://api.deepseek.com/v1",
-		Model:    "deepseek-chat",
+		BaseURL:  DefaultDeepSeekBaseURL,
+		Model:    DefaultDeepSeekModel,
 		Timeout:  120 * time.Second, // 增加到120秒，因为AI需要分析大量数据
 	}
 }
@@ -49,14 +54,14 @@ func (client *Client) SetDeepSeekAPIKey(apiKey string, customURL string, customM
 		client.BaseURL = customURL
 		log.Printf("🔧 [MCP] DeepSeek 使用自定义 BaseURL: %s", customURL)
 	} else {
-		client.BaseURL = "https://api.deepseek.com/v1"
+		client.BaseURL = DefaultDeepSeekBaseURL
 		log.Printf("🔧 [MCP] DeepSeek 使用默认 BaseURL: %s", client.BaseURL)
 	}
 	if customModel != "" {
 		client.Model = customModel
 		log.Printf("🔧 [MCP] DeepSeek 使用自定义 Model: %s", customModel)
 	} else {
-		client.Model = "deepseek-chat"
+		client.Model = DefaultDeepSeekModel
 		log.Printf("🔧 [MCP] DeepSeek 使用默认 Model: %s", client.Model)
 	}
 	// 打印 API Key 的前后各4位用于验证
@@ -74,14 +79,14 @@ func (client *Client) SetQwenAPIKey(apiKey string, customURL string, customModel
 		client.BaseURL = customURL
 		log.Printf("🔧 [MCP] Qwen 使用自定义 BaseURL: %s", customURL)
 	} else {
-		client.BaseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+		client.BaseURL = DefaultQwenBaseURL
 		log.Printf("🔧 [MCP] Qwen 使用默认 BaseURL: %s", client.BaseURL)
 	}
 	if customModel != "" {
 		client.Model = customModel
 		log.Printf("🔧 [MCP] Qwen 使用自定义 Model: %s", customModel)
 	} else {
-		client.Model = "qwen-plus" // 可选: qwen-turbo, qwen-plus, qwen-max
+		client.Model = DefaultQwenModel
 		log.Printf("🔧 [MCP] Qwen 使用默认 Model: %s", client.Model)
 	}
 	// 打印 API Key 的前后各4位用于验证

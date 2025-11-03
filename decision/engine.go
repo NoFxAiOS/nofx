@@ -226,7 +226,6 @@ func buildSystemPrompt(accountEquity float64, availableBalance float64, btcEthLe
 	sb.WriteString(fmt.Sprintf(" - 当前可用余额: %.2f USDT\n", availableBalance))
 	sb.WriteString(fmt.Sprintf(" - 山寨币最大仓位: %.2f USD (%dx杠杆×90%%)\n", availableBalance , altcoinLeverage))
 	sb.WriteString(fmt.Sprintf(" - BTC/ETH最大仓位: %.2f USD (%dx杠杆×90%%)\n", availableBalance , btcEthLeverage))
-	sb.WriteString(" - 公式: position_size = 可用余额 × 杠杆 × 0.9\n")
 	sb.WriteString("4. **保证金**: 总使用率 ≤ 90%\n\n")
 
 	// === 做空激励 ===

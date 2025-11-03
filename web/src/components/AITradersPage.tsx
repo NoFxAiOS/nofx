@@ -794,6 +794,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {showExchangeModal && (
         <ExchangeConfigModal
           allExchanges={supportedExchanges}
+          configuredExchanges={allExchanges}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
           onDelete={handleDeleteExchangeConfig}
@@ -1126,6 +1127,7 @@ function ModelConfigModal({
 // Exchange Configuration Modal Component
 function ExchangeConfigModal({
   allExchanges,
+  configuredExchanges,
   editingExchangeId,
   onSave,
   onDelete,
@@ -1133,6 +1135,7 @@ function ExchangeConfigModal({
   language
 }: {
   allExchanges: Exchange[];
+  configuredExchanges: Exchange[];
   editingExchangeId: string | null;
   onSave: (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => Promise<void>;
   onDelete: (exchangeId: string) => void;
@@ -1153,8 +1156,10 @@ function ExchangeConfigModal({
   const [asterSigner, setAsterSigner] = useState('');
   const [asterPrivateKey, setAsterPrivateKey] = useState('');
 
-  // 获取当前编辑的交易所信息
-  const selectedExchange = allExchanges?.find(e => e.id === selectedExchangeId);
+  // 获取当前编辑的交易所信息（编辑时使用已配置的交易所，新增时使用支持的交易所）
+  const selectedExchange = editingExchangeId
+    ? configuredExchanges?.find(e => e.id === selectedExchangeId)
+    : allExchanges?.find(e => e.id === selectedExchangeId);
 
   // 如果是编辑现有交易所，初始化表单数据
   useEffect(() => {

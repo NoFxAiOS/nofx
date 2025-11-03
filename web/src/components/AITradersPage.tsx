@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import type { TraderInfo, CreateTraderRequest, AIModel, Exchange } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t, type Language } from '../i18n/translations';
+import { useAuth } from '../contexts/AuthContext';
 import { getExchangeIcon } from './ExchangeIcons';
 import { getModelIcon } from './ModelIcons';
 import { TraderConfigModal } from './TraderConfigModal';
@@ -35,6 +36,7 @@ interface AITradersPageProps {
 
 export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage();
+  const { user, token } = useAuth();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showModelModal, setShowModelModal] = useState(false);
@@ -53,7 +55,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   });
 
   const { data: traders, mutate: mutateTraders } = useSWR<TraderInfo[]>(
-    'traders',
+    user && token ? 'traders' : null,
     api.getTraders,
     { refreshInterval: 5000 }
   );
@@ -61,6 +63,21 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   // 加载AI模型和交易所配置
   useEffect(() => {
     const loadConfigs = async () => {
+      if (!user || !token) {
+        // 未登录时只加载公开的支持模型和交易所
+        try {
+          const [supportedModels, supportedExchanges] = await Promise.all([
+            api.getSupportedModels(),
+            api.getSupportedExchanges()
+          ]);
+          setSupportedModels(supportedModels);
+          setSupportedExchanges(supportedExchanges);
+        } catch (err) {
+          console.error('Failed to load supported configs:', err);
+        }
+        return;
+      }
+
       try {
         const [modelConfigs, exchangeConfigs, supportedModels, supportedExchanges] = await Promise.all([
           api.getModelConfigs(),
@@ -88,7 +105,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
     };
     loadConfigs();
-  }, []);
+  }, [user, token]);
 
   // 显示所有用户的模型和交易所配置（用于调试）
   const configuredModels = allModels || [];

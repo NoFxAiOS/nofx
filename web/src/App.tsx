@@ -88,10 +88,14 @@ function App() {
   //   window.location.hash = page === 'competition' ? '' : 'trader';
   // };
 
-  // 获取trader列表
-  const { data: traders } = useSWR<TraderInfo[]>('traders', api.getTraders, {
-    refreshInterval: 10000,
-  });
+  // 获取trader列表（仅在用户登录时）
+  const { data: traders } = useSWR<TraderInfo[]>(
+    user && token ? 'traders' : null, 
+    api.getTraders, 
+    {
+      refreshInterval: 10000,
+    }
+  );
 
   // 当获取到traders后，设置默认选中第一个
   useEffect(() => {

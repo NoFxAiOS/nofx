@@ -101,8 +101,6 @@ func (s *Server) setupRoutes() {
 			protected.POST("/traders/:id/start", s.handleStartTrader)
 			protected.POST("/traders/:id/stop", s.handleStopTrader)
 			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
-			protected.POST("/traders/:id/close-all-positions", s.handleCloseAllPositions)
-			protected.POST("/traders/:id/close-position", s.handleClosePosition)
 
 			// AI模型配置
 			protected.GET("/models", s.handleGetModelConfigs)
@@ -606,66 +604,6 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "自定义prompt已更新"})
 }
 
-// handleCloseAllPositions 一键平仓所有持仓
-func (s *Server) handleCloseAllPositions(c *gin.Context) {
-	traderID := c.Param("id")
-  
-	trader, err := s.traderManager.GetTrader(traderID)
-	if err != nil {
-	  c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
-	  return
-	}
-  
-	log.Printf("🔄 [%s] 收到一键平仓请求", trader.GetName())
-  
-	if err := trader.CloseAllPositions(); err != nil {
-	  log.Printf("❌ [%s] 一键平仓失败: %v", trader.GetName(), err)
-	  c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("平仓失败: %v", err)})
-	  return
-	}
-  
-	log.Printf("✓ [%s] 一键平仓完成", trader.GetName())
-	c.JSON(http.StatusOK, gin.H{"message": "所有持仓已平仓"})
-  }
-  
-  // handleClosePosition 平仓单个持仓
-  func (s *Server) handleClosePosition(c *gin.Context) {
-	traderID := c.Param("id")
-  
-	var req struct {
-	  Symbol string `json:"symbol" binding:"required"`
-	  Side   string `json:"side" binding:"required"`
-	}
-  
-	if err := c.ShouldBindJSON(&req); err != nil {
-	  c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	  return
-	}
-  
-	// 验证side参数
-	if req.Side != "long" && req.Side != "short" {
-	  c.JSON(http.StatusBadRequest, gin.H{"error": "side参数必须是 'long' 或 'short'"})
-	  return
-	}
-  
-	trader, err := s.traderManager.GetTrader(traderID)
-	if err != nil {
-	  c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
-	  return
-	}
-  
-	log.Printf("🔄 [%s] 收到平仓请求: %s %s", trader.GetName(), req.Symbol, req.Side)
-  
-	if err := trader.ClosePosition(req.Symbol, req.Side); err != nil {
-	  log.Printf("❌ [%s] 平仓失败 %s %s: %v", trader.GetName(), req.Symbol, req.Side, err)
-	  c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("平仓失败: %v", err)})
-	  return
-	}
-  
-	log.Printf("✓ [%s] 平仓完成: %s %s", trader.GetName(), req.Symbol, req.Side)
-	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("持仓 %s %s 已平仓", req.Symbol, req.Side)})
-  }
-  
 // handleGetModelConfigs 获取AI模型配置
 func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	userID := c.GetString("user_id")

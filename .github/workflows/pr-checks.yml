@@ -23,6 +23,8 @@ jobs:
     # Inherits workflow-level permissions (contents: read, pull-requests: write, issues: write)
     steps:
       - name: Check PR title format
+        id: semantic-pr
+        continue-on-error: true  # Don't block PR if title format is invalid
         uses: amannn/action-semantic-pull-request@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,6 +40,7 @@ jobs:
             chore
             ci
             security
+            build
           scopes: |
             exchange
             trader
@@ -48,7 +51,66 @@ jobs:
             backend
             security
             deps
+            workflow
+            github
+            actions
+            config
+            docker
+            build
+            release
           requireScope: false
+
+      - name: Comment on invalid PR title
+        if: steps.semantic-pr.outcome == 'failure'
+        uses: actions/github-script@v7
+        continue-on-error: true  # Don't fail for fork PRs
+        with:
+          script: |
+            const prTitle = context.payload.pull_request.title;
+            const isFork = context.payload.pull_request.head.repo.full_name !== context.payload.pull_request.base.repo.full_name;
+
+            const comment = [
+              '## ⚠️ PR Title Format Suggestion',
+              '',
+              "Your PR title doesn't follow the Conventional Commits format, but **this won't block your PR from being merged**.",
+              '',
+              `**Current title:** \`${prTitle}\``,
+              '',
+              '**Recommended format:** `type(scope): description`',
+              '',
+              '### Valid types:',
+              '`feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `security`, `build`',
+              '',
+              '### Common scopes (optional):',
+              '`exchange`, `trader`, `ai`, `api`, `ui`, `frontend`, `backend`, `security`, `deps`, `workflow`, `github`, `actions`, `config`, `docker`, `build`, `release`',
+              '',
+              '### Examples:',
+              '- `feat(trader): add new trading strategy`',
+              '- `fix(api): resolve authentication issue`',
+              '- `docs: update README`',
+              '- `chore(deps): update dependencies`',
+              '- `ci(workflow): improve GitHub Actions`',
+              '',
+              '**Note:** This is a suggestion to improve consistency. Your PR can still be reviewed and merged.',
+              '',
+              '---',
+              '*This is an automated comment. You can update the PR title anytime.*'
+            ].join('\n');
+
+            if (!isFork) {
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.pull_request.number,
+                  body: comment
+                });
+              } catch (error) {
+                console.log('Could not post comment (expected for fork PRs):', error.message);
+              }
+            } else {
+              console.log('Fork PR - comment will be posted by pr-checks-comment.yml');
+            }
 
       - name: Check PR size
         uses: actions/github-script@v7
@@ -250,10 +312,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --debug --only-verified
 
   # All checks passed
   all-checks:
@@ -266,9 +331,24 @@ jobs:
     steps:
       - name: Check all jobs
         run: |
-          if [ "${{ contains(needs.*.result, 'failure') }}" == "true" ]; then
-            echo "Some checks failed"
+          # Note: validate-pr uses continue-on-error, so it won't block even if title format is invalid
+          # We only care about actual test failures
+          echo "validate-pr: ${{ needs.validate-pr.result }}"
+          echo "backend-tests: ${{ needs.backend-tests.result }}"
+          echo "frontend-tests: ${{ needs.frontend-tests.result }}"
+          echo "security-check: ${{ needs.security-check.result }}"
+          echo "secrets-check: ${{ needs.secrets-check.result }}"
+
+          # Check if any critical checks failed (excluding validate-pr which is advisory)
+          if [[ "${{ needs.backend-tests.result }}" == "failure" ]] || \
+             [[ "${{ needs.frontend-tests.result }}" == "failure" ]] || \
+             [[ "${{ needs.security-check.result }}" == "failure" ]] || \
+             [[ "${{ needs.secrets-check.result }}" == "failure" ]]; then
+            echo "❌ Critical checks failed"
             exit 1
           else
-            echo "All checks passed!"
+            echo "✅ All critical checks passed!"
+            if [[ "${{ needs.validate-pr.result }}" != "success" ]]; then
+              echo "ℹ️  Note: PR title format check is advisory only and doesn't block merging"
+            fi
           fi

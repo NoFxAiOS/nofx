@@ -23,13 +23,13 @@ jobs:
         run: |
           PR_TITLE="${{ github.event.pull_request.title }}"
 
-          # Check if title follows conventional commits
-          if echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\(.+\))?: .+"; then
+          # Check if title follows conventional commits (expanded type list)
+          if echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|security|build)(\(.+\))?: .+"; then
             echo "status=✅ Good" >> $GITHUB_OUTPUT
             echo "message=PR title follows Conventional Commits format" >> $GITHUB_OUTPUT
           else
             echo "status=⚠️ Suggestion" >> $GITHUB_OUTPUT
-            echo "message=Consider using Conventional Commits format: type(scope): description" >> $GITHUB_OUTPUT
+            echo "message=Consider using format: type(scope): description. Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, security, build" >> $GITHUB_OUTPUT
           fi
 
       - name: Calculate PR size and save results

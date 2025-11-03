@@ -9,6 +9,7 @@ This directory contains the GitHub Actions workflows for the NOFX project.
 - **[TRIGGERS.md](./TRIGGERS.md)** - Comparison of event triggers (pull_request vs pull_request_target vs workflow_run)
 - **[FORK_PR_FLOW.md](./FORK_PR_FLOW.md)** - Complete analysis of what happens when a fork PR is submitted
 - **[FLOW_DIAGRAM.md](./FLOW_DIAGRAM.md)** - Visual flow diagrams and quick reference
+- **[SECRETS_SCANNING.md](./SECRETS_SCANNING.md)** - Secrets scanning solutions and TruffleHog setup
 
 ## 🚀 Quick Start
 

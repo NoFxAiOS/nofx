@@ -260,10 +260,10 @@ export const api = {
     return res.json();
   },
 
-  // 获取前10名交易员数据（无需认证）
+  // 获取前5名交易员数据（无需认证）
   async getTopTraders(): Promise<any[]> {
     const res = await fetch(`${API_BASE}/top-traders`);
-    if (!res.ok) throw new Error('获取前10名交易员失败');
+    if (!res.ok) throw new Error('获取前5名交易员失败');
     return res.json();
   },
 

@@ -298,7 +298,7 @@ function App() {
       />
 
       {/* Main Content */}
-      <main className="max-w-[1920px] mx-auto px-3 md:px-6 py-4 md:py-6">
+      <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
         {currentPage === 'competition' ? (
           <CompetitionPage />
         ) : currentPage === 'traders' ? (

@@ -18,6 +18,7 @@ interface TraderConfigData {
   custom_prompt: string;
   override_base_prompt: boolean;
   system_prompt_template: string;
+  market_data_config: string;
   is_cross_margin: boolean;
   use_coin_pool: boolean;
   use_oi_top: boolean;
@@ -53,6 +54,7 @@ export function TraderConfigModal({
     custom_prompt: '',
     override_base_prompt: false,
     system_prompt_template: 'default',
+    market_data_config: 'default',
     is_cross_margin: true,
     use_coin_pool: false,
     use_oi_top: false,
@@ -63,6 +65,7 @@ export function TraderConfigModal({
   const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
   const [showCoinSelector, setShowCoinSelector] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<{name: string}[]>([]);
+  const [marketConfigs, setMarketConfigs] = useState<{name: string}[]>([]);
 
   useEffect(() => {
     if (traderData) {
@@ -83,18 +86,25 @@ export function TraderConfigModal({
         custom_prompt: '',
         override_base_prompt: false,
         system_prompt_template: 'default',
+        market_data_config: 'default',
         is_cross_margin: true,
         use_coin_pool: false,
         use_oi_top: false,
         initial_balance: 1000,
       });
     }
-    // 确保旧数据也有默认的 system_prompt_template
-    if (traderData && !traderData.system_prompt_template) {
-      setFormData(prev => ({
-        ...prev,
-        system_prompt_template: 'default'
-      }));
+    // 确保旧数据也有默认的 system_prompt_template 和 market_data_config
+    if (traderData) {
+      const updates: Partial<TraderConfigData> = {};
+      if (!traderData.system_prompt_template) {
+        updates.system_prompt_template = 'default';
+      }
+      if (!traderData.market_data_config) {
+        updates.market_data_config = 'default';
+      }
+      if (Object.keys(updates).length > 0) {
+        setFormData(prev => ({ ...prev, ...updates }));
+      }
     }
   }, [traderData, isEditMode, availableModels, availableExchanges]);
 
@@ -132,6 +142,24 @@ export function TraderConfigModal({
       }
     };
     fetchPromptTemplates();
+  }, []);
+
+  // 获取市场数据配置列表
+  useEffect(() => {
+    const fetchMarketConfigs = async () => {
+      try {
+        const response = await fetch('/api/market-configs');
+        const data = await response.json();
+        if (data.configs) {
+          setMarketConfigs(data.configs);
+        }
+      } catch (error) {
+        console.error('Failed to fetch market configs:', error);
+        // 使用默认配置列表
+        setMarketConfigs([{name: 'default'}]);
+      }
+    };
+    fetchMarketConfigs();
   }, []);
 
   // 当选择的币种改变时，更新输入框
@@ -177,6 +205,7 @@ export function TraderConfigModal({
         custom_prompt: formData.custom_prompt,
         override_base_prompt: formData.override_base_prompt,
         system_prompt_template: formData.system_prompt_template,
+        market_data_config: formData.market_data_config,
         is_cross_margin: formData.is_cross_margin,
         use_coin_pool: formData.use_coin_pool,
         use_oi_top: formData.use_oi_top,
@@ -442,6 +471,26 @@ export function TraderConfigModal({
                 </select>
                 <p className="text-xs text-[#848E9C] mt-1">
                   选择预设的交易策略模板（包含交易哲学、风控原则等）
+                </p>
+              </div>
+
+              {/* 市场数据配置选择 */}
+              <div>
+                <label className="text-sm text-[#EAECEF] block mb-2">市场数据配置</label>
+                <select
+                  value={formData.market_data_config}
+                  onChange={(e) => handleInputChange('market_data_config', e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                >
+                  {marketConfigs.map(config => (
+                    <option key={config.name} value={config.name}>
+                      {config.name === 'default' ? 'Default (默认配置)' :
+                       config.name.charAt(0).toUpperCase() + config.name.slice(1)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#848E9C] mt-1">
+                  选择市场数据配置 (K线间隔、技术指标等)
                 </p>
               </div>
 

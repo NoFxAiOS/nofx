@@ -131,6 +131,7 @@ export interface CreateTraderRequest {
   custom_prompt?: string;
   override_base_prompt?: boolean;
   system_prompt_template?: string;
+  market_data_config?: string;
   is_cross_margin?: boolean;
   use_coin_pool?: boolean;
   use_oi_top?: boolean;

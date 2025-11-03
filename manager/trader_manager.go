@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/config"
+	"nofx/market"
 	"nofx/trader"
 	"strconv"
 	"strings"
@@ -84,7 +85,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 	}
 
 	// 为每个交易员获取AI模型和交易所配置
-    for _, traderCfg := range allTraders {
+	for _, traderCfg := range allTraders {
 		// 获取AI模型配置（使用交易员所属的用户ID）
 		aiModels, err := database.GetAIModels(traderCfg.UserID)
 		if err != nil {
@@ -157,7 +158,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 		}
 
 		// 添加到TraderManager
-        err = tm.addTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, coinPoolURL, oiTopURL, maxDailyLoss, maxDrawdown, stopTradingMinutes, defaultCoins)
+		err = tm.addTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, coinPoolURL, oiTopURL, maxDailyLoss, maxDrawdown, stopTradingMinutes, defaultCoins)
 		if err != nil {
 			log.Printf("❌ 添加交易员 %s 失败: %v", traderCfg.Name, err)
 			continue
@@ -186,7 +187,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 			}
 		}
 	}
-	
+
 	// 如果没有指定交易币种，使用默认币种
 	if len(tradingCoins) == 0 {
 		tradingCoins = defaultCoins
@@ -200,7 +201,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	}
 
 	// 构建AutoTraderConfig
-    traderConfig := trader.AutoTraderConfig{
+	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
 		Name:                  traderCfg.Name,
 		AIModel:               aiModelCfg.Provider, // 使用provider作为模型标识
@@ -226,25 +227,28 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
+		MarketDataConfigName:  traderCfg.MarketDataConfig,     // 市场数据配置名称
 	}
 
 	// 根据交易所类型设置API密钥
-	if exchangeCfg.ID == "binance" {
+	switch exchangeCfg.ID {
+	case "binance":
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "hyperliquid" {
+	case "hyperliquid":
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-	} else if exchangeCfg.ID == "aster" {
+	case "aster":
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
 	}
 
 	// 根据AI模型设置API密钥
-	if aiModelCfg.Provider == "qwen" {
+	switch aiModelCfg.Provider {
+	case "qwen":
 		traderConfig.QwenKey = aiModelCfg.APIKey
-	} else if aiModelCfg.Provider == "deepseek" {
+	case "deepseek":
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
 	}
 
@@ -253,7 +257,23 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	if err != nil {
 		return fmt.Errorf("创建trader失败: %w", err)
 	}
-	
+
+	// 确保该交易员的市场数据配置文件存在（向后兼容）
+	// 如果配置文件不存在，自动创建默认配置
+	if err := market.EnsureDefaultMarketDataConfigExists(); err != nil {
+		log.Printf("⚠️  无法确保默认市场数据配置存在: %v", err)
+	}
+
+	// 尝试加载该交易员使用的市场数据配置（确保配置文件存在）
+	mdConfigName := traderCfg.MarketDataConfig
+	if mdConfigName == "" {
+		mdConfigName = "default"
+	}
+	_, err = market.GetMarketDataConfig(mdConfigName)
+	if err != nil {
+		log.Printf("📊 交易员 %s 使用的市场数据配置 %s 不存在，将使用默认配置", traderCfg.Name, mdConfigName)
+	}
+
 	// 设置自定义prompt（如果有）
 	if traderCfg.CustomPrompt != "" {
 		at.SetCustomPrompt(traderCfg.CustomPrompt)
@@ -293,7 +313,7 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 			}
 		}
 	}
-	
+
 	// 如果没有指定交易币种，使用默认币种
 	if len(tradingCoins) == 0 {
 		tradingCoins = defaultCoins
@@ -335,22 +355,24 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	}
 
 	// 根据交易所类型设置API密钥
-	if exchangeCfg.ID == "binance" {
+	switch exchangeCfg.ID {
+	case "binance":
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "hyperliquid" {
+	case "hyperliquid":
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-	} else if exchangeCfg.ID == "aster" {
+	case "aster":
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
 	}
 
 	// 根据AI模型设置API密钥
-	if aiModelCfg.Provider == "qwen" {
+	switch aiModelCfg.Provider {
+	case "qwen":
 		traderConfig.QwenKey = aiModelCfg.APIKey
-	} else if aiModelCfg.Provider == "deepseek" {
+	case "deepseek":
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
 	}
 
@@ -359,7 +381,22 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	if err != nil {
 		return fmt.Errorf("创建trader失败: %w", err)
 	}
-	
+
+	// 确保该交易员的市场数据配置文件存在（向后兼容）
+	if err := market.EnsureDefaultMarketDataConfigExists(); err != nil {
+		log.Printf("⚠️  无法确保默认市场数据配置存在: %v", err)
+	}
+
+	// 尝试加载该交易员使用的市场数据配置（确保配置文件存在）
+	mdConfigName := traderCfg.MarketDataConfig
+	if mdConfigName == "" {
+		mdConfigName = "default"
+	}
+	_, err = market.GetMarketDataConfig(mdConfigName)
+	if err != nil {
+		log.Printf("📊 交易员 %s 使用的市场数据配置 %s 不存在，将使用默认配置", traderCfg.Name, mdConfigName)
+	}
+
 	// 设置自定义prompt（如果有）
 	if traderCfg.CustomPrompt != "" {
 		at.SetCustomPrompt(traderCfg.CustomPrompt)
@@ -488,9 +525,9 @@ func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 	for _, t := range tm.traders {
 		account, err := t.GetAccountInfo()
 		status := t.GetStatus()
-		
+
 		var traderData map[string]interface{}
-		
+
 		if err != nil {
 			// 如果获取账户信息失败，使用默认值但仍然显示交易员
 			log.Printf("⚠️ 获取交易员 %s 账户信息失败: %v", t.GetID(), err)
@@ -522,43 +559,13 @@ func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 				"is_running":      status["is_running"],
 			}
 		}
-		
+
 		traders = append(traders, traderData)
 	}
 	comparison["traders"] = traders
 	comparison["count"] = len(traders)
 
 	return comparison, nil
-}
-
-// isUserTrader 检查trader是否属于指定用户
-func isUserTrader(traderID, userID string) bool {
-	// trader ID格式: userID_traderName 或 randomUUID_modelName
-	// 为了兼容性，我们检查前缀
-	if len(traderID) >= len(userID) && traderID[:len(userID)] == userID {
-		return true
-	}
-	// 对于老的default用户，所有没有明确用户前缀的都属于default
-	if userID == "default" && !containsUserPrefix(traderID) {
-		return true
-	}
-	return false
-}
-
-// containsUserPrefix 检查trader ID是否包含用户前缀
-func containsUserPrefix(traderID string) bool {
-	// 检查是否包含邮箱格式的前缀（user@example.com_traderName）
-	for i, ch := range traderID {
-		if ch == '@' {
-			// 找到@符号，说明可能是email前缀
-			return true
-		}
-		if ch == '_' && i > 0 {
-			// 找到下划线但前面没有@，可能是UUID或其他格式
-			break
-		}
-	}
-	return false
 }
 
 // LoadUserTraders 为特定用户加载交易员到内存
@@ -708,7 +715,7 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 			}
 		}
 	}
-	
+
 	// 如果没有指定交易币种，使用默认币种
 	if len(tradingCoins) == 0 {
 		tradingCoins = defaultCoins
@@ -723,44 +730,47 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
-		ID:                    traderCfg.ID,
-		Name:                  traderCfg.Name,
-		AIModel:               aiModelCfg.Provider, // 使用provider作为模型标识
-		Exchange:              exchangeCfg.ID,      // 使用exchange ID
-		InitialBalance:        traderCfg.InitialBalance,
-		BTCETHLeverage:        traderCfg.BTCETHLeverage,
-		AltcoinLeverage:       traderCfg.AltcoinLeverage,
-		ScanInterval:          time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		CoinPoolAPIURL:        effectiveCoinPoolURL,
-		CustomAPIURL:          aiModelCfg.CustomAPIURL,    // 自定义API URL
-		CustomModelName:       aiModelCfg.CustomModelName, // 自定义模型名称
-		UseQwen:               aiModelCfg.Provider == "qwen",
-		MaxDailyLoss:          maxDailyLoss,
-		MaxDrawdown:           maxDrawdown,
-		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
-		IsCrossMargin:         traderCfg.IsCrossMargin,
-		DefaultCoins:          defaultCoins,
-		TradingCoins:          tradingCoins,
-		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
+		ID:                   traderCfg.ID,
+		Name:                 traderCfg.Name,
+		AIModel:              aiModelCfg.Provider, // 使用provider作为模型标识
+		Exchange:             exchangeCfg.ID,      // 使用exchange ID
+		InitialBalance:       traderCfg.InitialBalance,
+		BTCETHLeverage:       traderCfg.BTCETHLeverage,
+		AltcoinLeverage:      traderCfg.AltcoinLeverage,
+		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
+		CoinPoolAPIURL:       effectiveCoinPoolURL,
+		CustomAPIURL:         aiModelCfg.CustomAPIURL,    // 自定义API URL
+		CustomModelName:      aiModelCfg.CustomModelName, // 自定义模型名称
+		UseQwen:              aiModelCfg.Provider == "qwen",
+		MaxDailyLoss:         maxDailyLoss,
+		MaxDrawdown:          maxDrawdown,
+		StopTradingTime:      time.Duration(stopTradingMinutes) * time.Minute,
+		IsCrossMargin:        traderCfg.IsCrossMargin,
+		DefaultCoins:         defaultCoins,
+		TradingCoins:         tradingCoins,
+		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
+		MarketDataConfigName: traderCfg.MarketDataConfig,     // 市场数据配置名称
 	}
 
 	// 根据交易所类型设置API密钥
-	if exchangeCfg.ID == "binance" {
+	switch exchangeCfg.ID {
+	case "binance":
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "hyperliquid" {
+	case "hyperliquid":
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-	} else if exchangeCfg.ID == "aster" {
+	case "aster":
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
 	}
 
 	// 根据AI模型设置API密钥
-	if aiModelCfg.Provider == "qwen" {
+	switch aiModelCfg.Provider {
+	case "qwen":
 		traderConfig.QwenKey = aiModelCfg.APIKey
-	} else if aiModelCfg.Provider == "deepseek" {
+	case "deepseek":
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
 	}
 
@@ -769,7 +779,22 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 	if err != nil {
 		return fmt.Errorf("创建trader失败: %w", err)
 	}
-	
+
+	// 确保该交易员的市场数据配置文件存在（向后兼容）
+	if err := market.EnsureDefaultMarketDataConfigExists(); err != nil {
+		log.Printf("⚠️  无法确保默认市场数据配置存在: %v", err)
+	}
+
+	// 尝试加载该交易员使用的市场数据配置（确保配置文件存在）
+	mdConfigName := traderCfg.MarketDataConfig
+	if mdConfigName == "" {
+		mdConfigName = "default"
+	}
+	_, err = market.GetMarketDataConfig(mdConfigName)
+	if err != nil {
+		log.Printf("📊 交易员 %s 使用的市场数据配置 %s 不存在，将使用默认配置", traderCfg.Name, mdConfigName)
+	}
+
 	// 设置自定义prompt（如果有）
 	if traderCfg.CustomPrompt != "" {
 		at.SetCustomPrompt(traderCfg.CustomPrompt)

@@ -68,11 +68,14 @@ type AutoTraderConfig struct {
 	IsCrossMargin bool // true=全仓模式, false=逐仓模式
 
 	// 币种配置
-	DefaultCoins    []string // 默认币种列表（从数据库获取）
-	TradingCoins    []string // 实际交易币种列表
+	DefaultCoins []string // 默认币种列表（从数据库获取）
+	TradingCoins []string // 实际交易币种列表
 
 	// 系统提示词模板
 	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
+
+	// 市场数据配置
+	MarketDataConfigName string // 市场数据配置名称（对应market_configs文件夹下的JSON文件名，如"default"，为空则使用default配置）
 }
 
 // AutoTrader 自动交易器
@@ -87,9 +90,9 @@ type AutoTrader struct {
 	decisionLogger        *logger.DecisionLogger // 决策日志记录器
 	initialBalance        float64
 	dailyPnL              float64
-	customPrompt          string // 自定义交易策略prompt
-	overrideBasePrompt    bool   // 是否覆盖基础prompt
-	systemPromptTemplate  string // 系统提示词模板名称
+	customPrompt          string   // 自定义交易策略prompt
+	overrideBasePrompt    bool     // 是否覆盖基础prompt
+	systemPromptTemplate  string   // 系统提示词模板名称
 	defaultCoins          []string // 默认币种列表（从数据库获取）
 	tradingCoins          []string // 实际交易币种列表
 	lastResetTime         time.Time
@@ -257,9 +260,9 @@ func (at *AutoTrader) Stop() {
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
 
-	log.Printf("\n" + strings.Repeat("=", 70))
+	log.Printf("%s", "\n"+strings.Repeat("=", 70))
 	log.Printf("⏰ %s - AI决策周期 #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
-	log.Printf(strings.Repeat("=", 70))
+	log.Printf("%s", strings.Repeat("=", 70))
 
 	// 创建决策记录
 	record := &logger.DecisionRecord{
@@ -325,8 +328,9 @@ func (at *AutoTrader) runCycle() error {
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
 	// 4. 调用AI获取完整决策
-	log.Printf("🤖 正在请求AI分析并决策... [模板: %s]", at.systemPromptTemplate)
-	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate)
+	log.Printf("🤖 正在请求AI分析并决策... [模板: %s, 市场配置: %s]", at.systemPromptTemplate, at.config.MarketDataConfigName)
+
+	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate, at.config.MarketDataConfigName)
 
 	// 即使有错误，也保存思维链、决策和输入prompt（用于debug）
 	if decision != nil {
@@ -346,19 +350,19 @@ func (at *AutoTrader) runCycle() error {
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
 		if decision != nil {
 			if decision.SystemPrompt != "" {
-				log.Printf("\n" + strings.Repeat("=", 70))
+				log.Printf("%s", "\n"+strings.Repeat("=", 70))
 				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
 				log.Println(strings.Repeat("=", 70))
 				log.Println(decision.SystemPrompt)
-				log.Printf(strings.Repeat("=", 70) + "\n")
+				log.Printf("%s", strings.Repeat("=", 70)+"\n")
 			}
 
 			if decision.CoTTrace != "" {
-				log.Printf("\n" + strings.Repeat("-", 70))
+				log.Printf("%s", "\n"+strings.Repeat("-", 70))
 				log.Println("💭 AI思维链分析（错误情况）:")
 				log.Println(strings.Repeat("-", 70))
 				log.Println(decision.CoTTrace)
-				log.Printf(strings.Repeat("-", 70) + "\n")
+				log.Printf("%s", strings.Repeat("-", 70)+"\n")
 			}
 		}
 
@@ -565,6 +569,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
 		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		InitialBalance:  at.initialBalance,         // 传递初始余额，用于限制AI可用资金
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
@@ -616,7 +621,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	}
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.MarketDataConfigName)
 	if err != nil {
 		return err
 	}
@@ -625,6 +630,30 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
+
+	// 检查可用余额是否足够支付保证金
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		return fmt.Errorf("获取账户余额失败: %w", err)
+	}
+	availableBalance := 0.0
+	if avail, ok := balance["availableBalance"].(float64); ok {
+		availableBalance = avail
+	}
+
+	// 计算所需保证金 = 仓位价值 / 杠杆
+	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
+	// 添加缓冲（1% 或至少 5 USDT）以支付交易费用等
+	marginBuffer := requiredMargin * 0.01
+	if marginBuffer < 5.0 {
+		marginBuffer = 5.0
+	}
+	requiredMarginWithBuffer := requiredMargin + marginBuffer
+
+	if availableBalance < requiredMarginWithBuffer {
+		return fmt.Errorf("❌ 可用余额不足: 需要 %.2f USDT (保证金 %.2f + 缓冲 %.2f)，当前可用余额 %.2f USDT",
+			requiredMarginWithBuffer, requiredMargin, marginBuffer, availableBalance)
+	}
 
 	// 设置仓位模式
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
@@ -675,7 +704,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	}
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.MarketDataConfigName)
 	if err != nil {
 		return err
 	}
@@ -684,6 +713,30 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
+
+	// 检查可用余额是否足够支付保证金
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		return fmt.Errorf("获取账户余额失败: %w", err)
+	}
+	availableBalance := 0.0
+	if avail, ok := balance["availableBalance"].(float64); ok {
+		availableBalance = avail
+	}
+
+	// 计算所需保证金 = 仓位价值 / 杠杆
+	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
+	// 添加缓冲（1% 或至少 5 USDT）以支付交易费用等
+	marginBuffer := requiredMargin * 0.01
+	if marginBuffer < 5.0 {
+		marginBuffer = 5.0
+	}
+	requiredMarginWithBuffer := requiredMargin + marginBuffer
+
+	if availableBalance < requiredMarginWithBuffer {
+		return fmt.Errorf("❌ 可用余额不足: 需要 %.2f USDT (保证金 %.2f + 缓冲 %.2f)，当前可用余额 %.2f USDT",
+			requiredMarginWithBuffer, requiredMargin, marginBuffer, availableBalance)
+	}
 
 	// 设置仓位模式
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
@@ -724,7 +777,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	log.Printf("  🔄 平多仓: %s", decision.Symbol)
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.MarketDataConfigName)
 	if err != nil {
 		return err
 	}
@@ -750,7 +803,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	log.Printf("  🔄 平空仓: %s", decision.Symbol)
 
 	// 获取当前价格
-	marketData, err := market.Get(decision.Symbol)
+	marketData, err := market.Get(decision.Symbol, at.config.MarketDataConfigName)
 	if err != nil {
 		return err
 	}
@@ -1016,7 +1069,7 @@ func (at *AutoTrader) getCandidateCoins() ([]decision.CandidateCoin, error) {
 	if len(at.tradingCoins) == 0 {
 		// 使用数据库配置的默认币种列表
 		var candidateCoins []decision.CandidateCoin
-		
+
 		if len(at.defaultCoins) > 0 {
 			// 使用数据库中配置的默认币种
 			for _, coin := range at.defaultCoins {
@@ -1032,7 +1085,7 @@ func (at *AutoTrader) getCandidateCoins() ([]decision.CandidateCoin, error) {
 		} else {
 			// 如果数据库中没有配置默认币种，则使用AI500+OI Top作为fallback
 			const ai500Limit = 20 // AI500取前20个评分最高的币种
-			
+
 			mergedPool, err := pool.GetMergedCoinPool(ai500Limit)
 			if err != nil {
 				return nil, fmt.Errorf("获取合并币种池失败: %w", err)
@@ -1073,11 +1126,11 @@ func (at *AutoTrader) getCandidateCoins() ([]decision.CandidateCoin, error) {
 func normalizeSymbol(symbol string) string {
 	// 转为大写
 	symbol = strings.ToUpper(strings.TrimSpace(symbol))
-	
+
 	// 确保以USDT结尾
 	if !strings.HasSuffix(symbol, "USDT") {
 		symbol = symbol + "USDT"
 	}
-	
+
 	return symbol
 }

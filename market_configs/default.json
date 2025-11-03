@@ -1,0 +1,50 @@
+{
+  "klines": [
+    {
+      "interval": "3m",
+      "limit": 40
+    },
+    {
+      "interval": "4h",
+      "limit": 60
+    }
+  ],
+  "indicators": {
+    "ema": [
+      {
+        "period": 20,
+        "sources": ["3m"]
+      },
+      {
+        "period": 50,
+        "sources": ["4h"]
+      }
+    ],
+    "macd": {
+      "fast": 12,
+      "slow": 26,
+      "signal": 9,
+      "sources": ["3m"]
+    },
+    "rsi": [
+      {
+        "period": 7,
+        "sources": ["3m"]
+      },
+      {
+        "period": 14,
+        "sources": ["3m", "4h"]
+      }
+    ],
+    "atr": [
+      {
+        "period": 3,
+        "sources": ["4h"]
+      },
+      {
+        "period": 14,
+        "sources": ["4h"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,63 @@
+{
+    "klines": [
+      {
+        "interval": "3m",
+        "limit": 100
+      },
+      {
+        "interval": "4h",
+        "limit": 60
+      },
+      {
+        "interval": "15m",
+        "limit": 50
+      }
+    ],
+    "indicators": {
+      "ema": [
+        {
+          "period": 5,
+          "sources": ["3m"]
+        },
+        {
+          "period": 20,
+          "sources": ["3m"]
+        },
+        {
+          "period": 50,
+          "sources": ["4h"]
+        }
+      ],
+      "macd": {
+        "fast": 6,
+        "slow": 13,
+        "signal": 5,
+        "sources": ["3m"]
+      },
+      "rsi": [
+        {
+          "period": 9,
+          "sources": ["3m"]
+        },
+        {
+          "period": 14,
+          "sources": ["4h"]
+        }
+      ],
+      "atr": [
+        {
+          "period": 14,
+          "sources": ["3m"]
+        },
+        {
+          "period": 14,
+          "sources": ["4h"]
+        }
+      ],
+      "bollinger_bands": {
+        "period": 20,
+        "std_dev": 2,
+        "sources": ["3m"]
+      }
+    }
+}

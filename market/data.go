@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,11 +13,9 @@ import (
 type Data struct {
 	Symbol            string
 	CurrentPrice      float64
-	PriceChange1h     float64 // 1小时价格变化百分比
-	PriceChange4h     float64 // 4小时价格变化百分比
-	CurrentEMA20      float64
-	CurrentMACD       float64
-	CurrentRSI7       float64
+	PriceChange1h     float64            // 1小时价格变化百分比
+	PriceChange4h     float64            // 4小时价格变化百分比
+	CurrentIndicators map[string]float64 // 当前指标值，key 格式: "EMA_20", "RSI_7", "MACD" 等
 	OpenInterest      *OIData
 	FundingRate       float64
 	IntradaySeries    *IntradayData
@@ -31,25 +28,18 @@ type OIData struct {
 	Average float64
 }
 
-// IntradayData 日内数据(3分钟间隔)
+// IntradayData 日内数据
 type IntradayData struct {
-	MidPrices   []float64
-	EMA20Values []float64
-	MACDValues  []float64
-	RSI7Values  []float64
-	RSI14Values []float64
+	MidPrices       []float64            // 价格序列
+	IndicatorSeries map[string][]float64 // 指标序列，key格式: "EMA_20", "RSI_7", "MACD" 等
 }
 
-// LongerTermData 长期数据(4小时时间框架)
+// LongerTermData 长期数据
 type LongerTermData struct {
-	EMA20         float64
-	EMA50         float64
-	ATR3          float64
-	ATR14         float64
-	CurrentVolume float64
-	AverageVolume float64
-	MACDValues    []float64
-	RSI14Values   []float64
+	CurrentIndicators map[string]float64   // 当前指标值，key格式: "EMA_20", "ATR_3" 等
+	IndicatorSeries   map[string][]float64 // 指标序列，key格式: "MACD", "RSI_14" 等
+	CurrentVolume     float64
+	AverageVolume     float64
 }
 
 // Kline K线数据
@@ -63,45 +53,131 @@ type Kline struct {
 	CloseTime int64
 }
 
-// Get 获取指定代币的市场数据
-func Get(symbol string) (*Data, error) {
+// Get 获取指定代币的市场数据（要求传入market config名称）
+func Get(symbol string, marketConfigName string) (*Data, error) {
+	// 如果marketConfigName为空，使用"default"
+	if marketConfigName == "" {
+		marketConfigName = "default"
+	}
+
+	// 加载指定的市场数据配置
+	config, err := GetMarketDataConfig(marketConfigName)
+	if err != nil {
+		// 如果指定的配置不存在，尝试使用默认配置
+		config, err = GetMarketDataConfig("default")
+		if err != nil {
+			// 如果默认配置也不存在，使用硬编码的默认配置
+			defaultConfig := getDefaultMarketDataConfig()
+			return GetIndicatorsWithConfig(symbol, defaultConfig)
+		}
+	}
+	return GetIndicatorsWithConfig(symbol, config)
+}
+
+// GetIndicatorsWithConfig 使用指定配置获取市场数据
+func GetIndicatorsWithConfig(symbol string, config *MarketDataConfig) (*Data, error) {
 	// 标准化symbol
 	symbol = Normalize(symbol)
 
-	// 获取3分钟K线数据 (最近10个)
-	klines3m, err := getKlines(symbol, "3m", 40) // 多获取一些用于计算
-	if err != nil {
-		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+	// 根据 market Data config 获取该策略 (trader) 所需的全部粒度的 K线
+	klinesMap := make(map[string][]Kline)
+	for _, klineCfg := range config.Klines {
+		klines, err := getKlines(symbol, klineCfg.Interval, klineCfg.Limit)
+		if err != nil {
+			return nil, fmt.Errorf("获取%s K线失败: %v", klineCfg.Interval, err)
+		}
+		klinesMap[klineCfg.Interval] = klines
 	}
 
-	// 获取4小时K线数据 (最近10个)
-	klines4h, err := getKlines(symbol, "4h", 60) // 多获取用于计算指标
-	if err != nil {
-		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+	// 获取主要 K线数据用于计算当前价格和价格变化
+	// 优先使用最短间隔的K线作为主要参考
+	var primaryKlines []Kline
+	var primaryInterval string
+	for _, klineCfg := range config.Klines {
+		if klines, ok := klinesMap[klineCfg.Interval]; ok && len(klines) > 0 {
+			if len(primaryKlines) == 0 {
+				primaryKlines = klines
+				primaryInterval = klineCfg.Interval
+				break
+			}
+		}
 	}
 
-	// 计算当前指标 (基于3分钟最新数据)
-	currentPrice := klines3m[len(klines3m)-1].Close
-	currentEMA20 := calculateEMA(klines3m, 20)
-	currentMACD := calculateMACD(klines3m)
-	currentRSI7 := calculateRSI(klines3m, 7)
+	if len(primaryKlines) == 0 {
+		return nil, fmt.Errorf("无法获取主要K线数据")
+	}
 
-	// 计算价格变化百分比
-	// 1小时价格变化 = 20个3分钟K线前的价格
+	currentPrice := primaryKlines[len(primaryKlines)-1].Close
+
+	// 计算价格变化百分比（兼容旧代码逻辑）
 	priceChange1h := 0.0
-	if len(klines3m) >= 21 { // 至少需要21根K线 (当前 + 20根前)
-		price1hAgo := klines3m[len(klines3m)-21].Close
+	priceChange4h := 0.0
+
+	// 尝试计算 1小时价格变化（如果主 K线是 3m，则 20 根前）
+	if primaryInterval == "3m" && len(primaryKlines) >= 21 {
+		price1hAgo := primaryKlines[len(primaryKlines)-21].Close
 		if price1hAgo > 0 {
 			priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
 		}
 	}
 
-	// 4小时价格变化 = 1个4小时K线前的价格
-	priceChange4h := 0.0
-	if len(klines4h) >= 2 {
+	// 尝试计算4小时价格变化
+	if klines4h, ok := klinesMap["4h"]; ok && len(klines4h) >= 2 {
 		price4hAgo := klines4h[len(klines4h)-2].Close
 		if price4hAgo > 0 {
 			priceChange4h = ((currentPrice - price4hAgo) / price4hAgo) * 100
+		}
+	}
+
+	// 根据配置动态计算当前指标值
+	currentIndicators := make(map[string]float64)
+
+	// 计算 EMA 指标（根据配置中的所有 EMA）
+	for _, emaCfg := range config.Indicators.EMA {
+		for _, source := range emaCfg.Sources {
+			if klines, ok := klinesMap[source]; ok && len(klines) >= emaCfg.Period {
+				key := fmt.Sprintf("EMA_%d", emaCfg.Period)
+				currentIndicators[key] = CalculateEMA(klines, emaCfg.Period)
+				break
+			}
+		}
+	}
+
+	// 计算 MACD 指标
+	if config.Indicators.MACD != nil {
+		macdCfg := config.Indicators.MACD
+		for _, source := range macdCfg.Sources {
+			if klines, ok := klinesMap[source]; ok && len(klines) >= macdCfg.Slow+macdCfg.Signal {
+				macd, _, _ := CalculateMACD(klines, macdCfg.Fast, macdCfg.Slow, macdCfg.Signal)
+				currentIndicators["MACD"] = macd
+				break
+			}
+		}
+	}
+
+	// 计算 RSI 指标（根据配置中的所有 RSI）
+	for _, rsiCfg := range config.Indicators.RSI {
+		for _, source := range rsiCfg.Sources {
+			if klines, ok := klinesMap[source]; ok && len(klines) >= rsiCfg.Period {
+				key := fmt.Sprintf("RSI_%d", rsiCfg.Period)
+				currentIndicators[key] = CalculateRSI(klines, rsiCfg.Period)
+				break
+			}
+		}
+	}
+
+	// 计算布林带指标
+	if config.Indicators.BollingerBands != nil {
+		bbCfg := config.Indicators.BollingerBands
+		for _, source := range bbCfg.Sources {
+			if klines, ok := klinesMap[source]; ok && len(klines) >= bbCfg.Period {
+				upper, middle, lower := CalculateBollingerBands(klines, bbCfg.Period, bbCfg.StdDev)
+				key := fmt.Sprintf("BB_%d", bbCfg.Period)
+				currentIndicators[fmt.Sprintf("%s_Upper", key)] = upper
+				currentIndicators[fmt.Sprintf("%s_Middle", key)] = middle
+				currentIndicators[fmt.Sprintf("%s_Lower", key)] = lower
+				break
+			}
 		}
 	}
 
@@ -115,20 +191,18 @@ func Get(symbol string) (*Data, error) {
 	// 获取Funding Rate
 	fundingRate, _ := getFundingRate(symbol)
 
-	// 计算日内系列数据
-	intradayData := calculateIntradaySeries(klines3m)
+	// 计算日内系列数据（使用配置）
+	intradayData := calculateIntradaySeriesWithConfig(klinesMap, config)
 
-	// 计算长期数据
-	longerTermData := calculateLongerTermData(klines4h)
+	// 计算长期数据（使用配置）
+	longerTermData := calculateLongerTermDataWithConfig(klinesMap, config)
 
 	return &Data{
 		Symbol:            symbol,
 		CurrentPrice:      currentPrice,
 		PriceChange1h:     priceChange1h,
 		PriceChange4h:     priceChange4h,
-		CurrentEMA20:      currentEMA20,
-		CurrentMACD:       currentMACD,
-		CurrentRSI7:       currentRSI7,
+		CurrentIndicators: currentIndicators,
 		OpenInterest:      oiData,
 		FundingRate:       fundingRate,
 		IntradaySeries:    intradayData,
@@ -136,8 +210,13 @@ func Get(symbol string) (*Data, error) {
 	}, nil
 }
 
-// getKlines 从Binance获取K线数据
+// getKlines 从 Binance API 获取 K线数据
 func getKlines(symbol, interval string, limit int) ([]Kline, error) {
+	// 验证 K线间隔
+	if !IsValidKlineInterval(interval) {
+		return nil, fmt.Errorf("无效的K线间隔: %s", interval)
+	}
+
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/klines?symbol=%s&interval=%s&limit=%d",
 		symbol, interval, limit)
 
@@ -181,205 +260,260 @@ func getKlines(symbol, interval string, limit int) ([]Kline, error) {
 	return klines, nil
 }
 
-// calculateEMA 计算EMA
-func calculateEMA(klines []Kline, period int) float64 {
-	if len(klines) < period {
-		return 0
-	}
-
-	// 计算SMA作为初始EMA
-	sum := 0.0
-	for i := 0; i < period; i++ {
-		sum += klines[i].Close
-	}
-	ema := sum / float64(period)
-
-	// 计算EMA
-	multiplier := 2.0 / float64(period+1)
-	for i := period; i < len(klines); i++ {
-		ema = (klines[i].Close-ema)*multiplier + ema
-	}
-
-	return ema
-}
-
-// calculateMACD 计算MACD
-func calculateMACD(klines []Kline) float64 {
-	if len(klines) < 26 {
-		return 0
-	}
-
-	// 计算12期和26期EMA
-	ema12 := calculateEMA(klines, 12)
-	ema26 := calculateEMA(klines, 26)
-
-	// MACD = EMA12 - EMA26
-	return ema12 - ema26
-}
-
-// calculateRSI 计算RSI
-func calculateRSI(klines []Kline, period int) float64 {
-	if len(klines) <= period {
-		return 0
-	}
-
-	gains := 0.0
-	losses := 0.0
-
-	// 计算初始平均涨跌幅
-	for i := 1; i <= period; i++ {
-		change := klines[i].Close - klines[i-1].Close
-		if change > 0 {
-			gains += change
-		} else {
-			losses += -change
-		}
-	}
-
-	avgGain := gains / float64(period)
-	avgLoss := losses / float64(period)
-
-	// 使用Wilder平滑方法计算后续RSI
-	for i := period + 1; i < len(klines); i++ {
-		change := klines[i].Close - klines[i-1].Close
-		if change > 0 {
-			avgGain = (avgGain*float64(period-1) + change) / float64(period)
-			avgLoss = (avgLoss * float64(period-1)) / float64(period)
-		} else {
-			avgGain = (avgGain * float64(period-1)) / float64(period)
-			avgLoss = (avgLoss*float64(period-1) + (-change)) / float64(period)
-		}
-	}
-
-	if avgLoss == 0 {
-		return 100
-	}
-
-	rs := avgGain / avgLoss
-	rsi := 100 - (100 / (1 + rs))
-
-	return rsi
-}
-
-// calculateATR 计算ATR
-func calculateATR(klines []Kline, period int) float64 {
-	if len(klines) <= period {
-		return 0
-	}
-
-	trs := make([]float64, len(klines))
-	for i := 1; i < len(klines); i++ {
-		high := klines[i].High
-		low := klines[i].Low
-		prevClose := klines[i-1].Close
-
-		tr1 := high - low
-		tr2 := math.Abs(high - prevClose)
-		tr3 := math.Abs(low - prevClose)
-
-		trs[i] = math.Max(tr1, math.Max(tr2, tr3))
-	}
-
-	// 计算初始ATR
-	sum := 0.0
-	for i := 1; i <= period; i++ {
-		sum += trs[i]
-	}
-	atr := sum / float64(period)
-
-	// Wilder平滑
-	for i := period + 1; i < len(klines); i++ {
-		atr = (atr*float64(period-1) + trs[i]) / float64(period)
-	}
-
-	return atr
-}
-
-// calculateIntradaySeries 计算日内系列数据
-func calculateIntradaySeries(klines []Kline) *IntradayData {
+// calculateIntradaySeriesWithConfig 使用配置计算日内系列数据
+func calculateIntradaySeriesWithConfig(klinesMap map[string][]Kline, config *MarketDataConfig) *IntradayData {
 	data := &IntradayData{
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		MidPrices:       make([]float64, 0, 10),
+		IndicatorSeries: make(map[string][]float64),
+	}
+
+	// 找到最短间隔的K线用于日内数据
+	var intradayKlines []Kline
+	var intradayInterval string
+	for _, klineCfg := range config.Klines {
+		if klines, ok := klinesMap[klineCfg.Interval]; ok && len(klines) > 0 {
+			if len(intradayKlines) == 0 {
+				intradayKlines = klines
+				intradayInterval = klineCfg.Interval
+				break
+			}
+		}
+	}
+
+	if len(intradayKlines) == 0 {
+		return data
 	}
 
 	// 获取最近10个数据点
-	start := len(klines) - 10
+	start := len(intradayKlines) - 10
 	if start < 0 {
 		start = 0
 	}
 
-	for i := start; i < len(klines); i++ {
-		data.MidPrices = append(data.MidPrices, klines[i].Close)
+	for i := start; i < len(intradayKlines); i++ {
+		data.MidPrices = append(data.MidPrices, intradayKlines[i].Close)
 
-		// 计算每个点的EMA20
-		if i >= 19 {
-			ema20 := calculateEMA(klines[:i+1], 20)
-			data.EMA20Values = append(data.EMA20Values, ema20)
+		// 计算每个点的EMA指标（根据配置中的所有EMA）
+		for _, emaCfg := range config.Indicators.EMA {
+			for _, source := range emaCfg.Sources {
+				if source == intradayInterval && i >= emaCfg.Period-1 {
+					key := fmt.Sprintf("EMA_%d", emaCfg.Period)
+					if data.IndicatorSeries[key] == nil {
+						data.IndicatorSeries[key] = make([]float64, 0, 10)
+					}
+					emaSeries := CalculateEMASeries(intradayKlines[:i+1], emaCfg.Period)
+					if len(emaSeries) > 0 {
+						data.IndicatorSeries[key] = append(data.IndicatorSeries[key], emaSeries[len(emaSeries)-1])
+					}
+					break
+				}
+			}
 		}
 
-		// 计算每个点的MACD
-		if i >= 25 {
-			macd := calculateMACD(klines[:i+1])
-			data.MACDValues = append(data.MACDValues, macd)
+		// 计算每个点的MACD指标（如果配置中有）
+		if config.Indicators.MACD != nil {
+			macdCfg := config.Indicators.MACD
+			for _, source := range macdCfg.Sources {
+				if source == intradayInterval && i >= macdCfg.Slow+macdCfg.Signal-1 {
+					if data.IndicatorSeries["MACD"] == nil {
+						data.IndicatorSeries["MACD"] = make([]float64, 0, 10)
+					}
+					macdSeries, _, _ := CalculateMACDSeries(intradayKlines[:i+1], macdCfg.Fast, macdCfg.Slow, macdCfg.Signal)
+					if len(macdSeries) > 0 {
+						data.IndicatorSeries["MACD"] = append(data.IndicatorSeries["MACD"], macdSeries[len(macdSeries)-1])
+					}
+					break
+				}
+			}
 		}
 
-		// 计算每个点的RSI
-		if i >= 7 {
-			rsi7 := calculateRSI(klines[:i+1], 7)
-			data.RSI7Values = append(data.RSI7Values, rsi7)
+		// 计算每个点的RSI指标（根据配置中的所有RSI）
+		for _, rsiCfg := range config.Indicators.RSI {
+			for _, source := range rsiCfg.Sources {
+				if source == intradayInterval && i >= rsiCfg.Period-1 {
+					key := fmt.Sprintf("RSI_%d", rsiCfg.Period)
+					if data.IndicatorSeries[key] == nil {
+						data.IndicatorSeries[key] = make([]float64, 0, 10)
+					}
+					rsiSeries := CalculateRSISeries(intradayKlines[:i+1], rsiCfg.Period)
+					if len(rsiSeries) > 0 {
+						data.IndicatorSeries[key] = append(data.IndicatorSeries[key], rsiSeries[len(rsiSeries)-1])
+					}
+					break
+				}
+			}
 		}
-		if i >= 14 {
-			rsi14 := calculateRSI(klines[:i+1], 14)
-			data.RSI14Values = append(data.RSI14Values, rsi14)
+
+		// 计算每个点的布林带指标（如果配置中有）
+		if config.Indicators.BollingerBands != nil {
+			bbCfg := config.Indicators.BollingerBands
+			for _, source := range bbCfg.Sources {
+				if source == intradayInterval && i >= bbCfg.Period-1 {
+					key := fmt.Sprintf("BB_%d", bbCfg.Period)
+					upperKey := fmt.Sprintf("%s_Upper", key)
+					middleKey := fmt.Sprintf("%s_Middle", key)
+					lowerKey := fmt.Sprintf("%s_Lower", key)
+
+					if data.IndicatorSeries[upperKey] == nil {
+						data.IndicatorSeries[upperKey] = make([]float64, 0, 10)
+						data.IndicatorSeries[middleKey] = make([]float64, 0, 10)
+						data.IndicatorSeries[lowerKey] = make([]float64, 0, 10)
+					}
+
+					upperSeries, middleSeries, lowerSeries := CalculateBollingerBandsSeries(intradayKlines[:i+1], bbCfg.Period, bbCfg.StdDev)
+					if len(upperSeries) > 0 {
+						data.IndicatorSeries[upperKey] = append(data.IndicatorSeries[upperKey], upperSeries[len(upperSeries)-1])
+						data.IndicatorSeries[middleKey] = append(data.IndicatorSeries[middleKey], middleSeries[len(middleSeries)-1])
+						data.IndicatorSeries[lowerKey] = append(data.IndicatorSeries[lowerKey], lowerSeries[len(lowerSeries)-1])
+					}
+					break
+				}
+			}
 		}
 	}
 
 	return data
 }
 
-// calculateLongerTermData 计算长期数据
-func calculateLongerTermData(klines []Kline) *LongerTermData {
+// calculateLongerTermDataWithConfig 使用配置计算长期数据
+func calculateLongerTermDataWithConfig(klinesMap map[string][]Kline, config *MarketDataConfig) *LongerTermData {
 	data := &LongerTermData{
-		MACDValues:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		CurrentIndicators: make(map[string]float64),
+		IndicatorSeries:   make(map[string][]float64),
 	}
 
-	// 计算EMA
-	data.EMA20 = calculateEMA(klines, 20)
-	data.EMA50 = calculateEMA(klines, 50)
+	// 找到最长间隔的K线用于长期数据（优先4h，否则使用最长的）
+	var longerTermKlines []Kline
+	var longerTermInterval string
+	for _, klineCfg := range config.Klines {
+		if klines, ok := klinesMap[klineCfg.Interval]; ok {
+			if longerTermKlines == nil || klineCfg.Interval == "4h" {
+				longerTermKlines = klines
+				longerTermInterval = klineCfg.Interval
+				if klineCfg.Interval == "4h" {
+					break
+				}
+			}
+		}
+	}
 
-	// 计算ATR
-	data.ATR3 = calculateATR(klines, 3)
-	data.ATR14 = calculateATR(klines, 14)
+	if len(longerTermKlines) == 0 {
+		return data
+	}
+
+	// 计算EMA指标（根据配置中的所有EMA）
+	for _, emaCfg := range config.Indicators.EMA {
+		for _, source := range emaCfg.Sources {
+			if source == longerTermInterval && len(longerTermKlines) >= emaCfg.Period {
+				key := fmt.Sprintf("EMA_%d", emaCfg.Period)
+				data.CurrentIndicators[key] = CalculateEMA(longerTermKlines, emaCfg.Period)
+				break
+			}
+		}
+	}
+
+	// 计算ATR指标（根据配置中的所有ATR）
+	for _, atrCfg := range config.Indicators.ATR {
+		for _, source := range atrCfg.Sources {
+			if source == longerTermInterval && len(longerTermKlines) >= atrCfg.Period {
+				key := fmt.Sprintf("ATR_%d", atrCfg.Period)
+				data.CurrentIndicators[key] = CalculateATR(longerTermKlines, atrCfg.Period)
+				break
+			}
+		}
+	}
+
+	// 计算布林带指标（如果配置中有）
+	if config.Indicators.BollingerBands != nil {
+		bbCfg := config.Indicators.BollingerBands
+		for _, source := range bbCfg.Sources {
+			if source == longerTermInterval && len(longerTermKlines) >= bbCfg.Period {
+				upper, middle, lower := CalculateBollingerBands(longerTermKlines, bbCfg.Period, bbCfg.StdDev)
+				key := fmt.Sprintf("BB_%d", bbCfg.Period)
+				data.CurrentIndicators[fmt.Sprintf("%s_Upper", key)] = upper
+				data.CurrentIndicators[fmt.Sprintf("%s_Middle", key)] = middle
+				data.CurrentIndicators[fmt.Sprintf("%s_Lower", key)] = lower
+				break
+			}
+		}
+	}
 
 	// 计算成交量
-	if len(klines) > 0 {
-		data.CurrentVolume = klines[len(klines)-1].Volume
-		// 计算平均成交量
+	if len(longerTermKlines) > 0 {
+		data.CurrentVolume = longerTermKlines[len(longerTermKlines)-1].Volume
 		sum := 0.0
-		for _, k := range klines {
+		for _, k := range longerTermKlines {
 			sum += k.Volume
 		}
-		data.AverageVolume = sum / float64(len(klines))
+		data.AverageVolume = sum / float64(len(longerTermKlines))
 	}
 
 	// 计算MACD和RSI序列
-	start := len(klines) - 10
+	start := len(longerTermKlines) - 10
 	if start < 0 {
 		start = 0
 	}
 
-	for i := start; i < len(klines); i++ {
-		if i >= 25 {
-			macd := calculateMACD(klines[:i+1])
-			data.MACDValues = append(data.MACDValues, macd)
+	for i := start; i < len(longerTermKlines); i++ {
+		// MACD序列
+		if config.Indicators.MACD != nil {
+			macdCfg := config.Indicators.MACD
+			for _, source := range macdCfg.Sources {
+				if source == longerTermInterval && i >= macdCfg.Slow+macdCfg.Signal-1 {
+					if data.IndicatorSeries["MACD"] == nil {
+						data.IndicatorSeries["MACD"] = make([]float64, 0, 10)
+					}
+					macdSeries, _, _ := CalculateMACDSeries(longerTermKlines[:i+1], macdCfg.Fast, macdCfg.Slow, macdCfg.Signal)
+					if len(macdSeries) > 0 {
+						data.IndicatorSeries["MACD"] = append(data.IndicatorSeries["MACD"], macdSeries[len(macdSeries)-1])
+					}
+					break
+				}
+			}
 		}
-		if i >= 14 {
-			rsi14 := calculateRSI(klines[:i+1], 14)
-			data.RSI14Values = append(data.RSI14Values, rsi14)
+
+		// RSI序列（根据配置中的所有RSI）
+		for _, rsiCfg := range config.Indicators.RSI {
+			for _, source := range rsiCfg.Sources {
+				if source == longerTermInterval && i >= rsiCfg.Period-1 {
+					key := fmt.Sprintf("RSI_%d", rsiCfg.Period)
+					if data.IndicatorSeries[key] == nil {
+						data.IndicatorSeries[key] = make([]float64, 0, 10)
+					}
+					rsiSeries := CalculateRSISeries(longerTermKlines[:i+1], rsiCfg.Period)
+					if len(rsiSeries) > 0 {
+						data.IndicatorSeries[key] = append(data.IndicatorSeries[key], rsiSeries[len(rsiSeries)-1])
+					}
+					break
+				}
+			}
+		}
+
+		// 布林带序列（如果配置中有）
+		if config.Indicators.BollingerBands != nil {
+			bbCfg := config.Indicators.BollingerBands
+			for _, source := range bbCfg.Sources {
+				if source == longerTermInterval && i >= bbCfg.Period-1 {
+					key := fmt.Sprintf("BB_%d", bbCfg.Period)
+					upperKey := fmt.Sprintf("%s_Upper", key)
+					middleKey := fmt.Sprintf("%s_Middle", key)
+					lowerKey := fmt.Sprintf("%s_Lower", key)
+
+					if data.IndicatorSeries[upperKey] == nil {
+						data.IndicatorSeries[upperKey] = make([]float64, 0, 10)
+						data.IndicatorSeries[middleKey] = make([]float64, 0, 10)
+						data.IndicatorSeries[lowerKey] = make([]float64, 0, 10)
+					}
+
+					upperSeries, middleSeries, lowerSeries := CalculateBollingerBandsSeries(longerTermKlines[:i+1], bbCfg.Period, bbCfg.StdDev)
+					if len(upperSeries) > 0 {
+						data.IndicatorSeries[upperKey] = append(data.IndicatorSeries[upperKey], upperSeries[len(upperSeries)-1])
+						data.IndicatorSeries[middleKey] = append(data.IndicatorSeries[middleKey], middleSeries[len(middleSeries)-1])
+						data.IndicatorSeries[lowerKey] = append(data.IndicatorSeries[lowerKey], lowerSeries[len(lowerSeries)-1])
+					}
+					break
+				}
+			}
 		}
 	}
 
@@ -456,8 +590,18 @@ func getFundingRate(symbol string) (float64, error) {
 func Format(data *Data) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("current_price = %.2f, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
-		data.CurrentPrice, data.CurrentEMA20, data.CurrentMACD, data.CurrentRSI7))
+	// 输出当前价格和当前指标值（动态）
+	indicatorStrs := make([]string, 0)
+	for key, value := range data.CurrentIndicators {
+		indicatorStrs = append(indicatorStrs, fmt.Sprintf("%s = %.3f", key, value))
+	}
+
+	if len(indicatorStrs) > 0 {
+		sb.WriteString(fmt.Sprintf("current_price = %.2f, %s\n\n",
+			data.CurrentPrice, strings.Join(indicatorStrs, ", ")))
+	} else {
+		sb.WriteString(fmt.Sprintf("current_price = %.2f\n\n", data.CurrentPrice))
+	}
 
 	sb.WriteString(fmt.Sprintf("In addition, here is the latest %s open interest and funding rate for perps:\n\n",
 		data.Symbol))
@@ -470,47 +614,79 @@ func Format(data *Data) string {
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
 
 	if data.IntradaySeries != nil {
-		sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
+		sb.WriteString("Intraday series (oldest → latest):\n\n")
 
 		if len(data.IntradaySeries.MidPrices) > 0 {
 			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
 		}
 
-		if len(data.IntradaySeries.EMA20Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.IntradaySeries.EMA20Values)))
+		// 动态输出所有指标序列（按key排序以保证输出一致性）
+		keys := make([]string, 0, len(data.IntradaySeries.IndicatorSeries))
+		for key := range data.IntradaySeries.IndicatorSeries {
+			keys = append(keys, key)
+		}
+		// 排序以保持输出一致性
+		for i := 0; i < len(keys); i++ {
+			for j := i + 1; j < len(keys); j++ {
+				if keys[i] > keys[j] {
+					keys[i], keys[j] = keys[j], keys[i]
+				}
+			}
 		}
 
-		if len(data.IntradaySeries.MACDValues) > 0 {
-			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.IntradaySeries.MACDValues)))
-		}
-
-		if len(data.IntradaySeries.RSI7Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI7Values)))
-		}
-
-		if len(data.IntradaySeries.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
+		for _, key := range keys {
+			if values := data.IntradaySeries.IndicatorSeries[key]; len(values) > 0 {
+				sb.WriteString(fmt.Sprintf("%s indicators: %s\n\n", key, formatFloatSlice(values)))
+			}
 		}
 	}
 
 	if data.LongerTermContext != nil {
-		sb.WriteString("Longer‑term context (4‑hour timeframe):\n\n")
+		sb.WriteString("Longer‑term context:\n\n")
 
-		sb.WriteString(fmt.Sprintf("20‑Period EMA: %.3f vs. 50‑Period EMA: %.3f\n\n",
-			data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))
-
-		sb.WriteString(fmt.Sprintf("3‑Period ATR: %.3f vs. 14‑Period ATR: %.3f\n\n",
-			data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
+		// 动态输出当前指标值
+		if len(data.LongerTermContext.CurrentIndicators) > 0 {
+			indicatorStrs := make([]string, 0)
+			for key, value := range data.LongerTermContext.CurrentIndicators {
+				indicatorStrs = append(indicatorStrs, fmt.Sprintf("%s = %.3f", key, value))
+			}
+			// 排序以保持输出一致性
+			for i := 0; i < len(indicatorStrs); i++ {
+				for j := i + 1; j < len(indicatorStrs); j++ {
+					if indicatorStrs[i] > indicatorStrs[j] {
+						indicatorStrs[i], indicatorStrs[j] = indicatorStrs[j], indicatorStrs[i]
+					}
+				}
+			}
+			if len(indicatorStrs) > 0 {
+				sb.WriteString(strings.Join(indicatorStrs, " | "))
+				sb.WriteString("\n\n")
+			}
+		}
 
 		sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
 			data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
 
-		if len(data.LongerTermContext.MACDValues) > 0 {
-			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.LongerTermContext.MACDValues)))
-		}
+		// 动态输出指标序列
+		if len(data.LongerTermContext.IndicatorSeries) > 0 {
+			keys := make([]string, 0, len(data.LongerTermContext.IndicatorSeries))
+			for key := range data.LongerTermContext.IndicatorSeries {
+				keys = append(keys, key)
+			}
+			// 排序以保持输出一致性
+			for i := 0; i < len(keys); i++ {
+				for j := i + 1; j < len(keys); j++ {
+					if keys[i] > keys[j] {
+						keys[i], keys[j] = keys[j], keys[i]
+					}
+				}
+			}
 
-		if len(data.LongerTermContext.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
+			for _, key := range keys {
+				if values := data.LongerTermContext.IndicatorSeries[key]; len(values) > 0 {
+					sb.WriteString(fmt.Sprintf("%s indicators: %s\n\n", key, formatFloatSlice(values)))
+				}
+			}
 		}
 	}
 

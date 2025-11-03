@@ -66,6 +66,7 @@ type Context struct {
 	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
 	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	InitialBalance  float64                 `json:"-"` // 初始余额（用于限制AI可使用的资金）
 }
 
 // Decision AI的交易决策
@@ -92,18 +93,37 @@ type FullDecision struct {
 
 // GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
 func GetFullDecision(ctx *Context, mcpClient *mcp.Client) (*FullDecision, error) {
-	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
+	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "", "")
 }
 
 // GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
-func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
+// marketConfigName: 市场数据配置名称（对应market_configs文件夹下的JSON文件名，如"default"）
+func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, customPrompt string, overrideBase bool, templateName string, marketConfigName string) (*FullDecision, error) {
 	// 1. 为所有币种获取市场数据
-	if err := fetchMarketDataForContext(ctx); err != nil {
+	if err := fetchMarketDataForContext(ctx, marketConfigName); err != nil {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)
 	}
 
 	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
-	systemPrompt := buildSystemPromptWithCustom(ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage, customPrompt, overrideBase, templateName)
+	// initial_balance 的资金使用策略（动态资金管理）：
+	// - 盈利时：可以使用净值（包括盈利部分），允许复利增长
+	// - 亏损时：只能使用剩余净值（不能超过现有资金）
+	// - 防止异常：如果净值远超 initial_balance（可能是账户有其他资金来源），
+	//   限制为 initial_balance 的 2 倍，避免无限制增长
+	maxAvailableFunds := ctx.Account.TotalEquity
+	if ctx.InitialBalance > 0 {
+		// 如果净值在合理范围内（<= initial_balance 的 2 倍），使用净值
+		// 这允许 AI 在盈利时使用盈利部分（复利），但如果账户有其他资金来源，不会无限制增长
+		maxReasonableFunds := ctx.InitialBalance * 2.0
+		if ctx.Account.TotalEquity > maxReasonableFunds {
+			// 净值远超初始资金，可能是账户有其他资金来源，限制在合理范围
+			maxAvailableFunds = maxReasonableFunds
+		} else {
+			// 净值在合理范围内（盈利或亏损），使用当前净值
+			maxAvailableFunds = ctx.Account.TotalEquity
+		}
+	}
+	systemPrompt := buildSystemPromptWithCustom(maxAvailableFunds, ctx.BTCETHLeverage, ctx.AltcoinLeverage, customPrompt, overrideBase, templateName)
 	userPrompt := buildUserPrompt(ctx)
 
 	// 3. 调用AI API（使用 system + user prompt）
@@ -113,7 +133,7 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 	}
 
 	// 4. 解析AI响应
-	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
+	decision, err := parseFullDecisionResponse(aiResponse, maxAvailableFunds, ctx.Account.AvailableBalance, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
 	if err != nil {
 		return nil, fmt.Errorf("解析AI响应失败: %w", err)
 	}
@@ -125,9 +145,25 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 }
 
 // fetchMarketDataForContext 为上下文中的所有币种获取市场数据和OI数据
-func fetchMarketDataForContext(ctx *Context) error {
+// marketConfigName: 市场数据配置的名称（对应 market_configs 文件夹下的JSON文件名，如 "default"）
+func fetchMarketDataForContext(ctx *Context, marketConfigName string) error {
 	ctx.MarketDataMap = make(map[string]*market.Data)
 	ctx.OITopDataMap = make(map[string]*OITopData)
+
+	// 加载市场数据配置
+	if marketConfigName == "" {
+		marketConfigName = "default"
+	}
+
+	marketConfig, err := market.GetMarketDataConfig(marketConfigName)
+	if err != nil {
+		log.Printf("⚠️  加载市场数据配置 %s 失败，使用默认配置: %v", marketConfigName, err)
+		// 尝试使用默认配置
+		marketConfig, err = market.GetMarketDataConfig("default")
+		if err != nil {
+			return fmt.Errorf("无法加载市场数据配置: %w", err)
+		}
+	}
 
 	// 收集所有需要获取数据的币种
 	symbolSet := make(map[string]bool)
@@ -154,7 +190,7 @@ func fetchMarketDataForContext(ctx *Context) error {
 	}
 
 	for symbol := range symbolSet {
-		data, err := market.Get(symbol)
+		data, err := market.GetIndicatorsWithConfig(symbol, marketConfig)
 		if err != nil {
 			// 单个币种失败不影响整体，只记录错误
 			continue
@@ -295,9 +331,27 @@ func buildUserPrompt(ctx *Context) string {
 
 	// BTC 市场
 	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
+		macdValue := 0.0
+		rsiValue := 0.0
+		if btcData.CurrentIndicators != nil {
+			if val, ok := btcData.CurrentIndicators["MACD"]; ok {
+				macdValue = val
+			}
+			// 尝试获取RSI值（优先RSI_7，否则取第一个RSI）
+			if val, ok := btcData.CurrentIndicators["RSI_7"]; ok {
+				rsiValue = val
+			} else {
+				for key, val := range btcData.CurrentIndicators {
+					if strings.HasPrefix(key, "RSI_") {
+						rsiValue = val
+						break
+					}
+				}
+			}
+		}
 		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
 			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
-			btcData.CurrentMACD, btcData.CurrentRSI7))
+			macdValue, rsiValue))
 	}
 
 	// 账户
@@ -387,7 +441,8 @@ func buildUserPrompt(ctx *Context) string {
 }
 
 // parseFullDecisionResponse 解析AI的完整决策响应
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
+// maxAvailableFunds: 最大可用资金（动态资金管理策略计算得出）
+func parseFullDecisionResponse(aiResponse string, maxAvailableFunds float64, availableBalance float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
 	// 1. 提取思维链
 	cotTrace := extractCoTTrace(aiResponse)
 
@@ -401,7 +456,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 	}
 
 	// 3. 验证决策
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+	if err := validateDecisions(decisions, maxAvailableFunds, availableBalance, btcEthLeverage, altcoinLeverage); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
@@ -469,9 +524,10 @@ func fixMissingQuotes(jsonStr string) string {
 }
 
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
-func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+// maxAvailableFunds: 最大可用资金（动态资金管理策略计算得出）
+func validateDecisions(decisions []Decision, maxAvailableFunds float64, availableBalance float64, btcEthLeverage, altcoinLeverage int) error {
 	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+		if err := validateDecision(&decision, maxAvailableFunds, availableBalance, btcEthLeverage, altcoinLeverage); err != nil {
 			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
 		}
 	}
@@ -501,7 +557,10 @@ func findMatchingBracket(s string, start int) int {
 }
 
 // validateDecision 验证单个决策的有效性
-func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+// maxAvailableFunds: 最大可用资金（动态资金管理策略计算得出）
+//   - 如果净值 <= initial_balance * 2：使用当前净值（允许复利增长）
+//   - 如果净值 > initial_balance * 2：限制为 initial_balance * 2（防止异常增长）
+func validateDecision(d *Decision, maxAvailableFunds float64, availableBalance float64, btcEthLeverage, altcoinLeverage int) error {
 	// 验证action
 	validActions := map[string]bool{
 		"open_long":   true,
@@ -519,11 +578,11 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	// 开仓操作必须提供完整参数
 	if d.Action == "open_long" || d.Action == "open_short" {
 		// 根据币种使用配置的杠杆上限
-		maxLeverage := altcoinLeverage          // 山寨币使用配置的杠杆
-		maxPositionValue := accountEquity * 1.5 // 山寨币最多1.5倍账户净值
+		maxLeverage := altcoinLeverage              // 山寨币使用配置的杠杆
+		maxPositionValue := maxAvailableFunds * 1.5 // 山寨币最多1.5倍可用资金
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			maxLeverage = btcEthLeverage          // BTC和ETH使用配置的杠杆
-			maxPositionValue = accountEquity * 10 // BTC/ETH最多10倍账户净值
+			maxLeverage = btcEthLeverage              // BTC和ETH使用配置的杠杆
+			maxPositionValue = maxAvailableFunds * 10 // BTC/ETH最多10倍可用资金
 		}
 
 		if d.Leverage <= 0 || d.Leverage > maxLeverage {
@@ -536,10 +595,24 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		tolerance := maxPositionValue * 0.01 // 1%容差
 		if d.PositionSizeUSD > maxPositionValue+tolerance {
 			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH单币种仓位价值不能超过%.0f USDT（10倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("BTC/ETH单币种仓位价值不能超过%.0f USDT（10倍可用资金），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
 			} else {
-				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USDT（1.5倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USDT（1.5倍可用资金），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
 			}
+		}
+
+		// 检查可用余额是否足够支付保证金
+		requiredMargin := d.PositionSizeUSD / float64(d.Leverage)
+		// 添加缓冲（1% 或至少 5 USDT）以支付交易费用等
+		marginBuffer := requiredMargin * 0.01
+		if marginBuffer < 5.0 {
+			marginBuffer = 5.0
+		}
+		requiredMarginWithBuffer := requiredMargin + marginBuffer
+
+		if availableBalance < requiredMarginWithBuffer {
+			return fmt.Errorf("可用余额不足: 需要 %.2f USDT (保证金 %.2f + 缓冲 %.2f)，当前可用余额 %.2f USDT",
+				requiredMarginWithBuffer, requiredMargin, marginBuffer, availableBalance)
 		}
 		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
 			return fmt.Errorf("止损和止盈必须大于0")

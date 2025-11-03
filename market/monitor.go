@@ -6,7 +6,6 @@ import (
 	"log"
 	"strings"
 	"sync"
-	"time"
 )
 
 type WSMonitor struct {
@@ -43,12 +42,6 @@ func NewWSMonitor(batchSize int, subKlineTime []string) *WSMonitor {
 			kline:          sync.Map{},
 		}
 	}
-	go func() {
-		time.Sleep(20 * time.Second)
-		WSMonitorCli.GetCurrentKlines("SOLUSDT", "4h")
-		fmt.Println(WSMonitorCli.klinesDataMap["4h"].kline.Load("SOLUSDT"))
-		select {}
-	}()
 	return WSMonitorCli
 }
 

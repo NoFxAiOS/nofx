@@ -463,59 +463,45 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		log.Printf("⚠️  未找到USDT资产记录！")
 	}
 
-	// ✅ Aster特殊字段映射逻辑：
-	//
-	// Aster API字段含义（经过观察分析）：
-	// - balance: 0（字段含义不明，不使用）
-	// - crossWalletBalance: 全仓钱包余额（但观察到也是0）
-	// - availableBalance: 实际可用余额
-	// - crossUnPnl: 全仓未实现盈亏
-	//
-	// 标准映射关系（与auto_trader.go兼容）：
-	// totalEquity = totalWalletBalance + totalUnrealizedProfit
-	//
-	// 关键公式：
-	// totalWalletBalance = availableBalance + totalMarginUsed（已用保证金）
-
-	var totalWalletBalance float64
-
-	if crossUnPnl == 0 {
-		// 无持仓情况：钱包余额 = 可用余额
-		totalWalletBalance = availableBalance
-	} else {
-		// 有持仓情况：需要从持仓中计算已用保证金
-		// 先获取持仓信息
-		positions, err := t.GetPositions()
-		if err != nil {
-			log.Printf("⚠️  获取持仓信息失败: %v，使用availableBalance", err)
-			totalWalletBalance = availableBalance
-		} else {
-			// 计算总保证金占用
-			totalMarginUsed := 0.0
-			for _, pos := range positions {
-				markPrice := pos["markPrice"].(float64)
-				quantity := pos["positionAmt"].(float64)
-				if quantity < 0 {
-					quantity = -quantity
-				}
-				leverage := 10 // 默认杠杆
-				if lev, ok := pos["leverage"].(float64); ok {
-					leverage = int(lev)
-				}
-				marginUsed := (quantity * markPrice) / float64(leverage)
-				totalMarginUsed += marginUsed
-			}
-
-			// 钱包余额 = 可用余额 + 已用保证金
-			totalWalletBalance = availableBalance + totalMarginUsed
-
-			log.Printf("✓ Aster 有持仓: 可用=%.2f + 保证金=%.2f = 钱包余额%.2f",
-				availableBalance, totalMarginUsed, totalWalletBalance)
-		}
+	// 获取持仓计算保证金
+	positions, err := t.GetPositions()
+	if err != nil {
+		log.Printf("⚠️  获取持仓信息失败: %v", err)
+		// 无法获取持仓，使用fallback逻辑
+		totalWalletBalance := availableBalance
+		return map[string]interface{}{
+			"totalWalletBalance":    totalWalletBalance,
+			"availableBalance":      availableBalance,
+			"totalUnrealizedProfit": crossUnPnl,
+		}, nil
 	}
 
-	log.Printf("✓ Aster 账户: 钱包余额=%.2f, 可用=%.2f, 未实现盈亏=%.2f",
-		totalWalletBalance, availableBalance, crossUnPnl)
+	// 计算总保证金占用
+	totalMarginUsed := 0.0
+	for _, pos := range positions {
+		markPrice := pos["markPrice"].(float64)
+		quantity := pos["positionAmt"].(float64)
+		if quantity < 0 {
+			quantity = -quantity
+		}
+		leverage := 10 // 默认杠杆
+		if lev, ok := pos["leverage"].(float64); ok {
+			leverage = int(lev)
+		}
+		marginUsed := (quantity * markPrice) / float64(leverage)
+		totalMarginUsed += marginUsed
+	}
+
+	// ✅ 关键逻辑：
+	// Aster账户总资产 = availableBalance + marginUsed (这个值已经包含了未实现盈亏！)
+	// 例如：真实显示95.44 = 41.46(可用) + 54(保证金)
+	// 而 crossUnPnl = 11.13 表示这95.44中有11.13是浮盈
+	//
+	// 因此：totalWalletBalance = (availableBalance + marginUsed) - crossUnPnl
+	//       即：不含盈亏的本金 = 真实总资产 - 未实现盈亏
+
+	asterTotalAssets := availableBalance + totalMarginUsed // Aster显示的总资产
+	totalWalletBalance := asterTotalAssets - crossUnPnl    // 扣除盈亏，得到本金
 
 	// 返回标准格式（与Binance/Hyperliquid兼容）
 	return map[string]interface{}{

@@ -7,7 +7,7 @@ import { t, type Language } from '../i18n/translations';
 import { getExchangeIcon } from './ExchangeIcons';
 import { getModelIcon } from './ModelIcons';
 import { TraderConfigModal } from './TraderConfigModal';
-import { Bot, Brain, Landmark, BarChart3, Trash2, Plus, Users } from 'lucide-react';
+import { Bot, Brain, Landmark, BarChart3, Trash2, Plus, Users, AlertTriangle } from 'lucide-react';
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -277,16 +277,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   const handleSaveModelConfig = async (modelId: string, apiKey: string, customApiUrl?: string, customModelName?: string) => {
     try {
-      // 找到要配置的模型（从supportedModels中）
-      const modelToUpdate = supportedModels?.find(m => m.id === modelId);
+      // 创建或更新用户的模型配置
+      const existingModel = allModels?.find(m => m.id === modelId);
+      let updatedModels;
+
+      // 找到要配置的模型（优先从已配置列表，其次从支持列表）
+      const modelToUpdate = existingModel || supportedModels?.find(m => m.id === modelId);
       if (!modelToUpdate) {
         alert(t('modelNotExist', language));
         return;
       }
-
-      // 创建或更新用户的模型配置
-      const existingModel = allModels?.find(m => m.id === modelId);
-      let updatedModels;
 
       if (existingModel) {
         // 更新现有配置
@@ -1427,7 +1427,7 @@ function ExchangeConfigModal({
 
               <div className="p-4 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
                 <div className="text-sm font-semibold mb-2" style={{ color: '#F0B90B' }}>
-                  ⚠️ {t('securityWarning', language)}
+                  <span className="inline-flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> {t('securityWarning', language)}</span>
                 </div>
                 <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
                   <div>{t('exchangeConfigWarning1', language)}</div>

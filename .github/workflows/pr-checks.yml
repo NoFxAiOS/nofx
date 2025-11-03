@@ -181,10 +181,36 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Install TA-Lib
+      - name: Cache TA-Lib
+        id: cache-talib
+        uses: actions/cache@v4
+        with:
+          path: ~/ta-lib
+          key: ${{ runner.os }}-talib-0.4.0
+
+      - name: Install TA-Lib dependencies
+        if: steps.cache-talib.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libta-lib-dev
+          sudo apt-get install -y wget build-essential
+
+      - name: Build and Install TA-Lib
+        if: steps.cache-talib.outputs.cache-hit != 'true'
+        run: |
+          cd ~
+          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+          tar -xzf ta-lib-0.4.0-src.tar.gz
+          cd ta-lib/
+          ./configure --prefix=$HOME/ta-lib
+          make
+          make install
+
+      - name: Set TA-Lib environment variables
+        run: |
+          echo "LD_LIBRARY_PATH=$HOME/ta-lib/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=$HOME/ta-lib/lib:$LIBRARY_PATH" >> $GITHUB_ENV
+          echo "CPATH=$HOME/ta-lib/include:$CPATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=$HOME/ta-lib/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
       - name: Cache Go modules
         uses: actions/cache@v4

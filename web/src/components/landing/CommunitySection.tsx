@@ -2,15 +2,16 @@ import { motion } from 'framer-motion'
 import AnimatedSection from './AnimatedSection'
 
 interface CardProps {
-  quote: string;
-  authorName: string;
-  handle: string;
-  avatarUrl: string;
-  tweetUrl: string;
-  delay: number;
+  quote: string
+  authorName?: string
+  author?: string
+  handle?: string
+  avatarUrl?: string
+  tweetUrl?: string
+  delay?: number
 }
 
-function TestimonialCard({ quote, authorName, delay }: CardProps) {
+function TestimonialCard({ quote, author, delay }: CardProps) {
   return (
     <motion.div
       className='p-6 rounded-xl'
@@ -27,7 +28,7 @@ function TestimonialCard({ quote, authorName, delay }: CardProps) {
       <div className='flex items-center gap-2'>
         <div className='w-8 h-8 rounded-full' style={{ background: 'var(--binance-yellow)' }} />
         <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
-          {authorName}
+          {author}
         </span>
       </div>
     </motion.div>
@@ -83,7 +84,7 @@ export default function CommunitySection() {
           viewport={{ once: true }}
         >
           {items.map((item, idx) => (
-            <TestimonialCard key={idx} {...item} />
+            <TestimonialCard key={idx} quote={item.quote} author={item.authorName || item.author} delay={item.delay} />
           ))}
         </motion.div>
       </div>

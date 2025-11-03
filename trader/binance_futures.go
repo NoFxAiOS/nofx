@@ -305,8 +305,13 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 
 // CloseLong 平多仓
 func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果数量为0，强制刷新持仓缓存，获取最新持仓数量
 	if quantity == 0 {
+		// 清除缓存，强制从API获取最新数据
+		t.positionsCacheMutex.Lock()
+		t.cachedPositions = nil
+		t.positionsCacheMutex.Unlock()
+
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -319,8 +324,13 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 			}
 		}
 
+		// 如果没有找到多仓，说明已经平仓了，直接返回成功
 		if quantity == 0 {
-			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
+			log.Printf("  ℹ️  %s 没有多仓（可能已平仓），跳过平仓操作", symbol)
+			result := make(map[string]interface{})
+			result["symbol"] = symbol
+			result["status"] = "ALREADY_CLOSED"
+			return result, nil
 		}
 	}
 
@@ -340,10 +350,42 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 		Do(context.Background())
 
 	if err != nil {
+		// 检查是否是"ReduceOnly Order is rejected"错误（code=-2022）
+		errStr := err.Error()
+		if contains(errStr, "code=-2022") || contains(errStr, "ReduceOnly Order is rejected") {
+			log.Printf("  ⚠️  平多仓失败: %s 可能已经平仓，验证持仓状态...", symbol)
+			// 再次检查持仓状态
+			t.positionsCacheMutex.Lock()
+			t.cachedPositions = nil
+			t.positionsCacheMutex.Unlock()
+			
+			positions, checkErr := t.GetPositions()
+			if checkErr == nil {
+				hasLong := false
+				for _, pos := range positions {
+					if pos["symbol"] == symbol && pos["side"] == "long" {
+						hasLong = true
+						break
+					}
+				}
+				if !hasLong {
+					log.Printf("  ✓ 验证确认: %s 已经没有多仓，平仓目标已达成", symbol)
+					result := make(map[string]interface{})
+					result["symbol"] = symbol
+					result["status"] = "ALREADY_CLOSED"
+					return result, nil
+				}
+			}
+		}
 		return nil, fmt.Errorf("平多仓失败: %w", err)
 	}
 
 	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, quantityStr)
+
+	// 清除持仓缓存，确保下次获取最新数据
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheMutex.Unlock()
 
 	// 平仓后取消该币种的所有挂单（止损止盈单）
 	if err := t.CancelAllOrders(symbol); err != nil {
@@ -359,8 +401,13 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 // CloseShort 平空仓
 func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
-	// 如果数量为0，获取当前持仓数量
+	// 如果数量为0，强制刷新持仓缓存，获取最新持仓数量
 	if quantity == 0 {
+		// 清除缓存，强制从API获取最新数据
+		t.positionsCacheMutex.Lock()
+		t.cachedPositions = nil
+		t.positionsCacheMutex.Unlock()
+
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -373,8 +420,13 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 			}
 		}
 
+		// 如果没有找到空仓，说明已经平仓了，直接返回成功
 		if quantity == 0 {
-			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
+			log.Printf("  ℹ️  %s 没有空仓（可能已平仓），跳过平仓操作", symbol)
+			result := make(map[string]interface{})
+			result["symbol"] = symbol
+			result["status"] = "ALREADY_CLOSED"
+			return result, nil
 		}
 	}
 
@@ -394,10 +446,42 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 		Do(context.Background())
 
 	if err != nil {
+		// 检查是否是"ReduceOnly Order is rejected"错误（code=-2022）
+		errStr := err.Error()
+		if contains(errStr, "code=-2022") || contains(errStr, "ReduceOnly Order is rejected") {
+			log.Printf("  ⚠️  平空仓失败: %s 可能已经平仓，验证持仓状态...", symbol)
+			// 再次检查持仓状态
+			t.positionsCacheMutex.Lock()
+			t.cachedPositions = nil
+			t.positionsCacheMutex.Unlock()
+			
+			positions, checkErr := t.GetPositions()
+			if checkErr == nil {
+				hasShort := false
+				for _, pos := range positions {
+					if pos["symbol"] == symbol && pos["side"] == "short" {
+						hasShort = true
+						break
+					}
+				}
+				if !hasShort {
+					log.Printf("  ✓ 验证确认: %s 已经没有空仓，平仓目标已达成", symbol)
+					result := make(map[string]interface{})
+					result["symbol"] = symbol
+					result["status"] = "ALREADY_CLOSED"
+					return result, nil
+				}
+			}
+		}
 		return nil, fmt.Errorf("平空仓失败: %w", err)
 	}
 
 	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, quantityStr)
+
+	// 清除持仓缓存，确保下次获取最新数据
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheMutex.Unlock()
 
 	// 平仓后取消该币种的所有挂单（止损止盈单）
 	if err := t.CancelAllOrders(symbol); err != nil {

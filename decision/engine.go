@@ -55,17 +55,18 @@ type OITopData struct {
 
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
-	CurrentTime     string                  `json:"current_time"`
-	RuntimeMinutes  int                     `json:"runtime_minutes"`
-	CallCount       int                     `json:"call_count"`
-	Account         AccountInfo             `json:"account"`
-	Positions       []PositionInfo          `json:"positions"`
-	CandidateCoins  []CandidateCoin         `json:"candidate_coins"`
-	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
-	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
-	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
-	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	CurrentTime       string                        `json:"current_time"`
+	RuntimeMinutes    int                           `json:"runtime_minutes"`
+	CallCount         int                           `json:"call_count"`
+	Account           AccountInfo                   `json:"account"`
+	Positions         []PositionInfo                `json:"positions"`
+	CandidateCoins    []CandidateCoin               `json:"candidate_coins"`
+	MarketDataMap     map[string]*market.Data       `json:"-"` // 不序列化，但内部使用
+	OITopDataMap      map[string]*OITopData         `json:"-"` // OI Top数据映射
+	Performance       interface{}                   `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	BTCETHLeverage    int                           `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
+	AltcoinLeverage   int                           `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	Environment       *market.EnvironmentAnalysis   `json:"-"` // 市场环境分析
 }
 
 // Decision AI的交易决策
@@ -188,6 +189,16 @@ func fetchMarketDataForContext(ctx *Context) error {
 		}
 	}
 
+	// 添加市场环境分析
+	symbols := make([]string, 0, len(symbolSet))
+	for symbol := range symbolSet {
+		symbols = append(symbols, symbol)
+	}
+	
+	if env, err := market.AnalyzeEnvironment(symbols); err == nil {
+		ctx.Environment = env
+	}
+
 	return nil
 }
 
@@ -256,32 +267,37 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("- 自由运用序列数据，你可以做但不限于趋势分析、形态识别、支撑阻力、技术阻力位、斐波那契、波动带计算\n")
 	sb.WriteString("- 多维度交叉验证（价格+量+OI+指标+序列形态）\n")
 	sb.WriteString("- 用你认为最有效的方法发现高确定性机会\n")
-	sb.WriteString("- 综合信心度 ≥ 75 才开仓\n\n")
+	sb.WriteString("- 综合信心度 ≥ 70 才开仓（根据夏普比率动态调整）\n\n")
 	sb.WriteString("**避免低质量信号**：\n")
 	sb.WriteString("- 单一维度（只看一个指标）\n")
 	sb.WriteString("- 相互矛盾（涨但量萎缩）\n")
-	sb.WriteString("- 横盘震荡\n")
-	sb.WriteString("- 刚平仓不久（<15分钟）\n\n")
+	sb.WriteString("- 明显的横盘震荡（4小时级别波动<2%）\n")
+	sb.WriteString("- 刚平仓不久（<10分钟，除非明确反向信号）\n\n")
+	sb.WriteString("**市场环境适配**：\n")
+	sb.WriteString("- 高波动环境（日波动>5%）→ 可放宽信心度至65\n")
+	sb.WriteString("- 趋势明确环境（连续同向4小时K线≥3根）→ 顺势交易优先\n")
+	sb.WriteString("- 低波动环境（日波动<3%）→ 严格控制，信心度≥75\n\n")
 
 	// === 夏普比率自我进化 ===
 	sb.WriteString("# 🧬 夏普比率自我进化\n\n")
 	sb.WriteString("每次你会收到**夏普比率**作为绩效反馈（周期级别）：\n\n")
-	sb.WriteString("**夏普比率 < -0.5** (持续亏损):\n")
-	sb.WriteString("  → 🛑 停止交易，连续观望至少6个周期（18分钟）\n")
+	sb.WriteString("**夏普比率 < -0.8** (严重亏损):\n")
+	sb.WriteString("  → 🛑 停止交易，连续观望至少4个周期（12分钟）\n")
 	sb.WriteString("  → 🔍 深度反思：\n")
-	sb.WriteString("     • 交易频率过高？（每小时>2次就是过度）\n")
-	sb.WriteString("     • 持仓时间过短？（<30分钟就是过早平仓）\n")
-	sb.WriteString("     • 信号强度不足？（信心度<75）\n")
+	sb.WriteString("     • 交易频率过高？（每小时>3次就是过度）\n")
+	sb.WriteString("     • 持仓时间过短？（<20分钟就是过早平仓）\n")
+	sb.WriteString("     • 信号强度不足？（信心度<70）\n")
 	sb.WriteString("     • 是否在做空？（单边做多是错误的）\n\n")
-	sb.WriteString("**夏普比率 -0.5 ~ 0** (轻微亏损):\n")
-	sb.WriteString("  → ⚠️ 严格控制：只做信心度>80的交易\n")
-	sb.WriteString("  → 减少交易频率：每小时最多1笔新开仓\n")
-	sb.WriteString("  → 耐心持仓：至少持有30分钟以上\n\n")
-	sb.WriteString("**夏普比率 0 ~ 0.7** (正收益):\n")
-	sb.WriteString("  → ✅ 维持当前策略\n\n")
-	sb.WriteString("**夏普比率 > 0.7** (优异表现):\n")
-	sb.WriteString("  → 🚀 可适度扩大仓位\n\n")
-	sb.WriteString("**关键**: 夏普比率是唯一指标，它会自然惩罚频繁交易和过度进出。\n\n")
+	sb.WriteString("**夏普比率 -0.8 ~ -0.2** (中等亏损):\n")
+	sb.WriteString("  → ⚠️ 适度控制：只做信心度>75的交易\n")
+	sb.WriteString("  → 控制交易频率：每小时最多2笔新开仓\n")
+	sb.WriteString("  → 耐心持仓：至少持有25分钟以上\n\n")
+	sb.WriteString("**夏普比率 -0.2 ~ 0.3** (轻微亏损到小幅盈利):\n")
+	sb.WriteString("  → ✅ 正常交易：信心度>70即可开仓\n")
+	sb.WriteString("  → 保持谨慎：每小时最多3笔新开仓\n\n")
+	sb.WriteString("**夏普比率 > 0.3** (良好表现):\n")
+	sb.WriteString("  → 🚀 积极交易：可适度扩大仓位和频率\n\n")
+	sb.WriteString("**关键**: 夏普比率阈值已优化，给予更多交易机会同时控制风险。\n\n")
 
 	// === 决策流程 ===
 	sb.WriteString("# 📋 决策流程\n\n")
@@ -328,6 +344,18 @@ func buildUserPrompt(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("**BTC**: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
 			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
 			btcData.CurrentMACD, btcData.CurrentRSI7))
+	}
+
+	// 市场环境分析
+	if ctx.Environment != nil {
+		sb.WriteString(fmt.Sprintf("**市场环境**: %s市 | 波动率%s | BTC相关性%.2f | 恐贪指数%d(%s) | 风险等级%s | 推荐模式%s\n\n", 
+			getMarketTrendChinese(ctx.Environment.MarketTrend),
+			getVolatilityLevelChinese(ctx.Environment.VolatilityLevel), 
+			ctx.Environment.BTCCorrelation,
+			ctx.Environment.FearGreedIndex,
+			getFearGreedLevelChinese(ctx.Environment.FearGreedLevel),
+			getRiskLevelChinese(ctx.Environment.RiskLevel),
+			getTradingModeChinese(ctx.Environment.TradingMode)))
 	}
 
 	// 账户
@@ -414,6 +442,54 @@ func buildUserPrompt(ctx *Context) string {
 	sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")
 
 	return sb.String()
+}
+
+// 中文翻译辅助函数
+func getMarketTrendChinese(trend string) string {
+	switch trend {
+	case "bull": return "牛"
+	case "bear": return "熊"  
+	case "sideways": return "震荡"
+	default: return "未知"
+	}
+}
+
+func getVolatilityLevelChinese(level string) string {
+	switch level {
+	case "high": return "高"
+	case "medium": return "中"
+	case "low": return "低"
+	default: return "未知"
+	}
+}
+
+func getRiskLevelChinese(level string) string {
+	switch level {
+	case "high": return "高"
+	case "medium": return "中"
+	case "low": return "低"
+	default: return "未知"
+	}
+}
+
+func getTradingModeChinese(mode string) string {
+	switch mode {
+	case "aggressive": return "激进"
+	case "normal": return "正常"
+	case "conservative": return "保守"
+	default: return "未知"
+	}
+}
+
+func getFearGreedLevelChinese(level string) string {
+	switch level {
+	case "Extreme Fear": return "极度恐惧"
+	case "Fear": return "恐惧"
+	case "Neutral": return "中性"
+	case "Greed": return "贪婪"
+	case "Extreme Greed": return "极度贪婪"
+	default: return "未知"
+	}
 }
 
 // parseFullDecisionResponse 解析AI的完整决策响应

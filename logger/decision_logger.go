@@ -7,6 +7,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -77,10 +79,48 @@ func NewDecisionLogger(logDir string) *DecisionLogger {
 		fmt.Printf("⚠ 创建日志目录失败: %v\n", err)
 	}
 
-	return &DecisionLogger{
+	logger := &DecisionLogger{
 		logDir:      logDir,
 		cycleNumber: 0,
 	}
+
+	// 从现有文件中恢复最大周期数
+	if maxCycle, err := logger.getMaxCycleNumber(); err == nil {
+		logger.cycleNumber = maxCycle
+		if maxCycle > 0 {
+			fmt.Printf("📋 恢复决策日志周期计数器: cycle%d\n", maxCycle)
+		}
+	}
+
+	return logger
+}
+
+// getMaxCycleNumber 从现有文件中获取最大周期数
+func (l *DecisionLogger) getMaxCycleNumber() (int, error) {
+	files, err := ioutil.ReadDir(l.logDir)
+	if err != nil {
+		return 0, err
+	}
+
+	maxCycle := 0
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "decision_") || !strings.HasSuffix(file.Name(), ".json") {
+			continue
+		}
+
+		// 解析文件名中的周期数: decision_YYYYMMDD_HHMMSS_cycleN.json
+		parts := strings.Split(file.Name(), "_cycle")
+		if len(parts) != 2 {
+			continue
+		}
+
+		cycleStr := strings.TrimSuffix(parts[1], ".json")
+		if cycle, err := strconv.Atoi(cycleStr); err == nil && cycle > maxCycle {
+			maxCycle = cycle
+		}
+	}
+
+	return maxCycle, nil
 }
 
 // LogDecision 记录决策
@@ -118,16 +158,65 @@ func (l *DecisionLogger) GetLatestRecords(n int) ([]*DecisionRecord, error) {
 		return nil, fmt.Errorf("读取日志目录失败: %w", err)
 	}
 
-	// 先按修改时间倒序收集（最新的在前）
-	var records []*DecisionRecord
-	count := 0
-	for i := len(files) - 1; i >= 0 && count < n; i-- {
-		file := files[i]
-		if file.IsDir() {
+	// 过滤并解析所有决策日志文件
+	type FileWithTime struct {
+		Name     string
+		Time     time.Time
+		CycleNum int
+	}
+
+	var validFiles []FileWithTime
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "decision_") || !strings.HasSuffix(file.Name(), ".json") {
 			continue
 		}
 
-		filepath := filepath.Join(l.logDir, file.Name())
+		// 解析文件名: decision_YYYYMMDD_HHMMSS_cycleN.json
+		parts := strings.Split(file.Name(), "_")
+		if len(parts) < 3 {
+			continue
+		}
+
+		// 提取时间戳
+		timeStr := parts[1] + "_" + parts[2] // YYYYMMDD_HHMMSS
+		parsedTime, err := time.Parse("20060102_150405", timeStr)
+		if err != nil {
+			continue
+		}
+
+		// 提取周期数
+		cycleStr := strings.TrimSuffix(parts[len(parts)-1], ".json")
+		cycleStr = strings.TrimPrefix(cycleStr, "cycle")
+		cycleNum, err := strconv.Atoi(cycleStr)
+		if err != nil {
+			continue
+		}
+
+		validFiles = append(validFiles, FileWithTime{
+			Name:     file.Name(),
+			Time:     parsedTime,
+			CycleNum: cycleNum,
+		})
+	}
+
+	// 按时间戳排序（从新到旧）
+	for i := 0; i < len(validFiles)-1; i++ {
+		for j := i + 1; j < len(validFiles); j++ {
+			if validFiles[i].Time.Before(validFiles[j].Time) {
+				validFiles[i], validFiles[j] = validFiles[j], validFiles[i]
+			}
+		}
+	}
+
+	// 加载最近N个文件的内容
+	var records []*DecisionRecord
+	count := 0
+	for _, fileInfo := range validFiles {
+		if count >= n {
+			break
+		}
+
+		filepath := filepath.Join(l.logDir, fileInfo.Name)
 		data, err := ioutil.ReadFile(filepath)
 		if err != nil {
 			continue
@@ -142,7 +231,7 @@ func (l *DecisionLogger) GetLatestRecords(n int) ([]*DecisionRecord, error) {
 		count++
 	}
 
-	// 反转数组，让时间从旧到新排列（用于图表显示）
+	// 反转数组，让时间从旧到新排列（用于分析）
 	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
 		records[i], records[j] = records[j], records[i]
 	}

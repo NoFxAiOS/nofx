@@ -92,6 +92,7 @@ func (s *Server) setupRoutes() {
 		// 公开的竞赛数据（无需认证）
 		api.GET("/traders", s.handlePublicTraderList)
 		api.GET("/competition", s.handlePublicCompetition)
+		api.GET("/equity-history", s.handleEquityHistory)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -127,7 +128,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
-			protected.GET("/equity-history", s.handleEquityHistory)
 			protected.GET("/performance", s.handlePerformance)
 		}
 	}
@@ -1441,7 +1441,9 @@ func (s *Server) Start() error {
 	log.Printf("🌐 API服务器启动在 http://localhost%s", addr)
 	log.Printf("📊 API文档:")
 	log.Printf("  • GET  /api/health           - 健康检查")
-	log.Printf("  • GET  /api/traders          - AI交易员列表")
+	log.Printf("  • GET  /api/traders          - 公开的AI交易员列表（无需认证）")
+	log.Printf("  • GET  /api/competition      - 公开的竞赛数据（无需认证）")
+	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 公开的收益率历史数据（无需认证，竞赛用）")
 	log.Printf("  • POST /api/traders          - 创建新的AI交易员")
 	log.Printf("  • DELETE /api/traders/:id    - 删除AI交易员")
 	log.Printf("  • POST /api/traders/:id/start - 启动AI交易员")
@@ -1456,7 +1458,6 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/decisions?trader_id=xxx  - 指定trader的决策日志")
 	log.Printf("  • GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
 	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
-	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 指定trader的收益率历史数据")
 	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
 	log.Println()
 
@@ -1555,3 +1556,4 @@ func (s *Server) handlePublicCompetition(c *gin.Context) {
 	
 	c.JSON(http.StatusOK, competition)
 }
+

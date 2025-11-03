@@ -94,7 +94,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/competition", s.handlePublicCompetition)
 		api.GET("/top-traders", s.handleTopTraders)
 		api.GET("/equity-history", s.handleEquityHistory)
-		api.GET("/equity-history-batch", s.handleEquityHistoryBatch)
+		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
 		// 需要认证的路由
@@ -1602,49 +1602,56 @@ func (s *Server) handleTopTraders(c *gin.Context) {
 
 // handleEquityHistoryBatch 批量获取多个交易员的收益率历史数据（无需认证，用于表现对比）
 func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
-	// 获取trader_ids参数，支持逗号分隔的多个ID
-	traderIDsParam := c.Query("trader_ids")
-	if traderIDsParam == "" {
-		// 如果没有指定trader_ids，则返回前10名的历史数据
-		topTraders, err := s.traderManager.GetTopTradersData()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("获取前10名交易员失败: %v", err),
-			})
-			return
-		}
-		
-		traders, ok := topTraders["traders"].([]map[string]interface{})
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "交易员数据格式错误"})
-			return
-		}
-		
-		// 提取trader IDs
-		traderIDs := make([]string, 0, len(traders))
-		for _, trader := range traders {
-			if traderID, ok := trader["trader_id"].(string); ok {
-				traderIDs = append(traderIDs, traderID)
-			}
-		}
-		
-		result := s.getEquityHistoryForTraders(traderIDs)
-		c.JSON(http.StatusOK, result)
-		return
+	var requestBody struct {
+		TraderIDs []string `json:"trader_ids"`
 	}
 	
-	// 解析逗号分隔的trader IDs
-	traderIDs := strings.Split(traderIDsParam, ",")
-	for i := range traderIDs {
-		traderIDs[i] = strings.TrimSpace(traderIDs[i])
+	// 尝试解析POST请求的JSON body
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		// 如果JSON解析失败，尝试从query参数获取（兼容GET请求）
+		traderIDsParam := c.Query("trader_ids")
+		if traderIDsParam == "" {
+			// 如果没有指定trader_ids，则返回前10名的历史数据
+			topTraders, err := s.traderManager.GetTopTradersData()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": fmt.Sprintf("获取前10名交易员失败: %v", err),
+				})
+				return
+			}
+			
+			traders, ok := topTraders["traders"].([]map[string]interface{})
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "交易员数据格式错误"})
+				return
+			}
+			
+			// 提取trader IDs
+			traderIDs := make([]string, 0, len(traders))
+			for _, trader := range traders {
+				if traderID, ok := trader["trader_id"].(string); ok {
+					traderIDs = append(traderIDs, traderID)
+				}
+			}
+			
+			result := s.getEquityHistoryForTraders(traderIDs)
+			c.JSON(http.StatusOK, result)
+			return
+		}
+		
+		// 解析逗号分隔的trader IDs
+		requestBody.TraderIDs = strings.Split(traderIDsParam, ",")
+		for i := range requestBody.TraderIDs {
+			requestBody.TraderIDs[i] = strings.TrimSpace(requestBody.TraderIDs[i])
+		}
 	}
 	
 	// 限制最多20个交易员，防止请求过大
-	if len(traderIDs) > 20 {
-		traderIDs = traderIDs[:20]
+	if len(requestBody.TraderIDs) > 20 {
+		requestBody.TraderIDs = requestBody.TraderIDs[:20]
 	}
 	
-	result := s.getEquityHistoryForTraders(traderIDs)
+	result := s.getEquityHistoryForTraders(requestBody.TraderIDs)
 	c.JSON(http.StatusOK, result)
 }
 

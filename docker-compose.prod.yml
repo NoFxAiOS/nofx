@@ -1,0 +1,88 @@
+# 服务器生产环境 Docker Compose 配置
+# 包含优化的风控策略和环境变量支持
+
+version: '3.8'
+
+services:
+  nofx-trading:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: nofx-trading-prod
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./decision_logs:/app/decision_logs
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=Asia/Shanghai
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - ASTER_PRIVATE_KEY=${ASTER_PRIVATE_KEY:-}
+    networks:
+      - nofx-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nofx-frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: nofx-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - nofx-trading
+    networks:
+      - nofx-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # 可选：添加监控组件
+  watchtower:
+    image: containrrr/watchtower
+    container_name: nofx-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600
+      - WATCHTOWER_INCLUDE_STOPPED=true
+    networks:
+      - nofx-network
+    profiles:
+      - monitoring
+
+networks:
+  nofx-network:
+    driver: bridge
+    name: nofx-prod-network
+
+# 可选：添加数据持久化
+volumes:
+  decision_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /opt/nofx-trading/decision_logs

@@ -9,6 +9,7 @@ import (
 	"nofx/config"
 	"nofx/decision"
 	"nofx/manager"
+	"nofx/trader"
 	"strconv"
 	"strings"
 	"time"
@@ -347,6 +348,73 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3 // 默认3分钟
 	}
 
+	// ✨ 查询交易所实际余额，覆盖用户输入
+	actualBalance := req.InitialBalance // 默认使用用户输入
+	exchanges, err := s.database.GetExchanges(userID)
+	if err != nil {
+		log.Printf("⚠️ 获取交易所配置失败，使用用户输入的初始资金: %v", err)
+	}
+
+	// 查找匹配的交易所配置
+	var exchangeCfg *config.ExchangeConfig
+	for _, ex := range exchanges {
+		if ex.ID == req.ExchangeID {
+			exchangeCfg = ex
+			break
+		}
+	}
+
+	if exchangeCfg == nil {
+		log.Printf("⚠️ 未找到交易所 %s 的配置，使用用户输入的初始资金", req.ExchangeID)
+	} else if !exchangeCfg.Enabled {
+		log.Printf("⚠️ 交易所 %s 未启用，使用用户输入的初始资金", req.ExchangeID)
+	} else {
+		// 根据交易所类型创建临时 trader 查询余额
+		var tempTrader trader.Trader
+		var createErr error
+
+		switch req.ExchangeID {
+		case "binance":
+			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey)
+		case "hyperliquid":
+			tempTrader, createErr = trader.NewHyperliquidTrader(
+				exchangeCfg.APIKey, // private key
+				exchangeCfg.HyperliquidWalletAddr,
+				exchangeCfg.Testnet,
+			)
+		case "aster":
+			tempTrader, createErr = trader.NewAsterTrader(
+				exchangeCfg.AsterUser,
+				exchangeCfg.AsterSigner,
+				exchangeCfg.AsterPrivateKey,
+			)
+		default:
+			log.Printf("⚠️ 不支持的交易所类型: %s，使用用户输入的初始资金", req.ExchangeID)
+		}
+
+		if createErr != nil {
+			log.Printf("⚠️ 创建临时 trader 失败，使用用户输入的初始资金: %v", createErr)
+		} else if tempTrader != nil {
+			// 查询实际余额
+			balanceInfo, balanceErr := tempTrader.GetBalance()
+			if balanceErr != nil {
+				log.Printf("⚠️ 查询交易所余额失败，使用用户输入的初始资金: %v", balanceErr)
+			} else {
+				// 提取可用余额
+				if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
+					actualBalance = availableBalance
+					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
+				} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
+					// 有些交易所可能只返回 balance 字段
+					actualBalance = totalBalance
+					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
+				} else {
+					log.Printf("⚠️ 无法从余额信息中提取可用余额，使用用户输入的初始资金")
+				}
+			}
+		}
+	}
+
 	// 创建交易员配置（数据库实体）
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -354,7 +422,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		Name:                 req.Name,
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
-		InitialBalance:       req.InitialBalance,
+		InitialBalance:       actualBalance, // 使用实际查询的余额
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
@@ -369,7 +437,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 保存到数据库
-	err := s.database.CreateTrader(trader)
+	err = s.database.CreateTrader(traderRecord)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("创建交易员失败: %v", err)})
 		return

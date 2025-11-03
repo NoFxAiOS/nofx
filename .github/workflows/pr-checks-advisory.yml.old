@@ -9,7 +9,7 @@ on:
 # Results will be posted as comments to help contributors improve their PRs
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   checks: write
   issues: write

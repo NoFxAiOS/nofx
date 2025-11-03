@@ -92,6 +92,10 @@ func (s *Server) setupRoutes() {
 		// 公开的竞赛数据（无需认证）
 		api.GET("/traders", s.handlePublicTraderList)
 		api.GET("/competition", s.handlePublicCompetition)
+		api.GET("/top-traders", s.handleTopTraders)
+		api.GET("/equity-history", s.handleEquityHistory)
+		api.GET("/equity-history-batch", s.handleEquityHistoryBatch)
+		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -127,7 +131,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
-			protected.GET("/equity-history", s.handleEquityHistory)
 			protected.GET("/performance", s.handlePerformance)
 		}
 	}
@@ -513,7 +516,15 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 
 // handleStartTrader 启动交易员
 func (s *Server) handleStartTrader(c *gin.Context) {
+	userID := c.GetString("user_id")
 	traderID := c.Param("id")
+	
+	// 校验交易员是否属于当前用户
+	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
+		return
+	}
 	
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
@@ -537,7 +548,6 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	}()
 	
 	// 更新数据库中的运行状态
-	userID := c.GetString("user_id")
 	err = s.database.UpdateTraderStatus(userID, traderID, true)
 	if err != nil {
 		log.Printf("⚠️  更新交易员状态失败: %v", err)
@@ -549,7 +559,15 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 
 // handleStopTrader 停止交易员
 func (s *Server) handleStopTrader(c *gin.Context) {
+	userID := c.GetString("user_id")
 	traderID := c.Param("id")
+	
+	// 校验交易员是否属于当前用户
+	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
+		return
+	}
 	
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
@@ -568,7 +586,6 @@ func (s *Server) handleStopTrader(c *gin.Context) {
 	trader.Stop()
 	
 	// 更新数据库中的运行状态
-	userID := c.GetString("user_id")
 	err = s.database.UpdateTraderStatus(userID, traderID, false)
 	if err != nil {
 		log.Printf("⚠️  更新交易员状态失败: %v", err)
@@ -1441,7 +1458,12 @@ func (s *Server) Start() error {
 	log.Printf("🌐 API服务器启动在 http://localhost%s", addr)
 	log.Printf("📊 API文档:")
 	log.Printf("  • GET  /api/health           - 健康检查")
-	log.Printf("  • GET  /api/traders          - AI交易员列表")
+	log.Printf("  • GET  /api/traders          - 公开的AI交易员排行榜前50名（无需认证）")
+	log.Printf("  • GET  /api/competition      - 公开的竞赛数据（无需认证）")
+	log.Printf("  • GET  /api/top-traders      - 前10名交易员数据（无需认证，表现对比用）")
+	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 公开的收益率历史数据（无需认证，竞赛用）")
+	log.Printf("  • GET  /api/equity-history-batch?trader_ids=a,b,c - 批量获取历史数据（无需认证，表现对比优化）")
+	log.Printf("  • GET  /api/traders/:id/public-config - 公开的交易员配置（无需认证，不含敏感信息）")
 	log.Printf("  • POST /api/traders          - 创建新的AI交易员")
 	log.Printf("  • DELETE /api/traders/:id    - 删除AI交易员")
 	log.Printf("  • POST /api/traders/:id/start - 启动AI交易员")
@@ -1456,7 +1478,6 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/decisions?trader_id=xxx  - 指定trader的决策日志")
 	log.Printf("  • GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
 	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
-	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 指定trader的收益率历史数据")
 	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
 	log.Println()
 
@@ -1555,3 +1576,146 @@ func (s *Server) handlePublicCompetition(c *gin.Context) {
 	
 	c.JSON(http.StatusOK, competition)
 }
+
+// handleTopTraders 获取前10名交易员数据（无需认证，用于表现对比）
+func (s *Server) handleTopTraders(c *gin.Context) {
+	topTraders, err := s.traderManager.GetTopTradersData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取前10名交易员数据失败: %v", err),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, topTraders)
+}
+
+// handleEquityHistoryBatch 批量获取多个交易员的收益率历史数据（无需认证，用于表现对比）
+func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
+	// 获取trader_ids参数，支持逗号分隔的多个ID
+	traderIDsParam := c.Query("trader_ids")
+	if traderIDsParam == "" {
+		// 如果没有指定trader_ids，则返回前10名的历史数据
+		topTraders, err := s.traderManager.GetTopTradersData()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("获取前10名交易员失败: %v", err),
+			})
+			return
+		}
+		
+		traders, ok := topTraders["traders"].([]map[string]interface{})
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "交易员数据格式错误"})
+			return
+		}
+		
+		// 提取trader IDs
+		traderIDs := make([]string, 0, len(traders))
+		for _, trader := range traders {
+			if traderID, ok := trader["trader_id"].(string); ok {
+				traderIDs = append(traderIDs, traderID)
+			}
+		}
+		
+		result := s.getEquityHistoryForTraders(traderIDs)
+		c.JSON(http.StatusOK, result)
+		return
+	}
+	
+	// 解析逗号分隔的trader IDs
+	traderIDs := strings.Split(traderIDsParam, ",")
+	for i := range traderIDs {
+		traderIDs[i] = strings.TrimSpace(traderIDs[i])
+	}
+	
+	// 限制最多20个交易员，防止请求过大
+	if len(traderIDs) > 20 {
+		traderIDs = traderIDs[:20]
+	}
+	
+	result := s.getEquityHistoryForTraders(traderIDs)
+	c.JSON(http.StatusOK, result)
+}
+
+// getEquityHistoryForTraders 获取多个交易员的历史数据
+func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]interface{} {
+	result := make(map[string]interface{})
+	histories := make(map[string]interface{})
+	errors := make(map[string]string)
+	
+	for _, traderID := range traderIDs {
+		if traderID == "" {
+			continue
+		}
+		
+		trader, err := s.traderManager.GetTrader(traderID)
+		if err != nil {
+			errors[traderID] = "交易员不存在"
+			continue
+		}
+		
+		// 获取历史数据（用于对比展示，限制数据量）
+		records, err := trader.GetDecisionLogger().GetLatestRecords(500)
+		if err != nil {
+			errors[traderID] = fmt.Sprintf("获取历史数据失败: %v", err)
+			continue
+		}
+		
+		// 构建收益率历史数据
+		history := make([]map[string]interface{}, 0, len(records))
+		for _, record := range records {
+			// 计算总权益（余额+未实现盈亏）
+			totalEquity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
+			
+			history = append(history, map[string]interface{}{
+				"timestamp":    record.Timestamp,
+				"total_equity": totalEquity,
+				"total_pnl":    record.AccountState.TotalUnrealizedProfit,
+				"balance":      record.AccountState.TotalBalance,
+			})
+		}
+		
+		histories[traderID] = history
+	}
+	
+	result["histories"] = histories
+	result["count"] = len(histories)
+	if len(errors) > 0 {
+		result["errors"] = errors
+	}
+	
+	return result
+}
+
+// handleGetPublicTraderConfig 获取公开的交易员配置信息（无需认证，不包含敏感信息）
+func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
+	traderID := c.Param("id")
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "交易员ID不能为空"})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
+	// 获取交易员的状态信息
+	status := trader.GetStatus()
+
+	// 只返回公开的配置信息，不包含API密钥等敏感数据
+	result := map[string]interface{}{
+		"trader_id":   trader.GetID(),
+		"trader_name": trader.GetName(),
+		"ai_model":    trader.GetAIModel(),
+		"exchange":    trader.GetExchange(),
+		"is_running":  status["is_running"],
+		"ai_provider": status["ai_provider"],
+		"start_time":  status["start_time"],
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+

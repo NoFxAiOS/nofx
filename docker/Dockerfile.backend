@@ -47,7 +47,9 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build -trimpath -ldflags="-s -w" -o nofx .
+RUN CGO_ENABLED=1 GOOS=linux \
+    CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
+    go build -trimpath -ldflags="-s -w" -o nofx .
 
 # ──────────────────────────────────────────────────────────────
 # Runtime Stage (Minimal Executable Environment)

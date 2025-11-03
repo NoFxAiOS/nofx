@@ -567,9 +567,9 @@ Open your browser and visit: **🌐 http://localhost:3000**
       "ai_model": "deepseek",
       "exchange": "aster",
 
-      "aster_user": "0x63DD5aCC6b1aa0f563956C0e534DD30B6dcF7C4e",
-      "aster_signer": "0x21cF8Ae13Bb72632562c6Fff438652Ba1a151bb0",
-      "aster_private_key": "4fd0a42218f3eae43a6ce26d22544e986139a01e5b34a62db53757ffca81bae1",
+      "aster_user": "0xYOUR_MAIN_WALLET_ADDRESS_HERE",
+      "aster_signer": "0xYOUR_API_WALLET_SIGNER_ADDRESS_HERE",
+      "aster_private_key": "your_api_wallet_private_key_without_0x_prefix",
 
       "deepseek_key": "sk-xxxxxxxxxxxxx",
       "initial_balance": 1000.0,
@@ -1169,6 +1169,8 @@ GET /api/health                   # Health check
 ---
 
 ## 🛠️ Common Issues
+
+> 📖 **For detailed troubleshooting:** See the comprehensive [Troubleshooting Guide](docs/guides/TROUBLESHOOTING.md) ([中文版](docs/guides/TROUBLESHOOTING.zh-CN.md))
 
 ### 1. Compilation error: TA-Lib not found
 

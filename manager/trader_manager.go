@@ -6,6 +6,7 @@ import (
 	"log"
 	"nofx/config"
 	"nofx/trader"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -525,10 +526,106 @@ func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 		
 		traders = append(traders, traderData)
 	}
+	
+	// 按收益率排序（降序）
+	sort.Slice(traders, func(i, j int) bool {
+		pnlPctI, okI := traders[i]["total_pnl_pct"].(float64)
+		pnlPctJ, okJ := traders[j]["total_pnl_pct"].(float64)
+		if !okI {
+			pnlPctI = 0
+		}
+		if !okJ {
+			pnlPctJ = 0
+		}
+		return pnlPctI > pnlPctJ
+	})
+	
+	// 限制返回前50名
+	totalCount := len(traders)
+	limit := 50
+	if len(traders) > limit {
+		traders = traders[:limit]
+	}
+	
 	comparison["traders"] = traders
 	comparison["count"] = len(traders)
+	comparison["total_count"] = totalCount // 总交易员数量
 
 	return comparison, nil
+}
+
+// GetTopTradersData 获取前10名交易员数据（用于表现对比）
+func (tm *TraderManager) GetTopTradersData() (map[string]interface{}, error) {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	traders := make([]map[string]interface{}, 0)
+
+	// 获取全平台所有交易员
+	for _, t := range tm.traders {
+		account, err := t.GetAccountInfo()
+		status := t.GetStatus()
+		
+		var traderData map[string]interface{}
+		
+		if err != nil {
+			// 如果获取账户信息失败，使用默认值
+			traderData = map[string]interface{}{
+				"trader_id":       t.GetID(),
+				"trader_name":     t.GetName(),
+				"ai_model":        t.GetAIModel(),
+				"exchange":        t.GetExchange(),
+				"total_equity":    0.0,
+				"total_pnl":       0.0,
+				"total_pnl_pct":   0.0,
+				"position_count":  0,
+				"margin_used_pct": 0.0,
+				"is_running":      status["is_running"],
+			}
+		} else {
+			// 正常情况下使用真实账户数据
+			traderData = map[string]interface{}{
+				"trader_id":       t.GetID(),
+				"trader_name":     t.GetName(),
+				"ai_model":        t.GetAIModel(),
+				"exchange":        t.GetExchange(),
+				"total_equity":    account["total_equity"],
+				"total_pnl":       account["total_pnl"],
+				"total_pnl_pct":   account["total_pnl_pct"],
+				"position_count":  account["position_count"],
+				"margin_used_pct": account["margin_used_pct"],
+				"is_running":      status["is_running"],
+			}
+		}
+		
+		traders = append(traders, traderData)
+	}
+	
+	// 按收益率排序（降序）
+	sort.Slice(traders, func(i, j int) bool {
+		pnlPctI, okI := traders[i]["total_pnl_pct"].(float64)
+		pnlPctJ, okJ := traders[j]["total_pnl_pct"].(float64)
+		if !okI {
+			pnlPctI = 0
+		}
+		if !okJ {
+			pnlPctJ = 0
+		}
+		return pnlPctI > pnlPctJ
+	})
+	
+	// 限制返回前10名
+	limit := 10
+	if len(traders) > limit {
+		traders = traders[:limit]
+	}
+	
+	result := map[string]interface{}{
+		"traders": traders,
+		"count":   len(traders),
+	}
+
+	return result, nil
 }
 
 // isUserTrader 检查trader是否属于指定用户

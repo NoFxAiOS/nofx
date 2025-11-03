@@ -7,11 +7,13 @@ on:
       - dev
       - main
 
-# Default permissions for all jobs (can be overridden per job)
+# Default permissions for all jobs
+# Note: Fork PRs won't have write access for security
+# Advisory checks use separate workflow (pr-checks-run.yml + pr-checks-comment.yml)
 permissions:
   contents: read           # Read repository contents
-  pull-requests: write     # Manage PRs (labels, comments)
-  issues: write           # Manage issues (PRs are issues)
+  pull-requests: write     # Manage PRs (labels, comments) - only works for non-fork PRs
+  issues: write           # Manage issues (PRs are issues) - only works for non-fork PRs
 
 jobs:
   # Validate PR title and description
@@ -50,12 +52,16 @@ jobs:
 
       - name: Check PR size
         uses: actions/github-script@v7
+        continue-on-error: true  # Don't fail for fork PRs
         with:
           script: |
             const pr = context.payload.pull_request;
             const additions = pr.additions;
             const deletions = pr.deletions;
             const total = additions + deletions;
+
+            // Check if this is a fork PR
+            const isFork = pr.head.repo.full_name !== pr.base.repo.full_name;
 
             let label = '';
             let comment = '';
@@ -71,22 +77,31 @@ jobs:
               comment = '🚨 This PR is **large** (>' + total + ' lines changed). Please consider breaking it into smaller, focused PRs for easier review.';
             }
 
-            // Add size label
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number,
-              labels: [label]
-            });
+            // Only add labels/comments for non-fork PRs (fork PRs don't have write permission)
+            if (!isFork) {
+              try {
+                // Add size label
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  labels: [label]
+                });
 
-            // Add comment for large PRs
-            if (total >= 1000) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pr.number,
-                body: comment
-              });
+                // Add comment for large PRs
+                if (total >= 1000) {
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: pr.number,
+                    body: comment
+                  });
+                }
+              } catch (error) {
+                console.log('Failed to add label/comment (expected for fork PRs):', error.message);
+              }
+            } else {
+              console.log('Fork PR detected - skipping label/comment (will be handled by pr-checks-comment.yml)');
             }
 
   # Backend tests
@@ -186,6 +201,8 @@ jobs:
   auto-label:
     name: Auto Label PR
     runs-on: ubuntu-latest
+    # Only run for non-fork PRs (fork PRs don't have write permission)
+    if: github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
       pull-requests: write

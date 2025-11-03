@@ -1,0 +1,238 @@
+name: PR Checks - Run
+
+# This workflow runs all PR checks with read-only permissions
+# Safe for fork PRs - results are saved as artifacts
+# Companion workflow (pr-checks-comment.yml) will post comments
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, dev]
+
+# Read-only permissions - safe for fork PRs
+permissions:
+  contents: read
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title format
+        id: check-title
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Check if title follows conventional commits
+          if echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\(.+\))?: .+"; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "message=PR title follows Conventional Commits format" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Suggestion" >> $GITHUB_OUTPUT
+            echo "message=Consider using Conventional Commits format: type(scope): description" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Calculate PR size and save results
+        id: pr-size
+        run: |
+          ADDITIONS=${{ github.event.pull_request.additions }}
+          DELETIONS=${{ github.event.pull_request.deletions }}
+          TOTAL=$((ADDITIONS + DELETIONS))
+
+          if [ $TOTAL -lt 100 ]; then
+            SIZE="🟢 Small"
+            SUGGESTION=""
+          elif [ $TOTAL -lt 500 ]; then
+            SIZE="🟡 Medium"
+            SUGGESTION=""
+          else
+            SIZE="🔴 Large"
+            SUGGESTION="Consider breaking this into smaller PRs for easier review"
+          fi
+
+          # Save all results to JSON file
+          cat > pr-info.json <<EOF
+          {
+            "pr_number": ${{ github.event.pull_request.number }},
+            "title_status": "${{ steps.check-title.outputs.status }}",
+            "title_message": "${{ steps.check-title.outputs.message }}",
+            "size": "$SIZE",
+            "lines": $TOTAL,
+            "size_suggestion": "$SUGGESTION"
+          }
+          EOF
+
+          cat pr-info.json
+
+      - name: Upload PR info results
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-info-results
+          path: pr-info.json
+          retention-days: 1
+
+  backend-checks:
+    name: Backend Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libta-lib-dev || true
+          go mod download || true
+
+      - name: Check Go formatting
+        id: go-fmt
+        continue-on-error: true
+        run: |
+          UNFORMATTED=$(gofmt -l . 2>/dev/null || echo "")
+          if [ -n "$UNFORMATTED" ]; then
+            echo "status=⚠️ Needs formatting" >> $GITHUB_OUTPUT
+            echo "$UNFORMATTED" | head -10 > fmt-files.txt
+          else
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "" > fmt-files.txt
+          fi
+
+      - name: Run go vet
+        id: go-vet
+        continue-on-error: true
+        run: |
+          if go vet ./... 2>&1 | tee vet-output.txt; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Issues found" >> $GITHUB_OUTPUT
+            cat vet-output.txt | head -20 > vet-output-short.txt
+          fi
+
+      - name: Run tests
+        id: go-test
+        continue-on-error: true
+        run: |
+          if go test ./... -v 2>&1 | tee test-output.txt; then
+            echo "status=✅ Passed" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Failed" >> $GITHUB_OUTPUT
+            cat test-output.txt | tail -30 > test-output-short.txt
+          fi
+
+      - name: Save backend results
+        if: always()
+        run: |
+          cat > backend-results.json <<EOF
+          {
+            "pr_number": ${{ github.event.pull_request.number }},
+            "fmt_status": "${{ steps.go-fmt.outputs.status }}",
+            "vet_status": "${{ steps.go-vet.outputs.status }}",
+            "test_status": "${{ steps.go-test.outputs.status }}"
+          }
+          EOF
+
+      - name: Upload backend results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-results
+          path: |
+            backend-results.json
+            fmt-files.txt
+            vet-output-short.txt
+            test-output-short.txt
+          retention-days: 1
+
+  frontend-checks:
+    name: Frontend Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Check if web directory exists
+        id: check-web
+        run: |
+          if [ -d "web" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        if: steps.check-web.outputs.exists == 'true'
+        working-directory: ./web
+        continue-on-error: true
+        run: npm ci
+
+      - name: Run linter
+        if: steps.check-web.outputs.exists == 'true'
+        id: lint
+        working-directory: ./web
+        continue-on-error: true
+        run: |
+          if npm run lint 2>&1 | tee lint-output.txt; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Issues found" >> $GITHUB_OUTPUT
+            cat lint-output.txt | head -20 > lint-output-short.txt
+          fi
+
+      - name: Type check
+        if: steps.check-web.outputs.exists == 'true'
+        id: typecheck
+        working-directory: ./web
+        continue-on-error: true
+        run: |
+          if npm run type-check 2>&1 | tee typecheck-output.txt; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Issues found" >> $GITHUB_OUTPUT
+            cat typecheck-output.txt | head -20 > typecheck-output-short.txt
+          fi
+
+      - name: Build
+        if: steps.check-web.outputs.exists == 'true'
+        id: build
+        working-directory: ./web
+        continue-on-error: true
+        run: |
+          if npm run build 2>&1 | tee build-output.txt; then
+            echo "status=✅ Success" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Failed" >> $GITHUB_OUTPUT
+            cat build-output.txt | tail -20 > build-output-short.txt
+          fi
+
+      - name: Save frontend results
+        if: always() && steps.check-web.outputs.exists == 'true'
+        working-directory: ./web
+        run: |
+          cat > frontend-results.json <<EOF
+          {
+            "pr_number": ${{ github.event.pull_request.number }},
+            "lint_status": "${{ steps.lint.outputs.status }}",
+            "typecheck_status": "${{ steps.typecheck.outputs.status }}",
+            "build_status": "${{ steps.build.outputs.status }}"
+          }
+          EOF
+
+      - name: Upload frontend results
+        if: always() && steps.check-web.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-results
+          path: |
+            web/frontend-results.json
+            web/lint-output-short.txt
+            web/typecheck-output-short.txt
+            web/build-output-short.txt
+          retention-days: 1

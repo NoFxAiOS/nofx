@@ -1,0 +1,239 @@
+name: PR Checks - Comment
+
+# This workflow posts PR check results as comments
+# Runs in the main repo context with write permissions (SAFE)
+# Triggered after pr-checks-run.yml completes
+
+on:
+  workflow_run:
+    workflows: ["PR Checks - Run"]
+    types: [completed]
+
+# Write permissions - SAFE because runs in main repo context
+# This token has write access to the base repository
+# Fork PRs exist in the base repo, so we can comment on them
+permissions:
+  pull-requests: write
+  issues: write
+  actions: read  # Needed to download artifacts
+
+jobs:
+  comment:
+    name: Post Check Results
+    runs-on: ubuntu-latest
+    # Only run if the workflow was triggered by a pull_request event
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "=== Checking downloaded artifacts ==="
+          ls -la artifacts/ || echo "No artifacts directory"
+          find artifacts/ -type f || echo "No files found"
+
+      - name: Read PR info results
+        id: pr-info
+        continue-on-error: true
+        run: |
+          if [ -f artifacts/pr-info-results/pr-info.json ]; then
+            echo "=== PR Info JSON ==="
+            cat artifacts/pr-info-results/pr-info.json
+            echo "pr_number=$(jq -r '.pr_number' artifacts/pr-info-results/pr-info.json)" >> $GITHUB_OUTPUT
+            echo "title_status=$(jq -r '.title_status' artifacts/pr-info-results/pr-info.json)" >> $GITHUB_OUTPUT
+            echo "title_message=$(jq -r '.title_message' artifacts/pr-info-results/pr-info.json)" >> $GITHUB_OUTPUT
+            echo "size=$(jq -r '.size' artifacts/pr-info-results/pr-info.json)" >> $GITHUB_OUTPUT
+            echo "lines=$(jq -r '.lines' artifacts/pr-info-results/pr-info.json)" >> $GITHUB_OUTPUT
+            echo "size_suggestion=$(jq -r '.size_suggestion' artifacts/pr-info-results/pr-info.json)" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=0" >> $GITHUB_OUTPUT
+            echo "⚠️ PR info artifact not found"
+          fi
+
+      - name: Read backend results
+        id: backend
+        continue-on-error: true
+        run: |
+          if [ -f artifacts/backend-results/backend-results.json ]; then
+            echo "=== Backend Results JSON ==="
+            cat artifacts/backend-results/backend-results.json
+            echo "fmt_status=$(jq -r '.fmt_status' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+            echo "vet_status=$(jq -r '.vet_status' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+            echo "test_status=$(jq -r '.test_status' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+
+            # Read output files
+            if [ -f artifacts/backend-results/fmt-files.txt ]; then
+              echo "fmt_files<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/backend-results/fmt-files.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            if [ -f artifacts/backend-results/vet-output-short.txt ]; then
+              echo "vet_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/backend-results/vet-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            if [ -f artifacts/backend-results/test-output-short.txt ]; then
+              echo "test_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/backend-results/test-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Backend results artifact not found"
+          fi
+
+      - name: Read frontend results
+        id: frontend
+        continue-on-error: true
+        run: |
+          if [ -f artifacts/frontend-results/frontend-results.json ]; then
+            echo "=== Frontend Results JSON ==="
+            cat artifacts/frontend-results/frontend-results.json
+            echo "lint_status=$(jq -r '.lint_status' artifacts/frontend-results/frontend-results.json)" >> $GITHUB_OUTPUT
+            echo "typecheck_status=$(jq -r '.typecheck_status' artifacts/frontend-results/frontend-results.json)" >> $GITHUB_OUTPUT
+            echo "build_status=$(jq -r '.build_status' artifacts/frontend-results/frontend-results.json)" >> $GITHUB_OUTPUT
+
+            # Read output files
+            if [ -f artifacts/frontend-results/lint-output-short.txt ]; then
+              echo "lint_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/frontend-results/lint-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            if [ -f artifacts/frontend-results/typecheck-output-short.txt ]; then
+              echo "typecheck_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/frontend-results/typecheck-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            if [ -f artifacts/frontend-results/build-output-short.txt ]; then
+              echo "build_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/frontend-results/build-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Frontend results artifact not found"
+          fi
+
+      - name: Post combined comment
+        if: steps.pr-info.outputs.pr_number != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.pr-info.outputs.pr_number }};
+
+            // PR Info section
+            const titleStatus = '${{ steps.pr-info.outputs.title_status }}' || '⚠️ Unknown';
+            const prSize = '${{ steps.pr-info.outputs.size }}' || '⚠️ Unknown';
+            const prLines = '${{ steps.pr-info.outputs.lines }}' || '0';
+            const sizeSuggestion = '${{ steps.pr-info.outputs.size_suggestion }}' || '';
+
+            let comment = '## 🤖 PR Checks Results\n\n';
+            comment += 'Thank you for your contribution! Here are the automated check results:\n\n';
+
+            // PR Info
+            comment += '### 📋 PR Information\n\n';
+            comment += '**Title Format:** ' + titleStatus + '\n';
+            comment += '**PR Size:** ' + prSize + ' (' + prLines + ' lines changed)\n';
+            if (sizeSuggestion) {
+              comment += '\n💡 **Suggestion:** ' + sizeSuggestion + '\n';
+            }
+
+            // Backend checks
+            const fmtStatus = '${{ steps.backend.outputs.fmt_status }}';
+            const vetStatus = '${{ steps.backend.outputs.vet_status }}';
+            const testStatus = '${{ steps.backend.outputs.test_status }}';
+
+            if (fmtStatus || vetStatus || testStatus) {
+              comment += '\n### 🔧 Backend Checks\n\n';
+
+              if (fmtStatus) {
+                comment += '**Go Formatting:** ' + fmtStatus + '\n';
+                const fmtFiles = `${{ steps.backend.outputs.fmt_files }}`;
+                if (fmtFiles && fmtFiles.trim()) {
+                  comment += '<details><summary>Files needing formatting</summary>\n\n```\n' + fmtFiles + '\n```\n</details>\n\n';
+                }
+              }
+
+              if (vetStatus) {
+                comment += '**Go Vet:** ' + vetStatus + '\n';
+                const vetOutput = `${{ steps.backend.outputs.vet_output }}`;
+                if (vetOutput && vetOutput.trim()) {
+                  comment += '<details><summary>Issues found</summary>\n\n```\n' + vetOutput.substring(0, 1000) + '\n```\n</details>\n\n';
+                }
+              }
+
+              if (testStatus) {
+                comment += '**Tests:** ' + testStatus + '\n';
+                const testOutput = `${{ steps.backend.outputs.test_output }}`;
+                if (testOutput && testOutput.trim()) {
+                  comment += '<details><summary>Test output</summary>\n\n```\n' + testOutput.substring(0, 1000) + '\n```\n</details>\n\n';
+                }
+              }
+
+              comment += '\n**Fix locally:**\n';
+              comment += '```bash\n';
+              comment += 'go fmt ./...      # Format code\n';
+              comment += 'go vet ./...      # Check for issues\n';
+              comment += 'go test ./...     # Run tests\n';
+              comment += '```\n';
+            }
+
+            // Frontend checks
+            const lintStatus = '${{ steps.frontend.outputs.lint_status }}';
+            const typecheckStatus = '${{ steps.frontend.outputs.typecheck_status }}';
+            const buildStatus = '${{ steps.frontend.outputs.build_status }}';
+
+            if (lintStatus || typecheckStatus || buildStatus) {
+              comment += '\n### ⚛️ Frontend Checks\n\n';
+
+              if (lintStatus) {
+                comment += '**Linting:** ' + lintStatus + '\n';
+                const lintOutput = `${{ steps.frontend.outputs.lint_output }}`;
+                if (lintOutput && lintOutput.trim()) {
+                  comment += '<details><summary>Issues found</summary>\n\n```\n' + lintOutput.substring(0, 500) + '\n```\n</details>\n\n';
+                }
+              }
+
+              if (typecheckStatus) {
+                comment += '**Type Checking:** ' + typecheckStatus + '\n';
+                const typecheckOutput = `${{ steps.frontend.outputs.typecheck_output }}`;
+                if (typecheckOutput && typecheckOutput.trim()) {
+                  comment += '<details><summary>Type errors</summary>\n\n```\n' + typecheckOutput.substring(0, 500) + '\n```\n</details>\n\n';
+                }
+              }
+
+              if (buildStatus) {
+                comment += '**Build:** ' + buildStatus + '\n';
+                const buildOutput = `${{ steps.frontend.outputs.build_output }}`;
+                if (buildOutput && buildOutput.trim()) {
+                  comment += '<details><summary>Build output</summary>\n\n```\n' + buildOutput.substring(0, 500) + '\n```\n</details>\n\n';
+                }
+              }
+
+              comment += '\n**Fix locally:**\n';
+              comment += '```bash\n';
+              comment += 'cd web\n';
+              comment += 'npm run lint -- --fix  # Fix linting\n';
+              comment += 'npm run type-check     # Check types\n';
+              comment += 'npm run build          # Test build\n';
+              comment += '```\n';
+            }
+
+            comment += '\n---\n\n';
+            comment += '### 📖 Resources\n\n';
+            comment += '- [Contributing Guidelines](https://github.com/tinkle-community/nofx/blob/dev/CONTRIBUTING.md)\n';
+            comment += '- [Migration Guide](https://github.com/tinkle-community/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n\n';
+            comment += '**Questions?** Feel free to ask in the comments! 🙏\n\n';
+            comment += '---\n\n';
+            comment += '*These checks are advisory and won\'t block your PR from being merged. This comment is automatically generated from [pr-checks-run.yml](https://github.com/tinkle-community/nofx/blob/dev/.github/workflows/pr-checks-run.yml).*';
+
+            // Post comment
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

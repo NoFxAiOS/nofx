@@ -9,6 +9,14 @@ import (
 	"time"
 )
 
+const (
+	// MaxStreamsPerConnection Binance WebSocket 單連接最大訂閱流數限制
+	MaxStreamsPerConnection = 1024
+	// SafeMaxSymbols 安全的最大幣種數量（留 2.3% 緩衝空間）
+	// 250 個幣種 × 4 時間週期 = 1000 流 < 1024
+	SafeMaxSymbols = 250
+)
+
 type WSMonitor struct {
 	wsClient       *WSClient
 	combinedClient *CombinedStreamsClient
@@ -69,6 +77,34 @@ func (m *WSMonitor) Initialize(coins []string) error {
 	}
 
 	log.Printf("找到 %d 个交易对", len(m.symbols))
+
+	// WebSocket 訂閱流數檢查與自動調整
+	totalStreams := len(m.symbols) * len(subKlineTime)
+
+	if len(m.symbols) > SafeMaxSymbols {
+		log.Printf("⚠️  幣種數量過多，自動調整:")
+		log.Printf("   - 原始數量: %d 個幣種 (%d 流)", len(m.symbols), totalStreams)
+		log.Printf("   - Binance 限制: %d 流/連接", MaxStreamsPerConnection)
+		log.Printf("   - 時間週期: %d (%v)", len(subKlineTime), subKlineTime)
+
+		// 調整到安全上限
+		m.symbols = m.symbols[:SafeMaxSymbols]
+		totalStreams = len(m.symbols) * len(subKlineTime)
+
+		log.Printf("   - 調整後: %d 個幣種 (%d 流)", len(m.symbols), totalStreams)
+		log.Printf("   - 已過濾: 前 %d 個幣種保留，其餘忽略", SafeMaxSymbols)
+	}
+
+	// 顯示訂閱使用率
+	usagePercent := float64(totalStreams) / float64(MaxStreamsPerConnection) * 100
+	log.Printf("✓ WebSocket 訂閱: %d 個幣種 × %d 時間週期 = %d 流 (%.1f%% 用量)",
+		len(m.symbols), len(subKlineTime), totalStreams, usagePercent)
+
+	// 接近上限警告（>90%）
+	if usagePercent > 90 {
+		log.Printf("⚠️  警告: 訂閱流使用率較高 (%.1f%%)，建議減少幣種數量以確保穩定性", usagePercent)
+	}
+
 	// 初始化历史数据
 	if err := m.initializeHistoricalData(); err != nil {
 		log.Printf("初始化历史数据失败: %v", err)

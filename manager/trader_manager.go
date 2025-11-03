@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/config"
+	"nofx/news"
 	"nofx/trader"
 	"strconv"
 	"strings"
@@ -83,6 +84,29 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 		}
 	}
 
+	// 获取新闻源配置
+	var newsCfg []config.NewsConfig
+	newsConfStr, _ := database.GetSystemConfig("news_config")
+	if newsConfStr != "" {
+		if err := json.Unmarshal([]byte(newsConfStr), &newsCfg); err != nil {
+			log.Printf("⚠️ 解析新闻源配置失败: %v，使用空列表", err)
+			newsCfg = []config.NewsConfig{}
+		}
+
+		// 新闻配置处理
+		for index, newsConf := range newsCfg {
+			switch newsConf.Provider {
+			case news.ProviderTelegram:
+				if newsConf.Telegram.BaseURL == "" {
+					newsCfg[index].Telegram.BaseURL = "https://t.me/s"
+				}
+				if len(newsConf.TelegramChannel) == 0 {
+					newsCfg[index].TelegramChannel = append(newsCfg[index].TelegramChannel, config.NewsConfigTelegramChannel{ID: "ChannelPANews", Name: "PANews"})
+				}
+			}
+		}
+	}
+
 	// 为每个交易员获取AI模型和交易所配置
 	for _, traderCfg := range allTraders {
 		// 获取AI模型配置（使用交易员所属的用户ID）
@@ -157,7 +181,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 		}
 
 		// 添加到TraderManager
-		err = tm.addTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, coinPoolURL, oiTopURL, maxDailyLoss, maxDrawdown, stopTradingMinutes, defaultCoins)
+		err = tm.addTraderFromDB(traderCfg, aiModelCfg, exchangeCfg, newsCfg, coinPoolURL, oiTopURL, maxDailyLoss, maxDrawdown, stopTradingMinutes, defaultCoins)
 		if err != nil {
 			log.Printf("❌ 添加交易员 %s 失败: %v", traderCfg.Name, err)
 			continue
@@ -169,7 +193,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 }
 
 // addTraderFromConfig 内部方法：从配置添加交易员（不加锁，因为调用方已加锁）
-func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string) error {
+func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, newsCfg []config.NewsConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string) error {
 	if _, exists := tm.traders[traderCfg.ID]; exists {
 		return fmt.Errorf("trader ID '%s' 已存在", traderCfg.ID)
 	}
@@ -226,6 +250,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
+		NewsConfig:            newsCfg,                        // 新闻源配置
 	}
 
 	// 根据交易所类型设置API密钥

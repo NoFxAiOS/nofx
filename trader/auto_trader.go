@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"nofx/config"
 	"nofx/decision"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
+	"nofx/news"
+	"nofx/news/provider/telegram"
 	"nofx/pool"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 // AutoTraderConfig 自动交易配置（简化版 - AI全权决策）
@@ -74,6 +79,9 @@ type AutoTraderConfig struct {
 
 	// 系统提示词模板
 	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
+
+	// 新闻源配置
+	NewsConfig []config.NewsConfig
 }
 
 // PositionSnapshot 持仓快照（用于检测自动平仓）
@@ -109,58 +117,81 @@ type AutoTrader struct {
 	callCount             int              // AI调用次数
 	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
 	lastPositions         map[string]*PositionSnapshot // 上一个周期的持仓快照 (symbol_side -> snapshot)
+	newsProcessor         []news.Provider  // 新闻
 }
 
 // NewAutoTrader 创建自动交易器
-func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
+func NewAutoTrader(traderConfig AutoTraderConfig) (*AutoTrader, error) {
 	// 设置默认值
-	if config.ID == "" {
-		config.ID = "default_trader"
+	if traderConfig.ID == "" {
+		traderConfig.ID = "default_trader"
 	}
-	if config.Name == "" {
-		config.Name = "Default Trader"
+	if traderConfig.Name == "" {
+		traderConfig.Name = "Default Trader"
 	}
-	if config.AIModel == "" {
-		if config.UseQwen {
-			config.AIModel = "qwen"
+	if traderConfig.AIModel == "" {
+		if traderConfig.UseQwen {
+			traderConfig.AIModel = "qwen"
 		} else {
-			config.AIModel = "deepseek"
+			traderConfig.AIModel = "deepseek"
 		}
 	}
 
 	mcpClient := mcp.New()
 
 	// 初始化AI
-	if config.AIModel == "custom" {
+	if traderConfig.AIModel == "custom" {
 		// 使用自定义API
-		mcpClient.SetCustomAPI(config.CustomAPIURL, config.CustomAPIKey, config.CustomModelName)
-		log.Printf("🤖 [%s] 使用自定义AI API: %s (模型: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-	} else if config.UseQwen || config.AIModel == "qwen" {
+		mcpClient.SetCustomAPI(traderConfig.CustomAPIURL, traderConfig.CustomAPIKey, traderConfig.CustomModelName)
+		log.Printf("🤖 [%s] 使用自定义AI API: %s (模型: %s)", traderConfig.Name, traderConfig.CustomAPIURL, traderConfig.CustomModelName)
+	} else if traderConfig.UseQwen || traderConfig.AIModel == "qwen" {
 		// 使用Qwen (支持自定义URL和Model)
-		mcpClient.SetQwenAPIKey(config.QwenKey, config.CustomAPIURL, config.CustomModelName)
-		if config.CustomAPIURL != "" || config.CustomModelName != "" {
-			log.Printf("🤖 [%s] 使用阿里云Qwen AI (自定义URL: %s, 模型: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
+		mcpClient.SetQwenAPIKey(traderConfig.QwenKey, traderConfig.CustomAPIURL, traderConfig.CustomModelName)
+		if traderConfig.CustomAPIURL != "" || traderConfig.CustomModelName != "" {
+			log.Printf("🤖 [%s] 使用阿里云Qwen AI (自定义URL: %s, 模型: %s)", traderConfig.Name, traderConfig.CustomAPIURL, traderConfig.CustomModelName)
 		} else {
-			log.Printf("🤖 [%s] 使用阿里云Qwen AI", config.Name)
+			log.Printf("🤖 [%s] 使用阿里云Qwen AI", traderConfig.Name)
 		}
 	} else {
 		// 默认使用DeepSeek (支持自定义URL和Model)
-		mcpClient.SetDeepSeekAPIKey(config.DeepSeekKey, config.CustomAPIURL, config.CustomModelName)
-		if config.CustomAPIURL != "" || config.CustomModelName != "" {
-			log.Printf("🤖 [%s] 使用DeepSeek AI (自定义URL: %s, 模型: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
+		mcpClient.SetDeepSeekAPIKey(traderConfig.DeepSeekKey, traderConfig.CustomAPIURL, traderConfig.CustomModelName)
+		if traderConfig.CustomAPIURL != "" || traderConfig.CustomModelName != "" {
+			log.Printf("🤖 [%s] 使用DeepSeek AI (自定义URL: %s, 模型: %s)", traderConfig.Name, traderConfig.CustomAPIURL, traderConfig.CustomModelName)
 		} else {
-			log.Printf("🤖 [%s] 使用DeepSeek AI", config.Name)
+			log.Printf("🤖 [%s] 使用DeepSeek AI", traderConfig.Name)
+		}
+	}
+
+	// 初始化新闻提取器
+	var newsProcessor []news.Provider
+	for _, newsCfg := range traderConfig.NewsConfig {
+		switch newsCfg.Provider {
+		case news.ProviderTelegram:
+			newsProvider, err := telegram.NewSearcher(newsCfg.Telegram.BaseURL,
+				newsCfg.Telegram.ProxyURL,
+				lo.Map(newsCfg.TelegramChannel, func(item config.NewsConfigTelegramChannel, _ int) telegram.Channel {
+					return telegram.Channel{
+						ID:   item.ID,
+						Name: item.Name,
+					}
+				}),
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			newsProcessor = append(newsProcessor, newsProvider)
 		}
 	}
 
 	// 初始化币种池API
-	if config.CoinPoolAPIURL != "" {
-		pool.SetCoinPoolAPI(config.CoinPoolAPIURL)
+	if traderConfig.CoinPoolAPIURL != "" {
+		pool.SetCoinPoolAPI(traderConfig.CoinPoolAPIURL)
 	}
 
 	// 设置默认交易平台
-	if config.Exchange == "" {
-		config.Exchange = "binance"
+	if traderConfig.Exchange == "" {
+		traderConfig.Exchange = "binance"
 	}
 
 	// 根据配置创建对应的交易器
@@ -169,66 +200,67 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 
 	// 记录仓位模式（通用）
 	marginModeStr := "全仓"
-	if !config.IsCrossMargin {
+	if !traderConfig.IsCrossMargin {
 		marginModeStr = "逐仓"
 	}
-	log.Printf("📊 [%s] 仓位模式: %s", config.Name, marginModeStr)
+	log.Printf("📊 [%s] 仓位模式: %s", traderConfig.Name, marginModeStr)
 
-	switch config.Exchange {
+	switch traderConfig.Exchange {
 	case "binance":
-		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
-		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey)
+		log.Printf("🏦 [%s] 使用币安合约交易", traderConfig.Name)
+		trader = NewFuturesTrader(traderConfig.BinanceAPIKey, traderConfig.BinanceSecretKey)
 	case "hyperliquid":
-		log.Printf("🏦 [%s] 使用Hyperliquid交易", config.Name)
-		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
+		log.Printf("🏦 [%s] 使用Hyperliquid交易", traderConfig.Name)
+		trader, err = NewHyperliquidTrader(traderConfig.HyperliquidPrivateKey, traderConfig.HyperliquidWalletAddr, traderConfig.HyperliquidTestnet)
 		if err != nil {
 			return nil, fmt.Errorf("初始化Hyperliquid交易器失败: %w", err)
 		}
 	case "aster":
-		log.Printf("🏦 [%s] 使用Aster交易", config.Name)
-		trader, err = NewAsterTrader(config.AsterUser, config.AsterSigner, config.AsterPrivateKey)
+		log.Printf("🏦 [%s] 使用Aster交易", traderConfig.Name)
+		trader, err = NewAsterTrader(traderConfig.AsterUser, traderConfig.AsterSigner, traderConfig.AsterPrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("初始化Aster交易器失败: %w", err)
 		}
 	default:
-		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)
+		return nil, fmt.Errorf("不支持的交易平台: %s", traderConfig.Exchange)
 	}
 
 	// 验证初始金额配置
-	if config.InitialBalance <= 0 {
+	if traderConfig.InitialBalance <= 0 {
 		return nil, fmt.Errorf("初始金额必须大于0，请在配置中设置InitialBalance")
 	}
 
 	// 初始化决策日志记录器（使用trader ID创建独立目录）
-	logDir := fmt.Sprintf("decision_logs/%s", config.ID)
+	logDir := fmt.Sprintf("decision_logs/%s", traderConfig.ID)
 	decisionLogger := logger.NewDecisionLogger(logDir)
 
 	// 设置默认系统提示词模板
-	systemPromptTemplate := config.SystemPromptTemplate
+	systemPromptTemplate := traderConfig.SystemPromptTemplate
 	if systemPromptTemplate == "" {
 		// feature/partial-close-dynamic-tpsl 分支默认使用 adaptive（支持动态止盈止损）
 		systemPromptTemplate = "adaptive"
 	}
 
 	return &AutoTrader{
-		id:                    config.ID,
-		name:                  config.Name,
-		aiModel:               config.AIModel,
-		exchange:              config.Exchange,
-		config:                config,
+		id:                    traderConfig.ID,
+		name:                  traderConfig.Name,
+		aiModel:               traderConfig.AIModel,
+		exchange:              traderConfig.Exchange,
+		config:                traderConfig,
 		trader:                trader,
 		mcpClient:             mcpClient,
 		decisionLogger:        decisionLogger,
-		initialBalance:        config.InitialBalance,
+		initialBalance:        traderConfig.InitialBalance,
 		systemPromptTemplate:  systemPromptTemplate,
-		defaultCoins:          config.DefaultCoins,
-		tradingCoins:          config.TradingCoins,
+		defaultCoins:          traderConfig.DefaultCoins,
+		tradingCoins:          traderConfig.TradingCoins,
 		lastResetTime:         time.Now(),
 		startTime:             time.Now(),
 		callCount:             0,
 		isRunning:             false,
 		positionFirstSeenTime: make(map[string]int64),
 		lastPositions:         make(map[string]*PositionSnapshot),
+		newsProcessor:         newsProcessor,
 	}, nil
 }
 
@@ -640,7 +672,23 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		performance = nil
 	}
 
-	// 6. 构建上下文
+	// 6.提取新闻内容
+	newsItem := make(map[string][]news.NewsItem)
+	for _, newspro := range at.newsProcessor {
+		// TODO: 此出是为后续扩展考虑,当前随意给了个值占位
+		newsMap, err := newspro.FetchNews([]string{"btc"}, 100)
+		if err != nil {
+			log.Printf("⚠️  获取新闻内容失败: %v", err)
+
+			continue
+		}
+
+		for symbol, value := range newsMap {
+			newsItem[symbol] = append(newsItem[symbol], value...)
+		}
+	}
+
+	// 7. 构建上下文
 	ctx := &decision.Context{
 		CurrentTime:     time.Now().Format("2006-01-02 15:04:05"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
@@ -659,6 +707,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		Positions:      positionInfos,
 		CandidateCoins: candidateCoins,
 		Performance:    performance, // 添加历史表现分析
+		News:           newsItem,
 	}
 
 	return ctx, nil

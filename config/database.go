@@ -435,6 +435,25 @@ type UserSignalSource struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// NewsConfig 新闻配置
+type NewsConfig struct {
+	Provider        string                      `json:"provider"` // 新闻搜索器名称: telegram
+	Telegram        NewsConfigTelegram          `json:"telegram"` // telegram客户端配置
+	TelegramChannel []NewsConfigTelegramChannel `json:"channels"` // telegram频道配置
+}
+
+// NewsConfigTelegram telegram配置
+type NewsConfigTelegram struct {
+	BaseURL  string `json:"baseurl"`  // 基础url
+	ProxyURL string `json:"proxyurl"` // 代理url
+}
+
+// NewsConfigTelegramChannel 电报频道配置
+type NewsConfigTelegramChannel struct {
+	ID   string `json:"id"`   // 频道id
+	Name string `json:"name"` // 频道名称
+}
+
 // GenerateOTPSecret 生成OTP密钥
 func GenerateOTPSecret() (string, error) {
 	secret := make([]byte, 20)

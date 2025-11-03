@@ -1375,6 +1375,9 @@ function ExchangeConfigModal({
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                       required
                     />
+                    <p className="text-xs mt-1" style={{ color: '#8B949E' }}>
+                      {t('asterUserDesc', language)}
+                    </p>
                   </div>
 
                   <div>
@@ -1390,6 +1393,9 @@ function ExchangeConfigModal({
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                       required
                     />
+                    <p className="text-xs mt-1" style={{ color: '#8B949E' }}>
+                      {t('asterSignerDesc', language)}
+                    </p>
                   </div>
 
                   <div>
@@ -1405,6 +1411,9 @@ function ExchangeConfigModal({
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                       required
                     />
+                    <p className="text-xs mt-1" style={{ color: '#8B949E' }}>
+                      {t('asterPrivateKeyDesc', language)}
+                    </p>
                   </div>
                 </>
               )}

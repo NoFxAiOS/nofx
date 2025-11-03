@@ -13,7 +13,6 @@ import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
 import { useSystemConfig } from './hooks/useSystemConfig';
-import { Zap } from 'lucide-react';
 import type {
   SystemStatus,
   AccountInfo,

@@ -801,14 +801,8 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		}
 	}
 
-	// AIModelID 应该已经是 provider（如 "deepseek"），直接使用
-	// 如果是旧数据格式（如 "admin_deepseek"），提取 provider 部分
+	// 返回完整的模型ID，不做转换，保持与前端模型列表一致
 	aiModelID := traderConfig.AIModelID
-	// 兼容旧数据：如果包含下划线，提取最后一部分作为 provider
-	if strings.Contains(aiModelID, "_") {
-		parts := strings.Split(aiModelID, "_")
-		aiModelID = parts[len(parts)-1]
-	}
 
 	result := map[string]interface{}{
 		"trader_id":            traderConfig.ID,

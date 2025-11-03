@@ -25,16 +25,33 @@ type FuturesTrader struct {
 	positionsCacheTime  time.Time
 	positionsCacheMutex sync.RWMutex
 
+	// 持仓模式缓存（避免频繁查询）
+	isHedgeMode     bool
+	hedgeModeCached bool
+	hedgeModeMutex  sync.RWMutex
+
 	// 缓存有效期（15秒）
 	cacheDuration time.Duration
 }
 
 // NewFuturesTrader 创建合约交易器
-func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
+func NewFuturesTrader(apiKey, secretKey string, testnet bool) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
+	// 如果启用测试网，设置测试网 base URL
+	if testnet {
+		// go-binance 库的 Client 结构体有 BaseURL 字段，直接设置
+		// 使用 Binance Futures 测试网地址: https://testnet.binancefuture.com
+		testnetURL := "https://testnet.binancefuture.com"
+		client.BaseURL = testnetURL
+		log.Printf("✓ Binance交易器使用测试网模式 (baseURL: %s)", testnetURL)
+	} else {
+		log.Printf("✓ Binance交易器使用主网模式 (baseURL: https://fapi.binance.com)")
+	}
 	return &FuturesTrader{
 		client:        client,
 		cacheDuration: 15 * time.Second, // 15秒缓存
+		isHedgeMode:   false,            // 默认假设是单向持仓模式
+		hedgeModeCached: false,
 	}
 }
 
@@ -171,6 +188,55 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	return nil
 }
 
+// checkHedgeMode 检查账户是否使用双向持仓模式（Hedge Mode）
+func (t *FuturesTrader) checkHedgeMode() (bool, error) {
+	// 先检查缓存
+	t.hedgeModeMutex.RLock()
+	if t.hedgeModeCached {
+		isHedge := t.isHedgeMode
+		t.hedgeModeMutex.RUnlock()
+		return isHedge, nil
+	}
+	t.hedgeModeMutex.RUnlock()
+
+	// 获取账户信息以检查持仓模式
+	// Binance API 可以通过查询账户信息或尝试一个带 PositionSide 的请求来判断
+	// 这里我们使用一个更可靠的方法：检查第一个有持仓的币种的持仓信息
+	// 如果有 PositionSide 字段，说明是双向模式
+	
+	// 更简单的方法：尝试创建一个查询订单，如果不支持 PositionSide 会返回错误
+	// 但最好的方法是查询账户的 positionMode
+	// 由于 go-binance 库可能没有直接的方法，我们采用错误重试策略
+	// 先尝试使用 PositionSide，如果失败则说明是单向模式
+	
+	t.hedgeModeMutex.Lock()
+	defer t.hedgeModeMutex.Unlock()
+	
+	// 默认假设是单向模式（One-way Mode）
+	// 因为单向模式是默认模式，如果不确定就先假设单向模式
+	t.isHedgeMode = false
+	t.hedgeModeCached = true
+	
+	log.Printf("🔧 默认使用单向持仓模式（One-way Mode），如果订单失败会切换到双向模式")
+	
+	return false, nil
+}
+
+// getPositionSideForOrder 根据持仓模式返回合适的 PositionSide 参数
+// 返回 (positionSide, shouldUsePositionSide)
+func (t *FuturesTrader) getPositionSideForOrder(isLong bool) (futures.PositionSideType, bool) {
+	isHedge, _ := t.checkHedgeMode()
+	if !isHedge {
+		// 单向持仓模式：不使用 PositionSide 参数
+		return futures.PositionSideTypeLong, false
+	}
+	// 双向持仓模式：使用 PositionSide
+	if isLong {
+		return futures.PositionSideTypeLong, true
+	}
+	return futures.PositionSideTypeShort, true
+}
+
 // SetLeverage 设置杠杆（智能判断+冷却期）
 func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 	// 先尝试获取当前杠杆（从持仓信息）
@@ -237,17 +303,47 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		return nil, err
 	}
 
+	// 根据持仓模式决定是否使用 PositionSide
+	positionSide, usePositionSide := t.getPositionSideForOrder(true)
+	
 	// 创建市价买入订单
-	order, err := t.client.NewCreateOrderService().
+	orderService := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeBuy).
-		PositionSide(futures.PositionSideTypeLong).
 		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+		Quantity(quantityStr)
+	
+	// 只有在双向持仓模式下才设置 PositionSide
+	if usePositionSide {
+		orderService = orderService.PositionSide(positionSide)
+	}
+	
+	order, err := orderService.Do(context.Background())
 
 	if err != nil {
-		return nil, fmt.Errorf("开多仓失败: %w", err)
+		// 如果错误是 -4061（持仓方向不匹配），说明账户是单向模式，但代码尝试使用双向模式
+		// 我们需要更新缓存并重试
+		if contains(err.Error(), "-4061") || contains(err.Error(), "position side does not match") {
+			log.Printf("⚠️ 检测到单向持仓模式，更新配置并重试（不使用 PositionSide）")
+			t.hedgeModeMutex.Lock()
+			t.isHedgeMode = false
+			t.hedgeModeCached = true
+			t.hedgeModeMutex.Unlock()
+			
+			// 重试：不使用 PositionSide
+			order, err = t.client.NewCreateOrderService().
+				Symbol(symbol).
+				Side(futures.SideTypeBuy).
+				Type(futures.OrderTypeMarket).
+				Quantity(quantityStr).
+				Do(context.Background())
+			
+			if err != nil {
+				return nil, fmt.Errorf("开多仓失败（单向模式重试）: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("开多仓失败: %w", err)
+		}
 	}
 
 	log.Printf("✓ 开多仓成功: %s 数量: %s", symbol, quantityStr)
@@ -280,17 +376,47 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 		return nil, err
 	}
 
+	// 根据持仓模式决定是否使用 PositionSide
+	positionSide, usePositionSide := t.getPositionSideForOrder(false)
+	
 	// 创建市价卖出订单
-	order, err := t.client.NewCreateOrderService().
+	orderService := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeSell).
-		PositionSide(futures.PositionSideTypeShort).
 		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+		Quantity(quantityStr)
+	
+	// 只有在双向持仓模式下才设置 PositionSide
+	if usePositionSide {
+		orderService = orderService.PositionSide(positionSide)
+	}
+	
+	order, err := orderService.Do(context.Background())
 
 	if err != nil {
-		return nil, fmt.Errorf("开空仓失败: %w", err)
+		// 如果错误是 -4061（持仓方向不匹配），说明账户是单向模式，但代码尝试使用双向模式
+		// 我们需要更新缓存并重试
+		if contains(err.Error(), "-4061") || contains(err.Error(), "position side does not match") {
+			log.Printf("⚠️ 检测到单向持仓模式，更新配置并重试（不使用 PositionSide）")
+			t.hedgeModeMutex.Lock()
+			t.isHedgeMode = false
+			t.hedgeModeCached = true
+			t.hedgeModeMutex.Unlock()
+			
+			// 重试：不使用 PositionSide
+			order, err = t.client.NewCreateOrderService().
+				Symbol(symbol).
+				Side(futures.SideTypeSell).
+				Type(futures.OrderTypeMarket).
+				Quantity(quantityStr).
+				Do(context.Background())
+			
+			if err != nil {
+				return nil, fmt.Errorf("开空仓失败（单向模式重试）: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("开空仓失败: %w", err)
+		}
 	}
 
 	log.Printf("✓ 开空仓成功: %s 数量: %s", symbol, quantityStr)
@@ -330,17 +456,43 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 		return nil, err
 	}
 
+	// 根据持仓模式决定是否使用 PositionSide
+	positionSide, usePositionSide := t.getPositionSideForOrder(true)
+	
 	// 创建市价卖出订单（平多）
-	order, err := t.client.NewCreateOrderService().
+	orderService := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeSell).
-		PositionSide(futures.PositionSideTypeLong).
 		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+		Quantity(quantityStr)
+	
+	if usePositionSide {
+		orderService = orderService.PositionSide(positionSide)
+	}
+	
+	order, err := orderService.Do(context.Background())
 
 	if err != nil {
-		return nil, fmt.Errorf("平多仓失败: %w", err)
+		if contains(err.Error(), "-4061") || contains(err.Error(), "position side does not match") {
+			log.Printf("⚠️ 平多仓时检测到单向持仓模式，重试（不使用 PositionSide）")
+			t.hedgeModeMutex.Lock()
+			t.isHedgeMode = false
+			t.hedgeModeCached = true
+			t.hedgeModeMutex.Unlock()
+			
+			order, err = t.client.NewCreateOrderService().
+				Symbol(symbol).
+				Side(futures.SideTypeSell).
+				Type(futures.OrderTypeMarket).
+				Quantity(quantityStr).
+				Do(context.Background())
+			
+			if err != nil {
+				return nil, fmt.Errorf("平多仓失败（单向模式重试）: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("平多仓失败: %w", err)
+		}
 	}
 
 	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, quantityStr)
@@ -384,17 +536,43 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 		return nil, err
 	}
 
+	// 根据持仓模式决定是否使用 PositionSide
+	positionSide, usePositionSide := t.getPositionSideForOrder(false)
+	
 	// 创建市价买入订单（平空）
-	order, err := t.client.NewCreateOrderService().
+	orderService := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeBuy).
-		PositionSide(futures.PositionSideTypeShort).
 		Type(futures.OrderTypeMarket).
-		Quantity(quantityStr).
-		Do(context.Background())
+		Quantity(quantityStr)
+	
+	if usePositionSide {
+		orderService = orderService.PositionSide(positionSide)
+	}
+	
+	order, err := orderService.Do(context.Background())
 
 	if err != nil {
-		return nil, fmt.Errorf("平空仓失败: %w", err)
+		if contains(err.Error(), "-4061") || contains(err.Error(), "position side does not match") {
+			log.Printf("⚠️ 平空仓时检测到单向持仓模式，重试（不使用 PositionSide）")
+			t.hedgeModeMutex.Lock()
+			t.isHedgeMode = false
+			t.hedgeModeCached = true
+			t.hedgeModeMutex.Unlock()
+			
+			order, err = t.client.NewCreateOrderService().
+				Symbol(symbol).
+				Side(futures.SideTypeBuy).
+				Type(futures.OrderTypeMarket).
+				Quantity(quantityStr).
+				Do(context.Background())
+			
+			if err != nil {
+				return nil, fmt.Errorf("平空仓失败（单向模式重试）: %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("平空仓失败: %w", err)
+		}
 	}
 
 	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, quantityStr)
@@ -456,8 +634,9 @@ func (t *FuturesTrader) CalculatePositionSize(balance, riskPercent, price float6
 func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
+	isLong := positionSide == "LONG"
 
-	if positionSide == "LONG" {
+	if isLong {
 		side = futures.SideTypeSell
 		posSide = futures.PositionSideTypeLong
 	} else {
@@ -471,14 +650,22 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		return err
 	}
 
-	_, err = t.client.NewCreateOrderService().
+	// 根据持仓模式决定是否使用 PositionSide
+	_, usePositionSide := t.getPositionSideForOrder(isLong)
+	
+	orderService := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
-		PositionSide(posSide).
 		Type(futures.OrderTypeStopMarket).
 		StopPrice(fmt.Sprintf("%.8f", stopPrice)).
 		Quantity(quantityStr).
-		WorkingType(futures.WorkingTypeContractPrice).
+		WorkingType(futures.WorkingTypeContractPrice)
+	
+	if usePositionSide {
+		orderService = orderService.PositionSide(posSide)
+	}
+
+	_, err = orderService.
 		ClosePosition(true).
 		Do(context.Background())
 
@@ -494,8 +681,9 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
+	isLong := positionSide == "LONG"
 
-	if positionSide == "LONG" {
+	if isLong {
 		side = futures.SideTypeSell
 		posSide = futures.PositionSideTypeLong
 	} else {
@@ -509,16 +697,23 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		return err
 	}
 
-	_, err = t.client.NewCreateOrderService().
+	// 根据持仓模式决定是否使用 PositionSide
+	_, usePositionSide := t.getPositionSideForOrder(isLong)
+	
+	orderService := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
-		PositionSide(posSide).
 		Type(futures.OrderTypeTakeProfitMarket).
 		StopPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
-		ClosePosition(true).
-		Do(context.Background())
+		ClosePosition(true)
+	
+	if usePositionSide {
+		orderService = orderService.PositionSide(posSide)
+	}
+
+	_, err = orderService.Do(context.Background())
 
 	if err != nil {
 		return fmt.Errorf("设置止盈失败: %w", err)

@@ -9,7 +9,7 @@ import { t, type Language } from '../i18n/translations';
 import { getExchangeIcon } from './ExchangeIcons';
 import { getModelIcon } from './ModelIcons';
 import { TraderConfigModal } from './TraderConfigModal';
-import { aiModelSchema, type AIModelFormData } from '../lib/formSchemas';
+import { createAIModelSchema, type AIModelFormData } from '../lib/formSchemas';
 import { Bot, Brain, Landmark, BarChart3, Trash2, Plus, Users, AlertTriangle } from 'lucide-react';
 
 // 获取友好的AI模型名称
@@ -950,7 +950,7 @@ function ModelConfigModal({
     watch,
     formState: { errors, isValid },
   } = useForm<AIModelFormData>({
-    resolver: zodResolver(aiModelSchema),
+    resolver: zodResolver(createAIModelSchema(language)),
     mode: 'onChange',
     defaultValues: {
       modelId: editingModelId || '',
@@ -1209,24 +1209,24 @@ function ExchangeConfigModal({
 
   // Validation for Ethereum address
   const validateEthAddress = (address: string): string | null => {
-    if (!address || address.trim() === '') return '此字段是必填项';
+    if (!address || address.trim() === '') return t('fieldRequired', language);
     const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
     if (!ethAddressRegex.test(address.trim())) {
-      return '必须是有效的以太坊地址 (0x + 40位十六进制字符)';
+      return t('invalidEthAddress', language);
     }
     return null;
   };
 
   // Validation for private key
   const validatePrivateKey = (key: string): string | null => {
-    if (!key || key.trim() === '') return '此字段是必填项';
+    if (!key || key.trim() === '') return t('privateKeyRequired', language);
     const cleanKey = key.trim();
     if (cleanKey.startsWith('0x')) {
-      return 'Private Key 不应包含 0x 前缀';
+      return t('privateKeyNoPrefix', language);
     }
     const privateKeyRegex = /^[a-fA-F0-9]{64}$/;
     if (!privateKeyRegex.test(cleanKey)) {
-      return 'Private Key 必须是 64 位十六进制字符（不含 0x 前缀）';
+      return t('privateKeyInvalidFormat', language);
     }
     return null;
   };

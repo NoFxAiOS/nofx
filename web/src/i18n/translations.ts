@@ -191,6 +191,19 @@ export const translations = {
     securityWarning: 'Security Warning',
     saveConfiguration: 'Save Configuration',
 
+    // Validation Error Messages
+    fieldRequired: 'This field is required',
+    apiKeyRequired: 'API Key is required',
+    apiKeyMustStartWithSk: 'API Key must start with sk-',
+    apiKeyInvalidFormat: 'Invalid API Key format',
+    baseUrlMustBeValid: 'Base URL must be a valid HTTP/HTTPS address',
+    baseUrlMustStartWithHttp: 'Base URL must start with http:// or https://',
+    modelNameInvalidFormat: 'Model name can only contain letters, numbers, dots, underscores and hyphens',
+    invalidEthAddress: 'Must be a valid Ethereum address (0x + 40 hex characters)',
+    privateKeyRequired: 'Private Key is required',
+    privateKeyNoPrefix: 'Private Key should not include 0x prefix',
+    privateKeyInvalidFormat: 'Private Key must be 64 hex characters (without 0x prefix)',
+
     // Trader Configuration
     positionMode: 'Position Mode',
     crossMarginMode: 'Cross Margin',
@@ -507,6 +520,19 @@ export const translations = {
     testnetDescription: '启用后将连接到交易所测试环境，用于模拟交易',
     securityWarning: '安全提示',
     saveConfiguration: '保存配置',
+
+    // Validation Error Messages
+    fieldRequired: '此字段是必填项',
+    apiKeyRequired: 'API Key 是必填项',
+    apiKeyMustStartWithSk: 'API Key 必须以 sk- 开头',
+    apiKeyInvalidFormat: 'API Key 格式不正确',
+    baseUrlMustBeValid: 'Base URL 必须是有效的 HTTP/HTTPS 地址',
+    baseUrlMustStartWithHttp: 'Base URL 必须以 http:// 或 https:// 开头',
+    modelNameInvalidFormat: '模型名称只能包含字母、数字、点、下划线和连字符',
+    invalidEthAddress: '必须是有效的以太坊地址 (0x + 40位十六进制字符)',
+    privateKeyRequired: 'Private Key 是必填项',
+    privateKeyNoPrefix: 'Private Key 不应包含 0x 前缀',
+    privateKeyInvalidFormat: 'Private Key 必须是 64 位十六进制字符（不含 0x 前缀）',
 
     // Trader Configuration
     positionMode: '仓位模式',

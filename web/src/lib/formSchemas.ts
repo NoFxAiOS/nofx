@@ -1,33 +1,43 @@
 import { z } from 'zod';
+import { translations } from '../i18n/translations';
+import type { Language } from '../i18n/translations';
 
 /**
  * Validation schemas using Zod for form validation
  * Based on README.md requirements
  */
 
-// AI Model Configuration Schema
-export const aiModelSchema = z.object({
-  modelId: z.string().min(1, '请选择AI模型'),
+// Helper function to get translated message
+const t = (key: keyof typeof translations.en, lang: Language = 'zh') => {
+  return translations[lang][key] || translations.en[key];
+};
+
+// AI Model Configuration Schema factory
+export const createAIModelSchema = (language: Language = 'zh') => z.object({
+  modelId: z.string().min(1, t('fieldRequired', language)),
   apiKey: z
     .string()
-    .min(1, 'API Key 是必填项')
-    .startsWith('sk-', 'API Key 必须以 sk- 开头')
-    .min(10, 'API Key 格式不正确'),
+    .min(1, t('apiKeyRequired', language))
+    .startsWith('sk-', t('apiKeyMustStartWithSk', language))
+    .min(10, t('apiKeyInvalidFormat', language)),
   baseUrl: z
     .string()
-    .url('Base URL 必须是有效的 HTTP/HTTPS 地址')
-    .startsWith('http', 'Base URL 必须以 http:// 或 https:// 开头')
+    .url(t('baseUrlMustBeValid', language))
+    .startsWith('http', t('baseUrlMustStartWithHttp', language))
     .optional()
     .or(z.literal('')), // Allow empty string
   modelName: z
     .string()
     .regex(
       /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
-      '模型名称只能包含字母、数字、点、下划线和连字符'
+      t('modelNameInvalidFormat', language)
     )
     .optional()
     .or(z.literal('')), // Allow empty string
 });
+
+// Default schema for backward compatibility
+export const aiModelSchema = createAIModelSchema('zh');
 
 export type AIModelFormData = z.infer<typeof aiModelSchema>;
 

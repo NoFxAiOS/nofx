@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useSWR from 'swr';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { api } from '../lib/api';
 import type { TraderInfo, CreateTraderRequest, AIModel, Exchange } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -7,6 +9,7 @@ import { t, type Language } from '../i18n/translations';
 import { getExchangeIcon } from './ExchangeIcons';
 import { getModelIcon } from './ModelIcons';
 import { TraderConfigModal } from './TraderConfigModal';
+import { aiModelSchema, type AIModelFormData } from '../lib/formSchemas';
 import { Bot, Brain, Landmark, BarChart3, Trash2, Plus, Users, AlertTriangle } from 'lucide-react';
 
 // 获取友好的AI模型名称
@@ -183,7 +186,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ai_model_id: data.ai_model_id,
         exchange_id: data.exchange_id,
         initial_balance: data.initial_balance,
-        scan_interval_minutes: data.scan_interval_minutes,
         btc_eth_leverage: data.btc_eth_leverage,
         altcoin_leverage: data.altcoin_leverage,
         trading_symbols: data.trading_symbols,
@@ -936,30 +938,42 @@ function ModelConfigModal({
   onClose: () => void;
   language: Language;
 }) {
-  const [selectedModelId, setSelectedModelId] = useState(editingModelId || '');
-  const [apiKey, setApiKey] = useState('');
-  const [baseUrl, setBaseUrl] = useState('');
-  const [modelName, setModelName] = useState('');
-
   // 获取当前编辑的模型信息 - 编辑时从已配置的模型中查找，新建时从所有支持的模型中查找
   const selectedModel = editingModelId
-    ? configuredModels?.find(m => m.id === selectedModelId)
-    : allModels?.find(m => m.id === selectedModelId);
+    ? configuredModels?.find(m => m.id === editingModelId)
+    : undefined;
 
-  // 如果是编辑现有模型，初始化API Key、Base URL和Model Name
-  useEffect(() => {
-    if (editingModelId && selectedModel) {
-      setApiKey(selectedModel.apiKey || '');
-      setBaseUrl(selectedModel.customApiUrl || '');
-      setModelName(selectedModel.customModelName || '');
-    }
-  }, [editingModelId, selectedModel]);
+  // Initialize react-hook-form with zod validation
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isValid },
+  } = useForm<AIModelFormData>({
+    resolver: zodResolver(aiModelSchema),
+    mode: 'onChange',
+    defaultValues: {
+      modelId: editingModelId || '',
+      apiKey: selectedModel?.apiKey || '',
+      baseUrl: selectedModel?.customApiUrl || '',
+      modelName: selectedModel?.customModelName || '',
+    },
+  });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedModelId || !apiKey.trim()) return;
+  // Watch modelId to show selected model card
+  const watchedModelId = watch('modelId');
+  const currentModel = editingModelId
+    ? selectedModel
+    : allModels?.find(m => m.id === watchedModelId);
 
-    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined);
+  // Handle form submission
+  const onSubmit = (data: AIModelFormData) => {
+    onSave(
+      data.modelId,
+      data.apiKey,
+      data.baseUrl || undefined,
+      data.modelName || undefined
+    );
   };
 
   // 可选择的模型列表（所有支持的模型）
@@ -989,18 +1003,20 @@ function ModelConfigModal({
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {!editingModelId && (
             <div>
               <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                 {t('selectModel', language)}
               </label>
               <select
-                value={selectedModelId}
-                onChange={(e) => setSelectedModelId(e.target.value)}
+                {...register('modelId')}
                 className="w-full px-3 py-2 rounded"
-                style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                required
+                style={{
+                  background: '#0B0E11',
+                  border: `1px solid ${errors.modelId ? '#F6465D' : '#2B3139'}`,
+                  color: '#EAECEF'
+                }}
               >
                 <option value="">{t('pleaseSelectModel', language)}</option>
                 {availableModels.map(model => (
@@ -1009,34 +1025,39 @@ function ModelConfigModal({
                   </option>
                 ))}
               </select>
+              {errors.modelId && (
+                <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                  {errors.modelId.message}
+                </p>
+              )}
             </div>
           )}
 
-          {selectedModel && (
+          {currentModel && (
             <div className="p-4 rounded" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 flex items-center justify-center">
-                  {getModelIcon(selectedModel.provider || selectedModel.id, { width: 32, height: 32 }) || (
+                  {getModelIcon(currentModel.provider || currentModel.id, { width: 32, height: 32 }) || (
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                         style={{ 
-                           background: selectedModel.id === 'deepseek' ? '#60a5fa' : '#c084fc',
+                         style={{
+                           background: currentModel.id === 'deepseek' ? '#60a5fa' : '#c084fc',
                            color: '#fff'
                          }}>
-                      {selectedModel.name[0]}
+                      {currentModel.name[0]}
                     </div>
                   )}
                 </div>
                 <div>
-                  <div className="font-semibold" style={{ color: '#EAECEF' }}>{getShortName(selectedModel.name)}</div>
+                  <div className="font-semibold" style={{ color: '#EAECEF' }}>{getShortName(currentModel.name)}</div>
                   <div className="text-xs" style={{ color: '#848E9C' }}>
-                    {selectedModel.provider} • {selectedModel.id}
+                    {currentModel.provider} • {currentModel.id}
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {selectedModel && (
+          {currentModel && (
             <>
               <div>
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
@@ -1044,13 +1065,20 @@ function ModelConfigModal({
                 </label>
                 <input
                   type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
+                  {...register('apiKey')}
                   placeholder={t('enterAPIKey', language)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                  required
+                  style={{
+                    background: '#0B0E11',
+                    border: `1px solid ${errors.apiKey ? '#F6465D' : '#2B3139'}`,
+                    color: '#EAECEF'
+                  }}
                 />
+                {errors.apiKey && (
+                  <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                    {errors.apiKey.message}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1058,16 +1086,25 @@ function ModelConfigModal({
                   {t('customBaseURL', language)}
                 </label>
                 <input
-                  type="url"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
+                  type="text"
+                  {...register('baseUrl')}
                   placeholder={t('customBaseURLPlaceholder', language)}
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{
+                    background: '#0B0E11',
+                    border: `1px solid ${errors.baseUrl ? '#F6465D' : '#2B3139'}`,
+                    color: '#EAECEF'
+                  }}
                 />
-                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  {t('leaveBlankForDefault', language)}
-                </div>
+                {errors.baseUrl ? (
+                  <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                    {errors.baseUrl.message}
+                  </p>
+                ) : (
+                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                    {t('leaveBlankForDefault', language)}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1076,15 +1113,24 @@ function ModelConfigModal({
                 </label>
                 <input
                   type="text"
-                  value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
+                  {...register('modelName')}
                   placeholder="例如: deepseek-chat, qwen-max, gpt-5"
                   className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  style={{
+                    background: '#0B0E11',
+                    border: `1px solid ${errors.modelName ? '#F6465D' : '#2B3139'}`,
+                    color: '#EAECEF'
+                  }}
                 />
-                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  留空使用默认模型名称
-                </div>
+                {errors.modelName ? (
+                  <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                    {errors.modelName.message}
+                  </p>
+                ) : (
+                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                    留空使用默认模型名称
+                  </div>
+                )}
               </div>
 
               <div className="p-4 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
@@ -1111,8 +1157,8 @@ function ModelConfigModal({
             </button>
             <button
               type="submit"
-              disabled={!selectedModel || !apiKey.trim()}
-              className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
+              disabled={!isValid || !currentModel}
+              className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ background: '#F0B90B', color: '#000' }}
             >
               {t('saveConfig', language)}
@@ -1148,11 +1194,42 @@ function ExchangeConfigModal({
   
   // Hyperliquid 特定字段
   const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
-  
+  const [hyperliquidPrivateKeyError, setHyperliquidPrivateKeyError] = useState<string | null>(null);
+  const [hyperliquidWalletAddrError, setHyperliquidWalletAddrError] = useState<string | null>(null);
+
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('');
   const [asterSigner, setAsterSigner] = useState('');
   const [asterPrivateKey, setAsterPrivateKey] = useState('');
+
+  // Validation errors for Aster
+  const [asterUserError, setAsterUserError] = useState<string | null>(null);
+  const [asterSignerError, setAsterSignerError] = useState<string | null>(null);
+  const [asterPrivateKeyError, setAsterPrivateKeyError] = useState<string | null>(null);
+
+  // Validation for Ethereum address
+  const validateEthAddress = (address: string): string | null => {
+    if (!address || address.trim() === '') return '此字段是必填项';
+    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+    if (!ethAddressRegex.test(address.trim())) {
+      return '必须是有效的以太坊地址 (0x + 40位十六进制字符)';
+    }
+    return null;
+  };
+
+  // Validation for private key
+  const validatePrivateKey = (key: string): string | null => {
+    if (!key || key.trim() === '') return '此字段是必填项';
+    const cleanKey = key.trim();
+    if (cleanKey.startsWith('0x')) {
+      return 'Private Key 不应包含 0x 前缀';
+    }
+    const privateKeyRegex = /^[a-fA-F0-9]{64}$/;
+    if (!privateKeyRegex.test(cleanKey)) {
+      return 'Private Key 必须是 64 位十六进制字符（不含 0x 前缀）';
+    }
+    return null;
+  };
 
   // 获取当前编辑的交易所信息
   const selectedExchange = allExchanges?.find(e => e.id === selectedExchangeId);
@@ -1329,15 +1406,30 @@ function ExchangeConfigModal({
                     <input
                       type="password"
                       value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setApiKey(value);
+                        setHyperliquidPrivateKeyError(validatePrivateKey(value));
+                      }}
+                      onBlur={() => setHyperliquidPrivateKeyError(validatePrivateKey(apiKey))}
                       placeholder={t('enterPrivateKey', language)}
                       className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      style={{
+                        background: '#0B0E11',
+                        border: `1px solid ${hyperliquidPrivateKeyError ? '#F6465D' : '#2B3139'}`,
+                        color: '#EAECEF'
+                      }}
                       required
                     />
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidPrivateKeyDesc', language)}
-                    </div>
+                    {hyperliquidPrivateKeyError ? (
+                      <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                        {hyperliquidPrivateKeyError}
+                      </p>
+                    ) : (
+                      <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                        {t('hyperliquidPrivateKeyDesc', language)}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1347,15 +1439,30 @@ function ExchangeConfigModal({
                     <input
                       type="text"
                       value={hyperliquidWalletAddr}
-                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setHyperliquidWalletAddr(value);
+                        setHyperliquidWalletAddrError(validateEthAddress(value));
+                      }}
+                      onBlur={() => setHyperliquidWalletAddrError(validateEthAddress(hyperliquidWalletAddr))}
                       placeholder={t('enterWalletAddress', language)}
                       className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      style={{
+                        background: '#0B0E11',
+                        border: `1px solid ${hyperliquidWalletAddrError ? '#F6465D' : '#2B3139'}`,
+                        color: '#EAECEF'
+                      }}
                       required
                     />
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidWalletAddressDesc', language)}
-                    </div>
+                    {hyperliquidWalletAddrError ? (
+                      <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                        {hyperliquidWalletAddrError}
+                      </p>
+                    ) : (
+                      <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                        {t('hyperliquidWalletAddressDesc', language)}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -1370,12 +1477,26 @@ function ExchangeConfigModal({
                     <input
                       type="text"
                       value={asterUser}
-                      onChange={(e) => setAsterUser(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAsterUser(value);
+                        setAsterUserError(validateEthAddress(value));
+                      }}
+                      onBlur={() => setAsterUserError(validateEthAddress(asterUser))}
                       placeholder={t('enterUser', language)}
                       className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      style={{
+                        background: '#0B0E11',
+                        border: `1px solid ${asterUserError ? '#F6465D' : '#2B3139'}`,
+                        color: '#EAECEF'
+                      }}
                       required
                     />
+                    {asterUserError && (
+                      <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                        {asterUserError}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1385,12 +1506,26 @@ function ExchangeConfigModal({
                     <input
                       type="text"
                       value={asterSigner}
-                      onChange={(e) => setAsterSigner(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAsterSigner(value);
+                        setAsterSignerError(validateEthAddress(value));
+                      }}
+                      onBlur={() => setAsterSignerError(validateEthAddress(asterSigner))}
                       placeholder={t('enterSigner', language)}
                       className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      style={{
+                        background: '#0B0E11',
+                        border: `1px solid ${asterSignerError ? '#F6465D' : '#2B3139'}`,
+                        color: '#EAECEF'
+                      }}
                       required
                     />
+                    {asterSignerError && (
+                      <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                        {asterSignerError}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1400,12 +1535,26 @@ function ExchangeConfigModal({
                     <input
                       type="password"
                       value={asterPrivateKey}
-                      onChange={(e) => setAsterPrivateKey(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAsterPrivateKey(value);
+                        setAsterPrivateKeyError(validatePrivateKey(value));
+                      }}
+                      onBlur={() => setAsterPrivateKeyError(validatePrivateKey(asterPrivateKey))}
                       placeholder={t('enterPrivateKey', language)}
                       className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                      style={{
+                        background: '#0B0E11',
+                        border: `1px solid ${asterPrivateKeyError ? '#F6465D' : '#2B3139'}`,
+                        color: '#EAECEF'
+                      }}
                       required
                     />
+                    {asterPrivateKeyError && (
+                      <p className="text-xs mt-1" style={{ color: '#F6465D' }}>
+                        {asterPrivateKeyError}
+                      </p>
+                    )}
                   </div>
                 </>
               )}
@@ -1451,11 +1600,17 @@ function ExchangeConfigModal({
             <button
               type="submit"
               disabled={
-                !selectedExchange || 
+                !selectedExchange ||
                 (selectedExchange.id === 'binance' && (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedExchange.id === 'okx' && (!apiKey.trim() || !secretKey.trim() || !passphrase.trim())) ||
-                (selectedExchange.id === 'hyperliquid' && (!apiKey.trim() || !hyperliquidWalletAddr.trim())) ||
-                (selectedExchange.id === 'aster' && (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())) ||
+                (selectedExchange.id === 'hyperliquid' && (
+                  !apiKey.trim() || !hyperliquidWalletAddr.trim() ||
+                  hyperliquidPrivateKeyError !== null || hyperliquidWalletAddrError !== null
+                )) ||
+                (selectedExchange.id === 'aster' && (
+                  !asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim() ||
+                  asterUserError !== null || asterSignerError !== null || asterPrivateKeyError !== null
+                )) ||
                 (selectedExchange.type === 'cex' && selectedExchange.id !== 'hyperliquid' && selectedExchange.id !== 'aster' && selectedExchange.id !== 'binance' && selectedExchange.id !== 'okx' && (!apiKey.trim() || !secretKey.trim()))
               }
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"

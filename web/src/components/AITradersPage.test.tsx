@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '../test/test-utils'
+import { render, waitFor } from '../test/test-utils'
 import { AITradersPage } from './AITradersPage'
 import { api } from '../lib/api'
-import type { TraderInfo, AIModel, Exchange } from '../types'
+import type { AIModel, Exchange } from '../types'
 
 // Mock the API module
 vi.mock('../lib/api', () => ({
@@ -29,7 +29,7 @@ vi.mock('../contexts/LanguageContext', () => ({
 
 // Mock SWR
 vi.mock('swr', () => ({
-  default: (key: string, fetcher: Function) => {
+  default: (key: string) => {
     if (key === 'traders') {
       return { data: [], mutate: vi.fn() }
     }
@@ -79,13 +79,6 @@ describe('AITradersPage - Issue #227 Fix', () => {
     hyperliquidWalletAddr: '0xtest',
   }
 
-  const mockTrader: TraderInfo = {
-    trader_id: 'trader-001',
-    trader_name: 'Test Trader',
-    ai_model: 'deepseek_chat',
-    exchange_id: 'binance',
-    is_running: false,
-  }
 
   beforeEach(() => {
     vi.clearAllMocks()

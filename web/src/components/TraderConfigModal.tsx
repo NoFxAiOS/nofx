@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { AIModel, Exchange, CreateTraderRequest } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import { t } from '../i18n/translations';
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -44,6 +46,7 @@ export function TraderConfigModal({
   availableExchanges = [],
   onSave 
 }: TraderConfigModalProps) {
+  const { language } = useLanguage();
   const [formData, setFormData] = useState<TraderConfigData>({
     trader_name: '',
     ai_model: '',
@@ -326,7 +329,7 @@ export function TraderConfigModal({
               {/* 第二行：AI 扫描决策间隔 */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-[#EAECEF] block mb-2">AI 扫描决策间隔 (分钟)</label>
+                  <label className="text-sm text-[#EAECEF] block mb-2">{t('aiScanInterval', language)}</label>
                   <input
                     type="number"
                     value={formData.scan_interval_minutes}
@@ -336,7 +339,7 @@ export function TraderConfigModal({
                     max="60"
                     step="1"
                   />
-                  <p className="text-xs text-gray-500 mt-1">建议: 3-10分钟</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('scanIntervalRecommend', language)}</p>
                 </div>
                 <div></div>
               </div>

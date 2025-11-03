@@ -1,7 +1,16 @@
 import { motion } from 'framer-motion'
 import AnimatedSection from './AnimatedSection'
 
-function TestimonialCard({ quote, author, delay }: any) {
+interface CardProps {
+  quote: string
+  authorName: string
+  handle: string
+  avatarUrl: string
+  tweetUrl: string
+  delay: number
+}
+
+function TestimonialCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay }: CardProps) {
   return (
     <motion.div
       className='p-6 rounded-xl'
@@ -15,12 +24,27 @@ function TestimonialCard({ quote, author, delay }: any) {
       <p className='text-lg mb-4' style={{ color: 'var(--brand-light-gray)' }}>
         "{quote}"
       </p>
-      <div className='flex items-center gap-2'>
-        <div className='w-8 h-8 rounded-full' style={{ background: 'var(--binance-yellow)' }} />
-        <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
-          {author}
-        </span>
-      </div>
+      <a
+        className='flex items-center gap-3 no-underline'
+        href={tweetUrl}
+        rel='noopener noreferrer'
+        target='_blank'
+      >
+        <img
+          alt={`${authorName} avatar`}
+          className='w-10 h-10 rounded-full border border-transparent'
+          src={avatarUrl}
+          style={{ background: 'var(--binance-yellow)' }}
+        />
+        <div className='flex flex-col'>
+          <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
+            {authorName}
+          </span>
+          <span className='text-xs' style={{ color: 'var(--brand-light-gray)' }}>
+            {handle}
+          </span>
+        </div>
+      </a>
     </motion.div>
   )
 }

@@ -28,17 +28,29 @@ jobs:
     if: github.event.workflow_run.event == 'pull_request'
     steps:
       - name: Download artifacts
+        id: download-artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
           path: artifacts
 
+      - name: Debug workflow run info
+        run: |
+          echo "=== Workflow Run Debug Info ==="
+          echo "Workflow Run ID: ${{ github.event.workflow_run.id }}"
+          echo "Workflow Run Event: ${{ github.event.workflow_run.event }}"
+          echo "Workflow Run Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow Run Head SHA: ${{ github.event.workflow_run.head_sha }}"
+
       - name: List downloaded artifacts
         run: |
           echo "=== Checking downloaded artifacts ==="
-          ls -la artifacts/ || echo "No artifacts directory"
-          find artifacts/ -type f || echo "No files found"
+          ls -la artifacts/ || echo "⚠️ No artifacts directory found"
+          find artifacts/ -type f || echo "⚠️ No files found in artifacts"
+          echo ""
+          echo "Artifact download result: ${{ steps.download-artifacts.outcome }}"
 
       - name: Read backend results
         id: backend
@@ -171,6 +183,63 @@ jobs:
             comment += '*These checks are advisory and won\'t block your PR from being merged. This comment is automatically generated from [pr-checks-run.yml](https://github.com/tinkle-community/nofx/blob/dev/.github/workflows/pr-checks-run.yml).*';
 
             // Post comment
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Post fallback comment if no results
+        if: steps.backend.outputs.pr_number == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Try to get PR number from the workflow_run event
+            const pulls = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${{ github.event.workflow_run.head_branch }}`
+            });
+
+            if (pulls.data.length === 0) {
+              console.log('⚠️ Could not find PR for this workflow run');
+              return;
+            }
+
+            const prNumber = pulls.data[0].number;
+
+            const comment = [
+              '## ⚠️ Advisory Checks - Results Unavailable',
+              '',
+              'The advisory checks workflow completed, but results could not be retrieved.',
+              '',
+              '### Possible reasons:',
+              '- Artifacts were not uploaded successfully',
+              '- Artifacts expired (retention: 1 day)',
+              '- Permission issues',
+              '',
+              '### What to do:',
+              '1. Check the [PR Checks - Run workflow](${{ github.event.workflow_run.html_url }}) logs',
+              '2. Ensure your code passes local checks:',
+              '```bash',
+              '# Backend',
+              'go fmt ./...',
+              'go vet ./...',
+              'go build',
+              'go test ./...',
+              '',
+              '# Frontend (if applicable)',
+              'cd web',
+              'npm run build',
+              '```',
+              '',
+              '---',
+              '',
+              '*This is an automated fallback message. The advisory checks ran but results are not available.*'
+            ].join('\n');
+
             await github.rest.issues.createComment({
               issue_number: prNumber,
               owner: context.repo.owner,

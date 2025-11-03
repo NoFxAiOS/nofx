@@ -61,7 +61,7 @@ func GenerateOTPSecret() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      OTPIssuer,
 		AccountName: uuid.New().String(),
@@ -69,7 +69,7 @@ func GenerateOTPSecret() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	return key.Secret(), nil
 }
 

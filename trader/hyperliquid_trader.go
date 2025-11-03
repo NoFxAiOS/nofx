@@ -17,7 +17,7 @@ type HyperliquidTrader struct {
 	ctx           context.Context
 	walletAddr    string
 	meta          *hyperliquid.Meta // 缓存meta信息（包含精度等）
-	isCrossMargin bool             // 是否为全仓模式
+	isCrossMargin bool              // 是否为全仓模式
 }
 
 // NewHyperliquidTrader 创建Hyperliquid交易器

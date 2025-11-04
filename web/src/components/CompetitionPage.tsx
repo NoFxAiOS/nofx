@@ -31,6 +31,8 @@ export function CompetitionPage() {
       setIsModalOpen(true);
     } catch (error) {
       console.error('Failed to fetch trader config:', error);
+      // 对于未登录用户，不显示详细配置，这是正常行为
+      // 竞赛页面主要用于查看排行榜和基本信息
     }
   };
 
@@ -39,7 +41,7 @@ export function CompetitionPage() {
     setSelectedTrader(null);
   };
 
-  if (!competition || !competition.traders) {
+  if (!competition) {
     return (
       <div className="space-y-6">
         <div className="binance-card p-8 animate-pulse">
@@ -57,6 +59,47 @@ export function CompetitionPage() {
             <div className="skeleton h-20 w-full rounded"></div>
             <div className="skeleton h-20 w-full rounded"></div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 如果有数据返回但没有交易员，显示空状态
+  if (!competition.traders || competition.traders.length === 0) {
+    return (
+      <div className="space-y-5 animate-fade-in">
+        {/* Competition Header - 精简版 */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center" style={{
+              background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+              boxShadow: '0 4px 14px rgba(240, 185, 11, 0.4)'
+            }}>
+              <Trophy className="w-6 h-6 md:w-7 md:h-7" style={{ color: '#000' }} />
+            </div>
+            <div>
+              <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
+                {t('aiCompetition', language)}
+                <span className="text-xs font-normal px-2 py-1 rounded" style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}>
+                  0 {t('traders', language)}
+                </span>
+              </h1>
+              <p className="text-xs" style={{ color: '#848E9C' }}>
+                {t('liveBattle', language)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Empty State */}
+        <div className="binance-card p-8 text-center">
+          <Trophy className="w-16 h-16 mx-auto mb-4 opacity-40" style={{ color: '#848E9C' }} />
+          <h3 className="text-lg font-bold mb-2" style={{ color: '#EAECEF' }}>
+            {t('noTraders', language)}
+          </h3>
+          <p className="text-sm" style={{ color: '#848E9C' }}>
+            {t('createFirstTrader', language)}
+          </p>
         </div>
       </div>
     );
@@ -114,7 +157,7 @@ export function CompetitionPage() {
               {t('realTimePnL', language)}
             </div>
           </div>
-          <ComparisonChart traders={sortedTraders} />
+          <ComparisonChart traders={sortedTraders.slice(0, 5)} />
         </div>
 
         {/* Right: Leaderboard */}

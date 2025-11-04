@@ -266,7 +266,7 @@ Please pay special attention to:
 
 - [ ] I have read the [Contributing Guidelines](../CONTRIBUTING.md) | 我已阅读[贡献指南](../CONTRIBUTING.md)
 - [ ] I agree to the [Code of Conduct](../CODE_OF_CONDUCT.md) | 我同意[行为准则](../CODE_OF_CONDUCT.md)
-- [ ] My contribution is licensed under the MIT License | 我的贡献遵循 MIT 许可证
+- [ ] My contribution is licensed under the AGPL-3.0 License | 我的贡献遵循 AGPL-3.0 许可证
 - [ ] I understand this is a voluntary contribution | 我理解这是自愿贡献
 - [ ] I have the right to submit this code | 我有权提交此代码
 

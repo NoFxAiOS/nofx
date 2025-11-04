@@ -162,6 +162,17 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 			log.Printf("  ⚠️ %s 有持仓，无法更改仓位模式，继续使用当前模式", symbol)
 			return nil
 		}
+		// 检测多资产模式（错误码 -4168）
+		if contains(err.Error(), "Multi-Assets mode") || contains(err.Error(), "-4168") || contains(err.Error(), "4168") {
+			log.Printf("  ⚠️ %s 检测到多资产模式，强制使用全仓模式", symbol)
+			log.Printf("  💡 提示：如需使用逐仓模式，请在币安关闭多资产模式")
+			return nil
+		}
+		// 检测统一账户 API（Portfolio Margin）
+		if contains(err.Error(), "unified") || contains(err.Error(), "portfolio") || contains(err.Error(), "Portfolio") {
+			log.Printf("  ❌ %s 检测到统一账户 API，无法进行合约交易", symbol)
+			return fmt.Errorf("请使用「现货与合约交易」API 权限，不要使用「统一账户 API」")
+		}
 		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
 		// 不返回错误，让交易继续
 		return nil

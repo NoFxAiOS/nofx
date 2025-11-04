@@ -842,6 +842,21 @@ func (t *AsterTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 			log.Printf("  ✓ %s 仓位模式已是 %s 或有持仓无法更改", symbol, marginType)
 			return nil
 		}
+		// 检测多资产模式（错误码 -4168）
+		if strings.Contains(err.Error(), "Multi-Assets mode") ||
+			strings.Contains(err.Error(), "-4168") ||
+			strings.Contains(err.Error(), "4168") {
+			log.Printf("  ⚠️ %s 检测到多资产模式，强制使用全仓模式", symbol)
+			log.Printf("  💡 提示：如需使用逐仓模式，请在交易所关闭多资产模式")
+			return nil
+		}
+		// 检测统一账户 API
+		if strings.Contains(err.Error(), "unified") ||
+			strings.Contains(err.Error(), "portfolio") ||
+			strings.Contains(err.Error(), "Portfolio") {
+			log.Printf("  ❌ %s 检测到统一账户 API，无法进行合约交易", symbol)
+			return fmt.Errorf("请使用「现货与合约交易」API 权限，不要使用「统一账户 API」")
+		}
 		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
 		// 不返回错误，让交易继续
 		return nil

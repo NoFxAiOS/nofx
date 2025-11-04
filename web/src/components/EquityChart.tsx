@@ -270,7 +270,23 @@ export function EquityChart({ traderId }: EquityChartProps) {
       </div>
 
       {/* Chart */}
-      <div className='my-2' style={{ borderRadius: '8px', overflow: 'hidden' }}>
+      <div className='my-2' style={{ borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
+        {/* NOFX Watermark */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '15px',
+            right: '15px',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: 'rgba(240, 185, 11, 0.15)',
+            zIndex: 10,
+            pointerEvents: 'none',
+            fontFamily: 'monospace'
+          }}
+        >
+          NOFX
+        </div>
         <ResponsiveContainer width='100%' height={280}>
           <LineChart
             data={chartData}

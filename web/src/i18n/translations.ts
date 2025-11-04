@@ -15,6 +15,11 @@ export const translations = {
     logout: 'Logout',
     switchTrader: 'Switch Trader:',
     view: 'View',
+    
+    // Navigation
+    realtimeNav: 'Live',
+    configNav: 'Config',
+    dashboardNav: 'Dashboard',
 
     // Footer
     footerTitle: 'NOFX - AI Trading System',
@@ -158,6 +163,8 @@ export const translations = {
     create: 'Create',
     configureAIModels: 'Configure AI Models',
     configureExchanges: 'Configure Exchanges',
+    aiScanInterval: 'AI Scan Decision Interval (minutes)',
+    scanIntervalRecommend: 'Recommended: 3-10 minutes',
     useTestnet: 'Use Testnet',
     enabled: 'Enabled',
     save: 'Save',
@@ -250,6 +257,9 @@ export const translations = {
     exchangeConfigWarning2: '• Do not grant withdrawal permissions to ensure fund security',
     exchangeConfigWarning3: '• After deleting configuration, related traders will not be able to trade',
     edit: 'Edit',
+    viewGuide: 'View Guide',
+    binanceSetupGuide: 'Binance Setup Guide',
+    closeGuide: 'Close',
 
     // Error Messages
     createTraderFailed: 'Failed to create trader',
@@ -296,12 +306,12 @@ export const translations = {
     scanQRCodeInstructions: 'Scan this QR code with Google Authenticator or Authy',
     otpSecret: 'Or enter this secret manually:',
     qrCodeHint: 'QR code (if scanning fails, use the secret below):',
-    step1Title: 'Step 1: Install Google Authenticator',
-    step1Desc: 'Download and install Google Authenticator from your app store',
-    step2Title: 'Step 2: Add account',
-    step2Desc: 'Tap "+", then choose "Scan QR code" or "Enter a setup key"',
-    step3Title: 'Step 3: Verify setup',
-    step3Desc: 'After setup, continue to enter the 6-digit code',
+    authStep1Title: 'Step 1: Install Google Authenticator',
+    authStep1Desc: 'Download and install Google Authenticator from your app store',
+    authStep2Title: 'Step 2: Add account',
+    authStep2Desc: 'Tap "+", then choose "Scan QR code" or "Enter a setup key"',
+    authStep3Title: 'Step 3: Verify setup',
+    authStep3Desc: 'After setup, continue to enter the 6-digit code',
     setupCompleteContinue: 'I have completed setup, continue',
     copy: 'Copy',
     completeRegistration: 'Complete Registration',
@@ -317,6 +327,96 @@ export const translations = {
     passwordRequired: 'Password is required',
     invalidEmail: 'Invalid email format',
     passwordTooShort: 'Password must be at least 6 characters',
+
+    // Landing Page
+    features: 'Features',
+    howItWorks: 'How it Works',
+    community: 'Community',
+    language: 'Language',
+    loggedInAs: 'Logged in as',
+    exitLogin: 'Sign Out',
+    signIn: 'Sign In',
+    signUp: 'Sign Up',
+    
+    // Hero Section
+    githubStarsInDays: '2.5K+ GitHub Stars in 3 days',
+    heroTitle1: 'Read the Market.',
+    heroTitle2: 'Write the Trade.',
+    heroDescription: 'NOFX is the future standard for AI trading — an open, community-driven agentic trading OS. Supporting Binance, Aster DEX and other exchanges, self-hosted, multi-agent competition, let AI automatically make decisions, execute and optimize trades for you.',
+    poweredBy: 'Powered by Aster DEX and Binance, strategically invested by Amber.ac.',
+    
+    // Landing Page CTA
+    readyToDefine: 'Ready to define the future of AI trading?',
+    startWithCrypto: 'Starting with crypto markets, expanding to TradFi. NOFX is the infrastructure of AgentFi.',
+    getStartedNow: 'Get Started Now',
+    viewSourceCode: 'View Source Code',
+    
+    // Features Section
+    coreFeatures: 'Core Features',
+    whyChooseNofx: 'Why Choose NOFX?',
+    openCommunityDriven: 'Open source, transparent, community-driven AI trading OS',
+    openSourceSelfHosted: '100% Open Source & Self-Hosted',
+    openSourceDesc: 'Your framework, your rules. Non-black box, supports custom prompts and multi-models.',
+    openSourceFeatures1: 'Fully open source code',
+    openSourceFeatures2: 'Self-hosting deployment support',
+    openSourceFeatures3: 'Custom AI prompts',
+    openSourceFeatures4: 'Multi-model support (DeepSeek, Qwen)',
+    multiAgentCompetition: 'Multi-Agent Intelligent Competition',
+    multiAgentDesc: 'AI strategies battle at high speed in sandbox, survival of the fittest, achieving strategy evolution.',
+    multiAgentFeatures1: 'Multiple AI agents running in parallel',
+    multiAgentFeatures2: 'Automatic strategy optimization',
+    multiAgentFeatures3: 'Sandbox security testing',
+    multiAgentFeatures4: 'Cross-market strategy porting',
+    secureReliableTrading: 'Secure and Reliable Trading',
+    secureDesc: 'Enterprise-grade security, complete control over your funds and trading strategies.',
+    secureFeatures1: 'Local private key management',
+    secureFeatures2: 'Fine-grained API permission control',
+    secureFeatures3: 'Real-time risk monitoring',
+    secureFeatures4: 'Trading log auditing',
+    
+    // About Section
+    aboutNofx: 'About NOFX',
+    whatIsNofx: 'What is NOFX?',
+    nofxNotAnotherBot: "NOFX is not another trading bot, but the 'Linux' of AI trading —",
+    nofxDescription1: 'a transparent, trustworthy open source OS that provides a unified',
+    nofxDescription2: "'decision-risk-execution' layer, supporting all asset classes.",
+    nofxDescription3: 'Starting with crypto markets (24/7, high volatility perfect testing ground), future expansion to stocks, futures, forex. Core: open architecture, AI',
+    nofxDescription4: 'Darwinism (multi-agent self-competition, strategy evolution), CodeFi',
+    nofxDescription5: 'flywheel (developers get point rewards for PR contributions).',
+    youFullControl: 'You 100% Control',
+    fullControlDesc: 'Complete control over AI prompts and funds',
+    startupMessages1: 'Starting automated trading system...',
+    startupMessages2: 'API server started on port 8080',
+    startupMessages3: 'Web console http://localhost:3000',
+    
+    // How It Works Section
+    howToStart: 'How to Get Started with NOFX',
+    fourSimpleSteps: 'Four simple steps to start your AI automated trading journey',
+    step1Title: 'Clone GitHub Repository',
+    step1Desc: 'git clone https://github.com/tinkle-community/nofx and switch to dev branch to test new features.',
+    step2Title: 'Configure Environment',
+    step2Desc: 'Frontend setup for exchange APIs (like Binance, Hyperliquid), AI models and custom prompts.',
+    step3Title: 'Deploy & Run',
+    step3Desc: 'One-click Docker deployment, start AI agents. Note: High-risk market, only test with money you can afford to lose.',
+    step4Title: 'Optimize & Contribute',
+    step4Desc: 'Monitor trading, submit PRs to improve framework. Join Telegram to share strategies.',
+    importantRiskWarning: 'Important Risk Warning',
+    riskWarningText: 'Dev branch is unstable, do not use funds you cannot afford to lose. NOFX is non-custodial, no official strategies. Trading involves risks, invest carefully.',
+    
+    // Community Section (testimonials are kept as-is since they are quotes)
+    
+    // Footer Section
+    futureStandardAI: 'The future standard of AI trading',
+    links: 'Links',
+    resources: 'Resources',
+    documentation: 'Documentation',
+    supporters: 'Supporters',
+    strategicInvestment: '(Strategic Investment)',
+    
+    // Login Modal
+    accessNofxPlatform: 'Access NOFX Platform',
+    loginRegisterPrompt: 'Please login or register to access the full AI trading platform',
+    registerNewAccount: 'Register New Account',
   },
   zh: {
     // Header
@@ -332,6 +432,11 @@ export const translations = {
     logout: '退出',
     switchTrader: '切换交易员:',
     view: '查看',
+    
+    // Navigation
+    realtimeNav: '实时',
+    configNav: '配置',
+    dashboardNav: '看板',
 
     // Footer
     footerTitle: 'NOFX - AI交易系统',
@@ -475,6 +580,8 @@ export const translations = {
     create: '创建',
     configureAIModels: '配置AI模型',
     configureExchanges: '配置交易所',
+    aiScanInterval: 'AI 扫描决策间隔 (分钟)',
+    scanIntervalRecommend: '建议: 3-10分钟',
     useTestnet: '使用测试网',
     enabled: '启用',
     save: '保存',
@@ -567,6 +674,9 @@ export const translations = {
     exchangeConfigWarning2: '• 不要授予提现权限，确保资金安全',
     exchangeConfigWarning3: '• 删除配置后，相关交易员将无法正常交易',
     edit: '编辑',
+    viewGuide: '查看教程',
+    binanceSetupGuide: '币安配置教程',
+    closeGuide: '关闭',
 
     // Error Messages
     createTraderFailed: '创建交易员失败',
@@ -613,12 +723,12 @@ export const translations = {
     scanQRCodeInstructions: '使用Google Authenticator或Authy扫描此二维码',
     otpSecret: '或手动输入此密钥：',
     qrCodeHint: '二维码（如果无法扫描，请使用下方密钥）：',
-    step1Title: '步骤1：下载Google Authenticator',
-    step1Desc: '在手机应用商店下载并安装Google Authenticator应用',
-    step2Title: '步骤2：添加账户',
-    step2Desc: '在应用中点击“+”，选择“扫描二维码”或“手动输入密钥”',
-    step3Title: '步骤3：验证设置',
-    step3Desc: '设置完成后，点击下方按钮输入6位验证码',
+    authStep1Title: '步骤1：下载Google Authenticator',
+    authStep1Desc: '在手机应用商店下载并安装Google Authenticator应用',
+    authStep2Title: '步骤2：添加账户',
+    authStep2Desc: '在应用中点击“+”，选择“扫描二维码”或“手动输入密钥”',
+    authStep3Title: '步骤3：验证设置',
+    authStep3Desc: '设置完成后，点击下方按钮输入6位验证码',
     setupCompleteContinue: '我已完成设置，继续',
     copy: '复制',
     completeRegistration: '完成注册',
@@ -634,6 +744,96 @@ export const translations = {
     passwordRequired: '请输入密码',
     invalidEmail: '邮箱格式不正确',
     passwordTooShort: '密码至少需要6个字符',
+
+    // Landing Page
+    features: '功能',
+    howItWorks: '如何运作',
+    community: '社区',
+    language: '语言',
+    loggedInAs: '已登录为',
+    exitLogin: '退出登录',
+    signIn: '登录',
+    signUp: '注册',
+    
+    // Hero Section
+    githubStarsInDays: '3 天内 2.5K+ GitHub Stars',
+    heroTitle1: 'Read the Market.',
+    heroTitle2: 'Write the Trade.',
+    heroDescription: 'NOFX 是 AI 交易的未来标准——一个开放、社区驱动的代理式交易操作系统。支持 Binance、Aster DEX 等交易所，自托管、多代理竞争，让 AI 为你自动决策、执行和优化交易。',
+    poweredBy: '由 Aster DEX 和 Binance 提供支持，Amber.ac 战略投资。',
+    
+    // Landing Page CTA
+    readyToDefine: '准备好定义 AI 交易的未来吗？',
+    startWithCrypto: '从加密市场起步，扩展到 TradFi。NOFX 是 AgentFi 的基础架构。',
+    getStartedNow: '立即开始',
+    viewSourceCode: '查看源码',
+    
+    // Features Section
+    coreFeatures: '核心功能',
+    whyChooseNofx: '为什么选择 NOFX？',
+    openCommunityDriven: '开源、透明、社区驱动的 AI 交易操作系统',
+    openSourceSelfHosted: '100% 开源与自托管',
+    openSourceDesc: '你的框架，你的规则。非黑箱，支持自定义提示词和多模型。',
+    openSourceFeatures1: '完全开源代码',
+    openSourceFeatures2: '支持自托管部署',
+    openSourceFeatures3: '自定义 AI 提示词',
+    openSourceFeatures4: '多模型支持（DeepSeek、Qwen）',
+    multiAgentCompetition: '多代理智能竞争',
+    multiAgentDesc: 'AI 策略在沙盒中高速战斗，最优者生存，实现策略进化。',
+    multiAgentFeatures1: '多 AI 代理并行运行',
+    multiAgentFeatures2: '策略自动优化',
+    multiAgentFeatures3: '沙盒安全测试',
+    multiAgentFeatures4: '跨市场策略移植',
+    secureReliableTrading: '安全可靠交易',
+    secureDesc: '企业级安全保障，完全掌控你的资金和交易策略。',
+    secureFeatures1: '本地私钥管理',
+    secureFeatures2: 'API 权限精细控制',
+    secureFeatures3: '实时风险监控',
+    secureFeatures4: '交易日志审计',
+    
+    // About Section
+    aboutNofx: '关于 NOFX',
+    whatIsNofx: '什么是 NOFX？',
+    nofxNotAnotherBot: 'NOFX 不是另一个交易机器人，而是 AI 交易的 \'Linux\' ——',
+    nofxDescription1: '一个透明、可信任的开源 OS，提供统一的 \'决策-风险-执行\'',
+    nofxDescription2: '层，支持所有资产类别。',
+    nofxDescription3: '从加密市场起步（24/7、高波动性完美测试场），未来扩展到股票、期货、外汇。核心：开放架构、AI',
+    nofxDescription4: '达尔文主义（多代理自竞争、策略进化）、CodeFi 飞轮（开发者 PR',
+    nofxDescription5: '贡献获积分奖励）。',
+    youFullControl: '你 100% 掌控',
+    fullControlDesc: '完全掌控 AI 提示词和资金',
+    startupMessages1: ' 启动自动交易系统...',
+    startupMessages2: ' API服务器启动在端口 8080',
+    startupMessages3: ' Web 控制台 http://localhost:3000',
+    
+    // How It Works Section
+    howToStart: '如何开始使用 NOFX',
+    fourSimpleSteps: '四个简单步骤，开启 AI 自动交易之旅',
+    step1Title: '拉取 GitHub 仓库',
+    step1Desc: 'git clone https://github.com/tinkle-community/nofx 并切换到 dev 分支测试新功能。',
+    step2Title: '配置环境',
+    step2Desc: '前端设置交易所 API（如 Binance、Hyperliquid）、AI 模型和自定义提示词。',
+    step3Title: '部署与运行',
+    step3Desc: '一键 Docker 部署，启动 AI 代理。注意：高风险市场，仅用闲钱测试。',
+    step4Title: '优化与贡献',
+    step4Desc: '监控交易，提交 PR 改进框架。加入 Telegram 分享策略。',
+    importantRiskWarning: '重要风险提示',
+    riskWarningText: 'dev 分支不稳定，勿用无法承受损失的资金。NOFX 非托管，无官方策略。交易有风险，投资需谨慎。',
+    
+    // Community Section (testimonials are kept as-is since they are quotes)
+    
+    // Footer Section
+    futureStandardAI: 'AI 交易的未来标准',
+    links: '链接',
+    resources: '资源',
+    documentation: '文档',
+    supporters: '支持方',
+    strategicInvestment: '(战略投资)',
+    
+    // Login Modal
+    accessNofxPlatform: '访问 NOFX 平台',
+    loginRegisterPrompt: '请选择登录或注册以访问完整的 AI 交易平台',
+    registerNewAccount: '注册新账号',
   }
 };
 

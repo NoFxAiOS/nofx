@@ -109,15 +109,24 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	// 需要返回"不包含未实现盈亏的钱包余额"
 	walletBalanceWithoutUnrealized := accountValue - totalUnrealizedPnl
 
+	// ⚠️ 计算可用余额，确保不为负数（防止"没钱"误报）
+	availableBalance := accountValue - totalMarginUsed
+	if availableBalance < 0 {
+		log.Printf("⚠️ [Hyperliquid] 计算的可用余额为负 (%.2f - %.2f = %.2f)，已调整为0。",
+			accountValue, totalMarginUsed, availableBalance)
+		log.Printf("   提示：这可能是因为Hyperliquid的TotalMarginUsed计算方式不同，或持仓处于高风险状态")
+		availableBalance = 0
+	}
+
 	result["totalWalletBalance"] = walletBalanceWithoutUnrealized // 钱包余额（不含未实现盈亏）
-	result["availableBalance"] = accountValue - totalMarginUsed   // 可用余额（总净值 - 占用保证金）
+	result["availableBalance"] = availableBalance                 // 可用余额（总净值 - 占用保证金，最小为0）
 	result["totalUnrealizedProfit"] = totalUnrealizedPnl          // 未实现盈亏
 
 	log.Printf("✓ Hyperliquid 账户: 总净值=%.2f (钱包%.2f+未实现%.2f), 可用=%.2f, 保证金占用=%.2f",
 		accountValue,
 		walletBalanceWithoutUnrealized,
 		totalUnrealizedPnl,
-		result["availableBalance"],
+		availableBalance,
 		totalMarginUsed)
 
 	return result, nil

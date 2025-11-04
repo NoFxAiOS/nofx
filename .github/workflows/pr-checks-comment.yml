@@ -1,0 +1,362 @@
+name: PR Checks - Comment
+
+# This workflow posts ADVISORY check results as comments
+# Runs in the main repo context with write permissions (SAFE)
+# Triggered after pr-checks-run.yml completes
+#
+# NOTE: PR title and size checks are handled by pr-checks.yml (no duplication)
+#       This workflow only posts backend/frontend advisory check results
+
+on:
+  workflow_run:
+    workflows: ["PR Checks - Run"]
+    types: [completed]
+
+# Write permissions - SAFE because runs in main repo context
+# This token has write access to the base repository
+# Fork PRs exist in the base repo, so we can comment on them
+permissions:
+  pull-requests: write
+  issues: write
+  actions: read  # Needed to download artifacts
+
+jobs:
+  comment:
+    name: Post Advisory Check Results
+    runs-on: ubuntu-latest
+    # Only run if the workflow was triggered by a pull_request event
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Download artifacts
+        id: download-artifacts
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          path: artifacts
+
+      - name: Debug workflow run info
+        run: |
+          echo "=== Workflow Run Debug Info ==="
+          echo "Workflow Run ID: ${{ github.event.workflow_run.id }}"
+          echo "Workflow Run Event: ${{ github.event.workflow_run.event }}"
+          echo "Workflow Run Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow Run Head SHA: ${{ github.event.workflow_run.head_sha }}"
+
+      - name: List downloaded artifacts
+        run: |
+          echo "=== Checking downloaded artifacts ==="
+          ls -la artifacts/ || echo "⚠️ No artifacts directory found"
+          find artifacts/ -type f || echo "⚠️ No files found in artifacts"
+          echo ""
+          echo "Artifact download result: ${{ steps.download-artifacts.outcome }}"
+
+      - name: Read backend results
+        id: backend
+        continue-on-error: true
+        run: |
+          if [ -f artifacts/backend-results/backend-results.json ]; then
+            echo "=== Backend Results JSON ==="
+            cat artifacts/backend-results/backend-results.json
+            echo "pr_number=$(jq -r '.pr_number' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+            echo "fmt_status=$(jq -r '.fmt_status' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+            echo "vet_status=$(jq -r '.vet_status' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+            echo "test_status=$(jq -r '.test_status' artifacts/backend-results/backend-results.json)" >> $GITHUB_OUTPUT
+
+            # Read output files
+            if [ -f artifacts/backend-results/fmt-files.txt ]; then
+              echo "fmt_files<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/backend-results/fmt-files.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            if [ -f artifacts/backend-results/vet-output-short.txt ]; then
+              echo "vet_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/backend-results/vet-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            if [ -f artifacts/backend-results/test-output-short.txt ]; then
+              echo "test_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/backend-results/test-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "pr_number=0" >> $GITHUB_OUTPUT
+            echo "⚠️ Backend results artifact not found"
+          fi
+
+      - name: Read frontend results
+        id: frontend
+        continue-on-error: true
+        run: |
+          if [ -f artifacts/frontend-results/frontend-results.json ]; then
+            echo "=== Frontend Results JSON ==="
+            cat artifacts/frontend-results/frontend-results.json
+            echo "build_status=$(jq -r '.build_status' artifacts/frontend-results/frontend-results.json)" >> $GITHUB_OUTPUT
+
+            # Read output files
+            if [ -f artifacts/frontend-results/build-output-short.txt ]; then
+              echo "build_output<<EOF" >> $GITHUB_OUTPUT
+              cat artifacts/frontend-results/build-output-short.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ Frontend results artifact not found"
+          fi
+
+      - name: Get PR information
+        id: pr-info
+        if: steps.backend.outputs.pr_number != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.backend.outputs.pr_number }};
+
+            // Get PR details
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber
+            });
+
+            // Check PR title format (Conventional Commits)
+            const prTitle = pr.title;
+            const conventionalCommitPattern = /^(feat|fix|docs|style|refactor|perf|test|chore|ci|security|build)(\(.+\))?: .+/;
+            const titleValid = conventionalCommitPattern.test(prTitle);
+
+            core.setOutput('pr_title', prTitle);
+            core.setOutput('title_valid', titleValid);
+
+            // Calculate PR size
+            const additions = pr.additions;
+            const deletions = pr.deletions;
+            const total = additions + deletions;
+
+            let size = '';
+            let sizeEmoji = '';
+            if (total < 300) {
+              size = 'Small';
+              sizeEmoji = '🟢';
+            } else if (total < 1000) {
+              size = 'Medium';
+              sizeEmoji = '🟡';
+            } else {
+              size = 'Large';
+              sizeEmoji = '🔴';
+            }
+
+            core.setOutput('pr_size', size);
+            core.setOutput('size_emoji', sizeEmoji);
+            core.setOutput('total_lines', total);
+            core.setOutput('additions', additions);
+            core.setOutput('deletions', deletions);
+
+      - name: Post advisory results comment
+        if: steps.backend.outputs.pr_number != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.backend.outputs.pr_number }};
+
+            let comment = '## 🤖 Advisory Check Results\n\n';
+            comment += 'These are **advisory** checks to help improve code quality. They won\'t block your PR from being merged.\n\n';
+
+            // PR Information section
+            const prTitle = '${{ steps.pr-info.outputs.pr_title }}';
+            const titleValid = '${{ steps.pr-info.outputs.title_valid }}' === 'true';
+            const prSize = '${{ steps.pr-info.outputs.pr_size }}';
+            const sizeEmoji = '${{ steps.pr-info.outputs.size_emoji }}';
+            const totalLines = '${{ steps.pr-info.outputs.total_lines }}';
+            const additions = '${{ steps.pr-info.outputs.additions }}';
+            const deletions = '${{ steps.pr-info.outputs.deletions }}';
+
+            comment += '### 📋 PR Information\n\n';
+
+            // Title check
+            if (titleValid) {
+              comment += '**Title Format:** ✅ Good - Follows Conventional Commits\n';
+            } else {
+              comment += '**Title Format:** ⚠️ Suggestion - Consider using `type(scope): description`\n';
+              comment += '<details><summary>Recommended format</summary>\n\n';
+              comment += '**Valid types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`, `security`, `build`\n\n';
+              comment += '**Examples:**\n';
+              comment += '- `feat(trader): add new trading strategy`\n';
+              comment += '- `fix(api): resolve authentication issue`\n';
+              comment += '- `docs: update README`\n';
+              comment += '</details>\n\n';
+            }
+
+            // Size check
+            comment += `**PR Size:** ${sizeEmoji} ${prSize} (${totalLines} lines: +${additions} -${deletions})\n`;
+
+            if (prSize === 'Large') {
+              comment += '\n💡 **Suggestion:** This is a large PR. Consider breaking it into smaller, focused PRs for easier review.\n';
+            }
+
+            comment += '\n';
+
+            // Backend checks
+            const fmtStatus = '${{ steps.backend.outputs.fmt_status }}';
+            const vetStatus = '${{ steps.backend.outputs.vet_status }}';
+            const testStatus = '${{ steps.backend.outputs.test_status }}';
+
+            if (fmtStatus || vetStatus || testStatus) {
+              comment += '\n### 🔧 Backend Checks\n\n';
+
+              if (fmtStatus) {
+                comment += '**Go Formatting:** ' + fmtStatus + '\n';
+                const fmtFiles = `${{ steps.backend.outputs.fmt_files }}`;
+                if (fmtFiles && fmtFiles.trim()) {
+                  comment += '<details><summary>Files needing formatting</summary>\n\n```\n' + fmtFiles + '\n```\n</details>\n\n';
+                }
+              }
+
+              if (vetStatus) {
+                comment += '**Go Vet:** ' + vetStatus + '\n';
+                const vetOutput = `${{ steps.backend.outputs.vet_output }}`;
+                if (vetOutput && vetOutput.trim()) {
+                  comment += '<details><summary>Issues found</summary>\n\n```\n' + vetOutput.substring(0, 1000) + '\n```\n</details>\n\n';
+                }
+              }
+
+              if (testStatus) {
+                comment += '**Tests:** ' + testStatus + '\n';
+                const testOutput = `${{ steps.backend.outputs.test_output }}`;
+                if (testOutput && testOutput.trim()) {
+                  comment += '<details><summary>Test output</summary>\n\n```\n' + testOutput.substring(0, 1000) + '\n```\n</details>\n\n';
+                }
+              }
+
+              comment += '\n**Fix locally:**\n';
+              comment += '```bash\n';
+              comment += 'go fmt ./...      # Format code\n';
+              comment += 'go vet ./...      # Check for issues\n';
+              comment += 'go test ./...     # Run tests\n';
+              comment += '```\n';
+            }
+
+            // Frontend checks
+            const buildStatus = '${{ steps.frontend.outputs.build_status }}';
+
+            if (buildStatus) {
+              comment += '\n### ⚛️ Frontend Checks\n\n';
+
+              comment += '**Build & Type Check:** ' + buildStatus + '\n';
+              const buildOutput = `${{ steps.frontend.outputs.build_output }}`;
+              if (buildOutput && buildOutput.trim()) {
+                comment += '<details><summary>Build output</summary>\n\n```\n' + buildOutput.substring(0, 1000) + '\n```\n</details>\n\n';
+              }
+
+              comment += '\n**Fix locally:**\n';
+              comment += '```bash\n';
+              comment += 'cd web\n';
+              comment += 'npm run build  # Test build (includes type checking)\n';
+              comment += '```\n';
+            }
+
+            comment += '\n---\n\n';
+            comment += '### 📖 Resources\n\n';
+            comment += '- [Contributing Guidelines](https://github.com/tinkle-community/nofx/blob/dev/CONTRIBUTING.md)\n';
+            comment += '- [Migration Guide](https://github.com/tinkle-community/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n\n';
+            comment += '**Questions?** Feel free to ask in the comments! 🙏\n\n';
+            comment += '---\n\n';
+            comment += '*These checks are advisory and won\'t block your PR from being merged. This comment is automatically generated from [pr-checks-run.yml](https://github.com/tinkle-community/nofx/blob/dev/.github/workflows/pr-checks-run.yml).*';
+
+            // Post comment
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Post fallback comment if no results
+        if: steps.backend.outputs.pr_number == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Try to get PR number from the workflow_run event
+            const pulls = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${{ github.event.workflow_run.head_branch }}`
+            });
+
+            if (pulls.data.length === 0) {
+              console.log('⚠️ Could not find PR for this workflow run');
+              return;
+            }
+
+            const pr = pulls.data[0];
+            const prNumber = pr.number;
+
+            // Get PR information for fallback comment
+            const prTitle = pr.title;
+            const conventionalCommitPattern = /^(feat|fix|docs|style|refactor|perf|test|chore|ci|security|build)(\(.+\))?: .+/;
+            const titleValid = conventionalCommitPattern.test(prTitle);
+
+            const additions = pr.additions || 0;
+            const deletions = pr.deletions || 0;
+            const total = additions + deletions;
+
+            let size = '';
+            let sizeEmoji = '';
+            if (total < 300) {
+              size = 'Small';
+              sizeEmoji = '🟢';
+            } else if (total < 1000) {
+              size = 'Medium';
+              sizeEmoji = '🟡';
+            } else {
+              size = 'Large';
+              sizeEmoji = '🔴';
+            }
+
+            let comment = '## ⚠️ Advisory Checks - Results Unavailable\n\n';
+            comment += 'The advisory checks workflow completed, but results could not be retrieved.\n\n';
+
+            // Add PR Information
+            comment += '### 📋 PR Information\n\n';
+
+            if (titleValid) {
+              comment += '**Title Format:** ✅ Good - Follows Conventional Commits\n';
+            } else {
+              comment += '**Title Format:** ⚠️ Suggestion - Consider using `type(scope): description`\n';
+            }
+
+            comment += `**PR Size:** ${sizeEmoji} ${size} (${total} lines: +${additions} -${deletions})\n\n`;
+
+            if (size === 'Large') {
+              comment += '💡 **Suggestion:** This is a large PR. Consider breaking it into smaller, focused PRs for easier review.\n\n';
+            }
+
+            comment += '---\n\n';
+            comment += '### ⚠️ Backend/Frontend Check Results\n\n';
+            comment += 'Results could not be retrieved.\n\n';
+            comment += '**Possible reasons:**\n';
+            comment += '- Artifacts were not uploaded successfully\n';
+            comment += '- Artifacts expired (retention: 1 day)\n';
+            comment += '- Permission issues\n\n';
+            comment += '**What to do:**\n';
+            comment += `1. Check the [PR Checks - Run workflow](${context.payload.workflow_run?.html_url || 'logs'}) logs\n`;
+            comment += '2. Ensure your code passes local checks:\n';
+            comment += '```bash\n';
+            comment += '# Backend\n';
+            comment += 'go fmt ./...\n';
+            comment += 'go vet ./...\n';
+            comment += 'go build\n';
+            comment += 'go test ./...\n\n';
+            comment += '# Frontend (if applicable)\n';
+            comment += 'cd web\n';
+            comment += 'npm run build\n';
+            comment += '```\n\n';
+            comment += '---\n\n';
+            comment += '*This is an automated fallback message. The advisory checks ran but results are not available.*';
+
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

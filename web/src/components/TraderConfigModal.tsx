@@ -22,6 +22,7 @@ interface TraderConfigData {
   use_coin_pool: boolean;
   use_oi_top: boolean;
   initial_balance: number;
+  scan_interval_minutes: number;
 }
 
 interface TraderConfigModalProps {
@@ -57,6 +58,7 @@ export function TraderConfigModal({
     use_coin_pool: false,
     use_oi_top: false,
     initial_balance: 1000,
+    scan_interval_minutes: 3,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [availableCoins, setAvailableCoins] = useState<string[]>([]);
@@ -87,6 +89,7 @@ export function TraderConfigModal({
         use_coin_pool: false,
         use_oi_top: false,
         initial_balance: 1000,
+        scan_interval_minutes: 3,
       });
     }
     // 确保旧数据也有默认的 system_prompt_template
@@ -181,6 +184,7 @@ export function TraderConfigModal({
         use_coin_pool: formData.use_coin_pool,
         use_oi_top: formData.use_oi_top,
         initial_balance: formData.initial_balance,
+        scan_interval_minutes: formData.scan_interval_minutes,
       };
       await onSave(saveData);
       onClose();
@@ -319,7 +323,25 @@ export function TraderConfigModal({
                 </div>
               </div>
 
-              {/* 第二行：杠杆设置 */}
+              {/* 第二行：AI 扫描决策间隔 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-[#EAECEF] block mb-2">AI 扫描决策间隔 (分钟)</label>
+                  <input
+                    type="number"
+                    value={formData.scan_interval_minutes}
+                    onChange={(e) => handleInputChange('scan_interval_minutes', Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                    min="1"
+                    max="60"
+                    step="1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">建议: 3-10分钟</p>
+                </div>
+                <div></div>
+              </div>
+
+              {/* 第三行：杠杆设置 */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">BTC/ETH 杠杆</label>

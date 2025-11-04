@@ -2,15 +2,15 @@ import { motion } from 'framer-motion'
 import AnimatedSection from './AnimatedSection'
 
 interface CardProps {
-  quote: string
-  authorName: string
-  handle: string
-  avatarUrl: string
-  tweetUrl: string
-  delay: number
+  quote: string;
+  authorName: string;
+  handle: string;
+  avatarUrl: string;
+  tweetUrl: string;
+  delay: number;
 }
 
-function TestimonialCard({ quote, author, delay }: any) {
+function TestimonialCard({ quote, authorName, delay }: CardProps) {
   return (
     <motion.div
       className='p-6 rounded-xl'
@@ -27,7 +27,7 @@ function TestimonialCard({ quote, author, delay }: any) {
       <div className='flex items-center gap-2'>
         <div className='w-8 h-8 rounded-full' style={{ background: 'var(--binance-yellow)' }} />
         <span className='text-sm font-semibold' style={{ color: 'var(--text-secondary)' }}>
-          {author}
+          {authorName}
         </span>
       </div>
     </motion.div>

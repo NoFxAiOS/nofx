@@ -237,6 +237,17 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		return nil, err
 	}
 
+	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
+	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
+	if parseErr != nil || quantityFloat <= 0 {
+		return nil, fmt.Errorf("开倉數量過小，格式化後為 0 (原始: %.8f → 格式化: %s)。建議增加開倉金額或選擇價格更低的幣種", quantity, quantityStr)
+	}
+
+	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
+	if err := t.CheckMinNotional(symbol, quantityFloat); err != nil {
+		return nil, err
+	}
+
 	// 创建市价买入订单
 	order, err := t.client.NewCreateOrderService().
 		Symbol(symbol).
@@ -277,6 +288,17 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 	// 格式化数量到正确精度
 	quantityStr, err := t.FormatQuantity(symbol, quantity)
 	if err != nil {
+		return nil, err
+	}
+
+	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
+	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
+	if parseErr != nil || quantityFloat <= 0 {
+		return nil, fmt.Errorf("开倉數量過小，格式化後為 0 (原始: %.8f → 格式化: %s)。建議增加開倉金額或選擇價格更低的幣種", quantity, quantityStr)
+	}
+
+	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
+	if err := t.CheckMinNotional(symbol, quantityFloat); err != nil {
 		return nil, err
 	}
 

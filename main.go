@@ -32,6 +32,7 @@ type ConfigFile struct {
 	DefaultCoins       []string          `json:"default_coins"`
 	CoinPoolAPIURL     string            `json:"coin_pool_api_url"`
 	OITopAPIURL        string            `json:"oi_top_api_url"`
+	MaxPositions       int               `json:"max_positions"`
 	MaxDailyLoss       float64           `json:"max_daily_loss"`
 	MaxDrawdown        float64           `json:"max_drawdown"`
 	StopTradingMinutes int               `json:"stop_trading_minutes"`
@@ -80,6 +81,7 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
 		"coin_pool_api_url":    configFile.CoinPoolAPIURL,
 		"oi_top_api_url":       configFile.OITopAPIURL,
+		"max_positions":        strconv.Itoa(configFile.MaxPositions),
 		"max_daily_loss":       fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
 		"max_drawdown":         fmt.Sprintf("%.1f", configFile.MaxDrawdown),
 		"stop_trading_minutes": strconv.Itoa(configFile.StopTradingMinutes),

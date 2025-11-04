@@ -70,6 +70,7 @@ type Config struct {
 	UseDefaultCoins    bool           `json:"use_default_coins"` // 是否使用默认主流币种列表
 	DefaultCoins       []string       `json:"default_coins"`     // 默认主流币种池
 	APIServerPort      int            `json:"api_server_port"`
+	MaxPositions       int            `json:"max_positions"`
 	MaxDailyLoss       float64        `json:"max_daily_loss"`
 	MaxDrawdown        float64        `json:"max_drawdown"`
 	StopTradingMinutes int            `json:"stop_trading_minutes"`

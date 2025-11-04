@@ -62,6 +62,7 @@ type AutoTraderConfig struct {
 	AltcoinLeverage int // 山寨币的杠杆倍数
 
 	// 风险控制（仅作为提示，AI可自主决定）
+	MaxPositions    int           // 最大持仓数
 	MaxDailyLoss    float64       // 最大日亏损百分比（提示）
 	MaxDrawdown     float64       // 最大回撤百分比（提示）
 	StopTradingTime time.Duration // 触发风控后暂停时长
@@ -386,7 +387,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 1. 检查是否需要停止交易
 	if time.Now().Before(at.stopUntil) {
-		remaining := at.stopUntil.Sub(time.Now())
+		remaining := time.Until(at.stopUntil)
 		log.Printf("⏸ 风险控制：暂停交易中，剩余 %.0f 分钟", remaining.Minutes())
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("风险控制暂停中，剩余 %.0f 分钟", remaining.Minutes())
@@ -441,7 +442,7 @@ func (at *AutoTrader) runCycle() error {
 		record.CandidateCoins = append(record.CandidateCoins, coin.Symbol)
 	}
 
-	log.Printf("📊 账户净值: %.2f USDT | 可用: %.2f USDT | 持仓: %d",
+	log.Printf("📊 账户净值: %.2f USDT | 可用: %.2f USDT | 持仓数: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
 	// 5. 调用AI获取完整决策
@@ -692,6 +693,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
 		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		MaxPositions:    at.config.MaxPositions,    // 最大持仓数
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,

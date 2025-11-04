@@ -16,11 +16,13 @@ import (
 )
 
 var (
-	reJSONFence      = regexp.MustCompile("(?is)```(?:json[a-z0-9_-]*)?\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
+	// ✅ 安全的正則：精確匹配 ```json 代碼塊
+	// 使用反引號 + 拼接避免轉義問題
+	reJSONFence      = regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
 	reJSONArray      = regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
 	reArrayHead      = regexp.MustCompile(`^\[\s*\{`)
 	reArrayOpenSpace = regexp.MustCompile(`^\[\s+\{`)
-	reInvisibleRunes = regexp.MustCompile("[\u200B\u200C\u200D\uFEFF]")
+	reInvisibleRunes = regexp.MustCompile(`[\u200B\u200C\u200D\uFEFF]`)
 )
 
 // PositionInfo 持仓信息

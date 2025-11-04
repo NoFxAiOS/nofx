@@ -38,20 +38,20 @@ go.sum @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
 
 # Frontend / Web | 前端 / Web
 # React/TypeScript frontend code
-/web/ @0xemberzz @hzb1115 @xqliu @tangmengqiu
-/web/src/ @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.tsx @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.ts @0xemberzz @hzb1115 @xqliu @tangmengqiu (frontend TypeScript only)
-*.jsx @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.css @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.scss @0xemberzz @hzb1115 @xqliu @tangmengqiu
+/web/ @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+/web/src/ @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.tsx @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.ts @0xEmberZz @hzb1115 @xqliu @tangmengqiu (frontend TypeScript only)
+*.jsx @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.css @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.scss @0xEmberZz @hzb1115 @xqliu @tangmengqiu
 
 # Configuration Files | 配置文件
-*.json @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.yaml @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.yml @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.toml @0xemberzz @hzb1115 @xqliu @tangmengqiu
-*.ini @0xemberzz @hzb1115 @xqliu @tangmengqiu
+*.json @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.yaml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.yml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.toml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.ini @0xEmberZz @hzb1115 @xqliu @tangmengqiu
 
 # Documentation | 文档
 # Markdown and documentation files
@@ -94,7 +94,7 @@ docker-compose.yml @tangmengqiu
 .gitignore @hzb1115 @@tangmengqiu
 go.sum @xqliu @hzb1115 @@tangmengqiu
 package-lock.json @Icyoung @hzb1115 @@tangmengqiu
-yarn.lock @Icyoung @hzb1115 @@tangmengqiu
+yarn.lock @Icyoung @hzb1115 @tangmengqiu
 
 # Build Configuration | 构建配置
 Makefile @hzb1115 @xqliu @tangmengqiu

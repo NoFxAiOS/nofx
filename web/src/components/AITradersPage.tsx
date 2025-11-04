@@ -636,9 +636,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                         {/* 添加地址信息 */}
                         {inUse && (exchange.hyperliquidWalletAddr || exchange.asterUser) && (
                           <span className="ml-1">
-                            ({exchange.hyperliquidWalletAddr 
+                            ({exchange.hyperliquidWalletAddr
                               ? `${exchange.hyperliquidWalletAddr.slice(0, 6)}...${exchange.hyperliquidWalletAddr.slice(-4)}`
-                              : `${exchange.asterUser.slice(0, 6)}...${exchange.asterUser.slice(-4)}`
+                              : (exchange.asterUser ? `${exchange.asterUser.slice(0, 6)}...${exchange.asterUser.slice(-4)}` : '')
                             })
                           </span>
                         )}

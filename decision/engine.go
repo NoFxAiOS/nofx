@@ -487,6 +487,9 @@ func fixMissingQuotes(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "〕", "]") // CJK右龟壳括号 U+3015
 	jsonStr = strings.ReplaceAll(jsonStr, "、", ",") // CJK顿号 U+3001
 
+	// ⚠️ 替换全角空格为半角空格（JSON中不应该有全角空格）
+	jsonStr = strings.ReplaceAll(jsonStr, "　", " ") // U+3000 全角空格
+
 	return jsonStr
 }
 

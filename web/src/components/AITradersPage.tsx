@@ -1163,9 +1163,6 @@ function ExchangeConfigModal({
   const [passphrase, setPassphrase] = useState('');
   const [testnet, setTestnet] = useState(false);
   
-  // Hyperliquid 特定字段
-  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
-  
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('');
   const [asterSigner, setAsterSigner] = useState('');
@@ -1181,10 +1178,7 @@ function ExchangeConfigModal({
       setSecretKey(selectedExchange.secretKey || '');
       setPassphrase(''); // Don't load existing passphrase for security
       setTestnet(selectedExchange.testnet || false);
-      
-      // Hyperliquid 字段
-      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '');
-      
+
       // Aster 字段
       setAsterUser(selectedExchange.asterUser || '');
       setAsterSigner(selectedExchange.asterSigner || '');
@@ -1201,8 +1195,8 @@ function ExchangeConfigModal({
       if (!apiKey.trim() || !secretKey.trim()) return;
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
     } else if (selectedExchange?.id === 'hyperliquid') {
-      if (!apiKey.trim()) return; // 只验证私钥，钱包地址可选（会自动生成）
-      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim());
+      if (!apiKey.trim()) return; // 只验证私钥，钱包地址自动从私钥生成
+      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, ''); // 传空字符串，后端自动生成地址
     } else if (selectedExchange?.id === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return;
       await onSave(selectedExchangeId, '', '', testnet, undefined, asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim());
@@ -1354,28 +1348,6 @@ function ExchangeConfigModal({
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
                       {t('hyperliquidPrivateKeyDesc', language)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                      {t('walletAddress', language)}
-                      <span className="text-xs font-normal ml-2" style={{ color: '#848E9C' }}>
-                        ({t('optional', language)})
-                      </span>
-                    </label>
-                    <input
-                      type="text"
-                      value={hyperliquidWalletAddr}
-                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
-                      placeholder="0x... (留空将自动从私钥生成 / Leave blank to auto-generate)"
-                      className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                    />
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {hyperliquidWalletAddr.trim()
-                        ? t('hyperliquidWalletAddressDesc', language)
-                        : t('hyperliquidWalletAddressAutoGenerate', language)}
                     </div>
                   </div>
                 </>

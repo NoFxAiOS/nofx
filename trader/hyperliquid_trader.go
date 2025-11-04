@@ -72,14 +72,30 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 	}, nil
 }
 
-// GetBalance 获取账户余额
+// GetBalance 获取账户余额（同时查询 Spot 和 Perpetuals）
 func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	log.Printf("🔄 正在调用Hyperliquid API获取账户余额...")
 
-	// 获取账户状态
+	// ✅ 第一步：查询 Spot 现货余额（用户的 USDC/USDT 可能在这里）
+	spotState, err := t.exchange.Info().SpotUserState(t.ctx, t.walletAddr)
+	var spotUSDCBalance float64 = 0.0
+	if err != nil {
+		log.Printf("⚠️ 查询 Spot 余额失败（可能无现货资产）: %v", err)
+	} else if spotState != nil && len(spotState.Balances) > 0 {
+		// 查找 USDC 余额（Hyperliquid 现货主要使用 USDC）
+		for _, balance := range spotState.Balances {
+			if balance.Coin == "USDC" {
+				spotUSDCBalance, _ = strconv.ParseFloat(balance.Total, 64)
+				log.Printf("✓ 发现 Spot 现货余额: %.2f USDC", spotUSDCBalance)
+				break
+			}
+		}
+	}
+
+	// ✅ 第二步：查询 Perpetuals 合约余额
 	accountState, err := t.exchange.Info().UserState(t.ctx, t.walletAddr)
 	if err != nil {
-		log.Printf("❌ Hyperliquid API调用失败: %v", err)
+		log.Printf("❌ Hyperliquid Perpetuals API调用失败: %v", err)
 		return nil, fmt.Errorf("获取账户信息失败: %w", err)
 	}
 
@@ -88,11 +104,14 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 
 	// 🔍 调试：打印API返回的完整CrossMarginSummary结构
 	summaryJSON, _ := json.MarshalIndent(accountState.MarginSummary, "  ", "  ")
-	log.Printf("🔍 [DEBUG] Hyperliquid API CrossMarginSummary完整数据:")
+	log.Printf("🔍 [DEBUG] Hyperliquid Perpetuals CrossMarginSummary完整数据:")
 	log.Printf("%s", string(summaryJSON))
 
 	accountValue, _ := strconv.ParseFloat(accountState.MarginSummary.AccountValue, 64)
 	totalMarginUsed, _ := strconv.ParseFloat(accountState.MarginSummary.TotalMarginUsed, 64)
+
+	// ⚠️ 关键修复：将 Spot 现货余额加入总余额
+	accountValue += spotUSDCBalance
 
 	// ⚠️ 关键修复：从所有持仓中累加真正的未实现盈亏
 	totalUnrealizedPnl := 0.0
@@ -109,16 +128,45 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	// 需要返回"不包含未实现盈亏的钱包余额"
 	walletBalanceWithoutUnrealized := accountValue - totalUnrealizedPnl
 
+	// ⚠️ 优先使用Withdrawable字段（Hyperliquid API返回的真实可用余额）
+	availableBalance := 0.0
+	if accountState.Withdrawable != "" {
+		withdrawable, err := strconv.ParseFloat(accountState.Withdrawable, 64)
+		if err == nil {
+			availableBalance = withdrawable
+			log.Printf("✓ 使用Hyperliquid API的Withdrawable字段: %.2f USDT", availableBalance)
+		} else {
+			log.Printf("⚠️ 解析Withdrawable字段失败: %v，将使用计算值", err)
+		}
+	}
+
+	// 后备方案：如果Withdrawable不可用，使用计算值（确保不为负数）
+	if availableBalance == 0 && accountState.Withdrawable == "" {
+		availableBalance = accountValue - totalMarginUsed
+		if availableBalance < 0 {
+			log.Printf("⚠️ [Hyperliquid] 计算的可用余额为负 (%.2f - %.2f = %.2f)，已调整为0。",
+				accountValue, totalMarginUsed, availableBalance)
+			log.Printf("   提示：这可能是因为Hyperliquid的TotalMarginUsed计算方式不同，或持仓处于高风险状态")
+			availableBalance = 0
+		}
+	}
+
+	// ✅ 可用余额 = Spot 现货余额 + Perpetuals 可用余额
+	totalAvailableBalance := spotUSDCBalance + availableBalance
+
 	result["totalWalletBalance"] = walletBalanceWithoutUnrealized // 钱包余额（不含未实现盈亏）
-	result["availableBalance"] = accountValue - totalMarginUsed   // 可用余额（总净值 - 占用保证金）
+	result["availableBalance"] = totalAvailableBalance            // 总可用余额（Spot + Perpetuals）
 	result["totalUnrealizedProfit"] = totalUnrealizedPnl          // 未实现盈亏
 
-	log.Printf("✓ Hyperliquid 账户: 总净值=%.2f (钱包%.2f+未实现%.2f), 可用=%.2f, 保证金占用=%.2f",
-		accountValue,
-		walletBalanceWithoutUnrealized,
-		totalUnrealizedPnl,
-		result["availableBalance"],
-		totalMarginUsed)
+	log.Printf("✓ Hyperliquid 账户总览:")
+	log.Printf("  • Spot 现货余额: %.2f USDC", spotUSDCBalance)
+	log.Printf("  • Perpetuals 合约净值: %.2f USDC (钱包%.2f + 未实现%.2f)",
+		accountValue-spotUSDCBalance,
+		walletBalanceWithoutUnrealized-spotUSDCBalance,
+		totalUnrealizedPnl)
+	log.Printf("  • Perpetuals 可用余额: %.2f USDC", availableBalance)
+	log.Printf("  • 保证金占用: %.2f USDC", totalMarginUsed)
+	log.Printf("  ⭐ 总净值: %.2f USDC | 总可用: %.2f USDC", accountValue, totalAvailableBalance)
 
 	return result, nil
 }

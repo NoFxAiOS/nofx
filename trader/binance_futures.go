@@ -32,10 +32,26 @@ type FuturesTrader struct {
 // NewFuturesTrader 创建合约交易器
 func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
+	// 同步时间，避免 Timestamp ahead 错误
+	syncBinanceServerTime(client)
 	return &FuturesTrader{
 		client:        client,
 		cacheDuration: 15 * time.Second, // 15秒缓存
 	}
+}
+
+// syncBinanceServerTime 同步币安服务器时间，确保请求时间戳合法
+func syncBinanceServerTime(client *futures.Client) {
+	serverTime, err := client.NewServerTimeService().Do(context.Background())
+	if err != nil {
+		log.Printf("⚠️ 同步币安服务器时间失败: %v", err)
+		return
+	}
+
+	now := time.Now().UnixMilli()
+	offset := now - serverTime
+	client.TimeOffset = offset
+	log.Printf("⏱ 已同步币安服务器时间，偏移 %dms", offset)
 }
 
 // GetBalance 获取账户余额（带缓存）

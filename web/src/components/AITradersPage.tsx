@@ -53,7 +53,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     coinPoolUrl: '',
     oiTopUrl: ''
   });
-  const [showBinanceGuide, setShowBinanceGuide] = useState(false);
 
   const { data: traders, mutate: mutateTraders } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
@@ -1164,6 +1163,9 @@ function ExchangeConfigModal({
   const [passphrase, setPassphrase] = useState('');
   const [testnet, setTestnet] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+
+  // 币安配置指南展开状态
+  const [showBinanceGuide, setShowBinanceGuide] = useState(false);
 
   // Hyperliquid 特定字段
   const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');

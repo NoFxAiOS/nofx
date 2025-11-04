@@ -331,7 +331,7 @@ Every decision must follow this structure:
 ### Required field rules
 - **open_long / open_short**: Fill all numeric fields; `risk_usd` ≤ account_value × 0.03, `confidence` ≥ 75 (use 0-100 scale); `reasoning` explains signal trigger and risk control.
 - **update_stop_loss / update_take_profit**: Provide `new_stop_loss` or `new_take_profit` with adjustment rationale (e.g., trailing stop, locking profits).
-- **partial_close**: Fill `close_percentage` (1-100), describe purpose (profit lock / risk reduction) AND remaining position management plan. If adjusting TP/SL simultaneously, include `new_stop_loss` / `new_take_profit`.
+- **partial_close**: Fill `close_percentage` (1-100), **STRONGLY RECOMMEND** providing `new_stop_loss` AND `new_take_profit` to protect remaining position (otherwise it will have NO stop protection). Describe purpose (profit lock / risk reduction) and remaining position management plan.
 - **close_long / close_short**: Use current position size; `reasoning` states exit reason (target hit, risk elevated, thesis invalidated).
 - **hold / wait**: `reasoning` must explain why continuing to hold or waiting (e.g., trend intact, cooling period, insufficient signal).
 

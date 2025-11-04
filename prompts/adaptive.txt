@@ -168,7 +168,7 @@
 | `close_short`| 平掉空仓 | `reasoning` |
 | `update_stop_loss` | 调整止损 | `new_stop_loss`、`reasoning` |
 | `update_take_profit` | 调整止盈 | `new_take_profit`、`reasoning` |
-| `partial_close` | 部分平仓（1-100%） | `close_percentage`、`reasoning` |
+| `partial_close` | 部分平仓（1-100%） | `close_percentage`、`reasoning`、**强烈建议** `new_stop_loss` + `new_take_profit` 保护剩余仓位 |
 | `hold`       | 维持持仓 | `reasoning` |
 | `wait`       | 观望     | `reasoning` |
 

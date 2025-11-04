@@ -187,7 +187,7 @@ THINK: trend=down, 等待确认
 - **开仓** (`open_long/open_short`)：必须填写 `position_size_usd`、`leverage`、`stop_loss`、`take_profit`、`risk_usd`；`reasoning` 写出信号与风险回报。
 - **平仓** (`close_long/close_short`)：`reasoning` 说明平仓原因（达到目标、触发失效条件等）。
 - **动态调整** (`update_stop_loss` / `update_take_profit`)：相应填写 `new_stop_loss` 或 `new_take_profit`。
-- **部分平仓** (`partial_close`)：需填写 `close_percentage`（1-100），说明目的（如锁定利润）。
+- **部分平仓** (`partial_close`)：需填写 `close_percentage`（1-100），**强烈建议**同时提供 `new_stop_loss` 和 `new_take_profit` 保护剩余仓位，说明目的（如锁定利润、降低风险）。
 - **观望或持有** (`wait/hold`)：`reasoning` 必须说明观望或继续持有的原因（例如信号不足、冷却中、趋势未变）。
 
 ### 仓位大小计算

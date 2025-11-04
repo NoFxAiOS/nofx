@@ -1275,6 +1275,35 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	log.Printf("  ✓ 部分平仓成功: 平仓 %.4f (%.1f%%), 剩余 %.4f",
 		closeQuantity, decision.ClosePercentage, remainingQuantity)
 
+	// 🔧 FIX: 部分平仓后重新设置止盈止损（基于剩余数量）
+	// 币安会自动取消原来的止盈止损订单（因为数量不匹配），所以必须重新设置
+	if decision.NewStopLoss > 0 || decision.NewTakeProfit > 0 {
+		log.Printf("  🎯 更新剩余仓位的止盈止损...")
+
+		// 设置新止损（基于剩余数量）
+		if decision.NewStopLoss > 0 {
+			if err := at.trader.SetStopLoss(decision.Symbol, positionSide, remainingQuantity, decision.NewStopLoss); err != nil {
+				log.Printf("  ⚠️ 设置新止损失败: %v", err)
+			} else {
+				log.Printf("  ✓ 已设置新止损: %.4f (数量: %.4f)", decision.NewStopLoss, remainingQuantity)
+			}
+		}
+
+		// 设置新止盈（基于剩余数量）
+		if decision.NewTakeProfit > 0 {
+			if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, remainingQuantity, decision.NewTakeProfit); err != nil {
+				log.Printf("  ⚠️ 设置新止盈失败: %v", err)
+			} else {
+				log.Printf("  ✓ 已设置新止盈: %.4f (数量: %.4f)", decision.NewTakeProfit, remainingQuantity)
+			}
+		}
+	} else {
+		// ⚠️ AI 没有提供新的止盈止损，剩余仓位将失去保护
+		log.Printf("  ⚠️⚠️⚠️ 警告: 部分平仓后AI未提供新的止盈止损价格")
+		log.Printf("  → 剩余仓位 %.4f (价值 %.2f USDT) 目前没有止盈止损保护", remainingQuantity, remainingValue)
+		log.Printf("  → 建议: 在 partial_close 决策中包含 new_stop_loss 和 new_take_profit 字段")
+	}
+
 	return nil
 }
 
@@ -1594,8 +1623,8 @@ func normalizeSymbol(symbol string) string {
 // extractNewsSymbols 提取需要收集新闻的币种（持仓 + 候选币前几个 + BTC）
 func (at *AutoTrader) extractNewsSymbols(positions []decision.PositionInfo, candidates []decision.CandidateCoin) []string {
 	const (
-		maxNewsSymbols         = 10 // 最多收集10个币种的新闻（避免请求过多）
-		maxCandidatesForNews   = 5  // 从候选币中取前5个
+		maxNewsSymbols       = 10 // 最多收集10个币种的新闻（避免请求过多）
+		maxCandidatesForNews = 5  // 从候选币中取前5个
 	)
 
 	symbolSet := make(map[string]bool)

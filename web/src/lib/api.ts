@@ -15,18 +15,34 @@ import type {
 
 const API_BASE = '/api';
 
+// Auth error event that components can listen to
+export const AUTH_ERROR_EVENT = 'auth-error';
+
 // Helper function to get auth headers
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('auth_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   return headers;
+}
+
+// Helper function to check for auth errors
+function checkAuthError(response: Response): void {
+  if (response.status === 401 || response.status === 403) {
+    // Dispatch custom event to trigger logout
+    window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT, {
+      detail: {
+        status: response.status,
+        message: response.status === 401 ? 'Your session has expired. Please log in again.' : 'Access denied.'
+      }
+    }));
+  }
 }
 
 export const api = {
@@ -35,6 +51,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/my-traders`, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取trader列表失败');
     return res.json();
   },
@@ -52,6 +69,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('创建交易员失败');
     return res.json();
   },
@@ -61,6 +79,7 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('删除交易员失败');
   },
 
@@ -69,6 +88,7 @@ export const api = {
       method: 'POST',
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('启动交易员失败');
   },
 
@@ -77,6 +97,7 @@ export const api = {
       method: 'POST',
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('停止交易员失败');
   },
 
@@ -86,6 +107,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ custom_prompt: customPrompt }),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('更新自定义策略失败');
   },
 
@@ -93,6 +115,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/traders/${traderId}/config`, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取交易员配置失败');
     return res.json();
   },
@@ -103,6 +126,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('更新交易员失败');
     return res.json();
   },
@@ -112,6 +136,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/models`, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取模型配置失败');
     return res.json();
   },
@@ -129,6 +154,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('更新模型配置失败');
   },
 
@@ -137,6 +163,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/exchanges`, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取交易所配置失败');
     return res.json();
   },
@@ -154,6 +181,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('更新交易所配置失败');
   },
 
@@ -165,6 +193,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取系统状态失败');
     return res.json();
   },
@@ -181,6 +210,7 @@ export const api = {
         'Cache-Control': 'no-cache',
       },
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取账户信息失败');
     const data = await res.json();
     console.log('Account data fetched:', data);
@@ -195,6 +225,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取持仓列表失败');
     return res.json();
   },
@@ -207,6 +238,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取决策日志失败');
     return res.json();
   },
@@ -219,6 +251,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取最新决策失败');
     return res.json();
   },
@@ -231,6 +264,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取统计信息失败');
     return res.json();
   },
@@ -243,6 +277,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取历史数据失败');
     return res.json();
   },
@@ -282,6 +317,7 @@ export const api = {
     const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取AI学习数据失败');
     return res.json();
   },
@@ -298,6 +334,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/user/signal-sources`, {
       headers: getAuthHeaders(),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('获取用户信号源配置失败');
     return res.json();
   },
@@ -311,6 +348,7 @@ export const api = {
         oi_top_url: oiTopUrl,
       }),
     });
+    checkAuthError(res);
     if (!res.ok) throw new Error('保存用户信号源配置失败');
   },
 };

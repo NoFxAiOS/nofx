@@ -269,15 +269,15 @@ function App() {
 
   return (
     <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
-      <HeaderBar 
-        isLoggedIn={!!user} 
-        currentPage={currentPage}
-        language={language}
-        onLanguageChange={setLanguage}
-        user={user}
-        onLogout={logout}
-        isAdminMode={systemConfig?.admin_mode}
-        onPageChange={(page) => {
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage={currentPage}
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          isAdminMode={systemConfig?.admin_mode}
+          onPageChange={(page) => {
           console.log('Main app onPageChange called with:', page);
           
           if (page === 'competition') {

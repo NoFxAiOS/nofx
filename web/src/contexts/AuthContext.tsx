@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getSystemConfig } from '../lib/config';
+import { AUTH_ERROR_EVENT } from '../lib/api';
 
 interface User {
   id: string;
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // 非管理员模式，检查本地存储中是否有token
           const savedToken = localStorage.getItem('auth_token');
           const savedUser = localStorage.getItem('auth_user');
-          
+
           if (savedToken && savedUser) {
             setToken(savedToken);
             setUser(JSON.parse(savedUser));
@@ -49,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // 发生错误时，继续检查本地存储
         const savedToken = localStorage.getItem('auth_token');
         const savedUser = localStorage.getItem('auth_user');
-        
+
         if (savedToken && savedUser) {
           setToken(savedToken);
           setUser(JSON.parse(savedUser));
@@ -57,6 +58,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       });
   }, []);
+
+  // Logout function that can be used in effects
+  const logout = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+  }, []);
+
+  // Listen for auth errors from API calls
+  useEffect(() => {
+    const handleAuthError = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('Auth error detected:', customEvent.detail);
+
+      // Check if we're in admin mode
+      getSystemConfig().then(data => {
+        if (!data.admin_mode) {
+          // Only logout if not in admin mode
+          logout();
+
+          // Redirect to login page
+          window.history.pushState({}, '', '/login');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      }).catch(() => {
+        // If config fetch fails, proceed with logout anyway
+        logout();
+        window.history.pushState({}, '', '/login');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+    };
+
+    window.addEventListener(AUTH_ERROR_EVENT, handleAuthError);
+
+    return () => {
+      window.removeEventListener(AUTH_ERROR_EVENT, handleAuthError);
+    };
+  }, [logout]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -186,13 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return { success: false, message: '注册完成失败，请重试' };
     }
-  };
-
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
   };
 
   return (

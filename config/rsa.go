@@ -213,12 +213,12 @@ func SmartDecrypt(privateKeyPEM string, ciphertext string) (string, error) {
 	// 尝试解析为JSON（混合加密格式）
 	var result HybridEncryptResult
 	err := json.Unmarshal([]byte(ciphertext), &result)
-	
+
 	// 如果能解析为JSON且包含必要字段，则使用混合解密
 	if err == nil && result.EncryptedAesKey != "" && result.IV != "" && result.EncryptedData != "" {
 		return HybridDecrypt(privateKeyPEM, ciphertext)
 	}
-	
+
 	// 否则使用纯RSA解密
 	return RSADecrypt(privateKeyPEM, ciphertext)
 }

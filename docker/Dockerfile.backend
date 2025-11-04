@@ -13,9 +13,8 @@ ARG TA_LIB_VERSION=0.4.0
 # ──────────────────────────────────────────────────────────────
 # TA-Lib Build Stage (shared across builds)
 # ──────────────────────────────────────────────────────────────
-FROM docker.1ms.run/alpine:${ALPINE_VERSION} AS ta-lib-builder
+FROM alpine:${ALPINE_VERSION} AS ta-lib-builder
 ARG TA_LIB_VERSION
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories
 RUN apk update && apk add --no-cache \
     wget tar make gcc g++ musl-dev autoconf automake
 

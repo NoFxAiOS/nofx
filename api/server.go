@@ -32,6 +32,21 @@ func maskSensitiveData(data string) string {
 	return data[:4] + "****" + data[len(data)-4:]
 }
 
+// isDataMasked 简单判断数据是否已经被脱敏处理
+func isDataMasked(data string) bool {
+	if data == "" {
+		return false
+	}
+
+	if len(data) <= 8 {
+		// 检查是否全部是 *
+		return strings.Trim(data, "*") == ""
+	}
+
+	// 检查是否包含连续的4个*
+	return strings.Contains(data, "****")
+}
+
 // Server HTTP API服务器
 type Server struct {
 	router        *gin.Engine
@@ -654,16 +669,16 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	safeModels := make([]map[string]interface{}, 0, len(models))
 	for _, model := range models {
 		safeModel := map[string]interface{}{
-			"id":                model.ID,
-			"user_id":           model.UserID,
-			"name":              model.Name,
-			"provider":          model.Provider,
-			"enabled":           model.Enabled,
-			"apiKey":            maskSensitiveData(model.APIKey),
-			"customApiUrl":      model.CustomAPIURL,
-			"customModelName":   model.CustomModelName,
-			"created_at":        model.CreatedAt,
-			"updated_at":        model.UpdatedAt,
+			"id":              model.ID,
+			"user_id":         model.UserID,
+			"name":            model.Name,
+			"provider":        model.Provider,
+			"enabled":         model.Enabled,
+			"apiKey":          maskSensitiveData(model.APIKey),
+			"customApiUrl":    model.CustomAPIURL,
+			"customModelName": model.CustomModelName,
+			"created_at":      model.CreatedAt,
+			"updated_at":      model.UpdatedAt,
 		}
 		safeModels = append(safeModels, safeModel)
 	}
@@ -703,7 +718,7 @@ func (s *Server) handleUpdateModelConfigByID(c *gin.Context) {
 	var oldEnabled bool
 	var oldAPIKey, oldURL, oldName string
 	for _, m := range existing {
-		if m.ID == modelID {
+		if m.UserID == userID && m.Provider == modelID {
 			oldEnabled = m.Enabled
 			oldAPIKey = m.APIKey
 			oldURL = m.CustomAPIURL
@@ -714,17 +729,31 @@ func (s *Server) handleUpdateModelConfigByID(c *gin.Context) {
 
 	triString := func(key, old string) string {
 		v, present := fields[key]
-		if !present { return old }
-		if string(v) == "null" { return "" }
+		if !present {
+			return old
+		}
+		if string(v) == "null" {
+			return ""
+		}
 		var sVal string
-		if json.Unmarshal(v, &sVal) == nil { return sVal }
-		return old
+		if json.Unmarshal(v, &sVal) != nil {
+			return old
+		}
+		if isDataMasked(sVal) {
+			return old
+		}
+
+		return sVal
 	}
 	triBool := func(key string, old bool) bool {
 		v, present := fields[key]
-		if !present { return old }
+		if !present {
+			return old
+		}
 		var bVal bool
-		if json.Unmarshal(v, &bVal) == nil { return bVal }
+		if json.Unmarshal(v, &bVal) == nil {
+			return bVal
+		}
 		return old
 	}
 
@@ -744,28 +773,6 @@ func (s *Server) handleUpdateModelConfigByID(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "模型配置已更新", "id": modelID})
 }
 
-// processModelUpdate 处理AI模型配置更新
-func (s *Server) processModelUpdate(c *gin.Context, userID string, req *UpdateModelConfigRequest) {
-	// 更新每个模型的配置
-	for modelID, modelData := range req.Models {
-		err := s.database.UpdateAIModel(userID, modelID, modelData.Enabled, modelData.APIKey, modelData.CustomAPIURL, modelData.CustomModelName)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新模型 %s 失败: %v", modelID, err)})
-			return
-		}
-	}
-
-	// 重新加载该用户的所有交易员，使新配置立即生效
-	err := s.traderManager.LoadUserTraders(s.database, userID)
-	if err != nil {
-		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
-		// 这里不返回错误，因为模型配置已经成功更新到数据库
-	}
-
-	log.Printf("✓ AI模型配置已更新: %d个模型", len(req.Models))
-	c.JSON(http.StatusOK, gin.H{"message": "模型配置已更新"})
-}
-
 // handleGetExchangeConfigs 获取交易所配置
 func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -782,59 +789,25 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	safeExchanges := make([]map[string]interface{}, 0, len(exchanges))
 	for _, exchange := range exchanges {
 		safeExchange := map[string]interface{}{
-			"id":                     exchange.ID,
-			"user_id":                exchange.UserID,
-			"name":                   exchange.Name,
-			"type":                   exchange.Type,
-			"enabled":                exchange.Enabled,
-			"apiKey":                 maskSensitiveData(exchange.APIKey),
-			"secretKey":              maskSensitiveData(exchange.SecretKey),
-			"testnet":                exchange.Testnet,
-			"hyperliquidWalletAddr":  maskSensitiveData(exchange.HyperliquidWalletAddr),
-			"asterUser":              exchange.AsterUser,
-			"asterSigner":            maskSensitiveData(exchange.AsterSigner),
-			"asterPrivateKey":        maskSensitiveData(exchange.AsterPrivateKey),
-			"created_at":             exchange.CreatedAt,
-			"updated_at":             exchange.UpdatedAt,
+			"id":                    exchange.ID,
+			"user_id":               exchange.UserID,
+			"name":                  exchange.Name,
+			"type":                  exchange.Type,
+			"enabled":               exchange.Enabled,
+			"apiKey":                maskSensitiveData(exchange.APIKey),
+			"secretKey":             maskSensitiveData(exchange.SecretKey),
+			"testnet":               exchange.Testnet,
+			"hyperliquidWalletAddr": maskSensitiveData(exchange.HyperliquidWalletAddr),
+			"asterUser":             exchange.AsterUser,
+			"asterSigner":           maskSensitiveData(exchange.AsterSigner),
+			"asterPrivateKey":       maskSensitiveData(exchange.AsterPrivateKey),
+			"created_at":            exchange.CreatedAt,
+			"updated_at":            exchange.UpdatedAt,
 		}
 		safeExchanges = append(safeExchanges, safeExchange)
 	}
 
 	c.JSON(http.StatusOK, safeExchanges)
-}
-
-// handleUpdateExchangeConfigs 更新交易所配置
-func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
-	userID := c.GetString("user_id")
-
-	// 先读取原始请求体（必须是加密数据）
-	type EncryptedRequest struct {
-		Data string `json:"data" binding:"required"` // RSA+AES混合加密后的数据
-	}
-
-	var encReq EncryptedRequest
-	if err := c.ShouldBindJSON(&encReq); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误，必须使用加密数据"})
-		return
-	}
-
-	// 使用智能解密（自动识别纯RSA或混合加密）
-	var req UpdateExchangeConfigRequest
-	decryptedJSON, err := s.database.DecryptRSAData(encReq.Data)
-	if err != nil {
-		log.Printf("❌ 解密交易所配置失败: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "解密请求数据失败"})
-		return
-	}
-
-	// 解析JSON
-	if err := json.Unmarshal([]byte(decryptedJSON), &req); err != nil {
-		log.Printf("❌ 解析解密后的JSON失败: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "解析请求数据失败"})
-		return
-	}
-
-	s.processExchangeUpdate(c, userID, &req)
 }
 
 // handleUpdateExchangeConfigByID 按ID更新单个交易所配置（加密，三态语义）
@@ -882,30 +855,44 @@ func (s *Server) handleUpdateExchangeConfigByID(c *gin.Context) {
 		}
 	}
 
-	triString := func(key, old string) string {
+	triString := func(key, old string, isMask bool) string {
 		v, present := fields[key]
-		if !present { return old }
-		if string(v) == "null" { return "" }
+		if !present {
+			return old
+		}
+		if string(v) == "null" {
+			return ""
+		}
 		var sVal string
-		if json.Unmarshal(v, &sVal) == nil { return sVal }
-		return old
+		if json.Unmarshal(v, &sVal) != nil {
+			return old
+		}
+		if isMask && isDataMasked(sVal) {
+			return old
+		}
+
+		return sVal
 	}
 	triBool := func(key string, old bool) bool {
 		v, present := fields[key]
-		if !present { return old }
+		if !present {
+			return old
+		}
 		var bVal bool
-		if json.Unmarshal(v, &bVal) == nil { return bVal }
+		if json.Unmarshal(v, &bVal) == nil {
+			return bVal
+		}
 		return old
 	}
 
 	newEnabled := triBool("enabled", oldEnabled)
-	newAPIKey := triString("api_key", oldAPIKey)
-	newSecret := triString("secret_key", oldSecret)
+	newAPIKey := triString("api_key", oldAPIKey, true)
+	newSecret := triString("secret_key", oldSecret, true)
 	newTestnet := triBool("testnet", oldTestnet)
-	newWallet := triString("hyperliquid_wallet_addr", oldWallet)
-	newAUser := triString("aster_user", oldAUser)
-	newASigner := triString("aster_signer", oldASigner)
-	newAPriv := triString("aster_private_key", oldAPriv)
+	newWallet := triString("hyperliquid_wallet_addr", oldWallet, true)
+	newAUser := triString("aster_user", oldAUser, false)
+	newASigner := triString("aster_signer", oldASigner, true)
+	newAPriv := triString("aster_private_key", oldAPriv, true)
 
 	if err := s.database.UpdateExchange(userID, exchangeID, newEnabled, newAPIKey, newSecret, newTestnet, newWallet, newAUser, newASigner, newAPriv); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
@@ -916,39 +903,6 @@ func (s *Server) handleUpdateExchangeConfigByID(c *gin.Context) {
 		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "交易所配置已更新", "id": exchangeID})
-}
-
-// processExchangeUpdate 处理交易所配置更新
-func (s *Server) processExchangeUpdate(c *gin.Context, userID string, req *UpdateExchangeConfigRequest) {
-	// 更新每个交易所的配置
-	for exchangeID, exchangeData := range req.Exchanges {
-		err := s.database.UpdateExchange(
-			userID,
-			exchangeID,
-			exchangeData.Enabled,
-			exchangeData.APIKey,
-			exchangeData.SecretKey,
-			exchangeData.Testnet,
-			exchangeData.HyperliquidWalletAddr,
-			exchangeData.AsterUser,
-			exchangeData.AsterSigner,
-			exchangeData.AsterPrivateKey,
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
-			return
-		}
-	}
-
-	// 重新加载该用户的所有交易员，使新配置立即生效
-	err := s.traderManager.LoadUserTraders(s.database, userID)
-	if err != nil {
-		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
-		// 这里不返回错误，因为交易所配置已经成功更新到数据库
-	}
-
-	log.Printf("✓ 交易所配置已更新: %d个交易所", len(req.Exchanges))
-	c.JSON(http.StatusOK, gin.H{"message": "交易所配置已更新"})
 }
 
 // handleGetUserSignalSource 获取用户信号源配置

@@ -11,10 +11,9 @@ ARG NGINX_VERSION=alpine
 # ──────────────────────────────────────────────────────────────
 # Build Stage (Node)
 # ──────────────────────────────────────────────────────────────
-FROM docker.1ms.run/node:${NODE_VERSION} AS builder
+FROM node:${NODE_VERSION} AS builder
 WORKDIR /build
 
-RUN npm config set registry https://registry.npmmirror.com
 COPY web/package*.json ./
 RUN npm ci
 
@@ -24,7 +23,7 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────
 # Runtime Stage (Nginx)
 # ──────────────────────────────────────────────────────────────
-FROM docker.1ms.run/nginx:${NGINX_VERSION}
+FROM nginx:${NGINX_VERSION}
 
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /build/dist /usr/share/nginx/html

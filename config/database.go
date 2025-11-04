@@ -13,6 +13,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/samber/lo"
 )
 
 // Database 配置数据库
@@ -619,11 +620,23 @@ func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 
 // UpdateAIModel 更新AI模型配置，如果不存在则创建用户特定配置
 func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
+	provider := id
+	if !lo.Contains([]string{"deepseek", "qwen"}, provider) {
+		return fmt.Errorf("unsupported model %s", provider)
+	}
+
+	// 生成ID
+	modelID := id
+	if id == provider {
+		// id 就是 provider，生成新的用户特定 ID
+		modelID = fmt.Sprintf("%s_%s", userID, provider)
+	}
+
 	// 先尝试精确匹配 ID（新版逻辑，支持多个相同 provider 的模型）
 	var existingID string
 	err := d.db.QueryRow(`
 		SELECT id FROM ai_models WHERE user_id = ? AND id = ? LIMIT 1
-	`, userID, id).Scan(&existingID)
+	`, userID, modelID).Scan(&existingID)
 
 	if err == nil {
 		// 找到了现有配置（精确匹配 ID），更新它
@@ -632,37 +645,6 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 			WHERE id = ? AND user_id = ?
 		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
 		return err
-	}
-
-	// ID 不存在，尝试兼容旧逻辑：将 id 作为 provider 查找
-	provider := id
-	err = d.db.QueryRow(`
-		SELECT id FROM ai_models WHERE user_id = ? AND provider = ? LIMIT 1
-	`, userID, provider).Scan(&existingID)
-
-	if err == nil {
-		// 找到了现有配置（通过 provider 匹配，兼容旧版），更新它
-		log.Printf("⚠️  使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
-		_, err = d.db.Exec(`
-			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
-			WHERE id = ? AND user_id = ?
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
-		return err
-	}
-
-	// 没有找到任何现有配置，创建新的
-	// 推断 provider（从 id 中提取，或者直接使用 id）
-	if provider == id && (provider == "deepseek" || provider == "qwen") {
-		// id 本身就是 provider
-		provider = id
-	} else {
-		// 从 id 中提取 provider（假设格式是 userID_provider 或 timestamp_userID_provider）
-		parts := strings.Split(id, "_")
-		if len(parts) >= 2 {
-			provider = parts[len(parts)-1] // 取最后一部分作为 provider
-		} else {
-			provider = id
-		}
 	}
 
 	// 获取模型的基本信息
@@ -681,19 +663,11 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 		}
 	}
 
-	// 如果传入的 ID 已经是完整格式（如 "admin_deepseek_custom1"），直接使用
-	// 否则生成新的 ID
-	newModelID := id
-	if id == provider {
-		// id 就是 provider，生成新的用户特定 ID
-		newModelID = fmt.Sprintf("%s_%s", userID, provider)
-	}
-
-	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
+	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", modelID, provider, name)
 	_, err = d.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-	`, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+	`, modelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
 
 	return err
 }

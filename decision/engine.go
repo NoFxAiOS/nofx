@@ -444,6 +444,11 @@ func extractDecisions(response string) ([]Decision, error) {
 
 	jsonContent := strings.TrimSpace(response[arrayStart : arrayEnd+1])
 
+	// 🔧 验证 JSON 格式（检测常见错误）
+	if err := validateJSONFormat(jsonContent); err != nil {
+		return nil, fmt.Errorf("JSON格式验证失败: %w\nJSON内容: %s\n完整响应:\n%s", err, jsonContent, response)
+	}
+
 	// 🔧 修复常见的JSON格式错误：缺少引号的字段值
 	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}  (没有引号)
 	// 修复为: "reasoning": "内容"}
@@ -459,6 +464,39 @@ func extractDecisions(response string) ([]Decision, error) {
 	return decisions, nil
 }
 
+// validateJSONFormat 验证 JSON 格式，检测常见错误
+func validateJSONFormat(jsonStr string) error {
+	trimmed := strings.TrimSpace(jsonStr)
+
+	// 检查是否是决策对象数组（必须以 [{ 或 [ { 开头）
+	if !strings.HasPrefix(trimmed, "[{") && !strings.HasPrefix(trimmed, "[ {") {
+		// 检查是否是纯数字/范围数组（常见错误）
+		if strings.HasPrefix(trimmed, "[") && !strings.Contains(trimmed[:min(20, len(trimmed))], "{") {
+			return fmt.Errorf("不是有效的决策数组（必须包含对象 {}），实际内容: %s", trimmed[:min(50, len(trimmed))])
+		}
+		return fmt.Errorf("JSON 必须以 [{ 开头（决策对象数组），实际: %s", trimmed[:min(20, len(trimmed))])
+	}
+
+	// 检查是否包含范围符号 ~（LLM 常见错误）
+	if strings.Contains(jsonStr, "~") {
+		return fmt.Errorf("JSON 中不可包含范围符号 ~，所有数字必须是精确的单一值")
+	}
+
+	// 检查是否包含千位分隔符（如 98,000）
+	// 使用简单的模式匹配：数字+逗号+3位数字
+	for i := 0; i < len(jsonStr)-4; i++ {
+		if jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
+			jsonStr[i+1] == ',' &&
+			jsonStr[i+2] >= '0' && jsonStr[i+2] <= '9' &&
+			jsonStr[i+3] >= '0' && jsonStr[i+3] <= '9' &&
+			jsonStr[i+4] >= '0' && jsonStr[i+4] <= '9' {
+			return fmt.Errorf("JSON 数字不可包含千位分隔符逗号，发现: %s", jsonStr[i:min(i+10, len(jsonStr))])
+		}
+	}
+
+	return nil
+}
+
 // fixMissingQuotes 替换中文引号为英文引号（避免输入法自动转换）
 func fixMissingQuotes(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201c", "\"") // "
@@ -466,6 +504,14 @@ func fixMissingQuotes(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2018", "'")  // '
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2019", "'")  // '
 	return jsonStr
+}
+
+// min 返回两个整数中的较小值
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）

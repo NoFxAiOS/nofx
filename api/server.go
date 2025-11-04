@@ -71,29 +71,37 @@ func (s *Server) setupRoutes() {
 	{
 		// 健康检查
 		api.Any("/health", s.handleHealth)
-		
+
 		// 认证相关路由（无需认证）
 		api.POST("/register", s.handleRegister)
 		api.POST("/login", s.handleLogin)
 		api.POST("/verify-otp", s.handleVerifyOTP)
 		api.POST("/complete-registration", s.handleCompleteRegistration)
-		
+
 		// 系统支持的模型和交易所（无需认证）
 		api.GET("/supported-models", s.handleGetSupportedModels)
 		api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
-		
+
 		// 系统配置（无需认证）
 		api.GET("/config", s.handleGetSystemConfig)
-		
+
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)
 		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
+		
+		// 公开的竞赛数据（无需认证）
+		api.GET("/traders", s.handlePublicTraderList)
+		api.GET("/competition", s.handlePublicCompetition)
+		api.GET("/top-traders", s.handleTopTraders)
+		api.GET("/equity-history", s.handleEquityHistory)
+		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
+		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
 		{
 			// AI交易员管理
-			protected.GET("/traders", s.handleTraderList)
+			protected.GET("/my-traders", s.handleTraderList)
 			protected.GET("/traders/:id/config", s.handleGetTraderConfig)
 			protected.POST("/traders", s.handleCreateTrader)
 			protected.PUT("/traders/:id", s.handleUpdateTrader)
@@ -114,10 +122,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
 
-
-			// 竞赛总览
-			protected.GET("/competition", s.handleCompetition)
-			
 			// 指定trader的数据（使用query参数 ?trader_id=xxx）
 			protected.GET("/status", s.handleStatus)
 			protected.GET("/account", s.handleAccount)
@@ -125,7 +129,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
-			protected.GET("/equity-history", s.handleEquityHistory)
 			protected.GET("/performance", s.handlePerformance)
 		}
 	}
@@ -151,24 +154,29 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 		// 使用硬编码的默认币种
 		defaultCoins = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "HYPEUSDT"}
 	}
-	
+
 	// 获取杠杆配置
 	btcEthLeverageStr, _ := s.database.GetSystemConfig("btc_eth_leverage")
 	altcoinLeverageStr, _ := s.database.GetSystemConfig("altcoin_leverage")
-	
+
 	btcEthLeverage := 5
 	if val, err := strconv.Atoi(btcEthLeverageStr); err == nil && val > 0 {
 		btcEthLeverage = val
 	}
-	
+
 	altcoinLeverage := 5
 	if val, err := strconv.Atoi(altcoinLeverageStr); err == nil && val > 0 {
 		altcoinLeverage = val
 	}
 	
+	// 获取内测模式配置
+	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+	betaMode := betaModeStr == "true"
+
 	c.JSON(http.StatusOK, gin.H{
-		"admin_mode": auth.IsAdminMode(),
-		"default_coins": defaultCoins,
+		"admin_mode":       auth.IsAdminMode(),
+		"beta_mode":        betaMode,
+		"default_coins":    defaultCoins,
 		"btc_eth_leverage": btcEthLeverage,
 		"altcoin_leverage": altcoinLeverage,
 	})
@@ -178,20 +186,20 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, string, error) {
 	userID := c.GetString("user_id")
 	traderID := c.Query("trader_id")
-	
+
 	// 确保用户的交易员已加载到内存中
 	err := s.traderManager.LoadUserTraders(s.database, userID)
 	if err != nil {
 		log.Printf("⚠️ 加载用户 %s 的交易员失败: %v", userID, err)
 	}
-	
+
 	if traderID == "" {
 		// 如果没有指定trader_id，返回该用户的第一个trader
 		ids := s.traderManager.GetTraderIDs()
 		if len(ids) == 0 {
 			return nil, "", fmt.Errorf("没有可用的trader")
 		}
-		
+
 		// 获取用户的交易员列表，优先返回用户自己的交易员
 		userTraders, err := s.database.GetTraders(userID)
 		if err == nil && len(userTraders) > 0 {
@@ -200,7 +208,7 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 			traderID = ids[0]
 		}
 	}
-	
+
 	return s.traderManager, traderID, nil
 }
 
@@ -210,6 +218,7 @@ type CreateTraderRequest struct {
 	AIModelID            string  `json:"ai_model_id" binding:"required"`
 	ExchangeID           string  `json:"exchange_id" binding:"required"`
 	InitialBalance       float64 `json:"initial_balance"`
+	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
 	BTCETHLeverage       int     `json:"btc_eth_leverage"`
 	AltcoinLeverage      int     `json:"altcoin_leverage"`
 	TradingSymbols       string  `json:"trading_symbols"`
@@ -295,13 +304,13 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 	// 生成交易员ID
 	traderID := fmt.Sprintf("%s_%s_%d", req.ExchangeID, req.AIModelID, time.Now().Unix())
-	
+
 	// 设置默认值
 	isCrossMargin := true // 默认为全仓模式
 	if req.IsCrossMargin != nil {
 		isCrossMargin = *req.IsCrossMargin
 	}
-	
+
 	// 设置杠杆默认值（从系统配置获取）
 	btcEthLeverage := 5
 	altcoinLeverage := 5
@@ -325,15 +334,21 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// 设置系统提示词模板默认值
 	systemPromptTemplate := "default"
 	if req.SystemPromptTemplate != "" {
 		systemPromptTemplate = req.SystemPromptTemplate
 	}
 
-    // 创建交易员配置（数据库实体）
-    trader := &config.TraderRecord{
+	// 设置扫描间隔默认值
+	scanIntervalMinutes := req.ScanIntervalMinutes
+	if scanIntervalMinutes <= 0 {
+		scanIntervalMinutes = 3 // 默认3分钟
+	}
+
+	// 创建交易员配置（数据库实体）
+	trader := &config.TraderRecord{
 		ID:                   traderID,
 		UserID:               userID,
 		Name:                 req.Name,
@@ -349,8 +364,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		OverrideBasePrompt:   req.OverrideBasePrompt,
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
-		ScanIntervalMinutes:  3, // 默认3分钟
-		IsRunning:           false,
+		ScanIntervalMinutes:  scanIntervalMinutes,
+		IsRunning:            false,
 	}
 
 	// 保存到数据库
@@ -379,23 +394,24 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest 更新交易员请求
 type UpdateTraderRequest struct {
-	Name            string  `json:"name" binding:"required"`
-	AIModelID       string  `json:"ai_model_id" binding:"required"`
-	ExchangeID      string  `json:"exchange_id" binding:"required"`
-	InitialBalance  float64 `json:"initial_balance"`
-	BTCETHLeverage  int     `json:"btc_eth_leverage"`
-	AltcoinLeverage int     `json:"altcoin_leverage"`
-	TradingSymbols  string  `json:"trading_symbols"`
-	CustomPrompt    string  `json:"custom_prompt"`
-	OverrideBasePrompt bool `json:"override_base_prompt"`
-	IsCrossMargin   *bool   `json:"is_cross_margin"`
+	Name                string  `json:"name" binding:"required"`
+	AIModelID           string  `json:"ai_model_id" binding:"required"`
+	ExchangeID          string  `json:"exchange_id" binding:"required"`
+	InitialBalance      float64 `json:"initial_balance"`
+	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
+	BTCETHLeverage      int     `json:"btc_eth_leverage"`
+	AltcoinLeverage     int     `json:"altcoin_leverage"`
+	TradingSymbols      string  `json:"trading_symbols"`
+	CustomPrompt        string  `json:"custom_prompt"`
+	OverrideBasePrompt  bool    `json:"override_base_prompt"`
+	IsCrossMargin       *bool   `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置
 func (s *Server) handleUpdateTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
-	
+
 	var req UpdateTraderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -408,7 +424,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取交易员列表失败"})
 		return
 	}
-	
+
 	var existingTrader *config.TraderRecord
 	for _, trader := range traders {
 		if trader.ID == traderID {
@@ -416,7 +432,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 			break
 		}
 	}
-	
+
 	if existingTrader == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
 		return
@@ -427,7 +443,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	if req.IsCrossMargin != nil {
 		isCrossMargin = *req.IsCrossMargin
 	}
-	
+
 	// 设置杠杆默认值
 	btcEthLeverage := req.BTCETHLeverage
 	altcoinLeverage := req.AltcoinLeverage
@@ -437,23 +453,30 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	if altcoinLeverage <= 0 {
 		altcoinLeverage = existingTrader.AltcoinLeverage // 保持原值
 	}
-	
-    // 更新交易员配置
-    trader := &config.TraderRecord{
-		ID:                  traderID,
-		UserID:              userID,
-		Name:                req.Name,
-		AIModelID:           req.AIModelID,
-		ExchangeID:          req.ExchangeID,
-		InitialBalance:      req.InitialBalance,
-		BTCETHLeverage:      btcEthLeverage,
-		AltcoinLeverage:     altcoinLeverage,
-		TradingSymbols:      req.TradingSymbols,
-		CustomPrompt:        req.CustomPrompt,
-		OverrideBasePrompt:  req.OverrideBasePrompt,
-		IsCrossMargin:       isCrossMargin,
-		ScanIntervalMinutes: existingTrader.ScanIntervalMinutes, // 保持原值
-		IsRunning:           existingTrader.IsRunning,           // 保持原值
+
+	// 设置扫描间隔，允许更新
+	scanIntervalMinutes := req.ScanIntervalMinutes
+	if scanIntervalMinutes <= 0 {
+		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // 保持原值
+	}
+
+	// 更新交易员配置
+	trader := &config.TraderRecord{
+		ID:                   traderID,
+		UserID:               userID,
+		Name:                 req.Name,
+		AIModelID:            req.AIModelID,
+		ExchangeID:           req.ExchangeID,
+		InitialBalance:       req.InitialBalance,
+		BTCETHLeverage:       btcEthLeverage,
+		AltcoinLeverage:      altcoinLeverage,
+		TradingSymbols:       req.TradingSymbols,
+		CustomPrompt:         req.CustomPrompt,
+		OverrideBasePrompt:   req.OverrideBasePrompt,
+		SystemPromptTemplate: existingTrader.SystemPromptTemplate, // 保持原值
+		IsCrossMargin:        isCrossMargin,
+		ScanIntervalMinutes:  scanIntervalMinutes,
+		IsRunning:            existingTrader.IsRunning, // 保持原值
 	}
 
 	// 更新数据库
@@ -483,14 +506,14 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 func (s *Server) handleDeleteTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
-	
+
 	// 从数据库删除
 	err := s.database.DeleteTrader(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除交易员失败: %v", err)})
 		return
 	}
-	
+
 	// 如果交易员正在运行，先停止它
 	if trader, err := s.traderManager.GetTrader(traderID); err == nil {
 		status := trader.GetStatus()
@@ -499,28 +522,36 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 			log.Printf("⏹  已停止运行中的交易员: %s", traderID)
 		}
 	}
-	
+
 	log.Printf("✓ 交易员已删除: %s", traderID)
 	c.JSON(http.StatusOK, gin.H{"message": "交易员已删除"})
 }
 
 // handleStartTrader 启动交易员
 func (s *Server) handleStartTrader(c *gin.Context) {
+	userID := c.GetString("user_id")
 	traderID := c.Param("id")
+	
+	// 校验交易员是否属于当前用户
+	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
+		return
+	}
 	
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
 		return
 	}
-	
+
 	// 检查交易员是否已经在运行
 	status := trader.GetStatus()
 	if isRunning, ok := status["is_running"].(bool); ok && isRunning {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "交易员已在运行中"})
 		return
 	}
-	
+
 	// 启动交易员
 	go func() {
 		log.Printf("▶️  启动交易员 %s (%s)", traderID, trader.GetName())
@@ -528,45 +559,51 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 			log.Printf("❌ 交易员 %s 运行错误: %v", trader.GetName(), err)
 		}
 	}()
-	
+
 	// 更新数据库中的运行状态
-	userID := c.GetString("user_id")
 	err = s.database.UpdateTraderStatus(userID, traderID, true)
 	if err != nil {
 		log.Printf("⚠️  更新交易员状态失败: %v", err)
 	}
-	
+
 	log.Printf("✓ 交易员 %s 已启动", trader.GetName())
 	c.JSON(http.StatusOK, gin.H{"message": "交易员已启动"})
 }
 
 // handleStopTrader 停止交易员
 func (s *Server) handleStopTrader(c *gin.Context) {
+	userID := c.GetString("user_id")
 	traderID := c.Param("id")
+	
+	// 校验交易员是否属于当前用户
+	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
+		return
+	}
 	
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
 		return
 	}
-	
+
 	// 检查交易员是否正在运行
 	status := trader.GetStatus()
 	if isRunning, ok := status["is_running"].(bool); ok && !isRunning {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "交易员已停止"})
 		return
 	}
-	
+
 	// 停止交易员
 	trader.Stop()
-	
+
 	// 更新数据库中的运行状态
-	userID := c.GetString("user_id")
 	err = s.database.UpdateTraderStatus(userID, traderID, false)
 	if err != nil {
 		log.Printf("⚠️  更新交易员状态失败: %v", err)
 	}
-	
+
 	log.Printf("⏹  交易员 %s 已停止", trader.GetName())
 	c.JSON(http.StatusOK, gin.H{"message": "交易员已停止"})
 }
@@ -575,24 +612,24 @@ func (s *Server) handleStopTrader(c *gin.Context) {
 func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 	traderID := c.Param("id")
 	userID := c.GetString("user_id")
-	
+
 	var req struct {
-		CustomPrompt string `json:"custom_prompt"`
-		OverrideBasePrompt bool `json:"override_base_prompt"`
+		CustomPrompt       string `json:"custom_prompt"`
+		OverrideBasePrompt bool   `json:"override_base_prompt"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	// 更新数据库
 	err := s.database.UpdateTraderCustomPrompt(userID, traderID, req.CustomPrompt, req.OverrideBasePrompt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新自定义prompt失败: %v", err)})
 		return
 	}
-	
+
 	// 如果trader在内存中，更新其custom prompt和override设置
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err == nil {
@@ -600,7 +637,7 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 		trader.SetOverrideBasePrompt(req.OverrideBasePrompt)
 		log.Printf("✓ 已更新交易员 %s 的自定义prompt (覆盖基础=%v)", trader.GetName(), req.OverrideBasePrompt)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{"message": "自定义prompt已更新"})
 }
 
@@ -615,7 +652,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 		return
 	}
 	log.Printf("✅ 找到 %d 个AI模型配置", len(models))
-	
+
 	c.JSON(http.StatusOK, models)
 }
 
@@ -659,7 +696,7 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 		return
 	}
 	log.Printf("✅ 找到 %d 个交易所配置", len(exchanges))
-	
+
 	c.JSON(http.StatusOK, exchanges)
 }
 
@@ -704,7 +741,7 @@ func (s *Server) handleGetUserSignalSource(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"coin_pool_url": source.CoinPoolURL,
 		"oi_top_url":    source.OITopURL,
@@ -718,18 +755,18 @@ func (s *Server) handleSaveUserSignalSource(c *gin.Context) {
 		CoinPoolURL string `json:"coin_pool_url"`
 		OITopURL    string `json:"oi_top_url"`
 	}
-	
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	err := s.database.CreateUserSignalSource(userID, req.CoinPoolURL, req.OITopURL)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("保存用户信号源配置失败: %v", err)})
 		return
 	}
-	
+
 	log.Printf("✓ 用户信号源配置已保存: user=%s, coin_pool=%s, oi_top=%s", userID, req.CoinPoolURL, req.OITopURL)
 	c.JSON(http.StatusOK, gin.H{"message": "用户信号源配置已保存"})
 }
@@ -801,30 +838,25 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		}
 	}
 
-	// AIModelID 应该已经是 provider（如 "deepseek"），直接使用
-	// 如果是旧数据格式（如 "admin_deepseek"），提取 provider 部分
+	// 返回完整的模型ID，不做转换，保持与前端模型列表一致
 	aiModelID := traderConfig.AIModelID
-	// 兼容旧数据：如果包含下划线，提取最后一部分作为 provider
-	if strings.Contains(aiModelID, "_") {
-		parts := strings.Split(aiModelID, "_")
-		aiModelID = parts[len(parts)-1]
-	}
 
 	result := map[string]interface{}{
-		"trader_id":            traderConfig.ID,
-		"trader_name":          traderConfig.Name,
-		"ai_model":             aiModelID,
-		"exchange_id":          traderConfig.ExchangeID,
-		"initial_balance":      traderConfig.InitialBalance,
-		"btc_eth_leverage":     traderConfig.BTCETHLeverage,
-		"altcoin_leverage":     traderConfig.AltcoinLeverage,
-		"trading_symbols":      traderConfig.TradingSymbols,
-		"custom_prompt":        traderConfig.CustomPrompt,
-		"override_base_prompt": traderConfig.OverrideBasePrompt,
-		"is_cross_margin":      traderConfig.IsCrossMargin,
-		"use_coin_pool":        traderConfig.UseCoinPool,
-		"use_oi_top":           traderConfig.UseOITop,
-		"is_running":           isRunning,
+		"trader_id":             traderConfig.ID,
+		"trader_name":           traderConfig.Name,
+		"ai_model":              aiModelID,
+		"exchange_id":           traderConfig.ExchangeID,
+		"initial_balance":       traderConfig.InitialBalance,
+		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
+		"btc_eth_leverage":      traderConfig.BTCETHLeverage,
+		"altcoin_leverage":      traderConfig.AltcoinLeverage,
+		"trading_symbols":       traderConfig.TradingSymbols,
+		"custom_prompt":         traderConfig.CustomPrompt,
+		"override_base_prompt":  traderConfig.OverrideBasePrompt,
+		"is_cross_margin":       traderConfig.IsCrossMargin,
+		"use_coin_pool":         traderConfig.UseCoinPool,
+		"use_oi_top":            traderConfig.UseOITop,
+		"is_running":            isRunning,
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -991,13 +1023,13 @@ func (s *Server) handleStatistics(c *gin.Context) {
 // handleCompetition 竞赛总览（对比所有trader）
 func (s *Server) handleCompetition(c *gin.Context) {
 	userID := c.GetString("user_id")
-	
+
 	// 确保用户的交易员已加载到内存中
 	err := s.traderManager.LoadUserTraders(s.database, userID)
 	if err != nil {
 		log.Printf("⚠️ 加载用户 %s 的交易员失败: %v", userID, err)
 	}
-	
+
 	competition, err := s.traderManager.GetCompetitionData()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1005,7 +1037,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, competition)
 }
 
@@ -1132,7 +1164,7 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		
+
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少Authorization头"})
@@ -1168,11 +1200,33 @@ func (s *Server) handleRegister(c *gin.Context) {
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`
+		BetaCode string `json:"beta_code"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// 检查是否开启了内测模式
+	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+	if betaModeStr == "true" {
+		// 内测模式下必须提供有效的内测码
+		if req.BetaCode == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "内测期间，注册需要提供内测码"})
+			return
+		}
+
+		// 验证内测码
+		isValid, err := s.database.ValidateBetaCode(req.BetaCode)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "验证内测码失败"})
+			return
+		}
+		if !isValid {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "内测码无效或已被使用"})
+			return
+		}
 	}
 
 	// 检查邮箱是否已存在
@@ -1212,14 +1266,26 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 
+	// 如果是内测模式，标记内测码为已使用
+	betaModeStr2, _ := s.database.GetSystemConfig("beta_mode")
+	if betaModeStr2 == "true" && req.BetaCode != "" {
+		err := s.database.UseBetaCode(req.BetaCode, req.Email)
+		if err != nil {
+			log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
+			// 这里不返回错误，因为用户已经创建成功
+		} else {
+			log.Printf("✓ 内测码 %s 已被用户 %s 使用", req.BetaCode, req.Email)
+		}
+	}
+
 	// 返回OTP设置信息
 	qrCodeURL := auth.GetOTPQRCodeURL(otpSecret, req.Email)
 	c.JSON(http.StatusOK, gin.H{
-		"user_id":    userID,
-		"email":      req.Email,
-		"otp_secret": otpSecret,
+		"user_id":     userID,
+		"email":       req.Email,
+		"otp_secret":  otpSecret,
 		"qr_code_url": qrCodeURL,
-		"message":    "请使用Google Authenticator扫描二维码并验证OTP",
+		"message":     "请使用Google Authenticator扫描二维码并验证OTP",
 	})
 }
 
@@ -1304,8 +1370,8 @@ func (s *Server) handleLogin(c *gin.Context) {
 	// 检查OTP是否已验证
 	if !user.OTPVerified {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "账户未完成OTP设置",
-			"user_id": user.ID,
+			"error":              "账户未完成OTP设置",
+			"user_id":            user.ID,
 			"requires_otp_setup": true,
 		})
 		return
@@ -1313,9 +1379,9 @@ func (s *Server) handleLogin(c *gin.Context) {
 
 	// 返回需要OTP验证的状态
 	c.JSON(http.StatusOK, gin.H{
-		"user_id": user.ID,
-		"email":   user.Email,
-		"message": "请输入Google Authenticator验证码",
+		"user_id":      user.ID,
+		"email":        user.Email,
+		"message":      "请输入Google Authenticator验证码",
 		"requires_otp": true,
 	})
 }
@@ -1377,7 +1443,7 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取支持的AI模型失败"})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, models)
 }
 
@@ -1390,7 +1456,7 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取支持的交易所失败"})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, exchanges)
 }
 
@@ -1400,7 +1466,12 @@ func (s *Server) Start() error {
 	log.Printf("🌐 API服务器启动在 http://localhost%s", addr)
 	log.Printf("📊 API文档:")
 	log.Printf("  • GET  /api/health           - 健康检查")
-	log.Printf("  • GET  /api/traders          - AI交易员列表")
+	log.Printf("  • GET  /api/traders          - 公开的AI交易员排行榜前50名（无需认证）")
+	log.Printf("  • GET  /api/competition      - 公开的竞赛数据（无需认证）")
+	log.Printf("  • GET  /api/top-traders      - 前5名交易员数据（无需认证，表现对比用）")
+	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 公开的收益率历史数据（无需认证，竞赛用）")
+	log.Printf("  • GET  /api/equity-history-batch?trader_ids=a,b,c - 批量获取历史数据（无需认证，表现对比优化）")
+	log.Printf("  • GET  /api/traders/:id/public-config - 公开的交易员配置（无需认证，不含敏感信息）")
 	log.Printf("  • POST /api/traders          - 创建新的AI交易员")
 	log.Printf("  • DELETE /api/traders/:id    - 删除AI交易员")
 	log.Printf("  • POST /api/traders/:id/start - 启动AI交易员")
@@ -1415,7 +1486,6 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/decisions?trader_id=xxx  - 指定trader的决策日志")
 	log.Printf("  • GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
 	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
-	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 指定trader的收益率历史数据")
 	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
 	log.Println()
 
@@ -1426,7 +1496,7 @@ func (s *Server) Start() error {
 func (s *Server) handleGetPromptTemplates(c *gin.Context) {
 	// 导入 decision 包
 	templates := decision.GetAllPromptTemplates()
-	
+
 	// 转换为响应格式
 	response := make([]map[string]interface{}, 0, len(templates))
 	for _, tmpl := range templates {
@@ -1434,7 +1504,7 @@ func (s *Server) handleGetPromptTemplates(c *gin.Context) {
 			"name": tmpl.Name,
 		})
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"templates": response,
 	})
@@ -1443,15 +1513,224 @@ func (s *Server) handleGetPromptTemplates(c *gin.Context) {
 // handleGetPromptTemplate 获取指定名称的提示词模板内容
 func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 	templateName := c.Param("name")
-	
+
 	template, err := decision.GetPromptTemplate(templateName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("模板不存在: %s", templateName)})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
 		"name":    template.Name,
 		"content": template.Content,
 	})
 }
+
+// handlePublicTraderList 获取公开的交易员列表（无需认证）
+func (s *Server) handlePublicTraderList(c *gin.Context) {
+	// 从所有用户获取交易员信息
+	competition, err := s.traderManager.GetCompetitionData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取交易员列表失败: %v", err),
+		})
+		return
+	}
+
+	// 获取traders数组
+	tradersData, exists := competition["traders"]
+	if !exists {
+		c.JSON(http.StatusOK, []map[string]interface{}{})
+		return
+	}
+
+	traders, ok := tradersData.([]map[string]interface{})
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "交易员数据格式错误",
+		})
+		return
+	}
+
+	// 返回交易员基本信息，过滤敏感信息
+	result := make([]map[string]interface{}, 0, len(traders))
+	for _, trader := range traders {
+		result = append(result, map[string]interface{}{
+			"trader_id":       trader["trader_id"],
+			"trader_name":     trader["trader_name"],
+			"ai_model":        trader["ai_model"],
+			"exchange":        trader["exchange"],
+			"is_running":      trader["is_running"],
+			"total_equity":    trader["total_equity"],
+			"total_pnl":       trader["total_pnl"],
+			"total_pnl_pct":   trader["total_pnl_pct"],
+			"position_count":  trader["position_count"],
+			"margin_used_pct": trader["margin_used_pct"],
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// handlePublicCompetition 获取公开的竞赛数据（无需认证）
+func (s *Server) handlePublicCompetition(c *gin.Context) {
+	competition, err := s.traderManager.GetCompetitionData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取竞赛数据失败: %v", err),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, competition)
+}
+
+// handleTopTraders 获取前5名交易员数据（无需认证，用于表现对比）
+func (s *Server) handleTopTraders(c *gin.Context) {
+	topTraders, err := s.traderManager.GetTopTradersData()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("获取前10名交易员数据失败: %v", err),
+		})
+		return
+	}
+	
+	c.JSON(http.StatusOK, topTraders)
+}
+
+// handleEquityHistoryBatch 批量获取多个交易员的收益率历史数据（无需认证，用于表现对比）
+func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
+	var requestBody struct {
+		TraderIDs []string `json:"trader_ids"`
+	}
+	
+	// 尝试解析POST请求的JSON body
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		// 如果JSON解析失败，尝试从query参数获取（兼容GET请求）
+		traderIDsParam := c.Query("trader_ids")
+		if traderIDsParam == "" {
+			// 如果没有指定trader_ids，则返回前5名的历史数据
+			topTraders, err := s.traderManager.GetTopTradersData()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": fmt.Sprintf("获取前5名交易员失败: %v", err),
+				})
+				return
+			}
+			
+			traders, ok := topTraders["traders"].([]map[string]interface{})
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "交易员数据格式错误"})
+				return
+			}
+			
+			// 提取trader IDs
+			traderIDs := make([]string, 0, len(traders))
+			for _, trader := range traders {
+				if traderID, ok := trader["trader_id"].(string); ok {
+					traderIDs = append(traderIDs, traderID)
+				}
+			}
+			
+			result := s.getEquityHistoryForTraders(traderIDs)
+			c.JSON(http.StatusOK, result)
+			return
+		}
+		
+		// 解析逗号分隔的trader IDs
+		requestBody.TraderIDs = strings.Split(traderIDsParam, ",")
+		for i := range requestBody.TraderIDs {
+			requestBody.TraderIDs[i] = strings.TrimSpace(requestBody.TraderIDs[i])
+		}
+	}
+	
+	// 限制最多20个交易员，防止请求过大
+	if len(requestBody.TraderIDs) > 20 {
+		requestBody.TraderIDs = requestBody.TraderIDs[:20]
+	}
+	
+	result := s.getEquityHistoryForTraders(requestBody.TraderIDs)
+	c.JSON(http.StatusOK, result)
+}
+
+// getEquityHistoryForTraders 获取多个交易员的历史数据
+func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]interface{} {
+	result := make(map[string]interface{})
+	histories := make(map[string]interface{})
+	errors := make(map[string]string)
+	
+	for _, traderID := range traderIDs {
+		if traderID == "" {
+			continue
+		}
+		
+		trader, err := s.traderManager.GetTrader(traderID)
+		if err != nil {
+			errors[traderID] = "交易员不存在"
+			continue
+		}
+		
+		// 获取历史数据（用于对比展示，限制数据量）
+		records, err := trader.GetDecisionLogger().GetLatestRecords(500)
+		if err != nil {
+			errors[traderID] = fmt.Sprintf("获取历史数据失败: %v", err)
+			continue
+		}
+		
+		// 构建收益率历史数据
+		history := make([]map[string]interface{}, 0, len(records))
+		for _, record := range records {
+			// 计算总权益（余额+未实现盈亏）
+			totalEquity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
+			
+			history = append(history, map[string]interface{}{
+				"timestamp":    record.Timestamp,
+				"total_equity": totalEquity,
+				"total_pnl":    record.AccountState.TotalUnrealizedProfit,
+				"balance":      record.AccountState.TotalBalance,
+			})
+		}
+		
+		histories[traderID] = history
+	}
+	
+	result["histories"] = histories
+	result["count"] = len(histories)
+	if len(errors) > 0 {
+		result["errors"] = errors
+	}
+	
+	return result
+}
+
+// handleGetPublicTraderConfig 获取公开的交易员配置信息（无需认证，不包含敏感信息）
+func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
+	traderID := c.Param("id")
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "交易员ID不能为空"})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
+	// 获取交易员的状态信息
+	status := trader.GetStatus()
+
+	// 只返回公开的配置信息，不包含API密钥等敏感数据
+	result := map[string]interface{}{
+		"trader_id":   trader.GetID(),
+		"trader_name": trader.GetName(),
+		"ai_model":    trader.GetAIModel(),
+		"exchange":    trader.GetExchange(),
+		"is_running":  status["is_running"],
+		"ai_provider": status["ai_provider"],
+		"start_time":  status["start_time"],
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+

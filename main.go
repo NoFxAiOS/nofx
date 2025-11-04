@@ -26,12 +26,12 @@ type LeverageConfig struct {
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
 type ConfigFile struct {
 	AdminMode          bool           `json:"admin_mode"`
+	BetaMode           bool           `json:"beta_mode"`
 	APIServerPort      int            `json:"api_server_port"`
 	UseDefaultCoins    bool           `json:"use_default_coins"`
 	DefaultCoins       []string       `json:"default_coins"`
 	CoinPoolAPIURL     string         `json:"coin_pool_api_url"`
 	OITopAPIURL        string         `json:"oi_top_api_url"`
-	InsideCoins        bool           `json:"inside_coins"`
 	MaxDailyLoss       float64        `json:"max_daily_loss"`
 	MaxDrawdown        float64        `json:"max_drawdown"`
 	StopTradingMinutes int            `json:"stop_trading_minutes"`
@@ -64,15 +64,15 @@ func syncConfigToDatabase(database *config.Database) error {
 
 	// 同步各配置项到数据库
 	configs := map[string]string{
-		"admin_mode":           fmt.Sprintf("%t", configFile.AdminMode),
-		"api_server_port":      strconv.Itoa(configFile.APIServerPort),
-		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
-		"coin_pool_api_url":    configFile.CoinPoolAPIURL,
-		"oi_top_api_url":       configFile.OITopAPIURL,
-		"inside_coins":         fmt.Sprintf("%t", configFile.InsideCoins),
-		"max_daily_loss":       fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
-		"max_drawdown":         fmt.Sprintf("%.1f", configFile.MaxDrawdown),
-		"stop_trading_minutes": strconv.Itoa(configFile.StopTradingMinutes),
+		"admin_mode":            fmt.Sprintf("%t", configFile.AdminMode),
+		"beta_mode":             fmt.Sprintf("%t", configFile.BetaMode),
+		"api_server_port":       strconv.Itoa(configFile.APIServerPort),
+		"use_default_coins":     fmt.Sprintf("%t", configFile.UseDefaultCoins),
+		"coin_pool_api_url":     configFile.CoinPoolAPIURL,
+		"oi_top_api_url":        configFile.OITopAPIURL,
+		"max_daily_loss":        fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
+		"max_drawdown":          fmt.Sprintf("%.1f", configFile.MaxDrawdown),
+		"stop_trading_minutes":  strconv.Itoa(configFile.StopTradingMinutes),
 	}
 
 	// 同步default_coins（转换为JSON字符串存储）
@@ -109,6 +109,41 @@ func syncConfigToDatabase(database *config.Database) error {
 	return nil
 }
 
+// loadBetaCodesToDatabase 加载内测码文件到数据库
+func loadBetaCodesToDatabase(database *config.Database) error {
+	betaCodeFile := "beta_codes.txt"
+	
+	// 检查内测码文件是否存在
+	if _, err := os.Stat(betaCodeFile); os.IsNotExist(err) {
+		log.Printf("📄 内测码文件 %s 不存在，跳过加载", betaCodeFile)
+		return nil
+	}
+
+	// 获取文件信息
+	fileInfo, err := os.Stat(betaCodeFile)
+	if err != nil {
+		return fmt.Errorf("获取内测码文件信息失败: %w", err)
+	}
+
+	log.Printf("🔄 发现内测码文件 %s (%.1f KB)，开始加载...", betaCodeFile, float64(fileInfo.Size())/1024)
+	
+	// 加载内测码到数据库
+	err = database.LoadBetaCodesFromFile(betaCodeFile)
+	if err != nil {
+		return fmt.Errorf("加载内测码失败: %w", err)
+	}
+
+	// 显示统计信息
+	total, used, err := database.GetBetaCodeStats()
+	if err != nil {
+		log.Printf("⚠️  获取内测码统计失败: %v", err)
+	} else {
+		log.Printf("✅ 内测码加载完成: 总计 %d 个，已使用 %d 个，剩余 %d 个", total, used, total-used)
+	}
+
+	return nil
+}
+
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
 	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
@@ -131,6 +166,11 @@ func main() {
 	// 同步config.json到数据库
 	if err := syncConfigToDatabase(database); err != nil {
 		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
+	}
+
+	// 加载内测码到数据库
+	if err := loadBetaCodesToDatabase(database); err != nil {
+		log.Printf("⚠️  加载内测码到数据库失败: %v", err)
 	}
 
 	// 获取系统配置

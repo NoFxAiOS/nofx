@@ -1,20 +1,22 @@
-import { useLanguage } from '../../contexts/LanguageContext'
-import { t } from '../../i18n/translations'
+import { t, Language } from '../../i18n/translations'
 
-export default function FooterSection() {
-  const { language } = useLanguage()
+interface FooterSectionProps {
+  language: Language
+}
+
+export default function FooterSection({ language }: FooterSectionProps) {
   return (
-    <footer style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}>
+    <footer style={{ borderTop: '1px solid var(--panel-border)', background: 'var(--brand-dark-gray)' }}>
       <div className='max-w-[1200px] mx-auto px-6 py-10'>
         {/* Brand */}
         <div className='flex items-center gap-3 mb-8'>
-          <img src='/images/logo.png' alt='NOFX Logo' className='w-8 h-8' />
+          <img src='/icons/nofx.svg' alt='NOFX Logo' className='w-8 h-8' />
           <div>
             <div className='text-lg font-bold' style={{ color: '#EAECEF' }}>
               NOFX
             </div>
             <div className='text-xs' style={{ color: '#848E9C' }}>
-              AI 交易的未来标准
+              {t('futureStandardAI', language)}
             </div>
           </div>
         </div>
@@ -26,7 +28,7 @@ export default function FooterSection() {
               className='text-sm font-semibold mb-3'
               style={{ color: '#EAECEF' }}
             >
-              链接
+              {t('links', language)}
             </h3>
             <ul className='space-y-2 text-sm' style={{ color: '#848E9C' }}>
               <li>
@@ -67,7 +69,7 @@ export default function FooterSection() {
               className='text-sm font-semibold mb-3'
               style={{ color: '#EAECEF' }}
             >
-              资源
+              {t('resources', language)}
             </h3>
             <ul className='space-y-2 text-sm' style={{ color: '#848E9C' }}>
               <li>
@@ -77,7 +79,7 @@ export default function FooterSection() {
                   target='_blank'
                   rel='noopener noreferrer'
                 >
-                  文档
+                  {t('documentation', language)}
                 </a>
               </li>
               <li>
@@ -108,7 +110,7 @@ export default function FooterSection() {
               className='text-sm font-semibold mb-3'
               style={{ color: '#EAECEF' }}
             >
-              支持方
+              {t('supporters', language)}
             </h3>
             <ul className='space-y-2 text-sm' style={{ color: '#848E9C' }}>
               <li>
@@ -148,7 +150,7 @@ export default function FooterSection() {
                   target='_blank'
                   rel='noopener noreferrer'
                 >
-                  Amber.ac <span className='opacity-70'>(战略投资)</span>
+                  Amber.ac <span className='opacity-70'>{t('strategicInvestment', language)}</span>
                 </a>
               </li>
             </ul>
@@ -158,7 +160,7 @@ export default function FooterSection() {
         {/* Bottom note (kept subtle) */}
         <div
           className='pt-6 mt-8 text-center text-xs'
-          style={{ color: '#5E6673', borderTop: '1px solid #2B3139' }}
+          style={{ color: 'var(--text-tertiary)', borderTop: '1px solid var(--panel-border)' }}
         >
           <p>{t('footerTitle', language)}</p>
           <p className='mt-1'>{t('footerWarning', language)}</p>

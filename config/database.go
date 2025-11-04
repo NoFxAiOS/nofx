@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/market"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -128,6 +129,15 @@ func (d *Database) createTables() error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
+		// 内测码表
+		`CREATE TABLE IF NOT EXISTS beta_codes (
+			code TEXT PRIMARY KEY,
+			used BOOLEAN DEFAULT 0,
+			used_by TEXT DEFAULT '',
+			used_at DATETIME DEFAULT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+
 		// 触发器：自动更新 updated_at
 		`CREATE TRIGGER IF NOT EXISTS update_users_updated_at
 			AFTER UPDATE ON users
@@ -188,7 +198,6 @@ func (d *Database) createTables() error {
 		`ALTER TABLE traders ADD COLUMN trading_symbols TEXT DEFAULT ''`,               // 交易币种，逗号分隔
 		`ALTER TABLE traders ADD COLUMN use_coin_pool BOOLEAN DEFAULT 0`,               // 是否使用COIN POOL信号源
 		`ALTER TABLE traders ADD COLUMN use_oi_top BOOLEAN DEFAULT 0`,                  // 是否使用OI TOP信号源
-		`ALTER TABLE traders ADD COLUMN use_inside_coins BOOLEAN DEFAULT 0`,            // 是否使用内置AI评分信号源
 		`ALTER TABLE traders ADD COLUMN system_prompt_template TEXT DEFAULT 'default'`, // 系统提示词模板名称
 		`ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`,              // 自定义API地址
 		`ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`,           // 自定义模型名称
@@ -249,16 +258,17 @@ func (d *Database) initDefaultData() error {
 
 	// 初始化系统配置 - 创建所有字段，设置默认值，后续由config.json同步更新
 	systemConfigs := map[string]string{
-		"admin_mode":           "true",                                                                                // 默认开启管理员模式，便于首次使用
-		"api_server_port":      "8080",                                                                                // 默认API端口
-		"use_default_coins":    "true",                                                                                // 默认使用内置币种列表
-		"default_coins":        `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`, // 默认币种列表（JSON格式）
-		"max_daily_loss":       "10.0",                                                                                // 最大日损失百分比
-		"max_drawdown":         "20.0",                                                                                // 最大回撤百分比
-		"stop_trading_minutes": "60",                                                                                  // 停止交易时间（分钟）
-		"btc_eth_leverage":     "5",                                                                                   // BTC/ETH杠杆倍数
-		"altcoin_leverage":     "5",                                                                                   // 山寨币杠杆倍数
-		"jwt_secret":           "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
+		"admin_mode":            "true",                                                                                // 默认开启管理员模式，便于首次使用
+		"beta_mode":             "false",                                                                             // 默认关闭内测模式
+		"api_server_port":       "8080",                                                                                // 默认API端口
+		"use_default_coins":     "true",                                                                                // 默认使用内置币种列表
+		"default_coins":         `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`, // 默认币种列表（JSON格式）
+		"max_daily_loss":        "10.0",                                                                                // 最大日损失百分比
+		"max_drawdown":          "20.0",                                                                                // 最大回撤百分比
+		"stop_trading_minutes":  "60",                                                                                  // 停止交易时间（分钟）
+		"btc_eth_leverage":      "5",                                                                                   // BTC/ETH杠杆倍数
+		"altcoin_leverage":      "5",                                                                                   // 山寨币杠杆倍数
+		"jwt_secret":            "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
 	}
 
 	for key, value := range systemConfigs {
@@ -416,7 +426,6 @@ type TraderRecord struct {
 	TradingSymbols       string    `json:"trading_symbols"`        // 交易币种，逗号分隔
 	UseCoinPool          bool      `json:"use_coin_pool"`          // 是否使用COIN POOL信号源
 	UseOITop             bool      `json:"use_oi_top"`             // 是否使用OI TOP信号源
-	UseInsideCoins       bool      `json:"use_inside_coins"`       // 是否使用内置评分信号源
 	CustomPrompt         string    `json:"custom_prompt"`          // 自定义交易策略prompt
 	OverrideBasePrompt   bool      `json:"override_base_prompt"`   // 是否覆盖基础prompt
 	SystemPromptTemplate string    `json:"system_prompt_template"` // 系统提示词模板名称
@@ -772,9 +781,9 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 // CreateTrader 创建交易员
 func (d *Database) CreateTrader(trader *TraderRecord) error {
 	_, err := d.db.Exec(`
-		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, btc_eth_leverage, altcoin_leverage, trading_symbols, use_coin_pool, use_oi_top, use_inside_coins, custom_prompt, override_base_prompt, system_prompt_template, is_cross_margin)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?, ?, ?, ?)
-	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.BTCETHLeverage, trader.AltcoinLeverage, trader.TradingSymbols, trader.UseCoinPool, trader.UseOITop, trader.UseInsideCoins, trader.CustomPrompt, trader.OverrideBasePrompt, trader.SystemPromptTemplate, trader.IsCrossMargin)
+		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, btc_eth_leverage, altcoin_leverage, trading_symbols, use_coin_pool, use_oi_top, custom_prompt, override_base_prompt, system_prompt_template, is_cross_margin)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.BTCETHLeverage, trader.AltcoinLeverage, trader.TradingSymbols, trader.UseCoinPool, trader.UseOITop, trader.CustomPrompt, trader.OverrideBasePrompt, trader.SystemPromptTemplate, trader.IsCrossMargin)
 	return err
 }
 
@@ -784,7 +793,7 @@ func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 		SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running,
 		       COALESCE(btc_eth_leverage, 5) as btc_eth_leverage, COALESCE(altcoin_leverage, 5) as altcoin_leverage,
 		       COALESCE(trading_symbols, '') as trading_symbols,
-		       COALESCE(use_coin_pool, 0) as use_coin_pool, COALESCE(use_oi_top, 0) as use_oi_top,COALESCE(use_inside_coins, 0) as use_inside_coins,
+		       COALESCE(use_coin_pool, 0) as use_coin_pool, COALESCE(use_oi_top, 0) as use_oi_top,
 		       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, 0) as override_base_prompt,
 		       COALESCE(system_prompt_template, 'default') as system_prompt_template,
 		       COALESCE(is_cross_margin, 1) as is_cross_margin, created_at, updated_at
@@ -802,7 +811,7 @@ func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 			&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
 			&trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
 			&trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
-			&trader.UseCoinPool, &trader.UseOITop, &trader.UseInsideCoins,
+			&trader.UseCoinPool, &trader.UseOITop,
 			&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
 			&trader.IsCrossMargin,
 			&trader.CreatedAt, &trader.UpdatedAt,
@@ -970,4 +979,106 @@ func (d *Database) GetCustomCoins() []string {
 // Close 关闭数据库连接
 func (d *Database) Close() error {
 	return d.db.Close()
+}
+
+// LoadBetaCodesFromFile 从文件加载内测码到数据库
+func (d *Database) LoadBetaCodesFromFile(filePath string) error {
+	// 读取文件内容
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("读取内测码文件失败: %w", err)
+	}
+
+	// 按行分割内测码
+	lines := strings.Split(string(content), "\n")
+	var codes []string
+	for _, line := range lines {
+		code := strings.TrimSpace(line)
+		if code != "" && !strings.HasPrefix(code, "#") {
+			codes = append(codes, code)
+		}
+	}
+
+	// 批量插入内测码
+	tx, err := d.db.Begin()
+	if err != nil {
+		return fmt.Errorf("开始事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT OR IGNORE INTO beta_codes (code) VALUES (?)`)
+	if err != nil {
+		return fmt.Errorf("准备语句失败: %w", err)
+	}
+	defer stmt.Close()
+
+	insertedCount := 0
+	for _, code := range codes {
+		result, err := stmt.Exec(code)
+		if err != nil {
+			log.Printf("插入内测码 %s 失败: %v", code, err)
+			continue
+		}
+		
+		if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
+			insertedCount++
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	log.Printf("✅ 成功加载 %d 个内测码到数据库 (总计 %d 个)", insertedCount, len(codes))
+	return nil
+}
+
+// ValidateBetaCode 验证内测码是否有效且未使用
+func (d *Database) ValidateBetaCode(code string) (bool, error) {
+	var used bool
+	err := d.db.QueryRow(`SELECT used FROM beta_codes WHERE code = ?`, code).Scan(&used)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // 内测码不存在
+		}
+		return false, err
+	}
+	return !used, nil // 内测码存在且未使用
+}
+
+// UseBetaCode 使用内测码（标记为已使用）
+func (d *Database) UseBetaCode(code, userEmail string) error {
+	result, err := d.db.Exec(`
+		UPDATE beta_codes SET used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP 
+		WHERE code = ? AND used = 0
+	`, userEmail, code)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("内测码无效或已被使用")
+	}
+
+	return nil
+}
+
+// GetBetaCodeStats 获取内测码统计信息
+func (d *Database) GetBetaCodeStats() (total, used int, err error) {
+	err = d.db.QueryRow(`SELECT COUNT(*) FROM beta_codes`).Scan(&total)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	err = d.db.QueryRow(`SELECT COUNT(*) FROM beta_codes WHERE used = 1`).Scan(&used)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return total, used, nil
 }

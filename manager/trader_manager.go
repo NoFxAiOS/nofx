@@ -27,8 +27,19 @@ func NewTraderManager() *TraderManager {
 
 // LoadTradersFromDatabase 从数据库加载所有交易员到内存
 func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) error {
+	autoStartTraders := make([]*trader.AutoTrader, 0)
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
+	defer func() {
+		tm.mu.Unlock()
+		for _, at := range autoStartTraders {
+			go func(tr *trader.AutoTrader) {
+				log.Printf("▶️ 自动恢复交易员 %s（标记为运行中）", tr.GetName())
+				if err := tr.Run(); err != nil {
+					log.Printf("❌ 自动恢复交易员 %s 运行错误: %v", tr.GetName(), err)
+				}
+			}(at)
+		}
+	}()
 
 	// 获取所有用户
 	userIDs, err := database.GetAllUsers()
@@ -162,9 +173,19 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 			log.Printf("❌ 添加交易员 %s 失败: %v", traderCfg.Name, err)
 			continue
 		}
+
+		if traderCfg.IsRunning {
+			if at, exists := tm.traders[traderCfg.ID]; exists {
+				autoStartTraders = append(autoStartTraders, at)
+			}
+		}
 	}
 
-	log.Printf("✓ 成功加载 %d 个交易员到内存", len(tm.traders))
+	totalLoaded := len(tm.traders)
+	log.Printf("✓ 成功加载 %d 个交易员到内存", totalLoaded)
+	if len(autoStartTraders) > 0 {
+		log.Printf("🚀 已自动恢复 %d 个交易员的运行状态", len(autoStartTraders))
+	}
 	return nil
 }
 
@@ -563,8 +584,19 @@ func containsUserPrefix(traderID string) bool {
 
 // LoadUserTraders 为特定用户加载交易员到内存
 func (tm *TraderManager) LoadUserTraders(database *config.Database, userID string) error {
+	autoStartTraders := make([]*trader.AutoTrader, 0)
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
+	defer func() {
+		tm.mu.Unlock()
+		for _, at := range autoStartTraders {
+			go func(tr *trader.AutoTrader) {
+				log.Printf("▶️ 自动恢复用户 %s 的交易员 %s（标记为运行中）", userID, tr.GetName())
+				if err := tr.Run(); err != nil {
+					log.Printf("❌ 自动恢复交易员 %s 运行错误: %v", tr.GetName(), err)
+				}
+			}(at)
+		}
+	}()
 
 	// 获取指定用户的所有交易员
 	traders, err := database.GetTraders(userID)
@@ -688,6 +720,13 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 		err = tm.loadSingleTrader(traderCfg, aiModelCfg, exchangeCfg, coinPoolURL, oiTopURL, maxDailyLoss, maxDrawdown, stopTradingMinutes, defaultCoins)
 		if err != nil {
 			log.Printf("⚠️ 加载交易员 %s 失败: %v", traderCfg.Name, err)
+			continue
+		}
+
+		if traderCfg.IsRunning {
+			if at, exists := tm.traders[traderCfg.ID]; exists {
+				autoStartTraders = append(autoStartTraders, at)
+			}
 		}
 	}
 

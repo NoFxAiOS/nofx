@@ -1,0 +1,135 @@
+# CODEOWNERS
+#
+# This file defines code ownership and automatic reviewer assignment.
+# When a PR touches files matching these patterns, the listed users/teams
+# will be automatically requested for review.
+#
+# 此文件定义代码所有权和自动 reviewer 分配。
+# 当 PR 涉及匹配这些模式的文件时，列出的用户/团队将自动被请求审查。
+#
+# Syntax | 语法:
+#   pattern @username @org/team-name
+#
+# More specific patterns override less specific ones
+# 更具体的模式会覆盖不太具体的模式
+#
+# Documentation: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# =============================================================================
+# Global Owners | 全局所有者
+# These users will be requested for review on ALL pull requests
+# 这些用户将被请求审查所有 PR
+# =============================================================================
+
+* @hzb1115 @Icyoung @tangmengqiu @xqliu @SkywalkerJi
+
+# =============================================================================
+# Specific Component Owners | 特定组件所有者
+# Additional reviewers based on file paths (in addition to global owners)
+# 基于文件路径的额外 reviewers（在全局 owners 之外）
+# =============================================================================
+
+# Backend / Go Code | 后端 / Go 代码
+# Go files and backend logic
+*.go @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+go.mod @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+go.sum @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+
+
+# Frontend / Web | 前端 / Web
+# React/TypeScript frontend code
+/web/ @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+/web/src/ @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.tsx @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.ts @0xEmberZz @hzb1115 @xqliu @tangmengqiu (frontend TypeScript only)
+*.jsx @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.css @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.scss @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+
+# Configuration Files | 配置文件
+*.json @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.yaml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.yml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.toml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.ini @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+
+# Documentation | 文档
+# Markdown and documentation files
+*.md @hzb1115 @tangmengqiu
+/docs/ @hzb1115 @tangmengqiu
+README.md @hzb1115 @tangmengqiu
+
+# GitHub Workflows & Actions | GitHub 工作流和 Actions
+# CI/CD configuration and automation
+/.github/ @hzb1115
+/.github/workflows/ @hzb1115
+/.github/workflows/*.yml @hzb1115
+
+# Docker | Docker 配置
+Dockerfile @tangmengqiu 
+docker-compose.yml @tangmengqiu 
+.dockerignore @tangmengqiu
+
+# Database | 数据库
+# Database migrations and schemas
+/migrations/ @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+/db/ @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+*.sql @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+
+# Scripts | 脚本
+/scripts/ @hzb1115 @xqliu @tangmengqiu
+*.sh @hzb1115 @xqliu @tangmengqiu
+*.bash @hzb1115 @tangmengqiu
+*.py @hzb1115 @tangmengqiu (if Python scripts exist)
+
+# Tests | 测试
+# Test files require review from component owners
+*_test.go @xqliu @SkywalkerJi @heronsbillC
+/tests/ @xqliu @SkywalkerJi @Icyoung @heronsbillC
+/web/tests/ @Icyoung @hzb1115 @heronsbillC
+
+# Security & Dependencies | 安全和依赖
+# Security-sensitive files require extra attention
+.env.example @hzb1115 @tangmengqiu
+.gitignore @hzb1115 @tangmengqiu
+go.sum @xqliu @hzb1115 @tangmengqiu
+package-lock.json @Icyoung @hzb1115 @tangmengqiu
+yarn.lock @Icyoung @hzb1115 @tangmengqiu
+
+# Build Configuration | 构建配置
+Makefile @hzb1115 @xqliu @tangmengqiu
+/build/ @hzb1115 @xqliu @tangmengqiu
+/dist/ @hzb1115 @tangmengqiu
+
+# License & Legal | 许可证和法律文件
+LICENSE @hzb1115
+COPYING @hzb1115
+
+# =============================================================================
+# Notes | 注意事项
+# =============================================================================
+#
+# 1. All PRs will be assigned to the 5 global owners
+#    所有 PR 都会分配给这 5 个全局 owners
+#
+# 2. Specific paths may add additional reviewers
+#    特定路径可能会添加额外的 reviewers
+#
+# 3. PR author will NOT be requested for review (GitHub handles this)
+#    PR 作者不会被请求审查（GitHub 自动处理）
+#
+# 4. You can adjust patterns and owners as needed
+#    你可以根据需要调整模式和 owners
+#
+# 5. To require multiple approvals, configure branch protection rules
+#    要求多个批准，请配置分支保护规则
+#
+# ⚠️ IMPORTANT - Permission Requirements | 重要 - 权限要求:
+# - Users listed here will ONLY be auto-requested if they have Write+ permission
+#   这里列出的用户只有在拥有 Write 或以上权限时才会被自动请求
+# - GitHub will silently skip users without proper permissions
+#   GitHub 会静默跳过没有适当权限的用户
+# - See CODEOWNERS_PERMISSIONS.md for details
+#   详见 CODEOWNERS_PERMISSIONS.md
+#
+# =============================================================================

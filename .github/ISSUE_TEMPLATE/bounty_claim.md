@@ -82,7 +82,7 @@ By claiming this bounty, I acknowledge that:
 - [ ] I have read the [Contributing Guide](../../CONTRIBUTING.md)
 - [ ] I will follow the [Code of Conduct](../../CODE_OF_CONDUCT.md)
 - [ ] I understand the acceptance criteria
-- [ ] My contribution will be licensed under MIT License
+- [ ] My contribution will be licensed under AGPL-3.0 License
 - [ ] Payment is subject to successful PR merge
 
 ---

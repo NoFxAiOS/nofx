@@ -634,14 +634,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                       <div className="text-xs" style={{ color: '#848E9C' }}>
                         {exchange.type.toUpperCase()} • {inUse ? t('inUse', language) : exchange.enabled ? t('enabled', language) : t('configured', language)}
                         {/* 添加地址信息 */}
-                        {inUse && exchange.hyperliquidWalletAddr && (
+                        {inUse && (exchange.hyperliquidWalletAddr || exchange.asterUser) && (
                           <span className="ml-1">
-                            ({exchange.hyperliquidWalletAddr.slice(0, 6)}...{exchange.hyperliquidWalletAddr.slice(-4)})
-                          </span>
-                        )}
-                        {inUse && exchange.asterUser && (
-                          <span className="ml-1">
-                            ({exchange.asterUser.slice(0, 6)}...{exchange.asterUser.slice(-4)})
+                            ({exchange.hyperliquidWalletAddr 
+                              ? `${exchange.hyperliquidWalletAddr.slice(0, 6)}...${exchange.hyperliquidWalletAddr.slice(-4)}`
+                              : `${exchange.asterUser.slice(0, 6)}...${exchange.asterUser.slice(-4)}`
+                            })
                           </span>
                         )}
                       </div>

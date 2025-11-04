@@ -13,6 +13,7 @@ import (
 	"nofx/news"
 	"nofx/news/provider/telegram"
 	"nofx/pool"
+	"strconv"
 	"strings"
 	"time"
 
@@ -304,7 +305,7 @@ func (at *AutoTrader) Stop() {
 	log.Println("⏹ 自动交易系统停止")
 }
 
-// autoSyncBalanceIfNeeded 自动同步余额（每10分钟检查一次，变化>5%才更新）
+// autoSyncBalanceIfNeeded 自动同步余额（智能检测充值/提现，即使有持仓也能检测）
 func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 	// 距离上次同步不足10分钟，跳过
 	if time.Since(at.lastBalanceSyncTime) < 10*time.Minute {
@@ -313,72 +314,141 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 
 	log.Printf("🔄 [%s] 开始自动检查余额变化...", at.name)
 
-	// 查询实际余额
+	// 1. 查询实际余额
 	balanceInfo, err := at.trader.GetBalance()
 	if err != nil {
 		log.Printf("⚠️ [%s] 查询余额失败: %v", at.name, err)
-		at.lastBalanceSyncTime = time.Now() // 即使失败也更新时间，避免频繁重试
-		return
-	}
-
-	// 提取可用余额
-	var actualBalance float64
-	if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-		actualBalance = totalBalance
-	} else {
-		log.Printf("⚠️ [%s] 无法提取可用余额", at.name)
 		at.lastBalanceSyncTime = time.Now()
 		return
 	}
+
+	// 2. 提取总资产（总钱包余额）
+	var totalBalance float64
+	if total, ok := balanceInfo["total_wallet_balance"].(float64); ok && total > 0 {
+		totalBalance = total
+	} else if total, ok := balanceInfo["totalWalletBalance"].(float64); ok && total > 0 {
+		totalBalance = total
+	} else if total, ok := balanceInfo["balance"].(float64); ok && total > 0 {
+		totalBalance = total
+		log.Printf("⚠️ [%s] 使用 'balance' 字段作为总资产", at.name)
+	} else {
+		log.Printf("⚠️ [%s] 无法提取总资产", at.name)
+		at.lastBalanceSyncTime = time.Now()
+		return
+	}
+
+	// 3. 获取持仓信息并计算未实现盈亏
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		log.Printf("⚠️ [%s] 获取持仓信息失败，为安全起见跳过余额同步: %v", at.name, err)
+		at.lastBalanceSyncTime = time.Now()
+		return
+	}
+
+	var totalUnrealizedPnl float64
+	hasOpenPosition := false
+	pnlFieldMissing := false
+
+	for _, pos := range positions {
+		if amt, ok := pos["positionAmt"].(float64); ok && math.Abs(amt) > 0.0001 {
+			hasOpenPosition = true
+
+			// 提取未实现盈亏（支持多种字段名）
+			pnlFound := false
+			if pnl, ok := pos["unrealizedProfit"].(float64); ok {
+				totalUnrealizedPnl += pnl
+				pnlFound = true
+			} else if pnl, ok := pos["unRealizedProfit"].(float64); ok {
+				totalUnrealizedPnl += pnl
+				pnlFound = true
+			} else if pnl, ok := pos["unRealizedProfit"].(string); ok {
+				// 处理字符串类型的 PNL
+				if parsedPnl, err := strconv.ParseFloat(pnl, 64); err == nil {
+					totalUnrealizedPnl += parsedPnl
+					pnlFound = true
+				}
+			}
+
+			if !pnlFound {
+				pnlFieldMissing = true
+				posSymbol, _ := pos["symbol"].(string)
+				log.Printf("  ⚠️ [%s] 持仓 %s 缺少未实现盈亏字段", at.name, posSymbol)
+			}
+		}
+	}
+
+	// 如果有持仓但无法获取盈亏数据，为安全起见跳过同步
+	if hasOpenPosition && pnlFieldMissing {
+		log.Printf("  ⚠️ [%s] 无法获取完整的未实现盈亏数据，跳过余额同步", at.name)
+		at.lastBalanceSyncTime = time.Now()
+		return
+	}
+
+	// 4. 计算净资产（总资产 - 未实现盈亏 = 实际投入本金）
+	// 这个值不受持仓盈亏影响，只受充值/提现影响
+	netBalance := totalBalance - totalUnrealizedPnl
+
+	log.Printf("  [%s] 余额详情: 总资产=%.2f, 未实现盈亏=%.2f, 净资产=%.2f",
+		at.name, totalBalance, totalUnrealizedPnl, netBalance)
 
 	oldBalance := at.initialBalance
 
-	// 防止除以零：如果初始余额无效，直接更新为实际余额
+	// 防止除以零：如果初始余额无效，直接更新
 	if oldBalance <= 0 {
-		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为实际余额 %.2f USDT", at.name, oldBalance, actualBalance)
-		at.initialBalance = actualBalance
-
+		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，更新为当前净资产 %.2f USDT",
+			at.name, oldBalance, netBalance)
+		at.initialBalance = netBalance
 		if at.database != nil {
-			if err := at.database.UpdateTraderInitialBalance(at.userID, at.id, actualBalance); err != nil {
-				log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
-			} else {
-				log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
-			}
-		} else {
-			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
+			at.database.UpdateTraderInitialBalance(at.userID, at.id, netBalance)
 		}
-
 		at.lastBalanceSyncTime = time.Now()
 		return
 	}
 
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// 5. 计算净资产变化（这个变化排除了交易盈亏的影响）
+	netChangeDiff := netBalance - oldBalance
+	netChangePercent := (netChangeDiff / oldBalance) * 100
 
-	// 变化超过5%才更新
-	if math.Abs(changePercent) > 5.0 {
-		log.Printf("🔔 [%s] 检测到余额大幅变化: %.2f → %.2f USDT (%.2f%%)",
-			at.name, oldBalance, actualBalance, changePercent)
+	// 6. 智能同步逻辑
+	//    - 净资产变化超过 10%
+	//    - 且净资产增加（排除提现和亏损）
+	if math.Abs(netChangePercent) > 10.0 {
+		if netBalance > oldBalance {
+			// 净资产增加 → 很可能是充值
+			log.Printf("🔔 [%s] 检测到净资产增加: %.2f → %.2f USDT (+%.2f, +%.2f%%)",
+				at.name, oldBalance, netBalance, netChangeDiff, netChangePercent)
 
-		// 更新内存中的 initialBalance
-		at.initialBalance = actualBalance
-
-		// 更新数据库
-		if at.database != nil {
-			err := at.database.UpdateTraderInitialBalance(at.userID, at.id, actualBalance)
-			if err != nil {
-				log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
+			if hasOpenPosition {
+				log.Printf("  → 原因分析: 在有持仓的情况下净资产增加，很可能是用户充值")
 			} else {
-				log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
+				log.Printf("  → 原因分析: 无持仓且净资产增加，可能是充值或交易盈利")
+			}
+
+			// 更新 initial_balance
+			at.initialBalance = netBalance
+			if at.database != nil {
+				err := at.database.UpdateTraderInitialBalance(at.userID, at.id, netBalance)
+				if err != nil {
+					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
+				} else {
+					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
+				}
 			}
 		} else {
-			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
+			// 净资产减少 → 可能是提现或亏损
+			log.Printf("  ⚠️ [%s] 检测到净资产减少: %.2f → %.2f USDT (%.2f, %.2f%%)",
+				at.name, oldBalance, netBalance, netChangeDiff, netChangePercent)
+
+			if hasOpenPosition {
+				log.Printf("  → 原因分析: 在有持仓的情况下净资产减少，可能是用户提现")
+				log.Printf("  → 为保守起见，跳过同步（避免因交易亏损而错误更新）")
+			} else {
+				log.Printf("  → 原因分析: 无持仓且净资产减少，可能是提现或交易亏损")
+				log.Printf("  → 跳过同步以保留原始 initial_balance，维持正确的盈亏基准")
+			}
 		}
 	} else {
-		log.Printf("✓ [%s] 余额变化不大 (%.2f%%)，无需更新", at.name, changePercent)
+		log.Printf("  ✓ [%s] 净资产变化不大 (%.2f%%)，无需同步", at.name, netChangePercent)
 	}
 
 	at.lastBalanceSyncTime = time.Now()

@@ -1201,7 +1201,7 @@ function ExchangeConfigModal({
       if (!apiKey.trim() || !secretKey.trim()) return;
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
     } else if (selectedExchange?.id === 'hyperliquid') {
-      if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return;
+      if (!apiKey.trim()) return; // 只验证私钥，钱包地址可选（会自动生成）
       await onSave(selectedExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim());
     } else if (selectedExchange?.id === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return;
@@ -1360,18 +1360,22 @@ function ExchangeConfigModal({
                   <div>
                     <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                       {t('walletAddress', language)}
+                      <span className="text-xs font-normal ml-2" style={{ color: '#848E9C' }}>
+                        ({t('optional', language)})
+                      </span>
                     </label>
                     <input
                       type="text"
                       value={hyperliquidWalletAddr}
                       onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
-                      placeholder={t('enterWalletAddress', language)}
+                      placeholder="0x... (留空将自动从私钥生成 / Leave blank to auto-generate)"
                       className="w-full px-3 py-2 rounded"
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                      required
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidWalletAddressDesc', language)}
+                      {hyperliquidWalletAddr.trim()
+                        ? t('hyperliquidWalletAddressDesc', language)
+                        : t('hyperliquidWalletAddressAutoGenerate', language)}
                     </div>
                   </div>
                 </>
@@ -1468,10 +1472,10 @@ function ExchangeConfigModal({
             <button
               type="submit"
               disabled={
-                !selectedExchange || 
+                !selectedExchange ||
                 (selectedExchange.id === 'binance' && (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedExchange.id === 'okx' && (!apiKey.trim() || !secretKey.trim() || !passphrase.trim())) ||
-                (selectedExchange.id === 'hyperliquid' && (!apiKey.trim() || !hyperliquidWalletAddr.trim())) ||
+                (selectedExchange.id === 'hyperliquid' && !apiKey.trim()) ||  // 只验证私钥，钱包地址可选
                 (selectedExchange.id === 'aster' && (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())) ||
                 (selectedExchange.type === 'cex' && selectedExchange.id !== 'hyperliquid' && selectedExchange.id !== 'aster' && selectedExchange.id !== 'binance' && selectedExchange.id !== 'okx' && (!apiKey.trim() || !secretKey.trim()))
               }

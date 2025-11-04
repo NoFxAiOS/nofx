@@ -2,6 +2,7 @@ package trader
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -34,13 +35,18 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 		apiURL = hyperliquid.TestnetAPIURL
 	}
 
-	// // 从私钥生成钱包地址
-	// pubKey := privateKey.Public()
-	// publicKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
-	// if !ok {
-	// 	return nil, fmt.Errorf("无法转换公钥")
-	// }
-	// walletAddr := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+	// 从私钥生成钱包地址（如果未提供）
+	if walletAddr == "" {
+		pubKey := privateKey.Public()
+		publicKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("无法转换公钥")
+		}
+		walletAddr = crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+		log.Printf("✓ 从私钥自动生成钱包地址: %s", walletAddr)
+	} else {
+		log.Printf("✓ 使用提供的钱包地址: %s", walletAddr)
+	}
 
 	ctx := context.Background()
 

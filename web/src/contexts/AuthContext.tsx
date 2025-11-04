@@ -11,7 +11,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string; userID?: string; requiresOTP?: boolean }>;
-  register: (email: string, password: string) => Promise<{ success: boolean; message?: string; userID?: string; otpSecret?: string; qrCodeURL?: string }>;
+  register: (email: string, password: string, betaCode?: string) => Promise<{ success: boolean; message?: string; userID?: string; otpSecret?: string; qrCodeURL?: string }>;
   verifyOTP: (userID: string, otpCode: string) => Promise<{ success: boolean; message?: string }>;
   completeRegistration: (userID: string, otpCode: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
@@ -97,20 +97,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: false, message: '未知错误' };
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, betaCode?: string) => {
     try {
       // 加密密码
-      const encryptedPassword = await RSAEncrypt.encryptPassword(password);
+      password = await RSAEncrypt.encryptPassword(password);
       
+      const requestBody: { email: string; password: string; beta_code?: string } = { email, password };
+      if (betaCode) {
+        requestBody.beta_code = betaCode;
+      }
+
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          email, 
-          password: encryptedPassword,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();

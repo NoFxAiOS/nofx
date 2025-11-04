@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { TraderInfo, CreateTraderRequest, AIModel, Exchange } from '../types';
@@ -110,6 +110,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   // 显示所有用户的模型和交易所配置（用于调试）
   const configuredModels = allModels || [];
   const configuredExchanges = allExchanges || [];
+  const exchangeModalOptions = useMemo(() => {
+    const supportedWithUserData = (supportedExchanges || []).map(exchange => {
+      const userExchange = allExchanges?.find(e => e.id === exchange.id);
+      return userExchange ? { ...exchange, ...userExchange } : exchange;
+    });
+
+    const additionalUserExchanges = (allExchanges || []).filter(
+      userExchange => !supportedWithUserData.some(exchange => exchange.id === userExchange.id)
+    );
+
+    return [...supportedWithUserData, ...additionalUserExchanges];
+  }, [supportedExchanges, allExchanges]);
   
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter(m => m.enabled && m.apiKey) || [];
@@ -811,7 +823,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Exchange Configuration Modal */}
       {showExchangeModal && (
         <ExchangeConfigModal
-          allExchanges={supportedExchanges}
+          allExchanges={exchangeModalOptions}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
           onDelete={handleDeleteExchangeConfig}

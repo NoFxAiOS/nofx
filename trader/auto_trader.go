@@ -292,6 +292,31 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 	}
 
 	oldBalance := at.initialBalance
+
+	// 防止除以零：如果初始余额无效，直接更新为实际余额
+	if oldBalance <= 0 {
+		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为实际余额 %.2f USDT", at.name, oldBalance, actualBalance)
+		at.initialBalance = actualBalance
+		if at.database != nil {
+			type DatabaseUpdater interface {
+				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
+			}
+			if db, ok := at.database.(DatabaseUpdater); ok {
+				if err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance); err != nil {
+					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
+				} else {
+					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
+				}
+			} else {
+				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
+			}
+		} else {
+			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
+		}
+		at.lastBalanceSyncTime = time.Now()
+		return
+	}
+
 	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
 
 	// 变化超过5%才更新
@@ -317,7 +342,11 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 				} else {
 					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
 				}
+			} else {
+				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
 			}
+		} else {
+			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
 		}
 	} else {
 		log.Printf("✓ [%s] 余额变化不大 (%.2f%%)，无需更新", at.name, changePercent)

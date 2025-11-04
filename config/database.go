@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -22,53 +21,8 @@ type Database struct {
 	db *sql.DB
 }
 
-// DatabaseInterface 数据库接口
-type DatabaseInterface interface {
-	CreateUser(user *User) error
-	EnsureAdminUser() error
-	GetUserByEmail(email string) (*User, error)
-	GetUserByID(userID string) (*User, error)
-	GetAllUsers() ([]string, error)
-	UpdateUserOTPVerified(userID string, verified bool) error
-	GetAIModels(userID string) ([]*AIModelConfig, error)
-	UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error
-	GetExchanges(userID string) ([]*ExchangeConfig, error)
-	UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error
-	CreateAIModel(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error
-	CreateExchange(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error
-	CreateTrader(trader *TraderRecord) error
-	GetTraders(userID string) ([]*TraderRecord, error)
-	UpdateTraderStatus(userID, id string, isRunning bool) error
-	UpdateTrader(trader *TraderRecord) error
-	UpdateTraderCustomPrompt(userID, id string, customPrompt string, overrideBase bool) error
-	DeleteTrader(userID, id string) error
-	GetTraderConfig(userID, traderID string) (*TraderRecord, *AIModelConfig, *ExchangeConfig, error)
-	GetSystemConfig(key string) (string, error)
-	SetSystemConfig(key, value string) error
-	CreateUserSignalSource(userID, coinPoolURL, oiTopURL string) error
-	GetUserSignalSource(userID string) (*UserSignalSource, error)
-	UpdateUserSignalSource(userID, coinPoolURL, oiTopURL string) error
-	GetCustomCoins() []string
-	LoadBetaCodesFromFile(filePath string) error
-	ValidateBetaCode(code string) (bool, error)
-	UseBetaCode(code, userEmail string) error
-	GetBetaCodeStats() (total, used int, err error)
-	Close() error
-}
-
 // NewDatabase 创建配置数据库
-func NewDatabase(dbPath string) (DatabaseInterface, error) {
-	// 检查是否启用PostgreSQL
-	if os.Getenv("POSTGRES_HOST") != "" {
-		// 使用PostgreSQL
-		pgDB, err := NewPostgreSQLDatabase()
-		if err != nil {
-			return nil, fmt.Errorf("创建PostgreSQL数据库失败: %w", err)
-		}
-		return pgDB, nil
-	}
-
-	// 使用SQLite（兼容模式）
+func NewDatabase(dbPath string) (*Database, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)

@@ -37,7 +37,7 @@ type ConfigFile struct {
 	StopTradingMinutes int                 `json:"stop_trading_minutes"`
 	Leverage           LeverageConfig      `json:"leverage"`
 	JWTSecret          string              `json:"jwt_secret"`
-  DataKLineTime      string              `json:"data_k_line_time"`
+	DataKLineTime      string              `json:"data_k_line_time"`
 	News               []config.NewsConfig `json:"news"`
 }
 

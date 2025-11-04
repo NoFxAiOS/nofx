@@ -113,11 +113,11 @@ type AutoTrader struct {
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
-	startTime             time.Time        // 系统启动时间
-	callCount             int              // AI调用次数
-	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	startTime             time.Time                    // 系统启动时间
+	callCount             int                          // AI调用次数
+	positionFirstSeenTime map[string]int64             // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
 	lastPositions         map[string]*PositionSnapshot // 上一个周期的持仓快照 (symbol_side -> snapshot)
-	newsProcessor         []news.Provider  // 新闻
+	newsProcessor         []news.Provider              // 新闻
 }
 
 // NewAutoTrader 创建自动交易器
@@ -343,7 +343,7 @@ func (at *AutoTrader) runCycle() error {
 	for _, action := range autoClosedActions {
 		log.Printf("[AUTO-CLOSE] 检测到自动平仓: %s %s (价格: %.4f)", action.Symbol, action.Action, action.Price)
 		record.Decisions = append(record.Decisions, action)
-		record.ExecutionLog = append(record.ExecutionLog, 
+		record.ExecutionLog = append(record.ExecutionLog,
 			fmt.Sprintf("[AUTO-CLOSE] 自动平仓: %s %s (止损/止盈触发)", action.Symbol, action.Action))
 	}
 
@@ -502,7 +502,7 @@ func (at *AutoTrader) runCycle() error {
 			if lev, ok := pos["leverage"].(float64); ok {
 				leverage = int(lev)
 			}
-			
+
 			snapshots = append(snapshots, PositionSnapshot{
 				Symbol:     symbol,
 				Side:       side,
@@ -1461,7 +1461,7 @@ func (at *AutoTrader) detectAutoClosedPositions(currentPositions []decision.Posi
 			}
 
 			autoClosedActions = append(autoClosedActions, autoClosedAction)
-			log.Printf("[AUTO-CLOSE] 检测到自动平仓: %s %s @ %.4f (可能由止损/止盈触发)", 
+			log.Printf("[AUTO-CLOSE] 检测到自动平仓: %s %s @ %.4f (可能由止损/止盈触发)",
 				lastPos.Symbol, action, closePrice)
 		}
 	}

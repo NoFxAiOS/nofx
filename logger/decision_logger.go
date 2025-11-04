@@ -349,7 +349,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 				symbol := action.Symbol
 				side := ""
-			if action.Action == "open_long" || action.Action == "close_long" || action.Action == "partial_close" || action.Action == "auto_close_long" {
+				if action.Action == "open_long" || action.Action == "close_long" || action.Action == "partial_close" || action.Action == "auto_close_long" {
 					side = "long"
 				} else if action.Action == "open_short" || action.Action == "close_short" || action.Action == "auto_close_short" {
 					side = "short"

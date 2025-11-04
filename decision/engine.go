@@ -480,6 +480,13 @@ func fixMissingQuotes(jsonStr string) string {
 	jsonStr = strings.ReplaceAll(jsonStr, "：", ":") // U+FF1A 全角冒号
 	jsonStr = strings.ReplaceAll(jsonStr, "，", ",") // U+FF0C 全角逗号
 
+	// ⚠️ 替换CJK标点符号（AI在中文上下文中也可能输出这些）
+	jsonStr = strings.ReplaceAll(jsonStr, "【", "[") // CJK左方头括号 U+3010
+	jsonStr = strings.ReplaceAll(jsonStr, "】", "]") // CJK右方头括号 U+3011
+	jsonStr = strings.ReplaceAll(jsonStr, "〔", "[") // CJK左龟壳括号 U+3014
+	jsonStr = strings.ReplaceAll(jsonStr, "〕", "]") // CJK右龟壳括号 U+3015
+	jsonStr = strings.ReplaceAll(jsonStr, "、", ",") // CJK顿号 U+3001
+
 	return jsonStr
 }
 

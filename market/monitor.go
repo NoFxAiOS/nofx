@@ -106,8 +106,8 @@ func (m *WSMonitor) initializeHistoricalData() error {
 				return
 			}
 			if len(klines4h) > 0 {
-				m.klineDataMap4h.Store(s, klines)
-				log.Printf("已加载 %s 的历史K线数据-4h: %d 条", s, len(klines))
+				m.klineDataMap4h.Store(s, klines4h)
+				log.Printf("已加载 %s 的历史K线数据-4h: %d 条", s, len(klines4h))
 			}
 		}(symbol)
 	}

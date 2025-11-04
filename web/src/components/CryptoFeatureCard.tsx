@@ -30,8 +30,8 @@ export const CryptoFeatureCard = React.forwardRef<HTMLDivElement, CryptoFeatureC
         <div
           className={cn(
             "relative h-full overflow-hidden border-2 transition-all duration-300 rounded-xl",
-            "bg-gradient-to-br from-[#0C0E12] to-[#1E2329]",
-            "border-[#2B3139] hover:border-[#F0B90B]/50",
+            "bg-gradient-to-br from-[#000000] to-[#0A0A0A]",
+            "border-[#1A1A1A] hover:border-[#F0B90B]/50",
             isHovered && "shadow-[0_0_20px_rgba(240,185,11,0.2)]",
             className
           )}
@@ -61,11 +61,11 @@ export const CryptoFeatureCard = React.forwardRef<HTMLDivElement, CryptoFeatureC
           <div className="relative z-10 p-8 flex flex-col h-full">
             {/* Icon container */}
             <motion.div
-              className={cn(
-                "mb-6 inline-flex items-center justify-center w-16 h-16 rounded-xl",
-                "bg-gradient-to-br from-[#F0B90B]/20 to-[#F0B90B]/5",
-                "border border-[#F0B90B]/30"
-              )}
+              className="mb-6 inline-flex items-center justify-center w-16 h-16 rounded-xl"
+              style={{
+                background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.2) 0%, rgba(240, 185, 11, 0.05) 100%)',
+                border: '1px solid rgba(240, 185, 11, 0.3)'
+              }}
               animate={{
                 scale: isHovered ? 1.1 : 1,
                 boxShadow: isHovered
@@ -74,14 +74,14 @@ export const CryptoFeatureCard = React.forwardRef<HTMLDivElement, CryptoFeatureC
               }}
               transition={{ duration: 0.3 }}
             >
-              <div className="text-[#F0B90B]">{icon}</div>
+              <div style={{ color: 'var(--brand-yellow)' }}>{icon}</div>
             </motion.div>
 
             {/* Title */}
-            <h3 className="text-2xl font-bold text-[#EAECEF] mb-3">{title}</h3>
+            <h3 className="text-2xl font-bold mb-3" style={{ color: 'var(--brand-light-gray)' }}>{title}</h3>
 
             {/* Description */}
-            <p className="text-[#848E9C] mb-6 flex-grow leading-relaxed">{description}</p>
+            <p className="mb-6 flex-grow leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{description}</p>
 
             {/* Features list */}
             <div className="space-y-3 mb-6">
@@ -95,11 +95,11 @@ export const CryptoFeatureCard = React.forwardRef<HTMLDivElement, CryptoFeatureC
                   className="flex items-start gap-3"
                 >
                   <div className="mt-0.5 flex-shrink-0">
-                    <div className="w-5 h-5 rounded-full bg-[#F0B90B]/20 flex items-center justify-center">
-                      <Check className="w-3 h-3 text-[#F0B90B]" />
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'rgba(240, 185, 11, 0.2)' }}>
+                      <Check className="w-3 h-3" style={{ color: 'var(--brand-yellow)' }} />
                     </div>
                   </div>
-                  <span className="text-sm text-[#EAECEF]">{feature}</span>
+                  <span className="text-sm" style={{ color: 'var(--brand-light-gray)' }}>{feature}</span>
                 </motion.div>
               ))}
             </div>

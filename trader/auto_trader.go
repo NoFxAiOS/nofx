@@ -626,6 +626,27 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
 
+	// ⚠️ 保证金验证：防止保证金不足错误（code=-2019）
+	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
+
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		return fmt.Errorf("获取账户余额失败: %w", err)
+	}
+	availableBalance := 0.0
+	if avail, ok := balance["availableBalance"].(float64); ok {
+		availableBalance = avail
+	}
+
+	// 手续费估算（Taker费率 0.04%）
+	estimatedFee := decision.PositionSizeUSD * 0.0004
+	totalRequired := requiredMargin + estimatedFee
+
+	if totalRequired > availableBalance {
+		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（保证金 %.2f + 手续费 %.2f），可用 %.2f USDT",
+			totalRequired, requiredMargin, estimatedFee, availableBalance)
+	}
+
 	// 设置仓位模式
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
 		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
@@ -684,6 +705,27 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
+
+	// ⚠️ 保证金验证：防止保证金不足错误（code=-2019）
+	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
+
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		return fmt.Errorf("获取账户余额失败: %w", err)
+	}
+	availableBalance := 0.0
+	if avail, ok := balance["availableBalance"].(float64); ok {
+		availableBalance = avail
+	}
+
+	// 手续费估算（Taker费率 0.04%）
+	estimatedFee := decision.PositionSizeUSD * 0.0004
+	totalRequired := requiredMargin + estimatedFee
+
+	if totalRequired > availableBalance {
+		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（保证金 %.2f + 手续费 %.2f），可用 %.2f USDT",
+			totalRequired, requiredMargin, estimatedFee, availableBalance)
+	}
 
 	// 设置仓位模式
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {

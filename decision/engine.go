@@ -20,7 +20,7 @@ var (
 	reJSONArray      = regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
 	reArrayHead      = regexp.MustCompile(`^\[\s*\{`)
 	reArrayOpenSpace = regexp.MustCompile(`^\[\s+\{`)
-	reInvisibleRunes = regexp.MustCompile(`[\u200B\u200C\u200D\uFEFF]`)
+	reInvisibleRunes = regexp.MustCompile("[\u200B\u200C\u200D\uFEFF]")
 )
 
 // PositionInfo 持仓信息

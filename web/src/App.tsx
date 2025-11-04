@@ -5,6 +5,7 @@ import { EquityChart } from './components/EquityChart';
 import { AITradersPage } from './components/AITradersPage';
 import { LoginPage } from './components/LoginPage';
 import { RegisterPage } from './components/RegisterPage';
+import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { CompetitionPage } from './components/CompetitionPage';
 import { LandingPage } from './pages/LandingPage';
 import AILearning from './components/AILearning';
@@ -185,6 +186,9 @@ function App() {
     }
     if (route === '/register') {
       return <RegisterPage />;
+    }
+    if (route === '/reset-password') {
+      return <ResetPasswordPage />;
     }
     // Default to landing page when not authenticated
     return <LandingPage />;

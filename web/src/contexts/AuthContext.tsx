@@ -13,6 +13,7 @@ interface AuthContextType {
   register: (email: string, password: string) => Promise<{ success: boolean; message?: string; userID?: string; otpSecret?: string; qrCodeURL?: string }>;
   verifyOTP: (userID: string, otpCode: string) => Promise<{ success: boolean; message?: string }>;
   completeRegistration: (userID: string, otpCode: string) => Promise<{ success: boolean; message?: string }>;
+  resetPassword: (email: string, newPassword: string, otpCode: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -183,6 +184,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const resetPassword = async (email: string, newPassword: string, otpCode: string) => {
+    try {
+      const response = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, new_password: newPassword, otp_code: otpCode }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        return { success: true, message: data.message };
+      } else {
+        return { success: false, message: data.error };
+      }
+    } catch (error) {
+      return { success: false, message: '密码重置失败，请重试' };
+    }
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -199,6 +222,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         verifyOTP,
         completeRegistration,
+        resetPassword,
         logout,
         isLoading,
       }}

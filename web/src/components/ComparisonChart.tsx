@@ -31,11 +31,14 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
   const { data: allTraderHistories, isLoading } = useSWR(
     traders.length > 0 ? `all-equity-histories-${tradersKey}` : null,
     async () => {
-      // 并发请求所有trader的历史数据
-      const promises = traders.map(trader =>
-        api.getEquityHistory(trader.trader_id)
-      );
-      return Promise.all(promises);
+      // 使用批量API一次性获取所有trader的历史数据
+      const traderIds = traders.map(trader => trader.trader_id);
+      const batchData = await api.getEquityHistoryBatch(traderIds);
+      
+      // 转换为原格式，保持与原有代码兼容
+      return traders.map(trader => {
+        return batchData.histories[trader.trader_id] || [];
+      });
     },
     {
       refreshInterval: 30000, // 30秒刷新（对比图表数据更新频率较低）
@@ -89,8 +92,13 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
           });
         }
 
+        // 计算盈亏百分比：从total_pnl和balance计算
+        // 假设初始余额 = balance - total_pnl
+        const initialBalance = point.balance - point.total_pnl;
+        const pnlPct = initialBalance > 0 ? (point.total_pnl / initialBalance) * 100 : 0;
+
         timestampMap.get(ts)!.traders.set(trader.trader_id, {
-          pnl_pct: point.total_pnl_pct,
+          pnl_pct: pnlPct,
           equity: point.total_equity
         });
       });
@@ -225,7 +233,23 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
 
   return (
     <div>
-      <div style={{ borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
+        {/* NOFX Watermark */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: 'rgba(240, 185, 11, 0.15)',
+            zIndex: 10,
+            pointerEvents: 'none',
+            fontFamily: 'monospace'
+          }}
+        >
+          NOFX
+        </div>
         <ResponsiveContainer width="100%" height={520}>
         <LineChart data={displayData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
           <defs>

@@ -459,12 +459,22 @@ func extractDecisions(response string) ([]Decision, error) {
 	return decisions, nil
 }
 
-// fixMissingQuotes 替换中文引号为英文引号（避免输入法自动转换）
+// fixMissingQuotes 替换中文引号和全角字符为英文引号和半角字符（避免AI输出全角JSON字符导致解析失败）
 func fixMissingQuotes(jsonStr string) string {
+	// 替换中文引号
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201c", "\"") // "
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201d", "\"") // "
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2018", "'")  // '
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2019", "'")  // '
+
+	// ⚠️ 替换全角括号、冒号、逗号（防止AI输出全角JSON字符）
+	jsonStr = strings.ReplaceAll(jsonStr, "［", "[") // U+FF3B 全角左方括号
+	jsonStr = strings.ReplaceAll(jsonStr, "］", "]") // U+FF3D 全角右方括号
+	jsonStr = strings.ReplaceAll(jsonStr, "｛", "{") // U+FF5B 全角左花括号
+	jsonStr = strings.ReplaceAll(jsonStr, "｝", "}") // U+FF5D 全角右花括号
+	jsonStr = strings.ReplaceAll(jsonStr, "：", ":") // U+FF1A 全角冒号
+	jsonStr = strings.ReplaceAll(jsonStr, "，", ",") // U+FF0C 全角逗号
+
 	return jsonStr
 }
 

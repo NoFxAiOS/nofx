@@ -268,7 +268,7 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		accountEquity*0.8, accountEquity*1.5, accountEquity*5, accountEquity*10))
 	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆** (⚠️ 严格执行，不可超过)\n", altcoinLeverage, btcEthLeverage))
 	sb.WriteString("5. 保证金: 总使用率 ≤ 90%\n")
-	sb.WriteString("6. 最小开仓金额: **BTC/ETH ≥100 USDT | 山寨币 ≥15 USDT** (⚠️ 低于此金额会因精度问题导致开仓失败)\n\n")
+	sb.WriteString("6. 开仓金额: 建议 **≥12 USDT** (交易所最小名义价值 10 USDT + 安全边际)\n\n")
 
 	// 3. 输出格式 - 动态生成
 	sb.WriteString("#输出格式\n\n")
@@ -537,8 +537,8 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 		// ✅ 验证最小开仓金额（防止数量格式化为 0 的错误）
 		// Binance 最小名义价值 10 USDT + 安全边际
-		const minPositionSizeGeneral = 15.0
-		const minPositionSizeBTCETH = 100.0 // BTC/ETH 因价格高和精度限制需要更大金额
+		const minPositionSizeGeneral = 12.0   // 10 + 20% 安全边际
+		const minPositionSizeBTCETH = 60.0    // BTC/ETH 因价格高和精度限制需要更大金额（更灵活）
 
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 			if d.PositionSizeUSD < minPositionSizeBTCETH {

@@ -90,10 +90,10 @@ docker-compose.yml @tangmengqiu
 
 # Security & Dependencies | 安全和依赖
 # Security-sensitive files require extra attention
-.env.example @hzb1115 @@tangmengqiu
-.gitignore @hzb1115 @@tangmengqiu
-go.sum @xqliu @hzb1115 @@tangmengqiu
-package-lock.json @Icyoung @hzb1115 @@tangmengqiu
+.env.example @hzb1115 @tangmengqiu
+.gitignore @hzb1115 @tangmengqiu
+go.sum @xqliu @hzb1115 @tangmengqiu
+package-lock.json @Icyoung @hzb1115 @tangmengqiu
 yarn.lock @Icyoung @hzb1115 @tangmengqiu
 
 # Build Configuration | 构建配置
@@ -123,5 +123,13 @@ COPYING @hzb1115
 #
 # 5. To require multiple approvals, configure branch protection rules
 #    要求多个批准，请配置分支保护规则
+#
+# ⚠️ IMPORTANT - Permission Requirements | 重要 - 权限要求:
+# - Users listed here will ONLY be auto-requested if they have Write+ permission
+#   这里列出的用户只有在拥有 Write 或以上权限时才会被自动请求
+# - GitHub will silently skip users without proper permissions
+#   GitHub 会静默跳过没有适当权限的用户
+# - See CODEOWNERS_PERMISSIONS.md for details
+#   详见 CODEOWNERS_PERMISSIONS.md
 #
 # =============================================================================

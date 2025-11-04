@@ -456,12 +456,16 @@ func extractDecisions(response string) ([]Decision, error) {
 	s := removeInvisibleRunes(response)
 	s = strings.TrimSpace(s)
 
+	// 🔧 關鍵修復：在正則匹配之前就先修復全角字符！
+	// 否則正則表達式 \[ 無法匹配全角的 ［
+	s = fixMissingQuotes(s)
+
 	// 1) 优先从 ```json 代码块中提取
 	reFence := regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
 	if m := reFence.FindStringSubmatch(s); m != nil && len(m) > 1 {
 		jsonContent := strings.TrimSpace(m[1])
 		jsonContent = compactArrayOpen(jsonContent) // 把 "[ {" 规整为 "[{"
-		jsonContent = fixMissingQuotes(jsonContent)
+		jsonContent = fixMissingQuotes(jsonContent) // 二次修復（防止 regex 提取後還有全角）
 		if err := validateJSONFormat(jsonContent); err != nil {
 			return nil, fmt.Errorf("JSON格式验证失败: %w\nJSON内容: %s\n完整响应:\n%s", err, jsonContent, response)
 		}
@@ -473,16 +477,16 @@ func extractDecisions(response string) ([]Decision, error) {
 	}
 
 	// 2) 退而求其次：全文寻找首个对象数组
+	// 注意：此時 s 已經過 fixMissingQuotes()，全角字符已轉換為半角
 	reArray := regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
 	jsonContent := strings.TrimSpace(reArray.FindString(s))
 	if jsonContent == "" {
-		return nil, fmt.Errorf("无法找到JSON数组")
+		return nil, fmt.Errorf("无法找到JSON数组起始（已嘗試修復全角字符）\n原始響應前200字符: %s", s[:min(200, len(s))])
 	}
 
-	// 🔧 先修复全角字符和引号问题（必须在验证之前！）
-	// 修复常见的JSON格式错误：全角字符、缺少引号的字段值等
+	// 🔧 規整格式（此時全角字符已在前面修復過）
 	jsonContent = compactArrayOpen(jsonContent)
-	jsonContent = fixMissingQuotes(jsonContent)
+	jsonContent = fixMissingQuotes(jsonContent) // 二次修復（防止 regex 提取後還有殘留全角）
 
 	// 🔧 验证 JSON 格式（检测常见错误）
 	if err := validateJSONFormat(jsonContent); err != nil {

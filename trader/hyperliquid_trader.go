@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sonirico/go-hyperliquid"
@@ -23,6 +24,9 @@ type HyperliquidTrader struct {
 
 // NewHyperliquidTrader 创建Hyperliquid交易器
 func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool) (*HyperliquidTrader, error) {
+	// 去掉私钥的 0x 前缀（如果有，不区分大小写）
+	privateKeyHex = strings.TrimPrefix(strings.ToLower(privateKeyHex), "0x")
+
 	// 解析私钥
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {

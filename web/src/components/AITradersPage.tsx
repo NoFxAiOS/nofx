@@ -123,10 +123,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
              e.asterPrivateKey && e.asterPrivateKey.trim() !== '';
     }
 
-    // Hyperliquid 只需要私钥（作为apiKey）和钱包地址
+    // Hyperliquid 只需要私钥（作为apiKey），钱包地址会自动从私钥生成
     if (e.id === 'hyperliquid') {
-      return e.apiKey && e.apiKey.trim() !== '' && 
-             e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== '';
+      return e.apiKey && e.apiKey.trim() !== '';
     }
 
     // Binance 等其他交易所需要 apiKey 和 secretKey

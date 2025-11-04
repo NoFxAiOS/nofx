@@ -7,6 +7,7 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -200,10 +201,31 @@ func fetchMarketDataForContext(ctx *Context) error {
 
 // calculateMaxCandidates 根据账户状态计算需要分析的候选币种数量
 func calculateMaxCandidates(ctx *Context) int {
-	// 直接返回候选池的全部币种数量
-	// 因为候选池已经在 auto_trader.go 中筛选过了
-	// 固定分析前20个评分最高的币种（来自AI500）
-	return len(ctx.CandidateCoins)
+	// ⚠️ 重要：限制候选币种数量，避免 Prompt 过大
+	// 根据持仓数量动态调整：持仓越少，可以分析更多候选币
+	const (
+		maxCandidatesWhenEmpty    = 30 // 无持仓时最多分析30个候选币
+		maxCandidatesWhenHolding1 = 25 // 持仓1个时最多分析25个候选币
+		maxCandidatesWhenHolding2 = 20 // 持仓2个时最多分析20个候选币
+		maxCandidatesWhenHolding3 = 15 // 持仓3个时最多分析15个候选币（避免 Prompt 过大）
+	)
+
+	positionCount := len(ctx.Positions)
+	var maxCandidates int
+
+	switch positionCount {
+	case 0:
+		maxCandidates = maxCandidatesWhenEmpty
+	case 1:
+		maxCandidates = maxCandidatesWhenHolding1
+	case 2:
+		maxCandidates = maxCandidatesWhenHolding2
+	default: // 3+ 持仓
+		maxCandidates = maxCandidatesWhenHolding3
+	}
+
+	// 返回实际候选币数量和上限中的较小值
+	return min(len(ctx.CandidateCoins), maxCandidates)
 }
 
 // buildSystemPromptWithCustom 构建包含自定义内容的 System Prompt
@@ -430,24 +452,36 @@ func extractCoTTrace(response string) string {
 
 // extractDecisions 提取JSON决策列表
 func extractDecisions(response string) ([]Decision, error) {
-	// 直接查找JSON数组 - 找第一个完整的JSON数组
-	arrayStart := strings.Index(response, "[")
-	if arrayStart == -1 {
-		return nil, fmt.Errorf("无法找到JSON数组起始")
+	// 预清洗：去零宽/BOM
+	s := removeInvisibleRunes(response)
+	s = strings.TrimSpace(s)
+
+	// 1) 优先从 ```json 代码块中提取
+	reFence := regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
+	if m := reFence.FindStringSubmatch(s); m != nil && len(m) > 1 {
+		jsonContent := strings.TrimSpace(m[1])
+		jsonContent = compactArrayOpen(jsonContent) // 把 "[ {" 规整为 "[{"
+		jsonContent = fixMissingQuotes(jsonContent)
+		if err := validateJSONFormat(jsonContent); err != nil {
+			return nil, fmt.Errorf("JSON格式验证失败: %w\nJSON内容: %s\n完整响应:\n%s", err, jsonContent, response)
+		}
+		var decisions []Decision
+		if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
+			return nil, fmt.Errorf("JSON解析失败: %w\nJSON内容: %s", err, jsonContent)
+		}
+		return decisions, nil
 	}
 
-	// 从 [ 开始，匹配括号找到对应的 ]
-	arrayEnd := findMatchingBracket(response, arrayStart)
-	if arrayEnd == -1 {
-		return nil, fmt.Errorf("无法找到JSON数组结束")
+	// 2) 退而求其次：全文寻找首个对象数组
+	reArray := regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
+	jsonContent := strings.TrimSpace(reArray.FindString(s))
+	if jsonContent == "" {
+		return nil, fmt.Errorf("无法找到JSON数组")
 	}
-
-	jsonContent := strings.TrimSpace(response[arrayStart : arrayEnd+1])
 
 	// 🔧 先修复全角字符和引号问题（必须在验证之前！）
 	// 修复常见的JSON格式错误：全角字符、缺少引号的字段值等
-	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}  (没有引号)
-	// 修复为: "reasoning": "内容"}
+	jsonContent = compactArrayOpen(jsonContent)
 	jsonContent = fixMissingQuotes(jsonContent)
 
 	// 🔧 验证 JSON 格式（检测常见错误）
@@ -497,13 +531,14 @@ func fixMissingQuotes(jsonStr string) string {
 func validateJSONFormat(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
 
-	// 检查是否是决策对象数组（必须以 [{ 或 [ { 开头）
-	if !strings.HasPrefix(trimmed, "[{") && !strings.HasPrefix(trimmed, "[ {") {
+	// 允许 [ 和 { 之间存在任意空白（含零宽）
+	reHead := regexp.MustCompile(`^\[\s*\{`)
+	if !reHead.MatchString(trimmed) {
 		// 检查是否是纯数字/范围数组（常见错误）
 		if strings.HasPrefix(trimmed, "[") && !strings.Contains(trimmed[:min(20, len(trimmed))], "{") {
 			return fmt.Errorf("不是有效的决策数组（必须包含对象 {}），实际内容: %s", trimmed[:min(50, len(trimmed))])
 		}
-		return fmt.Errorf("JSON 必须以 [{ 开头（决策对象数组），实际: %s", trimmed[:min(20, len(trimmed))])
+		return fmt.Errorf("JSON 必须以 [{ 开头（允许空白），实际: %s", trimmed[:min(20, len(trimmed))])
 	}
 
 	// 检查是否包含范围符号 ~（LLM 常见错误）
@@ -532,6 +567,18 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// removeInvisibleRunes 去除零宽字符和 BOM，避免肉眼看不见的前缀破坏校验
+func removeInvisibleRunes(s string) string {
+	re := regexp.MustCompile(`[\u200B\u200C\u200D\uFEFF]`)
+	return re.ReplaceAllString(s, "")
+}
+
+// compactArrayOpen 规整开头的 "[ {" → "[{"
+func compactArrayOpen(s string) string {
+	re := regexp.MustCompile(`^\[\s+\{`)
+	return re.ReplaceAllString(strings.TrimSpace(s), "[{")
 }
 
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）

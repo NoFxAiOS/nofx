@@ -448,6 +448,34 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 		return nil, err
 	}
 
+	// ✅ Layer 3: 检查是否满足最小金额要求（MIN_NOTIONAL）
+	if err := t.CheckMinNotional(symbol, quantity); err != nil {
+		log.Printf("⚠️ %s 剩余仓位过小: %v", symbol, err)
+
+		// 🔄 尝试获取实际持仓数量并强制平仓
+		positions, posErr := t.GetPositions()
+		if posErr == nil {
+			for _, pos := range positions {
+				if pos["symbol"] == symbol && pos["side"] == "long" {
+					actualQty := pos["positionAmt"].(float64)
+					if actualQty > 0 {
+						log.Printf("  → 检测到小额仓位，尝试强制市价全平...")
+						// 不检查最小金额，直接尝试平仓
+						return t.forceCloseLong(symbol, actualQty)
+					}
+				}
+			}
+		}
+
+		// 如果实在无法平仓，返回跳过状态（不中断程序）
+		log.Printf("  → 无法平仓小额仓位，建议手动处理或等待价格上涨")
+		return map[string]interface{}{
+			"status": "skipped_min_notional",
+			"symbol": symbol,
+			"error":  err.Error(),
+		}, nil
+	}
+
 	// 创建市价卖出订单（平多）
 	var order *futures.CreateOrderResponse
 	err = t.callWithTimeSync("平多仓", func() error {
@@ -507,6 +535,34 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 		return nil, err
 	}
 
+	// ✅ Layer 3: 检查是否满足最小金额要求（MIN_NOTIONAL）
+	if err := t.CheckMinNotional(symbol, quantity); err != nil {
+		log.Printf("⚠️ %s 剩余仓位过小: %v", symbol, err)
+
+		// 🔄 尝试获取实际持仓数量并强制平仓
+		positions, posErr := t.GetPositions()
+		if posErr == nil {
+			for _, pos := range positions {
+				if pos["symbol"] == symbol && pos["side"] == "short" {
+					actualQty := -pos["positionAmt"].(float64) // 空仓数量是负的，取绝对值
+					if actualQty > 0 {
+						log.Printf("  → 检测到小额仓位，尝试强制市价全平...")
+						// 不检查最小金额，直接尝试平仓
+						return t.forceCloseShort(symbol, actualQty)
+					}
+				}
+			}
+		}
+
+		// 如果实在无法平仓，返回跳过状态（不中断程序）
+		log.Printf("  → 无法平仓小额仓位，建议手动处理或等待价格上涨")
+		return map[string]interface{}{
+			"status": "skipped_min_notional",
+			"symbol": symbol,
+			"error":  err.Error(),
+		}, nil
+	}
+
 	// 创建市价买入订单（平空）
 	var order *futures.CreateOrderResponse
 	err = t.callWithTimeSync("平空仓", func() error {
@@ -536,6 +592,96 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 	result["orderId"] = order.OrderID
 	result["symbol"] = order.Symbol
 	result["status"] = order.Status
+	return result, nil
+}
+
+// forceCloseLong 强制平多仓（忽略最小金额限制，用于清理小额剩余仓位）
+func (t *FuturesTrader) forceCloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+	quantityStr, err := t.FormatQuantity(symbol, quantity)
+	if err != nil {
+		return nil, err
+	}
+
+	// 直接尝试市价平仓，不检查 MIN_NOTIONAL
+	var order *futures.CreateOrderResponse
+	err = t.callWithTimeSync("强制平多仓", func() error {
+		var innerErr error
+		order, innerErr = t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(futures.SideTypeSell).
+			PositionSide(futures.PositionSideTypeLong).
+			Type(futures.OrderTypeMarket).
+			Quantity(quantityStr).
+			Do(context.Background())
+		return innerErr
+	})
+
+	if err != nil {
+		// 如果还是失败，记录错误但不中断
+		log.Printf("❌ 强制平多仓失败: %v (可能需要手动处理)", err)
+		return map[string]interface{}{
+			"status": "force_close_failed",
+			"symbol": symbol,
+			"error":  err.Error(),
+		}, nil
+	}
+
+	log.Printf("✓ 强制平多仓成功: %s 数量: %s (小额仓位已清理)", symbol, quantityStr)
+
+	// 取消挂单
+	if cancelErr := t.CancelAllOrders(symbol); cancelErr != nil {
+		log.Printf("  ⚠ 取消挂单失败: %v", cancelErr)
+	}
+
+	result := make(map[string]interface{})
+	result["orderId"] = order.OrderID
+	result["symbol"] = order.Symbol
+	result["status"] = "force_closed"
+	return result, nil
+}
+
+// forceCloseShort 强制平空仓（忽略最小金额限制，用于清理小额剩余仓位）
+func (t *FuturesTrader) forceCloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+	quantityStr, err := t.FormatQuantity(symbol, quantity)
+	if err != nil {
+		return nil, err
+	}
+
+	// 直接尝试市价平仓，不检查 MIN_NOTIONAL
+	var order *futures.CreateOrderResponse
+	err = t.callWithTimeSync("强制平空仓", func() error {
+		var innerErr error
+		order, innerErr = t.client.NewCreateOrderService().
+			Symbol(symbol).
+			Side(futures.SideTypeBuy).
+			PositionSide(futures.PositionSideTypeShort).
+			Type(futures.OrderTypeMarket).
+			Quantity(quantityStr).
+			Do(context.Background())
+		return innerErr
+	})
+
+	if err != nil {
+		// 如果还是失败，记录错误但不中断
+		log.Printf("❌ 强制平空仓失败: %v (可能需要手动处理)", err)
+		return map[string]interface{}{
+			"status": "force_close_failed",
+			"symbol": symbol,
+			"error":  err.Error(),
+		}, nil
+	}
+
+	log.Printf("✓ 强制平空仓成功: %s 数量: %s (小额仓位已清理)", symbol, quantityStr)
+
+	// 取消挂单
+	if cancelErr := t.CancelAllOrders(symbol); cancelErr != nil {
+		log.Printf("  ⚠ 取消挂单失败: %v", cancelErr)
+	}
+
+	result := make(map[string]interface{})
+	result["orderId"] = order.OrderID
+	result["symbol"] = order.Symbol
+	result["status"] = "force_closed"
 	return result, nil
 }
 
@@ -703,6 +849,34 @@ func (t *FuturesTrader) GetMarketPrice(symbol string) (float64, error) {
 	}
 
 	return price, nil
+}
+
+// GetMinNotional 获取交易对的最小名义价值（MIN_NOTIONAL）
+// 不同交易对有不同的最小值，这里使用保守的默认值
+// 实际可以从 Binance API 的 exchangeInfo 获取精确值
+func (t *FuturesTrader) GetMinNotional(symbol string) float64 {
+	// 使用保守的默认值 10 USDT，确保订单能够通过交易所验证
+	return 10.0
+}
+
+// CheckMinNotional 检查订单是否满足最小名义价值要求
+func (t *FuturesTrader) CheckMinNotional(symbol string, quantity float64) error {
+	price, err := t.GetMarketPrice(symbol)
+	if err != nil {
+		return fmt.Errorf("获取市价失败: %w", err)
+	}
+
+	notionalValue := quantity * price
+	minNotional := t.GetMinNotional(symbol)
+
+	if notionalValue < minNotional {
+		return fmt.Errorf(
+			"订单金额 %.2f USDT 低于最小要求 %.2f USDT (数量: %.4f, 价格: %.4f)",
+			notionalValue, minNotional, quantity, price,
+		)
+	}
+
+	return nil
 }
 
 // CalculatePositionSize 计算仓位大小

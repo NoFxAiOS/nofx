@@ -1220,6 +1220,33 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	closeQuantity := totalQuantity * (decision.ClosePercentage / 100.0)
 	actionRecord.Quantity = closeQuantity
 
+	// ✅ Layer 2: 最小仓位检查（防止产生小额剩余）
+	markPrice, _ := targetPosition["markPrice"].(float64)
+	currentPositionValue := totalQuantity * markPrice
+	remainingQuantity := totalQuantity - closeQuantity
+	remainingValue := remainingQuantity * markPrice
+
+	const MIN_POSITION_VALUE = 10.0 // 最小持仓价值 10 USDT
+
+	if remainingValue > 0 && remainingValue < MIN_POSITION_VALUE {
+		log.Printf("⚠️ 检测到 partial_close 后剩余仓位 %.2f USDT < %.0f USDT",
+			remainingValue, MIN_POSITION_VALUE)
+		log.Printf("  → 当前仓位价值: %.2f USDT, 平仓 %.1f%%, 剩余: %.2f USDT",
+			currentPositionValue, decision.ClosePercentage, remainingValue)
+		log.Printf("  → 自动修正为全部平仓，避免产生无法平仓的小额剩余")
+
+		// 🔄 自动修正为全部平仓
+		if positionSide == "LONG" {
+			decision.Action = "close_long"
+			log.Printf("  ✓ 已修正为: close_long")
+			return at.executeCloseLongWithRecord(decision, actionRecord)
+		} else {
+			decision.Action = "close_short"
+			log.Printf("  ✓ 已修正为: close_short")
+			return at.executeCloseShortWithRecord(decision, actionRecord)
+		}
+	}
+
 	// 执行平仓
 	var order map[string]interface{}
 	if positionSide == "LONG" {
@@ -1237,7 +1264,6 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 		actionRecord.OrderID = orderID
 	}
 
-	remainingQuantity := totalQuantity - closeQuantity
 	log.Printf("  ✓ 部分平仓成功: 平仓 %.4f (%.1f%%), 剩余 %.4f",
 		closeQuantity, decision.ClosePercentage, remainingQuantity)
 

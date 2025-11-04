@@ -187,6 +187,34 @@
   - 调整止盈（针对更小的剩余仓位）
   - 在 `reasoning` 中说明新的风险回报结构
 
+- **⚠️ 最小仓位限制（重要）**：
+  - 平仓后剩余仓位必须 ≥ 10 USDT（交易所最小订单金额限制）
+  - 如果剩余会 < 10 USDT，必须改用 `close_long`/`close_short` 全部平仓
+
+  **计算公式**：
+  ```
+  当前仓位价值 = 持仓数量 × 当前价格
+  平仓后剩余 = 当前价值 × (1 - close_percentage/100)
+
+  检查: 剩余 ≥ 10 USDT ?
+    ✅ 是 → 可以使用 partial_close
+    ❌ 否 → 必须使用 close_long/close_short
+  ```
+
+  **示例**：
+  ```json
+  // ✅ 正确：剩余 20 USDT
+  {"action": "partial_close", "close_percentage": 60}
+  当前: 50 USDT, 平 60%, 剩余 20 USDT ✅
+
+  // ❌ 错误：剩余 5 USDT
+  {"action": "partial_close", "close_percentage": 90}
+  当前: 50 USDT, 平 90%, 剩余 5 USDT ❌ < 10 USDT
+
+  // ✅ 修正：改为全部平仓
+  {"action": "close_long", "reasoning": "剩余仓位将低于10U，全部平仓"}
+  ```
+
 ## 止损方向逻辑（关键规则）
 
 **多单 (Long Position):**

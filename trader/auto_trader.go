@@ -257,9 +257,9 @@ func (at *AutoTrader) Stop() {
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
 
-	log.Printf("\n" + strings.Repeat("=", 70))
+	log.Print("\n" + strings.Repeat("=", 70) + "\n")
 	log.Printf("⏰ %s - AI决策周期 #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
-	log.Printf(strings.Repeat("=", 70))
+	log.Println(strings.Repeat("=", 70))
 
 	// 创建决策记录
 	record := &logger.DecisionRecord{
@@ -346,19 +346,19 @@ func (at *AutoTrader) runCycle() error {
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
 		if decision != nil {
 			if decision.SystemPrompt != "" {
-				log.Printf("\n" + strings.Repeat("=", 70))
+				log.Print("\n" + strings.Repeat("=", 70) + "\n")
 				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
 				log.Println(strings.Repeat("=", 70))
 				log.Println(decision.SystemPrompt)
-				log.Printf(strings.Repeat("=", 70) + "\n")
+				log.Println(strings.Repeat("=", 70))
 			}
 
 			if decision.CoTTrace != "" {
-				log.Printf("\n" + strings.Repeat("-", 70))
+				log.Print("\n" + strings.Repeat("-", 70) + "\n")
 				log.Println("💭 AI思维链分析（错误情况）:")
 				log.Println(strings.Repeat("-", 70))
 				log.Println(decision.CoTTrace)
-				log.Printf(strings.Repeat("-", 70) + "\n")
+				log.Println(strings.Repeat("-", 70))
 			}
 		}
 

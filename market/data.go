@@ -33,6 +33,7 @@ func Get(symbol string) (*Data, error) {
 	currentEMA20 := calculateEMA(klines3m, 20)
 	currentMACD := calculateMACD(klines3m)
 	currentRSI7 := calculateRSI(klines3m, 7)
+	currentKDJ := calculateKDJ(klines3m, 9) // 使用9期KDJ
 
 	// 计算价格变化百分比
 	// 1小时价格变化 = 20个3分钟K线前的价格
@@ -77,6 +78,7 @@ func Get(symbol string) (*Data, error) {
 		CurrentEMA20:      currentEMA20,
 		CurrentMACD:       currentMACD,
 		CurrentRSI7:       currentRSI7,
+		CurrentKDJ:        currentKDJ,
 		OpenInterest:      oiData,
 		FundingRate:       fundingRate,
 		IntradaySeries:    intradayData,
@@ -164,6 +166,73 @@ func calculateRSI(klines []Kline, period int) float64 {
 	return rsi
 }
 
+// calculateKDJ 计算KDJ指标
+func calculateKDJ(klines []Kline, period int) *KDJValue {
+	if len(klines) < period {
+		return &KDJValue{K: 50, D: 50, J: 50} // 返回默认值
+	}
+
+	// 使用Wilder平滑方法计算KDJ
+	// K = 2/3 × 前一日K值 + 1/3 × 当日RSV
+	// D = 2/3 × 前一日D值 + 1/3 × 当日K值
+	// J = 3 × 当日K值 - 2 × 当日D值
+
+	// 初始化K和D值
+	prevK := 50.0
+	prevD := 50.0
+
+	// 计算从period位置开始的所有K和D值
+	for i := len(klines) - period; i < len(klines); i++ {
+		// 计算当前位置的RSV
+		// RSV = (收盘价 - N日内最低价) / (N日内最高价 - N日内最低价) × 100
+		close := klines[i].Close
+		high := klines[i].High
+		low := klines[i].Low
+
+		// 找到过去period天的最高最低价
+		start := i - period + 1
+		if start < 0 {
+			start = 0
+		}
+
+		for j := start; j <= i; j++ {
+			if klines[j].High > high {
+				high = klines[j].High
+			}
+			if klines[j].Low < low {
+				low = klines[j].Low
+			}
+		}
+
+		currentRSV := 0.0
+		if high-low > 0 {
+			currentRSV = ((close - low) / (high - low)) * 100
+		} else {
+			currentRSV = 50
+		}
+
+		// 计算K值：K = 2/3 × 前K + 1/3 × RSV
+		currentK := (2.0/3.0)*prevK + (1.0/3.0)*currentRSV
+
+		// 计算D值：D = 2/3 × 前D + 1/3 × K
+		currentD := (2.0/3.0)*prevD + (1.0/3.0)*currentK
+
+		prevK = currentK
+		prevD = currentD
+	}
+
+	// 计算J值：J = 3K - 2D
+	k := prevK
+	d := prevD
+	j := 3*k - 2*d
+
+	return &KDJValue{
+		K: k,
+		D: d,
+		J: j,
+	}
+}
+
 // calculateATR 计算ATR
 func calculateATR(klines []Kline, period int) float64 {
 	if len(klines) <= period {
@@ -206,6 +275,9 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 		MACDValues:  make([]float64, 0, 10),
 		RSI7Values:  make([]float64, 0, 10),
 		RSI14Values: make([]float64, 0, 10),
+		KDJKValues:  make([]float64, 0, 10),
+		KDJDValues:  make([]float64, 0, 10),
+		KDJJValues:  make([]float64, 0, 10),
 	}
 
 	// 获取最近10个数据点
@@ -238,6 +310,14 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 			rsi14 := calculateRSI(klines[:i+1], 14)
 			data.RSI14Values = append(data.RSI14Values, rsi14)
 		}
+
+		// 计算每个点的KDJ
+		if i >= 9 {
+			kdj := calculateKDJ(klines[:i+1], 9)
+			data.KDJKValues = append(data.KDJKValues, kdj.K)
+			data.KDJDValues = append(data.KDJDValues, kdj.D)
+			data.KDJJValues = append(data.KDJJValues, kdj.J)
+		}
 	}
 
 	return data
@@ -248,6 +328,9 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	data := &LongerTermData{
 		MACDValues:  make([]float64, 0, 10),
 		RSI14Values: make([]float64, 0, 10),
+		KDJKValues:  make([]float64, 0, 10),
+		KDJDValues:  make([]float64, 0, 10),
+		KDJJValues:  make([]float64, 0, 10),
 	}
 
 	// 计算EMA
@@ -269,7 +352,7 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 		data.AverageVolume = sum / float64(len(klines))
 	}
 
-	// 计算MACD和RSI序列
+	// 计算MACD、RSI和KDJ序列
 	start := len(klines) - 10
 	if start < 0 {
 		start = 0
@@ -283,6 +366,12 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 		if i >= 14 {
 			rsi14 := calculateRSI(klines[:i+1], 14)
 			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+		if i >= 9 {
+			kdj := calculateKDJ(klines[:i+1], 9)
+			data.KDJKValues = append(data.KDJKValues, kdj.K)
+			data.KDJDValues = append(data.KDJDValues, kdj.D)
+			data.KDJJValues = append(data.KDJJValues, kdj.J)
 		}
 	}
 
@@ -359,8 +448,15 @@ func getFundingRate(symbol string) (float64, error) {
 func Format(data *Data) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("current_price = %.2f, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
+	sb.WriteString(fmt.Sprintf("current_price = %.2f, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f",
 		data.CurrentPrice, data.CurrentEMA20, data.CurrentMACD, data.CurrentRSI7))
+
+	// 添加KDJ当前值
+	if data.CurrentKDJ != nil {
+		sb.WriteString(fmt.Sprintf(", current_kdj (K=%.2f, D=%.2f, J=%.2f)",
+			data.CurrentKDJ.K, data.CurrentKDJ.D, data.CurrentKDJ.J))
+	}
+	sb.WriteString("\n\n")
 
 	sb.WriteString(fmt.Sprintf("In addition, here is the latest %s open interest and funding rate for perps:\n\n",
 		data.Symbol))
@@ -394,6 +490,18 @@ func Format(data *Data) string {
 		if len(data.IntradaySeries.RSI14Values) > 0 {
 			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
 		}
+
+		if len(data.IntradaySeries.KDJKValues) > 0 {
+			sb.WriteString(fmt.Sprintf("KDJ K indicators (9‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.KDJKValues)))
+		}
+
+		if len(data.IntradaySeries.KDJDValues) > 0 {
+			sb.WriteString(fmt.Sprintf("KDJ D indicators (9‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.KDJDValues)))
+		}
+
+		if len(data.IntradaySeries.KDJJValues) > 0 {
+			sb.WriteString(fmt.Sprintf("KDJ J indicators (9‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.KDJJValues)))
+		}
 	}
 
 	if data.LongerTermContext != nil {
@@ -414,6 +522,18 @@ func Format(data *Data) string {
 
 		if len(data.LongerTermContext.RSI14Values) > 0 {
 			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
+		}
+
+		if len(data.LongerTermContext.KDJKValues) > 0 {
+			sb.WriteString(fmt.Sprintf("KDJ K indicators (9‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.KDJKValues)))
+		}
+
+		if len(data.LongerTermContext.KDJDValues) > 0 {
+			sb.WriteString(fmt.Sprintf("KDJ D indicators (9‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.KDJDValues)))
+		}
+
+		if len(data.LongerTermContext.KDJJValues) > 0 {
+			sb.WriteString(fmt.Sprintf("KDJ J indicators (9‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.KDJJValues)))
 		}
 	}
 

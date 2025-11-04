@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
 **语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md)
@@ -1262,7 +1262,15 @@ sudo apt-get install libta-lib0-dev
 
 ## 📄 开源协议
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+本项目采用 **GNU Affero 通用公共许可证 v3.0 (AGPL-3.0)** - 详见 [LICENSE](LICENSE) 文件
+
+**这意味着什么：**
+- ✅ 你可以使用、修改和分发此软件
+- ✅ 你必须公开你修改版本的源代码
+- ✅ 如果你在服务器上运行修改版本，必须向用户提供源代码
+- ✅ 所有衍生作品也必须使用 AGPL-3.0 许可证
+
+如需商业许可或有疑问,请联系维护者。
 
 ---
 

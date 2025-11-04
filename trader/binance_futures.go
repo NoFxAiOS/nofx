@@ -550,6 +550,32 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 	return nil
 }
 
+// GetMinNotional 获取最小名义价值（Binance要求）
+func (t *FuturesTrader) GetMinNotional(symbol string) float64 {
+	// 使用保守的默认值 10 USDT，确保订单能够通过交易所验证
+	return 10.0
+}
+
+// CheckMinNotional 检查订单是否满足最小名义价值要求
+func (t *FuturesTrader) CheckMinNotional(symbol string, quantity float64) error {
+	price, err := t.GetMarketPrice(symbol)
+	if err != nil {
+		return fmt.Errorf("获取市价失败: %w", err)
+	}
+
+	notionalValue := quantity * price
+	minNotional := t.GetMinNotional(symbol)
+
+	if notionalValue < minNotional {
+		return fmt.Errorf(
+			"订单金额 %.2f USDT 低于最小要求 %.2f USDT (数量: %.4f, 价格: %.4f)",
+			notionalValue, minNotional, quantity, price,
+		)
+	}
+
+	return nil
+}
+
 // GetSymbolPrecision 获取交易对的数量精度
 func (t *FuturesTrader) GetSymbolPrecision(symbol string) (int, error) {
 	exchangeInfo, err := t.client.NewExchangeInfoService().Do(context.Background())

@@ -99,6 +99,7 @@ type AutoTrader struct {
 	startTime             time.Time        // 系统启动时间
 	callCount             int              // AI调用次数
 	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	lastCyclePositions    map[string]bool  // 上一周期的持仓列表 (symbol_side -> true) 用于检测自动平仓
 }
 
 // NewAutoTrader 创建自动交易器
@@ -217,6 +218,7 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		callCount:             0,
 		isRunning:             false,
 		positionFirstSeenTime: make(map[string]int64),
+		lastCyclePositions:    make(map[string]bool),
 	}, nil
 }
 
@@ -525,11 +527,34 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		})
 	}
 
-	// 清理已平仓的持仓记录
+	// 清理已平仓的持仓记录，并检测自动平仓（交易所触发的止盈/止损）
+	// 当持仓被自动平仓时，需要清理该币种的所有剩余挂单（包括另一个止盈/止损订单）
 	for key := range at.positionFirstSeenTime {
 		if !currentPositionKeys[key] {
 			delete(at.positionFirstSeenTime, key)
+			
+			// 如果上一周期有持仓，但当前周期没有，说明可能是被交易所自动平仓了
+			if at.lastCyclePositions[key] {
+				// 解析symbol和side
+				parts := strings.Split(key, "_")
+				if len(parts) == 2 {
+					symbol := parts[0]
+					log.Printf("🔄 检测到 %s %s 持仓已自动平仓（可能是止盈/止损触发），清理该币种的所有挂单", symbol, parts[1])
+					// 清理该币种的所有挂单（包括另一个止盈/止损订单）
+					if err := at.trader.CancelAllOrders(symbol); err != nil {
+						log.Printf("  ⚠ 清理 %s 挂单失败: %v", symbol, err)
+					} else {
+						log.Printf("  ✓ 已清理 %s 的所有挂单（止盈/止损订单已同步清理）", symbol)
+					}
+				}
+			}
 		}
+	}
+	
+	// 更新上一周期的持仓记录（深拷贝）
+	at.lastCyclePositions = make(map[string]bool)
+	for key := range currentPositionKeys {
+		at.lastCyclePositions[key] = true
 	}
 
 	// 3. 获取交易员的候选币种池

@@ -1,27 +1,40 @@
 package manager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"nofx/config"
 	"nofx/trader"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
+// CompetitionCache 竞赛数据缓存
+type CompetitionCache struct {
+	data      map[string]interface{}
+	timestamp time.Time
+	mu        sync.RWMutex
+}
+
 // TraderManager 管理多个trader实例
 type TraderManager struct {
-	traders map[string]*trader.AutoTrader // key: trader ID
-	mu      sync.RWMutex
+	traders         map[string]*trader.AutoTrader // key: trader ID
+	competitionCache *CompetitionCache
+	mu              sync.RWMutex
 }
 
 // NewTraderManager 创建trader管理器
 func NewTraderManager() *TraderManager {
 	return &TraderManager{
 		traders: make(map[string]*trader.AutoTrader),
+		competitionCache: &CompetitionCache{
+			data: make(map[string]interface{}),
+		},
 	}
 }
 
@@ -478,57 +491,191 @@ func (tm *TraderManager) GetComparisonData() (map[string]interface{}, error) {
 
 // GetCompetitionData 获取竞赛数据（全平台所有交易员）
 func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
-	tm.mu.RLock()
-	defer tm.mu.RUnlock()
-
-	comparison := make(map[string]interface{})
-	traders := make([]map[string]interface{}, 0)
-
-	// 获取全平台所有交易员
-	for _, t := range tm.traders {
-		account, err := t.GetAccountInfo()
-		status := t.GetStatus()
-
-		var traderData map[string]interface{}
-
-		if err != nil {
-			// 如果获取账户信息失败，使用默认值但仍然显示交易员
-			log.Printf("⚠️ 获取交易员 %s 账户信息失败: %v", t.GetID(), err)
-			traderData = map[string]interface{}{
-				"trader_id":       t.GetID(),
-				"trader_name":     t.GetName(),
-				"ai_model":        t.GetAIModel(),
-				"exchange":        t.GetExchange(),
-				"total_equity":    0.0,
-				"total_pnl":       0.0,
-				"total_pnl_pct":   0.0,
-				"position_count":  0,
-				"margin_used_pct": 0.0,
-				"is_running":      status["is_running"],
-				"error":           "账户数据获取失败",
-			}
-		} else {
-			// 正常情况下使用真实账户数据
-			traderData = map[string]interface{}{
-				"trader_id":       t.GetID(),
-				"trader_name":     t.GetName(),
-				"ai_model":        t.GetAIModel(),
-				"exchange":        t.GetExchange(),
-				"total_equity":    account["total_equity"],
-				"total_pnl":       account["total_pnl"],
-				"total_pnl_pct":   account["total_pnl_pct"],
-				"position_count":  account["position_count"],
-				"margin_used_pct": account["margin_used_pct"],
-				"is_running":      status["is_running"],
-			}
+	// 检查缓存是否有效（30秒内）
+	tm.competitionCache.mu.RLock()
+	if time.Since(tm.competitionCache.timestamp) < 30*time.Second && len(tm.competitionCache.data) > 0 {
+		// 返回缓存数据
+		cachedData := make(map[string]interface{})
+		for k, v := range tm.competitionCache.data {
+			cachedData[k] = v
 		}
-
-		traders = append(traders, traderData)
+		tm.competitionCache.mu.RUnlock()
+		log.Printf("📋 返回竞赛数据缓存 (缓存时间: %.1fs)", time.Since(tm.competitionCache.timestamp).Seconds())
+		return cachedData, nil
 	}
+	tm.competitionCache.mu.RUnlock()
+
+	tm.mu.RLock()
+	
+	// 获取所有交易员列表
+	allTraders := make([]*trader.AutoTrader, 0, len(tm.traders))
+	for _, t := range tm.traders {
+		allTraders = append(allTraders, t)
+	}
+	tm.mu.RUnlock()
+	
+	log.Printf("🔄 重新获取竞赛数据，交易员数量: %d", len(allTraders))
+	
+	// 并发获取交易员数据
+	traders := tm.getConcurrentTraderData(allTraders)
+	
+	// 按收益率排序（降序）
+	sort.Slice(traders, func(i, j int) bool {
+		pnlPctI, okI := traders[i]["total_pnl_pct"].(float64)
+		pnlPctJ, okJ := traders[j]["total_pnl_pct"].(float64)
+		if !okI {
+			pnlPctI = 0
+		}
+		if !okJ {
+			pnlPctJ = 0
+		}
+		return pnlPctI > pnlPctJ
+	})
+	
+	// 限制返回前50名
+	totalCount := len(traders)
+	limit := 50
+	if len(traders) > limit {
+		traders = traders[:limit]
+	}
+	
+	comparison := make(map[string]interface{})
 	comparison["traders"] = traders
 	comparison["count"] = len(traders)
+	comparison["total_count"] = totalCount // 总交易员数量
+
+	// 更新缓存
+	tm.competitionCache.mu.Lock()
+	tm.competitionCache.data = comparison
+	tm.competitionCache.timestamp = time.Now()
+	tm.competitionCache.mu.Unlock()
 
 	return comparison, nil
+}
+
+// getConcurrentTraderData 并发获取多个交易员的数据
+func (tm *TraderManager) getConcurrentTraderData(traders []*trader.AutoTrader) []map[string]interface{} {
+	type traderResult struct {
+		index int
+		data  map[string]interface{}
+	}
+	
+	// 创建结果通道
+	resultChan := make(chan traderResult, len(traders))
+	
+	// 并发获取每个交易员的数据
+	for i, t := range traders {
+		go func(index int, trader *trader.AutoTrader) {
+			// 设置单个交易员的超时时间为3秒
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			
+			// 使用通道来实现超时控制
+			accountChan := make(chan map[string]interface{}, 1)
+			errorChan := make(chan error, 1)
+			
+			go func() {
+				account, err := trader.GetAccountInfo()
+				if err != nil {
+					errorChan <- err
+				} else {
+					accountChan <- account
+				}
+			}()
+			
+			status := trader.GetStatus()
+			var traderData map[string]interface{}
+			
+			select {
+			case account := <-accountChan:
+				// 成功获取账户信息
+				traderData = map[string]interface{}{
+					"trader_id":       trader.GetID(),
+					"trader_name":     trader.GetName(),
+					"ai_model":        trader.GetAIModel(),
+					"exchange":        trader.GetExchange(),
+					"total_equity":    account["total_equity"],
+					"total_pnl":       account["total_pnl"],
+					"total_pnl_pct":   account["total_pnl_pct"],
+					"position_count":  account["position_count"],
+					"margin_used_pct": account["margin_used_pct"],
+					"is_running":      status["is_running"],
+				}
+			case err := <-errorChan:
+				// 获取账户信息失败
+				log.Printf("⚠️ 获取交易员 %s 账户信息失败: %v", trader.GetID(), err)
+				traderData = map[string]interface{}{
+					"trader_id":       trader.GetID(),
+					"trader_name":     trader.GetName(),
+					"ai_model":        trader.GetAIModel(),
+					"exchange":        trader.GetExchange(),
+					"total_equity":    0.0,
+					"total_pnl":       0.0,
+					"total_pnl_pct":   0.0,
+					"position_count":  0,
+					"margin_used_pct": 0.0,
+					"is_running":      status["is_running"],
+					"error":           "账户数据获取失败",
+				}
+			case <-ctx.Done():
+				// 超时
+				log.Printf("⏰ 获取交易员 %s 账户信息超时", trader.GetID())
+				traderData = map[string]interface{}{
+					"trader_id":       trader.GetID(),
+					"trader_name":     trader.GetName(),
+					"ai_model":        trader.GetAIModel(),
+					"exchange":        trader.GetExchange(),
+					"total_equity":    0.0,
+					"total_pnl":       0.0,
+					"total_pnl_pct":   0.0,
+					"position_count":  0,
+					"margin_used_pct": 0.0,
+					"is_running":      status["is_running"],
+					"error":           "获取超时",
+				}
+			}
+			
+			resultChan <- traderResult{index: index, data: traderData}
+		}(i, t)
+	}
+	
+	// 收集所有结果
+	results := make([]map[string]interface{}, len(traders))
+	for i := 0; i < len(traders); i++ {
+		result := <-resultChan
+		results[result.index] = result.data
+	}
+	
+	return results
+}
+
+// GetTopTradersData 获取前5名交易员数据（用于表现对比）
+func (tm *TraderManager) GetTopTradersData() (map[string]interface{}, error) {
+	// 复用竞赛数据缓存，因为前5名是从全部数据中筛选出来的
+	competitionData, err := tm.GetCompetitionData()
+	if err != nil {
+		return nil, err
+	}
+	
+	// 从竞赛数据中提取前5名
+	allTraders, ok := competitionData["traders"].([]map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("竞赛数据格式错误")
+	}
+	
+	// 限制返回前5名
+	limit := 5
+	topTraders := allTraders
+	if len(allTraders) > limit {
+		topTraders = allTraders[:limit]
+	}
+	
+	result := map[string]interface{}{
+		"traders": topTraders,
+		"count":   len(topTraders),
+	}
+
+	return result, nil
 }
 
 // isUserTrader 检查trader是否属于指定用户

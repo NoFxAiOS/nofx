@@ -102,13 +102,29 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	// 解析余额信息（MarginSummary字段都是string）
 	result := make(map[string]interface{})
 
-	// 🔍 调试：打印API返回的完整CrossMarginSummary结构
-	summaryJSON, _ := json.MarshalIndent(accountState.MarginSummary, "  ", "  ")
-	log.Printf("🔍 [DEBUG] Hyperliquid Perpetuals CrossMarginSummary完整数据:")
-	log.Printf("%s", string(summaryJSON))
+	// ✅ 核心修復：根据保证金模式动态选择正确的摘要（CrossMarginSummary 或 MarginSummary）
+	var accountValue, totalMarginUsed float64
+	var summaryType string
+	var summary interface{}
 
-	accountValue, _ := strconv.ParseFloat(accountState.MarginSummary.AccountValue, 64)
-	totalMarginUsed, _ := strconv.ParseFloat(accountState.MarginSummary.TotalMarginUsed, 64)
+	if t.isCrossMargin {
+		// 全仓模式：使用 CrossMarginSummary
+		accountValue, _ = strconv.ParseFloat(accountState.CrossMarginSummary.AccountValue, 64)
+		totalMarginUsed, _ = strconv.ParseFloat(accountState.CrossMarginSummary.TotalMarginUsed, 64)
+		summaryType = "CrossMarginSummary (全仓)"
+		summary = accountState.CrossMarginSummary
+	} else {
+		// 逐仓模式：使用 MarginSummary
+		accountValue, _ = strconv.ParseFloat(accountState.MarginSummary.AccountValue, 64)
+		totalMarginUsed, _ = strconv.ParseFloat(accountState.MarginSummary.TotalMarginUsed, 64)
+		summaryType = "MarginSummary (逐仓)"
+		summary = accountState.MarginSummary
+	}
+
+	// 🔍 调试：打印API返回的完整摘要结构
+	summaryJSON, _ := json.MarshalIndent(summary, "  ", "  ")
+	log.Printf("🔍 [DEBUG] Hyperliquid Perpetuals %s 完整数据:", summaryType)
+	log.Printf("%s", string(summaryJSON))
 
 	// ⚠️ 关键修复：将 Spot 现货余额加入总余额
 	accountValue += spotUSDCBalance

@@ -534,12 +534,22 @@ func validateJSONFormat(jsonStr string) error {
 	return nil
 }
 
-// fixMissingQuotes 替换中文引号为英文引号（避免输入法自动转换）
+// fixMissingQuotes 替换中文引号和全角符号为英文半角符号（避免AI输出或输入法自动转换导致JSON解析失败）
 func fixMissingQuotes(jsonStr string) string {
+	// 替换中文引号
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201c", "\"") // "
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201d", "\"") // "
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2018", "'")  // '
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2019", "'")  // '
+
+	// ⚠️ 替换全角括号、冒号、逗号（防止AI输出全角JSON字符）
+	jsonStr = strings.ReplaceAll(jsonStr, "［", "[") // 全角左方括号 U+FF3B
+	jsonStr = strings.ReplaceAll(jsonStr, "］", "]") // 全角右方括号 U+FF3D
+	jsonStr = strings.ReplaceAll(jsonStr, "｛", "{") // 全角左花括号 U+FF5B
+	jsonStr = strings.ReplaceAll(jsonStr, "｝", "}") // 全角右花括号 U+FF5D
+	jsonStr = strings.ReplaceAll(jsonStr, "：", ":") // 全角冒号 U+FF1A
+	jsonStr = strings.ReplaceAll(jsonStr, "，", ",") // 全角逗号 U+FF0C
+
 	return jsonStr
 }
 

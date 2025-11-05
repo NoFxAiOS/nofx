@@ -394,16 +394,16 @@ export default function HeaderBar({
                     >
                       {t('signIn', language)}
                     </a>
-                    <a
-                      href="/register"
-                      className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
-                      style={{
-                        background: 'var(--brand-yellow)',
-                        color: 'var(--brand-black)',
-                      }}
-                    >
+                    {!isAdminMode && (
+                      <a
+                        href='/register'
+                        className='px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90'
+                        style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
+                      >
                       {t('signUp', language)}
-                    </a>
+                      </a>
+                    )}
+
                   </div>
                 )
               )}
@@ -797,17 +797,19 @@ export default function HeaderBar({
                 >
                   {t('signIn', language)}
                 </a>
-                <a
-                  href="/register"
-                  className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
-                  style={{
-                    background: 'var(--brand-yellow)',
-                    color: 'var(--brand-black)',
-                  }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('signUp', language)}
-                </a>
+                {!isAdminMode && (
+                  <a
+                    href="/register"
+                    className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
+                    style={{
+                      background: 'var(--brand-yellow)',
+                      color: 'var(--brand-black)',
+                    }}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t('signUp', language)}
+                  </a>
+                )}
               </div>
             )}
         </div>

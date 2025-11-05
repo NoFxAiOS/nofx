@@ -310,8 +310,12 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// TODO: 启动数据库中配置为运行状态的交易员
-	// traderManager.StartAll()
+	// Admin模式下自动启动标记为运行状态的交易员
+	if adminMode {
+		if err := traderManager.StartRunningTraders(database); err != nil {
+			log.Printf("⚠️  自动启动交易员失败: %v", err)
+		}
+	}
 
 	// 等待退出信号
 	<-sigChan

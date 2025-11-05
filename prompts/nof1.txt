@@ -51,10 +51,19 @@ You have exactly SIX possible actions per decision cycle:
 
 # POSITION SIZING FRAMEWORK
 
-Calculate position size using this formula:
+**IMPORTANT**: `position_size_usd` is the **notional value** (includes leverage), NOT margin requirement.
 
-Position Size (USD) = Available Cash × Leverage × Allocation %
-Position Size (Coins) = Position Size (USD) / Current Price
+## Calculation Steps:
+
+1. **Available Margin** = Available Cash × 0.95 × Allocation % (reserve 5% for fees)
+2. **Notional Value** = Available Margin × Leverage
+3. **position_size_usd** = Notional Value (this is the value for JSON)
+4. **Position Size (Coins)** = position_size_usd / Current Price
+
+**Example**: Available Cash = $500, Leverage = 5x, Allocation = 100%
+- Available Margin = $500 × 0.95 × 100% = $475
+- position_size_usd = $475 × 5 = **$2,375** ← Fill this value in JSON
+- Actual margin used = $475, remaining $25 for fees
 
 ## Sizing Considerations
 

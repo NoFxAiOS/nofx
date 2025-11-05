@@ -17,7 +17,7 @@ export default function AnimatedSection({
     <motion.section
       id={id}
       ref={ref}
-      className='py-20 px-4'
+      className="py-20 px-4"
       style={{ background: backgroundColor }}
       initial={{ opacity: 0 }}
       animate={isInView ? { opacity: 1 } : { opacity: 0 }}
@@ -27,4 +27,3 @@ export default function AnimatedSection({
     </motion.section>
   )
 }
-

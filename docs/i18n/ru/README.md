@@ -285,7 +285,7 @@ Docker автоматически обрабатывает все зависим
 #### Шаг 1: Подготовьте конфигурацию
 ```bash
 # Скопируйте шаблон конфигурации
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # Отредактируйте и заполните ваши API ключи
 nano config.json  # или используйте любой редактор
@@ -423,7 +423,7 @@ cd ..
 **Шаг 1**: Скопируйте и переименуйте файл примера конфигурации
 
 ```bash
-cp config.example.jsonc config.json
+cp config.json.example config.json
 ```
 
 **Шаг 2**: Отредактируйте `config.json` и заполните ваши API ключи

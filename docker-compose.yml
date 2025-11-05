@@ -6,6 +6,7 @@ services:
       - sh
       - -c
       - >
+        if [ -d /mnt/config.db ]; then rm -rf /mnt/config.db; fi &&
         touch /mnt/config.db &&
         if [ ! -f /mnt/config.json ] && [ -f /mnt/config.json.example ]; then
           cp /mnt/config.json.example /mnt/config.json;

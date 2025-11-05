@@ -438,13 +438,23 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	// 🔍 调试：打印原始API响应
+	log.Printf("🔍 Aster API原始响应: %s", string(body))
+
 	// 查找USDT余额
 	totalBalance := 0.0
 	availableBalance := 0.0
 	crossUnPnl := 0.0
 
 	for _, bal := range balances {
+		// 🔍 调试：打印每条余额记录
+		log.Printf("🔍 余额记录: %+v", bal)
+
 		if asset, ok := bal["asset"].(string); ok && asset == "USDT" {
+			// 🔍 调试：打印USDT余额详情
+			log.Printf("🔍 USDT余额详情: balance=%v, availableBalance=%v, crossUnPnl=%v",
+				bal["balance"], bal["availableBalance"], bal["crossUnPnl"])
+
 			if wb, ok := bal["balance"].(string); ok {
 				totalBalance, _ = strconv.ParseFloat(wb, 64)
 			}
@@ -458,11 +468,25 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		}
 	}
 
+	// ✅ Aster API完全兼容Binance API格式
+	// balance字段 = wallet balance（不包含未实现盈亏）
+	// crossUnPnl = unrealized profit（未实现盈亏）
+	// crossWalletBalance = balance + crossUnPnl（全仓钱包余额，包含盈亏）
+	//
+	// 参考Binance官方文档：
+	// - Account Information V2: marginBalance = walletBalance + unrealizedProfit
+	// - Balance V3: crossWalletBalance = balance + crossUnPnl
+
+	log.Printf("✓ Aster API返回: 钱包余额=%.2f, 未实现盈亏=%.2f, 可用余额=%.2f",
+		totalBalance,
+		crossUnPnl,
+		availableBalance)
+
 	// 返回与Binance相同的字段名，确保AutoTrader能正确解析
 	return map[string]interface{}{
-		"totalWalletBalance":    totalBalance,
+		"totalWalletBalance":    totalBalance,    // 钱包余额（不含未实现盈亏）
 		"availableBalance":      availableBalance,
-		"totalUnrealizedProfit": crossUnPnl,
+		"totalUnrealizedProfit": crossUnPnl,      // 未实现盈亏
 	}, nil
 }
 

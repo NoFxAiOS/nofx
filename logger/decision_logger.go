@@ -50,9 +50,9 @@ type PositionSnapshot struct {
 
 // DecisionAction 决策动作
 type DecisionAction struct {
-	Action    string    `json:"action"`    // open_long, open_short, close_long, close_short
+	Action    string    `json:"action"`    // open_long, open_short, close_long, close_short, update_stop_loss, update_take_profit, partial_close
 	Symbol    string    `json:"symbol"`    // 币种
-	Quantity  float64   `json:"quantity"`  // 数量
+	Quantity  float64   `json:"quantity"`  // 数量（部分平仓时使用）
 	Leverage  int       `json:"leverage"`  // 杠杆（开仓时）
 	Price     float64   `json:"price"`     // 执行价格
 	OrderID   int64     `json:"order_id"`  // 订单ID
@@ -243,8 +243,9 @@ func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 				switch action.Action {
 				case "open_long", "open_short":
 					stats.TotalOpenPositions++
-				case "close_long", "close_short":
+				case "close_long", "close_short", "partial_close":
 					stats.TotalClosePositions++
+				// update_stop_loss 和 update_take_profit 不計入統計
 				}
 			}
 		}
@@ -348,11 +349,22 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 				symbol := action.Symbol
 				side := ""
-				if action.Action == "open_long" || action.Action == "close_long" {
+				if action.Action == "open_long" || action.Action == "close_long" || action.Action == "partial_close" {
 					side = "long"
 				} else if action.Action == "open_short" || action.Action == "close_short" {
 					side = "short"
 				}
+
+				// partial_close 需要根據持倉判斷方向
+				if action.Action == "partial_close" && side == "" {
+					for key, pos := range openPositions {
+						if posSymbol, _ := pos["side"].(string); key == symbol+"_"+posSymbol {
+							side = posSymbol
+							break
+						}
+					}
+				}
+
 				posKey := symbol + "_" + side
 
 				switch action.Action {
@@ -368,6 +380,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				case "close_long", "close_short":
 					// 移除已平仓记录
 					delete(openPositions, posKey)
+				// partial_close 不處理，保留持倉記錄
 				}
 			}
 		}
@@ -382,11 +395,23 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 			symbol := action.Symbol
 			side := ""
-			if action.Action == "open_long" || action.Action == "close_long" {
+			if action.Action == "open_long" || action.Action == "close_long" || action.Action == "partial_close" {
 				side = "long"
 			} else if action.Action == "open_short" || action.Action == "close_short" {
 				side = "short"
 			}
+
+			// partial_close 需要根據持倉判斷方向
+			if action.Action == "partial_close" {
+				// 從 openPositions 中查找持倉方向
+				for key, pos := range openPositions {
+					if posSymbol, _ := pos["side"].(string); key == symbol+"_"+posSymbol {
+						side = posSymbol
+						break
+					}
+				}
+			}
+
 			posKey := symbol + "_" + side // 使用symbol_side作为key，区分多空持仓
 
 			switch action.Action {
@@ -400,7 +425,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					"leverage":  action.Leverage,
 				}
 
-			case "close_long", "close_short":
+			case "close_long", "close_short", "partial_close":
 				// 查找对应的开仓记录（可能来自预填充或当前窗口）
 				if openPos, exists := openPositions[posKey]; exists {
 					openPrice := openPos["openPrice"].(float64)
@@ -409,18 +434,24 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					quantity := openPos["quantity"].(float64)
 					leverage := openPos["leverage"].(int)
 
+					// 对于 partial_close，使用实际平仓数量；否则使用完整仓位数量
+					actualQuantity := quantity
+					if action.Action == "partial_close" {
+						actualQuantity = action.Quantity
+					}
+
 					// 计算实际盈亏（USDT）
-					// 合约交易 PnL 计算：quantity × 价格差
+					// 合约交易 PnL 计算：actualQuantity × 价格差
 					// 注意：杠杆不影响绝对盈亏，只影响保证金需求
 					var pnl float64
 					if side == "long" {
-						pnl = quantity * (action.Price - openPrice)
+						pnl = actualQuantity * (action.Price - openPrice)
 					} else {
-						pnl = quantity * (openPrice - action.Price)
+						pnl = actualQuantity * (openPrice - action.Price)
 					}
 
 					// 计算盈亏百分比（相对保证金）
-					positionValue := quantity * openPrice
+					positionValue := actualQuantity * openPrice
 					marginUsed := positionValue / float64(leverage)
 					pnlPct := 0.0
 					if marginUsed > 0 {
@@ -431,7 +462,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					outcome := TradeOutcome{
 						Symbol:        symbol,
 						Side:          side,
-						Quantity:      quantity,
+						Quantity:      actualQuantity,
 						Leverage:      leverage,
 						OpenPrice:     openPrice,
 						ClosePrice:    action.Price,
@@ -472,8 +503,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						stats.LosingTrades++
 					}
 
-					// 移除已平仓记录
-					delete(openPositions, posKey)
+					// 移除已平仓记录（partial_close 不刪除，因為還有剩餘倉位）
+					if action.Action != "partial_close" {
+						delete(openPositions, posKey)
+					}
 				}
 			}
 		}

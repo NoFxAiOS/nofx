@@ -507,6 +507,7 @@ export const translations = {
 
     // FAQ Categories
     faqCategoryBasics: 'General Questions',
+    faqCategoryContributing: 'Contributing & Tasks',
     faqCategorySetup: 'Setup & Configuration',
     faqCategoryTrading: 'Trading Questions',
     faqCategoryTechnical: 'Technical Issues',
@@ -529,6 +530,16 @@ export const translations = {
     faqMultipleTraders: 'Can I run multiple traders simultaneously?',
     faqMultipleTradersAnswer:
       'Yes! NOFX supports running multiple traders with different configurations, AI models, and trading strategies.',
+
+    // Contributing & Community
+    faqGithubProjectsTasks:
+      'How to use GitHub Projects roadmap and pick up tasks?',
+    faqGithubProjectsTasksAnswer:
+      'Steps: • Open the repository\'s GitHub Projects → Roadmap • Filter by labels: good first issue, help wanted, frontend/backend • Open a task and read Description / Acceptance Criteria • Comment "assign me" or self-assign (if permitted) • Create a feature branch from latest dev: git fetch --all; git checkout -b feat/your-topic dev (or upstream/dev) • Keep branch in sync (rebase), push regularly • Reference the Issue in PR description: Closes #123 • Use the proper PR template in .github/PULL_REQUEST_TEMPLATE and follow CONTRIBUTING.md',
+
+    faqContributePR: 'How to properly submit PRs and contribute?',
+    faqContributePRAnswer:
+      'Guidelines: • Branch from latest dev; avoid direct commits to main • Branch naming: feat/..., fix/..., docs/...; use Conventional Commits for messages • Run checks before PR: npm --prefix web run lint && npm --prefix web run build • For UI changes, attach screenshots or a short video • Fill the correct PR template (frontend/backend/docs/general) • Link issues (Closes #123) and add labels when applicable • Ensure CI passes; prefer small and focused PRs • Read CONTRIBUTING.md and .github/PR_TITLE_GUIDE.md',
 
     // Setup & Configuration
     faqSystemRequirements: 'What are the system requirements?',
@@ -1126,6 +1137,7 @@ export const translations = {
 
     // FAQ Categories
     faqCategoryBasics: '基础问题',
+    faqCategoryContributing: '贡献与任务',
     faqCategorySetup: '安装与配置',
     faqCategoryTrading: '交易问题',
     faqCategoryTechnical: '技术问题',
@@ -1148,6 +1160,15 @@ export const translations = {
     faqMultipleTraders: '可以同时运行多个交易员吗？',
     faqMultipleTradersAnswer:
       '可以！NOFX 支持运行多个交易员，每个可配置不同的 AI 模型和交易策略。',
+
+    // Contributing & Community
+    faqGithubProjectsTasks: '如何在 GitHub Projects 路线图中领取任务？',
+    faqGithubProjectsTasksAnswer:
+      '步骤：• 打开仓库的 GitHub Projects → Roadmap • 通过标签筛选：good first issue、help wanted、frontend/backend 等 • 打开任务，阅读描述与验收标准（Acceptance Criteria） • 评论 “assign me” 或自助分配（若权限允许） • 从最新 dev 创建特性分支：git fetch --all；git checkout -b feat/your-topic dev（或 upstream/dev） • 保持与 dev 同步（rebase），定期推送 • 在 PR 描述中关联 Issue：Closes #123 • 使用 .github/PULL_REQUEST_TEMPLATE 中合适的模板，并遵循 CONTRIBUTING.md',
+
+    faqContributePR: '如何规范地提交 PR 并参与贡献？',
+    faqContributePRAnswer:
+      '规范：• 基于最新 dev 分支开发，避免直接向 main 提交 • 分支命名：feat/...、fix/...、docs/...；提交信息使用 Conventional Commits • 提 PR 前运行检查：npm --prefix web run lint && npm --prefix web run build • 涉及 UI 变更请附上截图/短视频 • 按改动类型选择 PR 模板（frontend/backend/docs/general） • 在 PR 中关联 Issue（Closes #123）并添加合适的标签 • 确保 CI 通过；倾向小而聚焦的 PR • 参考 CONTRIBUTING.md 与 .github/PR_TITLE_GUIDE.md',
 
     // Setup & Configuration
     faqSystemRequirements: '系统要求是什么？',

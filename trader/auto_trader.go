@@ -375,7 +375,7 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
 
-	log.Print("\n" + strings.Repeat("=", 70) + "\n")
+	log.Print(strings.Repeat("=", 70) + "\n")
 	log.Printf("⏰ %s - AI决策周期 #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
 	log.Println(strings.Repeat("=", 70))
 

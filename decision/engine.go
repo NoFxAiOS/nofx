@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"nofx/decision"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
@@ -307,8 +306,8 @@ func buildSystemPrompt(accountEquity, availableBalance float64, btcEthLeverage, 
 	sb.WriteString("# 硬约束（风险控制）\n\n")
 	sb.WriteString("1. 风险回报比: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")
 	sb.WriteString(fmt.Sprintf("2. 最多持仓: %d个币种（质量>数量）\n", maxPositions))
-	sb.WriteString(fmt.Sprintf("3. 单币仓位: 山寨%.0f-%.0f USD | BTC/ETH %.0f-%.0f USD\n",
-		altcoinBasePosition*0.5, altcoinBasePosition, btcEthBasePosition*0.5, btcEthBasePosition))
+	sb.WriteString(fmt.Sprintf("3. 单币仓位: 山寨币 %.0f-%.0f USD | BTC/ETH %.0f-%.0f USD\n",
+		altcoinBasePosition*0.8, altcoinBasePosition, btcEthBasePosition*0.8, btcEthBasePosition))
 	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆** (⚠️ 严格执行，不可超过)\n", altcoinLeverage, btcEthLeverage))
 	sb.WriteString(fmt.Sprintf("4. 保证金: 总使用率 ≤ 90%% | 当前余额: %.2f\n\n", availableBalance))
 	sb.WriteString("6. 开仓金额: 建议 **≥12 USDT** (交易所最小名义价值 10 USDT + 安全边际)\n\n")
@@ -487,7 +486,7 @@ func extractDecisions(response string) ([]Decision, error) {
 	s = fixMissingQuotes(s)
 
 	// 1) 优先从 ```json 代码块中提取
-	if m := reJSONFence.FindStringSubmatch(s); m != nil && len(m) > 1 {
+	if m := reJSONFence.FindStringSubmatch(s); len(m) > 1 {
 		jsonContent := strings.TrimSpace(m[1])
 		jsonContent = compactArrayOpen(jsonContent) // 把 "[ {" 规整为 "[{"
 		jsonContent = fixMissingQuotes(jsonContent) // 二次修復（防止 regex 提取後還有全角）
@@ -831,7 +830,7 @@ func sortDecisionsByPriority(decisions []Decision) []Decision {
 	}
 
 	// 复制决策列表
-	sorted := make([]decision.Decision, len(decisions))
+	sorted := make([]Decision, len(decisions))
 	copy(sorted, decisions)
 
 	// 按优先级排序

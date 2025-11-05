@@ -197,6 +197,12 @@ export const translations = {
       'Hyperliquid uses private key for trading authentication',
     hyperliquidWalletAddressDesc:
       'Wallet address corresponding to the private key',
+    asterUserDesc:
+      'Main wallet address - The EVM wallet address you use to log in to Aster',
+    asterSignerDesc:
+      'API wallet address - Generate from Aster API Wallet page',
+    asterPrivateKeyDesc:
+      'API wallet private key - Only used locally for signing, never transmitted',
     testnetDescription:
       'Enable to connect to exchange test environment for simulated trading',
     securityWarning: 'Security Warning',
@@ -658,7 +664,13 @@ export const translations = {
     enterPassphrase: '输入Passphrase (OKX必填)',
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
-    testnetDescription: '启用后将连接到交易所测试环境，用于模拟交易',
+    asterUserDesc:
+      '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址',
+    asterSignerDesc:
+      'API 钱包地址 - 从 Aster API 钱包页面生成',
+    asterPrivateKeyDesc:
+      'API 钱包私钥 - 仅在本地用于签名，不会被传输',
+    testnetDescription: '启用后将连接到交易所测试环境,用于模拟交易',
     securityWarning: '安全提示',
     saveConfiguration: '保存配置',
 

@@ -1,19 +1,19 @@
 package api
 
 import (
-    "encoding/json"
-    "fmt"
-    "log"
-    "net"
-    "net/http"
-    "nofx/auth"
-    "nofx/config"
-    "nofx/decision"
-    "nofx/manager"
-    "nofx/trader"
-    "strconv"
-    "strings"
-    "time"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"nofx/auth"
+	"nofx/config"
+	"nofx/decision"
+	"nofx/manager"
+	"nofx/trader"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -68,11 +68,11 @@ func corsMiddleware() gin.HandlerFunc {
 
 // setupRoutes 设置路由
 func (s *Server) setupRoutes() {
-    // API路由组
-    api := s.router.Group("/api")
-    {
-        // 健康检查
-        api.Any("/health", s.handleHealth)
+	// API路由组
+	api := s.router.Group("/api")
+	{
+		// 健康检查
+		api.Any("/health", s.handleHealth)
 
 		// 认证相关路由（无需认证）
 		api.POST("/register", s.handleRegister)
@@ -84,9 +84,8 @@ func (s *Server) setupRoutes() {
 		api.GET("/supported-models", s.handleGetSupportedModels)
 		api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
 
-        // 系统配置（无需认证）
-        api.GET("/config", s.handleGetSystemConfig)
-
+		// 系统配置（无需认证）
+		api.GET("/config", s.handleGetSystemConfig)
 
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)
@@ -140,7 +139,6 @@ func (s *Server) setupRoutes() {
 		}
 	}
 }
-
 
 // handleHealth 健康检查
 func (s *Server) handleHealth(c *gin.Context) {

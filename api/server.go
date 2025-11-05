@@ -1363,6 +1363,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 
 	// 验证密码
 	if !auth.CheckPassword(req.Password, user.PasswordHash) {
+		log.Printf("DEBUG: 密码验证失败")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "邮箱或密码错误"})
 		return
 	}

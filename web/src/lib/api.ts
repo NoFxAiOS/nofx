@@ -330,13 +330,13 @@ export const api = {
 
   // 获取服务器IP（需要认证，用于白名单配置）
   async getServerIP(): Promise<{
-    public_ip: string;
-    message: string;
+    public_ip: string
+    message: string
   }> {
     const res = await fetch(`${API_BASE}/server-ip`, {
       headers: getAuthHeaders(),
-    });
-    if (!res.ok) throw new Error('获取服务器IP失败');
-    return res.json();
+    })
+    if (!res.ok) throw new Error('获取服务器IP失败')
+    return res.json()
   },
-};
+}

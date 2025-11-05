@@ -853,6 +853,12 @@ func (d *Database) UpdateTraderCustomPrompt(userID, id string, customPrompt stri
 	return err
 }
 
+// UpdateTraderInitialBalance 更新交易员初始余额（用于同步交易所实际余额）
+func (d *Database) UpdateTraderInitialBalance(userID, id string, newBalance float64) error {
+	_, err := d.db.Exec(`UPDATE traders SET initial_balance = ? WHERE id = ? AND user_id = ?`, newBalance, id, userID)
+	return err
+}
+
 // DeleteTrader 删除交易员
 func (d *Database) DeleteTrader(userID, id string) error {
 	_, err := d.db.Exec(`DELETE FROM traders WHERE id = ? AND user_id = ?`, id, userID)

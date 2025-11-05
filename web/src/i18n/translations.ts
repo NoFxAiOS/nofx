@@ -200,9 +200,9 @@ export const translations = {
     asterUserDesc:
       'Main wallet address - The EVM wallet address you use to log in to Aster',
     asterSignerDesc:
-      'API wallet address - Generate from Aster API Wallet page',
+      'API wallet address - Generate from https://www.asterdex.com/en/api-wallet',
     asterPrivateKeyDesc:
-      'API wallet private key - Only used locally for signing, never transmitted',
+      'API wallet private key - Get from https://www.asterdex.com/en/api-wallet (only used locally for signing, never transmitted)',
     asterUsdtWarning:
       'Important: Aster only tracks USDT balance. Please ensure you use USDT as margin currency to avoid P&L calculation errors caused by price fluctuations of other assets (BNB, ETH, etc.)',
     testnetDescription:
@@ -669,9 +669,9 @@ export const translations = {
     asterUserDesc:
       '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址',
     asterSignerDesc:
-      'API 钱包地址 - 从 Aster API 钱包页面生成',
+      'API 钱包地址 - 从 https://www.asterdex.com/zh-CN/api-wallet 生成',
     asterPrivateKeyDesc:
-      'API 钱包私钥 - 仅在本地用于签名，不会被传输',
+      'API 钱包私钥 - 从 https://www.asterdex.com/zh-CN/api-wallet 获取（仅在本地用于签名，不会被传输）',
     asterUsdtWarning:
       '重要提示：Aster 仅统计 USDT 余额。请确保您使用 USDT 作为保证金币种，避免其他资产（BNB、ETH等）的价格波动导致盈亏统计错误',
     testnetDescription: '启用后将连接到交易所测试环境,用于模拟交易',

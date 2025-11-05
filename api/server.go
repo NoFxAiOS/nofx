@@ -21,12 +21,12 @@ import (
 type Server struct {
 	router        *gin.Engine
 	traderManager *manager.TraderManager
-	database      config.DatabaseInterface
+	database      *config.Database
 	port          int
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database config.DatabaseInterface, port int) *Server {
+func NewServer(traderManager *manager.TraderManager, database *config.Database, port int) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 

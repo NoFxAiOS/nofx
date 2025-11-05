@@ -39,7 +39,7 @@ func NewTraderManager() *TraderManager {
 }
 
 // LoadTradersFromDatabase 从数据库加载所有交易员到内存
-func (tm *TraderManager) LoadTradersFromDatabase(database config.DatabaseInterface) error {
+func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -709,7 +709,7 @@ func containsUserPrefix(traderID string) bool {
 }
 
 // LoadUserTraders 为特定用户加载交易员到内存
-func (tm *TraderManager) LoadUserTraders(database config.DatabaseInterface, userID string) error {
+func (tm *TraderManager) LoadUserTraders(database *config.Database, userID string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 

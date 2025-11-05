@@ -41,7 +41,7 @@ type ConfigFile struct {
 }
 
 // syncConfigToDatabase 从config.json读取配置并同步到数据库
-func syncConfigToDatabase(database config.DatabaseInterface) error {
+func syncConfigToDatabase(database *config.Database) error {
 	// 检查config.json是否存在
 	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
 		log.Printf("📄 config.json不存在，跳过同步")
@@ -110,7 +110,7 @@ func syncConfigToDatabase(database config.DatabaseInterface) error {
 }
 
 // loadBetaCodesToDatabase 加载内测码文件到数据库
-func loadBetaCodesToDatabase(database config.DatabaseInterface) error {
+func loadBetaCodesToDatabase(database *config.Database) error {
 	betaCodeFile := "beta_codes.txt"
 	
 	// 检查内测码文件是否存在

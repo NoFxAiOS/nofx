@@ -182,8 +182,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!editingTrader) return;
 
     try {
-      const model = allModels?.find(m => m.id === data.ai_model_id);
-      const exchange = allExchanges?.find(e => e.id === data.exchange_id);
+      const model = enabledModels?.find(m => m.id === data.ai_model_id);
+      const exchange = enabledExchanges?.find(e => e.id === data.exchange_id);
 
       if (!model) {
         alert(t('modelConfigNotExist', language));
@@ -633,6 +633,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                       <div className="font-semibold text-sm md:text-base truncate" style={{ color: '#EAECEF' }}>{getShortName(exchange.name)}</div>
                       <div className="text-xs" style={{ color: '#848E9C' }}>
                         {exchange.type.toUpperCase()} • {inUse ? t('inUse', language) : exchange.enabled ? t('enabled', language) : t('configured', language)}
+                        {/* 添加地址信息 */}
+                        {inUse && (exchange.hyperliquidWalletAddr || exchange.asterUser) && (
+                          <span className="ml-1">
+                            ({exchange.hyperliquidWalletAddr
+                              ? `${exchange.hyperliquidWalletAddr.slice(0, 6)}...${exchange.hyperliquidWalletAddr.slice(-4)}`
+                              : (exchange.asterUser ? `${exchange.asterUser.slice(0, 6)}...${exchange.asterUser.slice(-4)}` : '')
+                            })
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -782,8 +791,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           isOpen={showEditModal}
           isEditMode={true}
           traderData={editingTrader}
-          availableModels={allModels}
-          availableExchanges={allExchanges}
+          availableModels={enabledModels}
+          availableExchanges={enabledExchanges}
           onSave={handleSaveEditTrader}
           onClose={() => {
             setShowEditModal(false);

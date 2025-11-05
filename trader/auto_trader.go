@@ -23,6 +23,9 @@ type AutoTraderConfig struct {
 	// 交易平台选择
 	Exchange string // "binance", "hyperliquid" 或 "aster"
 
+	// 测试网
+	Testnet bool
+
 	// 币安API配置
 	BinanceAPIKey    string
 	BinanceSecretKey string
@@ -30,7 +33,6 @@ type AutoTraderConfig struct {
 	// Hyperliquid配置
 	HyperliquidPrivateKey string
 	HyperliquidWalletAddr string
-	HyperliquidTestnet    bool
 
 	// Aster配置
 	AsterUser       string // Aster主钱包地址
@@ -166,10 +168,10 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 	switch config.Exchange {
 	case "binance":
 		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
-		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey)
+		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey, config.Testnet)
 	case "hyperliquid":
 		log.Printf("🏦 [%s] 使用Hyperliquid交易", config.Name)
-		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
+		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.Testnet)
 		if err != nil {
 			return nil, fmt.Errorf("初始化Hyperliquid交易器失败: %w", err)
 		}

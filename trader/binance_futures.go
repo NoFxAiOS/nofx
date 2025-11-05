@@ -30,7 +30,10 @@ type FuturesTrader struct {
 }
 
 // NewFuturesTrader 创建合约交易器
-func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
+func NewFuturesTrader(apiKey, secretKey string, testnet bool) *FuturesTrader {
+	// 设置主网或者测试网
+	futures.UseTestnet = testnet
+
 	client := futures.NewClient(apiKey, secretKey)
 	return &FuturesTrader{
 		client:        client,

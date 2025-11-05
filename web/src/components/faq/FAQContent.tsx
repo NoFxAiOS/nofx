@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { t, type Language } from '../../i18n/translations'
 import type { FAQCategory } from '../../data/faqData'
+import { RoadmapWidget } from './RoadmapWidget'
 
 interface FAQContentProps {
   categories: FAQCategory[]
@@ -94,6 +95,12 @@ export function FAQContent({
                   }}
                 >
                   <p className="text-base">{t(item.answerKey, language)}</p>
+
+                  {item.id === 'github-projects-tasks' && (
+                    <div className="mt-4">
+                      <RoadmapWidget />
+                    </div>
+                  )}
                 </div>
 
                 {/* Divider */}

@@ -257,6 +257,9 @@ export const translations = {
     exchangeConfigWarning2: '• Do not grant withdrawal permissions to ensure fund security',
     exchangeConfigWarning3: '• After deleting configuration, related traders will not be able to trade',
     edit: 'Edit',
+    viewGuide: 'View Guide',
+    binanceSetupGuide: 'Binance Setup Guide',
+    closeGuide: 'Close',
 
     // Error Messages
     createTraderFailed: 'Failed to create trader',
@@ -671,6 +674,9 @@ export const translations = {
     exchangeConfigWarning2: '• 不要授予提现权限，确保资金安全',
     exchangeConfigWarning3: '• 删除配置后，相关交易员将无法正常交易',
     edit: '编辑',
+    viewGuide: '查看教程',
+    binanceSetupGuide: '币安配置教程',
+    closeGuide: '关闭',
 
     // Error Messages
     createTraderFailed: '创建交易员失败',

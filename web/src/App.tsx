@@ -1039,12 +1039,17 @@ function DecisionCard({
             保证金率: {decision.account_state.margin_used_pct.toFixed(1)}%
           </span>
           <span>持仓: {decision.account_state.position_count}</span>
-          <span style={{
-            color: decision.candidate_coins && decision.candidate_coins.length === 0
-              ? '#F6465D'
-              : '#848E9C'
-          }}>
-            {t('candidateCoins', language)}: {decision.candidate_coins?.length || 0}
+          <span
+            style={{
+              color:
+                decision.candidate_coins &&
+                decision.candidate_coins.length === 0
+                  ? '#F6465D'
+                  : '#848E9C',
+            }}
+          >
+            {t('candidateCoins', language)}:{' '}
+            {decision.candidate_coins?.length || 0}
           </span>
         </div>
       )}
@@ -1056,12 +1061,14 @@ function DecisionCard({
           style={{
             background: 'rgba(246, 70, 93, 0.1)',
             border: '1px solid rgba(246, 70, 93, 0.3)',
-            color: '#F6465D'
+            color: '#F6465D',
           }}
         >
           <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <div className="font-semibold mb-1">⚠️ {t('candidateCoinsZeroWarning', language)}</div>
+            <div className="font-semibold mb-1">
+              ⚠️ {t('candidateCoinsZeroWarning', language)}
+            </div>
             <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
               <div>{t('possibleReasons', language)}</div>
               <ul className="list-disc list-inside space-y-0.5 ml-2">

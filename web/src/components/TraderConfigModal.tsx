@@ -102,7 +102,7 @@ export function TraderConfigModal({
     }
     // 确保旧数据也有默认的 system_prompt_template
     if (traderData && traderData.system_prompt_template === undefined) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         system_prompt_template: 'default',
       }))
@@ -186,42 +186,45 @@ export function TraderConfigModal({
 
   const handleFetchCurrentBalance = async () => {
     if (!isEditMode || !traderData?.trader_id) {
-      setBalanceFetchError('只有在编辑模式下才能获取当前余额');
-      return;
+      setBalanceFetchError('只有在编辑模式下才能获取当前余额')
+      return
     }
 
-    setIsFetchingBalance(true);
-    setBalanceFetchError('');
+    setIsFetchingBalance(true)
+    setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/account?trader_id=${traderData.trader_id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        `/api/account?trader_id=${traderData.trader_id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
-      });
+      )
 
       if (!response.ok) {
-        throw new Error('获取账户余额失败');
+        throw new Error('获取账户余额失败')
       }
 
-      const data = await response.json();
+      const data = await response.json()
 
       // total_equity = 当前账户净值（包含未实现盈亏）
       // 这应该作为新的初始余额
-      const currentBalance = data.total_equity || data.balance || 0;
+      const currentBalance = data.total_equity || data.balance || 0
 
-      setFormData(prev => ({ ...prev, initial_balance: currentBalance }));
+      setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
 
       // 显示成功提示
-      console.log('已获取当前余额:', currentBalance);
+      console.log('已获取当前余额:', currentBalance)
     } catch (error) {
-      console.error('获取余额失败:', error);
-      setBalanceFetchError('获取余额失败，请检查网络连接');
+      console.error('获取余额失败:', error)
+      setBalanceFetchError('获取余额失败，请检查网络连接')
     } finally {
-      setIsFetchingBalance(false);
+      setIsFetchingBalance(false)
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!onSave) return
@@ -390,7 +393,9 @@ export function TraderConfigModal({
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-[#EAECEF]">
                       初始余额 ($)
-                      {!isEditMode && <span className="text-[#F0B90B] ml-1">*</span>}
+                      {!isEditMode && (
+                        <span className="text-[#F0B90B] ml-1">*</span>
+                      )}
                     </label>
                     {isEditMode && (
                       <button
@@ -418,7 +423,20 @@ export function TraderConfigModal({
                   />
                   {!isEditMode && (
                     <p className="text-xs text-[#F0B90B] mt-1 flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-3.5 h-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                        <line x1="12" x2="12" y1="9" y2="13" />
+                        <line x1="12" x2="12.01" y1="17" y2="17" />
+                      </svg>
                       请输入您交易所账户的当前实际余额。如果输入不准确，P&L统计将会错误。
                     </p>
                   )}
@@ -428,7 +446,9 @@ export function TraderConfigModal({
                     </p>
                   )}
                   {balanceFetchError && (
-                    <p className="text-xs text-red-500 mt-1">{balanceFetchError}</p>
+                    <p className="text-xs text-red-500 mt-1">
+                      {balanceFetchError}
+                    </p>
                   )}
                 </div>
               </div>

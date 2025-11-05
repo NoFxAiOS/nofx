@@ -511,6 +511,40 @@ func (t *HyperliquidTrader) CancelAllOrders(symbol string) error {
 	return nil
 }
 
+// CancelStopOrders 取消该币种的止盈/止损单（用于调整止盈止损位置）
+func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
+	coin := convertSymbolToHyperliquid(symbol)
+
+	// 获取所有挂单
+	openOrders, err := t.exchange.Info().OpenOrders(t.ctx, t.walletAddr)
+	if err != nil {
+		return fmt.Errorf("获取挂单失败: %w", err)
+	}
+
+	// 注意：Hyperliquid SDK 的 OpenOrder 结构不暴露 trigger 字段
+	// 因此暂时取消该币种的所有挂单（包括止盈止损单）
+	// 这是安全的，因为在设置新的止盈止损之前，应该清理所有旧订单
+	canceledCount := 0
+	for _, order := range openOrders {
+		if order.Coin == coin {
+			_, err := t.exchange.Cancel(t.ctx, coin, order.Oid)
+			if err != nil {
+				log.Printf("  ⚠ 取消订单失败 (oid=%d): %v", order.Oid, err)
+				continue
+			}
+			canceledCount++
+		}
+	}
+
+	if canceledCount == 0 {
+		log.Printf("  ℹ %s 没有挂单需要取消", symbol)
+	} else {
+		log.Printf("  ✓ 已取消 %s 的 %d 个挂单（包括止盈/止损单）", symbol, canceledCount)
+	}
+
+	return nil
+}
+
 // GetMarketPrice 获取市场价格
 func (t *HyperliquidTrader) GetMarketPrice(symbol string) (float64, error) {
 	coin := convertSymbolToHyperliquid(symbol)

@@ -1044,12 +1044,12 @@ function DecisionCard({
               ? '#F6465D'
               : '#848E9C'
           }}>
-            候选币种: {decision.candidate_coins?.length || 0}
+            {t('candidateCoins', language)}: {decision.candidate_coins?.length || 0}
           </span>
         </div>
       )}
 
-      {/* 候选币种为0的警告提示 */}
+      {/* Candidate Coins Warning */}
       {decision.candidate_coins && decision.candidate_coins.length === 0 && (
         <div
           className="text-sm rounded px-4 py-3 mb-3 flex items-start gap-3"
@@ -1061,21 +1061,21 @@ function DecisionCard({
         >
           <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <div className="font-semibold mb-1">⚠️ 候选币种数量为 0</div>
+            <div className="font-semibold mb-1">⚠️ {t('candidateCoinsZeroWarning', language)}</div>
             <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-              <div>可能原因：</div>
+              <div>{t('possibleReasons', language)}</div>
               <ul className="list-disc list-inside space-y-0.5 ml-2">
-                <li>币种池API未配置或无法访问（请检查信号源设置）</li>
-                <li>API连接超时或返回数据为空</li>
-                <li>未配置自定义币种且API获取失败</li>
+                <li>{t('coinPoolApiNotConfigured', language)}</li>
+                <li>{t('apiConnectionTimeout', language)}</li>
+                <li>{t('noCustomCoinsAndApiFailed', language)}</li>
               </ul>
               <div className="mt-2">
-                <strong>解决方案：</strong>
+                <strong>{t('solutions', language)}</strong>
               </div>
               <ul className="list-disc list-inside space-y-0.5 ml-2">
-                <li>在交易员配置中设置自定义币种列表</li>
-                <li>或者配置正确的币种池API地址</li>
-                <li>或者禁用"使用币种池"和"使用OI Top"选项</li>
+                <li>{t('setCustomCoinsInConfig', language)}</li>
+                <li>{t('orConfigureCorrectApiUrl', language)}</li>
+                <li>{t('orDisableCoinPoolOptions', language)}</li>
               </ul>
             </div>
           </div>

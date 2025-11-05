@@ -676,18 +676,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           />
           <div className="flex-1">
             <div className="font-semibold mb-1" style={{ color: '#F6465D' }}>
-              ⚠️ 信号源未配置
+              ⚠️ {t('signalSourceNotConfigured', language)}
             </div>
             <div className="text-sm" style={{ color: '#848E9C' }}>
               <p className="mb-2">
-                您有交易员启用了"使用币种池"或"使用OI Top"，但尚未配置信号源API地址。
-                这将导致<strong style={{ color: '#F6465D' }}>候选币种数量为0</strong>，交易员无法正常工作。
+                {t('signalSourceWarningMessage', language)}
               </p>
               <p>
-                <strong>解决方案：</strong>
+                <strong>{t('solutions', language)}</strong>
               </p>
               <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
-                <li>点击"📡 信号源"按钮配置API地址</li>
+                <li>点击"📡 {t('signalSource', language)}"按钮配置API地址</li>
                 <li>或在交易员配置中禁用"使用币种池"和"使用OI Top"</li>
                 <li>或在交易员配置中设置自定义币种列表</li>
               </ul>
@@ -700,7 +699,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                 color: '#000',
               }}
             >
-              立即配置信号源
+              {t('configureSignalSourceNow', language)}
             </button>
           </div>
         </div>

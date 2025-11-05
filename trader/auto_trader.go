@@ -12,6 +12,7 @@ import (
 	"nofx/pool"
 	"strings"
 	"time"
+	"sync"
 )
 
 // AutoTraderConfig 自动交易配置（简化版 - AI全权决策）
@@ -99,6 +100,10 @@ type AutoTrader struct {
 	startTime             time.Time        // 系统启动时间
 	callCount             int              // AI调用次数
 	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	stopMonitorCh         chan struct{}    // 用于停止监控goroutine
+	monitorWg             sync.WaitGroup   // 用于等待监控goroutine结束
+	peakPnLCache      map[string]float64 	 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
+	peakPnLCacheMutex sync.RWMutex // 缓存读写锁
 	lastBalanceSyncTime   time.Time        // 上次余额同步时间
 	database              interface{}      // 数据库引用（用于自动更新余额）
 	userID                string           // 用户ID
@@ -221,6 +226,10 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		callCount:             0,
 		isRunning:             false,
 		positionFirstSeenTime: make(map[string]int64),
+		stopMonitorCh:         make(chan struct{}),
+		monitorWg:             sync.WaitGroup{},
+		peakPnLCache:          make(map[string]float64),
+		peakPnLCacheMutex:     sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(), // 初始化为当前时间
 		database:              database,
 		userID:                userID,
@@ -234,6 +243,9 @@ func (at *AutoTrader) Run() error {
 	log.Printf("💰 初始余额: %.2f USDT", at.initialBalance)
 	log.Printf("⚙️  扫描间隔: %v", at.config.ScanInterval)
 	log.Println("🤖 AI将全权决定杠杆、仓位大小、止损止盈等参数")
+
+	// 启动回撤监控
+	at.startDrawdownMonitor()
 
 	ticker := time.NewTicker(at.config.ScanInterval)
 	defer ticker.Stop()
@@ -258,6 +270,8 @@ func (at *AutoTrader) Run() error {
 // Stop 停止自动交易
 func (at *AutoTrader) Stop() {
 	at.isRunning = false
+	close(at.stopMonitorCh) // 通知监控goroutine停止
+	at.monitorWg.Wait()     // 等待监控goroutine结束
 	log.Println("⏹ 自动交易系统停止")
 }
 
@@ -489,11 +503,11 @@ func (at *AutoTrader) runCycle() error {
 	// 7. 打印AI决策
 	// log.Printf("📋 AI决策列表 (%d 个):\n", len(decision.Decisions))
 	// for i, d := range decision.Decisions {
-	// 	log.Printf("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
-	// 	if d.Action == "open_long" || d.Action == "open_short" {
-	// 		log.Printf("      杠杆: %dx | 仓位: %.2f USDT | 止损: %.4f | 止盈: %.4f",
-	// 			d.Leverage, d.PositionSizeUSD, d.StopLoss, d.TakeProfit)
-	// 	}
+	//     log.Printf("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
+	//     if d.Action == "open_long" || d.Action == "open_short" {
+	//        log.Printf("      杠杆: %dx | 仓位: %.2f USDT | 止损: %.4f | 止盈: %.4f",
+	//           d.Leverage, d.PositionSizeUSD, d.StopLoss, d.TakeProfit)
+	//     }
 	// }
 	log.Println()
 
@@ -1437,4 +1451,159 @@ func normalizeSymbol(symbol string) string {
 	}
 
 	return symbol
+}
+
+// 启动回撤监控
+func (at *AutoTrader) startDrawdownMonitor() {
+	at.monitorWg.Add(1)
+	go func() {
+		defer at.monitorWg.Done()
+
+		ticker := time.NewTicker(1 * time.Minute) // 每分钟检查一次
+		defer ticker.Stop()
+
+		log.Println("📊 启动持仓回撤监控（每分钟检查一次）")
+
+		for {
+			select {
+			case <-ticker.C:
+				at.checkPositionDrawdown()
+			case <-at.stopMonitorCh:
+				log.Println("⏹ 停止持仓回撤监控")
+				return
+			}
+		}
+	}()
+}
+
+// 检查持仓回撤情况
+func (at *AutoTrader) checkPositionDrawdown() {
+	// 获取当前持仓
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		log.Printf("❌ 回撤监控：获取持仓失败: %v", err)
+		return
+	}
+
+	for _, pos := range positions {
+		symbol := pos["symbol"].(string)
+		side := pos["side"].(string)
+		entryPrice := pos["entryPrice"].(float64)
+		markPrice := pos["markPrice"].(float64)
+		quantity := pos["positionAmt"].(float64)
+		if quantity < 0 {
+			quantity = -quantity // 空仓数量为负，转为正数
+		}
+
+		// 计算当前盈亏百分比
+		leverage := 10 // 默认值
+		if lev, ok := pos["leverage"].(float64); ok {
+			leverage = int(lev)
+		}
+
+		var currentPnLPct float64
+		if side == "long" {
+			currentPnLPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
+		} else {
+			currentPnLPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
+		}
+
+		// 获取该持仓的历史最高收益
+		at.peakPnLCacheMutex.RLock()
+		peakPnLPct, exists := at.peakPnLCache[symbol]
+		at.peakPnLCacheMutex.RUnlock()
+
+		if !exists {
+			// 如果没有历史最高记录，使用当前盈亏作为初始值
+			peakPnLPct = currentPnLPct
+			at.UpdatePeakPnL(symbol, currentPnLPct)
+		} else {
+			// 更新峰值缓存
+			at.UpdatePeakPnL(symbol, currentPnLPct)
+		}
+
+		// 计算回撤（从最高点下跌的幅度）
+		var drawdownPct float64
+		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		}
+
+		// 检查平仓条件：收益大于5%且回撤超过40%
+		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
+			log.Printf("🚨 触发回撤平仓条件: %s %s | 当前收益: %.2f%% | 最高收益: %.2f%% | 回撤: %.2f%%",
+				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+
+			// 执行平仓
+			if err := at.emergencyClosePosition(symbol, side); err != nil {
+				log.Printf("❌ 回撤平仓失败 (%s %s): %v", symbol, side, err)
+			} else {
+				log.Printf("✅ 回撤平仓成功: %s %s", symbol, side)
+				// 平仓后清理该symbol的缓存
+				at.ClearPeakPnLCache(symbol)
+			}
+		} else if currentPnLPct > 5.0 {
+			// 记录接近平仓条件的情况（用于调试）
+			log.Printf("📊 回撤监控: %s %s | 收益: %.2f%% | 最高: %.2f%% | 回撤: %.2f%%",
+				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+		}
+	}
+}
+
+// 紧急平仓函数
+func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
+	switch side {
+	case "long":
+		order, err := at.trader.CloseLong(symbol, 0) // 0 = 全部平仓
+		if err != nil {
+			return err
+		}
+		log.Printf("✅ 紧急平多仓成功，订单ID: %v", order["orderId"])
+	case "short":
+		order, err := at.trader.CloseShort(symbol, 0) // 0 = 全部平仓
+		if err != nil {
+			return err
+		}
+		log.Printf("✅ 紧急平空仓成功，订单ID: %v", order["orderId"])
+	default:
+		return fmt.Errorf("未知的持仓方向: %s", side)
+	}
+
+	return nil
+}
+
+// GetPeakPnLCache 获取最高收益缓存
+func (at *AutoTrader) GetPeakPnLCache() map[string]float64 {
+	at.peakPnLCacheMutex.RLock()
+	defer at.peakPnLCacheMutex.RUnlock()
+
+	// 返回缓存的副本
+	cache := make(map[string]float64)
+	for k, v := range at.peakPnLCache {
+		cache[k] = v
+	}
+	return cache
+}
+
+// UpdatePeakPnL 更新最高收益缓存
+func (at *AutoTrader) UpdatePeakPnL(symbol string, currentPnLPct float64) {
+	at.peakPnLCacheMutex.Lock()
+	defer at.peakPnLCacheMutex.Unlock()
+
+	if peak, exists := at.peakPnLCache[symbol]; exists {
+		// 更新峰值（如果是多头，取较大值；如果是空头，currentPnLPct为负，也要比较）
+		if currentPnLPct > peak {
+			at.peakPnLCache[symbol] = currentPnLPct
+		}
+	} else {
+		// 首次记录
+		at.peakPnLCache[symbol] = currentPnLPct
+	}
+}
+
+// ClearPeakPnLCache 清除指定symbol的峰值缓存
+func (at *AutoTrader) ClearPeakPnLCache(symbol string) {
+	at.peakPnLCacheMutex.Lock()
+	defer at.peakPnLCacheMutex.Unlock()
+
+	delete(at.peakPnLCache, symbol)
 }

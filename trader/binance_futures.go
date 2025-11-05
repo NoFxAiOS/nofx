@@ -193,6 +193,17 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 			log.Printf("  ⚠️ %s 有持仓，无法更改仓位模式，继续使用当前模式", symbol)
 			return nil
 		}
+		// 检测多资产模式（错误码 -4168）
+		if contains(err.Error(), "Multi-Assets mode") || contains(err.Error(), "-4168") || contains(err.Error(), "4168") {
+			log.Printf("  ⚠️ %s 检测到多资产模式，强制使用全仓模式", symbol)
+			log.Printf("  💡 提示：如需使用逐仓模式，请在币安关闭多资产模式")
+			return nil
+		}
+		// 检测统一账户 API（Portfolio Margin）
+		if contains(err.Error(), "unified") || contains(err.Error(), "portfolio") || contains(err.Error(), "Portfolio") {
+			log.Printf("  ❌ %s 检测到统一账户 API，无法进行合约交易", symbol)
+			return fmt.Errorf("请使用「现货与合约交易」API 权限，不要使用「统一账户 API」")
+		}
 		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
 		// 不返回错误，让交易继续
 		return nil
@@ -268,6 +279,17 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		return nil, err
 	}
 
+	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
+	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
+	if parseErr != nil || quantityFloat <= 0 {
+		return nil, fmt.Errorf("开倉數量過小，格式化後為 0 (原始: %.8f → 格式化: %s)。建議增加開倉金額或選擇價格更低的幣種", quantity, quantityStr)
+	}
+
+	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
+	if err := t.CheckMinNotional(symbol, quantityFloat); err != nil {
+		return nil, err
+	}
+
 	// 创建市价买入订单
 	order, err := t.client.NewCreateOrderService().
 		Symbol(symbol).
@@ -308,6 +330,17 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 	// 格式化数量到正确精度
 	quantityStr, err := t.FormatQuantity(symbol, quantity)
 	if err != nil {
+		return nil, err
+	}
+
+	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
+	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
+	if parseErr != nil || quantityFloat <= 0 {
+		return nil, fmt.Errorf("开倉數量過小，格式化後為 0 (原始: %.8f → 格式化: %s)。建議增加開倉金額或選擇價格更低的幣種", quantity, quantityStr)
+	}
+
+	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
+	if err := t.CheckMinNotional(symbol, quantityFloat); err != nil {
 		return nil, err
 	}
 
@@ -734,6 +767,32 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 	}
 
 	log.Printf("  止盈价设置: %.4f", takeProfitPrice)
+	return nil
+}
+
+// GetMinNotional 获取最小名义价值（Binance要求）
+func (t *FuturesTrader) GetMinNotional(symbol string) float64 {
+	// 使用保守的默认值 10 USDT，确保订单能够通过交易所验证
+	return 10.0
+}
+
+// CheckMinNotional 检查订单是否满足最小名义价值要求
+func (t *FuturesTrader) CheckMinNotional(symbol string, quantity float64) error {
+	price, err := t.GetMarketPrice(symbol)
+	if err != nil {
+		return fmt.Errorf("获取市价失败: %w", err)
+	}
+
+	notionalValue := quantity * price
+	minNotional := t.GetMinNotional(symbol)
+
+	if notionalValue < minNotional {
+		return fmt.Errorf(
+			"订单金额 %.2f USDT 低于最小要求 %.2f USDT (数量: %.4f, 价格: %.4f)",
+			notionalValue, minNotional, quantity, price,
+		)
+	}
+
 	return nil
 }
 

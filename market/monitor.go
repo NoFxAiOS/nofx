@@ -121,19 +121,19 @@ func (m *WSMonitor) Start(coins []string) {
 	// 初始化交易对
 	err := m.Initialize(coins)
 	if err != nil {
-		log.Fatalf("❌ 初始化币种: %v", err)
+		log.Printf("❌ 初始化币种失败: %v", err)
 		return
 	}
 
 	err = m.combinedClient.Connect()
 	if err != nil {
-		log.Fatalf("❌ 批量订阅流: %v", err)
+		log.Printf("❌ 批量订阅流失败: %v", err)
 		return
 	}
 	// 订阅所有交易对
 	err = m.subscribeAll()
 	if err != nil {
-		log.Fatalf("❌ 订阅币种交易对: %v", err)
+		log.Printf("❌ 订阅币种交易对失败: %v", err)
 		return
 	}
 }
@@ -159,7 +159,7 @@ func (m *WSMonitor) subscribeAll() error {
 	for _, st := range subKlineTime {
 		err := m.combinedClient.BatchSubscribeKlines(m.symbols, st)
 		if err != nil {
-			log.Fatalf("❌ 订阅3m K线: %v", err)
+			log.Printf("❌ 订阅 %s K线失败: %v", st, err)
 			return err
 		}
 	}

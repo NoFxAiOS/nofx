@@ -11,8 +11,8 @@ import (
 	"nofx/mcp"
 	"nofx/pool"
 	"strings"
-	"time"
 	"sync"
+	"time"
 )
 
 // AutoTraderConfig 自动交易配置（简化版 - AI全权决策）
@@ -470,7 +470,6 @@ func (at *AutoTrader) runCycle() error {
 				log.Println(strings.Repeat("=", 70))
 				log.Println(decision.SystemPrompt)
 				log.Println(strings.Repeat("=", 70))
-			}
 
 			if decision.CoTTrace != "" {
 				log.Print("\n" + strings.Repeat("-", 70) + "\n")

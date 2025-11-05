@@ -196,7 +196,8 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 	// 设置默认系统提示词模板
 	systemPromptTemplate := config.SystemPromptTemplate
 	if systemPromptTemplate == "" {
-		systemPromptTemplate = "default" // 默认使用 default 模板
+		// feature/partial-close-dynamic-tpsl 分支默认使用 adaptive（支持动态止盈止损）
+		systemPromptTemplate = "adaptive"
 	}
 
 	return &AutoTrader{
@@ -482,6 +483,12 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		if quantity < 0 {
 			quantity = -quantity // 空仓数量为负，转为正数
 		}
+
+		// 跳过已平仓的持仓（quantity = 0），防止"幽灵持仓"传递给AI
+		if quantity == 0 {
+			continue
+		}
+
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		liquidationPrice := pos["liquidationPrice"].(float64)
 

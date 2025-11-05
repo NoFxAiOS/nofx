@@ -15,9 +15,10 @@ env:
   IMAGE_NAME_FRONTEND: ${{ github.repository }}/nofx-frontend
 
 jobs:
-  # 并行构建策略: 拆分架构以提升速度
+  # 并行构建策略: 使用原生架构 runner 提升速度
+  # GitHub Actions 现在支持原生 ARM64 runner (ubuntu-22.04-arm)
   build-and-push:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -33,30 +34,34 @@ jobs:
             image_suffix: backend
             platform: linux/amd64
             arch_tag: amd64
+            runner: ubuntu-22.04
           - name: backend
             dockerfile: ./docker/Dockerfile.backend
             image_suffix: backend
             platform: linux/arm64
             arch_tag: arm64
+            runner: ubuntu-22.04-arm  # 原生 ARM64 runner
           # Frontend builds
           - name: frontend
             dockerfile: ./docker/Dockerfile.frontend
             image_suffix: frontend
             platform: linux/amd64
             arch_tag: amd64
+            runner: ubuntu-22.04
           - name: frontend
             dockerfile: ./docker/Dockerfile.frontend
             image_suffix: frontend
             platform: linux/arm64
             arch_tag: arm64
+            runner: ubuntu-22.04-arm  # 原生 ARM64 runner
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      
+
+      # 原生 ARM64 runner 不需要 QEMU 模拟
+      # 只在需要时设置 QEMU (理论上不需要,因为是原生构建)
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       

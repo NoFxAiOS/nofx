@@ -101,8 +101,8 @@ export function TraderConfigModal({
       })
     }
     // 确保旧数据也有默认的 system_prompt_template
-    if (traderData && !traderData.system_prompt_template) {
-      setFormData((prev) => ({
+    if (traderData && traderData.system_prompt_template === undefined) {
+      setFormData(prev => ({
         ...prev,
         system_prompt_template: 'default',
       }))

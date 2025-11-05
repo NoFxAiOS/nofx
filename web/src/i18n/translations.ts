@@ -532,14 +532,13 @@ export const translations = {
       'Yes! NOFX supports running multiple traders with different configurations, AI models, and trading strategies.',
 
     // Contributing & Community
-    faqGithubProjectsTasks:
-      'How to use GitHub Projects roadmap and pick up tasks?',
+    faqGithubProjectsTasks: 'How to use GitHub Projects and pick up tasks?',
     faqGithubProjectsTasksAnswer:
-      'Steps: • Open the repository\'s GitHub Projects → Roadmap • Filter by labels: good first issue, help wanted, frontend/backend • Open a task and read Description / Acceptance Criteria • Comment "assign me" or self-assign (if permitted) • Create a feature branch from latest dev: git fetch --all; git checkout -b feat/your-topic dev (or upstream/dev) • Keep branch in sync (rebase), push regularly • Reference the Issue in PR description: Closes #123 • Use the proper PR template in .github/PULL_REQUEST_TEMPLATE and follow CONTRIBUTING.md',
+      'Roadmap: https://github.com/orgs/NoFxAiOS/projects/3  • Task Dashboard: https://github.com/orgs/NoFxAiOS/projects/5  • Steps: Open links → filter by labels (good first issue / help wanted / frontend / backend) → read Description & Acceptance Criteria → comment "assign me" or self-assign → Fork the repo → sync your fork\'s dev with upstream/dev → create a feature branch from your fork\'s dev → push to your fork → open PR (base: NoFxAiOS/nofx:dev ← compare: your-username/nofx:feat/your-topic) → reference Issue (Closes #123) and use the proper template.',
 
     faqContributePR: 'How to properly submit PRs and contribute?',
     faqContributePRAnswer:
-      'Guidelines: • Branch from latest dev; avoid direct commits to main • Branch naming: feat/..., fix/..., docs/...; use Conventional Commits for messages • Run checks before PR: npm --prefix web run lint && npm --prefix web run build • For UI changes, attach screenshots or a short video • Fill the correct PR template (frontend/backend/docs/general) • Link issues (Closes #123) and add labels when applicable • Ensure CI passes; prefer small and focused PRs • Read CONTRIBUTING.md and .github/PR_TITLE_GUIDE.md',
+      "Guidelines: • Fork first; branch from your fork's dev (avoid direct commits to upstream main) • Branch naming: feat/..., fix/..., docs/...; Conventional Commits • Run checks before PR: npm --prefix web run lint && npm --prefix web run build • For UI changes, attach screenshots or a short video • Choose the proper PR template (frontend/backend/docs/general) • Open PR from your fork to NoFxAiOS/nofx:dev and link Issue (Closes #123) • Keep rebasing onto upstream/dev; ensure CI passes; prefer small, focused PRs • Read CONTRIBUTING.md and .github/PR_TITLE_GUIDE.md",
 
     // Setup & Configuration
     faqSystemRequirements: 'What are the system requirements?',
@@ -1162,13 +1161,13 @@ export const translations = {
       '可以！NOFX 支持运行多个交易员，每个可配置不同的 AI 模型和交易策略。',
 
     // Contributing & Community
-    faqGithubProjectsTasks: '如何在 GitHub Projects 路线图中领取任务？',
+    faqGithubProjectsTasks: '如何在 GitHub Projects 中领取任务？',
     faqGithubProjectsTasksAnswer:
-      '步骤：• 打开仓库的 GitHub Projects → Roadmap • 通过标签筛选：good first issue、help wanted、frontend/backend 等 • 打开任务，阅读描述与验收标准（Acceptance Criteria） • 评论 “assign me” 或自助分配（若权限允许） • 从最新 dev 创建特性分支：git fetch --all；git checkout -b feat/your-topic dev（或 upstream/dev） • 保持与 dev 同步（rebase），定期推送 • 在 PR 描述中关联 Issue：Closes #123 • 使用 .github/PULL_REQUEST_TEMPLATE 中合适的模板，并遵循 CONTRIBUTING.md',
+      '路线图：https://github.com/orgs/NoFxAiOS/projects/3 ｜ 任务看板：https://github.com/orgs/NoFxAiOS/projects/5 ｜ 步骤：打开链接 → 按标签筛选（good first issue / help wanted / frontend / backend）→ 阅读描述与验收标准 → 评论“assign me”或自助分配 → Fork 仓库 → 同步你 fork 的 dev 与 upstream/dev → 从你 fork 的 dev 创建特性分支 → 推送到你的 fork → 打开 PR（base：NoFxAiOS/nofx:dev ← compare：你的用户名/nofx:feat/your-topic）→ 关联 Issue（Closes #123）并选择正确模板。',
 
     faqContributePR: '如何规范地提交 PR 并参与贡献？',
     faqContributePRAnswer:
-      '规范：• 基于最新 dev 分支开发，避免直接向 main 提交 • 分支命名：feat/...、fix/...、docs/...；提交信息使用 Conventional Commits • 提 PR 前运行检查：npm --prefix web run lint && npm --prefix web run build • 涉及 UI 变更请附上截图/短视频 • 按改动类型选择 PR 模板（frontend/backend/docs/general） • 在 PR 中关联 Issue（Closes #123）并添加合适的标签 • 确保 CI 通过；倾向小而聚焦的 PR • 参考 CONTRIBUTING.md 与 .github/PR_TITLE_GUIDE.md',
+      '规范：• 先 Fork；在你的 fork 的 dev 分支上创建特性分支（避免直接向上游 main 提交）• 分支命名：feat/...、fix/...、docs/...；提交信息遵循 Conventional Commits • PR 前运行检查：npm --prefix web run lint && npm --prefix web run build • 涉及 UI 变更请附截图/短视频 • 选择正确 PR 模板（frontend/backend/docs/general）• 从你的 fork 发起到 NoFxAiOS/nofx:dev，并在 PR 中关联 Issue（Closes #123）• 持续 rebase 到 upstream/dev，确保 CI 通过；尽量保持 PR 小而聚焦 • 参考 CONTRIBUTING.md 与 .github/PR_TITLE_GUIDE.md',
 
     // Setup & Configuration
     faqSystemRequirements: '系统要求是什么？',

@@ -18,10 +18,7 @@ services:
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
-      # GitHub Roadmap (optional)
-      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
-      - GITHUB_ORG=${GITHUB_ORG:-NoFxAiOS}
-      - GITHUB_ROADMAP_PROJECT_NUMBER=${GITHUB_ROADMAP_PROJECT_NUMBER:-3}
+      # GitHub Roadmap 不再需要环境变量（FAQ 使用外部链接）
     networks:
       - nofx-network
     healthcheck:

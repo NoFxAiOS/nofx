@@ -77,6 +77,10 @@ func (s *Server) setupRoutes() {
 		// 管理员登录（管理员模式下使用，公共）
 		api.POST("/admin-login", s.handleAdminLogin)
 
+		// 系统支持的模型和交易所（无需认证）
+		api.GET("/supported-models", s.handleGetSupportedModels)
+		api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
+
 		// 非管理员模式下的公开认证路由
 		if !auth.IsAdminMode() {
 			// 认证相关路由（无需认证）
@@ -85,9 +89,6 @@ func (s *Server) setupRoutes() {
 			api.POST("/verify-otp", s.handleVerifyOTP)
 			api.POST("/complete-registration", s.handleCompleteRegistration)
 
-			// 系统支持的模型和交易所（无需认证）
-			api.GET("/supported-models", s.handleGetSupportedModels)
-			api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
 		}
 
 		// 系统配置（无需认证，用于前端判断是否管理员模式/注册是否开启）

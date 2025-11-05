@@ -16,7 +16,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/joho/godotenv"	
+	"github.com/joho/godotenv"
 )
 
 // LeverageConfig 杠杆配置
@@ -34,6 +34,7 @@ type ConfigFile struct {
 	DefaultCoins       []string          `json:"default_coins"`
 	CoinPoolAPIURL     string            `json:"coin_pool_api_url"`
 	OITopAPIURL        string            `json:"oi_top_api_url"`
+	MaxPositions       int               `json:"max_positions"`
 	MaxDailyLoss       float64           `json:"max_daily_loss"`
 	MaxDrawdown        float64           `json:"max_drawdown"`
 	StopTradingMinutes int               `json:"stop_trading_minutes"`
@@ -82,6 +83,7 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
 		"coin_pool_api_url":    configFile.CoinPoolAPIURL,
 		"oi_top_api_url":       configFile.OITopAPIURL,
+		"max_positions":        strconv.Itoa(configFile.MaxPositions),
 		"max_daily_loss":       fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
 		"max_drawdown":         fmt.Sprintf("%.1f", configFile.MaxDrawdown),
 		"stop_trading_minutes": strconv.Itoa(configFile.StopTradingMinutes),
@@ -158,7 +160,7 @@ func loadBetaCodesToDatabase(database *config.Database) error {
 
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
+	fmt.Println("║        🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen           ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
@@ -224,7 +226,6 @@ func main() {
 		auth.SetAdminMode(true)
 		log.Printf("✓ Admin mode enabled. All API endpoints require admin authentication.")
 	}
-
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()

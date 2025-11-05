@@ -24,13 +24,19 @@ export default function Typewriter({
   const sanitizedLines = useMemo(() => lines.map((l) => String(l ?? '')), [lines])
 
   useEffect(() => {
+    // 重置状态
+    lineIndexRef.current = 0
+    charIndexRef.current = 0
+    setTypedLines([''])
+
     function typeNext() {
       const currentLine = sanitizedLines[lineIndexRef.current] ?? ''
       if (charIndexRef.current < currentLine.length) {
+        const ch = currentLine.charAt(charIndexRef.current)
         setTypedLines((prev) => {
           const next = [...prev]
-          const ch = currentLine.charAt(charIndexRef.current)
-          next[next.length - 1] = (next[next.length - 1] || '') + ch
+          const lastIndex = next.length - 1
+          next[lastIndex] = (next[lastIndex] ?? '') + ch
           return next
         })
         charIndexRef.current += 1
@@ -49,7 +55,8 @@ export default function Typewriter({
       }
     }
 
-    typeNext()
+    // 延迟一帧开始打字,确保状态已重置
+    timerRef.current = window.setTimeout(typeNext, 0)
 
     // 光标闪烁
     blinkRef.current = window.setInterval(() => {
@@ -60,7 +67,7 @@ export default function Typewriter({
       if (timerRef.current) window.clearTimeout(timerRef.current)
       if (blinkRef.current) window.clearInterval(blinkRef.current)
     }
-  }, [lines, typingSpeed, lineDelay])
+  }, [sanitizedLines, typingSpeed, lineDelay])
 
   const displayText = useMemo(() => typedLines.join('\n').replace(/undefined/g, ''), [typedLines])
 

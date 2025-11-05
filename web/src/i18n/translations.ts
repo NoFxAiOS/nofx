@@ -796,9 +796,9 @@ export const translations = {
     nofxDescription5: '贡献获积分奖励）。',
     youFullControl: '你 100% 掌控',
     fullControlDesc: '完全掌控 AI 提示词和资金',
-    startupMessages1: ' 启动自动交易系统...',
-    startupMessages2: ' API服务器启动在端口 8080',
-    startupMessages3: ' Web 控制台 http://localhost:3000',
+    startupMessages1: '启动自动交易系统...',
+    startupMessages2: 'API服务器启动在端口 8080',
+    startupMessages3: 'Web 控制台 http://localhost:3000',
     
     // How It Works Section
     howToStart: '如何开始使用 NOFX',

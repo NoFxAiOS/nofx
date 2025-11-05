@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -28,15 +30,28 @@ type Client struct {
 	Model      string
 	Timeout    time.Duration
 	UseFullURL bool // 是否使用完整URL（不添加/chat/completions）
+	MaxTokens  int  // AI响应的最大token数
 }
 
 func New() *Client {
+	// 从环境变量读取 MaxTokens，默认 2000
+	maxTokens := 2000
+	if envMaxTokens := os.Getenv("AI_MAX_TOKENS"); envMaxTokens != "" {
+		if parsed, err := strconv.Atoi(envMaxTokens); err == nil && parsed > 0 {
+			maxTokens = parsed
+			log.Printf("🔧 [MCP] 使用环境变量 AI_MAX_TOKENS: %d", maxTokens)
+		} else {
+			log.Printf("⚠️  [MCP] 环境变量 AI_MAX_TOKENS 无效 (%s)，使用默认值: %d", envMaxTokens, maxTokens)
+		}
+	}
+
 	// 默认配置
 	return &Client{
-		Provider: ProviderDeepSeek,
-		BaseURL:  "https://api.deepseek.com/v1",
-		Model:    "deepseek-chat",
-		Timeout:  120 * time.Second, // 增加到120秒，因为AI需要分析大量数据
+		Provider:  ProviderDeepSeek,
+		BaseURL:   "https://api.deepseek.com/v1",
+		Model:     "deepseek-chat",
+		Timeout:   120 * time.Second, // 增加到120秒，因为AI需要分析大量数据
+		MaxTokens: maxTokens,
 	}
 }
 
@@ -190,7 +205,7 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		"model":       client.Model,
 		"messages":    messages,
 		"temperature": 0.5, // 降低temperature以提高JSON格式稳定性
-		"max_tokens":  2000,
+		"max_tokens":  client.MaxTokens,
 	}
 
 	// 注意：response_format 参数仅 OpenAI 支持，DeepSeek/Qwen 不支持

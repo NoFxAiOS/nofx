@@ -11,13 +11,25 @@ on:
 
 env:
   REGISTRY_GHCR: ghcr.io
-  IMAGE_NAME_BACKEND: ${{ github.repository }}/nofx-backend
-  IMAGE_NAME_FRONTEND: ${{ github.repository }}/nofx-frontend
 
 jobs:
+  # 预处理: 转换镜像名为小写
+  prepare:
+    runs-on: ubuntu-22.04
+    outputs:
+      image_base: ${{ steps.lowercase.outputs.image_base }}
+    steps:
+      - name: Convert repository name to lowercase
+        id: lowercase
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_base=${REPO_LOWER}" >> $GITHUB_OUTPUT
+          echo "Lowercase repository: ${REPO_LOWER}"
+
   # 并行构建策略: 使用原生架构 runner 提升速度
   # GitHub Actions 现在支持原生 ARM64 runner (ubuntu-22.04-arm)
   build-and-push:
+    needs: prepare
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -84,7 +96,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/nofx-${{ matrix.image_suffix }}
+            ${{ env.REGISTRY_GHCR }}/${{ needs.prepare.outputs.image_base }}/nofx-${{ matrix.image_suffix }}
             ${{ secrets.DOCKERHUB_USERNAME && format('{0}/nofx-{1}', secrets.DOCKERHUB_USERNAME, matrix.image_suffix) || '' }}
           tags: |
             type=ref,event=branch,suffix=-${{ matrix.arch_tag }}
@@ -118,7 +130,7 @@ jobs:
 
   # 合并多架构镜像为统一 manifest
   create-manifest:
-    needs: build-and-push
+    needs: [prepare, build-and-push]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -148,10 +160,13 @@ jobs:
           # 提取分支/标签名
           REF_NAME="${{ github.ref_name }}"
 
-          # GHCR manifest
-          GHCR_IMAGE="${{ env.REGISTRY_GHCR }}/${{ github.repository }}/nofx-${{ matrix.image_suffix }}"
+          # GHCR manifest (使用小写仓库名)
+          REPO_LOWER="${{ needs.prepare.outputs.image_base }}"
+          GHCR_IMAGE="${{ env.REGISTRY_GHCR }}/${REPO_LOWER}/nofx-${{ matrix.image_suffix }}"
 
           echo "📦 Creating manifest for ${{ matrix.image_suffix }}..."
+          echo "Repository: ${REPO_LOWER}"
+          echo "Image: ${GHCR_IMAGE}"
 
           # 创建并推送 manifest (合并 amd64 和 arm64)
           docker buildx imagetools create -t "${GHCR_IMAGE}:${REF_NAME}" \

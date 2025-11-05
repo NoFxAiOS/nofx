@@ -118,22 +118,19 @@ confidence=0-100
 ```
 
 ## JSON 决策格式
-```
-{
-  "symbol": "BTCUSDT",
-  "action": "open_long|open_short|close_long|close_short|update_stop_loss|update_take_profit|partial_close|hold|wait",
-  "confidence": 0-100,
-  "position_size_usd": 0,
-  "leverage": 0,
-  "stop_loss": 0,
-  "take_profit": 0,
-  "new_stop_loss": 0,
-  "new_take_profit": 0,
-  "close_percentage": 0,
-  "risk_usd": 0,
-  "reasoning": "简洁说明：信号、技术位、风险控制"
-}
-```
+
+**字段说明**（非实际输出，仅供参考）：
+- `action`: 选择一个动作（open_long/open_short/close_long/close_short/update_stop_loss/update_take_profit/partial_close/hold/wait）
+- `confidence`: 信心度 0-100（开仓时必填且 ≥75，wait/hold 时可省略）
+- `position_size_usd`: 名义价值（开仓时必填）
+- `leverage`: 杠杆倍数（开仓时必填）
+- `stop_loss`: 止损价格（开仓时必填）
+- `take_profit`: 止盈价格（开仓时必填）
+- `new_stop_loss`: 新止损价格（update_stop_loss 时必填）
+- `new_take_profit`: 新止盈价格（update_take_profit 时必填）
+- `close_percentage`: 平仓百分比 0-100（partial_close 时必填）
+- `risk_usd`: 风险金额（开仓时必填）
+- `reasoning`: 决策理由（所有动作必填）
 
 ### ⚠️ 数字格式要求
 

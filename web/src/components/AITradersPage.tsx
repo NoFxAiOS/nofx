@@ -131,9 +131,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     loadConfigs()
   }, [user, token])
 
-  // 显示所有用户的模型和交易所配置（用于调试）
-  const configuredModels = allModels || []
-  const configuredExchanges = allExchanges || []
+  // 只显示已配置的模型和交易所（有API Key的才算配置过）
+  const configuredModels = allModels?.filter((m) => m.apiKey && m.apiKey.trim() !== '') || []
+  const configuredExchanges = allExchanges?.filter((e) => {
+    // Aster 交易所检查特殊字段
+    if (e.id === 'aster') {
+      return e.asterUser && e.asterUser.trim() !== ''
+    }
+    // Hyperliquid 只检查私钥
+    if (e.id === 'hyperliquid') {
+      return e.apiKey && e.apiKey.trim() !== ''
+    }
+    // 其他交易所检查 apiKey
+    return e.apiKey && e.apiKey.trim() !== ''
+  }) || []
 
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
@@ -167,17 +178,37 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       )
     }) || []
 
-  // 检查模型是否正在被运行中的交易员使用
+  // 检查模型是否正在被运行中的交易员使用（用于UI禁用）
   const isModelInUse = (modelId: string) => {
     return traders?.some((t) => t.ai_model === modelId && t.is_running) || false
   }
 
-  // 检查交易所是否正在被运行中的交易员使用
+  // 检查交易所是否正在被运行中的交易员使用（用于UI禁用）
   const isExchangeInUse = (exchangeId: string) => {
     return (
       traders?.some((t) => t.exchange_id === exchangeId && t.is_running) ||
       false
     )
+  }
+
+  // 检查模型是否被任何交易员使用（包括停止状态的）
+  const isModelUsedByAnyTrader = (modelId: string) => {
+    return traders?.some((t) => t.ai_model === modelId) || false
+  }
+
+  // 检查交易所是否被任何交易员使用（包括停止状态的）
+  const isExchangeUsedByAnyTrader = (exchangeId: string) => {
+    return traders?.some((t) => t.exchange_id === exchangeId) || false
+  }
+
+  // 获取使用特定模型的交易员列表
+  const getTradersUsingModel = (modelId: string) => {
+    return traders?.filter((t) => t.ai_model === modelId) || []
+  }
+
+  // 获取使用特定交易所的交易员列表
+  const getTradersUsingExchange = (exchangeId: string) => {
+    return traders?.filter((t) => t.exchange_id === exchangeId) || []
   }
 
   const handleCreateTrader = async (data: CreateTraderRequest) => {
@@ -299,6 +330,22 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleDeleteModelConfig = async (modelId: string) => {
+    // 检查是否有交易员正在使用此模型
+    if (isModelUsedByAnyTrader(modelId)) {
+      const usingTraders = getTradersUsingModel(modelId)
+      const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
+      alert(
+        t('cannotDeleteModelInUse', language) +
+          '\n\n' +
+          t('tradersUsing', language) +
+          ': ' +
+          traderNames +
+          '\n\n' +
+          t('pleaseDeleteTradersFirst', language)
+      )
+      return
+    }
+
     if (!confirm(t('confirmDeleteModel', language))) return
 
     try {
@@ -330,7 +377,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await api.updateModelConfigs(request)
-      setAllModels(updatedModels)
+
+      // 重新获取用户配置以确保数据同步
+      const refreshedModels = await api.getModelConfigs()
+      setAllModels(refreshedModels)
+
       setShowModelModal(false)
       setEditingModel(null)
     } catch (error) {
@@ -413,6 +464,22 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleDeleteExchangeConfig = async (exchangeId: string) => {
+    // 检查是否有交易员正在使用此交易所
+    if (isExchangeUsedByAnyTrader(exchangeId)) {
+      const usingTraders = getTradersUsingExchange(exchangeId)
+      const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
+      alert(
+        t('cannotDeleteExchangeInUse', language) +
+          '\n\n' +
+          t('tradersUsing', language) +
+          ': ' +
+          traderNames +
+          '\n\n' +
+          t('pleaseDeleteTradersFirst', language)
+      )
+      return
+    }
+
     if (!confirm(t('confirmDeleteExchange', language))) return
 
     try {
@@ -438,7 +505,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await api.updateExchangeConfigs(request)
-      setAllExchanges(updatedExchanges)
+
+      // 重新获取用户配置以确保数据同步
+      const refreshedExchanges = await api.getExchangeConfigs()
+      setAllExchanges(refreshedExchanges)
+
       setShowExchangeModal(false)
       setEditingExchange(null)
     } catch (error) {

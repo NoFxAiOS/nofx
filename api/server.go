@@ -697,6 +697,21 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	}
 	log.Printf("✅ 找到 %d 个交易所配置", len(exchanges))
 
+	// 🛡️ 安全过滤：根据交易所类型清空对应的敏感密钥字段
+	for _, exchange := range exchanges {
+		switch exchange.ID {
+		case "aster":
+			// Aster交易所：清空私钥
+			exchange.AsterPrivateKey = ""
+		case "binance":
+			// Binance交易所：清空Secret Key
+			exchange.SecretKey = ""
+		case "hyperliquid":
+			// Hyperliquid交易所：清空API Key
+			exchange.APIKey = ""
+		}
+	}
+
 	c.JSON(http.StatusOK, exchanges)
 }
 
@@ -1456,6 +1471,21 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		log.Printf("❌ 获取支持的交易所失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取支持的交易所失败"})
 		return
+	}
+
+	// 🛡️ 安全过滤：根据交易所类型清空对应的敏感密钥字段（此接口无需认证，风险更高）
+	for _, exchange := range exchanges {
+		switch exchange.ID {
+		case "aster":
+			// Aster交易所：清空私钥
+			exchange.AsterPrivateKey = ""
+		case "binance":
+			// Binance交易所：清空Secret Key
+			exchange.SecretKey = ""
+		case "hyperliquid":
+			// Hyperliquid交易所：清空API Key
+			exchange.APIKey = ""
+		}
 	}
 
 	c.JSON(http.StatusOK, exchanges)

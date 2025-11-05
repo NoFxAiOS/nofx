@@ -59,6 +59,14 @@ GROUP BY used
 ORDER BY used;
 "
 
+echo -e "\n📝 未使用的内测码:"
+$DOCKER_COMPOSE_CMD exec postgres psql -U nofx -d nofx --pset pager=off -c "
+SELECT code 
+FROM beta_codes 
+WHERE used = false 
+ORDER BY created_at DESC;
+"
+
 echo -e "\n👥 用户信息:"
 $DOCKER_COMPOSE_CMD exec postgres psql -U nofx -d nofx --pset pager=off -c "
 SELECT id, email, otp_verified, created_at FROM users ORDER BY created_at;

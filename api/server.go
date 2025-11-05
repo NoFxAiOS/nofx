@@ -998,7 +998,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	userID := c.GetString("user_id")
 	log.Printf("🔍 查询用户 %s 的交易所配置", userID)
-	exchanges, err := s.database.GetExchanges(userID)
+	exchanges, err := s.database.GetExchangesForAPI(userID)
 	if err != nil {
 		log.Printf("❌ 获取交易所配置失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("获取交易所配置失败: %v", err)})
@@ -1665,6 +1665,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 
 	// 验证密码
 	if !auth.CheckPassword(req.Password, user.PasswordHash) {
+		log.Printf("DEBUG: 密码验证失败")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "邮箱或密码错误"})
 		return
 	}
@@ -1758,6 +1759,7 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取支持的交易所失败"})
 		return
 	}
+
 
 	c.JSON(http.StatusOK, exchanges)
 }

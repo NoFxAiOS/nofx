@@ -21,7 +21,7 @@
 
 **快速开始：**
 ```bash
-cp config.example.jsonc config.json
+cp config.json.example config.json
 ./start.sh start --build
 ```
 

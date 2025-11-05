@@ -30,6 +30,7 @@ Thumbs.db
 .env
 config.json
 config.db
+.tool-versions
 
 # 决策日志
 decision_logs/
@@ -41,3 +42,4 @@ web/node_modules/
 node_modules/
 web/dist/
 web/.vite/
+web/yarn.lock

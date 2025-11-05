@@ -99,10 +99,13 @@ type AutoTrader struct {
 	startTime             time.Time        // 系统启动时间
 	callCount             int              // AI调用次数
 	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	lastBalanceSyncTime   time.Time        // 上次余额同步时间
+	database              interface{}      // 数据库引用（用于自动更新余额）
+	userID                string           // 用户ID
 }
 
 // NewAutoTrader 创建自动交易器
-func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
+func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string) (*AutoTrader, error) {
 	// 设置默认值
 	if config.ID == "" {
 		config.ID = "default_trader"
@@ -218,6 +221,9 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		callCount:             0,
 		isRunning:             false,
 		positionFirstSeenTime: make(map[string]int64),
+		lastBalanceSyncTime:   time.Now(), // 初始化为当前时间
+		database:              database,
+		userID:                userID,
 	}, nil
 }
 
@@ -255,6 +261,101 @@ func (at *AutoTrader) Stop() {
 	log.Println("⏹ 自动交易系统停止")
 }
 
+// autoSyncBalanceIfNeeded 自动同步余额（每10分钟检查一次，变化>5%才更新）
+func (at *AutoTrader) autoSyncBalanceIfNeeded() {
+	// 距离上次同步不足10分钟，跳过
+	if time.Since(at.lastBalanceSyncTime) < 10*time.Minute {
+		return
+	}
+
+	log.Printf("🔄 [%s] 开始自动检查余额变化...", at.name)
+
+	// 查询实际余额
+	balanceInfo, err := at.trader.GetBalance()
+	if err != nil {
+		log.Printf("⚠️ [%s] 查询余额失败: %v", at.name, err)
+		at.lastBalanceSyncTime = time.Now() // 即使失败也更新时间，避免频繁重试
+		return
+	}
+
+	// 提取可用余额
+	var actualBalance float64
+	if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
+		actualBalance = availableBalance
+	} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
+		actualBalance = availableBalance
+	} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
+		actualBalance = totalBalance
+	} else {
+		log.Printf("⚠️ [%s] 无法提取可用余额", at.name)
+		at.lastBalanceSyncTime = time.Now()
+		return
+	}
+
+	oldBalance := at.initialBalance
+
+	// 防止除以零：如果初始余额无效，直接更新为实际余额
+	if oldBalance <= 0 {
+		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为实际余额 %.2f USDT", at.name, oldBalance, actualBalance)
+		at.initialBalance = actualBalance
+		if at.database != nil {
+			type DatabaseUpdater interface {
+				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
+			}
+			if db, ok := at.database.(DatabaseUpdater); ok {
+				if err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance); err != nil {
+					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
+				} else {
+					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
+				}
+			} else {
+				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
+			}
+		} else {
+			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
+		}
+		at.lastBalanceSyncTime = time.Now()
+		return
+	}
+
+	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+
+	// 变化超过5%才更新
+	if math.Abs(changePercent) > 5.0 {
+		log.Printf("🔔 [%s] 检测到余额大幅变化: %.2f → %.2f USDT (%.2f%%)",
+			at.name, oldBalance, actualBalance, changePercent)
+
+		// 更新内存中的 initialBalance
+		at.initialBalance = actualBalance
+
+		// 更新数据库（需要类型断言）
+		if at.database != nil {
+			// 这里需要根据实际的数据库类型进行类型断言
+			// 由于使用了 interface{}，我们需要在 TraderManager 层面处理更新
+			// 或者在这里进行类型检查
+			type DatabaseUpdater interface {
+				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
+			}
+			if db, ok := at.database.(DatabaseUpdater); ok {
+				err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance)
+				if err != nil {
+					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
+				} else {
+					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
+				}
+			} else {
+				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
+			}
+		} else {
+			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
+		}
+	} else {
+		log.Printf("✓ [%s] 余额变化不大 (%.2f%%)，无需更新", at.name, changePercent)
+	}
+
+	at.lastBalanceSyncTime = time.Now()
+}
+
 // runCycle 运行一个交易周期（使用AI全权决策）
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
@@ -286,7 +387,10 @@ func (at *AutoTrader) runCycle() error {
 		log.Println("📅 日盈亏已重置")
 	}
 
-	// 3. 收集交易上下文
+	// 3. 自动同步余额（每10分钟检查一次，充值/提现后自动更新）
+	at.autoSyncBalanceIfNeeded()
+
+	// 4. 收集交易上下文
 	ctx, err := at.buildTradingContext()
 	if err != nil {
 		record.Success = false
@@ -326,7 +430,7 @@ func (at *AutoTrader) runCycle() error {
 	log.Printf("📊 账户净值: %.2f USDT | 可用: %.2f USDT | 持仓: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
-	// 4. 调用AI获取完整决策
+	// 5. 调用AI获取完整决策
 	log.Printf("🤖 正在请求AI分析并决策... [模板: %s]", at.systemPromptTemplate)
 	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate)
 

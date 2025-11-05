@@ -1175,9 +1175,6 @@ function ExchangeConfigModal({
   // 币安配置指南展开状态
   const [showBinanceGuide, setShowBinanceGuide] = useState(false);
 
-  // Hyperliquid 特定字段
-  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
-
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('');
   const [asterSigner, setAsterSigner] = useState('');
@@ -1193,9 +1190,6 @@ function ExchangeConfigModal({
       setSecretKey(selectedExchange.secretKey || '');
       setPassphrase(''); // Don't load existing passphrase for security
       setTestnet(selectedExchange.testnet || false);
-
-      // Hyperliquid 字段
-      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '');
 
       // Aster 字段
       setAsterUser(selectedExchange.asterUser || '');
@@ -1433,24 +1427,6 @@ function ExchangeConfigModal({
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
                       {t('hyperliquidPrivateKeyDesc', language)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                      Wallet Address
-                    </label>
-                    <input
-                      type="text"
-                      value={hyperliquidWalletAddr}
-                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
-                      placeholder="Enter wallet address (0x...)"
-                      className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                      required
-                    />
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      Your Hyperliquid wallet address
                     </div>
                   </div>
                 </>

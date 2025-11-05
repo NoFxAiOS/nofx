@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,10 +33,40 @@ type FuturesTrader struct {
 // NewFuturesTrader 创建合约交易器
 func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
-	return &FuturesTrader{
+	trader := &FuturesTrader{
 		client:        client,
 		cacheDuration: 15 * time.Second, // 15秒缓存
 	}
+
+	// 设置双向持仓模式（Hedge Mode）
+	// 这是必需的，因为代码中使用了 PositionSide (LONG/SHORT)
+	if err := trader.setDualSidePosition(); err != nil {
+		log.Printf("⚠️ 设置双向持仓模式失败: %v (如果已是双向模式则忽略此警告)", err)
+	}
+
+	return trader
+}
+
+// setDualSidePosition 设置双向持仓模式（初始化时调用）
+func (t *FuturesTrader) setDualSidePosition() error {
+	// 尝试设置双向持仓模式
+	err := t.client.NewChangePositionModeService().
+		DualSide(true). // true = 双向持仓（Hedge Mode）
+		Do(context.Background())
+
+	if err != nil {
+		// 如果错误信息包含"No need to change"，说明已经是双向持仓模式
+		if strings.Contains(err.Error(), "No need to change position side") {
+			log.Printf("  ✓ 账户已是双向持仓模式（Hedge Mode）")
+			return nil
+		}
+		// 其他错误则返回（但在调用方不会中断初始化）
+		return err
+	}
+
+	log.Printf("  ✓ 账户已切换为双向持仓模式（Hedge Mode）")
+	log.Printf("  ℹ️  双向持仓模式允许同时持有多单和空单")
+	return nil
 }
 
 // GetBalance 获取账户余额（带缓存）

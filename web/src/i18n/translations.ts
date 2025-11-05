@@ -198,7 +198,7 @@ export const translations = {
     hyperliquidWalletAddressDesc:
       'Wallet address corresponding to the private key',
     asterUserDesc:
-      'Main wallet address - The EVM wallet address you use to log in to Aster',
+      'Main wallet address - The EVM wallet address you use to log in to Aster (Note: Only EVM wallets are supported, Solana wallets are not supported)',
     asterSignerDesc:
       'API wallet address - Generate from https://www.asterdex.com/en/api-wallet',
     asterPrivateKeyDesc:
@@ -688,7 +688,7 @@ export const translations = {
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
     asterUserDesc:
-      '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址',
+      '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址（注意：仅支持 EVM 钱包，不支持 Solana 钱包）',
     asterSignerDesc:
       'API 钱包地址 - 从 https://www.asterdex.com/zh-CN/api-wallet 生成',
     asterPrivateKeyDesc:

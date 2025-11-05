@@ -546,6 +546,16 @@ func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
 	return err
 }
 
+// UpdateUserPassword 更新用户密码
+func (d *Database) UpdateUserPassword(userID, passwordHash string) error {
+	_, err := d.db.Exec(`
+		UPDATE users
+		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`, passwordHash, userID)
+	return err
+}
+
 // GetAIModels 获取用户的AI模型配置
 func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 	rows, err := d.db.Query(`

@@ -113,9 +113,12 @@ export function EquityChart({ traderId }: EquityChartProps) {
       : validHistory
 
   // 计算初始余额（优先从 account 获取配置的初始余额，备选从历史数据反推）
-  const initialBalance = account?.initial_balance  // 从交易员配置读取真实初始余额
-    || (validHistory[0] ? validHistory[0].total_equity - validHistory[0].pnl : undefined)  // 备选：淨值 - 盈亏
-    || 1000;  // 默认值（与创建交易员时的默认配置一致）
+  const initialBalance =
+    account?.initial_balance || // 从交易员配置读取真实初始余额
+    (validHistory[0]
+      ? validHistory[0].total_equity - validHistory[0].pnl
+      : undefined) || // 备选：淨值 - 盈亏
+    1000 // 默认值（与创建交易员时的默认配置一致）
 
   // 转换数据格式
   const chartData = displayHistory.map((point) => {

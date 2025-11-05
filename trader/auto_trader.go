@@ -83,6 +83,12 @@ type AutoTraderConfig struct {
 
 	// 新闻源配置
 	NewsConfig []config.NewsConfig
+
+	// Database 数据库
+	Database config.Database
+
+	// UserId 用户id
+	UserId string
 }
 
 // AutoTrader 自动交易器
@@ -262,8 +268,8 @@ func NewAutoTrader(traderConfig AutoTraderConfig) (*AutoTrader, error) {
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(), // 初始化为当前时间
-		database:              database,
-		userID:                userID,
+		database:              traderConfig.Database,
+		userID:                traderConfig.UserId,
 		newsProcessor:         newsProcessor,
 	}, nil
 }

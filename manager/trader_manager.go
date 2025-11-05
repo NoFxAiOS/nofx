@@ -263,7 +263,9 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
-		NewsConfig:            newsCfg,                        // 新闻源配置
+		Database:              *database,
+		UserId:                userID,
+		NewsConfig:            newsCfg, // 新闻源配置
 	}
 
 	// 根据交易所类型设置API密钥
@@ -287,7 +289,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	}
 
 	// 创建trader实例
-	at, err := trader.NewAutoTrader(traderConfig, database, userID)
+	at, err := trader.NewAutoTrader(traderConfig)
 	if err != nil {
 		return fmt.Errorf("创建trader失败: %w", err)
 	}
@@ -370,6 +372,8 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
+		Database:              *database,
+		UserId:                userID,
 	}
 
 	// 根据交易所类型设置API密钥
@@ -393,7 +397,7 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 	}
 
 	// 创建trader实例
-	at, err := trader.NewAutoTrader(traderConfig, database, userID)
+	at, err := trader.NewAutoTrader(traderConfig)
 	if err != nil {
 		return fmt.Errorf("创建trader失败: %w", err)
 	}
@@ -915,6 +919,8 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		TradingCoins:         tradingCoins,
 		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
 		HyperliquidTestnet:   exchangeCfg.Testnet,            // Hyperliquid测试网
+		Database:             *database,
+		UserId:               userID,
 	}
 
 	// 根据交易所类型设置API密钥
@@ -938,7 +944,7 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 	}
 
 	// 创建trader实例
-	at, err := trader.NewAutoTrader(traderConfig, database, userID)
+	at, err := trader.NewAutoTrader(traderConfig)
 	if err != nil {
 		return fmt.Errorf("创建trader失败: %w", err)
 	}

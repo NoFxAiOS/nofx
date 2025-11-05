@@ -174,6 +174,23 @@ func (t *AsterTrader) formatPrice(symbol string, price float64) (float64, error)
 	return math.Round(price*multiplier) / multiplier, nil
 }
 
+// FormatQuantity 格式化数量到正确精度和step size
+func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+	prec, err := t.getPrecision(symbol)
+	if err != nil {
+		return "0", err
+	}
+
+	// 优先使用step size，确保数量是step size的整数倍
+	if prec.StepSize > 0 {
+		return strconv.FormatFloat(roundToTickSize(quantity, prec.StepSize), 'f', prec.QuantityPrecision, 64), nil
+	}
+
+	// 如果没有step size，则按精度四舍五入
+	multiplier := math.Pow10(prec.QuantityPrecision)
+	return strconv.FormatFloat(math.Round(quantity*multiplier)/multiplier, 'f', prec.QuantityPrecision, 64), nil
+}
+
 // formatQuantity 格式化数量到正确精度和step size
 func (t *AsterTrader) formatQuantity(symbol string, quantity float64) (float64, error) {
 	prec, err := t.getPrecision(symbol)
@@ -1176,65 +1193,65 @@ func (t *AsterTrader) CancelAllOrders(symbol string) error {
 }
 
 // CancelStopOrders 取消该币种的止盈/止损单（用于调整止盈止损位置）
-func (t *AsterTrader) CancelStopOrders(symbol string) error {
-	// 获取该币种的所有未完成订单
-	params := map[string]interface{}{
-		"symbol": symbol,
-	}
+// func (t *AsterTrader) CancelStopOrders(symbol string) error {
+// 	// 获取该币种的所有未完成订单
+// 	params := map[string]interface{}{
+// 		"symbol": symbol,
+// 	}
 
-	body, err := t.request("GET", "/fapi/v3/openOrders", params)
-	if err != nil {
-		return fmt.Errorf("获取未完成订单失败: %w", err)
-	}
+// 	body, err := t.request("GET", "/fapi/v3/openOrders", params)
+// 	if err != nil {
+// 		return fmt.Errorf("获取未完成订单失败: %w", err)
+// 	}
 
-	var orders []map[string]interface{}
-	if err := json.Unmarshal(body, &orders); err != nil {
-		return fmt.Errorf("解析订单数据失败: %w", err)
-	}
+// 	var orders []map[string]interface{}
+// 	if err := json.Unmarshal(body, &orders); err != nil {
+// 		return fmt.Errorf("解析订单数据失败: %w", err)
+// 	}
 
-	// 过滤出止盈止损单并取消
-	canceledCount := 0
-	for _, order := range orders {
-		orderType, _ := order["type"].(string)
+// 	// 过滤出止盈止损单并取消
+// 	canceledCount := 0
+// 	for _, order := range orders {
+// 		orderType, _ := order["type"].(string)
 
-		// 只取消止损和止盈订单
-		if orderType == "STOP_MARKET" ||
-			orderType == "TAKE_PROFIT_MARKET" ||
-			orderType == "STOP" ||
-			orderType == "TAKE_PROFIT" {
+// 		// 只取消止损和止盈订单
+// 		if orderType == "STOP_MARKET" ||
+// 			orderType == "TAKE_PROFIT_MARKET" ||
+// 			orderType == "STOP" ||
+// 			orderType == "TAKE_PROFIT" {
 
-			orderID, _ := order["orderId"].(float64)
-			cancelParams := map[string]interface{}{
-				"symbol":  symbol,
-				"orderId": int64(orderID),
-			}
+// 			orderID, _ := order["orderId"].(float64)
+// 			cancelParams := map[string]interface{}{
+// 				"symbol":  symbol,
+// 				"orderId": int64(orderID),
+// 			}
 
-			_, err := t.request("DELETE", "/fapi/v3/order", cancelParams)
-			if err != nil {
-				log.Printf("  ⚠ 取消订单 %d 失败: %v", int64(orderID), err)
-				continue
-			}
+// 			_, err := t.request("DELETE", "/fapi/v3/order", cancelParams)
+// 			if err != nil {
+// 				log.Printf("  ⚠ 取消订单 %d 失败: %v", int64(orderID), err)
+// 				continue
+// 			}
 
-			canceledCount++
-			log.Printf("  ✓ 已取消 %s 的止盈/止损单 (订单ID: %d, 类型: %s)",
-				symbol, int64(orderID), orderType)
-		}
-	}
+// 			canceledCount++
+// 			log.Printf("  ✓ 已取消 %s 的止盈/止损单 (订单ID: %d, 类型: %s)",
+// 				symbol, int64(orderID), orderType)
+// 		}
+// 	}
 
-	if canceledCount == 0 {
-		log.Printf("  ℹ %s 没有止盈/止损单需要取消", symbol)
-	} else {
-		log.Printf("  ✓ 已取消 %s 的 %d 个止盈/止损单", symbol, canceledCount)
-	}
+// 	if canceledCount == 0 {
+// 		log.Printf("  ℹ %s 没有止盈/止损单需要取消", symbol)
+// 	} else {
+// 		log.Printf("  ✓ 已取消 %s 的 %d 个止盈/止损单", symbol, canceledCount)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-// FormatQuantity 格式化数量（实现Trader接口）
-func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
-	formatted, err := t.formatQuantity(symbol, quantity)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%v", formatted), nil
-}
+// // FormatQuantity 格式化数量（实现Trader接口）
+// func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+// 	formatted, err := t.formatQuantity(symbol, quantity)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return fmt.Sprintf("%v", formatted), nil
+// }

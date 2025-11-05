@@ -146,6 +146,19 @@ export function LoginPage() {
                     placeholder={t('passwordPlaceholder', language)}
                     required
                   />
+                  <div className="text-right mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.history.pushState({}, '', '/reset-password')
+                        window.dispatchEvent(new PopStateEvent('popstate'))
+                      }}
+                      className="text-xs hover:underline"
+                      style={{ color: '#F0B90B' }}
+                    >
+                      {t('forgotPassword', language)}
+                    </button>
+                  </div>
                 </div>
 
                 {error && (

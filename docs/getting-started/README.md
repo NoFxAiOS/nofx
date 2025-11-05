@@ -23,7 +23,7 @@ Choose the method that best fits your needs:
 
 **Quick Start:**
 ```bash
-cp config.example.jsonc config.json
+cp config.json.example config.json
 ./start.sh start --build
 ```
 

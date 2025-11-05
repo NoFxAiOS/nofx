@@ -464,6 +464,12 @@ func (d *PostgreSQLDatabase) UpdateTraderCustomPrompt(userID, id string, customP
 	return err
 }
 
+// UpdateTraderInitialBalance 更新交易员初始余额（用于自动同步交易所实际余额）
+func (d *PostgreSQLDatabase) UpdateTraderInitialBalance(userID, id string, newBalance float64) error {
+	_, err := d.db.Exec(`UPDATE traders SET initial_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND user_id = $3`, newBalance, id, userID)
+	return err
+}
+
 // DeleteTrader 删除交易员
 func (d *PostgreSQLDatabase) DeleteTrader(userID, id string) error {
 	_, err := d.db.Exec(`DELETE FROM traders WHERE id = $1 AND user_id = $2`, id, userID)

@@ -342,7 +342,8 @@ export const translations = {
     newPassword: 'New Password',
     newPasswordPlaceholder: 'Enter new password (at least 6 characters)',
     resetPasswordButton: 'Reset Password',
-    resetPasswordSuccess: 'Password reset successful! Please login with your new password',
+    resetPasswordSuccess:
+      'Password reset successful! Please login with your new password',
     resetPasswordFailed: 'Password reset failed',
     backToLogin: 'Back to Login',
     scanQRCode: 'Scan QR Code',

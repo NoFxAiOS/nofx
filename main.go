@@ -16,7 +16,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/joho/godotenv"	
+	"github.com/joho/godotenv"
 )
 
 // LeverageConfig 杠杆配置
@@ -224,7 +224,6 @@ func main() {
 		auth.SetAdminMode(true)
 		log.Printf("✓ Admin mode enabled. All API endpoints require admin authentication.")
 	}
-
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()

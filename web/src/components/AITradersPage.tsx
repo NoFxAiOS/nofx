@@ -1540,8 +1540,6 @@ function ExchangeConfigModal({
   // 币安配置指南展开状态
   const [showBinanceGuide, setShowBinanceGuide] = useState(false);
 
-  // Hyperliquid 特定字段
-  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
 
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('')

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
@@ -13,19 +14,44 @@ import (
 // FuturesTrader 币安合约交易器
 type FuturesTrader struct {
 	client *futures.Client
+
+	// 余额缓存
+	cachedBalance     map[string]interface{}
+	balanceCacheTime  time.Time
+	balanceCacheMutex sync.RWMutex
+
+	// 持仓缓存
+	cachedPositions     []map[string]interface{}
+	positionsCacheTime  time.Time
+	positionsCacheMutex sync.RWMutex
+
+	// 缓存有效期（15秒）
+	cacheDuration time.Duration
 }
 
 // NewFuturesTrader 创建合约交易器
 func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
 	return &FuturesTrader{
-		client: client,
+		client:        client,
+		cacheDuration: 15 * time.Second, // 15秒缓存
 	}
 }
 
-// GetBalance 获取账户余额
+// GetBalance 获取账户余额（带缓存）
 func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
-	log.Printf("🔄 正在调用币安API获取账户余额...")
+	// 先检查缓存是否有效
+	t.balanceCacheMutex.RLock()
+	if t.cachedBalance != nil && time.Since(t.balanceCacheTime) < t.cacheDuration {
+		cacheAge := time.Since(t.balanceCacheTime)
+		t.balanceCacheMutex.RUnlock()
+		log.Printf("✓ 使用缓存的账户余额（缓存时间: %.1f秒前）", cacheAge.Seconds())
+		return t.cachedBalance, nil
+	}
+	t.balanceCacheMutex.RUnlock()
+
+	// 缓存过期或不存在，调用API
+	log.Printf("🔄 缓存过期，正在调用币安API获取账户余额...")
 	account, err := t.client.NewGetAccountService().Do(context.Background())
 	if err != nil {
 		log.Printf("❌ 币安API调用失败: %v", err)
@@ -42,11 +68,29 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 		account.AvailableBalance,
 		account.TotalUnrealizedProfit)
 
+	// 更新缓存
+	t.balanceCacheMutex.Lock()
+	t.cachedBalance = result
+	t.balanceCacheTime = time.Now()
+	t.balanceCacheMutex.Unlock()
+
 	return result, nil
 }
 
-// GetPositions 获取所有持仓
+// GetPositions 获取所有持仓（带缓存）
 func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
+	// 先检查缓存是否有效
+	t.positionsCacheMutex.RLock()
+	if t.cachedPositions != nil && time.Since(t.positionsCacheTime) < t.cacheDuration {
+		cacheAge := time.Since(t.positionsCacheTime)
+		t.positionsCacheMutex.RUnlock()
+		log.Printf("✓ 使用缓存的持仓信息（缓存时间: %.1f秒前）", cacheAge.Seconds())
+		return t.cachedPositions, nil
+	}
+	t.positionsCacheMutex.RUnlock()
+
+	// 缓存过期或不存在，调用API
+	log.Printf("🔄 缓存过期，正在调用币安API获取持仓信息...")
 	positions, err := t.client.NewGetPositionRiskService().Do(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("获取持仓失败: %w", err)
@@ -78,7 +122,53 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		result = append(result, posMap)
 	}
 
+	// 更新缓存
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = result
+	t.positionsCacheTime = time.Now()
+	t.positionsCacheMutex.Unlock()
+
 	return result, nil
+}
+
+// SetMarginMode 设置仓位模式
+func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
+	var marginType futures.MarginType
+	if isCrossMargin {
+		marginType = futures.MarginTypeCrossed
+	} else {
+		marginType = futures.MarginTypeIsolated
+	}
+
+	// 尝试设置仓位模式
+	err := t.client.NewChangeMarginTypeService().
+		Symbol(symbol).
+		MarginType(marginType).
+		Do(context.Background())
+
+	marginModeStr := "全仓"
+	if !isCrossMargin {
+		marginModeStr = "逐仓"
+	}
+
+	if err != nil {
+		// 如果错误信息包含"No need to change"，说明仓位模式已经是目标值
+		if contains(err.Error(), "No need to change margin type") {
+			log.Printf("  ✓ %s 仓位模式已是 %s", symbol, marginModeStr)
+			return nil
+		}
+		// 如果有持仓，无法更改仓位模式，但不影响交易
+		if contains(err.Error(), "Margin type cannot be changed if there exists position") {
+			log.Printf("  ⚠️ %s 有持仓，无法更改仓位模式，继续使用当前模式", symbol)
+			return nil
+		}
+		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
+		// 不返回错误，让交易继续
+		return nil
+	}
+
+	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginModeStr)
+	return nil
 }
 
 // SetLeverage 设置杠杆（智能判断+冷却期）
@@ -127,31 +217,6 @@ func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 	return nil
 }
 
-// SetMarginType 设置保证金模式
-func (t *FuturesTrader) SetMarginType(symbol string, marginType futures.MarginType) error {
-	err := t.client.NewChangeMarginTypeService().
-		Symbol(symbol).
-		MarginType(marginType).
-		Do(context.Background())
-
-	if err != nil {
-		// 如果已经是该模式，不算错误
-		if contains(err.Error(), "No need to change") {
-			log.Printf("  ✓ %s 保证金模式已是 %s", symbol, marginType)
-			return nil
-		}
-		return fmt.Errorf("设置保证金模式失败: %w", err)
-	}
-
-	log.Printf("  ✓ %s 保证金模式已切换为 %s", symbol, marginType)
-
-	// 切换保证金模式后等待3秒（避免冷却期错误）
-	log.Printf("  ⏱ 等待3秒冷却期...")
-	time.Sleep(3 * time.Second)
-
-	return nil
-}
-
 // OpenLong 开多仓
 func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// 先取消该币种的所有委托单（清理旧的止损止盈单）
@@ -164,10 +229,7 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		return nil, err
 	}
 
-	// 设置逐仓模式
-	if err := t.SetMarginType(symbol, futures.MarginTypeIsolated); err != nil {
-		return nil, err
-	}
+	// 注意：仓位模式应该由调用方（AutoTrader）在开仓前通过 SetMarginMode 设置
 
 	// 格式化数量到正确精度
 	quantityStr, err := t.FormatQuantity(symbol, quantity)
@@ -210,10 +272,7 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 		return nil, err
 	}
 
-	// 设置逐仓模式
-	if err := t.SetMarginType(symbol, futures.MarginTypeIsolated); err != nil {
-		return nil, err
-	}
+	// 注意：仓位模式应该由调用方（AutoTrader）在开仓前通过 SetMarginMode 设置
 
 	// 格式化数量到正确精度
 	quantityStr, err := t.FormatQuantity(symbol, quantity)

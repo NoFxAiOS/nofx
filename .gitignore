@@ -3,6 +3,9 @@
 *.iml
 *.xml
 
+# AI 工具
+.claude/
+
 # 编译产物
 nofx-auto
 *.exe
@@ -21,10 +24,12 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+*.backup
 
 # 环境变量
 .env
 config.json
+config.db
 
 # 决策日志
 decision_logs/

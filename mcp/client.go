@@ -208,8 +208,7 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		"max_tokens":  client.MaxTokens,
 	}
 
-	// 注意：response_format 参数仅 OpenAI 支持，DeepSeek/Qwen 不支持
-	// 我们通过强化 prompt 和后处理来确保 JSON 格式正确
+	log.Printf("📡 [MCP] 请求参数: max_tokens=%d, temperature=%.1f", client.MaxTokens, 0.5)
 
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
@@ -270,7 +269,13 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 			Message struct {
 				Content string `json:"content"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -279,6 +284,19 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 
 	if len(result.Choices) == 0 {
 		return "", fmt.Errorf("API返回空响应")
+	}
+
+	// 打印响应详情
+	log.Printf("📡 [MCP] 响应详情: finish_reason=%s, prompt_tokens=%d, completion_tokens=%d, total_tokens=%d",
+		result.Choices[0].FinishReason,
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens)
+
+	// 检查是否因为长度限制而截断
+	if result.Choices[0].FinishReason == "length" {
+		log.Printf("⚠️  [MCP] 警告: AI响应因max_tokens限制被截断！当前max_tokens=%d, 实际使用completion_tokens=%d",
+			client.MaxTokens, result.Usage.CompletionTokens)
 	}
 
 	return result.Choices[0].Message.Content, nil

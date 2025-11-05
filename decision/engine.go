@@ -416,49 +416,82 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 	}, nil
 }
 
-// extractCoTTrace 提取思维链分析
+// extractCoTTrace 提取思维链分析（决策JSON之前的内容）
 func extractCoTTrace(response string) string {
-	// 查找JSON数组的开始位置
-	jsonStart := strings.Index(response, "[")
+	// 查找包含决策对象的JSON数组（避免把MACD等数值数组误认为决策JSON）
+	startPos := 0
+	for {
+		jsonStart := strings.Index(response[startPos:], "[")
+		if jsonStart == -1 {
+			// 没找到任何数组，整个响应都是思维链
+			return strings.TrimSpace(response)
+		}
+		jsonStart += startPos
 
-	if jsonStart > 0 {
-		// 思维链是JSON数组之前的内容
-		return strings.TrimSpace(response[:jsonStart])
+		// 检查这个数组是否是决策JSON（包含 "symbol" 或 "action"）
+		// 从当前位置往后看200个字符
+		checkEnd := jsonStart + 200
+		if checkEnd > len(response) {
+			checkEnd = len(response)
+		}
+		checkContent := response[jsonStart:checkEnd]
+
+		if strings.Contains(checkContent, `"symbol"`) || strings.Contains(checkContent, `"action"`) {
+			// 找到决策JSON，之前的都是思维链
+			cotTrace := strings.TrimSpace(response[:jsonStart])
+			// 清理末尾的 ```json 或 ``` 标记
+			cotTrace = strings.TrimSuffix(cotTrace, "```json")
+			cotTrace = strings.TrimSuffix(cotTrace, "```")
+			return strings.TrimSpace(cotTrace)
+		}
+
+		// 不是决策JSON（可能是MACD数组等），继续查找下一个
+		startPos = jsonStart + 1
 	}
-
-	// 如果找不到JSON，整个响应都是思维链
-	return strings.TrimSpace(response)
 }
 
 // extractDecisions 提取JSON决策列表
 func extractDecisions(response string) ([]Decision, error) {
-	// 直接查找JSON数组 - 找第一个完整的JSON数组
-	arrayStart := strings.Index(response, "[")
-	if arrayStart == -1 {
-		return nil, fmt.Errorf("无法找到JSON数组起始")
+	// 查找所有可能的JSON数组，找到包含决策对象的那个
+	// 避免误提取思维链中的MACD等数值数组
+	startPos := 0
+	for {
+		// 查找下一个 [ 符号
+		arrayStart := strings.Index(response[startPos:], "[")
+		if arrayStart == -1 {
+			return nil, fmt.Errorf("无法找到JSON数组起始")
+		}
+		arrayStart += startPos
+
+		// 从 [ 开始，匹配括号找到对应的 ]
+		arrayEnd := findMatchingBracket(response, arrayStart)
+		if arrayEnd == -1 {
+			return nil, fmt.Errorf("无法找到JSON数组结束")
+		}
+
+		jsonContent := strings.TrimSpace(response[arrayStart : arrayEnd+1])
+
+		// 检查这个数组是否看起来像决策JSON（包含 "symbol" 或 "action" 字段）
+		// 这样可以过滤掉纯数字数组（如MACD序列）
+		if strings.Contains(jsonContent, `"symbol"`) || strings.Contains(jsonContent, `"action"`) {
+			// 🔧 修复常见的JSON格式错误：缺少引号的字段值
+			jsonContent = fixMissingQuotes(jsonContent)
+
+			// 尝试解析JSON
+			var decisions []Decision
+			if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
+				// 解析失败，继续查找下一个数组
+				startPos = arrayStart + 1
+				continue
+			}
+
+			// 解析成功，返回决策
+			return decisions, nil
+		}
+
+		// 这个数组不是决策JSON，继续查找下一个
+		startPos = arrayStart + 1
 	}
-
-	// 从 [ 开始，匹配括号找到对应的 ]
-	arrayEnd := findMatchingBracket(response, arrayStart)
-	if arrayEnd == -1 {
-		return nil, fmt.Errorf("无法找到JSON数组结束")
-	}
-
-	jsonContent := strings.TrimSpace(response[arrayStart : arrayEnd+1])
-
-	// 🔧 修复常见的JSON格式错误：缺少引号的字段值
-	// 匹配: "reasoning": 内容"}  或  "reasoning": 内容}  (没有引号)
-	// 修复为: "reasoning": "内容"}
-	// 使用简单的字符串扫描而不是正则表达式
-	jsonContent = fixMissingQuotes(jsonContent)
-
-	// 解析JSON
-	var decisions []Decision
-	if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-		return nil, fmt.Errorf("JSON解析失败: %w\nJSON内容: %s", err, jsonContent)
-	}
-
-	return decisions, nil
 }
 
 // fixMissingQuotes 替换中文引号为英文引号（避免输入法自动转换）

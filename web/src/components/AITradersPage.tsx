@@ -23,6 +23,7 @@ import {
   Users,
   AlertTriangle,
   BookOpen,
+  HelpCircle,
 } from 'lucide-react'
 
 // 获取友好的AI模型名称
@@ -1064,6 +1065,51 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   )
 }
 
+// Tooltip Helper Component
+function Tooltip({
+  content,
+  children,
+}: {
+  content: string
+  children: React.ReactNode
+}) {
+  const [show, setShow] = useState(false)
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(!show)}
+      >
+        {children}
+      </div>
+      {show && (
+        <div
+          className="absolute z-10 px-3 py-2 text-sm rounded-lg shadow-lg w-64 left-1/2 transform -translate-x-1/2 bottom-full mb-2"
+          style={{
+            background: '#2B3139',
+            color: '#EAECEF',
+            border: '1px solid #474D57',
+          }}
+        >
+          {content}
+          <div
+            className="absolute left-1/2 transform -translate-x-1/2 top-full"
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #2B3139',
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Signal Source Configuration Modal Component
 function SignalSourceModal({
   coinPoolUrl,
@@ -1772,10 +1818,16 @@ function ExchangeConfigModal({
                 <>
                   <div>
                     <label
-                      className="block text-sm font-semibold mb-2"
+                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
                       style={{ color: '#EAECEF' }}
                     >
                       {t('user', language)}
+                      <Tooltip content={t('asterUserDesc', language)}>
+                        <HelpCircle
+                          className="w-4 h-4 cursor-help"
+                          style={{ color: '#F0B90B' }}
+                        />
+                      </Tooltip>
                     </label>
                     <input
                       type="text"
@@ -1794,10 +1846,16 @@ function ExchangeConfigModal({
 
                   <div>
                     <label
-                      className="block text-sm font-semibold mb-2"
+                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
                       style={{ color: '#EAECEF' }}
                     >
                       {t('signer', language)}
+                      <Tooltip content={t('asterSignerDesc', language)}>
+                        <HelpCircle
+                          className="w-4 h-4 cursor-help"
+                          style={{ color: '#F0B90B' }}
+                        />
+                      </Tooltip>
                     </label>
                     <input
                       type="text"
@@ -1816,10 +1874,16 @@ function ExchangeConfigModal({
 
                   <div>
                     <label
-                      className="block text-sm font-semibold mb-2"
+                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
                       style={{ color: '#EAECEF' }}
                     >
                       {t('privateKey', language)}
+                      <Tooltip content={t('asterPrivateKeyDesc', language)}>
+                        <HelpCircle
+                          className="w-4 h-4 cursor-help"
+                          style={{ color: '#F0B90B' }}
+                        />
+                      </Tooltip>
                     </label>
                     <input
                       type="password"
@@ -1873,6 +1937,9 @@ function ExchangeConfigModal({
                   </span>
                 </div>
                 <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                  {selectedExchange.id === 'aster' && (
+                    <div>{t('asterUsdtWarning', language)}</div>
+                  )}
                   <div>{t('exchangeConfigWarning1', language)}</div>
                   <div>{t('exchangeConfigWarning2', language)}</div>
                   <div>{t('exchangeConfigWarning3', language)}</div>

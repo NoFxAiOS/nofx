@@ -68,6 +68,8 @@ export function TraderConfigModal({
   const [selectedCoins, setSelectedCoins] = useState<string[]>([])
   const [showCoinSelector, setShowCoinSelector] = useState(false)
   const [promptTemplates, setPromptTemplates] = useState<{ name: string }[]>([])
+  const [isFetchingBalance, setIsFetchingBalance] = useState(false)
+  const [balanceFetchError, setBalanceFetchError] = useState<string>('')
 
   useEffect(() => {
     if (traderData) {
@@ -181,6 +183,45 @@ export function TraderConfigModal({
       }
     })
   }
+
+  const handleFetchCurrentBalance = async () => {
+    if (!isEditMode || !traderData?.trader_id) {
+      setBalanceFetchError('只有在编辑模式下才能获取当前余额');
+      return;
+    }
+
+    setIsFetchingBalance(true);
+    setBalanceFetchError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/account?trader_id=${traderData.trader_id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('获取账户余额失败');
+      }
+
+      const data = await response.json();
+
+      // total_equity = 当前账户净值（包含未实现盈亏）
+      // 这应该作为新的初始余额
+      const currentBalance = data.total_equity || data.balance || 0;
+
+      setFormData(prev => ({ ...prev, initial_balance: currentBalance }));
+
+      // 显示成功提示
+      console.log('已获取当前余额:', currentBalance);
+    } catch (error) {
+      console.error('获取余额失败:', error);
+      setBalanceFetchError('获取余额失败，请检查网络连接');
+    } finally {
+      setIsFetchingBalance(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!onSave) return
@@ -346,9 +387,22 @@ export function TraderConfigModal({
                   </div>
                 </div>
                 <div>
-                  <label className="text-sm text-[#EAECEF] block mb-2">
-                    初始余额 ($)
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-[#EAECEF]">
+                      初始余额 ($)
+                      {!isEditMode && <span className="text-[#F0B90B] ml-1">*</span>}
+                    </label>
+                    {isEditMode && (
+                      <button
+                        type="button"
+                        onClick={handleFetchCurrentBalance}
+                        disabled={isFetchingBalance}
+                        className="px-3 py-1 text-xs bg-[#F0B90B] text-black rounded hover:bg-[#E1A706] transition-colors disabled:bg-[#848E9C] disabled:cursor-not-allowed"
+                      >
+                        {isFetchingBalance ? '获取中...' : '获取当前余额'}
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={formData.initial_balance}
@@ -360,8 +414,22 @@ export function TraderConfigModal({
                     }
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                     min="100"
-                    step="100"
+                    step="0.01"
                   />
+                  {!isEditMode && (
+                    <p className="text-xs text-[#F0B90B] mt-1 flex items-center gap-1">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                      请输入您交易所账户的当前实际余额。如果输入不准确，P&L统计将会错误。
+                    </p>
+                  )}
+                  {isEditMode && (
+                    <p className="text-xs text-[#848E9C] mt-1">
+                      点击"获取当前余额"按钮可自动获取您交易所账户的当前净值
+                    </p>
+                  )}
+                  {balanceFetchError && (
+                    <p className="text-xs text-red-500 mt-1">{balanceFetchError}</p>
+                  )}
                 </div>
               </div>
 

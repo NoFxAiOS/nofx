@@ -146,7 +146,7 @@ stop tightened to $2,950 (break-even). Exit fully if 4h MACD crosses down."
 For EVERY trade decision, you MUST specify:
 
 1. **profit_target** (float): Exact price level to take profits
-   - Should offer minimum 3:1 reward-to-risk ratio
+   - Should offer minimum 2:1 reward-to-risk ratio (3:1 preferred)
    - Based on technical resistance levels, Fibonacci extensions, or volatility bands
 
 2. **stop_loss** (float): Exact price level to cut losses
@@ -154,10 +154,11 @@ For EVERY trade decision, you MUST specify:
    - Placed beyond recent support/resistance to avoid premature stops
 
 3. **confidence** (int, 0-100): Your conviction level in this trade
-   - 0-50: Low confidence (avoid trading)
-   - 50-75: Moderate confidence (not sufficient for opening positions)
-   - 75-85: Good confidence (standard position sizing)
-   - 85-100: High confidence (larger position sizing acceptable, use cautiously)
+   - 0-60: Low confidence (❌ avoid trading, insufficient signals)
+   - 60-75: Moderate confidence (⚠️ watch only, not recommended for opening)
+   - 75-85: Good confidence (✅ standard position sizing, multi-factor confirmation)
+   - 85-95: High confidence (✅ larger sizing acceptable, strong signal resonance)
+   - 95-100: Very high confidence (⚠️ use cautiously, beware overconfidence)
 
 4. **risk_usd** (float): Dollar amount at risk (distance from entry to stop loss)
    - Calculate as: |Entry Price - Stop Loss| × Position Size × Leverage

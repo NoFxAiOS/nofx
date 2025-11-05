@@ -88,7 +88,7 @@ func (s *Server) setupRoutes() {
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)
 		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
-		
+
 		// 公开的竞赛数据（无需认证）
 		api.GET("/traders", s.handlePublicTraderList)
 		api.GET("/competition", s.handlePublicCompetition)
@@ -168,7 +168,7 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 	if val, err := strconv.Atoi(altcoinLeverageStr); err == nil && val > 0 {
 		altcoinLeverage = val
 	}
-	
+
 	// 获取内测模式配置
 	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
 	betaMode := betaModeStr == "true"
@@ -343,8 +343,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 	// 设置扫描间隔默认值
 	scanIntervalMinutes := req.ScanIntervalMinutes
-	if scanIntervalMinutes <= 0 {
-		scanIntervalMinutes = 3 // 默认3分钟
+	if scanIntervalMinutes < 3 {
+		scanIntervalMinutes = 3 // 默认3分钟，且不允许小于3
 	}
 
 	// 创建交易员配置（数据库实体）
@@ -458,6 +458,8 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	scanIntervalMinutes := req.ScanIntervalMinutes
 	if scanIntervalMinutes <= 0 {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // 保持原值
+	} else if scanIntervalMinutes < 3 {
+		scanIntervalMinutes = 3
 	}
 
 	// 更新交易员配置
@@ -531,14 +533,14 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 func (s *Server) handleStartTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
-	
+
 	// 校验交易员是否属于当前用户
 	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
 		return
 	}
-	
+
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
@@ -574,14 +576,14 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 func (s *Server) handleStopTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
-	
+
 	// 校验交易员是否属于当前用户
 	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
 		return
 	}
-	
+
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
@@ -1581,7 +1583,7 @@ func (s *Server) handlePublicCompetition(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, competition)
 }
 
@@ -1594,7 +1596,7 @@ func (s *Server) handleTopTraders(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, topTraders)
 }
 
@@ -1603,7 +1605,7 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 	var requestBody struct {
 		TraderIDs []string `json:"trader_ids"`
 	}
-	
+
 	// 尝试解析POST请求的JSON body
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
 		// 如果JSON解析失败，尝试从query参数获取（兼容GET请求）
@@ -1617,13 +1619,13 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 				})
 				return
 			}
-			
+
 			traders, ok := topTraders["traders"].([]map[string]interface{})
 			if !ok {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "交易员数据格式错误"})
 				return
 			}
-			
+
 			// 提取trader IDs
 			traderIDs := make([]string, 0, len(traders))
 			for _, trader := range traders {
@@ -1631,24 +1633,24 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 					traderIDs = append(traderIDs, traderID)
 				}
 			}
-			
+
 			result := s.getEquityHistoryForTraders(traderIDs)
 			c.JSON(http.StatusOK, result)
 			return
 		}
-		
+
 		// 解析逗号分隔的trader IDs
 		requestBody.TraderIDs = strings.Split(traderIDsParam, ",")
 		for i := range requestBody.TraderIDs {
 			requestBody.TraderIDs[i] = strings.TrimSpace(requestBody.TraderIDs[i])
 		}
 	}
-	
+
 	// 限制最多20个交易员，防止请求过大
 	if len(requestBody.TraderIDs) > 20 {
 		requestBody.TraderIDs = requestBody.TraderIDs[:20]
 	}
-	
+
 	result := s.getEquityHistoryForTraders(requestBody.TraderIDs)
 	c.JSON(http.StatusOK, result)
 }
@@ -1658,31 +1660,31 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 	result := make(map[string]interface{})
 	histories := make(map[string]interface{})
 	errors := make(map[string]string)
-	
+
 	for _, traderID := range traderIDs {
 		if traderID == "" {
 			continue
 		}
-		
+
 		trader, err := s.traderManager.GetTrader(traderID)
 		if err != nil {
 			errors[traderID] = "交易员不存在"
 			continue
 		}
-		
+
 		// 获取历史数据（用于对比展示，限制数据量）
 		records, err := trader.GetDecisionLogger().GetLatestRecords(500)
 		if err != nil {
 			errors[traderID] = fmt.Sprintf("获取历史数据失败: %v", err)
 			continue
 		}
-		
+
 		// 构建收益率历史数据
 		history := make([]map[string]interface{}, 0, len(records))
 		for _, record := range records {
 			// 计算总权益（余额+未实现盈亏）
 			totalEquity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
-			
+
 			history = append(history, map[string]interface{}{
 				"timestamp":    record.Timestamp,
 				"total_equity": totalEquity,
@@ -1690,16 +1692,16 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 				"balance":      record.AccountState.TotalBalance,
 			})
 		}
-		
+
 		histories[traderID] = history
 	}
-	
+
 	result["histories"] = histories
 	result["count"] = len(histories)
 	if len(errors) > 0 {
 		result["errors"] = errors
 	}
-	
+
 	return result
 }
 
@@ -1733,4 +1735,3 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, result)
 }
-

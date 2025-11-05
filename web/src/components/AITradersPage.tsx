@@ -123,10 +123,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
              e.asterPrivateKey && e.asterPrivateKey.trim() !== '';
     }
 
-    // Hyperliquid 只需要私钥（作为apiKey）和钱包地址
+    // Hyperliquid 只需要私钥（作为apiKey），钱包地址会自动从私钥生成
     if (e.id === 'hyperliquid') {
-      return e.apiKey && e.apiKey.trim() !== '' && 
-             e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== '';
+      return e.apiKey && e.apiKey.trim() !== '';
     }
 
     // Binance 等其他交易所需要 apiKey 和 secretKey
@@ -1164,8 +1163,6 @@ function ExchangeConfigModal({
   const [testnet, setTestnet] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
-  // Hyperliquid 特定字段
-  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('');
 
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('');
@@ -1182,10 +1179,7 @@ function ExchangeConfigModal({
       setSecretKey(selectedExchange.secretKey || '');
       setPassphrase(''); // Don't load existing passphrase for security
       setTestnet(selectedExchange.testnet || false);
-      
-      // Hyperliquid 字段
-      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '');
-      
+
       // Aster 字段
       setAsterUser(selectedExchange.asterUser || '');
       setAsterSigner(selectedExchange.asterSigner || '');
@@ -1202,8 +1196,8 @@ function ExchangeConfigModal({
       if (!apiKey.trim() || !secretKey.trim()) return;
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet);
     } else if (selectedExchange?.id === 'hyperliquid') {
-      if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return;
-      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim());
+      if (!apiKey.trim()) return; // 只验证私钥，钱包地址自动从私钥生成
+      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, ''); // 传空字符串，后端自动生成地址
     } else if (selectedExchange?.id === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim()) return;
       await onSave(selectedExchangeId, '', '', testnet, undefined, asterUser.trim(), asterSigner.trim(), asterPrivateKey.trim());
@@ -1370,24 +1364,6 @@ function ExchangeConfigModal({
                       {t('hyperliquidPrivateKeyDesc', language)}
                     </div>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                      {t('walletAddress', language)}
-                    </label>
-                    <input
-                      type="text"
-                      value={hyperliquidWalletAddr}
-                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
-                      placeholder={t('enterWalletAddress', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                      required
-                    />
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidWalletAddressDesc', language)}
-                    </div>
-                  </div>
                 </>
               )}
 
@@ -1485,7 +1461,7 @@ function ExchangeConfigModal({
                 !selectedExchange ||
                 (selectedExchange.id === 'binance' && (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedExchange.id === 'okx' && (!apiKey.trim() || !secretKey.trim() || !passphrase.trim())) ||
-                (selectedExchange.id === 'hyperliquid' && (!apiKey.trim() || !hyperliquidWalletAddr.trim())) ||
+                (selectedExchange.id === 'hyperliquid' && !apiKey.trim()) ||  // 只验证私钥，钱包地址可选
                 (selectedExchange.id === 'aster' && (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())) ||
                 (selectedExchange.type === 'cex' && selectedExchange.id !== 'hyperliquid' && selectedExchange.id !== 'aster' && selectedExchange.id !== 'binance' && selectedExchange.id !== 'okx' && (!apiKey.trim() || !secretKey.trim()))
               }

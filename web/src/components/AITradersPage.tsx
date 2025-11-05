@@ -1671,7 +1671,7 @@ function ExchangeConfigModal({
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
     } else if (selectedExchange?.id === 'hyperliquid') {
       if (!apiKey.trim()) return // 只验证私钥，钱包地址自动从私钥生成
-      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, hyperliquidWalletAddr.trim() || '') // 保留现有钱包地址
+      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, '') // 传空字符串，后端自动生成地址
     } else if (selectedExchange?.id === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())
         return

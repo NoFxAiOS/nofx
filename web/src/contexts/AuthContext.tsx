@@ -130,30 +130,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ user_id: userID, otp_code: otpCode }),
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (response.ok) {
         // 登录成功，保存token和用户信息
-        const userInfo = { id: data.user_id, email: data.email };
-        setToken(data.token);
-        setUser(userInfo);
-        localStorage.setItem('auth_token', data.token);
-        localStorage.setItem('auth_user', JSON.stringify(userInfo));
-        
-        // 跳转到首页
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-        
-        return { success: true, message: data.message };
+        const userInfo = { id: data.user_id, email: data.email }
+        setToken(data.token)
+        setUser(userInfo)
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_user', JSON.stringify(userInfo))
+
+        // 跳转到配置页面
+        window.history.pushState({}, '', '/traders')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+
+        return { success: true, message: data.message }
       } else {
-        return { success: false, message: data.error };
+        return { success: false, message: data.error }
       }
     } catch (error) {
-      return { success: false, message: 'OTP验证失败，请重试' };
+      return { success: false, message: 'OTP验证失败，请重试' }
     }
-  };
+  }
 
   const completeRegistration = async (userID: string, otpCode: string) => {
     try {
@@ -163,30 +163,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ user_id: userID, otp_code: otpCode }),
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (response.ok) {
         // 注册完成，自动登录
-        const userInfo = { id: data.user_id, email: data.email };
-        setToken(data.token);
-        setUser(userInfo);
-        localStorage.setItem('auth_token', data.token);
-        localStorage.setItem('auth_user', JSON.stringify(userInfo));
-        
-        // 跳转到首页
-        window.history.pushState({}, '', '/');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-        
-        return { success: true, message: data.message };
+        const userInfo = { id: data.user_id, email: data.email }
+        setToken(data.token)
+        setUser(userInfo)
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_user', JSON.stringify(userInfo))
+
+        // 跳转到配置页面
+        window.history.pushState({}, '', '/traders')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+
+        return { success: true, message: data.message }
       } else {
-        return { success: false, message: data.error };
+        return { success: false, message: data.error }
       }
     } catch (error) {
-      return { success: false, message: '注册完成失败，请重试' };
+      return { success: false, message: '注册完成失败，请重试' }
     }
-  };
+  }
 
   const logout = () => {
     setUser(null);

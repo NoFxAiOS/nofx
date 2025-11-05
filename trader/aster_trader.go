@@ -484,9 +484,9 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 
 	// 返回与Binance相同的字段名，确保AutoTrader能正确解析
 	return map[string]interface{}{
-		"totalWalletBalance":    totalBalance,    // 钱包余额（不含未实现盈亏）
+		"totalWalletBalance":    totalBalance, // 钱包余额（不含未实现盈亏）
 		"availableBalance":      availableBalance,
-		"totalUnrealizedProfit": crossUnPnl,      // 未实现盈亏
+		"totalUnrealizedProfit": crossUnPnl, // 未实现盈亏
 	}, nil
 }
 

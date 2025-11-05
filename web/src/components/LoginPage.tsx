@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import HeaderBar from './landing/HeaderBar'
-import { getSystemConfig } from '../lib/config';
+import { getSystemConfig } from '../lib/config'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -15,30 +15,29 @@ export function LoginPage() {
   const [userID, setUserID] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminMode, setAdminMode] = useState<boolean | null>(null);
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminMode, setAdminMode] = useState<boolean | null>(null)
 
   useEffect(() => {
     getSystemConfig()
       .then((cfg) => {
-        setAdminMode(!!cfg.admin_mode);
+        setAdminMode(!!cfg.admin_mode)
       })
       .catch(() => {
-        setAdminMode(false);
-      });
-  }, []);
+        setAdminMode(false)
+      })
+  }, [])
 
   const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    const result = await loginAdmin(adminPassword);
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    const result = await loginAdmin(adminPassword)
     if (!result.success) {
-      setError(result.message || t('loginFailed', language));
+      setError(result.message || t('loginFailed', language))
     }
-    setLoading(false);
-  };
-
+    setLoading(false)
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,39 +126,55 @@ export function LoginPage() {
               border: '1px solid var(--panel-border)',
             }}
           >
-          {adminMode ? (
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
-                  管理员密码
-                </label>
-                <input
-                  type="password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{ background: 'var(--brand-black)', border: '1px solid var(--panel-border)', color: 'var(--brand-light-gray)' }}
-                  placeholder="请输入管理员密码"
-                  required
-                />
-              </div>
-
-              {error && (
-                <div className="text-sm px-3 py-2 rounded" style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}>
-                  {error}
+            {adminMode ? (
+              <form onSubmit={handleAdminLogin} className="space-y-4">
+                <div>
+                  <label
+                    className="block text-sm font-semibold mb-2"
+                    style={{ color: 'var(--brand-light-gray)' }}
+                  >
+                    管理员密码
+                  </label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded"
+                    style={{
+                      background: 'var(--brand-black)',
+                      border: '1px solid var(--panel-border)',
+                      color: 'var(--brand-light-gray)',
+                    }}
+                    placeholder="请输入管理员密码"
+                    required
+                  />
                 </div>
-              )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
-              >
-                {loading ? t('loading', language) : '登录'}
-              </button>
-            </form>
-          ) : step === 'login' ? (
+                {error && (
+                  <div
+                    className="text-sm px-3 py-2 rounded"
+                    style={{
+                      background: 'var(--binance-red-bg)',
+                      color: 'var(--binance-red)',
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
+                  style={{
+                    background: 'var(--brand-yellow)',
+                    color: 'var(--brand-black)',
+                  }}
+                >
+                  {loading ? t('loading', language) : '登录'}
+                </button>
+              </form>
+            ) : step === 'login' ? (
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label

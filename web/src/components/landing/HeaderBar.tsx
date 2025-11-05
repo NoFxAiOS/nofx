@@ -478,14 +478,16 @@ export default function HeaderBar({
                     </a>
                     {!isAdminMode && (
                       <a
-                        href='/register'
-                        className='px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90'
-                        style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
+                        href="/register"
+                        className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
+                        style={{
+                          background: 'var(--brand-yellow)',
+                          color: 'var(--brand-black)',
+                        }}
                       >
-                      {t('signUp', language)}
+                        {t('signUp', language)}
                       </a>
                     )}
-
                   </div>
                 )
               )}

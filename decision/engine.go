@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"nofx/decision"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
@@ -135,15 +136,13 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 	}
 
 	// 4. 解析AI响应
-	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
-	if err != nil {
-		return decision, fmt.Errorf("解析AI响应失败: %w", err)
-	}
+	decision, err := parseFullDecisionResponse(aiResponse, ctx)
 
 	decision.Timestamp = time.Now()
 	decision.SystemPrompt = systemPrompt // 保存系统prompt
 	decision.UserPrompt = userPrompt     // 保存输入prompt
-	return decision, nil
+
+	return decision, err
 }
 
 // fetchMarketDataForContext 为上下文中的所有币种获取市场数据和OI数据
@@ -438,7 +437,7 @@ func buildUserPrompt(ctx *Context) string {
 }
 
 // parseFullDecisionResponse 解析AI的完整决策响应
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, ctx *Context) (*FullDecision, error) {
 	// 1. 提取思维链
 	cotTrace := extractCoTTrace(aiResponse)
 
@@ -451,18 +450,16 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("提取决策失败: %w", err)
 	}
 
-	// 3. 验证决策
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-		return &FullDecision{
-			CoTTrace:  cotTrace,
-			Decisions: decisions,
-		}, fmt.Errorf("决策验证失败: %w", err)
-	}
+	// 3. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
+	decisions = sortDecisionsByPriority(decisions)
+
+	// 4. 验证决策
+	decisions, err = validateDecisions(decisions, ctx)
 
 	return &FullDecision{
 		CoTTrace:  cotTrace,
 		Decisions: decisions,
-	}, nil
+	}, err
 }
 
 // extractCoTTrace 提取思维链分析
@@ -610,13 +607,47 @@ func compactArrayOpen(s string) string {
 }
 
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
-func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
-	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
+func validateDecisions(decisions []Decision, ctx *Context) ([]Decision, error) {
+	btcEthLeverage := ctx.BTCETHLeverage
+	altcoinLeverage := ctx.AltcoinLeverage
+	availableBalance := ctx.Account.AvailableBalance
+	var filteredDecisions []Decision
+	var errorMsgs []string
+	for _, decision := range decisions {
+		positions := getPositionsOfSpecificSymbol(ctx.Positions, decision.Symbol)
+		if err := validateDecision(&decision, availableBalance, btcEthLeverage, altcoinLeverage, positions, ctx.MarketDataMap[decision.Symbol]); err != nil {
+			errorMsgs = append(errorMsgs, err.Error())
+		} else {
+			filteredDecisions = append(filteredDecisions, decision)
+			if decision.Action == "open_long" || decision.Action == "open_short" {
+				availableBalance -= decision.PositionSizeUSD / float64(decision.Leverage)
+			} else if decision.Action == "close_long" || decision.Action == "close_short" {
+				availableBalance += positions[0].MarginUsed
+			}
 		}
 	}
-	return nil
+
+	if len(errorMsgs) > 0 {
+		combinedErr := fmt.Errorf("决策验证失败: %s", strings.Join(errorMsgs, "; "))
+		return filteredDecisions, combinedErr
+	}
+
+	return filteredDecisions, nil
+}
+
+func getPositionsOfSpecificSymbol(positions []PositionInfo, symbol string) []PositionInfo {
+	var filteredPositions []PositionInfo
+	for _, position := range positions {
+		if position.Symbol == symbol {
+			filteredPositions = append(filteredPositions, position)
+		}
+	}
+
+	if len(filteredPositions) > 1 {
+		panic(symbol + "存在>1个仓位")
+	}
+
+	return filteredPositions
 }
 
 // findMatchingBracket 查找匹配的右括号
@@ -642,7 +673,7 @@ func findMatchingBracket(s string, start int) int {
 }
 
 // validateDecision 验证单个决策的有效性
-func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+func validateDecision(d *Decision, availableBalance float64, btcEthLeverage, altcoinLeverage int, positions []PositionInfo, marketData *market.Data) error {
 	// 验证action
 	validActions := map[string]bool{
 		"open_long":          true,
@@ -660,18 +691,31 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		return fmt.Errorf("无效的action: %s", d.Action)
 	}
 
+	if d.Action == "close_long" || d.Action == "close_short" {
+		if len(positions) == 0 {
+			return fmt.Errorf("%s不存在仓位", d.Symbol)
+		}
+		if (d.Action == "close_long" && positions[0].Side != "long") || (d.Action == "close_short" && positions[0].Side != "short") {
+			return fmt.Errorf("AI的决策是%s，但当前持仓为%s", d.Action, positions[0].Side)
+		}
+	}
+
 	// 开仓操作必须提供完整参数
 	if d.Action == "open_long" || d.Action == "open_short" {
+		if len(positions) > 0 {
+			return fmt.Errorf("%s已存在仓位", d.Symbol)
+		}
+
 		// 根据币种使用配置的杠杆上限
-		maxLeverage := altcoinLeverage          // 山寨币使用配置的杠杆
-		maxPositionValue := accountEquity * 1.5 // 山寨币最多1.5倍账户净值
+		maxLeverage := altcoinLeverage                             // 山寨币使用配置的杠杆
+		maxPositionValue := availableBalance * float64(d.Leverage) // 山寨币仓位
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			maxLeverage = btcEthLeverage          // BTC和ETH使用配置的杠杆
-			maxPositionValue = accountEquity * 10 // BTC/ETH最多10倍账户净值
+			maxLeverage = btcEthLeverage                              // BTC/ETH使用配置的杠杆
+			maxPositionValue = availableBalance * float64(d.Leverage) // BTC/ETH仓位
 		}
 
 		if d.Leverage <= 0 || d.Leverage > maxLeverage {
-			return fmt.Errorf("杠杆必须在1-%d之间（%s，当前配置上限%d倍）: %d", maxLeverage, d.Symbol, maxLeverage, d.Leverage)
+			return fmt.Errorf("杠杆必须在0-%d之间（%s，当前配置上限%d倍）: %d", maxLeverage, d.Symbol, maxLeverage, d.Leverage)
 		}
 		if d.PositionSizeUSD <= 0 {
 			return fmt.Errorf("仓位大小必须大于0: %.2f", d.PositionSizeUSD)
@@ -693,40 +737,32 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		}
 
 		// 验证仓位价值上限（加1%容差以避免浮点数精度问题）
-		tolerance := maxPositionValue * 0.01 // 1%容差
-		if d.PositionSizeUSD > maxPositionValue+tolerance {
+		if d.PositionSizeUSD > maxPositionValue*0.99 {
 			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH单币种仓位价值不能超过%.0f USDT（10倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("BTC/ETH单币种仓位价值不能超过%.0f USD，实际: %.0f", maxPositionValue, d.PositionSizeUSD)
 			} else {
-				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USDT（1.5倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USD，实际: %.0f", maxPositionValue, d.PositionSizeUSD)
 			}
 		}
 		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
 			return fmt.Errorf("止损和止盈必须大于0")
 		}
 
+		// 计算入场价（假设当前市价）
+		entryPrice := marketData.CurrentPrice
+
 		// 验证止损止盈的合理性
 		if d.Action == "open_long" {
-			if d.StopLoss >= d.TakeProfit {
-				return fmt.Errorf("做多时止损价必须小于止盈价")
+			if d.StopLoss >= entryPrice || d.TakeProfit <= entryPrice {
+				return fmt.Errorf("做多时止损价必须小于开单价，止盈价必须大于开单价")
 			}
 		} else {
-			if d.StopLoss <= d.TakeProfit {
-				return fmt.Errorf("做空时止损价必须大于止盈价")
+			if d.StopLoss <= entryPrice || d.TakeProfit >= entryPrice {
+				return fmt.Errorf("做空时止损价必须大于开单价，止盈价必须小于开单价")
 			}
 		}
 
 		// 验证风险回报比（必须≥1:3）
-		// 计算入场价（假设当前市价）
-		var entryPrice float64
-		if d.Action == "open_long" {
-			// 做多：入场价在止损和止盈之间
-			entryPrice = d.StopLoss + (d.TakeProfit-d.StopLoss)*0.2 // 假设在20%位置入场
-		} else {
-			// 做空：入场价在止损和止盈之间
-			entryPrice = d.StopLoss - (d.StopLoss-d.TakeProfit)*0.2 // 假设在20%位置入场
-		}
-
 		var riskPercent, rewardPercent, riskRewardRatio float64
 		if d.Action == "open_long" {
 			riskPercent = (entryPrice - d.StopLoss) / entryPrice * 100
@@ -744,8 +780,8 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 		// 硬约束：风险回报比必须≥3.0
 		if riskRewardRatio < 3.0 {
-			return fmt.Errorf("风险回报比过低(%.2f:1)，必须≥3.0:1 [风险:%.2f%% 收益:%.2f%%] [止损:%.2f 止盈:%.2f]",
-				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
+			return fmt.Errorf("风险回报比过低(%.2f:1)，必须≥3.0:1 [风险:%.2f%% 收益:%.2f%%] [当前价:%.2f 止损:%.2f 止盈:%.2f]",
+				riskRewardRatio, riskPercent, rewardPercent, entryPrice, d.StopLoss, d.TakeProfit)
 		}
 	}
 
@@ -771,4 +807,41 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	}
 
 	return nil
+}
+
+// sortDecisionsByPriority 对决策排序：先平仓，再开仓，最后hold/wait
+// 这样可以避免换仓时仓位叠加超限
+func sortDecisionsByPriority(decisions []Decision) []Decision {
+	if len(decisions) <= 1 {
+		return decisions
+	}
+
+	// 定义优先级
+	getActionPriority := func(action string) int {
+		switch action {
+		case "close_long", "close_short":
+			return 1 // 最高优先级：先平仓
+		case "open_long", "open_short":
+			return 2 // 次优先级：后开仓
+		case "hold", "wait":
+			return 3 // 最低优先级：观望
+		default:
+			return 999 // 未知动作放最后
+		}
+	}
+
+	// 复制决策列表
+	sorted := make([]decision.Decision, len(decisions))
+	copy(sorted, decisions)
+
+	// 按优先级排序
+	for i := 0; i < len(sorted)-1; i++ {
+		for j := i + 1; j < len(sorted); j++ {
+			if getActionPriority(sorted[i].Action) > getActionPriority(sorted[j].Action) {
+				sorted[i], sorted[j] = sorted[j], sorted[i]
+			}
+		}
+	}
+
+	return sorted
 }

@@ -98,16 +98,16 @@ type AutoTrader struct {
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
-	startTime             time.Time        // 系统启动时间
-	callCount             int              // AI调用次数
-	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
-	stopMonitorCh         chan struct{}    // 用于停止监控goroutine
-	monitorWg             sync.WaitGroup   // 用于等待监控goroutine结束
-	peakPnLCache      map[string]float64 	 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
-	peakPnLCacheMutex sync.RWMutex // 缓存读写锁
-	lastBalanceSyncTime   time.Time        // 上次余额同步时间
-	database              interface{}      // 数据库引用（用于自动更新余额）
-	userID                string           // 用户ID
+	startTime             time.Time          // 系统启动时间
+	callCount             int                // AI调用次数
+	positionFirstSeenTime map[string]int64   // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	stopMonitorCh         chan struct{}      // 用于停止监控goroutine
+	monitorWg             sync.WaitGroup     // 用于等待监控goroutine结束
+	peakPnLCache          map[string]float64 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
+	peakPnLCacheMutex     sync.RWMutex       // 缓存读写锁
+	lastBalanceSyncTime   time.Time          // 上次余额同步时间
+	database              interface{}        // 数据库引用（用于自动更新余额）
+	userID                string             // 用户ID
 }
 
 // NewAutoTrader 创建自动交易器
@@ -437,7 +437,7 @@ func (at *AutoTrader) runCycle() error {
 		})
 	}
 
-						log.Print(strings.Repeat("=", 70))
+	log.Print(strings.Repeat("=", 70))
 	for _, coin := range ctx.CandidateCoins {
 		record.CandidateCoins = append(record.CandidateCoins, coin.Symbol)
 	}
@@ -460,70 +460,40 @@ func (at *AutoTrader) runCycle() error {
 		}
 	}
 
+	conditionInfo := ""
 	if err != nil {
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("获取AI决策失败: %v", err)
-
-		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
-		if decision != nil {
-				log.Print("\n" + strings.Repeat("=", 70) + "\n")
-				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
-				log.Println(strings.Repeat("=", 70))
-				log.Println(decision.SystemPrompt)
-				log.Println(strings.Repeat("=", 70))
-
-			if decision.CoTTrace != "" {
-				log.Print("\n" + strings.Repeat("-", 70) + "\n")
-				log.Println("💭 AI思维链分析（错误情况）:")
-				log.Println(strings.Repeat("-", 70))
-				log.Println(decision.CoTTrace)
-				log.Println(strings.Repeat("-", 70))
-			}
-		}
-
-		at.decisionLogger.LogDecision(record)
-		return fmt.Errorf("获取AI决策失败: %w", err)
+		conditionInfo = "(错误情况)"
 	}
 
-	// // 5. 打印系统提示词
-	// log.Printf("\n" + strings.Repeat("=", 70))
-	// log.Printf("📋 系统提示词 [模板: %s]", at.systemPromptTemplate)
-	// log.Println(strings.Repeat("=", 70))
-	// log.Println(decision.SystemPrompt)
-	// log.Printf(strings.Repeat("=", 70) + "\n")
+	// 5. 打印系统提示词
+	log.Print(strings.Repeat("=", 70))
+	log.Printf("📋 系统提示词 [模板: %s]%s", at.systemPromptTemplate, conditionInfo)
+	log.Println(strings.Repeat("=", 70))
+	log.Println(decision.SystemPrompt)
+	log.Println(strings.Repeat("=", 70))
 
 	// 6. 打印AI思维链
-	// log.Printf("\n" + strings.Repeat("-", 70))
-	// log.Println("💭 AI思维链分析:")
-	// log.Println(strings.Repeat("-", 70))
-	// log.Println(decision.CoTTrace)
-	// log.Printf(strings.Repeat("-", 70) + "\n")
+	log.Print(strings.Repeat("-", 70))
+	log.Printf("💭 AI思维链分析%s:", conditionInfo)
+	log.Println(strings.Repeat("-", 70))
+	log.Println(decision.CoTTrace)
+	log.Println(strings.Repeat("-", 70))
 
 	// 7. 打印AI决策
-	// log.Printf("📋 AI决策列表 (%d 个):\n", len(decision.Decisions))
-	// for i, d := range decision.Decisions {
-	//     log.Printf("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
-	//     if d.Action == "open_long" || d.Action == "open_short" {
-	//        log.Printf("      杠杆: %dx | 仓位: %.2f USDT | 止损: %.4f | 止盈: %.4f",
-	//           d.Leverage, d.PositionSizeUSD, d.StopLoss, d.TakeProfit)
-	//     }
-	// }
-	log.Println()
-				log.Print(strings.Repeat("-", 70))
-	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
-				log.Print(strings.Repeat("-", 70))
-
-	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
-	sortedDecisions := sortDecisionsByPriority(decision.Decisions)
-
-	log.Println("🔄 执行顺序（已优化）: 先平仓→后开仓")
-	for i, d := range sortedDecisions {
-		log.Printf("  [%d] %s %s", i+1, d.Symbol, d.Action)
+	log.Printf("📋 AI决策列表 %s (%d 个，已优化执行顺序）:\n", conditionInfo, len(decision.Decisions))
+	for i, d := range decision.Decisions {
+		log.Printf("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
+		if d.Action == "open_long" || d.Action == "open_short" {
+			log.Printf("      杠杆: %dx | 仓位: %.2f USD | 止损: %.4f | 止盈: %.4f",
+				d.Leverage, d.PositionSizeUSD, d.StopLoss, d.TakeProfit)
+		}
 	}
 	log.Println()
 
-	// 执行决策并记录结果
-	for _, d := range sortedDecisions {
+	// 8. 执行决策并记录结果
+	for _, d := range decision.Decisions {
 		actionRecord := logger.DecisionAction{
 			Action:    d.Action,
 			Symbol:    d.Symbol,
@@ -1344,45 +1314,6 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 	}
 
 	return result, nil
-}
-
-// sortDecisionsByPriority 对决策排序：先平仓，再开仓，最后hold/wait
-// 这样可以避免换仓时仓位叠加超限
-func sortDecisionsByPriority(decisions []decision.Decision) []decision.Decision {
-	if len(decisions) <= 1 {
-		return decisions
-	}
-
-	// 定义优先级
-	getActionPriority := func(action string) int {
-		switch action {
-		case "close_long", "close_short", "partial_close":
-			return 1 // 最高优先级：先平仓（包括部分平仓）
-		case "update_stop_loss", "update_take_profit":
-			return 2 // 调整持仓止盈止损
-		case "open_long", "open_short":
-			return 3 // 次优先级：后开仓
-		case "hold", "wait":
-			return 4 // 最低优先级：观望
-		default:
-			return 999 // 未知动作放最后
-		}
-	}
-
-	// 复制决策列表
-	sorted := make([]decision.Decision, len(decisions))
-	copy(sorted, decisions)
-
-	// 按优先级排序
-	for i := 0; i < len(sorted)-1; i++ {
-		for j := i + 1; j < len(sorted); j++ {
-			if getActionPriority(sorted[i].Action) > getActionPriority(sorted[j].Action) {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
-
-	return sorted
 }
 
 // getCandidateCoins 获取交易员的候选币种列表

@@ -231,13 +231,14 @@ function App() {
   }
   if (route === '/register') {
     if (systemConfig?.admin_mode) {
-      window.history.pushState({}, '', '/login');
-      return <LoginPage />;
-    }    
+      window.history.pushState({}, '', '/login')
+      return <LoginPage />
+    }
     return <RegisterPage />
   }
   if (route === '/faq') {
     return <FAQPage />
+  }
   if (route === '/reset-password') {
     return <ResetPasswordPage />
   }
@@ -297,12 +298,12 @@ function App() {
 
   // Show landing page for root route
   if (route === '/' || route === '') {
-    return <LandingPage isAdminMode={systemConfig?.admin_mode} />;
+    return <LandingPage isAdminMode={systemConfig?.admin_mode} />
   }
 
   // In admin mode, require authentication for any protected routes
   if (systemConfig?.admin_mode && (!user || !token)) {
-    return <LoginPage />;
+    return <LoginPage />
   }
 
   // Show main app for authenticated users on other routes (non-admin mode)

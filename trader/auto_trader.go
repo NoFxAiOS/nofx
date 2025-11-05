@@ -13,6 +13,20 @@ import (
 	"time"
 )
 
+// PositionDetail 持仓详细信息（用于检测手动平仓）
+type PositionDetail struct {
+	Symbol           string  // 交易对符号
+	Side             string  // 持仓方向 (long/short)
+	EntryPrice       float64 // 开仓均价
+	MarkPrice        float64 // 标记价格
+	Quantity         float64 // 持仓数量
+	Leverage         int     // 杠杆倍数
+	UnrealizedPnL    float64 // 未实现盈亏
+	UnrealizedPnLPct float64 // 未实现盈亏百分比
+	LiquidationPrice float64 // 强平价格
+	UpdateTime       int64   // 更新时间(毫秒时间戳)
+}
+
 // AutoTraderConfig 自动交易配置（简化版 - AI全权决策）
 type AutoTraderConfig struct {
 	// Trader标识
@@ -98,6 +112,10 @@ type AutoTrader struct {
 	startTime             time.Time        // 系统启动时间
 	callCount             int              // AI调用次数
 	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+
+	// 手动平仓检测相关字段
+	previousPositions     map[string]PositionDetail // 上一周期的持仓快照
+	currentCyclePositions map[string]PositionDetail // 当前周期的持仓快照
 }
 
 // NewAutoTrader 创建自动交易器
@@ -216,6 +234,8 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		callCount:             0,
 		isRunning:             false,
 		positionFirstSeenTime: make(map[string]int64),
+		previousPositions:     make(map[string]PositionDetail),
+		currentCyclePositions: make(map[string]PositionDetail),
 	}, nil
 }
 
@@ -257,9 +277,9 @@ func (at *AutoTrader) Stop() {
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
 
-	log.Printf("\n" + strings.Repeat("=", 70))
+	log.Print("\n" + strings.Repeat("=", 70) + "\n")
 	log.Printf("⏰ %s - AI决策周期 #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
-	log.Printf(strings.Repeat("=", 70))
+	log.Println(strings.Repeat("=", 70))
 
 	// 创建决策记录
 	record := &logger.DecisionRecord{
@@ -324,6 +344,18 @@ func (at *AutoTrader) runCycle() error {
 	log.Printf("📊 账户净值: %.2f USDT | 可用: %.2f USDT | 持仓: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
+	// 3.5 检测手动平仓（在AI决策之前）
+	manualCloses := at.detectManualCloses()
+	if len(manualCloses) > 0 {
+		log.Printf("⚠️ 检测到 %d 个手动平仓操作，将记录到决策日志", len(manualCloses))
+		// 将手动平仓记录添加到决策日志
+		for _, mc := range manualCloses {
+			record.Decisions = append(record.Decisions, mc)
+			record.ExecutionLog = append(record.ExecutionLog,
+				fmt.Sprintf("⚠️ %s %s (手动平仓检测)", mc.Symbol, mc.Action))
+		}
+	}
+
 	// 4. 调用AI获取完整决策
 	log.Printf("🤖 正在请求AI分析并决策... [模板: %s]", at.systemPromptTemplate)
 	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate)
@@ -346,19 +378,19 @@ func (at *AutoTrader) runCycle() error {
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
 		if decision != nil {
 			if decision.SystemPrompt != "" {
-				log.Printf("\n" + strings.Repeat("=", 70))
+				log.Print("\n" + strings.Repeat("=", 70) + "\n")
 				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
 				log.Println(strings.Repeat("=", 70))
 				log.Println(decision.SystemPrompt)
-				log.Printf(strings.Repeat("=", 70) + "\n")
+				log.Println(strings.Repeat("=", 70))
 			}
 
 			if decision.CoTTrace != "" {
-				log.Printf("\n" + strings.Repeat("-", 70))
+				log.Print("\n" + strings.Repeat("-", 70) + "\n")
 				log.Println("💭 AI思维链分析（错误情况）:")
 				log.Println(strings.Repeat("-", 70))
 				log.Println(decision.CoTTrace)
-				log.Printf(strings.Repeat("-", 70) + "\n")
+				log.Println(strings.Repeat("-", 70))
 			}
 		}
 
@@ -431,6 +463,13 @@ func (at *AutoTrader) runCycle() error {
 		log.Printf("⚠ 保存决策记录失败: %v", err)
 	}
 
+	// 10. 更新持仓快照（为下一周期的手动平仓检测做准备）
+	at.previousPositions = make(map[string]PositionDetail)
+	for key, pos := range at.currentCyclePositions {
+		at.previousPositions[key] = pos
+	}
+	log.Printf("📸 更新持仓快照: %d 个持仓", len(at.previousPositions))
+
 	return nil
 }
 
@@ -472,6 +511,9 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	// 当前持仓的key集合（用于清理已平仓的记录）
 	currentPositionKeys := make(map[string]bool)
 
+	// 清空当前周期持仓快照（准备保存新快照）
+	at.currentCyclePositions = make(map[string]PositionDetail)
+
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
 		side := pos["side"].(string)
@@ -508,6 +550,20 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 		}
 		updateTime := at.positionFirstSeenTime[posKey]
+
+		// 保存当前周期持仓快照（用于手动平仓检测）
+		at.currentCyclePositions[posKey] = PositionDetail{
+			Symbol:           symbol,
+			Side:             side,
+			EntryPrice:       entryPrice,
+			MarkPrice:        markPrice,
+			Quantity:         quantity,
+			Leverage:         leverage,
+			UnrealizedPnL:    unrealizedPnl,
+			UnrealizedPnLPct: pnlPct,
+			LiquidationPrice: liquidationPrice,
+			UpdateTime:       updateTime,
+		}
 
 		positionInfos = append(positionInfos, decision.PositionInfo{
 			Symbol:           symbol,
@@ -1080,4 +1136,70 @@ func normalizeSymbol(symbol string) string {
 	}
 
 	return symbol
+}
+
+// detectManualCloses 检测手动平仓操作
+// 通过对比上一周期和当前周期的持仓快照，发现消失的持仓
+func (at *AutoTrader) detectManualCloses() []logger.DecisionAction {
+	// 提前判断: 如果上一周期没有持仓,直接返回
+	if len(at.previousPositions) == 0 {
+		return []logger.DecisionAction{}
+	}
+
+	var manualCloses []logger.DecisionAction
+
+	log.Printf("🔍 检测手动平仓: 上一周期持仓数=%d, 当前周期持仓数=%d",
+		len(at.previousPositions), len(at.currentCyclePositions))
+
+	// 遍历上一周期的持仓
+	for posKey, oldPos := range at.previousPositions {
+		// 检查该持仓是否在当前周期中消失
+		if _, exists := at.currentCyclePositions[posKey]; !exists {
+			log.Printf("⚠️ 检测到持仓消失: %s (方向: %s, 数量: %.4f)",
+				oldPos.Symbol, oldPos.Side, oldPos.Quantity)
+
+			// 使用快照数据构造手动平仓记录
+			action := at.buildManualCloseWithSnapshot(oldPos)
+			manualCloses = append(manualCloses, *action)
+			log.Printf("✅ 成功构造手动平仓记录: %s %s", oldPos.Symbol, oldPos.Side)
+		}
+	}
+
+	if len(manualCloses) > 0 {
+		log.Printf("📝 检测到 %d 个手动平仓操作", len(manualCloses))
+	}
+
+	return manualCloses
+}
+
+// buildManualCloseWithSnapshot 使用持仓快照数据构造手动平仓记录
+// 使用MarkPrice作为平仓价格(通常与实际成交价偏差<1%)
+func (at *AutoTrader) buildManualCloseWithSnapshot(oldPos PositionDetail) *logger.DecisionAction {
+	// 确定action类型
+	action := "close_long"
+	if oldPos.Side == "short" {
+		action = "close_short"
+	}
+
+	// 使用标记价格作为平仓价格(MarkPrice接近实际成交价)
+	closePrice := oldPos.MarkPrice
+
+	// 构造Error字段标记
+	errorMsg := fmt.Sprintf("手动平仓 | 平仓价格: %.2f USDT | 未实现盈亏: %+.2f USDT",
+		closePrice, oldPos.UnrealizedPnL)
+
+	log.Printf("📊 使用快照数据: 价格=%.2f, 数量=%.4f, 未实现盈亏=%+.2f",
+		closePrice, oldPos.Quantity, oldPos.UnrealizedPnL)
+
+	return &logger.DecisionAction{
+		Action:    action,
+		Symbol:    oldPos.Symbol,
+		Quantity:  oldPos.Quantity,
+		Leverage:  0,
+		Price:     closePrice,
+		OrderID:   0,
+		Timestamp: time.Now(),
+		Success:   true,
+		Error:     errorMsg,
+	}
 }

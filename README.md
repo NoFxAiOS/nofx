@@ -281,7 +281,7 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 #### Step 1: Prepare Configuration
 ```bash
 # Copy configuration template
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # Edit and fill in your API keys
 nano config.json  # or use any editor

@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
-**语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md)
+**语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md)
 
 **官方推特:** [@nofx_ai](https://x.com/nofx_ai)
 
@@ -283,7 +283,7 @@ Docker会自动处理所有依赖（Go、Node.js、TA-Lib）和环境配置，�
 #### 步骤1：准备配置文件
 ```bash
 # 复制配置文件模板
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # 编辑并填入你的API密钥
 nano config.json  # 或使用其他编辑器
@@ -319,6 +319,7 @@ docker compose up -d --build
 **📖 详细的Docker部署教程、故障排查和高级配置：**
 - **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
 - **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
+- **日本語**: [DOCKER_DEPLOY.ja.md](DOCKER_DEPLOY.ja.md)を参照
 
 ---
 
@@ -422,7 +423,7 @@ cd ..
 ~~**步骤1**：复制并重命名示例配置文件~~
 
 ```bash
-cp config.example.jsonc config.json
+cp config.json.example config.json
 ```
 
 ~~**步骤2**：编辑`config.json`填入您的API密钥~~ 

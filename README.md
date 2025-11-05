@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
-**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md)
+**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md)
 
 **Official Twitter:** [@nofx_ai](https://x.com/nofx_ai)
 
@@ -29,6 +29,7 @@
 - [🧠 AI Self-Learning](#-ai-self-learning-example)
 - [📊 Web Interface Features](#-web-interface-features)
 - [🎛️ API Endpoints](#️-api-endpoints)
+- [🔐 Admin Mode (Single-User)](#-admin-mode-single-user) 
 - [⚠️ Important Risk Warnings](#️-important-risk-warnings)
 - [🛠️ Common Issues](#️-common-issues)
 - [📈 Performance Tips](#-performance-optimization-tips)
@@ -242,6 +243,49 @@ NOFX is built with a modern, modular architecture:
 
 ---
 
+## 🔐 Admin Mode (Single-User)
+
+For self-hosted or single-tenant setups, NOFX supports a strict admin-only mode that disables public features and requires an admin password for all access.
+
+### How it works
+- All API endpoints require a valid JWT when `admin_mode=true`, except:
+  - `GET /api/health`
+  - `GET /api/config`
+  - `POST /api/admin-login`
+- Registration is gated by `allow_registration` in `config.json` (default: `true`). When `admin_mode=true`, registration is blocked regardless of this flag.
+- Logout invalidates the current token via an in-memory blacklist (sufficient for single instance; use Redis for multi-instance – see Notes).
+
+### Quick setup
+1) Set flags in `config.json`:
+```jsonc
+{
+  // ... other config
+  "admin_mode": true,
+  "jwt_secret": "YOUR_JWT_SCR" 
+}
+```
+
+2) Provide required environment variables:
+- `NOFX_ADMIN_PASSWORD` — plaintext admin password (only used at startup to derive a bcrypt hash)
+
+Docker Compose example (already wired):
+```yaml
+services:
+  nofx:
+    environment:
+      - NOFX_ADMIN_PASSWORD=${NOFX_ADMIN_PASSWORD}
+```
+
+1) Login flow (admin mode):
+- Open the web UI → you’ll be redirected to the login page
+- Enter admin password → the server returns a JWT
+- The UI stores the token and authenticates subsequent API calls
+
+### Notes
+- Token lifetime: 24h. On logout, tokens are blacklisted in-memory until expiry. For multi-instance deployments, use a shared store (e.g., Redis) to sync the blacklist.
+
+---
+
 ## 💰 Register Binance Account (Save on Fees!)
 
 Before using this system, you need a Binance Futures account. **Use our referral link to save on trading fees:**
@@ -281,7 +325,7 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 #### Step 1: Prepare Configuration
 ```bash
 # Copy configuration template
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # Edit and fill in your API keys
 nano config.json  # or use any editor

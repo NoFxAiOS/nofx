@@ -96,7 +96,7 @@ func (client *Client) SetQwenAPIKey(apiKey string, customURL string, customModel
 		client.Model = customModel
 		log.Printf("🔧 [MCP] Qwen 使用自定义 Model: %s", customModel)
 	} else {
-		client.Model = "qwen-plus" // 可选: qwen-turbo, qwen-plus, qwen-max
+		client.Model = "qwen3-max" 
 		log.Printf("🔧 [MCP] Qwen 使用默认 Model: %s", client.Model)
 	}
 	// 打印 API Key 的前后各4位用于验证
@@ -313,6 +313,8 @@ func isRetryableError(err error) bool {
 		"connection refused",
 		"temporary failure",
 		"no such host",
+		"stream error",   // HTTP/2 stream 错误
+		"INTERNAL_ERROR", // 服务端内部错误
 	}
 	for _, retryable := range retryableErrors {
 		if strings.Contains(errStr, retryable) {

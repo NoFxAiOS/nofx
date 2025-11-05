@@ -41,3 +41,6 @@ web/node_modules/
 node_modules/
 web/dist/
 web/.vite/
+
+# ESLint 临时报告文件（调试时生成，不纳入版本控制）
+eslint-*.json

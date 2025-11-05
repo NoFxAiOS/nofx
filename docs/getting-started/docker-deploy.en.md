@@ -50,7 +50,7 @@ docker compose --version  # Docker 24+ includes this, no separate installation n
 
 ```bash
 # Copy configuration template
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # Edit configuration file with your API keys
 nano config.json  # or use any other editor
@@ -267,7 +267,7 @@ kill -9 <PID>
 # ~~ls -la config.json~~
 
 # ~~If not exists, copy template~~
-# ~~cp config.example.jsonc config.json~~
+# ~~cp config.json.example config.json~~
 
 *Note: Now using SQLite database for configuration storage, no longer need config.json*
 ```

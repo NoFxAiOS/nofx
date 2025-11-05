@@ -659,6 +659,53 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         </div>
       </div>
 
+      {/* 信号源配置警告 */}
+      {traders && traders.some(t => (t.use_coin_pool || t.use_oi_top)) &&
+       (!userSignalSource.coinPoolUrl && !userSignalSource.oiTopUrl) && (
+        <div
+          className="rounded-lg px-4 py-3 flex items-start gap-3 animate-slide-in"
+          style={{
+            background: 'rgba(246, 70, 93, 0.1)',
+            border: '1px solid rgba(246, 70, 93, 0.3)',
+          }}
+        >
+          <AlertTriangle
+            size={20}
+            className="flex-shrink-0 mt-0.5"
+            style={{ color: '#F6465D' }}
+          />
+          <div className="flex-1">
+            <div className="font-semibold mb-1" style={{ color: '#F6465D' }}>
+              ⚠️ 信号源未配置
+            </div>
+            <div className="text-sm" style={{ color: '#848E9C' }}>
+              <p className="mb-2">
+                您有交易员启用了"使用币种池"或"使用OI Top"，但尚未配置信号源API地址。
+                这将导致<strong style={{ color: '#F6465D' }}>候选币种数量为0</strong>，交易员无法正常工作。
+              </p>
+              <p>
+                <strong>解决方案：</strong>
+              </p>
+              <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
+                <li>点击"📡 信号源"按钮配置API地址</li>
+                <li>或在交易员配置中禁用"使用币种池"和"使用OI Top"</li>
+                <li>或在交易员配置中设置自定义币种列表</li>
+              </ul>
+            </div>
+            <button
+              onClick={() => setShowSignalSourceModal(true)}
+              className="mt-3 px-3 py-1.5 rounded text-sm font-semibold transition-all hover:scale-105"
+              style={{
+                background: '#F0B90B',
+                color: '#000',
+              }}
+            >
+              立即配置信号源
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Configuration Status */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         {/* AI Models */}

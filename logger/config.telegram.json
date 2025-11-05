@@ -1,0 +1,33 @@
+{
+  "traders": [
+    {
+      "id": "trader1",
+      "name": "AI Trader 1",
+      "enabled": true,
+      "ai_model": "deepseek",
+      "exchange": "binance",
+      "binance_api_key": "your_api_key",
+      "binance_secret_key": "your_secret_key",
+      "deepseek_key": "your_deepseek_key",
+      "initial_balance": 1000,
+      "scan_interval_minutes": 3
+    }
+  ],
+  "use_default_coins": true,
+  "default_coins": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+  "api_server_port": 8080,
+  "leverage": {
+    "btc_eth_leverage": 5,
+    "altcoin_leverage": 5
+  },
+  "log": {
+    "level": "info",
+    "telegram": {
+      "enabled": true,
+      "bot_token": "79472419:feafe231414",
+      "chat_id": -100323252626,
+      "min_level": "error"
+    }
+  },
+  "_comment": "日志配置说明：level 可选值为 debug/info/warn/error，默认 info。telegram 部分作为可选配置, Telegram 推送默认为 error/fatal/panic 级别，min_level 如果设置为warn，则推送warn级别及以上的日志"
+}

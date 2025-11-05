@@ -1092,6 +1092,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {showExchangeModal && (
         <ExchangeConfigModal
           allExchanges={supportedExchanges}
+          configuredExchanges={allExchanges}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
           onDelete={handleDeleteExchangeConfig}
@@ -1560,6 +1561,7 @@ function ModelConfigModal({
 // Exchange Configuration Modal Component
 function ExchangeConfigModal({
   allExchanges,
+  configuredExchanges,
   editingExchangeId,
   onSave,
   onDelete,
@@ -1567,6 +1569,7 @@ function ExchangeConfigModal({
   language,
 }: {
   allExchanges: Exchange[]
+  configuredExchanges: Exchange[]
   editingExchangeId: string | null
   onSave: (
     exchangeId: string,
@@ -1600,15 +1603,20 @@ function ExchangeConfigModal({
   // 币安配置指南展开状态
   const [showBinanceGuide, setShowBinanceGuide] = useState(false)
 
+  // Hyperliquid 特定字段
+  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('')
+
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('')
   const [asterSigner, setAsterSigner] = useState('')
   const [asterPrivateKey, setAsterPrivateKey] = useState('')
 
-  // 获取当前编辑的交易所信息
-  const selectedExchange = allExchanges?.find(
-    (e) => e.id === selectedExchangeId
-  )
+  // 获取当前选择的交易所信息
+  // 编辑模式：从 configuredExchanges 查找（包含用户配置的 apiKey、secretKey 等）
+  // 新增模式：从 allExchanges 查找（系统支持的交易所列表）
+  const selectedExchange = editingExchangeId
+    ? configuredExchanges?.find(e => e.id === selectedExchangeId)
+    : allExchanges?.find(e => e.id === selectedExchangeId);
 
   // 如果是编辑现有交易所，初始化表单数据
   useEffect(() => {
@@ -1617,6 +1625,9 @@ function ExchangeConfigModal({
       setSecretKey(selectedExchange.secretKey || '')
       setPassphrase('') // Don't load existing passphrase for security
       setTestnet(selectedExchange.testnet || false)
+
+      // Hyperliquid 字段
+      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '')
 
       // Aster 字段
       setAsterUser(selectedExchange.asterUser || '')
@@ -2068,6 +2079,29 @@ function ExchangeConfigModal({
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
                       {t('hyperliquidPrivateKeyDesc', language)}
+                    </div>
+                  </div>           
+                  <div>
+                    <label
+                      className="block text-sm font-semibold mb-2"
+                      style={{ color: '#EAECEF' }}
+                    >
+                      钱包地址
+                    </label>
+                    <input
+                      type="text"
+                      value={hyperliquidWalletAddr}
+                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
+                      placeholder="钱包地址（可选，通常由私钥自动生成）"
+                      className="w-full px-3 py-2 rounded"
+                      style={{
+                        background: '#0B0E11',
+                        border: '1px solid #2B3139',
+                        color: '#EAECEF',
+                      }}
+                    />
+                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                      钱包地址通常由私钥自动生成，编辑时可查看或修改
                     </div>
                   </div>
                 </>

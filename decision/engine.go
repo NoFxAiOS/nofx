@@ -253,33 +253,31 @@ func calculateMaxCandidates(ctx *Context) int {
 
 // buildSystemPromptWithCustom 构建包含自定义内容的 System Prompt
 func buildSystemPromptWithCustom(accountEquity float64, btcEthLeverage, altcoinLeverage int, customPrompt string, overrideBase bool, templateName string) string {
-	// 如果覆盖基础prompt且有自定义prompt，只使用自定义prompt
-	if overrideBase && customPrompt != "" {
-		return customPrompt
-	}
-
-	// 获取基础prompt（使用指定的模板）
-	basePrompt := buildSystemPrompt(accountEquity, btcEthLeverage, altcoinLeverage, templateName)
-
-	// 如果没有自定义prompt，直接返回基础prompt
-	if customPrompt == "" {
-		return basePrompt
+	basePrompt := customPrompt
+	// 如果不覆盖就用系统prompt
+	if !overrideBase {
+		// 获取基础prompt（使用指定的模板）
+		basePrompt = buildSystemPrompt(templateName)
 	}
 
 	// 添加自定义prompt部分到基础prompt
 	var sb strings.Builder
 	sb.WriteString(basePrompt)
+	sb.WriteString(buildHardSystemPrompt(accountEquity, btcEthLeverage, altcoinLeverage))
 	sb.WriteString("\n\n")
-	sb.WriteString("# 📌 个性化交易策略\n\n")
-	sb.WriteString(customPrompt)
-	sb.WriteString("\n\n")
-	sb.WriteString("注意: 以上个性化策略是对基础规则的补充，不能违背基础风险控制原则。\n")
+
+	if !overrideBase && customPrompt != "" {
+		sb.WriteString("# 📌 个性化交易策略\n\n")
+		sb.WriteString(customPrompt)
+		sb.WriteString("\n\n")
+		sb.WriteString("注意: 以上个性化策略是对基础规则的补充，不能违背基础风险控制原则。\n")
+	}
 
 	return sb.String()
 }
 
 // buildSystemPrompt 构建 System Prompt（使用模板+动态部分）
-func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage int, templateName string) string {
+func buildSystemPrompt(templateName string) string {
 	var sb strings.Builder
 
 	// 1. 加载提示词模板（核心交易策略部分）
@@ -305,6 +303,12 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		sb.WriteString("\n\n")
 	}
 
+	return sb.String()
+}
+
+// buildHardSystemPrompt 硬性条件 保证输出格式以及爆仓风险
+func buildHardSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage int) string {
+	var sb strings.Builder
 	// 2. 硬约束（风险控制）- 动态生成
 	sb.WriteString("# 硬约束（风险控制）\n\n")
 	sb.WriteString("1. 风险回报比: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")

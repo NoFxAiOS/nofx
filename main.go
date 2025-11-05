@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/joho/godotenv"	
 )
 
 // LeverageConfig 杠杆配置
@@ -160,6 +162,10 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
+	// Load environment variables from .env file if present (for local/dev runs)
+	// In Docker Compose, variables are injected by the runtime and this is harmless.
+	_ = godotenv.Load()
+
 	// 初始化数据库配置
 	dbPath := "config.db"
 	if len(os.Args) > 1 {
@@ -206,16 +212,19 @@ func main() {
 	}
 	auth.SetJWTSecret(jwtSecret)
 
-	// 在管理员模式下，确保admin用户存在
+	// 管理员模式下需要管理员密码，缺失则退出
 	if adminMode {
-		err := database.EnsureAdminUser()
-		if err != nil {
-			log.Printf("⚠️  创建admin用户失败: %v", err)
-		} else {
-			log.Printf("✓ 管理员模式已启用，无需登录")
+		adminPassword := os.Getenv("NOFX_ADMIN_PASSWORD")
+		if adminPassword == "" {
+			log.Fatalf("Admin mode is enabled but NOFX_ADMIN_PASSWORD is missing. Set NOFX_ADMIN_PASSWORD and restart.")
+		}
+		if err := auth.SetAdminPasswordFromPlain(adminPassword); err != nil {
+			log.Fatalf("Failed to set admin password: %v", err)
 		}
 		auth.SetAdminMode(true)
+		log.Printf("✓ Admin mode enabled. All API endpoints require admin authentication.")
 	}
+
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()

@@ -74,35 +74,46 @@ func (s *Server) setupRoutes() {
 		// 健康检查
 		api.Any("/health", s.handleHealth)
 
-		// 认证相关路由（无需认证）
-		api.POST("/register", s.handleRegister)
-		api.POST("/login", s.handleLogin)
-		api.POST("/verify-otp", s.handleVerifyOTP)
-		api.POST("/complete-registration", s.handleCompleteRegistration)
-		api.POST("/reset-password", s.handleResetPassword)
+		// 管理员登录（管理员模式下使用，公共）
+		api.POST("/admin-login", s.handleAdminLogin)
 
-		// 系统支持的模型和交易所（无需认证）
-		api.GET("/supported-models", s.handleGetSupportedModels)
-		api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
+		// 非管理员模式下的公开认证路由
+		if !auth.IsAdminMode() {
+			// 认证相关路由（无需认证）
+			api.POST("/register", s.handleRegister)
+			api.POST("/login", s.handleLogin)
+			api.POST("/verify-otp", s.handleVerifyOTP)
+			api.POST("/complete-registration", s.handleCompleteRegistration)
 
-		// 系统配置（无需认证）
+			// 系统支持的模型和交易所（无需认证）
+			api.GET("/supported-models", s.handleGetSupportedModels)
+			api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
+		}
+
+		// 系统配置（无需认证，用于前端判断是否管理员模式/注册是否开启）
 		api.GET("/config", s.handleGetSystemConfig)
 
-		// 系统提示词模板管理（无需认证）
-		api.GET("/prompt-templates", s.handleGetPromptTemplates)
-		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
+		// 系统提示词模板管理（仅在非管理员模式下公开）
+		if !auth.IsAdminMode() {
+			// 系统提示词模板管理（无需认证）
+			api.GET("/prompt-templates", s.handleGetPromptTemplates)
+			api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
 
-		// 公开的竞赛数据（无需认证）
-		api.GET("/traders", s.handlePublicTraderList)
-		api.GET("/competition", s.handlePublicCompetition)
-		api.GET("/top-traders", s.handleTopTraders)
-		api.GET("/equity-history", s.handleEquityHistory)
-		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
-		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
+			// 公开的竞赛数据（无需认证）
+			api.GET("/traders", s.handlePublicTraderList)
+			api.GET("/competition", s.handlePublicCompetition)
+			api.GET("/top-traders", s.handleTopTraders)
+			api.GET("/equity-history", s.handleEquityHistory)
+			api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
+			api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
+		}
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
 		{
+			// 注销（加入黑名单）
+			protected.POST("/logout", s.handleLogout)
+
 			// 服务器IP查询（需要认证，用于白名单配置）
 			protected.GET("/server-ip", s.handleGetServerIP)
 
@@ -1460,14 +1471,6 @@ func (s *Server) handlePerformance(c *gin.Context) {
 // authMiddleware JWT认证中间件
 func (s *Server) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 如果是管理员模式，直接使用admin用户
-		if auth.IsAdminMode() {
-			c.Set("user_id", "admin")
-			c.Set("email", "admin@localhost")
-			c.Next()
-			return
-		}
-
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少Authorization头"})
@@ -1483,8 +1486,18 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			return
 		}
 
+
+		tokenString := tokenParts[1]
+
+		// 黑名单检查
+		if auth.IsTokenBlacklisted(tokenString) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "token已失效，请重新登录"})
+			c.Abort()
+			return
+		}
+
 		// 验证JWT token
-		claims, err := auth.ValidateJWT(tokenParts[1])
+		claims, err := auth.ValidateJWT(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token: " + err.Error()})
 			c.Abort()
@@ -1498,8 +1511,79 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 	}
 }
 
+// handleAdminLogin 管理员登录（密码仅来自环境变量）
+func (s *Server) handleAdminLogin(c *gin.Context) {
+	if !auth.IsAdminMode() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "仅管理员模式可用"})
+		return
+	}
+
+	// 简单的IP速率限制（5次/分钟 + 递增退避）
+	// 为简化，此处省略复杂实现，可在后续使用中间件或Redis增强
+
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Password) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少密码"})
+		return
+	}
+	if !auth.CheckAdminPassword(req.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
+		return
+	}
+
+	token, err := auth.GenerateJWT("admin", "admin@localhost")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token, "user_id": "admin", "email": "admin@localhost"})
+}
+
+// handleLogout 将当前token加入黑名单
+func (s *Server) handleLogout(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少Authorization头"})
+		return
+	}
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的Authorization格式"})
+		return
+	}
+	tokenString := parts[1]
+	claims, err := auth.ValidateJWT(tokenString)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token"})
+		return
+	}
+	var exp time.Time
+	if claims.ExpiresAt != nil {
+		exp = claims.ExpiresAt.Time
+	} else {
+		exp = time.Now().Add(24 * time.Hour)
+	}
+	auth.BlacklistToken(tokenString, exp)
+	c.JSON(http.StatusOK, gin.H{"message": "已登出"})
+}
+
 // handleRegister 处理用户注册请求
 func (s *Server) handleRegister(c *gin.Context) {
+	// 管理员模式下禁用注册
+	if auth.IsAdminMode() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "管理员模式下禁用注册"})
+		return
+	}
+
+	// 若未开启注册，返回403
+	allowRegStr, _ := s.database.GetSystemConfig("allow_registration")
+	if allowRegStr == "false" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭"})
+		return
+	}
+
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`

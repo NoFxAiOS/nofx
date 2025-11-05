@@ -92,6 +92,8 @@ export interface TraderInfo {
   exchange_id?: string
   is_running?: boolean
   custom_prompt?: string
+  use_coin_pool?: boolean
+  use_oi_top?: boolean
 }
 
 export interface AIModel {

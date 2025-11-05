@@ -436,7 +436,7 @@ func (at *AutoTrader) runCycle() error {
 		})
 	}
 
-	// 保存候选币种列表
+						log.Print(strings.Repeat("=", 70))
 	for _, coin := range ctx.CandidateCoins {
 		record.CandidateCoins = append(record.CandidateCoins, coin.Symbol)
 	}
@@ -465,7 +465,6 @@ func (at *AutoTrader) runCycle() error {
 
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
 		if decision != nil {
-			if decision.SystemPrompt != "" {
 				log.Print("\n" + strings.Repeat("=", 70) + "\n")
 				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
 				log.Println(strings.Repeat("=", 70))
@@ -510,6 +509,9 @@ func (at *AutoTrader) runCycle() error {
 	//     }
 	// }
 	log.Println()
+				log.Print(strings.Repeat("-", 70))
+	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
+				log.Print(strings.Repeat("-", 70))
 
 	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
 	sortedDecisions := sortDecisionsByPriority(decision.Decisions)

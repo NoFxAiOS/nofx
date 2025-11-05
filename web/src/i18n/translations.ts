@@ -291,6 +291,12 @@ export const translations = {
     viewGuide: 'View Guide',
     binanceSetupGuide: 'Binance Setup Guide',
     closeGuide: 'Close',
+    whitelistIP: 'Whitelist IP',
+    whitelistIPDesc: 'Binance requires adding server IP to API whitelist',
+    serverIPAddresses: 'Server IP Addresses',
+    copyIP: 'Copy',
+    ipCopied: 'IP Copied',
+    loadingServerIP: 'Loading server IP...',
 
     // Error Messages
     createTraderFailed: 'Failed to create trader',
@@ -758,6 +764,12 @@ export const translations = {
     viewGuide: '查看教程',
     binanceSetupGuide: '币安配置教程',
     closeGuide: '关闭',
+    whitelistIP: '白名单IP',
+    whitelistIPDesc: '币安交易所需要填写白名单IP',
+    serverIPAddresses: '服务器IP地址',
+    copyIP: '复制',
+    ipCopied: 'IP已复制',
+    loadingServerIP: '正在加载服务器IP...',
 
     // Error Messages
     createTraderFailed: '创建交易员失败',

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"nofx/auth"
 	"nofx/config"
@@ -101,6 +102,9 @@ func (s *Server) setupRoutes() {
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
 		{
+			// 服务器IP查询（需要认证，用于白名单配置）
+			protected.GET("/server-ip", s.handleGetServerIP)
+
 			// AI交易员管理
 			protected.GET("/my-traders", s.handleTraderList)
 			protected.GET("/traders/:id/config", s.handleGetTraderConfig)
@@ -182,6 +186,133 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 		"btc_eth_leverage": btcEthLeverage,
 		"altcoin_leverage": altcoinLeverage,
 	})
+}
+
+// handleGetServerIP 获取服务器IP地址（用于白名单配置）
+func (s *Server) handleGetServerIP(c *gin.Context) {
+	// 尝试通过第三方API获取公网IP
+	publicIP := getPublicIPFromAPI()
+
+	// 如果第三方API失败，从网络接口获取第一个公网IP
+	if publicIP == "" {
+		publicIP = getPublicIPFromInterface()
+	}
+
+	// 如果还是没有获取到，返回错误
+	if publicIP == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取公网IP地址"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"public_ip": publicIP,
+		"message":   "请将此IP地址添加到白名单中",
+	})
+}
+
+// getPublicIPFromAPI 通过第三方API获取公网IP
+func getPublicIPFromAPI() string {
+	// 尝试多个公网IP查询服务
+	services := []string{
+		"https://api.ipify.org?format=text",
+		"https://icanhazip.com",
+		"https://ifconfig.me",
+	}
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	for _, service := range services {
+		resp, err := client.Get(service)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			body := make([]byte, 128)
+			n, err := resp.Body.Read(body)
+			if err != nil && err.Error() != "EOF" {
+				continue
+			}
+
+			ip := strings.TrimSpace(string(body[:n]))
+			// 验证是否为有效的IP地址
+			if net.ParseIP(ip) != nil {
+				return ip
+			}
+		}
+	}
+
+	return ""
+}
+
+// getPublicIPFromInterface 从网络接口获取第一个公网IP
+func getPublicIPFromInterface() string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+
+	for _, iface := range interfaces {
+		// 跳过未启用的接口和回环接口
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+
+			// 只考虑IPv4地址
+			if ip.To4() != nil {
+				ipStr := ip.String()
+				// 排除私有IP地址范围
+				if !isPrivateIP(ip) {
+					return ipStr
+				}
+			}
+		}
+	}
+
+	return ""
+}
+
+// isPrivateIP 判断是否为私有IP地址
+func isPrivateIP(ip net.IP) bool {
+	// 私有IP地址范围：
+	// 10.0.0.0/8
+	// 172.16.0.0/12
+	// 192.168.0.0/16
+	privateRanges := []string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+	}
+
+	for _, cidr := range privateRanges {
+		_, subnet, _ := net.ParseCIDR(cidr)
+		if subnet.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // getTraderFromQuery 从query参数获取trader

@@ -1582,6 +1582,12 @@ function ExchangeConfigModal({
   const [passphrase, setPassphrase] = useState('');
   const [testnet, setTestnet] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [serverIP, setServerIP] = useState<{
+    public_ip: string;
+    message: string;
+  } | null>(null);
+  const [loadingIP, setLoadingIP] = useState(false);
+  const [copiedIP, setCopiedIP] = useState(false);
 
   // 币安配置指南展开状态
   const [showBinanceGuide, setShowBinanceGuide] = useState(false);
@@ -1605,12 +1611,39 @@ function ExchangeConfigModal({
       setPassphrase('') // Don't load existing passphrase for security
       setTestnet(selectedExchange.testnet || false)
 
+      // Hyperliquid 字段
+      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '')
+
       // Aster 字段
       setAsterUser(selectedExchange.asterUser || '')
       setAsterSigner(selectedExchange.asterSigner || '')
       setAsterPrivateKey('') // Don't load existing private key for security
     }
   }, [editingExchangeId, selectedExchange])
+
+  // 加载服务器IP（当选择binance时）
+  useEffect(() => {
+    if (selectedExchangeId === 'binance' && !serverIP) {
+      setLoadingIP(true);
+      api.getServerIP()
+        .then(data => {
+          setServerIP(data);
+        })
+        .catch(err => {
+          console.error('Failed to load server IP:', err);
+        })
+        .finally(() => {
+          setLoadingIP(false);
+        });
+    }
+  }, [selectedExchangeId]);
+
+  const handleCopyIP = (ip: string) => {
+    navigator.clipboard.writeText(ip).then(() => {
+      setCopiedIP(true);
+      setTimeout(() => setCopiedIP(false), 2000);
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1900,8 +1933,38 @@ function ExchangeConfigModal({
                         />
                       </div>
                     )}
-                  </>
-                )}
+
+                  {/* Binance 白名单IP提示 */}
+                  {selectedExchange.id === 'binance' && (
+                    <div className="p-4 rounded" style={{ background: 'rgba(240, 185, 11, 0.1)', border: '1px solid rgba(240, 185, 11, 0.2)' }}>
+                      <div className="text-sm font-semibold mb-2" style={{ color: '#F0B90B' }}>
+                        {t('whitelistIP', language)}
+                      </div>
+                      <div className="text-xs mb-3" style={{ color: '#848E9C' }}>
+                        {t('whitelistIPDesc', language)}
+                      </div>
+
+                      {loadingIP ? (
+                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                          {t('loadingServerIP', language)}
+                        </div>
+                      ) : serverIP && serverIP.public_ip ? (
+                        <div className="flex items-center gap-2 p-2 rounded" style={{ background: '#0B0E11' }}>
+                          <code className="flex-1 text-sm font-mono" style={{ color: '#F0B90B' }}>{serverIP.public_ip}</code>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyIP(serverIP.public_ip)}
+                            className="px-3 py-1 rounded text-xs font-semibold transition-all hover:scale-105"
+                            style={{ background: 'rgba(240, 185, 11, 0.2)', color: '#F0B90B' }}
+                          >
+                            {copiedIP ? t('ipCopied', language) : t('copyIP', language)}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Hyperliquid 交易所的字段 */}
               {selectedExchange.id === 'hyperliquid' && (

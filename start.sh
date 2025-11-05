@@ -165,6 +165,16 @@ start() {
     # 读取环境变量
     read_env_vars
 
+    # 确保必要的文件和目录存在（修复 Docker volume 挂载问题）
+    if [ ! -f "config.db" ]; then
+        print_info "创建数据库文件..."
+        touch config.db
+    fi
+    if [ ! -d "decision_logs" ]; then
+        print_info "创建日志目录..."
+        mkdir -p decision_logs
+    fi
+
     # Auto-build frontend if missing or forced
     # if [ ! -d "web/dist" ] || [ "$1" == "--build" ]; then
     #     build_frontend

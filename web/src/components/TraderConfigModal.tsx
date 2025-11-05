@@ -442,14 +442,15 @@ export function TraderConfigModal({
                   <input
                     type="number"
                     value={formData.scan_interval_minutes}
-                    onChange={(e) =>
-                      handleInputChange(
-                        'scan_interval_minutes',
-                        Number(e.target.value)
-                      )
-                    }
+                    onChange={(e) => {
+                      const parsedValue = Number(e.target.value)
+                      const safeValue = Number.isFinite(parsedValue)
+                        ? Math.max(3, parsedValue)
+                        : 3
+                      handleInputChange('scan_interval_minutes', safeValue)
+                    }}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="1"
+                    min="3"
                     max="60"
                     step="1"
                   />

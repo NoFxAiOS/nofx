@@ -19,8 +19,8 @@ export function LandingPage() {
   const { user, logout } = useAuth()
   const { language, setLanguage } = useLanguage()
   const isLoggedIn = !!user
-  
-  console.log('LandingPage - user:', user, 'isLoggedIn:', isLoggedIn);
+
+  console.log('LandingPage - user:', user, 'isLoggedIn:', isLoggedIn)
   return (
     <>
       <HeaderBar
@@ -43,7 +43,7 @@ export function LandingPage() {
         }}
       />
       <div
-        className='min-h-screen px-4 sm:px-6 lg:px-8'
+        className="min-h-screen px-4 sm:px-6 lg:px-8"
         style={{
           background: 'var(--brand-black)',
           color: 'var(--brand-light-gray)',
@@ -56,10 +56,10 @@ export function LandingPage() {
         <CommunitySection />
 
         {/* CTA */}
-        <AnimatedSection backgroundColor='var(--panel-bg)'>
-          <div className='max-w-4xl mx-auto text-center'>
+        <AnimatedSection backgroundColor="var(--panel-bg)">
+          <div className="max-w-4xl mx-auto text-center">
             <motion.h2
-              className='text-5xl font-bold mb-6'
+              className="text-5xl font-bold mb-6"
               style={{ color: 'var(--brand-light-gray)' }}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -68,7 +68,7 @@ export function LandingPage() {
               {t('readyToDefine', language)}
             </motion.h2>
             <motion.p
-              className='text-xl mb-12'
+              className="text-xl mb-12"
               style={{ color: 'var(--text-secondary)' }}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -77,16 +77,10 @@ export function LandingPage() {
             >
               {t('startWithCrypto', language)}
             </motion.p>
-            <div className='flex flex-wrap justify-center gap-4'>
+            <div className="flex flex-wrap justify-center gap-4">
               <motion.button
-                onClick={() => {
-                  if (isLoggedIn) {
-                    window.location.href = '/traders'
-                  } else {
-                    setShowLoginModal(true)
-                  }
-                }}
-                className='flex items-center gap-2 px-10 py-4 rounded-lg font-semibold text-lg'
+                onClick={() => setShowLoginModal(true)}
+                className="flex items-center gap-2 px-10 py-4 rounded-lg font-semibold text-lg"
                 style={{
                   background: 'var(--brand-yellow)',
                   color: 'var(--brand-black)',
@@ -99,14 +93,14 @@ export function LandingPage() {
                   animate={{ x: [0, 5, 0] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 >
-                  <ArrowRight className='w-5 h-5' />
+                  <ArrowRight className="w-5 h-5" />
                 </motion.div>
               </motion.button>
               <motion.a
-                href='https://github.com/tinkle-community/nofx/tree/dev'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='flex items-center gap-2 px-10 py-4 rounded-lg font-semibold text-lg'
+                href="https://github.com/tinkle-community/nofx/tree/dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-10 py-4 rounded-lg font-semibold text-lg"
                 style={{
                   background: 'transparent',
                   color: 'var(--brand-light-gray)',

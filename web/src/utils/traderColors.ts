@@ -12,7 +12,7 @@ export const TRADER_COLORS = [
   '#a78bfa', // violet-400
   '#4ade80', // green-400
   '#fb7185', // rose-400
-];
+]
 
 /**
  * 根据trader的索引位置获取颜色
@@ -24,8 +24,8 @@ export function getTraderColor(
   traders: Array<{ trader_id: string }>,
   traderId: string
 ): string {
-  const traderIndex = traders.findIndex((t) => t.trader_id === traderId);
-  if (traderIndex === -1) return TRADER_COLORS[0]; // 默认返回第一个颜色
+  const traderIndex = traders.findIndex((t) => t.trader_id === traderId)
+  if (traderIndex === -1) return TRADER_COLORS[0] // 默认返回第一个颜色
   // 如果超出颜色池大小，循环使用
-  return TRADER_COLORS[traderIndex % TRADER_COLORS.length];
+  return TRADER_COLORS[traderIndex % TRADER_COLORS.length]
 }

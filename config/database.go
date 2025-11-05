@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // Database 配置数据库
@@ -23,7 +23,7 @@ type Database struct {
 
 // NewDatabase 创建配置数据库
 func NewDatabase(dbPath string) (*Database, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
@@ -258,17 +258,17 @@ func (d *Database) initDefaultData() error {
 
 	// 初始化系统配置 - 创建所有字段，设置默认值，后续由config.json同步更新
 	systemConfigs := map[string]string{
-		"admin_mode":            "true",                                                                                // 默认开启管理员模式，便于首次使用
-		"beta_mode":             "false",                                                                             // 默认关闭内测模式
-		"api_server_port":       "8080",                                                                                // 默认API端口
-		"use_default_coins":     "true",                                                                                // 默认使用内置币种列表
-		"default_coins":         `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`, // 默认币种列表（JSON格式）
-		"max_daily_loss":        "10.0",                                                                                // 最大日损失百分比
-		"max_drawdown":          "20.0",                                                                                // 最大回撤百分比
-		"stop_trading_minutes":  "60",                                                                                  // 停止交易时间（分钟）
-		"btc_eth_leverage":      "5",                                                                                   // BTC/ETH杠杆倍数
-		"altcoin_leverage":      "5",                                                                                   // 山寨币杠杆倍数
-		"jwt_secret":            "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
+		"admin_mode":           "true",                                                                                // 默认开启管理员模式，便于首次使用
+		"beta_mode":            "false",                                                                               // 默认关闭内测模式
+		"api_server_port":      "8080",                                                                                // 默认API端口
+		"use_default_coins":    "true",                                                                                // 默认使用内置币种列表
+		"default_coins":        `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`, // 默认币种列表（JSON格式）
+		"max_daily_loss":       "10.0",                                                                                // 最大日损失百分比
+		"max_drawdown":         "20.0",                                                                                // 最大回撤百分比
+		"stop_trading_minutes": "60",                                                                                  // 停止交易时间（分钟）
+		"btc_eth_leverage":     "5",                                                                                   // BTC/ETH杠杆倍数
+		"altcoin_leverage":     "5",                                                                                   // 山寨币杠杆倍数
+		"jwt_secret":           "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
 	}
 
 	for key, value := range systemConfigs {
@@ -853,6 +853,12 @@ func (d *Database) UpdateTraderCustomPrompt(userID, id string, customPrompt stri
 	return err
 }
 
+// UpdateTraderInitialBalance 更新交易员初始余额（用于自动同步交易所实际余额）
+func (d *Database) UpdateTraderInitialBalance(userID, id string, newBalance float64) error {
+	_, err := d.db.Exec(`UPDATE traders SET initial_balance = ? WHERE id = ? AND user_id = ?`, newBalance, id, userID)
+	return err
+}
+
 // DeleteTrader 删除交易员
 func (d *Database) DeleteTrader(userID, id string) error {
 	_, err := d.db.Exec(`DELETE FROM traders WHERE id = ? AND user_id = ?`, id, userID)
@@ -866,9 +872,22 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 	var exchange ExchangeConfig
 
 	err := d.db.QueryRow(`
-		SELECT 
-			t.id, t.user_id, t.name, t.ai_model_id, t.exchange_id, t.initial_balance, t.scan_interval_minutes, t.is_running, t.created_at, t.updated_at,
-			a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key, a.created_at, a.updated_at,
+		SELECT
+			t.id, t.user_id, t.name, t.ai_model_id, t.exchange_id, t.initial_balance, t.scan_interval_minutes, t.is_running,
+			COALESCE(t.btc_eth_leverage, 5) as btc_eth_leverage,
+			COALESCE(t.altcoin_leverage, 5) as altcoin_leverage,
+			COALESCE(t.trading_symbols, '') as trading_symbols,
+			COALESCE(t.use_coin_pool, 0) as use_coin_pool,
+			COALESCE(t.use_oi_top, 0) as use_oi_top,
+			COALESCE(t.custom_prompt, '') as custom_prompt,
+			COALESCE(t.override_base_prompt, 0) as override_base_prompt,
+			COALESCE(t.system_prompt_template, 'default') as system_prompt_template,
+			COALESCE(t.is_cross_margin, 1) as is_cross_margin,
+			t.created_at, t.updated_at,
+			a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key,
+			COALESCE(a.custom_api_url, '') as custom_api_url,
+			COALESCE(a.custom_model_name, '') as custom_model_name,
+			a.created_at, a.updated_at,
 			e.id, e.user_id, e.name, e.type, e.enabled, e.api_key, e.secret_key, e.testnet,
 			COALESCE(e.hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
 			COALESCE(e.aster_user, '') as aster_user,
@@ -882,8 +901,13 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 	`, traderID, userID).Scan(
 		&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
 		&trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
+		&trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
+		&trader.UseCoinPool, &trader.UseOITop,
+		&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
+		&trader.IsCrossMargin,
 		&trader.CreatedAt, &trader.UpdatedAt,
 		&aiModel.ID, &aiModel.UserID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
+		&aiModel.CustomAPIURL, &aiModel.CustomModelName,
 		&aiModel.CreatedAt, &aiModel.UpdatedAt,
 		&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type, &exchange.Enabled,
 		&exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
@@ -1019,7 +1043,7 @@ func (d *Database) LoadBetaCodesFromFile(filePath string) error {
 			log.Printf("插入内测码 %s 失败: %v", code, err)
 			continue
 		}
-		
+
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
 			insertedCount++
 		}

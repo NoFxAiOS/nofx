@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
 **Языки / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md)
@@ -285,7 +285,7 @@ Docker автоматически обрабатывает все зависим
 #### Шаг 1: Подготовьте конфигурацию
 ```bash
 # Скопируйте шаблон конфигурации
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # Отредактируйте и заполните ваши API ключи
 nano config.json  # или используйте любой редактор
@@ -320,6 +320,7 @@ docker compose up -d --build
 - **Русский**: См. документацию Docker (скоро будет доступно)
 - **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
 - **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
+- **日本語**: [DOCKER_DEPLOY.ja.md](DOCKER_DEPLOY.ja.md)を参照
 
 ---
 
@@ -423,7 +424,7 @@ cd ..
 **Шаг 1**: Скопируйте и переименуйте файл примера конфигурации
 
 ```bash
-cp config.example.jsonc config.json
+cp config.json.example config.json
 ```
 
 **Шаг 2**: Отредактируйте `config.json` и заполните ваши API ключи

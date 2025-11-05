@@ -12,54 +12,62 @@ html {
 
 :root {
   /* Binance Brand Colors */
-  --brand-yellow: #F0B90B;
+  --brand-yellow: #f0b90b;
   --brand-black: #000000;
-  --brand-dark-gray: #0A0A0A;
-  --brand-light-gray: #EAECEF;
-  --brand-almost-white: #FAFAFA;
-  --brand-white: #FFFFFF;
+  --brand-dark-gray: #0a0a0a;
+  --brand-light-gray: #eaecef;
+  --brand-almost-white: #fafafa;
+  --brand-white: #ffffff;
 
   /* Binance Theme Colors */
-  --binance-yellow: #F0B90B;
-  --binance-yellow-dark: #C99400;
-  --binance-yellow-light: #FCD535;
+  --binance-yellow: #f0b90b;
+  --binance-yellow-dark: #c99400;
+  --binance-yellow-light: #fcd535;
   --binance-yellow-glow: rgba(240, 185, 11, 0.2);
 
   --background: #000000; /* Binance body bg */
-  --header-bg: #000000;  /* Binance header bg */
+  --header-bg: #000000; /* Binance header bg */
   --background-elevated: #000000;
-  --foreground: #EAECEF;
-  --panel-bg: #0A0A0A;
+  --foreground: #eaecef;
+  --panel-bg: #0a0a0a;
   --panel-bg-hover: #111111;
-  --panel-border: #1A1A1A;
-  --panel-border-hover: #2A2A2A;
+  --panel-border: #1a1a1a;
+  --panel-border-hover: #2a2a2a;
 
   /* Binance Signature Colors */
-  --binance-green: #0ECB81;
+  --binance-green: #0ecb81;
   --binance-green-bg: rgba(14, 203, 129, 0.1);
   --binance-green-border: rgba(14, 203, 129, 0.2);
-  --binance-red: #F6465D;
+  --binance-red: #f6465d;
   --binance-red-bg: rgba(246, 70, 93, 0.1);
   --binance-red-border: rgba(246, 70, 93, 0.2);
 
   /* UI Colors */
-  --text-primary: #EAECEF;
-  --text-secondary: #848E9C;
-  --text-tertiary: #5E6673;
-  --text-disabled: #474D57;
+  --text-primary: #eaecef;
+  --text-secondary: #848e9c;
+  --text-tertiary: #5e6673;
+  --text-disabled: #474d57;
 
   /* Chart Colors */
-  --grid-stroke: #1A1A1A;
-  --axis-tick: #5E6673;
-  --ref-line: #474D57;
+  --grid-stroke: #1a1a1a;
+  --axis-tick: #5e6673;
+  --ref-line: #474d57;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+  --shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl:
+    0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
 
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   line-height: 1.6;
   font-weight: 400;
   color-scheme: dark;
@@ -69,7 +77,7 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "tnum";
+  font-feature-settings: 'tnum';
   font-variant-numeric: tabular-nums;
 }
 
@@ -140,7 +148,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 8px currentColor;
   }
@@ -160,7 +169,8 @@ body {
 }
 
 @keyframes pulse-scale {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {
@@ -240,11 +250,19 @@ button:disabled {
 
 /* Binance gradient backgrounds */
 .binance-gradient {
-  background: linear-gradient(135deg, var(--binance-yellow) 0%, var(--binance-yellow-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--binance-yellow) 0%,
+    var(--binance-yellow-light) 100%
+  );
 }
 
 .binance-gradient-subtle {
-  background: linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(252, 213, 53, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(240, 185, 11, 0.15) 0%,
+    rgba(252, 213, 53, 0.05) 100%
+  );
   border: 1px solid rgba(240, 185, 11, 0.2);
 }
 
@@ -456,7 +474,12 @@ tr:hover {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--binance-yellow), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--binance-yellow),
+    transparent
+  );
   opacity: 0;
   transition: opacity 0.2s ease;
 }

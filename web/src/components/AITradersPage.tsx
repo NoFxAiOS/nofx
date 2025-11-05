@@ -1899,26 +1899,6 @@ function ExchangeConfigModal({
                       required
                     />
                   </div>
-
-                  {/* USDT 警告提示 */}
-                  <div
-                    className="p-4 rounded"
-                    style={{
-                      background: 'rgba(246, 70, 93, 0.1)',
-                      border: '1px solid rgba(246, 70, 93, 0.3)',
-                    }}
-                  >
-                    <div
-                      className="text-sm font-semibold mb-2 flex items-center gap-2"
-                      style={{ color: '#F6465D' }}
-                    >
-                      <AlertTriangle className="w-4 h-4" />
-                      {t('securityWarning', language)}
-                    </div>
-                    <div className="text-xs" style={{ color: '#848E9C' }}>
-                      {t('asterUsdtWarning', language)}
-                    </div>
-                  </div>
                 </>
               )}
 
@@ -1957,6 +1937,9 @@ function ExchangeConfigModal({
                   </span>
                 </div>
                 <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                  {selectedExchange.id === 'aster' && (
+                    <div>{t('asterUsdtWarning', language)}</div>
+                  )}
                   <div>{t('exchangeConfigWarning1', language)}</div>
                   <div>{t('exchangeConfigWarning2', language)}</div>
                   <div>{t('exchangeConfigWarning3', language)}</div>

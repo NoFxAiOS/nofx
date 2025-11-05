@@ -742,6 +742,48 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 	return exchanges, nil
 }
 
+// GetExchangesForAPI 获取交易所配置（专用于API返回，排除敏感字段）
+func (d *Database) GetExchangesForAPI(userID string) ([]*ExchangeConfig, error) {
+	rows, err := d.db.Query(`
+		SELECT id, user_id, name, type, enabled, 
+		       CASE 
+		           WHEN type = 'hyperliquid' THEN '' 
+		           ELSE COALESCE(api_key, '') 
+		       END as api_key,
+		       '' as secret_key,
+		       testnet, 
+		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+		       COALESCE(aster_user, '') as aster_user,
+		       COALESCE(aster_signer, '') as aster_signer,
+		       '' as aster_private_key,
+		       created_at, updated_at 
+		FROM exchanges WHERE user_id = ? ORDER BY id
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
+	exchanges := make([]*ExchangeConfig, 0)
+	for rows.Next() {
+		var exchange ExchangeConfig
+		err := rows.Scan(
+			&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
+			&exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
+			&exchange.HyperliquidWalletAddr, &exchange.AsterUser,
+			&exchange.AsterSigner, &exchange.AsterPrivateKey,
+			&exchange.CreatedAt, &exchange.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		exchanges = append(exchanges, &exchange)
+	}
+
+	return exchanges, nil
+}
+
 // UpdateExchange 更新交易所配置，如果不存在则创建用户特定配置
 func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)

@@ -889,6 +889,7 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		DefaultCoins:         defaultCoins,
 		TradingCoins:         tradingCoins,
 		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
+		HyperliquidTestnet:   exchangeCfg.Testnet,            // Hyperliquid测试网
 	}
 
 	// 根据交易所类型设置API密钥

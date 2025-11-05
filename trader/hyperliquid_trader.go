@@ -2,10 +2,12 @@ package trader
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sonirico/go-hyperliquid"
@@ -22,6 +24,9 @@ type HyperliquidTrader struct {
 
 // NewHyperliquidTrader 创建Hyperliquid交易器
 func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool) (*HyperliquidTrader, error) {
+	// 去掉私钥的 0x 前缀（如果有，不区分大小写）
+	privateKeyHex = strings.TrimPrefix(strings.ToLower(privateKeyHex), "0x")
+
 	// 解析私钥
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {
@@ -34,13 +39,18 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 		apiURL = hyperliquid.TestnetAPIURL
 	}
 
-	// // 从私钥生成钱包地址
-	// pubKey := privateKey.Public()
-	// publicKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
-	// if !ok {
-	// 	return nil, fmt.Errorf("无法转换公钥")
-	// }
-	// walletAddr := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+	// 从私钥生成钱包地址（如果未提供）
+	if walletAddr == "" {
+		pubKey := privateKey.Public()
+		publicKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			return nil, fmt.Errorf("无法转换公钥")
+		}
+		walletAddr = crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+		log.Printf("✓ 从私钥自动生成钱包地址: %s", walletAddr)
+	} else {
+		log.Printf("✓ 使用提供的钱包地址: %s", walletAddr)
+	}
 
 	ctx := context.Background()
 

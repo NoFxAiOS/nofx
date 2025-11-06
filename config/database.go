@@ -78,6 +78,7 @@ type ExchangeConfig struct {
 	AsterUser             string    `json:"asterUser"`
 	AsterSigner           string    `json:"asterSigner"`
 	AsterPrivateKey       string    `json:"asterPrivateKey"`
+	Deleted               bool      `json:"deleted"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }

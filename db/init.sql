@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS exchanges (
     aster_user TEXT DEFAULT '',
     aster_signer TEXT DEFAULT '',
     aster_private_key TEXT DEFAULT '',
+    deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id, user_id),

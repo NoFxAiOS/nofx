@@ -250,13 +250,16 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 // GetExchanges 获取用户的交易所配置
 func (d *PostgreSQLDatabase) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 	rows, err := d.db.Query(`
-		SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet, 
-		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-		       COALESCE(aster_user, '') as aster_user,
-		       COALESCE(aster_signer, '') as aster_signer,
-		       COALESCE(aster_private_key, '') as aster_private_key,
-		       created_at, updated_at 
-		FROM exchanges WHERE user_id = $1 ORDER BY id
+		SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet,
+		       COALESCE(hyperliquid_wallet_addr, '') AS hyperliquid_wallet_addr,
+		       COALESCE(aster_user, '') AS aster_user,
+		       COALESCE(aster_signer, '') AS aster_signer,
+		       COALESCE(aster_private_key, '') AS aster_private_key,
+		       COALESCE(deleted, FALSE) AS deleted,
+		       created_at, updated_at
+		FROM exchanges
+		WHERE user_id = $1 AND COALESCE(deleted, FALSE) = FALSE
+		ORDER BY id
 	`, userID)
 	if err != nil {
 		return nil, err
@@ -272,6 +275,7 @@ func (d *PostgreSQLDatabase) GetExchanges(userID string) ([]*ExchangeConfig, err
 			&exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
 			&exchange.HyperliquidWalletAddr, &exchange.AsterUser,
 			&exchange.AsterSigner, &exchange.AsterPrivateKey,
+			&exchange.Deleted,
 			&exchange.CreatedAt, &exchange.UpdatedAt,
 		)
 		if err != nil {
@@ -287,10 +291,35 @@ func (d *PostgreSQLDatabase) GetExchanges(userID string) ([]*ExchangeConfig, err
 func (d *PostgreSQLDatabase) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
+	// 如果请求禁用该交易所，标记为已删除
+	if !enabled {
+		_, err := d.db.Exec(`
+			UPDATE exchanges
+			SET enabled = FALSE,
+			    deleted = TRUE,
+			    api_key = '',
+			    secret_key = '',
+			    testnet = FALSE,
+			    hyperliquid_wallet_addr = '',
+			    aster_user = '',
+			    aster_signer = '',
+			    aster_private_key = '',
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE id = $1 AND user_id = $2
+		`, id, userID)
+		if err != nil {
+			log.Printf("❌ UpdateExchange: 标记删除失败: %v", err)
+			return err
+		}
+		log.Printf("🗑️ UpdateExchange: 已标记删除用户 %s 的交易所配置 %s", userID, id)
+		return nil
+	}
+
 	// 首先尝试更新现有的用户配置
 	result, err := d.db.Exec(`
-		UPDATE exchanges SET enabled = $1, api_key = $2, secret_key = $3, testnet = $4, 
-		       hyperliquid_wallet_addr = $5, aster_user = $6, aster_signer = $7, aster_private_key = $8, updated_at = CURRENT_TIMESTAMP
+		UPDATE exchanges SET enabled = $1, api_key = $2, secret_key = $3, testnet = $4,
+		       hyperliquid_wallet_addr = $5, aster_user = $6, aster_signer = $7, aster_private_key = $8,
+		       deleted = FALSE, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $9 AND user_id = $10
 	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, id, userID)
 	if err != nil {
@@ -331,10 +360,11 @@ func (d *PostgreSQLDatabase) UpdateExchange(userID, id string, enabled bool, api
 
 		// 创建用户特定的配置，使用原始的交易所ID
 		_, err = d.db.Exec(`
-			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, 
-			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet,
+			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
+			                       deleted, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, TRUE, $5, $6, $7, $8, $9, $10, $11, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		`, id, userID, name, typ, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
 
 		if err != nil {
 			log.Printf("❌ UpdateExchange: 创建记录失败: %v", err)
@@ -550,12 +580,12 @@ func (d *PostgreSQLDatabase) UpdateUserSignalSource(userID, coinPoolURL, oiTopUR
 func (d *PostgreSQLDatabase) GetCustomCoins() []string {
 	var symbol string
 	var symbols []string
-	
+
 	err := d.db.QueryRow(`
 		SELECT STRING_AGG(custom_coins, ',') as symbol
 		FROM traders WHERE custom_coins != ''
 	`).Scan(&symbol)
-	
+
 	// 检测用户是否未配置币种 - 兼容性
 	if err != nil || symbol == "" {
 		symbolJSON, _ := d.GetSystemConfig("default_coins")
@@ -564,7 +594,7 @@ func (d *PostgreSQLDatabase) GetCustomCoins() []string {
 			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
 		}
 	}
-	
+
 	// filter Symbol
 	for _, s := range strings.Split(symbol, ",") {
 		if s == "" {
@@ -616,7 +646,7 @@ func (d *PostgreSQLDatabase) LoadBetaCodesFromFile(filePath string) error {
 			log.Printf("插入内测码 %s 失败: %v", code, err)
 			continue
 		}
-		
+
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
 			insertedCount++
 		}
@@ -685,6 +715,11 @@ func (d *PostgreSQLDatabase) initDefaultData() error {
 	// 确保traders表存在custom_coins列，防止旧环境缺少字段
 	if _, err := d.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS custom_coins TEXT DEFAULT ''`); err != nil {
 		return fmt.Errorf("添加custom_coins列失败: %w", err)
+	}
+
+	// 确保exchanges表存在deleted列
+	if _, err := d.db.Exec(`ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE`); err != nil {
+		return fmt.Errorf("添加deleted列失败: %w", err)
 	}
 
 	// 首先创建default用户（如果不存在）

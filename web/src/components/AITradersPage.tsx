@@ -430,44 +430,25 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!confirm(t('confirmDeleteExchange', language))) return
 
     try {
-      const updatedExchanges =
-        allExchanges?.map((e) =>
-          e.id === exchangeId
-            ? {
-                ...e,
-                apiKey: '',
-                secretKey: '',
-                hyperliquidWalletAddr: '',
-                asterUser: '',
-                asterSigner: '',
-                asterPrivateKey: '',
-                testnet: false,
-                enabled: false,
-              }
-            : e
-        ) || []
-
       const request = {
-        exchanges: Object.fromEntries(
-          updatedExchanges.map((exchange) => [
-            exchange.id,
-            {
-              enabled: exchange.enabled,
-              api_key: exchange.apiKey || '',
-              secret_key: exchange.secretKey || '',
-              testnet: exchange.testnet || false,
-              hyperliquid_wallet_addr:
-                exchange.hyperliquidWalletAddr || '',
-              aster_user: exchange.asterUser || '',
-              aster_signer: exchange.asterSigner || '',
-              aster_private_key: exchange.asterPrivateKey || '',
-            },
-          ])
-        ),
+        exchanges: {
+          [exchangeId]: {
+            enabled: false,
+            api_key: '',
+            secret_key: '',
+            testnet: false,
+            hyperliquid_wallet_addr: '',
+            aster_user: '',
+            aster_signer: '',
+            aster_private_key: '',
+          },
+        },
       }
 
       await api.updateExchangeConfigs(request)
-      setAllExchanges(updatedExchanges)
+
+      const refreshed = await api.getExchangeConfigs()
+      setAllExchanges(refreshed)
       setShowExchangeModal(false)
       setEditingExchange(null)
     } catch (error) {
@@ -496,65 +477,23 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return
       }
 
-      // 创建或更新用户的交易所配置
-      const existingExchange = allExchanges?.find((e) => e.id === exchangeId)
-      let updatedExchanges
-
-      if (existingExchange) {
-        // 更新现有配置
-        updatedExchanges =
-          allExchanges?.map((e) =>
-            e.id === exchangeId
-              ? {
-                  ...e,
-                  apiKey,
-                  secretKey,
-                  testnet,
-                  hyperliquidWalletAddr,
-                  asterUser,
-                  asterSigner,
-                  asterPrivateKey,
-                  enabled: true,
-                }
-              : e
-          ) || []
-      } else {
-        // 添加新配置
-        const newExchange = {
-          ...exchangeToUpdate,
-          apiKey,
-          secretKey,
-          testnet,
-          hyperliquidWalletAddr,
-          asterUser,
-          asterSigner,
-          asterPrivateKey,
-          enabled: true,
-        }
-        updatedExchanges = [...(allExchanges || []), newExchange]
-      }
-
       const request = {
-        exchanges: Object.fromEntries(
-          updatedExchanges.map((exchange) => [
-            exchange.id,
-            {
-              enabled: exchange.enabled,
-              api_key: exchange.apiKey || '',
-              secret_key: exchange.secretKey || '',
-              testnet: exchange.testnet || false,
-              hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
-              aster_user: exchange.asterUser || '',
-              aster_signer: exchange.asterSigner || '',
-              aster_private_key: exchange.asterPrivateKey || '',
-            },
-          ])
-        ),
+        exchanges: {
+          [exchangeId]: {
+            enabled: true,
+            api_key: apiKey || '',
+            secret_key: secretKey || '',
+            testnet: !!testnet,
+            hyperliquid_wallet_addr: hyperliquidWalletAddr || '',
+            aster_user: asterUser || '',
+            aster_signer: asterSigner || '',
+            aster_private_key: asterPrivateKey || '',
+          },
+        },
       }
 
       await api.updateExchangeConfigs(request)
 
-      // 重新获取用户配置以确保数据同步
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
 

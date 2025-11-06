@@ -120,6 +120,7 @@ export interface Exchange {
   asterUser?: string
   asterSigner?: string
   asterPrivateKey?: string
+  deleted?: boolean
 }
 
 export interface CreateTraderRequest {

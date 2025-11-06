@@ -1448,14 +1448,10 @@ function ModelConfigModal({
           {editingModelId && (
             <button
               type="button"
-              onClick={() => {
-                if (confirm(t('confirmDeleteModel', language))) {
-                  onDelete(editingModelId)
-                }
-              }}
+              onClick={() => onDelete(editingModelId)}
               className="p-2 rounded hover:bg-red-100 transition-colors"
               style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              title={t('deleteConfigFailed', language)}
+              title={t('delete', language)}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -1807,17 +1803,13 @@ function ExchangeConfigModal({
             {editingExchangeId && (
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm(t('confirmDeleteExchange', language))) {
-                    onDelete(editingExchangeId)
-                  }
-                }}
+                onClick={() => onDelete(editingExchangeId)}
                 className="p-2 rounded hover:bg-red-100 transition-colors"
                 style={{
                   background: 'rgba(246, 70, 93, 0.1)',
                   color: '#F6465D',
                 }}
-                title={t('deleteConfigFailed', language)}
+                title={t('delete', language)}
               >
                 <Trash2 className="w-4 h-4" />
               </button>

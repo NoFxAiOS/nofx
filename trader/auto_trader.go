@@ -292,16 +292,25 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 		return
 	}
 
-	// 提取可用余额
+	// ✅ 修复：使用总资产（total equity）而不是可用余额来更新初始余额
+	// 总资产 = 钱包余额 + 未实现盈亏，这样才能正确计算总盈亏
 	var actualBalance float64
-	if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-		actualBalance = totalBalance
-	} else {
-		log.Printf("⚠️ [%s] 无法提取可用余额", at.name)
+	totalWalletBalance := 0.0
+	totalUnrealizedProfit := 0.0
+	
+	if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
+		totalWalletBalance = wallet
+	}
+	if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
+		totalUnrealizedProfit = unrealized
+	}
+	
+	// 总资产 = 钱包余额 + 未实现盈亏
+	actualBalance = totalWalletBalance + totalUnrealizedProfit
+	
+	if actualBalance <= 0 {
+		log.Printf("⚠️ [%s] 无法提取总资产余额 (钱包: %.2f, 未实现: %.2f)", 
+			at.name, totalWalletBalance, totalUnrealizedProfit)
 		at.lastBalanceSyncTime = time.Now()
 		return
 	}
@@ -310,7 +319,8 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 
 	// 防止除以零：如果初始余额无效，直接更新为实际余额
 	if oldBalance <= 0 {
-		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为实际余额 %.2f USDT", at.name, oldBalance, actualBalance)
+		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为总资产余额 %.2f USDT (钱包: %.2f + 未实现: %.2f)", 
+			at.name, oldBalance, actualBalance, totalWalletBalance, totalUnrealizedProfit)
 		at.initialBalance = actualBalance
 		if at.database != nil {
 			type DatabaseUpdater interface {
@@ -336,8 +346,8 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 
 	// 变化超过5%才更新
 	if math.Abs(changePercent) > 5.0 {
-		log.Printf("🔔 [%s] 检测到余额大幅变化: %.2f → %.2f USDT (%.2f%%)",
-			at.name, oldBalance, actualBalance, changePercent)
+		log.Printf("🔔 [%s] 检测到总资产大幅变化: %.2f → %.2f USDT (%.2f%%, 钱包: %.2f + 未实现: %.2f)",
+			at.name, oldBalance, actualBalance, changePercent, totalWalletBalance, totalUnrealizedProfit)
 
 		// 更新内存中的 initialBalance
 		at.initialBalance = actualBalance

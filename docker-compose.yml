@@ -18,6 +18,7 @@ services:
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
+      - NOFX_ADMIN_PASSWORD=${NOFX_ADMIN_PASSWORD} # Admin password when admin_mode=true      
     networks:
       - nofx-network
     healthcheck:

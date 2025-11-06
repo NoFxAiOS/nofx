@@ -31,6 +31,10 @@ Thumbs.db
 config.json
 config.db
 
+# 生产配置
+certs/
+beta_codes.txt
+
 # 决策日志
 decision_logs/
 coin_pool_cache/

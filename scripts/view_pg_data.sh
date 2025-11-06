@@ -1,5 +1,12 @@
 #!/bin/bash
 
+set -e
+
+# 保证从仓库根目录运行
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
+
 # PostgreSQL数据查看工具
 echo "🔍 PostgreSQL 数据查看工具"
 echo "=========================="
@@ -45,7 +52,7 @@ SELECT key,
          ELSE value 
        END as value
 FROM system_config 
-WHERE key IN ('admin_mode', 'beta_mode', 'api_server_port', 'default_coins', 'jwt_secret')
+WHERE key IN ('beta_mode', 'api_server_port', 'default_coins', 'jwt_secret')
 ORDER BY key;
 "
 

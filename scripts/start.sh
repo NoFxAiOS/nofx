@@ -2,10 +2,15 @@
 
 # ═══════════════════════════════════════════════════════════════
 # NOFX AI Trading System - Docker Quick Start Script
-# Usage: ./start.sh [command]
+# Usage: ./scripts/start.sh [command]
 # ═══════════════════════════════════════════════════════════════
 
 set -e
+
+# Ensure we operate from repo root regardless of invocation location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 
 # ------------------------------------------------------------------------
 # Color Definitions
@@ -84,7 +89,7 @@ check_config() {
         print_warning "config.json 不存在，从模板复制..."
         cp config.json.example config.json
         print_info "✓ 已使用默认配置创建 config.json"
-        print_info "💡 如需修改基础设置（杠杆大小、开仓币种、管理员模式、JWT密钥等），可编辑 config.json"
+        print_info "💡 如需修改基础设置（杠杆大小、开仓币种、JWT密钥等），可编辑 config.json"
         print_info "💡 模型/交易所/交易员配置请使用Web界面"
     fi
     print_success "配置文件存在"
@@ -110,20 +115,6 @@ read_env_vars() {
         # 如果.env不存在，使用默认端口
         NOFX_FRONTEND_PORT=3000
         NOFX_BACKEND_PORT=8080
-    fi
-}
-
-# ------------------------------------------------------------------------
-# Validation: Database File (config.db)
-# ------------------------------------------------------------------------
-check_database() {
-    if [ ! -f "config.db" ]; then
-        print_warning "数据库文件不存在，创建空数据库文件..."
-        # 创建空文件以避免Docker创建目录
-        touch config.db
-        print_info "✓ 已创建空数据库文件，系统将在启动时初始化"
-    else
-        print_success "数据库文件存在"
     fi
 }
 
@@ -165,11 +156,7 @@ start() {
     # 读取环境变量
     read_env_vars
 
-    # 确保必要的文件和目录存在（修复 Docker volume 挂载问题）
-    if [ ! -f "config.db" ]; then
-        print_info "创建数据库文件..."
-        touch config.db
-    fi
+    # 确保必要的目录存在
     if [ ! -d "decision_logs" ]; then
         print_info "创建日志目录..."
         mkdir -p decision_logs
@@ -193,8 +180,8 @@ start() {
     print_info "Web 界面: http://localhost:${NOFX_FRONTEND_PORT}"
     print_info "API 端点: http://localhost:${NOFX_BACKEND_PORT}"
     print_info ""
-    print_info "查看日志: ./start.sh logs"
-    print_info "停止服务: ./start.sh stop"
+    print_info "查看日志: ./scripts/start.sh logs"
+    print_info "停止服务: ./scripts/start.sh stop"
 }
 
 # ------------------------------------------------------------------------
@@ -271,7 +258,7 @@ update() {
 show_help() {
     echo "NOFX AI Trading System - Docker 管理脚本"
     echo ""
-    echo "用法: ./start.sh [command] [options]"
+    echo "用法: ./scripts/start.sh [command] [options]"
     echo ""
     echo "命令:"
     echo "  start [--build]    启动服务（可选：重新构建）"
@@ -284,9 +271,9 @@ show_help() {
     echo "  help               显示此帮助信息"
     echo ""
     echo "示例:"
-    echo "  ./start.sh start --build    # 构建并启动"
-    echo "  ./start.sh logs backend     # 查看后端日志"
-    echo "  ./start.sh status           # 查看状态"
+    echo "  ./scripts/start.sh start --build    # 构建并启动"
+    echo "  ./scripts/start.sh logs backend     # 查看后端日志"
+    echo "  ./scripts/start.sh status           # 查看状态"
 }
 
 # ------------------------------------------------------------------------
@@ -299,7 +286,6 @@ main() {
         start)
             check_env
             check_config
-            check_database
             start "$2"
             ;;
         stop)

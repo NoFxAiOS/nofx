@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Fail fast and normalize working directory
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
+
 # 内测码生成脚本
 # 生成6位不重复的内测码并写入 beta_codes.txt
 

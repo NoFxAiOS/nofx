@@ -5,14 +5,17 @@ import { EquityChart } from './components/EquityChart'
 import { AITradersPage } from './components/AITradersPage'
 import { LoginPage } from './components/LoginPage'
 import { RegisterPage } from './components/RegisterPage'
+import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
+import { FAQPage } from './pages/FAQPage'
 import HeaderBar from './components/landing/HeaderBar'
 import AILearning from './components/AILearning'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { t, type Language } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
+import { AlertTriangle } from 'lucide-react'
 import type {
   SystemStatus,
   AccountInfo,
@@ -227,7 +230,17 @@ function App() {
     return <LoginPage />
   }
   if (route === '/register') {
+    if (systemConfig?.admin_mode) {
+      window.history.pushState({}, '', '/login')
+      return <LoginPage />
+    }
     return <RegisterPage />
+  }
+  if (route === '/faq') {
+    return <FAQPage />
+  }
+  if (route === '/reset-password') {
+    return <ResetPasswordPage />
   }
   if (route === '/competition') {
     return (
@@ -262,6 +275,10 @@ function App() {
               window.history.pushState({}, '', '/dashboard')
               setRoute('/dashboard')
               setCurrentPage('trader')
+            } else if (page === 'faq') {
+              console.log('Navigating to faq')
+              window.history.pushState({}, '', '/faq')
+              setRoute('/faq')
             }
 
             console.log(
@@ -281,10 +298,15 @@ function App() {
 
   // Show landing page for root route
   if (route === '/' || route === '') {
-    return <LandingPage />
+    return <LandingPage isAdminMode={systemConfig?.admin_mode} />
   }
 
-  // Show main app for authenticated users on other routes
+  // In admin mode, require authentication for any protected routes
+  if (systemConfig?.admin_mode && (!user || !token)) {
+    return <LoginPage />
+  }
+
+  // Show main app for authenticated users on other routes (non-admin mode)
   if (!systemConfig?.admin_mode && (!user || !token)) {
     // Default to landing page when not authenticated and no specific route
     return <LandingPage />
@@ -318,6 +340,9 @@ function App() {
             window.history.pushState({}, '', '/dashboard')
             setRoute('/dashboard')
             setCurrentPage('trader')
+          } else if (page === 'faq') {
+            window.history.pushState({}, '', '/faq')
+            setRoute('/faq')
           }
         }}
       />
@@ -1038,6 +1063,53 @@ function DecisionCard({
             保证金率: {decision.account_state.margin_used_pct.toFixed(1)}%
           </span>
           <span>持仓: {decision.account_state.position_count}</span>
+          <span
+            style={{
+              color:
+                decision.candidate_coins &&
+                decision.candidate_coins.length === 0
+                  ? '#F6465D'
+                  : '#848E9C',
+            }}
+          >
+            {t('candidateCoins', language)}:{' '}
+            {decision.candidate_coins?.length || 0}
+          </span>
+        </div>
+      )}
+
+      {/* Candidate Coins Warning */}
+      {decision.candidate_coins && decision.candidate_coins.length === 0 && (
+        <div
+          className="text-sm rounded px-4 py-3 mb-3 flex items-start gap-3"
+          style={{
+            background: 'rgba(246, 70, 93, 0.1)',
+            border: '1px solid rgba(246, 70, 93, 0.3)',
+            color: '#F6465D',
+          }}
+        >
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <div className="font-semibold mb-1">
+              ⚠️ {t('candidateCoinsZeroWarning', language)}
+            </div>
+            <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+              <div>{t('possibleReasons', language)}</div>
+              <ul className="list-disc list-inside space-y-0.5 ml-2">
+                <li>{t('coinPoolApiNotConfigured', language)}</li>
+                <li>{t('apiConnectionTimeout', language)}</li>
+                <li>{t('noCustomCoinsAndApiFailed', language)}</li>
+              </ul>
+              <div className="mt-2">
+                <strong>{t('solutions', language)}</strong>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5 ml-2">
+                <li>{t('setCustomCoinsInConfig', language)}</li>
+                <li>{t('orConfigureCorrectApiUrl', language)}</li>
+                <li>{t('orDisableCoinPoolOptions', language)}</li>
+              </ul>
+            </div>
+          </div>
         </div>
       )}
 

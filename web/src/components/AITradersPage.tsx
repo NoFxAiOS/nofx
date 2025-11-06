@@ -23,6 +23,7 @@ import {
   Users,
   AlertTriangle,
   BookOpen,
+  HelpCircle,
 } from 'lucide-react'
 
 // 获取友好的AI模型名称
@@ -130,9 +131,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     loadConfigs()
   }, [user, token])
 
-  // 显示所有用户的模型和交易所配置（用于调试）
-  const configuredModels = allModels || []
-  const configuredExchanges = allExchanges || []
+  // 只显示已配置的模型和交易所（有API Key的才算配置过）
+  const configuredModels = allModels?.filter((m) => m.apiKey && m.apiKey.trim() !== '') || []
+  const configuredExchanges = allExchanges?.filter((e) => {
+    // Aster 交易所检查特殊字段
+    if (e.id === 'aster') {
+      return e.asterUser && e.asterUser.trim() !== ''
+    }
+    // Hyperliquid 只检查私钥
+    if (e.id === 'hyperliquid') {
+      return e.apiKey && e.apiKey.trim() !== ''
+    }
+    // 其他交易所检查 apiKey
+    return e.apiKey && e.apiKey.trim() !== ''
+  }) || []
 
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
@@ -166,17 +178,36 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       )
     }) || []
 
-  // 检查模型是否正在被运行中的交易员使用
+  // 检查模型是否正在被运行中的交易员使用（用于UI禁用）
   const isModelInUse = (modelId: string) => {
-    return traders?.some((t) => t.ai_model === modelId && t.is_running) || false
+    return traders?.some((t) => t.ai_model === modelId && t.is_running)
   }
 
-  // 检查交易所是否正在被运行中的交易员使用
+  // 检查交易所是否正在被运行中的交易员使用（用于UI禁用）
   const isExchangeInUse = (exchangeId: string) => {
     return (
-      traders?.some((t) => t.exchange_id === exchangeId && t.is_running) ||
-      false
+      traders?.some((t) => t.exchange_id === exchangeId && t.is_running)
     )
+  }
+
+  // 检查模型是否被任何交易员使用（包括停止状态的）
+  const isModelUsedByAnyTrader = (modelId: string) => {
+    return traders?.some((t) => t.ai_model === modelId) || false
+  }
+
+  // 检查交易所是否被任何交易员使用（包括停止状态的）
+  const isExchangeUsedByAnyTrader = (exchangeId: string) => {
+    return traders?.some((t) => t.exchange_id === exchangeId) || false
+  }
+
+  // 获取使用特定模型的交易员列表
+  const getTradersUsingModel = (modelId: string) => {
+    return traders?.filter((t) => t.ai_model === modelId) || []
+  }
+
+  // 获取使用特定交易所的交易员列表
+  const getTradersUsingExchange = (exchangeId: string) => {
+    return traders?.filter((t) => t.exchange_id === exchangeId) || []
   }
 
   const handleCreateTrader = async (data: CreateTraderRequest) => {
@@ -297,27 +328,81 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   }
 
-  const handleDeleteModelConfig = async (modelId: string) => {
-    if (!confirm(t('confirmDeleteModel', language))) return
+  // 通用删除配置处理函数
+  const handleDeleteConfig = async <T extends { id: string }>(config: {
+    id: string
+    type: 'model' | 'exchange'
+    checkInUse: (id: string) => boolean
+    getUsingTraders: (id: string) => any[]
+    cannotDeleteKey: string
+    confirmDeleteKey: string
+    allItems: T[] | undefined
+    clearFields: (item: T) => T
+    buildRequest: (items: T[]) => any
+    updateApi: (request: any) => Promise<void>
+    refreshApi: () => Promise<T[]>
+    setItems: (items: T[]) => void
+    closeModal: () => void
+    errorKey: string
+  }) => {
+    // 检查是否有交易员正在使用
+    if (config.checkInUse(config.id)) {
+      const usingTraders = config.getUsingTraders(config.id)
+      const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
+      alert(
+        t(config.cannotDeleteKey, language) +
+          '\n\n' +
+          t('tradersUsing', language) +
+          ': ' +
+          traderNames +
+          '\n\n' +
+          t('pleaseDeleteTradersFirst', language)
+      )
+      return
+    }
+
+    if (!confirm(t(config.confirmDeleteKey, language))) return
 
     try {
-      const updatedModels =
-        allModels?.map((m) =>
-          m.id === modelId
-            ? {
-                ...m,
-                apiKey: '',
-                customApiUrl: '',
-                customModelName: '',
-                enabled: false,
-              }
-            : m
+      const updatedItems =
+        config.allItems?.map((item) =>
+          item.id === config.id ? config.clearFields(item) : item
         ) || []
 
-      const request = {
+      const request = config.buildRequest(updatedItems)
+      await config.updateApi(request)
+
+      // 重新获取用户配置以确保数据同步
+      const refreshedItems = await config.refreshApi()
+      config.setItems(refreshedItems)
+
+      config.closeModal()
+    } catch (error) {
+      console.error(`Failed to delete ${config.type} config:`, error)
+      alert(t(config.errorKey, language))
+    }
+  }
+
+  const handleDeleteModelConfig = async (modelId: string) => {
+    await handleDeleteConfig({
+      id: modelId,
+      type: 'model',
+      checkInUse: isModelUsedByAnyTrader,
+      getUsingTraders: getTradersUsingModel,
+      cannotDeleteKey: 'cannotDeleteModelInUse',
+      confirmDeleteKey: 'confirmDeleteModel',
+      allItems: allModels,
+      clearFields: (m) => ({
+        ...m,
+        apiKey: '',
+        customApiUrl: '',
+        customModelName: '',
+        enabled: false,
+      }),
+      buildRequest: (models) => ({
         models: Object.fromEntries(
-          updatedModels.map((model) => [
-            model.provider, // 使用 provider 而不是 id
+          models.map((model) => [
+            model.provider,
             {
               enabled: model.enabled,
               api_key: model.apiKey || '',
@@ -326,16 +411,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             },
           ])
         ),
-      }
-
-      await api.updateModelConfigs(request)
-      setAllModels(updatedModels)
-      setShowModelModal(false)
-      setEditingModel(null)
-    } catch (error) {
-      console.error('Failed to delete model config:', error)
-      alert(t('deleteConfigFailed', language))
-    }
+      }),
+      updateApi: api.updateModelConfigs,
+      refreshApi: api.getModelConfigs,
+      setItems: setAllModels,
+      closeModal: () => {
+        setShowModelModal(false)
+        setEditingModel(null)
+      },
+      errorKey: 'deleteConfigFailed',
+    })
   }
 
   const handleSaveModelConfig = async (
@@ -412,19 +497,23 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleDeleteExchangeConfig = async (exchangeId: string) => {
-    if (!confirm(t('confirmDeleteExchange', language))) return
-
-    try {
-      const updatedExchanges =
-        allExchanges?.map((e) =>
-          e.id === exchangeId
-            ? { ...e, apiKey: '', secretKey: '', enabled: false }
-            : e
-        ) || []
-
-      const request = {
+    await handleDeleteConfig({
+      id: exchangeId,
+      type: 'exchange',
+      checkInUse: isExchangeUsedByAnyTrader,
+      getUsingTraders: getTradersUsingExchange,
+      cannotDeleteKey: 'cannotDeleteExchangeInUse',
+      confirmDeleteKey: 'confirmDeleteExchange',
+      allItems: allExchanges,
+      clearFields: (e) => ({
+        ...e,
+        apiKey: '',
+        secretKey: '',
+        enabled: false,
+      }),
+      buildRequest: (exchanges) => ({
         exchanges: Object.fromEntries(
-          updatedExchanges.map((exchange) => [
+          exchanges.map((exchange) => [
             exchange.id,
             {
               enabled: exchange.enabled,
@@ -434,16 +523,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             },
           ])
         ),
-      }
-
-      await api.updateExchangeConfigs(request)
-      setAllExchanges(updatedExchanges)
-      setShowExchangeModal(false)
-      setEditingExchange(null)
-    } catch (error) {
-      console.error('Failed to delete exchange config:', error)
-      alert(t('deleteExchangeConfigFailed', language))
-    }
+      }),
+      updateApi: api.updateExchangeConfigs,
+      refreshApi: api.getExchangeConfigs,
+      setItems: setAllExchanges,
+      closeModal: () => {
+        setShowExchangeModal(false)
+        setEditingExchange(null)
+      },
+      errorKey: 'deleteExchangeConfigFailed',
+    })
   }
 
   const handleSaveExchangeConfig = async (
@@ -657,6 +746,54 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </button>
         </div>
       </div>
+
+      {/* 信号源配置警告 */}
+      {traders &&
+        traders.some((t) => t.use_coin_pool || t.use_oi_top) &&
+        !userSignalSource.coinPoolUrl &&
+        !userSignalSource.oiTopUrl && (
+          <div
+            className="rounded-lg px-4 py-3 flex items-start gap-3 animate-slide-in"
+            style={{
+              background: 'rgba(246, 70, 93, 0.1)',
+              border: '1px solid rgba(246, 70, 93, 0.3)',
+            }}
+          >
+            <AlertTriangle
+              size={20}
+              className="flex-shrink-0 mt-0.5"
+              style={{ color: '#F6465D' }}
+            />
+            <div className="flex-1">
+              <div className="font-semibold mb-1" style={{ color: '#F6465D' }}>
+                ⚠️ {t('signalSourceNotConfigured', language)}
+              </div>
+              <div className="text-sm" style={{ color: '#848E9C' }}>
+                <p className="mb-2">
+                  {t('signalSourceWarningMessage', language)}
+                </p>
+                <p>
+                  <strong>{t('solutions', language)}</strong>
+                </p>
+                <ul className="list-disc list-inside space-y-1 ml-2 mt-1">
+                  <li>点击"📡 {t('signalSource', language)}"按钮配置API地址</li>
+                  <li>或在交易员配置中禁用"使用币种池"和"使用OI Top"</li>
+                  <li>或在交易员配置中设置自定义币种列表</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => setShowSignalSourceModal(true)}
+                className="mt-3 px-3 py-1.5 rounded text-sm font-semibold transition-all hover:scale-105"
+                style={{
+                  background: '#F0B90B',
+                  color: '#000',
+                }}
+              >
+                {t('configureSignalSourceNow', language)}
+              </button>
+            </div>
+          </div>
+        )}
 
       {/* Configuration Status */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
@@ -1059,6 +1196,51 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           onClose={() => setShowSignalSourceModal(false)}
           language={language}
         />
+      )}
+    </div>
+  )
+}
+
+// Tooltip Helper Component
+function Tooltip({
+  content,
+  children,
+}: {
+  content: string
+  children: React.ReactNode
+}) {
+  const [show, setShow] = useState(false)
+
+  return (
+    <div className="relative inline-block">
+      <div
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        onClick={() => setShow(!show)}
+      >
+        {children}
+      </div>
+      {show && (
+        <div
+          className="absolute z-10 px-3 py-2 text-sm rounded-lg shadow-lg w-64 left-1/2 transform -translate-x-1/2 bottom-full mb-2"
+          style={{
+            background: '#2B3139',
+            color: '#EAECEF',
+            border: '1px solid #474D57',
+          }}
+        >
+          {content}
+          <div
+            className="absolute left-1/2 transform -translate-x-1/2 top-full"
+            style={{
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #2B3139',
+            }}
+          />
+        </div>
       )}
     </div>
   )
@@ -1492,6 +1674,15 @@ function ExchangeConfigModal({
   const [passphrase, setPassphrase] = useState('')
   const [testnet, setTestnet] = useState(false)
   const [showGuide, setShowGuide] = useState(false)
+  const [serverIP, setServerIP] = useState<{
+    public_ip: string
+    message: string
+  } | null>(null)
+  const [loadingIP, setLoadingIP] = useState(false)
+  const [copiedIP, setCopiedIP] = useState(false)
+
+  // 币安配置指南展开状态
+  const [showBinanceGuide, setShowBinanceGuide] = useState(false)
 
   // Aster 特定字段
   const [asterUser, setAsterUser] = useState('')
@@ -1517,6 +1708,31 @@ function ExchangeConfigModal({
       setAsterPrivateKey('') // Don't load existing private key for security
     }
   }, [editingExchangeId, selectedExchange])
+
+  // 加载服务器IP（当选择binance时）
+  useEffect(() => {
+    if (selectedExchangeId === 'binance' && !serverIP) {
+      setLoadingIP(true)
+      api
+        .getServerIP()
+        .then((data) => {
+          setServerIP(data)
+        })
+        .catch((err) => {
+          console.error('Failed to load server IP:', err)
+        })
+        .finally(() => {
+          setLoadingIP(false)
+        })
+    }
+  }, [selectedExchangeId])
+
+  const handleCopyIP = (ip: string) => {
+    navigator.clipboard.writeText(ip).then(() => {
+      setCopiedIP(true)
+      setTimeout(() => setCopiedIP(false), 2000)
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1667,6 +1883,103 @@ function ExchangeConfigModal({
                 selectedExchange.id !== 'hyperliquid' &&
                 selectedExchange.id !== 'aster' && (
                   <>
+                    {/* 币安用户配置提示 (D1 方案) */}
+                    {selectedExchange.id === 'binance' && (
+                      <div
+                        className="mb-4 p-3 rounded cursor-pointer transition-colors"
+                        style={{
+                          background: '#1a3a52',
+                          border: '1px solid #2b5278',
+                        }}
+                        onClick={() => setShowBinanceGuide(!showBinanceGuide)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span style={{ color: '#58a6ff' }}>ℹ️</span>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: '#EAECEF' }}
+                            >
+                              <strong>币安用户必读：</strong>
+                              使用「现货与合约交易」API，不要用「统一账户 API」
+                            </span>
+                          </div>
+                          <span style={{ color: '#8b949e' }}>
+                            {showBinanceGuide ? '▲' : '▼'}
+                          </span>
+                        </div>
+
+                        {/* 展开的详细说明 */}
+                        {showBinanceGuide && (
+                          <div
+                            className="mt-3 pt-3"
+                            style={{
+                              borderTop: '1px solid #2b5278',
+                              fontSize: '0.875rem',
+                              color: '#c9d1d9',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <p className="mb-2" style={{ color: '#8b949e' }}>
+                              <strong>原因：</strong>统一账户 API
+                              权限结构不同，会导致订单提交失败
+                            </p>
+
+                            <p
+                              className="font-semibold mb-1"
+                              style={{ color: '#EAECEF' }}
+                            >
+                              正确配置步骤：
+                            </p>
+                            <ol
+                              className="list-decimal list-inside space-y-1 mb-3"
+                              style={{ paddingLeft: '0.5rem' }}
+                            >
+                              <li>
+                                登录币安 → 个人中心 → <strong>API 管理</strong>
+                              </li>
+                              <li>
+                                创建 API → 选择「
+                                <strong>系统生成的 API 密钥</strong>」
+                              </li>
+                              <li>
+                                勾选「<strong>现货与合约交易</strong>」（
+                                <span style={{ color: '#f85149' }}>
+                                  不选统一账户
+                                </span>
+                                ）
+                              </li>
+                              <li>
+                                IP 限制选「<strong>无限制</strong>」或添加服务器
+                                IP
+                              </li>
+                            </ol>
+
+                            <p
+                              className="mb-2 p-2 rounded"
+                              style={{
+                                background: '#3d2a00',
+                                border: '1px solid #9e6a03',
+                              }}
+                            >
+                              💡 <strong>多资产模式用户注意：</strong>
+                              如果您开启了多资产模式，将强制使用全仓模式。建议关闭多资产模式以支持逐仓交易。
+                            </p>
+
+                            <a
+                              href="https://www.binance.com/zh-CN/support/faq/how-to-create-api-keys-on-binance-360002502072"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-sm hover:underline"
+                              style={{ color: '#58a6ff' }}
+                            >
+                              📖 查看币安官方教程 ↗
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div>
                       <label
                         className="block text-sm font-semibold mb-2"
@@ -1734,6 +2047,61 @@ function ExchangeConfigModal({
                         />
                       </div>
                     )}
+
+                    {/* Binance 白名单IP提示 */}
+                    {selectedExchange.id === 'binance' && (
+                      <div
+                        className="p-4 rounded"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.1)',
+                          border: '1px solid rgba(240, 185, 11, 0.2)',
+                        }}
+                      >
+                        <div
+                          className="text-sm font-semibold mb-2"
+                          style={{ color: '#F0B90B' }}
+                        >
+                          {t('whitelistIP', language)}
+                        </div>
+                        <div
+                          className="text-xs mb-3"
+                          style={{ color: '#848E9C' }}
+                        >
+                          {t('whitelistIPDesc', language)}
+                        </div>
+
+                        {loadingIP ? (
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
+                            {t('loadingServerIP', language)}
+                          </div>
+                        ) : serverIP && serverIP.public_ip ? (
+                          <div
+                            className="flex items-center gap-2 p-2 rounded"
+                            style={{ background: '#0B0E11' }}
+                          >
+                            <code
+                              className="flex-1 text-sm font-mono"
+                              style={{ color: '#F0B90B' }}
+                            >
+                              {serverIP.public_ip}
+                            </code>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyIP(serverIP.public_ip)}
+                              className="px-3 py-1 rounded text-xs font-semibold transition-all hover:scale-105"
+                              style={{
+                                background: 'rgba(240, 185, 11, 0.2)',
+                                color: '#F0B90B',
+                              }}
+                            >
+                              {copiedIP
+                                ? t('ipCopied', language)
+                                : t('copyIP', language)}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1772,10 +2140,16 @@ function ExchangeConfigModal({
                 <>
                   <div>
                     <label
-                      className="block text-sm font-semibold mb-2"
+                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
                       style={{ color: '#EAECEF' }}
                     >
                       {t('user', language)}
+                      <Tooltip content={t('asterUserDesc', language)}>
+                        <HelpCircle
+                          className="w-4 h-4 cursor-help"
+                          style={{ color: '#F0B90B' }}
+                        />
+                      </Tooltip>
                     </label>
                     <input
                       type="text"
@@ -1794,10 +2168,16 @@ function ExchangeConfigModal({
 
                   <div>
                     <label
-                      className="block text-sm font-semibold mb-2"
+                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
                       style={{ color: '#EAECEF' }}
                     >
                       {t('signer', language)}
+                      <Tooltip content={t('asterSignerDesc', language)}>
+                        <HelpCircle
+                          className="w-4 h-4 cursor-help"
+                          style={{ color: '#F0B90B' }}
+                        />
+                      </Tooltip>
                     </label>
                     <input
                       type="text"
@@ -1816,10 +2196,16 @@ function ExchangeConfigModal({
 
                   <div>
                     <label
-                      className="block text-sm font-semibold mb-2"
+                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
                       style={{ color: '#EAECEF' }}
                     >
                       {t('privateKey', language)}
+                      <Tooltip content={t('asterPrivateKeyDesc', language)}>
+                        <HelpCircle
+                          className="w-4 h-4 cursor-help"
+                          style={{ color: '#F0B90B' }}
+                        />
+                      </Tooltip>
                     </label>
                     <input
                       type="password"
@@ -1873,6 +2259,9 @@ function ExchangeConfigModal({
                   </span>
                 </div>
                 <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                  {selectedExchange.id === 'aster' && (
+                    <div>{t('asterUsdtWarning', language)}</div>
+                  )}
                   <div>{t('exchangeConfigWarning1', language)}</div>
                   <div>{t('exchangeConfigWarning2', language)}</div>
                   <div>{t('exchangeConfigWarning3', language)}</div>

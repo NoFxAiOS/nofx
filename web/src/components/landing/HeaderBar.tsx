@@ -215,45 +215,127 @@ export default function HeaderBar({
 
                     {t('dashboardNav', language)}
                   </button>
+
+                  <button
+                    onClick={() => {
+                      console.log(
+                        'FAQ button clicked, onPageChange:',
+                        onPageChange
+                      )
+                      onPageChange?.('faq')
+                    }}
+                    className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                    style={{
+                      color:
+                        currentPage === 'faq'
+                          ? 'var(--brand-yellow)'
+                          : 'var(--brand-light-gray)',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (currentPage !== 'faq') {
+                        e.currentTarget.style.color = 'var(--brand-yellow)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (currentPage !== 'faq') {
+                        e.currentTarget.style.color = 'var(--brand-light-gray)'
+                      }
+                    }}
+                  >
+                    {/* Background for selected state */}
+                    {currentPage === 'faq' && (
+                      <span
+                        className="absolute inset-0 rounded-lg"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.15)',
+                          zIndex: -1,
+                        }}
+                      />
+                    )}
+
+                    {t('faqNav', language)}
+                  </button>
                 </>
               ) : (
                 // Landing page navigation when not logged in
-                <a
-                  href="/competition"
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'competition'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'competition') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'competition') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {/* Background for selected state */}
-                  {currentPage === 'competition' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
+                <>
+                  <a
+                    href="/competition"
+                    className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                    style={{
+                      color:
+                        currentPage === 'competition'
+                          ? 'var(--brand-yellow)'
+                          : 'var(--brand-light-gray)',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (currentPage !== 'competition') {
+                        e.currentTarget.style.color = 'var(--brand-yellow)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (currentPage !== 'competition') {
+                        e.currentTarget.style.color = 'var(--brand-light-gray)'
+                      }
+                    }}
+                  >
+                    {/* Background for selected state */}
+                    {currentPage === 'competition' && (
+                      <span
+                        className="absolute inset-0 rounded-lg"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.15)',
+                          zIndex: -1,
+                        }}
+                      />
+                    )}
 
-                  {t('realtimeNav', language)}
-                </a>
+                    {t('realtimeNav', language)}
+                  </a>
+
+                  <a
+                    href="/faq"
+                    className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                    style={{
+                      color:
+                        currentPage === 'faq'
+                          ? 'var(--brand-yellow)'
+                          : 'var(--brand-light-gray)',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (currentPage !== 'faq') {
+                        e.currentTarget.style.color = 'var(--brand-yellow)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (currentPage !== 'faq') {
+                        e.currentTarget.style.color = 'var(--brand-light-gray)'
+                      }
+                    }}
+                  >
+                    {/* Background for selected state */}
+                    {currentPage === 'faq' && (
+                      <span
+                        className="absolute inset-0 rounded-lg"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.15)',
+                          zIndex: -1,
+                        }}
+                      />
+                    )}
+
+                    {t('faqNav', language)}
+                  </a>
+                </>
               )}
             </div>
 
@@ -394,16 +476,18 @@ export default function HeaderBar({
                     >
                       {t('signIn', language)}
                     </a>
-                    <a
-                      href="/register"
-                      className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
-                      style={{
-                        background: 'var(--brand-yellow)',
-                        color: 'var(--brand-black)',
-                      }}
-                    >
-                      {t('signUp', language)}
-                    </a>
+                    {!isAdminMode && (
+                      <a
+                        href="/register"
+                        className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
+                        style={{
+                          background: 'var(--brand-yellow)',
+                          color: 'var(--brand-black)',
+                        }}
+                      >
+                        {t('signUp', language)}
+                      </a>
+                    )}
                   </div>
                 )
               )}
@@ -650,6 +734,41 @@ export default function HeaderBar({
 
                 {t('dashboardNav', language)}
               </button>
+              <button
+                onClick={() => {
+                  console.log(
+                    '移动端 FAQ button clicked, onPageChange:',
+                    onPageChange
+                  )
+                  onPageChange?.('faq')
+                  setMobileMenuOpen(false)
+                }}
+                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
+                style={{
+                  color:
+                    currentPage === 'faq'
+                      ? 'var(--brand-yellow)'
+                      : 'var(--brand-light-gray)',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  position: 'relative',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+              >
+                {/* Background for selected state */}
+                {currentPage === 'faq' && (
+                  <span
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.15)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+
+                {t('faqNav', language)}
+              </button>
             </>
           )}
 
@@ -797,17 +916,19 @@ export default function HeaderBar({
                 >
                   {t('signIn', language)}
                 </a>
-                <a
-                  href="/register"
-                  className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
-                  style={{
-                    background: 'var(--brand-yellow)',
-                    color: 'var(--brand-black)',
-                  }}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {t('signUp', language)}
-                </a>
+                {!isAdminMode && (
+                  <a
+                    href="/register"
+                    className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
+                    style={{
+                      background: 'var(--brand-yellow)',
+                      color: 'var(--brand-black)',
+                    }}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {t('signUp', language)}
+                  </a>
+                )}
               </div>
             )}
         </div>

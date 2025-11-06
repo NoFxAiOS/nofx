@@ -18,6 +18,10 @@ interface AuthContextType {
     userID?: string
     requiresOTP?: boolean
   }>
+  loginAdmin: (password: string) => Promise<{
+    success: boolean
+    message?: string
+  }>
   register: (
     email: string,
     password: string,
@@ -37,6 +41,11 @@ interface AuthContextType {
     userID: string,
     otpCode: string
   ) => Promise<{ success: boolean; message?: string }>
+  resetPassword: (
+    email: string,
+    newPassword: string,
+    otpCode: string
+  ) => Promise<{ success: boolean; message?: string }>
   logout: () => void
   isLoading: boolean
 }
@@ -51,21 +60,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // 先检查是否为管理员模式（使用带缓存的系统配置获取）
     getSystemConfig()
-      .then((data) => {
-        if (data.admin_mode) {
-          // 管理员模式下，模拟admin用户
-          setUser({ id: 'admin', email: 'admin@localhost' })
-          setToken('admin-mode')
-        } else {
-          // 非管理员模式，检查本地存储中是否有token
-          const savedToken = localStorage.getItem('auth_token')
-          const savedUser = localStorage.getItem('auth_user')
-
-          if (savedToken && savedUser) {
-            setToken(savedToken)
-            setUser(JSON.parse(savedUser))
-          }
+      .then(() => {
+        // 不再在管理员模式下模拟登录；统一检查本地存储
+        const savedToken = localStorage.getItem('auth_token')
+        const savedUser = localStorage.getItem('auth_user')
+        if (savedToken && savedUser) {
+          setToken(savedToken)
+          setUser(JSON.parse(savedUser))
         }
+
         setIsLoading(false)
       })
       .catch((err) => {
@@ -111,6 +114,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return { success: false, message: '未知错误' }
+  }
+
+  const loginAdmin = async (password: string) => {
+    try {
+      const response = await fetch('/api/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      })
+      const data = await response.json()
+      if (response.ok) {
+        const userInfo = {
+          id: data.user_id || 'admin',
+          email: data.email || 'admin@localhost',
+        }
+        setToken(data.token)
+        setUser(userInfo)
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_user', JSON.stringify(userInfo))
+        // 跳转到仪表盘
+        window.history.pushState({}, '', '/dashboard')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        return { success: true }
+      } else {
+        return { success: false, message: data.error || '登录失败' }
+      }
+    } catch (e) {
+      return { success: false, message: '登录失败，请重试' }
+    }
   }
 
   const register = async (
@@ -220,7 +252,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const resetPassword = async (
+    email: string,
+    newPassword: string,
+    otpCode: string
+  ) => {
+    try {
+      const response = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          new_password: newPassword,
+          otp_code: otpCode,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        return { success: true, message: data.message }
+      } else {
+        return { success: false, message: data.error }
+      }
+    } catch (error) {
+      return { success: false, message: '密码重置失败，请重试' }
+    }
+  }
+
   const logout = () => {
+    const savedToken = localStorage.getItem('auth_token')
+    if (savedToken) {
+      fetch('/api/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${savedToken}` },
+      }).catch(() => {
+        /* ignore network errors on logout */
+      })
+    }
     setUser(null)
     setToken(null)
     localStorage.removeItem('auth_token')
@@ -233,9 +304,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         token,
         login,
+        loginAdmin,
         register,
         verifyOTP,
         completeRegistration,
+        resetPassword,
         logout,
         isLoading,
       }}

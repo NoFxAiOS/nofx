@@ -252,6 +252,10 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+	} else if exchangeCfg.ID == "gateio" {
+		traderConfig.GateIOTestnet = exchangeCfg.Testnet
+		traderConfig.GateIOAPIKey = exchangeCfg.APIKey
+		traderConfig.GateIOSecretKey = exchangeCfg.SecretKey
 	}
 
 	// 根据AI模型设置API密钥
@@ -358,6 +362,9 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+	} else if exchangeCfg.ID == "gateio" {
+		traderConfig.GateIOAPIKey = exchangeCfg.APIKey
+		traderConfig.GateIOSecretKey = exchangeCfg.SecretKey
 	}
 
 	// 根据AI模型设置API密钥
@@ -906,6 +913,9 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
 		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+	} else if exchangeCfg.ID == "gateio" {
+		traderConfig.GateIOAPIKey = exchangeCfg.APIKey
+		traderConfig.GateIOSecretKey = exchangeCfg.SecretKey
 	}
 
 	// 根据AI模型设置API密钥

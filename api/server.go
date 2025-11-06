@@ -521,6 +521,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		switch req.ExchangeID {
 		case "binance":
 			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey)
+		case "gateio":
+			tempTrader = trader.NewGateIOFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, exchangeCfg.Testnet)
 		case "hyperliquid":
 			tempTrader, createErr = trader.NewHyperliquidTrader(
 				exchangeCfg.APIKey, // private key
@@ -1486,7 +1488,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
 
 		tokenString := tokenParts[1]
 

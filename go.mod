@@ -4,7 +4,9 @@ go 1.25.0
 
 require (
 	github.com/adshao/go-binance/v2 v2.8.7
+	github.com/antihax/optional v1.0.0
 	github.com/ethereum/go-ethereum v1.16.5
+	github.com/gateio/gateapi-go/v7 v7.1.8
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/golang-jwt/jwt/v5 v5.2.0

@@ -244,6 +244,7 @@ func (d *Database) initDefaultData() error {
 		{"binance", "Binance Futures", "binance"},
 		{"hyperliquid", "Hyperliquid", "hyperliquid"},
 		{"aster", "Aster DEX", "aster"},
+		{"gateio", "GateIO Futures", "gateio"},
 	}
 
 	for _, exchange := range exchanges {
@@ -744,6 +745,9 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 		} else if id == "aster" {
 			name = "Aster DEX"
 			typ = "dex"
+		} else if id == "gateio" {
+			name = "GateIO Futures"
+			typ = "cex"
 		} else {
 			name = id + " Exchange"
 			typ = "cex"

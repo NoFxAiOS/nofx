@@ -63,7 +63,7 @@ export async function encryptWithServerPublicKey(
     result.set(new Uint8Array(encryptedData), 4 + encryptedAESKey.byteLength + iv.length);
 
     // 6. Base64 編碼
-    return arrayBufferToBase64(result.buffer);
+    return arrayBufferToBase64(result);
   } catch (error) {
     console.error('加密失敗:', error);
     throw new Error('加密過程中發生錯誤，請檢查伺服器公鑰是否有效');
@@ -283,8 +283,8 @@ function validatePrivateKeyFormat(key: string): boolean {
 
 // ==================== 工具函數 ====================
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);

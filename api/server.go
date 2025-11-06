@@ -81,6 +81,9 @@ func (s *Server) setupRoutes() {
 		api.GET("/supported-models", s.handleGetSupportedModels)
 		api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
 
+		// 公开的竞赛数据（无需认证）在这里添加,确定所有情况都能请求
+		api.GET("/competition", s.handlePublicCompetition)
+
 		// 非管理员模式下的公开认证路由
 		if !auth.IsAdminMode() {
 			// 认证相关路由（无需认证）
@@ -102,7 +105,6 @@ func (s *Server) setupRoutes() {
 
 			// 公开的竞赛数据（无需认证）
 			api.GET("/traders", s.handlePublicTraderList)
-			api.GET("/competition", s.handlePublicCompetition)
 			api.GET("/top-traders", s.handleTopTraders)
 			api.GET("/equity-history", s.handleEquityHistory)
 			api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
@@ -149,6 +151,10 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
 			protected.GET("/performance", s.handlePerformance)
+
+			// 历史记录同时在管理员模式可用
+			protected.GET("/equity-history", s.handleEquityHistory)
+			protected.POST("/equity-history-batch", s.handleEquityHistoryBatch)
 		}
 	}
 }

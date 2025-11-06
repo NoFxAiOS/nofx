@@ -519,7 +519,7 @@ func (t *FuturesTrader) CancelStopLossOrders(symbol string) error {
 
 			if err != nil {
 				errMsg := fmt.Sprintf("订单ID %d: %v", order.OrderID, err)
-				cancelErrors = append(cancelErrors, fmt.Errorf(errMsg))
+				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
 				log.Printf("  ⚠ 取消止损单失败: %s", errMsg)
 				continue
 			}
@@ -569,7 +569,7 @@ func (t *FuturesTrader) CancelTakeProfitOrders(symbol string) error {
 
 			if err != nil {
 				errMsg := fmt.Sprintf("订单ID %d: %v", order.OrderID, err)
-				cancelErrors = append(cancelErrors, fmt.Errorf(errMsg))
+				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
 				log.Printf("  ⚠ 取消止盈单失败: %s", errMsg)
 				continue
 			}

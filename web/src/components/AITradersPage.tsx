@@ -180,14 +180,13 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   // 检查模型是否正在被运行中的交易员使用（用于UI禁用）
   const isModelInUse = (modelId: string) => {
-    return traders?.some((t) => t.ai_model === modelId && t.is_running) || false
+    return traders?.some((t) => t.ai_model === modelId && t.is_running)
   }
 
   // 检查交易所是否正在被运行中的交易员使用（用于UI禁用）
   const isExchangeInUse = (exchangeId: string) => {
     return (
-      traders?.some((t) => t.exchange_id === exchangeId && t.is_running) ||
-      false
+      traders?.some((t) => t.exchange_id === exchangeId && t.is_running)
     )
   }
 
@@ -329,13 +328,29 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   }
 
-  const handleDeleteModelConfig = async (modelId: string) => {
-    // 检查是否有交易员正在使用此模型
-    if (isModelUsedByAnyTrader(modelId)) {
-      const usingTraders = getTradersUsingModel(modelId)
+  // 通用删除配置处理函数
+  const handleDeleteConfig = async <T extends { id: string }>(config: {
+    id: string
+    type: 'model' | 'exchange'
+    checkInUse: (id: string) => boolean
+    getUsingTraders: (id: string) => any[]
+    cannotDeleteKey: string
+    confirmDeleteKey: string
+    allItems: T[] | undefined
+    clearFields: (item: T) => T
+    buildRequest: (items: T[]) => any
+    updateApi: (request: any) => Promise<void>
+    refreshApi: () => Promise<T[]>
+    setItems: (items: T[]) => void
+    closeModal: () => void
+    errorKey: string
+  }) => {
+    // 检查是否有交易员正在使用
+    if (config.checkInUse(config.id)) {
+      const usingTraders = config.getUsingTraders(config.id)
       const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
       alert(
-        t('cannotDeleteModelInUse', language) +
+        t(config.cannotDeleteKey, language) +
           '\n\n' +
           t('tradersUsing', language) +
           ': ' +
@@ -346,26 +361,48 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       return
     }
 
-    if (!confirm(t('confirmDeleteModel', language))) return
+    if (!confirm(t(config.confirmDeleteKey, language))) return
 
     try {
-      const updatedModels =
-        allModels?.map((m) =>
-          m.id === modelId
-            ? {
-                ...m,
-                apiKey: '',
-                customApiUrl: '',
-                customModelName: '',
-                enabled: false,
-              }
-            : m
+      const updatedItems =
+        config.allItems?.map((item) =>
+          item.id === config.id ? config.clearFields(item) : item
         ) || []
 
-      const request = {
+      const request = config.buildRequest(updatedItems)
+      await config.updateApi(request)
+
+      // 重新获取用户配置以确保数据同步
+      const refreshedItems = await config.refreshApi()
+      config.setItems(refreshedItems)
+
+      config.closeModal()
+    } catch (error) {
+      console.error(`Failed to delete ${config.type} config:`, error)
+      alert(t(config.errorKey, language))
+    }
+  }
+
+  const handleDeleteModelConfig = async (modelId: string) => {
+    await handleDeleteConfig({
+      id: modelId,
+      type: 'model',
+      checkInUse: isModelUsedByAnyTrader,
+      getUsingTraders: getTradersUsingModel,
+      cannotDeleteKey: 'cannotDeleteModelInUse',
+      confirmDeleteKey: 'confirmDeleteModel',
+      allItems: allModels,
+      clearFields: (m) => ({
+        ...m,
+        apiKey: '',
+        customApiUrl: '',
+        customModelName: '',
+        enabled: false,
+      }),
+      buildRequest: (models) => ({
         models: Object.fromEntries(
-          updatedModels.map((model) => [
-            model.provider, // 使用 provider 而不是 id
+          models.map((model) => [
+            model.provider,
             {
               enabled: model.enabled,
               api_key: model.apiKey || '',
@@ -374,20 +411,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             },
           ])
         ),
-      }
-
-      await api.updateModelConfigs(request)
-
-      // 重新获取用户配置以确保数据同步
-      const refreshedModels = await api.getModelConfigs()
-      setAllModels(refreshedModels)
-
-      setShowModelModal(false)
-      setEditingModel(null)
-    } catch (error) {
-      console.error('Failed to delete model config:', error)
-      alert(t('deleteConfigFailed', language))
-    }
+      }),
+      updateApi: api.updateModelConfigs,
+      refreshApi: api.getModelConfigs,
+      setItems: setAllModels,
+      closeModal: () => {
+        setShowModelModal(false)
+        setEditingModel(null)
+      },
+      errorKey: 'deleteConfigFailed',
+    })
   }
 
   const handleSaveModelConfig = async (
@@ -464,35 +497,23 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleDeleteExchangeConfig = async (exchangeId: string) => {
-    // 检查是否有交易员正在使用此交易所
-    if (isExchangeUsedByAnyTrader(exchangeId)) {
-      const usingTraders = getTradersUsingExchange(exchangeId)
-      const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
-      alert(
-        t('cannotDeleteExchangeInUse', language) +
-          '\n\n' +
-          t('tradersUsing', language) +
-          ': ' +
-          traderNames +
-          '\n\n' +
-          t('pleaseDeleteTradersFirst', language)
-      )
-      return
-    }
-
-    if (!confirm(t('confirmDeleteExchange', language))) return
-
-    try {
-      const updatedExchanges =
-        allExchanges?.map((e) =>
-          e.id === exchangeId
-            ? { ...e, apiKey: '', secretKey: '', enabled: false }
-            : e
-        ) || []
-
-      const request = {
+    await handleDeleteConfig({
+      id: exchangeId,
+      type: 'exchange',
+      checkInUse: isExchangeUsedByAnyTrader,
+      getUsingTraders: getTradersUsingExchange,
+      cannotDeleteKey: 'cannotDeleteExchangeInUse',
+      confirmDeleteKey: 'confirmDeleteExchange',
+      allItems: allExchanges,
+      clearFields: (e) => ({
+        ...e,
+        apiKey: '',
+        secretKey: '',
+        enabled: false,
+      }),
+      buildRequest: (exchanges) => ({
         exchanges: Object.fromEntries(
-          updatedExchanges.map((exchange) => [
+          exchanges.map((exchange) => [
             exchange.id,
             {
               enabled: exchange.enabled,
@@ -502,20 +523,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             },
           ])
         ),
-      }
-
-      await api.updateExchangeConfigs(request)
-
-      // 重新获取用户配置以确保数据同步
-      const refreshedExchanges = await api.getExchangeConfigs()
-      setAllExchanges(refreshedExchanges)
-
-      setShowExchangeModal(false)
-      setEditingExchange(null)
-    } catch (error) {
-      console.error('Failed to delete exchange config:', error)
-      alert(t('deleteExchangeConfigFailed', language))
-    }
+      }),
+      updateApi: api.updateExchangeConfigs,
+      refreshApi: api.getExchangeConfigs,
+      setItems: setAllExchanges,
+      closeModal: () => {
+        setShowExchangeModal(false)
+        setEditingExchange(null)
+      },
+      errorKey: 'deleteExchangeConfigFailed',
+    })
   }
 
   const handleSaveExchangeConfig = async (

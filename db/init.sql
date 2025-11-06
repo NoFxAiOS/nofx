@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS traders (
     override_base_prompt BOOLEAN DEFAULT FALSE,
     system_prompt_template TEXT DEFAULT 'default',
     is_cross_margin BOOLEAN DEFAULT TRUE,
+    custom_coins TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -133,6 +134,11 @@ CREATE TRIGGER update_system_config_updated_at BEFORE UPDATE ON system_config
 
 -- 插入默认数据
 
+-- 创建default用户（如果不存在）
+INSERT INTO users (id, email, password_hash, otp_secret, otp_verified) VALUES
+('default', 'default@localhost', '', '', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
 -- 初始化AI模型（使用default用户）
 INSERT INTO ai_models (id, user_id, name, provider, enabled) VALUES
 ('deepseek', 'default', 'DeepSeek', 'deepseek', FALSE),
@@ -148,7 +154,6 @@ ON CONFLICT (id, user_id) DO NOTHING;
 
 -- 初始化系统配置
 INSERT INTO system_config (key, value) VALUES
-('admin_mode', 'true'),
 ('beta_mode', 'false'),
 ('api_server_port', '8080'),
 ('use_default_coins', 'true'),

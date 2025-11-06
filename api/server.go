@@ -180,7 +180,6 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 	betaMode := betaModeStr == "true"
 
 	c.JSON(http.StatusOK, gin.H{
-		"admin_mode":       auth.IsAdminMode(),
 		"beta_mode":        betaMode,
 		"default_coins":    defaultCoins,
 		"btc_eth_leverage": btcEthLeverage,
@@ -1459,14 +1458,6 @@ func (s *Server) handlePerformance(c *gin.Context) {
 // authMiddleware JWT认证中间件
 func (s *Server) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 如果是管理员模式，直接使用admin用户
-		if auth.IsAdminMode() {
-			c.Set("user_id", "admin")
-			c.Set("email", "admin@localhost")
-			c.Next()
-			return
-		}
-
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少Authorization头"})

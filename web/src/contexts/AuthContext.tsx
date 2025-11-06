@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { getSystemConfig } from '../lib/config'
 
 interface User {
   id: string
@@ -49,37 +48,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // 先检查是否为管理员模式（使用带缓存的系统配置获取）
-    getSystemConfig()
-      .then((data) => {
-        if (data.admin_mode) {
-          // 管理员模式下，模拟admin用户
-          setUser({ id: 'admin', email: 'admin@localhost' })
-          setToken('admin-mode')
-        } else {
-          // 非管理员模式，检查本地存储中是否有token
-          const savedToken = localStorage.getItem('auth_token')
-          const savedUser = localStorage.getItem('auth_user')
+    const savedToken = localStorage.getItem('auth_token')
+    const savedUser = localStorage.getItem('auth_user')
 
-          if (savedToken && savedUser) {
-            setToken(savedToken)
-            setUser(JSON.parse(savedUser))
-          }
-        }
-        setIsLoading(false)
-      })
-      .catch((err) => {
-        console.error('Failed to fetch system config:', err)
-        // 发生错误时，继续检查本地存储
-        const savedToken = localStorage.getItem('auth_token')
-        const savedUser = localStorage.getItem('auth_user')
+    if (savedToken && savedUser) {
+      setToken(savedToken)
+      setUser(JSON.parse(savedUser))
+    }
 
-        if (savedToken && savedUser) {
-          setToken(savedToken)
-          setUser(JSON.parse(savedUser))
-        }
-        setIsLoading(false)
-      })
+    setIsLoading(false)
   }, [])
 
   const login = async (email: string, password: string) => {

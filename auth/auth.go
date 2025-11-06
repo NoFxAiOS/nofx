@@ -14,25 +14,12 @@ import (
 // JWTSecret JWT密钥，将从配置中动态设置
 var JWTSecret []byte
 
-// AdminMode 管理员模式标志
-var AdminMode bool = false
-
 // OTPIssuer OTP发行者名称
 const OTPIssuer = "nofxAI"
 
 // SetJWTSecret 设置JWT密钥
 func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
-}
-
-// SetAdminMode 设置管理员模式
-func SetAdminMode(enabled bool) {
-	AdminMode = enabled
-}
-
-// IsAdminMode 检查是否为管理员模式
-func IsAdminMode() bool {
-	return AdminMode
 }
 
 // Claims JWT声明

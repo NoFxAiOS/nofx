@@ -52,6 +52,11 @@ func NewPostgreSQLDatabase() (*PostgreSQLDatabase, error) {
 	database := &PostgreSQLDatabase{db: db}
 	log.Printf("✅ PostgreSQL数据库连接成功")
 
+	// 初始化默认数据
+	if err := database.initDefaultData(); err != nil {
+		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
+	}
+
 	return database, nil
 }
 
@@ -70,32 +75,6 @@ func (d *PostgreSQLDatabase) CreateUser(user *User) error {
 		VALUES ($1, $2, $3, $4, $5)
 	`, user.ID, user.Email, user.PasswordHash, user.OTPSecret, user.OTPVerified)
 	return err
-}
-
-// EnsureAdminUser 确保admin用户存在（用于管理员模式）
-func (d *PostgreSQLDatabase) EnsureAdminUser() error {
-	// 检查admin用户是否已存在
-	var count int
-	err := d.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id = 'admin'`).Scan(&count)
-	if err != nil {
-		return err
-	}
-
-	// 如果已存在，直接返回
-	if count > 0 {
-		return nil
-	}
-
-	// 创建admin用户（密码为空，因为管理员模式下不需要密码）
-	adminUser := &User{
-		ID:           "admin",
-		Email:        "admin@localhost",
-		PasswordHash: "", // 管理员模式下不使用密码
-		OTPSecret:    "",
-		OTPVerified:  true,
-	}
-
-	return d.CreateUser(adminUser)
 }
 
 // GetUserByEmail 通过邮箱获取用户
@@ -699,6 +678,66 @@ func (d *PostgreSQLDatabase) GetBetaCodeStats() (total, used int, err error) {
 	}
 
 	return total, used, nil
+}
+
+// initDefaultData 初始化默认数据（AI模型和交易所）
+func (d *PostgreSQLDatabase) initDefaultData() error {
+	// 确保traders表存在custom_coins列，防止旧环境缺少字段
+	if _, err := d.db.Exec(`ALTER TABLE traders ADD COLUMN IF NOT EXISTS custom_coins TEXT DEFAULT ''`); err != nil {
+		return fmt.Errorf("添加custom_coins列失败: %w", err)
+	}
+
+	// 首先创建default用户（如果不存在）
+	_, err := d.db.Exec(`
+		INSERT INTO users (id, email, password_hash, otp_secret, otp_verified)
+		VALUES ('default', 'default@localhost', '', '', true)
+		ON CONFLICT (id) DO NOTHING
+	`)
+	if err != nil {
+		return fmt.Errorf("创建default用户失败: %w", err)
+	}
+
+	// 初始化AI模型（使用default用户）
+	aiModels := []struct {
+		id, name, provider string
+	}{
+		{"deepseek", "DeepSeek", "deepseek"},
+		{"qwen", "Qwen", "qwen"},
+	}
+
+	for _, model := range aiModels {
+		_, err := d.db.Exec(`
+			INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at) 
+			VALUES ($1, 'default', $2, $3, false, '', '', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (id) DO NOTHING
+		`, model.id, model.name, model.provider)
+		if err != nil {
+			return fmt.Errorf("初始化AI模型失败: %w", err)
+		}
+	}
+
+	// 初始化交易所（使用default用户）
+	exchanges := []struct {
+		id, name, typ string
+	}{
+		{"binance", "Binance Futures", "binance"},
+		{"hyperliquid", "Hyperliquid", "hyperliquid"},
+		{"aster", "Aster DEX", "aster"},
+	}
+
+	for _, exchange := range exchanges {
+		_, err := d.db.Exec(`
+			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, 
+				hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at) 
+			VALUES ($1, 'default', $2, $3, false, '', '', false, '', '', '', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			ON CONFLICT (id, user_id) DO NOTHING
+		`, exchange.id, exchange.name, exchange.typ)
+		if err != nil {
+			return fmt.Errorf("初始化交易所失败: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // Close 关闭数据库连接

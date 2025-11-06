@@ -25,7 +25,6 @@ type LeverageConfig struct {
 
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
 type ConfigFile struct {
-	AdminMode          bool              `json:"admin_mode"`
 	BetaMode           bool              `json:"beta_mode"`
 	APIServerPort      int               `json:"api_server_port"`
 	UseDefaultCoins    bool              `json:"use_default_coins"`
@@ -74,7 +73,6 @@ func syncConfigToDatabase(database config.DatabaseInterface, configFile *ConfigF
 
 	// 同步各配置项到数据库
 	configs := map[string]string{
-		"admin_mode":           fmt.Sprintf("%t", configFile.AdminMode),
 		"beta_mode":            fmt.Sprintf("%t", configFile.BetaMode),
 		"api_server_port":      strconv.Itoa(configFile.APIServerPort),
 		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
@@ -160,20 +158,14 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// 初始化数据库配置
-	dbPath := "config.db"
-	if len(os.Args) > 1 {
-		dbPath = os.Args[1]
-	}
-
 	// 读取配置文件
 	configFile, err := loadConfigFile()
 	if err != nil {
 		log.Fatalf("❌ 读取config.json失败: %v", err)
 	}
 
-	log.Printf("📋 初始化配置数据库: %s", dbPath)
-	database, err := config.NewDatabase(dbPath)
+	log.Printf("📋 初始化配置数据库 (PostgreSQL)")
+	database, err := config.NewDatabase()
 	if err != nil {
 		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
@@ -194,10 +186,6 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
-	// 获取管理员模式配置
-	adminModeStr, _ := database.GetSystemConfig("admin_mode")
-	adminMode := adminModeStr != "false" // 默认为true
-
 	// 设置JWT密钥
 	jwtSecret, _ := database.GetSystemConfig("jwt_secret")
 	if jwtSecret == "" {
@@ -205,17 +193,6 @@ func main() {
 		log.Printf("⚠️  使用默认JWT密钥，建议在生产环境中配置")
 	}
 	auth.SetJWTSecret(jwtSecret)
-
-	// 在管理员模式下，确保admin用户存在
-	if adminMode {
-		err := database.EnsureAdminUser()
-		if err != nil {
-			log.Printf("⚠️  创建admin用户失败: %v", err)
-		} else {
-			log.Printf("✓ 管理员模式已启用，无需登录")
-		}
-		auth.SetAdminMode(true)
-	}
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()

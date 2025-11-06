@@ -12,7 +12,6 @@ interface HeaderBarProps {
   onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
-  isAdminMode?: boolean
   onPageChange?: (page: string) => void
 }
 
@@ -24,7 +23,6 @@ export default function HeaderBar({
   onLanguageChange,
   user,
   onLogout,
-  isAdminMode = false,
   onPageChange,
 }: HeaderBarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -363,7 +361,7 @@ export default function HeaderBar({
                             {user.email}
                           </div>
                         </div>
-                        {!isAdminMode && onLogout && (
+                        {onLogout && (
                           <button
                             onClick={() => {
                               onLogout()
@@ -763,7 +761,7 @@ export default function HeaderBar({
                   </div>
                 </div>
               </div>
-              {!isAdminMode && onLogout && (
+              {onLogout && (
                 <button
                   onClick={() => {
                     onLogout()

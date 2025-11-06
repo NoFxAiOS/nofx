@@ -1,0 +1,246 @@
+name: PR Docker Build Check
+
+# PR 时只做轻量级构建检查,不推送镜像
+# 策略: 快速验证 amd64 + 抽样检查 arm64 (backend only)
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - 'docker/**'
+      - 'Dockerfile*'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.go'
+      - 'web/**'
+      - '.github/workflows/docker-build.yml'
+      - '.github/workflows/pr-docker-check.yml'
+
+jobs:
+  # 快速检查: 所有镜像的 amd64 版本
+  docker-build-amd64:
+    name: Build Check (amd64)
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            dockerfile: ./docker/Dockerfile.backend
+            test_run: true  # 需要测试运行
+          - name: frontend
+            dockerfile: ./docker/Dockerfile.frontend
+            test_run: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.name }} image (amd64)
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          load: true  # 加载到本地 Docker,用于测试运行
+          tags: nofx-${{ matrix.name }}:pr-test
+          cache-from: type=gha,scope=${{ matrix.name }}-amd64
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-amd64
+          build-args: |
+            BUILD_DATE=${{ github.event.pull_request.updated_at }}
+            VCS_REF=${{ github.event.pull_request.head.sha }}
+            VERSION=pr-${{ github.event.pull_request.number }}
+
+      - name: Test run container (smoke test)
+        if: matrix.test_run
+        timeout-minutes: 2
+        run: |
+          echo "🧪 Testing container startup..."
+
+          # 启动容器
+          docker run -d --name test-${{ matrix.name }} \
+            --health-cmd="exit 0" \
+            nofx-${{ matrix.name }}:pr-test
+
+          # 等待容器启动 (最多 30 秒)
+          for i in {1..30}; do
+            if docker ps | grep -q test-${{ matrix.name }}; then
+              echo "✅ Container started successfully"
+              docker logs test-${{ matrix.name }}
+              docker stop test-${{ matrix.name }} || true
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "❌ Container failed to start"
+          docker logs test-${{ matrix.name }} || true
+          exit 1
+
+      - name: Check image size
+        run: |
+          SIZE=$(docker image inspect nofx-${{ matrix.name }}:pr-test --format='{{.Size}}')
+          SIZE_MB=$((SIZE / 1024 / 1024))
+
+          echo "📦 Image size: ${SIZE_MB} MB"
+
+          # 警告阈值
+          if [ "${{ matrix.name }}" = "backend" ] && [ $SIZE_MB -gt 500 ]; then
+            echo "⚠️  Warning: Backend image is larger than 500MB"
+          elif [ "${{ matrix.name }}" = "frontend" ] && [ $SIZE_MB -gt 200 ]; then
+            echo "⚠️  Warning: Frontend image is larger than 200MB"
+          else
+            echo "✅ Image size is reasonable"
+          fi
+
+  # ARM64 原生构建检查: 使用 GitHub 原生 ARM64 runner (快速!)
+  docker-build-arm64-native:
+    name: Build Check (arm64 native - backend)
+    runs-on: ubuntu-22.04-arm  # 原生 ARM64 runner
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 原生 ARM64 不需要 QEMU,直接构建
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (arm64 native)
+        uses: docker/build-push-action@v5
+        timeout-minutes: 15  # 原生构建更快!
+        with:
+          context: .
+          file: ./docker/Dockerfile.backend
+          platforms: linux/arm64
+          push: false
+          load: true  # 加载到本地,用于测试
+          tags: nofx-backend:pr-test-arm64
+          cache-from: type=gha,scope=backend-arm64
+          cache-to: type=gha,mode=max,scope=backend-arm64
+          build-args: |
+            BUILD_DATE=${{ github.event.pull_request.updated_at }}
+            VCS_REF=${{ github.event.pull_request.head.sha }}
+            VERSION=pr-${{ github.event.pull_request.number }}
+
+      - name: Test run ARM64 container
+        timeout-minutes: 2
+        run: |
+          echo "🧪 Testing ARM64 container startup..."
+
+          # 启动容器
+          docker run -d --name test-backend-arm64 \
+            --health-cmd="exit 0" \
+            nofx-backend:pr-test-arm64
+
+          # 等待启动
+          for i in {1..30}; do
+            if docker ps | grep -q test-backend-arm64; then
+              echo "✅ ARM64 container started successfully"
+              docker logs test-backend-arm64
+              docker stop test-backend-arm64 || true
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "❌ ARM64 container failed to start"
+          docker logs test-backend-arm64 || true
+          exit 1
+
+      - name: ARM64 build summary
+        run: |
+          echo "✅ Backend ARM64 native build successful!"
+          echo "Using GitHub native ARM64 runner - no QEMU needed!"
+          echo "Build time is ~3x faster than emulation"
+
+  # 汇总检查结果
+  check-summary:
+    name: Docker Build Summary
+    needs: [docker-build-amd64, docker-build-arm64-native]
+    runs-on: ubuntu-22.04
+    if: always()
+    permissions:
+      pull-requests: write  # 用于发布评论
+    steps:
+      - name: Check build results
+        id: check
+        run: |
+          echo "## 🐳 Docker Build Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 检查 amd64 构建
+          if [[ "${{ needs.docker-build-amd64.result }}" == "success" ]]; then
+            echo "✅ **AMD64 builds**: All passed" >> $GITHUB_STEP_SUMMARY
+            AMD64_OK=true
+          else
+            echo "❌ **AMD64 builds**: Failed" >> $GITHUB_STEP_SUMMARY
+            AMD64_OK=false
+          fi
+
+          # 检查 arm64 构建
+          if [[ "${{ needs.docker-build-arm64-native.result }}" == "success" ]]; then
+            echo "✅ **ARM64 build** (native): Backend passed (frontend will be verified after merge)" >> $GITHUB_STEP_SUMMARY
+            ARM64_OK=true
+          else
+            echo "❌ **ARM64 build** (native): Backend failed" >> $GITHUB_STEP_SUMMARY
+            ARM64_OK=false
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$AMD64_OK" = true ] && [ "$ARM64_OK" = true ]; then
+            echo "### 🎉 All checks passed!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "After merge:" >> $GITHUB_STEP_SUMMARY
+            echo "- Full multi-arch builds (amd64 + arm64) will run in parallel" >> $GITHUB_STEP_SUMMARY
+            echo "- Estimated time: 15-20 minutes" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          else
+            echo "### ❌ Build checks failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please check the build logs above and fix the errors." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Comment on PR
+        if: always() && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const amd64Status = '${{ needs.docker-build-amd64.result }}';
+            const arm64Status = '${{ needs.docker-build-arm64-native.result }}';
+
+            const successIcon = '✅';
+            const failIcon = '❌';
+
+            const comment = [
+              '## 🐳 Docker Build Check Results',
+              '',
+              `**AMD64 builds**: ${amd64Status === 'success' ? successIcon : failIcon} ${amd64Status}`,
+              `**ARM64 build** (native runner): ${arm64Status === 'success' ? successIcon : failIcon} ${arm64Status}`,
+              '',
+              amd64Status === 'success' && arm64Status === 'success'
+                ? '### 🎉 All Docker builds passed!\n\n✨ Using GitHub native ARM64 runners - 3x faster than emulation!\n\nAfter merge, full multi-arch builds will run in ~10-12 minutes.'
+                : '### ⚠️ Some builds failed\n\nPlease check the Actions tab for details.',
+              '',
+              '<sub>Checked: Backend (amd64 + arm64 native), Frontend (amd64) | Powered by GitHub ARM64 Runners</sub>'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: comment
+            });

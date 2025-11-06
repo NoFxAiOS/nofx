@@ -833,11 +833,11 @@ function TraderDetailsPage({
       </div>
 
       {/* AI Learning & Performance Analysis */}
-      <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
-        <AILearning traderId={selectedTrader.trader_id} />
-      </div>
-    </div>
-  )
+      {selectedTrader && (
+        <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
+          <AILearning traderId={selectedTrader.trader_id} />
+        </div>
+      )}
 }
 
 // Stat Card Component - Binance Style Enhanced

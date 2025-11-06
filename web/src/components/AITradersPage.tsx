@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type {
@@ -134,6 +134,36 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   // 显示所有用户的模型和交易所配置（用于调试）
   const configuredModels = allModels || []
   const configuredExchanges = allExchanges || []
+
+  const selectableModels = useMemo(() => {
+    const map = new Map<string, AIModel>()
+    ;(supportedModels || []).forEach((model) => {
+      if (model?.id) {
+        map.set(model.id, model)
+      }
+    })
+    ;(allModels || []).forEach((model) => {
+      if (model?.id) {
+        map.set(model.id, { ...map.get(model.id), ...model })
+      }
+    })
+    return Array.from(map.values())
+  }, [supportedModels, allModels])
+
+  const selectableExchanges = useMemo(() => {
+    const map = new Map<string, Exchange>()
+    ;(supportedExchanges || []).forEach((exchange) => {
+      if (exchange?.id) {
+        map.set(exchange.id, exchange)
+      }
+    })
+    ;(allExchanges || []).forEach((exchange) => {
+      if (exchange?.id) {
+        map.set(exchange.id, { ...map.get(exchange.id), ...exchange })
+      }
+    })
+    return Array.from(map.values())
+  }, [supportedExchanges, allExchanges])
 
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
@@ -1075,7 +1105,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Model Configuration Modal */}
       {showModelModal && (
         <ModelConfigModal
-          allModels={supportedModels}
+          allModels={selectableModels}
           configuredModels={allModels}
           editingModelId={editingModel}
           onSave={handleSaveModelConfig}
@@ -1091,7 +1121,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Exchange Configuration Modal */}
       {showExchangeModal && (
         <ExchangeConfigModal
-          allExchanges={supportedExchanges}
+          allExchanges={selectableExchanges}
           configuredExchanges={allExchanges}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
@@ -1695,9 +1725,6 @@ function ExchangeConfigModal({
     }
   }
 
-  // 可选择的交易所列表（所有支持的交易所）
-  const availableExchanges = allExchanges || []
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div
@@ -1767,7 +1794,7 @@ function ExchangeConfigModal({
                 required
               >
                 <option value="">{t('pleaseSelectExchange', language)}</option>
-                {availableExchanges.map((exchange) => (
+                {(allExchanges || []).map((exchange) => (
                   <option key={exchange.id} value={exchange.id}>
                     {getShortName(exchange.name)} ({exchange.type.toUpperCase()}
                     )

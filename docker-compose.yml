@@ -87,7 +87,9 @@ services:
     container_name: nofx-frontend
     restart: unless-stopped
     ports:
-      - "${NOFX_FRONTEND_PORT:-3000}:80"
+      - "${NOFX_FRONTEND_PORT:-3000}:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro   # 挂载证书目录
     networks:
       - nofx-network
     depends_on:

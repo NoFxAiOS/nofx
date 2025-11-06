@@ -19,14 +19,11 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "仅检查需要迁移的数据，不写入数据库")
 	flag.Parse()
 
-	// 尝试加载 .env 文件
+	// 尝试加载 .env 文件（从 scripts/migrate_sensitive_data/ 目录运行时）
 	envPaths := []string{
-		"../../.env",    // 从 scripts/migrate_sensitive_data/ 到根目录
-		"../../../.env", // 如果在更深的目录结构中
+		"../../.env",    // 项目根目录（从 scripts/migrate_sensitive_data/ 到根目录）
 		".env",          // 当前目录
 		"../.env",       // scripts/ 目录
-		"/root/nofxos/.env", // 服务器上的绝对路径
-		"/home/nofxai_test/nofxos/.env", // 另一个可能的服务器路径
 	}
 	envLoaded := false
 	for _, envPath := range envPaths {
@@ -54,14 +51,12 @@ func main() {
 func run(privateKeyPath string, dryRun bool) error {
 	log.SetFlags(0)
 	
-	// 尝试多个可能的私钥路径
+	// 尝试多个可能的私钥路径（从 scripts/migrate_sensitive_data/ 目录运行时）
 	keyPaths := []string{
-		privateKeyPath,
-		"../../keys/rsa_private.key",
-		"../keys/rsa_private.key", 
-		"keys/rsa_private.key",
-		"/root/nofxos/keys/rsa_private.key",
-		"/home/nofxai_test/nofxos/keys/rsa_private.key",
+		privateKeyPath,                   // 用户指定的路径
+		"../../keys/rsa_private.key",    // 项目根目录的 keys 文件夹
+		"../keys/rsa_private.key",       // scripts/ 目录的 keys 文件夹（如果存在）
+		"keys/rsa_private.key",          // 当前目录的 keys 文件夹
 	}
 	
 	var finalKeyPath string
@@ -105,6 +100,10 @@ func run(privateKeyPath string, dryRun bool) error {
 
 func openPostgres() (*sql.DB, error) {
 	host := getEnv("POSTGRES_HOST", "localhost")
+	// 如果是 Docker 服务名，替换为 localhost
+	if host == "postgres" {
+		host = "localhost"
+	}
 	port := getEnv("POSTGRES_PORT", "5432")
 	dbname := getEnv("POSTGRES_DB", "nofx")
 	user := getEnv("POSTGRES_USER", "nofx")

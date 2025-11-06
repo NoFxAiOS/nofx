@@ -616,13 +616,10 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 		return
 	}
 
-	// 如果交易员正在运行，先停止它
-	if trader, err := s.traderManager.GetTrader(traderID); err == nil {
-		status := trader.GetStatus()
-		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
-			trader.Stop()
-			log.Printf("⏹  已停止运行中的交易员: %s", traderID)
-		}
+	// 从 TraderManager 中移除交易员（会自动停止运行中的交易员）
+	if err := s.traderManager.RemoveTrader(traderID); err != nil {
+		log.Printf("⚠️ 从管理器中移除交易员失败: %v", err)
+		// 不影响返回结果，因为数据库删除已成功
 	}
 
 	log.Printf("✓ 交易员已删除: %s", traderID)

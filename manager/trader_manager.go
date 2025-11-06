@@ -437,6 +437,31 @@ func (tm *TraderManager) GetTraderIDs() []string {
 	return ids
 }
 
+// RemoveTrader 从管理器中移除交易员
+func (tm *TraderManager) RemoveTrader(traderID string) error {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	// 检查交易员是否存在
+	trader, exists := tm.traders[traderID]
+	if !exists {
+		return fmt.Errorf("交易员不存在: %s", traderID)
+	}
+
+	// 如果交易员正在运行，先停止它
+	status := trader.GetStatus()
+	if isRunning, ok := status["is_running"].(bool); ok && isRunning {
+		trader.Stop()
+		log.Printf("⏹  已停止运行中的交易员: %s", traderID)
+	}
+
+	// 从 map 中删除
+	delete(tm.traders, traderID)
+	log.Printf("✓ 已从管理器中移除交易员: %s", traderID)
+
+	return nil
+}
+
 // StartAll 启动所有trader
 func (tm *TraderManager) StartAll() {
 	tm.mu.RLock()

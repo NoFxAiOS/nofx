@@ -537,7 +537,7 @@ export const translations = {
 
     faqSupportedExchanges: 'Which exchanges are supported?',
     faqSupportedExchangesAnswer:
-      'Binance Futures, Hyperliquid, Aster DEX, and OKX are supported. More exchanges coming soon.',
+      'Binance Futures, Hyperliquid, and Aster DEX are supported. More exchanges coming soon.',
 
     faqIsProfitable: 'Is NOFX profitable?',
     faqIsProfitableAnswer:
@@ -567,7 +567,7 @@ export const translations = {
 
     faqGetApiKeys: 'How do I get API keys?',
     faqGetApiKeysAnswer:
-      'For Binance: Account → API Management → Create API → Enable Futures. For Hyperliquid: Visit Hyperliquid App → API Settings.',
+      'For Binance: Account → API Management → Create API → Enable Futures. For Hyperliquid: Visit Hyperliquid App → API Settings. For Aster DEX: Configure main wallet address (User), API wallet address (Signer), and private key (Private Key).',
 
     faqUseSubaccount: 'Should I use a subaccount?',
     faqUseSubaccountAnswer:
@@ -583,7 +583,7 @@ export const translations = {
 
     faqTestnet: 'Can I use testnet for testing?',
     faqTestnetAnswer:
-      'Binance testnet exists but is not well maintained. Prices often stay flat and data quality is poor. We recommend using real trading with small amounts (10-50 USDT) for testing instead.',
+      'Testnet is not supported at the moment. We recommend using real trading with small amounts (10-50 USDT) for testing.',
 
     // Trading Questions
     faqNoTrades: "Why isn't my trader making any trades?",
@@ -1178,7 +1178,7 @@ export const translations = {
 
     faqSupportedExchanges: '支持哪些交易所？',
     faqSupportedExchangesAnswer:
-      '支持币安合约（Binance Futures）、Hyperliquid、Aster DEX 和 OKX。更多交易所开发中。',
+      '支持币安合约（Binance Futures）、Hyperliquid 和 Aster DEX。更多交易所开发中。',
 
     faqIsProfitable: 'NOFX 能盈利吗？',
     faqIsProfitableAnswer:
@@ -1208,7 +1208,7 @@ export const translations = {
 
     faqGetApiKeys: '如何获取 API 密钥？',
     faqGetApiKeysAnswer:
-      '币安：账户 → API 管理 → 创建 API → 启用合约。Hyperliquid：访问 Hyperliquid App → API 设置。',
+      '币安：账户 → API 管理 → 创建 API → 启用合约。Hyperliquid：访问 Hyperliquid App → API 设置。Aster DEX：配置主钱包地址（User）、API 钱包地址（Signer）和私钥（Private Key）。',
 
     faqUseSubaccount: '应该使用子账户吗？',
     faqUseSubaccountAnswer:
@@ -1224,7 +1224,7 @@ export const translations = {
 
     faqTestnet: '可以使用测试网测试吗？',
     faqTestnetAnswer:
-      '币安测试网存在但维护不佳，价格经常横盘，数据质量差。我们建议使用真实交易但小额资金（10-50 USDT）进行测试。',
+      '暂时不支持测试网。我们建议使用真实交易但小额资金（10-50 USDT）进行测试。',
 
     // Trading Questions
     faqNoTrades: '为什么我的交易员不开仓？',

@@ -7,6 +7,7 @@ import (
 	"nofx/api"
 	"nofx/auth"
 	"nofx/config"
+	"nofx/crypto"
 	"nofx/manager"
 	"nofx/market"
 	"nofx/pool"
@@ -171,6 +172,13 @@ func main() {
 	}
 	defer database.Close()
 
+	// 初始化加密服务（用于敏感数据加密存储与传输）
+	cryptoService, err := crypto.NewCryptoService("keys/rsa_private.key")
+	if err != nil {
+		log.Fatalf("❌ 初始化加密服务失败: %v", err)
+	}
+	database.SetCryptoService(cryptoService)
+
 	// 同步config.json到数据库
 	if err := syncConfigToDatabase(database, configFile); err != nil {
 		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
@@ -289,7 +297,7 @@ func main() {
 	}
 
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, apiPort)
+	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)

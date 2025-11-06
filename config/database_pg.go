@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"nofx/crypto"
 	"nofx/market"
 	"os"
 	"slices"
@@ -16,7 +17,8 @@ import (
 
 // PostgreSQLDatabase PostgreSQL数据库配置
 type PostgreSQLDatabase struct {
-	db *sql.DB
+	db            *sql.DB
+	cryptoService *crypto.CryptoService
 }
 
 // NewPostgreSQLDatabase 创建PostgreSQL数据库连接
@@ -58,6 +60,42 @@ func NewPostgreSQLDatabase() (*PostgreSQLDatabase, error) {
 	}
 
 	return database, nil
+}
+
+func (d *PostgreSQLDatabase) SetCryptoService(cs *crypto.CryptoService) {
+	d.cryptoService = cs
+}
+
+func (d *PostgreSQLDatabase) encryptValue(value string, aadParts ...string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if d.cryptoService == nil {
+		return "", fmt.Errorf("crypto service not initialized")
+	}
+	if !d.cryptoService.HasDataKey() {
+		return "", fmt.Errorf("data encryption key not configured")
+	}
+	if d.cryptoService.IsEncryptedStorageValue(value) {
+		return value, nil
+	}
+	return d.cryptoService.EncryptForStorage(value, aadParts...)
+}
+
+func (d *PostgreSQLDatabase) decryptValue(value string, aadParts ...string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+	if d.cryptoService == nil {
+		return "", fmt.Errorf("crypto service not initialized")
+	}
+	if !d.cryptoService.HasDataKey() {
+		return "", fmt.Errorf("data encryption key not configured")
+	}
+	if !d.cryptoService.IsEncryptedStorageValue(value) {
+		return "", fmt.Errorf("value is not encrypted")
+	}
+	return d.cryptoService.DecryptFromStorage(value, aadParts...)
 }
 
 // getEnv 获取环境变量，如果不存在返回默认值
@@ -162,6 +200,15 @@ func (d *PostgreSQLDatabase) GetAIModels(userID string) ([]*AIModelConfig, error
 		if err != nil {
 			return nil, err
 		}
+
+		if model.APIKey != "" {
+			decrypted, err := d.decryptValue(model.APIKey, model.UserID, model.ID, "api_key")
+			if err != nil {
+				return nil, err
+			}
+			model.APIKey = decrypted
+		}
+
 		models = append(models, &model)
 	}
 
@@ -216,7 +263,7 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 			log.Printf("🗑️ UpdateAIModel: 已标记删除用户 %s 的模型配置 %s (通过provider匹配)", userID, existingID)
 			return nil
 		}
-		
+
 		// 没有找到配置，返回成功（幂等性）
 		log.Printf("ℹ️ UpdateAIModel: 模型配置不存在，跳过删除: %s", id)
 		return nil
@@ -229,11 +276,18 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 	`, userID, id).Scan(&existingID)
 
 	if err == nil {
+		apiKeyEnc, err := d.encryptValue(apiKey, userID, existingID, "api_key")
+		if err != nil {
+			return err
+		}
 		// 找到了现有配置（精确匹配 ID），更新它
 		_, err = d.db.Exec(`
 			UPDATE ai_models SET enabled = $1, api_key = $2, custom_api_url = $3, custom_model_name = $4, deleted = FALSE, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $5 AND user_id = $6
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
+		`, enabled, apiKeyEnc, customAPIURL, customModelName, existingID, userID)
+		return err
+	}
+	if err != sql.ErrNoRows {
 		return err
 	}
 
@@ -244,12 +298,19 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 	`, userID, provider).Scan(&existingID)
 
 	if err == nil {
+		apiKeyEnc, err := d.encryptValue(apiKey, userID, existingID, "api_key")
+		if err != nil {
+			return err
+		}
 		// 找到了现有配置（通过 provider 匹配，兼容旧版），更新它
 		log.Printf("⚠️  使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
 		_, err = d.db.Exec(`
 			UPDATE ai_models SET enabled = $1, api_key = $2, custom_api_url = $3, custom_model_name = $4, deleted = FALSE, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $5 AND user_id = $6
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
+		`, enabled, apiKeyEnc, customAPIURL, customModelName, existingID, userID)
+		return err
+	}
+	if err != sql.ErrNoRows {
 		return err
 	}
 
@@ -292,11 +353,16 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 		newModelID = fmt.Sprintf("%s_%s", userID, provider)
 	}
 
+	apiKeyEnc, err := d.encryptValue(apiKey, userID, newModelID, "api_key")
+	if err != nil {
+		return err
+	}
+
 	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
 	_, err = d.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+	`, newModelID, userID, name, provider, enabled, apiKeyEnc, customAPIURL, customModelName)
 
 	return err
 }
@@ -309,6 +375,7 @@ func (d *PostgreSQLDatabase) GetExchanges(userID string) ([]*ExchangeConfig, err
 		       COALESCE(aster_user, '') AS aster_user,
 		       COALESCE(aster_signer, '') AS aster_signer,
 		       COALESCE(aster_private_key, '') AS aster_private_key,
+		       COALESCE(dex_wallet_private_key, '') AS dex_wallet_private_key,
 		       COALESCE(deleted, FALSE) AS deleted,
 		       created_at, updated_at
 		FROM exchanges
@@ -329,12 +396,50 @@ func (d *PostgreSQLDatabase) GetExchanges(userID string) ([]*ExchangeConfig, err
 			&exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
 			&exchange.HyperliquidWalletAddr, &exchange.AsterUser,
 			&exchange.AsterSigner, &exchange.AsterPrivateKey,
+			&exchange.DEXWalletPrivateKey,
 			&exchange.Deleted,
 			&exchange.CreatedAt, &exchange.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		if decrypted, err := d.decryptValue(exchange.APIKey, exchange.UserID, exchange.ID, "api_key"); err == nil {
+			exchange.APIKey = decrypted
+		} else {
+			return nil, err
+		}
+		if decrypted, err := d.decryptValue(exchange.SecretKey, exchange.UserID, exchange.ID, "secret_key"); err == nil {
+			exchange.SecretKey = decrypted
+		} else {
+			return nil, err
+		}
+		if decrypted, err := d.decryptValue(exchange.HyperliquidWalletAddr, exchange.UserID, exchange.ID, "hyperliquid_wallet_addr"); err == nil {
+			exchange.HyperliquidWalletAddr = decrypted
+		} else {
+			return nil, err
+		}
+		if decrypted, err := d.decryptValue(exchange.AsterUser, exchange.UserID, exchange.ID, "aster_user"); err == nil {
+			exchange.AsterUser = decrypted
+		} else {
+			return nil, err
+		}
+		if decrypted, err := d.decryptValue(exchange.AsterSigner, exchange.UserID, exchange.ID, "aster_signer"); err == nil {
+			exchange.AsterSigner = decrypted
+		} else {
+			return nil, err
+		}
+		if decrypted, err := d.decryptValue(exchange.AsterPrivateKey, exchange.UserID, exchange.ID, "aster_private_key"); err == nil {
+			exchange.AsterPrivateKey = decrypted
+		} else {
+			return nil, err
+		}
+		if decrypted, err := d.decryptValue(exchange.DEXWalletPrivateKey, exchange.UserID, exchange.ID, "dex_wallet_private_key"); err == nil {
+			exchange.DEXWalletPrivateKey = decrypted
+		} else {
+			return nil, err
+		}
+
 		exchanges = append(exchanges, &exchange)
 	}
 
@@ -345,7 +450,7 @@ func (d *PostgreSQLDatabase) GetExchanges(userID string) ([]*ExchangeConfig, err
 func (d *PostgreSQLDatabase) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
-	// 如果请求禁用该交易所，标记为已删除
+	// 如果请求禁用该交易所，执行软删除
 	if !enabled {
 		_, err := d.db.Exec(`
 			UPDATE exchanges
@@ -369,13 +474,38 @@ func (d *PostgreSQLDatabase) UpdateExchange(userID, id string, enabled bool, api
 		return nil
 	}
 
+	apiKeyEnc, err := d.encryptValue(apiKey, userID, id, "api_key")
+	if err != nil {
+		return fmt.Errorf("encrypt api_key failed: %w", err)
+	}
+	secretKeyEnc, err := d.encryptValue(secretKey, userID, id, "secret_key")
+	if err != nil {
+		return fmt.Errorf("encrypt secret_key failed: %w", err)
+	}
+	hyperAddrEnc, err := d.encryptValue(hyperliquidWalletAddr, userID, id, "hyperliquid_wallet_addr")
+	if err != nil {
+		return fmt.Errorf("encrypt hyperliquid_wallet_addr failed: %w", err)
+	}
+	asterUserEnc, err := d.encryptValue(asterUser, userID, id, "aster_user")
+	if err != nil {
+		return fmt.Errorf("encrypt aster_user failed: %w", err)
+	}
+	asterSignerEnc, err := d.encryptValue(asterSigner, userID, id, "aster_signer")
+	if err != nil {
+		return fmt.Errorf("encrypt aster_signer failed: %w", err)
+	}
+	asterPrivateKeyEnc, err := d.encryptValue(asterPrivateKey, userID, id, "aster_private_key")
+	if err != nil {
+		return fmt.Errorf("encrypt aster_private_key failed: %w", err)
+	}
+
 	// 首先尝试更新现有的用户配置
 	result, err := d.db.Exec(`
 		UPDATE exchanges SET enabled = $1, api_key = $2, secret_key = $3, testnet = $4,
 		       hyperliquid_wallet_addr = $5, aster_user = $6, aster_signer = $7, aster_private_key = $8,
 		       deleted = FALSE, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $9 AND user_id = $10
-	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, id, userID)
+	`, enabled, apiKeyEnc, secretKeyEnc, testnet, hyperAddrEnc, asterUserEnc, asterSignerEnc, asterPrivateKeyEnc, id, userID)
 	if err != nil {
 		log.Printf("❌ UpdateExchange: 更新失败: %v", err)
 		return err
@@ -418,7 +548,7 @@ func (d *PostgreSQLDatabase) UpdateExchange(userID, id string, enabled bool, api
 			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
 			                       deleted, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, TRUE, $5, $6, $7, $8, $9, $10, $11, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`, id, userID, name, typ, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+		`, id, userID, name, typ, apiKeyEnc, secretKeyEnc, testnet, hyperAddrEnc, asterUserEnc, asterSignerEnc, asterPrivateKeyEnc)
 
 		if err != nil {
 			log.Printf("❌ UpdateExchange: 创建记录失败: %v", err)
@@ -434,21 +564,51 @@ func (d *PostgreSQLDatabase) UpdateExchange(userID, id string, enabled bool, api
 
 // CreateAIModel 创建AI模型配置
 func (d *PostgreSQLDatabase) CreateAIModel(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error {
-	_, err := d.db.Exec(`
+	apiKeyEnc, err := d.encryptValue(apiKey, userID, id, "api_key")
+	if err != nil {
+		return err
+	}
+
+	_, err = d.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (id) DO NOTHING
-	`, id, userID, name, provider, enabled, apiKey, customAPIURL)
+	`, id, userID, name, provider, enabled, apiKeyEnc, customAPIURL)
 	return err
 }
 
 // CreateExchange 创建交易所配置
 func (d *PostgreSQLDatabase) CreateExchange(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
-	_, err := d.db.Exec(`
+	apiKeyEnc, err := d.encryptValue(apiKey, userID, id, "api_key")
+	if err != nil {
+		return fmt.Errorf("encrypt api_key failed: %w", err)
+	}
+	secretKeyEnc, err := d.encryptValue(secretKey, userID, id, "secret_key")
+	if err != nil {
+		return fmt.Errorf("encrypt secret_key failed: %w", err)
+	}
+	hyperAddrEnc, err := d.encryptValue(hyperliquidWalletAddr, userID, id, "hyperliquid_wallet_addr")
+	if err != nil {
+		return fmt.Errorf("encrypt hyperliquid_wallet_addr failed: %w", err)
+	}
+	asterUserEnc, err := d.encryptValue(asterUser, userID, id, "aster_user")
+	if err != nil {
+		return fmt.Errorf("encrypt aster_user failed: %w", err)
+	}
+	asterSignerEnc, err := d.encryptValue(asterSigner, userID, id, "aster_signer")
+	if err != nil {
+		return fmt.Errorf("encrypt aster_signer failed: %w", err)
+	}
+	asterPrivateKeyEnc, err := d.encryptValue(asterPrivateKey, userID, id, "aster_private_key")
+	if err != nil {
+		return fmt.Errorf("encrypt aster_private_key failed: %w", err)
+	}
+
+	_, err = d.db.Exec(`
 		INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (id, user_id) DO NOTHING
-	`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+	`, id, userID, name, typ, enabled, apiKeyEnc, secretKeyEnc, testnet, hyperAddrEnc, asterUserEnc, asterSignerEnc, asterPrivateKeyEnc)
 	return err
 }
 
@@ -573,6 +733,57 @@ func (d *PostgreSQLDatabase) GetTraderConfig(userID, traderID string) (*TraderRe
 
 	if err != nil {
 		return nil, nil, nil, err
+	}
+
+	if aiModel.APIKey != "" {
+		decrypted, err := d.decryptValue(aiModel.APIKey, aiModel.UserID, aiModel.ID, "api_key")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		aiModel.APIKey = decrypted
+	}
+
+	if exchange.APIKey != "" {
+		decrypted, err := d.decryptValue(exchange.APIKey, exchange.UserID, exchange.ID, "api_key")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		exchange.APIKey = decrypted
+	}
+	if exchange.SecretKey != "" {
+		decrypted, err := d.decryptValue(exchange.SecretKey, exchange.UserID, exchange.ID, "secret_key")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		exchange.SecretKey = decrypted
+	}
+	if exchange.HyperliquidWalletAddr != "" {
+		decrypted, err := d.decryptValue(exchange.HyperliquidWalletAddr, exchange.UserID, exchange.ID, "hyperliquid_wallet_addr")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		exchange.HyperliquidWalletAddr = decrypted
+	}
+	if exchange.AsterUser != "" {
+		decrypted, err := d.decryptValue(exchange.AsterUser, exchange.UserID, exchange.ID, "aster_user")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		exchange.AsterUser = decrypted
+	}
+	if exchange.AsterSigner != "" {
+		decrypted, err := d.decryptValue(exchange.AsterSigner, exchange.UserID, exchange.ID, "aster_signer")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		exchange.AsterSigner = decrypted
+	}
+	if exchange.AsterPrivateKey != "" {
+		decrypted, err := d.decryptValue(exchange.AsterPrivateKey, exchange.UserID, exchange.ID, "aster_private_key")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		exchange.AsterPrivateKey = decrypted
 	}
 
 	return &trader, &aiModel, &exchange, nil

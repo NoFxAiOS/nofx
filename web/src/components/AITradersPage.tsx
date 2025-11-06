@@ -136,33 +136,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const configuredExchanges = allExchanges || []
 
   const selectableModels = useMemo(() => {
-    const map = new Map<string, AIModel>()
-    ;(supportedModels || []).forEach((model) => {
-      if (model?.id) {
-        map.set(model.id, model)
-      }
+    return (supportedModels || []).map((model) => {
+      const configured = allModels?.find((m) => m.id === model.id)
+      return configured ? { ...model, ...configured } : model
     })
-    ;(allModels || []).forEach((model) => {
-      if (model?.id) {
-        map.set(model.id, { ...map.get(model.id), ...model })
-      }
-    })
-    return Array.from(map.values())
   }, [supportedModels, allModels])
 
   const selectableExchanges = useMemo(() => {
-    const map = new Map<string, Exchange>()
-    ;(supportedExchanges || []).forEach((exchange) => {
-      if (exchange?.id) {
-        map.set(exchange.id, exchange)
-      }
+    return (supportedExchanges || []).map((exchange) => {
+      const configured = allExchanges?.find((e) => e.id === exchange.id)
+      return configured ? { ...exchange, ...configured } : exchange
     })
-    ;(allExchanges || []).forEach((exchange) => {
-      if (exchange?.id) {
-        map.set(exchange.id, { ...map.get(exchange.id), ...exchange })
-      }
-    })
-    return Array.from(map.values())
   }, [supportedExchanges, allExchanges])
 
   // 只在创建交易员时使用已启用且配置完整的
@@ -449,7 +433,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const updatedExchanges =
         allExchanges?.map((e) =>
           e.id === exchangeId
-            ? { ...e, apiKey: '', secretKey: '', enabled: false }
+            ? {
+                ...e,
+                apiKey: '',
+                secretKey: '',
+                hyperliquidWalletAddr: '',
+                asterUser: '',
+                asterSigner: '',
+                asterPrivateKey: '',
+                testnet: false,
+                enabled: false,
+              }
             : e
         ) || []
 
@@ -462,6 +456,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
               testnet: exchange.testnet || false,
+              hyperliquid_wallet_addr:
+                exchange.hyperliquidWalletAddr || '',
+              aster_user: exchange.asterUser || '',
+              aster_signer: exchange.asterSigner || '',
+              aster_private_key: exchange.asterPrivateKey || '',
             },
           ])
         ),

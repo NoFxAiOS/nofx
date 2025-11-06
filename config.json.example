@@ -22,5 +22,20 @@
   "jwt_secret": "Qk0kAa+d0iIEzXVHXbNbm+UaN3RNabmWtH8rDWZ5OPf+4GX8pBflAHodfpbipVMyrw1fsDanHsNBjhgbDeK9Jg==",
   "log": {
     "level": "info"
+  },
+  "proxy": {
+    "enabled": false,
+    "mode": "single",
+    "timeout": 30,
+    "proxy_url": "http://127.0.0.1:7890",
+    "proxy_list": [],
+    "brightdata_endpoint": "",
+    "brightdata_token": "",
+    "brightdata_zone": "",
+    "proxy_host": "",
+    "proxy_user": "",
+    "proxy_password": "",
+    "refresh_interval": 0,
+    "blacklist_ttl": 5
   }
 }

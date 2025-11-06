@@ -75,8 +75,25 @@ type Config struct {
 	StopTradingMinutes int            `json:"stop_trading_minutes"`
 	Leverage           LeverageConfig `json:"leverage"` // 杠杆配置
 	Log                *LogConfig     `json:"log"`      // 日志配置（可选）
+	Proxy              *ProxyConfig   `json:"proxy"`    // HTTP 代理配置（可选）
 }
 
+// ProxyConfig HTTP 代理配置
+type ProxyConfig struct {
+	Enabled            bool     `json:"enabled"`              // 是否启用代理
+	Mode               string   `json:"mode"`                 // 模式: "single", "pool", "brightdata"
+	Timeout            int      `json:"timeout"`              // 超时时间（秒）
+	ProxyURL           string   `json:"proxy_url"`            // 单个代理地址
+	ProxyList          []string `json:"proxy_list"`           // 代理列表
+	BrightDataEndpoint string   `json:"brightdata_endpoint"`  // Bright Data接口地址
+	BrightDataToken    string   `json:"brightdata_token"`     // Bright Data访问令牌
+	BrightDataZone     string   `json:"brightdata_zone"`      // Bright Data区域
+	ProxyHost          string   `json:"proxy_host"`           // 代理主机
+	ProxyUser          string   `json:"proxy_user"`           // 代理用户名模板
+	ProxyPassword      string   `json:"proxy_password"`       // 代理密码
+	RefreshInterval    int      `json:"refresh_interval"`     // 刷新间隔（秒）
+	BlacklistTTL       int      `json:"blacklist_ttl"`        // 黑名单TTL
+}
 // LoadConfig 从文件加载配置
 func LoadConfig(filename string) (*Config, error) {
 	data, err := os.ReadFile(filename)

@@ -161,7 +161,8 @@ For EVERY trade decision, you MUST specify:
    - 95-100: Very high confidence (⚠️ use cautiously, beware overconfidence)
 
 4. **risk_usd** (float): Dollar amount at risk (distance from entry to stop loss)
-   - Calculate as: |Entry Price - Stop Loss| × Position Size × Leverage
+   - Calculate as: |Entry Price - Stop Loss| × Position Size (in coins)
+   - ⚠️ **Do NOT multiply by leverage**: Position Size already includes leverage effect
 
 
 # PERFORMANCE METRICS & FEEDBACK

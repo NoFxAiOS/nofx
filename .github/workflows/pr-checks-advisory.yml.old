@@ -1,0 +1,331 @@
+name: PR Checks (Advisory)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, dev]
+
+# These checks are advisory only - they won't block PR merging
+# Results will be posted as comments to help contributors improve their PRs
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+  issues: write
+
+jobs:
+  pr-info:
+    name: PR Information
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR title format
+        id: check-title
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Check if title follows conventional commits
+          if echo "$PR_TITLE" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|security)(\(.+\))?: .+"; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "message=PR title follows Conventional Commits format" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Suggestion" >> $GITHUB_OUTPUT
+            echo "message=Consider using Conventional Commits format: type(scope): description" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Calculate PR size
+        id: pr-size
+        run: |
+          ADDITIONS=${{ github.event.pull_request.additions }}
+          DELETIONS=${{ github.event.pull_request.deletions }}
+          TOTAL=$((ADDITIONS + DELETIONS))
+
+          if [ $TOTAL -lt 100 ]; then
+            echo "size=🟢 Small" >> $GITHUB_OUTPUT
+            echo "label=size: small" >> $GITHUB_OUTPUT
+          elif [ $TOTAL -lt 500 ]; then
+            echo "size=🟡 Medium" >> $GITHUB_OUTPUT
+            echo "label=size: medium" >> $GITHUB_OUTPUT
+          else
+            echo "size=🔴 Large" >> $GITHUB_OUTPUT
+            echo "label=size: large" >> $GITHUB_OUTPUT
+            echo "suggestion=Consider breaking this into smaller PRs for easier review" >> $GITHUB_OUTPUT
+          fi
+          echo "lines=$TOTAL" >> $GITHUB_OUTPUT
+
+      - name: Post advisory comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const titleStatus = '${{ steps.check-title.outputs.status }}';
+            const titleMessage = '${{ steps.check-title.outputs.message }}';
+            const prSize = '${{ steps.pr-size.outputs.size }}';
+            const prLines = '${{ steps.pr-size.outputs.lines }}';
+            const sizeSuggestion = '${{ steps.pr-size.outputs.suggestion }}' || '';
+
+            let comment = '## 🤖 PR Advisory Feedback\n\n';
+            comment += 'Thank you for your contribution! Here\'s some automated feedback to help improve your PR:\n\n';
+            comment += '### PR Title\n';
+            comment += titleStatus + ' ' + titleMessage + '\n\n';
+            comment += '### PR Size\n';
+            comment += prSize + ' (' + prLines + ' lines changed)\n';
+            if (sizeSuggestion) {
+              comment += '\n💡 **Suggestion:** ' + sizeSuggestion + '\n';
+            }
+            comment += '\n---\n\n';
+            comment += '### 📖 New PR Management System\n\n';
+            comment += 'We\'re introducing a new PR management system! These checks are **advisory only** and won\'t block your PR.\n\n';
+            comment += '**Want to check your PR against new standards?**\n';
+            comment += '```bash\n';
+            comment += '# Run the PR health check tool\n';
+            comment += './scripts/pr-check.sh\n';
+            comment += '```\n\n';
+            comment += 'This tool will:\n';
+            comment += '- 🔍 Analyze your PR (doesn\'t modify anything)\n';
+            comment += '- ✅ Show what\'s already good\n';
+            comment += '- ⚠️ Point out issues\n';
+            comment += '- 💡 Give specific suggestions on how to fix\n\n';
+            comment += '**Learn more:**\n';
+            comment += '- [Migration Guide](https://github.com/tinkle-community/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n';
+            comment += '- [Contributing Guidelines](https://github.com/tinkle-community/nofx/blob/dev/CONTRIBUTING.md)\n\n';
+            comment += '**Questions?** Just ask in the comments! We\'re here to help. 🙏\n\n';
+            comment += '---\n\n';
+            comment += '*This is an automated message. It won\'t affect your PR being merged.*';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  backend-checks:
+    name: Backend Checks (Advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libta-lib-dev || true
+          go mod download || true
+
+      - name: Check Go formatting
+        id: go-fmt
+        continue-on-error: true
+        run: |
+          UNFORMATTED=$(gofmt -l . 2>/dev/null || echo "")
+          if [ -n "$UNFORMATTED" ]; then
+            echo "status=⚠️ Needs formatting" >> $GITHUB_OUTPUT
+            echo "files<<EOF" >> $GITHUB_OUTPUT
+            echo "$UNFORMATTED" | head -10 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "files=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run go vet
+        id: go-vet
+        continue-on-error: true
+        run: |
+          if go vet ./... 2>&1 | tee vet-output.txt; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "output=" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Issues found" >> $GITHUB_OUTPUT
+            echo "output<<EOF" >> $GITHUB_OUTPUT
+            cat vet-output.txt | head -20 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests
+        id: go-test
+        continue-on-error: true
+        run: |
+          if go test ./... -v 2>&1 | tee test-output.txt; then
+            echo "status=✅ Passed" >> $GITHUB_OUTPUT
+            echo "output=" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Failed" >> $GITHUB_OUTPUT
+            echo "output<<EOF" >> $GITHUB_OUTPUT
+            cat test-output.txt | tail -30 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post backend feedback
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fmtStatus = '${{ steps.go-fmt.outputs.status }}' || '⚠️ Skipped';
+            const vetStatus = '${{ steps.go-vet.outputs.status }}' || '⚠️ Skipped';
+            const testStatus = '${{ steps.go-test.outputs.status }}' || '⚠️ Skipped';
+            const fmtFiles = `${{ steps.go-fmt.outputs.files }}`;
+            const vetOutput = `${{ steps.go-vet.outputs.output }}`;
+            const testOutput = `${{ steps.go-test.outputs.output }}`;
+
+            let comment = '## 🔧 Backend Checks (Advisory)\n\n';
+            comment += '### Go Formatting\n';
+            comment += fmtStatus + '\n';
+            if (fmtFiles) {
+              comment += '\nFiles needing formatting:\n```\n' + fmtFiles + '\n```\n';
+            }
+            comment += '\n### Go Vet\n';
+            comment += vetStatus + '\n';
+            if (vetOutput) {
+              comment += '\n```\n' + vetOutput.substring(0, 500) + '\n```\n';
+            }
+            comment += '\n### Tests\n';
+            comment += testStatus + '\n';
+            if (testOutput) {
+              comment += '\n```\n' + testOutput.substring(0, 1000) + '\n```\n';
+            }
+            comment += '\n---\n\n';
+            comment += '💡 **To fix locally:**\n';
+            comment += '```bash\n';
+            comment += '# Format code\n';
+            comment += 'go fmt ./...\n\n';
+            comment += '# Check for issues\n';
+            comment += 'go vet ./...\n\n';
+            comment += '# Run tests\n';
+            comment += 'go test ./...\n';
+            comment += '```\n\n';
+            comment += '*These checks are advisory and won\'t block merging. Need help? Just ask!*';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  frontend-checks:
+    name: Frontend Checks (Advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Check if web directory exists
+        id: check-web
+        run: |
+          if [ -d "web" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        if: steps.check-web.outputs.exists == 'true'
+        working-directory: ./web
+        continue-on-error: true
+        run: npm ci
+
+      - name: Run linter
+        if: steps.check-web.outputs.exists == 'true'
+        id: lint
+        working-directory: ./web
+        continue-on-error: true
+        run: |
+          if npm run lint 2>&1 | tee lint-output.txt; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "output=" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Issues found" >> $GITHUB_OUTPUT
+            echo "output<<EOF" >> $GITHUB_OUTPUT
+            cat lint-output.txt | head -20 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Type check
+        if: steps.check-web.outputs.exists == 'true'
+        id: typecheck
+        working-directory: ./web
+        continue-on-error: true
+        run: |
+          if npm run type-check 2>&1 | tee typecheck-output.txt; then
+            echo "status=✅ Good" >> $GITHUB_OUTPUT
+            echo "output=" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Issues found" >> $GITHUB_OUTPUT
+            echo "output<<EOF" >> $GITHUB_OUTPUT
+            cat typecheck-output.txt | head -20 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        if: steps.check-web.outputs.exists == 'true'
+        id: build
+        working-directory: ./web
+        continue-on-error: true
+        run: |
+          if npm run build 2>&1 | tee build-output.txt; then
+            echo "status=✅ Success" >> $GITHUB_OUTPUT
+            echo "output=" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Failed" >> $GITHUB_OUTPUT
+            echo "output<<EOF" >> $GITHUB_OUTPUT
+            cat build-output.txt | tail -20 >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post frontend feedback
+        if: always() && steps.check-web.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const lintStatus = '${{ steps.lint.outputs.status }}' || '⚠️ Skipped';
+            const typecheckStatus = '${{ steps.typecheck.outputs.status }}' || '⚠️ Skipped';
+            const buildStatus = '${{ steps.build.outputs.status }}' || '⚠️ Skipped';
+            const lintOutput = `${{ steps.lint.outputs.output }}`;
+            const typecheckOutput = `${{ steps.typecheck.outputs.output }}`;
+            const buildOutput = `${{ steps.build.outputs.output }}`;
+
+            let comment = '## ⚛️ Frontend Checks (Advisory)\n\n';
+            comment += '### Linting\n';
+            comment += lintStatus + '\n';
+            if (lintOutput) {
+              comment += '\n```\n' + lintOutput.substring(0, 500) + '\n```\n';
+            }
+            comment += '\n### Type Checking\n';
+            comment += typecheckStatus + '\n';
+            if (typecheckOutput) {
+              comment += '\n```\n' + typecheckOutput.substring(0, 500) + '\n```\n';
+            }
+            comment += '\n### Build\n';
+            comment += buildStatus + '\n';
+            if (buildOutput) {
+              comment += '\n```\n' + buildOutput.substring(0, 500) + '\n```\n';
+            }
+            comment += '\n---\n\n';
+            comment += '💡 **To fix locally:**\n';
+            comment += '```bash\n';
+            comment += 'cd web\n\n';
+            comment += '# Fix linting issues\n';
+            comment += 'npm run lint -- --fix\n\n';
+            comment += '# Check types\n';
+            comment += 'npm run type-check\n\n';
+            comment += '# Test build\n';
+            comment += 'npm run build\n';
+            comment += '```\n\n';
+            comment += '*These checks are advisory and won\'t block merging. Need help? Just ask!*';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

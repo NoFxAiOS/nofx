@@ -2,10 +2,17 @@ import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import { api } from './lib/api';
 import { EquityChart } from './components/EquityChart';
+import { AITradersPage } from './components/AITradersPage';
+import { LoginPage } from './components/LoginPage';
+import { RegisterPage } from './components/RegisterPage';
 import { CompetitionPage } from './components/CompetitionPage';
+import { LandingPage } from './pages/LandingPage';
+import HeaderBar from './components/landing/HeaderBar';
 import AILearning from './components/AILearning';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
+import { useSystemConfig } from './hooks/useSystemConfig';
 import type {
   SystemStatus,
   AccountInfo,
@@ -15,46 +22,80 @@ import type {
   TraderInfo,
 } from './types';
 
-type Page = 'competition' | 'trader';
+type Page = 'competition' | 'traders' | 'trader';
+
+// 获取友好的AI模型名称
+function getModelDisplayName(modelId: string): string {
+  switch (modelId.toLowerCase()) {
+    case 'deepseek':
+      return 'DeepSeek';
+    case 'qwen':
+      return 'Qwen';
+    case 'claude':
+      return 'Claude';
+    default:
+      return modelId.toUpperCase();
+  }
+}
 
 function App() {
   const { language, setLanguage } = useLanguage();
+  const { user, token, logout, isLoading } = useAuth();
+  const { config: systemConfig, loading: configLoading } = useSystemConfig();
+  const [route, setRoute] = useState(window.location.pathname);
 
-  // 从URL hash读取初始页面状态（支持刷新保持页面）
+  // 从URL路径读取初始页面状态（支持刷新保持页面）
   const getInitialPage = (): Page => {
+    const path = window.location.pathname;
     const hash = window.location.hash.slice(1); // 去掉 #
-    return hash === 'trader' || hash === 'details' ? 'trader' : 'competition';
+    
+    if (path === '/traders' || hash === 'traders') return 'traders';
+    if (path === '/dashboard' || hash === 'trader' || hash === 'details') return 'trader';
+    return 'competition'; // 默认为竞赛页面
   };
 
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage());
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>();
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--');
 
-  // 监听URL hash变化，同步页面状态
+  // 监听URL变化，同步页面状态
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleRouteChange = () => {
+      const path = window.location.pathname;
       const hash = window.location.hash.slice(1);
-      if (hash === 'trader' || hash === 'details') {
+      
+      if (path === '/traders' || hash === 'traders') {
+        setCurrentPage('traders');
+      } else if (path === '/dashboard' || hash === 'trader' || hash === 'details') {
         setCurrentPage('trader');
-      } else if (hash === 'competition' || hash === '') {
+      } else if (path === '/competition' || hash === 'competition' || hash === '') {
         setCurrentPage('competition');
       }
+      setRoute(path);
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
   }, []);
 
-  // 切换页面时更新URL hash
-  const navigateToPage = (page: Page) => {
-    setCurrentPage(page);
-    window.location.hash = page === 'competition' ? '' : 'trader';
-  };
+  // 切换页面时更新URL hash (当前通过按钮直接调用setCurrentPage，这个函数暂时保留用于未来扩展)
+  // const navigateToPage = (page: Page) => {
+  //   setCurrentPage(page);
+  //   window.location.hash = page === 'competition' ? '' : 'trader';
+  // };
 
-  // 获取trader列表
-  const { data: traders } = useSWR<TraderInfo[]>('traders', api.getTraders, {
-    refreshInterval: 10000,
-  });
+  // 获取trader列表（仅在用户登录时）
+  const { data: traders } = useSWR<TraderInfo[]>(
+    user && token ? 'traders' : null, 
+    api.getTraders, 
+    {
+      refreshInterval: 10000,
+    }
+  );
 
   // 当获取到traders后，设置默认选中第一个
   useEffect(() => {
@@ -133,145 +174,141 @@ function App() {
 
   const selectedTrader = traders?.find((t) => t.trader_id === selectedTraderId);
 
+  // Handle routing
+  useEffect(() => {
+    const handlePopState = () => {
+      setRoute(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Set current page based on route for consistent navigation state
+  useEffect(() => {
+    if (route === '/competition') {
+      setCurrentPage('competition');
+    } else if (route === '/traders') {
+      setCurrentPage('traders');
+    } else if (route === '/dashboard') {
+      setCurrentPage('trader');
+    }
+  }, [route]);
+
+  // Show loading spinner while checking auth or config
+  if (isLoading || configLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
+        <div className="text-center">
+          <img src="/icons/nofx.svg" alt="NoFx Logo" className="w-16 h-16 mx-auto mb-4 animate-pulse" />
+          <p style={{ color: '#EAECEF' }}>{t('loading', language)}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Handle specific routes regardless of authentication
+  if (route === '/login') {
+    return <LoginPage />;
+  }
+  if (route === '/register') {
+    return <RegisterPage />;
+  }
+  if (route === '/competition') {
+    return (
+      <div className="min-h-screen" style={{ background: '#000000', color: '#EAECEF' }}>
+        <HeaderBar 
+ 
+          isLoggedIn={!!user} 
+          currentPage="competition"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          isAdminMode={systemConfig?.admin_mode}
+          onPageChange={(page) => {
+            console.log('Competition page onPageChange called with:', page);
+            console.log('Current route:', route, 'Current page:', currentPage);
+            
+            if (page === 'competition') {
+              console.log('Navigating to competition');
+              window.history.pushState({}, '', '/competition');
+              setRoute('/competition');
+              setCurrentPage('competition');
+            } else if (page === 'traders') {
+              console.log('Navigating to traders');
+              window.history.pushState({}, '', '/traders');
+              setRoute('/traders');
+              setCurrentPage('traders');
+            } else if (page === 'trader') {
+              console.log('Navigating to trader/dashboard');
+              window.history.pushState({}, '', '/dashboard');
+              setRoute('/dashboard');
+              setCurrentPage('trader');
+            }
+            
+            console.log('After navigation - route:', route, 'currentPage:', currentPage);
+          }}
+        />
+        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+          <CompetitionPage />
+        </main>
+      </div>
+    );
+  }
+  
+  // Show landing page for root route
+  if (route === '/' || route === '') {
+    return <LandingPage />;
+  }
+  
+  // Show main app for authenticated users on other routes
+  if (!systemConfig?.admin_mode && (!user || !token)) {
+    // Default to landing page when not authenticated and no specific route
+    return <LandingPage />;
+  }
+
   return (
     <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
-      {/* Header - Binance Style */}
-      <header className="glass sticky top-0 z-50 backdrop-blur-xl">
-        <div className="max-w-[1920px] mx-auto px-3 sm:px-6 py-3 sm:py-4">
-          {/* Mobile: Two rows, Desktop: Single row */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            {/* Left: Logo and Title */}
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-lg sm:text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-                ⚡
-              </div>
-              <div>
-                <h1 className="text-base sm:text-xl font-bold leading-tight" style={{ color: '#EAECEF' }}>
-                  {t('appTitle', language)}
-                </h1>
-                <p className="text-xs mono hidden sm:block" style={{ color: '#848E9C' }}>
-                  {t('subtitle', language)}
-                </p>
-              </div>
-            </div>
-
-            {/* Right: Controls - Wrap on mobile */}
-            <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
-              {/* GitHub Link - Hidden on mobile, icon only on tablet */}
-              <a
-                href="https://github.com/tinkle-community/nofx"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:flex items-center gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#2B3139';
-                  e.currentTarget.style.color = '#EAECEF';
-                  e.currentTarget.style.borderColor = '#F0B90B';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#1E2329';
-                  e.currentTarget.style.color = '#848E9C';
-                  e.currentTarget.style.borderColor = '#2B3139';
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-                </svg>
-                <span className="hidden md:inline">GitHub</span>
-              </a>
-
-              {/* Language Toggle */}
-              <div className="flex gap-0.5 sm:gap-1 rounded p-0.5 sm:p-1" style={{ background: '#1E2329' }}>
-                <button
-                  onClick={() => setLanguage('zh')}
-                  className="px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs font-semibold transition-all"
-                  style={language === 'zh'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  中文
-                </button>
-                <button
-                  onClick={() => setLanguage('en')}
-                  className="px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs font-semibold transition-all"
-                  style={language === 'en'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  EN
-                </button>
-              </div>
-
-              {/* Page Toggle */}
-              <div className="flex gap-0.5 sm:gap-1 rounded p-0.5 sm:p-1" style={{ background: '#1E2329' }}>
-                <button
-                  onClick={() => navigateToPage('competition')}
-                  className="px-2 sm:px-4 py-1.5 sm:py-2 rounded text-xs sm:text-sm font-semibold transition-all"
-                  style={currentPage === 'competition'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  {t('competition', language)}
-                </button>
-                <button
-                  onClick={() => navigateToPage('trader')}
-                  className="px-2 sm:px-4 py-1.5 sm:py-2 rounded text-xs sm:text-sm font-semibold transition-all"
-                  style={currentPage === 'trader'
-                    ? { background: '#F0B90B', color: '#000' }
-                    : { background: 'transparent', color: '#848E9C' }
-                  }
-                >
-                  {t('details', language)}
-                </button>
-              </div>
-
-              {/* Trader Selector (only show on trader page) */}
-              {currentPage === 'trader' && traders && traders.length > 0 && (
-                <select
-                  value={selectedTraderId}
-                  onChange={(e) => setSelectedTraderId(e.target.value)}
-                  className="rounded px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium cursor-pointer transition-colors flex-1 sm:flex-initial"
-                  style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                >
-                  {traders.map((trader) => (
-                    <option key={trader.trader_id} value={trader.trader_id}>
-                      {trader.trader_name} ({trader.ai_model.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              {/* Status Indicator (only show on trader page) */}
-              {currentPage === 'trader' && status && (
-                <div
-                  className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded"
-                  style={status.is_running
-                    ? { background: 'rgba(14, 203, 129, 0.1)', color: '#0ECB81', border: '1px solid rgba(14, 203, 129, 0.2)' }
-                    : { background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }
-                  }
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full ${status.is_running ? 'pulse-glow' : ''}`}
-                    style={{ background: status.is_running ? '#0ECB81' : '#F6465D' }}
-                  />
-                  <span className="font-semibold mono text-xs">
-                    {t(status.is_running ? 'running' : 'stopped', language)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <HeaderBar 
+        isLoggedIn={!!user} 
+        currentPage={currentPage}
+        language={language}
+        onLanguageChange={setLanguage}
+        user={user}
+        onLogout={logout}
+        isAdminMode={systemConfig?.admin_mode}
+        onPageChange={(page) => {
+          console.log('Main app onPageChange called with:', page);
+          
+          if (page === 'competition') {
+            window.history.pushState({}, '', '/competition');
+            setRoute('/competition');
+            setCurrentPage('competition');
+          } else if (page === 'traders') {
+            window.history.pushState({}, '', '/traders');
+            setRoute('/traders');
+            setCurrentPage('traders');
+          } else if (page === 'trader') {
+            window.history.pushState({}, '', '/dashboard');
+            setRoute('/dashboard');
+            setCurrentPage('trader');
+          }
+        }}
+      />
 
       {/* Main Content */}
-      <main className="max-w-[1920px] mx-auto px-6 py-6">
+      <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
         {currentPage === 'competition' ? (
           <CompetitionPage />
+        ) : currentPage === 'traders' ? (
+          <AITradersPage 
+            onTraderSelect={(traderId) => {
+              setSelectedTraderId(traderId);
+              window.history.pushState({}, '', '/dashboard');
+              setRoute('/dashboard');
+              setCurrentPage('trader');
+            }}
+          />
         ) : (
           <TraderDetailsPage
             selectedTrader={selectedTrader}
@@ -282,6 +319,9 @@ function App() {
             stats={stats}
             lastUpdate={lastUpdate}
             language={language}
+            traders={traders}
+            selectedTraderId={selectedTraderId}
+            onTraderSelect={setSelectedTraderId}
           />
         )}
       </main>
@@ -291,12 +331,12 @@ function App() {
         <div className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm" style={{ color: '#5E6673' }}>
           <p>{t('footerTitle', language)}</p>
           <p className="mt-1">{t('footerWarning', language)}</p>
-          <div className="mt-4 flex items-center justify-center gap-2">
+          <div className="mt-4">
             <a
               href="https://github.com/tinkle-community/nofx"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
               style={{ background: '#1E2329', color: '#848E9C', border: '1px solid #2B3139' }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = '#2B3139';
@@ -312,7 +352,7 @@ function App() {
               <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
-              <span>Star on GitHub</span>
+              GitHub
             </a>
           </div>
         </div>
@@ -330,8 +370,14 @@ function TraderDetailsPage({
   decisions,
   lastUpdate,
   language,
+  traders,
+  selectedTraderId,
+  onTraderSelect,
 }: {
   selectedTrader?: TraderInfo;
+  traders?: TraderInfo[];
+  selectedTraderId?: string;
+  onTraderSelect: (traderId: string) => void;
   status?: SystemStatus;
   account?: AccountInfo;
   positions?: Position[];
@@ -372,14 +418,35 @@ function TraderDetailsPage({
     <div>
       {/* Trader Header */}
       <div className="mb-6 rounded p-6 animate-scale-in" style={{ background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(252, 213, 53, 0.05) 100%)', border: '1px solid rgba(240, 185, 11, 0.2)', boxShadow: '0 0 30px rgba(240, 185, 11, 0.15)' }}>
-        <h2 className="text-2xl font-bold mb-3 flex items-center gap-2" style={{ color: '#EAECEF' }}>
-          <span className="w-10 h-10 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
-            🤖
-          </span>
-          {selectedTrader.trader_name}
-        </h2>
+        <div className="flex items-start justify-between mb-3">
+          <h2 className="text-2xl font-bold flex items-center gap-2" style={{ color: '#EAECEF' }}>
+            <span className="w-10 h-10 rounded-full flex items-center justify-center text-xl" style={{ background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)' }}>
+              🤖
+            </span>
+            {selectedTrader.trader_name}
+          </h2>
+          
+          {/* Trader Selector */}
+          {traders && traders.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm" style={{ color: '#848E9C' }}>{t('switchTrader', language)}:</span>
+              <select
+                value={selectedTraderId}
+                onChange={(e) => onTraderSelect(e.target.value)}
+                className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
+                style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+              >
+                {traders.map((trader) => (
+                  <option key={trader.trader_id} value={trader.trader_id}>
+                    {trader.trader_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-4 text-sm" style={{ color: '#848E9C' }}>
-          <span>AI Model: <span className="font-semibold" style={{ color: selectedTrader.ai_model === 'qwen' ? '#c084fc' : '#60a5fa' }}>{selectedTrader.ai_model.toUpperCase()}</span></span>
+          <span>AI Model: <span className="font-semibold" style={{ color: selectedTrader.ai_model.includes('qwen') ? '#c084fc' : '#60a5fa' }}>{getModelDisplayName(selectedTrader.ai_model.split('_').pop() || selectedTrader.ai_model)}</span></span>
           {status && (
             <>
               <span>•</span>
@@ -395,9 +462,9 @@ function TraderDetailsPage({
       {account && (
         <div className="mb-4 p-3 rounded text-xs font-mono" style={{ background: '#1E2329', border: '1px solid #2B3139' }}>
           <div style={{ color: '#848E9C' }}>
-            🔄 Last Update: {lastUpdate} | Total Equity: {account.total_equity?.toFixed(2) || '0.00'} |
-            Available: {account.available_balance?.toFixed(2) || '0.00'} | P&L: {account.total_pnl?.toFixed(2) || '0.00'}{' '}
-            ({account.total_pnl_pct?.toFixed(2) || '0.00'}%)
+            🔄 Last Update: {lastUpdate} | Total Equity: {account?.total_equity?.toFixed(2) || '0.00'} |
+            Available: {account?.available_balance?.toFixed(2) || '0.00'} | P&L: {account?.total_pnl?.toFixed(2) || '0.00'}{' '}
+            ({account?.total_pnl_pct?.toFixed(2) || '0.00'}%)
           </div>
         </div>
       )}
@@ -721,11 +788,13 @@ function DecisionCard({ decision, language }: { decision: DecisionRecord; langua
   );
 }
 
-// Wrap App with LanguageProvider
-export default function AppWithLanguage() {
+// Wrap App with providers
+export default function AppWithProviders() {
   return (
     <LanguageProvider>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </LanguageProvider>
   );
 }

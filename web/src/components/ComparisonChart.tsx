@@ -14,12 +14,16 @@ import useSWR from 'swr';
 import { api } from '../lib/api';
 import type { CompetitionTraderData } from '../types';
 import { getTraderColor } from '../utils/traderColors';
+import { useLanguage } from '../contexts/LanguageContext';
+import { t } from '../i18n/translations';
+import { BarChart3 } from 'lucide-react';
 
 interface ComparisonChartProps {
   traders: CompetitionTraderData[];
 }
 
 export function ComparisonChart({ traders }: ComparisonChartProps) {
+  const { language } = useLanguage();
   // 获取所有trader的历史数据 - 使用单个useSWR并发请求所有trader数据
   // 生成唯一的key，当traders变化时会触发重新请求
   const tradersKey = traders.map(t => t.trader_id).sort().join(',');
@@ -27,11 +31,14 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
   const { data: allTraderHistories, isLoading } = useSWR(
     traders.length > 0 ? `all-equity-histories-${tradersKey}` : null,
     async () => {
-      // 并发请求所有trader的历史数据
-      const promises = traders.map(trader =>
-        api.getEquityHistory(trader.trader_id)
-      );
-      return Promise.all(promises);
+      // 使用批量API一次性获取所有trader的历史数据
+      const traderIds = traders.map(trader => trader.trader_id);
+      const batchData = await api.getEquityHistoryBatch(traderIds);
+      
+      // 转换为原格式，保持与原有代码兼容
+      return traders.map(trader => {
+        return batchData.histories[trader.trader_id] || [];
+      });
     },
     {
       refreshInterval: 30000, // 30秒刷新（对比图表数据更新频率较低）
@@ -85,8 +92,13 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
           });
         }
 
+        // 计算盈亏百分比：从total_pnl和balance计算
+        // 假设初始余额 = balance - total_pnl
+        const initialBalance = point.balance - point.total_pnl;
+        const pnlPct = initialBalance > 0 ? (point.total_pnl / initialBalance) * 100 : 0;
+
         timestampMap.get(ts)!.traders.set(trader.trader_id, {
-          pnl_pct: point.total_pnl_pct,
+          pnl_pct: pnlPct,
           equity: point.total_equity
         });
       });
@@ -116,12 +128,6 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     if (combined.length > 0) {
       const lastPoint = combined[combined.length - 1];
       console.log(`Chart: ${combined.length} data points, last time: ${lastPoint.time}, timestamp: ${lastPoint.timestamp}`);
-      console.log('Last 3 points:', combined.slice(-3).map(p => ({
-        time: p.time,
-        timestamp: p.timestamp,
-        deepseek: p.deepseek_trader_pnl_pct,
-        qwen: p.qwen_trader_pnl_pct
-      })));
     }
 
     return combined;
@@ -139,9 +145,9 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
   if (combinedData.length === 0) {
     return (
       <div className="text-center py-16" style={{ color: '#848E9C' }}>
-        <div className="text-6xl mb-4 opacity-50">📊</div>
-        <div className="text-lg font-semibold mb-2">暂无历史数据</div>
-        <div className="text-sm">运行几个周期后将显示对比曲线</div>
+        <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-60" />
+        <div className="text-lg font-semibold mb-2">{t('noHistoricalData', language)}</div>
+        <div className="text-sm">{t('dataWillAppear', language)}</div>
       </div>
     );
   }
@@ -227,7 +233,23 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
 
   return (
     <div>
-      <div style={{ borderRadius: '8px', overflow: 'hidden' }}>
+      <div style={{ borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
+        {/* NOFX Watermark */}
+        <div 
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: 'rgba(240, 185, 11, 0.15)',
+            zIndex: 10,
+            pointerEvents: 'none',
+            fontFamily: 'monospace'
+          }}
+        >
+          NOFX
+        </div>
         <ResponsiveContainer width="100%" height={520}>
         <LineChart data={displayData} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
           <defs>
@@ -315,27 +337,27 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
       </div>
 
       {/* Stats */}
-      <div className="mt-6 grid grid-cols-4 gap-4 pt-5" style={{ borderTop: '1px solid #2B3139' }}>
-        <div className="p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>对比模式</div>
-          <div className="text-base font-bold" style={{ color: '#EAECEF' }}>PnL %</div>
+      <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 pt-5" style={{ borderTop: '1px solid #2B3139' }}>
+        <div className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('comparisonMode', language)}</div>
+          <div className="text-sm md:text-base font-bold" style={{ color: '#EAECEF' }}>PnL %</div>
         </div>
-        <div className="p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>数据点数</div>
-          <div className="text-base font-bold mono" style={{ color: '#EAECEF' }}>{combinedData.length} 个</div>
+        <div className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('dataPoints', language)}</div>
+          <div className="text-sm md:text-base font-bold mono" style={{ color: '#EAECEF' }}>{t('count', language, {count: combinedData.length})}</div>
         </div>
-        <div className="p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>当前差距</div>
-          <div className="text-base font-bold mono" style={{ color: currentGap > 1 ? '#F0B90B' : '#EAECEF' }}>
+        <div className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('currentGap', language)}</div>
+          <div className="text-sm md:text-base font-bold mono" style={{ color: currentGap > 1 ? '#F0B90B' : '#EAECEF' }}>
             {currentGap.toFixed(2)}%
           </div>
         </div>
-        <div className="p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
-          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>显示范围</div>
-          <div className="text-base font-bold mono" style={{ color: '#EAECEF' }}>
+        <div className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50" style={{ background: 'rgba(240, 185, 11, 0.05)' }}>
+          <div className="text-xs mb-1 uppercase tracking-wider" style={{ color: '#848E9C' }}>{t('displayRange', language)}</div>
+          <div className="text-sm md:text-base font-bold mono" style={{ color: '#EAECEF' }}>
             {combinedData.length > MAX_DISPLAY_POINTS
-              ? `最近 ${MAX_DISPLAY_POINTS}`
-              : '全部数据'}
+              ? `${t('recent', language)} ${MAX_DISPLAY_POINTS}`
+              : t('allData', language)}
           </div>
         </div>
       </div>

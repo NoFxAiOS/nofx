@@ -445,7 +445,7 @@ export default function HeaderBar({
                             {user.email}
                           </div>
                         </div>
-                        {!isAdminMode && onLogout && (
+                        {onLogout && (
                           <button
                             onClick={() => {
                               onLogout()
@@ -882,7 +882,7 @@ export default function HeaderBar({
                   </div>
                 </div>
               </div>
-              {!isAdminMode && onLogout && (
+              {onLogout && (
                 <button
                   onClick={() => {
                     onLogout()

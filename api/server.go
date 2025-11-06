@@ -1380,8 +1380,21 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	// 检查邮箱是否已存在
-	_, err := s.database.GetUserByEmail(req.Email)
+	existingUser, err := s.database.GetUserByEmail(req.Email)
 	if err == nil {
+		// 如果用户未完成OTP验证，允许重新获取OTP（支持中断后恢复注册）
+		if !existingUser.OTPVerified {
+			qrCodeURL := auth.GetOTPQRCodeURL(existingUser.OTPSecret, req.Email)
+			c.JSON(http.StatusOK, gin.H{
+				"user_id":     existingUser.ID,
+				"email":       req.Email,
+				"otp_secret":  existingUser.OTPSecret,
+				"qr_code_url": qrCodeURL,
+				"message":     "检测到未完成的注册，请继续完成OTP设置",
+			})
+			return
+		}
+		// 用户已完成验证，拒绝重复注册
 		c.JSON(http.StatusConflict, gin.H{"error": "邮箱已被注册"})
 		return
 	}

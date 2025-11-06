@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"nofx/crypto"
 	"os"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -17,6 +19,25 @@ func main() {
 	dryRun := flag.Bool("dry-run", false, "仅检查需要迁移的数据，不写入数据库")
 	flag.Parse()
 
+	// 尝试加载 .env 文件
+	envPaths := []string{"../../.env", ".env"}
+	envLoaded := false
+	for _, envPath := range envPaths {
+		if err := loadEnvFile(envPath); err == nil {
+			log.Printf("成功加载 .env 文件: %s", envPath)
+			envLoaded = true
+			break
+		}
+	}
+	if !envLoaded {
+		log.Printf("警告: 未找到 .env 文件")
+	}
+
+	// 确保环境变量已设置
+	if os.Getenv("DATA_ENCRYPTION_KEY") == "" {
+		log.Fatalf("迁移失败: DATA_ENCRYPTION_KEY 环境变量未设置")
+	}
+
 	if err := run(*privateKeyPath, *dryRun); err != nil {
 		log.Fatalf("迁移失败: %v", err)
 	}
@@ -24,6 +45,11 @@ func main() {
 
 func run(privateKeyPath string, dryRun bool) error {
 	log.SetFlags(0)
+	
+	// 检查密钥文件是否存在
+	if _, err := os.Stat(privateKeyPath); err != nil {
+		log.Printf("警告: 私钥文件不存在: %s, 将尝试生成新密钥", privateKeyPath)
+	}
 
 	cryptoService, err := crypto.NewCryptoService(privateKeyPath)
 	if err != nil {
@@ -275,4 +301,45 @@ func getEnv(key, fallback string) string {
 		return val
 	}
 	return fallback
+}
+
+func loadEnvFile(filename string) error {
+	// 检查文件是否存在
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return fmt.Errorf("文件不存在: %s", filename)
+	}
+
+	// 打开文件
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("无法打开文件: %w", err)
+	}
+	defer file.Close()
+
+	// 逐行读取
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		
+		// 跳过空行和注释行
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// 解析 KEY=VALUE 格式
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		// 只有当环境变量不存在时才设置
+		if os.Getenv(key) == "" {
+			os.Setenv(key, value)
+		}
+	}
+
+	return scanner.Err()
 }

@@ -15,15 +15,13 @@ import (
 )
 
 func main() {
-	privateKeyPath := flag.String("key", "../../keys/rsa_private.key", "RSA 私钥路径")
+	privateKeyPath := flag.String("key", "keys/rsa_private.key", "RSA 私钥路径")
 	dryRun := flag.Bool("dry-run", false, "仅检查需要迁移的数据，不写入数据库")
 	flag.Parse()
 
-	// 尝试加载 .env 文件（从 scripts/migrate_sensitive_data/ 目录运行时）
+	// 尝试加载 .env 文件（从项目根目录运行时）
 	envPaths := []string{
-		"../../.env",    // 项目根目录（从 scripts/migrate_sensitive_data/ 到根目录）
-		".env",          // 当前目录
-		"../.env",       // scripts/ 目录
+		".env",          // 项目根目录
 	}
 	envLoaded := false
 	for _, envPath := range envPaths {
@@ -51,12 +49,10 @@ func main() {
 func run(privateKeyPath string, dryRun bool) error {
 	log.SetFlags(0)
 	
-	// 尝试多个可能的私钥路径（从 scripts/migrate_sensitive_data/ 目录运行时）
+	// 尝试多个可能的私钥路径（从项目根目录运行时）
 	keyPaths := []string{
-		privateKeyPath,                   // 用户指定的路径
-		"../../keys/rsa_private.key",    // 项目根目录的 keys 文件夹
-		"../keys/rsa_private.key",       // scripts/ 目录的 keys 文件夹（如果存在）
-		"keys/rsa_private.key",          // 当前目录的 keys 文件夹
+		privateKeyPath,        // 用户指定的路径
+		"keys/rsa_private.key", // 项目根目录的 keys 文件夹
 	}
 	
 	var finalKeyPath string

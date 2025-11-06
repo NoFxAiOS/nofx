@@ -18,12 +18,10 @@ interface AuthContextType {
     userID?: string
     requiresOTP?: boolean
   }>
-  loginAdmin: (
-    password: string
-  ) => Promise<{ 
-    success: boolean; 
-    message?: string 
-  }>; 
+  loginAdmin: (password: string) => Promise<{
+    success: boolean
+    message?: string
+  }>
   register: (
     email: string,
     password: string,
@@ -64,11 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     getSystemConfig()
       .then(() => {
         // 不再在管理员模式下模拟登录；统一检查本地存储
-        const savedToken = localStorage.getItem('auth_token');
-        const savedUser = localStorage.getItem('auth_user');
+        const savedToken = localStorage.getItem('auth_token')
+        const savedUser = localStorage.getItem('auth_user')
         if (savedToken && savedUser) {
-          setToken(savedToken);
-          setUser(JSON.parse(savedUser));
+          setToken(savedToken)
+          setUser(JSON.parse(savedUser))
         }
 
         setIsLoading(false)
@@ -118,31 +116,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: false, message: '未知错误' }
   }
 
-    const loginAdmin = async (password: string) => {
+  const loginAdmin = async (password: string) => {
     try {
       const response = await fetch('/api/admin-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
-      });
-      const data = await response.json();
+      })
+      const data = await response.json()
       if (response.ok) {
-        const userInfo = { id: data.user_id || 'admin', email: data.email || 'admin@localhost' };
-        setToken(data.token);
-        setUser(userInfo);
-        localStorage.setItem('auth_token', data.token);
-        localStorage.setItem('auth_user', JSON.stringify(userInfo));
+        const userInfo = {
+          id: data.user_id || 'admin',
+          email: data.email || 'admin@localhost',
+        }
+        setToken(data.token)
+        setUser(userInfo)
+        localStorage.setItem('auth_token', data.token)
+        localStorage.setItem('auth_user', JSON.stringify(userInfo))
         // 跳转到仪表盘
-        window.history.pushState({}, '', '/dashboard');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-        return { success: true };
+        window.history.pushState({}, '', '/dashboard')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        return { success: true }
       } else {
-        return { success: false, message: data.error || '登录失败' };
+        return { success: false, message: data.error || '登录失败' }
       }
     } catch (e) {
-      return { success: false, message: '登录失败，请重试' };
+      return { success: false, message: '登录失败，请重试' }
     }
-  };
+  }
 
   const register = async (
     email: string,
@@ -282,12 +283,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
-    const savedToken = localStorage.getItem('auth_token');
+    const savedToken = localStorage.getItem('auth_token')
     if (savedToken) {
       fetch('/api/logout', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${savedToken}` },
-      }).catch(() => {/* ignore network errors on logout */});
+        headers: { Authorization: `Bearer ${savedToken}` },
+      }).catch(() => {
+        /* ignore network errors on logout */
+      })
     }
     setUser(null)
     setToken(null)
@@ -301,7 +304,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         token,
         login,
-        loginAdmin,        
+        loginAdmin,
         register,
         verifyOTP,
         completeRegistration,

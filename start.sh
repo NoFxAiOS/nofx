@@ -117,12 +117,21 @@ read_env_vars() {
 # Validation: Database File (config.db)
 # ------------------------------------------------------------------------
 check_database() {
-    if [ ! -f "config.db" ]; then
+    if [ -d "config.db" ]; then
+        # 如果存在的是目录，删除它
+        print_warning "config.db 是目录而非文件，正在删除目录..."
+        rm -rf config.db
+        print_info "✓ 已删除目录，现在创建文件..."
+        touch config.db
+        print_success "✓ 已创建空数据库文件，系统将在启动时初始化"
+    elif [ ! -f "config.db" ]; then
+        # 如果不存在文件，创建它
         print_warning "数据库文件不存在，创建空数据库文件..."
         # 创建空文件以避免Docker创建目录
         touch config.db
         print_info "✓ 已创建空数据库文件，系统将在启动时初始化"
     else
+        # 文件存在
         print_success "数据库文件存在"
     fi
 }

@@ -762,7 +762,21 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 		}
 	}
 
-	// 为每个交易员获取AI模型和交易所配置
+	// 🔧 性能优化：在循环外只查询一次AI模型和交易所配置
+	// 避免在循环中重复查询相同的数据，减少数据库压力和锁持有时间
+	aiModels, err := database.GetAIModels(userID)
+	if err != nil {
+		log.Printf("⚠️ 获取用户 %s 的AI模型配置失败: %v", userID, err)
+		return fmt.Errorf("获取AI模型配置失败: %w", err)
+	}
+
+	exchanges, err := database.GetExchanges(userID)
+	if err != nil {
+		log.Printf("⚠️ 获取用户 %s 的交易所配置失败: %v", userID, err)
+		return fmt.Errorf("获取交易所配置失败: %w", err)
+	}
+
+	// 为每个交易员加载配置
 	for _, traderCfg := range traders {
 		// 检查是否已经加载过这个交易员
 		if _, exists := tm.traders[traderCfg.ID]; exists {
@@ -770,12 +784,7 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 			continue
 		}
 
-		// 获取AI模型配置（使用该用户的配置）
-		aiModels, err := database.GetAIModels(userID)
-		if err != nil {
-			log.Printf("⚠️ 获取用户 %s 的AI模型配置失败: %v", userID, err)
-			continue
-		}
+		// 从已查询的列表中查找AI模型配置
 
 		var aiModelCfg *config.AIModelConfig
 		// 优先精确匹配 model.ID（新版逻辑）
@@ -806,13 +815,7 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 			continue
 		}
 
-		// 获取交易所配置（使用该用户的配置）
-		exchanges, err := database.GetExchanges(userID)
-		if err != nil {
-			log.Printf("⚠️ 获取用户 %s 的交易所配置失败: %v", userID, err)
-			continue
-		}
-
+		// 从已查询的列表中查找交易所配置
 		var exchangeCfg *config.ExchangeConfig
 		for _, exchange := range exchanges {
 			if exchange.ID == traderCfg.ExchangeID {

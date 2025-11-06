@@ -1872,10 +1872,22 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 	models, err := s.database.GetAIModels("default")
 	if err != nil {
 		log.Printf("❌ 获取支持的AI模型失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取支持的AI模型失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "获取支持的AI模型失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
+	// 检查数据完整性
+	if len(models) == 0 {
+		log.Printf("⚠️  警告: 系统支持的AI模型列表为空！这可能导致用户无法配置AI模型")
+		log.Printf("💡 提示: 请检查数据库中 user_id='default' 的 ai_models 数据")
+		c.JSON(http.StatusOK, []interface{}{}) // 返回空数组而不是 null
+		return
+	}
+
+	log.Printf("✅ 成功返回 %d 个支持的AI模型", len(models))
 	c.JSON(http.StatusOK, models)
 }
 
@@ -1885,10 +1897,22 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 	exchanges, err := s.database.GetExchanges("default")
 	if err != nil {
 		log.Printf("❌ 获取支持的交易所失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取支持的交易所失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "获取支持的交易所失败",
+			"details": err.Error(),
+		})
 		return
 	}
 
+	// 检查数据完整性
+	if len(exchanges) == 0 {
+		log.Printf("⚠️  警告: 系统支持的交易所列表为空！这可能导致用户无法配置交易所")
+		log.Printf("💡 提示: 请检查数据库中 user_id='default' 的 exchanges 数据")
+		c.JSON(http.StatusOK, []interface{}{}) // 返回空数组而不是 null
+		return
+	}
+
+	log.Printf("✅ 成功返回 %d 个支持的交易所", len(exchanges))
 	c.JSON(http.StatusOK, exchanges)
 }
 

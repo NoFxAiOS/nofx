@@ -132,19 +132,21 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }, [user, token])
 
   // 只显示已配置的模型和交易所（有API Key的才算配置过）
-  const configuredModels = allModels?.filter((m) => m.apiKey && m.apiKey.trim() !== '') || []
-  const configuredExchanges = allExchanges?.filter((e) => {
-    // Aster 交易所检查特殊字段
-    if (e.id === 'aster') {
-      return e.asterUser && e.asterUser.trim() !== ''
-    }
-    // Hyperliquid 只检查私钥
-    if (e.id === 'hyperliquid') {
+  const configuredModels =
+    allModels?.filter((m) => m.apiKey && m.apiKey.trim() !== '') || []
+  const configuredExchanges =
+    allExchanges?.filter((e) => {
+      // Aster 交易所检查特殊字段
+      if (e.id === 'aster') {
+        return e.asterUser && e.asterUser.trim() !== ''
+      }
+      // Hyperliquid 只检查私钥
+      if (e.id === 'hyperliquid') {
+        return e.apiKey && e.apiKey.trim() !== ''
+      }
+      // 其他交易所检查 apiKey
       return e.apiKey && e.apiKey.trim() !== ''
-    }
-    // 其他交易所检查 apiKey
-    return e.apiKey && e.apiKey.trim() !== ''
-  }) || []
+    }) || []
 
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
@@ -185,9 +187,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
   // 检查交易所是否正在被运行中的交易员使用（用于UI禁用）
   const isExchangeInUse = (exchangeId: string) => {
-    return (
-      traders?.some((t) => t.exchange_id === exchangeId && t.is_running)
-    )
+    return traders?.some((t) => t.exchange_id === exchangeId && t.is_running)
   }
 
   // 检查模型是否被任何交易员使用（包括停止状态的）
@@ -414,7 +414,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }),
       updateApi: api.updateModelConfigs,
       refreshApi: api.getModelConfigs,
-      setItems: setAllModels,
+      setItems: (items) => {
+        // 使用函数式更新确保状态正确更新
+        setAllModels([...items])
+      },
       closeModal: () => {
         setShowModelModal(false)
         setEditingModel(null)
@@ -526,7 +529,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }),
       updateApi: api.updateExchangeConfigs,
       refreshApi: api.getExchangeConfigs,
-      setItems: setAllExchanges,
+      setItems: (items) => {
+        // 使用函数式更新确保状态正确更新
+        setAllExchanges([...items])
+      },
       closeModal: () => {
         setShowExchangeModal(false)
         setEditingExchange(null)

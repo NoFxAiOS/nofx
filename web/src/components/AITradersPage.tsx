@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type {
@@ -58,6 +58,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [showModelModal, setShowModelModal] = useState(false)
   const [showExchangeModal, setShowExchangeModal] = useState(false)
   const [showSignalSourceModal, setShowSignalSourceModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{type: 'model' | 'exchange', id: string} | null>(null)
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingExchange, setEditingExchange] = useState<string | null>(null)
   const [editingTrader, setEditingTrader] = useState<any>(null)
@@ -134,20 +136,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   // 显示所有用户的模型和交易所配置（用于调试）
   const configuredModels = allModels || []
   const configuredExchanges = allExchanges || []
-
-  const selectableModels = useMemo(() => {
-    return (supportedModels || []).map((model) => {
-      const configured = allModels?.find((m) => m.id === model.id)
-      return configured ? { ...model, ...configured } : model
-    })
-  }, [supportedModels, allModels])
-
-  const selectableExchanges = useMemo(() => {
-    return (supportedExchanges || []).map((exchange) => {
-      const configured = allExchanges?.find((e) => e.id === exchange.id)
-      return configured ? { ...exchange, ...configured } : exchange
-    })
-  }, [supportedExchanges, allExchanges])
 
   // 只在创建交易员时使用已启用且配置完整的
   const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
@@ -313,8 +301,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleDeleteModelConfig = async (modelId: string) => {
-    if (!confirm(t('confirmDeleteModel', language))) return
-
     try {
       const updatedModels =
         allModels?.map((m) =>
@@ -344,12 +330,28 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await api.updateModelConfigs(request)
-      setAllModels(updatedModels)
+      
+      // 重新获取用户配置以确保数据同步
+      const refreshedModels = await api.getModelConfigs()
+      setAllModels(refreshedModels)
+      
       setShowModelModal(false)
       setEditingModel(null)
+      setShowDeleteConfirm(false)
+      setDeleteTarget(null)
     } catch (error) {
       console.error('Failed to delete model config:', error)
       alert(t('deleteConfigFailed', language))
+    }
+  }
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return
+    
+    if (deleteTarget.type === 'model') {
+      handleDeleteModelConfig(deleteTarget.id)
+    } else if (deleteTarget.type === 'exchange') {
+      handleDeleteExchangeConfig(deleteTarget.id)
     }
   }
 
@@ -427,8 +429,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleDeleteExchangeConfig = async (exchangeId: string) => {
-    if (!confirm(t('confirmDeleteExchange', language))) return
-
     try {
       const request = {
         exchanges: {
@@ -451,6 +451,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setAllExchanges(refreshed)
       setShowExchangeModal(false)
       setEditingExchange(null)
+      setShowDeleteConfirm(false)
+      setDeleteTarget(null)
     } catch (error) {
       console.error('Failed to delete exchange config:', error)
       alert(t('deleteExchangeConfigFailed', language))
@@ -1043,14 +1045,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Model Configuration Modal */}
       {showModelModal && (
         <ModelConfigModal
-          allModels={selectableModels}
+          supportedModels={supportedModels}
           configuredModels={allModels}
           editingModelId={editingModel}
           onSave={handleSaveModelConfig}
-          onDelete={handleDeleteModelConfig}
           onClose={() => {
             setShowModelModal(false)
             setEditingModel(null)
+          }}
+          onDelete={(modelId) => {
+            setDeleteTarget({ type: 'model', id: modelId })
+            setShowDeleteConfirm(true)
           }}
           language={language}
         />
@@ -1059,14 +1064,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {/* Exchange Configuration Modal */}
       {showExchangeModal && (
         <ExchangeConfigModal
-          allExchanges={selectableExchanges}
+          supportedExchanges={supportedExchanges}
           configuredExchanges={allExchanges}
           editingExchangeId={editingExchange}
           onSave={handleSaveExchangeConfig}
-          onDelete={handleDeleteExchangeConfig}
           onClose={() => {
             setShowExchangeModal(false)
             setEditingExchange(null)
+          }}
+          onDelete={(exchangeId) => {
+            setDeleteTarget({ type: 'exchange', id: exchangeId })
+            setShowDeleteConfirm(true)
           }}
           language={language}
         />
@@ -1079,6 +1087,27 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           oiTopUrl={userSignalSource.oiTopUrl}
           onSave={handleSaveSignalSource}
           onClose={() => setShowSignalSourceModal(false)}
+          language={language}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && deleteTarget && (
+        <DeleteConfirmModal
+          isOpen={showDeleteConfirm}
+          title={deleteTarget.type === 'model' 
+            ? t('confirmDeleteModel', language)
+            : t('confirmDeleteExchange', language)
+          }
+          message={deleteTarget.type === 'model'
+            ? t('deleteModelWarning', language)
+            : t('deleteExchangeWarning', language)
+          }
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            setShowDeleteConfirm(false)
+            setDeleteTarget(null)
+          }}
           language={language}
         />
       )}
@@ -1255,17 +1284,80 @@ function SignalSourceModal({
   )
 }
 
+// Delete Confirmation Modal Component
+function DeleteConfirmModal({
+  isOpen,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  language,
+}: {
+  isOpen: boolean
+  title: string
+  message: string
+  onConfirm: () => void
+  onCancel: () => void
+  language: Language
+}) {
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div
+        className="bg-gray-800 rounded-lg p-6 w-full max-w-md relative"
+        style={{ background: '#1E2329' }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div 
+            className="w-8 h-8 rounded-full flex items-center justify-center"
+            style={{ background: 'rgba(246, 70, 93, 0.1)' }}
+          >
+            <AlertTriangle className="w-5 h-5" style={{ color: '#F6465D' }} />
+          </div>
+          <h3 className="text-lg font-bold" style={{ color: '#EAECEF' }}>
+            {title}
+          </h3>
+        </div>
+        
+        <p className="text-sm mb-6" style={{ color: '#848E9C' }}>
+          {message}
+        </p>
+        
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+            style={{ background: '#2B3139', color: '#848E9C' }}
+          >
+            {t('cancel', language)}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+            style={{ background: '#F6465D', color: '#fff' }}
+          >
+            {t('delete', language)}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Model Configuration Modal Component
 function ModelConfigModal({
-  allModels,
+  supportedModels,
   configuredModels,
   editingModelId,
   onSave,
-  onDelete,
   onClose,
+  onDelete,
   language,
 }: {
-  allModels: AIModel[]
+  supportedModels: AIModel[]
   configuredModels: AIModel[]
   editingModelId: string | null
   onSave: (
@@ -1274,8 +1366,8 @@ function ModelConfigModal({
     baseUrl?: string,
     modelName?: string
   ) => void
-  onDelete: (modelId: string) => void
   onClose: () => void
+  onDelete: (modelId: string) => void
   language: Language
 }) {
   const [selectedModelId, setSelectedModelId] = useState(editingModelId || '')
@@ -1283,10 +1375,10 @@ function ModelConfigModal({
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')
 
-  // 获取当前编辑的模型信息 - 编辑时从已配置的模型中查找，新建时从所有支持的模型中查找
+  // 获取当前编辑的模型信息 - 编辑时从已配置的模型中查找，新建时从支持的模型中查找
   const selectedModel = editingModelId
-    ? configuredModels?.find((m) => m.id === selectedModelId)
-    : allModels?.find((m) => m.id === selectedModelId)
+    ? configuredModels?.find((m) => m.id === selectedModelId)  // 编辑：从已配置中获取完整信息
+    : supportedModels?.find((m) => m.id === selectedModelId)   // 新建：从支持列表获取基本信息
 
   // 如果是编辑现有模型，初始化API Key、Base URL和Model Name
   useEffect(() => {
@@ -1309,8 +1401,8 @@ function ModelConfigModal({
     )
   }
 
-  // 可选择的模型列表（所有支持的模型）
-  const availableModels = allModels || []
+  // 可选择的模型列表：直接使用系统支持的模型
+  const availableModels = supportedModels || []
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1327,14 +1419,10 @@ function ModelConfigModal({
           {editingModelId && (
             <button
               type="button"
-              onClick={() => {
-                if (confirm(t('confirmDeleteModel', language))) {
-                  onDelete(editingModelId)
-                }
-              }}
+              onClick={() => onDelete(editingModelId)}
               className="p-2 rounded hover:bg-red-100 transition-colors"
               style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              title={t('deleteConfigFailed', language)}
+              title={t('deleteModel', language)}
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -1528,15 +1616,15 @@ function ModelConfigModal({
 
 // Exchange Configuration Modal Component
 function ExchangeConfigModal({
-  allExchanges,
+  supportedExchanges,
   configuredExchanges,
   editingExchangeId,
   onSave,
-  onDelete,
   onClose,
+  onDelete,
   language,
 }: {
-  allExchanges: Exchange[]
+  supportedExchanges: Exchange[]
   configuredExchanges: Exchange[]
   editingExchangeId: string | null
   onSave: (
@@ -1549,8 +1637,8 @@ function ExchangeConfigModal({
     asterSigner?: string,
     asterPrivateKey?: string
   ) => Promise<void>
-  onDelete: (exchangeId: string) => void
   onClose: () => void
+  onDelete: (exchangeId: string) => void
   language: Language
 }) {
   const [selectedExchangeId, setSelectedExchangeId] = useState(
@@ -1581,10 +1669,10 @@ function ExchangeConfigModal({
 
   // 获取当前选择的交易所信息
   // 编辑模式：从 configuredExchanges 查找（包含用户配置的 apiKey、secretKey 等）
-  // 新增模式：从 allExchanges 查找（系统支持的交易所列表）
+  // 新增模式：从 supportedExchanges 查找（系统支持的交易所列表）
   const selectedExchange = editingExchangeId
     ? configuredExchanges?.find(e => e.id === selectedExchangeId)
-    : allExchanges?.find(e => e.id === selectedExchangeId);
+    : supportedExchanges?.find(e => e.id === selectedExchangeId);
 
   // 如果是编辑现有交易所，初始化表单数据
   useEffect(() => {
@@ -1621,6 +1709,9 @@ function ExchangeConfigModal({
         })
     }
   }, [selectedExchangeId])
+
+  // 可选择的交易所列表：直接使用系统支持的交易所
+  const availableExchanges = supportedExchanges || []
 
   const handleCopyIP = (ip: string) => {
     navigator.clipboard.writeText(ip).then(() => {
@@ -1693,17 +1784,13 @@ function ExchangeConfigModal({
             {editingExchangeId && (
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm(t('confirmDeleteExchange', language))) {
-                    onDelete(editingExchangeId)
-                  }
-                }}
+                onClick={() => onDelete(editingExchangeId)}
                 className="p-2 rounded hover:bg-red-100 transition-colors"
                 style={{
                   background: 'rgba(246, 70, 93, 0.1)',
                   color: '#F6465D',
                 }}
-                title={t('deleteConfigFailed', language)}
+                title={t('deleteExchange', language)}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -1732,7 +1819,7 @@ function ExchangeConfigModal({
                 required
               >
                 <option value="">{t('pleaseSelectExchange', language)}</option>
-                {(allExchanges || []).map((exchange) => (
+                {availableExchanges.map((exchange) => (
                   <option key={exchange.id} value={exchange.id}>
                     {getShortName(exchange.name)} ({exchange.type.toUpperCase()}
                     )

@@ -313,6 +313,13 @@ export const translations = {
     deleteExchangeConfigFailed: 'Failed to delete exchange configuration',
     saveSignalSourceFailed: 'Failed to save signal source configuration',
 
+    // Delete Confirmation
+    delete: 'Delete',
+    deleteModel: 'Delete Model',
+    deleteExchange: 'Delete Exchange',
+    deleteModelWarning: 'This will remove the AI model configuration. Traders using this model will not work properly.',
+    deleteExchangeWarning: 'This will remove the exchange configuration. Traders using this exchange will not be able to trade.',
+
     // Login & Register
     login: 'Sign In',
     register: 'Sign Up',
@@ -783,6 +790,13 @@ export const translations = {
     exchangeNotExist: '交易所不存在',
     deleteExchangeConfigFailed: '删除交易所配置失败',
     saveSignalSourceFailed: '保存信号源配置失败',
+
+    // Delete Confirmation
+    delete: '删除',
+    deleteModel: '删除模型',
+    deleteExchange: '删除交易所',
+    deleteModelWarning: '这将删除AI模型配置。使用此模型的交易员将无法正常工作。',
+    deleteExchangeWarning: '这将删除交易所配置。使用此交易所的交易员将无法进行交易。',
 
     // Login & Register
     login: '登录',

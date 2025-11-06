@@ -140,8 +140,9 @@ func (d *PostgreSQLDatabase) GetAIModels(userID string) ([]*AIModelConfig, error
 		SELECT id, user_id, name, provider, enabled, api_key,
 		       COALESCE(custom_api_url, '') as custom_api_url,
 		       COALESCE(custom_model_name, '') as custom_model_name,
+		       COALESCE(deleted, FALSE) as deleted,
 		       created_at, updated_at
-		FROM ai_models WHERE user_id = $1 ORDER BY id
+		FROM ai_models WHERE user_id = $1 AND COALESCE(deleted, FALSE) = FALSE ORDER BY id
 	`, userID)
 	if err != nil {
 		return nil, err
@@ -152,10 +153,11 @@ func (d *PostgreSQLDatabase) GetAIModels(userID string) ([]*AIModelConfig, error
 	models := make([]*AIModelConfig, 0)
 	for rows.Next() {
 		var model AIModelConfig
+		var deleted bool // 临时变量，用于读取 deleted 字段但不保存到结构体
 		err := rows.Scan(
 			&model.ID, &model.UserID, &model.Name, &model.Provider,
 			&model.Enabled, &model.APIKey, &model.CustomAPIURL, &model.CustomModelName,
-			&model.CreatedAt, &model.UpdatedAt,
+			&deleted, &model.CreatedAt, &model.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -168,7 +170,59 @@ func (d *PostgreSQLDatabase) GetAIModels(userID string) ([]*AIModelConfig, error
 
 // UpdateAIModel 更新AI模型配置，如果不存在则创建用户特定配置
 func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
-	// 先尝试精确匹配 ID（新版逻辑，支持多个相同 provider 的模型）
+	log.Printf("🔧 UpdateAIModel: userID=%s, id=%s, enabled=%v", userID, id, enabled)
+
+	// 检查是否为删除操作（API Key 为空且 enabled 为 false 表示删除）
+	isDelete := !enabled && apiKey == "" && customAPIURL == "" && customModelName == ""
+
+	if isDelete {
+		// 执行软删除：标记为已删除并清空敏感数据
+		// 先尝试精确匹配 ID
+		var existingID string
+		err := d.db.QueryRow(`
+			SELECT id FROM ai_models WHERE user_id = $1 AND id = $2 LIMIT 1
+		`, userID, id).Scan(&existingID)
+
+		if err == nil {
+			// 找到了现有配置（精确匹配 ID），标记为删除并清空敏感数据
+			_, err = d.db.Exec(`
+				UPDATE ai_models SET enabled = FALSE, deleted = TRUE, api_key = '', custom_api_url = '', custom_model_name = '', updated_at = CURRENT_TIMESTAMP
+				WHERE id = $1 AND user_id = $2
+			`, existingID, userID)
+			if err != nil {
+				log.Printf("❌ UpdateAIModel: 标记删除失败: %v", err)
+				return err
+			}
+			log.Printf("🗑️ UpdateAIModel: 已标记删除用户 %s 的模型配置 %s", userID, existingID)
+			return nil
+		}
+
+		// ID 不存在，尝试兼容旧逻辑：将 id 作为 provider 查找
+		provider := id
+		err = d.db.QueryRow(`
+			SELECT id FROM ai_models WHERE user_id = $1 AND provider = $2 LIMIT 1
+		`, userID, provider).Scan(&existingID)
+
+		if err == nil {
+			// 找到了现有配置（通过 provider 匹配），标记为删除并清空敏感数据
+			_, err = d.db.Exec(`
+				UPDATE ai_models SET enabled = FALSE, deleted = TRUE, api_key = '', custom_api_url = '', custom_model_name = '', updated_at = CURRENT_TIMESTAMP
+				WHERE id = $1 AND user_id = $2
+			`, existingID, userID)
+			if err != nil {
+				log.Printf("❌ UpdateAIModel: 标记删除失败: %v", err)
+				return err
+			}
+			log.Printf("🗑️ UpdateAIModel: 已标记删除用户 %s 的模型配置 %s (通过provider匹配)", userID, existingID)
+			return nil
+		}
+		
+		// 没有找到配置，返回成功（幂等性）
+		log.Printf("ℹ️ UpdateAIModel: 模型配置不存在，跳过删除: %s", id)
+		return nil
+	}
+
+	// 启用模型的情况：先尝试精确匹配 ID（新版逻辑，支持多个相同 provider 的模型）
 	var existingID string
 	err := d.db.QueryRow(`
 		SELECT id FROM ai_models WHERE user_id = $1 AND id = $2 LIMIT 1
@@ -177,7 +231,7 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 	if err == nil {
 		// 找到了现有配置（精确匹配 ID），更新它
 		_, err = d.db.Exec(`
-			UPDATE ai_models SET enabled = $1, api_key = $2, custom_api_url = $3, custom_model_name = $4, updated_at = CURRENT_TIMESTAMP
+			UPDATE ai_models SET enabled = $1, api_key = $2, custom_api_url = $3, custom_model_name = $4, deleted = FALSE, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $5 AND user_id = $6
 		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
 		return err
@@ -193,7 +247,7 @@ func (d *PostgreSQLDatabase) UpdateAIModel(userID, id string, enabled bool, apiK
 		// 找到了现有配置（通过 provider 匹配，兼容旧版），更新它
 		log.Printf("⚠️  使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
 		_, err = d.db.Exec(`
-			UPDATE ai_models SET enabled = $1, api_key = $2, custom_api_url = $3, custom_model_name = $4, updated_at = CURRENT_TIMESTAMP
+			UPDATE ai_models SET enabled = $1, api_key = $2, custom_api_url = $3, custom_model_name = $4, deleted = FALSE, updated_at = CURRENT_TIMESTAMP
 			WHERE id = $5 AND user_id = $6
 		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
 		return err

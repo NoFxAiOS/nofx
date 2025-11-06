@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS ai_models (
     api_key TEXT DEFAULT '',
     custom_api_url TEXT DEFAULT '',
     custom_model_name TEXT DEFAULT '',
+    deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -166,6 +167,9 @@ INSERT INTO system_config (key, value) VALUES
 ('altcoin_leverage', '5'),
 ('jwt_secret', '')
 ON CONFLICT (key) DO NOTHING;
+
+-- 数据库迁移：添加 deleted 字段到现有 ai_models 表
+ALTER TABLE ai_models ADD COLUMN IF NOT EXISTS deleted BOOLEAN DEFAULT FALSE;
 
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_ai_models_user_id ON ai_models(user_id);

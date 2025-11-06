@@ -15,12 +15,19 @@ import (
 )
 
 func main() {
-	privateKeyPath := flag.String("key", "keys/rsa_private.key", "RSA 私钥路径")
+	privateKeyPath := flag.String("key", "../../keys/rsa_private.key", "RSA 私钥路径")
 	dryRun := flag.Bool("dry-run", false, "仅检查需要迁移的数据，不写入数据库")
 	flag.Parse()
 
 	// 尝试加载 .env 文件
-	envPaths := []string{"../../.env", ".env"}
+	envPaths := []string{
+		"../../.env",    // 从 scripts/migrate_sensitive_data/ 到根目录
+		"../../../.env", // 如果在更深的目录结构中
+		".env",          // 当前目录
+		"../.env",       // scripts/ 目录
+		"/root/nofxos/.env", // 服务器上的绝对路径
+		"/home/nofxai_test/nofxos/.env", // 另一个可能的服务器路径
+	}
 	envLoaded := false
 	for _, envPath := range envPaths {
 		if err := loadEnvFile(envPath); err == nil {
@@ -30,7 +37,8 @@ func main() {
 		}
 	}
 	if !envLoaded {
-		log.Printf("警告: 未找到 .env 文件")
+		log.Printf("警告: 未找到 .env 文件，请确保在项目根目录存在 .env 文件")
+		log.Printf("尝试的路径: %v", envPaths)
 	}
 
 	// 确保环境变量已设置
@@ -46,12 +54,31 @@ func main() {
 func run(privateKeyPath string, dryRun bool) error {
 	log.SetFlags(0)
 	
-	// 检查密钥文件是否存在
-	if _, err := os.Stat(privateKeyPath); err != nil {
-		log.Printf("警告: 私钥文件不存在: %s, 将尝试生成新密钥", privateKeyPath)
+	// 尝试多个可能的私钥路径
+	keyPaths := []string{
+		privateKeyPath,
+		"../../keys/rsa_private.key",
+		"../keys/rsa_private.key", 
+		"keys/rsa_private.key",
+		"/root/nofxos/keys/rsa_private.key",
+		"/home/nofxai_test/nofxos/keys/rsa_private.key",
+	}
+	
+	var finalKeyPath string
+	for _, path := range keyPaths {
+		if _, err := os.Stat(path); err == nil {
+			finalKeyPath = path
+			log.Printf("找到私钥文件: %s", path)
+			break
+		}
+	}
+	
+	if finalKeyPath == "" {
+		finalKeyPath = privateKeyPath // 使用默认路径，让 crypto 服务生成新密钥
+		log.Printf("警告: 私钥文件不存在，将使用路径: %s, 系统将尝试生成新密钥", finalKeyPath)
 	}
 
-	cryptoService, err := crypto.NewCryptoService(privateKeyPath)
+	cryptoService, err := crypto.NewCryptoService(finalKeyPath)
 	if err != nil {
 		return fmt.Errorf("初始化加密服务失败: %w", err)
 	}

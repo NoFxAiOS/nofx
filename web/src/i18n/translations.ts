@@ -265,6 +265,11 @@ export const translations = {
     addAIModel: 'Add AI Model',
     confirmDeleteModel:
       'Are you sure you want to delete this AI model configuration?',
+    cannotDeleteModelInUse:
+      'Cannot delete this AI model because it is being used by traders',
+    tradersUsing: 'Traders using this configuration',
+    pleaseDeleteTradersFirst:
+      'Please delete or reconfigure these traders first',
     selectModel: 'Select AI Model',
     pleaseSelectModel: 'Please select a model',
     customBaseURL: 'Base URL (Optional)',
@@ -281,6 +286,8 @@ export const translations = {
     addExchange: 'Add Exchange',
     confirmDeleteExchange:
       'Are you sure you want to delete this exchange configuration?',
+    cannotDeleteExchangeInUse:
+      'Cannot delete this exchange because it is being used by traders',
     pleaseSelectExchange: 'Please select an exchange',
     exchangeConfigWarning1:
       '• API keys will be encrypted, recommend using read-only or futures trading permissions',
@@ -929,6 +936,9 @@ export const translations = {
     editAIModel: '编辑AI模型',
     addAIModel: '添加AI模型',
     confirmDeleteModel: '确定要删除此AI模型配置吗？',
+    cannotDeleteModelInUse: '无法删除此AI模型，因为有交易员正在使用',
+    tradersUsing: '正在使用此配置的交易员',
+    pleaseDeleteTradersFirst: '请先删除或重新配置这些交易员',
     selectModel: '选择AI模型',
     pleaseSelectModel: '请选择模型',
     customBaseURL: 'Base URL (可选)',
@@ -941,6 +951,7 @@ export const translations = {
     editExchange: '编辑交易所',
     addExchange: '添加交易所',
     confirmDeleteExchange: '确定要删除此交易所配置吗？',
+    cannotDeleteExchangeInUse: '无法删除此交易所，因为有交易员正在使用',
     pleaseSelectExchange: '请选择交易所',
     exchangeConfigWarning1: '• API密钥将被加密存储，建议使用只读或期货交易权限',
     exchangeConfigWarning2: '• 不要授予提现权限，确保资金安全',

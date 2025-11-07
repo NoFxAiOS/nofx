@@ -39,17 +39,29 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 		apiURL = hyperliquid.TestnetAPIURL
 	}
 
-	// 从私钥生成钱包地址（如果未提供）
+	// Security enhancement: Implement Agent Wallet best practices
+	// Reference: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets
+	agentAddr := crypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey)).Hex()
+
 	if walletAddr == "" {
-		pubKey := privateKey.Public()
-		publicKeyECDSA, ok := pubKey.(*ecdsa.PublicKey)
-		if !ok {
-			return nil, fmt.Errorf("无法转换公钥")
-		}
-		walletAddr = crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
-		log.Printf("✓ 从私钥自动生成钱包地址: %s", walletAddr)
+		return nil, fmt.Errorf("❌ Configuration error: Main wallet address (hyperliquid_wallet_addr) not provided\n" +
+			"🔐 Correct configuration pattern:\n" +
+			"  1. hyperliquid_private_key = Agent Private Key (for signing only, balance should be ~0)\n" +
+			"  2. hyperliquid_wallet_addr = Main Wallet Address (holds funds, never expose private key)\n" +
+			"💡 Please create an Agent Wallet on Hyperliquid official website and authorize it before configuration:\n" +
+			"   https://app.hyperliquid.xyz/ → Settings → API Wallets")
+	}
+
+	// Check if user accidentally uses main wallet private key (security risk)
+	if strings.EqualFold(walletAddr, agentAddr) {
+		log.Printf("⚠️⚠️⚠️ WARNING: Main wallet address (%s) matches Agent wallet address!", walletAddr)
+		log.Printf("   This indicates you may be using your main wallet private key, which poses extremely high security risks!")
+		log.Printf("   Recommendation: Immediately create a separate Agent Wallet on Hyperliquid official website")
+		log.Printf("   Reference: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets")
 	} else {
-		log.Printf("✓ 使用提供的钱包地址: %s", walletAddr)
+		log.Printf("✓ Using Agent Wallet mode (secure)")
+		log.Printf("  └─ Agent wallet address: %s (for signing)", agentAddr)
+		log.Printf("  └─ Main wallet address: %s (holds funds)", walletAddr)
 	}
 
 	ctx := context.Background()
@@ -71,6 +83,39 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 	meta, err := exchange.Info().Meta(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("获取meta信息失败: %w", err)
+	}
+
+	// 🔍 Security check: Validate Agent wallet balance (should be close to 0)
+	// Only check if using separate Agent wallet (not when main wallet is used as agent)
+	if !strings.EqualFold(walletAddr, agentAddr) {
+		agentState, err := exchange.Info().UserState(ctx, agentAddr)
+		if err == nil && agentState != nil && agentState.CrossMarginSummary.AccountValue != "" {
+			// Parse Agent wallet balance
+			agentBalance, _ := strconv.ParseFloat(agentState.CrossMarginSummary.AccountValue, 64)
+
+			if agentBalance > 100 {
+				// Critical: Agent wallet holds too much funds
+				log.Printf("🚨🚨🚨 CRITICAL SECURITY WARNING 🚨🚨🚨")
+				log.Printf("   Agent wallet balance: %.2f USDC (exceeds safe threshold of 100 USDC)", agentBalance)
+				log.Printf("   Agent wallet address: %s", agentAddr)
+				log.Printf("   ⚠️  Agent wallets should only be used for signing and hold minimal/zero balance")
+				log.Printf("   ⚠️  High balance in Agent wallet poses security risks")
+				log.Printf("   📖 Reference: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets")
+				log.Printf("   💡 Recommendation: Transfer funds to main wallet and keep Agent wallet balance near 0")
+				return nil, fmt.Errorf("security check failed: Agent wallet balance too high (%.2f USDC), exceeds 100 USDC threshold", agentBalance)
+			} else if agentBalance > 10 {
+				// Warning: Agent wallet has some balance (acceptable but not ideal)
+				log.Printf("⚠️  Notice: Agent wallet address (%s) has some balance: %.2f USDC", agentAddr, agentBalance)
+				log.Printf("   While not critical, it's recommended to keep Agent wallet balance near 0 for security")
+			} else {
+				// OK: Agent wallet balance is safe
+				log.Printf("✓ Agent wallet balance is safe: %.2f USDC (near zero as recommended)", agentBalance)
+			}
+		} else if err != nil {
+			// Failed to query agent balance - log warning but don't block initialization
+			log.Printf("⚠️  Could not verify Agent wallet balance (query failed): %v", err)
+			log.Printf("   Proceeding with initialization, but please manually verify Agent wallet balance is near 0")
+		}
 	}
 
 	return &HyperliquidTrader{
@@ -170,15 +215,15 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 		}
 	}
 
-	// ✅ Step 5: 正確處理 Spot + Perpetuals 余额
-	// 重要：Spot 只加到總資產，不加到可用餘額
-	//      原因：Spot 和 Perpetuals 是獨立帳戶，需手動 ClassTransfer 才能轉帳
+	// ✅ Step 5: 正确处理 Spot + Perpetuals 余额
+	// 重要：Spot 只加到总资产，不加到可用余额
+	//      原因：Spot 和 Perpetuals 是独立帐户，需手动 ClassTransfer 才能转账
 	totalWalletBalance := walletBalanceWithoutUnrealized + spotUSDCBalance
 
-	result["totalWalletBalance"] = totalWalletBalance    // 總資產（Perp + Spot）
-	result["availableBalance"] = availableBalance        // 可用餘額（僅 Perpetuals，不含 Spot）
-	result["totalUnrealizedProfit"] = totalUnrealizedPnl // 未實現盈虧（僅來自 Perpetuals）
-	result["spotBalance"] = spotUSDCBalance              // Spot 現貨餘額（單獨返回）
+	result["totalWalletBalance"] = totalWalletBalance    // 总资产（Perp + Spot）
+	result["availableBalance"] = availableBalance        // 可用余额（仅 Perpetuals，不含 Spot）
+	result["totalUnrealizedProfit"] = totalUnrealizedPnl // 未实现盈亏（仅来自 Perpetuals）
+	result["spotBalance"] = spotUSDCBalance              // Spot 现货余额（单独返回）
 
 	log.Printf("✓ Hyperliquid 完整账户:")
 	log.Printf("  • Spot 现货余额: %.2f USDC （需手动转账到 Perpetuals 才能开仓）", spotUSDCBalance)
@@ -186,9 +231,9 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 		accountValue,
 		walletBalanceWithoutUnrealized,
 		totalUnrealizedPnl)
-	log.Printf("  • Perpetuals 可用余额: %.2f USDC （可直接用於開倉）", availableBalance)
+	log.Printf("  • Perpetuals 可用余额: %.2f USDC （可直接用于开仓）", availableBalance)
 	log.Printf("  • 保证金占用: %.2f USDC", totalMarginUsed)
-	log.Printf("  • 總資產 (Perp+Spot): %.2f USDC", totalWalletBalance)
+	log.Printf("  • 总资产 (Perp+Spot): %.2f USDC", totalWalletBalance)
 	log.Printf("  ⭐ 总资产: %.2f USDC | Perp 可用: %.2f USDC | Spot 余额: %.2f USDC",
 		totalWalletBalance, availableBalance, spotUSDCBalance)
 

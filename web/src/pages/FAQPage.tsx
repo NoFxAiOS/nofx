@@ -24,7 +24,7 @@ import { t } from '../i18n/translations'
 export function FAQPage() {
   const { language, setLanguage } = useLanguage()
   const { user, logout } = useAuth()
-  const { config: systemConfig } = useSystemConfig()
+  useSystemConfig() // Load system config but don't use it
 
   return (
     <div
@@ -38,8 +38,7 @@ export function FAQPage() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        isAdminMode={systemConfig?.admin_mode}
-        onPageChange={(page) => {
+                onPageChange={(page) => {
           if (page === 'competition') {
             window.history.pushState({}, '', '/competition')
             window.location.href = '/competition'

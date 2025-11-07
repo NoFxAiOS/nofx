@@ -258,7 +258,6 @@ func (d *Database) initDefaultData() error {
 
 	// 初始化系统配置 - 创建所有字段，设置默认值，后续由config.json同步更新
 	systemConfigs := map[string]string{
-		"admin_mode":           "true",                                                                                // 默认开启管理员模式，便于首次使用
 		"beta_mode":            "false",                                                                               // 默认关闭内测模式
 		"api_server_port":      "8080",                                                                                // 默认API端口
 		"use_default_coins":    "true",                                                                                // 默认使用内置币种列表
@@ -398,11 +397,12 @@ type ExchangeConfig struct {
 	Name      string `json:"name"`
 	Type      string `json:"type"`
 	Enabled   bool   `json:"enabled"`
-	APIKey    string `json:"apiKey"`
-	SecretKey string `json:"secretKey"`
+	APIKey    string `json:"apiKey"`    // For Binance: API Key; For Hyperliquid: Agent Private Key (should have ~0 balance)
+	SecretKey string `json:"secretKey"` // For Binance: Secret Key; Not used for Hyperliquid
 	Testnet   bool   `json:"testnet"`
-	// Hyperliquid 特定字段
-	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"`
+	// Hyperliquid Agent Wallet configuration (following official best practices)
+	// Reference: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets
+	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Main Wallet Address (holds funds, never expose private key)
 	// Aster 特定字段
 	AsterUser       string    `json:"asterUser"`
 	AsterSigner     string    `json:"asterSigner"`

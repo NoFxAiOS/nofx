@@ -11,7 +11,8 @@ import type {
   UpdateModelConfigRequest,
   UpdateExchangeConfigRequest,
   CompetitionData,
-} from '../types'
+} from '../types';
+import { CryptoService } from './crypto';
 
 const API_BASE = '/api'
 
@@ -163,6 +164,40 @@ export const api = {
       body: JSON.stringify(request),
     })
     if (!res.ok) throw new Error('更新交易所配置失败')
+  },
+
+  // 使用加密传输更新交易所配置
+  async updateExchangeConfigsEncrypted(request: UpdateExchangeConfigRequest): Promise<void> {
+    // 从系统配置获取公钥
+    const configRes = await fetch(`${API_BASE}/config`);
+    if (!configRes.ok) throw new Error('获取系统配置失败');
+    const config = await configRes.json();
+    
+    if (!config.rsa_public_key) {
+      throw new Error('系统未配置RSA公钥，无法使用加密传输');
+    }
+
+    // 初始化加密服务
+    await CryptoService.initialize(config.rsa_public_key);
+
+    // 获取用户信息（从localStorage或其他地方）
+    const userId = localStorage.getItem('user_id') || '';
+    const sessionId = sessionStorage.getItem('session_id') || '';
+
+    // 加密敏感数据
+    const encryptedPayload = await CryptoService.encryptSensitiveData(
+      JSON.stringify(request),
+      userId,
+      sessionId
+    );
+
+    // 发送加密数据
+    const res = await fetch(`${API_BASE}/exchanges/encrypted`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(encryptedPayload),
+    });
+    if (!res.ok) throw new Error('更新交易所配置失败');
   },
 
   // 获取系统状态（支持trader_id）

@@ -57,6 +57,7 @@ services:
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据加密密钥
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-nofx}

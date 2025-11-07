@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"nofx/auth"
 	"nofx/config"
+	"nofx/crypto"
 	"nofx/decision"
 	"nofx/manager"
 	"nofx/trader"
@@ -24,11 +25,12 @@ type Server struct {
 	router        *gin.Engine
 	traderManager *manager.TraderManager
 	database      config.DatabaseInterface
+	cryptoService *crypto.CryptoService
 	port          int
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database config.DatabaseInterface, port int) *Server {
+func NewServer(traderManager *manager.TraderManager, database config.DatabaseInterface, cryptoService *crypto.CryptoService, port int) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 
@@ -37,10 +39,17 @@ func NewServer(traderManager *manager.TraderManager, database config.DatabaseInt
 	// 启用CORS
 	router.Use(corsMiddleware())
 
+	if cryptoService == nil {
+		log.Printf("⚠️ 加密服务未初始化，敏感数据加解密功能不可用")
+	} else {
+		database.SetCryptoService(cryptoService)
+	}
+
 	s := &Server{
 		router:        router,
 		traderManager: traderManager,
 		database:      database,
+		cryptoService: cryptoService,
 		port:          port,
 	}
 
@@ -123,6 +132,7 @@ func (s *Server) setupRoutes() {
 			// 交易所配置
 			protected.GET("/exchanges", s.handleGetExchangeConfigs)
 			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
+			protected.PUT("/exchanges/encrypted", s.handleUpdateExchangeConfigsEncrypted)
 
 			// 用户信号源配置
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
@@ -179,11 +189,19 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
 	betaMode := betaModeStr == "true"
 
+	// 获取RSA公钥
+	var rsaPublicKey string
+	if s.cryptoService != nil {
+		rsaPublicKey = s.cryptoService.GetPublicKeyPEM()
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"beta_mode":        betaMode,
 		"default_coins":    defaultCoins,
 		"btc_eth_leverage": btcEthLeverage,
 		"altcoin_leverage": altcoinLeverage,
+		"rsa_public_key":   rsaPublicKey,
+		"rsa_key_id":       "rsa-key-2025-11-05",
 	})
 }
 
@@ -379,6 +397,21 @@ type ExchangeConfig struct {
 	APIKey    string `json:"apiKey,omitempty"`
 	SecretKey string `json:"secretKey,omitempty"`
 	Testnet   bool   `json:"testnet,omitempty"`
+}
+
+// SafeExchangeConfig 安全的交易所配置响应结构（不包含敏感信息）
+type SafeExchangeConfig struct {
+	ID                    string    `json:"id"`
+	UserID                string    `json:"user_id"`
+	Name                  string    `json:"name"`
+	Type                  string    `json:"type"`
+	Enabled               bool      `json:"enabled"`
+	Testnet               bool      `json:"testnet"`
+	HyperliquidWalletAddr string    `json:"hyperliquidWalletAddr"` // 钱包地址，非敏感信息
+	AsterUser             string    `json:"asterUser"`             // Aster用户名，非敏感信息
+	Deleted               bool      `json:"deleted"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 type UpdateModelConfigRequest struct {
@@ -1005,7 +1038,25 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	}
 	log.Printf("✅ 找到 %d 个交易所配置", len(exchanges))
 
-	c.JSON(http.StatusOK, exchanges)
+	// 转换为安全的响应结构，过滤敏感信息
+	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
+	for i, exchange := range exchanges {
+		safeExchanges[i] = SafeExchangeConfig{
+			ID:                    exchange.ID,
+			UserID:                exchange.UserID,
+			Name:                  exchange.Name,
+			Type:                  exchange.Type,
+			Enabled:               exchange.Enabled,
+			Testnet:               exchange.Testnet,
+			HyperliquidWalletAddr: exchange.HyperliquidWalletAddr, // 钱包地址，非敏感信息
+			AsterUser:             exchange.AsterUser,             // Aster用户名，非敏感信息
+			Deleted:               exchange.Deleted,
+			CreatedAt:             exchange.CreatedAt,
+			UpdatedAt:             exchange.UpdatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, safeExchanges)
 }
 
 // handleUpdateExchangeConfigs 更新交易所配置
@@ -1638,12 +1689,59 @@ func (s *Server) handleCompleteRegistration(c *gin.Context) {
 // handleLogin 处理用户登录请求
 func (s *Server) handleLogin(c *gin.Context) {
 	var req struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
+		Email             string                   `json:"email"`
+		EmailEncrypted    *crypto.EncryptedPayload `json:"email_encrypted"`
+		Password          string                   `json:"password"`
+		PasswordEncrypted *crypto.EncryptedPayload `json:"password_encrypted"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.EmailEncrypted != nil {
+		if s.cryptoService == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "加密服务不可用"})
+			return
+		}
+
+		decryptedEmail, err := s.cryptoService.DecryptSensitiveData(req.EmailEncrypted)
+		if err != nil {
+			log.Printf("❌ 登录邮箱解密失败: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱解密失败"})
+			return
+		}
+		req.Email = decryptedEmail
+	}
+
+	if req.PasswordEncrypted != nil {
+		if s.cryptoService == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "加密服务不可用"})
+			return
+		}
+
+		decryptedPassword, err := s.cryptoService.DecryptSensitiveData(req.PasswordEncrypted)
+		if err != nil {
+			log.Printf("❌ 登录密码解密失败: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": "密码解密失败"})
+			return
+		}
+		req.Password = decryptedPassword
+	}
+
+	req.Email = strings.TrimSpace(req.Email)
+	if req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱不能为空"})
+		return
+	}
+	if !strings.Contains(req.Email, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱格式错误"})
+		return
+	}
+
+	if strings.TrimSpace(req.Password) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "密码不能为空"})
 		return
 	}
 
@@ -2025,4 +2123,65 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// handleUpdateExchangeConfigsEncrypted 更新交易所配置（加密传输）
+func (s *Server) handleUpdateExchangeConfigsEncrypted(c *gin.Context) {
+	if s.cryptoService == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "加密服务不可用"})
+		return
+	}
+
+	userID := c.GetString("user_id")
+
+	// 接收加密载荷
+	var payload crypto.EncryptedPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 解密数据
+	decryptedData, err := s.cryptoService.DecryptSensitiveData(&payload)
+	if err != nil {
+		log.Printf("❌ 解密失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解密失败"})
+		return
+	}
+
+	// 解析解密后的数据
+	var req UpdateExchangeConfigRequest
+	if err := json.Unmarshal([]byte(decryptedData), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "数据格式错误"})
+		return
+	}
+
+	// 更新每个交易所的配置
+	for exchangeID, exchangeData := range req.Exchanges {
+		err := s.database.UpdateExchange(
+			userID,
+			exchangeID,
+			exchangeData.Enabled,
+			exchangeData.APIKey,
+			exchangeData.SecretKey,
+			exchangeData.Testnet,
+			exchangeData.HyperliquidWalletAddr,
+			exchangeData.AsterUser,
+			exchangeData.AsterSigner,
+			exchangeData.AsterPrivateKey,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
+			return
+		}
+	}
+
+	// 重新加载该用户的所有交易员，使新配置立即生效
+	err = s.traderManager.LoadUserTraders(s.database, userID)
+	if err != nil {
+		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
+	}
+
+	log.Printf("✓ 交易所配置已通过加密方式更新")
+	c.JSON(http.StatusOK, gin.H{"message": "交易所配置已更新"})
 }

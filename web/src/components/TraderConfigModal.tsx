@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { AIModel, Exchange, CreateTraderRequest } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { Modal } from './ui/Modal'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -257,15 +258,10 @@ export function TraderConfigModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div
-        className="bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl max-w-3xl w-full my-8"
-        style={{ maxHeight: 'calc(100vh - 4rem)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky top-0 z-10 rounded-t-xl">
-          <div className="flex items-center gap-3">
+    <Modal open={isOpen} onOpenChange={(open) => !open && onClose()} size="xl">
+      <Modal.Content>
+        <Modal.Header onClose={onClose} showCloseButton={false}>
+          <div className="flex items-center gap-3 flex-1">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center">
               <span className="text-lg">{isEditMode ? '✏️' : '➕'}</span>
             </div>
@@ -278,19 +274,18 @@ export function TraderConfigModal({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg text-[#848E9C] hover:text-[#EAECEF] hover:bg-[#2B3139] transition-colors flex items-center justify-center"
-          >
-            ✕
-          </button>
-        </div>
+          <Modal.Close asChild>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg text-[#848E9C] hover:text-[#EAECEF] hover:bg-[#2B3139] transition-colors flex items-center justify-center ml-4"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </Modal.Close>
+        </Modal.Header>
 
-        {/* Content */}
-        <div
-          className="p-6 space-y-8 overflow-y-auto"
-          style={{ maxHeight: 'calc(100vh - 16rem)' }}
-        >
+        <Modal.Body className="space-y-8">
           {/* Basic Info */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
@@ -695,10 +690,9 @@ export function TraderConfigModal({
               </div>
             </div>
           </div>
-        </div>
+        </Modal.Body>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky bottom-0 z-10 rounded-b-xl">
+        <Modal.Footer className="justify-end">
           <button
             onClick={onClose}
             className="px-6 py-3 bg-[#2B3139] text-[#EAECEF] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#404750]"
@@ -719,8 +713,8 @@ export function TraderConfigModal({
               {isSaving ? '保存中...' : isEditMode ? '保存修改' : '创建交易员'}
             </button>
           )}
-        </div>
-      </div>
-    </div>
+        </Modal.Footer>
+      </Modal.Content>
+    </Modal>
   )
 }

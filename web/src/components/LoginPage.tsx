@@ -17,7 +17,6 @@ export function LoginPage() {
   const [adminPassword, setAdminPassword] = useState('')
   const adminMode = false
 
-
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')

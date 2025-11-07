@@ -10,10 +10,13 @@ import type {
 import { useLanguage } from '../contexts/LanguageContext'
 import { t, type Language } from '../i18n/translations'
 import { useAuth } from '../contexts/AuthContext'
-import { CryptoService } from '../lib/crypto'
 import { getExchangeIcon } from './ExchangeIcons'
 import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
+import {
+  TwoStageKeyModal,
+  type TwoStageKeyModalResult,
+} from './TwoStageKeyModal'
 import {
   Bot,
   Brain,
@@ -148,10 +151,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
       // Hyperliquid 需要检查钱包地址（后端会返回这个字段）
       if (e.id === 'hyperliquid') {
-        return (
-          e.hyperliquidWalletAddr &&
-          e.hyperliquidWalletAddr.trim() !== ''
-        )
+        return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
       }
       // 其他交易所：如果已启用，说明已配置（后端返回的已配置交易所会有 enabled: true）
       return e.enabled
@@ -176,10 +176,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       // Hyperliquid 需要钱包地址（后端会返回这个字段）
       if (e.id === 'hyperliquid') {
-        return (
-          e.hyperliquidWalletAddr &&
-          e.hyperliquidWalletAddr.trim() !== ''
-        )
+        return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
       }
 
       // 其他交易所：如果已启用，说明已配置完整（后端只返回已配置的交易所）
@@ -477,41 +474,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         updatedModels = [...(allModels || []), newModel]
       }
 
-      // 加密敏感数据
-      const encryptedModels = await Promise.all(
-        updatedModels.map(async (model) => {
-          let encryptedApiKey = model.apiKey || ''
-          
-          // 只有当API密钥不为空时才加密
-          if (model.apiKey && model.apiKey.trim() !== '') {
-            try {
-              const encryptedPayload = await CryptoService.encryptSensitiveData(
-                model.apiKey,
-                user?.id,
-                `model_config_${model.provider}`
-              )
-              encryptedApiKey = JSON.stringify(encryptedPayload)
-            } catch (error) {
-              console.error('Failed to encrypt model API key:', error)
-              alert(t('encryptionFailed', language))
-              throw error
-            }
-          }
-
-          return [
-            model.provider,
+      const request = {
+        models: Object.fromEntries(
+          updatedModels.map((model) => [
+            model.provider, // 使用 provider 而不是 id
             {
               enabled: model.enabled,
-              api_key: encryptedApiKey,
+              api_key: model.apiKey || '',
               custom_api_url: model.customApiUrl || '',
               custom_model_name: model.customModelName || '',
             },
-          ]
-        })
-      )
-
-      const request = {
-        models: Object.fromEntries(encryptedModels),
+          ])
+        ),
       }
 
       await api.updateModelConfigs(request)
@@ -628,84 +602,25 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         updatedExchanges = [...(allExchanges || []), newExchange]
       }
 
-      // 加密敏感数据
-      const encryptedExchanges = await Promise.all(
-        updatedExchanges.map(async (exchange) => {
-          let encryptedApiKey = exchange.apiKey || ''
-          let encryptedSecretKey = exchange.secretKey || ''
-          let encryptedAsterPrivateKey = exchange.asterPrivateKey || ''
-
-          const sessionId = `exchange_config_${exchange.id}`
-
-          // 加密API密钥
-          if (exchange.apiKey && exchange.apiKey.trim() !== '') {
-            try {
-              const encryptedPayload = await CryptoService.encryptSensitiveData(
-                exchange.apiKey,
-                user?.id,
-                sessionId
-              )
-              encryptedApiKey = JSON.stringify(encryptedPayload)
-            } catch (error) {
-              console.error('Failed to encrypt exchange API key:', error)
-              alert(t('encryptionFailed', language))
-              throw error
-            }
-          }
-
-          // 加密Secret密钥
-          if (exchange.secretKey && exchange.secretKey.trim() !== '') {
-            try {
-              const encryptedPayload = await CryptoService.encryptSensitiveData(
-                exchange.secretKey,
-                user?.id,
-                sessionId
-              )
-              encryptedSecretKey = JSON.stringify(encryptedPayload)
-            } catch (error) {
-              console.error('Failed to encrypt exchange secret key:', error)
-              alert(t('encryptionFailed', language))
-              throw error
-            }
-          }
-
-          // 加密Aster私钥
-          if (exchange.asterPrivateKey && exchange.asterPrivateKey.trim() !== '') {
-            try {
-              const encryptedPayload = await CryptoService.encryptSensitiveData(
-                exchange.asterPrivateKey,
-                user?.id,
-                sessionId
-              )
-              encryptedAsterPrivateKey = JSON.stringify(encryptedPayload)
-            } catch (error) {
-              console.error('Failed to encrypt aster private key:', error)
-              alert(t('encryptionFailed', language))
-              throw error
-            }
-          }
-
-          return [
+      const request = {
+        exchanges: Object.fromEntries(
+          updatedExchanges.map((exchange) => [
             exchange.id,
             {
               enabled: exchange.enabled,
-              api_key: encryptedApiKey,
-              secret_key: encryptedSecretKey,
+              api_key: exchange.apiKey || '',
+              secret_key: exchange.secretKey || '',
               testnet: exchange.testnet || false,
               hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
               aster_user: exchange.asterUser || '',
               aster_signer: exchange.asterSigner || '',
-              aster_private_key: encryptedAsterPrivateKey,
+              aster_private_key: exchange.asterPrivateKey || '',
             },
-          ]
-        })
-      )
-
-      const request = {
-        exchanges: Object.fromEntries(encryptedExchanges),
+          ])
+        ),
       }
 
-      await api.updateExchangeConfigs(request)
+      await api.updateExchangeConfigsEncrypted(request)
 
       // 重新获取用户配置以确保数据同步
       const refreshedExchanges = await api.getExchangeConfigs()
@@ -1782,6 +1697,11 @@ function ExchangeConfigModal({
   // Hyperliquid 特定字段
   const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('')
 
+  // 安全输入状态
+  const [secureInputTarget, setSecureInputTarget] = useState<
+    null | 'hyperliquid' | 'aster'
+  >(null)
+
   // 获取当前编辑的交易所信息
   const selectedExchange = allExchanges?.find(
     (e) => e.id === selectedExchangeId
@@ -1828,6 +1748,44 @@ function ExchangeConfigModal({
       setCopiedIP(true)
       setTimeout(() => setCopiedIP(false), 2000)
     })
+  }
+
+  // 安全输入处理函数
+  const secureInputContextLabel =
+    secureInputTarget === 'aster'
+      ? t('asterExchangeName', language)
+      : secureInputTarget === 'hyperliquid'
+        ? t('hyperliquidExchangeName', language)
+        : undefined
+
+  const handleSecureInputCancel = () => {
+    setSecureInputTarget(null)
+  }
+
+  const handleSecureInputComplete = ({
+    value,
+    obfuscationLog,
+  }: TwoStageKeyModalResult) => {
+    const trimmed = value.trim()
+    if (secureInputTarget === 'hyperliquid') {
+      setApiKey(trimmed)
+    }
+    if (secureInputTarget === 'aster') {
+      setAsterPrivateKey(trimmed)
+    }
+    console.log('Secure input obfuscation log:', obfuscationLog)
+    setSecureInputTarget(null)
+  }
+
+  // 掩盖敏感数据显示
+  const maskSecret = (secret: string) => {
+    if (!secret || secret.length === 0) return ''
+    if (secret.length <= 8) return '*'.repeat(secret.length)
+    return (
+      secret.slice(0, 4) +
+      '*'.repeat(Math.max(secret.length - 8, 4)) +
+      secret.slice(-4)
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2243,19 +2201,58 @@ function ExchangeConfigModal({
                     >
                       {t('hyperliquidAgentPrivateKey', language)}
                     </label>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={t('enterHyperliquidAgentPrivateKey', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
-                      required
-                    />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={maskSecret(apiKey)}
+                          readOnly
+                          placeholder={t(
+                            'enterHyperliquidAgentPrivateKey',
+                            language
+                          )}
+                          className="w-full px-3 py-2 rounded"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSecureInputTarget('hyperliquid')}
+                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                          style={{
+                            background: '#F0B90B',
+                            color: '#000',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {apiKey
+                            ? t('secureInputReenter', language)
+                            : t('secureInputButton', language)}
+                        </button>
+                        {apiKey && (
+                          <button
+                            type="button"
+                            onClick={() => setApiKey('')}
+                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                            style={{
+                              background: '#1B1F2B',
+                              color: '#848E9C',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {t('secureInputClear', language)}
+                          </button>
+                        )}
+                      </div>
+                      {apiKey && (
+                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                          {t('secureInputHint', language)}
+                        </div>
+                      )}
+                    </div>
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
                       {t('hyperliquidAgentPrivateKeyDesc', language)}
                     </div>
@@ -2273,7 +2270,10 @@ function ExchangeConfigModal({
                       type="text"
                       value={hyperliquidWalletAddr}
                       onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
-                      placeholder={t('enterHyperliquidMainWalletAddress', language)}
+                      placeholder={t(
+                        'enterHyperliquidMainWalletAddress',
+                        language
+                      )}
                       className="w-full px-3 py-2 rounded"
                       style={{
                         background: '#0B0E11',
@@ -2361,19 +2361,55 @@ function ExchangeConfigModal({
                         />
                       </Tooltip>
                     </label>
-                    <input
-                      type="password"
-                      value={asterPrivateKey}
-                      onChange={(e) => setAsterPrivateKey(e.target.value)}
-                      placeholder={t('enterPrivateKey', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
-                      required
-                    />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={maskSecret(asterPrivateKey)}
+                          readOnly
+                          placeholder={t('enterPrivateKey', language)}
+                          className="w-full px-3 py-2 rounded"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSecureInputTarget('aster')}
+                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                          style={{
+                            background: '#F0B90B',
+                            color: '#000',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {asterPrivateKey
+                            ? t('secureInputReenter', language)
+                            : t('secureInputButton', language)}
+                        </button>
+                        {asterPrivateKey && (
+                          <button
+                            type="button"
+                            onClick={() => setAsterPrivateKey('')}
+                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                            style={{
+                              background: '#1B1F2B',
+                              color: '#848E9C',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {t('secureInputClear', language)}
+                          </button>
+                        )}
+                      </div>
+                      {asterPrivateKey && (
+                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                          {t('secureInputHint', language)}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -2502,6 +2538,16 @@ function ExchangeConfigModal({
           </div>
         </div>
       )}
+
+      {/* Two Stage Key Modal */}
+      <TwoStageKeyModal
+        isOpen={secureInputTarget !== null}
+        language={language}
+        contextLabel={secureInputContextLabel}
+        expectedLength={64}
+        onCancel={handleSecureInputCancel}
+        onComplete={handleSecureInputComplete}
+      />
     </div>
   )
 }

@@ -251,7 +251,7 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
-                    onPageChange={(page) => {
+          onPageChange={(page) => {
             console.log('Competition page onPageChange called with:', page)
             console.log('Current route:', route, 'Current page:', currentPage)
 
@@ -314,7 +314,7 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-                onPageChange={(page) => {
+        onPageChange={(page) => {
           console.log('Main app onPageChange called with:', page)
 
           if (page === 'competition') {

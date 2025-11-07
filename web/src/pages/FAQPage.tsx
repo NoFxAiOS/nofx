@@ -38,7 +38,7 @@ export function FAQPage() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-                onPageChange={(page) => {
+        onPageChange={(page) => {
           if (page === 'competition') {
             window.history.pushState({}, '', '/competition')
             window.location.href = '/competition'

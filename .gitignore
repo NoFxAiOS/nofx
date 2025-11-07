@@ -47,3 +47,6 @@ eslint-*.json
 
 # VS code
 .vscode
+
+# 密钥
+/crypto

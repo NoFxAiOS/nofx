@@ -29,6 +29,7 @@ type WSMonitor struct {
 	klineDataMap4h  sync.Map // 存储每个交易对的K线历史数据
 	tickerDataMap   sync.Map // 存储每个交易对的ticker数据
 	oiHistoryMap    sync.Map // P0修复：存储OI历史数据 map[symbol][]OISnapshot
+	oiStopChan      chan struct{} // P0修复：OI监控停止信号通道
 	batchSize       int
 	filterSymbols   sync.Map // 使用sync.Map来存储需要监控的币种和其状态
 	symbolStats     sync.Map // 存储币种统计信息
@@ -342,6 +343,11 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, erro
 }
 
 func (m *WSMonitor) Close() {
+	// P0修复：停止OI监控goroutine
+	if m.oiStopChan != nil {
+		close(m.oiStopChan)
+	}
+
 	m.wsClient.Close()
 	close(m.alertsChan)
 }
@@ -431,14 +437,24 @@ func (m *WSMonitor) CalculateOIChange4h(symbol string, latestOI float64) float64
 func (m *WSMonitor) StartOIMonitoring() {
 	log.Println("✅ 启动 OI 定期监控（每15分钟采样）")
 
+	// 初始化停止通道
+	m.oiStopChan = make(chan struct{})
+
 	// 立即执行一次
 	m.collectOISnapshots()
 
-	// 定期执行
+	// 定期执行（可优雅退出）
 	ticker := time.NewTicker(OIUpdateInterval)
 	go func() {
-		for range ticker.C {
-			m.collectOISnapshots()
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				m.collectOISnapshots()
+			case <-m.oiStopChan:
+				log.Println("🛑 停止 OI 定期监控")
+				return
+			}
 		}
 	}()
 }

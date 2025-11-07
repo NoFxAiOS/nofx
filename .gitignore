@@ -31,6 +31,17 @@ Thumbs.db
 config.json
 config.db
 
+# 加密密钥 (CRITICAL: 绝不提交!)
+.secrets/
+*.key
+*.pem
+crypto/.secrets/
+
+# 数据库备份
+config.db.backup.*
+config.db.pre_encryption_backup
+*.db.backup
+
 # 决策日志
 decision_logs/
 coin_pool_cache/

@@ -896,6 +896,8 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		DefaultCoins:         defaultCoins,
 		TradingCoins:         tradingCoins,
 		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
+		TakerFeeRate:         traderCfg.TakerFeeRate,         // P0修复：Taker费率
+		MakerFeeRate:         traderCfg.MakerFeeRate,         // P0修复：Maker费率
 		HyperliquidTestnet:   exchangeCfg.Testnet,            // Hyperliquid测试网
 	}
 

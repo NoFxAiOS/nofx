@@ -42,6 +42,10 @@ type TraderConfig struct {
 
 	InitialBalance      float64 `json:"initial_balance"`
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
+
+	// 手续费率配置（P0修复：传递给AI用于验证「预计收益 > 手续费 ×3」）
+	TakerFeeRate float64 `json:"taker_fee_rate,omitempty"` // Taker费率，默认0.0004 (0.04%)
+	MakerFeeRate float64 `json:"maker_fee_rate,omitempty"` // Maker费率，默认0.0002 (0.02%)
 }
 
 // LeverageConfig 杠杆配置
@@ -123,7 +127,17 @@ func (c *Config) Validate() error {
 	}
 
 	traderIDs := make(map[string]bool)
-	for i, trader := range c.Traders {
+	for i := range c.Traders {
+		trader := &c.Traders[i] // 使用指针以便修改原始值
+
+		// 设置手续费率默认值（Binance标准费率）
+		if trader.TakerFeeRate == 0 {
+			trader.TakerFeeRate = 0.0004 // 0.04%
+		}
+		if trader.MakerFeeRate == 0 {
+			trader.MakerFeeRate = 0.0002 // 0.02%
+		}
+
 		if trader.ID == "" {
 			return fmt.Errorf("trader[%d]: ID不能为空", i)
 		}

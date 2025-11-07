@@ -78,6 +78,10 @@ type Context struct {
 	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
 	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+
+	// P0修复：手续费率（用于AI验证「预计收益 > 手续费 ×3」）
+	TakerFeeRate float64 `json:"-"` // Taker费率（市价单），默认0.0004 (0.04%)
+	MakerFeeRate float64 `json:"-"` // Maker费率（限价单），默认0.0002 (0.02%)
 }
 
 // Decision AI的交易决策
@@ -355,6 +359,11 @@ func buildUserPrompt(ctx *Context) string {
 		ctx.Account.TotalPnLPct,
 		ctx.Account.MarginUsedPct,
 		ctx.Account.PositionCount))
+
+	// P0修复：手续费率信息（用于AI验证「预计收益 > 手续费 ×3」）
+	sb.WriteString(fmt.Sprintf("手续费: Taker %.4f%% | Maker %.4f%%\n\n",
+		ctx.TakerFeeRate*100,
+		ctx.MakerFeeRate*100))
 
 	// 持仓（完整市场数据）
 	if len(ctx.Positions) > 0 {

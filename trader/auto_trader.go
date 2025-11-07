@@ -75,6 +75,10 @@ type AutoTraderConfig struct {
 
 	// 系统提示词模板
 	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
+
+	// P0修复：手续费率配置
+	TakerFeeRate float64 // Taker费率（市价单），默认0.0004 (0.04%)
+	MakerFeeRate float64 // Maker费率（限价单），默认0.0002 (0.02%)
 }
 
 // AutoTrader 自动交易器
@@ -703,7 +707,9 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		},
 		Positions:      positionInfos,
 		CandidateCoins: candidateCoins,
-		Performance:    performance, // 添加历史表现分析
+		Performance:    performance,    // 添加历史表现分析
+		TakerFeeRate:   at.config.TakerFeeRate, // P0修复：传递Taker费率
+		MakerFeeRate:   at.config.MakerFeeRate, // P0修复：传递Maker费率
 	}
 
 	return ctx, nil

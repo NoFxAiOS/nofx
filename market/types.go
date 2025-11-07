@@ -19,8 +19,16 @@ type Data struct {
 
 // OIData Open Interest数据
 type OIData struct {
-	Latest  float64
-	Average float64
+	Latest     float64      // 当前持仓量
+	Average    float64      // 平均持仓量
+	Change4h   float64      // 4小时变化率（百分比），P0修复：用于AI验证"近4小时上升>+3%"
+	Historical []OISnapshot // 历史数据（用于计算变化率）
+}
+
+// OISnapshot OI历史快照
+type OISnapshot struct {
+	Value     float64   // OI值
+	Timestamp time.Time // 时间戳
 }
 
 // IntradayData 日内数据(3分钟间隔)

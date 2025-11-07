@@ -497,7 +497,7 @@ func getFundingRate(symbol string) (float64, error) {
 func Format(data *Data) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("current_price = %.2f, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
+	sb.WriteString(fmt.Sprintf("current_price = %.4f, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
 		data.CurrentPrice, data.CurrentEMA20, data.CurrentMACD, data.CurrentRSI7))
 
 	sb.WriteString(fmt.Sprintf("In addition, here is the latest %s open interest and funding rate for perps:\n\n",
@@ -505,7 +505,7 @@ func Format(data *Data) string {
 
 	if data.OpenInterest != nil {
 		// P0修复：输出OI 4小时变化率（用于AI验证"近4小时上升>+3%"）
-		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f Change(4h): %.2f%%\n\n",
+		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.4f Average: %.4f Change(4h): %.2f%%\n\n",
 			data.OpenInterest.Latest, data.OpenInterest.Average, data.OpenInterest.Change4h))
 	}
 
@@ -611,7 +611,7 @@ func Format(data *Data) string {
 func formatFloatSlice(values []float64) string {
 	strValues := make([]string, len(values))
 	for i, v := range values {
-		strValues[i] = fmt.Sprintf("%.3f", v)
+		strValues[i] = fmt.Sprintf("%.4f", v)
 	}
 	return "[" + strings.Join(strValues, ", ") + "]"
 }

@@ -305,6 +305,13 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 	// Hyperliquid symbol格式
 	coin := convertSymbolToHyperliquid(symbol)
 
+	// ✅ 关键检查：验证 Asset ID（防止 Meta 未初始化导致 asset=0 错误）
+	assetID := t.exchange.Info().NameToAsset(coin)
+	if assetID == 0 {
+		return nil, fmt.Errorf("❌ 开多仓失败: 资产 %s 的 Asset ID 为 0，Meta 信息可能未正确初始化。请检查 Hyperliquid API 连接或稍后重试", coin)
+	}
+	log.Printf("  ✓ Asset ID 检查通过: %s -> %d", coin, assetID)
+
 	// 获取当前价格（用于市价单）
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
@@ -370,6 +377,13 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 
 	// Hyperliquid symbol格式
 	coin := convertSymbolToHyperliquid(symbol)
+
+	// ✅ 关键检查：验证 Asset ID（防止 Meta 未初始化导致 asset=0 错误）
+	assetID := t.exchange.Info().NameToAsset(coin)
+	if assetID == 0 {
+		return nil, fmt.Errorf("❌ 开空仓失败: 资产 %s 的 Asset ID 为 0，Meta 信息可能未正确初始化。请检查 Hyperliquid API 连接或稍后重试", coin)
+	}
+	log.Printf("  ✓ Asset ID 检查通过: %s -> %d", coin, assetID)
 
 	// 获取当前价格
 	price, err := t.GetMarketPrice(symbol)

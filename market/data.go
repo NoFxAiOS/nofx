@@ -24,6 +24,12 @@ func Get(symbol string) (*Data, error) {
 		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
 	}
 
+	// P0修复：检测数据陈旧性（防止DOGEUSDT式的价格僵化）
+	if isStaleData(klines3m, symbol) {
+		log.Printf("⚠️  WARNING: %s 检测到数据陈旧（连续价格不变），跳过该币种", symbol)
+		return nil, fmt.Errorf("%s 数据陈旧，可能缓存失效", symbol)
+	}
+
 	// 获取15分钟K线数据 (最近40个) - 短期趋势
 	klines15m, err = WSMonitorCli.GetCurrentKlines(symbol, "15m")
 	if err != nil {

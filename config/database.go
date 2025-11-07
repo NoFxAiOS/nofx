@@ -398,11 +398,12 @@ type ExchangeConfig struct {
 	Name      string `json:"name"`
 	Type      string `json:"type"`
 	Enabled   bool   `json:"enabled"`
-	APIKey    string `json:"apiKey"`
-	SecretKey string `json:"secretKey"`
+	APIKey    string `json:"apiKey"`    // For Binance: API Key; For Hyperliquid: Agent Private Key (should have ~0 balance)
+	SecretKey string `json:"secretKey"` // For Binance: Secret Key; Not used for Hyperliquid
 	Testnet   bool   `json:"testnet"`
-	// Hyperliquid 特定字段
-	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"`
+	// Hyperliquid Agent Wallet configuration (following official best practices)
+	// Reference: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/nonces-and-api-wallets
+	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Main Wallet Address (holds funds, never expose private key)
 	// Aster 特定字段
 	AsterUser       string    `json:"asterUser"`
 	AsterSigner     string    `json:"asterSigner"`

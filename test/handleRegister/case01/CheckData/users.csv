@@ -1,0 +1,5 @@
+column,value,flag
+email,testuser@example.com,C
+otp_secret,WQYVNRXV25JG2FWFZLJX3CDI3YYWXXWL,N
+otp_verified,false,Y
+

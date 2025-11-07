@@ -27,6 +27,11 @@ type Server struct {
 	port          int
 }
 
+// Router 返回内部 gin 引擎实例，供测试使用
+func (s *Server) Router() *gin.Engine {
+	return s.router
+}
+
 // NewServer 创建API服务器
 func NewServer(traderManager *manager.TraderManager, database *config.Database, port int) *Server {
 	// 设置为Release模式（减少日志输出）
@@ -382,8 +387,8 @@ type SafeModelConfig struct {
 	Name            string `json:"name"`
 	Provider        string `json:"provider"`
 	Enabled         bool   `json:"enabled"`
-	CustomAPIURL    string `json:"customApiUrl"`        // 自定义API URL（通常不敏感）
-	CustomModelName string `json:"customModelName"`     // 自定义模型名（不敏感）
+	CustomAPIURL    string `json:"customApiUrl"`    // 自定义API URL（通常不敏感）
+	CustomModelName string `json:"customModelName"` // 自定义模型名（不敏感）
 }
 
 type ExchangeConfig struct {
@@ -1551,7 +1556,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
 
 // handleLogout 将当前token加入黑名单
 func (s *Server) handleLogout(c *gin.Context) {

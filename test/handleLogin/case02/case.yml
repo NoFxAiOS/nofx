@@ -1,0 +1,14 @@
+name: handleLogin case01-账户未完成OTP设置
+request:
+    method: POST
+    path: /api/login
+    body:
+      email: testuser@example.com
+      password: secret123
+expect:
+    status: 200
+    body:
+        email: 'testuser@example.com'
+        message: '请输入Google Authenticator验证码'
+        requires_otp: true
+        user_id: 1

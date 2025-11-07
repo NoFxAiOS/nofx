@@ -1010,6 +1010,11 @@ func (d *Database) GetCustomCoins() []string {
 	return symbols
 }
 
+// DB 返回底层 *sql.DB（测试辅助）
+func (d *Database) DB() *sql.DB {
+	return d.db
+}
+
 // Close 关闭数据库连接
 func (d *Database) Close() error {
 	return d.db.Close()

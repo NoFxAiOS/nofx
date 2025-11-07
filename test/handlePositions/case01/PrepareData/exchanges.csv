@@ -1,0 +1,14 @@
+column,value,flag
+id,binance,c
+user_id,admin,Y
+name,Binance,Y
+type,cex,Y
+enabled,1,Y
+api_key,111,Y
+secret_key,111,Y
+testnet,0,Y
+hyperliquid_wallet_addr,,Y
+aster_user,,Y
+aster_signer,,Y
+aster_private_key,,Y
+

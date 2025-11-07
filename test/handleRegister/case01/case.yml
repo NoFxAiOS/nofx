@@ -1,0 +1,15 @@
+name: register case01-注册成功
+request:
+  method: POST
+  path: /api/register
+  body:
+    email: testuser@example.com
+    password: secret123
+
+expect:
+  status: 200
+  body:
+    user_id: "*"
+    email: testuser@example.com
+    message: '请使用Google Authenticator扫描二维码并验证OTP'
+

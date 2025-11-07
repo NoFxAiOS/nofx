@@ -1,0 +1,15 @@
+name: handleAccount case01
+request:
+    method: GET
+    path: /api/account
+    body:
+      user_id: "admin"
+      trader_id: "binance_4b410c6d-fe8b-4b83-ac8b-15abc0520cb5_deepseek_1762443677"
+expect:
+    status: 200
+    body:
+      total_equity: 0
+      available_balance: 0
+      total_pnl: -50
+      total_pnl_pct: -100
+      initial_balance: 50

@@ -1,0 +1,6 @@
+column,value,flag
+email,testuser@example.com,C
+otp_secret,6DC56RNSFQ6LFWSABNNEWWPUTQPVRJB6,Y
+password_hash,$2a$10$h3eSAQ9hCQ9EkYlD2/NnSejszPO.rkt124tAACsszlV/sCrTUlj9a,Y
+otp_verified,false,Y
+

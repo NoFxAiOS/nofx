@@ -1,0 +1,11 @@
+name: handlePositions case01
+request:
+    method: GET
+    path: /api/positions
+    body:
+      user_id: "default"
+      trader_id: ""
+expect:
+    status: 500
+    body:
+        error: '*'

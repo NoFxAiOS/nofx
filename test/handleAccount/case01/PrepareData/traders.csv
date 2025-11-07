@@ -1,0 +1,21 @@
+column,value,flag
+id,binance_4b410c6d-fe8b-4b83-ac8b-15abc0520cb5_deepseek_1762443677,c
+user_id,admin,Y
+name,Test Trader,Y
+ai_model_id,admin_deepseek,Y
+exchange_id,binance,Y
+initial_balance,50,Y
+scan_interval_minutes,3,Y
+is_running,0,Y
+btc_eth_leverage,5,Y
+altcoin_leverage,5,Y
+trading_symbols,'BTCUSDT,ETHUSDT',Y
+use_coin_pool,0,Y
+use_oi_top,0,Y
+custom_prompt,,Y
+override_base_prompt,0,Y
+is_cross_margin,1,Y
+use_default_coins,1,Y
+custom_coins,,Y
+system_prompt_template,default,Y
+

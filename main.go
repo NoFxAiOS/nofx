@@ -193,7 +193,6 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
-
 	// 设置JWT密钥
 	jwtSecret, _ := database.GetSystemConfig("jwt_secret")
 	if jwtSecret == "" {

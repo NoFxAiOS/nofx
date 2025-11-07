@@ -1,0 +1,10 @@
+column,value,flag
+id,admin_deepseek,c
+user_id,admin,Y
+name,DeepSeek,Y
+provider,DeepSeek,Y
+enabled,1,Y
+api_key,sk-111,Y
+custom_api_url,,Y
+custom_model_name,,Y
+

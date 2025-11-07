@@ -1,0 +1,13 @@
+name: handleLogin case01-账户未完成OTP设置
+request:
+    method: POST
+    path: /api/login
+    body:
+      email: testuser@example.com
+      password: secret123
+expect:
+    status: 401
+    body:
+        error: '账户未完成OTP设置'
+        requires_otp_setup: true
+        user_id: 1

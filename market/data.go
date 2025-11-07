@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -406,7 +407,7 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	return data
 }
 
-// getOpenInterestData 获取OI数据
+// getOpenInterestData 获取OI数据（P0修复：添加4小时变化率计算）
 func getOpenInterestData(symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
@@ -433,9 +434,23 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 
 	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
 
+	// P0修复：计算4小时OI变化率
+	var change4h float64
+	if WSMonitorCli != nil {
+		change4h = WSMonitorCli.CalculateOIChange4h(symbol, oi)
+	}
+
+	// P0修复：获取历史数据
+	var history []OISnapshot
+	if WSMonitorCli != nil {
+		history = WSMonitorCli.GetOIHistory(symbol)
+	}
+
 	return &OIData{
-		Latest:  oi,
-		Average: oi * 0.999, // 近似平均值
+		Latest:     oi,
+		Average:    oi * 0.999, // 近似平均值
+		Change4h:   change4h,   // P0修复：4小时变化率
+		Historical: history,    // P0修复：历史数据
 	}, nil
 }
 
@@ -483,8 +498,9 @@ func Format(data *Data) string {
 		data.Symbol))
 
 	if data.OpenInterest != nil {
-		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
-			data.OpenInterest.Latest, data.OpenInterest.Average))
+		// P0修复：输出OI 4小时变化率（用于AI验证"近4小时上升>+3%"）
+		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f Change(4h): %.2f%%\n\n",
+			data.OpenInterest.Latest, data.OpenInterest.Average, data.OpenInterest.Change4h))
 	}
 
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))

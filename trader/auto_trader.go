@@ -1012,6 +1012,37 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 		log.Printf("  🚨 建议：手动平掉其中一个方向的持仓，或检查系统是否有BUG")
 	}
 
+	// ============ P0 修复：记录并恢复止盈单 ============
+	var oldTakeProfitPrice float64 = 0.0
+	entryPrice := targetPosition["entryPrice"].(float64)
+
+	// 🔍 Step 1: 如果是 Hyperliquid，查询当前挂单找出止盈单
+	if hyperliquidTrader, ok := at.trader.(*HyperliquidTrader); ok {
+		openOrders, err := hyperliquidTrader.exchange.Info().OpenOrders(hyperliquidTrader.ctx, hyperliquidTrader.walletAddr)
+		if err == nil {
+			coin := convertSymbolToHyperliquid(decision.Symbol)
+			for _, order := range openOrders {
+				if order.Coin == coin {
+					// 判断是否为止盈单：
+					// 空单：买入挂单 + 价格低于成本 = 止盈单
+					// 多单：卖出挂单 + 价格高于成本 = 止盈单
+					if positionSide == "SHORT" && order.Side == "B" && order.LimitPx < entryPrice {
+						oldTakeProfitPrice = order.LimitPx
+						log.Printf("  🔍 检测到原有止盈单: %.4f", oldTakeProfitPrice)
+						break
+					} else if positionSide == "LONG" && order.Side == "A" && order.LimitPx > entryPrice {
+						oldTakeProfitPrice = order.LimitPx
+						log.Printf("  🔍 检测到原有止盈单: %.4f", oldTakeProfitPrice)
+						break
+					}
+				}
+			}
+		} else {
+			log.Printf("  ⚠️ 查询挂单失败，无法恢复原止盈单: %v", err)
+		}
+	}
+	// ===================================================
+
 	// 取消旧的止损单（只删除止损单，不影响止盈单）
 	// 注意：如果存在双向持仓，这会删除两个方向的止损单
 	if err := at.trader.CancelStopLossOrders(decision.Symbol); err != nil {
@@ -1027,6 +1058,23 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 	}
 
 	log.Printf("  ✓ 止损已调整: %.2f (当前价格: %.2f)", decision.NewStopLoss, marketData.CurrentPrice)
+
+	// ✅ Step 4: 恢复原有止盈单（防止裸奔）
+	if oldTakeProfitPrice > 0 {
+		log.Printf("  🔄 重新设置原止盈单: %.4f", oldTakeProfitPrice)
+		if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, quantity, oldTakeProfitPrice); err != nil {
+			log.Printf("  ⚠ 重新设置止盈单失败: %v", err)
+			log.Printf("  🚨🚨🚨 严重警告：止盈单恢复失败，当前持仓无止盈保护！")
+		} else {
+			log.Printf("  ✅ 止盈单已恢复")
+		}
+	} else if _, ok := at.trader.(*HyperliquidTrader); ok {
+		// 只在 Hyperliquid 上警告（Binance/Aster 可以区分订单类型）
+		log.Printf("  ⚠️ 警告：调整止损后未找到原止盈单")
+		log.Printf("  → 可能情况：1) 原本就没有止盈单 2) 止盈单已触发 3) 查询失败")
+	}
+	// ===================================================
+
 	return nil
 }
 
@@ -1096,6 +1144,37 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 		log.Printf("  🚨 建议：手动平掉其中一个方向的持仓，或检查系统是否有BUG")
 	}
 
+	// ============ P0 修复：记录并恢复止损单 ============
+	var oldStopLossPrice float64 = 0.0
+	entryPrice := targetPosition["entryPrice"].(float64)
+
+	// 🔍 Step 1: 如果是 Hyperliquid，查询当前挂单找出止损单
+	if hyperliquidTrader, ok := at.trader.(*HyperliquidTrader); ok {
+		openOrders, err := hyperliquidTrader.exchange.Info().OpenOrders(hyperliquidTrader.ctx, hyperliquidTrader.walletAddr)
+		if err == nil {
+			coin := convertSymbolToHyperliquid(decision.Symbol)
+			for _, order := range openOrders {
+				if order.Coin == coin {
+					// 判断是否为止损单：
+					// 空单：买入挂单 + 价格高于成本 = 止损单
+					// 多单：卖出挂单 + 价格低于成本 = 止损单
+					if positionSide == "SHORT" && order.Side == "B" && order.LimitPx > entryPrice {
+						oldStopLossPrice = order.LimitPx
+						log.Printf("  🔍 检测到原有止损单: %.4f", oldStopLossPrice)
+						break
+					} else if positionSide == "LONG" && order.Side == "A" && order.LimitPx < entryPrice {
+						oldStopLossPrice = order.LimitPx
+						log.Printf("  🔍 检测到原有止损单: %.4f", oldStopLossPrice)
+						break
+					}
+				}
+			}
+		} else {
+			log.Printf("  ⚠️ 查询挂单失败，无法恢复原止损单: %v", err)
+		}
+	}
+	// ===================================================
+
 	// 取消旧的止盈单（只删除止盈单，不影响止损单）
 	// 注意：如果存在双向持仓，这会删除两个方向的止盈单
 	if err := at.trader.CancelTakeProfitOrders(decision.Symbol); err != nil {
@@ -1111,6 +1190,23 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	}
 
 	log.Printf("  ✓ 止盈已调整: %.2f (当前价格: %.2f)", decision.NewTakeProfit, marketData.CurrentPrice)
+
+	// ✅ Step 4: 恢复原有止损单（防止裸奔）
+	if oldStopLossPrice > 0 {
+		log.Printf("  🔄 重新设置原止损单: %.4f", oldStopLossPrice)
+		if err := at.trader.SetStopLoss(decision.Symbol, positionSide, quantity, oldStopLossPrice); err != nil {
+			log.Printf("  ⚠ 重新设置止损单失败: %v", err)
+			log.Printf("  🚨🚨🚨 严重警告：止损单恢复失败，当前持仓无止损保护！")
+		} else {
+			log.Printf("  ✅ 止损单已恢复")
+		}
+	} else if _, ok := at.trader.(*HyperliquidTrader); ok {
+		// 只在 Hyperliquid 上警告（Binance/Aster 可以区分订单类型）
+		log.Printf("  ⚠️ 警告：调整止盈后未找到原止损单")
+		log.Printf("  → 可能情况：1) 原本就没有止损单 2) 止损单已触发 3) 查询失败")
+	}
+	// ===================================================
+
 	return nil
 }
 

@@ -392,7 +392,7 @@ export function CompetitionPage() {
             {sortedTraders.map((trader, index) => {
               const isWinning = index === 0
               const opponent = sortedTraders[1 - index]
-              const gap = (trader.total_pnl_pct ?? 0) - (opponent.total_pnl_pct ?? 0)
+              const gap = trader.total_pnl_pct - opponent.total_pnl_pct
 
               return (
                 <div

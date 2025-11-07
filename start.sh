@@ -36,6 +36,19 @@ print_error() {
 }
 
 # ------------------------------------------------------------------------
+# Utility Functions: Generate Strong Password
+# ------------------------------------------------------------------------
+generate_strong_password() {
+    # 生成64字符的强密码（使用base64编码，包含大小写字母、数字和特殊字符）
+    if command -v openssl &> /dev/null; then
+        openssl rand -base64 48 | tr -d "=+/" | cut -c1-64
+    else
+        # 回退方案：使用 /dev/urandom
+        cat /dev/urandom | tr -dc 'a-zA-Z0-9!@#$%^&*()_+-=[]{}|;:,.<>?' | fold -w 64 | head -n 1
+    fi
+}
+
+# ------------------------------------------------------------------------
 # Detection: Docker Compose Command (Backward Compatible)
 # ------------------------------------------------------------------------
 detect_compose_cmd() {
@@ -70,7 +83,19 @@ check_env() {
     if [ ! -f ".env" ]; then
         print_warning ".env 不存在，从模板复制..."
         cp .env.example .env
+        
+        # 生成强密码并替换 NOFX_ADMIN_PASSWORD
+        ADMIN_PASSWORD=$(generate_strong_password)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS 使用 BSD sed
+            sed -i '' "s/NOFX_ADMIN_PASSWORD=.*/NOFX_ADMIN_PASSWORD=${ADMIN_PASSWORD}/" .env
+        else
+            # Linux 使用 GNU sed
+            sed -i "s/NOFX_ADMIN_PASSWORD=.*/NOFX_ADMIN_PASSWORD=${ADMIN_PASSWORD}/" .env
+        fi
+        
         print_info "✓ 已使用默认环境变量创建 .env"
+        print_info "✓ 已自动生成强密码 NOFX_ADMIN_PASSWORD"
         print_info "💡 如需修改端口等设置，可编辑 .env 文件"
     fi
     print_success "环境变量文件存在"
@@ -83,7 +108,26 @@ check_config() {
     if [ ! -f "config.json" ]; then
         print_warning "config.json 不存在，从模板复制..."
         cp config.json.example config.json
+        
+        # 生成强密码并替换 jwt_secret
+        JWT_SECRET=$(generate_strong_password)
+        if command -v jq &> /dev/null; then
+            # 使用 jq 更安全地更新 JSON
+            jq --arg secret "$JWT_SECRET" '.jwt_secret = $secret' config.json > config.json.tmp && mv config.json.tmp config.json
+        else
+            # 回退到 sed（需要转义特殊字符）
+            ESCAPED_SECRET=$(echo "$JWT_SECRET" | sed 's/[[\.*^$()+?{|]/\\&/g')
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                # macOS 使用 BSD sed
+                sed -i '' "s/\"jwt_secret\": \".*\"/\"jwt_secret\": \"${ESCAPED_SECRET}\"/" config.json
+            else
+                # Linux 使用 GNU sed
+                sed -i "s/\"jwt_secret\": \".*\"/\"jwt_secret\": \"${ESCAPED_SECRET}\"/" config.json
+            fi
+        fi
+        
         print_info "✓ 已使用默认配置创建 config.json"
+        print_info "✓ 已自动生成强密码 jwt_secret"
         print_info "💡 如需修改基础设置（杠杆大小、开仓币种、管理员模式、JWT密钥等），可编辑 config.json"
         print_info "💡 模型/交易所/交易员配置请使用Web界面"
     fi

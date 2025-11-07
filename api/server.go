@@ -399,6 +399,19 @@ type ExchangeConfig struct {
 	Testnet   bool   `json:"testnet,omitempty"`
 }
 
+// SafeExchangeConfig 安全的交易所配置响应结构（不包含敏感信息）
+type SafeExchangeConfig struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	Enabled   bool      `json:"enabled"`
+	Testnet   bool      `json:"testnet"`
+	Deleted   bool      `json:"deleted"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type UpdateModelConfigRequest struct {
 	Models map[string]struct {
 		Enabled         bool   `json:"enabled"`
@@ -1023,7 +1036,23 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	}
 	log.Printf("✅ 找到 %d 个交易所配置", len(exchanges))
 
-	c.JSON(http.StatusOK, exchanges)
+	// 转换为安全的响应结构，过滤敏感信息
+	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
+	for i, exchange := range exchanges {
+		safeExchanges[i] = SafeExchangeConfig{
+			ID:        exchange.ID,
+			UserID:    exchange.UserID,
+			Name:      exchange.Name,
+			Type:      exchange.Type,
+			Enabled:   exchange.Enabled,
+			Testnet:   exchange.Testnet,
+			Deleted:   exchange.Deleted,
+			CreatedAt: exchange.CreatedAt,
+			UpdatedAt: exchange.UpdatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, safeExchanges)
 }
 
 // handleUpdateExchangeConfigs 更新交易所配置

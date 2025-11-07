@@ -150,30 +150,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     allExchanges?.filter((e) => {
       if (!e.enabled) return false
 
-      // Aster 交易所需要特殊字段
-      if (e.id === 'aster') {
-        return (
-          e.asterUser &&
-          e.asterUser.trim() !== '' &&
-          e.asterSigner &&
-          e.asterSigner.trim() !== '' &&
-          e.asterPrivateKey &&
-          e.asterPrivateKey.trim() !== ''
-        )
-      }
-
-      // Hyperliquid 只需要私钥（作为apiKey），钱包地址会自动从私钥生成
-      if (e.id === 'hyperliquid') {
-        return e.apiKey && e.apiKey.trim() !== ''
-      }
-
-      // Binance 等其他交易所需要 apiKey 和 secretKey
-      return (
-        e.apiKey &&
-        e.apiKey.trim() !== '' &&
-        e.secretKey &&
-        e.secretKey.trim() !== ''
-      )
+      // 由于API不再返回敏感字段信息，只能基于enabled状态判断
+      // 实际的配置验证将在后端进行
+      return true
     }) || []
 
   // 检查模型是否正在被运行中的交易员使用
@@ -818,7 +797,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
                   <div
-                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${exchange.enabled && exchange.apiKey ? 'bg-green-400' : 'bg-gray-500'}`}
+                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${exchange.enabled ? 'bg-green-400' : 'bg-gray-500'}`}
                   />
                 </div>
               )
@@ -1691,21 +1670,18 @@ function ExchangeConfigModal({
       ? t('hyperliquidExchangeName', language)
       : undefined
 
-  // 如果是编辑现有交易所，初始化表单数据
+  // 如果是编辑现有交易所，清空所有敏感字段以保证安全
   useEffect(() => {
     if (editingExchangeId && selectedExchange) {
-      setApiKey(selectedExchange.apiKey || '')
-      setSecretKey(selectedExchange.secretKey || '')
-      setPassphrase('') // Don't load existing passphrase for security
+      // 编辑模式下清空所有敏感字段，用户需要重新输入
+      setApiKey('')
+      setSecretKey('')
+      setPassphrase('')
       setTestnet(selectedExchange.testnet || false)
-
-      // Hyperliquid 字段
-      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '')
-
-      // Aster 字段
-      setAsterUser(selectedExchange.asterUser || '')
-      setAsterSigner(selectedExchange.asterSigner || '')
-      setAsterPrivateKey('') // Don't load existing private key for security
+      setHyperliquidWalletAddr('')
+      setAsterUser('')
+      setAsterSigner('')
+      setAsterPrivateKey('')
     }
   }, [editingExchangeId, selectedExchange])
 

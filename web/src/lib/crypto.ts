@@ -12,6 +12,11 @@ export class CryptoService {
   private static publicKeyPEM: string | null = null;
 
   static async initialize(publicKeyPEM: string) {
+    // 检查 Web Crypto API 是否可用
+    if (!window.crypto || !window.crypto.subtle) {
+      throw new Error('Web Crypto API is not available. Please use HTTPS or localhost to access the application.');
+    }
+    
     if (this.publicKey && this.publicKeyPEM === publicKeyPEM) {
       return;
     }

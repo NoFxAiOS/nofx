@@ -91,8 +91,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     loadConfigs();
   }, []);
 
-  // 显示所有用户的模型和交易所配置（用于调试）
-  const configuredModels = allModels || [];
+  // 只显示已配置（有 API Key）的模型和交易所
+  // 删除模型时会清空 apiKey，过滤掉 apiKey 为空的模型（修复 #620）
+  const configuredModels = allModels?.filter(m => m.apiKey && m.apiKey.trim() !== '') || [];
   const configuredExchanges = allExchanges || [];
   
   // 只在创建交易员时使用已启用且配置完整的

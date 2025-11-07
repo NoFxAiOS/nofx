@@ -10,6 +10,7 @@ import type {
 import { useLanguage } from '../contexts/LanguageContext'
 import { t, type Language } from '../i18n/translations'
 import { useAuth } from '../contexts/AuthContext'
+import { CryptoService } from '../lib/crypto'
 import { getExchangeIcon } from './ExchangeIcons'
 import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
@@ -476,18 +477,41 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         updatedModels = [...(allModels || []), newModel]
       }
 
-      const request = {
-        models: Object.fromEntries(
-          updatedModels.map((model) => [
-            model.provider, // 使用 provider 而不是 id
+      // 加密敏感数据
+      const encryptedModels = await Promise.all(
+        updatedModels.map(async (model) => {
+          let encryptedApiKey = model.apiKey || ''
+          
+          // 只有当API密钥不为空时才加密
+          if (model.apiKey && model.apiKey.trim() !== '') {
+            try {
+              const encryptedPayload = await CryptoService.encryptSensitiveData(
+                model.apiKey,
+                user?.id,
+                `model_config_${model.provider}`
+              )
+              encryptedApiKey = JSON.stringify(encryptedPayload)
+            } catch (error) {
+              console.error('Failed to encrypt model API key:', error)
+              alert(t('encryptionFailed', language))
+              throw error
+            }
+          }
+
+          return [
+            model.provider,
             {
               enabled: model.enabled,
-              api_key: model.apiKey || '',
+              api_key: encryptedApiKey,
               custom_api_url: model.customApiUrl || '',
               custom_model_name: model.customModelName || '',
             },
-          ])
-        ),
+          ]
+        })
+      )
+
+      const request = {
+        models: Object.fromEntries(encryptedModels),
       }
 
       await api.updateModelConfigs(request)
@@ -604,22 +628,81 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         updatedExchanges = [...(allExchanges || []), newExchange]
       }
 
-      const request = {
-        exchanges: Object.fromEntries(
-          updatedExchanges.map((exchange) => [
+      // 加密敏感数据
+      const encryptedExchanges = await Promise.all(
+        updatedExchanges.map(async (exchange) => {
+          let encryptedApiKey = exchange.apiKey || ''
+          let encryptedSecretKey = exchange.secretKey || ''
+          let encryptedAsterPrivateKey = exchange.asterPrivateKey || ''
+
+          const sessionId = `exchange_config_${exchange.id}`
+
+          // 加密API密钥
+          if (exchange.apiKey && exchange.apiKey.trim() !== '') {
+            try {
+              const encryptedPayload = await CryptoService.encryptSensitiveData(
+                exchange.apiKey,
+                user?.id,
+                sessionId
+              )
+              encryptedApiKey = JSON.stringify(encryptedPayload)
+            } catch (error) {
+              console.error('Failed to encrypt exchange API key:', error)
+              alert(t('encryptionFailed', language))
+              throw error
+            }
+          }
+
+          // 加密Secret密钥
+          if (exchange.secretKey && exchange.secretKey.trim() !== '') {
+            try {
+              const encryptedPayload = await CryptoService.encryptSensitiveData(
+                exchange.secretKey,
+                user?.id,
+                sessionId
+              )
+              encryptedSecretKey = JSON.stringify(encryptedPayload)
+            } catch (error) {
+              console.error('Failed to encrypt exchange secret key:', error)
+              alert(t('encryptionFailed', language))
+              throw error
+            }
+          }
+
+          // 加密Aster私钥
+          if (exchange.asterPrivateKey && exchange.asterPrivateKey.trim() !== '') {
+            try {
+              const encryptedPayload = await CryptoService.encryptSensitiveData(
+                exchange.asterPrivateKey,
+                user?.id,
+                sessionId
+              )
+              encryptedAsterPrivateKey = JSON.stringify(encryptedPayload)
+            } catch (error) {
+              console.error('Failed to encrypt aster private key:', error)
+              alert(t('encryptionFailed', language))
+              throw error
+            }
+          }
+
+          return [
             exchange.id,
             {
               enabled: exchange.enabled,
-              api_key: exchange.apiKey || '',
-              secret_key: exchange.secretKey || '',
+              api_key: encryptedApiKey,
+              secret_key: encryptedSecretKey,
               testnet: exchange.testnet || false,
               hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
               aster_user: exchange.asterUser || '',
               aster_signer: exchange.asterSigner || '',
-              aster_private_key: exchange.asterPrivateKey || '',
+              aster_private_key: encryptedAsterPrivateKey,
             },
-          ])
-        ),
+          ]
+        })
+      )
+
+      const request = {
+        exchanges: Object.fromEntries(encryptedExchanges),
       }
 
       await api.updateExchangeConfigs(request)

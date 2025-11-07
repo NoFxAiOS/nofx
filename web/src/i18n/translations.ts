@@ -321,6 +321,7 @@ export const translations = {
     exchangeNotExist: 'Exchange does not exist',
     deleteExchangeConfigFailed: 'Failed to delete exchange configuration',
     saveSignalSourceFailed: 'Failed to save signal source configuration',
+    encryptionFailed: 'Failed to encrypt sensitive data',
 
     // Login & Register
     login: 'Sign In',
@@ -1006,6 +1007,7 @@ export const translations = {
     exchangeNotExist: '交易所不存在',
     deleteExchangeConfigFailed: '删除交易所配置失败',
     saveSignalSourceFailed: '保存信号源配置失败',
+    encryptionFailed: '加密敏感数据失败',
 
     // Login & Register
     login: '登录',

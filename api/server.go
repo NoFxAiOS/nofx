@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"nofx/auth"
 	"nofx/config"
+	"nofx/crypto"
 	"nofx/decision"
 	"nofx/manager"
 	"nofx/trader"
@@ -24,11 +25,12 @@ type Server struct {
 	router        *gin.Engine
 	traderManager *manager.TraderManager
 	database      *config.Database
+	cryptoHandler *CryptoHandler
 	port          int
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database *config.Database, port int) *Server {
+func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, port int) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 
@@ -37,10 +39,14 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 	// 启用CORS
 	router.Use(corsMiddleware())
 
+	// 创建加密处理器
+	cryptoHandler := NewCryptoHandler(cryptoService)
+
 	s := &Server{
 		router:        router,
 		traderManager: traderManager,
 		database:      database,
+		cryptoHandler: cryptoHandler,
 		port:          port,
 	}
 
@@ -82,6 +88,10 @@ func (s *Server) setupRoutes() {
 
 		// 系统配置（无需认证，用于前端判断是否管理员模式/注册是否开启）
 		api.GET("/config", s.handleGetSystemConfig)
+
+		// 加密相关接口（无需认证）
+		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
+		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
 
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)

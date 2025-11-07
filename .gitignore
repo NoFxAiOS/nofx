@@ -48,5 +48,16 @@ eslint-*.json
 # VS code
 .vscode
 
-# 密钥
-/crypto
+# 密钥和敏感文件
+# 注意：crypto目录包含加密服务代码，应该被提交
+# 只忽略密钥文件本身
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+rsa_key*
+
+# 加密相关
+DATA_ENCRYPTION_KEY=*
+*.enc

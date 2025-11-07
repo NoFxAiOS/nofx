@@ -7,6 +7,7 @@ import (
 	"nofx/api"
 	"nofx/auth"
 	"nofx/config"
+	"nofx/crypto"
 	"nofx/manager"
 	"nofx/market"
 	"nofx/pool"
@@ -178,6 +179,15 @@ func main() {
 	}
 	defer database.Close()
 
+	// 初始化加密服务
+	log.Printf("🔐 初始化加密服务...")
+	cryptoService, err := crypto.NewCryptoService("secrets/rsa_key")
+	if err != nil {
+		log.Fatalf("❌ 初始化加密服务失败: %v", err)
+	}
+	database.SetCryptoService(cryptoService)
+	log.Printf("✅ 加密服务初始化成功")
+
 	// 同步config.json到数据库
 	if err := syncConfigToDatabase(database, configFile); err != nil {
 		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
@@ -194,11 +204,19 @@ func main() {
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
 
-	// 设置JWT密钥
-	jwtSecret, _ := database.GetSystemConfig("jwt_secret")
+	// 设置JWT密钥（优先使用环境变量）
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
-		jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
-		log.Printf("⚠️  使用默认JWT密钥，建议在生产环境中配置")
+		// 回退到数据库配置
+		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
+		if jwtSecret == "" {
+			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
+			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
+		} else {
+			log.Printf("🔑 使用数据库中JWT密钥")
+		}
+	} else {
+		log.Printf("🔑 使用环境变量JWT密钥")
 	}
 	auth.SetJWTSecret(jwtSecret)
 
@@ -308,7 +326,7 @@ func main() {
 	}
 
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, apiPort)
+	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"nofx/crypto"
 	"nofx/market"
 	"os"
 	"slices"
@@ -16,9 +17,45 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// DatabaseInterface 定义了数据库实现需要提供的方法集合
+type DatabaseInterface interface {
+	SetCryptoService(cs *crypto.CryptoService)
+	CreateUser(user *User) error
+	GetUserByEmail(email string) (*User, error)
+	GetUserByID(userID string) (*User, error)
+	GetAllUsers() ([]string, error)
+	UpdateUserOTPVerified(userID string, verified bool) error
+	GetAIModels(userID string) ([]*AIModelConfig, error)
+	UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error
+	GetExchanges(userID string) ([]*ExchangeConfig, error)
+	UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error
+	CreateAIModel(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error
+	CreateExchange(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error
+	CreateTrader(trader *TraderRecord) error
+	GetTraders(userID string) ([]*TraderRecord, error)
+	UpdateTraderStatus(userID, id string, isRunning bool) error
+	UpdateTrader(trader *TraderRecord) error
+	UpdateTraderInitialBalance(userID, id string, newBalance float64) error
+	UpdateTraderCustomPrompt(userID, id string, customPrompt string, overrideBase bool) error
+	DeleteTrader(userID, id string) error
+	GetTraderConfig(userID, traderID string) (*TraderRecord, *AIModelConfig, *ExchangeConfig, error)
+	GetSystemConfig(key string) (string, error)
+	SetSystemConfig(key, value string) error
+	CreateUserSignalSource(userID, coinPoolURL, oiTopURL string) error
+	GetUserSignalSource(userID string) (*UserSignalSource, error)
+	UpdateUserSignalSource(userID, coinPoolURL, oiTopURL string) error
+	GetCustomCoins() []string
+	LoadBetaCodesFromFile(filePath string) error
+	ValidateBetaCode(code string) (bool, error)
+	UseBetaCode(code, userEmail string) error
+	GetBetaCodeStats() (total, used int, err error)
+	Close() error
+}
+
 // Database 配置数据库
 type Database struct {
-	db *sql.DB
+	db           *sql.DB
+	cryptoService *crypto.CryptoService
 }
 
 // NewDatabase 创建配置数据库
@@ -582,6 +619,8 @@ func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
 		if err != nil {
 			return nil, err
 		}
+		// 解密API Key
+		model.APIKey = d.decryptSensitiveData(model.APIKey)
 		models = append(models, &model)
 	}
 
@@ -598,10 +637,11 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 
 	if err == nil {
 		// 找到了现有配置（精确匹配 ID），更新它
+		encryptedAPIKey := d.encryptSensitiveData(apiKey)
 		_, err = d.db.Exec(`
 			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
 			WHERE id = ? AND user_id = ?
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
+		`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
 		return err
 	}
 
@@ -614,10 +654,11 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 	if err == nil {
 		// 找到了现有配置（通过 provider 匹配，兼容旧版），更新它
 		log.Printf("⚠️  使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
+		encryptedAPIKey := d.encryptSensitiveData(apiKey)
 		_, err = d.db.Exec(`
 			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
 			WHERE id = ? AND user_id = ?
-		`, enabled, apiKey, customAPIURL, customModelName, existingID, userID)
+		`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
 		return err
 	}
 
@@ -661,10 +702,11 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 	}
 
 	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
+	encryptedAPIKey := d.encryptSensitiveData(apiKey)
 	_, err = d.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-	`, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+	`, newModelID, userID, name, provider, enabled, encryptedAPIKey, customAPIURL, customModelName)
 
 	return err
 }
@@ -699,6 +741,12 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 		if err != nil {
 			return nil, err
 		}
+		
+		// 解密敏感字段
+		exchange.APIKey = d.decryptSensitiveData(exchange.APIKey)
+		exchange.SecretKey = d.decryptSensitiveData(exchange.SecretKey)
+		exchange.AsterPrivateKey = d.decryptSensitiveData(exchange.AsterPrivateKey)
+		
 		exchanges = append(exchanges, &exchange)
 	}
 
@@ -709,12 +757,17 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
+	// 加密敏感字段
+	encryptedAPIKey := d.encryptSensitiveData(apiKey)
+	encryptedSecretKey := d.encryptSensitiveData(secretKey)
+	encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
+
 	// 首先尝试更新现有的用户配置
 	result, err := d.db.Exec(`
 		UPDATE exchanges SET enabled = ?, api_key = ?, secret_key = ?, testnet = ?, 
 		       hyperliquid_wallet_addr = ?, aster_user = ?, aster_signer = ?, aster_private_key = ?, updated_at = datetime('now')
 		WHERE id = ? AND user_id = ?
-	`, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, id, userID)
+	`, enabled, encryptedAPIKey, encryptedSecretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, encryptedAsterPrivateKey, id, userID)
 	if err != nil {
 		log.Printf("❌ UpdateExchange: 更新失败: %v", err)
 		return err
@@ -781,10 +834,15 @@ func (d *Database) CreateAIModel(userID, id, name, provider string, enabled bool
 
 // CreateExchange 创建交易所配置
 func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
+	// 加密敏感字段
+	encryptedAPIKey := d.encryptSensitiveData(apiKey)
+	encryptedSecretKey := d.encryptSensitiveData(secretKey)
+	encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
+	
 	_, err := d.db.Exec(`
 		INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
+	`, id, userID, name, typ, enabled, encryptedAPIKey, encryptedSecretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, encryptedAsterPrivateKey)
 	return err
 }
 
@@ -1115,4 +1173,44 @@ func (d *Database) GetBetaCodeStats() (total, used int, err error) {
 	}
 
 	return total, used, nil
+}
+
+// SetCryptoService 设置加密服务
+func (d *Database) SetCryptoService(cs *crypto.CryptoService) {
+	d.cryptoService = cs
+}
+
+// encryptSensitiveData 加密敏感数据用于存储
+func (d *Database) encryptSensitiveData(plaintext string) string {
+	if d.cryptoService == nil || plaintext == "" {
+		return plaintext
+	}
+	
+	encrypted, err := d.cryptoService.EncryptForStorage(plaintext)
+	if err != nil {
+		log.Printf("⚠️ 加密失败: %v", err)
+		return plaintext // 返回明文作为降级处理
+	}
+	
+	return encrypted
+}
+
+// decryptSensitiveData 解密敏感数据
+func (d *Database) decryptSensitiveData(encrypted string) string {
+	if d.cryptoService == nil || encrypted == "" {
+		return encrypted
+	}
+	
+	// 如果不是加密格式，直接返回
+	if !d.cryptoService.IsEncryptedStorageValue(encrypted) {
+		return encrypted
+	}
+	
+	decrypted, err := d.cryptoService.DecryptFromStorage(encrypted)
+	if err != nil {
+		log.Printf("⚠️ 解密失败: %v", err)
+		return encrypted // 返回加密文本作为降级处理
+	}
+	
+	return decrypted
 }

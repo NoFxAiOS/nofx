@@ -14,10 +14,13 @@ services:
       - ./beta_codes.txt:/app/beta_codes.txt:ro
       - ./decision_logs:/app/decision_logs
       - ./prompts:/app/prompts
+      - ./secrets:/app/secrets:ro  # RSA密钥文件
       - /etc/localtime:/etc/localtime:ro  # Sync host time
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据库加密密钥
+      - JWT_SECRET=${JWT_SECRET}  # JWT认证密钥
     networks:
       - nofx-network
     healthcheck:

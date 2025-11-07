@@ -22,6 +22,8 @@ type WSMonitor struct {
 	filterSymbols  sync.Map // 使用sync.Map来存储需要监控的币种和其状态
 	symbolStats    sync.Map // 存储币种统计信息
 	FilterSymbol   []string //经过筛选的币种
+	oiHistoryMap   sync.Map // P0修复：存储OI历史数据 map[symbol][]OISnapshot
+	oiStopChan     chan struct{} // P0修复：OI监控停止信号通道
 }
 type SymbolStats struct {
 	LastActiveTime   time.Time
@@ -71,6 +73,9 @@ func (m *WSMonitor) Initialize(coins []string) error {
 	if err := m.initializeHistoricalData(); err != nil {
 		log.Printf("初始化历史数据失败: %v", err)
 	}
+
+	// P0修复：启动OI定期监控
+	m.StartOIMonitoring()
 
 	return nil
 }
@@ -278,6 +283,130 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, erro
 }
 
 func (m *WSMonitor) Close() {
+	// P0修复：停止OI监控
+	if m.oiStopChan != nil {
+		close(m.oiStopChan)
+	}
+
 	m.wsClient.Close()
 	close(m.alertsChan)
+}
+
+// StoreOISnapshot 存储OI快照（P0修复：用于4小时变化率计算）
+func (m *WSMonitor) StoreOISnapshot(symbol string, oi float64) {
+	snapshot := OISnapshot{
+		Value:     oi,
+		Timestamp: time.Now(),
+	}
+
+	// 获取现有历史记录
+	cachedValue, exists := m.oiHistoryMap.Load(symbol)
+	var history []OISnapshot
+	if exists {
+		history = cachedValue.([]OISnapshot)
+	}
+
+	// 添加新快照
+	history = append(history, snapshot)
+
+	// 保留最近20个快照（覆盖5小时，每15分钟一次）
+	if len(history) > 20 {
+		history = history[len(history)-20:]
+	}
+
+	m.oiHistoryMap.Store(symbol, history)
+}
+
+// GetOIHistory 获取OI历史记录
+func (m *WSMonitor) GetOIHistory(symbol string) []OISnapshot {
+	value, exists := m.oiHistoryMap.Load(symbol)
+	if !exists {
+		return nil
+	}
+	return value.([]OISnapshot)
+}
+
+// CalculateOIChange4h 计算4小时OI变化率
+func (m *WSMonitor) CalculateOIChange4h(symbol string, latestOI float64) float64 {
+	history := m.GetOIHistory(symbol)
+	if len(history) == 0 {
+		return 0 // 无历史数据时返回0%
+	}
+
+	// 4小时前的时间点（容差1小时）
+	targetTime := time.Now().Add(-4 * time.Hour)
+	minTime := targetTime.Add(-1 * time.Hour)
+	maxTime := targetTime.Add(1 * time.Hour)
+
+	// 查找最接近4小时前的数据点
+	var closestSnapshot *OISnapshot
+	minDiff := time.Duration(1<<63 - 1) // 最大duration
+
+	for i := range history {
+		snapshot := &history[i]
+		if snapshot.Timestamp.After(minTime) && snapshot.Timestamp.Before(maxTime) {
+			diff := snapshot.Timestamp.Sub(targetTime)
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff < minDiff {
+				minDiff = diff
+				closestSnapshot = snapshot
+			}
+		}
+	}
+
+	if closestSnapshot == nil {
+		return 0 // 找不到合适的历史数据
+	}
+
+	// 计算变化率
+	if closestSnapshot.Value == 0 {
+		return 0
+	}
+
+	change := ((latestOI - closestSnapshot.Value) / closestSnapshot.Value) * 100
+	return change
+}
+
+// StartOIMonitoring 启动OI定期监控（每15分钟采样）
+func (m *WSMonitor) StartOIMonitoring() {
+	log.Printf("✅ 启动 OI 定期监控（每15分钟采样）")
+	
+	m.oiStopChan = make(chan struct{})
+	ticker := time.NewTicker(15 * time.Minute)
+
+	go func() {
+		// 立即执行一次
+		m.collectOISnapshots()
+
+		for {
+			select {
+			case <-ticker.C:
+				m.collectOISnapshots()
+			case <-m.oiStopChan:
+				ticker.Stop()
+				log.Printf("✅ OI监控已停止")
+				return
+			}
+		}
+	}()
+}
+
+// collectOISnapshots 采集所有交易对的OI快照
+func (m *WSMonitor) collectOISnapshots() {
+	apiClient := NewAPIClient()
+	successCount := 0
+
+	for _, symbol := range m.symbols {
+		oiData, err := apiClient.GetOpenInterest(symbol)
+		if err != nil {
+			continue
+		}
+
+		m.StoreOISnapshot(symbol, oiData.Latest)
+		successCount++
+	}
+
+	log.Printf("✅ OI快照采集完成（%d/%d个币种）", successCount, len(m.symbols))
 }

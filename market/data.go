@@ -446,7 +446,7 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 		change4h = WSMonitorCli.CalculateOIChange4h(symbol, oi)
 	}
 
-	// P0修复：获取历史数据
+	// P0修复：获取历史数据（用于AI分析）
 	var history []OISnapshot
 	if WSMonitorCli != nil {
 		history = WSMonitorCli.GetOIHistory(symbol)
@@ -456,7 +456,7 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 		Latest:     oi,
 		Average:    oi * 0.999, // 近似平均值
 		Change4h:   change4h,   // P0修复：4小时变化率
-		Historical: history,    // P0修复：历史数据
+		Historical: history,    // P0修复：历史快照
 	}, nil
 }
 

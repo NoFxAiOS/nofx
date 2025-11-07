@@ -52,7 +52,19 @@ func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
 	// 设置双向持仓模式（Hedge Mode）
 	// 这是必需的，因为代码中使用了 PositionSide (LONG/SHORT)
 	if err := trader.setDualSidePosition(); err != nil {
-		log.Printf("⚠️ 设置双向持仓模式失败: %v (如果已是双向模式则忽略此警告)", err)
+		log.Printf("")
+		log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Printf("⚠️  WARNING: Failed to enable Hedge Mode")
+		log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Printf("Error: %v", err)
+		log.Printf("")
+		log.Printf("If you see code=-4061 errors when opening positions:")
+		log.Printf("1. Login to Binance Web → Settings → Position Mode")
+		log.Printf("2. Select 'Hedge Mode' (双向持仓)")
+		log.Printf("3. ⚠️  Close all positions before switching")
+		log.Printf("4. Or use main account (sub-accounts may lack permissions)")
+		log.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		log.Printf("")
 	}
 
 	return trader
@@ -382,6 +394,17 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 	})
 
 	if err != nil {
+		// 检测 -4061 错误（持仓方向不匹配 - 账户未启用双向持仓模式）
+		if contains(err.Error(), "position side does not match") ||
+			contains(err.Error(), "-4061") || contains(err.Error(), "4061") {
+			log.Printf("  ❌ Failed to open long position: Account is not in Hedge Mode")
+			log.Printf("  📌 Solution:")
+			log.Printf("     1. Login to Binance Web → Settings → Position Mode → Select 'Hedge Mode'")
+			log.Printf("     2. ⚠️  Close all positions before switching")
+			log.Printf("     3. Or use main account (sub-accounts may lack permissions)")
+			log.Printf("  📖 Guide: https://github.com/tinkle-community/nofx/blob/main/docs/guides/faq.zh-CN.md")
+			return nil, fmt.Errorf("failed to open long position: account not in Hedge Mode (code=-4061). See logs above for solution")
+		}
 		return nil, fmt.Errorf("开多仓失败: %w", err)
 	}
 
@@ -441,6 +464,17 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 	})
 
 	if err != nil {
+		// 检测 -4061 错误（持仓方向不匹配 - 账户未启用双向持仓模式）
+		if contains(err.Error(), "position side does not match") ||
+			contains(err.Error(), "-4061") || contains(err.Error(), "4061") {
+			log.Printf("  ❌ Failed to open short position: Account is not in Hedge Mode")
+			log.Printf("  📌 Solution:")
+			log.Printf("     1. Login to Binance Web → Settings → Position Mode → Select 'Hedge Mode'")
+			log.Printf("     2. ⚠️  Close all positions before switching")
+			log.Printf("     3. Or use main account (sub-accounts may lack permissions)")
+			log.Printf("  📖 Guide: https://github.com/tinkle-community/nofx/blob/main/docs/guides/faq.zh-CN.md")
+			return nil, fmt.Errorf("failed to open short position: account not in Hedge Mode (code=-4061). See logs above for solution")
+		}
 		return nil, fmt.Errorf("开空仓失败: %w", err)
 	}
 

@@ -258,7 +258,6 @@ func (d *Database) initDefaultData() error {
 
 	// 初始化系统配置 - 创建所有字段，设置默认值，后续由config.json同步更新
 	systemConfigs := map[string]string{
-		"admin_mode":           "true",                                                                                // 默认开启管理员模式，便于首次使用
 		"beta_mode":            "false",                                                                               // 默认关闭内测模式
 		"api_server_port":      "8080",                                                                                // 默认API端口
 		"use_default_coins":    "true",                                                                                // 默认使用内置币种列表

@@ -12,7 +12,6 @@ interface HeaderBarProps {
   onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
-  isAdminMode?: boolean
   onPageChange?: (page: string) => void
 }
 
@@ -24,7 +23,6 @@ export default function HeaderBar({
   onLanguageChange,
   user,
   onLogout,
-  isAdminMode = false,
   onPageChange,
 }: HeaderBarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -476,7 +474,7 @@ export default function HeaderBar({
                     >
                       {t('signIn', language)}
                     </a>
-                    {!isAdminMode && (
+                    {true && (
                       <a
                         href="/register"
                         className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
@@ -916,7 +914,7 @@ export default function HeaderBar({
                 >
                   {t('signIn', language)}
                 </a>
-                {!isAdminMode && (
+                {true && (
                   <a
                     href="/register"
                     className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"

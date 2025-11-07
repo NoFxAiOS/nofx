@@ -44,7 +44,7 @@ function getModelDisplayName(modelId: string): string {
 function App() {
   const { language, setLanguage } = useLanguage()
   const { user, token, logout, isLoading } = useAuth()
-  const { config: systemConfig, loading: configLoading } = useSystemConfig()
+  const { loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
   // 从URL路径读取初始页面状态（支持刷新保持页面）
@@ -230,10 +230,6 @@ function App() {
     return <LoginPage />
   }
   if (route === '/register') {
-    if (systemConfig?.admin_mode) {
-      window.history.pushState({}, '', '/login')
-      return <LoginPage />
-    }
     return <RegisterPage />
   }
   if (route === '/faq') {
@@ -255,8 +251,7 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
-          isAdminMode={systemConfig?.admin_mode}
-          onPageChange={(page) => {
+                    onPageChange={(page) => {
             console.log('Competition page onPageChange called with:', page)
             console.log('Current route:', route, 'Current page:', currentPage)
 
@@ -298,16 +293,11 @@ function App() {
 
   // Show landing page for root route
   if (route === '/' || route === '') {
-    return <LandingPage isAdminMode={systemConfig?.admin_mode} />
+    return <LandingPage />
   }
 
-  // In admin mode, require authentication for any protected routes
-  if (systemConfig?.admin_mode && (!user || !token)) {
-    return <LoginPage />
-  }
-
-  // Show main app for authenticated users on other routes (non-admin mode)
-  if (!systemConfig?.admin_mode && (!user || !token)) {
+  // Show main app for authenticated users on other routes
+  if (!user || !token) {
     // Default to landing page when not authenticated and no specific route
     return <LandingPage />
   }
@@ -324,8 +314,7 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        isAdminMode={systemConfig?.admin_mode}
-        onPageChange={(page) => {
+                onPageChange={(page) => {
           console.log('Main app onPageChange called with:', page)
 
           if (page === 'competition') {

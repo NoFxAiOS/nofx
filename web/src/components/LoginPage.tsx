@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import HeaderBar from './landing/HeaderBar'
-import { getSystemConfig } from '../lib/config'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -16,17 +15,8 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
-  const [adminMode, setAdminMode] = useState<boolean | null>(null)
+  const adminMode = false
 
-  useEffect(() => {
-    getSystemConfig()
-      .then((cfg) => {
-        setAdminMode(!!cfg.admin_mode)
-      })
-      .catch(() => {
-        setAdminMode(false)
-      })
-  }, [])
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()

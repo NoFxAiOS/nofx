@@ -89,7 +89,7 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 	// Only check if using separate Agent wallet (not when main wallet is used as agent)
 	if !strings.EqualFold(walletAddr, agentAddr) {
 		agentState, err := exchange.Info().UserState(ctx, agentAddr)
-		if err == nil && agentState != nil && agentState.CrossMarginSummary != nil {
+		if err == nil && agentState != nil && agentState.CrossMarginSummary.AccountValue != "" {
 			// Parse Agent wallet balance
 			agentBalance, _ := strconv.ParseFloat(agentState.CrossMarginSummary.AccountValue, 64)
 

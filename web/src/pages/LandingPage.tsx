@@ -14,11 +14,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 
-export function LandingPage({
-  isAdminMode = false,
-}: {
-  isAdminMode?: boolean
-}) {
+export function LandingPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const { user, logout } = useAuth()
   const { language, setLanguage } = useLanguage()
@@ -35,7 +31,6 @@ export function LandingPage({
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        isAdminMode={isAdminMode}
         onPageChange={(page) => {
           console.log('LandingPage onPageChange called with:', page)
           if (page === 'competition') {

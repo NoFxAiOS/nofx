@@ -16,11 +16,6 @@ import (
 // JWTSecret JWT密钥，将从配置中动态设置
 var JWTSecret []byte
 
-// AdminMode 管理员模式标志
-var AdminMode bool = false
-
-// adminPasswordHash 管理员密码哈希（仅内存）
-var adminPasswordHash string
 
 // tokenBlacklist 用于登出后的token黑名单（仅内存，按过期时间清理）
 var tokenBlacklist = struct {
@@ -39,33 +34,9 @@ func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
 }
 
-// SetAdminMode 设置管理员模式
-func SetAdminMode(enabled bool) {
-	AdminMode = enabled
-}
 
-// IsAdminMode 检查是否为管理员模式
-func IsAdminMode() bool {
-	return AdminMode
-}
 
-// SetAdminPasswordFromPlain 通过明文设置管理员密码（会使用bcrypt哈希，成本12）
-func SetAdminPasswordFromPlain(plain string) error {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(plain), 12)
-	if err != nil {
-		return err
-	}
-	adminPasswordHash = string(bytes)
-	return nil
-}
 
-// CheckAdminPassword 校验管理员密码
-func CheckAdminPassword(plain string) bool {
-	if adminPasswordHash == "" {
-		return false
-	}
-	return bcrypt.CompareHashAndPassword([]byte(adminPasswordHash), []byte(plain)) == nil
-}
 
 // BlacklistToken 将token加入黑名单直到过期
 func BlacklistToken(token string, exp time.Time) {

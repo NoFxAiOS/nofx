@@ -90,11 +90,14 @@ A high-performance decentralized perpetual futures exchange!
 - ✅ Automatic precision handling (order size & price)
 - ✅ Unified trader interface (seamless exchange switching)
 - ✅ Support for both mainnet and testnet
-- ✅ No API keys needed - just your Ethereum private key
+- ⚠️ **Authentication**: Uses Ethereum private key (NOT API keys like Binance)
 
 **New Workflow:**
 1. **Configure AI Models**: Add your DeepSeek/Qwen API keys through the web interface
-2. **Configure Exchanges**: Set up Binance/Hyperliquid API credentials
+2. **Configure Exchanges**:
+   - **Binance**: API Key + Secret Key (✅ fully revocable)
+   - **Hyperliquid**: Ethereum Private Key (❌ cannot be revoked)
+   - **Aster**: API Wallet Private Key (⚠️ can be disabled via dashboard)
 3. **Create Traders**: Combine any AI model with any exchange to create custom traders
 4. **Monitor & Control**: Start/stop traders and monitor performance in real-time
 
@@ -491,6 +494,27 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 #### 🔷 Alternative: Using Hyperliquid Exchange
 
+---
+
+⚠️ **CRITICAL SECURITY WARNING**
+
+Hyperliquid uses **Ethereum private keys** (NOT API keys). Key differences:
+
+| Aspect | Binance API Key | Hyperliquid Private Key |
+|--------|----------------|------------------------|
+| **Revocable?** | ✅ Yes (via Binance dashboard) | ❌ No (blockchain-based) |
+| **Scope** | ⚠️ Limited to trading | 🔴 Full wallet control |
+| **If leaked** | Revoke & regenerate | ❌ Must create new wallet |
+| **Risk level** | 🟡 Medium | 🔴 Critical |
+
+**Best Practices (MANDATORY):**
+1. ✅ **Dedicated wallet** - Create a NEW wallet ONLY for Hyperliquid trading
+2. ✅ **Limit funds** - Only keep the minimum amount needed
+3. ✅ **Never reuse** - Do NOT use your main wallet or MetaMask default account
+4. ✅ **Test first** - Start with testnet to verify configuration
+
+---
+
 **NOFX also supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid instead of Binance:
 
 **Step 1**: Get your Ethereum private key (for Hyperliquid authentication)
@@ -511,6 +535,9 @@ Open your browser and visit: **🌐 http://localhost:3000**
       "enabled": true,
       "ai_model": "deepseek",
       "exchange": "hyperliquid",
+      // ⚠️ CRITICAL: This is your ETHEREUM PRIVATE KEY (not an API key!)
+      // Leaked key = Complete wallet access = Funds can be stolen
+      // NEVER commit this file to Git! Use a dedicated wallet with limited funds.
       "hyperliquid_private_key": "your_private_key_without_0x",
       "hyperliquid_wallet_addr": "your_ethereum_address",
       "hyperliquid_testnet": false,
@@ -524,12 +551,24 @@ Open your browser and visit: **🌐 http://localhost:3000**
 }
 ```
 
-**Key Differences from Binance Config:**
-- Replace `binance_api_key` + `binance_secret_key` with `hyperliquid_private_key`
-- Add `"exchange": "hyperliquid"` field
+**Key Differences from Binance:**
+
+| Binance | Hyperliquid |
+|---------|------------|
+| `binance_api_key` + `binance_secret_key` | `hyperliquid_private_key` |
+| Revocable API keys | ❌ Irrevocable private key |
+| Trading-only permissions | 🔴 Full wallet control |
+| Can whitelist IP | No IP restrictions |
+
+**Configuration:**
+- Set `"exchange": "hyperliquid"`
 - Set `hyperliquid_testnet: false` for mainnet (or `true` for testnet)
 
-**⚠️ Security Warning**: Never share your private key! Use a dedicated wallet for trading, not your main wallet.
+**🔐 Security Recommendations:**
+- ✅ Use `.env` file instead of `config.json` for private keys
+- ✅ Add `config.json` to `.gitignore`
+- ✅ Enable database encryption (see [Encryption Guide](docs/ENCRYPTION_DEPLOYMENT.md))
+- ✅ Regularly audit your wallet transactions on Hyperliquid dashboard
 
 ---
 
@@ -594,9 +633,18 @@ Open your browser and visit: **🌐 http://localhost:3000**
 **📖 For detailed setup instructions, see**: [Aster Integration Guide](ASTER_INTEGRATION.md)
 
 **⚠️ Security Notes**:
-- API wallet is separate from your main wallet (extra security layer)
-- Never share your API private key
-- You can revoke API wallet access anytime at [asterdex.com](https://www.asterdex.com/en/api-wallet)
+- ⚠️ **Still uses private keys** - "API Wallet" is a separate Ethereum wallet, NOT a traditional API key
+- ✅ **Can be disabled** - Revoke access via Aster dashboard (prevents future API calls)
+- ⚠️ **Limitation** - Disabling doesn't change the private key itself; attacker with stolen key could still interact directly with blockchain
+- ✅ **Safer than Hyperliquid** - At least you can disable it quickly vs Hyperliquid (no disable option)
+- ✅ **Separate from main wallet** - Funds isolation (extra security layer)
+
+**Best Practice:**
+```bash
+Main Wallet (0xABCD...):  Keep your main funds here (never use for trading)
+API Wallet (0x1234...):   Only fund with trading amount ($100-500)
+                          If compromised → disable immediately + funds limited
+```
 
 ---
 

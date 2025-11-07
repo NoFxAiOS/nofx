@@ -23,12 +23,12 @@ type WSMonitor struct {
 	symbols         []string
 	featuresMap     sync.Map
 	alertsChan      chan Alert
-	klineDataMap3m  sync.Map // 存储每个交易对的K线历史数据
-	klineDataMap15m sync.Map // 存储每个交易对的15分钟K线历史数据
-	klineDataMap1h  sync.Map // 存储每个交易对的1小时K线历史数据
-	klineDataMap4h  sync.Map // 存储每个交易对的K线历史数据
-	tickerDataMap   sync.Map // 存储每个交易对的ticker数据
-	oiHistoryMap    sync.Map // P0修复：存储OI历史数据 map[symbol][]OISnapshot
+	klineDataMap3m  sync.Map      // 存储每个交易对的K线历史数据
+	klineDataMap15m sync.Map      // 存储每个交易对的15分钟K线历史数据
+	klineDataMap1h  sync.Map      // 存储每个交易对的1小时K线历史数据
+	klineDataMap4h  sync.Map      // 存储每个交易对的K线历史数据
+	tickerDataMap   sync.Map      // 存储每个交易对的ticker数据
+	oiHistoryMap    sync.Map      // P0修复：存储OI历史数据 map[symbol][]OISnapshot
 	oiStopChan      chan struct{} // P0修复：OI监控停止信号通道
 	batchSize       int
 	filterSymbols   sync.Map // 使用sync.Map来存储需要监控的币种和其状态
@@ -354,9 +354,9 @@ func (m *WSMonitor) Close() {
 
 // P0修复：添加OI历史数据管理
 const (
-	OIHistoryMaxSize     = 20              // 最多保存20个OI快照（覆盖5小时，每15分钟采样）
+	OIHistoryMaxSize     = 20               // 最多保存20个OI快照（覆盖5小时，每15分钟采样）
 	OIUpdateInterval     = 15 * time.Minute // OI采样间隔15分钟
-	OIChange4hSampleSize = 16              // 4小时 = 16个15分钟样本
+	OIChange4hSampleSize = 16               // 4小时 = 16个15分钟样本
 )
 
 // StoreOISnapshot 存储OI快照到历史记录

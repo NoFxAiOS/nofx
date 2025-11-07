@@ -6,6 +6,7 @@ import (
 	"log"
 	"nofx/api"
 	"nofx/auth"
+	"nofx/bootstrap"
 	"nofx/config"
 	"nofx/manager"
 	"nofx/market"
@@ -19,28 +20,23 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// LeverageConfig 杠杆配置
-type LeverageConfig struct {
-	BTCETHLeverage  int `json:"btc_eth_leverage"`
-	AltcoinLeverage int `json:"altcoin_leverage"`
-}
-
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
+// TODO 现在与config.Config相同，未来会被替换， 现在为了兼容性不得不保留当前文件
 type ConfigFile struct {
-	AdminMode          bool              `json:"admin_mode"`
-	BetaMode           bool              `json:"beta_mode"`
-	APIServerPort      int               `json:"api_server_port"`
-	UseDefaultCoins    bool              `json:"use_default_coins"`
-	DefaultCoins       []string          `json:"default_coins"`
-	CoinPoolAPIURL     string            `json:"coin_pool_api_url"`
-	OITopAPIURL        string            `json:"oi_top_api_url"`
-	MaxDailyLoss       float64           `json:"max_daily_loss"`
-	MaxDrawdown        float64           `json:"max_drawdown"`
-	StopTradingMinutes int               `json:"stop_trading_minutes"`
-	Leverage           LeverageConfig    `json:"leverage"`
-	JWTSecret          string            `json:"jwt_secret"`
-	DataKLineTime      string            `json:"data_k_line_time"`
-	Log                *config.LogConfig `json:"log"` // 日志配置
+	AdminMode          bool                  `json:"admin_mode"`
+	BetaMode           bool                  `json:"beta_mode"`
+	APIServerPort      int                   `json:"api_server_port"`
+	UseDefaultCoins    bool                  `json:"use_default_coins"`
+	DefaultCoins       []string              `json:"default_coins"`
+	CoinPoolAPIURL     string                `json:"coin_pool_api_url"`
+	OITopAPIURL        string                `json:"oi_top_api_url"`
+	MaxDailyLoss       float64               `json:"max_daily_loss"`
+	MaxDrawdown        float64               `json:"max_drawdown"`
+	StopTradingMinutes int                   `json:"stop_trading_minutes"`
+	Leverage           config.LeverageConfig `json:"leverage"`
+	JWTSecret          string                `json:"jwt_secret"`
+	DataKLineTime      string                `json:"data_k_line_time"`
+	Log                *config.LogConfig     `json:"log"` // 日志配置
 }
 
 // loadConfigFile 读取并解析config.json文件
@@ -296,6 +292,15 @@ func main() {
 				trader.Name, strings.ToUpper(trader.AIModelID), strings.ToUpper(trader.ExchangeID),
 				trader.InitialBalance, status)
 		}
+	}
+
+	// 创建初始化上下文
+	// TODO : 传入实际配置, 现在并未实际使用，未来所有模块初始化都将通过上下文传递配置
+	ctx := bootstrap.NewContext(&config.Config{})
+
+	// 执行所有初始化钩子
+	if err := bootstrap.Run(ctx); err != nil {
+		log.Fatalf("初始化失败: %v", err)
 	}
 
 	fmt.Println()

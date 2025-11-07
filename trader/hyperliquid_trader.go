@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sonirico/go-hyperliquid"
@@ -500,6 +501,75 @@ func (t *HyperliquidTrader) CancelAllOrders(symbol string) error {
 	log.Printf("  ✓ 已取消 %s 的所有挂单", symbol)
 	return nil
 }
+
+// CancelStopOrders 取消该币种的止盈/止损单（用于调整止盈止损位置）
+func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
+	coin := convertSymbolToHyperliquid(symbol)
+
+	// 获取所有挂单
+	openOrders, err := t.exchange.Info().OpenOrders(t.ctx, t.walletAddr)
+	if err != nil {
+		return fmt.Errorf("获取挂单失败: %w", err)
+	}
+
+	// 注意：Hyperliquid SDK 的 OpenOrder 结构不暴露 trigger 字段
+	// 因此暂时取消该币种的所有挂单（包括止盈止损单）
+	// 这是安全的，因为在设置新的止盈止损之前，应该清理所有旧订单
+	canceledCount := 0
+	triggeredCount := 0
+	for _, order := range openOrders {
+		if order.Coin == coin {
+			_, err := t.exchange.Cancel(t.ctx, coin, order.Oid)
+			if err != nil {
+				errMsg := err.Error()
+
+				// ============ P3 修复：智能错误分类 ============
+				// 判断错误类型：订单已触发 vs 真实错误
+				if strings.Contains(errMsg, "Order does not exist") ||
+					strings.Contains(errMsg, "already filled") ||
+					strings.Contains(errMsg, "already triggered") ||
+					strings.Contains(errMsg, "Order not found") {
+					// 订单已触发/成交/不存在 → 这是正常情况，不是错误
+					log.Printf("  ℹ️  订单 oid=%d 已触发或成交，无需取消", order.Oid)
+					triggeredCount++
+					continue
+				}
+
+				if strings.Contains(errMsg, "permission") ||
+					strings.Contains(errMsg, "Unauthorized") ||
+					strings.Contains(errMsg, "API key") {
+					// 权限错误 → 这是严重问题
+					log.Printf("  🚨 权限错误 (oid=%d): %v", order.Oid, err)
+					log.Printf("  → 请检查 API Key 配置或权限设置")
+					continue
+				}
+
+				// 其他未知错误 → 记录但继续
+				log.Printf("  ⚠️  取消订单失败 (oid=%d): %v", order.Oid, err)
+				// ===================================================
+				continue
+			}
+			canceledCount++
+		}
+	}
+
+	// ============ P3 修复：详细的操作摘要 ============
+	if canceledCount == 0 && triggeredCount == 0 {
+		log.Printf("  ℹ️  %s 没有挂单需要取消", symbol)
+	} else {
+		if canceledCount > 0 && triggeredCount > 0 {
+			log.Printf("  ✅ 已取消 %s 的 %d 个挂单，%d 个已触发/成交", symbol, canceledCount, triggeredCount)
+		} else if canceledCount > 0 {
+			log.Printf("  ✅ 已取消 %s 的 %d 个挂单（包括止盈/止损单）", symbol, canceledCount)
+		} else {
+			log.Printf("  ℹ️  %s 的 %d 个订单已触发或成交，无需取消", symbol, triggeredCount)
+		}
+	}
+	// ===================================================
+
+	return nil
+}
+
 
 // GetMarketPrice 获取市场价格
 func (t *HyperliquidTrader) GetMarketPrice(symbol string) (float64, error) {

@@ -1,14 +1,15 @@
 package market
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
-	"strings"
-	"sync"
-	"time"
+    "encoding/json"
+    "fmt"
+    "log"
+    "strings"
+    "sync"
+    "time"
 
-	"github.com/gorilla/websocket"
+    "github.com/gorilla/websocket"
+    "nofx/logger"
 )
 
 type CombinedStreamsClient struct {
@@ -44,7 +45,7 @@ func (c *CombinedStreamsClient) Connect() error {
 	c.conn = conn
 	c.mu.Unlock()
 
-	log.Println("组合流WebSocket连接成功")
+    logger.Infof("market", "组合流WebSocket连接成功")
 	go c.readMessages()
 
 	return nil
@@ -56,7 +57,7 @@ func (c *CombinedStreamsClient) BatchSubscribeKlines(symbols []string, interval 
 	batches := c.splitIntoBatches(symbols, c.batchSize)
 
 	for i, batch := range batches {
-		log.Printf("订阅第 %d 批, 数量: %d", i+1, len(batch))
+        logger.Debugf("market", "订阅第 %d 批, 数量: %d", i+1, len(batch))
 
 		streams := make([]string, len(batch))
 		for j, symbol := range batch {
@@ -106,7 +107,7 @@ func (c *CombinedStreamsClient) subscribeStreams(streams []string) error {
 		return fmt.Errorf("WebSocket未连接")
 	}
 
-	log.Printf("订阅流: %v", streams)
+    logger.Debugf("market", "订阅流: %v", streams)
 	return c.conn.WriteJSON(subscribeMsg)
 }
 

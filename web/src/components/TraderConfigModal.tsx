@@ -253,11 +253,18 @@ export function TraderConfigModal({
                     onChange={(e) => handleInputChange('ai_model', e.target.value)}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                   >
-                    {availableModels.map(model => (
-                      <option key={model.id} value={model.id}>
-                        {getShortName(model.name || model.id).toUpperCase()}
-                      </option>
-                    ))}
+                    {availableModels.map(model => {
+                      const id = model.id || '';
+                      const hasAlias = id.includes('#');
+                      const alias = hasAlias ? id.split('#')[1] : '';
+                      const base = (model.provider || getShortName(model.name || id)).toUpperCase();
+                      const label = hasAlias ? `${base} #${alias}` : base;
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>
@@ -267,11 +274,18 @@ export function TraderConfigModal({
                     onChange={(e) => handleInputChange('exchange_id', e.target.value)}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                   >
-                    {availableExchanges.map(exchange => (
-                      <option key={exchange.id} value={exchange.id}>
-                        {getShortName(exchange.name || exchange.id).toUpperCase()}
-                      </option>
-                    ))}
+                    {availableExchanges.map(exchange => {
+                      const id = exchange.id || '';
+                      const hasAlias = id.includes('#');
+                      const alias = hasAlias ? id.split('#')[1] : '';
+                      const baseName = getShortName((exchange.name || id)).toUpperCase();
+                      const label = hasAlias ? `${baseName} #${alias}` : baseName;
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>

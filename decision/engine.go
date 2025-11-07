@@ -1,14 +1,14 @@
 package decision
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
-	"nofx/market"
-	"nofx/mcp"
-	"nofx/pool"
-	"strings"
-	"time"
+    "encoding/json"
+    "fmt"
+    "log"
+    "nofx/market"
+    "nofx/mcp"
+    "nofx/pool"
+    "strings"
+    "time"
 )
 
 // PositionInfo 持仓信息
@@ -287,7 +287,7 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 
 // buildUserPrompt 构建 User Prompt（动态数据）
 func buildUserPrompt(ctx *Context) string {
-	var sb strings.Builder
+    var sb strings.Builder
 
 	// 系统状态
 	sb.WriteString(fmt.Sprintf("时间: %s | 周期: #%d | 运行: %d分钟\n\n",
@@ -366,24 +366,109 @@ func buildUserPrompt(ctx *Context) string {
 	}
 	sb.WriteString("\n")
 
-	// 夏普比率（直接传值，不要复杂格式化）
-	if ctx.Performance != nil {
-		// 直接从interface{}中提取SharpeRatio
-		type PerformanceData struct {
-			SharpeRatio float64 `json:"sharpe_ratio"`
-		}
-		var perfData PerformanceData
-		if jsonData, err := json.Marshal(ctx.Performance); err == nil {
-			if err := json.Unmarshal(jsonData, &perfData); err == nil {
-				sb.WriteString(fmt.Sprintf("## 📊 夏普比率: %.2f\n\n", perfData.SharpeRatio))
-			}
-		}
-	}
+    // 夏普比率 + 近期成交历史（人话摘要）
+    if ctx.Performance != nil {
+        // 解析历史表现（仅取需要的字段，避免直接依赖logger包）
+        type TradeOutcomeLite struct {
+            Symbol     string    `json:"symbol"`
+            Side       string    `json:"side"`
+            Quantity   float64   `json:"quantity"`
+            Leverage   int       `json:"leverage"`
+            OpenPrice  float64   `json:"open_price"`
+            ClosePrice float64   `json:"close_price"`
+            PnL        float64   `json:"pn_l"`
+            PnLPct     float64   `json:"pn_l_pct"`
+            Duration   string    `json:"duration"`
+            OpenTime   time.Time `json:"open_time"`
+            CloseTime  time.Time `json:"close_time"`
+        }
+        type PerformanceLite struct {
+            SharpeRatio  float64            `json:"sharpe_ratio"`
+            RecentTrades []TradeOutcomeLite `json:"recent_trades"`
+        }
 
-	sb.WriteString("---\n\n")
-	sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")
+        var perf PerformanceLite
+        if jsonData, err := json.Marshal(ctx.Performance); err == nil {
+            if err := json.Unmarshal(jsonData, &perf); err == nil {
+                sb.WriteString(fmt.Sprintf("## 📊 夏普比率: %.2f\n\n", perf.SharpeRatio))
 
-	return sb.String()
+                if len(perf.RecentTrades) > 0 {
+                    sb.WriteString("## 🧾 成交历史（最近数笔）\n")
+                    // 控制长度，最多展示8笔，按时间从新到旧（logger已保证最近在前）
+                    maxShow := len(perf.RecentTrades)
+                    if maxShow > 8 {
+                        maxShow = 8
+                    }
+                    for i := 0; i < maxShow; i++ {
+                        tr := perf.RecentTrades[i]
+                        // 选择展示时间：优先平仓时间，否则开仓时间
+                        ts := tr.CloseTime
+                        if ts.IsZero() {
+                            ts = tr.OpenTime
+                        }
+                        // 人性化持仓时长
+                        hold := humanizeDurationCN(tr.OpenTime, tr.CloseTime)
+                        // 多空中文
+                        sideCN := map[string]string{"long": "做多", "short": "做空"}[strings.ToLower(tr.Side)]
+                        if sideCN == "" {
+                            sideCN = tr.Side
+                        }
+                        // 盈亏字符串
+                        pnlStr := fmt.Sprintf("%+.2f USDT (%+.1f%%)", tr.PnL, tr.PnLPct)
+                        sb.WriteString(fmt.Sprintf("- %s %s %s | 持仓%s | 开%.4f → 平%.4f | 盈亏 %s | 杠杆%dx | 数量%.4f\n",
+                            ts.Format("2006-01-02 15:04"), tr.Symbol, sideCN, hold, tr.OpenPrice, tr.ClosePrice, pnlStr, tr.Leverage, tr.Quantity))
+                    }
+                    sb.WriteString("\n")
+                }
+            }
+        }
+    }
+
+    sb.WriteString("---\n\n")
+    sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")
+
+    return sb.String()
+}
+
+// humanizeDurationCN 将开平仓时间转为中文人话时长
+func humanizeDurationCN(open time.Time, close time.Time) string {
+    // 若无关键信息，返回空
+    if open.IsZero() && close.IsZero() {
+        return ""
+    }
+    var d time.Duration
+    if !open.IsZero() && !close.IsZero() {
+        d = close.Sub(open)
+    } else if !open.IsZero() {
+        d = time.Since(open)
+    } else {
+        // 只有close，无open（极少数情况），记0
+        d = 0
+    }
+    if d < 0 {
+        d = -d
+    }
+    mins := int(d.Minutes())
+    if mins < 60 {
+        return fmt.Sprintf("%d分钟", mins)
+    }
+    hours := mins / 60
+    rem := mins % 60
+    if hours < 24 {
+        if rem == 0 {
+            return fmt.Sprintf("%d小时", hours)
+        }
+        return fmt.Sprintf("%d小时%d分钟", hours, rem)
+    }
+    days := hours / 24
+    hrem := hours % 24
+    if hrem == 0 {
+        return fmt.Sprintf("%d天", days)
+    }
+    if rem == 0 {
+        return fmt.Sprintf("%d天%d小时", days, hrem)
+    }
+    return fmt.Sprintf("%d天%d小时%d分钟", days, hrem, rem)
 }
 
 // parseFullDecisionResponse 解析AI的完整决策响应

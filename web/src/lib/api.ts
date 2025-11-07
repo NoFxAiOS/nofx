@@ -57,7 +57,8 @@ export const api = {
   },
 
   async deleteTrader(traderId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/traders/${traderId}`, {
+    const id = encodeURIComponent(traderId);
+    const res = await fetch(`${API_BASE}/traders/${id}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
@@ -65,7 +66,8 @@ export const api = {
   },
 
   async startTrader(traderId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/traders/${traderId}/start`, {
+    const id = encodeURIComponent(traderId);
+    const res = await fetch(`${API_BASE}/traders/${id}/start`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -73,7 +75,8 @@ export const api = {
   },
 
   async stopTrader(traderId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/traders/${traderId}/stop`, {
+    const id = encodeURIComponent(traderId);
+    const res = await fetch(`${API_BASE}/traders/${id}/stop`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -81,7 +84,8 @@ export const api = {
   },
 
   async updateTraderPrompt(traderId: string, customPrompt: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/traders/${traderId}/prompt`, {
+    const id = encodeURIComponent(traderId);
+    const res = await fetch(`${API_BASE}/traders/${id}/prompt`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ custom_prompt: customPrompt }),
@@ -90,7 +94,8 @@ export const api = {
   },
 
   async getTraderConfig(traderId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/traders/${traderId}/config`, {
+    const id = encodeURIComponent(traderId);
+    const res = await fetch(`${API_BASE}/traders/${id}/config`, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('获取交易员配置失败');
@@ -98,7 +103,8 @@ export const api = {
   },
 
   async updateTrader(traderId: string, request: CreateTraderRequest): Promise<TraderInfo> {
-    const res = await fetch(`${API_BASE}/traders/${traderId}`, {
+    const id = encodeURIComponent(traderId);
+    const res = await fetch(`${API_BASE}/traders/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
@@ -160,7 +166,7 @@ export const api = {
   // 获取系统状态（支持trader_id）
   async getStatus(traderId?: string): Promise<SystemStatus> {
     const url = traderId
-      ? `${API_BASE}/status?trader_id=${traderId}`
+      ? `${API_BASE}/status?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/status`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),
@@ -172,7 +178,7 @@ export const api = {
   // 获取账户信息（支持trader_id）
   async getAccount(traderId?: string): Promise<AccountInfo> {
     const url = traderId
-      ? `${API_BASE}/account?trader_id=${traderId}`
+      ? `${API_BASE}/account?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/account`;
     const res = await fetch(url, {
       cache: 'no-store',
@@ -190,7 +196,7 @@ export const api = {
   // 获取持仓列表（支持trader_id）
   async getPositions(traderId?: string): Promise<Position[]> {
     const url = traderId
-      ? `${API_BASE}/positions?trader_id=${traderId}`
+      ? `${API_BASE}/positions?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/positions`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),
@@ -202,7 +208,7 @@ export const api = {
   // 获取决策日志（支持trader_id）
   async getDecisions(traderId?: string): Promise<DecisionRecord[]> {
     const url = traderId
-      ? `${API_BASE}/decisions?trader_id=${traderId}`
+      ? `${API_BASE}/decisions?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/decisions`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),
@@ -214,7 +220,7 @@ export const api = {
   // 获取最新决策（支持trader_id）
   async getLatestDecisions(traderId?: string): Promise<DecisionRecord[]> {
     const url = traderId
-      ? `${API_BASE}/decisions/latest?trader_id=${traderId}`
+      ? `${API_BASE}/decisions/latest?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/decisions/latest`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),
@@ -226,7 +232,7 @@ export const api = {
   // 获取统计信息（支持trader_id）
   async getStatistics(traderId?: string): Promise<Statistics> {
     const url = traderId
-      ? `${API_BASE}/statistics?trader_id=${traderId}`
+      ? `${API_BASE}/statistics?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/statistics`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),
@@ -238,7 +244,7 @@ export const api = {
   // 获取收益率历史数据（支持trader_id）
   async getEquityHistory(traderId?: string): Promise<any[]> {
     const url = traderId
-      ? `${API_BASE}/equity-history?trader_id=${traderId}`
+      ? `${API_BASE}/equity-history?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/equity-history`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),
@@ -269,7 +275,7 @@ export const api = {
 
   // 获取公开交易员配置（无需认证）
   async getPublicTraderConfig(traderId: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/trader/${traderId}/config`);
+    const res = await fetch(`${API_BASE}/traders/${encodeURIComponent(traderId)}/public-config`);
     if (!res.ok) throw new Error('获取公开交易员配置失败');
     return res.json();
   },
@@ -277,7 +283,7 @@ export const api = {
   // 获取AI学习表现分析（支持trader_id）
   async getPerformance(traderId?: string): Promise<any> {
     const url = traderId
-      ? `${API_BASE}/performance?trader_id=${traderId}`
+      ? `${API_BASE}/performance?trader_id=${encodeURIComponent(traderId)}`
       : `${API_BASE}/performance`;
     const res = await fetch(url, {
       headers: getAuthHeaders(),

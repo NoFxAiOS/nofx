@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -16,16 +17,23 @@ func Get(symbol string) (*Data, error) {
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
+
 	// 获取3分钟K线数据 (最近10个)
-	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
+	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m")
 	if err != nil {
 		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
 	}
 
 	// 获取4小时K线数据 (最近10个)
-	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // 多获取用于计算指标
+	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h")
 	if err != nil {
 		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+	}
+
+	// P0修复：检查 4h 数据完整性（多周期趋势确认必需）
+	if len(klines4h) == 0 {
+		log.Printf("⚠️  WARNING: %s 缺少 4h K线数据，无法进行多周期趋势确认", symbol)
+		return nil, fmt.Errorf("%s 缺少 4h K线数据", symbol)
 	}
 
 	// 计算当前指标 (基于3分钟最新数据)

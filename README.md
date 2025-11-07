@@ -252,7 +252,6 @@ For self-hosted or single-tenant setups, NOFX supports a strict admin-only mode 
   - `GET /api/health`
   - `GET /api/config`
   - `POST /api/admin-login`
-- Registration is gated by `allow_registration` in `config.json` (default: `true`). When `admin_mode=true`, registration is blocked regardless of this flag.
 - Logout invalidates the current token via an in-memory blacklist (sufficient for single instance; use Redis for multi-instance – see Notes).
 
 ### Quick setup

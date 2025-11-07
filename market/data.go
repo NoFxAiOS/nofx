@@ -28,6 +28,12 @@ func Get(symbol string) (*Data, error) {
 		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
 	}
 
+	// P0修复：检查 4h 数据完整性（多周期趋势确认必需）
+	if len(klines4h) == 0 {
+		log.Printf("⚠️  WARNING: %s 缺少 4h K线数据，无法进行多周期趋势确认", symbol)
+		return nil, fmt.Errorf("%s 缺少 4h K线数据", symbol)
+	}
+
 	// 计算当前指标 (基于3分钟最新数据)
 	currentPrice := klines3m[len(klines3m)-1].Close
 	currentEMA20 := calculateEMA(klines3m, 20)

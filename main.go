@@ -6,7 +6,6 @@ import (
 	"log"
 	"nofx/api"
 	"nofx/auth"
-	"nofx/bootstrap"
 	"nofx/config"
 	"nofx/manager"
 	"nofx/market"

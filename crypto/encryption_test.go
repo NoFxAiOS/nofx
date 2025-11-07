@@ -66,16 +66,17 @@ func TestDatabaseEncryption(t *testing.T) {
 
 // TestHybridEncryption 測試混合加密（前端 → 後端場景）
 func TestHybridEncryption(t *testing.T) {
-	em, err := GetEncryptionManager()
+	_, err := GetEncryptionManager()
 	if err != nil {
 		t.Fatalf("初始化加密管理器失敗: %v", err)
 	}
 
 	// 模擬前端加密私鑰
-	plaintext := "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	_ = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 	// 注意：這裡需要前端的 encryptWithServerPublicKey 實現
 	// 為了測試，我們直接使用後端的加密函數（實際前端使用 Web Crypto API）
+	// TODO: 完成混合加密測試實現
 
 	// 由於前端加密邏輯較複雜，這裡僅測試解密流程
 	// 實際測試需要端到端測試

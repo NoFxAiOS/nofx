@@ -14,6 +14,7 @@ import { getExchangeIcon } from './ExchangeIcons'
 import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
 import { Modal } from './ui/Modal'
+import { Select } from './ui/Select'
 import {
   Bot,
   Brain,
@@ -1278,7 +1279,7 @@ function SignalSourceModal({
   return (
     <Modal open={true} onOpenChange={(open) => !open && onClose()}>
       <Modal.Content>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <Modal.Header onClose={onClose}>
             <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
               📡 {t('signalSourceConfig', language)}
@@ -1440,7 +1441,7 @@ function ModelConfigModal({
   return (
     <Modal open={true} onOpenChange={(open) => !open && onClose()}>
       <Modal.Content>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <Modal.Header onClose={onClose} showCloseButton={false}>
             <div className="flex items-center justify-between w-full">
               <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
@@ -1486,24 +1487,18 @@ function ModelConfigModal({
                   >
                     {t('selectModel', language)}
                   </label>
-                  <select
+                  <Select
                     value={selectedModelId}
-                    onChange={(e) => setSelectedModelId(e.target.value)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
+                    onValueChange={setSelectedModelId}
+                    placeholder={t('pleaseSelectModel', language)}
                     required
                   >
-                    <option value="">{t('pleaseSelectModel', language)}</option>
                     {availableModels.map((model) => (
-                      <option key={model.id} value={model.id}>
+                      <Select.Item key={model.id} value={model.id}>
                         {getShortName(model.name)} ({model.provider})
-                      </option>
+                      </Select.Item>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
 
@@ -1806,7 +1801,7 @@ function ExchangeConfigModal({
   return (
     <Modal open={true} onOpenChange={(open) => !open && onClose()}>
       <Modal.Content>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <Modal.Header onClose={onClose} showCloseButton={false}>
             <div className="flex items-center justify-between w-full">
               <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
@@ -1866,27 +1861,19 @@ function ExchangeConfigModal({
                   >
                     {t('selectExchange', language)}
                   </label>
-                  <select
+                  <Select
                     value={selectedExchangeId}
-                    onChange={(e) => setSelectedExchangeId(e.target.value)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
+                    onValueChange={setSelectedExchangeId}
+                    placeholder={t('pleaseSelectExchange', language)}
                     required
                   >
-                    <option value="">
-                      {t('pleaseSelectExchange', language)}
-                    </option>
                     {availableExchanges.map((exchange) => (
-                      <option key={exchange.id} value={exchange.id}>
+                      <Select.Item key={exchange.id} value={exchange.id}>
                         {getShortName(exchange.name)} (
                         {exchange.type.toUpperCase()})
-                      </option>
+                      </Select.Item>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
 
@@ -1945,9 +1932,10 @@ function ExchangeConfigModal({
                                   className="text-sm font-medium"
                                   style={{ color: '#EAECEF' }}
                                 >
-                                  <strong>币安用户必读：</strong>
-                                  使用「现货与合约交易」API，不要用「统一账户
-                                  API」
+                                  <strong>
+                                    {t('binanceUserNotice', language)}
+                                  </strong>{' '}
+                                  {t('binanceApiTypeWarning', language)}
                                 </span>
                               </div>
                               <span style={{ color: '#8b949e' }}>
@@ -1970,39 +1958,23 @@ function ExchangeConfigModal({
                                   className="mb-2"
                                   style={{ color: '#8b949e' }}
                                 >
-                                  <strong>原因：</strong>统一账户 API
-                                  权限结构不同，会导致订单提交失败
+                                  {t('binanceApiTypeReason', language)}
                                 </p>
 
                                 <p
                                   className="font-semibold mb-1"
                                   style={{ color: '#EAECEF' }}
                                 >
-                                  正确配置步骤：
+                                  {t('binanceSetupSteps', language)}
                                 </p>
                                 <ol
                                   className="list-decimal list-inside space-y-1 mb-3"
                                   style={{ paddingLeft: '0.5rem' }}
                                 >
-                                  <li>
-                                    登录币安 → 个人中心 →{' '}
-                                    <strong>API 管理</strong>
-                                  </li>
-                                  <li>
-                                    创建 API → 选择「
-                                    <strong>系统生成的 API 密钥</strong>」
-                                  </li>
-                                  <li>
-                                    勾选「<strong>现货与合约交易</strong>」（
-                                    <span style={{ color: '#f85149' }}>
-                                      不选统一账户
-                                    </span>
-                                    ）
-                                  </li>
-                                  <li>
-                                    IP 限制选「<strong>无限制</strong>
-                                    」或添加服务器 IP
-                                  </li>
+                                  <li>{t('binanceSetupStep1', language)}</li>
+                                  <li>{t('binanceSetupStep2', language)}</li>
+                                  <li>{t('binanceSetupStep3', language)}</li>
+                                  <li>{t('binanceSetupStep4', language)}</li>
                                 </ol>
 
                                 <p
@@ -2012,8 +1984,11 @@ function ExchangeConfigModal({
                                     border: '1px solid #9e6a03',
                                   }}
                                 >
-                                  💡 <strong>多资产模式用户注意：</strong>
-                                  如果您开启了多资产模式，将强制使用全仓模式。建议关闭多资产模式以支持逐仓交易。
+                                  💡{' '}
+                                  <strong>
+                                    {t('binanceMultiAssetWarning', language)}
+                                  </strong>{' '}
+                                  {t('binanceMultiAssetWarningDesc', language)}
                                 </p>
 
                                 <a
@@ -2023,7 +1998,7 @@ function ExchangeConfigModal({
                                   className="inline-block text-sm hover:underline"
                                   style={{ color: '#58a6ff' }}
                                 >
-                                  📖 查看币安官方教程 ↗
+                                  📖 {t('binanceOfficialGuide', language)} ↗
                                 </a>
                               </div>
                             )}

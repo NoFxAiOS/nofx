@@ -73,7 +73,7 @@ export function Modal({
 export function ModalContent({ children, className = '' }: ModalContentProps) {
   return (
     <div
-      className={`flex flex-col bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl mx-4 my-8 ${className}`}
+      className={`flex flex-col bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl mx-4 my-8 overflow-hidden ${className}`}
       style={{ maxHeight: 'calc(100vh - 4rem)' }}
     >
       {children}
@@ -93,7 +93,7 @@ export function ModalHeader({
 }: ModalHeaderProps) {
   return (
     <div
-      className={`flex items-center justify-between p-6 pb-4 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky top-0 z-10 rounded-t-xl ${className}`}
+      className={`flex items-center justify-between p-6 pb-4 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] flex-shrink-0 rounded-t-xl ${className}`}
     >
       <div className="flex-1">{children}</div>
       {showCloseButton && (
@@ -113,14 +113,11 @@ export function ModalHeader({
 
 /**
  * Modal 主体内容
- * 可滚动区域
+ * 可滚动区域，使用 flex-1 占据剩余空间
  */
 export function ModalBody({ children, className = '' }: ModalBodyProps) {
   return (
-    <div
-      className={`p-6 overflow-y-auto ${className}`}
-      style={{ maxHeight: 'calc(100vh - 16rem)' }}
-    >
+    <div className={`p-6 overflow-y-auto flex-1 min-h-0 ${className}`}>
       {children}
     </div>
   )
@@ -129,11 +126,12 @@ export function ModalBody({ children, className = '' }: ModalBodyProps) {
 /**
  * Modal 底部
  * 通常放置操作按钮
+ * 默认不设置对齐方式，由使用者通过 className 控制
  */
 export function ModalFooter({ children, className = '' }: ModalFooterProps) {
   return (
     <div
-      className={`flex justify-end gap-3 p-6 pt-4 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky bottom-0 z-10 rounded-b-xl ${className}`}
+      className={`flex gap-3 p-6 pt-4 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] flex-shrink-0 rounded-b-xl ${className}`}
     >
       {children}
     </div>

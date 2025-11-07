@@ -239,8 +239,8 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
-		TakerFeeRate:          0.0004,                         // P0修复：默认Taker费率 0.04%
-		MakerFeeRate:          0.0002,                         // P0修复：默认Maker费率 0.02%
+		TakerFeeRate:          traderCfg.TakerFeeRate,         // P0修复：从数据库读取Taker费率
+		MakerFeeRate:          traderCfg.MakerFeeRate,         // P0修复：从数据库读取Maker费率
 	}
 
 	// 根据交易所类型设置API密钥
@@ -347,8 +347,8 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
-		TakerFeeRate:          0.0004, // P0修复：默认Taker费率 0.04%
-		MakerFeeRate:          0.0002, // P0修复：默认Maker费率 0.02%
+		TakerFeeRate:          traderCfg.TakerFeeRate, // P0修复：从数据库读取Taker费率
+		MakerFeeRate:          traderCfg.MakerFeeRate, // P0修复：从数据库读取Maker费率
 	}
 
 	// 根据交易所类型设置API密钥
@@ -897,8 +897,8 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		TradingCoins:         tradingCoins,
 		SystemPromptTemplate: traderCfg.SystemPromptTemplate, // 系统提示词模板
 		HyperliquidTestnet:   exchangeCfg.Testnet,            // Hyperliquid测试网
-		TakerFeeRate:         0.0004,                         // P0修复：默认Taker费率 0.04%
-		MakerFeeRate:         0.0002,                         // P0修复：默认Maker费率 0.02%
+		TakerFeeRate:         traderCfg.TakerFeeRate,         // P0修复：从数据库读取Taker费率
+		MakerFeeRate:         traderCfg.MakerFeeRate,         // P0修复：从数据库读取Maker费率
 	}
 
 	// 根据交易所类型设置API密钥

@@ -298,7 +298,7 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
 	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
 	if parseErr != nil || quantityFloat <= 0 {
-		return nil, fmt.Errorf("开倉數量過小，格式化後為 0 (原始: %.8f → 格式化: %s)。建議增加開倉金額或選擇價格更低的幣種", quantity, quantityStr)
+		return nil, fmt.Errorf("开仓数量过小，格式化后为 0 (原始: %.8f → 格式化: %s)。建议增加开仓金额或选择价格更低的币种", quantity, quantityStr)
 	}
 
 	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
@@ -352,7 +352,7 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
 	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
 	if parseErr != nil || quantityFloat <= 0 {
-		return nil, fmt.Errorf("开倉數量過小，格式化後為 0 (原始: %.8f → 格式化: %s)。建議增加開倉金額或選擇價格更低的幣種", quantity, quantityStr)
+		return nil, fmt.Errorf("开仓数量过小，格式化后为 0 (原始: %.8f → 格式化: %s)。建议增加开仓金额或选择价格更低的币种", quantity, quantityStr)
 	}
 
 	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）

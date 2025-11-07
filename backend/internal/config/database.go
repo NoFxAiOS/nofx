@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"nofx/market"
+	"nofx/backend/internal/market"
 	"os"
 	"slices"
 	"strings"

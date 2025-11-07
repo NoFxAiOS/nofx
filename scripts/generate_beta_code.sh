@@ -3,7 +3,7 @@
 # 内测码生成脚本
 # 生成6位不重复的内测码并写入 beta_codes.txt
 
-BETA_CODES_FILE="beta_codes.txt"
+BETA_CODES_FILE="configs/beta_codes.txt"
 COUNT=1
 LIST_ONLY=false
 CODE_LENGTH=6

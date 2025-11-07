@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"nofx/config"
+	"nofx/backend/internal/config"
 	"sync"
 )
 

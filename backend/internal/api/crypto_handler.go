@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"nofx/crypto"
+	"nofx/backend/internal/crypto"
 )
 
 // CryptoHandler 加密 API 處理器

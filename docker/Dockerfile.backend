@@ -43,13 +43,18 @@ RUN apk update && apk add --no-cache git make gcc g++ musl-dev
 COPY --from=ta-lib-builder /usr/local /usr/local
 
 WORKDIR /app
-COPY go.mod go.sum ./
+# 复制 backend 目录的 go.mod 和 go.sum（模块名是 nofx/backend）
+COPY backend/go.mod backend/go.sum ./
+# 下载依赖
 RUN go mod download
 
-COPY . .
+# 复制整个 backend 目录到 /app/
+COPY backend/ ./
+
+# 在 /app 目录中构建（模块名是 nofx/backend，代码在 cmd/server）
 RUN CGO_ENABLED=1 GOOS=linux \
     CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
-    go build -trimpath -ldflags="-s -w" -o nofx .
+    go build -trimpath -ldflags="-s -w" -o nofx ./cmd/server
 
 # ──────────────────────────────────────────────────────────────
 # Runtime Stage (Minimal Executable Environment)

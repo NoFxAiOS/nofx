@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"nofx/config"
+	"nofx/backend/internal/config"
 	"os"
 
 	"github.com/sirupsen/logrus"

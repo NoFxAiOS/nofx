@@ -40,13 +40,15 @@ print_error() {
 # ------------------------------------------------------------------------
 detect_compose_cmd() {
     if command -v docker compose &> /dev/null; then
-        COMPOSE_CMD="docker compose"
+        COMPOSE_BASE="docker compose"
     elif command -v docker-compose &> /dev/null; then
-        COMPOSE_CMD="docker-compose"
+        COMPOSE_BASE="docker-compose"
     else
         print_error "Docker Compose 未安装！请先安装 Docker Compose"
         exit 1
     fi
+    # 指定docker-compose.yml文件路径
+    COMPOSE_CMD="$COMPOSE_BASE -f docker/docker-compose.yml"
     print_info "使用 Docker Compose 命令: $COMPOSE_CMD"
 }
 
@@ -80,9 +82,9 @@ check_env() {
 # Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
 # ------------------------------------------------------------------------
 check_config() {
-    if [ ! -f "config.json" ]; then
+    if [ ! -f "configs/config.json" ]; then
         print_warning "config.json 不存在，从模板复制..."
-        cp config.json.example config.json
+        cp configs/config.json.example configs/config.json
         print_info "✓ 已使用默认配置创建 config.json"
         print_info "💡 如需修改基础设置（杠杆大小、开仓币种、管理员模式、JWT密钥等），可编辑 config.json"
         print_info "💡 模型/交易所/交易员配置请使用Web界面"
@@ -117,18 +119,18 @@ read_env_vars() {
 # Validation: Database File (config.db)
 # ------------------------------------------------------------------------
 check_database() {
-    if [ -d "config.db" ]; then
+    if [ -d "configs/config.db" ]; then
         # 如果存在的是目录，删除它
         print_warning "config.db 是目录而非文件，正在删除目录..."
-        rm -rf config.db
+        rm -rf configs/config.db
         print_info "✓ 已删除目录，现在创建文件..."
-        touch config.db
+        touch configs/config.db
         print_success "✓ 已创建空数据库文件，系统将在启动时初始化"
-    elif [ ! -f "config.db" ]; then
+    elif [ ! -f "configs/config.db" ]; then
         # 如果不存在文件，创建它
         print_warning "数据库文件不存在，创建空数据库文件..."
         # 创建空文件以避免Docker创建目录
-        touch config.db
+        touch configs/config.db
         print_info "✓ 已创建空数据库文件，系统将在启动时初始化"
     else
         # 文件存在
@@ -175,9 +177,9 @@ start() {
     read_env_vars
 
     # 确保必要的文件和目录存在（修复 Docker volume 挂载问题）
-    if [ ! -f "config.db" ]; then
+    if [ ! -f "configs/config.db" ]; then
         print_info "创建数据库文件..."
-        touch config.db
+        touch configs/config.db
     fi
     if [ ! -d "decision_logs" ]; then
         print_info "创建日志目录..."

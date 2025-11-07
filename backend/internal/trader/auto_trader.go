@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"nofx/decision"
-	"nofx/logger"
-	"nofx/market"
-	"nofx/mcp"
-	"nofx/pool"
+	"nofx/backend/internal/decision"
+	"nofx/backend/internal/logger"
+	"nofx/backend/internal/market"
+	"nofx/backend/internal/mcp"
+	"nofx/backend/internal/pool"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -198,7 +199,11 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 	}
 
 	// 初始化决策日志记录器（使用trader ID创建独立目录）
-	logDir := fmt.Sprintf("decision_logs/%s", config.ID)
+	baseLogDir := os.Getenv("NOFX_DECISION_LOGS_DIR")
+	if baseLogDir == "" {
+		baseLogDir = "../../../decision_logs" // 从backend/internal/trader到项目根目录
+	}
+	logDir := fmt.Sprintf("%s/%s", baseLogDir, config.ID)
 	decisionLogger := logger.NewDecisionLogger(logDir)
 
 	// 设置默认系统提示词模板

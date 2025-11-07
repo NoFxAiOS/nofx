@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"nofx/crypto"
+	"nofx/backend/internal/crypto"
 
 	_ "modernc.org/sqlite"
 )
@@ -15,7 +15,7 @@ func main() {
 	log.Println("🔄 開始遷移數據庫到加密格式...")
 
 	// 1. 檢查數據庫檔案
-	dbPath := "config.db"
+	dbPath := "configs/config.db"
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
 	}

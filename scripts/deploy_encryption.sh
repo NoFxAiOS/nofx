@@ -53,12 +53,12 @@ check_dependencies() {
 backup_database() {
     log_info "備份現有數據庫..."
 
-    if [ -f "config.db" ]; then
-        BACKUP_FILE="config.db.pre_encryption.$(date +%Y%m%d_%H%M%S).backup"
-        cp config.db "$BACKUP_FILE"
+    if [ -f "configs/config.db" ]; then
+        BACKUP_FILE="configs/config.db.pre_encryption.$(date +%Y%m%d_%H%M%S).backup"
+        cp configs/config.db "$BACKUP_FILE"
         log_success "數據庫已備份到: $BACKUP_FILE"
     else
-        log_warning "未找到 config.db，跳過備份（首次安裝）"
+        log_warning "未找到 configs/config.db，跳過備份（首次安裝）"
     fi
 }
 
@@ -97,7 +97,7 @@ install_dependencies() {
     log_success "Go 依賴已更新"
 
     log_info "安裝前端依賴..."
-    cd web
+    cd frontend
     if [ ! -d "node_modules" ]; then
         npm install
     fi
@@ -110,7 +110,7 @@ install_dependencies() {
 run_tests() {
     log_info "運行加密系統測試..."
 
-    if go test ./crypto -v > /tmp/nofx_test.log 2>&1; then
+    if go test ./backend/internal/crypto -v > /tmp/nofx_test.log 2>&1; then
         log_success "加密系統測試通過"
         cat /tmp/nofx_test.log | grep "✅"
     else
@@ -124,9 +124,9 @@ run_tests() {
 migrate_data() {
     log_info "遷移現有數據到加密格式..."
 
-    if [ -f "config.db" ]; then
+    if [ -f "configs/config.db" ]; then
         # 檢查是否已經加密過
-        if sqlite3 config.db "SELECT api_key FROM exchanges LIMIT 1;" 2>/dev/null | grep -q "=="; then
+        if sqlite3 configs/config.db "SELECT api_key FROM exchanges LIMIT 1;" 2>/dev/null | grep -q "=="; then
             log_warning "數據庫似乎已經加密過，跳過遷移"
             read -p "是否強制重新遷移？(y/N): " -n 1 -r
             echo
@@ -198,8 +198,8 @@ verify_deployment() {
     fi
 
     # 3. 檢查資料庫加密
-    if [ -f "config.db" ] && command -v sqlite3 &> /dev/null; then
-        SAMPLE=$(sqlite3 config.db "SELECT api_key FROM exchanges WHERE api_key != '' LIMIT 1;" 2>/dev/null || echo "")
+    if [ -f "configs/config.db" ] && command -v sqlite3 &> /dev/null; then
+        SAMPLE=$(sqlite3 configs/config.db "SELECT api_key FROM exchanges WHERE api_key != '' LIMIT 1;" 2>/dev/null || echo "")
         if echo "$SAMPLE" | grep -q "=="; then
             log_success "數據庫密鑰已加密（Base64 格式）"
         else
@@ -220,16 +220,16 @@ print_next_steps() {
     echo "📝 後續步驟:"
     echo ""
     echo "  1️⃣  啟動後端服務:"
-    echo "     $ go run main.go"
+    echo "     $ cd backend && go run cmd/server/main.go"
     echo ""
     echo "  2️⃣  啟動前端服務:"
-    echo "     $ cd web && npm run dev"
+    echo "     $ cd frontend && npm run dev"
     echo ""
     echo "  3️⃣  驗證加密功能:"
     echo "     $ curl http://localhost:8080/api/crypto/public-key"
     echo ""
     echo "  4️⃣  查看審計日誌:"
-    echo "     $ sqlite3 config.db 'SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 10;'"
+    echo "     $ sqlite3 configs/config.db 'SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 10;'"
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""

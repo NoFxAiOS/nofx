@@ -1,6 +1,6 @@
 package bootstrap
 
-import "nofx/config"
+import "nofx/backend/internal/config"
 
 type InitHook func(config *config.Config) error
 

@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
-	"nofx/logger"
+	"nofx/backend/internal/logger"
 	"sort"
 	"sync"
 	"time"

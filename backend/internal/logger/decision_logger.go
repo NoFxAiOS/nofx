@@ -70,7 +70,12 @@ type DecisionLogger struct {
 // NewDecisionLogger 创建决策日志记录器
 func NewDecisionLogger(logDir string) *DecisionLogger {
 	if logDir == "" {
-		logDir = "decision_logs"
+		// 优先使用环境变量，否则使用默认路径
+		if envDir := os.Getenv("NOFX_DECISION_LOGS_DIR"); envDir != "" {
+			logDir = envDir
+		} else {
+			logDir = "../../../decision_logs" // 从backend/internal/logger到项目根目录
+		}
 	}
 
 	// 确保日志目录存在

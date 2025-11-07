@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"nofx/api"
-	"nofx/auth"
-	"nofx/config"
-	"nofx/manager"
-	"nofx/market"
-	"nofx/pool"
+	"nofx/backend/internal/api"
+	"nofx/backend/internal/auth"
+	"nofx/backend/internal/config"
+	"nofx/backend/internal/manager"
+	"nofx/backend/internal/market"
+	"nofx/backend/internal/pool"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -40,14 +41,21 @@ type ConfigFile struct {
 
 // loadConfigFile 读取并解析config.json文件
 func loadConfigFile() (*ConfigFile, error) {
+	// 配置文件路径：优先使用环境变量，否则使用相对路径
+	configPath := os.Getenv("NOFX_CONFIG_PATH")
+	if configPath == "" {
+		// 从backend/cmd/server目录，向上找到项目根目录，然后到configs目录
+		configPath = filepath.Join("../../..", "configs", "config.json")
+	}
+
 	// 检查config.json是否存在
-	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Printf("📄 config.json不存在，使用默认配置")
 		return &ConfigFile{}, nil
 	}
 
 	// 读取config.json
-	data, err := os.ReadFile("config.json")
+	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("读取config.json失败: %w", err)
 	}
@@ -118,7 +126,11 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 
 // loadBetaCodesToDatabase 加载内测码文件到数据库
 func loadBetaCodesToDatabase(database *config.Database) error {
-	betaCodeFile := "beta_codes.txt"
+	// 内测码文件路径：优先使用环境变量，否则使用相对路径
+	betaCodeFile := os.Getenv("NOFX_BETA_CODES_PATH")
+	if betaCodeFile == "" {
+		betaCodeFile = filepath.Join("../../..", "configs", "beta_codes.txt")
+	}
 
 	// 检查内测码文件是否存在
 	if _, err := os.Stat(betaCodeFile); os.IsNotExist(err) {
@@ -162,9 +174,14 @@ func main() {
 	_ = godotenv.Load()
 
 	// 初始化数据库配置
-	dbPath := "config.db"
-	if len(os.Args) > 1 {
-		dbPath = os.Args[1]
+	dbPath := os.Getenv("NOFX_DB_PATH")
+	if dbPath == "" {
+		if len(os.Args) > 1 {
+			dbPath = os.Args[1]
+		} else {
+			// 默认路径：从backend/cmd/server目录，向上找到项目根目录，然后到configs目录
+			dbPath = filepath.Join("../../..", "configs", "config.db")
+		}
 	}
 
 	// 读取配置文件

@@ -24,9 +24,18 @@ type PromptManager struct {
 var (
 	// globalPromptManager 全局提示词管理器
 	globalPromptManager *PromptManager
-	// promptsDir 提示词文件夹路径
-	promptsDir = "prompts"
+	// promptsDir 提示词文件夹路径（优先使用环境变量，否则使用相对路径）
+	promptsDir = getPromptsDir()
 )
+
+// getPromptsDir 获取提示词目录路径
+func getPromptsDir() string {
+	if dir := os.Getenv("NOFX_PROMPTS_DIR"); dir != "" {
+		return dir
+	}
+	// 默认路径：从backend/internal/decision目录，向上找到backend目录，然后到prompts目录
+	return "../../prompts"
+}
 
 // init 包初始化时加载所有提示词模板
 func init() {

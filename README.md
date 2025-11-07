@@ -526,6 +526,12 @@ Hyperliquid uses **Ethereum private keys** (NOT API keys). Key differences:
 
 **Step 2**: ~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
 
+> ⚠️ **CRITICAL WARNING ABOUT `hyperliquid_private_key`**:
+> - This is your **ETHEREUM PRIVATE KEY** (not an API key!)
+> - Leaked key = Complete wallet access = Funds can be stolen
+> - NEVER commit this file to Git!
+> - Use a dedicated wallet with limited funds only
+
 ```json
 {
   "traders": [
@@ -535,9 +541,6 @@ Hyperliquid uses **Ethereum private keys** (NOT API keys). Key differences:
       "enabled": true,
       "ai_model": "deepseek",
       "exchange": "hyperliquid",
-      // ⚠️ CRITICAL: This is your ETHEREUM PRIVATE KEY (not an API key!)
-      // Leaked key = Complete wallet access = Funds can be stolen
-      // NEVER commit this file to Git! Use a dedicated wallet with limited funds.
       "hyperliquid_private_key": "your_private_key_without_0x",
       "hyperliquid_wallet_addr": "your_ethereum_address",
       "hyperliquid_testnet": false,
@@ -550,6 +553,14 @@ Hyperliquid uses **Ethereum private keys** (NOT API keys). Key differences:
   "api_server_port": 8080
 }
 ```
+
+**⚠️ Field Descriptions:**
+- `hyperliquid_private_key`: Your Ethereum private key (remove `0x` prefix)
+  - ⚠️ This is NOT an API key - it controls your entire wallet!
+  - Best practice: Create a new wallet specifically for trading
+  - Only fund it with the amount you need for trading ($100-500)
+- `hyperliquid_wallet_addr`: Your Ethereum wallet address (the public address)
+- `hyperliquid_testnet`: Set to `true` for testnet, `false` for mainnet
 
 **Key Differences from Binance:**
 
@@ -810,10 +821,12 @@ This makes it beginner-friendly! You can even omit this field entirely.
 
 ✅ **Option 2: Omit the field (uses default coins automatically)**
 ```json
-// Just don't include "use_default_coins" at all
-"coin_pool_api_url": "",
-"oi_top_api_url": ""
+{
+  "coin_pool_api_url": "",
+  "oi_top_api_url": ""
+}
 ```
+> 💡 **Note**: Just don't include `"use_default_coins"` field at all - the system will use default coins automatically
 
 ⚙️ **Advanced: Use external API**
 ```json

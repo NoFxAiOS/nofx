@@ -438,55 +438,78 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	// 🔍 调试：打印原始API响应
-	log.Printf("🔍 Aster API原始响应: %s", string(body))
-
 	// 查找USDT余额
-	totalBalance := 0.0
 	availableBalance := 0.0
 	crossUnPnl := 0.0
+	crossWalletBalance := 0.0
+	foundUSDT := false
 
 	for _, bal := range balances {
-		// 🔍 调试：打印每条余额记录
-		log.Printf("🔍 余额记录: %+v", bal)
-
 		if asset, ok := bal["asset"].(string); ok && asset == "USDT" {
-			// 🔍 调试：打印USDT余额详情
-			log.Printf("🔍 USDT余额详情: balance=%v, availableBalance=%v, crossUnPnl=%v",
-				bal["balance"], bal["availableBalance"], bal["crossUnPnl"])
+			foundUSDT = true
 
-			if wb, ok := bal["balance"].(string); ok {
-				totalBalance, _ = strconv.ParseFloat(wb, 64)
-			}
+			// 解析Aster字段（参考: https://github.com/asterdex/api-docs）
 			if avail, ok := bal["availableBalance"].(string); ok {
 				availableBalance, _ = strconv.ParseFloat(avail, 64)
 			}
 			if unpnl, ok := bal["crossUnPnl"].(string); ok {
 				crossUnPnl, _ = strconv.ParseFloat(unpnl, 64)
 			}
+			if cwb, ok := bal["crossWalletBalance"].(string); ok {
+				crossWalletBalance, _ = strconv.ParseFloat(cwb, 64)
+			}
 			break
 		}
 	}
 
-	// ✅ Aster API完全兼容Binance API格式
-	// balance字段 = wallet balance（不包含未实现盈亏）
-	// crossUnPnl = unrealized profit（未实现盈亏）
-	// crossWalletBalance = balance + crossUnPnl（全仓钱包余额，包含盈亏）
-	//
-	// 参考Binance官方文档：
-	// - Account Information V2: marginBalance = walletBalance + unrealizedProfit
-	// - Balance V3: crossWalletBalance = balance + crossUnPnl
+	if !foundUSDT {
+		log.Printf("⚠️  未找到USDT资产记录！")
+	}
 
-	log.Printf("✓ Aster API返回: 钱包余额=%.2f, 未实现盈亏=%.2f, 可用余额=%.2f",
-		totalBalance,
-		crossUnPnl,
-		availableBalance)
+	// 获取持仓计算保证金占用和真实未实现盈亏
+	positions, err := t.GetPositions()
+	if err != nil {
+		log.Printf("⚠️  获取持仓信息失败: %v", err)
+		// fallback: 无法获取持仓时使用简单计算
+		return map[string]interface{}{
+			"totalWalletBalance":    crossWalletBalance,
+			"availableBalance":      availableBalance,
+			"totalUnrealizedProfit": crossUnPnl,
+		}, nil
+	}
 
-	// 返回与Binance相同的字段名，确保AutoTrader能正确解析
+	// ⚠️ 关键修复：从持仓中累加真正的未实现盈亏
+	// Aster 的 crossUnPnl 字段不准确，需要从持仓数据中重新计算
+	totalMarginUsed := 0.0
+	realUnrealizedPnl := 0.0
+	for _, pos := range positions {
+		markPrice := pos["markPrice"].(float64)
+		quantity := pos["positionAmt"].(float64)
+		if quantity < 0 {
+			quantity = -quantity
+		}
+		unrealizedPnl := pos["unRealizedProfit"].(float64)
+		realUnrealizedPnl += unrealizedPnl
+
+		leverage := 10
+		if lev, ok := pos["leverage"].(float64); ok {
+			leverage = int(lev)
+		}
+		marginUsed := (quantity * markPrice) / float64(leverage)
+		totalMarginUsed += marginUsed
+	}
+
+	// ✅ Aster 正确计算方式:
+	// 总净值 = 可用余额 + 保证金占用
+	// 钱包余额 = 总净值 - 未实现盈亏
+	// 未实现盈亏 = 从持仓累加计算（不使用API的crossUnPnl）
+	totalEquity := availableBalance + totalMarginUsed
+	totalWalletBalance := totalEquity - realUnrealizedPnl
+
 	return map[string]interface{}{
-		"totalWalletBalance":    totalBalance,    // 钱包余额（不含未实现盈亏）
-		"availableBalance":      availableBalance,
-		"totalUnrealizedProfit": crossUnPnl,      // 未实现盈亏
+		"totalWalletBalance":    totalWalletBalance, // 钱包余额（不含未实现盈亏）
+		"availableBalance":      availableBalance,   // 可用余额
+		"totalUnrealizedProfit": realUnrealizedPnl,  // 未实现盈亏（从持仓累加）
 	}, nil
 }
 
@@ -1009,8 +1032,6 @@ func (t *AsterTrader) SetTakeProfit(symbol string, positionSide string, quantity
 	_, err = t.request("POST", "/fapi/v3/order", params)
 	return err
 }
-
-
 
 // CancelStopLossOrders 仅取消止损单（不影响止盈单）
 func (t *AsterTrader) CancelStopLossOrders(symbol string) error {

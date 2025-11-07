@@ -112,7 +112,7 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	// 解析余额信息（MarginSummary字段都是string）
 	result := make(map[string]interface{})
 
-	// ✅ 核心修復：根据保证金模式动态选择正确的摘要（CrossMarginSummary 或 MarginSummary）
+	// ✅ 核心修复：根据保证金模式动态选择正确的摘要（CrossMarginSummary 或 MarginSummary）
 	var accountValue, totalMarginUsed float64
 	var summaryType string
 	var summary interface{}
@@ -595,14 +595,14 @@ func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 			if err != nil {
 				errMsg := err.Error()
 
-				// ============ P3 修復：智能錯誤分类 ============
-				// 判斷錯誤类型：订单已觸发 vs 真实錯誤
+				// ============ P3 修复：智能错误分类 ============
+				// 判断错误类型：订单已触发 vs 真实错误
 				if strings.Contains(errMsg, "Order does not exist") ||
 					strings.Contains(errMsg, "already filled") ||
 					strings.Contains(errMsg, "already triggered") ||
 					strings.Contains(errMsg, "Order not found") {
-					// 订单已觸发/成交/不存在 → 這是正常情況，不是錯誤
-					log.Printf("  ℹ️  订单 oid=%d 已觸发或成交，無需取消", order.Oid)
+					// 订单已触发/成交/不存在 → 这是正常情况，不是错误
+					log.Printf("  ℹ️  订单 oid=%d 已触发或成交，无需取消", order.Oid)
 					triggeredCount++
 					continue
 				}
@@ -610,14 +610,14 @@ func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 				if strings.Contains(errMsg, "permission") ||
 					strings.Contains(errMsg, "Unauthorized") ||
 					strings.Contains(errMsg, "API key") {
-					// 權限錯誤 → 這是嚴重問題
-					log.Printf("  🚨 權限錯誤 (oid=%d): %v", order.Oid, err)
-					log.Printf("  → 請檢查 API Key 配置或權限設置")
+					// 权限错误 → 这是严重问题
+					log.Printf("  🚨 权限错误 (oid=%d): %v", order.Oid, err)
+					log.Printf("  → 请检查 API Key 配置或权限设置")
 					continue
 				}
 
-				// 其他未知錯誤 → 記錄但繼續
-				log.Printf("  ⚠️  取消订单失敗 (oid=%d): %v", order.Oid, err)
+				// 其他未知错误 → 记录但继续
+				log.Printf("  ⚠️  取消订单失败 (oid=%d): %v", order.Oid, err)
 				// ===================================================
 				continue
 			}
@@ -625,16 +625,16 @@ func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 		}
 	}
 
-	// ============ P3 修復：詳細的操作摘要 ============
+	// ============ P3 修复：详细的操作摘要 ============
 	if canceledCount == 0 && triggeredCount == 0 {
-		log.Printf("  ℹ️  %s 沒有掛单需要取消", symbol)
+		log.Printf("  ℹ️  %s 没有挂单需要取消", symbol)
 	} else {
 		if canceledCount > 0 && triggeredCount > 0 {
-			log.Printf("  ✅ 已取消 %s 的 %d 個掛单，%d 個已觸发/成交", symbol, canceledCount, triggeredCount)
+			log.Printf("  ✅ 已取消 %s 的 %d 个挂单，%d 个已触发/成交", symbol, canceledCount, triggeredCount)
 		} else if canceledCount > 0 {
-			log.Printf("  ✅ 已取消 %s 的 %d 個掛单（包括止盈/止損单）", symbol, canceledCount)
+			log.Printf("  ✅ 已取消 %s 的 %d 个挂单（包括止盈/止损单）", symbol, canceledCount)
 		} else {
-			log.Printf("  ℹ️  %s 的 %d 個订单已觸发或成交，無需取消", symbol, triggeredCount)
+			log.Printf("  ℹ️  %s 的 %d 个订单已触发或成交，无需取消", symbol, triggeredCount)
 		}
 	}
 	// ===================================================

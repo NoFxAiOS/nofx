@@ -466,7 +466,7 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		log.Printf("⚠️  未找到USDT资产记录！")
 	}
 
-	// 获取持仓计算保证金占用
+	// 获取持仓计算保证金占用和真实未实现盈亏
 	positions, err := t.GetPositions()
 	if err != nil {
 		log.Printf("⚠️  获取持仓信息失败: %v", err)
@@ -478,13 +478,19 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		}, nil
 	}
 
+	// ⚠️ 关键修复：从持仓中累加真正的未实现盈亏
+	// Aster 的 crossUnPnl 字段不准确，需要从持仓数据中重新计算
 	totalMarginUsed := 0.0
+	realUnrealizedPnl := 0.0
 	for _, pos := range positions {
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
 		if quantity < 0 {
 			quantity = -quantity
 		}
+		unrealizedPnl := pos["unRealizedProfit"].(float64)
+		realUnrealizedPnl += unrealizedPnl
+
 		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
@@ -493,15 +499,17 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 		totalMarginUsed += marginUsed
 	}
 
-	// ✅ Aster特殊处理：crossWalletBalance为负数时不可用
-	// 正确的计算方式：总净值 = 可用余额 + 保证金占用
+	// ✅ Aster 正确计算方式:
+	// 总净值 = 可用余额 + 保证金占用
+	// 钱包余额 = 总净值 - 未实现盈亏
+	// 未实现盈亏 = 从持仓累加计算（不使用API的crossUnPnl）
 	totalEquity := availableBalance + totalMarginUsed
-	totalWalletBalance := totalEquity - crossUnPnl
+	totalWalletBalance := totalEquity - realUnrealizedPnl
 
 	return map[string]interface{}{
 		"totalWalletBalance":    totalWalletBalance, // 钱包余额（不含未实现盈亏）
 		"availableBalance":      availableBalance,   // 可用余额
-		"totalUnrealizedProfit": crossUnPnl,         // 未实现盈亏
+		"totalUnrealizedProfit": realUnrealizedPnl,  // 未实现盈亏（从持仓累加）
 	}, nil
 }
 

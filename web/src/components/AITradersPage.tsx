@@ -1428,18 +1428,19 @@ function ExchangeConfigModal({
                     }}
                   >
                     <div className="font-bold mb-2" style={{ color: '#F6465D' }}>
-                      🔐 Hyperliquid 安全配置（Agent Wallet 模式）
+                      🔐 Hyperliquid 安全配置说明
                     </div>
                     <div className="text-xs space-y-1" style={{ color: '#EAECEF' }}>
-                      <div>• <strong>API 钱包私钥</strong>：用于签名交易，余额应为 0</div>
-                      <div>• <strong>主钱包地址</strong>：持有资金，切勿透露私钥</div>
-                      <div>• 请在 <a href="https://app.hyperliquid.xyz" target="_blank" rel="noopener noreferrer" style={{ color: '#F0B90B', textDecoration: 'underline' }}>Hyperliquid 官网</a> 创建 Agent Wallet 并授权后再配置</div>
+                      <div>• 请在 <a href="https://app.hyperliquid.xyz/API" target="_blank" rel="noopener noreferrer" style={{ color: '#F0B90B', textDecoration: 'underline' }}>Hyperliquid 官网 API 页面</a> 申请 API 钱包（也称为代理钱包）</div>
+                      <div>• <strong>API 钱包</strong>可代表您的账户执行操作，但<strong>无提现权限</strong></div>
+                      <div>• <strong className="text-red-400">API 钱包不要留任何资产</strong></div>
+                      <div>• <strong className="text-red-400">主钱包的私钥不要给任何人</strong></div>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                      API 钱包私钥 (Agent Private Key) *
+                      请输入主钱包对应的 Hyperliquid API 钱包的私钥 *
                     </label>
                     <input
                       type="password"
@@ -1451,13 +1452,13 @@ function ExchangeConfigModal({
                       required
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      用于签名交易，该私钥对应的地址余额应为 0
+                      此私钥用于签名交易，对应的 API 钱包地址不应持有任何资产
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
-                      主钱包地址 (Main Wallet Address) *
+                      请输入主钱包的地址 *
                     </label>
                     <input
                       type="text"
@@ -1469,7 +1470,7 @@ function ExchangeConfigModal({
                       required
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      持有资金的主钱包地址，切勿透露私钥
+                      主钱包持有您的 USDC 资产，切勿将主钱包私钥透露给任何人
                     </div>
                   </div>
                 </>

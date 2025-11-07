@@ -90,13 +90,34 @@ A high-performance decentralized perpetual futures exchange!
 - ✅ Automatic precision handling (order size & price)
 - ✅ Unified trader interface (seamless exchange switching)
 - ✅ Support for both mainnet and testnet
-- ⚠️ **Authentication**: Uses Ethereum private key (NOT API keys like Binance)
+- ⚠️ **Authentication**: Uses API Wallet (Agent Wallet) + Main Wallet Address
+
+**🔐 Security Configuration (Agent Wallet Mode):**
+
+Hyperliquid uses a secure **Agent Wallet** model to protect your funds:
+
+1. **Main Wallet** (holds your USDC assets):
+   - Login to [Hyperliquid](https://app.hyperliquid.xyz)
+   - Deposit USDC from Arbitrum chain
+   - ⚠️ **NEVER share your main wallet's private key with anyone**
+   - ⚠️ **Do NOT enable any withdrawal authorizations**
+
+2. **API Wallet** (also called Agent Wallet or Proxy Wallet):
+   - Visit [https://app.hyperliquid.xyz/API](https://app.hyperliquid.xyz/API)
+   - Create an API Wallet - it can execute trades on behalf of your account **without withdrawal permissions**
+   - Input the API Wallet's **private key** in NOFX
+   - ⚠️ **Do NOT keep any assets in the API wallet** - it should have 0 balance
+   - ✅ Even if the API key is compromised, your funds remain safe in the main wallet
+
+**Configuration:**
+- **API Wallet Private Key**: Used for signing transactions (balance should be 0)
+- **Main Wallet Address**: Your main account address (holds funds, never expose private key)
 
 **New Workflow:**
 1. **Configure AI Models**: Add your DeepSeek/Qwen API keys through the web interface
 2. **Configure Exchanges**:
    - **Binance**: API Key + Secret Key (✅ fully revocable)
-   - **Hyperliquid**: Ethereum Private Key (❌ cannot be revoked)
+   - **Hyperliquid**: API Wallet Private Key + Main Wallet Address (⚠️ API key cannot be revoked, but has no withdrawal permissions)
    - **Aster**: API Wallet Private Key (⚠️ can be disabled via dashboard)
 3. **Create Traders**: Combine any AI model with any exchange to create custom traders
 4. **Monitor & Control**: Start/stop traders and monitor performance in real-time
@@ -496,41 +517,56 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-⚠️ **CRITICAL SECURITY WARNING**
+⚠️ **IMPORTANT: Agent Wallet Security Model**
 
-Hyperliquid uses **Ethereum private keys** (NOT API keys). Key differences:
+Hyperliquid uses a secure **Agent Wallet (API Wallet)** model to protect your funds:
 
-| Aspect | Binance API Key | Hyperliquid Private Key |
-|--------|----------------|------------------------|
-| **Revocable?** | ✅ Yes (via Binance dashboard) | ❌ No (blockchain-based) |
-| **Scope** | ⚠️ Limited to trading | 🔴 Full wallet control |
-| **If leaked** | Revoke & regenerate | ❌ Must create new wallet |
-| **Risk level** | 🟡 Medium | 🔴 Critical |
+| Component | Binance API Key | Hyperliquid Agent Wallet |
+|-----------|----------------|--------------------------|
+| **Revocable?** | ✅ Yes (via dashboard) | ⚠️ No (but has no withdrawal permissions) |
+| **Scope** | ⚠️ Limited to trading | ✅ Trading only, NO withdrawals |
+| **If leaked** | Revoke & regenerate | ⚠️ Can't revoke, but funds are safe |
+| **Risk level** | 🟡 Medium | 🟢 Low (when configured correctly) |
 
-**Best Practices (MANDATORY):**
-1. ✅ **Dedicated wallet** - Create a NEW wallet ONLY for Hyperliquid trading
-2. ✅ **Limit funds** - Only keep the minimum amount needed
-3. ✅ **Never reuse** - Do NOT use your main wallet or MetaMask default account
-4. ✅ **Test first** - Start with testnet to verify configuration
+**🔐 Security Configuration Steps (MANDATORY):**
+
+1. **Main Wallet Setup** (holds your USDC assets):
+   - Login to [Hyperliquid](https://app.hyperliquid.xyz)
+   - Deposit USDC from Arbitrum chain
+   - ⚠️ **NEVER share your main wallet's private key with anyone**
+   - ⚠️ **Do NOT enable any withdrawal authorizations**
+
+2. **API Wallet Setup** (for trading only):
+   - Visit [https://app.hyperliquid.xyz/API](https://app.hyperliquid.xyz/API)
+   - Create an API Wallet (also called Agent Wallet or Proxy Wallet)
+   - The API Wallet can execute trades on behalf of your account **without withdrawal permissions**
+   - ⚠️ **Do NOT keep any assets in the API wallet** - it should have 0 balance
+   - ✅ Even if the API key is compromised, your funds remain safe in the main wallet
+
+**Best Practices:**
+1. ✅ **API wallet private key** - Input this in NOFX (balance should be 0)
+2. ✅ **Main wallet address** - Input your main wallet address (holds funds, never expose private key)
+3. ✅ **Test first** - Start with testnet to verify configuration
 
 ---
 
-**NOFX also supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid instead of Binance:
+**NOFX supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid:
 
-**Step 1**: Get your Ethereum private key (for Hyperliquid authentication)
+**Step 1**: Create API Wallet on Hyperliquid
 
-1. Open **MetaMask** (or any Ethereum wallet)
-2. Export your private key
-3. **Remove the `0x` prefix** from the key
-4. Fund your wallet on [Hyperliquid](https://hyperliquid.xyz)
+1. Login to your main wallet on [Hyperliquid](https://app.hyperliquid.xyz)
+2. Visit the [API page](https://app.hyperliquid.xyz/API)
+3. Create a new API Wallet (it will generate a new private key)
+4. **Copy the API Wallet's private key** (you'll input this in NOFX)
+5. **Copy your main wallet address** (NOT the API wallet address)
 
-**Step 2**: ~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
+**Step 2**: Configure through web interface
 
-> ⚠️ **CRITICAL WARNING ABOUT `hyperliquid_private_key`**:
-> - This is your **ETHEREUM PRIVATE KEY** (not an API key!)
-> - Leaked key = Complete wallet access = Funds can be stolen
-> - NEVER commit this file to Git!
-> - Use a dedicated wallet with limited funds only
+> ⚠️ **IMPORTANT ABOUT API WALLET**:
+> - Input the **API Wallet's private key** (used for signing transactions)
+> - Input your **Main Wallet's address** (holds your funds)
+> - API Wallet should have **0 balance** - all funds stay in main wallet
+> - Even if API key leaks, funds cannot be withdrawn (no withdrawal permissions)
 
 ```json
 {
@@ -555,20 +591,23 @@ Hyperliquid uses **Ethereum private keys** (NOT API keys). Key differences:
 ```
 
 **⚠️ Field Descriptions:**
-- `hyperliquid_private_key`: Your Ethereum private key (remove `0x` prefix)
-  - ⚠️ This is NOT an API key - it controls your entire wallet!
-  - Best practice: Create a new wallet specifically for trading
-  - Only fund it with the amount you need for trading ($100-500)
-- `hyperliquid_wallet_addr`: Your Ethereum wallet address (the public address)
+- `hyperliquid_private_key`: **API Wallet's private key** (remove `0x` prefix)
+  - ✅ This is the API Wallet (Agent Wallet) private key created on Hyperliquid
+  - ✅ Used only for signing transactions, no withdrawal permissions
+  - ⚠️ API Wallet should have **0 balance** - all funds stay in main wallet
+  - ✅ Safe even if leaked - funds cannot be withdrawn
+- `hyperliquid_wallet_addr`: **Main wallet address** (the address that holds your funds)
+  - ⚠️ This is your main wallet ADDRESS (NOT private key!)
+  - Never expose your main wallet's private key
 - `hyperliquid_testnet`: Set to `true` for testnet, `false` for mainnet
 
 **Key Differences from Binance:**
 
 | Binance | Hyperliquid |
 |---------|------------|
-| `binance_api_key` + `binance_secret_key` | `hyperliquid_private_key` |
-| Revocable API keys | ❌ Irrevocable private key |
-| Trading-only permissions | 🔴 Full wallet control |
+| `binance_api_key` + `binance_secret_key` | `hyperliquid_private_key` (API Wallet) + `hyperliquid_wallet_addr` (Main Wallet) |
+| Revocable API keys | ⚠️ Irrevocable API key (but no withdrawal permissions) |
+| Trading-only permissions | ✅ Trading-only, NO withdrawals |
 | Can whitelist IP | No IP restrictions |
 
 **Configuration:**

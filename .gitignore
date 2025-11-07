@@ -32,6 +32,7 @@ config.json
 config.db
 
 # 生产配置
+nginx/
 certs/
 beta_codes.txt
 

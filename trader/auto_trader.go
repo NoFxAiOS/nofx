@@ -97,16 +97,16 @@ type AutoTrader struct {
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
-	startTime             time.Time        // 系统启动时间
-	callCount             int              // AI调用次数
-	positionFirstSeenTime map[string]int64 // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
-	stopMonitorCh         chan struct{}    // 用于停止监控goroutine
-	monitorWg             sync.WaitGroup   // 用于等待监控goroutine结束
-	peakPnLCache      map[string]float64 	 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
-	peakPnLCacheMutex sync.RWMutex // 缓存读写锁
-	lastBalanceSyncTime   time.Time        // 上次余额同步时间
-	database              interface{}      // 数据库引用（用于自动更新余额）
-	userID                string           // 用户ID
+	startTime             time.Time          // 系统启动时间
+	callCount             int                // AI调用次数
+	positionFirstSeenTime map[string]int64   // 持仓首次出现时间 (symbol_side -> timestamp毫秒)
+	stopMonitorCh         chan struct{}      // 用于停止监控goroutine
+	monitorWg             sync.WaitGroup     // 用于等待监控goroutine结束
+	peakPnLCache          map[string]float64 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
+	peakPnLCacheMutex     sync.RWMutex       // 缓存读写锁
+	lastBalanceSyncTime   time.Time          // 上次余额同步时间
+	database              interface{}        // 数据库引用（用于自动更新余额）
+	userID                string             // 用户ID
 }
 
 // NewAutoTrader 创建自动交易器
@@ -436,7 +436,7 @@ func (at *AutoTrader) runCycle() error {
 		})
 	}
 
-						log.Print(strings.Repeat("=", 70))
+	log.Print(strings.Repeat("=", 70))
 	for _, coin := range ctx.CandidateCoins {
 		record.CandidateCoins = append(record.CandidateCoins, coin.Symbol)
 	}
@@ -465,11 +465,11 @@ func (at *AutoTrader) runCycle() error {
 
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
 		if decision != nil {
-				log.Print("\n" + strings.Repeat("=", 70) + "\n")
-				log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
-				log.Println(strings.Repeat("=", 70))
-				log.Println(decision.SystemPrompt)
-				log.Println(strings.Repeat("=", 70))
+			log.Print("\n" + strings.Repeat("=", 70) + "\n")
+			log.Printf("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
+			log.Println(strings.Repeat("=", 70))
+			log.Println(decision.SystemPrompt)
+			log.Println(strings.Repeat("=", 70))
 
 			if decision.CoTTrace != "" {
 				log.Print("\n" + strings.Repeat("-", 70) + "\n")
@@ -508,9 +508,9 @@ func (at *AutoTrader) runCycle() error {
 	//     }
 	// }
 	log.Println()
-				log.Print(strings.Repeat("-", 70))
+	log.Print(strings.Repeat("-", 70))
 	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
-				log.Print(strings.Repeat("-", 70))
+	log.Print(strings.Repeat("-", 70))
 
 	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
 	sortedDecisions := sortDecisionsByPriority(decision.Decisions)

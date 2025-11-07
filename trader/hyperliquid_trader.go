@@ -175,10 +175,10 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	//      原因：Spot 和 Perpetuals 是獨立帳戶，需手動 ClassTransfer 才能轉帳
 	totalWalletBalance := walletBalanceWithoutUnrealized + spotUSDCBalance
 
-	result["totalWalletBalance"] = totalWalletBalance      // 總資產（Perp + Spot）
-	result["availableBalance"] = availableBalance          // 可用餘額（僅 Perpetuals，不含 Spot）
-	result["totalUnrealizedProfit"] = totalUnrealizedPnl   // 未實現盈虧（僅來自 Perpetuals）
-	result["spotBalance"] = spotUSDCBalance                // Spot 現貨餘額（單獨返回）
+	result["totalWalletBalance"] = totalWalletBalance    // 總資產（Perp + Spot）
+	result["availableBalance"] = availableBalance        // 可用餘額（僅 Perpetuals，不含 Spot）
+	result["totalUnrealizedProfit"] = totalUnrealizedPnl // 未實現盈虧（僅來自 Perpetuals）
+	result["spotBalance"] = spotUSDCBalance              // Spot 現貨餘額（單獨返回）
 
 	log.Printf("✓ Hyperliquid 完整账户:")
 	log.Printf("  • Spot 现货余额: %.2f USDC （需手动转账到 Perpetuals 才能开仓）", spotUSDCBalance)
@@ -550,7 +550,6 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 }
 
 // CancelStopOrders 取消该币种的止盈/止
-
 
 // CancelStopLossOrders 仅取消止损单（Hyperliquid 暂无法区分止损和止盈，取消所有）
 func (t *HyperliquidTrader) CancelStopLossOrders(symbol string) error {

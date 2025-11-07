@@ -19,10 +19,10 @@ type WSMonitor struct {
 	klineDataMap4h sync.Map // 存储每个交易对的K线历史数据
 	tickerDataMap  sync.Map // 存储每个交易对的ticker数据
 	batchSize      int
-	filterSymbols  sync.Map // 使用sync.Map来存储需要监控的币种和其状态
-	symbolStats    sync.Map // 存储币种统计信息
-	FilterSymbol   []string //经过筛选的币种
-	oiHistoryMap   sync.Map // P0修复：存储OI历史数据 map[symbol][]OISnapshot
+	filterSymbols  sync.Map      // 使用sync.Map来存储需要监控的币种和其状态
+	symbolStats    sync.Map      // 存储币种统计信息
+	FilterSymbol   []string      //经过筛选的币种
+	oiHistoryMap   sync.Map      // P0修复：存储OI历史数据 map[symbol][]OISnapshot
 	oiStopChan     chan struct{} // P0修复：OI监控停止信号通道
 }
 type SymbolStats struct {
@@ -372,7 +372,7 @@ func (m *WSMonitor) CalculateOIChange4h(symbol string, latestOI float64) float64
 // StartOIMonitoring 启动OI定期监控（每15分钟采样）
 func (m *WSMonitor) StartOIMonitoring() {
 	log.Printf("✅ 启动 OI 定期监控（每15分钟采样）")
-	
+
 	m.oiStopChan = make(chan struct{})
 	ticker := time.NewTicker(15 * time.Minute)
 

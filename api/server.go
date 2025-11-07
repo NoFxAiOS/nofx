@@ -113,6 +113,9 @@ func (s *Server) setupRoutes() {
 			protected.GET("/exchanges", s.handleGetExchangeConfigs)
 			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
 
+			// 系统提示词模板管理（需要认证，修复 #643）
+			protected.POST("/prompt-templates/reload", s.handleReloadPromptTemplates)
+
 			// 用户信号源配置
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
@@ -1689,5 +1692,24 @@ func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"name":    template.Name,
 		"content": template.Content,
+	})
+}
+
+// handleReloadPromptTemplates 重新加载所有提示词模板（修复 #643）
+// 用于在编译重启后或添加新模板后强制刷新模板列表
+func (s *Server) handleReloadPromptTemplates(c *gin.Context) {
+	if err := decision.ReloadPromptTemplates(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("重新加载提示词模板失败: %v", err),
+		})
+		return
+	}
+
+	// 获取重新加载后的模板列表
+	templates := decision.GetAllPromptTemplates()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "提示词模板已重新加载",
+		"count":   len(templates),
 	})
 }

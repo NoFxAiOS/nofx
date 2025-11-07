@@ -140,9 +140,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       if (e.id === 'aster') {
         return e.asterUser && e.asterUser.trim() !== ''
       }
-      // Hyperliquid 只检查私钥
+      // Hyperliquid 需要检查私钥和钱包地址
       if (e.id === 'hyperliquid') {
-        return e.apiKey && e.apiKey.trim() !== ''
+        return (
+          e.apiKey &&
+          e.apiKey.trim() !== '' &&
+          e.hyperliquidWalletAddr &&
+          e.hyperliquidWalletAddr.trim() !== ''
+        )
       }
       // 其他交易所检查 apiKey
       return e.apiKey && e.apiKey.trim() !== ''
@@ -166,9 +171,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         )
       }
 
-      // Hyperliquid 只需要私钥（作为apiKey），钱包地址会自动从私钥生成
+      // Hyperliquid 需要私钥和钱包地址（Agent Wallet 模式）
       if (e.id === 'hyperliquid') {
-        return e.apiKey && e.apiKey.trim() !== ''
+        return (
+          e.apiKey &&
+          e.apiKey.trim() !== '' &&
+          e.hyperliquidWalletAddr &&
+          e.hyperliquidWalletAddr.trim() !== ''
+        )
       }
 
       // Binance 等其他交易所需要 apiKey 和 secretKey
@@ -1691,6 +1701,9 @@ function ExchangeConfigModal({
   const [asterSigner, setAsterSigner] = useState('')
   const [asterPrivateKey, setAsterPrivateKey] = useState('')
 
+  // Hyperliquid 特定字段
+  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('')
+
   // 获取当前编辑的交易所信息
   const selectedExchange = allExchanges?.find(
     (e) => e.id === selectedExchangeId
@@ -1708,6 +1721,9 @@ function ExchangeConfigModal({
       setAsterUser(selectedExchange.asterUser || '')
       setAsterSigner(selectedExchange.asterSigner || '')
       setAsterPrivateKey('') // Don't load existing private key for security
+
+      // Hyperliquid 字段
+      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '')
     }
   }, [editingExchangeId, selectedExchange])
 
@@ -1745,8 +1761,14 @@ function ExchangeConfigModal({
       if (!apiKey.trim() || !secretKey.trim()) return
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
     } else if (selectedExchange?.id === 'hyperliquid') {
-      if (!apiKey.trim()) return // 只验证私钥，钱包地址自动从私钥生成
-      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, '') // 传空字符串，后端自动生成地址
+      if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return // 验证私钥和钱包地址
+      await onSave(
+        selectedExchangeId,
+        apiKey.trim(),
+        '',
+        testnet,
+        hyperliquidWalletAddr.trim()
+      )
     } else if (selectedExchange?.id === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())
         return
@@ -2106,18 +2128,48 @@ function ExchangeConfigModal({
               {/* Hyperliquid 交易所的字段 */}
               {selectedExchange.id === 'hyperliquid' && (
                 <>
+                  {/* 安全提示 banner */}
+                  <div
+                    className="p-3 rounded mb-4"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.1)',
+                      border: '1px solid rgba(240, 185, 11, 0.3)',
+                    }}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span style={{ color: '#F0B90B', fontSize: '16px' }}>
+                        🔐
+                      </span>
+                      <div className="flex-1">
+                        <div
+                          className="text-sm font-semibold mb-1"
+                          style={{ color: '#F0B90B' }}
+                        >
+                          {t('hyperliquidAgentWalletTitle', language)}
+                        </div>
+                        <div
+                          className="text-xs"
+                          style={{ color: '#848E9C', lineHeight: '1.5' }}
+                        >
+                          {t('hyperliquidAgentWalletDesc', language)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Agent Private Key 字段 */}
                   <div>
                     <label
                       className="block text-sm font-semibold mb-2"
                       style={{ color: '#EAECEF' }}
                     >
-                      {t('privateKey', language)}
+                      {t('hyperliquidAgentPrivateKey', language)}
                     </label>
                     <input
                       type="password"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={t('enterPrivateKey', language)}
+                      placeholder={t('enterHyperliquidAgentPrivateKey', language)}
                       className="w-full px-3 py-2 rounded"
                       style={{
                         background: '#0B0E11',
@@ -2127,7 +2179,33 @@ function ExchangeConfigModal({
                       required
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidPrivateKeyDesc', language)}
+                      {t('hyperliquidAgentPrivateKeyDesc', language)}
+                    </div>
+                  </div>
+
+                  {/* Main Wallet Address 字段 */}
+                  <div>
+                    <label
+                      className="block text-sm font-semibold mb-2"
+                      style={{ color: '#EAECEF' }}
+                    >
+                      {t('hyperliquidMainWalletAddress', language)}
+                    </label>
+                    <input
+                      type="text"
+                      value={hyperliquidWalletAddr}
+                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
+                      placeholder={t('enterHyperliquidMainWalletAddress', language)}
+                      className="w-full px-3 py-2 rounded"
+                      style={{
+                        background: '#0B0E11',
+                        border: '1px solid #2B3139',
+                        color: '#EAECEF',
+                      }}
+                      required
+                    />
+                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                      {t('hyperliquidMainWalletAddressDesc', language)}
                     </div>
                   </div>
                 </>
@@ -2287,7 +2365,8 @@ function ExchangeConfigModal({
                   (!apiKey.trim() ||
                     !secretKey.trim() ||
                     !passphrase.trim())) ||
-                (selectedExchange.id === 'hyperliquid' && !apiKey.trim()) || // 只验证私钥，钱包地址可选
+                (selectedExchange.id === 'hyperliquid' &&
+                  (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
                 (selectedExchange.id === 'aster' &&
                   (!asterUser.trim() ||
                     !asterSigner.trim() ||

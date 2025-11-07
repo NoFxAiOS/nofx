@@ -124,6 +124,18 @@ func (m *WSMonitor) initializeHistoricalData() error {
 			} else {
 				log.Printf("⚠️  WARNING: %s 4h数据为空（API返回成功但无数据）", s)
 			}
+
+			// 🚀 优化：回填历史OI数据（15分钟粒度，最近20个数据点 = 5小时）
+			// 消除4小时冷启动延迟，系统启动即可提供准确的 Change(4h) 数据
+			oiHistory, err := apiClient.GetOpenInterestHistory(s, "15m", 20)
+			if err != nil {
+				log.Printf("获取 %s OI历史数据失败: %v", s, err)
+			} else if len(oiHistory) > 0 {
+				// 批量存储历史快照到 oiHistoryMap
+				m.oiHistoryMap.Store(s, oiHistory)
+				log.Printf("✅ 已回填 %s 的历史OI数据: %d 个快照（覆盖 %.1f 小时）",
+					s, len(oiHistory), float64(len(oiHistory)*15)/60)
+			}
 		}(symbol)
 	}
 

@@ -82,8 +82,8 @@ type Context struct {
 
 // Decision AI的交易决策
 type Decision struct {
-	Symbol          string  `json:"symbol"`
-	Action          string  `json:"action"` // "open_long", "open_short", "close_long", "close_short", "update_stop_loss", "update_take_profit", "partial_close", "hold", "wait"
+	Symbol string `json:"symbol"`
+	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "update_stop_loss", "update_take_profit", "partial_close", "hold", "wait"
 
 	// 开仓参数
 	Leverage        int     `json:"leverage,omitempty"`
@@ -92,14 +92,14 @@ type Decision struct {
 	TakeProfit      float64 `json:"take_profit,omitempty"`
 
 	// 调整参数（新增）
-	NewStopLoss     float64 `json:"new_stop_loss,omitempty"`     // 用于 update_stop_loss
-	NewTakeProfit   float64 `json:"new_take_profit,omitempty"`   // 用于 update_take_profit
-	ClosePercentage float64 `json:"close_percentage,omitempty"`  // 用于 partial_close (0-100)
+	NewStopLoss     float64 `json:"new_stop_loss,omitempty"`    // 用于 update_stop_loss
+	NewTakeProfit   float64 `json:"new_take_profit,omitempty"`  // 用于 update_take_profit
+	ClosePercentage float64 `json:"close_percentage,omitempty"` // 用于 partial_close (0-100)
 
 	// 通用参数
-	Confidence      int     `json:"confidence,omitempty"` // 信心度 (0-100)
-	RiskUSD         float64 `json:"risk_usd,omitempty"`   // 最大美元风险
-	Reasoning       string  `json:"reasoning"`
+	Confidence int     `json:"confidence,omitempty"` // 信心度 (0-100)
+	RiskUSD    float64 `json:"risk_usd,omitempty"`   // 最大美元风险
+	Reasoning  string  `json:"reasoning"`
 }
 
 // FullDecision AI的完整决策（包含思维链）
@@ -691,8 +691,8 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 		// ✅ 验证最小开仓金额（防止数量格式化为 0 的错误）
 		// Binance 最小名义价值 10 USDT + 安全边际
-		const minPositionSizeGeneral = 12.0   // 10 + 20% 安全边际
-		const minPositionSizeBTCETH = 60.0    // BTC/ETH 因价格高和精度限制需要更大金额（更灵活）
+		const minPositionSizeGeneral = 12.0 // 10 + 20% 安全边际
+		const minPositionSizeBTCETH = 60.0  // BTC/ETH 因价格高和精度限制需要更大金额（更灵活）
 
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 			if d.PositionSizeUSD < minPositionSizeBTCETH {

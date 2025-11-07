@@ -16,7 +16,9 @@ ARG TA_LIB_VERSION=0.4.0
 FROM alpine:${ALPINE_VERSION} AS ta-lib-builder
 ARG TA_LIB_VERSION
 
-RUN apk update && apk add --no-cache \
+# 使用阿里云镜像源加速APK下载
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk update && apk add --no-cache \
     wget tar make gcc g++ musl-dev autoconf automake
 
 RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-${TA_LIB_VERSION}-src.tar.gz && \
@@ -38,7 +40,12 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-${TA_LIB_VERSION}-src.
 # ──────────────────────────────────────────────────────────────
 FROM golang:${GO_VERSION} AS backend-builder
 
-RUN apk update && apk add --no-cache git make gcc g++ musl-dev
+# 使用阿里云镜像源加速APK下载 + 设置Go代理加速依赖下载
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk update && apk add --no-cache git make gcc g++ musl-dev
+
+# 设置Go代理加速中国地区下载
+ENV GOPROXY=https://goproxy.cn,direct
 
 COPY --from=ta-lib-builder /usr/local /usr/local
 
@@ -56,7 +63,9 @@ RUN CGO_ENABLED=1 GOOS=linux \
 # ──────────────────────────────────────────────────────────────
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk update && apk add --no-cache ca-certificates tzdata
+# 使用阿里云镜像源加速APK下载
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk update && apk add --no-cache ca-certificates tzdata
 
 COPY --from=ta-lib-builder /usr/local /usr/local
 WORKDIR /app

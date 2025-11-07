@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"nofx/util"
+
 	"github.com/adshao/go-binance/v2/futures"
 )
 
@@ -33,6 +35,11 @@ type FuturesTrader struct {
 // NewFuturesTrader 创建合约交易器
 func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
+
+	// 配置HTTP客户端以支持代理
+	httpClient := util.CreateHTTPClientWithProxy()
+	client.HTTPClient = httpClient
+
 	// 同步时间，避免 Timestamp ahead 错误
 	syncBinanceServerTime(client)
 	trader := &FuturesTrader{

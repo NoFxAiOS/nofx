@@ -1,12 +1,16 @@
 package market
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"nofx/util"
 
 	"github.com/gorilla/websocket"
 )
@@ -30,8 +34,18 @@ func NewCombinedStreamsClient(batchSize int) *CombinedStreamsClient {
 }
 
 func (c *CombinedStreamsClient) Connect() error {
+	// 获取代理拨号器
+	proxyDialer, err := util.GetProxyDialer()
+	if err != nil {
+		log.Printf("⚠️ 获取代理拨号器失败: %v，尝试直连", err)
+	}
+
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 使用代理拨号器
+			return proxyDialer.Dial(network, addr)
+		},
 	}
 
 	// 组合流使用不同的端点
@@ -44,7 +58,7 @@ func (c *CombinedStreamsClient) Connect() error {
 	c.conn = conn
 	c.mu.Unlock()
 
-	log.Println("组合流WebSocket连接成功")
+	log.Println("✓ 组合流WebSocket连接成功")
 	go c.readMessages()
 
 	return nil

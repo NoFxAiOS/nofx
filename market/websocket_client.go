@@ -1,11 +1,15 @@
 package market
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 	"time"
+
+	"nofx/util"
 
 	"github.com/gorilla/websocket"
 )
@@ -77,8 +81,18 @@ func NewWSClient() *WSClient {
 }
 
 func (w *WSClient) Connect() error {
+	// 获取代理拨号器
+	proxyDialer, err := util.GetProxyDialer()
+	if err != nil {
+		log.Printf("⚠️ 获取代理拨号器失败: %v，尝试直连", err)
+	}
+
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// 使用代理拨号器
+			return proxyDialer.Dial(network, addr)
+		},
 	}
 
 	conn, _, err := dialer.Dial("wss://ws-fapi.binance.com/ws-fapi/v1", nil)
@@ -90,7 +104,7 @@ func (w *WSClient) Connect() error {
 	w.conn = conn
 	w.mu.Unlock()
 
-	log.Println("WebSocket连接成功")
+	log.Println("✓ WebSocket连接成功")
 
 	// 启动消息读取循环
 	go w.readMessages()

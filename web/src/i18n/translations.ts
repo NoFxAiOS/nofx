@@ -684,6 +684,31 @@ export const translations = {
     faqGetHelp: 'Where can I get help?',
     faqGetHelpAnswer:
       'Check GitHub Discussions, join our Telegram Community, or open an issue on GitHub.',
+    
+    // Two-Stage Key Modal
+    twoStageKey: {
+      title: 'Two-Stage Private Key Input',
+      stage1Description: 'Enter the first {length} characters of your private key',
+      stage2Description: 'Enter the remaining {length} characters of your private key',
+      stage1InputLabel: 'First Part',
+      stage2InputLabel: 'Second Part', 
+      characters: 'characters',
+      processing: 'Processing...',
+      nextButton: 'Next',
+      cancelButton: 'Cancel',
+      backButton: 'Back',
+      encryptButton: 'Encrypt & Submit',
+      obfuscationCopied: 'Obfuscation data copied to clipboard',
+      obfuscationInstruction: 'Paste something else to clear clipboard, then continue',
+      obfuscationManual: 'Manual obfuscation required'
+    },
+    
+    // Error Messages
+    errors: {
+      privatekeyIncomplete: 'Please enter at least {expected} characters',
+      privatekeyInvalidFormat: 'Invalid private key format (should be 64 hex characters)',
+      privatekeyObfuscationFailed: 'Clipboard obfuscation failed'
+    },
   },
   zh: {
     // Header
@@ -1325,6 +1350,31 @@ export const translations = {
     faqGetHelp: '在哪里可以获得帮助？',
     faqGetHelpAnswer:
       '查看 GitHub Discussions、加入 Telegram 社区或在 GitHub 上提出 issue。',
+    
+    // Two-Stage Key Modal
+    twoStageKey: {
+      title: '两阶段私钥输入',
+      stage1Description: '请输入私钥的前 {length} 位字符',
+      stage2Description: '请输入私钥的后 {length} 位字符',
+      stage1InputLabel: '第一部分',
+      stage2InputLabel: '第二部分',
+      characters: '位字符',
+      processing: '处理中...',
+      nextButton: '下一步',
+      cancelButton: '取消',
+      backButton: '返回',
+      encryptButton: '加密并提交',
+      obfuscationCopied: '混淆数据已复制到剪贴板',
+      obfuscationInstruction: '请粘贴其他内容清空剪贴板，然后继续',
+      obfuscationManual: '需要手动混淆'
+    },
+    
+    // Error Messages  
+    errors: {
+      privatekeyIncomplete: '请输入至少 {expected} 位字符',
+      privatekeyInvalidFormat: '私钥格式无效（应为64位十六进制字符）',
+      privatekeyObfuscationFailed: '剪贴板混淆失败'
+    },
   },
 }
 
@@ -1333,7 +1383,15 @@ export function t(
   lang: Language,
   params?: Record<string, string | number>
 ): string {
-  let text = translations[lang][key as keyof (typeof translations)['en']] || key
+  // Handle nested keys like 'twoStageKey.title'
+  const keys = key.split('.')
+  let value: any = translations[lang]
+  
+  for (const k of keys) {
+    value = value?.[k]
+  }
+  
+  let text = (typeof value === 'string' ? value : key)
 
   // Replace parameters like {count}, {gap}, etc.
   if (params) {

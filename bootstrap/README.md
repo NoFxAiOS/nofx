@@ -443,47 +443,6 @@ func initModule(ctx *bootstrap.Context) error {
 	// 使用 args...
 }
 ```
-
-## 迁移指南
-
-### 从旧的 init 包迁移
-
-**旧代码**：
-```go
-// 旧的 init 包
-import "nofx/init"
-
-func init() {
-	init.RegisterInitHook(func(cfg *config.Config) error {
-		// 初始化代码...
-		return nil
-	})
-}
-```
-
-**新代码**：
-```go
-// 新的 bootstrap 包
-import "nofx/bootstrap"
-
-func init() {
-	bootstrap.Register("模块名", bootstrap.PriorityCore, initModule)
-}
-
-func initModule(ctx *bootstrap.Context) error {
-	// 从 ctx.Config 获取配置
-	cfg := ctx.Config
-	// 初始化代码...
-	return nil
-}
-```
-
-**主要变化**：
-1. 包名从 `init` 改为 `bootstrap`
-2. 钩子需要有名称和优先级
-3. 参数从 `*config.Config` 改为 `*bootstrap.Context`
-4. 支持链式调用和高级特性
-
 ## 性能考虑
 
 - 钩子注册是线程安全的，但注册本身有轻微的锁开销

@@ -75,6 +75,10 @@ type AutoTraderConfig struct {
 
 	// 系统提示词模板
 	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
+
+	// P0修复：手续费率（传递给AI用于验证「预计收益 > 手续费 ×3」）
+	TakerFeeRate float64 // Taker费率，默认0.0004 (0.04%)
+	MakerFeeRate float64 // Maker费率，默认0.0002 (0.02%)
 }
 
 // AutoTrader 自动交易器
@@ -692,6 +696,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
 		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		TakerFeeRate:    at.config.TakerFeeRate,    // P0修复：传递手续费率
+		MakerFeeRate:    at.config.MakerFeeRate,    // P0修复：传递手续费率
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,

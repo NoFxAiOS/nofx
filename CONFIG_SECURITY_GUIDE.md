@@ -120,7 +120,7 @@
   - ⚠️ 仍然是以太坊私鑰（不是傳統 API Key）
   - ✅ 可在 Aster 後台「禁用」（阻止 API 调用）
   - ⚠️ 局限性：禁用不会改變私鑰本身
-  - ⚠️ 攻擊者仍可繞過 Aster 直接操作區塊鏈
+  - ⚠️ 第三方仍可繞過 Aster 直接操作區塊鏈
 
 **最佳實踐:**
 ```bash
@@ -223,10 +223,10 @@ export $(cat .env | xargs)
 ### Aster
 ```bash
 1. 立即访问 https://www.asterdex.com/en/api-wallet
-2. 禁用被洩漏的 API Wallet
+2. 禁用相關的 API Wallet
 3. 创建新的 API Wallet
 4. 更新 config.json
-5. ⚠️ 如果攻擊者已经竊取資金，无法追回
+5. ⚠️ 如果資金已經轉出，无法追回
 ```
 
 ---

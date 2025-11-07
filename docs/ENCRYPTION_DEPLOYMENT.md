@@ -332,7 +332,7 @@ sqlite3 config.db "SELECT api_key FROM exchanges LIMIT 1;"
 ### 7.3 安全审计
 
 ```bash
-# 检查是否有明文密钥洩露
+# 检查是否有明文密钥外流
 grep -r "0x[0-9a-fA-F]{64}" . --exclude-dir=node_modules --exclude-dir=.git
 # 應該沒有任何输出
 
@@ -355,7 +355,7 @@ grep -i "private.*key\|secret\|api.*key" nohup.out | head
 3. 重新生成密钥并提示用戶重新输入
 ```
 
-### 情況2：懷疑密钥洩露
+### 情況2：懷疑密钥外流
 
 ```bash
 # 立即执行密钥轮换

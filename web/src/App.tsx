@@ -373,6 +373,11 @@ function App() {
             traders={traders}
             selectedTraderId={selectedTraderId}
             onTraderSelect={setSelectedTraderId}
+            onNavigateToTraders={() => {
+              window.history.pushState({}, '', '/traders')
+              setRoute('/traders')
+              setCurrentPage('traders')
+            }}
           />
         )}
       </main>
@@ -439,11 +444,13 @@ function TraderDetailsPage({
   traders,
   selectedTraderId,
   onTraderSelect,
+  onNavigateToTraders,
 }: {
   selectedTrader?: TraderInfo
   traders?: TraderInfo[]
   selectedTraderId?: string
   onTraderSelect: (traderId: string) => void
+  onNavigateToTraders: () => void
   status?: SystemStatus
   account?: AccountInfo
   positions?: Position[]
@@ -452,6 +459,63 @@ function TraderDetailsPage({
   lastUpdate: string
   language: Language
 }) {
+  // If traders is loaded and empty, show empty state
+  if (traders && traders.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md mx-auto px-6">
+          {/* Icon */}
+          <div
+            className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center"
+            style={{
+              background: 'rgba(240, 185, 11, 0.1)',
+              border: '2px solid rgba(240, 185, 11, 0.3)',
+            }}
+          >
+            <svg
+              className="w-12 h-12"
+              style={{ color: '#F0B90B' }}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-2xl font-bold mb-3" style={{ color: '#EAECEF' }}>
+            {t('dashboardEmptyTitle', language)}
+          </h2>
+
+          {/* Description */}
+          <p className="text-base mb-6" style={{ color: '#848E9C' }}>
+            {t('dashboardEmptyDescription', language)}
+          </p>
+
+          {/* CTA Button */}
+          <button
+            onClick={onNavigateToTraders}
+            className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+              color: '#0B0E11',
+              boxShadow: '0 4px 12px rgba(240, 185, 11, 0.3)',
+            }}
+          >
+            {t('goToTradersPage', language)}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // If traders is still loading or selectedTrader is not ready, show skeleton
   if (!selectedTrader) {
     return (
       <div className="space-y-6">

@@ -317,6 +317,12 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d, 币种=%s)",
 		quantity, roundedQuantity, szDecimals, coin)
 
+	// ✅ 安全检查：确保数量不为 0
+	if roundedQuantity == 0 {
+		return nil, fmt.Errorf("❌ 开多仓失败: 计算的数量太小（原始=%.8f, 四舍五入后=0），请增加保证金或降低杠杆",
+			quantity)
+	}
+
 	// ⚠️ 关键：价格也需要处理为5位有效数字
 	aggressivePrice := t.roundPriceToSigfigs(price * 1.01)
 	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", price*1.01, aggressivePrice)
@@ -376,6 +382,12 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 	roundedQuantity := t.roundToSzDecimals(coin, quantity)
 	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d, 币种=%s)",
 		quantity, roundedQuantity, szDecimals, coin)
+
+	// ✅ 安全检查：确保数量不为 0
+	if roundedQuantity == 0 {
+		return nil, fmt.Errorf("❌ 开空仓失败: 计算的数量太小（原始=%.8f, 四舍五入后=0），请增加保证金或降低杠杆",
+			quantity)
+	}
 
 	// ⚠️ 关键：价格也需要处理为5位有效数字
 	aggressivePrice := t.roundPriceToSigfigs(price * 0.99)

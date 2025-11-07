@@ -46,4 +46,5 @@ web/.vite/
 eslint-*.json
 
 # VS code
-.vscode
+.vscode.secrets/
+crypto/.secrets/

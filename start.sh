@@ -77,6 +77,103 @@ check_env() {
 }
 
 # ------------------------------------------------------------------------
+# Validation: Encryption Environment (RSA Keys + Data Encryption Key)
+# ------------------------------------------------------------------------
+check_encryption() {
+    local need_setup=false
+    
+    print_info "检查加密环境..."
+    
+    # 检查RSA密钥对
+    if [ ! -f "secrets/rsa_key" ] || [ ! -f "secrets/rsa_key.pub" ]; then
+        print_warning "RSA密钥对不存在"
+        need_setup=true
+    fi
+    
+    # 检查数据加密密钥
+    if [ ! -f ".env" ] || ! grep -q "^DATA_ENCRYPTION_KEY=" .env; then
+        print_warning "数据加密密钥未配置"
+        need_setup=true
+    fi
+    
+    # 检查JWT认证密钥
+    if [ ! -f ".env" ] || ! grep -q "^JWT_SECRET=" .env; then
+        print_warning "JWT认证密钥未配置"
+        need_setup=true
+    fi
+    
+    # 如果需要设置加密环境
+    if [ "$need_setup" = "true" ]; then
+        print_info "🔐 需要设置加密环境"
+        print_info "加密环境用于保护敏感数据（API密钥、私钥等）"
+        echo ""
+        
+        # 询问用户是否自动设置
+        read -p "是否自动设置加密环境？[Y/n]: " auto_setup
+        auto_setup=${auto_setup:-Y}
+        
+        if [[ "$auto_setup" =~ ^[Yy]$ ]]; then
+            print_info "正在设置加密环境..."
+            
+            # 检查加密设置脚本是否存在
+            if [ -f "scripts/setup_encryption.sh" ]; then
+                print_info "正在自动设置加密环境..."
+                print_info "加密系统将保护: API密钥、私钥、Hyperliquid代理钱包"
+                echo ""
+                
+                # 自动运行加密设置脚本
+                # Y: 继续设置加密环境 | n: 保持现有RSA密钥 | n: 保持现有密钥配置
+                echo -e "Y\nn\nn" | bash scripts/setup_encryption.sh
+                if [ $? -eq 0 ]; then
+                    echo ""
+                    print_success "🔐 加密环境设置完成！"
+                    print_info "  • RSA-2048密钥对已生成"
+                    print_info "  • AES-256数据加密密钥已配置"
+                    print_info "  • JWT认证密钥已配置"
+                    print_info "  • 所有敏感数据现在都受加密保护"
+                    echo ""
+                else
+                    print_error "加密环境设置失败"
+                    exit 1
+                fi
+            else
+                print_error "加密设置脚本不存在: scripts/setup_encryption.sh"
+                print_info "请手动运行: ./scripts/setup_encryption.sh"
+                exit 1
+            fi
+        else
+            print_warning "跳过加密环境设置"
+            print_info "手动设置命令: ./scripts/setup_encryption.sh"
+            print_info "系统将使用未加密模式运行（不推荐）"
+        fi
+    else
+        print_success "🔐 加密环境已配置"
+        print_info "  • RSA密钥对: secrets/rsa_key + secrets/rsa_key.pub"
+        print_info "  • 数据加密密钥: .env (DATA_ENCRYPTION_KEY)"
+        print_info "  • JWT认证密钥: .env (JWT_SECRET)"
+        print_info "  • 加密算法: RSA-OAEP-2048 + AES-256-GCM + HS256"
+        print_info "  • 保护数据: API密钥、私钥、Hyperliquid代理钱包、用户认证"
+        
+        # 验证密钥文件权限
+        if [ -f "secrets/rsa_key" ]; then
+            local perm=$(stat -f "%A" "secrets/rsa_key" 2>/dev/null || stat -c "%a" "secrets/rsa_key" 2>/dev/null)
+            if [ "$perm" != "600" ]; then
+                print_warning "修复RSA私钥权限..."
+                chmod 600 secrets/rsa_key
+            fi
+        fi
+        
+        if [ -f ".env" ]; then
+            local perm=$(stat -f "%A" ".env" 2>/dev/null || stat -c "%a" ".env" 2>/dev/null)
+            if [ "$perm" != "600" ]; then
+                print_warning "修复环境文件权限..."
+                chmod 600 .env
+            fi
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------
 # Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
 # ------------------------------------------------------------------------
 check_config() {
@@ -275,6 +372,21 @@ update() {
 }
 
 # ------------------------------------------------------------------------
+# Encryption: Manual Setup
+# ------------------------------------------------------------------------
+setup_encryption_manual() {
+    print_info "🔐 手动设置加密环境"
+    
+    if [ -f "scripts/setup_encryption.sh" ]; then
+        bash scripts/setup_encryption.sh
+    else
+        print_error "加密设置脚本不存在: scripts/setup_encryption.sh"
+        print_info "请确保项目文件完整"
+        exit 1
+    fi
+}
+
+# ------------------------------------------------------------------------
 # Help: Usage Information
 # ------------------------------------------------------------------------
 show_help() {
@@ -290,12 +402,18 @@ show_help() {
     echo "  status             查看服务状态"
     echo "  clean              清理所有容器和数据"
     echo "  update             更新代码并重启"
+    echo "  setup-encryption   设置加密环境（RSA密钥+数据加密）"
     echo "  help               显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  ./start.sh start --build    # 构建并启动"
     echo "  ./start.sh logs backend     # 查看后端日志"
     echo "  ./start.sh status           # 查看状态"
+    echo "  ./start.sh setup-encryption # 手动设置加密环境"
+    echo ""
+    echo "🔐 关于加密:"
+    echo "  系统自动检测加密环境，首次运行时会自动设置"
+    echo "  手动设置: ./scripts/setup_encryption.sh"
 }
 
 # ------------------------------------------------------------------------
@@ -307,6 +425,7 @@ main() {
     case "${1:-start}" in
         start)
             check_env
+            check_encryption
             check_config
             check_database
             start "$2"
@@ -328,6 +447,9 @@ main() {
             ;;
         update)
             update
+            ;;
+        setup-encryption)
+            setup_encryption_manual
             ;;
         help|--help|-h)
             show_help

@@ -458,6 +458,12 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d, 币种=%s)",
 		quantity, roundedQuantity, szDecimals, coin)
 
+	// ✅ 安全检查：确保数量不为 0
+	if roundedQuantity == 0 {
+		return nil, fmt.Errorf("❌ 平多仓失败: 持仓数量太小（原始=%.8f, 四舍五入后=0），无法平仓",
+			quantity)
+	}
+
 	// ⚠️ 关键：价格也需要处理为5位有效数字
 	aggressivePrice := t.roundPriceToSigfigs(price * 0.99)
 	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", price*0.99, aggressivePrice)
@@ -531,6 +537,12 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 	roundedQuantity := t.roundToSzDecimals(coin, quantity)
 	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d, 币种=%s)",
 		quantity, roundedQuantity, szDecimals, coin)
+
+	// ✅ 安全检查：确保数量不为 0
+	if roundedQuantity == 0 {
+		return nil, fmt.Errorf("❌ 平空仓失败: 持仓数量太小（原始=%.8f, 四舍五入后=0），无法平仓",
+			quantity)
+	}
 
 	// ⚠️ 关键：价格也需要处理为5位有效数字
 	aggressivePrice := t.roundPriceToSigfigs(price * 1.01)
@@ -709,6 +721,11 @@ func (t *HyperliquidTrader) SetStopLoss(symbol string, positionSide string, quan
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
 	roundedQuantity := t.roundToSzDecimals(coin, quantity)
 
+	// ✅ 安全检查：确保数量不为 0
+	if roundedQuantity == 0 {
+		return fmt.Errorf("❌ 设置止损失败: 持仓数量太小（原始=%.8f, 四舍五入后=0）", quantity)
+	}
+
 	// ⚠️ 关键：价格也需要处理为5位有效数字
 	roundedStopPrice := t.roundPriceToSigfigs(stopPrice)
 
@@ -745,6 +762,11 @@ func (t *HyperliquidTrader) SetTakeProfit(symbol string, positionSide string, qu
 
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
 	roundedQuantity := t.roundToSzDecimals(coin, quantity)
+
+	// ✅ 安全检查：确保数量不为 0
+	if roundedQuantity == 0 {
+		return fmt.Errorf("❌ 设置止盈失败: 持仓数量太小（原始=%.8f, 四舍五入后=0）", quantity)
+	}
 
 	// ⚠️ 关键：价格也需要处理为5位有效数字
 	roundedTakeProfitPrice := t.roundPriceToSigfigs(takeProfitPrice)

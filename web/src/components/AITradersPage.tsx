@@ -131,63 +131,58 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     loadConfigs()
   }, [user, token])
 
-  // 只显示已配置的模型和交易所（有API Key的才算配置过）
+  // 只显示已配置的模型和交易所
+  // 注意：后端返回的数据不包含敏感信息（apiKey等），所以通过其他字段判断是否已配置
   const configuredModels =
-    allModels?.filter((m) => m.apiKey && m.apiKey.trim() !== '') || []
+    allModels?.filter((m) => {
+      // 如果模型已启用，说明已配置
+      // 或者有自定义API URL，也说明已配置
+      return m.enabled || (m.customApiUrl && m.customApiUrl.trim() !== '')
+    }) || []
   const configuredExchanges =
     allExchanges?.filter((e) => {
       // Aster 交易所检查特殊字段
       if (e.id === 'aster') {
         return e.asterUser && e.asterUser.trim() !== ''
       }
-      // Hyperliquid 需要检查私钥和钱包地址
+      // Hyperliquid 需要检查钱包地址（后端会返回这个字段）
       if (e.id === 'hyperliquid') {
         return (
-          e.apiKey &&
-          e.apiKey.trim() !== '' &&
           e.hyperliquidWalletAddr &&
           e.hyperliquidWalletAddr.trim() !== ''
         )
       }
-      // 其他交易所检查 apiKey
-      return e.apiKey && e.apiKey.trim() !== ''
+      // 其他交易所：如果已启用，说明已配置（后端返回的已配置交易所会有 enabled: true）
+      return e.enabled
     }) || []
 
   // 只在创建交易员时使用已启用且配置完整的
-  const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
+  // 注意：后端返回的数据不包含敏感信息，所以只检查 enabled 状态和必要的非敏感字段
+  const enabledModels = allModels?.filter((m) => m.enabled) || []
   const enabledExchanges =
     allExchanges?.filter((e) => {
       if (!e.enabled) return false
 
-      // Aster 交易所需要特殊字段
+      // Aster 交易所需要特殊字段（后端会返回这些非敏感字段）
       if (e.id === 'aster') {
         return (
           e.asterUser &&
           e.asterUser.trim() !== '' &&
           e.asterSigner &&
-          e.asterSigner.trim() !== '' &&
-          e.asterPrivateKey &&
-          e.asterPrivateKey.trim() !== ''
+          e.asterSigner.trim() !== ''
         )
       }
 
-      // Hyperliquid 需要私钥和钱包地址（Agent Wallet 模式）
+      // Hyperliquid 需要钱包地址（后端会返回这个字段）
       if (e.id === 'hyperliquid') {
         return (
-          e.apiKey &&
-          e.apiKey.trim() !== '' &&
           e.hyperliquidWalletAddr &&
           e.hyperliquidWalletAddr.trim() !== ''
         )
       }
 
-      // Binance 等其他交易所需要 apiKey 和 secretKey
-      return (
-        e.apiKey &&
-        e.apiKey.trim() !== '' &&
-        e.secretKey &&
-        e.secretKey.trim() !== ''
-      )
+      // 其他交易所：如果已启用，说明已配置完整（后端只返回已配置的交易所）
+      return true
     }) || []
 
   // 检查模型是否正在被运行中的交易员使用（用于UI禁用）
@@ -874,7 +869,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
                   <div
-                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${model.enabled && model.apiKey ? 'bg-green-400' : 'bg-gray-500'}`}
+                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${model.enabled ? 'bg-green-400' : 'bg-gray-500'}`}
                   />
                 </div>
               )
@@ -941,7 +936,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
                   <div
-                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${exchange.enabled && exchange.apiKey ? 'bg-green-400' : 'bg-gray-500'}`}
+                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${exchange.enabled ? 'bg-green-400' : 'bg-gray-500'}`}
                   />
                 </div>
               )

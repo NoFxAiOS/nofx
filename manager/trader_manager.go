@@ -778,11 +778,11 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 
 	// 为每个交易员加载配置
 	for _, traderCfg := range traders {
-		// 检查是否已经加载过这个交易员
-		if _, exists := tm.traders[traderCfg.ID]; exists {
-			log.Printf("⚠️ 交易员 %s 已经加载，跳过", traderCfg.Name)
-			continue
-		}
+		// 检查是否已经加载过这个交易员，不应该跳过，如果交易员配置编辑会导致不同步
+		// if _, exists := tm.traders[traderCfg.ID]; exists {
+		// 	log.Printf("⚠️ 交易员 %s 已经加载，跳过", traderCfg.Name)
+		// 	continue
+		// }
 
 		// 从已查询的列表中查找AI模型配置
 

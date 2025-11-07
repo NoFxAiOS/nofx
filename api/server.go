@@ -614,6 +614,7 @@ type UpdateTraderRequest struct {
 	CustomPrompt        string  `json:"custom_prompt"`
 	OverrideBasePrompt  bool    `json:"override_base_prompt"`
 	IsCrossMargin       *bool   `json:"is_cross_margin"`
+	SystemPromptTemplate string  `json:"system_prompt_template"`
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -684,7 +685,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		TradingSymbols:       req.TradingSymbols,
 		CustomPrompt:         req.CustomPrompt,
 		OverrideBasePrompt:   req.OverrideBasePrompt,
-		SystemPromptTemplate: existingTrader.SystemPromptTemplate, // 保持原值
+		SystemPromptTemplate: req.SystemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // 保持原值
@@ -1167,6 +1168,7 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"is_cross_margin":       traderConfig.IsCrossMargin,
 		"use_coin_pool":         traderConfig.UseCoinPool,
 		"use_oi_top":            traderConfig.UseOITop,
+		"system_prompt_template": traderConfig.SystemPromptTemplate,
 		"is_running":            isRunning,
 	}
 

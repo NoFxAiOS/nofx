@@ -413,9 +413,9 @@ type SafeExchangeConfig struct {
 	Type                  string `json:"type"` // "cex" or "dex"
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
-	HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"` // Hyperliquid钱包地址（不敏感）
-	AsterUser             string `json:"aster_user"`              // Aster用户名（不敏感）
-	AsterSigner           string `json:"aster_signer"`            // Aster签名者（不敏感）
+	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid钱包地址（不敏感）
+	AsterUser             string `json:"asterUser"`              // Aster用户名（不敏感）
+	AsterSigner           string `json:"asterSigner"`            // Aster签名者（不敏感）
 }
 
 type UpdateModelConfigRequest struct {

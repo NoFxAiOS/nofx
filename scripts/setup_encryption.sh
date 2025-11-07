@@ -169,11 +169,11 @@ fi
 if [ "$KEY_SKIPPED" != "true" ]; then
     # 生成新的密钥
     echo -e "  ${CYAN}生成AES-256数据加密密钥...${NC}"
-    DATA_KEY=$(openssl rand -base64 32)
+    DATA_KEY=$(openssl rand -base64 32 | tr -d '\n')
     echo -e "${GREEN}  ✓ 数据加密密钥生成完成${NC}"
     
     echo -e "  ${CYAN}生成JWT认证密钥...${NC}"
-    JWT_KEY=$(openssl rand -base64 64)
+    JWT_KEY=$(openssl rand -base64 64 | tr -d '\n')
     echo -e "${GREEN}  ✓ JWT认证密钥生成完成${NC}"
     
     # 保存到.env文件
@@ -209,14 +209,14 @@ elif [ "$DATA_KEY_EXISTS" != "true" ] || [ "$JWT_KEY_EXISTS" != "true" ]; then
     # 生成缺失的密钥
     if [ "$DATA_KEY_EXISTS" != "true" ]; then
         echo -e "  ${CYAN}生成缺失的AES-256数据加密密钥...${NC}"
-        DATA_KEY=$(openssl rand -base64 32)
+        DATA_KEY=$(openssl rand -base64 32 | tr -d '\n')
         echo "DATA_ENCRYPTION_KEY=$DATA_KEY" >> .env
         echo -e "${GREEN}  ✓ 数据加密密钥生成完成${NC}"
     fi
     
     if [ "$JWT_KEY_EXISTS" != "true" ]; then
         echo -e "  ${CYAN}生成缺失的JWT认证密钥...${NC}"
-        JWT_KEY=$(openssl rand -base64 64)
+        JWT_KEY=$(openssl rand -base64 64 | tr -d '\n')
         echo "JWT_SECRET=$JWT_KEY" >> .env
         echo -e "${GREEN}  ✓ JWT认证密钥生成完成${NC}"
     fi

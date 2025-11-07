@@ -75,7 +75,6 @@ func (s *Server) setupRoutes() {
 		api.Any("/health", s.handleHealth)
 
 		// 管理员登录（管理员模式下使用，公共）
-		api.POST("/admin-login", s.handleAdminLogin)
 
 		// 系统支持的模型和交易所（无需认证）
 		api.GET("/supported-models", s.handleGetSupportedModels)
@@ -96,14 +95,11 @@ func (s *Server) setupRoutes() {
 		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
-		// 仅在非管理员模式下的路由
-		if !auth.IsAdminMode() {
-			// 认证相关路由（无需认证）
-			api.POST("/register", s.handleRegister)
-			api.POST("/login", s.handleLogin)
-			api.POST("/verify-otp", s.handleVerifyOTP)
-			api.POST("/complete-registration", s.handleCompleteRegistration)
-		}
+		// 认证相关路由（无需认证）
+		api.POST("/register", s.handleRegister)
+		api.POST("/login", s.handleLogin)
+		api.POST("/verify-otp", s.handleVerifyOTP)
+		api.POST("/complete-registration", s.handleCompleteRegistration)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -189,7 +185,6 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 	betaMode := betaModeStr == "true"
 
 	c.JSON(http.StatusOK, gin.H{
-		"admin_mode":       auth.IsAdminMode(),
 		"beta_mode":        betaMode,
 		"default_coins":    defaultCoins,
 		"btc_eth_leverage": btcEthLeverage,
@@ -381,6 +376,16 @@ type ModelConfig struct {
 	CustomAPIURL string `json:"customApiUrl,omitempty"`
 }
 
+// SafeModelConfig 安全的模型配置结构（不包含敏感信息）
+type SafeModelConfig struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Provider        string `json:"provider"`
+	Enabled         bool   `json:"enabled"`
+	CustomAPIURL    string `json:"customApiUrl"`        // 自定义API URL（通常不敏感）
+	CustomModelName string `json:"customModelName"`     // 自定义模型名（不敏感）
+}
+
 type ExchangeConfig struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -389,6 +394,18 @@ type ExchangeConfig struct {
 	APIKey    string `json:"apiKey,omitempty"`
 	SecretKey string `json:"secretKey,omitempty"`
 	Testnet   bool   `json:"testnet,omitempty"`
+}
+
+// SafeExchangeConfig 安全的交易所配置结构（不包含敏感信息）
+type SafeExchangeConfig struct {
+	ID                    string `json:"id"`
+	Name                  string `json:"name"`
+	Type                  string `json:"type"` // "cex" or "dex"
+	Enabled               bool   `json:"enabled"`
+	Testnet               bool   `json:"testnet,omitempty"`
+	HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"` // Hyperliquid钱包地址（不敏感）
+	AsterUser             string `json:"aster_user"`              // Aster用户名（不敏感）
+	AsterSigner           string `json:"aster_signer"`            // Aster签名者（不敏感）
 }
 
 type UpdateModelConfigRequest struct {
@@ -971,7 +988,20 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	}
 	log.Printf("✅ 找到 %d 个AI模型配置", len(models))
 
-	c.JSON(http.StatusOK, models)
+	// 转换为安全的响应结构，移除敏感信息
+	safeModels := make([]SafeModelConfig, len(models))
+	for i, model := range models {
+		safeModels[i] = SafeModelConfig{
+			ID:              model.ID,
+			Name:            model.Name,
+			Provider:        model.Provider,
+			Enabled:         model.Enabled,
+			CustomAPIURL:    model.CustomAPIURL,
+			CustomModelName: model.CustomModelName,
+		}
+	}
+
+	c.JSON(http.StatusOK, safeModels)
 }
 
 // handleUpdateModelConfigs 更新AI模型配置
@@ -1015,7 +1045,22 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	}
 	log.Printf("✅ 找到 %d 个交易所配置", len(exchanges))
 
-	c.JSON(http.StatusOK, exchanges)
+	// 转换为安全的响应结构，移除敏感信息
+	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
+	for i, exchange := range exchanges {
+		safeExchanges[i] = SafeExchangeConfig{
+			ID:                    exchange.ID,
+			Name:                  exchange.Name,
+			Type:                  exchange.Type,
+			Enabled:               exchange.Enabled,
+			Testnet:               exchange.Testnet,
+			HyperliquidWalletAddr: exchange.HyperliquidWalletAddr,
+			AsterUser:             exchange.AsterUser,
+			AsterSigner:           exchange.AsterSigner,
+		}
+	}
+
+	c.JSON(http.StatusOK, safeExchanges)
 }
 
 // handleUpdateExchangeConfigs 更新交易所配置
@@ -1507,35 +1552,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 	}
 }
 
-// handleAdminLogin 管理员登录（密码仅来自环境变量）
-func (s *Server) handleAdminLogin(c *gin.Context) {
-	if !auth.IsAdminMode() {
-		c.JSON(http.StatusForbidden, gin.H{"error": "仅管理员模式可用"})
-		return
-	}
-
-	// 简单的IP速率限制（5次/分钟 + 递增退避）
-	// 为简化，此处省略复杂实现，可在后续使用中间件或Redis增强
-
-	var req struct {
-		Password string `json:"password"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Password) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少密码"})
-		return
-	}
-	if !auth.CheckAdminPassword(req.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "密码错误"})
-		return
-	}
-
-	token, err := auth.GenerateJWT("admin", "admin@localhost")
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"token": token, "user_id": "admin", "email": "admin@localhost"})
-}
 
 // handleLogout 将当前token加入黑名单
 func (s *Server) handleLogout(c *gin.Context) {
@@ -1567,11 +1583,6 @@ func (s *Server) handleLogout(c *gin.Context) {
 
 // handleRegister 处理用户注册请求
 func (s *Server) handleRegister(c *gin.Context) {
-	// 管理员模式下禁用注册
-	if auth.IsAdminMode() {
-		c.JSON(http.StatusForbidden, gin.H{"error": "管理员模式下禁用注册"})
-		return
-	}
 
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -1877,7 +1888,22 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, exchanges)
+	// 转换为安全的响应结构，移除敏感信息
+	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
+	for i, exchange := range exchanges {
+		safeExchanges[i] = SafeExchangeConfig{
+			ID:                    exchange.ID,
+			Name:                  exchange.Name,
+			Type:                  exchange.Type,
+			Enabled:               exchange.Enabled,
+			Testnet:               exchange.Testnet,
+			HyperliquidWalletAddr: "", // 默认配置不包含钱包地址
+			AsterUser:             "", // 默认配置不包含用户信息
+			AsterSigner:           "",
+		}
+	}
+
+	c.JSON(http.StatusOK, safeExchanges)
 }
 
 // Start 启动服务器

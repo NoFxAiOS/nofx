@@ -22,7 +22,6 @@ import (
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
 // TODO 现在与config.Config相同，未来会被替换， 现在为了兼容性不得不保留当前文件
 type ConfigFile struct {
-	AdminMode          bool                  `json:"admin_mode"`
 	BetaMode           bool                  `json:"beta_mode"`
 	APIServerPort      int                   `json:"api_server_port"`
 	UseDefaultCoins    bool                  `json:"use_default_coins"`
@@ -71,7 +70,6 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 
 	// 同步各配置项到数据库
 	configs := map[string]string{
-		"admin_mode":           fmt.Sprintf("%t", configFile.AdminMode),
 		"beta_mode":            fmt.Sprintf("%t", configFile.BetaMode),
 		"api_server_port":      strconv.Itoa(configFile.APIServerPort),
 		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
@@ -195,9 +193,6 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
-	// 获取管理员模式配置
-	adminModeStr, _ := database.GetSystemConfig("admin_mode")
-	adminMode := adminModeStr != "false" // 默认为true
 
 	// 设置JWT密钥
 	jwtSecret, _ := database.GetSystemConfig("jwt_secret")
@@ -208,17 +203,6 @@ func main() {
 	auth.SetJWTSecret(jwtSecret)
 
 	// 管理员模式下需要管理员密码，缺失则退出
-	if adminMode {
-		adminPassword := os.Getenv("NOFX_ADMIN_PASSWORD")
-		if adminPassword == "" {
-			log.Fatalf("Admin mode is enabled but NOFX_ADMIN_PASSWORD is missing. Set NOFX_ADMIN_PASSWORD and restart.")
-		}
-		if err := auth.SetAdminPasswordFromPlain(adminPassword); err != nil {
-			log.Fatalf("Failed to set admin password: %v", err)
-		}
-		auth.SetAdminMode(true)
-		log.Printf("✓ Admin mode enabled. All API endpoints require admin authentication.")
-	}
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()

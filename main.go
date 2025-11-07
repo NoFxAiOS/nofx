@@ -7,6 +7,7 @@ import (
 	"nofx/api"
 	"nofx/auth"
 	"nofx/config"
+	"nofx/crypto"
 	"nofx/manager"
 	"nofx/market"
 	"nofx/pool"
@@ -160,6 +161,14 @@ func main() {
 		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
 	defer database.Close()
+
+	// 初始化加密系统（保护敏感数据）
+	log.Println("🔐 初始化加密系统...")
+	_, err = crypto.GetEncryptionManager()
+	if err != nil {
+		log.Fatalf("❌ 加密系统初始化失败: %v\n提示: 请确保有权限创建 crypto/.secrets/ 目录", err)
+	}
+	log.Println("✅ 加密系统已启用 - 数据库敏感数据将被加密保护")
 
 	// 同步config.json到数据库
 	if err := syncConfigToDatabase(database); err != nil {

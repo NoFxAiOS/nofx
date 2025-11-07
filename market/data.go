@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -12,20 +13,45 @@ import (
 
 // Get 获取指定代币的市场数据
 func Get(symbol string) (*Data, error) {
-	var klines3m, klines4h []Kline
+	var klines3m, klines15m, klines1h, klines4h []Kline
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
+
 	// 获取3分钟K线数据 (最近10个)
-	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
+	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m")
 	if err != nil {
 		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
 	}
 
-	// 获取4小时K线数据 (最近10个)
-	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // 多获取用于计算指标
+	// P0修复：检测数据陈旧性（防止DOGEUSDT式的价格僵化）
+	if isStaleData(klines3m, symbol) {
+		log.Printf("⚠️  WARNING: %s 检测到数据陈旧（连续价格不变），跳过该币种", symbol)
+		return nil, fmt.Errorf("%s 数据陈旧，可能缓存失效", symbol)
+	}
+
+	// 获取15分钟K线数据 (最近40个) - 短期趋势
+	klines15m, err = WSMonitorCli.GetCurrentKlines(symbol, "15m")
+	if err != nil {
+		return nil, fmt.Errorf("获取15分钟K线失败: %v", err)
+	}
+
+	// 获取1小时K线数据 (最近60个) - 中期趋势
+	klines1h, err = WSMonitorCli.GetCurrentKlines(symbol, "1h")
+	if err != nil {
+		return nil, fmt.Errorf("获取1小时K线失败: %v", err)
+	}
+
+	// 获取4小时K线数据 (最近60个) - 长期趋势
+	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h")
 	if err != nil {
 		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+	}
+
+	// P0修复：检查 4h 数据完整性（多周期趋势确认必需）
+	if len(klines4h) == 0 {
+		log.Printf("⚠️  WARNING: %s 缺少 4h K线数据，无法进行多周期趋势确认", symbol)
+		return nil, fmt.Errorf("%s 缺少 4h K线数据", symbol)
 	}
 
 	// 计算当前指标 (基于3分钟最新数据)
@@ -63,10 +89,16 @@ func Get(symbol string) (*Data, error) {
 	// 获取Funding Rate
 	fundingRate, _ := getFundingRate(symbol)
 
-	// 计算日内系列数据
+	// 计算日内系列数据 (3分钟)
 	intradayData := calculateIntradaySeries(klines3m)
 
-	// 计算长期数据
+	// 计算15分钟系列数据
+	midTermData15m := calculateMidTermSeries15m(klines15m)
+
+	// 计算1小时系列数据
+	midTermData1h := calculateMidTermSeries1h(klines1h)
+
+	// 计算长期数据 (4小时)
 	longerTermData := calculateLongerTermData(klines4h)
 
 	return &Data{
@@ -80,6 +112,8 @@ func Get(symbol string) (*Data, error) {
 		OpenInterest:      oiData,
 		FundingRate:       fundingRate,
 		IntradaySeries:    intradayData,
+		MidTermSeries15m:  midTermData15m,
+		MidTermSeries1h:   midTermData1h,
 		LongerTermContext: longerTermData,
 	}, nil
 }
@@ -243,6 +277,96 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 	return data
 }
 
+// calculateMidTermSeries15m 计算15分钟系列数据
+func calculateMidTermSeries15m(klines []Kline) *MidTermData15m {
+	data := &MidTermData15m{
+		MidPrices:   make([]float64, 0, 10),
+		EMA20Values: make([]float64, 0, 10),
+		MACDValues:  make([]float64, 0, 10),
+		RSI7Values:  make([]float64, 0, 10),
+		RSI14Values: make([]float64, 0, 10),
+	}
+
+	// 获取最近10个数据点
+	start := len(klines) - 10
+	if start < 0 {
+		start = 0
+	}
+
+	for i := start; i < len(klines); i++ {
+		data.MidPrices = append(data.MidPrices, klines[i].Close)
+
+		// 计算每个点的EMA20
+		if i >= 19 {
+			ema20 := calculateEMA(klines[:i+1], 20)
+			data.EMA20Values = append(data.EMA20Values, ema20)
+		}
+
+		// 计算每个点的MACD
+		if i >= 25 {
+			macd := calculateMACD(klines[:i+1])
+			data.MACDValues = append(data.MACDValues, macd)
+		}
+
+		// 计算每个点的RSI
+		if i >= 7 {
+			rsi7 := calculateRSI(klines[:i+1], 7)
+			data.RSI7Values = append(data.RSI7Values, rsi7)
+		}
+		if i >= 14 {
+			rsi14 := calculateRSI(klines[:i+1], 14)
+			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+	}
+
+	return data
+}
+
+// calculateMidTermSeries1h 计算1小时系列数据
+func calculateMidTermSeries1h(klines []Kline) *MidTermData1h {
+	data := &MidTermData1h{
+		MidPrices:   make([]float64, 0, 10),
+		EMA20Values: make([]float64, 0, 10),
+		MACDValues:  make([]float64, 0, 10),
+		RSI7Values:  make([]float64, 0, 10),
+		RSI14Values: make([]float64, 0, 10),
+	}
+
+	// 获取最近10个数据点
+	start := len(klines) - 10
+	if start < 0 {
+		start = 0
+	}
+
+	for i := start; i < len(klines); i++ {
+		data.MidPrices = append(data.MidPrices, klines[i].Close)
+
+		// 计算每个点的EMA20
+		if i >= 19 {
+			ema20 := calculateEMA(klines[:i+1], 20)
+			data.EMA20Values = append(data.EMA20Values, ema20)
+		}
+
+		// 计算每个点的MACD
+		if i >= 25 {
+			macd := calculateMACD(klines[:i+1])
+			data.MACDValues = append(data.MACDValues, macd)
+		}
+
+		// 计算每个点的RSI
+		if i >= 7 {
+			rsi7 := calculateRSI(klines[:i+1], 7)
+			data.RSI7Values = append(data.RSI7Values, rsi7)
+		}
+		if i >= 14 {
+			rsi14 := calculateRSI(klines[:i+1], 14)
+			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+	}
+
+	return data
+}
+
 // calculateLongerTermData 计算长期数据
 func calculateLongerTermData(klines []Kline) *LongerTermData {
 	data := &LongerTermData{
@@ -289,7 +413,7 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	return data
 }
 
-// getOpenInterestData 获取OI数据
+// getOpenInterestData 获取OI数据（P0修复：添加4小时变化率计算）
 func getOpenInterestData(symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
@@ -316,9 +440,23 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 
 	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
 
+	// P0修复：计算4小时OI变化率
+	var change4h float64
+	if WSMonitorCli != nil {
+		change4h = WSMonitorCli.CalculateOIChange4h(symbol, oi)
+	}
+
+	// P0修复：获取历史数据
+	var history []OISnapshot
+	if WSMonitorCli != nil {
+		history = WSMonitorCli.GetOIHistory(symbol)
+	}
+
 	return &OIData{
-		Latest:  oi,
-		Average: oi * 0.999, // 近似平均值
+		Latest:     oi,
+		Average:    oi * 0.999, // 近似平均值
+		Change4h:   change4h,   // P0修复：4小时变化率
+		Historical: history,    // P0修复：历史数据
 	}, nil
 }
 
@@ -366,8 +504,9 @@ func Format(data *Data) string {
 		data.Symbol))
 
 	if data.OpenInterest != nil {
-		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
-			data.OpenInterest.Latest, data.OpenInterest.Average))
+		// P0修复：输出OI 4小时变化率（用于AI验证"近4小时上升>+3%"）
+		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f Change(4h): %.2f%%\n\n",
+			data.OpenInterest.Latest, data.OpenInterest.Average, data.OpenInterest.Change4h))
 	}
 
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
@@ -393,6 +532,54 @@ func Format(data *Data) string {
 
 		if len(data.IntradaySeries.RSI14Values) > 0 {
 			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
+		}
+	}
+
+	if data.MidTermSeries15m != nil {
+		sb.WriteString("Mid‑term series (15‑minute intervals, oldest → latest):\n\n")
+
+		if len(data.MidTermSeries15m.MidPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidTermSeries15m.MidPrices)))
+		}
+
+		if len(data.MidTermSeries15m.EMA20Values) > 0 {
+			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.MidTermSeries15m.EMA20Values)))
+		}
+
+		if len(data.MidTermSeries15m.MACDValues) > 0 {
+			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.MidTermSeries15m.MACDValues)))
+		}
+
+		if len(data.MidTermSeries15m.RSI7Values) > 0 {
+			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.MidTermSeries15m.RSI7Values)))
+		}
+
+		if len(data.MidTermSeries15m.RSI14Values) > 0 {
+			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.MidTermSeries15m.RSI14Values)))
+		}
+	}
+
+	if data.MidTermSeries1h != nil {
+		sb.WriteString("Mid‑term series (1‑hour intervals, oldest → latest):\n\n")
+
+		if len(data.MidTermSeries1h.MidPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidTermSeries1h.MidPrices)))
+		}
+
+		if len(data.MidTermSeries1h.EMA20Values) > 0 {
+			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.MidTermSeries1h.EMA20Values)))
+		}
+
+		if len(data.MidTermSeries1h.MACDValues) > 0 {
+			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.MidTermSeries1h.MACDValues)))
+		}
+
+		if len(data.MidTermSeries1h.RSI7Values) > 0 {
+			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.MidTermSeries1h.RSI7Values)))
+		}
+
+		if len(data.MidTermSeries1h.RSI14Values) > 0 {
+			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.MidTermSeries1h.RSI14Values)))
 		}
 	}
 
@@ -452,4 +639,48 @@ func parseFloat(v interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
+}
+
+// isStaleData 检测数据是否陈旧（连续价格不变）
+// 修复 DOGEUSDT 式问题：连续 N 个周期价格完全不变表示数据源异常
+func isStaleData(klines []Kline, symbol string) bool {
+	if len(klines) < 5 {
+		return false // 数据不足，无法判断
+	}
+
+	// 检测阈值：连续 5 个 3 分钟周期价格完全不变（15分钟无波动）
+	const stalePriceThreshold = 5
+	const priceTolerancePct = 0.0001 // 0.01% 波动容忍度（避免误报）
+
+	// 取最后 stalePriceThreshold 个 K 线
+	recentKlines := klines[len(klines)-stalePriceThreshold:]
+	firstPrice := recentKlines[0].Close
+
+	// 检查是否所有价格都在容忍度内
+	for i := 1; i < len(recentKlines); i++ {
+		priceDiff := math.Abs(recentKlines[i].Close-firstPrice) / firstPrice
+		if priceDiff > priceTolerancePct {
+			return false // 有价格波动，数据正常
+		}
+	}
+
+	// 额外检查：MACD 和成交量
+	// 如果价格不变但 MACD/成交量有正常波动，可能是真实市场情况（极低波动）
+	// 检查成交量是否也为 0（数据彻底僵化）
+	allVolumeZero := true
+	for _, k := range recentKlines {
+		if k.Volume > 0 {
+			allVolumeZero = false
+			break
+		}
+	}
+
+	if allVolumeZero {
+		log.Printf("⚠️  %s 数据陈旧确认：价格不变 + 成交量为0", symbol)
+		return true
+	}
+
+	// 价格僵化但有成交量：可能是极低波动市场，允许通过但记录警告
+	log.Printf("⚠️  %s 检测到价格极度稳定（连续 %d 个周期无波动），但成交量正常", symbol, stalePriceThreshold)
+	return false
 }

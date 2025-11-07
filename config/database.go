@@ -199,6 +199,8 @@ func (d *Database) createTables() error {
 		`ALTER TABLE traders ADD COLUMN use_coin_pool BOOLEAN DEFAULT 0`,               // 是否使用COIN POOL信号源
 		`ALTER TABLE traders ADD COLUMN use_oi_top BOOLEAN DEFAULT 0`,                  // 是否使用OI TOP信号源
 		`ALTER TABLE traders ADD COLUMN system_prompt_template TEXT DEFAULT 'default'`, // 系统提示词模板名称
+		`ALTER TABLE traders ADD COLUMN taker_fee_rate REAL DEFAULT 0.0004`,            // P0修复：Taker费率，默认0.0004 (0.04%)
+		`ALTER TABLE traders ADD COLUMN maker_fee_rate REAL DEFAULT 0.0002`,            // P0修复：Maker费率，默认0.0002 (0.02%)
 		`ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`,              // 自定义API地址
 		`ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`,           // 自定义模型名称
 	}

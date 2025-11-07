@@ -1170,6 +1170,24 @@ GET /api/health                   # Health check
 
 ## 🛠️ Common Issues
 
+### Verbose backend logs / control log noise
+
+The backend now supports runtime-configurable, leveled logging.
+
+- Env variables:
+  - `LOG_LEVEL` = `debug` | `info` | `warn` | `error` | `none` (default: `info`)
+  - `LOG_MODULES` = optional comma list to include only certain modules, e.g. `api,manager,market,trader`
+  - `LOG_RATE_SECONDS` = de-duplicate identical logs within this window (default: `3` seconds)
+  - `GIN_LOG` = `full` | `warn` | `error` | `none` for HTTP access logs (default: `warn`)
+
+Example startup:
+
+```bash
+LOG_LEVEL=warn GIN_LOG=error go run main.go
+```
+
+Set `LOG_LEVEL=debug` if you need detailed diagnostics; use `warn`/`error` to reduce noise during normal operation.
+
 > 📖 **For detailed troubleshooting:** See the comprehensive [Troubleshooting Guide](docs/guides/TROUBLESHOOTING.md) ([中文版](docs/guides/TROUBLESHOOTING.zh-CN.md))
 
 ### 1. Compilation error: TA-Lib not found

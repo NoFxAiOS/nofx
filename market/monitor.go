@@ -1,12 +1,13 @@
 package market
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
-	"strings"
-	"sync"
-	"time"
+    "encoding/json"
+    "fmt"
+    "log"
+    "strings"
+    "sync"
+    "time"
+    "nofx/logger"
 )
 
 type WSMonitor struct {
@@ -66,7 +67,7 @@ func (m *WSMonitor) Initialize(coins []string) error {
 		m.symbols = coins
 	}
 
-	log.Printf("找到 %d 个交易对", len(m.symbols))
+    logger.Infof("market", "找到 %d 个交易对", len(m.symbols))
 	// 初始化历史数据
 	if err := m.initializeHistoricalData(); err != nil {
 		log.Printf("初始化历史数据失败: %v", err)
@@ -97,7 +98,7 @@ func (m *WSMonitor) initializeHistoricalData() error {
 			}
 			if len(klines) > 0 {
 				m.klineDataMap3m.Store(s, klines)
-				log.Printf("已加载 %s 的历史K线数据-3m: %d 条", s, len(klines))
+            logger.Debugf("market", "已加载 %s 的历史K线数据-3m: %d 条", s, len(klines))
 			}
 			// 获取历史K线数据
 			klines4h, err := apiClient.GetKlines(s, "4h", 100)
@@ -107,7 +108,7 @@ func (m *WSMonitor) initializeHistoricalData() error {
 			}
 			if len(klines4h) > 0 {
 				m.klineDataMap4h.Store(s, klines4h)
-				log.Printf("已加载 %s 的历史K线数据-4h: %d 条", s, len(klines4h))
+            logger.Debugf("market", "已加载 %s 的历史K线数据-4h: %d 条", s, len(klines4h))
 			}
 		}(symbol)
 	}
@@ -117,7 +118,7 @@ func (m *WSMonitor) initializeHistoricalData() error {
 }
 
 func (m *WSMonitor) Start(coins []string) {
-	log.Printf("启动WebSocket实时监控...")
+    logger.Infof("market", "启动WebSocket实时监控...")
 	// 初始化交易对
 	err := m.Initialize(coins)
 	if err != nil {
@@ -150,7 +151,7 @@ func (m *WSMonitor) subscribeSymbol(symbol, st string) []string {
 }
 func (m *WSMonitor) subscribeAll() error {
 	// 执行批量订阅
-	log.Println("开始订阅所有交易对...")
+    logger.Infof("market", "开始订阅所有交易对...")
 	for _, symbol := range m.symbols {
 		for _, st := range subKlineTime {
 			m.subscribeSymbol(symbol, st)
@@ -163,7 +164,7 @@ func (m *WSMonitor) subscribeAll() error {
 			return err
 		}
 	}
-	log.Println("所有交易对订阅完成")
+    logger.Infof("market", "所有交易对订阅完成")
 	return nil
 }
 

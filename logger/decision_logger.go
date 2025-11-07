@@ -1,13 +1,15 @@
 package logger
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"math"
-	"os"
-	"path/filepath"
-	"time"
+    "encoding/json"
+    "fmt"
+    "io/ioutil"
+    "math"
+    "os"
+    "path/filepath"
+    "sort"
+    "strings"
+    "time"
 )
 
 // DecisionRecord 决策记录
@@ -114,41 +116,72 @@ func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 
 // GetLatestRecords 获取最近N条记录（按时间正序：从旧到新）
 func (l *DecisionLogger) GetLatestRecords(n int) ([]*DecisionRecord, error) {
-	files, err := ioutil.ReadDir(l.logDir)
-	if err != nil {
-		return nil, fmt.Errorf("读取日志目录失败: %w", err)
-	}
+    // 仅匹配决策日志文件，避免误读其它文件
+    pattern := filepath.Join(l.logDir, "decision_*.json")
+    paths, err := filepath.Glob(pattern)
+    if err != nil {
+        return nil, fmt.Errorf("查找日志文件失败: %w", err)
+    }
 
-	// 先按修改时间倒序收集（最新的在前）
-	var records []*DecisionRecord
-	count := 0
-	for i := len(files) - 1; i >= 0 && count < n; i-- {
-		file := files[i]
-		if file.IsDir() {
-			continue
-		}
+    if len(paths) == 0 {
+        return []*DecisionRecord{}, nil
+    }
 
-		filepath := filepath.Join(l.logDir, file.Name())
-		data, err := ioutil.ReadFile(filepath)
-		if err != nil {
-			continue
-		}
+    // 为稳健起见，按文件名中的时间戳排序（YYYYMMDD_HHMMSS）
+    type fileEntry struct {
+        path string
+        ts   time.Time
+    }
+    entries := make([]fileEntry, 0, len(paths))
 
-		var record DecisionRecord
-		if err := json.Unmarshal(data, &record); err != nil {
-			continue
-		}
+    for _, p := range paths {
+        base := filepath.Base(p) // decision_YYYYMMDD_HHMMSS_cycleN.json
+        ts := time.Time{}
+        // 提取 YYYYMMDD_HHMMSS
+        // 形如: decision_20251106_172612_cycle382.json
+        parts := strings.SplitN(strings.TrimPrefix(base, "decision_"), "_cycle", 2)
+        if len(parts) > 0 {
+            // parts[0] = YYYYMMDD_HHMMSS
+            tstr := parts[0]
+            // 再保险：去掉末尾的 .json 段（如果 split 未覆盖）
+            tstr = strings.TrimSuffix(tstr, ".json")
+            if parsed, perr := time.Parse("20060102_150405", tstr); perr == nil {
+                ts = parsed
+            }
+        }
+        // 解析失败则用文件修改时间兜底
+        if ts.IsZero() {
+            if info, ierr := os.Stat(p); ierr == nil {
+                ts = info.ModTime()
+            } else {
+                ts = time.Unix(0, 0)
+            }
+        }
+        entries = append(entries, fileEntry{path: p, ts: ts})
+    }
 
-		records = append(records, &record)
-		count++
-	}
+    sort.Slice(entries, func(i, j int) bool { return entries[i].ts.Before(entries[j].ts) })
 
-	// 反转数组，让时间从旧到新排列（用于图表显示）
-	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
-		records[i], records[j] = records[j], records[i]
-	}
+    // 仅保留最近 n 条（从旧到新保留尾部）
+    if n > 0 && len(entries) > n {
+        entries = entries[len(entries)-n:]
+    }
 
-	return records, nil
+    // 读取文件内容（保持从旧到新的顺序）
+    records := make([]*DecisionRecord, 0, len(entries))
+    for _, e := range entries {
+        data, err := ioutil.ReadFile(e.path)
+        if err != nil {
+            continue
+        }
+        var record DecisionRecord
+        if err := json.Unmarshal(data, &record); err != nil {
+            continue
+        }
+        records = append(records, &record)
+    }
+
+    return records, nil
 }
 
 // GetRecordByDate 获取指定日期的所有记录
@@ -523,19 +556,23 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 		}
 	}
 
-	// 只保留最近的交易（倒序：最新的在前）
-	if len(analysis.RecentTrades) > 10 {
-		// 反转数组，让最新的在前
-		for i, j := 0, len(analysis.RecentTrades)-1; i < j; i, j = i+1, j-1 {
-			analysis.RecentTrades[i], analysis.RecentTrades[j] = analysis.RecentTrades[j], analysis.RecentTrades[i]
-		}
-		analysis.RecentTrades = analysis.RecentTrades[:10]
-	} else if len(analysis.RecentTrades) > 0 {
-		// 反转数组
-		for i, j := 0, len(analysis.RecentTrades)-1; i < j; i, j = i+1, j-1 {
-			analysis.RecentTrades[i], analysis.RecentTrades[j] = analysis.RecentTrades[j], analysis.RecentTrades[i]
-		}
-	}
+    // 将交易按结束时间排序（最新在前）。若无 CloseTime 则使用 OpenTime。
+    if len(analysis.RecentTrades) > 0 {
+        sort.Slice(analysis.RecentTrades, func(i, j int) bool {
+            ti := analysis.RecentTrades[i].CloseTime
+            tj := analysis.RecentTrades[j].CloseTime
+            if ti.IsZero() {
+                ti = analysis.RecentTrades[i].OpenTime
+            }
+            if tj.IsZero() {
+                tj = analysis.RecentTrades[j].OpenTime
+            }
+            return ti.After(tj)
+        })
+        if len(analysis.RecentTrades) > 10 {
+            analysis.RecentTrades = analysis.RecentTrades[:10]
+        }
+    }
 
 	// 计算夏普比率（需要至少2个数据点）
 	analysis.SharpeRatio = l.calculateSharpeRatio(records)

@@ -89,6 +89,7 @@ export interface TraderInfo {
   trader_id: string;
   trader_name: string;
   ai_model: string;
+  ai_model_id?: string;
   exchange_id?: string;
   is_running?: boolean;
   custom_prompt?: string;

@@ -415,7 +415,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           ])
         ),
       }),
-      updateApi: api.updateModelConfigsEncrypted,
+      updateApi: api.updateModelConfigs,
       refreshApi: api.getModelConfigs,
       setItems: (items) => {
         // 使用函数式更新确保状态正确更新
@@ -488,7 +488,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateModelConfigsEncrypted(request)
+      await api.updateModelConfigs(request)
 
       // 重新获取用户配置以确保数据同步
       const refreshedModels = await api.getModelConfigs()

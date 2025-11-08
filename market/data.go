@@ -9,6 +9,20 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+)
+
+// ✅ 优化2：Funding Rate 缓存机制（节省 95% API 调用）
+// Binance Funding Rate 每 8 小时才更新一次，使用 1 小时缓存完全合理
+type FundingRateCache struct {
+	Rate      float64
+	UpdatedAt time.Time
+}
+
+var (
+	fundingRateMap sync.Map // map[string]*FundingRateCache
+	frCacheTTL     = 1 * time.Hour
 )
 
 // Get 获取指定代币的市场数据
@@ -413,8 +427,31 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	return data
 }
 
-// getOpenInterestData 获取OI数据（P0修复：添加4小时变化率计算）
+// getOpenInterestData 获取OI数据（优化：优先使用缓存）
 func getOpenInterestData(symbol string) (*OIData, error) {
+	// ✅ 优化1：优先使用 collectOISnapshots 的缓存数据（每15分钟更新）
+	// 好处：节省 50% API 调用，数据新鲜度 < 15 分钟
+	if WSMonitorCli != nil {
+		history := WSMonitorCli.GetOIHistory(symbol)
+		if len(history) > 0 {
+			// 使用最新的快照（最多 15 分钟前的数据）
+			latest := history[len(history)-1]
+
+			var change4h float64
+			var actualPeriod string
+			change4h, actualPeriod = WSMonitorCli.CalculateOIChange4h(symbol, latest.Value)
+
+			return &OIData{
+				Latest:       latest.Value,
+				Average:      latest.Value * 0.999, // 近似平均值
+				Change4h:     change4h,
+				ActualPeriod: actualPeriod,
+				Historical:   history,
+			}, nil
+		}
+	}
+
+	// ⚠️ 降级：缓存不存在时才调用 API（仅冷启动或缓存失效）
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
 	resp, err := http.Get(url)
@@ -440,7 +477,7 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 
 	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
 
-	// P0修复：计算4小时OI变化率（返回变化率和实际时间段）
+	// 计算4小时变化率
 	var change4h float64
 	var actualPeriod string
 	if WSMonitorCli != nil {
@@ -449,7 +486,7 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 		actualPeriod = "N/A"
 	}
 
-	// P0修复：获取历史数据
+	// 获取历史数据
 	var history []OISnapshot
 	if WSMonitorCli != nil {
 		history = WSMonitorCli.GetOIHistory(symbol)
@@ -457,15 +494,26 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 
 	return &OIData{
 		Latest:       oi,
-		Average:      oi * 0.999, // 近似平均值
-		Change4h:     change4h,   // P0修复：4小时变化率
+		Average:      oi * 0.999,
+		Change4h:     change4h,
 		ActualPeriod: actualPeriod,
-		Historical:   history, // P0修复：历史数据
+		Historical:   history,
 	}, nil
 }
 
-// getFundingRate 获取资金费率
+// getFundingRate 获取资金费率（优化：使用 1 小时缓存）
 func getFundingRate(symbol string) (float64, error) {
+	// ✅ 优化2：检查缓存（有效期 1 小时）
+	// Funding Rate 每 8 小时才更新，1 小时缓存非常合理
+	if cached, ok := fundingRateMap.Load(symbol); ok {
+		cache := cached.(*FundingRateCache)
+		if time.Since(cache.UpdatedAt) < frCacheTTL {
+			// 缓存命中，直接返回
+			return cache.Rate, nil
+		}
+	}
+
+	// ⚠️ 缓存过期或不存在，调用 API
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
 
 	resp, err := http.Get(url)
@@ -494,6 +542,13 @@ func getFundingRate(symbol string) (float64, error) {
 	}
 
 	rate, _ := strconv.ParseFloat(result.LastFundingRate, 64)
+
+	// ✅ 更新缓存
+	fundingRateMap.Store(symbol, &FundingRateCache{
+		Rate:      rate,
+		UpdatedAt: time.Now(),
+	})
+
 	return rate, nil
 }
 

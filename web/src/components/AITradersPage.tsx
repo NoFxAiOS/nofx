@@ -14,6 +14,10 @@ import { getExchangeIcon } from './ExchangeIcons'
 import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
 import {
+  TwoStageKeyModal,
+  type TwoStageKeyModalResult,
+} from './TwoStageKeyModal'
+import {
   Bot,
   Brain,
   Landmark,
@@ -131,53 +135,52 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     loadConfigs()
   }, [user, token])
 
-  // 只显示已配置的模型和交易所（有API Key的才算配置过）
+  // 只显示已配置的模型和交易所
+  // 注意：后端返回的数据不包含敏感信息（apiKey等），所以通过其他字段判断是否已配置
   const configuredModels =
-    allModels?.filter((m) => m.apiKey && m.apiKey.trim() !== '') || []
+    allModels?.filter((m) => {
+      // 如果模型已启用，说明已配置
+      // 或者有自定义API URL，也说明已配置
+      return m.enabled || (m.customApiUrl && m.customApiUrl.trim() !== '')
+    }) || []
   const configuredExchanges =
     allExchanges?.filter((e) => {
       // Aster 交易所检查特殊字段
       if (e.id === 'aster') {
         return e.asterUser && e.asterUser.trim() !== ''
       }
-      // Hyperliquid 只检查私钥
+      // Hyperliquid 需要检查钱包地址（后端会返回这个字段）
       if (e.id === 'hyperliquid') {
-        return e.apiKey && e.apiKey.trim() !== ''
+        return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
       }
-      // 其他交易所检查 apiKey
-      return e.apiKey && e.apiKey.trim() !== ''
+      // 其他交易所：如果已启用，说明已配置（后端返回的已配置交易所会有 enabled: true）
+      return e.enabled
     }) || []
 
   // 只在创建交易员时使用已启用且配置完整的
-  const enabledModels = allModels?.filter((m) => m.enabled && m.apiKey) || []
+  // 注意：后端返回的数据不包含敏感信息，所以只检查 enabled 状态和必要的非敏感字段
+  const enabledModels = allModels?.filter((m) => m.enabled) || []
   const enabledExchanges =
     allExchanges?.filter((e) => {
       if (!e.enabled) return false
 
-      // Aster 交易所需要特殊字段
+      // Aster 交易所需要特殊字段（后端会返回这些非敏感字段）
       if (e.id === 'aster') {
         return (
           e.asterUser &&
           e.asterUser.trim() !== '' &&
           e.asterSigner &&
-          e.asterSigner.trim() !== '' &&
-          e.asterPrivateKey &&
-          e.asterPrivateKey.trim() !== ''
+          e.asterSigner.trim() !== ''
         )
       }
 
-      // Hyperliquid 只需要私钥（作为apiKey），钱包地址会自动从私钥生成
+      // Hyperliquid 需要钱包地址（后端会返回这个字段）
       if (e.id === 'hyperliquid') {
-        return e.apiKey && e.apiKey.trim() !== ''
+        return e.hyperliquidWalletAddr && e.hyperliquidWalletAddr.trim() !== ''
       }
 
-      // Binance 等其他交易所需要 apiKey 和 secretKey
-      return (
-        e.apiKey &&
-        e.apiKey.trim() !== '' &&
-        e.secretKey &&
-        e.secretKey.trim() !== ''
-      )
+      // 其他交易所：如果已启用，说明已配置完整（后端只返回已配置的交易所）
+      return true
     }) || []
 
   // 检查模型是否正在被运行中的交易员使用（用于UI禁用）
@@ -412,7 +415,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           ])
         ),
       }),
-      updateApi: api.updateModelConfigs,
+      updateApi: api.updateModelConfigsEncrypted,
       refreshApi: api.getModelConfigs,
       setItems: (items) => {
         // 使用函数式更新确保状态正确更新
@@ -485,7 +488,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateModelConfigs(request)
+      await api.updateModelConfigsEncrypted(request)
 
       // 重新获取用户配置以确保数据同步
       const refreshedModels = await api.getModelConfigs()
@@ -512,6 +515,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ...e,
         apiKey: '',
         secretKey: '',
+        hyperliquidWalletAddr: '',
+        asterUser: '',
+        asterSigner: '',
+        asterPrivateKey: '',
         enabled: false,
       }),
       buildRequest: (exchanges) => ({
@@ -523,11 +530,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
               testnet: exchange.testnet || false,
+              hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
+              aster_user: exchange.asterUser || '',
+              aster_signer: exchange.asterSigner || '',
+              aster_private_key: exchange.asterPrivateKey || '',
             },
           ])
         ),
       }),
-      updateApi: api.updateExchangeConfigs,
+      updateApi: api.updateExchangeConfigsEncrypted,
       refreshApi: api.getExchangeConfigs,
       setItems: (items) => {
         // 使用函数式更新确保状态正确更新
@@ -617,7 +628,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateExchangeConfigs(request)
+      await api.updateExchangeConfigsEncrypted(request)
 
       // 重新获取用户配置以确保数据同步
       const refreshedExchanges = await api.getExchangeConfigs()
@@ -864,7 +875,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
                   <div
-                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${model.enabled && model.apiKey ? 'bg-green-400' : 'bg-gray-500'}`}
+                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${model.enabled ? 'bg-green-400' : 'bg-gray-500'}`}
                   />
                 </div>
               )
@@ -931,7 +942,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
                   <div
-                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${exchange.enabled && exchange.apiKey ? 'bg-green-400' : 'bg-gray-500'}`}
+                    className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full flex-shrink-0 ${exchange.enabled ? 'bg-green-400' : 'bg-gray-500'}`}
                   />
                 </div>
               )
@@ -1691,6 +1702,14 @@ function ExchangeConfigModal({
   const [asterSigner, setAsterSigner] = useState('')
   const [asterPrivateKey, setAsterPrivateKey] = useState('')
 
+  // Hyperliquid 特定字段
+  const [hyperliquidWalletAddr, setHyperliquidWalletAddr] = useState('')
+
+  // 安全输入状态
+  const [secureInputTarget, setSecureInputTarget] = useState<
+    null | 'hyperliquid' | 'aster'
+  >(null)
+
   // 获取当前编辑的交易所信息
   const selectedExchange = allExchanges?.find(
     (e) => e.id === selectedExchangeId
@@ -1708,6 +1727,9 @@ function ExchangeConfigModal({
       setAsterUser(selectedExchange.asterUser || '')
       setAsterSigner(selectedExchange.asterSigner || '')
       setAsterPrivateKey('') // Don't load existing private key for security
+
+      // Hyperliquid 字段
+      setHyperliquidWalletAddr(selectedExchange.hyperliquidWalletAddr || '')
     }
   }, [editingExchangeId, selectedExchange])
 
@@ -1736,6 +1758,44 @@ function ExchangeConfigModal({
     })
   }
 
+  // 安全输入处理函数
+  const secureInputContextLabel =
+    secureInputTarget === 'aster'
+      ? t('asterExchangeName', language)
+      : secureInputTarget === 'hyperliquid'
+        ? t('hyperliquidExchangeName', language)
+        : undefined
+
+  const handleSecureInputCancel = () => {
+    setSecureInputTarget(null)
+  }
+
+  const handleSecureInputComplete = ({
+    value,
+    obfuscationLog,
+  }: TwoStageKeyModalResult) => {
+    const trimmed = value.trim()
+    if (secureInputTarget === 'hyperliquid') {
+      setApiKey(trimmed)
+    }
+    if (secureInputTarget === 'aster') {
+      setAsterPrivateKey(trimmed)
+    }
+    console.log('Secure input obfuscation log:', obfuscationLog)
+    setSecureInputTarget(null)
+  }
+
+  // 掩盖敏感数据显示
+  const maskSecret = (secret: string) => {
+    if (!secret || secret.length === 0) return ''
+    if (secret.length <= 8) return '*'.repeat(secret.length)
+    return (
+      secret.slice(0, 4) +
+      '*'.repeat(Math.max(secret.length - 8, 4)) +
+      secret.slice(-4)
+    )
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedExchangeId) return
@@ -1745,8 +1805,14 @@ function ExchangeConfigModal({
       if (!apiKey.trim() || !secretKey.trim()) return
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
     } else if (selectedExchange?.id === 'hyperliquid') {
-      if (!apiKey.trim()) return // 只验证私钥，钱包地址自动从私钥生成
-      await onSave(selectedExchangeId, apiKey.trim(), '', testnet, '') // 传空字符串，后端自动生成地址
+      if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return // 验证私钥和钱包地址
+      await onSave(
+        selectedExchangeId,
+        apiKey.trim(),
+        '',
+        testnet,
+        hyperliquidWalletAddr.trim()
+      )
     } else if (selectedExchange?.id === 'aster') {
       if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())
         return
@@ -2106,18 +2172,116 @@ function ExchangeConfigModal({
               {/* Hyperliquid 交易所的字段 */}
               {selectedExchange.id === 'hyperliquid' && (
                 <>
+                  {/* 安全提示 banner */}
+                  <div
+                    className="p-3 rounded mb-4"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.1)',
+                      border: '1px solid rgba(240, 185, 11, 0.3)',
+                    }}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span style={{ color: '#F0B90B', fontSize: '16px' }}>
+                        🔐
+                      </span>
+                      <div className="flex-1">
+                        <div
+                          className="text-sm font-semibold mb-1"
+                          style={{ color: '#F0B90B' }}
+                        >
+                          {t('hyperliquidAgentWalletTitle', language)}
+                        </div>
+                        <div
+                          className="text-xs"
+                          style={{ color: '#848E9C', lineHeight: '1.5' }}
+                        >
+                          {t('hyperliquidAgentWalletDesc', language)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Agent Private Key 字段 */}
                   <div>
                     <label
                       className="block text-sm font-semibold mb-2"
                       style={{ color: '#EAECEF' }}
                     >
-                      {t('privateKey', language)}
+                      {t('hyperliquidAgentPrivateKey', language)}
+                    </label>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={maskSecret(apiKey)}
+                          readOnly
+                          placeholder={t(
+                            'enterHyperliquidAgentPrivateKey',
+                            language
+                          )}
+                          className="w-full px-3 py-2 rounded"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSecureInputTarget('hyperliquid')}
+                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                          style={{
+                            background: '#F0B90B',
+                            color: '#000',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {apiKey
+                            ? t('secureInputReenter', language)
+                            : t('secureInputButton', language)}
+                        </button>
+                        {apiKey && (
+                          <button
+                            type="button"
+                            onClick={() => setApiKey('')}
+                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                            style={{
+                              background: '#1B1F2B',
+                              color: '#848E9C',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {t('secureInputClear', language)}
+                          </button>
+                        )}
+                      </div>
+                      {apiKey && (
+                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                          {t('secureInputHint', language)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                      {t('hyperliquidAgentPrivateKeyDesc', language)}
+                    </div>
+                  </div>
+
+                  {/* Main Wallet Address 字段 */}
+                  <div>
+                    <label
+                      className="block text-sm font-semibold mb-2"
+                      style={{ color: '#EAECEF' }}
+                    >
+                      {t('hyperliquidMainWalletAddress', language)}
                     </label>
                     <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={t('enterPrivateKey', language)}
+                      type="text"
+                      value={hyperliquidWalletAddr}
+                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
+                      placeholder={t(
+                        'enterHyperliquidMainWalletAddress',
+                        language
+                      )}
                       className="w-full px-3 py-2 rounded"
                       style={{
                         background: '#0B0E11',
@@ -2127,7 +2291,7 @@ function ExchangeConfigModal({
                       required
                     />
                     <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidPrivateKeyDesc', language)}
+                      {t('hyperliquidMainWalletAddressDesc', language)}
                     </div>
                   </div>
                 </>
@@ -2205,19 +2369,55 @@ function ExchangeConfigModal({
                         />
                       </Tooltip>
                     </label>
-                    <input
-                      type="password"
-                      value={asterPrivateKey}
-                      onChange={(e) => setAsterPrivateKey(e.target.value)}
-                      placeholder={t('enterPrivateKey', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
-                      required
-                    />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={maskSecret(asterPrivateKey)}
+                          readOnly
+                          placeholder={t('enterPrivateKey', language)}
+                          className="w-full px-3 py-2 rounded"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSecureInputTarget('aster')}
+                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                          style={{
+                            background: '#F0B90B',
+                            color: '#000',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {asterPrivateKey
+                            ? t('secureInputReenter', language)
+                            : t('secureInputButton', language)}
+                        </button>
+                        {asterPrivateKey && (
+                          <button
+                            type="button"
+                            onClick={() => setAsterPrivateKey('')}
+                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                            style={{
+                              background: '#1B1F2B',
+                              color: '#848E9C',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {t('secureInputClear', language)}
+                          </button>
+                        )}
+                      </div>
+                      {asterPrivateKey && (
+                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                          {t('secureInputHint', language)}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -2287,7 +2487,8 @@ function ExchangeConfigModal({
                   (!apiKey.trim() ||
                     !secretKey.trim() ||
                     !passphrase.trim())) ||
-                (selectedExchange.id === 'hyperliquid' && !apiKey.trim()) || // 只验证私钥，钱包地址可选
+                (selectedExchange.id === 'hyperliquid' &&
+                  (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
                 (selectedExchange.id === 'aster' &&
                   (!asterUser.trim() ||
                     !asterSigner.trim() ||
@@ -2345,6 +2546,16 @@ function ExchangeConfigModal({
           </div>
         </div>
       )}
+
+      {/* Two Stage Key Modal */}
+      <TwoStageKeyModal
+        isOpen={secureInputTarget !== null}
+        language={language}
+        contextLabel={secureInputContextLabel}
+        expectedLength={64}
+        onCancel={handleSecureInputCancel}
+        onComplete={handleSecureInputComplete}
+      />
     </div>
   )
 }

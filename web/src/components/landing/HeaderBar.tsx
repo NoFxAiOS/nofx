@@ -12,7 +12,6 @@ interface HeaderBarProps {
   onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
-  isAdminMode?: boolean
   onPageChange?: (page: string) => void
 }
 
@@ -24,7 +23,6 @@ export default function HeaderBar({
   onLanguageChange,
   user,
   onLogout,
-  isAdminMode = false,
   onPageChange,
 }: HeaderBarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -445,7 +443,7 @@ export default function HeaderBar({
                             {user.email}
                           </div>
                         </div>
-                        {!isAdminMode && onLogout && (
+                        {onLogout && (
                           <button
                             onClick={() => {
                               onLogout()
@@ -476,18 +474,16 @@ export default function HeaderBar({
                     >
                       {t('signIn', language)}
                     </a>
-                    {!isAdminMode && (
-                      <a
-                        href="/register"
-                        className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
-                        style={{
-                          background: 'var(--brand-yellow)',
-                          color: 'var(--brand-black)',
-                        }}
-                      >
-                        {t('signUp', language)}
-                      </a>
-                    )}
+                    <a
+                      href="/register"
+                      className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90"
+                      style={{
+                        background: 'var(--brand-yellow)',
+                        color: 'var(--brand-black)',
+                      }}
+                    >
+                      {t('signUp', language)}
+                    </a>
                   </div>
                 )
               )}
@@ -882,7 +878,7 @@ export default function HeaderBar({
                   </div>
                 </div>
               </div>
-              {!isAdminMode && onLogout && (
+              {onLogout && (
                 <button
                   onClick={() => {
                     onLogout()
@@ -916,19 +912,17 @@ export default function HeaderBar({
                 >
                   {t('signIn', language)}
                 </a>
-                {!isAdminMode && (
-                  <a
-                    href="/register"
-                    className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
-                    style={{
-                      background: 'var(--brand-yellow)',
-                      color: 'var(--brand-black)',
-                    }}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {t('signUp', language)}
-                  </a>
-                )}
+                <a
+                  href="/register"
+                  className="block w-full px-4 py-2 rounded font-semibold text-sm text-center transition-colors"
+                  style={{
+                    background: 'var(--brand-yellow)',
+                    color: 'var(--brand-black)',
+                  }}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {t('signUp', language)}
+                </a>
               </div>
             )}
         </div>

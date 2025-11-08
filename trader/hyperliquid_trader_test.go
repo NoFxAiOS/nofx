@@ -31,7 +31,7 @@ func TestHyperliquidAgentWalletSecurity(t *testing.T) {
 		// 測試：空字符串作為主錢包地址
 		trader, err := NewHyperliquidTrader(
 			"0x"+agentPrivateKeyHex,
-			"", // 空的主錢包地址
+			"",   // 空的主錢包地址
 			true, // testnet
 		)
 
@@ -171,29 +171,29 @@ func TestAgentWalletAddressComparison(t *testing.T) {
 	agentAddress := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
 
 	testCases := []struct {
-		name            string
-		mainWalletAddr  string
-		shouldBeSame    bool
+		name           string
+		mainWalletAddr string
+		shouldBeSame   bool
 	}{
 		{
-			name:            "相同地址（大小寫完全一致）",
-			mainWalletAddr:  agentAddress,
-			shouldBeSame:    true,
+			name:           "相同地址（大小寫完全一致）",
+			mainWalletAddr: agentAddress,
+			shouldBeSame:   true,
 		},
 		{
-			name:            "相同地址（全小寫）",
-			mainWalletAddr:  strings.ToLower(agentAddress),
-			shouldBeSame:    true,
+			name:           "相同地址（全小寫）",
+			mainWalletAddr: strings.ToLower(agentAddress),
+			shouldBeSame:   true,
 		},
 		{
-			name:            "相同地址（全大寫）",
-			mainWalletAddr:  strings.ToUpper(agentAddress),
-			shouldBeSame:    true,
+			name:           "相同地址（全大寫）",
+			mainWalletAddr: strings.ToUpper(agentAddress),
+			shouldBeSame:   true,
 		},
 		{
-			name:            "不同地址",
-			mainWalletAddr:  "0x0000000000000000000000000000000000000000",
-			shouldBeSame:    false,
+			name:           "不同地址",
+			mainWalletAddr: "0x0000000000000000000000000000000000000000",
+			shouldBeSame:   false,
 		},
 	}
 
@@ -217,10 +217,10 @@ func TestHyperliquidConfigValidation(t *testing.T) {
 
 		// 測試各種私鑰格式
 		formats := []string{
-			"0x" + privateKeyHex,                   // 帶 0x 前綴
-			privateKeyHex,                          // 不帶 0x 前綴
-			"0X" + privateKeyHex,                   // 大寫 0X 前綴
-			strings.ToUpper(privateKeyHex),         // 大寫十六進制
+			"0x" + privateKeyHex,           // 帶 0x 前綴
+			privateKeyHex,                  // 不帶 0x 前綴
+			"0X" + privateKeyHex,           // 大寫 0X 前綴
+			strings.ToUpper(privateKeyHex), // 大寫十六進制
 		}
 
 		for i, format := range formats {

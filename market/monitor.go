@@ -447,8 +447,33 @@ func (m *WSMonitor) CalculateOIChange4h(symbol string, latestOI float64) (float6
 
 	history := m.GetOIHistory(symbol)
 	if len(history) == 0 {
-		log.Printf("⚠️  %s: OI历史数据为空，无法计算变化率", symbol)
-		return 0.0, "N/A" // 无历史数据
+		// ✅ P0修复：歷史數據為空時，嘗試從 API 回填（降級方案）
+		log.Printf("⚠️  %s: OI历史数据为空，尝试从API回填历史数据...", symbol)
+		apiClient := NewAPIClient()
+		historyFromAPI, err := apiClient.GetOpenInterestHistory(symbol, "15m", 20) // 获取20个15分钟数据点（5小时）
+		if err != nil {
+			log.Printf("❌ %s: 从API回填OI历史数据失败: %v，无法计算变化率", symbol, err)
+			return 0.0, "N/A" // API回填也失败，无法计算
+		}
+
+		if len(historyFromAPI) == 0 {
+			log.Printf("⚠️  %s: API返回的OI历史数据为空，无法计算变化率", symbol)
+			return 0.0, "N/A"
+		}
+
+		// 将回填的数据直接存储到缓存中（保留原始时间戳）
+		m.oiHistoryMap.Store(symbol, historyFromAPI)
+		log.Printf("✅ %s: 成功从API回填 %d 个OI历史数据点（时间跨度: %s 到 %s）",
+			symbol, len(historyFromAPI),
+			historyFromAPI[0].Timestamp.Format("15:04"),
+			historyFromAPI[len(historyFromAPI)-1].Timestamp.Format("15:04"))
+
+		// 重新获取历史数据（现在应该有数据了）
+		history = m.GetOIHistory(symbol)
+		if len(history) == 0 {
+			log.Printf("❌ %s: 回填后历史数据仍为空，存储失败", symbol)
+			return 0.0, "N/A"
+		}
 	}
 
 	// ✅ 修复：只有 1 個數據點時，返回特殊標記而非 N/A

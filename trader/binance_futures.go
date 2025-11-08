@@ -247,31 +247,31 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	if err != nil {
 		// 如果错误信息包含"No need to change"，说明仓位模式已经是目标值
 		if contains(err.Error(), "No need to change margin type") {
-			log.Printf("  ✓ %s 仓位模式已是 %s", symbol, marginModeStr)
+			log.Printf("  ✓ %s margin mode is already %s", symbol, marginModeStr)
 			return nil
 		}
 		// 如果有持仓，无法更改仓位模式，但不影响交易
 		if contains(err.Error(), "Margin type cannot be changed if there exists position") {
-			log.Printf("  ⚠️ %s 有持仓，无法更改仓位模式，继续使用当前模式", symbol)
+			log.Printf("  ⚠️ %s cannot change margin mode with open positions, continuing with current mode", symbol)
 			return nil
 		}
 		// 检测多资产模式（错误码 -4168）
 		if contains(err.Error(), "Multi-Assets mode") || contains(err.Error(), "-4168") || contains(err.Error(), "4168") {
-			log.Printf("  ⚠️ %s 检测到多资产模式，强制使用全仓模式", symbol)
-			log.Printf("  💡 提示：如需使用逐仓模式，请在币安关闭多资产模式")
+			log.Printf("  ⚠️ %s detected Multi-Assets mode, forcing Cross Margin mode", symbol)
+			log.Printf("  💡 Tip: To use Isolated mode, disable Multi-Assets mode in Binance settings")
 			return nil
 		}
 		// 检测统一账户 API（Portfolio Margin）
 		if contains(err.Error(), "unified") || contains(err.Error(), "portfolio") || contains(err.Error(), "Portfolio") {
-			log.Printf("  ❌ %s 检测到统一账户 API，无法进行合约交易", symbol)
-			return fmt.Errorf("请使用「现货与合约交易」API 权限，不要使用「统一账户 API」")
+			log.Printf("  ❌ %s detected Unified Account API, cannot trade futures", symbol)
+			return fmt.Errorf("please use 'Spot & Futures Trading' API permission, not 'Unified Account API'")
 		}
-		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
+		log.Printf("  ⚠️ failed to set margin mode: %v", err)
 		// 不返回错误，让交易继续
 		return nil
 	}
 
-	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginModeStr)
+	log.Printf("  ✓ %s margin mode set to %s", symbol, marginModeStr)
 	return nil
 }
 
@@ -317,7 +317,7 @@ func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 
 	// 如果当前杠杆已经是目标杠杆，跳过
 	if currentLeverage == leverage && currentLeverage > 0 {
-		log.Printf("  ✓ %s 杠杆已是 %dx，无需切换", symbol, leverage)
+		log.Printf("  ✓ %s leverage is already %dx, no change needed", symbol, leverage)
 		return nil
 	}
 
@@ -333,13 +333,36 @@ func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 	if err != nil {
 		// 如果错误信息包含"No need to change"，说明杠杆已经是目标值
 		if contains(err.Error(), "No need to change") {
-			log.Printf("  ✓ %s 杠杆已是 %dx", symbol, leverage)
+			log.Printf("  ✓ %s leverage is already %dx", symbol, leverage)
 			return nil
 		}
-		return fmt.Errorf("设置杠杆失败: %w", err)
+
+		// 检测 API 权限不足（错误码 -2015）
+		if contains(err.Error(), "code=-2015") || contains(err.Error(), "-2015") {
+			log.Printf("  ❌ %s API permission error (-2015)", symbol)
+			log.Printf("  💡 Solution: Enable 'Futures' permission in Binance API Management")
+			log.Printf("     1. Binance → API Management → Edit API Key")
+			log.Printf("     2. Check ✅ 'Enable Futures' permission")
+			log.Printf("     3. Save and restart the bot")
+			return fmt.Errorf("failed to set leverage: API Key permission insufficient (error -2015), please enable 'Enable Futures' permission in your Binance API settings: %w", err)
+		}
+
+		// 检测杠杆超过限制（错误码 -4400）
+		if contains(err.Error(), "code=-4400") || contains(err.Error(), "-4400") ||
+			contains(err.Error(), "leverage greater than") {
+			log.Printf("  ❌ %s Leverage limit exceeded (-4400)", symbol)
+			log.Printf("  💡 Current attempt: %dx leverage", leverage)
+			log.Printf("  💡 Account limits:")
+			log.Printf("     • Sub-account max: 5x")
+			log.Printf("     • Main account: 20-125x (varies by symbol)")
+			log.Printf("  💡 Solution: Use main account API Key OR lower leverage in config.json")
+			return fmt.Errorf("failed to set leverage: leverage exceeds account limit (sub-accounts ≤5x, error -4400): %w", err)
+		}
+
+		return fmt.Errorf("failed to set leverage: %w", err)
 	}
 
-	log.Printf("  ✓ %s 杠杆已切换为 %dx", symbol, leverage)
+	log.Printf("  ✓ %s leverage changed to %dx", symbol, leverage)
 
 	// 切换杠杆后等待5秒（避免冷却期错误）
 	log.Printf("  ⏱ 等待5秒冷却期...")

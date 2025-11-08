@@ -160,8 +160,7 @@ export const api = {
       sessionId
     )
 
-    // 发送加密数据
-    const res = await fetch(`${API_BASE}/models/encrypted`, {
+    const res = await fetch(`${API_BASE}/models`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(encryptedPayload),
@@ -217,8 +216,8 @@ export const api = {
       sessionId
     )
 
-    // 发送加密数据
-    const res = await fetch(`${API_BASE}/exchanges/encrypted`, {
+    // 发送加密数据到普通端点
+    const res = await fetch(`${API_BASE}/exchanges`, {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(encryptedPayload),

@@ -413,9 +413,9 @@ type SafeExchangeConfig struct {
 	Type                  string `json:"type"` // "cex" or "dex"
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
-	HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"` // Hyperliquid钱包地址（不敏感）
-	AsterUser             string `json:"aster_user"`              // Aster用户名（不敏感）
-	AsterSigner           string `json:"aster_signer"`            // Aster签名者（不敏感）
+	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid钱包地址（不敏感）
+	AsterUser             string `json:"asterUser"`              // Aster用户名（不敏感）
+	AsterSigner           string `json:"asterSigner"`            // Aster签名者（不敏感）
 }
 
 type UpdateModelConfigRequest struct {
@@ -1014,14 +1014,52 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, safeModels)
 }
 
-// handleUpdateModelConfigs 更新AI模型配置
+// handleUpdateModelConfigs 更新AI模型配置（仅支持加密数据）
 func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	userID := c.GetString("user_id")
-	var req UpdateModelConfigRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+	// 读取原始请求体
+	bodyBytes, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取请求体失败"})
 		return
 	}
+
+	// 解析加密的 payload
+	var encryptedPayload crypto.EncryptedPayload
+	if err := json.Unmarshal(bodyBytes, &encryptedPayload); err != nil {
+		log.Printf("❌ 解析加密载荷失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误，必须使用加密传输"})
+		return
+	}
+
+	// 验证是否为加密数据
+	if encryptedPayload.WrappedKey == "" {
+		log.Printf("❌ 检测到非加密请求 (UserID: %s)", userID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "此接口仅支持加密传输，请使用加密客户端",
+			"code":    "ENCRYPTION_REQUIRED",
+			"message": "Encrypted transmission is required for security reasons",
+		})
+		return
+	}
+
+	// 解密数据
+	decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+	if err != nil {
+		log.Printf("❌ 解密模型配置失败 (UserID: %s): %v", userID, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解密数据失败"})
+		return
+	}
+
+	// 解析解密后的数据
+	var req UpdateModelConfigRequest
+	if err := json.Unmarshal([]byte(decrypted), &req); err != nil {
+		log.Printf("❌ 解析解密数据失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解析解密数据失败"})
+		return
+	}
+	log.Printf("🔓 已解密模型配置数据 (UserID: %s)", userID)
 
 	// 更新每个模型的配置
 	for modelID, modelData := range req.Models {
@@ -1033,7 +1071,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	}
 
 	// 重新加载该用户的所有交易员，使新配置立即生效
-	err := s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.LoadUserTraders(s.database, userID)
 	if err != nil {
 		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
 		// 这里不返回错误，因为模型配置已经成功更新到数据库
@@ -1073,14 +1111,52 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, safeExchanges)
 }
 
-// handleUpdateExchangeConfigs 更新交易所配置
+// handleUpdateExchangeConfigs 更新交易所配置（仅支持加密数据）
 func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	userID := c.GetString("user_id")
-	var req UpdateExchangeConfigRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+	// 读取原始请求体
+	bodyBytes, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "读取请求体失败"})
 		return
 	}
+
+	// 解析加密的 payload
+	var encryptedPayload crypto.EncryptedPayload
+	if err := json.Unmarshal(bodyBytes, &encryptedPayload); err != nil {
+		log.Printf("❌ 解析加密载荷失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求格式错误，必须使用加密传输"})
+		return
+	}
+
+	// 验证是否为加密数据
+	if encryptedPayload.WrappedKey == "" {
+		log.Printf("❌ 检测到非加密请求 (UserID: %s)", userID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "此接口仅支持加密传输，请使用加密客户端",
+			"code":    "ENCRYPTION_REQUIRED",
+			"message": "Encrypted transmission is required for security reasons",
+		})
+		return
+	}
+
+	// 解密数据
+	decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+	if err != nil {
+		log.Printf("❌ 解密交易所配置失败 (UserID: %s): %v", userID, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解密数据失败"})
+		return
+	}
+
+	// 解析解密后的数据
+	var req UpdateExchangeConfigRequest
+	if err := json.Unmarshal([]byte(decrypted), &req); err != nil {
+		log.Printf("❌ 解析解密数据失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "解析解密数据失败"})
+		return
+	}
+	log.Printf("🔓 已解密交易所配置数据 (UserID: %s)", userID)
 
 	// 更新每个交易所的配置
 	for exchangeID, exchangeData := range req.Exchanges {
@@ -1092,7 +1168,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	}
 
 	// 重新加载该用户的所有交易员，使新配置立即生效
-	err := s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.LoadUserTraders(s.database, userID)
 	if err != nil {
 		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
 		// 这里不返回错误，因为交易所配置已经成功更新到数据库

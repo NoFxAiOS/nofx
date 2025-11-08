@@ -415,7 +415,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           ])
         ),
       }),
-      updateApi: api.updateModelConfigs,
+      updateApi: api.updateModelConfigsEncrypted,
       refreshApi: api.getModelConfigs,
       setItems: (items) => {
         // 使用函数式更新确保状态正确更新
@@ -488,7 +488,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateModelConfigs(request)
+      await api.updateModelConfigsEncrypted(request)
 
       // 重新获取用户配置以确保数据同步
       const refreshedModels = await api.getModelConfigs()
@@ -515,6 +515,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ...e,
         apiKey: '',
         secretKey: '',
+        hyperliquidWalletAddr: '',
+        asterUser: '',
+        asterSigner: '',
+        asterPrivateKey: '',
         enabled: false,
       }),
       buildRequest: (exchanges) => ({
@@ -526,11 +530,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
               testnet: exchange.testnet || false,
+              hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
+              aster_user: exchange.asterUser || '',
+              aster_signer: exchange.asterSigner || '',
+              aster_private_key: exchange.asterPrivateKey || '',
             },
           ])
         ),
       }),
-      updateApi: api.updateExchangeConfigs,
+      updateApi: api.updateExchangeConfigsEncrypted,
       refreshApi: api.getExchangeConfigs,
       setItems: (items) => {
         // 使用函数式更新确保状态正确更新

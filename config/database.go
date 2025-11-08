@@ -324,6 +324,7 @@ func (d *Database) initDefaultData() error {
 		"btc_eth_leverage":     "5",                                                                                   // BTC/ETH杠杆倍数
 		"altcoin_leverage":     "5",                                                                                   // 山寨币杠杆倍数
 		"jwt_secret":           "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
+		"registration_enabled": "true",                                                                                // 默认允许注册
 	}
 
 	for key, value := range systemConfigs {

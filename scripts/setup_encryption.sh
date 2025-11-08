@@ -190,18 +190,20 @@ if [ "$KEY_SKIPPED" != "true" ]; then
         fi
         
         if grep -q "^JWT_SECRET=" .env; then
+            # 使用替代分隔符避免 / 字符冲突，并用引号保护值
             if [[ "$OSTYPE" == "darwin"* ]]; then
-                sed -i '' "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_KEY/" .env
+                sed -i '' "s|^JWT_SECRET=.*|JWT_SECRET=\"$JWT_KEY\"|" .env
             else
-                sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_KEY/" .env
+                sed -i "s|^JWT_SECRET=.*|JWT_SECRET=\"$JWT_KEY\"|" .env
             fi
         else
-            echo "JWT_SECRET=$JWT_KEY" >> .env
+            # 使用引号确保值在同一行
+            printf "JWT_SECRET=\"%s\"\n" "$JWT_KEY" >> .env
         fi
     else
         # 创建新文件
         echo "DATA_ENCRYPTION_KEY=$DATA_KEY" > .env
-        echo "JWT_SECRET=$JWT_KEY" >> .env
+        printf "JWT_SECRET=\"%s\"\n" "$JWT_KEY" >> .env
     fi
     chmod 600 .env
     echo -e "${GREEN}  ✓ 密钥已保存到 .env 文件${NC}"
@@ -217,7 +219,7 @@ elif [ "$DATA_KEY_EXISTS" != "true" ] || [ "$JWT_KEY_EXISTS" != "true" ]; then
     if [ "$JWT_KEY_EXISTS" != "true" ]; then
         echo -e "  ${CYAN}生成缺失的JWT认证密钥...${NC}"
         JWT_KEY=$(openssl rand -base64 64)
-        echo "JWT_SECRET=$JWT_KEY" >> .env
+        printf "JWT_SECRET=\"%s\"\n" "$JWT_KEY" >> .env
         echo -e "${GREEN}  ✓ JWT认证密钥生成完成${NC}"
     fi
     

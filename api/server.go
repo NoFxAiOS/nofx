@@ -11,6 +11,7 @@ import (
 	"nofx/crypto"
 	"nofx/decision"
 	"nofx/manager"
+	"nofx/redis"
 	"nofx/trader"
 	"strconv"
 	"strings"
@@ -26,11 +27,12 @@ type Server struct {
 	traderManager *manager.TraderManager
 	database      *config.Database
 	cryptoHandler *CryptoHandler
+	redisClient   *redis.Client
 	port          int
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, port int) *Server {
+func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, redisClient *redis.Client, port int) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 
@@ -47,6 +49,7 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 		traderManager: traderManager,
 		database:      database,
 		cryptoHandler: cryptoHandler,
+		redisClient:   redisClient,
 		port:          port,
 	}
 
@@ -1669,6 +1672,11 @@ func (s *Server) handleLogout(c *gin.Context) {
 
 // handleRegister 处理用户注册请求
 func (s *Server) handleRegister(c *gin.Context) {
+	// 检查Redis客户端是否可用
+	if s.redisClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis服务不可用，无法完成注册"})
+		return
+	}
 
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -1723,50 +1731,51 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 
-	// 创建用户（未验证OTP状态）
+	// 生成注册ID（用于Redis存储）
+	registrationID := uuid.New().String()
 	userID := uuid.New().String()
-	user := &config.User{
-		ID:           userID,
-		Email:        req.Email,
-		PasswordHash: passwordHash,
-		OTPSecret:    otpSecret,
-		OTPVerified:  false,
+
+	// 将注册信息存储到Redis（10分钟过期）
+	registrationData := map[string]interface{}{
+		"user_id":       userID,
+		"email":         req.Email,
+		"password_hash": passwordHash,
+		"otp_secret":    otpSecret,
+		"beta_code":     req.BetaCode,
 	}
 
-	err = s.database.CreateUser(user)
+	err = s.redisClient.SetRegistrationData(registrationID, registrationData, 10*time.Minute)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
+		log.Printf("❌ 存储注册信息到Redis失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "存储注册信息失败"})
 		return
 	}
 
-	// 如果是内测模式，标记内测码为已使用
-	betaModeStr2, _ := s.database.GetSystemConfig("beta_mode")
-	if betaModeStr2 == "true" && req.BetaCode != "" {
-		err := s.database.UseBetaCode(req.BetaCode, req.Email)
-		if err != nil {
-			log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
-			// 这里不返回错误，因为用户已经创建成功
-		} else {
-			log.Printf("✓ 内测码 %s 已被用户 %s 使用", req.BetaCode, req.Email)
-		}
-	}
+	log.Printf("✓ 注册信息已存储到Redis: registration_id=%s, email=%s", registrationID, req.Email)
 
 	// 返回OTP设置信息
 	qrCodeURL := auth.GetOTPQRCodeURL(otpSecret, req.Email)
 	c.JSON(http.StatusOK, gin.H{
-		"user_id":     userID,
-		"email":       req.Email,
-		"otp_secret":  otpSecret,
-		"qr_code_url": qrCodeURL,
-		"message":     "请使用Google Authenticator扫描二维码并验证OTP",
+		"registration_id": registrationID,
+		"user_id":         userID,
+		"email":           req.Email,
+		"otp_secret":      otpSecret,
+		"qr_code_url":     qrCodeURL,
+		"message":         "请使用Google Authenticator扫描二维码并验证OTP",
 	})
 }
 
 // handleCompleteRegistration 完成注册（验证OTP）
 func (s *Server) handleCompleteRegistration(c *gin.Context) {
+	// 检查Redis客户端是否可用
+	if s.redisClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis服务不可用，无法完成注册"})
+		return
+	}
+
 	var req struct {
-		UserID  string `json:"user_id" binding:"required"`
-		OTPCode string `json:"otp_code" binding:"required"`
+		RegistrationID string `json:"registration_id" binding:"required"`
+		OTPCode        string `json:"otp_code" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1774,25 +1783,85 @@ func (s *Server) handleCompleteRegistration(c *gin.Context) {
 		return
 	}
 
-	// 获取用户信息
-	user, err := s.database.GetUserByID(req.UserID)
+	// 从Redis获取注册信息
+	registrationData, err := s.redisClient.GetRegistrationData(req.RegistrationID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "注册信息不存在或已过期，请重新注册"})
 		return
 	}
 
+	// 提取注册信息
+	userID, ok := registrationData["user_id"].(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册数据格式错误"})
+		return
+	}
+
+	email, ok := registrationData["email"].(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册数据格式错误"})
+		return
+	}
+
+	passwordHash, ok := registrationData["password_hash"].(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册数据格式错误"})
+		return
+	}
+
+	otpSecret, ok := registrationData["otp_secret"].(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "注册数据格式错误"})
+		return
+	}
+
+	betaCode, _ := registrationData["beta_code"].(string)
+
 	// 验证OTP
-	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
+	if !auth.VerifyOTP(otpSecret, req.OTPCode) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP验证码错误"})
 		return
 	}
 
-	// 更新用户OTP验证状态
-	err = s.database.UpdateUserOTPVerified(req.UserID, true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户状态失败"})
+	// 再次检查邮箱是否已被注册（防止并发注册）
+	_, err = s.database.GetUserByEmail(email)
+	if err == nil {
+		// 邮箱已被注册，删除Redis中的注册信息
+		s.redisClient.DeleteRegistrationData(req.RegistrationID)
+		c.JSON(http.StatusConflict, gin.H{"error": "邮箱已被注册"})
 		return
 	}
+
+	// 创建用户（OTP已验证）
+	user := &config.User{
+		ID:           userID,
+		Email:        email,
+		PasswordHash: passwordHash,
+		OTPSecret:    otpSecret,
+		OTPVerified:  true, // 已验证OTP
+	}
+
+	err = s.database.CreateUser(user)
+	if err != nil {
+		log.Printf("❌ 创建用户失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
+		return
+	}
+
+	// 如果是内测模式，标记内测码为已使用
+	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+	if betaModeStr == "true" && betaCode != "" {
+		err := s.database.UseBetaCode(betaCode, email)
+		if err != nil {
+			log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
+			// 这里不返回错误，因为用户已经创建成功
+		} else {
+			log.Printf("✓ 内测码 %s 已被用户 %s 使用", betaCode, email)
+		}
+	}
+
+	// 删除Redis中的注册信息（已使用）
+	s.redisClient.DeleteRegistrationData(req.RegistrationID)
 
 	// 生成JWT token
 	token, err := auth.GenerateJWT(user.ID, user.Email)
@@ -1806,6 +1875,8 @@ func (s *Server) handleCompleteRegistration(c *gin.Context) {
 	if err != nil {
 		log.Printf("初始化用户默认配置失败: %v", err)
 	}
+
+	log.Printf("✓ 用户注册成功: user_id=%s, email=%s", user.ID, user.Email)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":   token,

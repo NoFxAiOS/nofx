@@ -17,7 +17,7 @@ export function RegisterPage() {
   const [betaCode, setBetaCode] = useState('')
   const [betaMode, setBetaMode] = useState(false)
   const [otpCode, setOtpCode] = useState('')
-  const [userID, setUserID] = useState('')
+  const [registrationID, setRegistrationID] = useState('')
   const [otpSecret, setOtpSecret] = useState('')
   const [qrCodeURL, setQrCodeURL] = useState('')
   const [error, setError] = useState('')
@@ -57,8 +57,8 @@ export function RegisterPage() {
 
     const result = await register(email, password, betaCode.trim() || undefined)
 
-    if (result.success && result.userID) {
-      setUserID(result.userID)
+    if (result.success && result.registrationID) {
+      setRegistrationID(result.registrationID)
       setOtpSecret(result.otpSecret || '')
       setQrCodeURL(result.qrCodeURL || '')
       setStep('setup-otp')
@@ -78,7 +78,7 @@ export function RegisterPage() {
     setError('')
     setLoading(true)
 
-    const result = await completeRegistration(userID, otpCode)
+    const result = await completeRegistration(registrationID, otpCode)
 
     if (!result.success) {
       setError(result.message || t('registrationFailed', language))

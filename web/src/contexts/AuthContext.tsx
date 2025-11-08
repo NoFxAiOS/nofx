@@ -29,6 +29,7 @@ interface AuthContextType {
   ) => Promise<{
     success: boolean
     message?: string
+    registrationID?: string
     userID?: string
     otpSecret?: string
     qrCodeURL?: string
@@ -38,7 +39,7 @@ interface AuthContextType {
     otpCode: string
   ) => Promise<{ success: boolean; message?: string }>
   completeRegistration: (
-    userID: string,
+    registrationID: string,
     otpCode: string
   ) => Promise<{ success: boolean; message?: string }>
   resetPassword: (
@@ -173,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         return {
           success: true,
+          registrationID: data.registration_id,
           userID: data.user_id,
           otpSecret: data.otp_secret,
           qrCodeURL: data.qr_code_url,
@@ -219,14 +221,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const completeRegistration = async (userID: string, otpCode: string) => {
+  const completeRegistration = async (registrationID: string, otpCode: string) => {
     try {
       const response = await fetch('/api/complete-registration', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ user_id: userID, otp_code: otpCode }),
+        body: JSON.stringify({ registration_id: registrationID, otp_code: otpCode }),
       })
 
       const data = await response.json()

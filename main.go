@@ -11,6 +11,7 @@ import (
 	"nofx/manager"
 	"nofx/market"
 	"nofx/pool"
+	"nofx/redis"
 	"os"
 	"os/signal"
 	"strconv"
@@ -325,8 +326,31 @@ func main() {
 		}
 	}
 
+	// 初始化Redis客户端（从环境变量读取配置，如果未配置则使用默认值）
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6379" // 默认地址
+	}
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDB := 0
+	if redisDBStr := os.Getenv("REDIS_DB"); redisDBStr != "" {
+		if db, err := strconv.Atoi(redisDBStr); err == nil {
+			redisDB = db
+		}
+	}
+
+	var redisClient *redis.Client
+	redisClient, err = redis.NewClient(redisAddr, redisPassword, redisDB)
+	if err != nil {
+		log.Printf("⚠️  Redis连接失败: %v，注册功能将不可用", err)
+		log.Printf("   提示: 请确保Redis服务正在运行，或设置环境变量 REDIS_ADDR")
+		redisClient = nil // 设置为nil，Server会检查并返回错误
+	} else {
+		defer redisClient.Close()
+	}
+
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort)
+	apiServer := api.NewServer(traderManager, database, cryptoService, redisClient, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)

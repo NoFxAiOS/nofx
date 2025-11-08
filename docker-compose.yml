@@ -21,14 +21,54 @@ services:
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据库加密密钥
       - JWT_SECRET=${JWT_SECRET}  # JWT认证密钥
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}  # Redis地址
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}  # Redis密码（可选）
+      - REDIS_DB=${REDIS_DB:-0}  # Redis数据库编号
     networks:
       - nofx-network
+    depends_on:
+      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  # Redis service (for registration OTP storage)
+  redis:
+    image: redis:7-alpine
+    container_name: nofx-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: >
+      sh -c "
+      if [ -n \"$$REDIS_PASSWORD\" ]; then
+        redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\"
+      else
+        redis-server --appendonly yes
+      fi
+      "
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    networks:
+      - nofx-network
+    healthcheck:
+      test: >
+        sh -c "
+        if [ -n \"$$REDIS_PASSWORD\" ]; then
+          redis-cli -a \"$$REDIS_PASSWORD\" ping
+        else
+          redis-cli ping
+        fi
+        "
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
 
   # Frontend service (static serving and proxy)
   nofx-frontend:
@@ -53,3 +93,7 @@ services:
 networks:
   nofx-network:
     driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

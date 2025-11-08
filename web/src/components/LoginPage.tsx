@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import HeaderBar from './landing/HeaderBar'
+import { useSystemConfig } from '../hooks/useSystemConfig'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -16,6 +17,8 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
   const adminMode = false
+  const { config: systemConfig } = useSystemConfig()
+  const registrationEnabled = systemConfig?.registration_enabled !== false
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -324,7 +327,7 @@ export function LoginPage() {
           </div>
 
           {/* Register Link */}
-          {!adminMode && (
+          {registrationEnabled && (
             <div className="text-center mt-6">
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 还没有账户？{' '}

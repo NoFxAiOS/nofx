@@ -54,7 +54,7 @@ type DatabaseInterface interface {
 
 // Database 配置数据库
 type Database struct {
-	db           *sql.DB
+	db            *sql.DB
 	cryptoService *crypto.CryptoService
 }
 
@@ -305,6 +305,7 @@ func (d *Database) initDefaultData() error {
 		"btc_eth_leverage":     "5",                                                                                   // BTC/ETH杠杆倍数
 		"altcoin_leverage":     "5",                                                                                   // 山寨币杠杆倍数
 		"jwt_secret":           "",                                                                                    // JWT密钥，默认为空，由config.json或系统生成
+		"registration_enabled": "true",                                                                                // 默认允许注册
 	}
 
 	for key, value := range systemConfigs {
@@ -741,12 +742,12 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// 解密敏感字段
 		exchange.APIKey = d.decryptSensitiveData(exchange.APIKey)
 		exchange.SecretKey = d.decryptSensitiveData(exchange.SecretKey)
 		exchange.AsterPrivateKey = d.decryptSensitiveData(exchange.AsterPrivateKey)
-		
+
 		exchanges = append(exchanges, &exchange)
 	}
 
@@ -838,7 +839,7 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 	encryptedAPIKey := d.encryptSensitiveData(apiKey)
 	encryptedSecretKey := d.encryptSensitiveData(secretKey)
 	encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
-	
+
 	_, err := d.db.Exec(`
 		INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -986,6 +987,12 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	// 解密敏感数据
+	aiModel.APIKey = d.decryptSensitiveData(aiModel.APIKey)
+	exchange.APIKey = d.decryptSensitiveData(exchange.APIKey)
+	exchange.SecretKey = d.decryptSensitiveData(exchange.SecretKey)
+	exchange.AsterPrivateKey = d.decryptSensitiveData(exchange.AsterPrivateKey)
 
 	return &trader, &aiModel, &exchange, nil
 }
@@ -1185,13 +1192,13 @@ func (d *Database) encryptSensitiveData(plaintext string) string {
 	if d.cryptoService == nil || plaintext == "" {
 		return plaintext
 	}
-	
+
 	encrypted, err := d.cryptoService.EncryptForStorage(plaintext)
 	if err != nil {
 		log.Printf("⚠️ 加密失败: %v", err)
 		return plaintext // 返回明文作为降级处理
 	}
-	
+
 	return encrypted
 }
 
@@ -1200,17 +1207,17 @@ func (d *Database) decryptSensitiveData(encrypted string) string {
 	if d.cryptoService == nil || encrypted == "" {
 		return encrypted
 	}
-	
+
 	// 如果不是加密格式，直接返回
 	if !d.cryptoService.IsEncryptedStorageValue(encrypted) {
 		return encrypted
 	}
-	
+
 	decrypted, err := d.cryptoService.DecryptFromStorage(encrypted)
 	if err != nil {
 		log.Printf("⚠️ 解密失败: %v", err)
 		return encrypted // 返回加密文本作为降级处理
 	}
-	
+
 	return decrypted
 }

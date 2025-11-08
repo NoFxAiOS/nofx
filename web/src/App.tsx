@@ -44,7 +44,7 @@ function getModelDisplayName(modelId: string): string {
 function App() {
   const { language, setLanguage } = useLanguage()
   const { user, token, logout, isLoading } = useAuth()
-  const { loading: configLoading } = useSystemConfig()
+  const { config: systemConfig, loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
   // 从URL路径读取初始页面状态（支持刷新保持页面）
@@ -229,7 +229,39 @@ function App() {
   if (route === '/login') {
     return <LoginPage />
   }
+  const registrationEnabled = systemConfig?.registration_enabled !== false
+
   if (route === '/register') {
+    if (!registrationEnabled) {
+      return (
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: '#0B0E11', color: '#EAECEF' }}
+        >
+          <div className="text-center max-w-md px-6">
+            <img
+              src="/icons/nofx.svg"
+              alt="NoFx Logo"
+              className="w-16 h-16 mx-auto mb-4"
+            />
+            <h1 className="text-2xl font-semibold mb-3">注册已关闭</h1>
+            <p className="text-sm text-gray-400">
+              平台当前不开放新用户注册，如需访问请联系管理员获取账号。
+            </p>
+            <button
+              className="mt-6 px-4 py-2 rounded text-sm font-semibold"
+              style={{ background: '#F0B90B', color: '#000' }}
+              onClick={() => {
+                window.history.pushState({}, '', '/login')
+                window.dispatchEvent(new PopStateEvent('popstate'))
+              }}
+            >
+              返回登录
+            </button>
+          </div>
+        </div>
+      )
+    }
     return <RegisterPage />
   }
   if (route === '/faq') {

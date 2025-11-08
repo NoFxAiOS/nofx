@@ -14,19 +14,30 @@ import (
 	"nofx/trader"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
+// PendingRegistration 临时注册信息
+type PendingRegistration struct {
+	Email        string
+	PasswordHash string
+	OTPSecret    string
+	BetaCode     string
+	CreatedAt    time.Time
+}
+
 // Server HTTP API服务器
 type Server struct {
-	router        *gin.Engine
-	traderManager *manager.TraderManager
-	database      *config.Database
-	cryptoHandler *CryptoHandler
-	port          int
+	router               *gin.Engine
+	traderManager        *manager.TraderManager
+	database             *config.Database
+	cryptoHandler        *CryptoHandler
+	port                 int
+	pendingRegistrations sync.Map // key: userID (string), value: *PendingRegistration
 }
 
 // NewServer 创建API服务器
@@ -52,6 +63,9 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 
 	// 设置路由
 	s.setupRoutes()
+
+	// 启动清理过期注册信息的goroutine
+	go s.cleanupExpiredRegistrations()
 
 	return s
 }
@@ -1723,33 +1737,17 @@ func (s *Server) handleRegister(c *gin.Context) {
 		return
 	}
 
-	// 创建用户（未验证OTP状态）
+	// 生成临时用户ID
 	userID := uuid.New().String()
-	user := &config.User{
-		ID:           userID,
+
+	// 将注册信息临时存储到内存
+	s.pendingRegistrations.Store(userID, &PendingRegistration{
 		Email:        req.Email,
 		PasswordHash: passwordHash,
 		OTPSecret:    otpSecret,
-		OTPVerified:  false,
-	}
-
-	err = s.database.CreateUser(user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
-		return
-	}
-
-	// 如果是内测模式，标记内测码为已使用
-	betaModeStr2, _ := s.database.GetSystemConfig("beta_mode")
-	if betaModeStr2 == "true" && req.BetaCode != "" {
-		err := s.database.UseBetaCode(req.BetaCode, req.Email)
-		if err != nil {
-			log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
-			// 这里不返回错误，因为用户已经创建成功
-		} else {
-			log.Printf("✓ 内测码 %s 已被用户 %s 使用", req.BetaCode, req.Email)
-		}
-	}
+		BetaCode:     req.BetaCode,
+		CreatedAt:    time.Now(),
+	})
 
 	// 返回OTP设置信息
 	qrCodeURL := auth.GetOTPQRCodeURL(otpSecret, req.Email)
@@ -1774,24 +1772,52 @@ func (s *Server) handleCompleteRegistration(c *gin.Context) {
 		return
 	}
 
-	// 获取用户信息
-	user, err := s.database.GetUserByID(req.UserID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+	// 从内存中获取临时注册信息
+	value, exists := s.pendingRegistrations.LoadAndDelete(req.UserID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "注册信息不存在或已过期，请重新注册"})
 		return
 	}
+	pendingReg := value.(*PendingRegistration)
 
 	// 验证OTP
-	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
+	if !auth.VerifyOTP(pendingReg.OTPSecret, req.OTPCode) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP验证码错误"})
 		return
 	}
 
-	// 更新用户OTP验证状态
-	err = s.database.UpdateUserOTPVerified(req.UserID, true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户状态失败"})
+	// 再次检查邮箱是否已被注册（防止并发注册）
+	_, err := s.database.GetUserByEmail(pendingReg.Email)
+	if err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "邮箱已被注册"})
 		return
+	}
+
+	// 创建用户（OTP已验证）
+	userID := uuid.New().String()
+	user := &config.User{
+		ID:           userID,
+		Email:        pendingReg.Email,
+		PasswordHash: pendingReg.PasswordHash,
+		OTPSecret:    pendingReg.OTPSecret,
+		OTPVerified:  true, // 已验证
+	}
+
+	err = s.database.CreateUser(user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
+		return
+	}
+
+	// 如果是内测模式，标记内测码为已使用
+	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+	if betaModeStr == "true" && pendingReg.BetaCode != "" {
+		err := s.database.UseBetaCode(pendingReg.BetaCode, pendingReg.Email)
+		if err != nil {
+			log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
+		} else {
+			log.Printf("✓ 内测码 %s 已被用户 %s 使用", pendingReg.BetaCode, pendingReg.Email)
+		}
 	}
 
 	// 生成JWT token
@@ -1813,6 +1839,27 @@ func (s *Server) handleCompleteRegistration(c *gin.Context) {
 		"email":   user.Email,
 		"message": "注册完成",
 	})
+}
+
+// cleanupExpiredRegistrations 定期清理过期的临时注册信息
+func (s *Server) cleanupExpiredRegistrations() {
+	ticker := time.NewTicker(5 * time.Minute) // 每5分钟清理一次
+	defer ticker.Stop()
+
+	for range ticker.C {
+		now := time.Now()
+		expirationTime := 10 * time.Minute // 10分钟后过期
+
+		s.pendingRegistrations.Range(func(key, value interface{}) bool {
+			userID := key.(string)
+			reg := value.(*PendingRegistration)
+			if now.Sub(reg.CreatedAt) > expirationTime {
+				s.pendingRegistrations.Delete(userID)
+				log.Printf("清理过期的临时注册信息: %s (邮箱: %s)", userID, reg.Email)
+			}
+			return true // 继续遍历
+		})
+	}
 }
 
 // handleLogin 处理用户登录请求

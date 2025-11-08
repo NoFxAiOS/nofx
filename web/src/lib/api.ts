@@ -131,10 +131,28 @@ export const api = {
   },
 
   async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
+    // 获取RSA公钥
+    const publicKey = await CryptoService.fetchPublicKey()
+
+    // 初始化加密服务
+    await CryptoService.initialize(publicKey)
+
+    // 获取用户信息（从localStorage或其他地方）
+    const userId = localStorage.getItem('user_id') || ''
+    const sessionId = sessionStorage.getItem('session_id') || ''
+
+    // 加密敏感数据
+    const encryptedPayload = await CryptoService.encryptSensitiveData(
+      JSON.stringify(request),
+      userId,
+      sessionId
+    )
+
+    // 发送加密数据
     const res = await fetch(`${API_BASE}/models`, {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify(request),
+      body: JSON.stringify(encryptedPayload),
     })
     if (!res.ok) throw new Error('更新模型配置失败')
   },

@@ -318,6 +318,37 @@ func (t *HyperliquidTrader) SetLeverage(symbol string, leverage int) error {
 	return nil
 }
 
+// refreshMetaIfNeeded 当 Meta 信息失效时刷新（Asset ID 为 0 时触发）
+func (t *HyperliquidTrader) refreshMetaIfNeeded(coin string) error {
+	assetID := t.exchange.Info().NameToAsset(coin)
+	if assetID != 0 {
+		return nil // Meta 正常，无需刷新
+	}
+
+	log.Printf("⚠️  %s 的 Asset ID 为 0，尝试刷新 Meta 信息...", coin)
+
+	// 刷新 Meta 信息
+	meta, err := t.exchange.Info().Meta(t.ctx)
+	if err != nil {
+		return fmt.Errorf("刷新 Meta 信息失败: %w", err)
+	}
+
+	t.meta = meta
+	log.Printf("✅ Meta 信息已刷新，包含 %d 个资产", len(meta.Universe))
+
+	// 验证刷新后的 Asset ID
+	assetID = t.exchange.Info().NameToAsset(coin)
+	if assetID == 0 {
+		return fmt.Errorf("❌ 即使在刷新 Meta 后，资产 %s 的 Asset ID 仍为 0。可能原因：\n"+
+			"  1. 该币种未在 Hyperliquid 上市\n"+
+			"  2. 币种名称错误（应为 BTC 而非 BTCUSDT）\n"+
+			"  3. API 连接问题", coin)
+	}
+
+	log.Printf("✅ 刷新后 Asset ID 检查通过: %s -> %d", coin, assetID)
+	return nil
+}
+
 // OpenLong 开多仓
 func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// 先取消该币种的所有委托单
@@ -333,11 +364,11 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 	// Hyperliquid symbol格式
 	coin := convertSymbolToHyperliquid(symbol)
 
-	// ✅ 关键检查：验证 Asset ID（防止 Meta 未初始化导致 asset=0 错误）
-	assetID := t.exchange.Info().NameToAsset(coin)
-	if assetID == 0 {
-		return nil, fmt.Errorf("❌ 开多仓失败: 资产 %s 的 Asset ID 为 0，Meta 信息可能未正确初始化。请检查 Hyperliquid API 连接或稍后重试", coin)
+	// ✅ 关键检查：验证 Asset ID（如果为 0 则自动刷新 Meta）
+	if err := t.refreshMetaIfNeeded(coin); err != nil {
+		return nil, fmt.Errorf("❌ 开多仓失败: %v", err)
 	}
+	assetID := t.exchange.Info().NameToAsset(coin)
 	log.Printf("  ✓ Asset ID 检查通过: %s -> %d", coin, assetID)
 
 	// 获取当前价格（用于市价单）
@@ -406,11 +437,11 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 	// Hyperliquid symbol格式
 	coin := convertSymbolToHyperliquid(symbol)
 
-	// ✅ 关键检查：验证 Asset ID（防止 Meta 未初始化导致 asset=0 错误）
-	assetID := t.exchange.Info().NameToAsset(coin)
-	if assetID == 0 {
-		return nil, fmt.Errorf("❌ 开空仓失败: 资产 %s 的 Asset ID 为 0，Meta 信息可能未正确初始化。请检查 Hyperliquid API 连接或稍后重试", coin)
+	// ✅ 关键检查：验证 Asset ID（如果为 0 则自动刷新 Meta）
+	if err := t.refreshMetaIfNeeded(coin); err != nil {
+		return nil, fmt.Errorf("❌ 开空仓失败: %v", err)
 	}
+	assetID := t.exchange.Info().NameToAsset(coin)
 	log.Printf("  ✓ Asset ID 检查通过: %s -> %d", coin, assetID)
 
 	// 获取当前价格

@@ -951,11 +951,12 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 
 	// 验证保证金充足（需要保证金 + 手续费 <= 可用余额）
 	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（保证金 %.2f + 手续费 %.2f），可用 %.2f USDT。建议降低仓位或杠杆",
-			totalRequired, requiredMargin, estimatedFee, availableBalance)
+		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（名义价值 %.2f ÷ %dx杠杆 = 保证金 %.2f + 手续费 %.2f），可用 %.2f USDT。建议降低仓位或杠杆",
+			totalRequired, decision.PositionSizeUSD, decision.Leverage, requiredMargin, estimatedFee, availableBalance)
 	}
 
-	log.Printf("  ✓ 保证金检查通过: 需要 %.2f USDT，可用 %.2f USDT", totalRequired, availableBalance)
+	log.Printf("  ✓ 保证金检查通过: 需要 %.2f USDT（名义价值 %.2f ÷ %dx = 保证金 %.2f + 手续费 %.2f），可用 %.2f USDT",
+		totalRequired, decision.PositionSizeUSD, decision.Leverage, requiredMargin, estimatedFee, availableBalance)
 
 	// 计算数量
 	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
@@ -1036,11 +1037,12 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 
 	// 验证保证金充足（需要保证金 + 手续费 <= 可用余额）
 	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（保证金 %.2f + 手续费 %.2f），可用 %.2f USDT。建议降低仓位或杠杆",
-			totalRequired, requiredMargin, estimatedFee, availableBalance)
+		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（名义价值 %.2f ÷ %dx杠杆 = 保证金 %.2f + 手续费 %.2f），可用 %.2f USDT。建议降低仓位或杠杆",
+			totalRequired, decision.PositionSizeUSD, decision.Leverage, requiredMargin, estimatedFee, availableBalance)
 	}
 
-	log.Printf("  ✓ 保证金检查通过: 需要 %.2f USDT，可用 %.2f USDT", totalRequired, availableBalance)
+	log.Printf("  ✓ 保证金检查通过: 需要 %.2f USDT（名义价值 %.2f ÷ %dx = 保证金 %.2f + 手续费 %.2f），可用 %.2f USDT",
+		totalRequired, decision.PositionSizeUSD, decision.Leverage, requiredMargin, estimatedFee, availableBalance)
 
 	// 计算数量
 	quantity := decision.PositionSizeUSD / marketData.CurrentPrice

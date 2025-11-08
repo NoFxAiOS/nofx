@@ -29,7 +29,6 @@ type TelegramConfig struct {
 
 // Config 总配置
 type Config struct {
-	AdminMode          bool           `json:"admin_mode"`
 	BetaMode           bool           `json:"beta_mode"`
 	APIServerPort      int            `json:"api_server_port"`
 	UseDefaultCoins    bool           `json:"use_default_coins"`

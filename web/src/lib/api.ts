@@ -12,6 +12,7 @@ import type {
   UpdateExchangeConfigRequest,
   CompetitionData,
 } from '../types'
+import { CryptoService } from './crypto'
 
 const API_BASE = '/api'
 
@@ -138,6 +139,36 @@ export const api = {
     if (!res.ok) throw new Error('更新模型配置失败')
   },
 
+  // 使用加密传输更新模型配置
+  async updateModelConfigsEncrypted(
+    request: UpdateModelConfigRequest
+  ): Promise<void> {
+    // 获取RSA公钥
+    const publicKey = await CryptoService.fetchPublicKey()
+
+    // 初始化加密服务
+    await CryptoService.initialize(publicKey)
+
+    // 获取用户信息（从localStorage或其他地方）
+    const userId = localStorage.getItem('user_id') || ''
+    const sessionId = sessionStorage.getItem('session_id') || ''
+
+    // 加密敏感数据
+    const encryptedPayload = await CryptoService.encryptSensitiveData(
+      JSON.stringify(request),
+      userId,
+      sessionId
+    )
+
+    // 发送加密数据
+    const res = await fetch(`${API_BASE}/models/encrypted`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(encryptedPayload),
+    })
+    if (!res.ok) throw new Error('更新模型配置失败')
+  },
+
   // 交易所配置接口
   async getExchangeConfigs(): Promise<Exchange[]> {
     const res = await fetch(`${API_BASE}/exchanges`, {
@@ -161,6 +192,36 @@ export const api = {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
+    })
+    if (!res.ok) throw new Error('更新交易所配置失败')
+  },
+
+  // 使用加密传输更新交易所配置
+  async updateExchangeConfigsEncrypted(
+    request: UpdateExchangeConfigRequest
+  ): Promise<void> {
+    // 获取RSA公钥
+    const publicKey = await CryptoService.fetchPublicKey()
+
+    // 初始化加密服务
+    await CryptoService.initialize(publicKey)
+
+    // 获取用户信息（从localStorage或其他地方）
+    const userId = localStorage.getItem('user_id') || ''
+    const sessionId = sessionStorage.getItem('session_id') || ''
+
+    // 加密敏感数据
+    const encryptedPayload = await CryptoService.encryptSensitiveData(
+      JSON.stringify(request),
+      userId,
+      sessionId
+    )
+
+    // 发送加密数据
+    const res = await fetch(`${API_BASE}/exchanges/encrypted`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(encryptedPayload),
     })
     if (!res.ok) throw new Error('更新交易所配置失败')
   },

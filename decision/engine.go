@@ -595,9 +595,17 @@ func validateJSONFormat(jsonStr string) error {
 	}
 
 	// 检查是否包含千位分隔符（如 98,000）
-	// 使用简单的模式匹配：数字+逗号+3位数字
+	// ✅ 修复：只检查 JSON 数字字段，跳过字符串内的内容（避免误判 "102,500關鍵位" 等描述性文字）
+	inString := false
 	for i := 0; i < len(jsonStr)-4; i++ {
-		if jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
+		// 追踪是否在字符串内（简化版：不处理转义的引号）
+		if jsonStr[i] == '"' && (i == 0 || jsonStr[i-1] != '\\') {
+			inString = !inString
+		}
+
+		// 只在字符串外检查千位分隔符（JSON 数字字段）
+		if !inString &&
+			jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
 			jsonStr[i+1] == ',' &&
 			jsonStr[i+2] >= '0' && jsonStr[i+2] <= '9' &&
 			jsonStr[i+3] >= '0' && jsonStr[i+3] <= '9' &&

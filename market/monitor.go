@@ -179,18 +179,33 @@ func (m *WSMonitor) initializeHistoricalData() error {
 
 			// 🚀 优化：回填历史OI数据（15分钟粒度，最近20个数据点 = 5小时）
 			oiHistory, err := apiClient.GetOpenInterestHistory(s, "15m", 20)
+			normalizedSymbol := strings.ToUpper(s)
+
 			if err != nil {
-				log.Printf("获取 %s OI历史数据失败: %v", s, err)
+				log.Printf("⚠️  获取 %s OI历史数据失败: %v，尝试降级方案...", s, err)
+
+				// ✅ 修复：降级方案 - 至少获取当前OI作为第一个数据点
+				currentOI, currentErr := apiClient.GetOpenInterest(s)
+				if currentErr != nil {
+					log.Printf("❌ 获取 %s 当前OI也失败: %v，该币种将无OI数据", s, currentErr)
+				} else {
+					// 创建单个数据点作为起始
+					oiHistory = []OISnapshot{{Value: currentOI.Latest, Timestamp: time.Now()}}
+					m.oiHistoryMap.Store(normalizedSymbol, oiHistory)
+					log.Printf("⚠️  %s 使用降级方案：仅1个OI数据点（%.0f），将在下次采集时增加", normalizedSymbol, currentOI.Latest)
+				}
 			} else if len(oiHistory) > 0 {
-				// 批量存储历史快照到 oiHistoryMap
-				m.oiHistoryMap.Store(s, oiHistory)
+				// ✅ 修复：统一symbol格式后再存储（确保大小写一致）
+				m.oiHistoryMap.Store(normalizedSymbol, oiHistory)
 
 				// 🔍 診斷：顯示時間範圍
 				oldest := oiHistory[0].Timestamp
 				newest := oiHistory[len(oiHistory)-1].Timestamp
 				timeSpan := newest.Sub(oldest)
 				log.Printf("✅ 已回填 %s 的历史OI数据: %d 个快照（时间范围: %s ~ %s，跨度 %.1f 小时）",
-					s, len(oiHistory), oldest.Format("15:04"), newest.Format("15:04"), timeSpan.Hours())
+					normalizedSymbol, len(oiHistory), oldest.Format("15:04"), newest.Format("15:04"), timeSpan.Hours())
+			} else {
+				log.Printf("⚠️  %s OI历史数据为空（API返回成功但无数据）", normalizedSymbol)
 			}
 		}(symbol)
 	}
@@ -377,6 +392,9 @@ const (
 
 // StoreOISnapshot 存储OI快照到历史记录
 func (m *WSMonitor) StoreOISnapshot(symbol string, oiValue float64) {
+	// ✅ 修复：统一symbol格式（确保大小写一致）
+	symbol = strings.ToUpper(symbol)
+
 	snapshot := OISnapshot{
 		Value:     oiValue,
 		Timestamp: time.Now(),
@@ -397,10 +415,18 @@ func (m *WSMonitor) StoreOISnapshot(symbol string, oiValue float64) {
 	}
 
 	m.oiHistoryMap.Store(symbol, history)
+
+	// 診斷日誌（僅前3次採集時輸出）
+	if len(history) <= 3 {
+		log.Printf("📝 [OI存儲] Symbol: %s, OI: %.0f, 历史数据点数: %d", symbol, oiValue, len(history))
+	}
 }
 
 // GetOIHistory 获取OI历史数据
 func (m *WSMonitor) GetOIHistory(symbol string) []OISnapshot {
+	// ✅ 修复：统一symbol格式（确保大小写一致）
+	symbol = strings.ToUpper(symbol)
+
 	value, exists := m.oiHistoryMap.Load(symbol)
 	if !exists {
 		return nil
@@ -411,16 +437,20 @@ func (m *WSMonitor) GetOIHistory(symbol string) []OISnapshot {
 // CalculateOIChange4h 计算4小时OI变化率（如果数据不足，降级到最长可用时间）
 // 返回：(变化率百分比, 实际时间段字符串)
 func (m *WSMonitor) CalculateOIChange4h(symbol string, latestOI float64) (float64, string) {
+	// ✅ 修复：统一symbol格式（确保大小写一致）
+	symbol = strings.ToUpper(symbol)
+
 	history := m.GetOIHistory(symbol)
 	if len(history) == 0 {
 		log.Printf("⚠️  %s: OI历史数据为空，无法计算变化率", symbol)
 		return 0.0, "N/A" // 无历史数据
 	}
 
-	// 只有 1 個數據點（剛啟動），無法計算變化率
+	// ✅ 修复：只有 1 個數據點時，返回特殊標記而非 N/A
+	// 這樣至少能顯示 Latest 值，只是無法計算變化率
 	if len(history) == 1 {
-		log.Printf("⚠️  %s: OI历史数据仅1个点（系统刚启动），需等待采集", symbol)
-		return 0.0, "N/A"
+		log.Printf("⚠️  %s: OI历史数据仅1个点（系统刚启动），变化率为0", symbol)
+		return 0.0, "0m" // 特殊標記：剛啟動，無變化率數據
 	}
 
 	// 找到最早的数据点
@@ -534,10 +564,22 @@ func (m *WSMonitor) collectOISnapshots() {
 			defer wg.Done()
 			defer func() { <-semaphore }()
 
-			// 获取当前OI
-			oiData, err := apiClient.GetOpenInterest(s)
+			// ✅ 修复：添加重试机制（最多3次）
+			var oiData *OIData
+			var err error
+			for retry := 0; retry < 3; retry++ {
+				oiData, err = apiClient.GetOpenInterest(s)
+				if err == nil {
+					break
+				}
+				if retry < 2 {
+					log.Printf("⚠️  获取 %s OI失败 (尝试 %d/3): %v，1秒后重试...", s, retry+1, err)
+					time.Sleep(1 * time.Second)
+				}
+			}
+
 			if err != nil {
-				log.Printf("⚠️  获取 %s OI失败: %v", s, err)
+				log.Printf("❌ 获取 %s OI失败（已重试3次）: %v", s, err)
 				return
 			}
 

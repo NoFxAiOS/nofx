@@ -429,10 +429,14 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 
 // getOpenInterestData 获取OI数据（优化：优先使用缓存）
 func getOpenInterestData(symbol string) (*OIData, error) {
+	// ✅ 修复：统一symbol格式（确保大小写一致）
+	symbol = Normalize(symbol)
+
 	// ✅ 优化1：优先使用 collectOISnapshots 的缓存数据（每15分钟更新）
 	// 好处：节省 50% API 调用，数据新鲜度 < 15 分钟
 	if WSMonitorCli != nil {
 		history := WSMonitorCli.GetOIHistory(symbol)
+		log.Printf("🔍 [OI缓存检查] Symbol: %s, WSMonitorCli存在: true, 历史数据点数: %d", symbol, len(history))
 		if len(history) > 0 {
 			// 使用最新的快照（最多 15 分钟前的数据）
 			latest := history[len(history)-1]
@@ -441,6 +445,7 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 			var actualPeriod string
 			change4h, actualPeriod = WSMonitorCli.CalculateOIChange4h(symbol, latest.Value)
 
+			log.Printf("✅ [OI缓存命中] Symbol: %s, 使用缓存数据, 数据点数: %d, ActualPeriod: %s", symbol, len(history), actualPeriod)
 			return &OIData{
 				Latest:       latest.Value,
 				Average:      latest.Value * 0.999, // 近似平均值
@@ -448,7 +453,11 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 				ActualPeriod: actualPeriod,
 				Historical:   history,
 			}, nil
+		} else {
+			log.Printf("⚠️  [OI缓存未命中] Symbol: %s, 历史数据为空，降级到API调用", symbol)
 		}
+	} else {
+		log.Printf("⚠️  [OI缓存不可用] Symbol: %s, WSMonitorCli为nil", symbol)
 	}
 
 	// ⚠️ 降级：缓存不存在时才调用 API（仅冷启动或缓存失效）
@@ -503,6 +512,9 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 
 // getFundingRate 获取资金费率（优化：使用 1 小时缓存）
 func getFundingRate(symbol string) (float64, error) {
+	// ✅ 修复：统一symbol格式（确保大小写一致）
+	symbol = Normalize(symbol)
+
 	// ✅ 优化2：检查缓存（有效期 1 小时）
 	// Funding Rate 每 8 小时才更新，1 小时缓存非常合理
 	if cached, ok := fundingRateMap.Load(symbol); ok {
@@ -574,6 +586,9 @@ func Format(data *Data) string {
 		var changeLabel string
 		if data.OpenInterest.ActualPeriod == "N/A" {
 			changeLabel = "Change(4h): N/A (insufficient data, system uptime < 15min)"
+		} else if data.OpenInterest.ActualPeriod == "0m" {
+			// ✅ 修复：只有1個數據點（剛啟動）
+			changeLabel = "Change(4h): 0.00% [just started, need 2+ samples for trend calculation]"
 		} else if data.OpenInterest.ActualPeriod == "4h" {
 			// 完整 4 小時數據
 			changeLabel = fmt.Sprintf("Change(4h): %.3f%%", data.OpenInterest.Change4h)

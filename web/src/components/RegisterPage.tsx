@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
-import { Smartphone, Lock } from 'lucide-react';
+import { Smartphone, Lock, Eye, EyeOff } from 'lucide-react';
+import { Input } from './ui/input';
+import PasswordChecklist from 'react-password-checklist';
 
 export function RegisterPage() {
   const { language } = useLanguage();
@@ -11,6 +13,9 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordValid, setPasswordValid] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [userID, setUserID] = useState('');
   const [otpSecret, setOtpSecret] = useState('');
@@ -27,15 +32,15 @@ export function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError(t('passwordTooShort', language));
+    if (!passwordValid) {
+      setError(t('passwordNotMeetRequirements', language));
       return;
     }
 
     setLoading(true);
 
     const result = await register(email, password);
-    
+
     if (result.success && result.userID) {
       setUserID(result.userID);
       setOtpSecret(result.otpSecret || '');
@@ -44,7 +49,7 @@ export function RegisterPage() {
     } else {
       setError(result.message || t('registrationFailed', language));
     }
-    
+
     setLoading(false);
   };
 
@@ -58,12 +63,12 @@ export function RegisterPage() {
     setLoading(true);
 
     const result = await completeRegistration(userID, otpCode);
-    
+
     if (!result.success) {
       setError(result.message || t('registrationFailed', language));
     }
     // 成功的话AuthContext会自动处理登录状态
-    
+
     setLoading(false);
   };
 
@@ -97,12 +102,10 @@ export function RegisterPage() {
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                   {t('email', language)}
                 </label>
-                <input
+                <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   placeholder={t('emailPlaceholder', language)}
                   required
                 />
@@ -112,31 +115,69 @@ export function RegisterPage() {
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                   {t('password', language)}
                 </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                  placeholder={t('passwordPlaceholder', language)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pr-10"
+                    placeholder={t('passwordPlaceholder', language)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: '#848E9C' }}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                   {t('confirmPassword', language)}
                 </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                  placeholder={t('confirmPasswordPlaceholder', language)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-10"
+                    placeholder={t('confirmPasswordPlaceholder', language)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: '#848E9C' }}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
+
+              {password && (
+                <PasswordChecklist
+                  rules={['minLength', 'lowercase', 'uppercase', 'number', 'specialChar', 'match']}
+                  minLength={8}
+                  value={password}
+                  valueAgain={confirmPassword}
+                  onChange={(isValid) => setPasswordValid(isValid)}
+                  messages={{
+                    minLength: t('passwordMinLength', language),
+                    lowercase: t('passwordLowercase', language),
+                    uppercase: t('passwordUppercase', language),
+                    number: t('passwordNumber', language),
+                    specialChar: t('passwordSpecialChar', language),
+                    match: t('passwordMatch', language),
+                  }}
+                  style={{ fontSize: '12px', color: '#848E9C' }}
+                  iconSize={12}
+                />
+              )}
 
               {error && (
                 <div className="text-sm px-3 py-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
@@ -146,7 +187,7 @@ export function RegisterPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !passwordValid}
                 className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
                 style={{ background: '#F0B90B', color: '#000' }}
               >
@@ -186,21 +227,21 @@ export function RegisterPage() {
                   <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
                     {t('step2Desc', language)}
                   </p>
-                  
+
                   {qrCodeURL && (
                     <div className="mt-2">
                       <p className="text-xs mb-2" style={{ color: '#848E9C' }}>{t('qrCodeHint', language)}</p>
                       <div className="bg-white p-2 rounded text-center">
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrCodeURL)}`} 
+                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrCodeURL)}`}
                              alt="QR Code" className="mx-auto" />
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="mt-2">
                     <p className="text-xs mb-1" style={{ color: '#848E9C' }}>{t('otpSecret', language)}</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 px-2 py-1 text-xs rounded font-mono" 
+                      <code className="flex-1 px-2 py-1 text-xs rounded font-mono"
                             style={{ background: '#2B3139', color: '#EAECEF' }}>
                         {otpSecret}
                       </code>

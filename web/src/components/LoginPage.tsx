@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../i18n/translations';
 import { Header } from './Header';
-import { Smartphone } from 'lucide-react';
+import { Smartphone, Eye, EyeOff } from 'lucide-react';
+import { Input } from './ui/input';
 
 export function LoginPage() {
   const { language } = useLanguage();
@@ -11,6 +12,7 @@ export function LoginPage() {
   const [step, setStep] = useState<'login' | 'otp'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [userID, setUserID] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +24,7 @@ export function LoginPage() {
     setLoading(true);
 
     const result = await login(email, password);
-    
+
     if (result.success) {
       if (result.requiresOTP && result.userID) {
         setUserID(result.userID);
@@ -31,7 +33,7 @@ export function LoginPage() {
     } else {
       setError(result.message || t('loginFailed', language));
     }
-    
+
     setLoading(false);
   };
 
@@ -41,19 +43,19 @@ export function LoginPage() {
     setLoading(true);
 
     const result = await verifyOTP(userID, otpCode);
-    
+
     if (!result.success) {
       setError(result.message || t('verificationFailed', language));
     }
     // 成功的话AuthContext会自动处理登录状态
-    
+
     setLoading(false);
   };
 
   return (
     <div className="min-h-screen" style={{ background: '#0B0E11' }}>
       <Header simple />
-      
+
       <div className="flex items-center justify-center" style={{ minHeight: 'calc(100vh - 80px)' }}>
         <div className="w-full max-w-md">
           {/* Logo */}
@@ -77,12 +79,10 @@ export function LoginPage() {
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                   {t('email', language)}
                 </label>
-                <input
+                <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   placeholder={t('emailPlaceholder', language)}
                   required
                 />
@@ -92,15 +92,24 @@ export function LoginPage() {
                 <label className="block text-sm font-semibold mb-2" style={{ color: '#EAECEF' }}>
                   {t('password', language)}
                 </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                  placeholder={t('passwordPlaceholder', language)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pr-10"
+                    placeholder={t('passwordPlaceholder', language)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    style={{ color: '#848E9C' }}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {error && (

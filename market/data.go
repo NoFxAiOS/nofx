@@ -359,15 +359,20 @@ func getFundingRate(symbol string) (float64, error) {
 func Format(data *Data) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("current_price = %.2f, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
-		data.CurrentPrice, data.CurrentEMA20, data.CurrentMACD, data.CurrentRSI7))
+	// 使用动态精度格式化价格
+	priceStr := formatPriceWithDynamicPrecision(data.CurrentPrice)
+	sb.WriteString(fmt.Sprintf("current_price = %s, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
+		priceStr, data.CurrentEMA20, data.CurrentMACD, data.CurrentRSI7))
 
 	sb.WriteString(fmt.Sprintf("In addition, here is the latest %s open interest and funding rate for perps:\n\n",
 		data.Symbol))
 
 	if data.OpenInterest != nil {
-		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %.2f Average: %.2f\n\n",
-			data.OpenInterest.Latest, data.OpenInterest.Average))
+		// 使用动态精度格式化 OI 数据
+		oiLatestStr := formatPriceWithDynamicPrecision(data.OpenInterest.Latest)
+		oiAverageStr := formatPriceWithDynamicPrecision(data.OpenInterest.Average)
+		sb.WriteString(fmt.Sprintf("Open Interest: Latest: %s Average: %s\n\n",
+			oiLatestStr, oiAverageStr))
 	}
 
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
@@ -420,11 +425,42 @@ func Format(data *Data) string {
 	return sb.String()
 }
 
-// formatFloatSlice 格式化float64切片为字符串
+// formatPriceWithDynamicPrecision 根据价格区间动态选择精度
+// 这样可以完美支持从超低价 meme coin (< 0.0001) 到 BTC/ETH 的所有币种
+func formatPriceWithDynamicPrecision(price float64) string {
+	switch {
+	case price < 0.0001:
+		// 超低价 meme coin: 1000SATS, 1000WHY, DOGS
+		// 0.00002070 → "0.00002070" (8位小数)
+		return fmt.Sprintf("%.8f", price)
+	case price < 0.001:
+		// 低价 meme coin: NEIRO, HMSTR, HOT, NOT
+		// 0.00015060 → "0.000151" (6位小数)
+		return fmt.Sprintf("%.6f", price)
+	case price < 0.01:
+		// 中低价币: PEPE, SHIB, MEME
+		// 0.00556800 → "0.005568" (6位小数)
+		return fmt.Sprintf("%.6f", price)
+	case price < 1.0:
+		// 低价币: ASTER, DOGE, ADA, TRX
+		// 0.9954 → "0.9954" (4位小数)
+		return fmt.Sprintf("%.4f", price)
+	case price < 100:
+		// 中价币: SOL, AVAX, LINK, MATIC
+		// 23.4567 → "23.4567" (4位小数)
+		return fmt.Sprintf("%.4f", price)
+	default:
+		// 高价币: BTC, ETH (节省 Token)
+		// 45678.9123 → "45678.91" (2位小数)
+		return fmt.Sprintf("%.2f", price)
+	}
+}
+
+// formatFloatSlice 格式化float64切片为字符串（使用动态精度）
 func formatFloatSlice(values []float64) string {
 	strValues := make([]string, len(values))
 	for i, v := range values {
-		strValues[i] = fmt.Sprintf("%.3f", v)
+		strValues[i] = formatPriceWithDynamicPrecision(v)
 	}
 	return "[" + strings.Join(strValues, ", ") + "]"
 }

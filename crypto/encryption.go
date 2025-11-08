@@ -265,7 +265,9 @@ func (em *EncryptionManager) loadOrGenerateMasterKey() error {
 	}
 
 	log.Println("✅ 主密鑰已生成並保存")
-	log.Printf("🔐 請將以下內容添加到環境變數 (生產環境必須使用):\n   export NOFX_MASTER_KEY=%s", encoded)
+	log.Printf("📁 主密鑰文件位置: %s (權限: 0600)", masterKeyFile)
+	log.Println("🔐 生產環境請設置環境變數: NOFX_MASTER_KEY=<從文件讀取>")
+	log.Println("⚠️  請妥善保管 .secrets 目錄，切勿將密鑰提交到版本控制系統")
 	return nil
 }
 

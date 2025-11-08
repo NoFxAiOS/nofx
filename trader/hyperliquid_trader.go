@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sonirico/go-hyperliquid"
@@ -19,6 +20,7 @@ type HyperliquidTrader struct {
 	ctx           context.Context
 	walletAddr    string
 	meta          *hyperliquid.Meta // 缓存meta信息（包含精度等）
+	metaMutex     sync.RWMutex      // 保护meta字段的并发访问
 	isCrossMargin bool              // 是否为全仓模式
 }
 
@@ -333,7 +335,11 @@ func (t *HyperliquidTrader) refreshMetaIfNeeded(coin string) error {
 		return fmt.Errorf("刷新 Meta 信息失败: %w", err)
 	}
 
+	// ✅ 并发安全：使用写锁保护 meta 字段更新
+	t.metaMutex.Lock()
 	t.meta = meta
+	t.metaMutex.Unlock()
+
 	log.Printf("✅ Meta 信息已刷新，包含 %d 个资产", len(meta.Universe))
 
 	// 验证刷新后的 Asset ID
@@ -881,6 +887,10 @@ func (t *HyperliquidTrader) FormatQuantity(symbol string, quantity float64) (str
 
 // getSzDecimals 获取币种的数量精度
 func (t *HyperliquidTrader) getSzDecimals(coin string) int {
+	// ✅ 并发安全：使用读锁保护 meta 字段访问
+	t.metaMutex.RLock()
+	defer t.metaMutex.RUnlock()
+
 	if t.meta == nil {
 		log.Printf("❌ [Meta診斷] meta 信息为空！可能原因：")
 		log.Printf("   1. exchange.Info().Meta() 调用失败")

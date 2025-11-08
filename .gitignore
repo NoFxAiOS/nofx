@@ -28,7 +28,6 @@ Thumbs.db
 
 # 环境变量
 .env
-config.json
 config.db
 configbak.json
 

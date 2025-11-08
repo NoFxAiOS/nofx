@@ -1,0 +1,26 @@
+{
+  "beta_mode": false,
+  "leverage": {
+    "btc_eth_leverage": 5,
+    "altcoin_leverage": 5
+  },
+  "use_default_coins": true,
+  "default_coins": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "HYPEUSDT"
+  ],
+  "api_server_port": 8080,
+  "max_daily_loss": 10.0,
+  "max_drawdown": 20.0,
+  "stop_trading_minutes": 60,
+  "jwt_secret": "zJy21Z2OXNSOVt3lai5WmxuPb/AIYmUbS0Ygj8IEwwuombnBBPTvOmJ1LpJtFnVmU4RtkI/MHNz60D9uTOenCw==",
+  "log": {
+    "level": "info"
+  }
+}

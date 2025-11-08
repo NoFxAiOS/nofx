@@ -131,18 +131,6 @@ export const api = {
   },
 
   async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
-    const res = await fetch(`${API_BASE}/models`, {
-      method: 'PUT',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(request),
-    })
-    if (!res.ok) throw new Error('更新模型配置失败')
-  },
-
-  // 使用加密传输更新模型配置
-  async updateModelConfigsEncrypted(
-    request: UpdateModelConfigRequest
-  ): Promise<void> {
     // 获取RSA公钥
     const publicKey = await CryptoService.fetchPublicKey()
 
@@ -160,6 +148,7 @@ export const api = {
       sessionId
     )
 
+    // 发送加密数据
     const res = await fetch(`${API_BASE}/models`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -167,6 +156,7 @@ export const api = {
     })
     if (!res.ok) throw new Error('更新模型配置失败')
   },
+
 
   // 交易所配置接口
   async getExchangeConfigs(): Promise<Exchange[]> {
@@ -216,7 +206,7 @@ export const api = {
       sessionId
     )
 
-    // 发送加密数据到普通端点
+    // 发送加密数据
     const res = await fetch(`${API_BASE}/exchanges`, {
       method: 'PUT',
       headers: getAuthHeaders(),

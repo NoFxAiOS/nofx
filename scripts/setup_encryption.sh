@@ -58,16 +58,16 @@ echo -e "  • 私钥文件: ${YELLOW}$PRIVATE_KEY_FILE${NC}"
 echo -e "  • 公钥文件: ${YELLOW}$PUBLIC_KEY_FILE${NC}"
 echo -e "  • AES密钥: ${YELLOW}256 bits (自动生成)${NC}"
 
-# 显示必要性说明
+# 询问用户确认
 echo
-echo -e "${YELLOW}⚠️  加密环境是系统运行的必需条件（不可跳过）${NC}"
-echo -e "${BLUE}ℹ️  将自动检查并生成以下密钥:${NC}"
-echo -e "  • RSA-2048 密钥对 (用于传输加密)"
-echo -e "  • AES-256 数据加密密钥 (用于数据库加密)"
-echo -e "  • JWT 认证密钥 (用于用户认证)"
-echo -e "${BLUE}ℹ️  如果密钥已存在，将保持现有密钥；如果缺失，将自动生成${NC}"
+read -p "是否继续设置加密环境? [Y/n]: " -n 1 -r
 echo
+if [[ $REPLY =~ ^[Nn]$ ]]; then
+    echo -e "${BLUE}ℹ️  操作已取消${NC}"
+    exit 0
+fi
 
+echo
 echo -e "${CYAN}🚀 开始设置加密环境...${NC}"
 
 # ============= 步骤1: 创建目录 =============
@@ -94,20 +94,20 @@ echo
 echo -e "${YELLOW}🔐 步骤 2/4: 生成 RSA-$RSA_KEY_SIZE 密钥对...${NC}"
 
 # 检查现有RSA密钥
-if [ -f "$PRIVATE_KEY_FILE" ] && [ -f "$PUBLIC_KEY_FILE" ]; then
-    echo -e "${BLUE}ℹ️  检测到现有的RSA密钥文件，保持现有密钥${NC}"
-    # 验证现有密钥
-    echo -e "  ${CYAN}验证现有密钥对...${NC}"
-    if openssl rsa -in "$PRIVATE_KEY_FILE" -check -noout 2>/dev/null; then
-        echo -e "${GREEN}  ✓ 现有密钥验证通过${NC}"
-    else
-        echo -e "${RED}  ❌ 现有密钥验证失败，将重新生成${NC}"
+if [ -f "$PRIVATE_KEY_FILE" ] || [ -f "$PUBLIC_KEY_FILE" ]; then
+    echo -e "${YELLOW}⚠️  检测到现有的RSA密钥文件${NC}"
+    read -p "是否重新生成RSA密钥? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
         rm -f "$PRIVATE_KEY_FILE" "$PUBLIC_KEY_FILE"
+        echo -e "${YELLOW}🗑️  删除旧密钥${NC}"
+    else
+        echo -e "${BLUE}ℹ️  保持现有RSA密钥${NC}"
+        RSA_SKIPPED=true
     fi
 fi
 
-# 如果密钥不存在或验证失败，生成新密钥
-if [ ! -f "$PRIVATE_KEY_FILE" ] || [ ! -f "$PUBLIC_KEY_FILE" ]; then
+if [ "$RSA_SKIPPED" != "true" ]; then
     # 生成私钥
     echo -e "  ${CYAN}生成RSA私钥...${NC}"
     openssl genrsa -out "$PRIVATE_KEY_FILE" $RSA_KEY_SIZE 2>/dev/null
@@ -143,32 +143,87 @@ if [ -f ".env" ]; then
     fi
 fi
 
-# 确保 .env 文件存在
-if [ ! -f ".env" ]; then
-    touch .env
+if [ "$DATA_KEY_EXISTS" = "true" ] || [ "$JWT_KEY_EXISTS" = "true" ]; then
+    echo -e "${YELLOW}⚠️  检测到现有的密钥配置${NC}"
+    if [ "$DATA_KEY_EXISTS" = "true" ]; then
+        echo -e "  • 数据加密密钥已存在"
+    fi
+    if [ "$JWT_KEY_EXISTS" = "true" ]; then
+        echo -e "  • JWT认证密钥已存在"
+    fi
+    read -p "是否重新生成所有密钥? [y/N]: " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo -e "${BLUE}ℹ️  保持现有密钥${NC}"
+        KEY_SKIPPED=true
+        # 读取现有密钥
+        if [ "$DATA_KEY_EXISTS" = "true" ]; then
+            DATA_KEY=$(grep "^DATA_ENCRYPTION_KEY=" .env | cut -d'=' -f2)
+        fi
+        if [ "$JWT_KEY_EXISTS" = "true" ]; then
+            JWT_KEY=$(grep "^JWT_SECRET=" .env | cut -d'=' -f2)
+        fi
+    fi
 fi
 
-# 生成缺失的密钥（必需，不允许跳过）
-if [ "$DATA_KEY_EXISTS" != "true" ]; then
+if [ "$KEY_SKIPPED" != "true" ]; then
+    # 生成新的密钥
     echo -e "  ${CYAN}生成AES-256数据加密密钥...${NC}"
-    DATA_KEY=$(openssl rand -base64 32 | tr -d '\n')
-    echo "DATA_ENCRYPTION_KEY=$DATA_KEY" >> .env
+    DATA_KEY=$(openssl rand -base64 32)
     echo -e "${GREEN}  ✓ 数据加密密钥生成完成${NC}"
-else
-    echo -e "${BLUE}  ℹ️  数据加密密钥已存在，保持现有密钥${NC}"
-fi
-
-if [ "$JWT_KEY_EXISTS" != "true" ]; then
+    
     echo -e "  ${CYAN}生成JWT认证密钥...${NC}"
-    JWT_KEY=$(openssl rand -base64 64 | tr -d '\n')
-    echo "JWT_SECRET=$JWT_KEY" >> .env
+    JWT_KEY=$(openssl rand -base64 64)
     echo -e "${GREEN}  ✓ JWT认证密钥生成完成${NC}"
-else
-    echo -e "${BLUE}  ℹ️  JWT认证密钥已存在，保持现有密钥${NC}"
+    
+    # 保存到.env文件
+    if [ -f ".env" ]; then
+        # 更新现有文件
+        if grep -q "^DATA_ENCRYPTION_KEY=" .env; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s/^DATA_ENCRYPTION_KEY=.*/DATA_ENCRYPTION_KEY=$DATA_KEY/" .env
+            else
+                sed -i "s/^DATA_ENCRYPTION_KEY=.*/DATA_ENCRYPTION_KEY=$DATA_KEY/" .env
+            fi
+        else
+            echo "DATA_ENCRYPTION_KEY=$DATA_KEY" >> .env
+        fi
+        
+        if grep -q "^JWT_SECRET=" .env; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_KEY/" .env
+            else
+                sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_KEY/" .env
+            fi
+        else
+            echo "JWT_SECRET=$JWT_KEY" >> .env
+        fi
+    else
+        # 创建新文件
+        echo "DATA_ENCRYPTION_KEY=$DATA_KEY" > .env
+        echo "JWT_SECRET=$JWT_KEY" >> .env
+    fi
+    chmod 600 .env
+    echo -e "${GREEN}  ✓ 密钥已保存到 .env 文件${NC}"
+elif [ "$DATA_KEY_EXISTS" != "true" ] || [ "$JWT_KEY_EXISTS" != "true" ]; then
+    # 生成缺失的密钥
+    if [ "$DATA_KEY_EXISTS" != "true" ]; then
+        echo -e "  ${CYAN}生成缺失的AES-256数据加密密钥...${NC}"
+        DATA_KEY=$(openssl rand -base64 32)
+        echo "DATA_ENCRYPTION_KEY=$DATA_KEY" >> .env
+        echo -e "${GREEN}  ✓ 数据加密密钥生成完成${NC}"
+    fi
+    
+    if [ "$JWT_KEY_EXISTS" != "true" ]; then
+        echo -e "  ${CYAN}生成缺失的JWT认证密钥...${NC}"
+        JWT_KEY=$(openssl rand -base64 64)
+        echo "JWT_SECRET=$JWT_KEY" >> .env
+        echo -e "${GREEN}  ✓ JWT认证密钥生成完成${NC}"
+    fi
+    
+    chmod 600 .env
+    echo -e "${GREEN}  ✓ 密钥已保存到 .env 文件${NC}"
 fi
-
-chmod 600 .env
-echo -e "${GREEN}  ✓ 密钥配置已保存到 .env 文件${NC}"
 
 # ============= 步骤4: 验证和总结 =============
 echo

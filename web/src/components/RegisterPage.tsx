@@ -4,6 +4,9 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { getSystemConfig } from '../lib/config'
 import HeaderBar from './landing/HeaderBar'
+import { Eye, EyeOff } from 'lucide-react'
+import { Input } from './ui/input'
+import PasswordChecklist from 'react-password-checklist'
 
 export function RegisterPage() {
   const { language } = useLanguage()
@@ -22,6 +25,9 @@ export function RegisterPage() {
   const [qrCodeURL, setQrCodeURL] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [passwordValid, setPasswordValid] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
     // 获取系统配置，检查是否开启内测模式
@@ -38,13 +44,10 @@ export function RegisterPage() {
     e.preventDefault()
     setError('')
 
-    if (password !== confirmPassword) {
-      setError(t('passwordMismatch', language))
-      return
-    }
-
-    if (password.length < 6) {
-      setError(t('passwordTooShort', language))
+    // 客户端强校验：长度>=8，包含大小写、数字、特殊字符，且两次一致
+    const strong = isStrongPassword(password)
+    if (!strong || password !== confirmPassword) {
+      setError(t('passwordNotMeetRequirements', language))
       return
     }
 
@@ -149,16 +152,10 @@ export function RegisterPage() {
                   >
                     {t('email', language)}
                   </label>
-                  <input
+                  <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                      color: 'var(--brand-light-gray)',
-                    }}
                     placeholder={t('emailPlaceholder', language)}
                     required
                   />
@@ -171,19 +168,26 @@ export function RegisterPage() {
                   >
                     {t('password', language)}
                   </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                      color: 'var(--brand-light-gray)',
-                    }}
-                    placeholder={t('passwordPlaceholder', language)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10"
+                      placeholder={t('passwordPlaceholder', language)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center rounded bg-transparent p-0 m-0 border-0 outline-none focus:outline-none focus:ring-0 appearance-none cursor-pointer btn-icon"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -193,18 +197,65 @@ export function RegisterPage() {
                   >
                     {t('confirmPassword', language)}
                   </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                      color: 'var(--brand-light-gray)',
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pr-10"
+                      placeholder={t('confirmPasswordPlaceholder', language)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      aria-label={showConfirmPassword ? '隐藏密码' : '显示密码'}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center rounded bg-transparent p-0 m-0 border-0 outline-none focus:outline-none focus:ring-0 appearance-none cursor-pointer btn-icon"
+                      style={{ color: 'var(--text-secondary)' }}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 密码规则清单（通过才允许提交） */}
+                <div
+                  className="mt-1 text-xs"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  <div
+                    className="mb-1"
+                    style={{ color: 'var(--brand-light-gray)' }}
+                  >
+                    {t('passwordRequirements', language)}
+                  </div>
+                  <PasswordChecklist
+                    rules={[
+                      'minLength',
+                      'capital',
+                      'lowercase',
+                      'number',
+                      'specialChar',
+                      'match',
+                    ]}
+                    minLength={8}
+                    value={password}
+                    valueAgain={confirmPassword}
+                    messages={{
+                      minLength: t('passwordRuleMinLength', language),
+                      capital: t('passwordRuleUppercase', language),
+                      lowercase: t('passwordRuleLowercase', language),
+                      number: t('passwordRuleNumber', language),
+                      specialChar: t('passwordRuleSpecial', language),
+                      match: t('passwordRuleMatch', language),
                     }}
-                    placeholder={t('confirmPasswordPlaceholder', language)}
-                    required
+                    className="space-y-1"
+                    onChange={(isValid) => setPasswordValid(isValid)}
                   />
                 </div>
 
@@ -256,7 +307,9 @@ export function RegisterPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || (betaMode && !betaCode.trim())}
+                  disabled={
+                    loading || (betaMode && !betaCode.trim()) || !passwordValid
+                  }
                   className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
                   style={{
                     background: 'var(--brand-yellow)',
@@ -499,4 +552,14 @@ export function RegisterPage() {
       </div>
     </div>
   )
+}
+
+// 本地密码强度校验（与 UI 规则一致）
+function isStrongPassword(pwd: string): boolean {
+  if (!pwd || pwd.length < 8) return false
+  const hasUpper = /[A-Z]/.test(pwd)
+  const hasLower = /[a-z]/.test(pwd)
+  const hasNumber = /\d/.test(pwd)
+  const hasSpecial = /[@#$%!&*?]/.test(pwd)
+  return hasUpper && hasLower && hasNumber && hasSpecial
 }

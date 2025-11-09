@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"nofx/auth"
@@ -461,6 +462,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		return
 	}
 
+	var err error // Declare err for later use
+
 	// 校验杠杆值
 	if req.BTCETHLeverage < 0 || req.BTCETHLeverage > 50 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "BTC/ETH杠杆必须在1-50倍之间"})
@@ -528,71 +531,100 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3 // 默认3分钟，且不允许小于3
 	}
 
-	// ✨ 查询交易所实际余额，覆盖用户输入
-	actualBalance := req.InitialBalance // 默认使用用户输入
-	exchanges, err := s.database.GetExchanges(userID)
-	if err != nil {
-		log.Printf("⚠️ 获取交易所配置失败，使用用户输入的初始资金: %v", err)
-	}
+	// ✅ Fix #787, #807: Only query exchange when user doesn't specify initial balance
+	// Respect user input, allow custom initial balance for different testing scenarios
+	actualBalance := req.InitialBalance // Default: use user input
 
-	// 查找匹配的交易所配置
-	var exchangeCfg *config.ExchangeConfig
-	for _, ex := range exchanges {
-		if ex.ID == req.ExchangeID {
-			exchangeCfg = ex
-			break
-		}
-	}
+	// Only auto-query from exchange when user input <= 0
+	if actualBalance <= 0 {
+		log.Printf("ℹ️ User didn't specify initial balance, querying from exchange...")
 
-	if exchangeCfg == nil {
-		log.Printf("⚠️ 未找到交易所 %s 的配置，使用用户输入的初始资金", req.ExchangeID)
-	} else if !exchangeCfg.Enabled {
-		log.Printf("⚠️ 交易所 %s 未启用，使用用户输入的初始资金", req.ExchangeID)
-	} else {
-		// 根据交易所类型创建临时 trader 查询余额
-		var tempTrader trader.Trader
-		var createErr error
+		exchanges, err2 := s.database.GetExchanges(userID)
+		err = err2
+		if err != nil {
+			log.Printf("⚠️ Failed to get exchange config, using default 1000 USDT: %v", err)
+			actualBalance = 1000.0
+		} else {
+			// Find matching exchange config
+			var exchangeCfg *config.ExchangeConfig
+			for _, ex := range exchanges {
+				if ex.ID == req.ExchangeID {
+					exchangeCfg = ex
+					break
+				}
+			}
 
-		switch req.ExchangeID {
-		case "binance":
-			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
-		case "hyperliquid":
-			tempTrader, createErr = trader.NewHyperliquidTrader(
-				exchangeCfg.APIKey, // private key
-				exchangeCfg.HyperliquidWalletAddr,
-				exchangeCfg.Testnet,
-			)
-		case "aster":
-			tempTrader, createErr = trader.NewAsterTrader(
-				exchangeCfg.AsterUser,
-				exchangeCfg.AsterSigner,
-				exchangeCfg.AsterPrivateKey,
-			)
-		default:
-			log.Printf("⚠️ 不支持的交易所类型: %s，使用用户输入的初始资金", req.ExchangeID)
-		}
-
-		if createErr != nil {
-			log.Printf("⚠️ 创建临时 trader 失败，使用用户输入的初始资金: %v", createErr)
-		} else if tempTrader != nil {
-			// 查询实际余额
-			balanceInfo, balanceErr := tempTrader.GetBalance()
-			if balanceErr != nil {
-				log.Printf("⚠️ 查询交易所余额失败，使用用户输入的初始资金: %v", balanceErr)
+			if exchangeCfg == nil {
+				log.Printf("⚠️ Exchange %s config not found, using default 1000 USDT", req.ExchangeID)
+				actualBalance = 1000.0
+			} else if !exchangeCfg.Enabled {
+				log.Printf("⚠️ Exchange %s not enabled, using default 1000 USDT", req.ExchangeID)
+				actualBalance = 1000.0
 			} else {
-				// 提取可用余额
-				if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-					actualBalance = availableBalance
-					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-					// 有些交易所可能只返回 balance 字段
-					actualBalance = totalBalance
-					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else {
-					log.Printf("⚠️ 无法从余额信息中提取可用余额，使用用户输入的初始资金")
+				// Create temporary trader to query balance
+				var tempTrader trader.Trader
+				var createErr error
+
+				switch req.ExchangeID {
+				case "binance":
+					tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+				case "hyperliquid":
+					tempTrader, createErr = trader.NewHyperliquidTrader(
+						exchangeCfg.APIKey, // private key
+						exchangeCfg.HyperliquidWalletAddr,
+						exchangeCfg.Testnet,
+					)
+				case "aster":
+					tempTrader, createErr = trader.NewAsterTrader(
+						exchangeCfg.AsterUser,
+						exchangeCfg.AsterSigner,
+						exchangeCfg.AsterPrivateKey,
+					)
+				default:
+					log.Printf("⚠️ Unsupported exchange type: %s, using default 1000 USDT", req.ExchangeID)
+					actualBalance = 1000.0
+				}
+
+				if createErr != nil {
+					log.Printf("⚠️ Failed to create temp trader, using default 1000 USDT: %v", createErr)
+					actualBalance = 1000.0
+				} else if tempTrader != nil {
+					// Query actual balance
+					balanceInfo, balanceErr := tempTrader.GetBalance()
+					if balanceErr != nil {
+						log.Printf("⚠️ Failed to query exchange balance, using default 1000 USDT: %v", balanceErr)
+						actualBalance = 1000.0
+					} else {
+						// ✅ Use total equity instead of available balance (fixes #807)
+						// Total equity = wallet balance + unrealized P&L
+						totalWalletBalance := 0.0
+						totalUnrealizedProfit := 0.0
+
+						if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
+							totalWalletBalance = wallet
+						}
+						if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
+							totalUnrealizedProfit = unrealized
+						}
+
+						// Total equity = wallet balance + unrealized P&L
+						totalEquity := totalWalletBalance + totalUnrealizedProfit
+
+						if totalEquity > 0 {
+							actualBalance = totalEquity
+							log.Printf("✅ Auto-queried total equity: %.2f USDT (wallet: %.2f + unrealized: %.2f)",
+								actualBalance, totalWalletBalance, totalUnrealizedProfit)
+						} else {
+							log.Printf("⚠️ Cannot extract total equity, using default 1000 USDT")
+							actualBalance = 1000.0
+						}
+					}
 				}
 			}
 		}
+	} else {
+		// ✅ User specified initial balance, respect it
+		log.Printf("✅ Using user-specified initial balance: %.2f USDT", actualBalance)
 	}
 
 	// 创建交易员配置（数据库实体）
@@ -710,6 +742,21 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3
 	}
 
+	// ✅ Fix #790: Allow users to modify initial_balance
+	// Useful for adjusting P&L baseline after deposit/withdrawal
+	initialBalance := existingTrader.InitialBalance
+	if req.InitialBalance > 0 {
+		// Check if initial balance was modified
+		diff := math.Abs(req.InitialBalance - existingTrader.InitialBalance)
+		if diff > 0.01 {
+			// Log modification
+			log.Printf("ℹ️ User %s modified initial_balance | Trader=%s | Original=%.2f → New=%.2f | Diff=%.2f",
+				userID, traderID, existingTrader.InitialBalance, req.InitialBalance, diff)
+
+			initialBalance = req.InitialBalance
+		}
+	}
+
 	// 更新交易员配置
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -717,7 +764,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		Name:                 req.Name,
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
-		InitialBalance:       req.InitialBalance,
+		InitialBalance:       initialBalance,
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,

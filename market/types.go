@@ -14,6 +14,7 @@ type Data struct {
 	OpenInterest      *OIData
 	FundingRate       float64
 	IntradaySeries    *IntradayData
+	FifteenMinData    *FifteenMinData // 15分钟数据
 	LongerTermContext *LongerTermData
 }
 
@@ -32,6 +33,16 @@ type BollingerBands struct {
 
 // IntradayData 日内数据(3分钟间隔)
 type IntradayData struct {
+	MidPrices      []float64
+	EMA20Values    []float64
+	MACDValues     []float64
+	RSI7Values     []float64
+	RSI14Values    []float64
+	BollingerBands *BollingerBands // 布林带(20周期)
+}
+
+// FifteenMinData 15分钟数据
+type FifteenMinData struct {
 	MidPrices      []float64
 	EMA20Values    []float64
 	MACDValues     []float64

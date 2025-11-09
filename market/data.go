@@ -25,7 +25,7 @@ var (
 
 // Get 获取指定代币的市场数据
 func Get(symbol string) (*Data, error) {
-	var klines3m, klines4h []Kline
+	var klines3m, klines15m, klines4h []Kline
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
@@ -33,6 +33,12 @@ func Get(symbol string) (*Data, error) {
 	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
 	if err != nil {
 		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+	}
+
+	// 获取15分钟K线数据 (最近10个)
+	klines15m, err = WSMonitorCli.GetCurrentKlines(symbol, "15m")
+	if err != nil {
+		return nil, fmt.Errorf("获取15分钟K线失败: %v", err)
 	}
 
 	// 获取4小时K线数据 (最近10个)
@@ -44,6 +50,9 @@ func Get(symbol string) (*Data, error) {
 	// 检查数据是否为空
 	if len(klines3m) == 0 {
 		return nil, fmt.Errorf("3分钟K线数据为空")
+	}
+	if len(klines15m) == 0 {
+		return nil, fmt.Errorf("15分钟K线数据为空")
 	}
 	if len(klines4h) == 0 {
 		return nil, fmt.Errorf("4小时K线数据为空")
@@ -87,6 +96,9 @@ func Get(symbol string) (*Data, error) {
 	// 计算日内系列数据
 	intradayData := calculateIntradaySeries(klines3m)
 
+	// 计算15分钟数据
+	fifteenMinData := calculate15MinData(klines15m)
+
 	// 计算长期数据
 	longerTermData := calculateLongerTermData(klines4h)
 
@@ -101,6 +113,7 @@ func Get(symbol string) (*Data, error) {
 		OpenInterest:      oiData,
 		FundingRate:       fundingRate,
 		IntradaySeries:    intradayData,
+		FifteenMinData:    fifteenMinData,
 		LongerTermContext: longerTermData,
 	}, nil
 }
@@ -255,6 +268,54 @@ func calculateBollingerBands(klines []Kline, period int, stdDevMultiplier float6
 // calculateIntradaySeries 计算日内系列数据
 func calculateIntradaySeries(klines []Kline) *IntradayData {
 	data := &IntradayData{
+		MidPrices:   make([]float64, 0, 10),
+		EMA20Values: make([]float64, 0, 10),
+		MACDValues:  make([]float64, 0, 10),
+		RSI7Values:  make([]float64, 0, 10),
+		RSI14Values: make([]float64, 0, 10),
+	}
+
+	// 获取最近10个数据点
+	start := len(klines) - 10
+	if start < 0 {
+		start = 0
+	}
+
+	for i := start; i < len(klines); i++ {
+		data.MidPrices = append(data.MidPrices, klines[i].Close)
+
+		// 计算每个点的EMA20
+		if i >= 19 {
+			ema20 := calculateEMA(klines[:i+1], 20)
+			data.EMA20Values = append(data.EMA20Values, ema20)
+		}
+
+		// 计算每个点的MACD
+		if i >= 25 {
+			macd := calculateMACD(klines[:i+1])
+			data.MACDValues = append(data.MACDValues, macd)
+		}
+
+		// 计算每个点的RSI
+		if i >= 7 {
+			rsi7 := calculateRSI(klines[:i+1], 7)
+			data.RSI7Values = append(data.RSI7Values, rsi7)
+		}
+		if i >= 14 {
+			rsi14 := calculateRSI(klines[:i+1], 14)
+			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+	}
+
+	// 计算布林带 (20周期, 2倍标准差)
+	data.BollingerBands = calculateBollingerBands(klines, 20, 2.0)
+
+	return data
+}
+
+// calculate15MinData 计算15分钟数据
+func calculate15MinData(klines []Kline) *FifteenMinData {
+	data := &FifteenMinData{
 		MidPrices:   make([]float64, 0, 10),
 		EMA20Values: make([]float64, 0, 10),
 		MACDValues:  make([]float64, 0, 10),
@@ -480,6 +541,40 @@ func Format(data *Data) string {
 		// 输出布林带数据
 		if data.IntradaySeries.BollingerBands != nil {
 			bb := data.IntradaySeries.BollingerBands
+			upperStr := formatPriceWithDynamicPrecision(bb.Upper)
+			middleStr := formatPriceWithDynamicPrecision(bb.Middle)
+			lowerStr := formatPriceWithDynamicPrecision(bb.Lower)
+			sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2 std dev): Upper: %s, Middle: %s, Lower: %s\n\n",
+				upperStr, middleStr, lowerStr))
+		}
+	}
+
+	if data.FifteenMinData != nil {
+		sb.WriteString("15‑minute timeframe data:\n\n")
+
+		if len(data.FifteenMinData.MidPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.FifteenMinData.MidPrices)))
+		}
+
+		if len(data.FifteenMinData.EMA20Values) > 0 {
+			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.FifteenMinData.EMA20Values)))
+		}
+
+		if len(data.FifteenMinData.MACDValues) > 0 {
+			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.FifteenMinData.MACDValues)))
+		}
+
+		if len(data.FifteenMinData.RSI7Values) > 0 {
+			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.FifteenMinData.RSI7Values)))
+		}
+
+		if len(data.FifteenMinData.RSI14Values) > 0 {
+			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.FifteenMinData.RSI14Values)))
+		}
+
+		// 输出布林带数据
+		if data.FifteenMinData.BollingerBands != nil {
+			bb := data.FifteenMinData.BollingerBands
 			upperStr := formatPriceWithDynamicPrecision(bb.Upper)
 			middleStr := formatPriceWithDynamicPrecision(bb.Middle)
 			lowerStr := formatPriceWithDynamicPrecision(bb.Lower)

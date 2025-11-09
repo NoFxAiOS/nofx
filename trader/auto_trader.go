@@ -256,11 +256,9 @@ func (at *AutoTrader) Run() error {
 	}
 
 	for at.isRunning {
-		select {
-		case <-ticker.C:
-			if err := at.runCycle(); err != nil {
-				log.Printf("❌ 执行失败: %v", err)
-			}
+		<-ticker.C
+		if err := at.runCycle(); err != nil {
+			log.Printf("❌ 执行失败: %v", err)
 		}
 	}
 
@@ -278,7 +276,8 @@ func (at *AutoTrader) Stop() {
 	log.Println("⏹ 自动交易系统停止")
 }
 
-// autoSyncBalanceIfNeeded 自动同步余额（每10分钟检查一次，变化>5%才更新）
+// autoSyncBalanceIfNeeded 自动检查余额变化（仅监控，不修改初始余额）
+// 初始余额是收益计算的基准，应该保持不变
 func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 	// 距离上次同步不足10分钟，跳过
 	if time.Since(at.lastBalanceSyncTime) < 10*time.Minute {
@@ -309,66 +308,30 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 		return
 	}
 
-	oldBalance := at.initialBalance
+	initialBalance := at.initialBalance
 
-	// 防止除以零：如果初始余额无效，直接更新为实际余额
-	if oldBalance <= 0 {
-		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为实际余额 %.2f USDT", at.name, oldBalance, actualBalance)
-		at.initialBalance = actualBalance
-		if at.database != nil {
-			type DatabaseUpdater interface {
-				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
-			}
-			if db, ok := at.database.(DatabaseUpdater); ok {
-				if err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance); err != nil {
-					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
-				} else {
-					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
-				}
-			} else {
-				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
-			}
-		} else {
-			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
-		}
+	// 如果初始余额无效，记录警告但不修改（应该通过配置修复）
+	if initialBalance <= 0 {
+		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，当前余额: %.2f USDT。请检查配置。", at.name, initialBalance, actualBalance)
 		at.lastBalanceSyncTime = time.Now()
 		return
 	}
 
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// 计算相对初始余额的变化（仅用于监控和日志）
+	changePercent := ((actualBalance - initialBalance) / initialBalance) * 100
+	currentPnL := actualBalance - initialBalance
 
-	// 变化超过5%才更新
+	// 如果变化超过5%，记录警告（但不修改初始余额）
 	if math.Abs(changePercent) > 5.0 {
-		log.Printf("🔔 [%s] 检测到余额大幅变化: %.2f → %.2f USDT (%.2f%%)",
-			at.name, oldBalance, actualBalance, changePercent)
-
-		// 更新内存中的 initialBalance
-		at.initialBalance = actualBalance
-
-		// 更新数据库（需要类型断言）
-		if at.database != nil {
-			// 这里需要根据实际的数据库类型进行类型断言
-			// 由于使用了 interface{}，我们需要在 TraderManager 层面处理更新
-			// 或者在这里进行类型检查
-			type DatabaseUpdater interface {
-				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
-			}
-			if db, ok := at.database.(DatabaseUpdater); ok {
-				err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance)
-				if err != nil {
-					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
-				} else {
-					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
-				}
-			} else {
-				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
-			}
-		} else {
-			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
-		}
+		log.Printf("🔔 [%s] 检测到余额大幅变化: 当前余额 %.2f USDT, 初始余额 %.2f USDT, 收益 %.2f USDT (%.2f%%)",
+			at.name, actualBalance, initialBalance, currentPnL, changePercent)
+		log.Printf("   ⚠️ 注意：初始余额保持不变，用于收益计算基准。如需重置，请通过配置界面操作。")
 	} else {
-		log.Printf("✓ [%s] 余额变化不大 (%.2f%%)，无需更新", at.name, changePercent)
+		log.Printf("✓ [%s] 余额正常: 当前余额 %.2f USDT, 初始余额 %.2f USDT, 收益 %.2f USDT (%.2f%%)",
+			at.name, actualBalance, initialBalance, currentPnL, changePercent)
 	}
+
+	// ⚠️ 重要：不修改 initial_balance，初始余额是收益计算的基准，应该保持不变
 
 	at.lastBalanceSyncTime = time.Now()
 }
@@ -389,7 +352,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 1. 检查是否需要停止交易
 	if time.Now().Before(at.stopUntil) {
-		remaining := at.stopUntil.Sub(time.Now())
+		remaining := time.Until(at.stopUntil)
 		log.Printf("⏸ 风险控制：暂停交易中，剩余 %.0f 分钟", remaining.Minutes())
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("风险控制暂停中，剩余 %.0f 分钟", remaining.Minutes())

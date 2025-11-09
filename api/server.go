@@ -392,8 +392,8 @@ type SafeModelConfig struct {
 	Name            string `json:"name"`
 	Provider        string `json:"provider"`
 	Enabled         bool   `json:"enabled"`
-	CustomAPIURL    string `json:"customApiUrl"`        // 自定义API URL（通常不敏感）
-	CustomModelName string `json:"customModelName"`     // 自定义模型名（不敏感）
+	CustomAPIURL    string `json:"customApiUrl"`    // 自定义API URL（通常不敏感）
+	CustomModelName string `json:"customModelName"` // 自定义模型名（不敏感）
 }
 
 type ExchangeConfig struct {
@@ -414,8 +414,8 @@ type SafeExchangeConfig struct {
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid钱包地址（不敏感）
-	AsterUser             string `json:"asterUser"`              // Aster用户名（不敏感）
-	AsterSigner           string `json:"asterSigner"`            // Aster签名者（不敏感）
+	AsterUser             string `json:"asterUser"`             // Aster用户名（不敏感）
+	AsterSigner           string `json:"asterSigner"`           // Aster签名者（不敏感）
 }
 
 type UpdateModelConfigRequest struct {
@@ -698,6 +698,15 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3
 	}
 
+	// ⚠️ 保护初始余额：只有在用户明确提供且大于0时才更新
+	// 初始余额是收益计算的基准，不应该被意外修改
+	initialBalance := existingTrader.InitialBalance // 默认保持原值
+	if req.InitialBalance > 0 {
+		// 用户明确提供了新的初始余额（可能是重置基准）
+		initialBalance = req.InitialBalance
+		log.Printf("⚠️ 用户更新交易员 %s 的初始余额: %.2f → %.2f USDT（这将影响收益计算基准）", traderID, existingTrader.InitialBalance, initialBalance)
+	}
+
 	// 更新交易员配置
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -705,7 +714,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		Name:                 req.Name,
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
-		InitialBalance:       req.InitialBalance,
+		InitialBalance:       initialBalance, // 使用保护后的值
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
@@ -879,12 +888,12 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "自定义prompt已更新"})
 }
 
-// handleSyncBalance 同步交易所余额到initial_balance（选项B：手动同步 + 选项C：智能检测）
+// handleSyncBalance 查询交易所当前余额（不修改初始余额，初始余额用于收益计算基准）
 func (s *Server) handleSyncBalance(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
 
-	log.Printf("🔄 用户 %s 请求同步交易员 %s 的余额", userID, traderID)
+	log.Printf("🔄 用户 %s 查询交易员 %s 的当前余额", userID, traderID)
 
 	// 从数据库获取交易员配置（包含交易所信息）
 	traderConfig, _, exchangeCfg, err := s.database.GetTraderConfig(userID, traderID)
@@ -949,40 +958,37 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	oldBalance := traderConfig.InitialBalance
+	initialBalance := traderConfig.InitialBalance
 
-	// ✅ 选项C：智能检测余额变化
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// 计算相对初始余额的变化（用于显示，但不修改初始余额）
+	changePercent := 0.0
+	if initialBalance > 0 {
+		changePercent = ((actualBalance - initialBalance) / initialBalance) * 100
+	}
 	changeType := "增加"
 	if changePercent < 0 {
 		changeType = "减少"
 	}
 
-	log.Printf("✓ 查询到交易所实际余额: %.2f USDT (当前配置: %.2f USDT, 变化: %.2f%%)",
-		actualBalance, oldBalance, changePercent)
+	// 计算当前收益
+	currentPnL := actualBalance - initialBalance
+	currentPnLPct := changePercent
 
-	// 更新数据库中的 initial_balance
-	err = s.database.UpdateTraderInitialBalance(userID, traderID, actualBalance)
-	if err != nil {
-		log.Printf("❌ 更新initial_balance失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新余额失败"})
-		return
-	}
+	log.Printf("✓ 查询到交易所当前余额: %.2f USDT (初始余额: %.2f USDT, 收益: %.2f USDT, %.2f%%)",
+		actualBalance, initialBalance, currentPnL, currentPnLPct)
 
-	// 重新加载交易员到内存
-	err = s.traderManager.LoadUserTraders(s.database, userID)
-	if err != nil {
-		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
-	}
-
-	log.Printf("✅ 已同步余额: %.2f → %.2f USDT (%s %.2f%%)", oldBalance, actualBalance, changeType, changePercent)
+	// ⚠️ 重要：不修改 initial_balance，初始余额是收益计算的基准，应该保持不变
+	// 如果需要重置初始余额，应该通过专门的接口或创建新交易员来实现
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":        "余额同步成功",
-		"old_balance":    oldBalance,
-		"new_balance":    actualBalance,
-		"change_percent": changePercent,
-		"change_type":    changeType,
+		"message":         "余额查询成功",
+		"current_balance": actualBalance,  // 当前余额
+		"initial_balance": initialBalance, // 初始余额（不变）
+		"current_pnl":     currentPnL,     // 当前收益
+		"current_pnl_pct": currentPnLPct,  // 当前收益率
+		"change_percent":  changePercent,  // 相对初始余额的变化百分比
+		"change_type":     changeType,
+		"note":            "初始余额保持不变，用于收益计算基准",
 	})
 }
 
@@ -1637,7 +1643,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
 
 // handleLogout 将当前token加入黑名单
 func (s *Server) handleLogout(c *gin.Context) {

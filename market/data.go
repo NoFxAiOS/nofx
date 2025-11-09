@@ -219,6 +219,39 @@ func calculateATR(klines []Kline, period int) float64 {
 	return atr
 }
 
+// calculateBollingerBands 计算布林带 (默认20周期, 2倍标准差)
+func calculateBollingerBands(klines []Kline, period int, stdDevMultiplier float64) *BollingerBands {
+	if len(klines) < period {
+		return nil
+	}
+
+	// 计算中轨 (SMA)
+	sum := 0.0
+	startIdx := len(klines) - period
+	for i := startIdx; i < len(klines); i++ {
+		sum += klines[i].Close
+	}
+	middle := sum / float64(period)
+
+	// 计算标准差
+	variance := 0.0
+	for i := startIdx; i < len(klines); i++ {
+		diff := klines[i].Close - middle
+		variance += diff * diff
+	}
+	stdDev := math.Sqrt(variance / float64(period))
+
+	// 计算上下轨
+	upper := middle + (stdDevMultiplier * stdDev)
+	lower := middle - (stdDevMultiplier * stdDev)
+
+	return &BollingerBands{
+		Upper:  upper,
+		Middle: middle,
+		Lower:  lower,
+	}
+}
+
 // calculateIntradaySeries 计算日内系列数据
 func calculateIntradaySeries(klines []Kline) *IntradayData {
 	data := &IntradayData{
@@ -260,6 +293,9 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 			data.RSI14Values = append(data.RSI14Values, rsi14)
 		}
 	}
+
+	// 计算布林带 (20周期, 2倍标准差)
+	data.BollingerBands = calculateBollingerBands(klines, 20, 2.0)
 
 	return data
 }
@@ -439,6 +475,16 @@ func Format(data *Data) string {
 
 		if len(data.IntradaySeries.RSI14Values) > 0 {
 			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
+		}
+
+		// 输出布林带数据
+		if data.IntradaySeries.BollingerBands != nil {
+			bb := data.IntradaySeries.BollingerBands
+			upperStr := formatPriceWithDynamicPrecision(bb.Upper)
+			middleStr := formatPriceWithDynamicPrecision(bb.Middle)
+			lowerStr := formatPriceWithDynamicPrecision(bb.Lower)
+			sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2 std dev): Upper: %s, Middle: %s, Lower: %s\n\n",
+				upperStr, middleStr, lowerStr))
 		}
 	}
 

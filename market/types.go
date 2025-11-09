@@ -23,13 +23,21 @@ type OIData struct {
 	Average float64
 }
 
+// BollingerBands 布林带数据
+type BollingerBands struct {
+	Upper  float64 // 上轨
+	Middle float64 // 中轨 (SMA)
+	Lower  float64 // 下轨
+}
+
 // IntradayData 日内数据(3分钟间隔)
 type IntradayData struct {
-	MidPrices   []float64
-	EMA20Values []float64
-	MACDValues  []float64
-	RSI7Values  []float64
-	RSI14Values []float64
+	MidPrices      []float64
+	EMA20Values    []float64
+	MACDValues     []float64
+	RSI7Values     []float64
+	RSI14Values    []float64
+	BollingerBands *BollingerBands // 布林带(20周期)
 }
 
 // LongerTermData 长期数据(4小时时间框架)

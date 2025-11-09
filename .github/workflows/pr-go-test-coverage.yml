@@ -52,10 +52,9 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
-      - name: Install Go coverage tools
+      - name: Verify Go coverage tool
         run: |
-          go install golang.org/x/tools/cmd/cover@latest || true
-          go install golang.org/x/tools/cmd/covdata@latest || true
+          go tool cover -h || echo "Warning: go tool cover not available"
 
       - name: Run tests with coverage
         env:

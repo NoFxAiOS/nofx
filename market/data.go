@@ -29,14 +29,14 @@ func Get(symbol string) (*Data, error) {
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
-	// 获取3分钟K线数据 (最近10个)
-	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
+	// 获取3分钟K线数据 (最多100条，用于计算趋势指标)
+	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m")
 	if err != nil {
 		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
 	}
 
-	// 获取4小时K线数据 (最近10个)
-	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // 多获取用于计算指标
+	// 获取4小时K线数据 (最多100条，用于计算趋势指标)
+	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h")
 	if err != nil {
 		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
 	}
@@ -221,16 +221,23 @@ func calculateATR(klines []Kline, period int) float64 {
 
 // calculateIntradaySeries 计算日内系列数据
 func calculateIntradaySeries(klines []Kline) *IntradayData {
-	data := &IntradayData{
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+	// 使用更多数据点来计算趋势，避免短期波动影响判断
+	// 3分钟K线：使用80个数据点（约4小时），提供更稳定的趋势判断
+	dataPoints := 80
+	if len(klines) < dataPoints {
+		dataPoints = len(klines)
 	}
 
-	// 获取最近10个数据点
-	start := len(klines) - 10
+	data := &IntradayData{
+		MidPrices:   make([]float64, 0, dataPoints),
+		EMA20Values: make([]float64, 0, dataPoints),
+		MACDValues:  make([]float64, 0, dataPoints),
+		RSI7Values:  make([]float64, 0, dataPoints),
+		RSI14Values: make([]float64, 0, dataPoints),
+	}
+
+	// 获取最近80个数据点（如果数据足够）
+	start := len(klines) - dataPoints
 	if start < 0 {
 		start = 0
 	}
@@ -291,7 +298,13 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	}
 
 	// 计算MACD和RSI序列
-	start := len(klines) - 10
+	// 使用更多数据点来计算趋势，避免短期波动影响判断
+	// 4小时K线：使用80个数据点（约13天），提供更稳定的趋势判断
+	dataPoints := 80
+	if len(klines) < dataPoints {
+		dataPoints = len(klines)
+	}
+	start := len(klines) - dataPoints
 	if start < 0 {
 		start = 0
 	}

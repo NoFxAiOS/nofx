@@ -644,17 +644,17 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest 更新交易员请求
 type UpdateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	BTCETHLeverage      int     `json:"btc_eth_leverage"`
-	AltcoinLeverage     int     `json:"altcoin_leverage"`
-	TradingSymbols      string  `json:"trading_symbols"`
-	CustomPrompt        string  `json:"custom_prompt"`
-	OverrideBasePrompt  bool    `json:"override_base_prompt"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`
+	Name                string   `json:"name" binding:"required"`
+	AIModelID           string   `json:"ai_model_id" binding:"required"`
+	ExchangeID          string   `json:"exchange_id" binding:"required"`
+	InitialBalance      *float64 `json:"initial_balance"` // 指针类型，nil表示未提供，非nil表示要更新（包括0）
+	ScanIntervalMinutes int      `json:"scan_interval_minutes"`
+	BTCETHLeverage      int      `json:"btc_eth_leverage"`
+	AltcoinLeverage     int      `json:"altcoin_leverage"`
+	TradingSymbols      string   `json:"trading_symbols"`
+	CustomPrompt        string   `json:"custom_prompt"`
+	OverrideBasePrompt  bool     `json:"override_base_prompt"`
+	IsCrossMargin       *bool    `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -712,13 +712,12 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3
 	}
 
-	// ⚠️ 保护初始余额：只有在用户明确提供且大于0时才更新
-	// 初始余额是收益计算的基准，不应该被意外修改
+	// 允许更新初始余额：如果请求中提供了initial_balance字段（包括0），则更新
 	initialBalance := existingTrader.InitialBalance // 默认保持原值
-	if req.InitialBalance > 0 {
-		// 用户明确提供了新的初始余额（可能是重置基准）
-		initialBalance = req.InitialBalance
-		log.Printf("⚠️ 用户更新交易员 %s 的初始余额: %.2f → %.2f USDT（这将影响收益计算基准）", traderID, existingTrader.InitialBalance, initialBalance)
+	if req.InitialBalance != nil {
+		// 用户明确提供了新的初始余额（可能是重置基准，包括0）
+		initialBalance = *req.InitialBalance
+		log.Printf("✓ 用户更新交易员 %s 的初始余额: %.2f → %.2f USDT（这将影响收益计算基准）", traderID, existingTrader.InitialBalance, initialBalance)
 	}
 
 	// 更新交易员配置

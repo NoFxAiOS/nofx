@@ -809,9 +809,10 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
 	} else {
 		if templateName == "" {
-			templateName = "default"
+			log.Printf("✓ 已重新加载系统提示词模板 [当前使用: default (未指定，使用默认)]")
+		} else {
+			log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
 		}
-		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
 	}
 
 	// 启动交易员

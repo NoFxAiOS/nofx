@@ -53,6 +53,8 @@ jobs:
         run: go mod download
 
       - name: Run tests with coverage
+        env:
+          DATA_ENCRYPTION_KEY: "test-encryption-key-for-ci-only-not-production"
         run: |
           go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 

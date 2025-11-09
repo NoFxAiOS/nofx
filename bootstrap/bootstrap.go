@@ -2,11 +2,11 @@ package bootstrap
 
 import (
 	"fmt"
+	"log"
 	"nofx/logger"
 	"sort"
 	"sync"
 	"time"
-	"log"
 )
 
 // Priority 初始化优先级常量

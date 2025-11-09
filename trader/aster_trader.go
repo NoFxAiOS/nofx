@@ -543,23 +543,23 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		entryPriceStr, ok := pos["entryPrice"].(string)
 		if !ok {
-			log.Printf("  ⚠️ [%s] 无法解析 entryPrice，跳过此持仓", "Aster")
+			log.Printf("  ⚠️ [%s] Failed to parse entryPrice, skipping position", "Aster")
 			continue
 		}
 		entryPrice, err := strconv.ParseFloat(entryPriceStr, 64)
 		if err != nil {
-			log.Printf("  ⚠️ [%s] entryPrice 格式错误: %v，跳过此持仓", "Aster", err)
+			log.Printf("  ⚠️ [%s] Invalid entryPrice format: %v, skipping position", "Aster", err)
 			continue
 		}
 
 		markPriceStr, ok := pos["markPrice"].(string)
 		if !ok {
-			log.Printf("  ⚠️ [%s] 无法解析 markPrice，跳过此持仓", "Aster")
+			log.Printf("  ⚠️ [%s] Failed to parse markPrice, skipping position", "Aster")
 			continue
 		}
 		markPrice, err := strconv.ParseFloat(markPriceStr, 64)
 		if err != nil {
-			log.Printf("  ⚠️ [%s] markPrice 格式错误: %v，跳过此持仓", "Aster", err)
+			log.Printf("  ⚠️ [%s] Invalid markPrice format: %v, skipping position", "Aster", err)
 			continue
 		}
 

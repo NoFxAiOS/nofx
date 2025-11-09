@@ -377,7 +377,7 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 				pnlFieldMissing = true
 				posSymbol, ok := pos["symbol"].(string)
 				if !ok {
-					posSymbol = "未知"
+					posSymbol = "unknown"
 				}
 				log.Printf("  ⚠️ [%s] 持仓 %s 缺少未实现盈亏字段", at.name, posSymbol)
 			}
@@ -1307,13 +1307,13 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 	// 获取持仓方向和数量
 	side, ok := targetPosition["side"].(string)
 	if !ok || side == "" {
-		return fmt.Errorf("无法解析持仓方向")
+		return fmt.Errorf("failed to parse position side")
 	}
 	positionSide := strings.ToUpper(side)
 
 	positionAmt, ok := targetPosition["positionAmt"].(float64)
 	if !ok {
-		return fmt.Errorf("无法解析持仓数量")
+		return fmt.Errorf("failed to parse position amount")
 	}
 
 	// 验证新止损价格合理性
@@ -1427,13 +1427,13 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	// 获取持仓方向和数量
 	side, ok := targetPosition["side"].(string)
 	if !ok || side == "" {
-		return fmt.Errorf("无法解析持仓方向")
+		return fmt.Errorf("failed to parse position side")
 	}
 	positionSide := strings.ToUpper(side)
 
 	positionAmt, ok := targetPosition["positionAmt"].(float64)
 	if !ok {
-		return fmt.Errorf("无法解析持仓数量")
+		return fmt.Errorf("failed to parse position amount")
 	}
 
 	// 验证新止盈价格合理性
@@ -1520,13 +1520,13 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	// 获取持仓方向和数量
 	side, ok := targetPosition["side"].(string)
 	if !ok || side == "" {
-		return fmt.Errorf("无法解析持仓方向")
+		return fmt.Errorf("failed to parse position side")
 	}
 	positionSide := strings.ToUpper(side)
 
 	positionAmt, ok := targetPosition["positionAmt"].(float64)
 	if !ok {
-		return fmt.Errorf("无法解析持仓数量")
+		return fmt.Errorf("failed to parse position amount")
 	}
 
 	// 计算平仓数量
@@ -1537,7 +1537,7 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	// ✅ Layer 2: 最小仓位检查（防止产生小额剩余）
 	markPrice, ok := targetPosition["markPrice"].(float64)
 	if !ok || markPrice <= 0 {
-		return fmt.Errorf("无法解析当前价格，无法执行最小仓位检查")
+		return fmt.Errorf("failed to parse mark price, cannot perform minimum position check")
 	}
 
 	currentPositionValue := totalQuantity * markPrice

@@ -622,14 +622,6 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		liquidationPrice := pos["liquidationPrice"].(float64)
 
-		// 计算盈亏百分比
-		pnlPct := 0.0
-		if side == "long" {
-			pnlPct = ((markPrice - entryPrice) / entryPrice) * 100
-		} else {
-			pnlPct = ((entryPrice - markPrice) / entryPrice) * 100
-		}
-
 		// 计算占用保证金（估算）
 		leverage := 10 // 默认值，实际应该从持仓信息获取
 		if lev, ok := pos["leverage"].(float64); ok {
@@ -637,6 +629,9 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		}
 		marginUsed := (quantity * markPrice) / float64(leverage)
 		totalMarginUsed += marginUsed
+
+		// 计算盈亏百分比（基于保证金，考虑杠杆）
+		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
 		// 跟踪持仓首次出现时间
 		posKey := symbol + "_" + side
@@ -1382,11 +1377,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		marginUsed := (quantity * markPrice) / float64(leverage)
 
 		// 计算盈亏百分比（基于保证金）
-		// 收益率 = 未实现盈亏 / 保证金 × 100%
-		pnlPct := 0.0
-		if marginUsed > 0 {
-			pnlPct = (unrealizedPnl / marginUsed) * 100
-		}
+		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
 		result = append(result, map[string]interface{}{
 			"symbol":             symbol,
@@ -1403,6 +1394,15 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 	}
 
 	return result, nil
+}
+
+// calculatePnLPercentage 计算盈亏百分比（基于保证金，自动考虑杠杆）
+// 收益率 = 未实现盈亏 / 保证金 × 100%
+func calculatePnLPercentage(unrealizedPnl, marginUsed float64) float64 {
+	if marginUsed > 0 {
+		return (unrealizedPnl / marginUsed) * 100
+	}
+	return 0.0
 }
 
 // sortDecisionsByPriority 对决策排序：先平仓，再开仓，最后hold/wait

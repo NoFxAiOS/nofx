@@ -365,10 +365,14 @@ func buildUserPrompt(ctx *Context) string {
 		ctx.Account.MarginUsedPct,
 		ctx.Account.PositionCount))
 
+	// 收集持仓符号，用于过滤候选币种
+	positionSymbols := make(map[string]bool)
+
 	// 持仓（完整市场数据）
 	if len(ctx.Positions) > 0 {
 		sb.WriteString("## 当前持仓\n")
 		for i, pos := range ctx.Positions {
+			positionSymbols[pos.Symbol] = true
 			// 计算持仓时长
 			holdingDuration := ""
 			if pos.UpdateTime > 0 {
@@ -399,9 +403,13 @@ func buildUserPrompt(ctx *Context) string {
 	}
 
 	// 候选币种（完整市场数据）
-	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n\n", len(ctx.MarketDataMap)))
+	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n\n", len(ctx.MarketDataMap)-len(positionSymbols)))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
+		// 跳过已持仓的币种
+		if positionSymbols[coin.Symbol] {
+			continue
+		}
 		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
 		if !hasData {
 			continue
@@ -657,9 +665,27 @@ func compactArrayOpen(s string) string {
 
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+	var validationErrors []string
 	for i, decision := range decisions {
 		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
+			// 验证失败时，移除action字段并在reasoning中追加原因
+			validationErrors = append(validationErrors, fmt.Sprintf("决策 #%d: %s", i+1, err.Error()))
+
+			// 保存原始action用于记录
+			originalAction := decisions[i].Action
+
+			// 移除action字段，设置为空字符串（而不是删除字段）
+			decisions[i].Action = "wait"
+
+			// 在reasoning中追加失败原因
+			if decisions[i].Reasoning == "" {
+				decisions[i].Reasoning = fmt.Sprintf("决策无效: %s", err.Error())
+			} else {
+				decisions[i].Reasoning = fmt.Sprintf("%s | 决策无效: %s", decisions[i].Reasoning, err.Error())
+			}
+
+			// 记录日志
+			log.Printf("决策验证失败: 位置#%d, 原action: %s, 原因: %s", i+1, originalAction, err.Error())
 		}
 	}
 	return nil

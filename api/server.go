@@ -804,6 +804,13 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		return
 	}
 
+	// 重新加载系统提示词模板（确保使用最新的硬盘文件）
+	if err := decision.ReloadPromptTemplates(); err != nil {
+		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
+	} else {
+		log.Printf("✓ 已重新加载系统提示词模板")
+	}
+
 	// 启动交易员
 	go func() {
 		log.Printf("▶️  启动交易员 %s (%s)", traderID, trader.GetName())

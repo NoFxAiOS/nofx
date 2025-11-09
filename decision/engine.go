@@ -404,7 +404,7 @@ func buildUserPrompt(ctx *Context) string {
 	}
 
 	// 候选币种（完整市场数据）
-	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n\n", len(ctx.MarketDataMap)-len(positionSymbols)))
+	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n\n", len(ctx.MarketDataMap)))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
 		// 跳过已持仓的币种
@@ -667,8 +667,8 @@ func compactArrayOpen(s string) string {
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	var validationErrors []string
-	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+	for i := range decisions {
+		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 			// 验证失败时，移除action字段并在reasoning中追加原因
 			validationErrors = append(validationErrors, fmt.Sprintf("决策 #%d: %s", i+1, err.Error()))
 
@@ -686,7 +686,7 @@ func validateDecisions(decisions []Decision, accountEquity float64, btcEthLevera
 			}
 
 			// 记录日志
-			log.Printf("决策验证失败: 位置#%d, 原action: %s, 原因: %s", i+1, originalAction, err.Error())
+			log.Printf("⚠️  决策已降级为wait: 位置#%d, 原action: %s, 原因: %s", i+1, originalAction, err.Error())
 		}
 	}
 	return nil

@@ -33,9 +33,9 @@ func NewTelegramSender(botToken string, chatID int64) (*TelegramSender, error) {
 	sender := &TelegramSender{
 		bot:           bot,
 		chatID:        chatID,
-		msgChan:       make(chan string, 20),     // 固定缓冲区大小: 20
-		retryCount:    3,                         // 固定重试次数: 3
-		retryInterval: 3 * time.Second,          // 固定重试间隔: 3秒
+		msgChan:       make(chan string, 20), // 固定缓冲区大小: 20
+		retryCount:    3,                     // 固定重试次数: 3
+		retryInterval: 3 * time.Second,       // 固定重试间隔: 3秒
 		stopChan:      make(chan struct{}),
 	}
 

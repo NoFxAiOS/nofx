@@ -27,6 +27,7 @@ Thumbs.db
 *.backup
 
 # 环境变量
+config.db
 configbak.json
 
 # 决策日志

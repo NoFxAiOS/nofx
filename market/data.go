@@ -12,42 +12,42 @@ import (
 
 // Get 获取指定代币的市场数据
 func Get(symbol string) (*Data, error) {
-	var klines3m, klines4h []Kline
+	var klines15m, klines1h []Kline
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
-	// 获取3分钟K线数据 (最近10个)
-	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
+	// 获取15分钟K线数据 (最近10个)
+	klines15m, err = WSMonitorCli.GetCurrentKlines(symbol, "15m") // 多获取一些用于计算
 	if err != nil {
-		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+		return nil, fmt.Errorf("获取15分钟K线失败: %v", err)
 	}
 
-	// 获取4小时K线数据 (最近10个)
-	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // 多获取用于计算指标
+	// 获取1小时K线数据 (最近10个)
+	klines1h, err = WSMonitorCli.GetCurrentKlines(symbol, "1h") // 多获取用于计算指标
 	if err != nil {
-		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+		return nil, fmt.Errorf("获取1小时K线失败: %v", err)
 	}
 
-	// 计算当前指标 (基于3分钟最新数据)
-	currentPrice := klines3m[len(klines3m)-1].Close
-	currentEMA20 := calculateEMA(klines3m, 20)
-	currentMACD := calculateMACD(klines3m)
-	currentRSI7 := calculateRSI(klines3m, 7)
+	// 计算当前指标 (基于15分钟最新数据)
+	currentPrice := klines15m[len(klines15m)-1].Close
+	currentEMA20 := calculateEMA(klines15m, 20)
+	currentMACD := calculateMACD(klines15m)
+	currentRSI7 := calculateRSI(klines15m, 7)
 
 	// 计算价格变化百分比
-	// 1小时价格变化 = 20个3分钟K线前的价格
+	// 1小时价格变化 = 4个15分钟K线前的价格
 	priceChange1h := 0.0
-	if len(klines3m) >= 21 { // 至少需要21根K线 (当前 + 20根前)
-		price1hAgo := klines3m[len(klines3m)-21].Close
+	if len(klines15m) >= 5 { // 至少需要5根K线 (当前 + 4根前 = 60分钟)
+		price1hAgo := klines15m[len(klines15m)-5].Close
 		if price1hAgo > 0 {
 			priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
 		}
 	}
 
-	// 4小时价格变化 = 1个4小时K线前的价格
+	// 4小时价格变化 = 4个1小时K线前的价格
 	priceChange4h := 0.0
-	if len(klines4h) >= 2 {
-		price4hAgo := klines4h[len(klines4h)-2].Close
+	if len(klines1h) >= 5 { // 至少需要5根K线 (当前 + 4根前 = 4小时)
+		price4hAgo := klines1h[len(klines1h)-5].Close
 		if price4hAgo > 0 {
 			priceChange4h = ((currentPrice - price4hAgo) / price4hAgo) * 100
 		}
@@ -64,10 +64,10 @@ func Get(symbol string) (*Data, error) {
 	fundingRate, _ := getFundingRate(symbol)
 
 	// 计算日内系列数据
-	intradayData := calculateIntradaySeries(klines3m)
+	intradayData := calculateIntradaySeries(klines15m)
 
 	// 计算长期数据
-	longerTermData := calculateLongerTermData(klines4h)
+	longerTermData := calculateLongerTermData(klines1h)
 
 	return &Data{
 		Symbol:            symbol,

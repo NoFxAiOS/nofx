@@ -359,8 +359,28 @@ func main() {
 	<-sigChan
 	fmt.Println()
 	fmt.Println()
-	log.Println("📛 收到退出信号，正在停止所有trader...")
+	log.Println("📛 收到退出信号，正在优雅关闭...")
+
+	// 步骤 1: 停止所有交易员
+	log.Println("⏸️  停止所有交易员...")
 	traderManager.StopAll()
+	log.Println("✅ 所有交易员已停止")
+
+	// 步骤 2: 关闭 API 服务器
+	log.Println("🛑 停止 API 服务器...")
+	if err := apiServer.Shutdown(); err != nil {
+		log.Printf("⚠️  关闭 API 服务器时出错: %v", err)
+	} else {
+		log.Println("✅ API 服务器已安全关闭")
+	}
+
+	// 步骤 3: 关闭数据库连接 (确保所有写入完成)
+	log.Println("💾 关闭数据库连接...")
+	if err := database.Close(); err != nil {
+		log.Printf("❌ 关闭数据库失败: %v", err)
+	} else {
+		log.Println("✅ 数据库已安全关闭，所有数据已持久化")
+	}
 
 	fmt.Println()
 	fmt.Println("👋 感谢使用AI交易系统！")

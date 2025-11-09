@@ -808,15 +808,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	}
 
 	// 重新加载系统提示词模板（确保使用最新的硬盘文件）
-	if err := decision.ReloadPromptTemplates(); err != nil {
-		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
-	} else {
-		if templateName == "" {
-			log.Printf("✓ 已重新加载系统提示词模板 [当前使用: default (未指定，使用默认)]")
-		} else {
-			log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
-		}
-	}
+	s.reloadPromptTemplatesWithLog(templateName)
 
 	// 启动交易员
 	go func() {
@@ -2310,4 +2302,18 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// reloadPromptTemplatesWithLog 重新加载提示词模板并记录日志
+func (s *Server) reloadPromptTemplatesWithLog(templateName string) {
+	if err := decision.ReloadPromptTemplates(); err != nil {
+		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
+		return
+	}
+
+	if templateName == "" {
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: default (未指定，使用默认)]")
+	} else {
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
+	}
 }

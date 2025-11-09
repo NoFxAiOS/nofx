@@ -1181,7 +1181,11 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	actionRecord.Quantity = closeQuantity
 
 	// ✅ Layer 2: 最小仓位检查（防止产生小额剩余）
-	markPrice, _ := targetPosition["markPrice"].(float64)
+	markPrice, ok := targetPosition["markPrice"].(float64)
+	if !ok || markPrice <= 0 {
+		return fmt.Errorf("无法解析当前价格，无法执行最小仓位检查")
+	}
+
 	currentPositionValue := totalQuantity * markPrice
 	remainingQuantity := totalQuantity - closeQuantity
 	remainingValue := remainingQuantity * markPrice

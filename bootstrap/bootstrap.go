@@ -6,6 +6,7 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"log"
 )
 
 // Priority 初始化优先级常量
@@ -68,7 +69,7 @@ func RunWithPolicy(ctx *Context, defaultPolicy ErrorPolicy) error {
 	hooksMu.Unlock()
 
 	if len(hooksCopy) == 0 {
-		logger.Log.Warnf("⚠️  没有注册任何初始化钩子")
+		log.Printf("⚠️  没有注册任何初始化钩子")
 		return nil
 	}
 
@@ -77,7 +78,7 @@ func RunWithPolicy(ctx *Context, defaultPolicy ErrorPolicy) error {
 		return hooksCopy[i].Priority < hooksCopy[j].Priority
 	})
 
-	logger.Log.Infof("🔄 开始初始化 %d 个模块...", len(hooksCopy))
+	log.Printf("🔄 开始初始化 %d 个模块...", len(hooksCopy))
 	startTime := time.Now()
 
 	var errors []error
@@ -87,13 +88,13 @@ func RunWithPolicy(ctx *Context, defaultPolicy ErrorPolicy) error {
 	for i, hook := range hooksCopy {
 		// 检查是否启用
 		if hook.Enabled != nil && !hook.Enabled(ctx) {
-			logger.Log.Infof("  [%d/%d] 跳过: %s (条件未满足)",
+			log.Printf("  [%d/%d] 跳过: %s (条件未满足)",
 				i+1, len(hooksCopy), hook.Name)
 			skippedCount++
 			continue
 		}
 
-		logger.Log.Infof("  [%d/%d] 初始化: %s (优先级: %d)",
+		log.Printf("  [%d/%d] 初始化: %s (优先级: %d)",
 			i+1, len(hooksCopy), hook.Name, hook.Priority)
 
 		hookStart := time.Now()
@@ -111,16 +112,16 @@ func RunWithPolicy(ctx *Context, defaultPolicy ErrorPolicy) error {
 
 			switch policy {
 			case FailFast:
-				logger.Log.Errorf("  ❌ 失败: %s (耗时: %v)", hook.Name, elapsed)
+				log.Printf("  ❌ 失败: %s (耗时: %v)", hook.Name, elapsed)
 				return errMsg
 			case ContinueOnError:
-				logger.Log.Errorf("  ❌ 失败: %s (耗时: %v) - 继续执行", hook.Name, elapsed)
+				log.Printf("  ❌ 失败: %s (耗时: %v) - 继续执行", hook.Name, elapsed)
 				errors = append(errors, errMsg)
 			case WarnOnError:
-				logger.Log.Warnf("  ⚠️  警告: %s (耗时: %v) - %v", hook.Name, elapsed, err)
+				log.Printf("  ⚠️  警告: %s (耗时: %v) - %v", hook.Name, elapsed, err)
 			}
 		} else {
-			logger.Log.Infof("  ✓ 完成: %s (耗时: %v)", hook.Name, elapsed)
+			log.Printf("  ✓ 完成: %s (耗时: %v)", hook.Name, elapsed)
 			successCount++
 		}
 	}
@@ -131,15 +132,15 @@ func RunWithPolicy(ctx *Context, defaultPolicy ErrorPolicy) error {
 	if len(errors) > 0 {
 		logger.Log.Warnf("⚠️  初始化完成，但有 %d 个模块失败 (总耗时: %v)",
 			len(errors), totalElapsed)
-		logger.Log.Infof("📊 统计: 成功=%d, 失败=%d, 跳过=%d",
+		log.Printf("📊 统计: 成功=%d, 失败=%d, 跳过=%d",
 			successCount, len(errors), skippedCount)
 
 		// 返回合并的错误
 		return fmt.Errorf("以下模块初始化失败: %v", errors)
 	}
 
-	logger.Log.Infof("✅ 所有模块初始化完成 (总耗时: %v)", totalElapsed)
-	logger.Log.Infof("📊 统计: 成功=%d, 跳过=%d", successCount, skippedCount)
+	log.Printf("✅ 所有模块初始化完成 (总耗时: %v)", totalElapsed)
+	log.Printf("📊 统计: 成功=%d, 跳过=%d", successCount, skippedCount)
 	return nil
 }
 

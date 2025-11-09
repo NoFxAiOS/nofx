@@ -22,6 +22,7 @@
     "lucide-react": "^0.552.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-password-checklist": "^1.8.1",
     "recharts": "^2.15.2",
     "swr": "^2.2.5",
     "tailwind-merge": "^3.3.1",

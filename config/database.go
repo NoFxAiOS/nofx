@@ -754,20 +754,52 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 }
 
 // UpdateExchange 更新交易所配置，如果不存在则创建用户特定配置
+// 🔒 安全特性：空值不会覆盖现有的敏感字段（api_key, secret_key, aster_private_key）
 func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	log.Printf("🔧 UpdateExchange: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
-	// 加密敏感字段
-	encryptedAPIKey := d.encryptSensitiveData(apiKey)
-	encryptedSecretKey := d.encryptSensitiveData(secretKey)
-	encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
+	// 构建动态 UPDATE SET 子句
+	// 基础字段：总是更新
+	setClauses := []string{
+		"enabled = ?",
+		"testnet = ?",
+		"hyperliquid_wallet_addr = ?",
+		"aster_user = ?",
+		"aster_signer = ?",
+		"updated_at = datetime('now')",
+	}
+	args := []interface{}{enabled, testnet, hyperliquidWalletAddr, asterUser, asterSigner}
 
-	// 首先尝试更新现有的用户配置
-	result, err := d.db.Exec(`
-		UPDATE exchanges SET enabled = ?, api_key = ?, secret_key = ?, testnet = ?, 
-		       hyperliquid_wallet_addr = ?, aster_user = ?, aster_signer = ?, aster_private_key = ?, updated_at = datetime('now')
+	// 🔒 敏感字段：只在非空时更新（保护现有数据）
+	if apiKey != "" {
+		encryptedAPIKey := d.encryptSensitiveData(apiKey)
+		setClauses = append(setClauses, "api_key = ?")
+		args = append(args, encryptedAPIKey)
+	}
+
+	if secretKey != "" {
+		encryptedSecretKey := d.encryptSensitiveData(secretKey)
+		setClauses = append(setClauses, "secret_key = ?")
+		args = append(args, encryptedSecretKey)
+	}
+
+	if asterPrivateKey != "" {
+		encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
+		setClauses = append(setClauses, "aster_private_key = ?")
+		args = append(args, encryptedAsterPrivateKey)
+	}
+
+	// WHERE 条件
+	args = append(args, id, userID)
+
+	// 构建完整的 UPDATE 语句
+	query := fmt.Sprintf(`
+		UPDATE exchanges SET %s
 		WHERE id = ? AND user_id = ?
-	`, enabled, encryptedAPIKey, encryptedSecretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, encryptedAsterPrivateKey, id, userID)
+	`, strings.Join(setClauses, ", "))
+
+	// 执行更新
+	result, err := d.db.Exec(query, args...)
 	if err != nil {
 		log.Printf("❌ UpdateExchange: 更新失败: %v", err)
 		return err
@@ -806,7 +838,7 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 
 		// 创建用户特定的配置，使用原始的交易所ID
 		_, err = d.db.Exec(`
-			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, 
+			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet,
 			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
 		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
@@ -986,6 +1018,12 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 	if err != nil {
 		return nil, nil, nil, err
 	}
+
+	// 解密敏感数据
+	aiModel.APIKey = d.decryptSensitiveData(aiModel.APIKey)
+	exchange.APIKey = d.decryptSensitiveData(exchange.APIKey)
+	exchange.SecretKey = d.decryptSensitiveData(exchange.SecretKey)
+	exchange.AsterPrivateKey = d.decryptSensitiveData(exchange.AsterPrivateKey)
 
 	return &trader, &aiModel, &exchange, nil
 }

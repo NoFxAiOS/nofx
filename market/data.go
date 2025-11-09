@@ -5,9 +5,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
-	"net/http"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+)
+
+// FundingRateCache 资金费率缓存结构
+// Binance Funding Rate 每 8 小时才更新一次，使用 1 小时缓存可显著减少 API 调用
+type FundingRateCache struct {
+	Rate      float64
+	UpdatedAt time.Time
+}
+
+var (
+	fundingRateMap sync.Map // map[string]*FundingRateCache
+	frCacheTTL     = 1 * time.Hour
 )
 
 // Get 获取指定代币的市场数据
@@ -26,6 +39,14 @@ func Get(symbol string) (*Data, error) {
 	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // 多获取用于计算指标
 	if err != nil {
 		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+	}
+
+	// 检查数据是否为空
+	if len(klines3m) == 0 {
+		return nil, fmt.Errorf("3分钟K线数据为空")
+	}
+	if len(klines4h) == 0 {
+		return nil, fmt.Errorf("4小时K线数据为空")
 	}
 
 	// 计算当前指标 (基于3分钟最新数据)
@@ -293,7 +314,8 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 func getOpenInterestData(symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
-	resp, err := http.Get(url)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -322,11 +344,23 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 	}, nil
 }
 
-// getFundingRate 获取资金费率
+// getFundingRate 获取资金费率（优化：使用 1 小时缓存）
 func getFundingRate(symbol string) (float64, error) {
+	// 检查缓存（有效期 1 小时）
+	// Funding Rate 每 8 小时才更新，1 小时缓存非常合理
+	if cached, ok := fundingRateMap.Load(symbol); ok {
+		cache := cached.(*FundingRateCache)
+		if time.Since(cache.UpdatedAt) < frCacheTTL {
+			// 缓存命中，直接返回
+			return cache.Rate, nil
+		}
+	}
+
+	// 缓存过期或不存在，调用 API
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
 
-	resp, err := http.Get(url)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
 	if err != nil {
 		return 0, err
 	}
@@ -352,6 +386,13 @@ func getFundingRate(symbol string) (float64, error) {
 	}
 
 	rate, _ := strconv.ParseFloat(result.LastFundingRate, 64)
+
+	// 更新缓存
+	fundingRateMap.Store(symbol, &FundingRateCache{
+		Rate:      rate,
+		UpdatedAt: time.Now(),
+	})
+
 	return rate, nil
 }
 

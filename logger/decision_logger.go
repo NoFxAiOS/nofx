@@ -73,9 +73,14 @@ func NewDecisionLogger(logDir string) *DecisionLogger {
 		logDir = "decision_logs"
 	}
 
-	// 确保日志目录存在
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	// 确保日志目录存在（使用安全权限：只有所有者可访问）
+	if err := os.MkdirAll(logDir, 0700); err != nil {
 		fmt.Printf("⚠ 创建日志目录失败: %v\n", err)
+	}
+
+	// 强制设置目录权限（即使目录已存在）- 确保安全
+	if err := os.Chmod(logDir, 0700); err != nil {
+		fmt.Printf("⚠ 设置日志目录权限失败: %v\n", err)
 	}
 
 	return &DecisionLogger{
@@ -103,8 +108,8 @@ func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 		return fmt.Errorf("序列化决策记录失败: %w", err)
 	}
 
-	// 写入文件
-	if err := ioutil.WriteFile(filepath, data, 0644); err != nil {
+	// 写入文件（使用安全权限：只有所有者可读写）
+	if err := ioutil.WriteFile(filepath, data, 0600); err != nil {
 		return fmt.Errorf("写入决策记录失败: %w", err)
 	}
 

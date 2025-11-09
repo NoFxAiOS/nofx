@@ -1019,6 +1019,12 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 		return nil, nil, nil, err
 	}
 
+	// 解密敏感数据
+	aiModel.APIKey = d.decryptSensitiveData(aiModel.APIKey)
+	exchange.APIKey = d.decryptSensitiveData(exchange.APIKey)
+	exchange.SecretKey = d.decryptSensitiveData(exchange.SecretKey)
+	exchange.AsterPrivateKey = d.decryptSensitiveData(exchange.AsterPrivateKey)
+
 	return &trader, &aiModel, &exchange, nil
 }
 

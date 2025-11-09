@@ -114,7 +114,6 @@ check_encryption() {
             echo ""
 
             # 自动运行加密设置脚本
-            # Y: 继续设置加密环境 | n: 保持现有RSA密钥 | n: 保持现有密钥配置
             echo -e "Y\nn\nn" | bash scripts/setup_encryption.sh
             if [ $? -eq 0 ]; then
                 echo ""

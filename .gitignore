@@ -5,6 +5,7 @@
 
 # AI 工具
 .claude/
+CLAUDE.md
 
 # 编译产物
 nofx-auto
@@ -29,7 +30,8 @@ Thumbs.db
 # 环境变量
 .env
 config.json
-config.db
+config.db*
+nofx.db
 configbak.json
 
 # 决策日志

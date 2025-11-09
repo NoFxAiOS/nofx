@@ -241,7 +241,7 @@ func (at *AutoTrader) Run() error {
 	at.isRunning = true
 	at.stopMonitorCh = make(chan struct{})
 	at.startTime = time.Now()
-	
+
 	log.Println("🚀 AI驱动自动交易系统启动")
 	log.Printf("💰 初始余额: %.2f USDT", at.initialBalance)
 	log.Printf("⚙️  扫描间隔: %v", at.config.ScanInterval)

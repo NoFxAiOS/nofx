@@ -87,7 +87,8 @@ type AutoTrader struct {
 	trader                Trader // 使用Trader接口（支持多平台）
 	mcpClient             *mcp.Client
 	decisionLogger        *logger.DecisionLogger // 决策日志记录器
-	initialBalance        float64
+	initialBalance        float64                //原始初始金额（用户创建时设置，永远不改变）
+	currentBalance        float64                //当前余额（交易所实时余额，可以更新）
 	dailyPnL              float64
 	customPrompt          string   // 自定义交易策略prompt
 	overrideBasePrompt    bool     // 是否覆盖基础prompt
@@ -217,7 +218,8 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		trader:                trader,
 		mcpClient:             mcpClient,
 		decisionLogger:        decisionLogger,
-		initialBalance:        config.InitialBalance,
+		initialBalance:        config.InitialBalance, // 原始初始金额（永不改变）
+		currentBalance:        config.InitialBalance, // 初始化当前余额（后续会更新）
 		systemPromptTemplate:  systemPromptTemplate,
 		defaultCoins:          config.DefaultCoins,
 		tradingCoins:          config.TradingCoins,
@@ -279,13 +281,14 @@ func (at *AutoTrader) Stop() {
 }
 
 // autoSyncBalanceIfNeeded 自动同步余额（每10分钟检查一次，变化>5%才更新）
+// ✅ 注意：只更新 currentBalance，永远不改变 initialBalance
 func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 	// 距离上次同步不足10分钟，跳过
 	if time.Since(at.lastBalanceSyncTime) < 10*time.Minute {
 		return
 	}
 
-	log.Printf("🔄 [%s] 开始自动检查余额变化...", at.name)
+	log.Printf("🔄 [%s] 开始自动检查余额变化... (初始: %.2f, 当前: %.2f)", at.name, at.initialBalance, at.currentBalance)
 
 	// 查询实际余额
 	balanceInfo, err := at.trader.GetBalance()
@@ -309,63 +312,38 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 		return
 	}
 
-	oldBalance := at.initialBalance
+	oldCurrentBalance := at.currentBalance
+	oldInitialBalance := at.initialBalance
 
-	// 防止除以零：如果初始余额无效，直接更新为实际余额
-	if oldBalance <= 0 {
-		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，直接更新为实际余额 %.2f USDT", at.name, oldBalance, actualBalance)
+	// 防止除以零：如果初始余额无效，使用当前余额初始化
+	if oldInitialBalance <= 0 {
+		log.Printf("⚠️ [%s] 初始余额无效 (%.2f)，使用当前查询的余额初始化: %.2f USDT",
+			at.name, oldInitialBalance, actualBalance)
 		at.initialBalance = actualBalance
-		if at.database != nil {
-			type DatabaseUpdater interface {
-				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
-			}
-			if db, ok := at.database.(DatabaseUpdater); ok {
-				if err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance); err != nil {
-					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
-				} else {
-					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
-				}
-			} else {
-				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
-			}
-		} else {
-			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
-		}
+		at.currentBalance = actualBalance
 		at.lastBalanceSyncTime = time.Now()
 		return
 	}
 
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// ✅ 关键修改：计算变化是基于 currentBalance，不是 initialBalance
+	changePercent := ((actualBalance - oldCurrentBalance) / oldCurrentBalance) * 100
 
-	// 变化超过5%才更新
+	// 变化超过5%才更新 currentBalance
 	if math.Abs(changePercent) > 5.0 {
 		log.Printf("🔔 [%s] 检测到余额大幅变化: %.2f → %.2f USDT (%.2f%%)",
-			at.name, oldBalance, actualBalance, changePercent)
+			at.name, oldCurrentBalance, actualBalance, changePercent)
 
-		// 更新内存中的 initialBalance
-		at.initialBalance = actualBalance
+		// ✅ 关键修改：只更新 currentBalance，永远不改 initialBalance
+		at.currentBalance = actualBalance
 
-		// 更新数据库（需要类型断言）
-		if at.database != nil {
-			// 这里需要根据实际的数据库类型进行类型断言
-			// 由于使用了 interface{}，我们需要在 TraderManager 层面处理更新
-			// 或者在这里进行类型检查
-			type DatabaseUpdater interface {
-				UpdateTraderInitialBalance(userID, id string, newBalance float64) error
-			}
-			if db, ok := at.database.(DatabaseUpdater); ok {
-				err := db.UpdateTraderInitialBalance(at.userID, at.id, actualBalance)
-				if err != nil {
-					log.Printf("❌ [%s] 更新数据库失败: %v", at.name, err)
-				} else {
-					log.Printf("✅ [%s] 已自动同步余额到数据库", at.name)
-				}
-			} else {
-				log.Printf("⚠️ [%s] 数据库类型不支持UpdateTraderInitialBalance接口", at.name)
-			}
-		} else {
-			log.Printf("⚠️ [%s] 数据库引用为空，余额仅在内存中更新", at.name)
-		}
+		// 计算总收益（基于 initialBalance）
+		totalPnL := actualBalance - oldInitialBalance
+		totalPnLPercent := (totalPnL / oldInitialBalance) * 100
+		log.Printf("  💰 总收益: %.2f USDT (%.2f%%) | 初始: %.2f USDT",
+			totalPnL, totalPnLPercent, oldInitialBalance)
+
+		// ⚠️ 暂时不更新数据库（等待完整的数据库迁移方案）
+		log.Printf("  ℹ️ 内存已更新，数据库更新需要等待完整方案实施")
 	} else {
 		log.Printf("✓ [%s] 余额变化不大 (%.2f%%)，无需更新", at.name, changePercent)
 	}

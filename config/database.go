@@ -65,6 +65,24 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
+	// 🔒 启用 WAL 模式,提高并发性能和崩溃恢复能力
+	// WAL (Write-Ahead Logging) 模式的优势:
+	// 1. 更好的并发性能:读操作不会被写操作阻塞
+	// 2. 崩溃安全:即使在断电或强制终止时也能保证数据完整性
+	// 3. 更快的写入:不需要每次都写入主数据库文件
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("启用WAL模式失败: %w", err)
+	}
+
+	// 🔒 设置 synchronous=FULL 确保数据持久性
+	// FULL (2) 模式: 确保数据在关键时刻完全写入磁盘
+	// 配合 WAL 模式,在保证数据安全的同时获得良好性能
+	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("设置synchronous失败: %w", err)
+	}
+
 	database := &Database{db: db}
 	if err := database.createTables(); err != nil {
 		return nil, fmt.Errorf("创建表失败: %w", err)
@@ -74,6 +92,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}
 
+	log.Printf("✅ 数据库已启用 WAL 模式和 FULL 同步,数据持久性得到保证")
 	return database, nil
 }
 

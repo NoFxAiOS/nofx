@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
-	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -315,7 +314,8 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 func getOpenInterestData(symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
-	resp, err := http.Get(url)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,8 @@ func getFundingRate(symbol string) (float64, error) {
 	// 缓存过期或不存在，调用 API
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
 
-	resp, err := http.Get(url)
+	apiClient := NewAPIClient()
+	resp, err := apiClient.client.Get(url)
 	if err != nil {
 		return 0, err
 	}

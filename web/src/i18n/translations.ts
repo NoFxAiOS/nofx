@@ -146,6 +146,10 @@ export const translations = {
     currentTraders: 'Current Traders',
     noTraders: 'No AI Traders',
     createFirstTrader: 'Create your first AI trader to get started',
+    dashboardEmptyTitle: 'No Traders Configured',
+    dashboardEmptyDescription:
+      "You haven't created any AI traders yet. Create your first trader to start automated trading.",
+    goToTradersPage: 'Go to Traders Page',
     configureModelsFirst: 'Please configure AI models first',
     configureExchangesFirst: 'Please configure exchanges first',
     configureModelsAndExchangesFirst:
@@ -915,6 +919,10 @@ export const translations = {
     currentTraders: '当前交易员',
     noTraders: '暂无AI交易员',
     createFirstTrader: '创建您的第一个AI交易员开始使用',
+    dashboardEmptyTitle: '暂无交易员',
+    dashboardEmptyDescription:
+      '您还未创建任何AI交易员，创建您的第一个交易员以开始自动化交易。',
+    goToTradersPage: '前往交易员页面',
     configureModelsFirst: '请先配置AI模型',
     configureExchangesFirst: '请先配置交易所',
     configureModelsAndExchangesFirst: '请先配置AI模型和交易所',

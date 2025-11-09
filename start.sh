@@ -102,49 +102,35 @@ check_encryption() {
         need_setup=true
     fi
     
-    # 如果需要设置加密环境
+    # 如果需要设置加密环境，直接自动设置
     if [ "$need_setup" = "true" ]; then
-        print_info "🔐 需要设置加密环境"
+        print_info "🔐 检测到加密环境未配置，正在自动设置..."
         print_info "加密环境用于保护敏感数据（API密钥、私钥等）"
         echo ""
-        
-        # 询问用户是否自动设置
-        read -p "是否自动设置加密环境？[Y/n]: " auto_setup
-        auto_setup=${auto_setup:-Y}
-        
-        if [[ "$auto_setup" =~ ^[Yy]$ ]]; then
-            print_info "正在设置加密环境..."
-            
-            # 检查加密设置脚本是否存在
-            if [ -f "scripts/setup_encryption.sh" ]; then
-                print_info "正在自动设置加密环境..."
-                print_info "加密系统将保护: API密钥、私钥、Hyperliquid代理钱包"
+
+        # 检查加密设置脚本是否存在
+        if [ -f "scripts/setup_encryption.sh" ]; then
+            print_info "加密系统将保护: API密钥、私钥、Hyperliquid代理钱包"
+            echo ""
+
+            # 自动运行加密设置脚本
+            echo -e "Y\nn\nn" | bash scripts/setup_encryption.sh
+            if [ $? -eq 0 ]; then
                 echo ""
-                
-                # 自动运行加密设置脚本
-                # Y: 继续设置加密环境 | n: 保持现有RSA密钥 | n: 保持现有密钥配置
-                echo -e "Y\nn\nn" | bash scripts/setup_encryption.sh
-                if [ $? -eq 0 ]; then
-                    echo ""
-                    print_success "🔐 加密环境设置完成！"
-                    print_info "  • RSA-2048密钥对已生成"
-                    print_info "  • AES-256数据加密密钥已配置"
-                    print_info "  • JWT认证密钥已配置"
-                    print_info "  • 所有敏感数据现在都受加密保护"
-                    echo ""
-                else
-                    print_error "加密环境设置失败"
-                    exit 1
-                fi
+                print_success "🔐 加密环境设置完成！"
+                print_info "  • RSA-2048密钥对已生成"
+                print_info "  • AES-256数据加密密钥已配置"
+                print_info "  • JWT认证密钥已配置"
+                print_info "  • 所有敏感数据现在都受加密保护"
+                echo ""
             else
-                print_error "加密设置脚本不存在: scripts/setup_encryption.sh"
-                print_info "请手动运行: ./scripts/setup_encryption.sh"
+                print_error "加密环境设置失败"
                 exit 1
             fi
         else
-            print_warning "跳过加密环境设置"
-            print_info "手动设置命令: ./scripts/setup_encryption.sh"
-            print_info "系统将使用未加密模式运行（不推荐）"
+            print_error "加密设置脚本不存在: scripts/setup_encryption.sh"
+            print_info "请手动运行: ./scripts/setup_encryption.sh"
+            exit 1
         fi
     else
         print_success "🔐 加密环境已配置"

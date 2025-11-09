@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getSystemConfig } from '../lib/config'
+import { reset401Flag } from '../lib/httpClient'
 
 interface User {
   id: string
@@ -58,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Reset 401 flag on page load to allow fresh 401 handling
+    reset401Flag()
+
     // 先检查是否为管理员模式（使用带缓存的系统配置获取）
     getSystemConfig()
       .then(() => {
@@ -83,6 +87,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         setIsLoading(false)
       })
+  }, [])
+
+  // Listen for unauthorized events from httpClient (401 responses)
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      console.log('Unauthorized event received - clearing auth state')
+      // Clear auth state when 401 is detected
+      setUser(null)
+      setToken(null)
+      // Note: localStorage cleanup is already done in httpClient
+    }
+
+    window.addEventListener('unauthorized', handleUnauthorized)
+
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized)
+    }
   }, [])
 
   const login = async (email: string, password: string) => {
@@ -125,6 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       const data = await response.json()
       if (response.ok) {
+        // Reset 401 flag on successful login
+        reset401Flag()
+
         const userInfo = {
           id: data.user_id || 'admin',
           email: data.email || 'admin@localhost',
@@ -133,9 +157,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userInfo)
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
-        // 跳转到仪表盘
-        window.history.pushState({}, '', '/dashboard')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到仪表盘
+          window.history.pushState({}, '', '/dashboard')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
         return { success: true }
       } else {
         return { success: false, message: data.error || '登录失败' }
@@ -199,6 +232,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
+        // Reset 401 flag on successful login
+        reset401Flag()
+
         // 登录成功，保存token和用户信息
         const userInfo = { id: data.user_id, email: data.email }
         setToken(data.token)
@@ -206,9 +242,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
 
-        // 跳转到配置页面
-        window.history.pushState({}, '', '/traders')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到配置页面
+          window.history.pushState({}, '', '/traders')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
 
         return { success: true, message: data.message }
       } else {
@@ -232,6 +276,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
+        // Reset 401 flag on successful login
+        reset401Flag()
+
         // 注册完成，自动登录
         const userInfo = { id: data.user_id, email: data.email }
         setToken(data.token)
@@ -239,9 +286,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
 
-        // 跳转到配置页面
-        window.history.pushState({}, '', '/traders')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到配置页面
+          window.history.pushState({}, '', '/traders')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
 
         return { success: true, message: data.message }
       } else {

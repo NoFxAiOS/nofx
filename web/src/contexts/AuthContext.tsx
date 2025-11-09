@@ -157,9 +157,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userInfo)
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
-        // 跳转到仪表盘
-        window.history.pushState({}, '', '/dashboard')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到仪表盘
+          window.history.pushState({}, '', '/dashboard')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
         return { success: true }
       } else {
         return { success: false, message: data.error || '登录失败' }
@@ -233,9 +242,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
 
-        // 跳转到配置页面
-        window.history.pushState({}, '', '/traders')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到配置页面
+          window.history.pushState({}, '', '/traders')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
 
         return { success: true, message: data.message }
       } else {
@@ -269,9 +286,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('auth_token', data.token)
         localStorage.setItem('auth_user', JSON.stringify(userInfo))
 
-        // 跳转到配置页面
-        window.history.pushState({}, '', '/traders')
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到配置页面
+          window.history.pushState({}, '', '/traders')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
 
         return { success: true, message: data.message }
       } else {

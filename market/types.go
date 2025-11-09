@@ -13,18 +13,47 @@ type Data struct {
 	CurrentRSI7       float64
 	OpenInterest      *OIData
 	FundingRate       float64
-	IntradaySeries    *IntradayData
-	LongerTermContext *LongerTermData
+	IntradaySeries    *IntradayData   // 3分钟数据 - 实时价格
+	MidTermSeries15m  *MidTermData15m // 15分钟数据 - 短期趋势
+	MidTermSeries1h   *MidTermData1h  // 1小时数据 - 中期趋势
+	LongerTermContext *LongerTermData // 4小时数据 - 长期趋势
 }
 
 // OIData Open Interest数据
 type OIData struct {
-	Latest  float64
-	Average float64
+	Latest       float64      // 当前持仓量
+	Average      float64      // 平均持仓量
+	Change4h     float64      // 4小时变化率（百分比），P0修复：用于AI验证"近4小时上升>+3%"
+	ActualPeriod string       // P0修复：实际使用的时间段（例如 "4h", "2.5h", "N/A"）
+	Historical   []OISnapshot // 历史数据（用于计算变化率）
 }
 
-// IntradayData 日内数据(3分钟间隔)
+// OISnapshot OI历史快照
+type OISnapshot struct {
+	Value     float64   // OI值
+	Timestamp time.Time // 时间戳
+}
+
+// IntradayData 日内数据(3分钟间隔) - 主要用于获取实时价格
 type IntradayData struct {
+	MidPrices   []float64
+	EMA20Values []float64
+	MACDValues  []float64
+	RSI7Values  []float64
+	RSI14Values []float64
+}
+
+// MidTermData15m 15分钟时间框架数据 - 短期趋势过滤
+type MidTermData15m struct {
+	MidPrices   []float64
+	EMA20Values []float64
+	MACDValues  []float64
+	RSI7Values  []float64
+	RSI14Values []float64
+}
+
+// MidTermData1h 1小时时间框架数据 - 中期趋势确认
+type MidTermData1h struct {
 	MidPrices   []float64
 	EMA20Values []float64
 	MACDValues  []float64

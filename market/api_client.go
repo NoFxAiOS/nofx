@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"nofx/hook"
 	"strconv"
 	"time"
 )
@@ -20,18 +19,10 @@ type APIClient struct {
 }
 
 func NewAPIClient() *APIClient {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	hookRes := hook.HookExec[hook.SetHttpClientResult](hook.SET_HTTP_CLIENT, client)
-	if hookRes != nil && hookRes.Error() == nil {
-		log.Printf("使用Hook设置的HTTP客户端")
-		client = hookRes.GetResult()
-	}
-
 	return &APIClient{
-		client: client,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -83,7 +74,6 @@ func (c *APIClient) GetKlines(symbol, interval string, limit int) ([]Kline, erro
 	var klineResponses []KlineResponse
 	err = json.Unmarshal(body, &klineResponses)
 	if err != nil {
-		log.Printf("获取K线数据失败,响应内容: %s", string(body))
 		return nil, err
 	}
 
@@ -157,4 +147,89 @@ func (c *APIClient) GetCurrentPrice(symbol string) (float64, error) {
 	}
 
 	return price, nil
+}
+
+// GetOpenInterest 获取持仓量（P0修复：用于OI历史数据采集）
+func (c *APIClient) GetOpenInterest(symbol string) (*OIData, error) {
+	url := fmt.Sprintf("%s/fapi/v1/openInterest?symbol=%s", baseURL, symbol)
+
+	resp, err := c.client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		OpenInterest string `json:"openInterest"`
+		Symbol       string `json:"symbol"`
+		Time         int64  `json:"time"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+
+	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
+
+	return &OIData{
+		Latest:       oi,
+		Average:      oi * 0.999, // 近似平均值
+		ActualPeriod: "snapshot", // 標記為快照數據，非計算值
+	}, nil
+}
+
+// GetOpenInterestHistory 获取历史OI数据（用于启动时回填）
+// period: "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"
+// limit: 默认30，最大500（我们需要20个15分钟数据点 = 5小时）
+func (c *APIClient) GetOpenInterestHistory(symbol string, period string, limit int) ([]OISnapshot, error) {
+	url := fmt.Sprintf("%s/futures/data/openInterestHist", baseURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Add("symbol", symbol)
+	q.Add("period", period)
+	q.Add("limit", strconv.Itoa(limit))
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var histData []struct {
+		Symbol               string `json:"symbol"`
+		SumOpenInterest      string `json:"sumOpenInterest"`
+		SumOpenInterestValue string `json:"sumOpenInterestValue"`
+		Timestamp            int64  `json:"timestamp"`
+	}
+
+	if err := json.Unmarshal(body, &histData); err != nil {
+		return nil, err
+	}
+
+	// 转换为 OISnapshot 格式
+	snapshots := make([]OISnapshot, 0, len(histData))
+	for _, item := range histData {
+		oi, _ := strconv.ParseFloat(item.SumOpenInterest, 64)
+		snapshots = append(snapshots, OISnapshot{
+			Value:     oi,
+			Timestamp: time.Unix(item.Timestamp/1000, 0), // Binance返回毫秒时间戳
+		})
+	}
+
+	return snapshots, nil
 }

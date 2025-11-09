@@ -647,6 +647,11 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		}
 		updateTime := at.positionFirstSeenTime[posKey]
 
+		// 获取该持仓的历史最高收益率
+		at.peakPnLCacheMutex.RLock()
+		peakPnlPct := at.peakPnLCache[symbol]
+		at.peakPnLCacheMutex.RUnlock()
+
 		positionInfos = append(positionInfos, decision.PositionInfo{
 			Symbol:           symbol,
 			Side:             side,
@@ -656,6 +661,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			Leverage:         leverage,
 			UnrealizedPnL:    unrealizedPnl,
 			UnrealizedPnLPct: pnlPct,
+			PeakPnLPct:       peakPnlPct,
 			LiquidationPrice: liquidationPrice,
 			MarginUsed:       marginUsed,
 			UpdateTime:       updateTime,

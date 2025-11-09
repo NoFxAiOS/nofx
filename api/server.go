@@ -344,82 +344,99 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3 // 默认3分钟
 	}
 
-	// ✨ 查询交易所实际余额，覆盖用户输入
+	// ✅ 修复 #787, #807: 只在用户未指定初始余额时才查询交易所
+	// 尊重用户输入，允许用户自定义初始余额用于不同的测试场景
 	actualBalance := req.InitialBalance // 默认使用用户输入
-	exchanges, err := s.database.GetExchanges(userID)
-	if err != nil {
-		log.Printf("⚠️ 获取交易所配置失败，使用用户输入的初始资金: %v", err)
-	}
 
-	// 查找匹配的交易所配置
-	var exchangeCfg *config.ExchangeConfig
-	for _, ex := range exchanges {
-		if ex.ID == req.ExchangeID {
-			exchangeCfg = ex
-			break
-		}
-	}
+	// 只在用户未指定初始余额（<= 0）时才自动查询交易所
+	if actualBalance <= 0 {
+		log.Printf("ℹ️ 用户未指定初始余额，尝试从交易所自动获取...")
 
-	if exchangeCfg == nil {
-		log.Printf("⚠️ 未找到交易所 %s 的配置，使用用户输入的初始资金", req.ExchangeID)
-	} else if !exchangeCfg.Enabled {
-		log.Printf("⚠️ 交易所 %s 未启用，使用用户输入的初始资金", req.ExchangeID)
-	} else {
-		// 根据交易所类型创建临时 trader 查询余额
-		var tempTrader trader.Trader
-		var createErr error
+		exchanges, err := s.database.GetExchanges(userID)
+		if err != nil {
+			log.Printf("⚠️ 获取交易所配置失败，使用默认值 1000 USDT: %v", err)
+			actualBalance = 1000.0
+		} else {
+			// 查找匹配的交易所配置
+			var exchangeCfg *config.ExchangeConfig
+			for _, ex := range exchanges {
+				if ex.ID == req.ExchangeID {
+					exchangeCfg = ex
+					break
+				}
+			}
 
-		switch req.ExchangeID {
-		case "binance":
-			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey)
-		case "hyperliquid":
-			tempTrader, createErr = trader.NewHyperliquidTrader(
-				exchangeCfg.APIKey, // private key
-				exchangeCfg.HyperliquidWalletAddr,
-				exchangeCfg.Testnet,
-			)
-		case "aster":
-			tempTrader, createErr = trader.NewAsterTrader(
-				exchangeCfg.AsterUser,
-				exchangeCfg.AsterSigner,
-				exchangeCfg.AsterPrivateKey,
-			)
-		default:
-			log.Printf("⚠️ 不支持的交易所类型: %s，使用用户输入的初始资金", req.ExchangeID)
-		}
-
-		if createErr != nil {
-			log.Printf("⚠️ 创建临时 trader 失败，使用用户输入的初始资金: %v", createErr)
-		} else if tempTrader != nil {
-			// 查询实际余额
-			balanceInfo, balanceErr := tempTrader.GetBalance()
-			if balanceErr != nil {
-				log.Printf("⚠️ 查询交易所余额失败，使用用户输入的初始资金: %v", balanceErr)
+			if exchangeCfg == nil {
+				log.Printf("⚠️ 未找到交易所 %s 的配置，使用默认值 1000 USDT", req.ExchangeID)
+				actualBalance = 1000.0
+			} else if !exchangeCfg.Enabled {
+				log.Printf("⚠️ 交易所 %s 未启用，使用默认值 1000 USDT", req.ExchangeID)
+				actualBalance = 1000.0
 			} else {
-				// ✅ 修复：使用总资产（total equity）而不是可用余额来设置初始余额
-				// 总资产 = 钱包余额 + 未实现盈亏，这样才能正确计算总盈亏
-				totalWalletBalance := 0.0
-				totalUnrealizedProfit := 0.0
+				// 根据交易所类型创建临时 trader 查询余额
+				var tempTrader trader.Trader
+				var createErr error
 
-				if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
-					totalWalletBalance = wallet
+				switch req.ExchangeID {
+				case "binance":
+					tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey)
+				case "hyperliquid":
+					tempTrader, createErr = trader.NewHyperliquidTrader(
+						exchangeCfg.APIKey, // private key
+						exchangeCfg.HyperliquidWalletAddr,
+						exchangeCfg.Testnet,
+					)
+				case "aster":
+					tempTrader, createErr = trader.NewAsterTrader(
+						exchangeCfg.AsterUser,
+						exchangeCfg.AsterSigner,
+						exchangeCfg.AsterPrivateKey,
+					)
+				default:
+					log.Printf("⚠️ 不支持的交易所类型: %s，使用默认值 1000 USDT", req.ExchangeID)
+					actualBalance = 1000.0
 				}
-				if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
-					totalUnrealizedProfit = unrealized
-				}
 
-				// 总资产 = 钱包余额 + 未实现盈亏
-				totalEquity := totalWalletBalance + totalUnrealizedProfit
+				if createErr != nil {
+					log.Printf("⚠️ 创建临时 trader 失败，使用默认值 1000 USDT: %v", createErr)
+					actualBalance = 1000.0
+				} else if tempTrader != nil {
+					// 查询实际余额
+					balanceInfo, balanceErr := tempTrader.GetBalance()
+					if balanceErr != nil {
+						log.Printf("⚠️ 查询交易所余额失败，使用默认值 1000 USDT: %v", balanceErr)
+						actualBalance = 1000.0
+					} else {
+						// ✅ 使用总资产（total equity）而不是可用余额
+						// 总资产 = 钱包余额 + 未实现盈亏，这样才能正确计算总盈亏
+						totalWalletBalance := 0.0
+						totalUnrealizedProfit := 0.0
 
-				if totalEquity > 0 {
-					actualBalance = totalEquity
-					log.Printf("✓ 查询到交易所总资产余额: %.2f USDT (钱包: %.2f + 未实现: %.2f, 用户输入: %.2f USDT)",
-						actualBalance, totalWalletBalance, totalUnrealizedProfit, req.InitialBalance)
-				} else {
-					log.Printf("⚠️ 无法从余额信息中提取总资产余额，使用用户输入的初始资金")
+						if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
+							totalWalletBalance = wallet
+						}
+						if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
+							totalUnrealizedProfit = unrealized
+						}
+
+						// 总资产 = 钱包余额 + 未实现盈亏
+						totalEquity := totalWalletBalance + totalUnrealizedProfit
+
+						if totalEquity > 0 {
+							actualBalance = totalEquity
+							log.Printf("✅ 自动获取交易所总资产余额: %.2f USDT (钱包: %.2f + 未实现: %.2f)",
+								actualBalance, totalWalletBalance, totalUnrealizedProfit)
+						} else {
+							log.Printf("⚠️ 无法从余额信息中提取总资产余额，使用默认值 1000 USDT")
+							actualBalance = 1000.0
+						}
+					}
 				}
 			}
 		}
+	} else {
+		// ✅ 用户指定了初始余额，尊重用户输入
+		log.Printf("✅ 使用用户指定的初始余额: %.2f USDT", actualBalance)
 	}
 
 	// 创建交易员配置（数据库实体）
@@ -542,37 +559,18 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		systemPromptTemplate = existingTrader.SystemPromptTemplate // 保持原值
 	}
 
-	// 🔒 保護 initial_balance 不被修改
+	// ✅ 修复 #790: 允許用戶修改 initial_balance
+	// 这对于调整 P&L 计算基准很有用（例如：用户充值/提现后需要重新设置基准）
 	initialBalance := existingTrader.InitialBalance
 	if req.InitialBalance > 0 {
-		// 檢查是否嘗試修改初始餘額（允許 0.01 USDT 的誤差）
+		// 检查是否修改了初始余额
 		diff := math.Abs(req.InitialBalance - existingTrader.InitialBalance)
 		if diff > 0.01 {
-			// 記錄警告日誌
-			log.Printf("⚠️ BLOCKED: User %s attempted to modify initial_balance | Trader=%s | Original=%.2f | Requested=%.2f | Diff=%.2f",
+			// 记录修改日志
+			log.Printf("ℹ️ User %s modified initial_balance | Trader=%s | Original=%.2f → New=%.2f | Diff=%.2f",
 				userID, traderID, existingTrader.InitialBalance, req.InitialBalance, diff)
 
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "不允許修改初始餘額",
-				"code":  "INITIAL_BALANCE_IMMUTABLE",
-				"details": gin.H{
-					"current_value":   existingTrader.InitialBalance,
-					"requested_value": req.InitialBalance,
-					"difference":      diff,
-					"trader_id":       traderID,
-					"trader_name":     existingTrader.Name,
-					"created_at":      existingTrader.CreatedAt,
-				},
-				"message": fmt.Sprintf(
-					"初始餘額是固定的基準值，創建後不可修改。\n\n"+
-						"當前初始餘額: %.2f USDT\n"+
-						"嘗試修改為: %.2f USDT\n\n"+
-						"如確實需要修改，請聯繫管理員。",
-					existingTrader.InitialBalance,
-					req.InitialBalance,
-				),
-			})
-			return
+			initialBalance = req.InitialBalance
 		}
 	}
 

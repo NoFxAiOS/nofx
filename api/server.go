@@ -785,7 +785,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	traderID := c.Param("id")
 
 	// 校验交易员是否属于当前用户
-	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	_, _, templateName, err := s.database.GetTraderConfig(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
 		return
@@ -808,7 +808,10 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	if err := decision.ReloadPromptTemplates(); err != nil {
 		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
 	} else {
-		log.Printf("✓ 已重新加载系统提示词模板")
+		if templateName == "" {
+			templateName = "default"
+		}
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
 	}
 
 	// 启动交易员

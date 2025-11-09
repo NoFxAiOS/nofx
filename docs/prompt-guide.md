@@ -1,127 +1,127 @@
-# 📖 NoFx Prompt 编写指南
+# 📖 NoFx Prompt Writing Guide
 
-**版本**: v1.0
-**更新日期**: 2025-01-09
-**适用系统版本**: NoFx v0.x+
-
----
-
-## 📚 目录
-
-- [🚀 快速开始](#-快速开始5分钟)
-- [💡 核心概念](#-核心概念)
-- [📋 可用字段参考](#-可用字段参考)
-- [⚖️ 系统约束](#️-系统约束)
-- [📦 官方模板库](#-官方模板库)
-- [✅ 质量检查清单](#-质量检查清单)
-- [❓ 常见问题与最佳实践](#-常见问题与最佳实践)
-- [🎓 高级话题](#-高级话题)
+**Version**: v1.0
+**Last Updated**: 2025-01-09
+**Compatible System Version**: NoFx v0.x+
 
 ---
 
-## 🎯 推荐学习路径
+## 📚 Table of Contents
 
-**新手用户**: 快速开始 → 官方模板 → 质量检查
-**进阶用户**: 核心概念 → 字段参考 → 系统约束 → 常见错误
-**高级用户**: 高级话题 → 模式3 → 调试指南
-
----
-
-## 🚀 快速开始（5分钟）
-
-### 什么是 Prompt？
-
-Prompt 是你给 AI 交易员的"工作指令"，决定了 AI 如何分析市场和做出交易决策。
-
-### 三种使用方式
-
-#### 方式1：使用官方模板（推荐新手）
-
-**步骤**:
-1. 选择一个官方模板（[保守型](#保守型策略) / [平衡型](#平衡型策略) / [激进型](#激进型策略)）
-2. 复制内容到 `prompts/default.txt`
-3. 重启系统，开始交易
-
-**适合**: 新手用户，想快速开始
-**耗时**: 2分钟
-
-#### 方式2：在官方模板基础上添加个性化策略
-
-**步骤**:
-1. 保持 `prompts/default.txt` 不变
-2. 在 Web 界面的"自定义 Prompt"中添加你的策略
-3. 设置 `override_base_prompt = false`
-
-**适合**: 进阶用户，想保留风控但加入自己的想法
-**耗时**: 10-30分钟
-
-#### 方式3：完全自定义（高级）
-
-**步骤**:
-1. 编写完整的 Prompt（包含所有风控规则）
-2. 设置 `override_base_prompt = true`
-3. ⚠️ 需要自行负责所有风控和输出格式
-
-**适合**: 高级用户，完全理解系统机制
-**耗时**: 1-2小时
-
-### 立即开始
-
-👉 **新手推荐**: 跳转到 [官方模板库](#-官方模板库)，选择一个模板开始
-👉 **进阶优化**: 继续阅读 [可用字段参考](#-可用字段参考)
-👉 **高级定制**: 阅读 [完全自定义指南](#模式3-完全自定义)
+- [🚀 Quick Start](#-quick-start-5-minutes)
+- [💡 Core Concepts](#-core-concepts)
+- [📋 Available Fields Reference](#-available-fields-reference)
+- [⚖️ System Constraints](#️-system-constraints)
+- [📦 Official Template Library](#-official-template-library)
+- [✅ Quality Checklist](#-quality-checklist)
+- [❓ Common Issues & Best Practices](#-common-issues--best-practices)
+- [🎓 Advanced Topics](#-advanced-topics)
 
 ---
 
-## 💡 核心概念
+## 🎯 Recommended Learning Path
 
-### Prompt 的工作原理
+**Beginners**: Quick Start → Official Templates → Quality Checklist
+**Intermediate Users**: Core Concepts → Field Reference → System Constraints → Common Errors
+**Advanced Users**: Advanced Topics → Mode 3 → Debugging Guide
 
-NoFx 每3分钟会构建一个包含市场数据的消息发送给 AI：
+---
+
+## 🚀 Quick Start (5 Minutes)
+
+### What is a Prompt?
+
+A Prompt is the "work instruction" you give to the AI trader, determining how the AI analyzes the market and makes trading decisions.
+
+### Three Usage Methods
+
+#### Method 1: Use Official Templates (Recommended for Beginners)
+
+**Steps**:
+1. Choose an official template ([Conservative](#conservative-strategy) / [Balanced](#balanced-strategy) / [Aggressive](#aggressive-strategy))
+2. Copy content to `prompts/default.txt`
+3. Restart the system and start trading
+
+**Suitable for**: Beginners who want to start quickly
+**Time required**: 2 minutes
+
+#### Method 2: Add Custom Strategy on Top of Official Template
+
+**Steps**:
+1. Keep `prompts/default.txt` unchanged
+2. Add your strategy in the web interface's "Custom Prompt"
+3. Set `override_base_prompt = false`
+
+**Suitable for**: Intermediate users who want to keep risk controls but add their own ideas
+**Time required**: 10-30 minutes
+
+#### Method 3: Complete Customization (Advanced)
+
+**Steps**:
+1. Write a complete Prompt (including all risk control rules)
+2. Set `override_base_prompt = true`
+3. ⚠️ You are responsible for all risk controls and output formats
+
+**Suitable for**: Advanced users who fully understand the system mechanism
+**Time required**: 1-2 hours
+
+### Get Started Now
+
+👉 **Recommended for Beginners**: Jump to [Official Template Library](#-official-template-library) and choose a template
+👉 **Intermediate Optimization**: Continue reading [Available Fields Reference](#-available-fields-reference)
+👉 **Advanced Customization**: Read [Complete Customization Guide](#mode-3-complete-customization)
+
+---
+
+## 💡 Core Concepts
+
+### How Prompts Work
+
+NoFx builds a message containing market data every 3 minutes to send to the AI:
 
 ```mermaid
 graph LR
-    A[你的 Prompt<br/>策略指令] --> B[AI模型]
-    C[市场数据<br/>自动生成] --> B
-    B --> D[思维链分析]
-    B --> E[交易决策JSON]
+    A[Your Prompt<br/>Strategy Instructions] --> B[AI Model]
+    C[Market Data<br/>Auto-generated] --> B
+    B --> D[Chain of Thought Analysis]
+    B --> E[Trading Decision JSON]
 ```
 
-**工作流程**:
-1. **系统 Prompt（System）**: 你编写的策略指令
-2. **用户 Prompt（User）**: 系统自动生成的市场数据
-3. **AI 响应（Response）**: AI 的分析和决策
+**Workflow**:
+1. **System Prompt (System)**: Strategy instructions you write
+2. **User Prompt (User)**: Market data automatically generated by the system
+3. **AI Response (Response)**: AI's analysis and decisions
 
-### Prompt 的三个组成部分
+### Three Components of a Prompt
 
-#### 1. 核心策略（你编写）
+#### 1. Core Strategy (Written by You)
 
-定义 AI 的交易哲学、风险偏好、决策标准
+Defines the AI's trading philosophy, risk preference, and decision criteria
 
-**示例**:
+**Example**:
 ```
-你是保守型交易员，只在高确定性机会时开仓。
-开仓条件：信心度 ≥ 85，多个指标共振。
+You are a conservative trader who only opens positions in high-certainty opportunities.
+Entry conditions: Confidence ≥ 85, multiple indicator convergence.
 ```
 
-#### 2. 硬约束（系统自动添加）
+#### 2. Hard Constraints (Automatically Added by System)
 
-- 风险回报比 ≥ 1:3
-- 最多持仓 3 个币种
-- 杠杆限制（BTC/ETH 20x，山寨币 5x）
-- 保证金使用率 ≤ 90%
+- Risk-reward ratio ≥ 1:3
+- Maximum 3 positions simultaneously
+- Leverage limits (BTC/ETH 20x, altcoins 5x)
+- Margin usage rate ≤ 90%
 
-⚠️ **方式1和2**: 这些约束自动添加，不可覆盖
-⚠️ **方式3**: 需要自己在 Prompt 中包含这些约束
+⚠️ **Methods 1 & 2**: These constraints are automatically added and cannot be overridden
+⚠️ **Method 3**: You must include these constraints in your Prompt
 
-#### 3. 输出格式（系统自动添加）
+#### 3. Output Format (Automatically Added by System)
 
-要求 AI 使用 XML 标签和 JSON 格式输出决策
+Requires AI to output decisions using XML tags and JSON format
 
-**示例输出**:
+**Example Output**:
 ```xml
 <reasoning>
-BTC 跌破支撑位，MACD 死叉，成交量放大...
+BTC broke support, MACD death cross, volume increased...
 </reasoning>
 
 <decision>
@@ -135,301 +135,301 @@ BTC 跌破支撑位，MACD 死叉，成交量放大...
     "stop_loss": 97000,
     "take_profit": 91000,
     "confidence": 85,
-    "reasoning": "技术面转空"
+    "reasoning": "Bearish technical turn"
   }
 ]
 ```
 </decision>
 ```
 
-### 市场数据自动传递
+### Automatic Market Data Transmission
 
-你**不需要**在 Prompt 中要求 AI 提供数据，系统会自动传递：
+You **don't need** to request data in the Prompt; the system automatically transmits:
 
-✅ **系统自动提供**:
-- 当前时间、运行周期
-- 账户净值、余额、盈亏
-- 所有持仓的详细信息
-- BTC 市场行情
-- 候选币种的完整技术数据
-- 夏普比率绩效指标
+✅ **System Automatically Provides**:
+- Current time, running cycle
+- Account equity, balance, P&L
+- All position details
+- BTC market conditions
+- Complete technical data for candidate coins
+- Sharpe ratio performance metrics
 
-❌ **你不需要写**:
+❌ **You Don't Need to Write**:
 ```
-请分析 BTC 的价格和 MACD...  # 系统已自动提供
-请告诉我当前持仓情况...      # 系统已自动提供
-```
-
-✅ **你应该写**:
-```
-重点关注 BTC 的趋势，作为市场风向标
-当 MACD 死叉且成交量放大时，考虑做空机会
+Please analyze BTC price and MACD...  # System already provides
+Please tell me current positions...   # System already provides
 ```
 
----
-
-## 📋 可用字段参考
-
-系统会自动将以下数据传递给 AI，你可以在 Prompt 中引用这些字段：
-
-### 系统状态
-
-| 字段名称 | 说明 | 示例 |
-|---------|------|------|
-| **时间** | UTC时间 | 2025-01-15 10:30:00 UTC |
-| **周期** | 系统运行周期数 | #142（第142次决策） |
-| **运行时长** | 系统运行分钟数 | 426分钟 |
-
-**实际输出示例**:
+✅ **You Should Write**:
 ```
-时间: 2025-01-15 10:30:00 UTC | 周期: #142 | 运行: 426分钟
+Focus on BTC trend as market indicator
+When MACD death cross and volume increases, consider shorting opportunities
 ```
 
 ---
 
-### 账户信息
+## 📋 Available Fields Reference
 
-| 字段名称 | 说明 | 单位 | 示例 |
+The system automatically passes the following data to the AI, which you can reference in your Prompt:
+
+### System Status
+
+| Field Name | Description | Example |
+|---------|------|---------|
+| **Time** | UTC time | 2025-01-15 10:30:00 UTC |
+| **Cycle** | System run cycle count | #142 (142nd decision) |
+| **Runtime** | System run minutes | 426 minutes |
+
+**Actual Output Example**:
+```
+Time: 2025-01-15 10:30:00 UTC | Cycle: #142 | Runtime: 426 minutes
+```
+
+---
+
+### Account Information
+
+| Field Name | Description | Unit | Example |
 |---------|------|------|------|
-| **净值** | 账户总资产 | USDT | 1250.50 |
-| **余额** | 可用余额 | USDT | 850.30 |
-| **余额占比** | 可用余额/净值 | % | 68.0% |
-| **盈亏** | 总盈亏百分比 | % | +15.2% |
-| **保证金** | 保证金使用率 | % | 32.0% |
-| **持仓数** | 当前持仓数量 | 个 | 2 |
+| **Equity** | Total account assets | USDT | 1250.50 |
+| **Balance** | Available balance | USDT | 850.30 |
+| **Balance %** | Available/Equity | % | 68.0% |
+| **P&L** | Total P&L percentage | % | +15.2% |
+| **Margin** | Margin usage rate | % | 32.0% |
+| **Positions** | Current position count | count | 2 |
 
-**实际输出示例**:
+**Actual Output Example**:
 ```
-账户: 净值1250.50 | 余额850.30 (68.0%) | 盈亏+15.2% | 保证金32.0% | 持仓2个
+Account: Equity 1250.50 | Balance 850.30 (68.0%) | P&L +15.2% | Margin 32.0% | Positions 2
 ```
 
-**Prompt 引用示例**:
+**Prompt Reference Example**:
 ```
-当余额占比低于20%时，停止开新仓
-当保证金使用率超过80%时，考虑减仓
+Stop opening new positions when Balance % below 20%
+Consider reducing positions when Margin usage exceeds 80%
 ```
 
 ---
 
-### 持仓信息（⭐核心字段）
+### Position Information (⭐Core Fields)
 
-| 字段名称 | 说明 | 单位 | 计算方式 | 示例 |
+| Field Name | Description | Unit | Calculation | Example |
 |---------|------|------|----------|------|
-| **币种** | 交易对 | - | - | BTCUSDT |
-| **方向** | 多/空 | - | - | LONG |
-| **入场价** | 开仓价格 | USDT | - | 95000.00 |
-| **当前价** | 标记价格 | USDT | - | 96500.00 |
-| **盈亏（百分比）** | 未实现盈亏% | % | 含杠杆 | +2.38% |
-| **盈亏金额** | 未实现盈亏 | USDT | 实际美元 | +59.50 |
-| **最高收益率** | 历史峰值收益% | % | 含杠杆 | +5.00% |
-| **杠杆** | 杠杆倍数 | x | - | 5 |
-| **保证金** | 已用保证金 | USDT | - | 500.00 |
-| **强平价** | 清算价格 | USDT | - | 88000.00 |
-| **持仓时长** | 持仓时间 | 分钟/小时 | 计算 | 2小时35分钟 |
+| **Symbol** | Trading pair | - | - | BTCUSDT |
+| **Side** | Long/Short | - | - | LONG |
+| **Entry** | Opening price | USDT | - | 95000.00 |
+| **Current** | Mark price | USDT | - | 96500.00 |
+| **P&L %** | Unrealized P&L % | % | w/ leverage | +2.38% |
+| **P&L Amount** | Unrealized P&L | USDT | Actual USD | +59.50 |
+| **Peak %** | Historical peak P&L% | % | w/ leverage | +5.00% |
+| **Leverage** | Leverage multiple | x | - | 5 |
+| **Margin** | Used margin | USDT | - | 500.00 |
+| **Liquidation** | Liquidation price | USDT | - | 88000.00 |
+| **Duration** | Holding time | min/hour | Calculated | 2h 35min |
 
-⚠️ **重要区分**:
-- **盈亏（百分比）** = 考虑杠杆的收益率（如5倍杠杆，价格涨1% = 盈亏5%）
-- **盈亏金额** = 实际赚/亏的美元数（如 +59.50 USDT）
-- **最高收益率** = 持仓期间达到的最高收益率（用于计算回撤）
+⚠️ **Important Distinctions**:
+- **P&L %** = Return with leverage (5x leverage, 1% price change = 5% P&L)
+- **P&L Amount** = Actual dollars gained/lost (e.g., +59.50 USDT)
+- **Peak %** = Highest P&L % achieved during holding (for drawdown calculation)
 
-**实际输出示例**:
+**Actual Output Example**:
 ```
-1. BTCUSDT LONG | 入场价95000.0000 当前价96500.0000 | 盈亏+2.38% | 盈亏金额+59.50 USDT | 最高收益率5.00% | 杠杆5x | 保证金500 | 强平价88000.0000 | 持仓时长2小时35分钟
-```
-
-**Prompt 引用示例（✅ 正确）**:
-```
-✅ 当盈亏金额回撤超过最高收益率的50%时，部分止盈
-✅ 如果盈亏从+5%回落到+2%，说明回撤了60%，考虑减仓
-✅ 持仓时长超过4小时但盈亏金额仍为负，考虑止损
+1. BTCUSDT LONG | Entry 95000.0000 Current 96500.0000 | P&L +2.38% | P&L Amount +59.50 USDT | Peak % 5.00% | Leverage 5x | Margin 500 | Liquidation 88000.0000 | Duration 2h 35min
 ```
 
-**Prompt 引用示例（❌ 错误）**:
+**Prompt Reference Examples (✅ Correct)**:
 ```
-❌ 当 unrealized_pnl 超过 peak_pnl_pct...  # 字段名错误
-❌ 当盈亏超过5%...  # 不明确，是"盈亏（百分比）"还是"盈亏金额"？
+✅ When P&L Amount drawdown exceeds 50% of Peak %, take partial profit
+✅ If P&L drops from +5% to +2%, that's 60% drawdown, consider reducing position
+✅ If Duration exceeds 4 hours but P&L Amount still negative, consider stop loss
 ```
 
----
-
-### 计算公式字段
-
-基于上述字段，你可以在 Prompt 中使用这些计算：
-
-| 计算名称 | 公式 | 说明 | 示例 |
-|---------|------|------|------|
-| **真实收益率** | `(盈亏金额 / 保证金) × 100%` | 基于保证金的实际收益 | (59.50/500)×100% = 11.9% |
-| **回撤幅度** | `(最高收益率 - 当前盈亏) / 最高收益率 × 100%` | 从峰值的回撤百分比 | (5%-2.38%)/5% = 52.4% |
-| **距强平距离** | `|(当前价 - 强平价) / 当前价| × 100%` | 距离清算的安全边际 | |(96500-88000)/96500| = 8.8% |
-
-**Prompt 引用示例**:
+**Prompt Reference Examples (❌ Wrong)**:
 ```
-计算真实收益率 = 盈亏金额 / 保证金
-如果真实收益率超过10%，部分止盈锁定利润
-
-计算回撤幅度 = (最高收益率 - 当前盈亏) / 最高收益率
-如果回撤幅度超过50%，说明利润大幅回吐，考虑减仓
+❌ When unrealized_pnl exceeds peak_pnl_pct...  # Wrong field names
+❌ When P&L exceeds 5%...  # Ambiguous - P&L % or P&L Amount?
 ```
 
 ---
 
-### BTC 市场数据
+### Calculated Formula Fields
 
-| 字段名称 | 说明 | 单位 | 示例 |
+Based on the above fields, you can use these calculations in your Prompt:
+
+| Calculation | Formula | Description | Example |
 |---------|------|------|------|
-| **BTC价格** | 当前价格 | USDT | 96500.00 |
-| **1h涨跌幅** | 1小时涨跌 | % | +1.25% |
-| **4h涨跌幅** | 4小时涨跌 | % | -2.15% |
-| **MACD** | MACD指标 | - | 0.0024 |
-| **RSI** | RSI(7)指标 | - | 62.50 |
+| **True ROI** | `(P&L Amount / Margin) × 100%` | Actual return on margin | (59.50/500)×100% = 11.9% |
+| **Drawdown** | `(Peak % - Current P&L) / Peak % × 100%` | Drawdown from peak | (5%-2.38%)/5% = 52.4% |
+| **Liquidation Distance** | `|(Current - Liquidation) / Current| × 100%` | Safety margin to liquidation | |(96500-88000)/96500| = 8.8% |
 
-**实际输出示例**:
+**Prompt Reference Example**:
+```
+Calculate True ROI = P&L Amount / Margin
+If True ROI exceeds 10%, take partial profit to lock in gains
+
+Calculate Drawdown = (Peak % - Current P&L) / Peak %
+If Drawdown exceeds 50%, significant profit giveback, consider reducing position
+```
+
+---
+
+### BTC Market Data
+
+| Field Name | Description | Unit | Example |
+|---------|------|------|------|
+| **BTC Price** | Current price | USDT | 96500.00 |
+| **1h Change** | 1-hour change | % | +1.25% |
+| **4h Change** | 4-hour change | % | -2.15% |
+| **MACD** | MACD indicator | - | 0.0024 |
+| **RSI** | RSI(7) indicator | - | 62.50 |
+
+**Actual Output Example**:
 ```
 BTC: 96500.00 (1h: +1.25%, 4h: -2.15%) | MACD: 0.0024 | RSI: 62.50
 ```
 
-**Prompt 引用示例**:
+**Prompt Reference Example**:
 ```
-BTC 是市场风向标：
-- 如果 BTC 的 4h涨跌幅 < -5%，市场转空，谨慎做多山寨币
-- 如果 BTC 的 MACD 死叉且 RSI < 30，可能超跌反弹
-```
-
----
-
-### 完整市场数据
-
-每个币种都会附带完整的技术数据，包括：
-- **价格序列**（3分钟K线）
-- **EMA20 序列**
-- **MACD 序列**
-- **RSI7/RSI14 序列**
-- **成交量序列**
-- **持仓量（OI）序列**
-- **资金费率**
-
-⚠️ **注意**: 这些是序列数据（数组），系统会自动格式化输出，你不需要指定具体字段名。
-
-**Prompt 引用示例**:
-```
-分析价格序列，识别支撑阻力位
-观察 EMA20 趋势，判断多空方向
-MACD 序列出现金叉/死叉时，作为信号确认
-持仓量（OI）快速增长 + 价格上涨 = 看涨信号
+BTC as market indicator:
+- If BTC 4h Change < -5%, market turning bearish, be cautious on altcoin longs
+- If BTC MACD death cross and RSI < 30, potential oversold bounce
 ```
 
 ---
 
-### 性能指标
+### Complete Market Data
 
-| 字段名称 | 说明 | 范围 | 解读 |
+Each coin includes complete technical data:
+- Price sequence (3-minute candles)
+- EMA20 sequence
+- MACD sequence
+- RSI7/RSI14 sequences
+- Volume sequence
+- Open Interest (OI) sequence
+- Funding rate
+
+⚠️ **Note**: These are sequence data (arrays), automatically formatted by system, you don't need to specify field names.
+
+**Prompt Reference Example**:
+```
+Analyze price sequences to identify support/resistance levels
+Observe EMA20 trend to determine long/short direction
+MACD sequence golden/death cross as signal confirmation
+OI rapid growth + price increase = bullish signal
+```
+
+---
+
+### Performance Metrics
+
+| Field Name | Description | Range | Interpretation |
 |---------|------|------|------|
-| **夏普比率** | 风险调整后收益 | -∞ ~ +∞ | >1优秀, 0~1正常, <0亏损 |
+| **Sharpe Ratio** | Risk-adjusted returns | -∞ ~ +∞ | >1 excellent, 0~1 normal, <0 losing |
 
-**实际输出示例**:
+**Actual Output Example**:
 ```
-## 📊 夏普比率: 0.85
+## 📊 Sharpe Ratio: 0.85
 ```
 
-**Prompt 引用示例**:
+**Prompt Reference Example**:
 ```
-根据夏普比率调整策略：
-- 夏普比率 < -0.5: 停止交易，观望至少18分钟
-- 夏普比率 -0.5~0: 只做信心度>80的交易
-- 夏普比率 0~0.7: 维持当前策略
-- 夏普比率 > 0.7: 可适度扩大仓位
+Adjust strategy based on Sharpe Ratio:
+- Sharpe < -0.5: Stop trading, observe for at least 18 minutes
+- Sharpe -0.5~0: Only trade confidence >80
+- Sharpe 0~0.7: Maintain current strategy
+- Sharpe > 0.7: Can moderately increase position size
 ```
 
 ---
 
-### 字段命名一致性原则
+### Field Naming Consistency Principle
 
-✅ **正确做法**: 使用输出中的自然语言描述
+✅ **Correct Approach**: Use natural language labels from output
 ```
-盈亏金额、最高收益率、保证金、杠杆、持仓时长
+P&L Amount, Peak %, Margin, Leverage, Duration
 ```
 
-❌ **错误做法**: 使用代码字段名
+❌ **Wrong Approach**: Use code field names
 ```
 unrealized_pnl, peak_pnl_pct, margin_used, leverage
 ```
 
-💡 **核心原则**: Prompt 中的字段名必须与系统输出的自然语言标签完全一致。
+💡 **Core Principle**: Field names in Prompt must exactly match natural language labels in system output.
 
 ---
 
-## ⚖️ 系统约束
+## ⚖️ System Constraints
 
-### 硬约束（不可覆盖的规则）
+### Hard Constraints (Non-overridable Rules)
 
-以下约束由系统强制执行，**方式1和2** 会自动添加，**方式3** 需要自己包含：
+The following constraints are enforced by the system. **Methods 1 & 2** automatically add them; **Method 3** requires you to include them:
 
-#### 1. 风险回报比
-**要求**: 必须 ≥ 1:3（冒1%风险，赚3%+收益）
+#### 1. Risk-Reward Ratio
+**Requirement**: Must be ≥ 1:3 (risk 1% for 3%+ reward)
 
-**含义**: 止盈空间必须至少是止损空间的3倍
+**Meaning**: Take-profit space must be at least 3x stop-loss space
 
-**示例**:
+**Examples**:
 ```
-✅ 入场100, 止损98(-2%), 止盈106(+6%) → 风险回报比 6/2 = 3:1 合格
-❌ 入场100, 止损95(-5%), 止盈110(+10%) → 风险回报比 10/5 = 2:1 不合格
-```
-
-#### 2. 最多持仓
-**要求**: 最多同时持有 3 个币种
-
-**含义**: 分散风险，避免过度暴露
-
-#### 3. 单币仓位
-**要求**:
-- 山寨币: 0.8~1.5 倍账户净值
-- BTC/ETH: 5~10 倍账户净值
-
-**示例**（账户净值 1000 USDT）:
-```
-✅ 山寨币仓位: 800~1500 USDT
-✅ BTC/ETH仓位: 5000~10000 USDT
+✅ Entry 100, Stop 98(-2%), TP 106(+6%) → Risk-reward 6/2 = 3:1 ✓
+❌ Entry 100, Stop 95(-5%), TP 110(+10%) → Risk-reward 10/5 = 2:1 ✗
 ```
 
-#### 4. 杠杆限制
-**要求**:
-- 山寨币: 最大 5x 杠杆
-- BTC/ETH: 最大 20x 杠杆
+#### 2. Maximum Positions
+**Requirement**: Maximum 3 simultaneous positions
 
-⚠️ **严格执行**: 超过此限制的决策会被系统拒绝
+**Meaning**: Diversify risk, avoid overexposure
 
-#### 5. 保证金使用率
-**要求**: 总保证金使用率 ≤ 90%
+#### 3. Single Position Size
+**Requirement**:
+- Altcoins: 0.8~1.5x account equity
+- BTC/ETH: 5~10x account equity
 
-**含义**: 预留10%用于清算保护和手续费
+**Example** (Account equity 1000 USDT):
+```
+✅ Altcoin position: 800~1500 USDT
+✅ BTC/ETH position: 5000~10000 USDT
+```
 
-#### 6. 最小开仓金额
-**要求**:
-- 一般币种: ≥ 12 USDT
+#### 4. Leverage Limits
+**Requirement**:
+- Altcoins: Maximum 5x leverage
+- BTC/ETH: Maximum 20x leverage
+
+⚠️ **Strictly Enforced**: Decisions exceeding limits will be rejected
+
+#### 5. Margin Usage Rate
+**Requirement**: Total margin usage ≤ 90%
+
+**Meaning**: Reserve 10% for liquidation protection and fees
+
+#### 6. Minimum Opening Amount
+**Requirement**:
+- General coins: ≥ 12 USDT
 - BTC/ETH: ≥ 60 USDT
 
-**原因**: 交易所最小名义价值要求 + 安全边际
+**Reason**: Exchange minimum notional value + safety margin
 
 ---
 
-### 保留关键词
+### Reserved Keywords
 
-以下 XML 标签是系统保留的，不可在自定义 Prompt 中使用：
+The following XML tags are system-reserved and cannot be used in custom Prompts:
 
-❌ **禁止使用**:
-- `<reasoning>` - 用于标记思维链分析
-- `<decision>` - 用于标记 JSON 决策
+❌ **Prohibited**:
+- `<reasoning>` - For marking chain of thought analysis
+- `<decision>` - For marking JSON decisions
 
 ---
 
-### JSON 输出格式规范
+### JSON Output Format Specification
 
-AI 必须按照以下格式输出决策：
+AI must output decisions in the following format:
 
-#### 正确格式
+#### Correct Format
 ```xml
 <reasoning>
-你的分析思路...
+Your analysis...
 </reasoning>
 
 <decision>
@@ -444,819 +444,818 @@ AI 必须按照以下格式输出决策：
     "take_profit": 91000,
     "confidence": 85,
     "risk_usd": 300,
-    "reasoning": "技术面转空"
+    "reasoning": "Bearish technical"
   }
 ]
 ```
 </decision>
 ```
 
-#### JSON 格式禁止项
+#### JSON Format Prohibitions
 
-❌ **禁止包含**:
+❌ **Prohibited Items**:
 
-**1. 范围符号 `~`**
+**1. Range symbols `~`**
 ```json
-// 错误
-{"position_size_usd": "2000~3000"}  // 必须是精确值
-{"stop_loss": "95000~96000"}        // 必须是单一价格
+// Wrong
+{"position_size_usd": "2000~3000"}  // Must be exact value
+{"stop_loss": "95000~96000"}        // Must be single price
 
-// 正确
+// Correct
 {"position_size_usd": 2500}
 {"stop_loss": 95500}
 ```
 
-**2. 千位分隔符 `,`**
+**2. Thousands separators `,`**
 ```json
-// 错误
-{"position_size_usd": 98,000}  // JSON 数字不允许逗号
+// Wrong
+{"position_size_usd": 98,000}  // JSON numbers don't allow commas
 
-// 正确
+// Correct
 {"position_size_usd": 98000}
 ```
 
-**3. 中文描述或注释**
+**3. Chinese descriptions or comments**
 ```json
-// 错误
+// Wrong
 {
   "symbol": "BTCUSDT",
-  "action": "open_long",  // 开多仓
-  "reasoning": "这是一个很好的做多机会，因为..."  // 太长
+  "action": "open_long",  // Open long
+  "reasoning": "This is a great long opportunity because..."  // Too long
 }
 
-// 正确
+// Correct
 {
   "symbol": "BTCUSDT",
   "action": "open_long",
-  "reasoning": "MACD金叉+成交量放大"
+  "reasoning": "MACD golden cross + volume surge"
 }
 ```
 
 ---
 
-### 三种 Prompt 模式对比
+### Three Prompt Modes Comparison
 
-| 模式 | 配置 | 最终 Prompt | 适用场景 |
+| Mode | Configuration | Final Prompt | Use Case |
 |------|------|------------|----------|
-| **模式1<br/>仅基础** | `override_base_prompt=false`<br/>`custom_prompt=""` | 官方模板 + 硬约束 + 输出格式 | 新手用户 |
-| **模式2<br/>基础+附加** | `override_base_prompt=false`<br/>`custom_prompt="你的策略"` | 官方模板 + 硬约束 + 输出格式<br/>+ 个性化策略 + 注意事项 | 进阶用户 |
-| **模式3<br/>完全自定义** | `override_base_prompt=true`<br/>`custom_prompt="完整Prompt"` | 仅使用自定义内容<br/>（忽略所有系统默认） | 高级用户 |
+| **Mode 1<br/>Base Only** | `override_base_prompt=false`<br/>`custom_prompt=""` | Official template + Hard constraints + Output format | Beginners |
+| **Mode 2<br/>Base+Custom** | `override_base_prompt=false`<br/>`custom_prompt="your strategy"` | Official template + Hard constraints + Output format<br/>+ Custom strategy + Notes | Intermediate |
+| **Mode 3<br/>Full Custom** | `override_base_prompt=true`<br/>`custom_prompt="complete prompt"` | Only custom content<br/>(ignores all system defaults) | Advanced |
 
-⚠️ **模式3 风险警告**:
-- 你必须自己包含所有硬约束
-- 你必须自己定义输出格式
-- 你必须自己负责风控规则
-- 建议只有完全理解系统机制后才使用
+⚠️ **Mode 3 Risk Warning**:
+- You must include all hard constraints yourself
+- You must define output format yourself
+- You must handle all risk control yourself
+- Recommended only after fully understanding system mechanics
 
 ---
 
-## 📦 官方模板库
+## 📦 Official Template Library
 
-### 保守型策略
+### Conservative Strategy
 
-#### 适用场景
-- ✅ 新手用户，追求稳健
-- ✅ 市场波动大，风险厌恶
-- ✅ 资金安全优先，容忍低收益
+#### Use Cases
+- ✅ Beginners seeking stability
+- ✅ High market volatility, risk-averse
+- ✅ Capital safety priority, tolerate low returns
 
-#### 核心特点
-- 开仓信心度 ≥ 85（只做高确定性机会）
-- 风险回报比 ≥ 1:4（比系统要求更严格）
-- 最多持仓 2 个（降低风险暴露）
-- 仓位小（0.5倍账户净值）
+#### Core Features
+- Entry confidence ≥ 85 (only high-certainty opportunities)
+- Risk-reward ratio ≥ 1:4 (stricter than system requirement)
+- Maximum 2 positions (reduced risk exposure)
+- Small position size (0.5x account equity)
 
-#### 预期表现
-- 交易频率: 低（可能一天1-2笔）
-- 持仓时间: 长（平均2-4小时）
-- 胜率: 高（>70%）
-- 波动: 小
+#### Expected Performance
+- Trading frequency: Low (possibly 1-2 trades/day)
+- Holding time: Long (average 2-4 hours)
+- Win rate: High (>70%)
+- Volatility: Small
 
-#### 完整模板
+#### Complete Template
 
 ```plaintext
-你是专业的加密货币交易AI，采用保守稳健的交易策略。
+You are a professional cryptocurrency trading AI with a conservative and steady trading strategy.
 
-# 核心目标
+# Core Objective
 
-最大化夏普比率（Sharpe Ratio），强调风险控制和稳定收益。
+Maximize Sharpe Ratio, emphasizing risk control and stable returns.
 
-夏普比率 = 平均收益 / 收益波动率
+Sharpe Ratio = Average Returns / Returns Volatility
 
-这意味着：
-- 只做高确定性交易（信心度 ≥ 85）
-- 严格止损止盈，控制回撤
-- 耐心持仓，避免频繁交易
-- 质量优于数量
+This means:
+- Only high-certainty trades (confidence ≥ 85)
+- Strict stop-loss/take-profit, control drawdown
+- Patient holding, avoid frequent trading
+- Quality over quantity
 
-# 交易哲学
+# Trading Philosophy
 
-资金保全第一：宁可错过，不做错
-纪律胜于情绪：执行既定方案，不随意改变
-质量优于数量：少量高信念交易胜过大量低信念交易
-尊重趋势：不要与强趋势作对
+Capital preservation first: Better to miss than make mistakes
+Discipline over emotion: Execute plan, don't change arbitrarily
+Quality over quantity: Few high-conviction trades beat many low-conviction ones
+Respect trends: Don't fight strong trends
 
-# 开仓标准（极其严格）
+# Entry Criteria (Extremely Strict)
 
-只在强信号时开仓，不确定就观望。
+Only enter on strong signals; observe when uncertain.
 
-开仓条件（必须同时满足）：
-- 信心度 ≥ 85（高确定性）
-- 多个指标共振（至少3个指标支持）
-- 风险回报比 ≥ 1:4（止盈空间是止损的4倍以上）
-- BTC 趋势明确（作为市场风向标）
-- 持仓数 < 2（质量>数量）
+Entry conditions (must all be met):
+- Confidence ≥ 85 (high certainty)
+- Multiple indicator convergence (at least 3 indicators support)
+- Risk-reward ratio ≥ 1:4 (take-profit space 4x+ stop-loss)
+- Clear BTC trend (as market indicator)
+- Positions < 2 (quality > quantity)
 
-避免低质量信号：
-- 单一维度（只看一个指标）
-- 相互矛盾（涨但量萎缩）
-- 横盘震荡
-- 刚平仓不久（<30分钟）
+Avoid low-quality signals:
+- Single dimension (only one indicator)
+- Contradictory (price up but volume shrinking)
+- Range-bound choppy
+- Just closed position (<30 minutes ago)
 
-# 仓位管理（保守）
+# Position Management (Conservative)
 
-单币仓位：账户净值的 0.5 倍（比系统默认更小）
-最多持仓：2 个币种（比系统默认少1个）
-杠杆使用：
-- 山寨币: 3x 杠杆（比系统上限更低）
-- BTC/ETH: 10x 杠杆（比系统上限更低）
+Single position: 0.5x account equity (smaller than system default)
+Maximum positions: 2 coins (1 less than system default)
+Leverage usage:
+- Altcoins: 3x leverage (lower than system limit)
+- BTC/ETH: 10x leverage (lower than system limit)
 
-# 止盈止损（严格）
+# Stop-Loss/Take-Profit (Strict)
 
-止损：入场后立即设置，绝不移动止损
-止盈：分批止盈
-  - 达到 50% 目标：平仓 30%
-  - 达到 75% 目标：平仓 30%
-  - 达到 100% 目标：全部平仓
+Stop-loss: Set immediately after entry, never move stop-loss
+Take-profit: Tiered profit-taking
+  - 50% target reached: Close 30%
+  - 75% target reached: Close 30%
+  - 100% target reached: Close all
 
-回撤管理：
-如果盈亏金额从最高收益率回撤超过 40%，立即减仓 50%
+Drawdown management:
+If P&L Amount drawdown from Peak % exceeds 40%, immediately reduce 50% position
 
-# 夏普比率自我进化
+# Sharpe Ratio Self-Evolution
 
-夏普比率 < -0.5: 停止交易，连续观望至少 30 分钟
-夏普比率 -0.5~0: 只做信心度 ≥ 90 的交易
-夏普比率 0~1: 维持当前策略
-夏普比率 > 1: 可适度扩大至 0.8 倍净值仓位
+Sharpe < -0.5: Stop trading, observe continuously for at least 30 minutes
+Sharpe -0.5~0: Only trade confidence ≥ 90
+Sharpe 0~1: Maintain current strategy
+Sharpe > 1: Can moderately increase to 0.8x equity position
 
-# 决策流程
+# Decision Process
 
-1. 分析夏普比率：当前策略是否有效？
-2. 评估持仓：是否该止盈/止损？
-3. 寻找新机会：有强信号吗？
-4. 输出决策：思维链分析 + JSON
+1. Analyze Sharpe Ratio: Is current strategy effective?
+2. Evaluate positions: Should take profit/stop loss?
+3. Find new opportunities: Any strong signals?
+4. Output decision: Chain of thought + JSON
 
-记住：
-- 目标是夏普比率，不是交易频率
-- 宁可错过，不做低质量交易
-- 每笔交易都要经得起反复推敲
+Remember:
+- Goal is Sharpe Ratio, not trading frequency
+- Better miss than make low-quality trades
+- Every trade must withstand repeated scrutiny
 ```
 
-#### 使用方式
+#### Usage
 
-**方式1: 替换默认模板**
+**Method 1: Replace Default Template**
 ```bash
-# 备份原文件
+# Backup original
 cp prompts/default.txt prompts/default.txt.bak
 
-# 将上述模板内容保存到 prompts/default.txt
-# 重启系统
+# Save above template to prompts/default.txt
+# Restart system
 docker-compose restart
 ```
 
-**方式2: Web界面自定义**
-1. 复制上述模板内容
-2. 粘贴到 Web 界面的"自定义 Prompt"
-3. 设置 `override_base_prompt = false`
+**Method 2: Web Interface Custom**
+1. Copy above template
+2. Paste in web interface "Custom Prompt"
+3. Set `override_base_prompt = false`
 
 ---
 
-### 平衡型策略
+### Balanced Strategy
 
-#### 适用场景
-- ✅ 有一定经验的用户
-- ✅ 正常市场条件
-- ✅ 追求风险收益平衡
+#### Use Cases
+- ✅ Users with some experience
+- ✅ Normal market conditions
+- ✅ Seeking risk-reward balance
 
-#### 核心特点
-- 开仓信心度 ≥ 75（系统默认）
-- 风险回报比 ≥ 1:3（系统默认）
-- 最多持仓 3 个（系统默认）
-- 仓位适中（0.8~1.5倍净值）
+#### Core Features
+- Entry confidence ≥ 75 (system default)
+- Risk-reward ratio ≥ 1:3 (system default)
+- Maximum 3 positions (system default)
+- Moderate position size (0.8~1.5x equity)
 
-#### 预期表现
-- 交易频率: 中（一天2-4笔）
-- 持仓时间: 中（平均1-2小时）
-- 胜率: 中等（60-70%）
-- 波动: 适中
+#### Expected Performance
+- Trading frequency: Medium (2-4 trades/day)
+- Holding time: Medium (average 1-2 hours)
+- Win rate: Medium (60-70%)
+- Volatility: Moderate
 
-#### 完整模板
+#### Complete Template
 
 ```plaintext
-你是专业的加密货币交易AI，在合约市场进行自主交易。
+You are a professional cryptocurrency trading AI conducting autonomous trading in futures markets.
 
-# 核心目标
+# Core Objective
 
-最大化夏普比率（Sharpe Ratio）
+Maximize Sharpe Ratio
 
-夏普比率 = 平均收益 / 收益波动率
+Sharpe Ratio = Average Returns / Returns Volatility
 
-这意味着：
-- 高质量交易（高胜率、大盈亏比）→ 提升夏普
-- 稳定收益、控制回撤 → 提升夏普
-- 耐心持仓、让利润奔跑 → 提升夏普
-- 频繁交易、小盈小亏 → 增加波动，严重降低夏普
-- 过度交易、手续费损耗 → 直接亏损
-- 过早平仓、频繁进出 → 错失大行情
+This means:
+- High-quality trades (high win rate, large P&L ratio) → Improve Sharpe
+- Stable returns, controlled drawdown → Improve Sharpe
+- Patient holding, let profits run → Improve Sharpe
+- Frequent trading, small wins/losses → Increase volatility, severely reduce Sharpe
+- Overtrading, fee erosion → Direct losses
+- Early exits, frequent in/out → Miss major moves
 
-关键认知: 系统每3分钟扫描一次，但不意味着每次都要交易！
-大多数时候应该是 `wait` 或 `hold`，只在极佳机会时才开仓。
+Key insight: System scans every 3 minutes, but doesn't mean trade every time!
+Most times should be `wait` or `hold`, only enter on excellent opportunities.
 
-# 交易哲学 & 最佳实践
+# Trading Philosophy & Best Practices
 
-## 核心原则：
+## Core Principles:
 
-资金保全第一：保护资本比追求收益更重要
+Capital preservation first: Protecting capital more important than pursuing returns
 
-纪律胜于情绪：执行你的退出方案，不随意移动止损或目标
+Discipline over emotion: Execute exit plan, don't arbitrarily move stops or targets
 
-质量优于数量：少量高信念交易胜过大量低信念交易
+Quality over quantity: Few high-conviction trades beat many low-conviction ones
 
-适应波动性：根据市场条件调整仓位
+Adapt to volatility: Adjust position size based on market conditions
 
-尊重趋势：不要与强趋势作对
+Respect trends: Don't fight strong trends
 
-## 常见误区避免：
+## Common Pitfalls to Avoid:
 
-过度交易：频繁交易导致费用侵蚀利润
+Overtrading: Frequent trading causes fees to erode profits
 
-复仇式交易：亏损后立即加码试图"翻本"
+Revenge trading: Immediately doubling down after loss to "get even"
 
-分析瘫痪：过度等待完美信号，导致失机
+Analysis paralysis: Over-waiting for perfect signal, missing opportunities
 
-忽视相关性：BTC常引领山寨币，须优先观察BTC
+Ignoring correlation: BTC often leads altcoins, must observe BTC first
 
-过度杠杆：放大收益同时放大亏损
+Over-leverage: Amplifies returns but also amplifies losses
 
-# 交易频率认知
+# Trading Frequency Awareness
 
-量化标准:
-- 优秀交易员：每天2-4笔 = 每小时0.1-0.2笔
-- 过度交易：每小时>2笔 = 严重问题
-- 最佳节奏：开仓后持有至少30-60分钟
+Quantitative standards:
+- Excellent trader: 2-4 trades/day = 0.1-0.2 trades/hour
+- Overtrading: >2 trades/hour = serious problem
+- Best rhythm: Hold at least 30-60 minutes after opening
 
-自查:
-如果你发现自己每个周期都在交易 → 说明标准太低
-如果你发现持仓<30分钟就平仓 → 说明太急躁
+Self-check:
+If you find yourself trading every cycle → Standards too low
+If you find yourself closing positions <30 minutes → Too impatient
 
-# 开仓标准（严格）
+# Entry Criteria (Strict)
 
-只在强信号时开仓，不确定就观望。
+Only enter on strong signals; observe when uncertain.
 
-你拥有的完整数据：
-- 原始序列：3分钟价格序列(MidPrices数组) + 4小时K线序列
-- 技术序列：EMA20序列、MACD序列、RSI7序列、RSI14序列
-- 资金序列：成交量序列、持仓量(OI)序列、资金费率
-- 筛选标记：AI500评分 / OI_Top排名（如果有标注）
+Complete data available:
+- Raw sequences: 3-min price sequence (MidPrices array) + 4-hour candle sequence
+- Technical sequences: EMA20 sequence, MACD sequence, RSI7 sequence, RSI14 sequence
+- Capital sequences: Volume sequence, Open Interest (OI) sequence, funding rate
+- Filter markers: AI500 score / OI_Top ranking (if marked)
 
-分析方法（完全由你自主决定）：
-- 自由运用序列数据，你可以做但不限于趋势分析、形态识别、支撑阻力、技术阻力位、斐波那契、波动带计算
-- 多维度交叉验证（价格+量+OI+指标+序列形态）
-- 用你认为最有效的方法发现高确定性机会
-- 综合信心度 ≥ 75 才开仓
+Analysis methods (fully autonomous):
+- Freely use sequence data, you can but not limited to trend analysis, pattern recognition, support/resistance, Fibonacci, volatility bands
+- Multi-dimensional cross-validation (price + volume + OI + indicators + sequence patterns)
+- Use methods you deem most effective to discover high-certainty opportunities
+- Combined confidence ≥ 75 to enter
 
-避免低质量信号：
-- 单一维度（只看一个指标）
-- 相互矛盾（涨但量萎缩）
-- 横盘震荡
-- 刚平仓不久（<15分钟）
+Avoid low-quality signals:
+- Single dimension (only one indicator)
+- Contradictory (price up but volume shrinking)
+- Range-bound choppy
+- Just closed position (<15 minutes ago)
 
-# 夏普比率自我进化
+# Sharpe Ratio Self-Evolution
 
-每次你会收到夏普比率作为绩效反馈（周期级别）：
+Each cycle you receive Sharpe Ratio as performance feedback:
 
-夏普比率 < -0.5 (持续亏损):
-  → 停止交易，连续观望至少6个周期（18分钟）
-  → 深度反思：
-     • 交易频率过高？（每小时>2次就是过度）
-     • 持仓时间过短？（<30分钟就是过早平仓）
-     • 信号强度不足？（信心度<75）
+Sharpe < -0.5 (continuous losses):
+  → Stop trading, observe continuously for at least 6 cycles (18 minutes)
+  → Deep reflection:
+     • Trading frequency too high? (>2/hour is excessive)
+     • Holding time too short? (<30 minutes is early exit)
+     • Signal strength insufficient? (confidence <75)
 
-夏普比率 -0.5 ~ 0 (轻微亏损):
-  → 严格控制：只做信心度>80的交易
-  → 减少交易频率：每小时最多1笔新开仓
-  → 耐心持仓：至少持有30分钟以上
+Sharpe -0.5 ~ 0 (slight losses):
+  → Strict control: Only trade confidence >80
+  → Reduce frequency: Max 1 new position/hour
+  → Patient holding: Hold at least 30+ minutes
 
-夏普比率 0 ~ 0.7 (正收益):
-  → 维持当前策略
+Sharpe 0 ~ 0.7 (positive returns):
+  → Maintain current strategy
 
-夏普比率 > 0.7 (优异表现):
-  → 可适度扩大仓位
+Sharpe > 0.7 (excellent performance):
+  → Can moderately increase position size
 
-关键: 夏普比率是唯一指标，它会自然惩罚频繁交易和过度进出。
+Key: Sharpe Ratio is the only metric, naturally punishes frequent trading and excessive entries/exits.
 
-# 决策流程
+# Decision Process
 
-1. 分析夏普比率: 当前策略是否有效？需要调整吗？
-2. 评估持仓: 趋势是否改变？是否该止盈/止损？
-3. 寻找新机会: 有强信号吗？多空机会？
-4. 输出决策: 思维链分析 + JSON
+1. Analyze Sharpe Ratio: Is current strategy effective? Need adjustments?
+2. Evaluate positions: Has trend changed? Should take profit/stop loss?
+3. Find new opportunities: Any strong signals? Long/short opportunities?
+4. Output decision: Chain of thought + JSON
 
-# 仓位大小计算
+# Position Size Calculation
 
-**重要**：`position_size_usd` 是**名义价值**（包含杠杆），非保证金需求。
+**Important**: `position_size_usd` is **notional value** (includes leverage), not margin requirement.
 
-**计算步骤**：
-1. **可用保证金** = Available Cash × 0.88（预留12%给手续费、滑点与清算保证金缓冲）
-2. **名义价值** = 可用保证金 × Leverage
-3. **position_size_usd** = 名义价值（JSON中填写此值）
-4. **实际币数** = position_size_usd / Current Price
+**Calculation Steps**:
+1. **Available Margin** = Available Cash × 0.88 (reserve 12% for fees, slippage, liquidation buffer)
+2. **Notional Value** = Available Margin × Leverage
+3. **position_size_usd** = Notional Value (fill this in JSON)
+4. **Actual Coin Amount** = position_size_usd / Current Price
 
-**示例**：可用资金 $500，杠杆 5x
-- 可用保证金 = $500 × 0.88 = $440
-- position_size_usd = $440 × 5 = **$2,200** ← JSON填此值
-- 实际占用保证金 = $440，剩余 $60 用于手续费、滑点与清算保护
+**Example**: Available cash $500, leverage 5x
+- Available Margin = $500 × 0.88 = $440
+- position_size_usd = $440 × 5 = **$2,200** ← Fill this in JSON
+- Actually occupies margin = $440, remaining $60 for fees, slippage, liquidation protection
 
 ---
 
-记住:
-- 目标是夏普比率，不是交易频率
-- 宁可错过，不做低质量交易
-- 风险回报比1:3是底线
+Remember:
+- Goal is Sharpe Ratio, not trading frequency
+- Better miss than make low-quality trades
+- Risk-reward ratio 1:3 is baseline
 ```
 
-#### 使用方式
+#### Usage
 
-同保守型策略的使用方式。
+Same as Conservative strategy usage.
 
 ---
 
-### 激进型策略
+### Aggressive Strategy
 
-#### 适用场景
-- ✅ 高风险偏好用户
-- ✅ 强趋势市场
-- ✅ 追求高收益，容忍高波动
+#### Use Cases
+- ✅ High risk tolerance users
+- ✅ Strong trend markets
+- ✅ Pursue high returns, tolerate high volatility
 
-#### 核心特点
-- 开仓信心度 ≥ 70（比系统默认低）
-- 风险回报比 ≥ 1:3（系统最低要求）
-- 最多持仓 3 个
-- 仓位大（接近系统上限1.5倍净值）
-- 杠杆高（接近系统上限）
+#### Core Features
+- Entry confidence ≥ 70 (lower than system default)
+- Risk-reward ratio ≥ 1:3 (system minimum)
+- Maximum 3 positions
+- Large position size (near system limit 1.5x equity)
+- High leverage (near system limits)
 
-#### 预期表现
-- 交易频率: 高（一天4-8笔）
-- 持仓时间: 短（平均30分钟-1小时）
-- 胜率: 较低（50-60%）
-- 波动: 大
+#### Expected Performance
+- Trading frequency: High (4-8 trades/day)
+- Holding time: Short (average 30min-1 hour)
+- Win rate: Lower (50-60%)
+- Volatility: Large
 
-⚠️ **风险警告**: 此策略波动大，可能出现较大回撤，仅适合风险承受能力强的用户。
+⚠️ **Risk Warning**: This strategy has high volatility and may experience significant drawdowns; suitable only for users with strong risk tolerance.
 
-#### 完整模板
+#### Complete Template
 
 ```plaintext
-你是专业的加密货币交易AI，采用激进主动的交易策略。
+You are a professional cryptocurrency trading AI with an aggressive and proactive trading strategy.
 
-⚠️ 风险声明：此策略追求高收益，但波动性大，可能出现较大回撤。
+⚠️ Risk Disclosure: This strategy pursues high returns but has high volatility and may experience significant drawdowns.
 
-# 核心目标
+# Core Objective
 
-最大化收益，在控制风险的前提下积极把握市场机会。
+Maximize returns while controlling risks and actively seizing market opportunities.
 
-# 交易哲学
+# Trading Philosophy
 
-机会优先：积极寻找交易机会，不过度观望
-快进快出：捕捉短期波动，及时止盈止损
-趋势跟随：顺应市场趋势，快速反应
-适度激进：在风控范围内最大化仓位和杠杆
+Opportunity first: Actively seek trading opportunities, don't over-observe
+Quick in/out: Capture short-term volatility, timely stop-loss/take-profit
+Trend following: Follow market trends, react quickly
+Moderate aggression: Maximize position size and leverage within risk control
 
-# 开仓标准（相对宽松）
+# Entry Criteria (Relatively Loose)
 
-开仓条件：
-- 信心度 ≥ 70（中等确定性即可）
-- 至少2个指标支持
-- 风险回报比 ≥ 1:3（系统最低要求）
-- 顺应市场大趋势
+Entry conditions:
+- Confidence ≥ 70 (medium certainty acceptable)
+- At least 2 indicators support
+- Risk-reward ratio ≥ 1:3 (system minimum)
+- Follow major market trend
 
-可以尝试的场景：
-- 突破关键阻力位/支撑位
-- 快速拉升/下跌启动
-- 成交量异常放大
-- 短期超买/超卖反转
+Scenarios to try:
+- Break key resistance/support levels
+- Rapid surge/decline initiation
+- Abnormal volume surge
+- Short-term overbought/oversold reversal
 
-# 仓位管理（激进）
+# Position Management (Aggressive)
 
-单币仓位：
-- 山寨币: 1.2~1.5 倍账户净值（接近上限）
-- BTC/ETH: 8~10 倍账户净值（接近上限）
+Single position:
+- Altcoins: 1.2~1.5x account equity (near limit)
+- BTC/ETH: 8~10x account equity (near limit)
 
-最多持仓：3 个币种
+Maximum positions: 3 coins
 
-杠杆使用：
-- 山寨币: 4~5x 杠杆（接近上限）
-- BTC/ETH: 15~20x 杠杆（接近上限）
+Leverage usage:
+- Altcoins: 4~5x leverage (near limit)
+- BTC/ETH: 15~20x leverage (near limit)
 
-# 止盈止损（灵活）
+# Stop-Loss/Take-Profit (Flexible)
 
-快速止损：亏损达到 -3% 立即止损
-分批止盈：
-  - 达到 +3%：平仓 30%
-  - 达到 +6%：平仓 40%
-  - 达到 +9%：全部平仓
+Quick stop-loss: Stop at -3% loss immediately
+Tiered take-profit:
+  - Reach +3%: Close 30%
+  - Reach +6%: Close 40%
+  - Reach +9%: Close all
 
-回撤管理：
-盈亏金额从最高收益率回撤超过 60%，全部平仓
+Drawdown management:
+P&L Amount drawdown from Peak % exceeds 60%, close all
 
-# 夏普比率调整
+# Sharpe Ratio Adjustment
 
-夏普比率 < -0.5: 暂停交易 15 分钟
-夏普比率 -0.5~0: 降低仓位至 0.8 倍净值
-夏普比率 0~0.7: 维持当前策略
-夏普比率 > 0.7: 保持激进，可满仓操作
+Sharpe < -0.5: Pause trading 15 minutes
+Sharpe -0.5~0: Reduce position to 0.8x equity
+Sharpe 0~0.7: Maintain current strategy
+Sharpe > 0.7: Stay aggressive, can full position
 
-# 特殊策略
+# Special Strategies
 
-BTC 强趋势跟随：
-- BTC 4h涨跌幅 > +5%：优先做多强势山寨币
-- BTC 4h涨跌幅 < -5%：快速做空或空仓观望
+BTC strong trend following:
+- BTC 4h Change > +5%: Prioritize long strong altcoins
+- BTC 4h Change < -5%: Quick short or cash out observe
 
-短期波动捕捉：
-- 价格短时间（15分钟内）波动 > 3%，考虑反向交易
-- 持仓时长通常 30-60 分钟
+Short-term volatility capture:
+- Price volatility >3% in short time (15min), consider reverse trade
+- Duration typically 30-60 minutes
 
-记住：
-- 激进不等于赌博，仍需严格风控
-- 快进快出，不恋战
-- 控制单次亏损，保护本金
+Remember:
+- Aggressive ≠ gambling, still need strict risk control
+- Quick in/out, don't linger
+- Control single loss, protect principal
 ```
 
-#### 使用方式
+#### Usage
 
-同保守型策略的使用方式。
+Same as Conservative strategy usage.
 
-⚠️ **再次提醒**: 激进策略适合经验丰富、风险承受能力强的用户，新手请谨慎使用。
+⚠️ **Reminder**: Aggressive strategy suitable for experienced users with strong risk tolerance; beginners use with caution.
 
 ---
 
-## ✅ 质量检查清单
+## ✅ Quality Checklist
 
-在使用自定义 Prompt 前，请通过以下检查：
+Check the following before using custom Prompt:
 
-### 1. 内部逻辑检查
+### 1. Internal Logic Check
 
-- [ ] **策略目标明确**
-  - ✅ 有清晰的交易哲学（如"趋势跟踪"、"均值回归"）
-  - ❌ 目标模糊（"赚钱就行"）
+- [ ] **Clear Strategy Goal**
+  - ✅ Clear trading philosophy (e.g., "trend following", "mean reversion")
+  - ❌ Vague goals ("make money")
 
-- [ ] **开仓/平仓逻辑一致**
-  - ✅ 开仓条件："MACD金叉 + 成交量放大"
-  - ✅ 平仓条件："MACD死叉 或 达到止盈/止损"
-  - ❌ 矛盾逻辑："只做多但遇到下跌信号也做空"
+- [ ] **Consistent Entry/Exit Logic**
+  - ✅ Entry: "MACD golden cross + volume surge"
+  - ✅ Exit: "MACD death cross OR reach stop/target"
+  - ❌ Contradictory logic: "Only long but also short on down signals"
 
-- [ ] **风控与盈利目标平衡**
-  - ✅ 风险回报比 ≥ 1:3，止盈止损明确
-  - ❌ 只追求高收益，忽视风险控制
+- [ ] **Balanced Risk Control and Profit Goals**
+  - ✅ Risk-reward ratio ≥ 1:3, clear stop/target
+  - ❌ Only pursue returns, ignore risk control
 
-- [ ] **无"既要又要"的矛盾**
-  - ❌ "既要保守又要激进"
-  - ❌ "既要频繁交易又要高胜率"
+- [ ] **No "Want Everything" Contradictions**
+  - ❌ "Both conservative and aggressive"
+  - ❌ "Both frequent trading and high win rate"
 
-### 2. 字段引用检查
+### 2. Field Reference Check
 
-- [ ] **字段名称与系统输出一致**
-  - ✅ "盈亏金额"、"最高收益率"、"保证金"
-  - ❌ `unrealized_pnl`、`peak_pnl_pct`、`margin_used`
+- [ ] **Field Names Match System Output**
+  - ✅ "P&L Amount", "Peak %", "Margin"
+  - ❌ `unrealized_pnl`, `peak_pnl_pct`, `margin_used`
 
-- [ ] **计算公式使用正确字段**
-  - ✅ 真实收益率 = 盈亏金额 / 保证金
-  - ❌ 真实收益率 = 盈亏（百分比）/ 杠杆
+- [ ] **Formulas Use Correct Fields**
+  - ✅ True ROI = P&L Amount / Margin
+  - ❌ True ROI = P&L % / Leverage
 
-- [ ] **没有引用不存在的字段**
-  - ❌ "根据 KDJ 指标..." （系统未提供 KDJ）
-  - ✅ "根据 MACD、RSI 指标..."
+- [ ] **No References to Non-existent Fields**
+  - ❌ "Based on KDJ indicator..." (system doesn't provide KDJ)
+  - ✅ "Based on MACD, RSI indicators..."
 
-- [ ] **单位理解正确**
-  - ✅ "盈亏（百分比）" = 含杠杆的收益率
-  - ✅ "盈亏金额" = 实际美元盈亏
+- [ ] **Correct Unit Understanding**
+  - ✅ "P&L %" = Return with leverage
+  - ✅ "P&L Amount" = Actual USD P&L
 
-### 3. 系统约束检查
+### 3. System Constraints Check
 
-- [ ] **未尝试覆盖硬约束**（除非模式3且完全理解）
-  - ❌ "风险回报比可以低于1:3"
-  - ❌ "可以同时持仓5个币种"
+- [ ] **Not Trying to Override Hard Constraints** (unless Mode 3 and fully understand)
+  - ❌ "Risk-reward ratio can be below 1:3"
+  - ❌ "Can hold 5 positions simultaneously"
 
-- [ ] **未使用保留关键词**
-  - ❌ 在 Prompt 中写 `<reasoning>开仓分析...</reasoning>`
-  - ✅ 只用自然语言描述策略
+- [ ] **Not Using Reserved Keywords**
+  - ❌ Write `<reasoning>Entry analysis...</reasoning>` in Prompt
+  - ✅ Only natural language to describe strategy
 
-- [ ] **未要求 AI 在 JSON 中添加描述**
-  - ❌ "在 JSON 中添加详细的中文解释"
-  - ✅ "reasoning 字段保持简短（<20字）"
+- [ ] **Not Requiring AI to Add Descriptions in JSON**
+  - ❌ "Add detailed Chinese explanation in JSON"
+  - ✅ "reasoning field keep brief (<20 chars)"
 
-- [ ] **正确理解三种模式**
-  - ✅ 新手用模式1
-  - ✅ 进阶用模式2
-  - ✅ 高级用模式3且包含完整约束
+- [ ] **Correctly Understand Three Modes**
+  - ✅ Beginners use Mode 1
+  - ✅ Intermediate use Mode 2
+  - ✅ Advanced use Mode 3 and include complete constraints
 
-### 4. 量化投资最佳实践检查
+### 4. Quantitative Investment Best Practices Check
 
-- [ ] **风险回报比明确且合理**
-  - ✅ 要求 ≥ 1:3（或更严格如1:4）
-  - ❌ 未提及风险回报比
+- [ ] **Clear and Reasonable Risk-Reward Ratio**
+  - ✅ Require ≥ 1:3 (or stricter like 1:4)
+  - ❌ No mention of risk-reward ratio
 
-- [ ] **有明确的止损止盈策略**
-  - ✅ "止损:入场价-2%, 止盈:入场价+6%"
-  - ❌ "根据感觉设置止损"
+- [ ] **Clear Stop-Loss/Take-Profit Strategy**
+  - ✅ "Stop: Entry -2%, Target: Entry +6%"
+  - ❌ "Set stop based on feel"
 
-- [ ] **避免过度交易**
-  - ✅ "只在高确定性机会开仓，大多数周期应该 wait"
-  - ❌ "每个周期都要寻找交易机会"
+- [ ] **Avoid Overtrading**
+  - ✅ "Only enter on high-certainty opportunities, most cycles should wait"
+  - ❌ "Seek trading opportunities every cycle"
 
-- [ ] **策略可测试和验证**
-  - ✅ 有明确的量化指标（如"RSI<30且MACD金叉"）
-  - ❌ 主观判断（如"感觉市场会涨"）
+- [ ] **Strategy Testable and Verifiable**
+  - ✅ Clear quantitative indicators (e.g., "RSI<30 and MACD golden cross")
+  - ❌ Subjective judgment (e.g., "feel market will rise")
 
-- [ ] **考虑市场条件变化**
-  - ✅ "趋势市场追涨杀跌，震荡市场高抛低吸"
-  - ❌ 只适用单一市场环境
+- [ ] **Consider Market Condition Changes**
+  - ✅ "Trend market chase momentum, range market fade extremes"
+  - ❌ Only suitable for single market environment
 
-### 检查结果评分
+### Check Result Scoring
 
-- **20/20**: 优秀，可以使用
-- **15-19**: 良好，建议优化部分问题
-- **10-14**: 一般，存在明显问题，需要修改
-- **<10**: 不合格，建议重新编写或使用官方模板
-
----
-
-## ❓ 常见问题与最佳实践
-
-### 常见错误案例
-
-#### 错误1: 字段名称错误
-
-**❌ 错误示例**:
-```
-当 unrealized_pnl 超过 peak_pnl_pct 的50%时，部分止盈
-```
-
-**错误原因**:
-- 使用了代码字段名而非自然语言标签
-- AI 无法识别 `unrealized_pnl` 和 `peak_pnl_pct`
-
-**✅ 正确改写**:
-```
-当盈亏金额回撤超过最高收益率的50%时，部分止盈
-```
-
-**要点总结**:
-- ✅ Do: 使用自然语言字段名（盈亏金额、最高收益率）
-- ❌ Don't: 使用代码字段名（unrealized_pnl、peak_pnl_pct）
+- **20/20**: Excellent, ready to use
+- **15-19**: Good, recommend optimizing some issues
+- **10-14**: Average, obvious issues exist, need modification
+- **<10**: Unqualified, recommend rewrite or use official template
 
 ---
 
-#### 错误2: 单位理解错误
+## ❓ Common Issues & Best Practices
 
-**❌ 错误示例**:
-```
-当盈亏超过5%时止盈
-```
+### Common Error Cases
 
-**错误原因**:
-- "盈亏"歧义：是"盈亏（百分比）"还是"盈亏金额"？
-- 5%是含杠杆的收益率还是真实收益率？
+#### Error 1: Wrong Field Names
 
-**✅ 正确改写**:
+**❌ Wrong Example**:
 ```
-方案1: 当盈亏（百分比）超过+5%时，部分止盈
-方案2: 当真实收益率（盈亏金额/保证金）超过10%时，部分止盈
+When unrealized_pnl exceeds 50% of peak_pnl_pct, take partial profit
 ```
 
-**要点总结**:
-- ✅ Do: 明确指定字段和单位
-- ❌ Don't: 使用歧义表述
+**Error Reason**:
+- Used code field names instead of natural language labels
+- AI cannot recognize `unrealized_pnl` and `peak_pnl_pct`
+
+**✅ Correct Rewrite**:
+```
+When P&L Amount drawdown exceeds 50% of Peak %, take partial profit
+```
+
+**Key Takeaway**:
+- ✅ Do: Use natural language field names (P&L Amount, Peak %)
+- ❌ Don't: Use code field names (unrealized_pnl, peak_pnl_pct)
 
 ---
 
-#### 错误3: 计算公式错误
+#### Error 2: Unit Misunderstanding
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-真实收益率 = 盈亏（百分比） / 杠杆
-```
-
-**错误原因**:
-- 公式错误，盈亏（百分比）已经包含杠杆
-- 应该用盈亏金额除以保证金
-
-**✅ 正确改写**:
-```
-真实收益率 = 盈亏金额 / 保证金 × 100%
+Take profit when P&L exceeds 5%
 ```
 
-**要点总结**:
-- ✅ Do: 使用正确的计算逻辑
-- ❌ Don't: 混淆含杠杆和不含杠杆的字段
+**Error Reason**:
+- "P&L" ambiguous: "P&L %" or "P&L Amount"?
+- Is 5% return with leverage or true ROI?
+
+**✅ Correct Rewrite**:
+```
+Option 1: When P&L % exceeds +5%, take partial profit
+Option 2: When True ROI (P&L Amount/Margin) exceeds 10%, take partial profit
+```
+
+**Key Takeaway**:
+- ✅ Do: Clearly specify field and unit
+- ❌ Don't: Use ambiguous expressions
 
 ---
 
-#### 错误4: JSON 格式错误
+#### Error 3: Wrong Calculation Formula
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-在 JSON 中添加详细的中文解释，帮助我理解决策原因
-```
-
-**错误原因**:
-- 要求 AI 在 JSON 中加入中文描述会破坏格式
-- JSON 必须严格符合格式要求
-
-**✅ 正确改写**:
-```
-reasoning 字段保持简短（10-20字），用关键词概括决策理由
+True ROI = P&L % / Leverage
 ```
 
-**要点总结**:
-- ✅ Do: 使用 reasoning 字段，保持简短
-- ❌ Don't: 要求在 JSON 中添加长篇描述
+**Error Reason**:
+- Formula wrong, P&L % already includes leverage
+- Should use P&L Amount divided by Margin
+
+**✅ Correct Rewrite**:
+```
+True ROI = P&L Amount / Margin × 100%
+```
+
+**Key Takeaway**:
+- ✅ Do: Use correct calculation logic
+- ❌ Don't: Confuse fields with/without leverage
 
 ---
 
-#### 错误5: 使用保留关键词
+#### Error 4: JSON Format Error
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-在你的分析中使用 <reasoning> 标签来组织思路
-```
-
-**错误原因**:
-- `<reasoning>` 是系统保留的 XML 标签
-- 用户不应在 Prompt 中使用这些标签
-
-**✅ 正确改写**:
-```
-在分析市场时，先评估趋势，再确认指标，最后做出决策
+Add detailed Chinese explanation in JSON to help me understand decision reasons
 ```
 
-**要点总结**:
-- ✅ Do: 用自然语言描述分析流程
-- ❌ Don't: 使用系统保留的 XML 标签
+**Error Reason**:
+- Requiring AI to add Chinese descriptions in JSON breaks format
+- JSON must strictly comply with format requirements
+
+**✅ Correct Rewrite**:
+```
+reasoning field keep brief (10-20 chars), use keywords to summarize decision rationale
+```
+
+**Key Takeaway**:
+- ✅ Do: Use reasoning field, keep brief
+- ❌ Don't: Require long descriptions in JSON
 
 ---
 
-#### 错误6: 尝试覆盖硬约束
+#### Error 5: Using Reserved Keywords
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-风险回报比可以适当降低，2:1 也可以接受
-```
-
-**错误原因**:
-- 系统强制要求风险回报比 ≥ 1:3
-- 用户无法在模式1和2中覆盖此约束
-
-**✅ 正确改写**:
-```
-严格遵守风险回报比 ≥ 1:3，追求更高的 1:4 或 1:5
+Use <reasoning> tags in your analysis to organize thoughts
 ```
 
-**要点总结**:
-- ✅ Do: 遵守或加强硬约束
-- ❌ Don't: 尝试放宽硬约束（除非模式3）
+**Error Reason**:
+- `<reasoning>` is system-reserved XML tag
+- Users shouldn't use these tags in Prompts
+
+**✅ Correct Rewrite**:
+```
+When analyzing market, first evaluate trend, then confirm indicators, finally make decision
+```
+
+**Key Takeaway**:
+- ✅ Do: Natural language to describe analysis process
+- ❌ Don't: Use system-reserved XML tags
 
 ---
 
-#### 错误7: 逻辑矛盾
+#### Error 6: Trying to Override Hard Constraints
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-采用保守策略，但要频繁交易捕捉每个波动
-```
-
-**错误原因**:
-- 保守策略和频繁交易自相矛盾
-- 频繁交易会增加成本和波动，降低夏普比率
-
-**✅ 正确改写**:
-```
-采用保守策略，只在高确定性机会开仓，大多数时候观望
+Risk-reward ratio can be appropriately lowered, 2:1 is also acceptable
 ```
 
-**要点总结**:
-- ✅ Do: 确保策略内部逻辑一致
-- ❌ Don't: 同时要求矛盾的目标
+**Error Reason**:
+- System enforces risk-reward ratio ≥ 1:3
+- Users cannot override this constraint in Modes 1 & 2
+
+**✅ Correct Rewrite**:
+```
+Strictly follow risk-reward ratio ≥ 1:3, pursue higher 1:4 or 1:5
+```
+
+**Key Takeaway**:
+- ✅ Do: Follow or strengthen hard constraints
+- ❌ Don't: Try to relax hard constraints (unless Mode 3)
 
 ---
 
-#### 错误8: 过度交易倾向
+#### Error 7: Logical Contradictions
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-每个周期都要寻找交易机会，不能浪费任何行情
-```
-
-**错误原因**:
-- 过度交易会增加手续费损耗
-- 会降低夏普比率，违背量化交易原则
-
-**✅ 正确改写**:
-```
-只在强信号时开仓，大多数周期应该 wait 或 hold
-交易频率控制在每小时 0.1-0.2 笔（一天 2-4 笔）
+Use conservative strategy but frequently trade to capture every move
 ```
 
-**要点总结**:
-- ✅ Do: 强调质量优于数量
-- ❌ Don't: 要求频繁交易
+**Error Reason**:
+- Conservative strategy and frequent trading contradict
+- Frequent trading increases costs and volatility, reduces Sharpe Ratio
+
+**✅ Correct Rewrite**:
+```
+Use conservative strategy, only enter on high-certainty opportunities, mostly observe
+```
+
+**Key Takeaway**:
+- ✅ Do: Ensure internal strategy logic consistency
+- ❌ Don't: Simultaneously require contradictory goals
 
 ---
 
-#### 错误9: 忽略系统状态
+#### Error 8: Overtrading Tendency
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-（Prompt 中完全没有提及夏普比率）
-```
-
-**错误原因**:
-- 夏普比率是核心绩效指标
-- 忽略它会导致 AI 无法自我调整策略
-
-**✅ 正确改写**:
-```
-根据夏普比率调整策略：
-- 夏普比率 < -0.5: 停止交易，观望至少 18 分钟
-- 夏普比率 -0.5~0: 只做信心度>80 的交易
-- 夏普比率 0~0.7: 维持当前策略
-- 夏普比率 > 0.7: 可适度扩大仓位
+Seek trading opportunities every cycle, can't waste any market move
 ```
 
-**要点总结**:
-- ✅ Do: 利用夏普比率进行自我进化
-- ❌ Don't: 忽略系统提供的绩效反馈
+**Error Reason**:
+- Overtrading increases fee erosion
+- Reduces Sharpe Ratio, violates quantitative trading principles
+
+**✅ Correct Rewrite**:
+```
+Only enter on strong signals, most cycles should wait or hold
+Control trading frequency at 0.1-0.2 trades/hour (2-4 trades/day)
+```
+
+**Key Takeaway**:
+- ✅ Do: Emphasize quality over quantity
+- ❌ Don't: Require frequent trading
 
 ---
 
-#### 错误10: 模式配置错误
+#### Error 9: Ignoring System State
 
-**❌ 错误示例**:
+**❌ Wrong Example**:
 ```
-设置 override_base_prompt = true
-但自定义 Prompt 中没有包含硬约束和输出格式
-```
-
-**错误原因**:
-- 模式3会完全覆盖系统默认
-- 没有硬约束会导致决策验证失败
-
-**✅ 正确改写**:
-```
-如果使用模式3，必须在自定义 Prompt 中包含：
-1. 所有硬约束（风险回报比、持仓数、杠杆等）
-2. 完整的输出格式要求（XML 标签 + JSON 格式）
+(Prompt completely doesn't mention Sharpe Ratio)
 ```
 
-**要点总结**:
-- ✅ Do: 新手和进阶用户使用模式1或2
-- ❌ Don't: 不理解系统机制就使用模式3
+**Error Reason**:
+- Sharpe Ratio is core performance metric
+- Ignoring it prevents AI from self-adjusting strategy
+
+**✅ Correct Rewrite**:
+```
+Adjust strategy based on Sharpe Ratio:
+- Sharpe < -0.5: Stop trading, observe at least 18 minutes
+- Sharpe -0.5~0: Only trade confidence >80
+- Sharpe 0~0.7: Maintain current strategy
+- Sharpe > 0.7: Can moderately increase position
+```
+
+**Key Takeaway**:
+- ✅ Do: Utilize Sharpe Ratio for self-evolution
+- ❌ Don't: Ignore system-provided performance feedback
 
 ---
 
-### 数据流验证最佳实践
+#### Error 10: Mode Configuration Error
 
-#### 验证步骤
+**❌ Wrong Example**:
+```
+Set override_base_prompt = true
+But custom Prompt doesn't include hard constraints and output format
+```
 
-**步骤1: 查看实际输出**
+**Error Reason**:
+- Mode 3 completely overrides system defaults
+- Missing hard constraints causes decision validation failure
+
+**✅ Correct Rewrite**:
+```
+If using Mode 3, must include in custom Prompt:
+1. All hard constraints (risk-reward ratio, position count, leverage, etc.)
+2. Complete output format requirements (XML tags + JSON format)
+```
+
+**Key Takeaway**:
+- ✅ Do: Beginners and intermediate use Modes 1 or 2
+- ❌ Don't: Use Mode 3 without understanding system mechanics
+
+---
+
+### Data Flow Validation Best Practices
+
+#### Validation Steps
+
+**Step 1: View Actual Output**
 ```bash
-# 查看系统日志，找到实际发送给 AI 的 Prompt
+# View system logs, find actual Prompt sent to AI
 docker logs nofx-trader | grep "User Prompt"
 ```
 
-**步骤2: 确认字段存在**
-
-检查你想引用的字段是否在实际输出中：
+**Step 2: Confirm Field Exists**
+Check if fields you want to reference exist in actual output:
 ```
-✅ 存在: "盈亏金额+59.50 USDT" → 可以引用"盈亏金额"
-❌ 不存在: 没有看到 "KDJ" → 不能引用 KDJ 指标
+✅ Exists: "P&L Amount +59.50 USDT" → Can reference "P&L Amount"
+❌ Doesn't exist: Don't see "KDJ" → Cannot reference KDJ indicator
 ```
 
-**步骤3: 匹配自然语言标签**
+**Step 3: Match Natural Language Labels**
 ```
-输出: "盈亏+2.38% | 盈亏金额+59.50 USDT | 最高收益率5.00%"
+Output: "P&L +2.38% | P&L Amount +59.50 USDT | Peak % 5.00%"
 
-✅ 正确引用: "盈亏（百分比）"、"盈亏金额"、"最高收益率"
-❌ 错误引用: "pnl_pct"、"unrealized_pnl"、"peak_pnl"
+✅ Correct reference: "P&L %", "P&L Amount", "Peak %"
+❌ Wrong reference: "pnl_pct", "unrealized_pnl", "peak_pnl"
 ```
 
 ---
 
-### 字段命名一致性原则
+### Field Naming Consistency Principle
 
-#### 原则1: 自然语言优先
+#### Principle 1: Natural Language Priority
 
 ✅ **Do**:
 ```
-盈亏金额、最高收益率、保证金、杠杆、持仓时长
+P&L Amount, Peak %, Margin, Leverage, Duration
 ```
 
 ❌ **Don't**:
@@ -1264,248 +1263,248 @@ docker logs nofx-trader | grep "User Prompt"
 unrealized_pnl, peak_pnl_pct, margin_used, leverage, holding_duration
 ```
 
-#### 原则2: 与代码输出完全一致
+#### Principle 2: Exactly Match Code Output
 
-**代码输出** (engine.go:387-390):
+**Code Output** (engine.go:387-390):
 ```
-盈亏+2.38% | 盈亏金额+59.50 USDT | 最高收益率5.00%
+P&L +2.38% | P&L Amount +59.50 USDT | Peak % 5.00%
 ```
 
-**Prompt 引用**:
+**Prompt Reference**:
 ```
-✅ 正确: "如果盈亏金额回撤超过最高收益率的50%..."
-❌ 错误: "如果 unrealized_pnl 回撤超过 peak_pnl_pct 的50%..."
+✅ Correct: "If P&L Amount drawdown exceeds 50% of Peak %..."
+❌ Wrong: "If unrealized_pnl drawdown exceeds 50% of peak_pnl_pct..."
 ```
 
 ---
 
-### 开源系统兼容性考虑
+### Open Source System Compatibility Considerations
 
-#### 修改影响评估
+#### Modification Impact Assessment
 
-**低影响（安全）**:
-- ✅ 修改官方模板内容
-- ✅ 添加个性化策略（模式2）
-- ✅ 调整开仓条件参数
+**Low Impact (Safe)**:
+- ✅ Modify official template content
+- ✅ Add custom strategy (Mode 2)
+- ✅ Adjust entry condition parameters
 
-**中影响（谨慎）**:
-- ⚠️ 修改字段引用方式
-- ⚠️ 修改计算公式
+**Medium Impact (Cautious)**:
+- ⚠️ Modify field reference method
+- ⚠️ Modify calculation formulas
 
-**高影响（危险）**:
-- ❌ 完全覆盖硬约束（模式3）
-- ❌ 修改输出格式要求
+**High Impact (Dangerous)**:
+- ❌ Completely override hard constraints (Mode 3)
+- ❌ Modify output format requirements
 
-#### 最佳实践
+#### Best Practices
 
-**1. 增量添加优于修改**
-- ✅ 在现有策略基础上添加新规则
-- ⚠️ 修改核心逻辑
+**1. Incremental Addition Over Modification**
+- ✅ Add new rules on top of existing strategy
+- ⚠️ Modify core logic
 
-**2. 向后兼容**
-- 如果系统新增字段，旧 Prompt 仍可运行
-- 新 Prompt 可利用新字段
+**2. Backward Compatibility**
+- If system adds new fields, old Prompts still work
+- New Prompts can utilize new fields
 
-**3. 提供迁移指南**
-- 如有破坏性变更，提供详细的迁移说明
+**3. Provide Migration Guide**
+- For breaking changes, provide detailed migration instructions
 
 ---
 
-## 🎓 高级话题
+## 🎓 Advanced Topics
 
-### 模式3: 完全自定义
+### Mode 3: Complete Customization
 
-⚠️ **警告**: 此模式仅适合完全理解系统机制的高级用户
+⚠️ **Warning**: This mode only suitable for advanced users who fully understand system mechanics
 
-#### 使用场景
-- 需要完全不同的交易哲学
-- 需要自定义风控规则
-- 需要特殊的输出格式
+#### Use Cases
+- Need completely different trading philosophy
+- Need custom risk control rules
+- Need special output format
 
-#### 必须包含的内容
+#### Must Include Content
 
-你的自定义 Prompt 必须包含：
+Your custom Prompt must include:
 
-1. **核心策略描述**
-2. **所有硬约束**（风险回报比、持仓数、仓位大小、杠杆限制等）
-3. **输出格式要求**（XML 标签 + JSON 格式）
+1. **Core Strategy Description**
+2. **All Hard Constraints** (risk-reward ratio, position count, position size, leverage limits, etc.)
+3. **Output Format Requirements** (XML tags + JSON format)
 
-#### 完整模板框架
+#### Complete Template Framework
 
 ```
-[你的核心策略]
+[Your Core Strategy]
 
-# 硬约束
-1. 风险回报比 ≥ 1:3
-2. 最多持仓 3 个
-3. 单币仓位: 山寨 0.8-1.5x净值，BTC/ETH 5-10x净值
-4. 杠杆: 山寨≤5x，BTC/ETH≤20x
-5. 保证金使用率 ≤ 90%
-6. 最小开仓: 一般≥12U，BTC/ETH≥60U
+# Hard Constraints
+1. Risk-reward ratio ≥ 1:3
+2. Maximum 3 positions
+3. Single position: Altcoin 0.8-1.5x equity, BTC/ETH 5-10x equity
+4. Leverage: Altcoin ≤5x, BTC/ETH ≤20x
+5. Margin usage ≤ 90%
+6. Minimum opening: General ≥12U, BTC/ETH ≥60U
 
-# 输出格式
-使用 <reasoning> 和 <decision> 标签：
+# Output Format
+Use <reasoning> and <decision> tags:
 
 <reasoning>
-思维链分析
+Chain of thought analysis
 </reasoning>
 
 <decision>
 ```json
-[{决策对象}]
+[{decision object}]
 ```
 </decision>
 ```
 
-#### 验证清单
+#### Verification Checklist
 
-- [ ] 包含所有硬约束
-- [ ] 定义了输出格式（XML + JSON）
-- [ ] 策略逻辑完整自洽
-- [ ] 经过充分测试
+- [ ] Includes all hard constraints
+- [ ] Defines output format (XML + JSON)
+- [ ] Strategy logic complete and consistent
+- [ ] Thoroughly tested
 
 ---
 
-### 调试指南
+### Debugging Guide
 
-#### 问题1: AI 输出格式错误
+#### Problem 1: AI Output Format Error
 
-**症状**: 系统报错"JSON解析失败"
+**Symptom**: System error "JSON parsing failed"
 
-**排查步骤**:
-1. 查看日志中的 AI 原始输出
+**Investigation Steps**:
+1. View AI raw output in logs
    ```bash
    docker logs nofx-trader | tail -100
    ```
-2. 检查是否使用了 XML 标签 `<reasoning>` 和 `<decision>`
-3. 检查 JSON 格式是否正确
+2. Check if XML tags `<reasoning>` and `<decision>` used
+3. Check if JSON format correct
 
-**常见原因**:
-- AI 未使用 `<decision>` 标签
-- JSON 中包含中文注释
-- JSON 数字包含千位分隔符（如 98,000）
-- JSON 中使用范围符号（如 "2000~3000"）
+**Common Causes**:
+- AI didn't use `<decision>` tag
+- JSON contains Chinese comments
+- JSON numbers include thousands separators (like 98,000)
+- JSON uses range symbols (like "2000~3000")
 
-**解决方案**:
-- 在 Prompt 中明确要求使用 XML 标签
-- 强调 JSON 必须严格符合格式（无注释、无千位分隔符）
-- 参考 [JSON 输出格式规范](#json-输出格式规范)
+**Solution**:
+- Explicitly require XML tags in Prompt
+- Emphasize JSON must strictly comply with format (no comments, no thousands separators)
+- Reference [JSON Output Format Specification](#json-output-format-specification)
 
 ---
 
-#### 问题2: 决策被拒绝
+#### Problem 2: Decision Rejected
 
-**症状**: 系统报错"决策验证失败"
+**Symptom**: System error "Decision validation failed"
 
-**排查步骤**:
-1. 查看具体的验证错误信息
+**Investigation Steps**:
+1. View specific validation error message
    ```bash
-   docker logs nofx-trader | grep "验证失败"
+   docker logs nofx-trader | grep "Validation failed"
    ```
-2. 检查是否违反硬约束
+2. Check if hard constraints violated
 
-**常见原因**:
-- 风险回报比 < 1:3
-- 杠杆超过限制（山寨币>5x，BTC/ETH>20x）
-- 仓位大小超出范围
-- 开仓金额过小（<12 USDT 或 BTC/ETH<60 USDT）
+**Common Causes**:
+- Risk-reward ratio < 1:3
+- Leverage exceeds limits (Altcoin >5x, BTC/ETH >20x)
+- Position size out of range
+- Opening amount too small (<12 USDT or BTC/ETH <60 USDT)
 
-**解决方案**:
-- 在 Prompt 中强调硬约束要求
-- 添加自我检查逻辑：
+**Solution**:
+- Emphasize hard constraint requirements in Prompt
+- Add self-check logic:
   ```
-  在输出决策前，请自我检查：
-  - 风险回报比是否 ≥ 1:3？
-  - 杠杆是否在限制范围内？
-  - 仓位大小是否符合要求？
+  Before outputting decision, self-check:
+  - Is risk-reward ratio ≥ 1:3?
+  - Is leverage within limits?
+  - Does position size meet requirements?
   ```
 
 ---
 
-#### 问题3: AI 不按预期决策
+#### Problem 3: AI Decisions Don't Meet Expectations
 
-**症状**: AI 的决策与你的预期不符
+**Symptom**: AI's decisions don't match your expectations
 
-**排查步骤**:
-1. 查看 AI 的思维链分析（reasoning）
+**Investigation Steps**:
+1. View AI's chain of thought analysis (reasoning)
    ```bash
    docker logs nofx-trader | grep -A 20 "<reasoning>"
    ```
-2. 检查 Prompt 是否有歧义
-3. 检查市场数据是否符合你的开仓条件
+2. Check for ambiguities in Prompt
+3. Check if market data meets your entry conditions
 
-**优化建议**:
-- **使用更明确的量化指标**
+**Optimization Suggestions**:
+- **Use More Specific Quantitative Indicators**
   ```
-  ❌ 模糊: "当市场有做多机会时"
-  ✅ 明确: "当 MACD 金叉且 RSI < 70 且成交量放大 > 20%时"
-  ```
-
-- **避免模糊的表述**
-  ```
-  ❌ 避免: "感觉"、"可能"、"大概"
-  ✅ 使用: "当...时"、"如果...则..."、"必须..."
+  ❌ Vague: "When market has long opportunity"
+  ✅ Specific: "When MACD golden cross and RSI < 70 and volume surge > 20%"
   ```
 
-- **添加具体的数值阈值**
+- **Avoid Vague Expressions**
   ```
-  ❌ 模糊: "价格大幅上涨"
-  ✅ 明确: "价格 15 分钟内上涨 > 3%"
+  ❌ Avoid: "feel", "might", "probably"
+  ✅ Use: "when...", "if...then...", "must..."
   ```
 
-- **检查逻辑一致性**
+- **Add Specific Numerical Thresholds**
   ```
-  开仓条件和平仓条件应该相互对应
-  如果开仓依据 MACD 金叉，平仓可以用 MACD 死叉
+  ❌ Vague: "Price significant rise"
+  ✅ Specific: "Price rises >3% within 15 minutes"
+  ```
+
+- **Check Logic Consistency**
+  ```
+  Entry and exit conditions should correspond
+  If entry based on MACD golden cross, exit can use MACD death cross
   ```
 
 ---
 
-## 📞 获取帮助
+## 📞 Get Help
 
-### 官方资源
+### Official Resources
 
 - **GitHub Issues**: https://github.com/NoFxAiOS/nofx/issues
-- **官方文档**: 查看项目 README
-- **社区讨论**: GitHub Discussions
+- **Official Documentation**: See project README
+- **Community Discussion**: GitHub Discussions
 
-### 提问模板
+### Question Template
 
-当你遇到问题时，请提供以下信息：
+When encountering issues, please provide the following information:
 
 ```
-问题描述：[简要描述问题]
+Problem Description: [Briefly describe the issue]
 
-使用方式：[方式1/2/3]
+Usage Method: [Method 1/2/3]
 
-Prompt 内容：
+Prompt Content:
 ```
-[粘贴你的 Prompt 内容]
-```
-
-错误日志：
-```
-[粘贴相关的错误日志]
+[Paste your Prompt content]
 ```
 
-预期行为：[你期望的结果]
+Error Logs:
+```
+[Paste relevant error logs]
+```
 
-实际行为：[实际发生的情况]
+Expected Behavior: [What you expected]
+
+Actual Behavior: [What actually happened]
 ```
 
 ---
 
-## 📝 更新日志
+## 📝 Changelog
 
 ### v1.0 (2025-01-09)
-- 初始版本发布
-- 完整的字段参考文档
-- 三种官方策略模板（保守型/平衡型/激进型）
-- 质量检查清单和常见错误案例
-- 高级话题和调试指南
+- Initial release
+- Complete field reference documentation
+- Three strategy templates (Conservative/Balanced/Aggressive)
+- Quality checklist and common error cases
+- Advanced topics and debugging guide
 
 ---
 
-**文档版本**: v1.0
-**最后更新**: 2025-01-09
-**维护者**: NoFx Team
+**Document Version**: v1.0
+**Last Updated**: 2025-01-09
+**Maintainer**: NoFx Team

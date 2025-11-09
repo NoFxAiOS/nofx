@@ -206,7 +206,6 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 	}
 }
 
-
 // TestUpdateExchange_PartialUpdateShouldWork 测试部分字段更新
 func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 	db, cleanup := setupTestDB(t)

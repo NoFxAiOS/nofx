@@ -16,7 +16,6 @@ import (
 // JWTSecret JWT密钥，将从配置中动态设置
 var JWTSecret []byte
 
-
 // tokenBlacklist 用于登出后的token黑名单（仅内存，按过期时间清理）
 var tokenBlacklist = struct {
 	sync.RWMutex
@@ -33,10 +32,6 @@ const OTPIssuer = "nofxAI"
 func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
 }
-
-
-
-
 
 // BlacklistToken 将token加入黑名单直到过期
 func BlacklistToken(token string, exp time.Time) {

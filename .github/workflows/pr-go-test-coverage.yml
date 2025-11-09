@@ -52,6 +52,10 @@ jobs:
       - name: Download dependencies
         run: go mod download
 
+      - name: Install Go tools
+        run: |
+          go install golang.org/x/tools/cmd/cover@latest || true
+
       - name: Run tests with coverage
         env:
           DATA_ENCRYPTION_KEY: "test-encryption-key-for-ci-only-not-production"

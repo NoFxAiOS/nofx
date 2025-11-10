@@ -22,10 +22,10 @@ func TestOTPRefetchLogic(t *testing.T) {
 		expectedMessage string
 	}{
 		{
-			name: "新用戶註冊_郵箱不存在",
-			existingUser: nil,
-			userExists:   false,
-			expectedAction: "create_new",
+			name:            "新用戶註冊_郵箱不存在",
+			existingUser:    nil,
+			userExists:      false,
+			expectedAction:  "create_new",
 			expectedMessage: "創建新用戶",
 		},
 		{
@@ -127,7 +127,7 @@ func TestRegistrationFlow(t *testing.T) {
 		scenario       string
 		userExists     bool
 		otpVerified    bool
-		expectHTTPCode int    // 模擬的 HTTP 狀態碼
+		expectHTTPCode int // 模擬的 HTTP 狀態碼
 		expectResponse string
 	}{
 		{

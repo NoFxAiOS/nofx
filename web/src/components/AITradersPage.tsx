@@ -1886,7 +1886,7 @@ function ExchangeConfigModal({
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <form id="exchange-form" onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 pb-4">
             {!editingExchangeId && (
             <div>
               <label
@@ -2468,52 +2468,51 @@ function ExchangeConfigModal({
                   <div>{t('exchangeConfigWarning3', language)}</div>
                 </div>
               </div>
+
+              {/* 按钮区域 - 移到表单内部，随内容滚动 */}
+              <div className="flex gap-3 pt-4 mt-4 border-t" style={{ borderColor: '#2B3139' }}>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 rounded text-sm font-semibold"
+                  style={{ background: '#2B3139', color: '#848E9C' }}
+                >
+                  {t('cancel', language)}
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    !selectedExchange ||
+                    (selectedExchange.id === 'binance' &&
+                      (!apiKey.trim() || !secretKey.trim())) ||
+                    (selectedExchange.id === 'okx' &&
+                      (!apiKey.trim() ||
+                        !secretKey.trim() ||
+                        !passphrase.trim())) ||
+                    (selectedExchange.id === 'hyperliquid' &&
+                      (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
+                    (selectedExchange.id === 'aster' &&
+                      (!asterUser.trim() ||
+                        !asterSigner.trim() ||
+                        !asterPrivateKey.trim())) ||
+                    (selectedExchange.type === 'cex' &&
+                      selectedExchange.id !== 'hyperliquid' &&
+                      selectedExchange.id !== 'aster' &&
+                      selectedExchange.id !== 'binance' &&
+                      selectedExchange.id !== 'okx' &&
+                      (!apiKey.trim() || !secretKey.trim()))
+                  }
+                  className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
+                  style={{ background: '#F0B90B', color: '#000' }}
+                >
+                  {t('saveConfig', language)}
+                </button>
+              </div>
             </>
           )}
           </form>
         </div>
-
-        {/* 按钮区域固定在底部 */}
-        <div className="flex gap-3 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-            style={{ background: '#2B3139', color: '#848E9C' }}
-          >
-            {t('cancel', language)}
-          </button>
-          <button
-            type="submit"
-            form="exchange-form"
-            disabled={
-              !selectedExchange ||
-              (selectedExchange.id === 'binance' &&
-                (!apiKey.trim() || !secretKey.trim())) ||
-              (selectedExchange.id === 'okx' &&
-                (!apiKey.trim() ||
-                  !secretKey.trim() ||
-                  !passphrase.trim())) ||
-              (selectedExchange.id === 'hyperliquid' &&
-                (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
-              (selectedExchange.id === 'aster' &&
-                (!asterUser.trim() ||
-                  !asterSigner.trim() ||
-                  !asterPrivateKey.trim())) ||
-              (selectedExchange.type === 'cex' &&
-                selectedExchange.id !== 'hyperliquid' &&
-                selectedExchange.id !== 'aster' &&
-                selectedExchange.id !== 'binance' &&
-                selectedExchange.id !== 'okx' &&
-                (!apiKey.trim() || !secretKey.trim()))
-            }
-            className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
-            style={{ background: '#F0B90B', color: '#000' }}
-          >
-            {t('saveConfig', language)}
-          </button>
         </div>
-      </div>
 
       {/* Binance Setup Guide Modal */}
       {showGuide && (

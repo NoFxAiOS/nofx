@@ -967,7 +967,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		actualBalance = totalBalance
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-				return
+		return
 	}
 
 	oldBalance := traderConfig.InitialBalance

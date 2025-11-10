@@ -582,16 +582,27 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			if balanceErr != nil {
 				log.Printf("⚠️ 查询交易所余额失败，使用用户输入的初始资金: %v", balanceErr)
 			} else {
-				// 提取可用余额
-				if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-					actualBalance = availableBalance
-					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-					// 有些交易所可能只返回 balance 字段
-					actualBalance = totalBalance
-					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
+				// ✅ 修复：使用总资产（total equity）而不是可用余额来设置初始余额
+				// 总资产 = 钱包余额 + 未实现盈亏，这样才能正确计算总盈亏
+				totalWalletBalance := 0.0
+				totalUnrealizedProfit := 0.0
+
+				if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
+					totalWalletBalance = wallet
+				}
+				if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
+					totalUnrealizedProfit = unrealized
+				}
+
+				// 总资产 = 钱包余额 + 未实现盈亏
+				totalEquity := totalWalletBalance + totalUnrealizedProfit
+
+				if totalEquity > 0 {
+					actualBalance = totalEquity
+					log.Printf("✓ 查询到交易所总资产余额: %.2f USDT (钱包: %.2f + 未实现: %.2f, 用户输入: %.2f USDT)",
+						actualBalance, totalWalletBalance, totalUnrealizedProfit, req.InitialBalance)
 				} else {
-					log.Printf("⚠️ 无法从余额信息中提取可用余额，使用用户输入的初始资金")
+					log.Printf("⚠️ 无法从余额信息中提取总资产余额，使用用户输入的初始资金")
 				}
 			}
 		}
@@ -957,17 +968,25 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	// 提取可用余额
+	// ✅ 修复：使用总资产（total equity）而不是可用余额来更新初始余额
+	// 总资产 = 钱包余额 + 未实现盈亏，这样才能正确计算总盈亏
 	var actualBalance float64
-	if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-		actualBalance = totalBalance
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-				return
+	totalWalletBalance := 0.0
+	totalUnrealizedProfit := 0.0
+
+	if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
+		totalWalletBalance = wallet
+	}
+	if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
+		totalUnrealizedProfit = unrealized
+	}
+
+	// 总资产 = 钱包余额 + 未实现盈亏
+	actualBalance = totalWalletBalance + totalUnrealizedProfit
+
+	if actualBalance <= 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("无法获取总资产余额 (钱包: %.2f, 未实现: %.2f)", totalWalletBalance, totalUnrealizedProfit)})
+		return
 	}
 
 	oldBalance := traderConfig.InitialBalance
@@ -979,8 +998,8 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		changeType = "减少"
 	}
 
-	log.Printf("✓ 查询到交易所实际余额: %.2f USDT (当前配置: %.2f USDT, 变化: %.2f%%)",
-		actualBalance, oldBalance, changePercent)
+	log.Printf("✓ 查询到交易所总资产余额: %.2f USDT (钱包: %.2f + 未实现: %.2f, 当前配置: %.2f USDT, 变化: %.2f%%)",
+		actualBalance, totalWalletBalance, totalUnrealizedProfit, oldBalance, changePercent)
 
 	// 更新数据库中的 initial_balance
 	err = s.database.UpdateTraderInitialBalance(userID, traderID, actualBalance)

@@ -192,7 +192,11 @@ export function TraderConfigModal({
     setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        throw new Error('未登录，请先登录')
+      }
+
       const response = await fetch(
         `/api/account?trader_id=${traderData.trader_id}`,
         {

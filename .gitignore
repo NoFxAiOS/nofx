@@ -123,5 +123,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-
-api.md
+# API 密钥文件（避免泄露到版本库）
+/api.md

@@ -291,7 +291,36 @@ export function RegisterPage() {
                     color: 'var(--binance-red)',
                   }}
                 >
-                  {error}
+                  <div
+                    className="mb-1"
+                    style={{ color: 'var(--brand-light-gray)' }}
+                  >
+                    {t('passwordRequirements', language)}
+                  </div>
+                  <PasswordChecklist
+                    rules={[
+                      'minLength',
+                      'capital',
+                      'lowercase',
+                      'number',
+                      'specialChar',
+                      'match',
+                    ]}
+                    minLength={8}
+                    specialCharsRegex={/[@#$%!&*?]/}
+                    value={password}
+                    valueAgain={confirmPassword}
+                    messages={{
+                      minLength: t('passwordRuleMinLength', language),
+                      capital: t('passwordRuleUppercase', language),
+                      lowercase: t('passwordRuleLowercase', language),
+                      number: t('passwordRuleNumber', language),
+                      specialChar: t('passwordRuleSpecial', language),
+                      match: t('passwordRuleMatch', language),
+                    }}
+                    className="space-y-1"
+                    onChange={(isValid) => setPasswordValid(isValid)}
+                  />
                 </div>
               )}
 

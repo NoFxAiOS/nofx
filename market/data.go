@@ -4,17 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/greatcloak/decimal"
 )
 
 // FundingRateCache 资金费率缓存结构
 // Binance Funding Rate 每 8 小时才更新一次，使用 1 小时缓存可显著减少 API 调用
 type FundingRateCache struct {
-	Rate      float64
+	Rate      decimal.Decimal
 	UpdatedAt time.Time
 }
 
@@ -57,20 +58,20 @@ func Get(symbol string) (*Data, error) {
 
 	// 计算价格变化百分比
 	// 1小时价格变化 = 20个3分钟K线前的价格
-	priceChange1h := 0.0
+	priceChange1h := decimal.Zero
 	if len(klines3m) >= 21 { // 至少需要21根K线 (当前 + 20根前)
 		price1hAgo := klines3m[len(klines3m)-21].Close
-		if price1hAgo > 0 {
-			priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
+		if price1hAgo.GreaterThan(decimal.Zero) {
+			priceChange1h = currentPrice.Sub(price1hAgo).Div(price1hAgo).Mul(decimal.NewFromInt(100))
 		}
 	}
 
 	// 4小时价格变化 = 1个4小时K线前的价格
-	priceChange4h := 0.0
+	priceChange4h := decimal.Zero
 	if len(klines4h) >= 2 {
 		price4hAgo := klines4h[len(klines4h)-2].Close
-		if price4hAgo > 0 {
-			priceChange4h = ((currentPrice - price4hAgo) / price4hAgo) * 100
+		if price4hAgo.GreaterThan(decimal.Zero) {
+			priceChange4h = currentPrice.Sub(price4hAgo).Div(price4hAgo).Mul(decimal.NewFromInt(100))
 		}
 	}
 
@@ -78,7 +79,7 @@ func Get(symbol string) (*Data, error) {
 	oiData, err := getOpenInterestData(symbol)
 	if err != nil {
 		// OI失败不影响整体,使用默认值
-		oiData = &OIData{Latest: 0, Average: 0}
+		oiData = &OIData{Latest: decimal.Zero, Average: decimal.Zero}
 	}
 
 	// 获取Funding Rate
@@ -106,31 +107,31 @@ func Get(symbol string) (*Data, error) {
 }
 
 // calculateEMA 计算EMA
-func calculateEMA(klines []Kline, period int) float64 {
+func calculateEMA(klines []Kline, period int) decimal.Decimal {
 	if len(klines) < period {
-		return 0
+		return decimal.Zero
 	}
 
 	// 计算SMA作为初始EMA
-	sum := 0.0
+	sum := decimal.Zero
 	for i := 0; i < period; i++ {
-		sum += klines[i].Close
+		sum = sum.Add(klines[i].Close)
 	}
-	ema := sum / float64(period)
+	ema := sum.Div(decimal.NewFromInt(int64(period)))
 
 	// 计算EMA
-	multiplier := 2.0 / float64(period+1)
+	multiplier := decimal.NewFromInt(2).Div(decimal.NewFromInt(int64(period + 1)))
 	for i := period; i < len(klines); i++ {
-		ema = (klines[i].Close-ema)*multiplier + ema
+		ema = klines[i].Close.Sub(ema).Mul(multiplier).Add(ema)
 	}
 
 	return ema
 }
 
 // calculateMACD 计算MACD
-func calculateMACD(klines []Kline) float64 {
+func calculateMACD(klines []Kline) decimal.Decimal {
 	if len(klines) < 26 {
-		return 0
+		return decimal.Zero
 	}
 
 	// 计算12期和26期EMA
@@ -138,82 +139,93 @@ func calculateMACD(klines []Kline) float64 {
 	ema26 := calculateEMA(klines, 26)
 
 	// MACD = EMA12 - EMA26
-	return ema12 - ema26
+	return ema12.Sub(ema26)
 }
 
 // calculateRSI 计算RSI
-func calculateRSI(klines []Kline, period int) float64 {
+func calculateRSI(klines []Kline, period int) decimal.Decimal {
 	if len(klines) <= period {
-		return 0
+		return decimal.Zero
 	}
 
-	gains := 0.0
-	losses := 0.0
+	gains := decimal.Zero
+	losses := decimal.Zero
 
 	// 计算初始平均涨跌幅
 	for i := 1; i <= period; i++ {
-		change := klines[i].Close - klines[i-1].Close
-		if change > 0 {
-			gains += change
+		change := klines[i].Close.Sub(klines[i-1].Close)
+		if change.GreaterThan(decimal.Zero) {
+			gains = gains.Add(change)
 		} else {
-			losses += -change
+			losses = losses.Add(change.Neg())
 		}
 	}
 
-	avgGain := gains / float64(period)
-	avgLoss := losses / float64(period)
+	periodDec := decimal.NewFromInt(int64(period))
+	avgGain := gains.Div(periodDec)
+	avgLoss := losses.Div(periodDec)
 
 	// 使用Wilder平滑方法计算后续RSI
+	periodMinus1 := decimal.NewFromInt(int64(period - 1))
 	for i := period + 1; i < len(klines); i++ {
-		change := klines[i].Close - klines[i-1].Close
-		if change > 0 {
-			avgGain = (avgGain*float64(period-1) + change) / float64(period)
-			avgLoss = (avgLoss * float64(period-1)) / float64(period)
+		change := klines[i].Close.Sub(klines[i-1].Close)
+		if change.GreaterThan(decimal.Zero) {
+			avgGain = avgGain.Mul(periodMinus1).Add(change).Div(periodDec)
+			avgLoss = avgLoss.Mul(periodMinus1).Div(periodDec)
 		} else {
-			avgGain = (avgGain * float64(period-1)) / float64(period)
-			avgLoss = (avgLoss*float64(period-1) + (-change)) / float64(period)
+			avgGain = avgGain.Mul(periodMinus1).Div(periodDec)
+			avgLoss = avgLoss.Mul(periodMinus1).Add(change.Neg()).Div(periodDec)
 		}
 	}
 
-	if avgLoss == 0 {
-		return 100
+	if avgLoss.IsZero() {
+		return decimal.NewFromInt(100)
 	}
 
-	rs := avgGain / avgLoss
-	rsi := 100 - (100 / (1 + rs))
+	rs := avgGain.Div(avgLoss)
+	rsi := decimal.NewFromInt(100).Sub(decimal.NewFromInt(100).Div(decimal.NewFromInt(1).Add(rs)))
 
 	return rsi
 }
 
 // calculateATR 计算ATR
-func calculateATR(klines []Kline, period int) float64 {
+func calculateATR(klines []Kline, period int) decimal.Decimal {
 	if len(klines) <= period {
-		return 0
+		return decimal.Zero
 	}
 
-	trs := make([]float64, len(klines))
+	trs := make([]decimal.Decimal, len(klines))
 	for i := 1; i < len(klines); i++ {
 		high := klines[i].High
 		low := klines[i].Low
 		prevClose := klines[i-1].Close
 
-		tr1 := high - low
-		tr2 := math.Abs(high - prevClose)
-		tr3 := math.Abs(low - prevClose)
+		tr1 := high.Sub(low)
+		tr2 := high.Sub(prevClose).Abs()
+		tr3 := low.Sub(prevClose).Abs()
 
-		trs[i] = math.Max(tr1, math.Max(tr2, tr3))
+		// 取最大值
+		trs[i] = tr1
+		if tr2.GreaterThan(trs[i]) {
+			trs[i] = tr2
+		}
+		if tr3.GreaterThan(trs[i]) {
+			trs[i] = tr3
+		}
 	}
 
 	// 计算初始ATR
-	sum := 0.0
+	sum := decimal.Zero
 	for i := 1; i <= period; i++ {
-		sum += trs[i]
+		sum = sum.Add(trs[i])
 	}
-	atr := sum / float64(period)
+	periodDec := decimal.NewFromInt(int64(period))
+	atr := sum.Div(periodDec)
 
 	// Wilder平滑
+	periodMinus1 := decimal.NewFromInt(int64(period - 1))
 	for i := period + 1; i < len(klines); i++ {
-		atr = (atr*float64(period-1) + trs[i]) / float64(period)
+		atr = atr.Mul(periodMinus1).Add(trs[i]).Div(periodDec)
 	}
 
 	return atr
@@ -222,11 +234,11 @@ func calculateATR(klines []Kline, period int) float64 {
 // calculateIntradaySeries 计算日内系列数据
 func calculateIntradaySeries(klines []Kline) *IntradayData {
 	data := &IntradayData{
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		MidPrices:   make([]decimal.Decimal, 0, 10),
+		EMA20Values: make([]decimal.Decimal, 0, 10),
+		MACDValues:  make([]decimal.Decimal, 0, 10),
+		RSI7Values:  make([]decimal.Decimal, 0, 10),
+		RSI14Values: make([]decimal.Decimal, 0, 10),
 	}
 
 	// 获取最近10个数据点
@@ -267,8 +279,8 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 // calculateLongerTermData 计算长期数据
 func calculateLongerTermData(klines []Kline) *LongerTermData {
 	data := &LongerTermData{
-		MACDValues:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		MACDValues:  make([]decimal.Decimal, 0, 10),
+		RSI14Values: make([]decimal.Decimal, 0, 10),
 	}
 
 	// 计算EMA
@@ -283,11 +295,11 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	if len(klines) > 0 {
 		data.CurrentVolume = klines[len(klines)-1].Volume
 		// 计算平均成交量
-		sum := 0.0
+		sum := decimal.Zero
 		for _, k := range klines {
-			sum += k.Volume
+			sum = sum.Add(k.Volume)
 		}
-		data.AverageVolume = sum / float64(len(klines))
+		data.AverageVolume = sum.Div(decimal.NewFromInt(int64(len(klines))))
 	}
 
 	// 计算MACD和RSI序列
@@ -336,16 +348,16 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 		return nil, err
 	}
 
-	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
+	oi, _ := decimal.NewFromString(result.OpenInterest)
 
 	return &OIData{
 		Latest:  oi,
-		Average: oi * 0.999, // 近似平均值
+		Average: oi.Mul(decimal.NewFromFloat(0.999)), // 近似平均值
 	}, nil
 }
 
 // getFundingRate 获取资金费率（优化：使用 1 小时缓存）
-func getFundingRate(symbol string) (float64, error) {
+func getFundingRate(symbol string) (decimal.Decimal, error) {
 	// 检查缓存（有效期 1 小时）
 	// Funding Rate 每 8 小时才更新，1 小时缓存非常合理
 	if cached, ok := fundingRateMap.Load(symbol); ok {
@@ -362,13 +374,13 @@ func getFundingRate(symbol string) (float64, error) {
 	apiClient := NewAPIClient()
 	resp, err := apiClient.client.Get(url)
 	if err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 
 	var result struct {
@@ -382,10 +394,10 @@ func getFundingRate(symbol string) (float64, error) {
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 
-	rate, _ := strconv.ParseFloat(result.LastFundingRate, 64)
+	rate, _ := decimal.NewFromString(result.LastFundingRate)
 
 	// 更新缓存
 	fundingRateMap.Store(symbol, &FundingRateCache{
@@ -402,8 +414,8 @@ func Format(data *Data) string {
 
 	// 使用动态精度格式化价格
 	priceStr := formatPriceWithDynamicPrecision(data.CurrentPrice)
-	sb.WriteString(fmt.Sprintf("current_price = %s, current_ema20 = %.3f, current_macd = %.3f, current_rsi (7 period) = %.3f\n\n",
-		priceStr, data.CurrentEMA20, data.CurrentMACD, data.CurrentRSI7))
+	sb.WriteString(fmt.Sprintf("current_price = %s, current_ema20 = %s, current_macd = %s, current_rsi (7 period) = %s\n\n",
+		priceStr, data.CurrentEMA20.StringFixed(3), data.CurrentMACD.StringFixed(3), data.CurrentRSI7.StringFixed(3)))
 
 	sb.WriteString(fmt.Sprintf("In addition, here is the latest %s open interest and funding rate for perps:\n\n",
 		data.Symbol))
@@ -416,50 +428,51 @@ func Format(data *Data) string {
 			oiLatestStr, oiAverageStr))
 	}
 
-	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
+	fundingRateFloat, _ := data.FundingRate.Float64()
+	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", fundingRateFloat))
 
 	if data.IntradaySeries != nil {
 		sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
 
 		if len(data.IntradaySeries.MidPrices) > 0 {
-			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
+			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatDecimalSlice(data.IntradaySeries.MidPrices)))
 		}
 
 		if len(data.IntradaySeries.EMA20Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.IntradaySeries.EMA20Values)))
+			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatDecimalSlice(data.IntradaySeries.EMA20Values)))
 		}
 
 		if len(data.IntradaySeries.MACDValues) > 0 {
-			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.IntradaySeries.MACDValues)))
+			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatDecimalSlice(data.IntradaySeries.MACDValues)))
 		}
 
 		if len(data.IntradaySeries.RSI7Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI7Values)))
+			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatDecimalSlice(data.IntradaySeries.RSI7Values)))
 		}
 
 		if len(data.IntradaySeries.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
+			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatDecimalSlice(data.IntradaySeries.RSI14Values)))
 		}
 	}
 
 	if data.LongerTermContext != nil {
 		sb.WriteString("Longer‑term context (4‑hour timeframe):\n\n")
 
-		sb.WriteString(fmt.Sprintf("20‑Period EMA: %.3f vs. 50‑Period EMA: %.3f\n\n",
-			data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))
+		sb.WriteString(fmt.Sprintf("20‑Period EMA: %s vs. 50‑Period EMA: %s\n\n",
+			data.LongerTermContext.EMA20.StringFixed(3), data.LongerTermContext.EMA50.StringFixed(3)))
 
-		sb.WriteString(fmt.Sprintf("3‑Period ATR: %.3f vs. 14‑Period ATR: %.3f\n\n",
-			data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
+		sb.WriteString(fmt.Sprintf("3‑Period ATR: %s vs. 14‑Period ATR: %s\n\n",
+			data.LongerTermContext.ATR3.StringFixed(3), data.LongerTermContext.ATR14.StringFixed(3)))
 
-		sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
-			data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
+		sb.WriteString(fmt.Sprintf("Current Volume: %s vs. Average Volume: %s\n\n",
+			data.LongerTermContext.CurrentVolume.StringFixed(3), data.LongerTermContext.AverageVolume.StringFixed(3)))
 
 		if len(data.LongerTermContext.MACDValues) > 0 {
-			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.LongerTermContext.MACDValues)))
+			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatDecimalSlice(data.LongerTermContext.MACDValues)))
 		}
 
 		if len(data.LongerTermContext.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
+			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatDecimalSlice(data.LongerTermContext.RSI14Values)))
 		}
 	}
 
@@ -468,37 +481,38 @@ func Format(data *Data) string {
 
 // formatPriceWithDynamicPrecision 根据价格区间动态选择精度
 // 这样可以完美支持从超低价 meme coin (< 0.0001) 到 BTC/ETH 的所有币种
-func formatPriceWithDynamicPrecision(price float64) string {
+func formatPriceWithDynamicPrecision(price decimal.Decimal) string {
+	priceFloat, _ := price.Float64()
 	switch {
-	case price < 0.0001:
+	case priceFloat < 0.0001:
 		// 超低价 meme coin: 1000SATS, 1000WHY, DOGS
 		// 0.00002070 → "0.00002070" (8位小数)
-		return fmt.Sprintf("%.8f", price)
-	case price < 0.001:
+		return price.StringFixed(8)
+	case priceFloat < 0.001:
 		// 低价 meme coin: NEIRO, HMSTR, HOT, NOT
 		// 0.00015060 → "0.000151" (6位小数)
-		return fmt.Sprintf("%.6f", price)
-	case price < 0.01:
+		return price.StringFixed(6)
+	case priceFloat < 0.01:
 		// 中低价币: PEPE, SHIB, MEME
 		// 0.00556800 → "0.005568" (6位小数)
-		return fmt.Sprintf("%.6f", price)
-	case price < 1.0:
+		return price.StringFixed(6)
+	case priceFloat < 1.0:
 		// 低价币: ASTER, DOGE, ADA, TRX
 		// 0.9954 → "0.9954" (4位小数)
-		return fmt.Sprintf("%.4f", price)
-	case price < 100:
+		return price.StringFixed(4)
+	case priceFloat < 100:
 		// 中价币: SOL, AVAX, LINK, MATIC
 		// 23.4567 → "23.4567" (4位小数)
-		return fmt.Sprintf("%.4f", price)
+		return price.StringFixed(4)
 	default:
 		// 高价币: BTC, ETH (节省 Token)
 		// 45678.9123 → "45678.91" (2位小数)
-		return fmt.Sprintf("%.2f", price)
+		return price.StringFixed(2)
 	}
 }
 
-// formatFloatSlice 格式化float64切片为字符串（使用动态精度）
-func formatFloatSlice(values []float64) string {
+// formatDecimalSlice 格式化decimal切片为字符串（使用动态精度）
+func formatDecimalSlice(values []decimal.Decimal) string {
 	strValues := make([]string, len(values))
 	for i, v := range values {
 		strValues[i] = formatPriceWithDynamicPrecision(v)

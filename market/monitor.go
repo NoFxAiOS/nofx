@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/greatcloak/decimal"
 )
 
 type WSMonitor struct {
@@ -196,15 +198,15 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 		CloseTime: wsData.Kline.CloseTime,
 		Trades:    wsData.Kline.NumberOfTrades,
 	}
-	kline.Open, _ = parseFloat(wsData.Kline.OpenPrice)
-	kline.High, _ = parseFloat(wsData.Kline.HighPrice)
-	kline.Low, _ = parseFloat(wsData.Kline.LowPrice)
-	kline.Close, _ = parseFloat(wsData.Kline.ClosePrice)
-	kline.Volume, _ = parseFloat(wsData.Kline.Volume)
-	kline.High, _ = parseFloat(wsData.Kline.HighPrice)
-	kline.QuoteVolume, _ = parseFloat(wsData.Kline.QuoteVolume)
-	kline.TakerBuyBaseVolume, _ = parseFloat(wsData.Kline.TakerBuyBaseVolume)
-	kline.TakerBuyQuoteVolume, _ = parseFloat(wsData.Kline.TakerBuyQuoteVolume)
+	kline.Open, _ = parseDecimal(wsData.Kline.OpenPrice)
+	kline.High, _ = parseDecimal(wsData.Kline.HighPrice)
+	kline.Low, _ = parseDecimal(wsData.Kline.LowPrice)
+	kline.Close, _ = parseDecimal(wsData.Kline.ClosePrice)
+	kline.Volume, _ = parseDecimal(wsData.Kline.Volume)
+	kline.High, _ = parseDecimal(wsData.Kline.HighPrice)
+	kline.QuoteVolume, _ = parseDecimal(wsData.Kline.QuoteVolume)
+	kline.TakerBuyBaseVolume, _ = parseDecimal(wsData.Kline.TakerBuyBaseVolume)
+	kline.TakerBuyQuoteVolume, _ = parseDecimal(wsData.Kline.TakerBuyQuoteVolume)
 	// 更新K线数据
 	var klineDataMap = m.getKlineDataMap(_time)
 	value, exists := klineDataMap.Load(symbol)
@@ -270,4 +272,20 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, erro
 func (m *WSMonitor) Close() {
 	m.wsClient.Close()
 	close(m.alertsChan)
+}
+
+// parseDecimal 解析decimal值
+func parseDecimal(v interface{}) (decimal.Decimal, error) {
+	switch val := v.(type) {
+	case string:
+		return decimal.NewFromString(val)
+	case float64:
+		return decimal.NewFromFloat(val), nil
+	case int:
+		return decimal.NewFromInt(int64(val)), nil
+	case int64:
+		return decimal.NewFromInt(val), nil
+	default:
+		return decimal.Zero, fmt.Errorf("unsupported type: %T", v)
+	}
 }

@@ -967,7 +967,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		actualBalance = totalBalance
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-				return
+		return
 	}
 
 	oldBalance := traderConfig.InitialBalance
@@ -1552,7 +1552,7 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 	// 如果无法从status获取，且有历史记录，则从第一条记录获取
 	if initialBalance == 0 && len(records) > 0 {
 		// 第一条记录的equity作为初始余额
-		initialBalance = records[0].AccountState.TotalBalance
+		initialBalance, _ = records[0].AccountState.TotalBalance.Float64()
 	}
 
 	// 如果还是无法获取，返回错误
@@ -1572,18 +1572,22 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 
 		// 计算盈亏百分比
 		totalPnLPct := 0.0
+		totalPnLFloat, _ := totalPnL.Float64()
 		if initialBalance > 0 {
-			totalPnLPct = (totalPnL / initialBalance) * 100
+			totalPnLPct = (totalPnLFloat / initialBalance) * 100
 		}
 
+		totalEquityFloat, _ := totalEquity.Float64()
+		availableBalanceFloat, _ := record.AccountState.AvailableBalance.Float64()
+		marginUsedPctFloat, _ := record.AccountState.MarginUsedPct.Float64()
 		history = append(history, EquityPoint{
 			Timestamp:        record.Timestamp.Format("2006-01-02 15:04:05"),
-			TotalEquity:      totalEquity,
-			AvailableBalance: record.AccountState.AvailableBalance,
-			TotalPnL:         totalPnL,
+			TotalEquity:      totalEquityFloat,
+			AvailableBalance: availableBalanceFloat,
+			TotalPnL:         totalPnLFloat,
 			TotalPnLPct:      totalPnLPct,
 			PositionCount:    record.AccountState.PositionCount,
-			MarginUsedPct:    record.AccountState.MarginUsedPct,
+			MarginUsedPct:    marginUsedPctFloat,
 			CycleNumber:      record.CycleNumber,
 		})
 	}
@@ -2253,13 +2257,16 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 		history := make([]map[string]interface{}, 0, len(records))
 		for _, record := range records {
 			// 计算总权益（余额+未实现盈亏）
-			totalEquity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
+			totalEquity := record.AccountState.TotalBalance.Add(record.AccountState.TotalUnrealizedProfit)
 
+			totalEquityFloat, _ := totalEquity.Float64()
+			totalPnLFloat, _ := record.AccountState.TotalUnrealizedProfit.Float64()
+			balanceFloat, _ := record.AccountState.TotalBalance.Float64()
 			history = append(history, map[string]interface{}{
 				"timestamp":    record.Timestamp,
-				"total_equity": totalEquity,
-				"total_pnl":    record.AccountState.TotalUnrealizedProfit,
-				"balance":      record.AccountState.TotalBalance,
+				"total_equity": totalEquityFloat,
+				"total_pnl":    totalPnLFloat,
+				"balance":      balanceFloat,
 			})
 		}
 

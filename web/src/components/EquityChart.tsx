@@ -12,6 +12,7 @@ import {
 import useSWR from 'swr';
 import { api } from '../lib/api';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { t } from '../i18n/translations';
 import { AlertTriangle, BarChart3, DollarSign, Percent, TrendingUp as ArrowUp, TrendingDown as ArrowDown } from 'lucide-react'
 
@@ -29,10 +30,11 @@ interface EquityChartProps {
 
 export function EquityChart({ traderId }: EquityChartProps) {
   const { language } = useLanguage();
+  const { user, token } = useAuth();
   const [displayMode, setDisplayMode] = useState<'dollar' | 'percent'>('dollar');
 
   const { data: history, error } = useSWR<EquityPoint[]>(
-    traderId ? `equity-history-${traderId}` : 'equity-history',
+    user && token && traderId ? `equity-history-${traderId}` : null,
     () => api.getEquityHistory(traderId),
     {
       refreshInterval: 30000, // 30秒刷新（历史数据更新频率较低）
@@ -42,7 +44,7 @@ export function EquityChart({ traderId }: EquityChartProps) {
   );
 
   const { data: account } = useSWR(
-    traderId ? `account-${traderId}` : 'account',
+    user && token && traderId ? `account-${traderId}` : null,
     () => api.getAccount(traderId),
     {
       refreshInterval: 15000, // 15秒刷新（配合后端缓存）

@@ -119,7 +119,7 @@ function App() {
 
   // 如果在trader页面，获取该trader的数据
   const { data: status } = useSWR<SystemStatus>(
-    currentPage === 'trader' && selectedTraderId
+    user && token && currentPage === 'trader' && selectedTraderId
       ? `status-${selectedTraderId}`
       : null,
     () => api.getStatus(selectedTraderId),
@@ -131,7 +131,7 @@ function App() {
   )
 
   const { data: account } = useSWR<AccountInfo>(
-    currentPage === 'trader' && selectedTraderId
+    user && token && currentPage === 'trader' && selectedTraderId
       ? `account-${selectedTraderId}`
       : null,
     () => api.getAccount(selectedTraderId),
@@ -143,7 +143,7 @@ function App() {
   )
 
   const { data: positions } = useSWR<Position[]>(
-    currentPage === 'trader' && selectedTraderId
+    user && token && currentPage === 'trader' && selectedTraderId
       ? `positions-${selectedTraderId}`
       : null,
     () => api.getPositions(selectedTraderId),
@@ -155,7 +155,7 @@ function App() {
   )
 
   const { data: decisions } = useSWR<DecisionRecord[]>(
-    currentPage === 'trader' && selectedTraderId
+    user && token && currentPage === 'trader' && selectedTraderId
       ? `decisions/latest-${selectedTraderId}`
       : null,
     () => api.getLatestDecisions(selectedTraderId),
@@ -167,7 +167,7 @@ function App() {
   )
 
   const { data: stats } = useSWR<Statistics>(
-    currentPage === 'trader' && selectedTraderId
+    user && token && currentPage === 'trader' && selectedTraderId
       ? `statistics-${selectedTraderId}`
       : null,
     () => api.getStatistics(selectedTraderId),

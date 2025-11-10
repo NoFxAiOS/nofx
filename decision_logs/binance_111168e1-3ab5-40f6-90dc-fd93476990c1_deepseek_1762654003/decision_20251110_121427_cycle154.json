@@ -1,0 +1,48 @@
+{
+  "timestamp": "2025-11-10T12:14:27.885225497+08:00",
+  "cycle_number": 154,
+  "system_prompt": "",
+  "input_prompt": "",
+  "cot_trace": "",
+  "decision_json": "",
+  "account_state": {
+    "total_balance": 308.25221794,
+    "available_balance": 79.10285958,
+    "total_unrealized_profit": -12.74778206000002,
+    "position_count": 2,
+    "margin_used_pct": 73.40708923340526
+  },
+  "positions": [
+    {
+      "symbol": "SOLUSDT",
+      "side": "long",
+      "position_amt": 1.93,
+      "entry_price": 166.06,
+      "mark_price": 168.26,
+      "unrealized_profit": 4.246,
+      "leverage": 3,
+      "liquidation_price": 111.3464277
+    },
+    {
+      "symbol": "BNBUSDT",
+      "side": "long",
+      "position_amt": 0.35,
+      "entry_price": 1010.14,
+      "mark_price": 1011.70040589,
+      "unrealized_profit": 0.54614206,
+      "leverage": 3,
+      "liquidation_price": 677.29822105
+    }
+  ],
+  "candidate_coins": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "HYPEUSDT"
+  ],
+  "decisions": null,
+  "execution_log": [],
+  "success": false,
+  "error_message": "获取AI决策失败: 调用AI API失败: API返回错误 (status 404): "
+}

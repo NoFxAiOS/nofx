@@ -5,7 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { Eye, EyeOff } from 'lucide-react'
 import { Input } from './ui/input'
-import { notify } from '../lib/notify'
+import { toast } from 'sonner'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -30,7 +30,7 @@ export function LoginPage() {
     if (!result.success) {
       const msg = result.message || t('loginFailed', language)
       setError(msg)
-      notify.error(msg)
+      toast.error(msg)
     }
     setLoading(false)
   }
@@ -50,7 +50,7 @@ export function LoginPage() {
     } else {
       const msg = result.message || t('loginFailed', language)
       setError(msg)
-      notify.error(msg)
+      toast.error(msg)
     }
 
     setLoading(false)
@@ -66,7 +66,7 @@ export function LoginPage() {
     if (!result.success) {
       const msg = result.message || t('verificationFailed', language)
       setError(msg)
-      notify.error(msg)
+      toast.error(msg)
     }
     // 成功的话AuthContext会自动处理登录状态
 

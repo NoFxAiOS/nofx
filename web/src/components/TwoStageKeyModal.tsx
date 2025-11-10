@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { t, type Language } from '../i18n/translations'
-import { notify } from '../lib/notify'
+import { toast } from 'sonner'
 
 const DEFAULT_LENGTH = 64
 
@@ -100,14 +100,14 @@ export function TwoStageKeyModal({
             ...obfuscationLog,
             `Stage 1: ${new Date().toISOString()} - Auto copied obfuscation`,
           ])
-          notify.success('已复制混淆字符串到剪贴板')
+          toast.success('已复制混淆字符串到剪贴板')
         } catch {
           setClipboardStatus('failed')
           setObfuscationLog([
             ...obfuscationLog,
             `Stage 1: ${new Date().toISOString()} - Auto copy failed, manual required`,
           ])
-          notify.error('复制失败，请手动复制混淆字符串')
+          toast.error('复制失败，请手动复制混淆字符串')
         }
       } else {
         setClipboardStatus('failed')
@@ -115,7 +115,7 @@ export function TwoStageKeyModal({
           ...obfuscationLog,
           `Stage 1: ${new Date().toISOString()} - Clipboard API not available`,
         ])
-        notify.message('当前浏览器不支持自动复制，请手动复制')
+        toast('当前浏览器不支持自动复制，请手动复制')
       }
 
       setTimeout(() => {

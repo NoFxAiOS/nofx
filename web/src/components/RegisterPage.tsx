@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { getSystemConfig } from '../lib/config'
-import { notify } from '../lib/notify'
+import { toast } from 'sonner'
 import { copyWithToast } from '../lib/clipboard'
 import { Eye, EyeOff } from 'lucide-react'
 import { Input } from './ui/input'
@@ -71,7 +71,7 @@ export function RegisterPage() {
     } else {
       const msg = result.message || t('registrationFailed', language)
       setError(msg)
-      notify.error(msg)
+      toast.error(msg)
     }
 
     setLoading(false)
@@ -91,7 +91,7 @@ export function RegisterPage() {
     if (!result.success) {
       const msg = result.message || t('registrationFailed', language)
       setError(msg)
-      notify.error(msg)
+      toast.error(msg)
     }
     // 成功的话AuthContext会自动处理登录状态
 
@@ -187,35 +187,16 @@ export function RegisterPage() {
                   className="block text-sm font-semibold mb-2"
                   style={{ color: 'var(--brand-light-gray)' }}
                 >
-                  <div
-                    className="mb-1"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('passwordRequirements', language)}
-                  </div>
-                  <PasswordChecklist
-                    rules={[
-                      'minLength',
-                      'capital',
-                      'lowercase',
-                      'number',
-                      'specialChar',
-                      'match',
-                    ]}
-                    minLength={8}
-                    specialCharsRegex={/[@#$%!&*?]/}
-                    value={password}
-                    valueAgain={confirmPassword}
-                    messages={{
-                      minLength: t('passwordRuleMinLength', language),
-                      capital: t('passwordRuleUppercase', language),
-                      lowercase: t('passwordRuleLowercase', language),
-                      number: t('passwordRuleNumber', language),
-                      specialChar: t('passwordRuleSpecial', language),
-                      match: t('passwordRuleMatch', language),
-                    }}
-                    className="space-y-1"
-                    onChange={(isValid) => setPasswordValid(isValid)}
+                  {t('confirmPassword', language)}
+                </label>
+                <div className="relative">
+                  <Input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="pr-10"
+                    placeholder={t('confirmPasswordPlaceholder', language)}
+                    required
                   />
                   <button
                     type="button"

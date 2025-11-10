@@ -32,7 +32,8 @@ import {
   Radio,
   Pencil,
 } from 'lucide-react'
-import { notify, confirmToast } from '../lib/notify'
+import { confirmToast } from '../lib/notify'
+import { toast } from 'sonner'
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -224,16 +225,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const exchange = allExchanges?.find((e) => e.id === data.exchange_id)
 
       if (!model?.enabled) {
-        notify.error(t('modelNotConfigured', language))
+        toast.error(t('modelNotConfigured', language))
         return
       }
 
       if (!exchange?.enabled) {
-        notify.error(t('exchangeNotConfigured', language))
+        toast.error(t('exchangeNotConfigured', language))
         return
       }
 
-      await notify.promise(api.createTrader(data), {
+      await toast.promise(api.createTrader(data), {
         loading: '正在创建…',
         success: '创建成功',
         error: '创建失败',
@@ -242,7 +243,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders()
     } catch (error) {
       console.error('Failed to create trader:', error)
-      notify.error(t('createTraderFailed', language))
+      toast.error(t('createTraderFailed', language))
     }
   }
 
@@ -253,7 +254,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setShowEditModal(true)
     } catch (error) {
       console.error('Failed to fetch trader config:', error)
-      notify.error(t('getTraderConfigFailed', language))
+      toast.error(t('getTraderConfigFailed', language))
     }
   }
 
@@ -265,12 +266,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const exchange = enabledExchanges?.find((e) => e.id === data.exchange_id)
 
       if (!model) {
-        notify.error(t('modelConfigNotExist', language))
+        toast.error(t('modelConfigNotExist', language))
         return
       }
 
       if (!exchange) {
-        notify.error(t('exchangeConfigNotExist', language))
+        toast.error(t('exchangeConfigNotExist', language))
         return
       }
 
@@ -290,7 +291,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         use_oi_top: data.use_oi_top,
       }
 
-      await notify.promise(api.updateTrader(editingTrader.trader_id, request), {
+      await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
         loading: '正在保存…',
         success: '保存成功',
         error: '保存失败',
@@ -300,7 +301,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders()
     } catch (error) {
       console.error('Failed to update trader:', error)
-      notify.error(t('updateTraderFailed', language))
+      toast.error(t('updateTraderFailed', language))
     }
   }
 
@@ -311,7 +312,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
 
     try {
-      await notify.promise(api.deleteTrader(traderId), {
+      await toast.promise(api.deleteTrader(traderId), {
         loading: '正在删除…',
         success: '删除成功',
         error: '删除失败',
@@ -319,20 +320,20 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders()
     } catch (error) {
       console.error('Failed to delete trader:', error)
-      notify.error(t('deleteTraderFailed', language))
+      toast.error(t('deleteTraderFailed', language))
     }
   }
 
   const handleToggleTrader = async (traderId: string, running: boolean) => {
     try {
       if (running) {
-        await notify.promise(api.stopTrader(traderId), {
+        await toast.promise(api.stopTrader(traderId), {
           loading: '正在停止…',
           success: '已停止',
           error: '停止失败',
         })
       } else {
-        await notify.promise(api.startTrader(traderId), {
+        await toast.promise(api.startTrader(traderId), {
           loading: '正在启动…',
           success: '已启动',
           error: '启动失败',
@@ -341,7 +342,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
-      notify.error(t('operationFailed', language))
+      toast.error(t('operationFailed', language))
     }
   }
 
@@ -380,7 +381,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (config.checkInUse(config.id)) {
       const usingTraders = config.getUsingTraders(config.id)
       const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
-      notify.error(
+      toast.error(
         `${t(config.cannotDeleteKey, language)} · ${t('tradersUsing', language)}: ${traderNames} · ${t('pleaseDeleteTradersFirst', language)}`
       )
       return
@@ -398,7 +399,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ) || []
 
       const request = config.buildRequest(updatedItems)
-      await notify.promise(config.updateApi(request), {
+      await toast.promise(config.updateApi(request), {
         loading: '正在更新配置…',
         success: '配置已更新',
         error: '更新配置失败',
@@ -411,7 +412,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       config.closeModal()
     } catch (error) {
       console.error(`Failed to delete ${config.type} config:`, error)
-      notify.error(t(config.errorKey, language))
+      toast.error(t(config.errorKey, language))
     }
   }
 
@@ -473,7 +474,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const modelToUpdate =
         existingModel || supportedModels?.find((m) => m.id === modelId)
       if (!modelToUpdate) {
-        notify.error(t('modelNotExist', language))
+        toast.error(t('modelNotExist', language))
         return
       }
 
@@ -517,7 +518,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await notify.promise(api.updateModelConfigs(request), {
+      await toast.promise(api.updateModelConfigs(request), {
         loading: '正在更新模型配置…',
         success: '模型配置已更新',
         error: '更新模型配置失败',
@@ -531,7 +532,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingModel(null)
     } catch (error) {
       console.error('Failed to save model config:', error)
-      notify.error(t('saveConfigFailed', language))
+      toast.error(t('saveConfigFailed', language))
     }
   }
 
@@ -601,7 +602,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         (e) => e.id === exchangeId
       )
       if (!exchangeToUpdate) {
-        notify.error(t('exchangeNotExist', language))
+        toast.error(t('exchangeNotExist', language))
         return
       }
 
@@ -661,7 +662,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await notify.promise(api.updateExchangeConfigsEncrypted(request), {
+      await toast.promise(api.updateExchangeConfigsEncrypted(request), {
         loading: '正在更新交易所配置…',
         success: '交易所配置已更新',
         error: '更新交易所配置失败',
@@ -675,7 +676,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingExchange(null)
     } catch (error) {
       console.error('Failed to save exchange config:', error)
-      notify.error(t('saveConfigFailed', language))
+      toast.error(t('saveConfigFailed', language))
     }
   }
 
@@ -694,7 +695,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     oiTopUrl: string
   ) => {
     try {
-      await notify.promise(api.saveUserSignalSource(coinPoolUrl, oiTopUrl), {
+      await toast.promise(api.saveUserSignalSource(coinPoolUrl, oiTopUrl), {
         loading: '正在保存…',
         success: '保存成功',
         error: '保存失败',
@@ -703,7 +704,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setShowSignalSourceModal(false)
     } catch (error) {
       console.error('Failed to save signal source:', error)
-      notify.error(t('saveSignalSourceFailed', language))
+      toast.error(t('saveSignalSourceFailed', language))
     }
   }
 
@@ -1806,10 +1807,10 @@ function ExchangeConfigModal({
       .then(() => {
         setCopiedIP(true)
         setTimeout(() => setCopiedIP(false), 2000)
-        notify.success(t('ipCopied', language))
+        toast.success(t('ipCopied', language))
       })
       .catch(() => {
-        notify.error('复制失败')
+        toast.error('复制失败')
       })
   }
 

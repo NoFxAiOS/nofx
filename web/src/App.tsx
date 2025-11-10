@@ -7,7 +7,6 @@ import { useSystemConfig } from './hooks/useSystemConfig'
 import { useAuth } from './contexts/AuthContext'
 import { useLanguage } from './contexts/LanguageContext'
 import { t } from './i18n/translations'
-import DevToastController from './components/DevToastController'
 
 function LoadingScreen() {
   const { language } = useLanguage()
@@ -47,7 +46,6 @@ export default function App() {
       <AuthProvider>
         <ConfirmDialogProvider>
           <AppContent />
-          <DevToastController />
         </ConfirmDialogProvider>
       </AuthProvider>
     </LanguageProvider>

@@ -142,7 +142,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/exchanges", s.handleGetExchangeConfigs)
 			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
 
-
 			// 系统提示词模板管理（需要认证，修复 #643）
 			protected.POST("/prompt-templates/reload", s.handleReloadPromptTemplates)
 			// 用户信号源配置
@@ -970,7 +969,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		actualBalance = totalBalance
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-				return
+		return
 	}
 
 	oldBalance := traderConfig.InitialBalance

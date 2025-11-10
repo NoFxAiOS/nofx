@@ -15,7 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       toastOptions={{
         className: 'nofx-toast',
         style: {
-          background: 'var(--panel-bg)',
+          background: '#0b0e11',
           border: '1px solid var(--panel-border)',
           color: 'var(--text-primary)',
         },

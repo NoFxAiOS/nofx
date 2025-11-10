@@ -6,7 +6,7 @@ import { Header } from './Header'
 import { ArrowLeft, KeyRound, Eye, EyeOff } from 'lucide-react'
 import PasswordChecklist from 'react-password-checklist'
 import { Input } from './ui/input'
-import { toast } from 'sonner'
+import { notify } from '../lib/notify'
 
 export function ResetPasswordPage() {
   const { language } = useLanguage()
@@ -39,7 +39,7 @@ export function ResetPasswordPage() {
 
     if (result.success) {
       setSuccess(true)
-      toast.success(t('resetPasswordSuccess', language) || '重置成功')
+      notify.success(t('resetPasswordSuccess', language) || '重置成功')
       // 3秒后跳转到登录页面
       setTimeout(() => {
         window.history.pushState({}, '', '/login')
@@ -48,7 +48,7 @@ export function ResetPasswordPage() {
     } else {
       const msg = result.message || t('resetPasswordFailed', language)
       setError(msg)
-      toast.error(msg)
+      notify.error(msg)
     }
 
     setLoading(false)

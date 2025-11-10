@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { getSystemConfig } from '../lib/config'
-import { toast } from 'sonner'
+import { notify } from '../lib/notify'
 import { copyWithToast } from '../lib/clipboard'
 import { Eye, EyeOff } from 'lucide-react'
 import { Input } from './ui/input'
@@ -71,7 +71,7 @@ export function RegisterPage() {
     } else {
       const msg = result.message || t('registrationFailed', language)
       setError(msg)
-      toast.error(msg)
+      notify.error(msg)
     }
 
     setLoading(false)
@@ -91,7 +91,7 @@ export function RegisterPage() {
     if (!result.success) {
       const msg = result.message || t('registrationFailed', language)
       setError(msg)
-      toast.error(msg)
+      notify.error(msg)
     }
     // 成功的话AuthContext会自动处理登录状态
 

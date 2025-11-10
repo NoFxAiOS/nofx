@@ -1,11 +1,13 @@
 import { RouterProvider } from 'react-router-dom'
 import { LanguageProvider } from './contexts/LanguageContext'
 import { AuthProvider } from './contexts/AuthContext'
+import { ConfirmDialogProvider } from './components/ConfirmDialog'
 import { router } from './routes'
 import { useSystemConfig } from './hooks/useSystemConfig'
 import { useAuth } from './contexts/AuthContext'
 import { useLanguage } from './contexts/LanguageContext'
 import { t } from './i18n/translations'
+import DevToastController from './components/DevToastController'
 
 function LoadingScreen() {
   const { language } = useLanguage()
@@ -43,7 +45,10 @@ export default function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <AppContent />
+        <ConfirmDialogProvider>
+          <AppContent />
+          <DevToastController />
+        </ConfirmDialogProvider>
       </AuthProvider>
     </LanguageProvider>
   )

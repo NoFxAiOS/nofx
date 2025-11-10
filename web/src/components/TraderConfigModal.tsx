@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import type { AIModel, Exchange, CreateTraderRequest } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
-import { toast } from 'sonner'
+import { notify } from '../lib/notify'
 import { Pencil, Plus, X as IconX } from 'lucide-react'
 
 // 提取下划线后面的名称部分
@@ -215,11 +215,11 @@ export function TraderConfigModal({
       const currentBalance = data.total_equity || data.balance || 0
 
       setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-      toast.success('已获取当前余额')
+      notify.success('已获取当前余额')
     } catch (error) {
       console.error('获取余额失败:', error)
       setBalanceFetchError('获取余额失败，请检查网络连接')
-      toast.error('获取余额失败，请检查网络连接')
+      notify.error('获取余额失败，请检查网络连接')
     } finally {
       setIsFetchingBalance(false)
     }
@@ -246,7 +246,7 @@ export function TraderConfigModal({
         initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
-      await toast.promise(onSave(saveData), {
+      await notify.promise(onSave(saveData), {
         loading: '正在保存…',
         success: '保存成功',
         error: '保存失败',

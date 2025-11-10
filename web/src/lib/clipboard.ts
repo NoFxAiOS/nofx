@@ -1,4 +1,4 @@
-import { toast } from 'sonner'
+import { notify } from './notify'
 
 /**
  * 复制文本到剪贴板，并显示轻量提示。
@@ -18,11 +18,11 @@ export async function copyWithToast(text: string, successMsg = '已复制') {
       document.execCommand('copy')
       document.body.removeChild(el)
     }
-    toast.success(successMsg)
+    notify.success(successMsg)
     return true
   } catch (err) {
     console.error('Clipboard copy failed:', err)
-    toast.error('复制失败')
+    notify.error('复制失败')
     return false
   }
 }

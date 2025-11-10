@@ -2474,7 +2474,7 @@ function ExchangeConfigModal({
         </div>
 
         {/* 按钮区域固定在底部 */}
-        <div className="flex gap-3 mt-4 flex-shrink-0">
+        <div className="flex gap-3 flex-shrink-0">
           <button
             type="button"
             onClick={onClose}

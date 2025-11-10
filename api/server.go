@@ -16,11 +16,15 @@ import (
 	"nofx/trader"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// syncBalanceLocks 用于余额同步操作的锁（按traderID）
+var syncBalanceLocks sync.Map
 
 // Server HTTP API服务器
 type Server struct {
@@ -904,6 +908,13 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 func (s *Server) handleSyncBalance(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
+
+	// 获取trader级别的锁，防止并发同步导致数据不一致
+	lockKey := fmt.Sprintf("%s:%s", userID, traderID)
+	lockValue, _ := syncBalanceLocks.LoadOrStore(lockKey, &sync.Mutex{})
+	mu := lockValue.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
 
 	log.Printf("🔄 用户 %s 请求同步交易员 %s 的余额", userID, traderID)
 

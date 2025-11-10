@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
+    "sonner": "^1.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -23,6 +24,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-password-checklist": "^1.8.1",
+    "react-router-dom": "^7.9.5",
     "recharts": "^2.15.2",
     "swr": "^2.2.5",
     "tailwind-merge": "^3.3.1",

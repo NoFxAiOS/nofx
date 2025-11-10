@@ -200,6 +200,58 @@ body {
   border-bottom: 1px solid var(--panel-border);
 }
 
+/* Sonner (toast) - Binance theme overrides */
+.sonner-toaster {
+  z-index: 9999;
+}
+
+.nofx-toast {
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: 6px !important;
+}
+
+.nofx-toast .sonner-title {
+  color: var(--text-primary) !important;
+  font-weight: 700;
+}
+
+.nofx-toast .sonner-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Success / Error / Warning tint */
+.nofx-toast[data-type='success'] {
+  background: var(--binance-green-bg) !important;
+  border-color: var(--binance-green-border) !important;
+  color: var(--binance-green) !important;
+}
+.nofx-toast[data-type='error'] {
+  background: var(--binance-red-bg) !important;
+  border-color: var(--binance-red-border) !important;
+  color: var(--binance-red) !important;
+}
+.nofx-toast[data-type='warning'],
+.nofx-toast[data-type='info'] {
+  background: rgba(240, 185, 11, 0.08) !important;
+  border-color: rgba(240, 185, 11, 0.25) !important;
+  color: var(--binance-yellow) !important;
+}
+
+.nofx-toast .sonner-close-button {
+  color: var(--text-secondary) !important;
+}
+.nofx-toast .sonner-close-button:hover {
+  color: var(--text-primary) !important;
+}
+
+/* Enlarge and center confirm overlay; hide default close for this case */
+.nofx-toast .nofx-confirm-overlay ~ .sonner-close-button {
+  display: none !important;
+}
+
 /* Monospace numbers */
 .mono {
   font-family: 'IBM Plex Mono', 'Courier New', monospace;

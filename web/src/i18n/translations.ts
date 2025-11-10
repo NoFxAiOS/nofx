@@ -280,6 +280,33 @@ export const translations = {
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
     invalidSymbolFormat: 'Invalid symbol format: {symbol}, must end with USDT',
 
+    // System Prompt Templates
+    systemPromptTemplate: 'System Prompt Template',
+    promptTemplateDefault: 'Default Stable',
+    promptTemplateAdaptive: 'Conservative Strategy',
+    promptTemplateAdaptiveRelaxed: 'Aggressive Strategy',
+    promptTemplateHansen: 'Hansen Strategy',
+    promptTemplateNof1: 'NoF1 English Framework',
+    promptTemplateTaroLong: 'Taro Long Position',
+    promptDescDefault: '📊 Default Stable Strategy',
+    promptDescDefaultContent:
+      'Maximize Sharpe ratio, balanced risk-reward, suitable for beginners and stable long-term trading',
+    promptDescAdaptive: '🛡️ Conservative Strategy (v6.0.0)',
+    promptDescAdaptiveContent:
+      'Strict risk control, BTC mandatory confirmation, high win rate priority, suitable for conservative traders',
+    promptDescAdaptiveRelaxed: '⚡ Aggressive Strategy (v6.0.0)',
+    promptDescAdaptiveRelaxedContent:
+      'High-frequency trading, BTC optional confirmation, pursue trading opportunities, suitable for volatile markets',
+    promptDescHansen: '🎯 Hansen Strategy',
+    promptDescHansenContent:
+      'Hansen custom strategy, maximize Sharpe ratio, for professional traders',
+    promptDescNof1: '🌐 NoF1 English Framework',
+    promptDescNof1Content:
+      'Hyperliquid exchange specialist, English prompts, maximize risk-adjusted returns',
+    promptDescTaroLong: '📈 Taro Long Position Strategy',
+    promptDescTaroLongContent:
+      'Data-driven decisions, multi-dimensional validation, continuous learning evolution, long position specialist',
+
     // Loading & Error
     loading: 'Loading...',
     loadingError: '⚠️ Failed to load AI learning data',
@@ -1042,6 +1069,29 @@ export const translations = {
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
     invalidSymbolFormat: '无效的币种格式：{symbol}，必须以USDT结尾',
+
+    // System Prompt Templates
+    systemPromptTemplate: '系统提示词模板',
+    promptTemplateDefault: '默认稳健',
+    promptTemplateAdaptive: '保守策略',
+    promptTemplateAdaptiveRelaxed: '激进策略',
+    promptTemplateHansen: 'Hansen 策略',
+    promptTemplateNof1: 'NoF1 英文框架',
+    promptTemplateTaroLong: 'Taro 长仓',
+    promptDescDefault: '📊 默认稳健策略',
+    promptDescDefaultContent: '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
+    promptDescAdaptive: '🛡️ 保守策略 (v6.0.0)',
+    promptDescAdaptiveContent: '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
+    promptDescAdaptiveRelaxed: '⚡ 激进策略 (v6.0.0)',
+    promptDescAdaptiveRelaxedContent:
+      '高频交易，BTC 可选确认，追求交易机会，适合波动市场',
+    promptDescHansen: '🎯 Hansen 策略',
+    promptDescHansenContent: 'Hansen 定制策略，最大化夏普比率，专业交易者专用',
+    promptDescNof1: '🌐 NoF1 英文框架',
+    promptDescNof1Content:
+      'Hyperliquid 交易所专用，英文提示词，风险调整回报最大化',
+    promptDescTaroLong: '📈 Taro 长仓策略',
+    promptDescTaroLongContent: '数据驱动决策，多维度验证，持续学习进化，长仓专用',
 
     // Loading & Error
     loading: '加载中...',

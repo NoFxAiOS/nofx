@@ -662,7 +662,7 @@ function TraderDetailsPage({
             >
               {getModelDisplayName(
                 selectedTrader.ai_model.split('_').pop() ||
-                  selectedTrader.ai_model
+                selectedTrader.ai_model
               )}
             </span>
           </span>
@@ -802,13 +802,13 @@ function TraderDetailsPage({
                             style={
                               pos.side === 'long'
                                 ? {
-                                    background: 'rgba(14, 203, 129, 0.1)',
-                                    color: '#0ECB81',
-                                  }
+                                  background: 'rgba(14, 203, 129, 0.1)',
+                                  color: '#0ECB81',
+                                }
                                 : {
-                                    background: 'rgba(246, 70, 93, 0.1)',
-                                    color: '#F6465D',
-                                  }
+                                  background: 'rgba(246, 70, 93, 0.1)',
+                                  color: '#F6465D',
+                                }
                             }
                           >
                             {t(
@@ -1125,13 +1125,13 @@ function DecisionCard({
                 style={
                   action.action.includes('open')
                     ? {
-                        background: 'rgba(96, 165, 250, 0.1)',
-                        color: '#60a5fa',
-                      }
+                      background: 'rgba(96, 165, 250, 0.1)',
+                      color: '#60a5fa',
+                    }
                     : {
-                        background: 'rgba(240, 185, 11, 0.1)',
-                        color: '#F0B90B',
-                      }
+                      background: 'rgba(240, 185, 11, 0.1)',
+                      color: '#F0B90B',
+                    }
                 }
               >
                 {action.action}
@@ -1167,20 +1167,24 @@ function DecisionCard({
           style={{ background: '#0B0E11', color: '#848E9C' }}
         >
           <span>
-            净值: {decision.account_state.total_balance.toFixed(2)} USDT
+            净值: {parseFloat(decision.account_state.total_balance).toFixed(2)}{' '}
+            USDT
           </span>
           <span>
-            可用: {decision.account_state.available_balance.toFixed(2)} USDT
+            可用:{' '}
+            {parseFloat(decision.account_state.available_balance).toFixed(2)}{' '}
+            USDT
           </span>
           <span>
-            保证金率: {decision.account_state.margin_used_pct.toFixed(1)}%
+            保证金率:{' '}
+            {parseFloat(decision.account_state.margin_used_pct).toFixed(1)}%
           </span>
           <span>持仓: {decision.account_state.position_count}</span>
           <span
             style={{
               color:
                 decision.candidate_coins &&
-                decision.candidate_coins.length === 0
+                  decision.candidate_coins.length === 0
                   ? '#F6465D'
                   : '#848E9C',
             }}

@@ -54,11 +54,11 @@ export interface DecisionAction {
 }
 
 export interface AccountSnapshot {
-  total_balance: number
-  available_balance: number
-  total_unrealized_profit: number
-  position_count: number
-  margin_used_pct: number
+  total_balance: string
+  available_balance: string
+  total_unrealized_profit: string
+  position_count: string
+  margin_used_pct: string
 }
 
 export interface DecisionRecord {

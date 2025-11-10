@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/greatcloak/decimal"
 	"github.com/sonirico/go-hyperliquid"
 )
 
@@ -181,11 +182,13 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	log.Printf("%s", string(summaryJSON))
 
 	// ⚠️ 关键修复：从所有持仓中累加真正的未实现盈亏
-	totalUnrealizedPnl := 0.0
+	totalUnrealizedPnlDecimal := decimal.Zero
 	for _, assetPos := range accountState.AssetPositions {
 		unrealizedPnl, _ := strconv.ParseFloat(assetPos.Position.UnrealizedPnl, 64)
-		totalUnrealizedPnl += unrealizedPnl
+		unrealizedPnlDecimal := decimal.NewFromFloat(unrealizedPnl)
+		totalUnrealizedPnlDecimal = totalUnrealizedPnlDecimal.Add(unrealizedPnlDecimal)
 	}
+	totalUnrealizedPnl, _ := totalUnrealizedPnlDecimal.Float64()
 
 	// ✅ 正确理解Hyperliquid字段：
 	// AccountValue = 总账户净值（已包含空闲资金+持仓价值+未实现盈亏）
@@ -335,7 +338,7 @@ func (t *HyperliquidTrader) SetLeverage(symbol string, leverage int) error {
 }
 
 // OpenLong 开多仓
-func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+func (t *HyperliquidTrader) OpenLong(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error) {
 	// 先取消该币种的所有委托单
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消旧委托单失败: %v", err)
@@ -355,13 +358,15 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 		return nil, err
 	}
 
+	quantityFloat, _ := quantity.Float64()
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
-	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantity, roundedQuantity, t.getSzDecimals(coin))
+	roundedQuantity := t.roundToSzDecimals(coin, quantityFloat)
+	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantityFloat, roundedQuantity, t.getSzDecimals(coin))
 
+	priceFloat, _ := price.Float64()
 	// ⚠️ 关键：价格也需要处理为5位有效数字
-	aggressivePrice := t.roundPriceToSigfigs(price * 1.01)
-	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", price*1.01, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(priceFloat * 1.01)
+	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", priceFloat*1.01, aggressivePrice)
 
 	// 创建市价买入订单（使用IOC limit order with aggressive price）
 	order := hyperliquid.CreateOrderRequest{
@@ -393,7 +398,7 @@ func (t *HyperliquidTrader) OpenLong(symbol string, quantity float64, leverage i
 }
 
 // OpenShort 开空仓
-func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+func (t *HyperliquidTrader) OpenShort(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error) {
 	// 先取消该币种的所有委托单
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消旧委托单失败: %v", err)
@@ -413,13 +418,15 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 		return nil, err
 	}
 
+	quantityFloat, _ := quantity.Float64()
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
-	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantity, roundedQuantity, t.getSzDecimals(coin))
+	roundedQuantity := t.roundToSzDecimals(coin, quantityFloat)
+	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantityFloat, roundedQuantity, t.getSzDecimals(coin))
 
+	priceFloat, _ := price.Float64()
 	// ⚠️ 关键：价格也需要处理为5位有效数字
-	aggressivePrice := t.roundPriceToSigfigs(price * 0.99)
-	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", price*0.99, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(priceFloat * 0.99)
+	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", priceFloat*0.99, aggressivePrice)
 
 	// 创建市价卖出订单
 	order := hyperliquid.CreateOrderRequest{
@@ -451,9 +458,9 @@ func (t *HyperliquidTrader) OpenShort(symbol string, quantity float64, leverage 
 }
 
 // CloseLong 平多仓
-func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+func (t *HyperliquidTrader) CloseLong(symbol string, quantity decimal.Decimal) (map[string]interface{}, error) {
 	// 如果数量为0，获取当前持仓数量
-	if quantity == 0 {
+	if quantity.IsZero() {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -461,12 +468,12 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				quantity = decimal.NewFromFloat(pos["positionAmt"].(float64))
 				break
 			}
 		}
 
-		if quantity == 0 {
+		if quantity.IsZero() {
 			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
 		}
 	}
@@ -480,13 +487,15 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 		return nil, err
 	}
 
+	quantityFloat, _ := quantity.Float64()
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
-	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantity, roundedQuantity, t.getSzDecimals(coin))
+	roundedQuantity := t.roundToSzDecimals(coin, quantityFloat)
+	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantityFloat, roundedQuantity, t.getSzDecimals(coin))
 
+	priceFloat, _ := price.Float64()
 	// ⚠️ 关键：价格也需要处理为5位有效数字
-	aggressivePrice := t.roundPriceToSigfigs(price * 0.99)
-	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", price*0.99, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(priceFloat * 0.99)
+	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", priceFloat*0.99, aggressivePrice)
 
 	// 创建平仓订单（卖出 + ReduceOnly）
 	order := hyperliquid.CreateOrderRequest{
@@ -523,9 +532,9 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 }
 
 // CloseShort 平空仓
-func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+func (t *HyperliquidTrader) CloseShort(symbol string, quantity decimal.Decimal) (map[string]interface{}, error) {
 	// 如果数量为0，获取当前持仓数量
-	if quantity == 0 {
+	if quantity.IsZero() {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -533,12 +542,12 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64)
+				quantity = decimal.NewFromFloat(pos["positionAmt"].(float64))
 				break
 			}
 		}
 
-		if quantity == 0 {
+		if quantity.IsZero() {
 			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
 		}
 	}
@@ -552,13 +561,15 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 		return nil, err
 	}
 
+	quantityFloat, _ := quantity.Float64()
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
-	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantity, roundedQuantity, t.getSzDecimals(coin))
+	roundedQuantity := t.roundToSzDecimals(coin, quantityFloat)
+	log.Printf("  📏 数量精度处理: %.8f -> %.8f (szDecimals=%d)", quantityFloat, roundedQuantity, t.getSzDecimals(coin))
 
+	priceFloat, _ := price.Float64()
 	// ⚠️ 关键：价格也需要处理为5位有效数字
-	aggressivePrice := t.roundPriceToSigfigs(price * 1.01)
-	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", price*1.01, aggressivePrice)
+	aggressivePrice := t.roundPriceToSigfigs(priceFloat * 1.01)
+	log.Printf("  💰 价格精度处理: %.8f -> %.8f (5位有效数字)", priceFloat*1.01, aggressivePrice)
 
 	// 创建平仓订单（买入 + ReduceOnly）
 	order := hyperliquid.CreateOrderRequest{
@@ -671,38 +682,40 @@ func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 }
 
 // GetMarketPrice 获取市场价格
-func (t *HyperliquidTrader) GetMarketPrice(symbol string) (float64, error) {
+func (t *HyperliquidTrader) GetMarketPrice(symbol string) (decimal.Decimal, error) {
 	coin := convertSymbolToHyperliquid(symbol)
 
 	// 获取所有市场价格
 	allMids, err := t.exchange.Info().AllMids(t.ctx)
 	if err != nil {
-		return 0, fmt.Errorf("获取价格失败: %w", err)
+		return decimal.Zero, fmt.Errorf("获取价格失败: %w", err)
 	}
 
 	// 查找对应币种的价格（allMids是map[string]string）
 	if priceStr, ok := allMids[coin]; ok {
-		priceFloat, err := strconv.ParseFloat(priceStr, 64)
+		price, err := decimal.NewFromString(priceStr)
 		if err == nil {
-			return priceFloat, nil
+			return price, nil
 		}
-		return 0, fmt.Errorf("价格格式错误: %v", err)
+		return decimal.Zero, fmt.Errorf("价格格式错误: %v", err)
 	}
 
-	return 0, fmt.Errorf("未找到 %s 的价格", symbol)
+	return decimal.Zero, fmt.Errorf("未找到 %s 的价格", symbol)
 }
 
 // SetStopLoss 设置止损单
-func (t *HyperliquidTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
+func (t *HyperliquidTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice decimal.Decimal) error {
 	coin := convertSymbolToHyperliquid(symbol)
 
 	isBuy := positionSide == "SHORT" // 空仓止损=买入，多仓止损=卖出
 
+	quantityFloat, _ := quantity.Float64()
+	stopPriceFloat, _ := stopPrice.Float64()
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
+	roundedQuantity := t.roundToSzDecimals(coin, quantityFloat)
 
 	// ⚠️ 关键：价格也需要处理为5位有效数字
-	roundedStopPrice := t.roundPriceToSigfigs(stopPrice)
+	roundedStopPrice := t.roundPriceToSigfigs(stopPriceFloat)
 
 	// 创建止损单（Trigger Order）
 	order := hyperliquid.CreateOrderRequest{
@@ -730,16 +743,18 @@ func (t *HyperliquidTrader) SetStopLoss(symbol string, positionSide string, quan
 }
 
 // SetTakeProfit 设置止盈单
-func (t *HyperliquidTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
+func (t *HyperliquidTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice decimal.Decimal) error {
 	coin := convertSymbolToHyperliquid(symbol)
 
 	isBuy := positionSide == "SHORT" // 空仓止盈=买入，多仓止盈=卖出
 
+	quantityFloat, _ := quantity.Float64()
+	takeProfitPriceFloat, _ := takeProfitPrice.Float64()
 	// ⚠️ 关键：根据币种精度要求，四舍五入数量
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
+	roundedQuantity := t.roundToSzDecimals(coin, quantityFloat)
 
 	// ⚠️ 关键：价格也需要处理为5位有效数字
-	roundedTakeProfitPrice := t.roundPriceToSigfigs(takeProfitPrice)
+	roundedTakeProfitPrice := t.roundPriceToSigfigs(takeProfitPriceFloat)
 
 	// 创建止盈单（Trigger Order）
 	order := hyperliquid.CreateOrderRequest{
@@ -767,13 +782,12 @@ func (t *HyperliquidTrader) SetTakeProfit(symbol string, positionSide string, qu
 }
 
 // FormatQuantity 格式化数量到正确的精度
-func (t *HyperliquidTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+func (t *HyperliquidTrader) FormatQuantity(symbol string, quantity decimal.Decimal) (string, error) {
 	coin := convertSymbolToHyperliquid(symbol)
 	szDecimals := t.getSzDecimals(coin)
 
 	// 使用szDecimals格式化数量
-	formatStr := fmt.Sprintf("%%.%df", szDecimals)
-	return fmt.Sprintf(formatStr, quantity), nil
+	return quantity.StringFixed(int32(szDecimals)), nil
 }
 
 // getSzDecimals 获取币种的数量精度
@@ -799,13 +813,19 @@ func (t *HyperliquidTrader) roundToSzDecimals(coin string, quantity float64) flo
 	szDecimals := t.getSzDecimals(coin)
 
 	// 计算倍数（10^szDecimals）
-	multiplier := 1.0
+	multiplierDecimal := decimal.NewFromInt(1)
+	tenDecimal := decimal.NewFromInt(10)
 	for i := 0; i < szDecimals; i++ {
-		multiplier *= 10.0
+		multiplierDecimal = multiplierDecimal.Mul(tenDecimal)
 	}
 
 	// 四舍五入
-	return float64(int(quantity*multiplier+0.5)) / multiplier
+	quantityDecimal := decimal.NewFromFloat(quantity)
+	scaledDecimal := quantityDecimal.Mul(multiplierDecimal)
+	roundedDecimal := scaledDecimal.Round(0)
+	resultDecimal := roundedDecimal.Div(multiplierDecimal)
+	result, _ := resultDecimal.Float64()
+	return result
 }
 
 // roundPriceToSigfigs 将价格四舍五入到5位有效数字
@@ -817,33 +837,39 @@ func (t *HyperliquidTrader) roundPriceToSigfigs(price float64) float64 {
 
 	const sigfigs = 5 // Hyperliquid标准：5位有效数字
 
-	// 计算价格的数量级
-	var magnitude float64
-	if price < 0 {
-		magnitude = -price
-	} else {
-		magnitude = price
+	priceDecimal := decimal.NewFromFloat(price)
+	if priceDecimal.IsNegative() {
+		priceDecimal = priceDecimal.Neg()
 	}
 
+	// 计算价格的数量级
+	magnitude := priceDecimal
+	multiplierDecimal := decimal.NewFromInt(1)
+	tenDecimal := decimal.NewFromInt(10)
+	oneDecimal := decimal.NewFromInt(1)
+
 	// 计算需要的倍数
-	multiplier := 1.0
-	for magnitude >= 10 {
-		magnitude /= 10
-		multiplier /= 10
+	for magnitude.GreaterThanOrEqual(tenDecimal) {
+		magnitude = magnitude.Div(tenDecimal)
+		multiplierDecimal = multiplierDecimal.Div(tenDecimal)
 	}
-	for magnitude < 1 {
-		magnitude *= 10
-		multiplier *= 10
+	for magnitude.LessThan(oneDecimal) {
+		magnitude = magnitude.Mul(tenDecimal)
+		multiplierDecimal = multiplierDecimal.Mul(tenDecimal)
 	}
 
 	// 应用有效数字精度
 	for i := 0; i < sigfigs-1; i++ {
-		multiplier *= 10
+		multiplierDecimal = multiplierDecimal.Mul(tenDecimal)
 	}
 
 	// 四舍五入
-	rounded := float64(int(price*multiplier+0.5)) / multiplier
-	return rounded
+	priceOriginal := decimal.NewFromFloat(price)
+	scaledDecimal := priceOriginal.Mul(multiplierDecimal)
+	roundedDecimal := scaledDecimal.Round(0)
+	resultDecimal := roundedDecimal.Div(multiplierDecimal)
+	result, _ := resultDecimal.Float64()
+	return result
 }
 
 // convertSymbolToHyperliquid 将标准symbol转换为Hyperliquid格式

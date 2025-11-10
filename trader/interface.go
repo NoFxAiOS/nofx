@@ -1,5 +1,7 @@
 package trader
 
+import "github.com/greatcloak/decimal"
+
 // Trader 交易器统一接口
 // 支持多个交易平台（币安、Hyperliquid等）
 type Trader interface {
@@ -10,16 +12,16 @@ type Trader interface {
 	GetPositions() ([]map[string]interface{}, error)
 
 	// OpenLong 开多仓
-	OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
+	OpenLong(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error)
 
 	// OpenShort 开空仓
-	OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error)
+	OpenShort(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error)
 
 	// CloseLong 平多仓（quantity=0表示全部平仓）
-	CloseLong(symbol string, quantity float64) (map[string]interface{}, error)
+	CloseLong(symbol string, quantity decimal.Decimal) (map[string]interface{}, error)
 
 	// CloseShort 平空仓（quantity=0表示全部平仓）
-	CloseShort(symbol string, quantity float64) (map[string]interface{}, error)
+	CloseShort(symbol string, quantity decimal.Decimal) (map[string]interface{}, error)
 
 	// SetLeverage 设置杠杆
 	SetLeverage(symbol string, leverage int) error
@@ -28,13 +30,13 @@ type Trader interface {
 	SetMarginMode(symbol string, isCrossMargin bool) error
 
 	// GetMarketPrice 获取市场价格
-	GetMarketPrice(symbol string) (float64, error)
+	GetMarketPrice(symbol string) (decimal.Decimal, error)
 
 	// SetStopLoss 设置止损单
-	SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error
+	SetStopLoss(symbol string, positionSide string, quantity, stopPrice decimal.Decimal) error
 
 	// SetTakeProfit 设置止盈单
-	SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error
+	SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice decimal.Decimal) error
 
 	// CancelStopLossOrders 仅取消止损单（修复 BUG：调整止损时不删除止盈）
 	CancelStopLossOrders(symbol string) error
@@ -49,5 +51,5 @@ type Trader interface {
 	CancelStopOrders(symbol string) error
 
 	// FormatQuantity 格式化数量到正确的精度
-	FormatQuantity(symbol string, quantity float64) (string, error)
+	FormatQuantity(symbol string, quantity decimal.Decimal) (string, error)
 }

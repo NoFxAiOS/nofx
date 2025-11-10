@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/agiledragon/gomonkey/v2"
+	"github.com/greatcloak/decimal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -142,14 +143,14 @@ func (s *TraderTestSuite) TestGetMarketPrice() {
 		name      string
 		symbol    string
 		wantError bool
-		validate  func(*testing.T, float64)
+		validate  func(*testing.T, decimal.Decimal)
 	}{
 		{
 			name:      "成功获取BTC价格",
 			symbol:    "BTCUSDT",
 			wantError: false,
-			validate: func(t *testing.T, price float64) {
-				assert.Greater(t, price, 0.0)
+			validate: func(t *testing.T, price decimal.Decimal) {
+				assert.True(t, price.GreaterThan(decimal.Zero))
 			},
 		},
 		{
@@ -274,7 +275,7 @@ func (s *TraderTestSuite) TestFormatQuantity() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			result, err := s.Trader.FormatQuantity(tt.symbol, tt.quantity)
+			result, err := s.Trader.FormatQuantity(tt.symbol, decimal.NewFromFloat(tt.quantity))
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -353,7 +354,7 @@ func (s *TraderTestSuite) TestOpenLong() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			result, err := s.Trader.OpenLong(tt.symbol, tt.quantity, tt.leverage)
+			result, err := s.Trader.OpenLong(tt.symbol, decimal.NewFromFloat(tt.quantity), tt.leverage)
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -402,7 +403,7 @@ func (s *TraderTestSuite) TestOpenShort() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			result, err := s.Trader.OpenShort(tt.symbol, tt.quantity, tt.leverage)
+			result, err := s.Trader.OpenShort(tt.symbol, decimal.NewFromFloat(tt.quantity), tt.leverage)
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -445,7 +446,7 @@ func (s *TraderTestSuite) TestCloseLong() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			result, err := s.Trader.CloseLong(tt.symbol, tt.quantity)
+			result, err := s.Trader.CloseLong(tt.symbol, decimal.NewFromFloat(tt.quantity))
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -488,7 +489,7 @@ func (s *TraderTestSuite) TestCloseShort() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			result, err := s.Trader.CloseShort(tt.symbol, tt.quantity)
+			result, err := s.Trader.CloseShort(tt.symbol, decimal.NewFromFloat(tt.quantity))
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -535,7 +536,7 @@ func (s *TraderTestSuite) TestSetStopLoss() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			err := s.Trader.SetStopLoss(tt.symbol, tt.positionSide, tt.quantity, tt.stopPrice)
+			err := s.Trader.SetStopLoss(tt.symbol, tt.positionSide, decimal.NewFromFloat(tt.quantity), decimal.NewFromFloat(tt.stopPrice))
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {
@@ -575,7 +576,7 @@ func (s *TraderTestSuite) TestSetTakeProfit() {
 
 	for _, tt := range tests {
 		s.T.Run(tt.name, func(t *testing.T) {
-			err := s.Trader.SetTakeProfit(tt.symbol, tt.positionSide, tt.quantity, tt.takeProfitPrice)
+			err := s.Trader.SetTakeProfit(tt.symbol, tt.positionSide, decimal.NewFromFloat(tt.quantity), decimal.NewFromFloat(tt.takeProfitPrice))
 			if tt.wantError {
 				assert.Error(t, err)
 			} else {

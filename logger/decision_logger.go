@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/greatcloak/decimal"
 )
 
 // DecisionRecord 决策记录
@@ -29,36 +31,36 @@ type DecisionRecord struct {
 
 // AccountSnapshot 账户状态快照
 type AccountSnapshot struct {
-	TotalBalance          float64 `json:"total_balance"`
-	AvailableBalance      float64 `json:"available_balance"`
-	TotalUnrealizedProfit float64 `json:"total_unrealized_profit"`
-	PositionCount         int     `json:"position_count"`
-	MarginUsedPct         float64 `json:"margin_used_pct"`
+	TotalBalance          decimal.Decimal `json:"total_balance"`
+	AvailableBalance      decimal.Decimal `json:"available_balance"`
+	TotalUnrealizedProfit decimal.Decimal `json:"total_unrealized_profit"`
+	PositionCount         int             `json:"position_count"`
+	MarginUsedPct         decimal.Decimal `json:"margin_used_pct"`
 }
 
 // PositionSnapshot 持仓快照
 type PositionSnapshot struct {
-	Symbol           string  `json:"symbol"`
-	Side             string  `json:"side"`
-	PositionAmt      float64 `json:"position_amt"`
-	EntryPrice       float64 `json:"entry_price"`
-	MarkPrice        float64 `json:"mark_price"`
-	UnrealizedProfit float64 `json:"unrealized_profit"`
-	Leverage         float64 `json:"leverage"`
-	LiquidationPrice float64 `json:"liquidation_price"`
+	Symbol           string          `json:"symbol"`
+	Side             string          `json:"side"`
+	PositionAmt      decimal.Decimal `json:"position_amt"`
+	EntryPrice       decimal.Decimal `json:"entry_price"`
+	MarkPrice        decimal.Decimal `json:"mark_price"`
+	UnrealizedProfit decimal.Decimal `json:"unrealized_profit"`
+	Leverage         decimal.Decimal `json:"leverage"`
+	LiquidationPrice decimal.Decimal `json:"liquidation_price"`
 }
 
 // DecisionAction 决策动作
 type DecisionAction struct {
-	Action    string    `json:"action"`    // open_long, open_short, close_long, close_short, update_stop_loss, update_take_profit, partial_close
-	Symbol    string    `json:"symbol"`    // 币种
-	Quantity  float64   `json:"quantity"`  // 数量（部分平仓时使用）
-	Leverage  int       `json:"leverage"`  // 杠杆（开仓时）
-	Price     float64   `json:"price"`     // 执行价格
-	OrderID   int64     `json:"order_id"`  // 订单ID
-	Timestamp time.Time `json:"timestamp"` // 执行时间
-	Success   bool      `json:"success"`   // 是否成功
-	Error     string    `json:"error"`     // 错误信息
+	Action    string          `json:"action"`    // open_long, open_short, close_long, close_short, update_stop_loss, update_take_profit, partial_close
+	Symbol    string          `json:"symbol"`    // 币种
+	Quantity  decimal.Decimal `json:"quantity"`  // 数量（部分平仓时使用）
+	Leverage  int             `json:"leverage"`  // 杠杆（开仓时）
+	Price     decimal.Decimal `json:"price"`     // 执行价格
+	OrderID   int64           `json:"order_id"`  // 订单ID
+	Timestamp time.Time       `json:"timestamp"` // 执行时间
+	Success   bool            `json:"success"`   // 是否成功
+	Error     string          `json:"error"`     // 错误信息
 }
 
 // DecisionLogger 决策日志记录器
@@ -278,20 +280,20 @@ type Statistics struct {
 
 // TradeOutcome 单笔交易结果
 type TradeOutcome struct {
-	Symbol        string    `json:"symbol"`         // 币种
-	Side          string    `json:"side"`           // long/short
-	Quantity      float64   `json:"quantity"`       // 仓位数量
-	Leverage      int       `json:"leverage"`       // 杠杆倍数
-	OpenPrice     float64   `json:"open_price"`     // 开仓价
-	ClosePrice    float64   `json:"close_price"`    // 平仓价
-	PositionValue float64   `json:"position_value"` // 仓位价值（quantity × openPrice）
-	MarginUsed    float64   `json:"margin_used"`    // 保证金使用（positionValue / leverage）
-	PnL           float64   `json:"pn_l"`           // 盈亏（USDT）
-	PnLPct        float64   `json:"pn_l_pct"`       // 盈亏百分比（相对保证金）
-	Duration      string    `json:"duration"`       // 持仓时长
-	OpenTime      time.Time `json:"open_time"`      // 开仓时间
-	CloseTime     time.Time `json:"close_time"`     // 平仓时间
-	WasStopLoss   bool      `json:"was_stop_loss"`  // 是否止损
+	Symbol        string          `json:"symbol"`         // 币种
+	Side          string          `json:"side"`           // long/short
+	Quantity      decimal.Decimal `json:"quantity"`       // 仓位数量
+	Leverage      int             `json:"leverage"`       // 杠杆倍数
+	OpenPrice     decimal.Decimal `json:"open_price"`     // 开仓价
+	ClosePrice    decimal.Decimal `json:"close_price"`    // 平仓价
+	PositionValue decimal.Decimal `json:"position_value"` // 仓位价值（quantity × openPrice）
+	MarginUsed    decimal.Decimal `json:"margin_used"`    // 保证金使用（positionValue / leverage）
+	PnL           decimal.Decimal `json:"pn_l"`           // 盈亏（USDT）
+	PnLPct        decimal.Decimal `json:"pn_l_pct"`       // 盈亏百分比（相对保证金）
+	Duration      string          `json:"duration"`       // 持仓时长
+	OpenTime      time.Time       `json:"open_time"`      // 开仓时间
+	CloseTime     time.Time       `json:"close_time"`     // 平仓时间
+	WasStopLoss   bool            `json:"was_stop_loss"`  // 是否止损
 }
 
 // PerformanceAnalysis 交易表现分析
@@ -299,11 +301,11 @@ type PerformanceAnalysis struct {
 	TotalTrades   int                           `json:"total_trades"`   // 总交易数
 	WinningTrades int                           `json:"winning_trades"` // 盈利交易数
 	LosingTrades  int                           `json:"losing_trades"`  // 亏损交易数
-	WinRate       float64                       `json:"win_rate"`       // 胜率
-	AvgWin        float64                       `json:"avg_win"`        // 平均盈利
-	AvgLoss       float64                       `json:"avg_loss"`       // 平均亏损
-	ProfitFactor  float64                       `json:"profit_factor"`  // 盈亏比
-	SharpeRatio   float64                       `json:"sharpe_ratio"`   // 夏普比率（风险调整后收益）
+	WinRate       decimal.Decimal               `json:"win_rate"`       // 胜率
+	AvgWin        decimal.Decimal               `json:"avg_win"`        // 平均盈利
+	AvgLoss       decimal.Decimal               `json:"avg_loss"`       // 平均亏损
+	ProfitFactor  decimal.Decimal               `json:"profit_factor"`  // 盈亏比
+	SharpeRatio   decimal.Decimal               `json:"sharpe_ratio"`   // 夏普比率（风险调整后收益）
 	RecentTrades  []TradeOutcome                `json:"recent_trades"`  // 最近N笔交易
 	SymbolStats   map[string]*SymbolPerformance `json:"symbol_stats"`   // 各币种表现
 	BestSymbol    string                        `json:"best_symbol"`    // 表现最好的币种
@@ -312,13 +314,13 @@ type PerformanceAnalysis struct {
 
 // SymbolPerformance 币种表现统计
 type SymbolPerformance struct {
-	Symbol        string  `json:"symbol"`         // 币种
-	TotalTrades   int     `json:"total_trades"`   // 交易次数
-	WinningTrades int     `json:"winning_trades"` // 盈利次数
-	LosingTrades  int     `json:"losing_trades"`  // 亏损次数
-	WinRate       float64 `json:"win_rate"`       // 胜率
-	TotalPnL      float64 `json:"total_pn_l"`     // 总盈亏
-	AvgPnL        float64 `json:"avg_pn_l"`       // 平均盈亏
+	Symbol        string          `json:"symbol"`         // 币种
+	TotalTrades   int             `json:"total_trades"`   // 交易次数
+	WinningTrades int             `json:"winning_trades"` // 盈利次数
+	LosingTrades  int             `json:"losing_trades"`  // 亏损次数
+	WinRate       decimal.Decimal `json:"win_rate"`       // 胜率
+	TotalPnL      decimal.Decimal `json:"total_pn_l"`     // 总盈亏
+	AvgPnL        decimal.Decimal `json:"avg_pn_l"`       // 平均盈亏
 }
 
 // AnalyzePerformance 分析最近N个周期的交易表现
@@ -378,11 +380,15 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				case "open_long", "open_short":
 					// 记录开仓
 					openPositions[posKey] = map[string]interface{}{
-						"side":      side,
-						"openPrice": action.Price,
-						"openTime":  action.Timestamp,
-						"quantity":  action.Quantity,
-						"leverage":  action.Leverage,
+						"side":               side,
+						"openPrice":          action.Price,
+						"openTime":           action.Timestamp,
+						"quantity":           action.Quantity,
+						"leverage":           action.Leverage,
+						"remainingQuantity":  action.Quantity,
+						"accumulatedPnL":     decimal.Zero,
+						"partialCloseCount":  0,
+						"partialCloseVolume": decimal.Zero,
 					}
 				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					// 移除已平仓记录
@@ -431,28 +437,28 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					"quantity":           action.Quantity,
 					"leverage":           action.Leverage,
 					"remainingQuantity":  action.Quantity, // 🔧 BUG FIX：追蹤剩餘數量
-					"accumulatedPnL":     0.0,             // 🔧 BUG FIX：累積部分平倉盈虧
+					"accumulatedPnL":     decimal.Zero,    // 🔧 BUG FIX：累積部分平倉盈虧
 					"partialCloseCount":  0,               // 🔧 BUG FIX：部分平倉次數
-					"partialCloseVolume": 0.0,             // 🔧 BUG FIX：部分平倉總量
+					"partialCloseVolume": decimal.Zero,    // 🔧 BUG FIX：部分平倉總量
 				}
 
 			case "close_long", "close_short", "partial_close", "auto_close_long", "auto_close_short":
 				// 查找对应的开仓记录（可能来自预填充或当前窗口）
 				if openPos, exists := openPositions[posKey]; exists {
-					openPrice := openPos["openPrice"].(float64)
+					openPrice := openPos["openPrice"].(decimal.Decimal)
 					openTime := openPos["openTime"].(time.Time)
 					side := openPos["side"].(string)
-					quantity := openPos["quantity"].(float64)
+					quantity := openPos["quantity"].(decimal.Decimal)
 					leverage := openPos["leverage"].(int)
 
 					// 🔧 BUG FIX：取得追蹤字段（若不存在則初始化）
-					remainingQty, _ := openPos["remainingQuantity"].(float64)
-					if remainingQty == 0 {
+					remainingQty, _ := openPos["remainingQuantity"].(decimal.Decimal)
+					if remainingQty.IsZero() {
 						remainingQty = quantity // 兼容舊數據（沒有 remainingQuantity 字段）
 					}
-					accumulatedPnL, _ := openPos["accumulatedPnL"].(float64)
+					accumulatedPnL, _ := openPos["accumulatedPnL"].(decimal.Decimal)
 					partialCloseCount, _ := openPos["partialCloseCount"].(int)
-					partialCloseVolume, _ := openPos["partialCloseVolume"].(float64)
+					partialCloseVolume, _ := openPos["partialCloseVolume"].(decimal.Decimal)
 
 					// 对于 partial_close，使用实际平仓数量；否则使用剩余仓位数量
 					actualQuantity := remainingQty
@@ -461,20 +467,20 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					}
 
 					// 计算本次平仓的盈亏（USDT）
-					var pnl float64
+					var pnl decimal.Decimal
 					if side == "long" {
-						pnl = actualQuantity * (action.Price - openPrice)
+						pnl = actualQuantity.Mul(action.Price.Sub(openPrice))
 					} else {
-						pnl = actualQuantity * (openPrice - action.Price)
+						pnl = actualQuantity.Mul(openPrice.Sub(action.Price))
 					}
 
 					// 🔧 BUG FIX：處理 partial_close 聚合邏輯
 					if action.Action == "partial_close" {
 						// 累積盈虧和數量
-						accumulatedPnL += pnl
-						remainingQty -= actualQuantity
+						accumulatedPnL = accumulatedPnL.Add(pnl)
+						remainingQty = remainingQty.Sub(actualQuantity)
 						partialCloseCount++
-						partialCloseVolume += actualQuantity
+						partialCloseVolume = partialCloseVolume.Add(actualQuantity)
 
 						// 更新 openPositions（保留持倉記錄，但更新追蹤數據）
 						openPos["remainingQuantity"] = remainingQty
@@ -483,13 +489,14 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						openPos["partialCloseVolume"] = partialCloseVolume
 
 						// 判斷是否已完全平倉
-						if remainingQty <= 0.0001 { // 使用小閾值避免浮點誤差
+						threshold := decimal.NewFromFloat(0.0001)
+						if remainingQty.LessThanOrEqual(threshold) { // 使用小閾值避免浮點誤差
 							// ✅ 完全平倉：記錄為一筆完整交易
-							positionValue := quantity * openPrice
-							marginUsed := positionValue / float64(leverage)
-							pnlPct := 0.0
-							if marginUsed > 0 {
-								pnlPct = (accumulatedPnL / marginUsed) * 100
+							positionValue := quantity.Mul(openPrice)
+							marginUsed := positionValue.Div(decimal.NewFromInt(int64(leverage)))
+							pnlPct := decimal.Zero
+							if marginUsed.GreaterThan(decimal.Zero) {
+								pnlPct = accumulatedPnL.Div(marginUsed).Mul(decimal.NewFromInt(100))
 							}
 
 							outcome := TradeOutcome{
@@ -512,12 +519,12 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 							analysis.TotalTrades++ // 🔧 只在完全平倉時計數
 
 							// 分类交易
-							if accumulatedPnL > 0 {
+							if accumulatedPnL.GreaterThan(decimal.Zero) {
 								analysis.WinningTrades++
-								analysis.AvgWin += accumulatedPnL
-							} else if accumulatedPnL < 0 {
+								analysis.AvgWin = analysis.AvgWin.Add(accumulatedPnL)
+							} else if accumulatedPnL.LessThan(decimal.Zero) {
 								analysis.LosingTrades++
-								analysis.AvgLoss += accumulatedPnL
+								analysis.AvgLoss = analysis.AvgLoss.Add(accumulatedPnL)
 							}
 
 							// 更新币种统计
@@ -528,10 +535,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 							}
 							stats := analysis.SymbolStats[symbol]
 							stats.TotalTrades++
-							stats.TotalPnL += accumulatedPnL
-							if accumulatedPnL > 0 {
+							stats.TotalPnL = stats.TotalPnL.Add(accumulatedPnL)
+							if accumulatedPnL.GreaterThan(decimal.Zero) {
 								stats.WinningTrades++
-							} else if accumulatedPnL < 0 {
+							} else if accumulatedPnL.LessThan(decimal.Zero) {
 								stats.LosingTrades++
 							}
 
@@ -543,13 +550,13 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					} else {
 						// 🔧 完全平倉（close_long/close_short/auto_close）
 						// 如果之前有部分平倉，需要加上累積的 PnL
-						totalPnL := accumulatedPnL + pnl
+						totalPnL := accumulatedPnL.Add(pnl)
 
-						positionValue := quantity * openPrice
-						marginUsed := positionValue / float64(leverage)
-						pnlPct := 0.0
-						if marginUsed > 0 {
-							pnlPct = (totalPnL / marginUsed) * 100
+						positionValue := quantity.Mul(openPrice)
+						marginUsed := positionValue.Div(decimal.NewFromInt(int64(leverage)))
+						pnlPct := decimal.Zero
+						if marginUsed.GreaterThan(decimal.Zero) {
+							pnlPct = totalPnL.Div(marginUsed).Mul(decimal.NewFromInt(100))
 						}
 
 						outcome := TradeOutcome{
@@ -572,12 +579,12 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						analysis.TotalTrades++
 
 						// 分类交易
-						if totalPnL > 0 {
+						if totalPnL.GreaterThan(decimal.Zero) {
 							analysis.WinningTrades++
-							analysis.AvgWin += totalPnL
-						} else if totalPnL < 0 {
+							analysis.AvgWin = analysis.AvgWin.Add(totalPnL)
+						} else if totalPnL.LessThan(decimal.Zero) {
 							analysis.LosingTrades++
-							analysis.AvgLoss += totalPnL
+							analysis.AvgLoss = analysis.AvgLoss.Add(totalPnL)
 						}
 
 						// 更新币种统计
@@ -588,10 +595,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						}
 						stats := analysis.SymbolStats[symbol]
 						stats.TotalTrades++
-						stats.TotalPnL += totalPnL
-						if totalPnL > 0 {
+						stats.TotalPnL = stats.TotalPnL.Add(totalPnL)
+						if totalPnL.GreaterThan(decimal.Zero) {
 							stats.WinningTrades++
-						} else if totalPnL < 0 {
+						} else if totalPnL.LessThan(decimal.Zero) {
 							stats.LosingTrades++
 						}
 
@@ -605,42 +612,44 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 	// 计算统计指标
 	if analysis.TotalTrades > 0 {
-		analysis.WinRate = (float64(analysis.WinningTrades) / float64(analysis.TotalTrades)) * 100
+		winRate := decimal.NewFromInt(int64(analysis.WinningTrades)).Div(decimal.NewFromInt(int64(analysis.TotalTrades))).Mul(decimal.NewFromInt(100))
+		analysis.WinRate = winRate
 
 		// 计算总盈利和总亏损
 		totalWinAmount := analysis.AvgWin   // 当前是累加的总和
 		totalLossAmount := analysis.AvgLoss // 当前是累加的总和（负数）
 
 		if analysis.WinningTrades > 0 {
-			analysis.AvgWin /= float64(analysis.WinningTrades)
+			analysis.AvgWin = analysis.AvgWin.Div(decimal.NewFromInt(int64(analysis.WinningTrades)))
 		}
 		if analysis.LosingTrades > 0 {
-			analysis.AvgLoss /= float64(analysis.LosingTrades)
+			analysis.AvgLoss = analysis.AvgLoss.Div(decimal.NewFromInt(int64(analysis.LosingTrades)))
 		}
 
 		// Profit Factor = 总盈利 / 总亏损（绝对值）
 		// 注意：totalLossAmount 是负数，所以取负号得到绝对值
-		if totalLossAmount != 0 {
-			analysis.ProfitFactor = totalWinAmount / (-totalLossAmount)
-		} else if totalWinAmount > 0 {
+		if !totalLossAmount.IsZero() {
+			analysis.ProfitFactor = totalWinAmount.Div(totalLossAmount.Neg())
+		} else if totalWinAmount.GreaterThan(decimal.Zero) {
 			// 只有盈利没有亏损的情况，设置为一个很大的值表示完美策略
-			analysis.ProfitFactor = 999.0
+			analysis.ProfitFactor = decimal.NewFromFloat(999.0)
 		}
 	}
 
 	// 计算各币种胜率和平均盈亏
-	bestPnL := -999999.0
-	worstPnL := 999999.0
+	bestPnL := decimal.NewFromFloat(-999999.0)
+	worstPnL := decimal.NewFromFloat(999999.0)
 	for symbol, stats := range analysis.SymbolStats {
 		if stats.TotalTrades > 0 {
-			stats.WinRate = (float64(stats.WinningTrades) / float64(stats.TotalTrades)) * 100
-			stats.AvgPnL = stats.TotalPnL / float64(stats.TotalTrades)
+			winRate := decimal.NewFromInt(int64(stats.WinningTrades)).Div(decimal.NewFromInt(int64(stats.TotalTrades))).Mul(decimal.NewFromInt(100))
+			stats.WinRate = winRate
+			stats.AvgPnL = stats.TotalPnL.Div(decimal.NewFromInt(int64(stats.TotalTrades)))
 
-			if stats.TotalPnL > bestPnL {
+			if stats.TotalPnL.GreaterThan(bestPnL) {
 				bestPnL = stats.TotalPnL
 				analysis.BestSymbol = symbol
 			}
-			if stats.TotalPnL < worstPnL {
+			if stats.TotalPnL.LessThan(worstPnL) {
 				worstPnL = stats.TotalPnL
 				analysis.WorstSymbol = symbol
 			}
@@ -669,68 +678,72 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 // calculateSharpeRatio 计算夏普比率
 // 基于账户净值的变化计算风险调整后收益
-func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) float64 {
+func (l *DecisionLogger) calculateSharpeRatio(records []*DecisionRecord) decimal.Decimal {
 	if len(records) < 2 {
-		return 0.0
+		return decimal.Zero
 	}
 
 	// 提取每个周期的账户净值
 	// 注意：TotalBalance字段实际存储的是TotalEquity（账户总净值）
 	// TotalUnrealizedProfit字段实际存储的是TotalPnL（相对初始余额的盈亏）
-	var equities []float64
+	var equities []decimal.Decimal
 	for _, record := range records {
 		// 直接使用TotalBalance，因为它已经是完整的账户净值
 		equity := record.AccountState.TotalBalance
-		if equity > 0 {
+		if equity.GreaterThan(decimal.Zero) {
 			equities = append(equities, equity)
 		}
 	}
 
 	if len(equities) < 2 {
-		return 0.0
+		return decimal.Zero
 	}
 
 	// 计算周期收益率（period returns）
-	var returns []float64
+	var returns []decimal.Decimal
 	for i := 1; i < len(equities); i++ {
-		if equities[i-1] > 0 {
-			periodReturn := (equities[i] - equities[i-1]) / equities[i-1]
+		if equities[i-1].GreaterThan(decimal.Zero) {
+			periodReturn := equities[i].Sub(equities[i-1]).Div(equities[i-1])
 			returns = append(returns, periodReturn)
 		}
 	}
 
 	if len(returns) == 0 {
-		return 0.0
+		return decimal.Zero
 	}
 
 	// 计算平均收益率
-	sumReturns := 0.0
+	sumReturns := decimal.Zero
 	for _, r := range returns {
-		sumReturns += r
+		sumReturns = sumReturns.Add(r)
 	}
-	meanReturn := sumReturns / float64(len(returns))
+	meanReturn := sumReturns.Div(decimal.NewFromInt(int64(len(returns))))
 
 	// 计算收益率标准差
-	sumSquaredDiff := 0.0
+	sumSquaredDiff := decimal.Zero
 	for _, r := range returns {
-		diff := r - meanReturn
-		sumSquaredDiff += diff * diff
+		diff := r.Sub(meanReturn)
+		sumSquaredDiff = sumSquaredDiff.Add(diff.Mul(diff))
 	}
-	variance := sumSquaredDiff / float64(len(returns))
-	stdDev := math.Sqrt(variance)
+	variance := sumSquaredDiff.Div(decimal.NewFromInt(int64(len(returns))))
+
+	// 使用 float64 计算平方根,然后转回 decimal
+	varianceFloat, _ := variance.Float64()
+	stdDevFloat := math.Sqrt(varianceFloat)
+	stdDev := decimal.NewFromFloat(stdDevFloat)
 
 	// 避免除以零
-	if stdDev == 0 {
-		if meanReturn > 0 {
-			return 999.0 // 无波动的正收益
-		} else if meanReturn < 0 {
-			return -999.0 // 无波动的负收益
+	if stdDev.IsZero() {
+		if meanReturn.GreaterThan(decimal.Zero) {
+			return decimal.NewFromFloat(999.0) // 无波动的正收益
+		} else if meanReturn.LessThan(decimal.Zero) {
+			return decimal.NewFromFloat(-999.0) // 无波动的负收益
 		}
-		return 0.0
+		return decimal.Zero
 	}
 
 	// 计算夏普比率（假设无风险利率为0）
 	// 注：直接返回周期级别的夏普比率（非年化），正常范围 -2 到 +2
-	sharpeRatio := meanReturn / stdDev
+	sharpeRatio := meanReturn.Div(stdDev)
 	return sharpeRatio
 }

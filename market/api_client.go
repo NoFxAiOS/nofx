@@ -9,6 +9,8 @@ import (
 	"nofx/hook"
 	"strconv"
 	"time"
+
+	"github.com/greatcloak/decimal"
 )
 
 const (
@@ -109,16 +111,16 @@ func parseKline(kr KlineResponse) (Kline, error) {
 
 	// 解析各个字段
 	kline.OpenTime = int64(kr[0].(float64))
-	kline.Open, _ = strconv.ParseFloat(kr[1].(string), 64)
-	kline.High, _ = strconv.ParseFloat(kr[2].(string), 64)
-	kline.Low, _ = strconv.ParseFloat(kr[3].(string), 64)
-	kline.Close, _ = strconv.ParseFloat(kr[4].(string), 64)
-	kline.Volume, _ = strconv.ParseFloat(kr[5].(string), 64)
+	kline.Open, _ = decimal.NewFromString(kr[1].(string))
+	kline.High, _ = decimal.NewFromString(kr[2].(string))
+	kline.Low, _ = decimal.NewFromString(kr[3].(string))
+	kline.Close, _ = decimal.NewFromString(kr[4].(string))
+	kline.Volume, _ = decimal.NewFromString(kr[5].(string))
 	kline.CloseTime = int64(kr[6].(float64))
-	kline.QuoteVolume, _ = strconv.ParseFloat(kr[7].(string), 64)
+	kline.QuoteVolume, _ = decimal.NewFromString(kr[7].(string))
 	kline.Trades = int(kr[8].(float64))
-	kline.TakerBuyBaseVolume, _ = strconv.ParseFloat(kr[9].(string), 64)
-	kline.TakerBuyQuoteVolume, _ = strconv.ParseFloat(kr[10].(string), 64)
+	kline.TakerBuyBaseVolume, _ = decimal.NewFromString(kr[9].(string))
+	kline.TakerBuyQuoteVolume, _ = decimal.NewFromString(kr[10].(string))
 
 	return kline, nil
 }

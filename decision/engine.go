@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/greatcloak/decimal"
 )
 
 // 预编译正则表达式（性能优化：避免每次调用时重新编译）
@@ -193,13 +195,17 @@ func fetchMarketDataForContext(ctx *Context) error {
 		const minOIThresholdMillions = 15.0 // 可調整：15M(保守) / 10M(平衡) / 8M(寬鬆) / 5M(激進)
 
 		isExistingPosition := positionSymbols[symbol]
-		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
+		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice.GreaterThan(decimal.Zero) {
 			// 计算持仓价值（USD）= 持仓量 × 当前价格
-			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000 // 转换为百万美元单位
-			if oiValueInMillions < minOIThresholdMillions {
+			oiValue := data.OpenInterest.Latest.Mul(data.CurrentPrice)
+			oiValueInMillions := oiValue.Div(decimal.NewFromInt(1_000_000)) // 转换为百万美元单位
+			minThreshold := decimal.NewFromFloat(minOIThresholdMillions)
+			if oiValueInMillions.LessThan(minThreshold) {
+				oiValueFloat, _ := oiValueInMillions.Float64()
+				latestFloat, _ := data.OpenInterest.Latest.Float64()
+				priceFloat, _ := data.CurrentPrice.Float64()
 				log.Printf("⚠️  %s 持仓价值过低(%.2fM USD < %.1fM)，跳过此币种 [持仓量:%.0f × 价格:%.4f]",
-					symbol, oiValueInMillions, minOIThresholdMillions, data.OpenInterest.Latest, data.CurrentPrice)
+					symbol, oiValueFloat, minOIThresholdMillions, latestFloat, priceFloat)
 				continue
 			}
 		}
@@ -352,9 +358,14 @@ func buildUserPrompt(ctx *Context) string {
 
 	// BTC 市场
 	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
+		btcPriceFloat, _ := btcData.CurrentPrice.Float64()
+		priceChange1hFloat, _ := btcData.PriceChange1h.Float64()
+		priceChange4hFloat, _ := btcData.PriceChange4h.Float64()
+		macdFloat, _ := btcData.CurrentMACD.Float64()
+		rsiFloat, _ := btcData.CurrentRSI7.Float64()
 		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
-			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
-			btcData.CurrentMACD, btcData.CurrentRSI7))
+			btcPriceFloat, priceChange1hFloat, priceChange4hFloat,
+			macdFloat, rsiFloat))
 	}
 
 	// 账户

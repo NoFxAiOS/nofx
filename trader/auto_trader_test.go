@@ -13,6 +13,7 @@ import (
 	"nofx/pool"
 
 	"github.com/agiledragon/gomonkey/v2"
+	"github.com/greatcloak/decimal"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -385,7 +386,7 @@ func (s *AutoTraderTestSuite) TestGetCandidateCoins() {
 func (s *AutoTraderTestSuite) TestBuildTradingContext() {
 	// Mock market.Get
 	s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
-		return &market.Data{Symbol: symbol, CurrentPrice: 50000.0}, nil
+		return &market.Data{Symbol: symbol, CurrentPrice: decimal.NewFromInt(50000)}, nil
 	})
 
 	ctx, err := s.autoTrader.buildTradingContext()
@@ -477,7 +478,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 		time.Sleep(time.Millisecond)
 		s.Run(tt.name, func() {
 			s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
-				return &market.Data{Symbol: symbol, CurrentPrice: 50000.0}, nil
+				return &market.Data{Symbol: symbol, CurrentPrice: decimal.NewFromInt(50000)}, nil
 			})
 
 			s.mockTrader.balance["availableBalance"] = tt.availBalance
@@ -498,8 +499,8 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			} else {
 				s.NoError(err)
 				s.Equal(tt.expectedOrder, actionRecord.OrderID)
-				s.Greater(actionRecord.Quantity, 0.0)
-				s.Equal(50000.0, actionRecord.Price)
+				s.True(actionRecord.Quantity.GreaterThan(decimal.Zero))
+				s.True(actionRecord.Price.Equal(decimal.NewFromInt(50000)))
 			}
 
 			// 恢复默认状态
@@ -542,7 +543,7 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 		time.Sleep(time.Millisecond)
 		s.Run(tt.name, func() {
 			s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
-				return &market.Data{Symbol: symbol, CurrentPrice: tt.currentPrice}, nil
+				return &market.Data{Symbol: symbol, CurrentPrice: decimal.NewFromFloat(tt.currentPrice)}, nil
 			})
 
 			decision := &decision.Decision{Action: tt.action, Symbol: "BTCUSDT"}
@@ -552,7 +553,7 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 
 			s.NoError(err)
 			s.Equal(tt.expectedOrder, actionRecord.OrderID)
-			s.Equal(tt.currentPrice, actionRecord.Price)
+			s.True(actionRecord.Price.Equal(decimal.NewFromFloat(tt.currentPrice)))
 		})
 	}
 }
@@ -566,7 +567,7 @@ func (s *AutoTraderTestSuite) TestExecuteUpdateStopOrTakeProfit() {
 		if testPrice != nil {
 			price = *testPrice
 		}
-		return &market.Data{Symbol: symbol, CurrentPrice: price}, nil
+		return &market.Data{Symbol: symbol, CurrentPrice: decimal.NewFromFloat(price)}, nil
 	})
 
 	tests := []struct {
@@ -709,7 +710,7 @@ func (s *AutoTraderTestSuite) TestExecuteUpdateStopOrTakeProfit() {
 				s.Contains(err.Error(), tt.expectedErr)
 			} else {
 				s.NoError(err)
-				s.Equal(tt.currentPrice, actionRecord.Price)
+				s.True(actionRecord.Price.Equal(decimal.NewFromFloat(tt.currentPrice)))
 			}
 
 			// 恢复默认状态
@@ -735,7 +736,7 @@ func (s *AutoTraderTestSuite) TestExecutePartialCloseWithRecord() {
 		s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
 			return &market.Data{
 				Symbol:       symbol,
-				CurrentPrice: 52000.0,
+				CurrentPrice: decimal.NewFromInt(52000),
 			}, nil
 		})
 
@@ -753,7 +754,7 @@ func (s *AutoTraderTestSuite) TestExecutePartialCloseWithRecord() {
 		err := s.autoTrader.executePartialCloseWithRecord(decision, actionRecord)
 
 		s.NoError(err)
-		s.Equal(0.05, actionRecord.Quantity) // 50% of 0.1
+		s.True(actionRecord.Quantity.Equal(decimal.NewFromFloat(0.05))) // 50% of 0.1
 	})
 
 	s.Run("无效的平仓百分比", func() {
@@ -781,7 +782,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 	s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
 		return &market.Data{
 			Symbol:       symbol,
-			CurrentPrice: 50000.0,
+			CurrentPrice: decimal.NewFromInt(50000),
 		}, nil
 	})
 
@@ -1009,7 +1010,7 @@ func (m *MockTrader) GetPositions() ([]map[string]interface{}, error) {
 	return m.positions, nil
 }
 
-func (m *MockTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+func (m *MockTrader) OpenLong(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error) {
 	if m.shouldFailOpenLong {
 		return nil, errors.New("failed to open long")
 	}
@@ -1019,14 +1020,14 @@ func (m *MockTrader) OpenLong(symbol string, quantity float64, leverage int) (ma
 	}, nil
 }
 
-func (m *MockTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+func (m *MockTrader) OpenShort(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"orderId": int64(123457),
 		"symbol":  symbol,
 	}, nil
 }
 
-func (m *MockTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+func (m *MockTrader) CloseLong(symbol string, quantity decimal.Decimal) (map[string]interface{}, error) {
 	if m.shouldFailCloseLong {
 		return nil, errors.New("failed to close long")
 	}
@@ -1036,7 +1037,7 @@ func (m *MockTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 	}, nil
 }
 
-func (m *MockTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+func (m *MockTrader) CloseShort(symbol string, quantity decimal.Decimal) (map[string]interface{}, error) {
 	if m.shouldFailCloseShort {
 		return nil, errors.New("failed to close short")
 	}
@@ -1054,15 +1055,15 @@ func (m *MockTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	return nil
 }
 
-func (m *MockTrader) GetMarketPrice(symbol string) (float64, error) {
-	return 50000.0, nil
+func (m *MockTrader) GetMarketPrice(symbol string) (decimal.Decimal, error) {
+	return decimal.NewFromInt(50000), nil
 }
 
-func (m *MockTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
+func (m *MockTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice decimal.Decimal) error {
 	return nil
 }
 
-func (m *MockTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
+func (m *MockTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice decimal.Decimal) error {
 	return nil
 }
 
@@ -1082,8 +1083,9 @@ func (m *MockTrader) CancelStopOrders(symbol string) error {
 	return nil
 }
 
-func (m *MockTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
-	return fmt.Sprintf("%.4f", quantity), nil
+func (m *MockTrader) FormatQuantity(symbol string, quantity decimal.Decimal) (string, error) {
+	quantityFloat, _ := quantity.Float64()
+	return fmt.Sprintf("%.4f", quantityFloat), nil
 }
 
 // ============================================================
@@ -1164,7 +1166,8 @@ func TestCalculatePnLPercentage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := calculatePnLPercentage(tt.unrealizedPnl, tt.marginUsed)
+			resultDecimal := calculatePnLPercentage(tt.unrealizedPnl, tt.marginUsed)
+			result, _ := resultDecimal.Float64()
 
 			// 使用精度比较，避免浮点数误差
 			if math.Abs(result-tt.expected) > 0.0001 {
@@ -1181,7 +1184,8 @@ func TestCalculatePnLPercentage_RealWorldScenarios(t *testing.T) {
 		// 开仓：1000 USDT 保证金，10倍杠杆 = 10000 USDT 仓位
 		// 价格上涨 2% = 200 USDT 盈利
 		// 收益率 = 200 / 1000 = 20%
-		result := calculatePnLPercentage(200.0, 1000.0)
+		resultDecimal := calculatePnLPercentage(200.0, 1000.0)
+		result, _ := resultDecimal.Float64()
 		expected := 20.0
 		if math.Abs(result-expected) > 0.0001 {
 			t.Errorf("BTC场景: got %v, want %v", result, expected)
@@ -1192,7 +1196,8 @@ func TestCalculatePnLPercentage_RealWorldScenarios(t *testing.T) {
 		// 开仓：2000 USDT 保证金，5倍杠杆 = 10000 USDT 仓位
 		// 价格下跌 3% = -300 USDT 亏损
 		// 收益率 = -300 / 2000 = -15%
-		result := calculatePnLPercentage(-300.0, 2000.0)
+		resultDecimal := calculatePnLPercentage(-300.0, 2000.0)
+		result, _ := resultDecimal.Float64()
 		expected := -15.0
 		if math.Abs(result-expected) > 0.0001 {
 			t.Errorf("ETH场景: got %v, want %v", result, expected)
@@ -1203,7 +1208,8 @@ func TestCalculatePnLPercentage_RealWorldScenarios(t *testing.T) {
 		// 开仓：500 USDT 保证金，20倍杠杆 = 10000 USDT 仓位
 		// 价格上涨 0.5% = 50 USDT 盈利
 		// 收益率 = 50 / 500 = 10%
-		result := calculatePnLPercentage(50.0, 500.0)
+		resultDecimal := calculatePnLPercentage(50.0, 500.0)
+		result, _ := resultDecimal.Float64()
 		expected := 10.0
 		if math.Abs(result-expected) > 0.0001 {
 			t.Errorf("SOL场景: got %v, want %v", result, expected)

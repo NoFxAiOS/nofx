@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/greatcloak/decimal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -394,7 +395,10 @@ func TestCalculatePositionSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			quantity := trader.CalculatePositionSize(tt.balance, tt.riskPercent, tt.price, tt.leverage)
+			balanceDecimal := decimal.NewFromFloat(tt.balance)
+			riskPercentDecimal := decimal.NewFromFloat(tt.riskPercent)
+			priceDecimal := decimal.NewFromFloat(tt.price)
+			quantity := trader.CalculatePositionSize(balanceDecimal, riskPercentDecimal, priceDecimal, tt.leverage)
 			assert.InDelta(t, tt.wantQuantity, quantity, 0.0001, "计算的仓位数量不正确")
 		})
 	}

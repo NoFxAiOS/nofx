@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/adshao/go-binance/v2/futures"
+	"github.com/greatcloak/decimal"
 )
 
 // getBrOrderID 生成唯一订单ID（合约专用）
@@ -313,7 +314,7 @@ func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 }
 
 // OpenLong 开多仓
-func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+func (t *FuturesTrader) OpenLong(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error) {
 	// 先取消该币种的所有委托单（清理旧的止损止盈单）
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消旧委托单失败（可能没有委托单）: %v", err)
@@ -335,7 +336,8 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
 	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
 	if parseErr != nil || quantityFloat <= 0 {
-		return nil, fmt.Errorf("开仓数量过小，格式化后为 0 (原始: %.8f → 格式化: %s)。建议增加开仓金额或选择价格更低的币种", quantity, quantityStr)
+		quantityFloatOrig, _ := quantity.Float64()
+		return nil, fmt.Errorf("开仓数量过小，格式化后为 0 (原始: %.8f → 格式化: %s)。建议增加开仓金额或选择价格更低的币种", quantityFloatOrig, quantityStr)
 	}
 
 	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
@@ -368,7 +370,7 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 }
 
 // OpenShort 开空仓
-func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+func (t *FuturesTrader) OpenShort(symbol string, quantity decimal.Decimal, leverage int) (map[string]interface{}, error) {
 	// 先取消该币种的所有委托单（清理旧的止损止盈单）
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("  ⚠ 取消旧委托单失败（可能没有委托单）: %v", err)
@@ -390,7 +392,8 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 	// ✅ 检查格式化后的数量是否为 0（防止四舍五入导致的错误）
 	quantityFloat, parseErr := strconv.ParseFloat(quantityStr, 64)
 	if parseErr != nil || quantityFloat <= 0 {
-		return nil, fmt.Errorf("开仓数量过小，格式化后为 0 (原始: %.8f → 格式化: %s)。建议增加开仓金额或选择价格更低的币种", quantity, quantityStr)
+		quantityFloatOrig, _ := quantity.Float64()
+		return nil, fmt.Errorf("开仓数量过小，格式化后为 0 (原始: %.8f → 格式化: %s)。建议增加开仓金额或选择价格更低的币种", quantityFloatOrig, quantityStr)
 	}
 
 	// ✅ 检查最小名义价值（Binance 要求至少 10 USDT）
@@ -423,9 +426,9 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 }
 
 // CloseLong 平多仓
-func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+func (t *FuturesTrader) CloseLong(symbol string, quantity decimal.Decimal) (map[string]interface{}, error) {
 	// 如果数量为0，获取当前持仓数量
-	if quantity == 0 {
+	if quantity.IsZero() {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -433,12 +436,12 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				quantity = decimal.NewFromFloat(pos["positionAmt"].(float64))
 				break
 			}
 		}
 
-		if quantity == 0 {
+		if quantity.IsZero() {
 			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
 		}
 	}
@@ -478,9 +481,9 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 }
 
 // CloseShort 平空仓
-func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+func (t *FuturesTrader) CloseShort(symbol string, quantity decimal.Decimal) (map[string]interface{}, error) {
 	// 如果数量为0，获取当前持仓数量
-	if quantity == 0 {
+	if quantity.IsZero() {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -488,12 +491,12 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = -pos["positionAmt"].(float64) // 空仓数量是负的，取绝对值
+				quantity = decimal.NewFromFloat(-pos["positionAmt"].(float64)) // 空仓数量是负的，取绝对值
 				break
 			}
 		}
 
-		if quantity == 0 {
+		if quantity.IsZero() {
 			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
 		}
 	}
@@ -694,34 +697,37 @@ func (t *FuturesTrader) CancelStopOrders(symbol string) error {
 }
 
 // GetMarketPrice 获取市场价格
-func (t *FuturesTrader) GetMarketPrice(symbol string) (float64, error) {
+func (t *FuturesTrader) GetMarketPrice(symbol string) (decimal.Decimal, error) {
 	prices, err := t.client.NewListPricesService().Symbol(symbol).Do(context.Background())
 	if err != nil {
-		return 0, fmt.Errorf("获取价格失败: %w", err)
+		return decimal.Zero, fmt.Errorf("获取价格失败: %w", err)
 	}
 
 	if len(prices) == 0 {
-		return 0, fmt.Errorf("未找到价格")
+		return decimal.Zero, fmt.Errorf("未找到价格")
 	}
 
-	price, err := strconv.ParseFloat(prices[0].Price, 64)
+	price, err := decimal.NewFromString(prices[0].Price)
 	if err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 
 	return price, nil
 }
 
 // CalculatePositionSize 计算仓位大小
-func (t *FuturesTrader) CalculatePositionSize(balance, riskPercent, price float64, leverage int) float64 {
-	riskAmount := balance * (riskPercent / 100.0)
-	positionValue := riskAmount * float64(leverage)
-	quantity := positionValue / price
-	return quantity
+func (t *FuturesTrader) CalculatePositionSize(balance, riskPercent, price decimal.Decimal, leverage int) float64 {
+	hundredDecimal := decimal.NewFromInt(100)
+	riskAmount := balance.Mul(riskPercent).Div(hundredDecimal)
+	leverageDecimal := decimal.NewFromInt(int64(leverage))
+	positionValue := riskAmount.Mul(leverageDecimal)
+	quantity := positionValue.Div(price)
+	quantityFloat, _ := quantity.Float64()
+	return quantityFloat
 }
 
 // SetStopLoss 设置止损单
-func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
+func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice decimal.Decimal) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
 
@@ -739,12 +745,13 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		return err
 	}
 
+	stopPriceFloat, _ := stopPrice.Float64()
 	_, err = t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(posSide).
 		Type(futures.OrderTypeStopMarket).
-		StopPrice(fmt.Sprintf("%.8f", stopPrice)).
+		StopPrice(fmt.Sprintf("%.8f", stopPriceFloat)).
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
@@ -754,12 +761,12 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		return fmt.Errorf("设置止损失败: %w", err)
 	}
 
-	log.Printf("  止损价设置: %.4f", stopPrice)
+	log.Printf("  止损价设置: %.4f", stopPriceFloat)
 	return nil
 }
 
 // SetTakeProfit 设置止盈单
-func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
+func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice decimal.Decimal) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
 
@@ -777,12 +784,13 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		return err
 	}
 
+	takeProfitPriceFloat, _ := takeProfitPrice.Float64()
 	_, err = t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(posSide).
 		Type(futures.OrderTypeTakeProfitMarket).
-		StopPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
+		StopPrice(fmt.Sprintf("%.8f", takeProfitPriceFloat)).
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
@@ -792,14 +800,14 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		return fmt.Errorf("设置止盈失败: %w", err)
 	}
 
-	log.Printf("  止盈价设置: %.4f", takeProfitPrice)
+	log.Printf("  止盈价设置: %.4f", takeProfitPriceFloat)
 	return nil
 }
 
 // GetMinNotional 获取最小名义价值（Binance要求）
-func (t *FuturesTrader) GetMinNotional(symbol string) float64 {
+func (t *FuturesTrader) GetMinNotional(symbol string) decimal.Decimal {
 	// 使用保守的默认值 10 USDT，确保订单能够通过交易所验证
-	return 10.0
+	return decimal.NewFromInt(10)
 }
 
 // CheckMinNotional 检查订单是否满足最小名义价值要求
@@ -809,13 +817,17 @@ func (t *FuturesTrader) CheckMinNotional(symbol string, quantity float64) error 
 		return fmt.Errorf("获取市价失败: %w", err)
 	}
 
-	notionalValue := quantity * price
-	minNotional := t.GetMinNotional(symbol)
+	priceFloat, _ := price.Float64()
+	quantityDecimal := decimal.NewFromFloat(quantity)
+	notionalValueDecimal := quantityDecimal.Mul(price)
+	minNotionalDecimal := t.GetMinNotional(symbol)
 
-	if notionalValue < minNotional {
+	if notionalValueDecimal.LessThan(minNotionalDecimal) {
+		notionalValue, _ := notionalValueDecimal.Float64()
+		minNotional, _ := minNotionalDecimal.Float64()
 		return fmt.Errorf(
 			"订单金额 %.2f USDT 低于最小要求 %.2f USDT (数量: %.4f, 价格: %.4f)",
-			notionalValue, minNotional, quantity, price,
+			notionalValue, minNotional, quantity, priceFloat,
 		)
 	}
 
@@ -891,15 +903,14 @@ func trimTrailingZeros(s string) string {
 }
 
 // FormatQuantity 格式化数量到正确的精度
-func (t *FuturesTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
+func (t *FuturesTrader) FormatQuantity(symbol string, quantity decimal.Decimal) (string, error) {
 	precision, err := t.GetSymbolPrecision(symbol)
 	if err != nil {
 		// 如果获取失败，使用默认格式
-		return fmt.Sprintf("%.3f", quantity), nil
+		return quantity.StringFixed(3), nil
 	}
 
-	format := fmt.Sprintf("%%.%df", precision)
-	return fmt.Sprintf(format, quantity), nil
+	return quantity.StringFixed(int32(precision)), nil
 }
 
 // 辅助函数

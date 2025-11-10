@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/greatcloak/decimal"
 )
 
 // AutoTraderConfig 自动交易配置（简化版 - AI全权决策）
@@ -343,10 +345,15 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 		return
 	}
 
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	actualBalanceDecimal := decimal.NewFromFloat(actualBalance)
+	oldBalanceDecimal := decimal.NewFromFloat(oldBalance)
+	changePercentDecimal := actualBalanceDecimal.Sub(oldBalanceDecimal).Div(oldBalanceDecimal).Mul(decimal.NewFromInt(100))
+	changePercent, _ := changePercentDecimal.Float64()
 
 	// 变化超过5%才更新
-	if math.Abs(changePercent) > 5.0 {
+	absChangePercentDecimal := changePercentDecimal.Abs()
+	thresholdDecimal := decimal.NewFromFloat(5.0)
+	if absChangePercentDecimal.GreaterThan(thresholdDecimal) {
 		log.Printf("🔔 [%s] 检测到余额大幅变化: %.2f → %.2f USDT (%.2f%%)",
 			at.name, oldBalance, actualBalance, changePercent)
 
@@ -426,11 +433,11 @@ func (at *AutoTrader) runCycle() error {
 
 	// 保存账户状态快照
 	record.AccountState = logger.AccountSnapshot{
-		TotalBalance:          ctx.Account.TotalEquity,
-		AvailableBalance:      ctx.Account.AvailableBalance,
-		TotalUnrealizedProfit: ctx.Account.TotalPnL,
+		TotalBalance:          decimal.NewFromFloat(ctx.Account.TotalEquity),
+		AvailableBalance:      decimal.NewFromFloat(ctx.Account.AvailableBalance),
+		TotalUnrealizedProfit: decimal.NewFromFloat(ctx.Account.TotalPnL),
 		PositionCount:         ctx.Account.PositionCount,
-		MarginUsedPct:         ctx.Account.MarginUsedPct,
+		MarginUsedPct:         decimal.NewFromFloat(ctx.Account.MarginUsedPct),
 	}
 
 	// 保存持仓快照
@@ -438,12 +445,12 @@ func (at *AutoTrader) runCycle() error {
 		record.Positions = append(record.Positions, logger.PositionSnapshot{
 			Symbol:           pos.Symbol,
 			Side:             pos.Side,
-			PositionAmt:      pos.Quantity,
-			EntryPrice:       pos.EntryPrice,
-			MarkPrice:        pos.MarkPrice,
-			UnrealizedProfit: pos.UnrealizedPnL,
-			Leverage:         float64(pos.Leverage),
-			LiquidationPrice: pos.LiquidationPrice,
+			PositionAmt:      decimal.NewFromFloat(pos.Quantity),
+			EntryPrice:       decimal.NewFromFloat(pos.EntryPrice),
+			MarkPrice:        decimal.NewFromFloat(pos.MarkPrice),
+			UnrealizedProfit: decimal.NewFromFloat(pos.UnrealizedPnL),
+			Leverage:         decimal.NewFromFloat(float64(pos.Leverage)),
+			LiquidationPrice: decimal.NewFromFloat(pos.LiquidationPrice),
 		})
 	}
 
@@ -537,9 +544,9 @@ func (at *AutoTrader) runCycle() error {
 		actionRecord := logger.DecisionAction{
 			Action:    d.Action,
 			Symbol:    d.Symbol,
-			Quantity:  0,
+			Quantity:  decimal.Zero,
 			Leverage:  d.Leverage,
-			Price:     0,
+			Price:     decimal.Zero,
 			Timestamp: time.Now(),
 			Success:   false,
 		}
@@ -590,7 +597,10 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	}
 
 	// Total Equity = 钱包余额 + 未实现盈亏
-	totalEquity := totalWalletBalance + totalUnrealizedProfit
+	totalWalletBalanceDecimal := decimal.NewFromFloat(totalWalletBalance)
+	totalUnrealizedProfitDecimal := decimal.NewFromFloat(totalUnrealizedProfit)
+	totalEquityDecimal := totalWalletBalanceDecimal.Add(totalUnrealizedProfitDecimal)
+	totalEquity, _ := totalEquityDecimal.Float64()
 
 	// 2. 获取持仓信息
 	positions, err := at.trader.GetPositions()
@@ -599,7 +609,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	}
 
 	var positionInfos []decision.PositionInfo
-	totalMarginUsed := 0.0
+	totalMarginUsedDecimal := decimal.Zero
 
 	// 当前持仓的key集合（用于清理已平仓的记录）
 	currentPositionKeys := make(map[string]bool)
@@ -627,11 +637,16 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
 		}
-		marginUsed := (quantity * markPrice) / float64(leverage)
-		totalMarginUsed += marginUsed
+		quantityDecimal := decimal.NewFromFloat(quantity)
+		markPriceDecimal := decimal.NewFromFloat(markPrice)
+		leverageDecimal := decimal.NewFromInt(int64(leverage))
+		marginUsedDecimal := quantityDecimal.Mul(markPriceDecimal).Div(leverageDecimal)
+		marginUsed, _ := marginUsedDecimal.Float64()
+		totalMarginUsedDecimal = totalMarginUsedDecimal.Add(marginUsedDecimal)
 
 		// 计算盈亏百分比（基于保证金，考虑杠杆）
-		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
+		pnlPctDecimal := calculatePnLPercentage(unrealizedPnl, marginUsed)
+		pnlPct, _ := pnlPctDecimal.Float64()
 
 		// 跟踪持仓首次出现时间
 		posKey := symbol + "_" + side
@@ -677,15 +692,23 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	}
 
 	// 4. 计算总盈亏
-	totalPnL := totalEquity - at.initialBalance
+	totalEquityDecimal2 := decimal.NewFromFloat(totalEquity)
+	initialBalanceDecimal := decimal.NewFromFloat(at.initialBalance)
+	totalPnLDecimal := totalEquityDecimal2.Sub(initialBalanceDecimal)
+	totalPnL, _ := totalPnLDecimal.Float64()
 	totalPnLPct := 0.0
 	if at.initialBalance > 0 {
-		totalPnLPct = (totalPnL / at.initialBalance) * 100
+		hundredDecimal := decimal.NewFromInt(100)
+		totalPnLPctDecimal := totalPnLDecimal.Div(initialBalanceDecimal).Mul(hundredDecimal)
+		totalPnLPct, _ = totalPnLPctDecimal.Float64()
 	}
 
+	totalMarginUsed, _ := totalMarginUsedDecimal.Float64()
 	marginUsedPct := 0.0
 	if totalEquity > 0 {
-		marginUsedPct = (totalMarginUsed / totalEquity) * 100
+		hundredDecimal := decimal.NewFromInt(100)
+		marginUsedPctDecimal := totalMarginUsedDecimal.Div(totalEquityDecimal2).Mul(hundredDecimal)
+		marginUsedPct, _ = marginUsedPctDecimal.Float64()
 	}
 
 	// 5. 分析历史表现（最近100个周期，避免长期持仓的交易记录丢失）
@@ -767,12 +790,14 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	}
 
 	// 计算数量
-	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+	quantity := decimal.NewFromFloat(decision.PositionSizeUSD).Div(marketData.CurrentPrice)
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
 
 	// ⚠️ 保证金验证：防止保证金不足错误（code=-2019）
-	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
+	positionSizeDecimal := decimal.NewFromFloat(decision.PositionSizeUSD)
+	leverageDecimal := decimal.NewFromInt(int64(decision.Leverage))
+	requiredMarginDecimal := positionSizeDecimal.Div(leverageDecimal)
 
 	balance, err := at.trader.GetBalance()
 	if err != nil {
@@ -782,12 +807,17 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	if avail, ok := balance["availableBalance"].(float64); ok {
 		availableBalance = avail
 	}
+	availableBalanceDecimal := decimal.NewFromFloat(availableBalance)
 
 	// 手续费估算（Taker费率 0.04%）
-	estimatedFee := decision.PositionSizeUSD * 0.0004
-	totalRequired := requiredMargin + estimatedFee
+	feeRate := decimal.NewFromFloat(0.0004)
+	estimatedFeeDecimal := positionSizeDecimal.Mul(feeRate)
+	totalRequiredDecimal := requiredMarginDecimal.Add(estimatedFeeDecimal)
 
-	if totalRequired > availableBalance {
+	if totalRequiredDecimal.GreaterThan(availableBalanceDecimal) {
+		requiredMargin, _ := requiredMarginDecimal.Float64()
+		estimatedFee, _ := estimatedFeeDecimal.Float64()
+		totalRequired, _ := totalRequiredDecimal.Float64()
 		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（保证金 %.2f + 手续费 %.2f），可用 %.2f USDT",
 			totalRequired, requiredMargin, estimatedFee, availableBalance)
 	}
@@ -809,17 +839,20 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 		actionRecord.OrderID = orderID
 	}
 
-	log.Printf("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantity)
+	quantityFloat, _ := quantity.Float64()
+	log.Printf("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantityFloat)
 
 	// 记录开仓时间
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
 	// 设置止损止盈
-	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
+	stopLoss := decimal.NewFromFloat(decision.StopLoss)
+	takeProfit := decimal.NewFromFloat(decision.TakeProfit)
+	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, stopLoss); err != nil {
 		log.Printf("  ⚠ 设置止损失败: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
+	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, takeProfit); err != nil {
 		log.Printf("  ⚠ 设置止盈失败: %v", err)
 	}
 
@@ -847,12 +880,14 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	}
 
 	// 计算数量
-	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+	quantity := decimal.NewFromFloat(decision.PositionSizeUSD).Div(marketData.CurrentPrice)
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
 
 	// ⚠️ 保证金验证：防止保证金不足错误（code=-2019）
-	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
+	positionSizeDecimal := decimal.NewFromFloat(decision.PositionSizeUSD)
+	leverageDecimal := decimal.NewFromInt(int64(decision.Leverage))
+	requiredMarginDecimal := positionSizeDecimal.Div(leverageDecimal)
 
 	balance, err := at.trader.GetBalance()
 	if err != nil {
@@ -862,12 +897,17 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	if avail, ok := balance["availableBalance"].(float64); ok {
 		availableBalance = avail
 	}
+	availableBalanceDecimal := decimal.NewFromFloat(availableBalance)
 
 	// 手续费估算（Taker费率 0.04%）
-	estimatedFee := decision.PositionSizeUSD * 0.0004
-	totalRequired := requiredMargin + estimatedFee
+	feeRate := decimal.NewFromFloat(0.0004)
+	estimatedFeeDecimal := positionSizeDecimal.Mul(feeRate)
+	totalRequiredDecimal := requiredMarginDecimal.Add(estimatedFeeDecimal)
 
-	if totalRequired > availableBalance {
+	if totalRequiredDecimal.GreaterThan(availableBalanceDecimal) {
+		requiredMargin, _ := requiredMarginDecimal.Float64()
+		estimatedFee, _ := estimatedFeeDecimal.Float64()
+		totalRequired, _ := totalRequiredDecimal.Float64()
 		return fmt.Errorf("❌ 保证金不足: 需要 %.2f USDT（保证金 %.2f + 手续费 %.2f），可用 %.2f USDT",
 			totalRequired, requiredMargin, estimatedFee, availableBalance)
 	}
@@ -889,17 +929,20 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 		actionRecord.OrderID = orderID
 	}
 
-	log.Printf("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantity)
+	quantityFloat, _ := quantity.Float64()
+	log.Printf("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantityFloat)
 
 	// 记录开仓时间
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
 	// 设置止损止盈
-	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
+	stopLoss := decimal.NewFromFloat(decision.StopLoss)
+	takeProfit := decimal.NewFromFloat(decision.TakeProfit)
+	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, stopLoss); err != nil {
 		log.Printf("  ⚠ 设置止损失败: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
+	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, takeProfit); err != nil {
 		log.Printf("  ⚠ 设置止盈失败: %v", err)
 	}
 
@@ -918,7 +961,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	actionRecord.Price = marketData.CurrentPrice
 
 	// 平仓
-	order, err := at.trader.CloseLong(decision.Symbol, 0) // 0 = 全部平仓
+	order, err := at.trader.CloseLong(decision.Symbol, decimal.Zero) // 0 = 全部平仓
 	if err != nil {
 		return err
 	}
@@ -944,7 +987,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	actionRecord.Price = marketData.CurrentPrice
 
 	// 平仓
-	order, err := at.trader.CloseShort(decision.Symbol, 0) // 0 = 全部平仓
+	order, err := at.trader.CloseShort(decision.Symbol, decimal.Zero) // 0 = 全部平仓
 	if err != nil {
 		return err
 	}
@@ -996,11 +1039,13 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 	positionAmt, _ := targetPosition["positionAmt"].(float64)
 
 	// 验证新止损价格合理性
-	if positionSide == "LONG" && decision.NewStopLoss >= marketData.CurrentPrice {
-		return fmt.Errorf("多单止损必须低于当前价格 (当前: %.2f, 新止损: %.2f)", marketData.CurrentPrice, decision.NewStopLoss)
+	currentPriceFloat, _ := marketData.CurrentPrice.Float64()
+	newStopLoss := decimal.NewFromFloat(decision.NewStopLoss)
+	if positionSide == "LONG" && newStopLoss.GreaterThanOrEqual(marketData.CurrentPrice) {
+		return fmt.Errorf("多单止损必须低于当前价格 (当前: %.2f, 新止损: %.2f)", currentPriceFloat, decision.NewStopLoss)
 	}
-	if positionSide == "SHORT" && decision.NewStopLoss <= marketData.CurrentPrice {
-		return fmt.Errorf("空单止损必须高于当前价格 (当前: %.2f, 新止损: %.2f)", marketData.CurrentPrice, decision.NewStopLoss)
+	if positionSide == "SHORT" && newStopLoss.LessThanOrEqual(marketData.CurrentPrice) {
+		return fmt.Errorf("空单止损必须高于当前价格 (当前: %.2f, 新止损: %.2f)", currentPriceFloat, decision.NewStopLoss)
 	}
 
 	// ⚠️ 防御性检查：检测是否存在双向持仓（不应该出现，但提供保护）
@@ -1032,13 +1077,13 @@ func (at *AutoTrader) executeUpdateStopLossWithRecord(decision *decision.Decisio
 	}
 
 	// 调用交易所 API 修改止损
-	quantity := math.Abs(positionAmt)
-	err = at.trader.SetStopLoss(decision.Symbol, positionSide, quantity, decision.NewStopLoss)
+	quantity := decimal.NewFromFloat(math.Abs(positionAmt))
+	err = at.trader.SetStopLoss(decision.Symbol, positionSide, quantity, newStopLoss)
 	if err != nil {
 		return fmt.Errorf("修改止损失败: %w", err)
 	}
 
-	log.Printf("  ✓ 止损已调整: %.2f (当前价格: %.2f)", decision.NewStopLoss, marketData.CurrentPrice)
+	log.Printf("  ✓ 止损已调整: %.2f (当前价格: %.2f)", decision.NewStopLoss, currentPriceFloat)
 	return nil
 }
 
@@ -1080,11 +1125,13 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	positionAmt, _ := targetPosition["positionAmt"].(float64)
 
 	// 验证新止盈价格合理性
-	if positionSide == "LONG" && decision.NewTakeProfit <= marketData.CurrentPrice {
-		return fmt.Errorf("多单止盈必须高于当前价格 (当前: %.2f, 新止盈: %.2f)", marketData.CurrentPrice, decision.NewTakeProfit)
+	currentPriceFloat, _ := marketData.CurrentPrice.Float64()
+	newTakeProfit := decimal.NewFromFloat(decision.NewTakeProfit)
+	if positionSide == "LONG" && newTakeProfit.LessThanOrEqual(marketData.CurrentPrice) {
+		return fmt.Errorf("多单止盈必须高于当前价格 (当前: %.2f, 新止盈: %.2f)", currentPriceFloat, decision.NewTakeProfit)
 	}
-	if positionSide == "SHORT" && decision.NewTakeProfit >= marketData.CurrentPrice {
-		return fmt.Errorf("空单止盈必须低于当前价格 (当前: %.2f, 新止盈: %.2f)", marketData.CurrentPrice, decision.NewTakeProfit)
+	if positionSide == "SHORT" && newTakeProfit.GreaterThanOrEqual(marketData.CurrentPrice) {
+		return fmt.Errorf("空单止盈必须低于当前价格 (当前: %.2f, 新止盈: %.2f)", currentPriceFloat, decision.NewTakeProfit)
 	}
 
 	// ⚠️ 防御性检查：检测是否存在双向持仓（不应该出现，但提供保护）
@@ -1116,13 +1163,13 @@ func (at *AutoTrader) executeUpdateTakeProfitWithRecord(decision *decision.Decis
 	}
 
 	// 调用交易所 API 修改止盈
-	quantity := math.Abs(positionAmt)
-	err = at.trader.SetTakeProfit(decision.Symbol, positionSide, quantity, decision.NewTakeProfit)
+	quantity := decimal.NewFromFloat(math.Abs(positionAmt))
+	err = at.trader.SetTakeProfit(decision.Symbol, positionSide, quantity, newTakeProfit)
 	if err != nil {
 		return fmt.Errorf("修改止盈失败: %w", err)
 	}
 
-	log.Printf("  ✓ 止盈已调整: %.2f (当前价格: %.2f)", decision.NewTakeProfit, marketData.CurrentPrice)
+	log.Printf("  ✓ 止盈已调整: %.2f (当前价格: %.2f)", decision.NewTakeProfit, currentPriceFloat)
 	return nil
 }
 
@@ -1169,16 +1216,18 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 	positionAmt, _ := targetPosition["positionAmt"].(float64)
 
 	// 计算平仓数量
-	totalQuantity := math.Abs(positionAmt)
-	closeQuantity := totalQuantity * (decision.ClosePercentage / 100.0)
-	actionRecord.Quantity = closeQuantity
+	totalQuantityDecimal := decimal.NewFromFloat(math.Abs(positionAmt))
+	closePercentageDecimal := decimal.NewFromFloat(decision.ClosePercentage)
+	hundredDecimal := decimal.NewFromInt(100)
+	closeQuantityDecimal := totalQuantityDecimal.Mul(closePercentageDecimal).Div(hundredDecimal)
+	actionRecord.Quantity = closeQuantityDecimal
 
 	// 执行平仓
 	var order map[string]interface{}
 	if positionSide == "LONG" {
-		order, err = at.trader.CloseLong(decision.Symbol, closeQuantity)
+		order, err = at.trader.CloseLong(decision.Symbol, closeQuantityDecimal)
 	} else {
-		order, err = at.trader.CloseShort(decision.Symbol, closeQuantity)
+		order, err = at.trader.CloseShort(decision.Symbol, closeQuantityDecimal)
 	}
 
 	if err != nil {
@@ -1190,7 +1239,9 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 		actionRecord.OrderID = orderID
 	}
 
-	remainingQuantity := totalQuantity - closeQuantity
+	remainingQuantityDecimal := totalQuantityDecimal.Sub(closeQuantityDecimal)
+	closeQuantity, _ := closeQuantityDecimal.Float64()
+	remainingQuantity, _ := remainingQuantityDecimal.Float64()
 	log.Printf("  ✓ 部分平仓成功: 平仓 %.4f (%.1f%%), 剩余 %.4f",
 		closeQuantity, decision.ClosePercentage, remainingQuantity)
 
@@ -1289,7 +1340,10 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	}
 
 	// Total Equity = 钱包余额 + 未实现盈亏
-	totalEquity := totalWalletBalance + totalUnrealizedProfit
+	totalWalletBalanceDecimal := decimal.NewFromFloat(totalWalletBalance)
+	totalUnrealizedProfitDecimal := decimal.NewFromFloat(totalUnrealizedProfit)
+	totalEquityDecimal := totalWalletBalanceDecimal.Add(totalUnrealizedProfitDecimal)
+	totalEquity, _ := totalEquityDecimal.Float64()
 
 	// 获取持仓计算总保证金
 	positions, err := at.trader.GetPositions()
@@ -1297,8 +1351,8 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("获取持仓失败: %w", err)
 	}
 
-	totalMarginUsed := 0.0
-	totalUnrealizedPnL := 0.0
+	totalMarginUsedDecimal := decimal.Zero
+	totalUnrealizedPnLDecimal := decimal.Zero
 	for _, pos := range positions {
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
@@ -1306,25 +1360,37 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 			quantity = -quantity
 		}
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		totalUnrealizedPnL += unrealizedPnl
+		unrealizedPnlDecimal := decimal.NewFromFloat(unrealizedPnl)
+		totalUnrealizedPnLDecimal = totalUnrealizedPnLDecimal.Add(unrealizedPnlDecimal)
 
 		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
 		}
-		marginUsed := (quantity * markPrice) / float64(leverage)
-		totalMarginUsed += marginUsed
+		quantityDecimal := decimal.NewFromFloat(quantity)
+		markPriceDecimal := decimal.NewFromFloat(markPrice)
+		leverageDecimal := decimal.NewFromInt(int64(leverage))
+		marginUsedDecimal := quantityDecimal.Mul(markPriceDecimal).Div(leverageDecimal)
+		totalMarginUsedDecimal = totalMarginUsedDecimal.Add(marginUsedDecimal)
 	}
+	totalMarginUsed, _ := totalMarginUsedDecimal.Float64()
+	totalUnrealizedPnL, _ := totalUnrealizedPnLDecimal.Float64()
 
-	totalPnL := totalEquity - at.initialBalance
+	initialBalanceDecimal := decimal.NewFromFloat(at.initialBalance)
+	totalPnLDecimal := totalEquityDecimal.Sub(initialBalanceDecimal)
+	totalPnL, _ := totalPnLDecimal.Float64()
 	totalPnLPct := 0.0
 	if at.initialBalance > 0 {
-		totalPnLPct = (totalPnL / at.initialBalance) * 100
+		hundredDecimal := decimal.NewFromInt(100)
+		totalPnLPctDecimal := totalPnLDecimal.Div(initialBalanceDecimal).Mul(hundredDecimal)
+		totalPnLPct, _ = totalPnLPctDecimal.Float64()
 	}
 
 	marginUsedPct := 0.0
 	if totalEquity > 0 {
-		marginUsedPct = (totalMarginUsed / totalEquity) * 100
+		hundredDecimal := decimal.NewFromInt(100)
+		marginUsedPctDecimal := totalMarginUsedDecimal.Div(totalEquityDecimal).Mul(hundredDecimal)
+		marginUsedPct, _ = marginUsedPctDecimal.Float64()
 	}
 
 	return map[string]interface{}{
@@ -1374,10 +1440,15 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		}
 
 		// 计算占用保证金
-		marginUsed := (quantity * markPrice) / float64(leverage)
+		quantityDecimal := decimal.NewFromFloat(quantity)
+		markPriceDecimal := decimal.NewFromFloat(markPrice)
+		leverageDecimal := decimal.NewFromInt(int64(leverage))
+		marginUsedDecimal := quantityDecimal.Mul(markPriceDecimal).Div(leverageDecimal)
+		marginUsed, _ := marginUsedDecimal.Float64()
 
 		// 计算盈亏百分比（基于保证金）
-		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
+		pnlPctDecimal := calculatePnLPercentage(unrealizedPnl, marginUsed)
+		pnlPct, _ := pnlPctDecimal.Float64()
 
 		result = append(result, map[string]interface{}{
 			"symbol":             symbol,
@@ -1398,11 +1469,15 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 // calculatePnLPercentage 计算盈亏百分比（基于保证金，自动考虑杠杆）
 // 收益率 = 未实现盈亏 / 保证金 × 100%
-func calculatePnLPercentage(unrealizedPnl, marginUsed float64) float64 {
+func calculatePnLPercentage(unrealizedPnl, marginUsed float64) decimal.Decimal {
 	if marginUsed > 0 {
-		return (unrealizedPnl / marginUsed) * 100
+		unrealizedPnlDecimal := decimal.NewFromFloat(unrealizedPnl)
+		marginUsedDecimal := decimal.NewFromFloat(marginUsed)
+		hundredDecimal := decimal.NewFromInt(100)
+		pctDecimal := unrealizedPnlDecimal.Div(marginUsedDecimal).Mul(hundredDecimal)
+		return pctDecimal
 	}
-	return 0.0
+	return decimal.Zero
 }
 
 // sortDecisionsByPriority 对决策排序：先平仓，再开仓，最后hold/wait
@@ -1563,12 +1638,18 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			leverage = int(lev)
 		}
 
-		var currentPnLPct float64
+		markPriceDecimal := decimal.NewFromFloat(markPrice)
+		entryPriceDecimal := decimal.NewFromFloat(entryPrice)
+		leverageDecimal := decimal.NewFromInt(int64(leverage))
+		hundredDecimal := decimal.NewFromInt(100)
+
+		var currentPnLPctDecimal decimal.Decimal
 		if side == "long" {
-			currentPnLPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
+			currentPnLPctDecimal = markPriceDecimal.Sub(entryPriceDecimal).Div(entryPriceDecimal).Mul(leverageDecimal).Mul(hundredDecimal)
 		} else {
-			currentPnLPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
+			currentPnLPctDecimal = entryPriceDecimal.Sub(markPriceDecimal).Div(entryPriceDecimal).Mul(leverageDecimal).Mul(hundredDecimal)
 		}
+		currentPnLPct, _ := currentPnLPctDecimal.Float64()
 
 		// 构造持仓唯一标识（区分多空）
 		posKey := symbol + "_" + side
@@ -1589,12 +1670,17 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		// 计算回撤（从最高点下跌的幅度）
 		var drawdownPct float64
+		var drawdownPctDecimal decimal.Decimal
+		peakPnLPctDecimal := decimal.NewFromFloat(peakPnLPct)
 		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
-			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+			drawdownPctDecimal = peakPnLPctDecimal.Sub(currentPnLPctDecimal).Div(peakPnLPctDecimal).Mul(decimal.NewFromInt(100))
+			drawdownPct, _ = drawdownPctDecimal.Float64()
 		}
 
 		// 检查平仓条件：收益大于5%且回撤超过40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
+		fivePercentDecimal := decimal.NewFromFloat(5.0)
+		fortyPercentDecimal := decimal.NewFromFloat(40.0)
+		if currentPnLPctDecimal.GreaterThan(fivePercentDecimal) && drawdownPctDecimal.GreaterThanOrEqual(fortyPercentDecimal) {
 			log.Printf("🚨 触发回撤平仓条件: %s %s | 当前收益: %.2f%% | 最高收益: %.2f%% | 回撤: %.2f%%",
 				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 
@@ -1606,7 +1692,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 				// 平仓后清理该持仓的缓存
 				at.ClearPeakPnLCache(symbol, side)
 			}
-		} else if currentPnLPct > 5.0 {
+		} else if currentPnLPctDecimal.GreaterThan(fivePercentDecimal) {
 			// 记录接近平仓条件的情况（用于调试）
 			log.Printf("📊 回撤监控: %s %s | 收益: %.2f%% | 最高: %.2f%% | 回撤: %.2f%%",
 				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
@@ -1618,13 +1704,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
 	switch side {
 	case "long":
-		order, err := at.trader.CloseLong(symbol, 0) // 0 = 全部平仓
+		order, err := at.trader.CloseLong(symbol, decimal.Zero) // 0 = 全部平仓
 		if err != nil {
 			return err
 		}
 		log.Printf("✅ 紧急平多仓成功，订单ID: %v", order["orderId"])
 	case "short":
-		order, err := at.trader.CloseShort(symbol, 0) // 0 = 全部平仓
+		order, err := at.trader.CloseShort(symbol, decimal.Zero) // 0 = 全部平仓
 		if err != nil {
 			return err
 		}

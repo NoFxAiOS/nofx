@@ -1844,10 +1844,10 @@ function ExchangeConfigModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div
-        className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative"
+        className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative max-h-[90vh] flex flex-col"
         style={{ background: '#1E2329' }}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
             {editingExchangeId
               ? t('editExchange', language)
@@ -1885,8 +1885,9 @@ function ExchangeConfigModal({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!editingExchangeId && (
+        <div className="flex-1 overflow-y-auto">
+          <form id="exchange-form" onSubmit={handleSubmit} className="space-y-4">
+            {!editingExchangeId && (
             <div>
               <label
                 className="block text-sm font-semibold mb-2"
@@ -2469,46 +2470,49 @@ function ExchangeConfigModal({
               </div>
             </>
           )}
+          </form>
+        </div>
 
-          <div className="flex gap-3 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-              style={{ background: '#2B3139', color: '#848E9C' }}
-            >
-              {t('cancel', language)}
-            </button>
-            <button
-              type="submit"
-              disabled={
-                !selectedExchange ||
-                (selectedExchange.id === 'binance' &&
-                  (!apiKey.trim() || !secretKey.trim())) ||
-                (selectedExchange.id === 'okx' &&
-                  (!apiKey.trim() ||
-                    !secretKey.trim() ||
-                    !passphrase.trim())) ||
-                (selectedExchange.id === 'hyperliquid' &&
-                  (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
-                (selectedExchange.id === 'aster' &&
-                  (!asterUser.trim() ||
-                    !asterSigner.trim() ||
-                    !asterPrivateKey.trim())) ||
-                (selectedExchange.type === 'cex' &&
-                  selectedExchange.id !== 'hyperliquid' &&
-                  selectedExchange.id !== 'aster' &&
-                  selectedExchange.id !== 'binance' &&
-                  selectedExchange.id !== 'okx' &&
-                  (!apiKey.trim() || !secretKey.trim()))
-              }
-              className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
-              style={{ background: '#F0B90B', color: '#000' }}
-            >
-              {t('saveConfig', language)}
-            </button>
-          </div>
-        </form>
+        {/* 按钮区域固定在底部 */}
+        <div className="flex gap-3 mt-4 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded text-sm font-semibold"
+            style={{ background: '#2B3139', color: '#848E9C' }}
+          >
+            {t('cancel', language)}
+          </button>
+          <button
+            type="submit"
+            form="exchange-form"
+            disabled={
+              !selectedExchange ||
+              (selectedExchange.id === 'binance' &&
+                (!apiKey.trim() || !secretKey.trim())) ||
+              (selectedExchange.id === 'okx' &&
+                (!apiKey.trim() ||
+                  !secretKey.trim() ||
+                  !passphrase.trim())) ||
+              (selectedExchange.id === 'hyperliquid' &&
+                (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
+              (selectedExchange.id === 'aster' &&
+                (!asterUser.trim() ||
+                  !asterSigner.trim() ||
+                  !asterPrivateKey.trim())) ||
+              (selectedExchange.type === 'cex' &&
+                selectedExchange.id !== 'hyperliquid' &&
+                selectedExchange.id !== 'aster' &&
+                selectedExchange.id !== 'binance' &&
+                selectedExchange.id !== 'okx' &&
+                (!apiKey.trim() || !secretKey.trim()))
+            }
+            className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
+            style={{ background: '#F0B90B', color: '#000' }}
+          >
+            {t('saveConfig', language)}
+          </button>
+        </div>
       </div>
 
       {/* Binance Setup Guide Modal */}

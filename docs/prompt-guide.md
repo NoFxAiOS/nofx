@@ -45,12 +45,19 @@ A Prompt is the "work instruction" you give to the AI trader, determining how th
 **Suitable for**: Beginners who want to start quickly
 **Time required**: 2 minutes
 
-#### Method 2: Add Custom Strategy on Top of Official Template
+#### Method 2: Add Custom Strategy on Top of Official Template (Recommended)
 
 **Steps**:
 1. Keep `prompts/default.txt` unchanged
 2. Add your strategy in the web interface's "Custom Prompt"
-3. Set `override_base_prompt = false`
+3. **Turn OFF** "Override Base Prompt" switch (`override_base_prompt = false`)
+
+**Effect Explanation**:
+```
+Final Prompt = Official Base Strategy (Risk Control + Format) + Your Custom Strategy
+               ↑                                                 ↑
+          System guarantees safety                         Your trading ideas
+```
 
 **Suitable for**: Intermediate users who want to keep risk controls but add their own ideas
 **Time required**: 10-30 minutes
@@ -59,8 +66,20 @@ A Prompt is the "work instruction" you give to the AI trader, determining how th
 
 **Steps**:
 1. Write a complete Prompt (including all risk control rules)
-2. Set `override_base_prompt = true`
+2. **Turn ON** "Override Base Prompt" switch (`override_base_prompt = true`)
 3. ⚠️ You are responsible for all risk controls and output formats
+
+**Effect Explanation**:
+```
+Final Prompt = Your Custom Strategy (Complete Replacement)
+               ↑
+     You need to ensure safety and correct format yourself
+```
+
+**Important Warnings**:
+- ❌ When enabled, the system will NOT automatically add risk control rules
+- ❌ Incorrect output format will cause trading failures
+- ⚠️ Only suitable for advanced users who fully understand the system mechanism
 
 **Suitable for**: Advanced users who fully understand the system mechanism
 **Time required**: 1-2 hours
@@ -1507,4 +1526,4 @@ Actual Behavior: [What actually happened]
 
 **Document Version**: v1.0
 **Last Updated**: 2025-01-09
-**Maintainer**: NoFx Team
+**Maintainer**: Nofx Team CoderMageFox

@@ -1002,7 +1002,11 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	oldBalance := traderConfig.InitialBalance
 
 	// ✅ 选项C：智能检测余额变化
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// 🔒 防止 division by zero
+	changePercent := 0.0
+	if oldBalance > 0 {
+		changePercent = ((actualBalance - oldBalance) / oldBalance) * 100
+	}
 	changeType := "增加"
 	if changePercent < 0 {
 		changeType = "减少"

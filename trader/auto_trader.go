@@ -361,7 +361,11 @@ func (at *AutoTrader) autoSyncBalanceIfNeeded() {
 		return
 	}
 
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// 🔒 防止 division by zero
+	changePercent := 0.0
+	if oldBalance > 0 {
+		changePercent = ((actualBalance - oldBalance) / oldBalance) * 100
+	}
 
 	// 变化超过5%才更新
 	if math.Abs(changePercent) > 5.0 {

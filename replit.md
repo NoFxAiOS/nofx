@@ -13,11 +13,13 @@ NOFX is an AI-powered cryptocurrency trading system with support for multiple AI
 - ✅ **Deployment configured for Replit (Reserved VM)**
 - ✅ **Backend now serves built frontend for production**
 - ✅ **Health check endpoint at `/` for deployment**
+- ✅ **Backend uses PORT environment variable for Replit deployments**
+- ✅ **Build command includes npm install and frontend/backend compilation**
 
 ## Architecture
 
 ### Backend (Go)
-- **Port**: 8080
+- **Port**: Uses `PORT` environment variable (defaults to 8080 in dev)
 - **Binary**: `nofx-backend` (pre-compiled)
 - **Database**: SQLite (`config.db`)
 - **Features**:
@@ -26,6 +28,7 @@ NOFX is an AI-powered cryptocurrency trading system with support for multiple AI
   - Support for Binance, Hyperliquid, Aster exchanges
   - AI integration with DeepSeek, Qwen, and custom APIs
   - **Serves built frontend in production**
+  - **Automatically uses Replit's PORT variable in production**
 
 ### Frontend (React + Vite)
 - **Development Port**: 5000 (exposed for Replit webview)
@@ -63,14 +66,17 @@ Both services start automatically via the `fullstack-app` workflow.
 
 ### Production Deployment
 The deployment is configured for **Replit Reserved VM** with:
-- **Build Command**: Builds frontend and compiles backend
+- **Deployment Type**: Reserved VM (for full-stack applications)
+- **Build Command**: Installs dependencies, builds frontend, and compiles backend
   ```bash
-  cd web && npm run build && cd .. && go build -o nofx-backend main.go
+  cd web && npm install && npm run build && cd .. && go build -o nofx-backend main.go
   ```
 - **Run Command**: Starts the backend (which serves the frontend)
   ```bash
   ./nofx-backend
   ```
+- **Port**: Backend automatically uses Replit's `PORT` environment variable
+- **Configuration File**: `.replit` contains deployment settings
 
 The backend serves the built frontend from `web/dist` and provides:
 - **Health Check**: `GET /` returns `{"status":"ok","service":"NOFX AI Trading System"}`

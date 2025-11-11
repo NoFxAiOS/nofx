@@ -41,4 +41,4 @@ externalPort = 8080
 [deployment]
 deploymentTarget = "vm"
 run = ["./nofx-backend"]
-build = ["bash", "-c", "cd web && npm run build && cd .. && go build -o nofx-backend main.go"]
+build = ["bash", "-c", "cd web && npm install && npm run build && cd .. && go build -o nofx-backend main.go"]

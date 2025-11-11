@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-// MockTrader 用於測試 partial close 邏輯
-type MockTrader struct {
+// MockPartialCloseTrader 用於測試 partial close 邏輯
+type MockPartialCloseTrader struct {
 	positions          []map[string]interface{}
 	closePartialCalled bool
 	closeLongCalled    bool
@@ -19,37 +19,37 @@ type MockTrader struct {
 	lastTakeProfit     float64
 }
 
-func (m *MockTrader) GetPositions() ([]map[string]interface{}, error) {
+func (m *MockPartialCloseTrader) GetPositions() ([]map[string]interface{}, error) {
 	return m.positions, nil
 }
 
-func (m *MockTrader) ClosePartialLong(symbol string, quantity float64) (map[string]interface{}, error) {
+func (m *MockPartialCloseTrader) ClosePartialLong(symbol string, quantity float64) (map[string]interface{}, error) {
 	m.closePartialCalled = true
 	return map[string]interface{}{"orderId": "12345"}, nil
 }
 
-func (m *MockTrader) ClosePartialShort(symbol string, quantity float64) (map[string]interface{}, error) {
+func (m *MockPartialCloseTrader) ClosePartialShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	m.closePartialCalled = true
 	return map[string]interface{}{"orderId": "12345"}, nil
 }
 
-func (m *MockTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
+func (m *MockPartialCloseTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
 	m.closeLongCalled = true
 	return map[string]interface{}{"orderId": "12346"}, nil
 }
 
-func (m *MockTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
+func (m *MockPartialCloseTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	m.closeShortCalled = true
 	return map[string]interface{}{"orderId": "12346"}, nil
 }
 
-func (m *MockTrader) SetStopLoss(symbol, side string, quantity, price float64) error {
+func (m *MockPartialCloseTrader) SetStopLoss(symbol, side string, quantity, price float64) error {
 	m.stopLossCalled = true
 	m.lastStopLoss = price
 	return nil
 }
 
-func (m *MockTrader) SetTakeProfit(symbol, side string, quantity, price float64) error {
+func (m *MockPartialCloseTrader) SetTakeProfit(symbol, side string, quantity, price float64) error {
 	m.takeProfitCalled = true
 	m.lastTakeProfit = price
 	return nil
@@ -301,7 +301,7 @@ func TestPartialCloseIntegration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 創建 mock trader
-			mockTrader := &MockTrader{
+			mockTrader := &MockPartialCloseTrader{
 				positions: []map[string]interface{}{
 					{
 						"symbol":    tt.symbol,

@@ -2333,7 +2333,7 @@ function ExchangeConfigModal({
 
                 {/* Aster 交易所的字段 */}
                 {selectedExchange.id === 'aster' && (
-                  <>
+                  <div className="space-y-4">
                     <div>
                       <label
                         className="block text-sm font-semibold mb-2 flex items-center gap-2"
@@ -2417,7 +2417,7 @@ function ExchangeConfigModal({
                         required
                       />
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* Hyperliquid 交易所的字段 */}
@@ -2558,7 +2558,7 @@ function ExchangeConfigModal({
 
                 {/* Aster 交易所的字段 */}
                 {selectedExchange.id === 'aster' && (
-                  <>
+                  <div className="space-y-4">
                     <div>
                       <label
                         className="block text-sm font-semibold mb-2 flex items-center gap-2"
@@ -2707,7 +2707,7 @@ function ExchangeConfigModal({
                         <div>{t('exchangeConfigWarning3', language)}</div>
                       </div>
                     </div>
-                  </>
+                  </div>
                 )}
               </>
             )}

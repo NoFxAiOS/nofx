@@ -346,19 +346,39 @@ func (d *Database) initDefaultData() error {
 
 // migrateExchangesTable 迁移exchanges表支持多用户
 func (d *Database) migrateExchangesTable() error {
-	// 检查是否已经迁移过
-	var count int
+	// 检查是否已经迁移过 - 通过检查主键结构
+	var sql string
 	err := d.db.QueryRow(`
-		SELECT COUNT(*) FROM sqlite_master 
+		SELECT sql FROM sqlite_master
+		WHERE type='table' AND name='exchanges'
+	`).Scan(&sql)
+	if err != nil {
+		return err
+	}
+
+	// 如果主键已经是复合主键 (id, user_id)，说明已迁移
+	if strings.Contains(sql, "PRIMARY KEY (id, user_id)") ||
+	   strings.Contains(sql, "PRIMARY KEY(id, user_id)") {
+		return nil
+	}
+
+	// 检查是否有未完成的迁移 (exchanges_new存在)
+	var count int
+	err = d.db.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master
 		WHERE type='table' AND name='exchanges_new'
 	`).Scan(&count)
 	if err != nil {
 		return err
 	}
 
-	// 如果已经迁移过，直接返回
+	// 如果exchanges_new存在，说明上次迁移未完成，清理后重试
 	if count > 0 {
-		return nil
+		log.Printf("⚠️ 检测到未完成的迁移，清理exchanges_new表...")
+		_, err = d.db.Exec(`DROP TABLE exchanges_new`)
+		if err != nil {
+			return fmt.Errorf("清理未完成迁移失败: %w", err)
+		}
 	}
 
 	log.Printf("🔄 开始迁移exchanges表...")
@@ -378,6 +398,7 @@ func (d *Database) migrateExchangesTable() error {
 			aster_user TEXT DEFAULT '',
 			aster_signer TEXT DEFAULT '',
 			aster_private_key TEXT DEFAULT '',
+			okx_passphrase TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (id, user_id),
@@ -389,9 +410,21 @@ func (d *Database) migrateExchangesTable() error {
 	}
 
 	// 复制数据到新表
+	// 使用显式列名以支持旧表没有okx_passphrase的情况
 	_, err = d.db.Exec(`
-		INSERT INTO exchanges_new 
-		SELECT * FROM exchanges
+		INSERT INTO exchanges_new
+		(id, user_id, name, type, enabled, api_key, secret_key, testnet,
+		 hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
+		 okx_passphrase, created_at, updated_at)
+		SELECT
+			id, user_id, name, type, enabled, api_key, secret_key, testnet,
+			COALESCE(hyperliquid_wallet_addr, ''),
+			COALESCE(aster_user, ''),
+			COALESCE(aster_signer, ''),
+			COALESCE(aster_private_key, ''),
+			COALESCE(okx_passphrase, ''),
+			created_at, updated_at
+		FROM exchanges
 	`)
 	if err != nil {
 		return fmt.Errorf("复制数据失败: %w", err)

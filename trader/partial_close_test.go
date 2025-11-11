@@ -58,12 +58,12 @@ func (m *MockTrader) SetTakeProfit(symbol, side string, quantity, price float64)
 // TestPartialCloseMinPositionCheck 測試最小倉位檢查邏輯
 func TestPartialCloseMinPositionCheck(t *testing.T) {
 	tests := []struct {
-		name               string
-		totalQuantity      float64
-		markPrice          float64
-		closePercentage    float64
-		expectFullClose    bool // 是否應該觸發全平邏輯
-		expectRemainValue  float64
+		name              string
+		totalQuantity     float64
+		markPrice         float64
+		closePercentage   float64
+		expectFullClose   bool // 是否應該觸發全平邏輯
+		expectRemainValue float64
 	}{
 		{
 			name:              "正常部分平倉_剩餘價值充足",
@@ -136,10 +136,10 @@ func TestPartialCloseMinPositionCheck(t *testing.T) {
 // TestPartialCloseWithStopLossTakeProfitRecovery 測試止盈止損恢復邏輯
 func TestPartialCloseWithStopLossTakeProfitRecovery(t *testing.T) {
 	tests := []struct {
-		name            string
-		newStopLoss     float64
-		newTakeProfit   float64
-		expectStopLoss  bool
+		name             string
+		newStopLoss      float64
+		newTakeProfit    float64
+		expectStopLoss   bool
 		expectTakeProfit bool
 	}{
 		{
@@ -258,16 +258,16 @@ func TestPartialCloseEdgeCases(t *testing.T) {
 // TestPartialCloseIntegration 整合測試（使用 mock trader）
 func TestPartialCloseIntegration(t *testing.T) {
 	tests := []struct {
-		name                string
-		symbol              string
-		side                string
-		totalQuantity       float64
-		markPrice           float64
-		closePercentage     float64
-		newStopLoss         float64
-		newTakeProfit       float64
-		expectFullClose     bool
-		expectStopLossCall  bool
+		name                 string
+		symbol               string
+		side                 string
+		totalQuantity        float64
+		markPrice            float64
+		closePercentage      float64
+		newStopLoss          float64
+		newTakeProfit        float64
+		expectFullClose      bool
+		expectStopLossCall   bool
 		expectTakeProfitCall bool
 	}{
 		{
@@ -304,9 +304,9 @@ func TestPartialCloseIntegration(t *testing.T) {
 			mockTrader := &MockTrader{
 				positions: []map[string]interface{}{
 					{
-						"symbol":   tt.symbol,
-						"side":     tt.side,
-						"quantity": tt.totalQuantity,
+						"symbol":    tt.symbol,
+						"side":      tt.side,
+						"quantity":  tt.totalQuantity,
 						"markPrice": tt.markPrice,
 					},
 				},

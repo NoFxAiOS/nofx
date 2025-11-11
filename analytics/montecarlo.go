@@ -15,7 +15,7 @@ type MonteCarloResult struct {
 	InitialBalance   float64                `json:"initial_balance"`
 	Percentiles      *PercentileStats       `json:"percentiles"`         // 百分位数统计
 	WorstCase        *SimulationPath        `json:"worst_case"`          // 最坏情况
-	BestCase         `SimulationPath        `json:"best_case"`           // 最好情况
+	BestCase         *SimulationPath        `json:"best_case"`           // 最好情况
 	MedianCase       *SimulationPath        `json:"median_case"`         // 中位数情况
 	ProbabilityStats *ProbabilityStats      `json:"probability_stats"`   // 概率统计
 	AllPaths         []SimulationPath       `json:"all_paths,omitempty"` // 所有路径（可选）

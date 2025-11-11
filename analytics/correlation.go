@@ -296,12 +296,21 @@ func fetchBinanceKlines(symbol string, startTime, endTime time.Time, interval st
 		}
 
 		// kline[0] = OpenTime, kline[4] = Close price
-		closePrice, err := strconv.ParseFloat(kline[4].(string), 64)
+		// 🔒 安全的类型断言，防止 panic
+		closePriceStr, ok := kline[4].(string)
+		if !ok {
+			continue
+		}
+		closePrice, err := strconv.ParseFloat(closePriceStr, 64)
 		if err != nil {
 			continue
 		}
 
-		timestamp := time.UnixMilli(int64(kline[0].(float64)))
+		openTime, ok := kline[0].(float64)
+		if !ok {
+			continue
+		}
+		timestamp := time.UnixMilli(int64(openTime))
 
 		prices = append(prices, closePrice)
 		timestamps = append(timestamps, timestamp)

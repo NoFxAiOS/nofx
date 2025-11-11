@@ -441,11 +441,32 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 			case "close_long", "close_short", "partial_close", "auto_close_long", "auto_close_short":
 				// 查找对应的开仓记录（可能来自预填充或当前窗口）
 				if openPos, exists := openPositions[posKey]; exists {
-					openPrice := openPos["openPrice"].(float64)
-					openTime := openPos["openTime"].(time.Time)
-					side := openPos["side"].(string)
-					quantity := openPos["quantity"].(float64)
-					leverage := openPos["leverage"].(int)
+					// 🔒 安全的类型断言，防止 panic
+					openPrice, ok := openPos["openPrice"].(float64)
+					if !ok {
+						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid openPrice data type, skipping")
+						continue
+					}
+					openTime, ok := openPos["openTime"].(time.Time)
+					if !ok {
+						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid openTime data type, skipping")
+						continue
+					}
+					side, ok := openPos["side"].(string)
+					if !ok {
+						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid side data type, skipping")
+						continue
+					}
+					quantity, ok := openPos["quantity"].(float64)
+					if !ok {
+						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid quantity data type, skipping")
+						continue
+					}
+					leverage, ok := openPos["leverage"].(int)
+					if !ok {
+						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid leverage data type, skipping")
+						continue
+					}
 
 					// 🔧 BUG FIX：取得追蹤字段（若不存在則初始化）
 					remainingQty, _ := openPos["remainingQuantity"].(float64)

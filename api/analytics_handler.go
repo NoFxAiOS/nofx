@@ -146,7 +146,12 @@ func (s *Server) handleRunMonteCarlo(c *gin.Context) {
 		return
 	}
 
-	initialBalance := balance["totalWalletBalance"].(float64)
+	// 🔒 安全的类型断言，防止 panic
+	initialBalance, ok := balance["totalWalletBalance"].(float64)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取余额数据格式错误"})
+		return
+	}
 
 	// 获取净值历史用于估计参数
 	records, err := trader.GetDecisionLogger().GetLatestRecords(10000)

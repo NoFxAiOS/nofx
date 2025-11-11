@@ -107,16 +107,34 @@ func parseKline(kr KlineResponse) (Kline, error) {
 		return kline, fmt.Errorf("invalid kline data")
 	}
 
+	// 🔒 安全的类型断言，防止 panic
 	// 解析各个字段
-	kline.OpenTime = int64(kr[0].(float64))
+	openTime, ok := kr[0].(float64)
+	if !ok {
+		return kline, fmt.Errorf("invalid OpenTime data type")
+	}
+	kline.OpenTime = int64(openTime)
+
 	kline.Open, _ = strconv.ParseFloat(kr[1].(string), 64)
 	kline.High, _ = strconv.ParseFloat(kr[2].(string), 64)
 	kline.Low, _ = strconv.ParseFloat(kr[3].(string), 64)
 	kline.Close, _ = strconv.ParseFloat(kr[4].(string), 64)
 	kline.Volume, _ = strconv.ParseFloat(kr[5].(string), 64)
-	kline.CloseTime = int64(kr[6].(float64))
+
+	closeTime, ok := kr[6].(float64)
+	if !ok {
+		return kline, fmt.Errorf("invalid CloseTime data type")
+	}
+	kline.CloseTime = int64(closeTime)
+
 	kline.QuoteVolume, _ = strconv.ParseFloat(kr[7].(string), 64)
-	kline.Trades = int(kr[8].(float64))
+
+	trades, ok := kr[8].(float64)
+	if !ok {
+		return kline, fmt.Errorf("invalid Trades data type")
+	}
+	kline.Trades = int(trades)
+
 	kline.TakerBuyBaseVolume, _ = strconv.ParseFloat(kr[9].(string), 64)
 	kline.TakerBuyQuoteVolume, _ = strconv.ParseFloat(kr[10].(string), 64)
 

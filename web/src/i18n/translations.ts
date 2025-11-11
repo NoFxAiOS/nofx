@@ -373,6 +373,7 @@ export const translations = {
     serverIPAddresses: 'Server IP Addresses',
     copyIP: 'Copy',
     ipCopied: 'IP Copied',
+    copyIPFailed: 'Failed to copy IP address. Please copy manually',
     loadingServerIP: 'Loading server IP...',
 
     // Error Messages
@@ -1143,6 +1144,7 @@ export const translations = {
     serverIPAddresses: '服务器IP地址',
     copyIP: '复制',
     ipCopied: 'IP已复制',
+    copyIPFailed: 'IP地址复制失败，请手动复制',
     loadingServerIP: '正在加载服务器IP...',
 
     // Error Messages

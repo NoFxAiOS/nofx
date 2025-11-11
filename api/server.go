@@ -792,11 +792,14 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	traderID := c.Param("id")
 
 	// 校验交易员是否属于当前用户
-	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	traderRecord, _, _, err := s.database.GetTraderConfig(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
 		return
 	}
+
+	// 获取模板名称
+	templateName := traderRecord.SystemPromptTemplate
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
@@ -810,6 +813,9 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "交易员已在运行中"})
 		return
 	}
+
+	// 重新加载系统提示词模板（确保使用最新的硬盘文件）
+	s.reloadPromptTemplatesWithLog(templateName)
 
 	// 启动交易员
 	go func() {
@@ -967,7 +973,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		actualBalance = totalBalance
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-				return
+		return
 	}
 
 	oldBalance := traderConfig.InitialBalance
@@ -1724,8 +1730,21 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	// 检查邮箱是否已存在
-	_, err := s.database.GetUserByEmail(req.Email)
+	existingUser, err := s.database.GetUserByEmail(req.Email)
 	if err == nil {
+		// 如果用户未完成OTP验证，允许重新获取OTP（支持中断后恢复注册）
+		if !existingUser.OTPVerified {
+			qrCodeURL := auth.GetOTPQRCodeURL(existingUser.OTPSecret, req.Email)
+			c.JSON(http.StatusOK, gin.H{
+				"user_id":     existingUser.ID,
+				"email":       req.Email,
+				"otp_secret":  existingUser.OTPSecret,
+				"qr_code_url": qrCodeURL,
+				"message":     "检测到未完成的注册，请继续完成OTP设置",
+			})
+			return
+		}
+		// 用户已完成验证，拒绝重复注册
 		c.JSON(http.StatusConflict, gin.H{"error": "邮箱已被注册"})
 		return
 	}
@@ -2304,4 +2323,18 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// reloadPromptTemplatesWithLog 重新加载提示词模板并记录日志
+func (s *Server) reloadPromptTemplatesWithLog(templateName string) {
+	if err := decision.ReloadPromptTemplates(); err != nil {
+		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
+		return
+	}
+
+	if templateName == "" {
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: default (未指定，使用默认)]")
+	} else {
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
+	}
 }

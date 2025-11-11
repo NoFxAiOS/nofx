@@ -444,27 +444,27 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					// 🔒 安全的类型断言，防止 panic
 					openPrice, ok := openPos["openPrice"].(float64)
 					if !ok {
-						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid openPrice data type, skipping")
+						Log.Warnf("Invalid openPrice data type for symbol %s, skipping", symbol)
 						continue
 					}
 					openTime, ok := openPos["openTime"].(time.Time)
 					if !ok {
-						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid openTime data type, skipping")
+						Log.Warnf("Invalid openTime data type for symbol %s, skipping", symbol)
 						continue
 					}
 					side, ok := openPos["side"].(string)
 					if !ok {
-						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid side data type, skipping")
+						Log.Warnf("Invalid side data type for symbol %s, skipping", symbol)
 						continue
 					}
 					quantity, ok := openPos["quantity"].(float64)
 					if !ok {
-						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid quantity data type, skipping")
+						Log.Warnf("Invalid quantity data type for symbol %s, skipping", symbol)
 						continue
 					}
 					leverage, ok := openPos["leverage"].(int)
 					if !ok {
-						logger.Logger.Warn().Str("symbol", decision.Symbol).Msg("Invalid leverage data type, skipping")
+						Log.Warnf("Invalid leverage data type for symbol %s, skipping", symbol)
 						continue
 					}
 

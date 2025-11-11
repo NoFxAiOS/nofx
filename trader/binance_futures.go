@@ -2,8 +2,11 @@ package trader
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"nofx/hook"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +14,34 @@ import (
 
 	"github.com/adshao/go-binance/v2/futures"
 )
+
+// getBrOrderID 生成唯一订单ID（合约专用）
+// 格式: x-{BR_ID}{TIMESTAMP}{RANDOM}
+// 合约限制32字符，统一使用此限制以保持一致性
+// 使用纳秒时间戳+随机数确保全局唯一性（冲突概率 < 10^-20）
+func getBrOrderID() string {
+	brID := "KzrpZaP9" // 合约br ID
+
+	// 计算可用空间: 32 - len("x-KzrpZaP9") = 32 - 11 = 21字符
+	// 分配: 13位时间戳 + 8位随机数 = 21字符（完美利用）
+	timestamp := time.Now().UnixNano() % 10000000000000 // 13位纳秒时间戳
+
+	// 生成4字节随机数（8位十六进制）
+	randomBytes := make([]byte, 4)
+	rand.Read(randomBytes)
+	randomHex := hex.EncodeToString(randomBytes)
+
+	// 格式: x-KzrpZaP9{13位时间戳}{8位随机}
+	// 示例: x-KzrpZaP91234567890123abcdef12 (正好31字符)
+	orderID := fmt.Sprintf("x-%s%d%s", brID, timestamp, randomHex)
+
+	// 确保不超过32字符限制（理论上正好31字符）
+	if len(orderID) > 32 {
+		orderID = orderID[:32]
+	}
+
+	return orderID
+}
 
 // FuturesTrader 币安合约交易器
 type FuturesTrader struct {
@@ -31,8 +62,14 @@ type FuturesTrader struct {
 }
 
 // NewFuturesTrader 创建合约交易器
-func NewFuturesTrader(apiKey, secretKey string) *FuturesTrader {
+func NewFuturesTrader(apiKey, secretKey string, userId string) *FuturesTrader {
 	client := futures.NewClient(apiKey, secretKey)
+
+	hookRes := hook.HookExec[hook.NewBinanceTraderResult](hook.NEW_BINANCE_TRADER, userId, client)
+	if hookRes != nil && hookRes.GetResult() != nil {
+		client = hookRes.GetResult()
+	}
+
 	// 同步时间，避免 Timestamp ahead 错误
 	syncBinanceServerTime(client)
 	trader := &FuturesTrader{
@@ -306,13 +343,14 @@ func (t *FuturesTrader) OpenLong(symbol string, quantity float64, leverage int) 
 		return nil, err
 	}
 
-	// 创建市价买入订单
+	// 创建市价买入订单（使用br ID）
 	order, err := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeBuy).
 		PositionSide(futures.PositionSideTypeLong).
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
+		NewClientOrderID(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
@@ -360,13 +398,14 @@ func (t *FuturesTrader) OpenShort(symbol string, quantity float64, leverage int)
 		return nil, err
 	}
 
-	// 创建市价卖出订单
+	// 创建市价卖出订单（使用br ID）
 	order, err := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeSell).
 		PositionSide(futures.PositionSideTypeShort).
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
+		NewClientOrderID(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
@@ -410,13 +449,14 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 		return nil, err
 	}
 
-	// 创建市价卖出订单（平多）
+	// 创建市价卖出订单（平多，使用br ID）
 	order, err := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeSell).
 		PositionSide(futures.PositionSideTypeLong).
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
+		NewClientOrderID(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
@@ -464,13 +504,14 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 		return nil, err
 	}
 
-	// 创建市价买入订单（平空）
+	// 创建市价买入订单（平空，使用br ID）
 	order, err := t.client.NewCreateOrderService().
 		Symbol(symbol).
 		Side(futures.SideTypeBuy).
 		PositionSide(futures.PositionSideTypeShort).
 		Type(futures.OrderTypeMarket).
 		Quantity(quantityStr).
+		NewClientOrderID(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
@@ -490,8 +531,6 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 	result["status"] = order.Status
 	return result, nil
 }
-
-
 
 // CancelStopLossOrders 仅取消止损单（不影响止盈单）
 func (t *FuturesTrader) CancelStopLossOrders(symbol string) error {

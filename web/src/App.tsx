@@ -44,7 +44,7 @@ function getModelDisplayName(modelId: string): string {
 function App() {
   const { language, setLanguage } = useLanguage()
   const { user, token, logout, isLoading } = useAuth()
-  const { config: systemConfig, loading: configLoading } = useSystemConfig()
+  const { loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
   // 从URL路径读取初始页面状态（支持刷新保持页面）
@@ -101,11 +101,12 @@ function App() {
   // };
 
   // 获取trader列表（仅在用户登录时）
-  const { data: traders } = useSWR<TraderInfo[]>(
+  const { data: traders, error: tradersError } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
     api.getTraders,
     {
       refreshInterval: 10000,
+      shouldRetryOnError: false, // 避免在后端未运行时无限重试
     }
   )
 
@@ -230,10 +231,6 @@ function App() {
     return <LoginPage />
   }
   if (route === '/register') {
-    if (systemConfig?.admin_mode) {
-      window.history.pushState({}, '', '/login')
-      return <LoginPage />
-    }
     return <RegisterPage />
   }
   if (route === '/faq') {
@@ -255,7 +252,6 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
-          isAdminMode={systemConfig?.admin_mode}
           onPageChange={(page) => {
             console.log('Competition page onPageChange called with:', page)
             console.log('Current route:', route, 'Current page:', currentPage)
@@ -298,16 +294,11 @@ function App() {
 
   // Show landing page for root route
   if (route === '/' || route === '') {
-    return <LandingPage isAdminMode={systemConfig?.admin_mode} />
+    return <LandingPage />
   }
 
-  // In admin mode, require authentication for any protected routes
-  if (systemConfig?.admin_mode && (!user || !token)) {
-    return <LoginPage />
-  }
-
-  // Show main app for authenticated users on other routes (non-admin mode)
-  if (!systemConfig?.admin_mode && (!user || !token)) {
+  // Show main app for authenticated users on other routes
+  if (!user || !token) {
     // Default to landing page when not authenticated and no specific route
     return <LandingPage />
   }
@@ -324,7 +315,6 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        isAdminMode={systemConfig?.admin_mode}
         onPageChange={(page) => {
           console.log('Main app onPageChange called with:', page)
 
@@ -371,8 +361,14 @@ function App() {
             lastUpdate={lastUpdate}
             language={language}
             traders={traders}
+            tradersError={tradersError}
             selectedTraderId={selectedTraderId}
             onTraderSelect={setSelectedTraderId}
+            onNavigateToTraders={() => {
+              window.history.pushState({}, '', '/traders')
+              setRoute('/traders')
+              setCurrentPage('traders')
+            }}
           />
         )}
       </main>
@@ -437,13 +433,17 @@ function TraderDetailsPage({
   lastUpdate,
   language,
   traders,
+  tradersError,
   selectedTraderId,
   onTraderSelect,
+  onNavigateToTraders,
 }: {
   selectedTrader?: TraderInfo
   traders?: TraderInfo[]
+  tradersError?: Error
   selectedTraderId?: string
   onTraderSelect: (traderId: string) => void
+  onNavigateToTraders: () => void
   status?: SystemStatus
   account?: AccountInfo
   positions?: Position[]
@@ -452,6 +452,119 @@ function TraderDetailsPage({
   lastUpdate: string
   language: Language
 }) {
+  // If API failed with error, show empty state (likely backend not running)
+  if (tradersError) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md mx-auto px-6">
+          {/* Icon */}
+          <div
+            className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center"
+            style={{
+              background: 'rgba(240, 185, 11, 0.1)',
+              border: '2px solid rgba(240, 185, 11, 0.3)',
+            }}
+          >
+            <svg
+              className="w-12 h-12"
+              style={{ color: '#F0B90B' }}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-2xl font-bold mb-3" style={{ color: '#EAECEF' }}>
+            {t('dashboardEmptyTitle', language)}
+          </h2>
+
+          {/* Description */}
+          <p className="text-base mb-6" style={{ color: '#848E9C' }}>
+            {t('dashboardEmptyDescription', language)}
+          </p>
+
+          {/* CTA Button */}
+          <button
+            onClick={onNavigateToTraders}
+            className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+              color: '#0B0E11',
+              boxShadow: '0 4px 12px rgba(240, 185, 11, 0.3)',
+            }}
+          >
+            {t('goToTradersPage', language)}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // If traders is loaded and empty, show empty state
+  if (traders && traders.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md mx-auto px-6">
+          {/* Icon */}
+          <div
+            className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center"
+            style={{
+              background: 'rgba(240, 185, 11, 0.1)',
+              border: '2px solid rgba(240, 185, 11, 0.3)',
+            }}
+          >
+            <svg
+              className="w-12 h-12"
+              style={{ color: '#F0B90B' }}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-2xl font-bold mb-3" style={{ color: '#EAECEF' }}>
+            {t('dashboardEmptyTitle', language)}
+          </h2>
+
+          {/* Description */}
+          <p className="text-base mb-6" style={{ color: '#848E9C' }}>
+            {t('dashboardEmptyDescription', language)}
+          </p>
+
+          {/* CTA Button */}
+          <button
+            onClick={onNavigateToTraders}
+            className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105 active:scale-95"
+            style={{
+              background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+              color: '#0B0E11',
+              boxShadow: '0 4px 12px rgba(240, 185, 11, 0.3)',
+            }}
+          >
+            {t('goToTradersPage', language)}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // If traders is still loading or selectedTrader is not ready, show skeleton
   if (!selectedTrader) {
     return (
       <div className="space-y-6">

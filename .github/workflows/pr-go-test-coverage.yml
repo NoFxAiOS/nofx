@@ -1,0 +1,84 @@
+name: Go Test Coverage
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test-coverage:
+    name: Go Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r .github/workflows/scripts/requirements.txt
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Verify Go coverage tool
+        run: |
+          go tool cover -h || echo "Warning: go tool cover not available"
+
+      - name: Run tests with coverage
+        env:
+          DATA_ENCRYPTION_KEY: "test-encryption-key-for-ci-only-not-production"
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Calculate coverage and generate report
+        id: coverage
+        run: |
+          chmod +x .github/workflows/scripts/calculate_coverage.py
+          python .github/workflows/scripts/calculate_coverage.py coverage.out coverage_report.md
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x .github/workflows/scripts/comment_pr.py
+          python .github/workflows/scripts/comment_pr.py \
+            ${{ github.event.pull_request.number }} \
+            "${{ steps.coverage.outputs.coverage }}" \
+            "${{ steps.coverage.outputs.emoji }}" \
+            "${{ steps.coverage.outputs.status }}" \
+            "${{ steps.coverage.outputs.badge_color }}" \
+            coverage_report.md

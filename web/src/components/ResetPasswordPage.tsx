@@ -4,6 +4,8 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { Header } from './Header'
 import { ArrowLeft, KeyRound, Eye, EyeOff } from 'lucide-react'
+import PasswordChecklist from 'react-password-checklist'
+import { Input } from './ui/input'
 
 export function ResetPasswordPage() {
   const { language } = useLanguage()
@@ -17,6 +19,7 @@ export function ResetPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordValid, setPasswordValid] = useState(false)
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -112,16 +115,10 @@ export function ResetPasswordPage() {
                   >
                     {t('email', language)}
                   </label>
-                  <input
+                  <Input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
                     placeholder={t('emailPlaceholder', language)}
                     required
                   />
@@ -135,24 +132,20 @@ export function ResetPasswordPage() {
                     {t('newPassword', language)}
                   </label>
                   <div className="relative">
-                    <input
+                    <Input
                       type={showPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3 py-2 pr-10 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
+                      className="pr-10"
                       placeholder={t('newPasswordPlaceholder', language)}
                       required
-                      minLength={6}
                     />
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center btn-icon"
+                      style={{ color: 'var(--text-secondary)' }}
                     >
                       {showPassword ? (
                         <EyeOff className="w-5 h-5" />
@@ -171,26 +164,22 @@ export function ResetPasswordPage() {
                     {t('confirmPassword', language)}
                   </label>
                   <div className="relative">
-                    <input
+                    <Input
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-3 py-2 pr-10 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
+                      className="pr-10"
                       placeholder={t('confirmPasswordPlaceholder', language)}
                       required
-                      minLength={6}
                     />
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() =>
                         setShowConfirmPassword(!showConfirmPassword)
                       }
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center btn-icon"
+                      style={{ color: 'var(--text-secondary)' }}
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="w-5 h-5" />
@@ -199,6 +188,42 @@ export function ResetPasswordPage() {
                       )}
                     </button>
                   </div>
+                </div>
+
+                {/* 密码强度检查（必须通过才允许提交） */}
+                <div
+                  className="mt-1 text-xs"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  <div
+                    className="mb-1"
+                    style={{ color: 'var(--brand-light-gray)' }}
+                  >
+                    {t('passwordRequirements', language)}
+                  </div>
+                  <PasswordChecklist
+                    rules={[
+                      'minLength',
+                      'capital',
+                      'lowercase',
+                      'number',
+                      'specialChar',
+                      'match',
+                    ]}
+                    minLength={8}
+                    value={newPassword}
+                    valueAgain={confirmPassword}
+                    messages={{
+                      minLength: t('passwordRuleMinLength', language),
+                      capital: t('passwordRuleUppercase', language),
+                      lowercase: t('passwordRuleLowercase', language),
+                      number: t('passwordRuleNumber', language),
+                      specialChar: t('passwordRuleSpecial', language),
+                      match: t('passwordRuleMatch', language),
+                    }}
+                    className="space-y-1"
+                    onChange={(isValid) => setPasswordValid(isValid)}
+                  />
                 </div>
 
                 <div>
@@ -246,7 +271,7 @@ export function ResetPasswordPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length !== 6}
+                  disabled={loading || otpCode.length !== 6 || !passwordValid}
                   className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
                   style={{ background: '#F0B90B', color: '#000' }}
                 >

@@ -392,7 +392,17 @@ export function CompetitionPage() {
             {sortedTraders.map((trader, index) => {
               const isWinning = index === 0
               const opponent = sortedTraders[1 - index]
-              const gap = trader.total_pnl_pct - opponent.total_pnl_pct
+
+              // Check if both values are valid numbers
+              const hasValidData =
+                trader.total_pnl_pct != null &&
+                opponent.total_pnl_pct != null &&
+                !isNaN(trader.total_pnl_pct) &&
+                !isNaN(opponent.total_pnl_pct)
+
+              const gap = hasValidData
+                ? trader.total_pnl_pct - opponent.total_pnl_pct
+                : NaN
 
               return (
                 <div
@@ -429,10 +439,12 @@ export function CompetitionPage() {
                           (trader.total_pnl ?? 0) >= 0 ? '#0ECB81' : '#F6465D',
                       }}
                     >
-                      {(trader.total_pnl ?? 0) >= 0 ? '+' : ''}
-                      {trader.total_pnl_pct?.toFixed(2) || '0.00'}%
+                      {trader.total_pnl_pct != null &&
+                      !isNaN(trader.total_pnl_pct)
+                        ? `${trader.total_pnl_pct >= 0 ? '+' : ''}${trader.total_pnl_pct.toFixed(2)}%`
+                        : '—'}
                     </div>
-                    {isWinning && gap > 0 && (
+                    {hasValidData && isWinning && gap > 0 && (
                       <div
                         className="text-xs font-semibold"
                         style={{ color: '#0ECB81' }}
@@ -440,7 +452,7 @@ export function CompetitionPage() {
                         {t('leadingBy', language, { gap: gap.toFixed(2) })}
                       </div>
                     )}
-                    {!isWinning && gap < 0 && (
+                    {hasValidData && !isWinning && gap < 0 && (
                       <div
                         className="text-xs font-semibold"
                         style={{ color: '#F6465D' }}
@@ -448,6 +460,14 @@ export function CompetitionPage() {
                         {t('behindBy', language, {
                           gap: Math.abs(gap).toFixed(2),
                         })}
+                      </div>
+                    )}
+                    {!hasValidData && (
+                      <div
+                        className="text-xs font-semibold"
+                        style={{ color: '#848E9C' }}
+                      >
+                        —
                       </div>
                     )}
                   </div>

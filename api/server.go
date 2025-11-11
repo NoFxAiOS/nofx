@@ -154,6 +154,28 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
 			protected.GET("/performance", s.handlePerformance)
+
+		// 高级分析功能 (Advanced Analytics)
+		analyticsGroup := protected.Group("/analytics")
+		{
+			// 相关性分析
+			analyticsGroup.GET("/correlation", s.handleGetCorrelationMatrix)
+
+			// 回撤分析
+			analyticsGroup.GET("/drawdown", s.handleGetDrawdownAnalysis)
+
+			// Monte Carlo模拟
+			analyticsGroup.POST("/montecarlo", s.handleRunMonteCarlo)
+
+			// 绩效归因分析
+			analyticsGroup.GET("/attribution", s.handleGetPerformanceAttribution)
+
+			// 订单簿分析
+			analyticsGroup.GET("/orderbook", s.handleGetOrderBook)
+			analyticsGroup.GET("/orderbook/depth-chart", s.handleGetOrderBookDepthChart)
+			analyticsGroup.GET("/orderbook/imbalance", s.handleGetOrderBookImbalance)
+			analyticsGroup.GET("/orderbook/large-orders", s.handleDetectLargeOrders)
+		}
 		}
 	}
 }

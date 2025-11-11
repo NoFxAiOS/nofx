@@ -114,6 +114,26 @@ export function OrderBookDepth({ symbol, maxLevels = 50 }: OrderBookDepthProps) 
     )
   }
 
+  // Check if data structure is valid
+  if (
+    !depthChart.bid_levels ||
+    !depthChart.ask_levels ||
+    !Array.isArray(depthChart.bid_levels) ||
+    !Array.isArray(depthChart.ask_levels)
+  ) {
+    return (
+      <div className="binance-card p-6">
+        <div className="text-center py-12" style={{ color: '#848E9C' }}>
+          <div className="text-6xl mb-4 opacity-30">📊</div>
+          <div className="text-lg font-semibold mb-2">No Order Book Data</div>
+          <div className="text-sm">
+            Failed to retrieve order book depth for {symbol}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 合并bid和ask数据用于深度图
   const chartData = [
     ...depthChart.bid_levels.reverse().map((level) => ({

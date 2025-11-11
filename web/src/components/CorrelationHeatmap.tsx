@@ -88,6 +88,27 @@ export function CorrelationHeatmap({
     )
   }
 
+  // Check if data structure is valid
+  if (
+    !correlation.assets ||
+    !correlation.matrix ||
+    !correlation.stats ||
+    !Array.isArray(correlation.assets) ||
+    !Array.isArray(correlation.matrix)
+  ) {
+    return (
+      <div className="binance-card p-6">
+        <div className="text-center py-12" style={{ color: '#848E9C' }}>
+          <div className="text-6xl mb-4 opacity-30">📊</div>
+          <div className="text-lg font-semibold mb-2">No Correlation Data</div>
+          <div className="text-sm">
+            Insufficient price data for correlation analysis
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 计算颜色：相关性从-1（红）到+1（绿）
   const getCorrelationColor = (value: number): string => {
     if (value === 1) return '#F0B90B' // 自相关 - 金色

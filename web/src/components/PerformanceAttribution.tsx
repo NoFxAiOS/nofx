@@ -116,8 +116,12 @@ export function PerformanceAttribution({
     )
   }
 
-  // Check if no data available
+  // Check if no data available or incomplete data structure
   if (
+    !attribution.summary ||
+    !attribution.by_symbol ||
+    !attribution.by_side ||
+    !attribution.by_timeframe ||
     attribution.summary.total_trades === 0 ||
     Object.keys(attribution.by_symbol).length === 0
   ) {

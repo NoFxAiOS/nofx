@@ -98,6 +98,21 @@ export function DrawdownChart({ traderId }: DrawdownChartProps) {
     )
   }
 
+  // Check if data structure is valid
+  if (!drawdown.drawdown_series || !Array.isArray(drawdown.drawdown_series)) {
+    return (
+      <div className="binance-card p-6">
+        <div className="text-center py-12" style={{ color: '#848E9C' }}>
+          <div className="text-6xl mb-4 opacity-30">📈</div>
+          <div className="text-lg font-semibold mb-2">No Data Available</div>
+          <div className="text-sm">
+            Insufficient equity history for drawdown analysis
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 转换数据格式
   const chartData = drawdown.drawdown_series.map((point) => ({
     time: new Date(point.timestamp).toLocaleTimeString('en-US', {

@@ -300,11 +300,11 @@ func (d *Database) initDefaultData() error {
 	exchanges := []struct {
 		id, name, typ string
 	}{
-		{"binance", "Binance Futures", "binance"},
-		{"hyperliquid", "Hyperliquid", "hyperliquid"},
-		{"aster", "Aster DEX", "aster"},
-		{"okx", "OKX Futures", "okx"},
-		{"bybit", "Bybit Futures", "bybit"},
+		{"binance", "Binance Futures", "cex"},
+		{"hyperliquid", "Hyperliquid", "dex"},
+		{"aster", "Aster DEX", "dex"},
+		{"okx", "OKX Futures", "cex"},
+		{"bybit", "Bybit Futures", "cex"},
 	}
 
 	for _, exchange := range exchanges {
@@ -857,6 +857,12 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 		var name, typ string
 		if id == "binance" {
 			name = "Binance Futures"
+			typ = "cex"
+		} else if id == "okx" {
+			name = "OKX Futures"
+			typ = "cex"
+		} else if id == "bybit" {
+			name = "Bybit Futures"
 			typ = "cex"
 		} else if id == "hyperliquid" {
 			name = "Hyperliquid"

@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"nofx/hook"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,6 +57,18 @@ func NewAsterTrader(user, signer, privateKeyHex string) (*AsterTrader, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析私钥失败: %w", err)
 	}
+	client := &http.Client{
+		Timeout: 30 * time.Second, // 增加到30秒
+		Transport: &http.Transport{
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			IdleConnTimeout:       90 * time.Second,
+		},
+	}
+	res := hook.HookExec[hook.NewAsterTraderResult](hook.NEW_ASTER_TRADER, user, client)
+	if res != nil && res.Error() == nil {
+		client = res.GetResult()
+	}
 
 	return &AsterTrader{
 		ctx:             context.Background(),
@@ -63,15 +76,8 @@ func NewAsterTrader(user, signer, privateKeyHex string) (*AsterTrader, error) {
 		signer:          signer,
 		privateKey:      privKey,
 		symbolPrecision: make(map[string]SymbolPrecision),
-		client: &http.Client{
-			Timeout: 30 * time.Second, // 增加到30秒
-			Transport: &http.Transport{
-				TLSHandshakeTimeout:   10 * time.Second,
-				ResponseHeaderTimeout: 10 * time.Second,
-				IdleConnTimeout:       90 * time.Second,
-			},
-		},
-		baseURL: "https://fapi.asterdex.com",
+		client:          client,
+		baseURL:         "https://fapi.asterdex.com",
 	}, nil
 }
 

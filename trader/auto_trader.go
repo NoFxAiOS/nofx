@@ -175,7 +175,7 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 	switch config.Exchange {
 	case "binance":
 		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
-		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey)
+		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey, userID)
 	case "hyperliquid":
 		log.Printf("🏦 [%s] 使用Hyperliquid交易", config.Name)
 		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
@@ -239,10 +239,15 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 // Run 运行自动交易主循环
 func (at *AutoTrader) Run() error {
 	at.isRunning = true
+	at.stopMonitorCh = make(chan struct{})
+	at.startTime = time.Now()
+
 	log.Println("🚀 AI驱动自动交易系统启动")
 	log.Printf("💰 初始余额: %.2f USDT", at.initialBalance)
 	log.Printf("⚙️  扫描间隔: %v", at.config.ScanInterval)
 	log.Println("🤖 AI将全权决定杠杆、仓位大小、止损止盈等参数")
+	at.monitorWg.Add(1)
+	defer at.monitorWg.Done()
 
 	// 启动回撤监控
 	at.startDrawdownMonitor()
@@ -261,6 +266,9 @@ func (at *AutoTrader) Run() error {
 			if err := at.runCycle(); err != nil {
 				log.Printf("❌ 执行失败: %v", err)
 			}
+		case <-at.stopMonitorCh:
+			log.Printf("[%s] ⏹ 收到停止信号，退出自动交易主循环", at.name)
+			return nil
 		}
 	}
 
@@ -460,6 +468,13 @@ func (at *AutoTrader) runCycle() error {
 	// 5. 调用AI获取完整决策
 	log.Printf("🤖 正在请求AI分析并决策... [模板: %s]", at.systemPromptTemplate)
 	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate)
+
+	if decision != nil && decision.AIRequestDurationMs > 0 {
+		record.AIRequestDurationMs = decision.AIRequestDurationMs
+		log.Printf("⏱️ AI调用耗时: %.2f 秒", float64(record.AIRequestDurationMs)/1000)
+		record.ExecutionLog = append(record.ExecutionLog,
+			fmt.Sprintf("AI调用耗时: %d ms", record.AIRequestDurationMs))
+	}
 
 	// 即使有错误，也保存思维链、决策和输入prompt（用于debug）
 	if decision != nil {

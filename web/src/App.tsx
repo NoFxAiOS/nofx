@@ -245,6 +245,10 @@ function App() {
   const registrationEnabled = systemConfig?.registration_enabled !== false
 
   if (route === '/register') {
+    if (systemConfig?.admin_mode) {
+      window.history.pushState({}, '', '/login')
+      return <LoginPage />
+    }
     if (!registrationEnabled) {
       return <RegistrationDisabled />
     }
@@ -269,6 +273,7 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
+          isAdminMode={systemConfig?.admin_mode}
           onPageChange={(page) => {
             console.log('Competition page onPageChange called with:', page)
             console.log('Current route:', route, 'Current page:', currentPage)
@@ -311,11 +316,16 @@ function App() {
 
   // Show landing page for root route
   if (route === '/' || route === '') {
-    return <LandingPage />
+    return <LandingPage isAdminMode={systemConfig?.admin_mode} />
   }
 
-  // Show main app for authenticated users on other routes
-  if (!user || !token) {
+  // In admin mode, require authentication for any protected routes
+  if (systemConfig?.admin_mode && (!user || !token)) {
+    return <LoginPage />
+  }
+
+  // Show main app for authenticated users on other routes (non-admin mode)
+  if (!systemConfig?.admin_mode && (!user || !token)) {
     // Default to landing page when not authenticated and no specific route
     return <LandingPage />
   }
@@ -332,6 +342,7 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
+        isAdminMode={systemConfig?.admin_mode}
         onPageChange={(page) => {
           console.log('Main app onPageChange called with:', page)
 

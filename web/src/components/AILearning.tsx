@@ -1,6 +1,7 @@
 import useSWR from 'swr'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { stripLeadingIcons } from '../lib/text'
 import { api } from '../lib/api'
 import {
   Brain,
@@ -78,7 +79,9 @@ export default function AILearning({ traderId }: AILearningProps) {
         className="rounded p-6"
         style={{ background: '#1E2329', border: '1px solid #2B3139' }}
       >
-        <div style={{ color: '#F6465D' }}>{t('loadingError', language)}</div>
+        <div style={{ color: '#F6465D' }}>
+          {stripLeadingIcons(t('loadingError', language))}
+        </div>
       </div>
     )
   }
@@ -695,7 +698,7 @@ export default function AILearning({ traderId }: AILearningProps) {
                 style={{ color: '#E0E7FF' }}
               >
                 <BarChart3 className="w-5 h-5" />{' '}
-                {t('symbolPerformance', language)}
+                {stripLeadingIcons(t('symbolPerformance', language))}
               </h3>
             </div>
             <div
@@ -1084,7 +1087,7 @@ export default function AILearning({ traderId }: AILearningProps) {
               className="font-bold mb-3 text-base"
               style={{ color: '#FCD34D' }}
             >
-              {t('howAILearns', language)}
+              {stripLeadingIcons(t('howAILearns', language))}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
               <div className="flex items-start gap-2">

@@ -2,12 +2,25 @@ import { useState } from 'react'
 import { CorrelationHeatmap } from '../components/CorrelationHeatmap'
 import { DrawdownChart } from '../components/DrawdownChart'
 import { MonteCarloSimulation } from '../components/MonteCarloSimulation'
+import { PerformanceAttribution } from '../components/PerformanceAttribution'
 import { OrderBookDepth } from '../components/OrderBookDepth'
-import { BarChart3, TrendingDown, Dices, BookOpen, ArrowLeft } from 'lucide-react'
+import {
+  BarChart3,
+  TrendingDown,
+  Dices,
+  BookOpen,
+  ArrowLeft,
+  PieChart,
+} from 'lucide-react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 
-type AnalyticsTab = 'correlation' | 'drawdown' | 'montecarlo' | 'orderbook'
+type AnalyticsTab =
+  | 'correlation'
+  | 'drawdown'
+  | 'montecarlo'
+  | 'attribution'
+  | 'orderbook'
 
 export function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('drawdown')
@@ -26,6 +39,12 @@ export function AnalyticsPage() {
       label: 'Drawdown Analysis',
       icon: TrendingDown,
       color: '#F6465D',
+    },
+    {
+      id: 'attribution' as AnalyticsTab,
+      label: 'Performance Attribution',
+      icon: PieChart,
+      color: '#8B5CF6',
     },
     {
       id: 'correlation' as AnalyticsTab,
@@ -191,6 +210,46 @@ export function AnalyticsPage() {
         {/* Drawdown Analysis */}
         {activeTab === 'drawdown' && selectedTrader && (
           <DrawdownChart traderId={selectedTrader} />
+        )}
+
+        {/* Performance Attribution */}
+        {activeTab === 'attribution' && selectedTrader && (
+          <div className="space-y-6">
+            <PerformanceAttribution traderId={selectedTrader} lookbackDays={30} />
+
+            {/* Info Card */}
+            <div
+              className="binance-card p-4"
+              style={{
+                background: 'rgba(139, 92, 246, 0.05)',
+                border: '1px solid rgba(139, 92, 246, 0.1)',
+              }}
+            >
+              <h4 className="text-sm font-bold mb-2" style={{ color: '#8B5CF6' }}>
+                💡 Understanding Performance Attribution
+              </h4>
+              <ul className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                <li>
+                  • Analyzes which symbols, timeframes, and strategies contribute to your P&L
+                </li>
+                <li>
+                  • <strong>By Symbol</strong>: See which coins are your most profitable
+                </li>
+                <li>
+                  • <strong>Long vs Short</strong>: Compare performance of long and short positions
+                </li>
+                <li>
+                  • <strong>By Timeframe</strong>: Identify which holding periods work best
+                </li>
+                <li>
+                  • Win Rate shows percentage of profitable trades for each category
+                </li>
+                <li>
+                  • Contribution % shows how much each factor contributes to total P&L
+                </li>
+              </ul>
+            </div>
+          </div>
         )}
 
         {/* Correlation Matrix */}

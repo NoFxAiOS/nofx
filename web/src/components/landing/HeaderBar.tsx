@@ -214,6 +214,43 @@ export default function HeaderBar({
                     {t('dashboardNav', language)}
                   </button>
 
+                  <a
+                    href="/analytics"
+                    className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                    style={{
+                      color:
+                        window.location.pathname === '/analytics'
+                          ? 'var(--brand-yellow)'
+                          : 'var(--brand-light-gray)',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (window.location.pathname !== '/analytics') {
+                        e.currentTarget.style.color = 'var(--brand-yellow)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (window.location.pathname !== '/analytics') {
+                        e.currentTarget.style.color = 'var(--brand-light-gray)'
+                      }
+                    }}
+                  >
+                    {/* Background for selected state */}
+                    {window.location.pathname === '/analytics' && (
+                      <span
+                        className="absolute inset-0 rounded-lg"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.15)',
+                          zIndex: -1,
+                        }}
+                      />
+                    )}
+
+                    📊 Analytics
+                  </a>
+
                   <button
                     onClick={() => {
                       console.log(
@@ -730,6 +767,35 @@ export default function HeaderBar({
 
                 {t('dashboardNav', language)}
               </button>
+              <a
+                href="/analytics"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
+                style={{
+                  color:
+                    window.location.pathname === '/analytics'
+                      ? 'var(--brand-yellow)'
+                      : 'var(--brand-light-gray)',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  position: 'relative',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+              >
+                {/* Background for selected state */}
+                {window.location.pathname === '/analytics' && (
+                  <span
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.15)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+
+                📊 Analytics
+              </a>
               <button
                 onClick={() => {
                   console.log(

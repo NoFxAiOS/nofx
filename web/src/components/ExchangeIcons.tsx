@@ -125,6 +125,54 @@ const AsterIcon: React.FC<IconProps> = ({
   </svg>
 )
 
+// OKX SVG 图标组件
+const OKXIcon: React.FC<IconProps> = ({
+  width = 24,
+  height = 24,
+  className,
+}) => (
+  <svg
+    width={width}
+    height={height}
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <rect width="32" height="32" rx="6" fill="black" />
+    <path
+      d="M12 8H8v4h4V8zm6 0h-4v4h4V8zm6 0h-4v4h4V8zM12 14H8v4h4v-4zm6 0h-4v4h4v-4zm6 0h-4v4h4v-4zM12 20H8v4h4v-4zm6 0h-4v4h4v-4zm6 0h-4v4h4v-4z"
+      fill="white"
+    />
+  </svg>
+)
+
+// Bybit SVG 图标组件
+const BybitIcon: React.FC<IconProps> = ({
+  width = 24,
+  height = 24,
+  className,
+}) => (
+  <svg
+    width={width}
+    height={height}
+    viewBox="0 0 32 32"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <rect width="32" height="32" rx="6" fill="#F7A600" />
+    <path
+      d="M16 6L8 11v10l8 5 8-5V11l-8-5zm0 3.2l5.6 3.5v7L16 23.2l-5.6-3.5v-7L16 9.2z"
+      fill="white"
+    />
+    <path
+      d="M16 12l-3 1.875v4.25L16 20l3-1.875v-4.25L16 12z"
+      fill="#F7A600"
+    />
+  </svg>
+)
+
 // 获取交易所图标的函数
 export const getExchangeIcon = (
   exchangeType: string,
@@ -137,7 +185,11 @@ export const getExchangeIcon = (
       ? 'hyperliquid'
       : exchangeType.toLowerCase().includes('aster')
         ? 'aster'
-        : exchangeType.toLowerCase()
+        : exchangeType.toLowerCase().includes('okx')
+          ? 'okx'
+          : exchangeType.toLowerCase().includes('bybit')
+            ? 'bybit'
+            : exchangeType.toLowerCase()
 
   const iconProps = {
     width: props.width || 24,
@@ -154,6 +206,10 @@ export const getExchangeIcon = (
       return <HyperliquidIcon {...iconProps} />
     case 'aster':
       return <AsterIcon {...iconProps} />
+    case 'okx':
+      return <OKXIcon {...iconProps} />
+    case 'bybit':
+      return <BybitIcon {...iconProps} />
     default:
       return (
         <div

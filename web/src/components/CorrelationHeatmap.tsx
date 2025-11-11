@@ -2,7 +2,6 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
-import { useLanguage } from '../contexts/LanguageContext'
 
 interface CorrelationMatrix {
   assets: string[]

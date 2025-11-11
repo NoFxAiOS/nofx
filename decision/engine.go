@@ -70,6 +70,32 @@ type OITopData struct {
 	NetShort          float64 // 净空仓
 }
 
+// AnalyticsSummary AI决策用的简化分析数据
+type AnalyticsSummary struct {
+	// Drawdown 风险指标
+	MaxDrawdown     float64 `json:"max_drawdown"`      // 历史最大回撤%
+	CurrentDrawdown float64 `json:"current_drawdown"`  // 当前回撤%
+	RecoveryRate    float64 `json:"recovery_rate"`     // 回撤恢复率%
+
+	// Performance Attribution 表现归因
+	BestAsset       string  `json:"best_asset"`        // 最佳资产
+	BestAssetPnL    float64 `json:"best_asset_pnl"`    // 最佳资产盈亏
+	BestAssetWinRate float64 `json:"best_asset_win_rate"` // 最佳资产胜率
+	WorstAsset      string  `json:"worst_asset"`       // 最差资产
+	WorstAssetPnL   float64 `json:"worst_asset_pnl"`   // 最差资产盈亏
+	WorstAssetWinRate float64 `json:"worst_asset_win_rate"` // 最差资产胜率
+	LongWinRate     float64 `json:"long_win_rate"`     // 做多胜率%
+	ShortWinRate    float64 `json:"short_win_rate"`    // 做空胜率%
+
+	// Timeframe Attribution 时段归因
+	BestPeriod      string  `json:"best_period"`       // 最佳交易时段
+	BestPeriodPnL   float64 `json:"best_period_pnl"`   // 最佳时段盈亏
+	WorstPeriod     string  `json:"worst_period"`      // 最差交易时段
+	WorstPeriodPnL  float64 `json:"worst_period_pnl"`  // 最差时段盈亏
+
+	TotalTrades     int     `json:"total_trades"`      // 总交易数
+}
+
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
 	CurrentTime     string                  `json:"current_time"`
@@ -81,6 +107,7 @@ type Context struct {
 	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
 	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
 	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	Analytics       *AnalyticsSummary       `json:"-"` // 分析数据（drawdown, attribution等）
 	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }
@@ -448,6 +475,79 @@ func buildUserPrompt(ctx *Context) string {
 				sb.WriteString(fmt.Sprintf("## 📊 夏普比率: %.2f\n\n", perfData.SharpeRatio))
 			}
 		}
+	}
+
+	// 分析数据摘要（风险指标、表现归因、时段分析）
+	if ctx.Analytics != nil {
+		sb.WriteString("## 📈 历史表现分析\n\n")
+
+		// 风险指标
+		sb.WriteString("### 风险指标\n")
+		sb.WriteString(fmt.Sprintf("- 历史最大回撤: %.2f%%\n", ctx.Analytics.MaxDrawdown))
+		sb.WriteString(fmt.Sprintf("- 当前回撤: %.2f%%", ctx.Analytics.CurrentDrawdown))
+		if ctx.Analytics.CurrentDrawdown > ctx.Analytics.MaxDrawdown * 0.7 {
+			sb.WriteString(" ⚠️ **警告：接近历史最大回撤**")
+		}
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("- 回撤恢复率: %.1f%%\n\n", ctx.Analytics.RecoveryRate))
+
+		// 资产表现
+		if ctx.Analytics.BestAsset != "" || ctx.Analytics.WorstAsset != "" {
+			sb.WriteString("### 资产表现（最近交易）\n")
+			if ctx.Analytics.BestAsset != "" {
+				sb.WriteString(fmt.Sprintf("- 最佳资产: %s (盈亏%+.2f USDT | 胜率%.1f%%)\n",
+					ctx.Analytics.BestAsset, ctx.Analytics.BestAssetPnL, ctx.Analytics.BestAssetWinRate))
+			}
+			if ctx.Analytics.WorstAsset != "" {
+				sb.WriteString(fmt.Sprintf("- 最差资产: %s (盈亏%+.2f USDT | 胜率%.1f%%)",
+					ctx.Analytics.WorstAsset, ctx.Analytics.WorstAssetPnL, ctx.Analytics.WorstAssetWinRate))
+				if ctx.Analytics.WorstAssetWinRate < 40 {
+					sb.WriteString(" ⚠️ **建议：避免交易此币种**")
+				}
+				sb.WriteString("\n")
+			}
+			sb.WriteString("\n")
+		}
+
+		// 策略表现
+		if ctx.Analytics.LongWinRate > 0 || ctx.Analytics.ShortWinRate > 0 {
+			sb.WriteString("### 策略表现\n")
+			if ctx.Analytics.LongWinRate > 0 {
+				sb.WriteString(fmt.Sprintf("- 做多胜率: %.1f%%", ctx.Analytics.LongWinRate))
+				if ctx.Analytics.LongWinRate < 40 {
+					sb.WriteString(" ⚠️")
+				} else if ctx.Analytics.LongWinRate > 60 {
+					sb.WriteString(" ✅")
+				}
+				sb.WriteString("\n")
+			}
+			if ctx.Analytics.ShortWinRate > 0 {
+				sb.WriteString(fmt.Sprintf("- 做空胜率: %.1f%%", ctx.Analytics.ShortWinRate))
+				if ctx.Analytics.ShortWinRate < 40 {
+					sb.WriteString(" ⚠️")
+				} else if ctx.Analytics.ShortWinRate > 60 {
+					sb.WriteString(" ✅")
+				}
+				sb.WriteString("\n")
+			}
+			sb.WriteString("\n")
+		}
+
+		// 时段表现
+		if ctx.Analytics.BestPeriod != "" || ctx.Analytics.WorstPeriod != "" {
+			sb.WriteString("### 交易时段分析\n")
+			if ctx.Analytics.BestPeriod != "" {
+				sb.WriteString(fmt.Sprintf("- 最佳时段: %s (盈亏%+.2f USDT)\n",
+					ctx.Analytics.BestPeriod, ctx.Analytics.BestPeriodPnL))
+			}
+			if ctx.Analytics.WorstPeriod != "" {
+				sb.WriteString(fmt.Sprintf("- 最差时段: %s (盈亏%+.2f USDT)\n",
+					ctx.Analytics.WorstPeriod, ctx.Analytics.WorstPeriodPnL))
+			}
+			sb.WriteString("\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("总交易数: %d\n\n", ctx.Analytics.TotalTrades))
 	}
 
 	sb.WriteString("---\n\n")

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"nofx/analytics"
 	"nofx/decision"
 	"nofx/logger"
 	"nofx/market"
@@ -721,7 +722,10 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		performance = nil
 	}
 
-	// 6. 构建上下文
+	// 6. 计算分析数据摘要（用于AI决策优化）
+	analyticsSummary := at.calculateAnalyticsSummary()
+
+	// 7. 构建上下文
 	ctx := &decision.Context{
 		CurrentTime:     time.Now().Format("2006-01-02 15:04:05"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
@@ -739,10 +743,192 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		},
 		Positions:      positionInfos,
 		CandidateCoins: candidateCoins,
-		Performance:    performance, // 添加历史表现分析
+		Performance:    performance,      // 添加历史表现分析
+		Analytics:      analyticsSummary, // 添加分析数据摘要
 	}
 
 	return ctx, nil
+}
+
+// calculateAnalyticsSummary 计算分析数据摘要（用于AI决策）
+func (at *AutoTrader) calculateAnalyticsSummary() *decision.AnalyticsSummary {
+	// 获取最近1000条决策记录
+	records, err := at.decisionLogger.GetLatestRecords(1000)
+	if err != nil || len(records) < 10 {
+		// 数据不足，返回nil
+		return nil
+	}
+
+	// 提取equity points和trades
+	equityPoints := extractEquityPoints(records)
+	trades := extractTradesFromRecords(records)
+
+	if len(equityPoints) < 2 || len(trades) < 3 {
+		// 数据不足以进行有意义的分析
+		return nil
+	}
+
+	summary := &decision.AnalyticsSummary{
+		TotalTrades: len(trades),
+	}
+
+	// 计算Drawdown分析
+	if drawdown, err := analytics.CalculateDrawdown(equityPoints); err == nil {
+		summary.MaxDrawdown = drawdown.MaxDrawdown
+		summary.CurrentDrawdown = drawdown.CurrentDrawdown
+		if drawdown.RecoveryStats != nil {
+			summary.RecoveryRate = drawdown.RecoveryStats.RecoveryRate
+		}
+	}
+
+	// 计算Performance Attribution
+	if attribution, err := analytics.CalculatePerformanceAttribution(trades); err == nil {
+		// 最佳/最差资产
+		if len(attribution.TopContributors) > 0 {
+			best := attribution.TopContributors[0]
+			summary.BestAsset = best.Symbol
+			summary.BestAssetPnL = best.TotalPnL
+			summary.BestAssetWinRate = best.WinRate * 100 // 转换为百分比
+		}
+		if len(attribution.WorstPerformers) > 0 {
+			worst := attribution.WorstPerformers[0]
+			summary.WorstAsset = worst.Symbol
+			summary.WorstAssetPnL = worst.TotalPnL
+			summary.WorstAssetWinRate = worst.WinRate * 100
+		}
+
+		// 做多/做空胜率
+		for _, strat := range attribution.ByStrategy {
+			if strat.StrategyType == "Long" {
+				summary.LongWinRate = strat.WinRate * 100
+			} else if strat.StrategyType == "Short" {
+				summary.ShortWinRate = strat.WinRate * 100
+			}
+		}
+
+		// 最佳/最差时段
+		if len(attribution.ByTimeframe) > 0 {
+			var bestTF, worstTF *analytics.TimeframeAttribution
+			for i := range attribution.ByTimeframe {
+				tf := &attribution.ByTimeframe[i]
+				if bestTF == nil || tf.TotalPnL > bestTF.TotalPnL {
+					bestTF = tf
+				}
+				if worstTF == nil || tf.TotalPnL < worstTF.TotalPnL {
+					worstTF = tf
+				}
+			}
+			if bestTF != nil {
+				summary.BestPeriod = bestTF.Period
+				summary.BestPeriodPnL = bestTF.TotalPnL
+			}
+			if worstTF != nil {
+				summary.WorstPeriod = worstTF.Period
+				summary.WorstPeriodPnL = worstTF.TotalPnL
+			}
+		}
+	}
+
+	return summary
+}
+
+// extractEquityPoints 从决策记录中提取净值点
+func extractEquityPoints(records []*logger.DecisionRecord) []analytics.EquityPoint {
+	points := []analytics.EquityPoint{}
+	for _, record := range records {
+		if record.Account != nil && record.Account.TotalEquity > 0 {
+			points = append(points, analytics.EquityPoint{
+				Timestamp:   record.Timestamp,
+				Equity:      record.Account.TotalEquity,
+				CycleNumber: record.CallCount,
+			})
+		}
+	}
+	return points
+}
+
+// extractTradesFromRecords 从决策记录中提取交易（配对开仓/平仓）
+func extractTradesFromRecords(records []*logger.DecisionRecord) []analytics.TradeRecord {
+	trades := []analytics.TradeRecord{}
+
+	// 使用map跟踪每个symbol的开仓位置
+	// key: symbol_side (e.g., "BTCUSDT_long")
+	openPositions := make(map[string]struct {
+		entryTime  time.Time
+		entryPrice float64
+		side       string
+		symbol     string
+	})
+
+	for _, record := range records {
+		for _, decision := range record.Decisions {
+			posKey := decision.Symbol + "_" + getPositionSide(decision.Action)
+
+			switch decision.Action {
+			case "open_long", "open_short":
+				// 开仓 - 记录入场信息
+				side := "Long"
+				if decision.Action == "open_short" {
+					side = "Short"
+				}
+				openPositions[posKey] = struct {
+					entryTime  time.Time
+					entryPrice float64
+					side       string
+					symbol     string
+				}{
+					entryTime:  decision.Timestamp,
+					entryPrice: decision.EntryPrice,
+					side:       side,
+					symbol:     decision.Symbol,
+				}
+
+			case "close_long", "close_short":
+				// 平仓 - 查找对应的开仓记录
+				if openPos, exists := openPositions[posKey]; exists {
+					// 计算PnL
+					var pnl, pnlPercent float64
+					if openPos.side == "Long" {
+						pnl = decision.ExitPrice - openPos.entryPrice
+						pnlPercent = (pnl / openPos.entryPrice) * 100
+					} else {
+						pnl = openPos.entryPrice - decision.ExitPrice
+						pnlPercent = (pnl / openPos.entryPrice) * 100
+					}
+
+					// 乘以数量得到实际盈亏
+					if decision.Quantity > 0 {
+						pnl = pnl * decision.Quantity
+					}
+
+					trade := analytics.TradeRecord{
+						Symbol:     decision.Symbol,
+						EntryTime:  openPos.entryTime,
+						ExitTime:   decision.Timestamp,
+						Side:       openPos.side,
+						EntryPrice: openPos.entryPrice,
+						ExitPrice:  decision.ExitPrice,
+						PnL:        pnl,
+						PnLPercent: pnlPercent,
+					}
+					trades = append(trades, trade)
+
+					// 移除已平仓的记录
+					delete(openPositions, posKey)
+				}
+			}
+		}
+	}
+
+	return trades
+}
+
+// getPositionSide 从action获取持仓方向（用于key生成）
+func getPositionSide(action string) string {
+	if action == "open_long" || action == "close_long" {
+		return "long"
+	}
+	return "short"
 }
 
 // executeDecisionWithRecord 执行AI决策并记录详细信息

@@ -244,6 +244,7 @@ export function RegisterPage() {
                       'match',
                     ]}
                     minLength={8}
+                    specialCharsRegex={/[@#$%!&*?]/}
                     value={password}
                     valueAgain={confirmPassword}
                     messages={{

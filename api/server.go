@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -24,6 +25,7 @@ import (
 // Server HTTP API服务器
 type Server struct {
 	router        *gin.Engine
+	httpServer    *http.Server
 	traderManager *manager.TraderManager
 	database      *config.Database
 	cryptoHandler *CryptoHandler
@@ -624,9 +626,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 立即将新交易员加载到TraderManager中
-	err = s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.LoadTraderByID(s.database, userID, traderID)
 	if err != nil {
-		log.Printf("⚠️ 加载用户交易员到内存失败: %v", err)
+		log.Printf("⚠️ 加载交易员到内存失败: %v", err)
 		// 这里不返回错误，因为交易员已经成功创建到数据库
 	}
 
@@ -642,17 +644,18 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest 更新交易员请求
 type UpdateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	BTCETHLeverage      int     `json:"btc_eth_leverage"`
-	AltcoinLeverage     int     `json:"altcoin_leverage"`
-	TradingSymbols      string  `json:"trading_symbols"`
-	CustomPrompt        string  `json:"custom_prompt"`
-	OverrideBasePrompt  bool    `json:"override_base_prompt"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`
+	Name                 string  `json:"name" binding:"required"`
+	AIModelID            string  `json:"ai_model_id" binding:"required"`
+	ExchangeID           string  `json:"exchange_id" binding:"required"`
+	InitialBalance       float64 `json:"initial_balance"`
+	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
+	BTCETHLeverage       int     `json:"btc_eth_leverage"`
+	AltcoinLeverage      int     `json:"altcoin_leverage"`
+	TradingSymbols       string  `json:"trading_symbols"`
+	CustomPrompt         string  `json:"custom_prompt"`
+	OverrideBasePrompt   bool    `json:"override_base_prompt"`
+	SystemPromptTemplate string  `json:"system_prompt_template"`
+	IsCrossMargin        *bool   `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -710,6 +713,12 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3
 	}
 
+	// 设置提示词模板，允许更新
+	systemPromptTemplate := req.SystemPromptTemplate
+	if systemPromptTemplate == "" {
+		systemPromptTemplate = existingTrader.SystemPromptTemplate // 如果请求中没有提供，保持原值
+	}
+
 	// 更新交易员配置
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -723,7 +732,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		TradingSymbols:       req.TradingSymbols,
 		CustomPrompt:         req.CustomPrompt,
 		OverrideBasePrompt:   req.OverrideBasePrompt,
-		SystemPromptTemplate: existingTrader.SystemPromptTemplate, // 保持原值
+		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // 保持原值
@@ -737,9 +746,9 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	}
 
 	// 重新加载交易员到内存
-	err = s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.LoadTraderByID(s.database, userID, traderID)
 	if err != nil {
-		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
+		log.Printf("⚠️ 重新加载交易员到内存失败: %v", err)
 	}
 
 	log.Printf("✓ 更新交易员成功: %s (模型: %s, 交易所: %s)", req.Name, req.AIModelID, req.ExchangeID)
@@ -958,7 +967,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		actualBalance = totalBalance
 	} else {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-		return
+				return
 	}
 
 	oldBalance := traderConfig.InitialBalance
@@ -982,9 +991,9 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	}
 
 	// 重新加载交易员到内存
-	err = s.traderManager.LoadUserTraders(s.database, userID)
+	err = s.traderManager.LoadTraderByID(s.database, userID, traderID)
 	if err != nil {
-		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
+		log.Printf("⚠️ 重新加载交易员到内存失败: %v", err)
 	}
 
 	log.Printf("✅ 已同步余额: %.2f → %.2f USDT (%s %.2f%%)", oldBalance, actualBalance, changeType, changePercent)
@@ -1296,21 +1305,22 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 	aiModelID := traderConfig.AIModelID
 
 	result := map[string]interface{}{
-		"trader_id":             traderConfig.ID,
-		"trader_name":           traderConfig.Name,
-		"ai_model":              aiModelID,
-		"exchange_id":           traderConfig.ExchangeID,
-		"initial_balance":       traderConfig.InitialBalance,
-		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
-		"btc_eth_leverage":      traderConfig.BTCETHLeverage,
-		"altcoin_leverage":      traderConfig.AltcoinLeverage,
-		"trading_symbols":       traderConfig.TradingSymbols,
-		"custom_prompt":         traderConfig.CustomPrompt,
-		"override_base_prompt":  traderConfig.OverrideBasePrompt,
-		"is_cross_margin":       traderConfig.IsCrossMargin,
-		"use_coin_pool":         traderConfig.UseCoinPool,
-		"use_oi_top":            traderConfig.UseOITop,
-		"is_running":            isRunning,
+		"trader_id":              traderConfig.ID,
+		"trader_name":            traderConfig.Name,
+		"ai_model":               aiModelID,
+		"exchange_id":            traderConfig.ExchangeID,
+		"initial_balance":        traderConfig.InitialBalance,
+		"scan_interval_minutes":  traderConfig.ScanIntervalMinutes,
+		"btc_eth_leverage":       traderConfig.BTCETHLeverage,
+		"altcoin_leverage":       traderConfig.AltcoinLeverage,
+		"trading_symbols":        traderConfig.TradingSymbols,
+		"custom_prompt":          traderConfig.CustomPrompt,
+		"override_base_prompt":   traderConfig.OverrideBasePrompt,
+		"system_prompt_template": traderConfig.SystemPromptTemplate,
+		"is_cross_margin":        traderConfig.IsCrossMargin,
+		"use_coin_pool":          traderConfig.UseCoinPool,
+		"use_oi_top":             traderConfig.UseOITop,
+		"is_running":             isRunning,
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -2032,7 +2042,26 @@ func (s *Server) Start() error {
 	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
 	log.Println()
 
-	return s.router.Run(addr)
+	// 创建 http.Server 以支持 graceful shutdown
+	s.httpServer = &http.Server{
+		Addr:    addr,
+		Handler: s.router,
+	}
+
+	return s.httpServer.ListenAndServe()
+}
+
+// Shutdown 优雅关闭 API 服务器
+func (s *Server) Shutdown() error {
+	if s.httpServer == nil {
+		return nil
+	}
+
+	// 设置 5 秒超时
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	return s.httpServer.Shutdown(ctx)
 }
 
 // handleGetPromptTemplates 获取所有系统提示词模板列表

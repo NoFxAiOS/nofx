@@ -54,7 +54,7 @@ type DatabaseInterface interface {
 
 // Database 配置数据库
 type Database struct {
-	db           *sql.DB
+	db            *sql.DB
 	cryptoService *crypto.CryptoService
 }
 
@@ -63,6 +63,24 @@ func NewDatabase(dbPath string) (*Database, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
+	}
+
+	// 🔒 启用 WAL 模式,提高并发性能和崩溃恢复能力
+	// WAL (Write-Ahead Logging) 模式的优势:
+	// 1. 更好的并发性能:读操作不会被写操作阻塞
+	// 2. 崩溃安全:即使在断电或强制终止时也能保证数据完整性
+	// 3. 更快的写入:不需要每次都写入主数据库文件
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("启用WAL模式失败: %w", err)
+	}
+
+	// 🔒 设置 synchronous=FULL 确保数据持久性
+	// FULL (2) 模式: 确保数据在关键时刻完全写入磁盘
+	// 配合 WAL 模式,在保证数据安全的同时获得良好性能
+	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("设置synchronous失败: %w", err)
 	}
 
 	database := &Database{db: db}
@@ -74,6 +92,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}
 
+	log.Printf("✅ 数据库已启用 WAL 模式和 FULL 同步,数据持久性得到保证")
 	return database, nil
 }
 
@@ -741,12 +760,12 @@ func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// 解密敏感字段
 		exchange.APIKey = d.decryptSensitiveData(exchange.APIKey)
 		exchange.SecretKey = d.decryptSensitiveData(exchange.SecretKey)
 		exchange.AsterPrivateKey = d.decryptSensitiveData(exchange.AsterPrivateKey)
-		
+
 		exchanges = append(exchanges, &exchange)
 	}
 
@@ -870,7 +889,7 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 	encryptedAPIKey := d.encryptSensitiveData(apiKey)
 	encryptedSecretKey := d.encryptSensitiveData(secretKey)
 	encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
-	
+
 	_, err := d.db.Exec(`
 		INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1223,13 +1242,13 @@ func (d *Database) encryptSensitiveData(plaintext string) string {
 	if d.cryptoService == nil || plaintext == "" {
 		return plaintext
 	}
-	
+
 	encrypted, err := d.cryptoService.EncryptForStorage(plaintext)
 	if err != nil {
 		log.Printf("⚠️ 加密失败: %v", err)
 		return plaintext // 返回明文作为降级处理
 	}
-	
+
 	return encrypted
 }
 
@@ -1238,17 +1257,17 @@ func (d *Database) decryptSensitiveData(encrypted string) string {
 	if d.cryptoService == nil || encrypted == "" {
 		return encrypted
 	}
-	
+
 	// 如果不是加密格式，直接返回
 	if !d.cryptoService.IsEncryptedStorageValue(encrypted) {
 		return encrypted
 	}
-	
+
 	decrypted, err := d.cryptoService.DecryptFromStorage(encrypted)
 	if err != nil {
 		log.Printf("⚠️ 解密失败: %v", err)
 		return encrypted // 返回加密文本作为降级处理
 	}
-	
+
 	return decrypted
 }

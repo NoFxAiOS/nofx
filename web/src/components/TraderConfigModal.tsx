@@ -153,12 +153,6 @@ export function TraderConfigModal({
     fetchPromptTemplates()
   }, [])
 
-  // 当选择的币种改变时，更新输入框
-  useEffect(() => {
-    const symbolsString = selectedCoins.join(',')
-    setFormData((prev) => ({ ...prev, trading_symbols: symbolsString }))
-  }, [selectedCoins])
-
   if (!isOpen) return null
 
   const handleInputChange = (field: keyof TraderConfigData, value: any) => {
@@ -176,11 +170,15 @@ export function TraderConfigModal({
 
   const handleCoinToggle = (coin: string) => {
     setSelectedCoins((prev) => {
-      if (prev.includes(coin)) {
-        return prev.filter((c) => c !== coin)
-      } else {
-        return [...prev, coin]
-      }
+      const newCoins = prev.includes(coin)
+        ? prev.filter((c) => c !== coin)
+        : [...prev, coin]
+
+      // 同时更新 formData.trading_symbols
+      const symbolsString = newCoins.join(',')
+      setFormData((current) => ({ ...current, trading_symbols: symbolsString }))
+
+      return newCoins
     })
   }
 
@@ -194,7 +192,11 @@ export function TraderConfigModal({
     setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        throw new Error('未登录，请先登录')
+      }
+
       const response = await fetch(
         `/api/account?trader_id=${traderData.trader_id}`,
         {
@@ -417,6 +419,13 @@ export function TraderConfigModal({
                         Number(e.target.value)
                       )
                     }
+                    onBlur={(e) => {
+                      // Force minimum value on blur
+                      const value = Number(e.target.value)
+                      if (value < 100) {
+                        handleInputChange('initial_balance', 100)
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                     min="100"
                     step="0.01"
@@ -617,7 +626,7 @@ export function TraderConfigModal({
               {/* 系统提示词模板选择 */}
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  系统提示词模板
+                  {t('systemPromptTemplate', language)}
                 </label>
                 <select
                   value={formData.system_prompt_template}
@@ -626,17 +635,75 @@ export function TraderConfigModal({
                   }
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                 >
-                  {promptTemplates.map((template) => (
-                    <option key={template.name} value={template.name}>
-                      {template.name === 'default'
-                        ? 'Default (默认稳健)'
-                        : template.name === 'aggressive'
-                          ? 'Aggressive (激进)'
-                          : template.name.charAt(0).toUpperCase() +
-                            template.name.slice(1)}
-                    </option>
-                  ))}
+                  {promptTemplates.map((template) => {
+                    // Template name mapping with i18n
+                    const getTemplateName = (name: string) => {
+                      const keyMap: Record<string, string> = {
+                        default: 'promptTemplateDefault',
+                        adaptive: 'promptTemplateAdaptive',
+                        adaptive_relaxed: 'promptTemplateAdaptiveRelaxed',
+                        Hansen: 'promptTemplateHansen',
+                        nof1: 'promptTemplateNof1',
+                        taro_long_prompts: 'promptTemplateTaroLong',
+                      }
+                      const key = keyMap[name]
+                      return key
+                        ? t(key, language)
+                        : name.charAt(0).toUpperCase() + name.slice(1)
+                    }
+
+                    return (
+                      <option key={template.name} value={template.name}>
+                        {getTemplateName(template.name)}
+                      </option>
+                    )
+                  })}
                 </select>
+
+                {/* 動態描述區域 */}
+                <div
+                  className="mt-2 p-3 rounded"
+                  style={{
+                    background: 'rgba(240, 185, 11, 0.05)',
+                    border: '1px solid rgba(240, 185, 11, 0.15)',
+                  }}
+                >
+                  <div
+                    className="text-xs font-semibold mb-1"
+                    style={{ color: '#F0B90B' }}
+                  >
+                    {(() => {
+                      const titleKeyMap: Record<string, string> = {
+                        default: 'promptDescDefault',
+                        adaptive: 'promptDescAdaptive',
+                        adaptive_relaxed: 'promptDescAdaptiveRelaxed',
+                        Hansen: 'promptDescHansen',
+                        nof1: 'promptDescNof1',
+                        taro_long_prompts: 'promptDescTaroLong',
+                      }
+                      const key = titleKeyMap[formData.system_prompt_template]
+                      return key
+                        ? t(key, language)
+                        : t('promptDescDefault', language)
+                    })()}
+                  </div>
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {(() => {
+                      const contentKeyMap: Record<string, string> = {
+                        default: 'promptDescDefaultContent',
+                        adaptive: 'promptDescAdaptiveContent',
+                        adaptive_relaxed: 'promptDescAdaptiveRelaxedContent',
+                        Hansen: 'promptDescHansenContent',
+                        nof1: 'promptDescNof1Content',
+                        taro_long_prompts: 'promptDescTaroLongContent',
+                      }
+                      const key = contentKeyMap[formData.system_prompt_template]
+                      return key
+                        ? t(key, language)
+                        : t('promptDescDefaultContent', language)
+                    })()}
+                  </div>
+                </div>
                 <p className="text-xs text-[#848E9C] mt-1">
                   选择预设的交易策略模板（包含交易哲学、风控原则等）
                 </p>

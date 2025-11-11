@@ -22,6 +22,10 @@ services:
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据库加密密钥
       - JWT_SECRET=${JWT_SECRET}  # JWT认证密钥
+      - HTTP_PROXY=${NOFX_HTTP_PROXY:-} # HTTP代理
+      - HTTPS_PROXY=${NOFX_HTTPS_PROXY:-} # HTTPS 代理
+      - ALL_PROXY=${NOFX_ALL_PROXY:-} # HTTPS 代理
+      - NO_PROXY=${NOFX_NO_PROXY:-localhost,127.0.0.1} # 不走代理的地址
     networks:
       - nofx-network
     healthcheck:

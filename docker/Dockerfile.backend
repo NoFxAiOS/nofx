@@ -9,12 +9,26 @@
 ARG GO_VERSION=1.25-alpine
 ARG ALPINE_VERSION=latest
 ARG TA_LIB_VERSION=0.4.0
+# 可选代理 & Go 模块代理（构建时用）
+ARG NOFX_HTTP_PROXY
+ARG NOFX_HTTPS_PROXY
+ARG NOFX_ALL_PROXY
+ARG NOFX_NO_PROXY
+ARG NOFX_GO_PROXY
 
 # ──────────────────────────────────────────────────────────────
 # TA-Lib Build Stage (shared across builds)
 # ──────────────────────────────────────────────────────────────
 FROM alpine:${ALPINE_VERSION} AS ta-lib-builder
 ARG TA_LIB_VERSION
+ARG NOFX_HTTP_PROXY
+ARG NOFX_HTTPS_PROXY
+ARG NOFX_ALL_PROXY
+ARG NOFX_NO_PROXY
+ENV HTTP_PROXY=${NOFX_HTTP_PROXY} \
+    HTTPS_PROXY=${NOFX_HTTPS_PROXY} \
+    ALL_PROXY=${NOFX_ALL_PROXY} \
+    NO_PROXY=${NOFX_NO_PROXY}
 
 RUN apk update && apk add --no-cache \
     wget tar make gcc g++ musl-dev autoconf automake
@@ -37,6 +51,14 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-${TA_LIB_VERSION}-src.
 # Backend Build Stage (Go Application)
 # ──────────────────────────────────────────────────────────────
 FROM golang:${GO_VERSION} AS backend-builder
+ARG NOFX_HTTP_PROXY
+ARG NOFX_HTTPS_PROXY
+ARG NOFX_ALL_PROXY
+ARG NOFX_NO_PROXY
+ENV HTTP_PROXY=${NOFX_HTTP_PROXY} \
+    HTTPS_PROXY=${NOFX_HTTPS_PROXY} \
+    ALL_PROXY=${NOFX_ALL_PROXY} \
+    NO_PROXY=${NOFX_NO_PROXY}
 
 RUN apk update && apk add --no-cache git make gcc g++ musl-dev
 
@@ -55,6 +77,16 @@ RUN CGO_ENABLED=1 GOOS=linux \
 # Runtime Stage (Minimal Executable Environment)
 # ──────────────────────────────────────────────────────────────
 FROM alpine:${ALPINE_VERSION}
+ARG NOFX_HTTP_PROXY
+ARG NOFX_HTTPS_PROXY
+ARG NOFX_ALL_PROXY
+ARG NOFX_NO_PROXY
+ARG NOFX_GO_PROXY
+ENV HTTP_PROXY=${NOFX_HTTP_PROXY} \
+    HTTPS_PROXY=${NOFX_HTTPS_PROXY} \
+    ALL_PROXY=${NOFX_ALL_PROXY} \
+    NO_PROXY=${NOFX_NO_PROXY} \
+    GOPROXY=${NOFX_GO_PROXY}
 
 RUN apk update && apk add --no-cache ca-certificates tzdata
 

@@ -20,7 +20,11 @@ func HookExec[T any](key string, args ...any) *T {
 	if hook, exists := Hooks[key]; exists && hook != nil {
 		log.Printf("🔌 Execute hook: %s", key)
 		res := hook(args...)
-		return res.(*T)
+		// 🔒 安全的类型断言，防止 panic
+		if typedRes, ok := res.(*T); ok {
+			return typedRes
+		}
+		log.Printf("⚠️ Hook %s returned wrong type, expected *%T but got %T", key, new(T), res)
 	} else {
 		log.Printf("🔌 Do not find hook: %s", key)
 	}

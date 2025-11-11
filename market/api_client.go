@@ -115,11 +115,22 @@ func parseKline(kr KlineResponse) (Kline, error) {
 	}
 	kline.OpenTime = int64(openTime)
 
-	kline.Open, _ = strconv.ParseFloat(kr[1].(string), 64)
-	kline.High, _ = strconv.ParseFloat(kr[2].(string), 64)
-	kline.Low, _ = strconv.ParseFloat(kr[3].(string), 64)
-	kline.Close, _ = strconv.ParseFloat(kr[4].(string), 64)
-	kline.Volume, _ = strconv.ParseFloat(kr[5].(string), 64)
+	// 🔒 安全的字符串类型断言
+	if openStr, ok := kr[1].(string); ok {
+		kline.Open, _ = strconv.ParseFloat(openStr, 64)
+	}
+	if highStr, ok := kr[2].(string); ok {
+		kline.High, _ = strconv.ParseFloat(highStr, 64)
+	}
+	if lowStr, ok := kr[3].(string); ok {
+		kline.Low, _ = strconv.ParseFloat(lowStr, 64)
+	}
+	if closeStr, ok := kr[4].(string); ok {
+		kline.Close, _ = strconv.ParseFloat(closeStr, 64)
+	}
+	if volStr, ok := kr[5].(string); ok {
+		kline.Volume, _ = strconv.ParseFloat(volStr, 64)
+	}
 
 	closeTime, ok := kr[6].(float64)
 	if !ok {
@@ -127,7 +138,9 @@ func parseKline(kr KlineResponse) (Kline, error) {
 	}
 	kline.CloseTime = int64(closeTime)
 
-	kline.QuoteVolume, _ = strconv.ParseFloat(kr[7].(string), 64)
+	if quoteVolStr, ok := kr[7].(string); ok {
+		kline.QuoteVolume, _ = strconv.ParseFloat(quoteVolStr, 64)
+	}
 
 	trades, ok := kr[8].(float64)
 	if !ok {
@@ -135,8 +148,12 @@ func parseKline(kr KlineResponse) (Kline, error) {
 	}
 	kline.Trades = int(trades)
 
-	kline.TakerBuyBaseVolume, _ = strconv.ParseFloat(kr[9].(string), 64)
-	kline.TakerBuyQuoteVolume, _ = strconv.ParseFloat(kr[10].(string), 64)
+	if takerBuyBaseStr, ok := kr[9].(string); ok {
+		kline.TakerBuyBaseVolume, _ = strconv.ParseFloat(takerBuyBaseStr, 64)
+	}
+	if takerBuyQuoteStr, ok := kr[10].(string); ok {
+		kline.TakerBuyQuoteVolume, _ = strconv.ParseFloat(takerBuyQuoteStr, 64)
+	}
 
 	return kline, nil
 }

@@ -471,8 +471,11 @@ func (t *BybitFuturesTrader) CloseLong(symbol string, quantity float64) (map[str
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
-				break
+				// 🔒 安全的类型断言，防止 panic
+				if amt, ok := pos["positionAmt"].(float64); ok {
+					quantity = amt
+					break
+				}
 			}
 		}
 

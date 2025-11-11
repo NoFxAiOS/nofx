@@ -634,11 +634,27 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	currentPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// 🔒 安全的类型断言，防止 panic
+		symbol, ok := pos["symbol"].(string)
+		if !ok {
+			continue
+		}
+		side, ok := pos["side"].(string)
+		if !ok {
+			continue
+		}
+		entryPrice, ok := pos["entryPrice"].(float64)
+		if !ok {
+			continue
+		}
+		markPrice, ok := pos["markPrice"].(float64)
+		if !ok {
+			continue
+		}
+		quantity, ok := pos["positionAmt"].(float64)
+		if !ok {
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity // 空仓数量为负，转为正数
 		}
@@ -648,8 +664,14 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			continue
 		}
 
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl, ok := pos["unRealizedProfit"].(float64)
+		if !ok {
+			continue
+		}
+		liquidationPrice, ok := pos["liquidationPrice"].(float64)
+		if !ok {
+			continue
+		}
 
 		// 计算占用保证金（估算）
 		leverage := 10 // 默认值，实际应该从持仓信息获取
@@ -1514,12 +1536,22 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	totalUnrealizedPnL := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// 🔒 安全的类型断言，防止 panic
+		markPrice, ok := pos["markPrice"].(float64)
+		if !ok {
+			continue
+		}
+		quantity, ok := pos["positionAmt"].(float64)
+		if !ok {
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
+		unrealizedPnl, ok := pos["unRealizedProfit"].(float64)
+		if !ok {
+			continue
+		}
 		totalUnrealizedPnL += unrealizedPnl
 
 		leverage := 10
@@ -1576,16 +1608,38 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// 🔒 安全的类型断言，防止 panic
+		symbol, ok := pos["symbol"].(string)
+		if !ok {
+			continue
+		}
+		side, ok := pos["side"].(string)
+		if !ok {
+			continue
+		}
+		entryPrice, ok := pos["entryPrice"].(float64)
+		if !ok {
+			continue
+		}
+		markPrice, ok := pos["markPrice"].(float64)
+		if !ok {
+			continue
+		}
+		quantity, ok := pos["positionAmt"].(float64)
+		if !ok {
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl, ok := pos["unRealizedProfit"].(float64)
+		if !ok {
+			continue
+		}
+		liquidationPrice, ok := pos["liquidationPrice"].(float64)
+		if !ok {
+			continue
+		}
 
 		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {
@@ -1767,11 +1821,27 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	}
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// 🔒 安全的类型断言，防止 panic
+		symbol, ok := pos["symbol"].(string)
+		if !ok {
+			continue
+		}
+		side, ok := pos["side"].(string)
+		if !ok {
+			continue
+		}
+		entryPrice, ok := pos["entryPrice"].(float64)
+		if !ok {
+			continue
+		}
+		markPrice, ok := pos["markPrice"].(float64)
+		if !ok {
+			continue
+		}
+		quantity, ok := pos["positionAmt"].(float64)
+		if !ok {
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity // 空仓数量为负，转为正数
 		}

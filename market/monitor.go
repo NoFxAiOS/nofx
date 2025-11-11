@@ -210,7 +210,15 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 	value, exists := klineDataMap.Load(symbol)
 	var klines []Kline
 	if exists {
-		klines = value.([]Kline)
+		// 🔒 安全的类型断言，防止 panic
+		var ok bool
+		klines, ok = value.([]Kline)
+		if !ok {
+			log.Printf("⚠️ Invalid kline data type for symbol %s, resetting", symbol)
+			klines = []Kline{kline}
+			klineDataMap.Store(symbol, klines)
+			return
+		}
 
 		// 检查是否是新的K线
 		if len(klines) > 0 && klines[len(klines)-1].OpenTime == kline.OpenTime {
@@ -261,7 +269,11 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, erro
 	}
 
 	// ✅ FIX: 返回深拷贝而非引用，避免并发竞态条件
-	klines := value.([]Kline)
+	// 🔒 安全的类型断言，防止 panic
+	klines, ok := value.([]Kline)
+	if !ok {
+		return nil, fmt.Errorf("invalid kline data type for symbol %s", symbol)
+	}
 	result := make([]Kline, len(klines))
 	copy(result, klines)
 	return result, nil

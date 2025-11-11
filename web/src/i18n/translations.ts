@@ -778,7 +778,7 @@ export const translations = {
       button: 'Check Secure Environment',
       checking: 'Checking...',
       description:
-        'Click to verify whether this browser context allows Web Crypto before entering sensitive keys.',
+        'Automatically verifying whether this browser context allows Web Crypto before entering sensitive keys.',
       secureTitle: 'Secure context detected',
       secureDesc:
         'Web Crypto API is available. You can continue entering secrets with encryption enabled.',
@@ -1559,8 +1559,7 @@ export const translations = {
     environmentCheck: {
       button: '一键检测环境',
       checking: '正在检测...',
-      description:
-        '输入 API Key/私钥前点击检测，确认浏览器允许使用 Web Crypto。',
+      description: '系统将自动检测当前浏览器是否允许使用 Web Crypto。',
       secureTitle: '环境安全，已启用 Web Crypto',
       secureDesc: '页面处于安全上下文，可继续输入敏感信息并使用加密传输。',
       insecureTitle: '检测到非安全环境',

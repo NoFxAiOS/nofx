@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Loader2, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { diagnoseWebCryptoEnvironment } from '../lib/crypto'
 import { t, type Language } from '../i18n/translations'
@@ -28,7 +28,7 @@ export function WebCryptoEnvironmentCheck({
     onStatusChange?.(status)
   }, [onStatusChange, status])
 
-  const runCheck = () => {
+  const runCheck = useCallback(() => {
     setStatus('checking')
     setSummary(null)
 
@@ -53,21 +53,19 @@ export function WebCryptoEnvironmentCheck({
 
       setStatus('secure')
     }, 0)
-  }
+  }, [language, t])
+
+  useEffect(() => {
+    runCheck()
+  }, [runCheck])
 
   const isCompact = variant === 'compact'
   const containerClass = isCompact
     ? 'p-3 rounded border border-gray-700 bg-gray-900 space-y-3'
     : 'p-4 rounded border border-[#2B3139] bg-[#0B0E11] space-y-4'
 
-  const buttonStyles = {
-    background: '#F0B90B',
-    color: '#000',
-  }
-
   const descriptionColor = isCompact ? '#CBD5F5' : '#A1AEC8'
   const showInfo = status !== 'idle'
-  const showButton = status === 'idle' || status === 'checking'
 
   const renderStatus = () => {
     switch (status) {
@@ -137,19 +135,6 @@ export function WebCryptoEnvironmentCheck({
           <div className="text-xs" style={{ color: descriptionColor }}>
             {summary ?? t('environmentCheck.description', language)}
           </div>
-        )}
-        {showButton && (
-          <button
-            type="button"
-            onClick={runCheck}
-            disabled={status === 'checking'}
-            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105 self-start sm:self-auto whitespace-nowrap"
-            style={buttonStyles}
-          >
-            {status === 'checking'
-              ? t('environmentCheck.checking', language)
-              : t('environmentCheck.button', language)}
-          </button>
         )}
       </div>
       {showInfo && <div className="min-h-[1.5rem]">{renderStatus()}</div>}

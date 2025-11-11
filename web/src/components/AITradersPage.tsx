@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type {
@@ -29,7 +30,10 @@ import {
   BookOpen,
   HelpCircle,
   Radio,
+  Pencil,
 } from 'lucide-react'
+import { confirmToast } from '../lib/notify'
+import { toast } from 'sonner'
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -58,6 +62,7 @@ interface AITradersPageProps {
 export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
+  const navigate = useNavigate()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showModelModal, setShowModelModal] = useState(false)
@@ -220,21 +225,25 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const exchange = allExchanges?.find((e) => e.id === data.exchange_id)
 
       if (!model?.enabled) {
-        alert(t('modelNotConfigured', language))
+        toast.error(t('modelNotConfigured', language))
         return
       }
 
       if (!exchange?.enabled) {
-        alert(t('exchangeNotConfigured', language))
+        toast.error(t('exchangeNotConfigured', language))
         return
       }
 
-      await api.createTrader(data)
+      await toast.promise(api.createTrader(data), {
+        loading: '正在创建…',
+        success: '创建成功',
+        error: '创建失败',
+      })
       setShowCreateModal(false)
       mutateTraders()
     } catch (error) {
       console.error('Failed to create trader:', error)
-      alert(t('createTraderFailed', language))
+      toast.error(t('createTraderFailed', language))
     }
   }
 
@@ -245,7 +254,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setShowEditModal(true)
     } catch (error) {
       console.error('Failed to fetch trader config:', error)
-      alert(t('getTraderConfigFailed', language))
+      toast.error(t('getTraderConfigFailed', language))
     }
   }
 
@@ -257,12 +266,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const exchange = enabledExchanges?.find((e) => e.id === data.exchange_id)
 
       if (!model) {
-        alert(t('modelConfigNotExist', language))
+        toast.error(t('modelConfigNotExist', language))
         return
       }
 
       if (!exchange) {
-        alert(t('exchangeConfigNotExist', language))
+        toast.error(t('exchangeConfigNotExist', language))
         return
       }
 
@@ -282,39 +291,58 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         use_oi_top: data.use_oi_top,
       }
 
-      await api.updateTrader(editingTrader.trader_id, request)
+      await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
       setShowEditModal(false)
       setEditingTrader(null)
       mutateTraders()
     } catch (error) {
       console.error('Failed to update trader:', error)
-      alert(t('updateTraderFailed', language))
+      toast.error(t('updateTraderFailed', language))
     }
   }
 
   const handleDeleteTrader = async (traderId: string) => {
-    if (!confirm(t('confirmDeleteTrader', language))) return
+    {
+      const ok = await confirmToast(t('confirmDeleteTrader', language))
+      if (!ok) return
+    }
 
     try {
-      await api.deleteTrader(traderId)
+      await toast.promise(api.deleteTrader(traderId), {
+        loading: '正在删除…',
+        success: '删除成功',
+        error: '删除失败',
+      })
       mutateTraders()
     } catch (error) {
       console.error('Failed to delete trader:', error)
-      alert(t('deleteTraderFailed', language))
+      toast.error(t('deleteTraderFailed', language))
     }
   }
 
   const handleToggleTrader = async (traderId: string, running: boolean) => {
     try {
       if (running) {
-        await api.stopTrader(traderId)
+        await toast.promise(api.stopTrader(traderId), {
+          loading: '正在停止…',
+          success: '已停止',
+          error: '停止失败',
+        })
       } else {
-        await api.startTrader(traderId)
+        await toast.promise(api.startTrader(traderId), {
+          loading: '正在启动…',
+          success: '已启动',
+          error: '启动失败',
+        })
       }
       mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
-      alert(t('operationFailed', language))
+      toast.error(t('operationFailed', language))
     }
   }
 
@@ -353,19 +381,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (config.checkInUse(config.id)) {
       const usingTraders = config.getUsingTraders(config.id)
       const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
-      alert(
-        t(config.cannotDeleteKey, language) +
-          '\n\n' +
-          t('tradersUsing', language) +
-          ': ' +
-          traderNames +
-          '\n\n' +
-          t('pleaseDeleteTradersFirst', language)
+      toast.error(
+        `${t(config.cannotDeleteKey, language)} · ${t('tradersUsing', language)}: ${traderNames} · ${t('pleaseDeleteTradersFirst', language)}`
       )
       return
     }
 
-    if (!confirm(t(config.confirmDeleteKey, language))) return
+    {
+      const ok = await confirmToast(t(config.confirmDeleteKey, language))
+      if (!ok) return
+    }
 
     try {
       const updatedItems =
@@ -374,7 +399,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ) || []
 
       const request = config.buildRequest(updatedItems)
-      await config.updateApi(request)
+      await toast.promise(config.updateApi(request), {
+        loading: '正在更新配置…',
+        success: '配置已更新',
+        error: '更新配置失败',
+      })
 
       // 重新获取用户配置以确保数据同步
       const refreshedItems = await config.refreshApi()
@@ -383,7 +412,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       config.closeModal()
     } catch (error) {
       console.error(`Failed to delete ${config.type} config:`, error)
-      alert(t(config.errorKey, language))
+      toast.error(t(config.errorKey, language))
     }
   }
 
@@ -445,7 +474,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const modelToUpdate =
         existingModel || supportedModels?.find((m) => m.id === modelId)
       if (!modelToUpdate) {
-        alert(t('modelNotExist', language))
+        toast.error(t('modelNotExist', language))
         return
       }
 
@@ -489,7 +518,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateModelConfigs(request)
+      await toast.promise(api.updateModelConfigs(request), {
+        loading: '正在更新模型配置…',
+        success: '模型配置已更新',
+        error: '更新模型配置失败',
+      })
 
       // 重新获取用户配置以确保数据同步
       const refreshedModels = await api.getModelConfigs()
@@ -499,7 +532,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingModel(null)
     } catch (error) {
       console.error('Failed to save model config:', error)
-      alert(t('saveConfigFailed', language))
+      toast.error(t('saveConfigFailed', language))
     }
   }
 
@@ -569,7 +602,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         (e) => e.id === exchangeId
       )
       if (!exchangeToUpdate) {
-        alert(t('exchangeNotExist', language))
+        toast.error(t('exchangeNotExist', language))
         return
       }
 
@@ -629,7 +662,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateExchangeConfigsEncrypted(request)
+      await toast.promise(api.updateExchangeConfigsEncrypted(request), {
+        loading: '正在更新交易所配置…',
+        success: '交易所配置已更新',
+        error: '更新交易所配置失败',
+      })
 
       // 重新获取用户配置以确保数据同步
       const refreshedExchanges = await api.getExchangeConfigs()
@@ -639,7 +676,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingExchange(null)
     } catch (error) {
       console.error('Failed to save exchange config:', error)
-      alert(t('saveConfigFailed', language))
+      toast.error(t('saveConfigFailed', language))
     }
   }
 
@@ -658,12 +695,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     oiTopUrl: string
   ) => {
     try {
-      await api.saveUserSignalSource(coinPoolUrl, oiTopUrl)
+      await toast.promise(api.saveUserSignalSource(coinPoolUrl, oiTopUrl), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
       setUserSignalSource({ coinPoolUrl, oiTopUrl })
       setShowSignalSourceModal(false)
     } catch (error) {
       console.error('Failed to save signal source:', error)
-      alert(t('saveSignalSourceFailed', language))
+      toast.error(t('saveSignalSourceFailed', language))
     }
   }
 
@@ -1025,9 +1066,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                 <div className="flex items-center gap-3 md:gap-4 flex-wrap md:flex-nowrap">
                   {/* Status */}
                   <div className="text-center">
-                    <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+                    {/* <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
                       {t('status', language)}
-                    </div>
+                    </div> */}
                     <div
                       className={`px-2 md:px-3 py-1 rounded text-xs font-bold ${
                         trader.is_running
@@ -1052,10 +1093,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-1.5 md:gap-2 flex-wrap md:flex-nowrap">
+                  {/* Actions: 禁止换行，超出横向滚动 */}
+                  <div className="flex gap-1.5 md:gap-2 flex-nowrap overflow-x-auto items-center">
                     <button
-                      onClick={() => onTraderSelect?.(trader.trader_id)}
+                      onClick={() => {
+                        if (onTraderSelect) {
+                          onTraderSelect(trader.trader_id)
+                        } else {
+                          navigate(`/dashboard?trader=${trader.trader_id}`)
+                        }
+                      }}
                       className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 whitespace-nowrap"
                       style={{
                         background: 'rgba(99, 102, 241, 0.1)',
@@ -1069,7 +1116,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     <button
                       onClick={() => handleEditTrader(trader.trader_id)}
                       disabled={trader.is_running}
-                      className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
                       style={{
                         background: trader.is_running
                           ? 'rgba(132, 142, 156, 0.1)'
@@ -1077,7 +1124,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                         color: trader.is_running ? '#848E9C' : '#FFC107',
                       }}
                     >
-                      ✏️ {t('edit', language)}
+                      <Pencil className="w-3 h-3 md:w-4 md:h-4" />
+                      {t('edit', language)}
                     </button>
 
                     <button
@@ -1788,6 +1836,7 @@ function ExchangeConfigModal({
         await navigator.clipboard.writeText(ip)
         setCopiedIP(true)
         setTimeout(() => setCopiedIP(false), 2000)
+        toast.success(t('ipCopied', language))
       } else {
         // 降级方案: 使用传统的 execCommand 方法
         const textArea = document.createElement('textarea')
@@ -1804,6 +1853,7 @@ function ExchangeConfigModal({
           if (successful) {
             setCopiedIP(true)
             setTimeout(() => setCopiedIP(false), 2000)
+            toast.success(t('ipCopied', language))
           } else {
             throw new Error('复制命令执行失败')
           }
@@ -1814,7 +1864,7 @@ function ExchangeConfigModal({
     } catch (err) {
       console.error('复制失败:', err)
       // 显示错误提示
-      alert(t('copyIPFailed', language) || `复制失败: ${ip}\n请手动复制此IP地址`)
+        toast.error(t('copyIPFailed', language) || `复制失败: ${ip}\n请手动复制此IP地址`)
     }
   }
 

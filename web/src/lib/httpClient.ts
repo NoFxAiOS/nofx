@@ -8,6 +8,8 @@
  * - Automatic redirect to login page
  */
 
+import { toast } from 'sonner'
+
 export class HttpClient {
   // Singleton flag to prevent duplicate 401 handling
   private static isHandling401 = false
@@ -23,52 +25,7 @@ export class HttpClient {
    * Show login required notification to user
    */
   private showLoginRequiredNotification(): void {
-    // Create notification element
-    const notification = document.createElement('div')
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #F0B90B 0%, #FCD535 100%);
-      color: #0B0E11;
-      padding: 16px 24px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      animation: slideDown 0.3s ease-out;
-    `
-    notification.textContent = '⚠️ 登录已过期，请先登录'
-
-    // Add slide down animation
-    const style = document.createElement('style')
-    style.textContent = `
-      @keyframes slideDown {
-        from {
-          opacity: 0;
-          transform: translateX(-50%) translateY(-20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(-50%) translateY(0);
-        }
-      }
-    `
-    document.head.appendChild(style)
-
-    // Add to page
-    document.body.appendChild(notification)
-
-    // Auto remove after animation
-    setTimeout(() => {
-      notification.style.animation = 'slideDown 0.3s ease-out reverse'
-      setTimeout(() => {
-        document.body.removeChild(notification)
-        document.head.removeChild(style)
-      }, 300)
-    }, 1800)
+    toast.warning('登录已过期，请先登录', { duration: 1800 })
   }
 
   /**

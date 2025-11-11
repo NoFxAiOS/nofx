@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import type { AIModel, Exchange, CreateTraderRequest } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { toast } from 'sonner'
+import { Pencil, Plus, X as IconX } from 'lucide-react'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -217,12 +219,11 @@ export function TraderConfigModal({
       const currentBalance = data.total_equity || data.balance || 0
 
       setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-
-      // 显示成功提示
-      console.log('已获取当前余额:', currentBalance)
+      toast.success('已获取当前余额')
     } catch (error) {
       console.error('获取余额失败:', error)
       setBalanceFetchError('获取余额失败，请检查网络连接')
+      toast.error('获取余额失败，请检查网络连接')
     } finally {
       setIsFetchingBalance(false)
     }
@@ -249,7 +250,11 @@ export function TraderConfigModal({
         initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
-      await onSave(saveData)
+      await toast.promise(onSave(saveData), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
       onClose()
     } catch (error) {
       console.error('保存失败:', error)
@@ -268,8 +273,12 @@ export function TraderConfigModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky top-0 z-10 rounded-t-xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center">
-              <span className="text-lg">{isEditMode ? '✏️' : '➕'}</span>
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center text-black">
+              {isEditMode ? (
+                <Pencil className="w-5 h-5" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h2 className="text-xl font-bold text-[#EAECEF]">
@@ -284,7 +293,7 @@ export function TraderConfigModal({
             onClick={onClose}
             className="w-8 h-8 rounded-lg text-[#848E9C] hover:text-[#EAECEF] hover:bg-[#2B3139] transition-colors flex items-center justify-center"
           >
-            ✕
+            <IconX className="w-4 h-4" />
           </button>
         </div>
 

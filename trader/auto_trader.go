@@ -1372,6 +1372,11 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	}, nil
 }
 
+// GetBalance 获取账户余额（用于API）
+func (at *AutoTrader) GetBalance() (map[string]interface{}, error) {
+	return at.trader.GetBalance()
+}
+
 // GetPositions 获取持仓列表（用于API）
 func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 	positions, err := at.trader.GetPositions()

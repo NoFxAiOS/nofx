@@ -61,14 +61,21 @@ func (s *Server) handleGetDrawdownAnalysis(c *gin.Context) {
 		return
 	}
 
+	// 获取交易员
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
 	// 获取净值历史
-	history, err := logger.GetEquityHistory(traderID)
+	records, err := trader.GetDecisionLogger().GetLatestRecords(10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取净值历史失败: " + err.Error()})
 		return
 	}
 
-	if len(history) == 0 {
+	if len(records) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "暂无历史数据",
 			"data":    nil,
@@ -77,12 +84,12 @@ func (s *Server) handleGetDrawdownAnalysis(c *gin.Context) {
 	}
 
 	// 转换为EquityPoint格式
-	equityPoints := make([]analytics.EquityPoint, len(history))
-	for i, h := range history {
+	equityPoints := make([]analytics.EquityPoint, len(records))
+	for i, record := range records {
 		equityPoints[i] = analytics.EquityPoint{
-			Timestamp:   h.Timestamp,
-			Equity:      h.TotalEquity,
-			CycleNumber: h.CycleNumber,
+			Timestamp:   record.Timestamp,
+			Equity:      record.AccountState.TotalBalance,
+			CycleNumber: record.CycleNumber,
 		}
 	}
 
@@ -141,19 +148,19 @@ func (s *Server) handleRunMonteCarlo(c *gin.Context) {
 	initialBalance := balance["totalWalletBalance"].(float64)
 
 	// 获取净值历史用于估计参数
-	history, err := logger.GetEquityHistory(req.TraderID)
-	if err != nil || len(history) < 2 {
+	records, err := trader.GetDecisionLogger().GetLatestRecords(10000)
+	if err != nil || len(records) < 2 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "历史数据不足，无法进行模拟"})
 		return
 	}
 
 	// 转换为EquityPoint
-	equityPoints := make([]analytics.EquityPoint, len(history))
-	for i, h := range history {
+	equityPoints := make([]analytics.EquityPoint, len(records))
+	for i, record := range records {
 		equityPoints[i] = analytics.EquityPoint{
-			Timestamp:   h.Timestamp,
-			Equity:      h.TotalEquity,
-			CycleNumber: h.CycleNumber,
+			Timestamp:   record.Timestamp,
+			Equity:      record.AccountState.TotalBalance,
+			CycleNumber: record.CycleNumber,
 		}
 	}
 
@@ -190,19 +197,26 @@ func (s *Server) handleGetPerformanceAttribution(c *gin.Context) {
 		lookbackDays = 30
 	}
 
+	// 获取交易员
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
 	// 获取交易历史（从决策日志中提取）
 	cutoffTime := time.Now().AddDate(0, 0, -lookbackDays)
-	decisions, err := logger.GetDecisionHistory(traderID, 0, 10000)
+	records, err := trader.GetDecisionLogger().GetLatestRecords(10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取交易历史失败: " + err.Error()})
 		return
 	}
 
 	// 过滤时间范围内的决策
-	filteredDecisions := []logger.DecisionLog{}
-	for _, dec := range decisions {
-		if dec.Timestamp.After(cutoffTime) {
-			filteredDecisions = append(filteredDecisions, dec)
+	filteredDecisions := []*logger.DecisionRecord{}
+	for _, record := range records {
+		if record.Timestamp.After(cutoffTime) {
+			filteredDecisions = append(filteredDecisions, record)
 		}
 	}
 
@@ -220,7 +234,7 @@ func (s *Server) handleGetPerformanceAttribution(c *gin.Context) {
 
 	// 简化版：假设每个决策都是一个完整交易
 	// 实际实现需要配对开仓和平仓
-	for _, dec := range filteredDecisions {
+	for range filteredDecisions {
 		// 这里需要更复杂的逻辑来配对交易
 		// 暂时跳过，返回模拟数据
 	}

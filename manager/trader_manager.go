@@ -425,6 +425,48 @@ func (tm *TraderManager) GetTraderIDs() []string {
 	return ids
 }
 
+// RemoveTrader 从内存中移除交易员（删除前必须先停止）
+func (tm *TraderManager) RemoveTrader(traderID string) error {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	trader, exists := tm.traders[traderID]
+	if !exists {
+		return fmt.Errorf("trader ID '%s' 不存在", traderID)
+	}
+
+	// 确保交易员已停止
+	status := trader.GetStatus()
+	if status != nil {
+		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
+			log.Printf("⚠️ 交易员 %s 仍在运行，正在停止...", traderID)
+			trader.Stop()
+
+			// 等待停止（最多5秒）
+			for i := 0; i < 50; i++ {
+				time.Sleep(100 * time.Millisecond)
+				status := trader.GetStatus()
+				if running, ok := status["is_running"].(bool); !ok || !running {
+					break
+				}
+			}
+		}
+	}
+
+	// 从map中删除
+	delete(tm.traders, traderID)
+	log.Printf("✅ 已从内存中移除交易员: %s", traderID)
+
+	// 清除竞赛缓存，强制下次重新计算
+	tm.competitionCache.mu.Lock()
+	tm.competitionCache.data = nil
+	tm.competitionCache.timestamp = time.Time{}
+	tm.competitionCache.mu.Unlock()
+	log.Printf("🔄 已清除竞赛缓存")
+
+	return nil
+}
+
 // StartAll 启动所有trader
 func (tm *TraderManager) StartAll() {
 	tm.mu.RLock()

@@ -4,14 +4,12 @@ import { DrawdownChart } from '../components/DrawdownChart'
 import { MonteCarloSimulation } from '../components/MonteCarloSimulation'
 import { OrderBookDepth } from '../components/OrderBookDepth'
 import { BarChart3, TrendingDown, Dices, BookOpen, ArrowLeft } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 
 type AnalyticsTab = 'correlation' | 'drawdown' | 'montecarlo' | 'orderbook'
 
 export function AnalyticsPage() {
-  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('drawdown')
   const [selectedTrader, setSelectedTrader] = useState<string>('')
   const [orderBookSymbol, setOrderBookSymbol] = useState<string>('BTCUSDT')
@@ -54,7 +52,7 @@ export function AnalyticsPage() {
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => window.history.back()}
           className="flex items-center gap-2 mb-4 px-3 py-2 rounded transition-all hover:bg-opacity-80"
           style={{ background: '#1E2329', color: '#848E9C' }}
         >

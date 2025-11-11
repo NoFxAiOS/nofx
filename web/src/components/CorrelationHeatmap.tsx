@@ -37,7 +37,7 @@ export function CorrelationHeatmap({
   symbols,
   timeframe = '1h',
 }: CorrelationHeatmapProps) {
-  const { language } = useLanguage()
+  // const { language } = useLanguage() // Unused for now
   const [hoveredCell, setHoveredCell] = useState<{
     row: number
     col: number

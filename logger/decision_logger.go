@@ -25,6 +25,8 @@ type DecisionRecord struct {
 	ExecutionLog   []string           `json:"execution_log"`   // 执行日志
 	Success        bool               `json:"success"`         // 是否成功
 	ErrorMessage   string             `json:"error_message"`   // 错误信息（如果有）
+	// AIRequestDurationMs 记录 AI API 调用耗时（毫秒），方便评估调用性能
+	AIRequestDurationMs int64 `json:"ai_request_duration_ms,omitempty"`
 }
 
 // AccountSnapshot 账户状态快照

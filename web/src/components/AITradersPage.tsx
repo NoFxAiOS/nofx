@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type {
@@ -29,7 +30,10 @@ import {
   BookOpen,
   HelpCircle,
   Radio,
+  Pencil,
 } from 'lucide-react'
+import { confirmToast } from '../lib/notify'
+import { toast } from 'sonner'
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -58,6 +62,7 @@ interface AITradersPageProps {
 export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
+  const navigate = useNavigate()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showModelModal, setShowModelModal] = useState(false)
@@ -220,21 +225,25 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const exchange = allExchanges?.find((e) => e.id === data.exchange_id)
 
       if (!model?.enabled) {
-        alert(t('modelNotConfigured', language))
+        toast.error(t('modelNotConfigured', language))
         return
       }
 
       if (!exchange?.enabled) {
-        alert(t('exchangeNotConfigured', language))
+        toast.error(t('exchangeNotConfigured', language))
         return
       }
 
-      await api.createTrader(data)
+      await toast.promise(api.createTrader(data), {
+        loading: '正在创建…',
+        success: '创建成功',
+        error: '创建失败',
+      })
       setShowCreateModal(false)
       mutateTraders()
     } catch (error) {
       console.error('Failed to create trader:', error)
-      alert(t('createTraderFailed', language))
+      toast.error(t('createTraderFailed', language))
     }
   }
 
@@ -245,7 +254,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setShowEditModal(true)
     } catch (error) {
       console.error('Failed to fetch trader config:', error)
-      alert(t('getTraderConfigFailed', language))
+      toast.error(t('getTraderConfigFailed', language))
     }
   }
 
@@ -257,12 +266,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const exchange = enabledExchanges?.find((e) => e.id === data.exchange_id)
 
       if (!model) {
-        alert(t('modelConfigNotExist', language))
+        toast.error(t('modelConfigNotExist', language))
         return
       }
 
       if (!exchange) {
-        alert(t('exchangeConfigNotExist', language))
+        toast.error(t('exchangeConfigNotExist', language))
         return
       }
 
@@ -282,39 +291,58 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         use_oi_top: data.use_oi_top,
       }
 
-      await api.updateTrader(editingTrader.trader_id, request)
+      await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
       setShowEditModal(false)
       setEditingTrader(null)
       mutateTraders()
     } catch (error) {
       console.error('Failed to update trader:', error)
-      alert(t('updateTraderFailed', language))
+      toast.error(t('updateTraderFailed', language))
     }
   }
 
   const handleDeleteTrader = async (traderId: string) => {
-    if (!confirm(t('confirmDeleteTrader', language))) return
+    {
+      const ok = await confirmToast(t('confirmDeleteTrader', language))
+      if (!ok) return
+    }
 
     try {
-      await api.deleteTrader(traderId)
+      await toast.promise(api.deleteTrader(traderId), {
+        loading: '正在删除…',
+        success: '删除成功',
+        error: '删除失败',
+      })
       mutateTraders()
     } catch (error) {
       console.error('Failed to delete trader:', error)
-      alert(t('deleteTraderFailed', language))
+      toast.error(t('deleteTraderFailed', language))
     }
   }
 
   const handleToggleTrader = async (traderId: string, running: boolean) => {
     try {
       if (running) {
-        await api.stopTrader(traderId)
+        await toast.promise(api.stopTrader(traderId), {
+          loading: '正在停止…',
+          success: '已停止',
+          error: '停止失败',
+        })
       } else {
-        await api.startTrader(traderId)
+        await toast.promise(api.startTrader(traderId), {
+          loading: '正在启动…',
+          success: '已启动',
+          error: '启动失败',
+        })
       }
       mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
-      alert(t('operationFailed', language))
+      toast.error(t('operationFailed', language))
     }
   }
 
@@ -353,19 +381,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (config.checkInUse(config.id)) {
       const usingTraders = config.getUsingTraders(config.id)
       const traderNames = usingTraders.map((t) => t.trader_name).join(', ')
-      alert(
-        t(config.cannotDeleteKey, language) +
-          '\n\n' +
-          t('tradersUsing', language) +
-          ': ' +
-          traderNames +
-          '\n\n' +
-          t('pleaseDeleteTradersFirst', language)
+      toast.error(
+        `${t(config.cannotDeleteKey, language)} · ${t('tradersUsing', language)}: ${traderNames} · ${t('pleaseDeleteTradersFirst', language)}`
       )
       return
     }
 
-    if (!confirm(t(config.confirmDeleteKey, language))) return
+    {
+      const ok = await confirmToast(t(config.confirmDeleteKey, language))
+      if (!ok) return
+    }
 
     try {
       const updatedItems =
@@ -374,7 +399,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ) || []
 
       const request = config.buildRequest(updatedItems)
-      await config.updateApi(request)
+      await toast.promise(config.updateApi(request), {
+        loading: '正在更新配置…',
+        success: '配置已更新',
+        error: '更新配置失败',
+      })
 
       // 重新获取用户配置以确保数据同步
       const refreshedItems = await config.refreshApi()
@@ -383,7 +412,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       config.closeModal()
     } catch (error) {
       console.error(`Failed to delete ${config.type} config:`, error)
-      alert(t(config.errorKey, language))
+      toast.error(t(config.errorKey, language))
     }
   }
 
@@ -445,7 +474,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       const modelToUpdate =
         existingModel || supportedModels?.find((m) => m.id === modelId)
       if (!modelToUpdate) {
-        alert(t('modelNotExist', language))
+        toast.error(t('modelNotExist', language))
         return
       }
 
@@ -489,7 +518,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateModelConfigs(request)
+      await toast.promise(api.updateModelConfigs(request), {
+        loading: '正在更新模型配置…',
+        success: '模型配置已更新',
+        error: '更新模型配置失败',
+      })
 
       // 重新获取用户配置以确保数据同步
       const refreshedModels = await api.getModelConfigs()
@@ -499,7 +532,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingModel(null)
     } catch (error) {
       console.error('Failed to save model config:', error)
-      alert(t('saveConfigFailed', language))
+      toast.error(t('saveConfigFailed', language))
     }
   }
 
@@ -569,7 +602,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         (e) => e.id === exchangeId
       )
       if (!exchangeToUpdate) {
-        alert(t('exchangeNotExist', language))
+        toast.error(t('exchangeNotExist', language))
         return
       }
 
@@ -629,7 +662,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await api.updateExchangeConfigsEncrypted(request)
+      await toast.promise(api.updateExchangeConfigsEncrypted(request), {
+        loading: '正在更新交易所配置…',
+        success: '交易所配置已更新',
+        error: '更新交易所配置失败',
+      })
 
       // 重新获取用户配置以确保数据同步
       const refreshedExchanges = await api.getExchangeConfigs()
@@ -639,7 +676,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       setEditingExchange(null)
     } catch (error) {
       console.error('Failed to save exchange config:', error)
-      alert(t('saveConfigFailed', language))
+      toast.error(t('saveConfigFailed', language))
     }
   }
 
@@ -658,12 +695,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     oiTopUrl: string
   ) => {
     try {
-      await api.saveUserSignalSource(coinPoolUrl, oiTopUrl)
+      await toast.promise(api.saveUserSignalSource(coinPoolUrl, oiTopUrl), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
       setUserSignalSource({ coinPoolUrl, oiTopUrl })
       setShowSignalSourceModal(false)
     } catch (error) {
       console.error('Failed to save signal source:', error)
-      alert(t('saveSignalSourceFailed', language))
+      toast.error(t('saveSignalSourceFailed', language))
     }
   }
 
@@ -1025,9 +1066,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                 <div className="flex items-center gap-3 md:gap-4 flex-wrap md:flex-nowrap">
                   {/* Status */}
                   <div className="text-center">
-                    <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+                    {/* <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
                       {t('status', language)}
-                    </div>
+                    </div> */}
                     <div
                       className={`px-2 md:px-3 py-1 rounded text-xs font-bold ${
                         trader.is_running
@@ -1052,10 +1093,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-1.5 md:gap-2 flex-wrap md:flex-nowrap">
+                  {/* Actions: 禁止换行，超出横向滚动 */}
+                  <div className="flex gap-1.5 md:gap-2 flex-nowrap overflow-x-auto items-center">
                     <button
-                      onClick={() => onTraderSelect?.(trader.trader_id)}
+                      onClick={() => {
+                        if (onTraderSelect) {
+                          onTraderSelect(trader.trader_id)
+                        } else {
+                          navigate(`/dashboard?trader=${trader.trader_id}`)
+                        }
+                      }}
                       className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 whitespace-nowrap"
                       style={{
                         background: 'rgba(99, 102, 241, 0.1)',
@@ -1069,7 +1116,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                     <button
                       onClick={() => handleEditTrader(trader.trader_id)}
                       disabled={trader.is_running}
-                      className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
                       style={{
                         background: trader.is_running
                           ? 'rgba(132, 142, 156, 0.1)'
@@ -1077,7 +1124,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                         color: trader.is_running ? '#848E9C' : '#FFC107',
                       }}
                     >
-                      ✏️ {t('edit', language)}
+                      <Pencil className="w-3 h-3 md:w-4 md:h-4" />
+                      {t('edit', language)}
                     </button>
 
                     <button
@@ -1288,85 +1336,96 @@ function SignalSourceModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div
-        className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative"
-        style={{ background: '#1E2329' }}
+        className="bg-gray-800 rounded-lg w-full max-w-lg relative my-8"
+        style={{
+          background: '#1E2329',
+          maxHeight: 'calc(100vh - 4rem)',
+        }}
       >
         <h3 className="text-xl font-bold mb-4" style={{ color: '#EAECEF' }}>
           {t('signalSourceConfig', language)}
         </h3>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label
-              className="block text-sm font-semibold mb-2"
-              style={{ color: '#EAECEF' }}
-            >
-              COIN POOL URL
-            </label>
-            <input
-              type="url"
-              value={coinPool}
-              onChange={(e) => setCoinPool(e.target.value)}
-              placeholder="https://api.example.com/coinpool"
-              className="w-full px-3 py-2 rounded"
-              style={{
-                background: '#0B0E11',
-                border: '1px solid #2B3139',
-                color: '#EAECEF',
-              }}
-            />
-            <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-              {t('coinPoolDescription', language)}
+        <form onSubmit={handleSubmit} className="px-6 pb-6">
+          <div
+            className="space-y-4 overflow-y-auto"
+            style={{ maxHeight: 'calc(100vh - 16rem)' }}
+          >
+            <div>
+              <label
+                className="block text-sm font-semibold mb-2"
+                style={{ color: '#EAECEF' }}
+              >
+                COIN POOL URL
+              </label>
+              <input
+                type="url"
+                value={coinPool}
+                onChange={(e) => setCoinPool(e.target.value)}
+                placeholder="https://api.example.com/coinpool"
+                className="w-full px-3 py-2 rounded"
+                style={{
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                {t('coinPoolDescription', language)}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label
-              className="block text-sm font-semibold mb-2"
-              style={{ color: '#EAECEF' }}
-            >
-              OI TOP URL
-            </label>
-            <input
-              type="url"
-              value={oiTop}
-              onChange={(e) => setOiTop(e.target.value)}
-              placeholder="https://api.example.com/oitop"
-              className="w-full px-3 py-2 rounded"
+            <div>
+              <label
+                className="block text-sm font-semibold mb-2"
+                style={{ color: '#EAECEF' }}
+              >
+                OI TOP URL
+              </label>
+              <input
+                type="url"
+                value={oiTop}
+                onChange={(e) => setOiTop(e.target.value)}
+                placeholder="https://api.example.com/oitop"
+                className="w-full px-3 py-2 rounded"
+                style={{
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                {t('oiTopDescription', language)}
+              </div>
+            </div>
+
+            <div
+              className="p-4 rounded"
               style={{
-                background: '#0B0E11',
-                border: '1px solid #2B3139',
-                color: '#EAECEF',
+                background: 'rgba(240, 185, 11, 0.1)',
+                border: '1px solid rgba(240, 185, 11, 0.2)',
               }}
-            />
-            <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-              {t('oiTopDescription', language)}
+            >
+              <div
+                className="text-sm font-semibold mb-2"
+                style={{ color: '#F0B90B' }}
+              >
+                ℹ️ {t('information', language)}
+              </div>
+              <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                <div>{t('signalSourceInfo1', language)}</div>
+                <div>{t('signalSourceInfo2', language)}</div>
+                <div>{t('signalSourceInfo3', language)}</div>
+              </div>
             </div>
           </div>
 
           <div
-            className="p-4 rounded"
-            style={{
-              background: 'rgba(240, 185, 11, 0.1)',
-              border: '1px solid rgba(240, 185, 11, 0.2)',
-            }}
+            className="flex gap-3 mt-6 pt-4 sticky bottom-0"
+            style={{ background: '#1E2329' }}
           >
-            <div
-              className="text-sm font-semibold mb-2"
-              style={{ color: '#F0B90B' }}
-            >
-              ℹ️ {t('information', language)}
-            </div>
-            <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-              <div>{t('signalSourceInfo1', language)}</div>
-              <div>{t('signalSourceInfo2', language)}</div>
-              <div>{t('signalSourceInfo3', language)}</div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-6">
             <button
               type="button"
               onClick={onClose}
@@ -1447,12 +1506,18 @@ function ModelConfigModal({
   const availableModels = allModels || []
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div
-        className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative"
-        style={{ background: '#1E2329' }}
+        className="bg-gray-800 rounded-lg w-full max-w-lg relative my-8"
+        style={{
+          background: '#1E2329',
+          maxHeight: 'calc(100vh - 4rem)',
+        }}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div
+          className="flex items-center justify-between p-6 pb-4 sticky top-0 z-10"
+          style={{ background: '#1E2329' }}
+        >
           <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
             {editingModelId
               ? t('editAIModel', language)
@@ -1471,87 +1536,22 @@ function ModelConfigModal({
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!editingModelId && (
-            <div>
-              <label
-                className="block text-sm font-semibold mb-2"
-                style={{ color: '#EAECEF' }}
-              >
-                {t('selectModel', language)}
-              </label>
-              <select
-                value={selectedModelId}
-                onChange={(e) => setSelectedModelId(e.target.value)}
-                className="w-full px-3 py-2 rounded"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-                required
-              >
-                <option value="">{t('pleaseSelectModel', language)}</option>
-                {availableModels.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {getShortName(model.name)} ({model.provider})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {selectedModel && (
-            <div
-              className="p-4 rounded"
-              style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 flex items-center justify-center">
-                  {getModelIcon(selectedModel.provider || selectedModel.id, {
-                    width: 32,
-                    height: 32,
-                  }) || (
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                      style={{
-                        background:
-                          selectedModel.id === 'deepseek'
-                            ? '#60a5fa'
-                            : '#c084fc',
-                        color: '#fff',
-                      }}
-                    >
-                      {selectedModel.name[0]}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="font-semibold" style={{ color: '#EAECEF' }}>
-                    {getShortName(selectedModel.name)}
-                  </div>
-                  <div className="text-xs" style={{ color: '#848E9C' }}>
-                    {selectedModel.provider} • {selectedModel.id}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {selectedModel && (
-            <>
+        <form onSubmit={handleSubmit} className="px-6 pb-6">
+          <div
+            className="space-y-4 overflow-y-auto"
+            style={{ maxHeight: 'calc(100vh - 16rem)' }}
+          >
+            {!editingModelId && (
               <div>
                 <label
                   className="block text-sm font-semibold mb-2"
                   style={{ color: '#EAECEF' }}
                 >
-                  API Key
+                  {t('selectModel', language)}
                 </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={t('enterAPIKey', language)}
+                <select
+                  value={selectedModelId}
+                  onChange={(e) => setSelectedModelId(e.target.value)}
                   className="w-full px-3 py-2 rounded"
                   style={{
                     background: '#0B0E11',
@@ -1559,80 +1559,156 @@ function ModelConfigModal({
                     color: '#EAECEF',
                   }}
                   required
-                />
-              </div>
-
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: '#EAECEF' }}
                 >
-                  {t('customBaseURL', language)}
-                </label>
-                <input
-                  type="url"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder={t('customBaseURLPlaceholder', language)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
-                />
-                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  {t('leaveBlankForDefault', language)}
-                </div>
+                  <option value="">{t('pleaseSelectModel', language)}</option>
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {getShortName(model.name)} ({model.provider})
+                    </option>
+                  ))}
+                </select>
               </div>
+            )}
 
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: '#EAECEF' }}
-                >
-                  Model Name (可选)
-                </label>
-                <input
-                  type="text"
-                  value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
-                  placeholder="例如: deepseek-chat, qwen3-max, gpt-5"
-                  className="w-full px-3 py-2 rounded"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
-                />
-                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  留空使用默认模型名称
-                </div>
-              </div>
-
+            {selectedModel && (
               <div
                 className="p-4 rounded"
-                style={{
-                  background: 'rgba(240, 185, 11, 0.1)',
-                  border: '1px solid rgba(240, 185, 11, 0.2)',
-                }}
+                style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
               >
-                <div
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: '#F0B90B' }}
-                >
-                  ℹ️ {t('information', language)}
-                </div>
-                <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                  <div>{t('modelConfigInfo1', language)}</div>
-                  <div>{t('modelConfigInfo2', language)}</div>
-                  <div>{t('modelConfigInfo3', language)}</div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 flex items-center justify-center">
+                    {getModelIcon(selectedModel.provider || selectedModel.id, {
+                      width: 32,
+                      height: 32,
+                    }) || (
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+                        style={{
+                          background:
+                            selectedModel.id === 'deepseek'
+                              ? '#60a5fa'
+                              : '#c084fc',
+                          color: '#fff',
+                        }}
+                      >
+                        {selectedModel.name[0]}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-semibold" style={{ color: '#EAECEF' }}>
+                      {getShortName(selectedModel.name)}
+                    </div>
+                    <div className="text-xs" style={{ color: '#848E9C' }}>
+                      {selectedModel.provider} • {selectedModel.id}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </>
-          )}
+            )}
 
-          <div className="flex gap-3 mt-6">
+            {selectedModel && (
+              <>
+                <div>
+                  <label
+                    className="block text-sm font-semibold mb-2"
+                    style={{ color: '#EAECEF' }}
+                  >
+                    API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={t('enterAPIKey', language)}
+                    className="w-full px-3 py-2 rounded"
+                    style={{
+                      background: '#0B0E11',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className="block text-sm font-semibold mb-2"
+                    style={{ color: '#EAECEF' }}
+                  >
+                    {t('customBaseURL', language)}
+                  </label>
+                  <input
+                    type="url"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder={t('customBaseURLPlaceholder', language)}
+                    className="w-full px-3 py-2 rounded"
+                    style={{
+                      background: '#0B0E11',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                  />
+                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                    {t('leaveBlankForDefault', language)}
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    className="block text-sm font-semibold mb-2"
+                    style={{ color: '#EAECEF' }}
+                  >
+                    Model Name (可选)
+                  </label>
+                  <input
+                    type="text"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder="例如: deepseek-chat, qwen3-max, gpt-5"
+                    className="w-full px-3 py-2 rounded"
+                    style={{
+                      background: '#0B0E11',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                  />
+                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                    留空使用默认模型名称
+                  </div>
+                </div>
+
+                <div
+                  className="p-4 rounded"
+                  style={{
+                    background: 'rgba(240, 185, 11, 0.1)',
+                    border: '1px solid rgba(240, 185, 11, 0.2)',
+                  }}
+                >
+                  <div
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: '#F0B90B' }}
+                  >
+                    ℹ️ {t('information', language)}
+                  </div>
+                  <div
+                    className="text-xs space-y-1"
+                    style={{ color: '#848E9C' }}
+                  >
+                    <div>{t('modelConfigInfo1', language)}</div>
+                    <div>{t('modelConfigInfo2', language)}</div>
+                    <div>{t('modelConfigInfo3', language)}</div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div
+            className="flex gap-3 mt-6 pt-4 sticky bottom-0"
+            style={{ background: '#1E2329' }}
+          >
             <button
               type="button"
               onClick={onClose}
@@ -1753,11 +1829,45 @@ function ExchangeConfigModal({
     }
   }, [selectedExchangeId])
 
-  const handleCopyIP = (ip: string) => {
-    navigator.clipboard.writeText(ip).then(() => {
-      setCopiedIP(true)
-      setTimeout(() => setCopiedIP(false), 2000)
-    })
+  const handleCopyIP = async (ip: string) => {
+    try {
+      // 优先使用现代 Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(ip)
+        setCopiedIP(true)
+        setTimeout(() => setCopiedIP(false), 2000)
+        toast.success(t('ipCopied', language))
+      } else {
+        // 降级方案: 使用传统的 execCommand 方法
+        const textArea = document.createElement('textarea')
+        textArea.value = ip
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+
+        try {
+          const successful = document.execCommand('copy')
+          if (successful) {
+            setCopiedIP(true)
+            setTimeout(() => setCopiedIP(false), 2000)
+            toast.success(t('ipCopied', language))
+          } else {
+            throw new Error('复制命令执行失败')
+          }
+        } finally {
+          document.body.removeChild(textArea)
+        }
+      }
+    } catch (err) {
+      console.error('复制失败:', err)
+      // 显示错误提示
+      toast.error(
+        t('copyIPFailed', language) || `复制失败: ${ip}\n请手动复制此IP地址`
+      )
+    }
   }
 
   // 安全输入处理函数
@@ -1842,12 +1952,18 @@ function ExchangeConfigModal({
   const availableExchanges = allExchanges || []
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div
-        className="bg-gray-800 rounded-lg p-6 w-full max-w-lg relative"
-        style={{ background: '#1E2329' }}
+        className="bg-gray-800 rounded-lg w-full max-w-lg relative my-8"
+        style={{
+          background: '#1E2329',
+          maxHeight: 'calc(100vh - 4rem)',
+        }}
       >
-        <div className="flex items-center justify-between mb-4">
+        <div
+          className="flex items-center justify-between p-6 pb-4 sticky top-0 z-10"
+          style={{ background: '#1E2329' }}
+        >
           <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
             {editingExchangeId
               ? t('editExchange', language)
@@ -1885,224 +2001,187 @@ function ExchangeConfigModal({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {!editingExchangeId && (
-            <div>
-              <label
-                className="block text-sm font-semibold mb-2"
-                style={{ color: '#EAECEF' }}
-              >
-                {t('selectExchange', language)}
-              </label>
-              <select
-                value={selectedExchangeId}
-                onChange={(e) => setSelectedExchangeId(e.target.value)}
-                className="w-full px-3 py-2 rounded"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-                required
-              >
-                <option value="">{t('pleaseSelectExchange', language)}</option>
-                {availableExchanges.map((exchange) => (
-                  <option key={exchange.id} value={exchange.id}>
-                    {getShortName(exchange.name)} ({exchange.type.toUpperCase()}
-                    )
+        <form onSubmit={handleSubmit} className="px-6 pb-6">
+          <div
+            className="space-y-4 overflow-y-auto"
+            style={{ maxHeight: 'calc(100vh - 16rem)' }}
+          >
+            {!editingExchangeId && (
+              <div>
+                <label
+                  className="block text-sm font-semibold mb-2"
+                  style={{ color: '#EAECEF' }}
+                >
+                  {t('selectExchange', language)}
+                </label>
+                <select
+                  value={selectedExchangeId}
+                  onChange={(e) => setSelectedExchangeId(e.target.value)}
+                  className="w-full px-3 py-2 rounded"
+                  style={{
+                    background: '#0B0E11',
+                    border: '1px solid #2B3139',
+                    color: '#EAECEF',
+                  }}
+                  required
+                >
+                  <option value="">
+                    {t('pleaseSelectExchange', language)}
                   </option>
-                ))}
-              </select>
-            </div>
-          )}
+                  {availableExchanges.map((exchange) => (
+                    <option key={exchange.id} value={exchange.id}>
+                      {getShortName(exchange.name)} (
+                      {exchange.type.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-          {selectedExchange && (
-            <div
-              className="p-4 rounded"
-              style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 flex items-center justify-center">
-                  {getExchangeIcon(selectedExchange.id, {
-                    width: 32,
-                    height: 32,
-                  })}
-                </div>
-                <div>
-                  <div className="font-semibold" style={{ color: '#EAECEF' }}>
-                    {getShortName(selectedExchange.name)}
+            {selectedExchange && (
+              <div
+                className="p-4 rounded"
+                style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 flex items-center justify-center">
+                    {getExchangeIcon(selectedExchange.id, {
+                      width: 32,
+                      height: 32,
+                    })}
                   </div>
-                  <div className="text-xs" style={{ color: '#848E9C' }}>
-                    {selectedExchange.type.toUpperCase()} •{' '}
-                    {selectedExchange.id}
+                  <div>
+                    <div className="font-semibold" style={{ color: '#EAECEF' }}>
+                      {getShortName(selectedExchange.name)}
+                    </div>
+                    <div className="text-xs" style={{ color: '#848E9C' }}>
+                      {selectedExchange.type.toUpperCase()} •{' '}
+                      {selectedExchange.id}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {selectedExchange && (
-            <>
-              {/* Binance 和其他 CEX 交易所的字段 */}
-              {(selectedExchange.id === 'binance' ||
-                selectedExchange.type === 'cex') &&
-                selectedExchange.id !== 'hyperliquid' &&
-                selectedExchange.id !== 'aster' && (
-                  <>
-                    {/* 币安用户配置提示 (D1 方案) */}
-                    {selectedExchange.id === 'binance' && (
-                      <div
-                        className="mb-4 p-3 rounded cursor-pointer transition-colors"
-                        style={{
-                          background: '#1a3a52',
-                          border: '1px solid #2b5278',
-                        }}
-                        onClick={() => setShowBinanceGuide(!showBinanceGuide)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span style={{ color: '#58a6ff' }}>ℹ️</span>
-                            <span
-                              className="text-sm font-medium"
-                              style={{ color: '#EAECEF' }}
-                            >
-                              <strong>币安用户必读：</strong>
-                              使用「现货与合约交易」API，不要用「统一账户 API」
+            {selectedExchange && (
+              <>
+                {/* Binance 和其他 CEX 交易所的字段 */}
+                {(selectedExchange.id === 'binance' ||
+                  selectedExchange.type === 'cex') &&
+                  selectedExchange.id !== 'hyperliquid' &&
+                  selectedExchange.id !== 'aster' && (
+                    <>
+                      {/* 币安用户配置提示 (D1 方案) */}
+                      {selectedExchange.id === 'binance' && (
+                        <div
+                          className="mb-4 p-3 rounded cursor-pointer transition-colors"
+                          style={{
+                            background: '#1a3a52',
+                            border: '1px solid #2b5278',
+                          }}
+                          onClick={() => setShowBinanceGuide(!showBinanceGuide)}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span style={{ color: '#58a6ff' }}>ℹ️</span>
+                              <span
+                                className="text-sm font-medium"
+                                style={{ color: '#EAECEF' }}
+                              >
+                                <strong>币安用户必读：</strong>
+                                使用「现货与合约交易」API，不要用「统一账户
+                                API」
+                              </span>
+                            </div>
+                            <span style={{ color: '#8b949e' }}>
+                              {showBinanceGuide ? '▲' : '▼'}
                             </span>
                           </div>
-                          <span style={{ color: '#8b949e' }}>
-                            {showBinanceGuide ? '▲' : '▼'}
-                          </span>
-                        </div>
 
-                        {/* 展开的详细说明 */}
-                        {showBinanceGuide && (
-                          <div
-                            className="mt-3 pt-3"
-                            style={{
-                              borderTop: '1px solid #2b5278',
-                              fontSize: '0.875rem',
-                              color: '#c9d1d9',
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <p className="mb-2" style={{ color: '#8b949e' }}>
-                              <strong>原因：</strong>统一账户 API
-                              权限结构不同，会导致订单提交失败
-                            </p>
-
-                            <p
-                              className="font-semibold mb-1"
-                              style={{ color: '#EAECEF' }}
-                            >
-                              正确配置步骤：
-                            </p>
-                            <ol
-                              className="list-decimal list-inside space-y-1 mb-3"
-                              style={{ paddingLeft: '0.5rem' }}
-                            >
-                              <li>
-                                登录币安 → 个人中心 → <strong>API 管理</strong>
-                              </li>
-                              <li>
-                                创建 API → 选择「
-                                <strong>系统生成的 API 密钥</strong>」
-                              </li>
-                              <li>
-                                勾选「<strong>现货与合约交易</strong>」（
-                                <span style={{ color: '#f85149' }}>
-                                  不选统一账户
-                                </span>
-                                ）
-                              </li>
-                              <li>
-                                IP 限制选「<strong>无限制</strong>」或添加服务器
-                                IP
-                              </li>
-                            </ol>
-
-                            <p
-                              className="mb-2 p-2 rounded"
+                          {/* 展开的详细说明 */}
+                          {showBinanceGuide && (
+                            <div
+                              className="mt-3 pt-3"
                               style={{
-                                background: '#3d2a00',
-                                border: '1px solid #9e6a03',
+                                borderTop: '1px solid #2b5278',
+                                fontSize: '0.875rem',
+                                color: '#c9d1d9',
                               }}
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              💡 <strong>多资产模式用户注意：</strong>
-                              如果您开启了多资产模式，将强制使用全仓模式。建议关闭多资产模式以支持逐仓交易。
-                            </p>
+                              <p className="mb-2" style={{ color: '#8b949e' }}>
+                                <strong>原因：</strong>统一账户 API
+                                权限结构不同，会导致订单提交失败
+                              </p>
 
-                            <a
-                              href="https://www.binance.com/zh-CN/support/faq/how-to-create-api-keys-on-binance-360002502072"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-block text-sm hover:underline"
-                              style={{ color: '#58a6ff' }}
-                            >
-                              📖 查看币安官方教程 ↗
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                              <p
+                                className="font-semibold mb-1"
+                                style={{ color: '#EAECEF' }}
+                              >
+                                正确配置步骤：
+                              </p>
+                              <ol
+                                className="list-decimal list-inside space-y-1 mb-3"
+                                style={{ paddingLeft: '0.5rem' }}
+                              >
+                                <li>
+                                  登录币安 → 个人中心 →{' '}
+                                  <strong>API 管理</strong>
+                                </li>
+                                <li>
+                                  创建 API → 选择「
+                                  <strong>系统生成的 API 密钥</strong>」
+                                </li>
+                                <li>
+                                  勾选「<strong>现货与合约交易</strong>」（
+                                  <span style={{ color: '#f85149' }}>
+                                    不选统一账户
+                                  </span>
+                                  ）
+                                </li>
+                                <li>
+                                  IP 限制选「<strong>无限制</strong>
+                                  」或添加服务器 IP
+                                </li>
+                              </ol>
 
-                    <div>
-                      <label
-                        className="block text-sm font-semibold mb-2"
-                        style={{ color: '#EAECEF' }}
-                      >
-                        {t('apiKey', language)}
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder={t('enterAPIKey', language)}
-                        className="w-full px-3 py-2 rounded"
-                        style={{
-                          background: '#0B0E11',
-                          border: '1px solid #2B3139',
-                          color: '#EAECEF',
-                        }}
-                        required
-                      />
-                    </div>
+                              <p
+                                className="mb-2 p-2 rounded"
+                                style={{
+                                  background: '#3d2a00',
+                                  border: '1px solid #9e6a03',
+                                }}
+                              >
+                                💡 <strong>多资产模式用户注意：</strong>
+                                如果您开启了多资产模式，将强制使用全仓模式。建议关闭多资产模式以支持逐仓交易。
+                              </p>
 
-                    <div>
-                      <label
-                        className="block text-sm font-semibold mb-2"
-                        style={{ color: '#EAECEF' }}
-                      >
-                        {t('secretKey', language)}
-                      </label>
-                      <input
-                        type="password"
-                        value={secretKey}
-                        onChange={(e) => setSecretKey(e.target.value)}
-                        placeholder={t('enterSecretKey', language)}
-                        className="w-full px-3 py-2 rounded"
-                        style={{
-                          background: '#0B0E11',
-                          border: '1px solid #2B3139',
-                          color: '#EAECEF',
-                        }}
-                        required
-                      />
-                    </div>
+                              <a
+                                href="https://www.binance.com/zh-CN/support/faq/how-to-create-api-keys-on-binance-360002502072"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block text-sm hover:underline"
+                                style={{ color: '#58a6ff' }}
+                              >
+                                📖 查看币安官方教程 ↗
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
-                    {selectedExchange.id === 'okx' && (
                       <div>
                         <label
                           className="block text-sm font-semibold mb-2"
                           style={{ color: '#EAECEF' }}
                         >
-                          {t('passphrase', language)}
+                          {t('apiKey', language)}
                         </label>
                         <input
                           type="password"
-                          value={passphrase}
-                          onChange={(e) => setPassphrase(e.target.value)}
-                          placeholder={t('enterPassphrase', language)}
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder={t('enterAPIKey', language)}
                           className="w-full px-3 py-2 rounded"
                           style={{
                             background: '#0B0E11',
@@ -2112,365 +2191,532 @@ function ExchangeConfigModal({
                           required
                         />
                       </div>
-                    )}
 
-                    {/* Binance 白名单IP提示 */}
-                    {selectedExchange.id === 'binance' && (
-                      <div
-                        className="p-4 rounded"
-                        style={{
-                          background: 'rgba(240, 185, 11, 0.1)',
-                          border: '1px solid rgba(240, 185, 11, 0.2)',
-                        }}
-                      >
-                        <div
-                          className="text-sm font-semibold mb-2"
-                          style={{ color: '#F0B90B' }}
+                      <div>
+                        <label
+                          className="block text-sm font-semibold mb-2"
+                          style={{ color: '#EAECEF' }}
                         >
-                          {t('whitelistIP', language)}
-                        </div>
-                        <div
-                          className="text-xs mb-3"
-                          style={{ color: '#848E9C' }}
-                        >
-                          {t('whitelistIPDesc', language)}
-                        </div>
-
-                        {loadingIP ? (
-                          <div className="text-xs" style={{ color: '#848E9C' }}>
-                            {t('loadingServerIP', language)}
-                          </div>
-                        ) : serverIP && serverIP.public_ip ? (
-                          <div
-                            className="flex items-center gap-2 p-2 rounded"
-                            style={{ background: '#0B0E11' }}
-                          >
-                            <code
-                              className="flex-1 text-sm font-mono"
-                              style={{ color: '#F0B90B' }}
-                            >
-                              {serverIP.public_ip}
-                            </code>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyIP(serverIP.public_ip)}
-                              className="px-3 py-1 rounded text-xs font-semibold transition-all hover:scale-105"
-                              style={{
-                                background: 'rgba(240, 185, 11, 0.2)',
-                                color: '#F0B90B',
-                              }}
-                            >
-                              {copiedIP
-                                ? t('ipCopied', language)
-                                : t('copyIP', language)}
-                            </button>
-                          </div>
-                        ) : null}
+                          {t('secretKey', language)}
+                        </label>
+                        <input
+                          type="password"
+                          value={secretKey}
+                          onChange={(e) => setSecretKey(e.target.value)}
+                          placeholder={t('enterSecretKey', language)}
+                          className="w-full px-3 py-2 rounded"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                          required
+                        />
                       </div>
-                    )}
+
+                      {selectedExchange.id === 'okx' && (
+                        <div>
+                          <label
+                            className="block text-sm font-semibold mb-2"
+                            style={{ color: '#EAECEF' }}
+                          >
+                            {t('passphrase', language)}
+                          </label>
+                          <input
+                            type="password"
+                            value={passphrase}
+                            onChange={(e) => setPassphrase(e.target.value)}
+                            placeholder={t('enterPassphrase', language)}
+                            className="w-full px-3 py-2 rounded"
+                            style={{
+                              background: '#0B0E11',
+                              border: '1px solid #2B3139',
+                              color: '#EAECEF',
+                            }}
+                            required
+                          />
+                        </div>
+                      )}
+
+                      {/* Binance 白名单IP提示 */}
+                      {selectedExchange.id === 'binance' && (
+                        <div
+                          className="p-4 rounded"
+                          style={{
+                            background: 'rgba(240, 185, 11, 0.1)',
+                            border: '1px solid rgba(240, 185, 11, 0.2)',
+                          }}
+                        >
+                          <div
+                            className="text-sm font-semibold mb-2"
+                            style={{ color: '#F0B90B' }}
+                          >
+                            {t('whitelistIP', language)}
+                          </div>
+                          <div
+                            className="text-xs mb-3"
+                            style={{ color: '#848E9C' }}
+                          >
+                            {t('whitelistIPDesc', language)}
+                          </div>
+
+                          {loadingIP ? (
+                            <div
+                              className="text-xs"
+                              style={{ color: '#848E9C' }}
+                            >
+                              {t('loadingServerIP', language)}
+                            </div>
+                          ) : serverIP && serverIP.public_ip ? (
+                            <div
+                              className="flex items-center gap-2 p-2 rounded"
+                              style={{ background: '#0B0E11' }}
+                            >
+                              <code
+                                className="flex-1 text-sm font-mono"
+                                style={{ color: '#F0B90B' }}
+                              >
+                                {serverIP.public_ip}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyIP(serverIP.public_ip)}
+                                className="px-3 py-1 rounded text-xs font-semibold transition-all hover:scale-105"
+                                style={{
+                                  background: 'rgba(240, 185, 11, 0.2)',
+                                  color: '#F0B90B',
+                                }}
+                              >
+                                {copiedIP
+                                  ? t('ipCopied', language)
+                                  : t('copyIP', language)}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                {/* Hyperliquid 交易所的字段 */}
+                {selectedExchange.id === 'hyperliquid' && (
+                  <>
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('privateKey', language)}
+                      </label>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder={t('enterPrivateKey', language)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('hyperliquidPrivateKeyDesc', language)}
+                      </div>
+                    </div>
                   </>
                 )}
 
-              {/* Hyperliquid 交易所的字段 */}
-              {selectedExchange.id === 'hyperliquid' && (
-                <>
-                  {/* 安全提示 banner */}
-                  <div
-                    className="p-3 rounded mb-4"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.1)',
-                      border: '1px solid rgba(240, 185, 11, 0.3)',
-                    }}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span style={{ color: '#F0B90B', fontSize: '16px' }}>
-                        🔐
-                      </span>
-                      <div className="flex-1">
-                        <div
-                          className="text-sm font-semibold mb-1"
-                          style={{ color: '#F0B90B' }}
-                        >
-                          {t('hyperliquidAgentWalletTitle', language)}
-                        </div>
-                        <div
-                          className="text-xs"
-                          style={{ color: '#848E9C', lineHeight: '1.5' }}
-                        >
-                          {t('hyperliquidAgentWalletDesc', language)}
+                {/* Aster 交易所的字段 */}
+                {selectedExchange.id === 'aster' && (
+                  <>
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2 flex items-center gap-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('user', language)}
+                        <Tooltip content={t('asterUserDesc', language)}>
+                          <HelpCircle
+                            className="w-4 h-4 cursor-help"
+                            style={{ color: '#F0B90B' }}
+                          />
+                        </Tooltip>
+                      </label>
+                      <input
+                        type="text"
+                        value={asterUser}
+                        onChange={(e) => setAsterUser(e.target.value)}
+                        placeholder={t('enterUser', language)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2 flex items-center gap-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('signer', language)}
+                        <Tooltip content={t('asterSignerDesc', language)}>
+                          <HelpCircle
+                            className="w-4 h-4 cursor-help"
+                            style={{ color: '#F0B90B' }}
+                          />
+                        </Tooltip>
+                      </label>
+                      <input
+                        type="text"
+                        value={asterSigner}
+                        onChange={(e) => setAsterSigner(e.target.value)}
+                        placeholder={t('enterSigner', language)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2 flex items-center gap-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('privateKey', language)}
+                        <Tooltip content={t('asterPrivateKeyDesc', language)}>
+                          <HelpCircle
+                            className="w-4 h-4 cursor-help"
+                            style={{ color: '#F0B90B' }}
+                          />
+                        </Tooltip>
+                      </label>
+                      <input
+                        type="password"
+                        value={asterPrivateKey}
+                        onChange={(e) => setAsterPrivateKey(e.target.value)}
+                        placeholder={t('enterPrivateKey', language)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Hyperliquid 交易所的字段 */}
+                {selectedExchange.id === 'hyperliquid' && (
+                  <>
+                    {/* 安全提示 banner */}
+                    <div
+                      className="p-3 rounded mb-4"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.1)',
+                        border: '1px solid rgba(240, 185, 11, 0.3)',
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span style={{ color: '#F0B90B', fontSize: '16px' }}>
+                          🔐
+                        </span>
+                        <div className="flex-1">
+                          <div
+                            className="text-sm font-semibold mb-1"
+                            style={{ color: '#F0B90B' }}
+                          >
+                            {t('hyperliquidAgentWalletTitle', language)}
+                          </div>
+                          <div
+                            className="text-xs"
+                            style={{ color: '#848E9C', lineHeight: '1.5' }}
+                          >
+                            {t('hyperliquidAgentWalletDesc', language)}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Agent Private Key 字段 */}
-                  <div>
-                    <label
-                      className="block text-sm font-semibold mb-2"
-                      style={{ color: '#EAECEF' }}
-                    >
-                      {t('hyperliquidAgentPrivateKey', language)}
-                    </label>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={maskSecret(apiKey)}
-                          readOnly
-                          placeholder={t(
-                            'enterHyperliquidAgentPrivateKey',
-                            language
+                    {/* Agent Private Key 字段 */}
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('hyperliquidAgentPrivateKey', language)}
+                      </label>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={maskSecret(apiKey)}
+                            readOnly
+                            placeholder={t(
+                              'enterHyperliquidAgentPrivateKey',
+                              language
+                            )}
+                            className="w-full px-3 py-2 rounded"
+                            style={{
+                              background: '#0B0E11',
+                              border: '1px solid #2B3139',
+                              color: '#EAECEF',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSecureInputTarget('hyperliquid')}
+                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                            style={{
+                              background: '#F0B90B',
+                              color: '#000',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {apiKey
+                              ? t('secureInputReenter', language)
+                              : t('secureInputButton', language)}
+                          </button>
+                          {apiKey && (
+                            <button
+                              type="button"
+                              onClick={() => setApiKey('')}
+                              className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                              style={{
+                                background: '#1B1F2B',
+                                color: '#848E9C',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {t('secureInputClear', language)}
+                            </button>
                           )}
-                          className="w-full px-3 py-2 rounded"
-                          style={{
-                            background: '#0B0E11',
-                            border: '1px solid #2B3139',
-                            color: '#EAECEF',
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setSecureInputTarget('hyperliquid')}
-                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                          style={{
-                            background: '#F0B90B',
-                            color: '#000',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {apiKey
-                            ? t('secureInputReenter', language)
-                            : t('secureInputButton', language)}
-                        </button>
+                        </div>
                         {apiKey && (
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
+                            {t('secureInputHint', language)}
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('hyperliquidAgentPrivateKeyDesc', language)}
+                      </div>
+                    </div>
+
+                    {/* Main Wallet Address 字段 */}
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('hyperliquidMainWalletAddress', language)}
+                      </label>
+                      <input
+                        type="text"
+                        value={hyperliquidWalletAddr}
+                        onChange={(e) =>
+                          setHyperliquidWalletAddr(e.target.value)
+                        }
+                        placeholder={t(
+                          'enterHyperliquidMainWalletAddress',
+                          language
+                        )}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('hyperliquidMainWalletAddressDesc', language)}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Aster 交易所的字段 */}
+                {selectedExchange.id === 'aster' && (
+                  <>
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2 flex items-center gap-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('user', language)}
+                        <Tooltip content={t('asterUserDesc', language)}>
+                          <HelpCircle
+                            className="w-4 h-4 cursor-help"
+                            style={{ color: '#F0B90B' }}
+                          />
+                        </Tooltip>
+                      </label>
+                      <input
+                        type="text"
+                        value={asterUser}
+                        onChange={(e) => setAsterUser(e.target.value)}
+                        placeholder={t('enterUser', language)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2 flex items-center gap-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('signer', language)}
+                        <Tooltip content={t('asterSignerDesc', language)}>
+                          <HelpCircle
+                            className="w-4 h-4 cursor-help"
+                            style={{ color: '#F0B90B' }}
+                          />
+                        </Tooltip>
+                      </label>
+                      <input
+                        type="text"
+                        value={asterSigner}
+                        onChange={(e) => setAsterSigner(e.target.value)}
+                        placeholder={t('enterSigner', language)}
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        className="block text-sm font-semibold mb-2 flex items-center gap-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {t('privateKey', language)}
+                        <Tooltip content={t('asterPrivateKeyDesc', language)}>
+                          <HelpCircle
+                            className="w-4 h-4 cursor-help"
+                            style={{ color: '#F0B90B' }}
+                          />
+                        </Tooltip>
+                      </label>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={maskSecret(asterPrivateKey)}
+                            readOnly
+                            placeholder={t('enterPrivateKey', language)}
+                            className="w-full px-3 py-2 rounded"
+                            style={{
+                              background: '#0B0E11',
+                              border: '1px solid #2B3139',
+                              color: '#EAECEF',
+                            }}
+                          />
                           <button
                             type="button"
-                            onClick={() => setApiKey('')}
+                            onClick={() => setSecureInputTarget('aster')}
                             className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
                             style={{
-                              background: '#1B1F2B',
-                              color: '#848E9C',
+                              background: '#F0B90B',
+                              color: '#000',
                               whiteSpace: 'nowrap',
                             }}
                           >
-                            {t('secureInputClear', language)}
+                            {asterPrivateKey
+                              ? t('secureInputReenter', language)
+                              : t('secureInputButton', language)}
                           </button>
-                        )}
-                      </div>
-                      {apiKey && (
-                        <div className="text-xs" style={{ color: '#848E9C' }}>
-                          {t('secureInputHint', language)}
+                          {asterPrivateKey && (
+                            <button
+                              type="button"
+                              onClick={() => setAsterPrivateKey('')}
+                              className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                              style={{
+                                background: '#1B1F2B',
+                                color: '#848E9C',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {t('secureInputClear', language)}
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidAgentPrivateKeyDesc', language)}
-                    </div>
-                  </div>
-
-                  {/* Main Wallet Address 字段 */}
-                  <div>
-                    <label
-                      className="block text-sm font-semibold mb-2"
-                      style={{ color: '#EAECEF' }}
-                    >
-                      {t('hyperliquidMainWalletAddress', language)}
-                    </label>
-                    <input
-                      type="text"
-                      value={hyperliquidWalletAddr}
-                      onChange={(e) => setHyperliquidWalletAddr(e.target.value)}
-                      placeholder={t(
-                        'enterHyperliquidMainWalletAddress',
-                        language
-                      )}
-                      className="w-full px-3 py-2 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
-                      required
-                    />
-                    <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      {t('hyperliquidMainWalletAddressDesc', language)}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Aster 交易所的字段 */}
-              {selectedExchange.id === 'aster' && (
-                <>
-                  <div>
-                    <label
-                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
-                      style={{ color: '#EAECEF' }}
-                    >
-                      {t('user', language)}
-                      <Tooltip content={t('asterUserDesc', language)}>
-                        <HelpCircle
-                          className="w-4 h-4 cursor-help"
-                          style={{ color: '#F0B90B' }}
-                        />
-                      </Tooltip>
-                    </label>
-                    <input
-                      type="text"
-                      value={asterUser}
-                      onChange={(e) => setAsterUser(e.target.value)}
-                      placeholder={t('enterUser', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
-                      style={{ color: '#EAECEF' }}
-                    >
-                      {t('signer', language)}
-                      <Tooltip content={t('asterSignerDesc', language)}>
-                        <HelpCircle
-                          className="w-4 h-4 cursor-help"
-                          style={{ color: '#F0B90B' }}
-                        />
-                      </Tooltip>
-                    </label>
-                    <input
-                      type="text"
-                      value={asterSigner}
-                      onChange={(e) => setAsterSigner(e.target.value)}
-                      placeholder={t('enterSigner', language)}
-                      className="w-full px-3 py-2 rounded"
-                      style={{
-                        background: '#0B0E11',
-                        border: '1px solid #2B3139',
-                        color: '#EAECEF',
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      className="block text-sm font-semibold mb-2 flex items-center gap-2"
-                      style={{ color: '#EAECEF' }}
-                    >
-                      {t('privateKey', language)}
-                      <Tooltip content={t('asterPrivateKeyDesc', language)}>
-                        <HelpCircle
-                          className="w-4 h-4 cursor-help"
-                          style={{ color: '#F0B90B' }}
-                        />
-                      </Tooltip>
-                    </label>
-                    <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={maskSecret(asterPrivateKey)}
-                          readOnly
-                          placeholder={t('enterPrivateKey', language)}
-                          className="w-full px-3 py-2 rounded"
-                          style={{
-                            background: '#0B0E11',
-                            border: '1px solid #2B3139',
-                            color: '#EAECEF',
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setSecureInputTarget('aster')}
-                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                          style={{
-                            background: '#F0B90B',
-                            color: '#000',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {asterPrivateKey
-                            ? t('secureInputReenter', language)
-                            : t('secureInputButton', language)}
-                        </button>
                         {asterPrivateKey && (
-                          <button
-                            type="button"
-                            onClick={() => setAsterPrivateKey('')}
-                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                            style={{
-                              background: '#1B1F2B',
-                              color: '#848E9C',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {t('secureInputClear', language)}
-                          </button>
+                          <div className="text-xs" style={{ color: '#848E9C' }}>
+                            {t('secureInputHint', language)}
+                          </div>
                         )}
                       </div>
-                      {asterPrivateKey && (
-                        <div className="text-xs" style={{ color: '#848E9C' }}>
-                          {t('secureInputHint', language)}
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </>
-              )}
 
-              <div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={testnet}
-                    onChange={(e) => setTestnet(e.target.checked)}
-                    className="form-checkbox rounded"
-                    style={{ accentColor: '#F0B90B' }}
-                  />
-                  <span style={{ color: '#EAECEF' }}>
-                    {t('useTestnet', language)}
-                  </span>
-                </label>
-                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                  {t('testnetDescription', language)}
-                </div>
-              </div>
+                    <div
+                      className="p-4 rounded"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.1)',
+                        border: '1px solid rgba(240, 185, 11, 0.2)',
+                      }}
+                    >
+                      <div
+                        className="text-sm font-semibold mb-2"
+                        style={{ color: '#F0B90B' }}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <AlertTriangle className="w-4 h-4" />{' '}
+                          {t('securityWarning', language)}
+                        </span>
+                      </div>
+                      <div
+                        className="text-xs space-y-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {selectedExchange.id === 'aster' && (
+                          <div>{t('asterUsdtWarning', language)}</div>
+                        )}
+                        <div>{t('exchangeConfigWarning1', language)}</div>
+                        <div>{t('exchangeConfigWarning2', language)}</div>
+                        <div>{t('exchangeConfigWarning3', language)}</div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
 
-              <div
-                className="p-4 rounded"
-                style={{
-                  background: 'rgba(240, 185, 11, 0.1)',
-                  border: '1px solid rgba(240, 185, 11, 0.2)',
-                }}
-              >
-                <div
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: '#F0B90B' }}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4" />{' '}
-                    {t('securityWarning', language)}
-                  </span>
-                </div>
-                <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                  {selectedExchange.id === 'aster' && (
-                    <div>{t('asterUsdtWarning', language)}</div>
-                  )}
-                  <div>{t('exchangeConfigWarning1', language)}</div>
-                  <div>{t('exchangeConfigWarning2', language)}</div>
-                  <div>{t('exchangeConfigWarning3', language)}</div>
-                </div>
-              </div>
-            </>
-          )}
-
-          <div className="flex gap-3 mt-6">
+          <div
+            className="flex gap-3 mt-6 pt-4 sticky bottom-0"
+            style={{ background: '#1E2329' }}
+          >
             <button
               type="button"
               onClick={onClose}

@@ -76,9 +76,9 @@ func (s *Server) handleGetDrawdownAnalysis(c *gin.Context) {
 		return
 	}
 
-	if len(records) == 0 {
+	if len(records) < 2 {
 		c.JSON(http.StatusOK, gin.H{
-			"message": "暂无历史数据",
+			"message": "数据点不足，至少需要2个历史记录才能计算回撤",
 			"data":    nil,
 		})
 		return

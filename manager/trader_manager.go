@@ -850,6 +850,7 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 //   - database: 数据库实例
 //   - userID: 用户ID
 //   - traderID: 交易员ID
+//
 // 返回:
 //   - error: 如果交易员不存在、配置无效或加载失败则返回错误
 func (tm *TraderManager) LoadTraderByID(database *config.Database, userID, traderID string) error {

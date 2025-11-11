@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Loader2, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { diagnoseWebCryptoEnvironment } from '../lib/crypto'
 import { t, type Language } from '../i18n/translations'
@@ -67,66 +67,61 @@ export function WebCryptoEnvironmentCheck({
   const descriptionColor = isCompact ? '#CBD5F5' : '#A1AEC8'
   const showInfo = status !== 'idle'
 
-  const renderStatus = () => {
-    switch (status) {
-      case 'secure':
-        return (
-          <div className="flex items-start gap-2 text-green-400 text-xs">
-            <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-            <div>
-              <div className="font-semibold">
-                {t('environmentCheck.secureTitle', language)}
-              </div>
-              <div>{t('environmentCheck.secureDesc', language)}</div>
-            </div>
+  const statusRendererMap: Record<WebCryptoCheckStatus, () => ReactNode> = {
+    secure: () => (
+      <div className="flex items-start gap-2 text-green-400 text-xs">
+        <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+        <div>
+          <div className="font-semibold">
+            {t('environmentCheck.secureTitle', language)}
           </div>
-        )
-      case 'insecure':
-        return (
-          <div className="text-xs" style={{ color: '#F59E0B' }}>
-            <div className="flex items-start gap-2 mb-1">
-              <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-              <div className="font-semibold">
-                {t('environmentCheck.insecureTitle', language)}
-              </div>
-            </div>
-            <div>{t('environmentCheck.insecureDesc', language)}</div>
-            <div className="mt-2 font-semibold">
-              {t('environmentCheck.tipsTitle', language)}
-            </div>
-            <ul className="list-disc pl-5 space-y-1 mt-1">
-              <li>{t('environmentCheck.tipHTTPS', language)}</li>
-              <li>{t('environmentCheck.tipLocalhost', language)}</li>
-              <li>{t('environmentCheck.tipIframe', language)}</li>
-            </ul>
+          <div>{t('environmentCheck.secureDesc', language)}</div>
+        </div>
+      </div>
+    ),
+    insecure: () => (
+      <div className="text-xs" style={{ color: '#F59E0B' }}>
+        <div className="flex items-start gap-2 mb-1">
+          <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+          <div className="font-semibold">
+            {t('environmentCheck.insecureTitle', language)}
           </div>
-        )
-      case 'unsupported':
-        return (
-          <div className="text-xs" style={{ color: '#F87171' }}>
-            <div className="flex items-start gap-2 mb-1">
-              <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-              <div className="font-semibold">
-                {t('environmentCheck.unsupportedTitle', language)}
-              </div>
-            </div>
-            <div>{t('environmentCheck.unsupportedDesc', language)}</div>
+        </div>
+        <div>{t('environmentCheck.insecureDesc', language)}</div>
+        <div className="mt-2 font-semibold">
+          {t('environmentCheck.tipsTitle', language)}
+        </div>
+        <ul className="list-disc pl-5 space-y-1 mt-1">
+          <li>{t('environmentCheck.tipHTTPS', language)}</li>
+          <li>{t('environmentCheck.tipLocalhost', language)}</li>
+          <li>{t('environmentCheck.tipIframe', language)}</li>
+        </ul>
+      </div>
+    ),
+    unsupported: () => (
+      <div className="text-xs" style={{ color: '#F87171' }}>
+        <div className="flex items-start gap-2 mb-1">
+          <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+          <div className="font-semibold">
+            {t('environmentCheck.unsupportedTitle', language)}
           </div>
-        )
-      case 'checking':
-        return (
-          <div
-            className="flex items-center gap-2 text-xs"
-            style={{ color: '#EAECEF' }}
-          >
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>{t('environmentCheck.checking', language)}</span>
-          </div>
-        )
-      default:
-        return null
-    }
+        </div>
+        <div>{t('environmentCheck.unsupportedDesc', language)}</div>
+      </div>
+    ),
+    checking: () => (
+      <div
+        className="flex items-center gap-2 text-xs"
+        style={{ color: '#EAECEF' }}
+      >
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span>{t('environmentCheck.checking', language)}</span>
+      </div>
+    ),
+    idle: () => null,
   }
+
+  const renderStatus = () => statusRendererMap[status]()
 
   return (
     <div className={containerClass}>

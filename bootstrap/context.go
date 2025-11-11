@@ -40,10 +40,26 @@ func (c *Context) Get(key string) (interface{}, bool) {
 }
 
 // MustGet 从上下文获取数据，不存在则 panic
+// ⚠️  警告：此方法会在 key 不存在时 panic，仅在确信 key 必定存在时使用
+// 建议：优先使用 Get() 或 GetOrDefault() 以获得更好的错误处理
 func (c *Context) MustGet(key string) interface{} {
 	val, ok := c.Get(key)
 	if !ok {
-		panic(fmt.Sprintf("context key '%s' not found", key))
+		// 提供更详细的错误信息以便调试
+		availableKeys := make([]string, 0, len(c.Data))
+		for k := range c.Data {
+			availableKeys = append(availableKeys, k)
+		}
+		panic(fmt.Sprintf("context key '%s' not found. Available keys: %v", key, availableKeys))
+	}
+	return val
+}
+
+// GetOrDefault 从上下文获取数据，不存在则返回默认值（更安全的替代方案）
+func (c *Context) GetOrDefault(key string, defaultValue interface{}) interface{} {
+	val, ok := c.Get(key)
+	if !ok {
+		return defaultValue
 	}
 	return val
 }

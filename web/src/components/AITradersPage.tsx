@@ -1803,7 +1803,7 @@ function ExchangeConfigModal({
     if (!selectedExchangeId) return
 
     // 根据交易所类型验证不同字段
-    if (selectedExchange?.id === 'binance') {
+    if (selectedExchange?.id === 'binance' || selectedExchange?.id === 'paper_trading') {
       if (!apiKey.trim() || !secretKey.trim()) return
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
     } else if (selectedExchange?.id === 'hyperliquid') {
@@ -1945,6 +1945,7 @@ function ExchangeConfigModal({
             <>
               {/* Binance 和其他 CEX 交易所的字段 */}
               {(selectedExchange.id === 'binance' ||
+                selectedExchange.id === 'paper_trading' ||
                 selectedExchange.type === 'cex') &&
                 selectedExchange.id !== 'hyperliquid' &&
                 selectedExchange.id !== 'aster' && (

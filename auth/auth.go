@@ -16,6 +16,9 @@ import (
 // JWTSecret JWT密钥，将从配置中动态设置
 var JWTSecret []byte
 
+// OTPIssuer OTP发行者名称
+const OTPIssuer = "nofxAI"
+
 // tokenBlacklist 用于登出后的token黑名单（仅内存，按过期时间清理）
 var tokenBlacklist = struct {
 	sync.RWMutex
@@ -24,9 +27,6 @@ var tokenBlacklist = struct {
 
 // maxBlacklistEntries 黑名单最大容量阈值
 const maxBlacklistEntries = 100_000
-
-// OTPIssuer OTP发行者名称
-const OTPIssuer = "nofxAI"
 
 // SetJWTSecret 设置JWT密钥
 func SetJWTSecret(secret string) {
@@ -111,6 +111,11 @@ func VerifyOTP(secret, code string) bool {
 	return totp.Validate(code, secret)
 }
 
+// GetOTPQRCodeURL 获取OTP二维码URL
+func GetOTPQRCodeURL(secret, email string) string {
+	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", OTPIssuer, email, secret, OTPIssuer)
+}
+
 // GenerateJWT 生成JWT token
 func GenerateJWT(userID, email string) (string, error) {
 	claims := Claims{
@@ -146,9 +151,4 @@ func ValidateJWT(tokenString string) (*Claims, error) {
 	}
 
 	return nil, fmt.Errorf("无效的token")
-}
-
-// GetOTPQRCodeURL 获取OTP二维码URL
-func GetOTPQRCodeURL(secret, email string) string {
-	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", OTPIssuer, email, secret, OTPIssuer)
 }

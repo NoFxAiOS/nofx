@@ -13,7 +13,6 @@ export function ResetPasswordPage() {
   const [email, setEmail] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [otpCode, setOtpCode] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -34,7 +33,7 @@ export function ResetPasswordPage() {
 
     setLoading(true)
 
-    const result = await resetPassword(email, newPassword, otpCode)
+    const result = await resetPassword(email, newPassword)
 
     if (result.success) {
       setSuccess(true)
@@ -84,7 +83,10 @@ export function ResetPasswordPage() {
               {t('resetPasswordTitle', language)}
             </h1>
             <p className="text-sm mt-2" style={{ color: '#848E9C' }}>
-              使用邮箱和 Google Authenticator 重置密码
+              请输入您的邮箱和新密码
+            </p>
+            <p className="text-xs mt-1 text-yellow-500">
+              ⚠️ 重置密码需要访问注册邮箱，请确保您可以接收邮件
             </p>
           </div>
 
@@ -226,37 +228,6 @@ export function ResetPasswordPage() {
                   />
                 </div>
 
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('otpCode', language)}
-                  </label>
-                  <div className="text-center mb-3">
-                    <div className="text-3xl">📱</div>
-                    <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                      打开 Google Authenticator 获取6位验证码
-                    </p>
-                  </div>
-                  <input
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) =>
-                      setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    }
-                    className="w-full px-3 py-2 rounded text-center text-2xl font-mono"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                    placeholder={t('otpPlaceholder', language)}
-                    maxLength={6}
-                    required
-                  />
-                </div>
-
                 {error && (
                   <div
                     className="text-sm px-3 py-2 rounded"
@@ -271,7 +242,7 @@ export function ResetPasswordPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length !== 6 || !passwordValid}
+                  disabled={loading || !passwordValid}
                   className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
                   style={{ background: '#F0B90B', color: '#000' }}
                 >

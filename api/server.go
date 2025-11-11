@@ -30,10 +30,11 @@ type Server struct {
 	database      *config.Database
 	cryptoHandler *CryptoHandler
 	port          int
+	disableOTP    bool
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, port int) *Server {
+func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, port int, disableOTP ...bool) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 
@@ -45,12 +46,15 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 	// 创建加密处理器
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
+	otpDisabled := len(disableOTP) > 0 && disableOTP[0]
+
 	s := &Server{
 		router:        router,
 		traderManager: traderManager,
 		database:      database,
 		cryptoHandler: cryptoHandler,
 		port:          port,
+		disableOTP:    otpDisabled,
 	}
 
 	// 设置路由
@@ -111,8 +115,6 @@ func (s *Server) setupRoutes() {
 		// 认证相关路由（无需认证）
 		api.POST("/register", s.handleRegister)
 		api.POST("/login", s.handleLogin)
-		api.POST("/verify-otp", s.handleVerifyOTP)
-		api.POST("/complete-registration", s.handleCompleteRegistration)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -1690,6 +1692,102 @@ func (s *Server) handleLogout(c *gin.Context) {
 
 // handleRegister 处理用户注册请求
 func (s *Server) handleRegister(c *gin.Context) {
+	// 在开发模式下，如果OTP被禁用，则跳过OTP验证
+	if s.disableOTP {
+		var req struct {
+			Email    string `json:"email" binding:"required,email"`
+			Password string `json:"password" binding:"required,min=6"`
+			BetaCode string `json:"beta_code"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// 检查是否开启了内测模式
+		betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+		if betaModeStr == "true" {
+			// 内测模式下必须提供有效的内测码
+			if req.BetaCode == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "内测期间，注册需要提供内测码"})
+				return
+			}
+
+			// 验证内测码
+			isValid, err := s.database.ValidateBetaCode(req.BetaCode)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "验证内测码失败"})
+				return
+			}
+			if !isValid {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "内测码无效或已被使用"})
+				return
+			}
+		}
+
+		// 检查邮箱是否已存在
+		_, err := s.database.GetUserByEmail(req.Email)
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "邮箱已被注册"})
+			return
+		}
+
+		// 生成密码哈希
+		passwordHash, err := auth.HashPassword(req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "密码处理失败"})
+			return
+		}
+
+		// 创建用户（OTP已禁用，设置为已验证）
+		userID := uuid.New().String()
+		user := &config.User{
+			ID:          userID,
+			Email:       req.Email,
+			PasswordHash: passwordHash,
+			OTPSecret:   "",
+			OTPVerified: true, // 开发模式下默认已验证
+		}
+
+		err = s.database.CreateUser(user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
+			return
+		}
+
+		// 如果是内测模式，标记内测码为已使用
+		betaModeStr2, _ := s.database.GetSystemConfig("beta_mode")
+		if betaModeStr2 == "true" && req.BetaCode != "" {
+			err := s.database.UseBetaCode(req.BetaCode, req.Email)
+			if err != nil {
+				log.Printf("⚠️ 标记内测码为已使用失败: %v", err)
+			} else {
+				log.Printf("✓ 内测码 %s 已被用户 %s 使用", req.BetaCode, req.Email)
+			}
+		}
+
+		// 生成JWT token
+		token, err := auth.GenerateJWT(user.ID, user.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+			return
+		}
+
+		// 初始化用户的默认模型和交易所配置
+		err = s.initUserDefaultConfigs(user.ID)
+		if err != nil {
+			log.Printf("初始化用户默认配置失败: %v", err)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"token":   token,
+			"user_id": userID,
+			"email":   req.Email,
+			"message": "注册成功（开发模式）",
+		})
+		return
+	}
 
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -1740,18 +1838,18 @@ func (s *Server) handleRegister(c *gin.Context) {
 	// 生成OTP密钥
 	otpSecret, err := auth.GenerateOTPSecret()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "OTP密钥生成失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成OTP密钥失败"})
 		return
 	}
 
-	// 创建用户（未验证OTP状态）
+	// 创建用户（此时未验证OTP）
 	userID := uuid.New().String()
 	user := &config.User{
-		ID:           userID,
-		Email:        req.Email,
+		ID:          userID,
+		Email:       req.Email,
 		PasswordHash: passwordHash,
-		OTPSecret:    otpSecret,
-		OTPVerified:  false,
+		OTPSecret:   otpSecret,
+		OTPVerified: false,
 	}
 
 	err = s.database.CreateUser(user)
@@ -1759,6 +1857,9 @@ func (s *Server) handleRegister(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
 		return
 	}
+
+	// 生成OTP二维码URL
+	qrCodeURL := auth.GetOTPQRCodeURL(otpSecret, req.Email)
 
 	// 如果是内测模式，标记内测码为已使用
 	betaModeStr2, _ := s.database.GetSystemConfig("beta_mode")
@@ -1772,67 +1873,11 @@ func (s *Server) handleRegister(c *gin.Context) {
 		}
 	}
 
-	// 返回OTP设置信息
-	qrCodeURL := auth.GetOTPQRCodeURL(otpSecret, req.Email)
 	c.JSON(http.StatusOK, gin.H{
 		"user_id":     userID,
 		"email":       req.Email,
-		"otp_secret":  otpSecret,
 		"qr_code_url": qrCodeURL,
 		"message":     "请使用Google Authenticator扫描二维码并验证OTP",
-	})
-}
-
-// handleCompleteRegistration 完成注册（验证OTP）
-func (s *Server) handleCompleteRegistration(c *gin.Context) {
-	var req struct {
-		UserID  string `json:"user_id" binding:"required"`
-		OTPCode string `json:"otp_code" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// 获取用户信息
-	user, err := s.database.GetUserByID(req.UserID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
-		return
-	}
-
-	// 验证OTP
-	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP验证码错误"})
-		return
-	}
-
-	// 更新用户OTP验证状态
-	err = s.database.UpdateUserOTPVerified(req.UserID, true)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户状态失败"})
-		return
-	}
-
-	// 生成JWT token
-	token, err := auth.GenerateJWT(user.ID, user.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
-		return
-	}
-
-	// 初始化用户的默认模型和交易所配置
-	err = s.initUserDefaultConfigs(user.ID)
-	if err != nil {
-		log.Printf("初始化用户默认配置失败: %v", err)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"token":   token,
-		"user_id": user.ID,
-		"email":   user.Email,
-		"message": "注册完成",
 	})
 }
 
@@ -1861,47 +1906,31 @@ func (s *Server) handleLogin(c *gin.Context) {
 		return
 	}
 
-	// 检查OTP是否已验证
-	if !user.OTPVerified {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":              "账户未完成OTP设置",
-			"user_id":            user.ID,
-			"requires_otp_setup": true,
+	// 在开发模式下，如果OTP被禁用，则直接登录成功
+	if s.disableOTP {
+		// 生成JWT token
+		token, err := auth.GenerateJWT(user.ID, user.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"token":   token,
+			"user_id": user.ID,
+			"email":   user.Email,
+			"message": "登录成功（开发模式）",
 		})
 		return
 	}
 
-	// 返回需要OTP验证的状态
-	c.JSON(http.StatusOK, gin.H{
-		"user_id":      user.ID,
-		"email":        user.Email,
-		"message":      "请输入Google Authenticator验证码",
-		"requires_otp": true,
-	})
-}
-
-// handleVerifyOTP 验证OTP并完成登录
-func (s *Server) handleVerifyOTP(c *gin.Context) {
-	var req struct {
-		UserID  string `json:"user_id" binding:"required"`
-		OTPCode string `json:"otp_code" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// 获取用户信息
-	user, err := s.database.GetUserByID(req.UserID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
-		return
-	}
-
-	// 验证OTP
-	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误"})
+	// 检查用户是否已验证OTP
+	if !user.OTPVerified {
+		c.JSON(http.StatusOK, gin.H{
+			"user_id":      user.ID,
+			"message":      "请输入Google Authenticator验证码",
+			"requires_otp": true,
+		})
 		return
 	}
 
@@ -1920,12 +1949,11 @@ func (s *Server) handleVerifyOTP(c *gin.Context) {
 	})
 }
 
-// handleResetPassword 重置密码（通过邮箱 + OTP 验证）
+// handleResetPassword 重置密码（通过邮箱验证）
 func (s *Server) handleResetPassword(c *gin.Context) {
 	var req struct {
 		Email       string `json:"email" binding:"required,email"`
 		NewPassword string `json:"new_password" binding:"required,min=6"`
-		OTPCode     string `json:"otp_code" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1937,12 +1965,6 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 	user, err := s.database.GetUserByEmail(req.Email)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "邮箱不存在"})
-		return
-	}
-
-	// 验证 OTP
-	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Google Authenticator 验证码错误"})
 		return
 	}
 
@@ -2304,4 +2326,97 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// handleCompleteRegistration 完成注册（验证OTP）
+func (s *Server) handleCompleteRegistration(c *gin.Context) {
+	var req struct {
+		UserID  string `json:"user_id" binding:"required"`
+		OTPCode string `json:"otp_code" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 获取用户信息
+	user, err := s.database.GetUserByID(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 验证OTP
+	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP验证码错误"})
+		return
+	}
+
+	// 更新用户OTP验证状态
+	err = s.database.UpdateUserOTPVerified(req.UserID, true)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户状态失败"})
+		return
+	}
+
+	// 生成JWT token
+	token, err := auth.GenerateJWT(user.ID, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+		return
+	}
+
+	// 初始化用户的默认模型和交易所配置
+	err = s.initUserDefaultConfigs(user.ID)
+	if err != nil {
+		log.Printf("初始化用户默认配置失败: %v", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":   token,
+		"user_id": user.ID,
+		"email":   user.Email,
+		"message": "注册完成",
+	})
+}
+
+// handleVerifyOTP 验证OTP并完成登录
+func (s *Server) handleVerifyOTP(c *gin.Context) {
+	var req struct {
+		UserID  string `json:"user_id" binding:"required"`
+		OTPCode string `json:"otp_code" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 获取用户信息
+	user, err := s.database.GetUserByID(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+		return
+	}
+
+	// 验证OTP
+	if !auth.VerifyOTP(user.OTPSecret, req.OTPCode) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "验证码错误"})
+		return
+	}
+
+	// 生成JWT token
+	token, err := auth.GenerateJWT(user.ID, user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":   token,
+		"user_id": user.ID,
+		"email":   user.Email,
+		"message": "登录成功",
+	})
 }

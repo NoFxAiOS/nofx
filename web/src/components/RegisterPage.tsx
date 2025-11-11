@@ -10,19 +10,12 @@ import PasswordChecklist from 'react-password-checklist'
 
 export function RegisterPage() {
   const { language } = useLanguage()
-  const { register, completeRegistration } = useAuth()
-  const [step, setStep] = useState<'register' | 'setup-otp' | 'verify-otp'>(
-    'register'
-  )
+  const { register } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [betaCode, setBetaCode] = useState('')
   const [betaMode, setBetaMode] = useState(false)
-  const [otpCode, setOtpCode] = useState('')
-  const [userID, setUserID] = useState('')
-  const [otpSecret, setOtpSecret] = useState('')
-  const [qrCodeURL, setQrCodeURL] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [passwordValid, setPasswordValid] = useState(false)
@@ -60,39 +53,12 @@ export function RegisterPage() {
 
     const result = await register(email, password, betaCode.trim() || undefined)
 
-    if (result.success && result.userID) {
-      setUserID(result.userID)
-      setOtpSecret(result.otpSecret || '')
-      setQrCodeURL(result.qrCodeURL || '')
-      setStep('setup-otp')
-    } else {
-      setError(result.message || t('registrationFailed', language))
-    }
-
-    setLoading(false)
-  }
-
-  const handleSetupComplete = () => {
-    setStep('verify-otp')
-  }
-
-  const handleOTPVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    const result = await completeRegistration(userID, otpCode)
-
     if (!result.success) {
       setError(result.message || t('registrationFailed', language))
     }
-    // 成功的话AuthContext会自动处理登录状态
+    // Success handled automatically by AuthContext (redirects to /traders)
 
     setLoading(false)
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
   }
 
   return (
@@ -126,12 +92,10 @@ export function RegisterPage() {
               />
             </div>
             <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
-              {t('appTitle', language)}
+              {t('register', language)}
             </h1>
             <p className="text-sm mt-2" style={{ color: '#848E9C' }}>
-              {step === 'register' && t('registerTitle', language)}
-              {step === 'setup-otp' && t('setupTwoFactor', language)}
-              {step === 'verify-otp' && t('verifyOTP', language)}
+              {t('createAccount', language)}
             </p>
           </div>
 
@@ -143,8 +107,7 @@ export function RegisterPage() {
               border: '1px solid var(--panel-border)',
             }}
           >
-            {step === 'register' && (
-              <form onSubmit={handleRegister} className="space-y-4">
+            <form onSubmit={handleRegister} className="space-y-4">
                 <div>
                   <label
                     className="block text-sm font-semibold mb-2"
@@ -322,218 +285,10 @@ export function RegisterPage() {
                     : t('registerButton', language)}
                 </button>
               </form>
-            )}
-
-            {step === 'setup-otp' && (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <div className="text-4xl mb-2">📱</div>
-                  <h3
-                    className="text-lg font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('setupTwoFactor', language)}
-                  </h3>
-                  <p className="text-sm" style={{ color: '#848E9C' }}>
-                    {t('setupTwoFactorDesc', language)}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  <div
-                    className="p-3 rounded"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                    }}
-                  >
-                    <p
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: 'var(--brand-light-gray)' }}
-                    >
-                      {t('authStep1Title', language)}
-                    </p>
-                    <p
-                      className="text-xs"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {t('authStep1Desc', language)}
-                    </p>
-                  </div>
-
-                  <div
-                    className="p-3 rounded"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                    }}
-                  >
-                    <p
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: 'var(--brand-light-gray)' }}
-                    >
-                      {t('authStep2Title', language)}
-                    </p>
-                    <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                      {t('authStep2Desc', language)}
-                    </p>
-
-                    {qrCodeURL && (
-                      <div className="mt-2">
-                        <p
-                          className="text-xs mb-2"
-                          style={{ color: '#848E9C' }}
-                        >
-                          {t('qrCodeHint', language)}
-                        </p>
-                        <div className="bg-white p-2 rounded text-center">
-                          <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrCodeURL)}`}
-                            alt="QR Code"
-                            className="mx-auto"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="mt-2">
-                      <p className="text-xs mb-1" style={{ color: '#848E9C' }}>
-                        {t('otpSecret', language)}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <code
-                          className="flex-1 px-2 py-1 text-xs rounded font-mono"
-                          style={{
-                            background: 'var(--panel-bg-hover)',
-                            color: 'var(--brand-light-gray)',
-                          }}
-                        >
-                          {otpSecret}
-                        </code>
-                        <button
-                          onClick={() => copyToClipboard(otpSecret)}
-                          className="px-2 py-1 text-xs rounded"
-                          style={{
-                            background: 'var(--brand-yellow)',
-                            color: 'var(--brand-black)',
-                          }}
-                        >
-                          {t('copy', language)}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div
-                    className="p-3 rounded"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                    }}
-                  >
-                    <p
-                      className="text-sm font-semibold mb-2"
-                      style={{ color: 'var(--brand-light-gray)' }}
-                    >
-                      {t('authStep3Title', language)}
-                    </p>
-                    <p
-                      className="text-xs"
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {t('authStep3Desc', language)}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSetupComplete}
-                  className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                  style={{ background: '#F0B90B', color: '#000' }}
-                >
-                  {t('setupCompleteContinue', language)}
-                </button>
-              </div>
-            )}
-
-            {step === 'verify-otp' && (
-              <form onSubmit={handleOTPVerify} className="space-y-4">
-                <div className="text-center mb-4">
-                  <div className="text-4xl mb-2">🔐</div>
-                  <p className="text-sm" style={{ color: '#848E9C' }}>
-                    {t('enterOTPCode', language)}
-                    <br />
-                    {t('completeRegistrationSubtitle', language)}
-                  </p>
-                </div>
-
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('otpCode', language)}
-                  </label>
-                  <input
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) =>
-                      setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    }
-                    className="w-full px-3 py-2 rounded text-center text-2xl font-mono"
-                    style={{
-                      background: 'var(--brand-black)',
-                      border: '1px solid var(--panel-border)',
-                      color: 'var(--brand-light-gray)',
-                    }}
-                    placeholder={t('otpPlaceholder', language)}
-                    maxLength={6}
-                    required
-                  />
-                </div>
-
-                {error && (
-                  <div
-                    className="text-sm px-3 py-2 rounded"
-                    style={{
-                      background: 'var(--binance-red-bg)',
-                      color: 'var(--binance-red)',
-                    }}
-                  >
-                    {error}
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setStep('setup-otp')}
-                    className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-                    style={{
-                      background: 'var(--panel-bg-hover)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {t('back', language)}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || otpCode.length !== 6}
-                    className="flex-1 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                    style={{ background: '#F0B90B', color: '#000' }}
-                  >
-                    {loading
-                      ? t('loading', language)
-                      : t('completeRegistration', language)}
-                  </button>
-                </div>
-              </form>
-            )}
           </div>
 
           {/* Login Link */}
-          {step === 'register' && (
-            <div className="text-center mt-6">
+          <div className="text-center mt-6">
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 已有账户？{' '}
                 <button
@@ -548,7 +303,6 @@ export function RegisterPage() {
                 </button>
               </p>
             </div>
-          )}
         </div>
       </div>
     </div>

@@ -1,9 +1,7 @@
 package config
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -24,6 +22,7 @@ type DatabaseInterface interface {
 	GetUserByEmail(email string) (*User, error)
 	GetUserByID(userID string) (*User, error)
 	GetAllUsers() ([]string, error)
+	UpdateUserPassword(userID, newPasswordHash string) error
 	UpdateUserOTPVerified(userID string, verified bool) error
 	GetAIModels(userID string) ([]*AIModelConfig, error)
 	UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error
@@ -257,6 +256,9 @@ func (d *Database) createTables() error {
 		`ALTER TABLE traders ADD COLUMN system_prompt_template TEXT DEFAULT 'default'`, // 系统提示词模板名称
 		`ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`,              // 自定义API地址
 		`ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`,           // 自定义模型名称
+		// 2FA 相关字段
+		`ALTER TABLE users ADD COLUMN otp_secret TEXT`,
+		`ALTER TABLE users ADD COLUMN otp_verified BOOLEAN DEFAULT 0`,
 	}
 
 	for _, query := range alterQueries {
@@ -300,6 +302,7 @@ func (d *Database) initDefaultData() error {
 		{"binance", "Binance Futures", "binance"},
 		{"hyperliquid", "Hyperliquid", "hyperliquid"},
 		{"aster", "Aster DEX", "aster"},
+		{"paper_trading", "Paper Trading (Binance Testnet)", "paper_trading"},
 	}
 
 	for _, exchange := range exchanges {
@@ -500,15 +503,6 @@ type UserSignalSource struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// GenerateOTPSecret 生成OTP密钥
-func GenerateOTPSecret() (string, error) {
-	secret := make([]byte, 20)
-	_, err := rand.Read(secret)
-	if err != nil {
-		return "", err
-	}
-	return base32.StdEncoding.EncodeToString(secret), nil
-}
 
 // CreateUser 创建用户
 func (d *Database) CreateUser(user *User) error {
@@ -538,8 +532,6 @@ func (d *Database) EnsureAdminUser() error {
 		ID:           "admin",
 		Email:        "admin@localhost",
 		PasswordHash: "", // 管理员模式下不使用密码
-		OTPSecret:    "",
-		OTPVerified:  true,
 	}
 
 	return d.CreateUser(adminUser)
@@ -549,7 +541,7 @@ func (d *Database) EnsureAdminUser() error {
 func (d *Database) GetUserByEmail(email string) (*User, error) {
 	var user User
 	err := d.db.QueryRow(`
-		SELECT id, email, password_hash, otp_secret, otp_verified, created_at, updated_at
+		SELECT id, email, password_hash, COALESCE(otp_secret, '') as otp_secret, COALESCE(otp_verified, 0) as otp_verified, created_at, updated_at
 		FROM users WHERE email = ?
 	`, email).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret,
@@ -565,7 +557,7 @@ func (d *Database) GetUserByEmail(email string) (*User, error) {
 func (d *Database) GetUserByID(userID string) (*User, error) {
 	var user User
 	err := d.db.QueryRow(`
-		SELECT id, email, password_hash, otp_secret, otp_verified, created_at, updated_at
+		SELECT id, email, password_hash, COALESCE(otp_secret, '') as otp_secret, COALESCE(otp_verified, 0) as otp_verified, created_at, updated_at
 		FROM users WHERE id = ?
 	`, userID).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret,
@@ -596,12 +588,6 @@ func (d *Database) GetAllUsers() ([]string, error) {
 	return userIDs, nil
 }
 
-// UpdateUserOTPVerified 更新用户OTP验证状态
-func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
-	_, err := d.db.Exec(`UPDATE users SET otp_verified = ? WHERE id = ?`, verified, userID)
-	return err
-}
-
 // UpdateUserPassword 更新用户密码
 func (d *Database) UpdateUserPassword(userID, passwordHash string) error {
 	_, err := d.db.Exec(`
@@ -609,6 +595,12 @@ func (d *Database) UpdateUserPassword(userID, passwordHash string) error {
 		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`, passwordHash, userID)
+	return err
+}
+
+// UpdateUserOTPVerified 更新用户OTP验证状态
+func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
+	_, err := d.db.Exec(`UPDATE users SET otp_verified = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, verified, userID)
 	return err
 }
 

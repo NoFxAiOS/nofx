@@ -160,6 +160,12 @@ func main() {
 	// In Docker Compose, variables are injected by the runtime and this is harmless.
 	_ = godotenv.Load()
 
+	// Check if OTP should be disabled in development mode
+	disableOTP := os.Getenv("DISABLE_OTP") == "true"
+	if disableOTP {
+		log.Printf("🚫 OTP已禁用 (开发模式)")
+	}
+
 	// 初始化数据库配置
 	dbPath := "config.db"
 	if len(os.Args) > 1 {
@@ -338,7 +344,7 @@ func main() {
 	}
 
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort)
+	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort, disableOTP)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)

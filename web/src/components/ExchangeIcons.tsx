@@ -133,11 +133,13 @@ export const getExchangeIcon = (
   // 支持完整ID或类型名
   const type = exchangeType.toLowerCase().includes('binance')
     ? 'binance'
-    : exchangeType.toLowerCase().includes('hyperliquid')
-      ? 'hyperliquid'
-      : exchangeType.toLowerCase().includes('aster')
-        ? 'aster'
-        : exchangeType.toLowerCase()
+    : exchangeType.toLowerCase().includes('paper_trading')
+      ? 'binance' // Paper Trading 使用 Binance 图标
+      : exchangeType.toLowerCase().includes('hyperliquid')
+        ? 'hyperliquid'
+        : exchangeType.toLowerCase().includes('aster')
+          ? 'aster'
+          : exchangeType.toLowerCase()
 
   const iconProps = {
     width: props.width || 24,

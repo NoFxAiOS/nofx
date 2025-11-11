@@ -176,6 +176,14 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 	case "binance":
 		log.Printf("🏦 [%s] 使用币安合约交易", config.Name)
 		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey, userID)
+	case "paper_trading":
+		log.Printf("🧪 [%s] 使用 Paper Trading (Binance Testnet)", config.Name)
+		trader = NewFuturesTrader(config.BinanceAPIKey, config.BinanceSecretKey, userID)
+		// 设置 Futures Testnet URL
+		if ft, ok := trader.(*FuturesTrader); ok {
+			ft.client.BaseURL = "https://testnet.binancefuture.com"
+			log.Printf("🧪 [%s] Paper Trading 使用 Futures Testnet API: %s", config.Name, ft.client.BaseURL)
+		}
 	case "hyperliquid":
 		log.Printf("🏦 [%s] 使用Hyperliquid交易", config.Name)
 		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ═══════════════════════════════════════════════════════════════
-# NOFX AI Trading System - Docker Quick Start Script
+# NOFX AI Trading System - Local Development Quick Start Script
 # Usage: ./start.sh [command]
 # ═══════════════════════════════════════════════════════════════
 
@@ -36,31 +36,66 @@ print_error() {
 }
 
 # ------------------------------------------------------------------------
-# Detection: Docker Compose Command (Backward Compatible)
+# Process Management Functions
 # ------------------------------------------------------------------------
-detect_compose_cmd() {
-    if command -v docker compose &> /dev/null; then
-        COMPOSE_CMD="docker compose"
-    elif command -v docker-compose &> /dev/null; then
-        COMPOSE_CMD="docker-compose"
-    else
-        print_error "Docker Compose 未安装！请先安装 Docker Compose"
-        exit 1
+is_port_in_use() {
+    local port=$1
+    if command -v lsof &> /dev/null; then
+        if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+            return 0
+        fi
+    elif command -v netstat &> /dev/null; then
+        if netstat -tuln 2>/dev/null | grep ":$port " >/dev/null; then
+            return 0
+        fi
     fi
-    print_info "使用 Docker Compose 命令: $COMPOSE_CMD"
+    return 1
+}
+
+find_free_port() {
+    local start_port=$1
+    local port=$start_port
+    while is_port_in_use $port; do
+        port=$((port + 1))
+    done
+    echo $port
 }
 
 # ------------------------------------------------------------------------
-# Validation: Docker Installation
+# Validation: Node.js and npm
 # ------------------------------------------------------------------------
-check_docker() {
-    if ! command -v docker &> /dev/null; then
-        print_error "Docker 未安装！请先安装 Docker: https://docs.docker.com/get-docker/"
+check_nodejs() {
+    if ! command -v node &> /dev/null; then
+        print_error "Node.js 未安装！请先安装 Node.js: https://nodejs.org/"
+        print_info "推荐版本: Node.js 18+"
         exit 1
     fi
 
-    detect_compose_cmd
-    print_success "Docker 和 Docker Compose 已安装"
+    if ! command -v npm &> /dev/null; then
+        print_error "npm 未安装！请先安装 npm"
+        exit 1
+    fi
+
+    local node_version=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$node_version" -lt 18 ]; then
+        print_warning "推荐使用 Node.js 18+，当前版本: $(node --version)"
+    fi
+
+    print_success "Node.js 和 npm 已安装 ($(node --version))"
+}
+
+# ------------------------------------------------------------------------
+# Validation: Go
+# ------------------------------------------------------------------------
+check_go() {
+    if ! command -v go &> /dev/null; then
+        print_error "Go 未安装！请先安装 Go: https://golang.org/dl/"
+        print_info "推荐版本: Go 1.21+"
+        exit 1
+    fi
+
+    local go_version=$(go version | cut -d' ' -f3 | sed 's/go//')
+    print_success "Go 已安装 ($go_version)"
 }
 
 # ------------------------------------------------------------------------
@@ -69,9 +104,29 @@ check_docker() {
 check_env() {
     if [ ! -f ".env" ]; then
         print_warning ".env 不存在，从模板复制..."
-        cp .env.example .env
-        print_info "✓ 已使用默认环境变量创建 .env"
-        print_info "💡 如需修改端口等设置，可编辑 .env 文件"
+        if [ -f ".env.example" ]; then
+            cp .env.example .env
+        else
+            # 创建基本的.env文件
+            cat > .env << EOF
+# NOFX AI Trading System - Environment Configuration
+# 本地开发环境配置
+
+# 端口配置
+NOFX_FRONTEND_PORT=3000
+NOFX_BACKEND_PORT=8080
+
+# 加密配置 (首次运行会自动生成)
+DATA_ENCRYPTION_KEY=your_data_encryption_key_here_change_me
+JWT_SECRET=your_jwt_secret_here_change_me
+
+# 开发模式配置
+NODE_ENV=development
+GO_ENV=development
+EOF
+        fi
+        print_info "✓ 已创建 .env 文件"
+        print_info "💡 请检查 .env 文件中的配置，特别是加密密钥"
     fi
     print_success "环境变量文件存在"
 }
@@ -81,32 +136,30 @@ check_env() {
 # ------------------------------------------------------------------------
 check_encryption() {
     local need_setup=false
-    
+
     print_info "检查加密环境..."
-    
+
     # 检查RSA密钥对
     if [ ! -f "secrets/rsa_key" ] || [ ! -f "secrets/rsa_key.pub" ]; then
         print_warning "RSA密钥对不存在"
         need_setup=true
     fi
-    
+
     # 检查数据加密密钥
-    if [ ! -f ".env" ] || ! grep -q "^DATA_ENCRYPTION_KEY=" .env; then
-        print_warning "数据加密密钥未配置"
+    if ! grep -q "^DATA_ENCRYPTION_KEY=" .env || grep -q "your_data_encryption_key_here_change_me" .env; then
+        print_warning "数据加密密钥未配置或使用默认值"
         need_setup=true
     fi
-    
+
     # 检查JWT认证密钥
-    if [ ! -f ".env" ] || ! grep -q "^JWT_SECRET=" .env; then
-        print_warning "JWT认证密钥未配置"
+    if ! grep -q "^JWT_SECRET=" .env || grep -q "your_jwt_secret_here_change_me" .env; then
+        print_warning "JWT认证密钥未配置或使用默认值"
         need_setup=true
     fi
-    
+
     # 如果需要设置加密环境，直接自动设置
     if [ "$need_setup" = "true" ]; then
         print_info "🔐 检测到加密环境未配置，正在自动设置..."
-        print_info "加密环境用于保护敏感数据（API密钥、私钥等）"
-        echo ""
 
         # 检查加密设置脚本是否存在
         if [ -f "scripts/setup_encryption.sh" ]; then
@@ -139,61 +192,85 @@ check_encryption() {
         print_info "  • JWT认证密钥: .env (JWT_SECRET)"
         print_info "  • 加密算法: RSA-OAEP-2048 + AES-256-GCM + HS256"
         print_info "  • 保护数据: API密钥、私钥、Hyperliquid代理钱包、用户认证"
-        
+
         # 验证密钥文件权限
         if [ -f "secrets/rsa_key" ]; then
-            local perm=$(stat -f "%A" "secrets/rsa_key" 2>/dev/null || stat -c "%a" "secrets/rsa_key" 2>/dev/null)
-            if [ "$perm" != "600" ]; then
-                print_warning "修复RSA私钥权限..."
-                chmod 600 secrets/rsa_key
-            fi
+            chmod 600 secrets/rsa_key
         fi
-        
+
         if [ -f ".env" ]; then
-            local perm=$(stat -f "%A" ".env" 2>/dev/null || stat -c "%a" ".env" 2>/dev/null)
-            if [ "$perm" != "600" ]; then
-                print_warning "修复环境文件权限..."
-                chmod 600 .env
-            fi
+            chmod 600 .env
         fi
     fi
 }
 
 # ------------------------------------------------------------------------
-# Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
+# Validation: Configuration File (config.json)
 # ------------------------------------------------------------------------
 check_config() {
     if [ ! -f "config.json" ]; then
         print_warning "config.json 不存在，从模板复制..."
-        cp config.json.example config.json
-        print_info "✓ 已使用默认配置创建 config.json"
-        print_info "💡 如需修改基础设置（杠杆大小、开仓币种、管理员模式、JWT密钥等），可编辑 config.json"
+        if [ -f "config.json.example" ]; then
+            cp config.json.example config.json
+            print_info "✓ 已使用默认配置创建 config.json"
+        else
+            print_warning "config.json.example 不存在，创建基本配置..."
+            cat > config.json << EOF
+{
+  "system": {
+    "lever_rate": 10,
+    "leverage_enabled": true,
+    "admin_mode": false
+  },
+  "models": {
+    "deepseek": {
+      "enabled": false,
+      "api_key": "",
+      "custom_api_url": "",
+      "custom_model_name": "deepseek-chat"
+    },
+    "qwen": {
+      "enabled": false,
+      "api_key": "",
+      "custom_api_url": "",
+      "custom_model_name": "qwen-turbo"
+    },
+    "claude": {
+      "enabled": false,
+      "api_key": "",
+      "custom_api_url": "",
+      "custom_model_name": "claude-3-sonnet-20240229"
+    }
+  },
+  "exchanges": {
+    "binance": {
+      "enabled": false,
+      "api_key": "",
+      "secret_key": "",
+      "testnet": false
+    },
+    "hyperliquid": {
+      "enabled": false,
+      "api_key": "",
+      "testnet": true,
+      "wallet_addr": "",
+      "aster_user": "",
+      "aster_signer": "",
+      "aster_private_key": ""
+    },
+    "aster": {
+      "enabled": false,
+      "api_key": "",
+      "testnet": false
+    }
+  }
+}
+EOF
+        fi
+        print_info "💡 如需修改基础设置，可编辑 config.json"
         print_info "💡 模型/交易所/交易员配置请使用Web界面"
     fi
     print_success "配置文件存在"
-}
-
-# ------------------------------------------------------------------------
-# Utility: Read Environment Variables
-# ------------------------------------------------------------------------
-read_env_vars() {
-    if [ -f ".env" ]; then
-        # 读取端口配置，设置默认值
-        NOFX_FRONTEND_PORT=$(grep "^NOFX_FRONTEND_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "3000")
-        NOFX_BACKEND_PORT=$(grep "^NOFX_BACKEND_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "8080")
-        
-        # 去除可能的引号和空格
-        NOFX_FRONTEND_PORT=$(echo "$NOFX_FRONTEND_PORT" | tr -d '"'"'" | tr -d ' ')
-        NOFX_BACKEND_PORT=$(echo "$NOFX_BACKEND_PORT" | tr -d '"'"'" | tr -d ' ')
-        
-        # 如果为空则使用默认值
-        NOFX_FRONTEND_PORT=${NOFX_FRONTEND_PORT:-3000}
-        NOFX_BACKEND_PORT=${NOFX_BACKEND_PORT:-8080}
-    else
-        # 如果.env不存在，使用默认端口
-        NOFX_FRONTEND_PORT=3000
-        NOFX_BACKEND_PORT=8080
-    fi
 }
 
 # ------------------------------------------------------------------------
@@ -201,63 +278,83 @@ read_env_vars() {
 # ------------------------------------------------------------------------
 check_database() {
     if [ -d "config.db" ]; then
-        # 如果存在的是目录，删除它
         print_warning "config.db 是目录而非文件，正在删除目录..."
         rm -rf config.db
         print_info "✓ 已删除目录，现在创建文件..."
         install -m 600 /dev/null config.db
         print_success "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
     elif [ ! -f "config.db" ]; then
-        # 如果不存在文件，创建它
         print_warning "数据库文件不存在，创建空数据库文件..."
-        # 创建空文件以避免Docker创建目录（使用安全权限600）
         install -m 600 /dev/null config.db
         print_info "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
     else
-        # 文件存在
         print_success "数据库文件存在"
     fi
 }
 
 # ------------------------------------------------------------------------
-# Build: Frontend (Node.js Based)
+# Read Environment Variables
 # ------------------------------------------------------------------------
-# build_frontend() {
-#     print_info "检查前端构建环境..."
+read_env_vars() {
+    if [ -f ".env" ]; then
+        NOFX_FRONTEND_PORT=$(grep "^NOFX_FRONTEND_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "3000")
+        NOFX_BACKEND_PORT=$(grep "^NOFX_BACKEND_PORT=" .env 2>/dev/null | cut -d'=' -f2 || echo "8080")
 
-#     if ! command -v node &> /dev/null; then
-#         print_error "Node.js 未安装！请先安装 Node.js"
-#         exit 1
-#     fi
+        # 去除可能的引号和空格
+        NOFX_FRONTEND_PORT=$(echo "$NOFX_FRONTEND_PORT" | tr -d '"' | tr -d "'" | tr -d ' ')
+        NOFX_BACKEND_PORT=$(echo "$NOFX_BACKEND_PORT" | tr -d '"' | tr -d "'" | tr -d ' ')
 
-#     if ! command -v npm &> /dev/null; then
-#         print_error "npm 未安装！请先安装 npm"
-#         exit 1
-#     fi
+        # 如果为空则使用默认值
+        NOFX_FRONTEND_PORT=${NOFX_FRONTEND_PORT:-3000}
+        NOFX_BACKEND_PORT=${NOFX_BACKEND_PORT:-8080}
+    else
+        NOFX_FRONTEND_PORT=3000
+        NOFX_BACKEND_PORT=8080
+    fi
 
-#     print_info "正在构建前端..."
-#     cd web
+    # 检查端口是否被占用，如果被占用则寻找可用端口
+    if is_port_in_use $NOFX_FRONTEND_PORT; then
+        local free_port=$(find_free_port $NOFX_FRONTEND_PORT)
+        print_warning "端口 $NOFX_FRONTEND_PORT 被占用，使用端口 $free_port"
+        NOFX_FRONTEND_PORT=$free_port
+    fi
 
-#     print_info "安装 Node.js 依赖..."
-#     npm install
+    if is_port_in_use $NOFX_BACKEND_PORT; then
+        local free_port=$(find_free_port $NOFX_BACKEND_PORT)
+        print_warning "端口 $NOFX_BACKEND_PORT 被占用，使用端口 $free_port"
+        NOFX_BACKEND_PORT=$free_port
+    fi
+}
 
-#     print_info "构建前端应用..."
-#     npm run build
+# ------------------------------------------------------------------------
+# Frontend Setup and Build
+# --------
+setup_frontend() {
+    print_info "检查前端环境..."
+    cd web
 
-#     cd ..
-#     print_success "前端构建完成"
-# }
+    if [ ! -d "node_modules" ]; then
+        print_info "安装前端依赖..."
+        npm install
+    else
+        print_info "前端依赖已安装，检查更新..."
+        npm ci --silent
+    fi
+
+    cd ..
+    print_success "前端环境准备完成"
+}
 
 # ------------------------------------------------------------------------
 # Service Management: Start
 # ------------------------------------------------------------------------
 start() {
-    print_info "正在启动 NOFX AI Trading System..."
+    print_info "正在启动 NOFX AI Trading System (本地开发模式)..."
 
     # 读取环境变量
     read_env_vars
 
-    # 确保必要的文件和目录存在（修复 Docker volume 挂载问题）
+    # 确保必要的文件和目录存在
     if [ ! -f "config.db" ]; then
         print_info "创建数据库文件..."
         install -m 600 /dev/null config.db
@@ -267,26 +364,67 @@ start() {
         install -m 700 -d decision_logs
     fi
 
-    # Auto-build frontend if missing or forced
-    # if [ ! -d "web/dist" ] || [ "$1" == "--build" ]; then
-    #     build_frontend
-    # fi
+    # 设置前端环境
+    setup_frontend
 
-    # Rebuild images if flag set
-    if [ "$1" == "--build" ]; then
-        print_info "重新构建镜像..."
-        $COMPOSE_CMD up -d --build
-    else
-        print_info "启动容器..."
-        $COMPOSE_CMD up -d
+    # 构建前端（如果是开发模式）
+    if [ "$1" != "--dev" ]; then
+        print_info "构建前端..."
+        cd web
+        npm run build
+        cd ..
+        print_success "前端构建完成"
     fi
+
+    # 启动后端
+    print_info "启动后端服务..."
+    # 设置开发模式环境变量
+    if [ "$1" == "--dev" ]; then
+        export DISABLE_OTP=true
+        print_info "🚫 开发模式：已禁用2FA验证"
+    fi
+
+    if [ -f "nofx" ]; then
+        # 如果存在编译好的二进制文件
+        nohup ./nofx > nofx.log 2>&1 &
+        BACKEND_PID=$!
+        echo $BACKEND_PID > nofx.pid
+    else
+        # 运行Go程序
+        nohup go run . > nofx.log 2>&1 &
+        BACKEND_PID=$!
+        echo $BACKEND_PID > nofx.pid
+    fi
+
+    # 启动前端（开发模式）
+    if [ "$1" == "--dev" ]; then
+        print_info "启动前端开发服务器..."
+        cd web
+        nohup npm run dev > ../frontend.log 2>&1 &
+        FRONTEND_PID=$!
+        echo $FRONTEND_PID > ../frontend.pid
+        cd ..
+
+        print_success "开发服务器已启动！"
+    else
+        print_success "生产服务器已启动！"
+    fi
+
+    # 等待服务启动
+    sleep 2
 
     print_success "服务已启动！"
     print_info "Web 界面: http://localhost:${NOFX_FRONTEND_PORT}"
     print_info "API 端点: http://localhost:${NOFX_BACKEND_PORT}"
     print_info ""
-    print_info "查看日志: ./start.sh logs"
+    print_info "查看日志:"
+    print_info "  后端: tail -f nofx.log"
+    if [ "$1" == "--dev" ]; then
+        print_info "  前端: tail -f frontend.log"
+    fi
+    print_info ""
     print_info "停止服务: ./start.sh stop"
+    print_info "重启服务: ./start.sh restart"
 }
 
 # ------------------------------------------------------------------------
@@ -294,27 +432,55 @@ start() {
 # ------------------------------------------------------------------------
 stop() {
     print_info "正在停止服务..."
-    $COMPOSE_CMD stop
-    print_success "服务已停止"
+
+    # 停止后端
+    if [ -f "nofx.pid" ]; then
+        local backend_pid=$(cat nofx.pid)
+        if kill -0 $backend_pid 2>/dev/null; then
+            kill $backend_pid
+            print_success "后端服务已停止 (PID: $backend_pid)"
+        fi
+        rm -f nofx.pid
+    fi
+
+    # 停止前端开发服务器
+    if [ -f "frontend.pid" ]; then
+        local frontend_pid=$(cat frontend.pid)
+        if kill -0 $frontend_pid 2>/dev/null; then
+            kill $frontend_pid
+            print_success "前端开发服务器已停止 (PID: $frontend_pid)"
+        fi
+        rm -f frontend.pid
+    fi
+
+    # 杀死可能的遗留进程
+    pkill -f "go run ." 2>/dev/null || true
+    pkill -f "npm run dev" 2>/dev/null || true
+    pkill -f "vite" 2>/dev/null || true
+
+    print_success "所有服务已停止"
 }
 
 # ------------------------------------------------------------------------
 # Service Management: Restart
 # ------------------------------------------------------------------------
 restart() {
-    print_info "正在重启服务..."
-    $COMPOSE_CMD restart
-    print_success "服务已重启"
+    stop
+    sleep 1
+    start "$1"
 }
 
 # ------------------------------------------------------------------------
 # Monitoring: Logs
 # ------------------------------------------------------------------------
 logs() {
-    if [ -z "$2" ]; then
-        $COMPOSE_CMD logs -f
-    else
-        $COMPOSE_CMD logs -f "$2"
+    if [ -z "$2" ] || [ "$2" == "backend" ] || [ "$2" == "all" ]; then
+        if [ -f "nofx.log" ]; then
+            print_info "=== 后端日志 ==="
+            tail -f nofx.log
+        else
+            print_warning "后端日志文件不存在"
+        fi
     fi
 }
 
@@ -322,39 +488,99 @@ logs() {
 # Monitoring: Status
 # ------------------------------------------------------------------------
 status() {
-    # 读取环境变量
     read_env_vars
-    
+
     print_info "服务状态:"
-    $COMPOSE_CMD ps
+
+    # 检查后端
+    if [ -f "nofx.pid" ]; then
+        local backend_pid=$(cat nofx.pid)
+        if kill -0 $backend_pid 2>/dev/null; then
+            print_success "后端运行中 (PID: $backend_pid)"
+        else
+            print_error "后端进程不存在"
+            rm -f nofx.pid
+        fi
+    else
+        print_warning "后端未启动"
+    fi
+
+    # 检查前端开发服务器
+    if [ -f "frontend.pid" ]; then
+        local frontend_pid=$(cat frontend.pid)
+        if kill -0 $frontend_pid 2>/dev/null; then
+            print_success "前端开发服务器运行中 (PID: $frontend_pid)"
+        else
+            print_error "前端开发服务器进程不存在"
+            rm -f frontend.pid
+        fi
+    else
+        if [ "$1" != "--prod" ]; then
+            print_info "前端开发服务器未启动"
+        fi
+    fi
+
+    echo ""
+    print_info "端口检查:"
+    if is_port_in_use $NOFX_BACKEND_PORT; then
+        print_success "后端端口 $NOFX_BACKEND_PORT 正在使用"
+    else
+        print_warning "后端端口 $NOFX_BACKEND_PORT 未使用"
+    fi
+
+    if is_port_in_use $NOFX_FRONTEND_PORT; then
+        print_success "前端端口 $NOFX_FRONTEND_PORT 正在使用"
+    else
+        print_warning "前端端口 $NOFX_FRONTEND_PORT 未使用"
+    fi
+
     echo ""
     print_info "健康检查:"
-    curl -s "http://localhost:${NOFX_BACKEND_PORT}/api/health" | jq '.' || echo "后端未响应"
-}
-
-# ------------------------------------------------------------------------
-# Maintenance: Clean (Destructive)
-# ------------------------------------------------------------------------
-clean() {
-    print_warning "这将删除所有容器和数据！"
-    read -p "确认删除？(yes/no): " confirm
-    if [ "$confirm" == "yes" ]; then
-        print_info "正在清理..."
-        $COMPOSE_CMD down -v
-        print_success "清理完成"
+    if curl -s "http://localhost:${NOFX_BACKEND_PORT}/api/health" >/dev/null; then
+        local health=$(curl -s "http://localhost:${NOFX_BACKEND_PORT}/api/health" | jq '.' 2>/dev/null || echo "{}")
+        print_success "后端API响应正常"
+        echo "$health" | jq '.' 2>/dev/null || echo "后端API正常运行"
     else
-        print_info "已取消"
+        print_error "后端API未响应"
     fi
 }
 
 # ------------------------------------------------------------------------
-# Maintenance: Update
+# Build: Production Build
+# --------
+build() {
+    print_info "开始生产构建..."
+
+    # 构建前端
+    print_info "构建前端..."
+    cd web
+    npm run build
+    cd ..
+
+    # 构建后端
+    print_info "构建后端..."
+    go build -o nofx .
+
+    print_success "构建完成！"
+    print_info "前端: web/dist/"
+    print_info "后端: nofx"
+}
+
 # ------------------------------------------------------------------------
-update() {
-    print_info "正在更新..."
-    git pull
-    $COMPOSE_CMD up -d --build
-    print_success "更新完成"
+# Development: Clean
+# --------
+clean() {
+    print_info "清理构建文件和日志..."
+
+    # 停止服务
+    stop
+
+    # 清理文件
+    rm -f nofx nofx.log frontend.log
+    rm -f nofx.pid frontend.pid
+    rm -rf web/dist
+
+    print_success "清理完成"
 }
 
 # ------------------------------------------------------------------------
@@ -362,7 +588,7 @@ update() {
 # ------------------------------------------------------------------------
 setup_encryption_manual() {
     print_info "🔐 手动设置加密环境"
-    
+
     if [ -f "scripts/setup_encryption.sh" ]; then
         bash scripts/setup_encryption.sh
     else
@@ -376,26 +602,31 @@ setup_encryption_manual() {
 # Help: Usage Information
 # ------------------------------------------------------------------------
 show_help() {
-    echo "NOFX AI Trading System - Docker 管理脚本"
+    echo "NOFX AI Trading System - 本地开发管理脚本"
     echo ""
     echo "用法: ./start.sh [command] [options]"
     echo ""
     echo "命令:"
-    echo "  start [--build]    启动服务（可选：重新构建）"
-    echo "  stop               停止服务"
-    echo "  restart            重启服务"
-    echo "  logs [service]     查看日志（可选：指定服务名 backend/frontend）"
-    echo "  status             查看服务状态"
-    echo "  clean              清理所有容器和数据"
-    echo "  update             更新代码并重启"
-    echo "  setup-encryption   设置加密环境（RSA密钥+数据加密）"
-    echo "  help               显示此帮助信息"
+    echo "  start [--dev]     启动服务（默认：生产模式，--dev：开发模式）"
+    echo "  stop              停止服务"
+    echo "  restart [--dev]   重启服务"
+    echo "  status [--prod]    查看服务状态"
+    echo "  logs [service]    查看日志（backend/all）"
+    echo "  build             构建生产版本"
+    echo "  clean             清理构建文件和日志"
+    echo "  setup-encryption  设置加密环境（RSA密钥+数据加密）"
+    echo "  help              显示此帮助信息"
+    echo ""
+    echo "模式说明:"
+    echo "  生产模式: 构建前端静态文件，启动Go后端服务器"
+    echo "  开发模式: 启动前端开发服务器(Vite) + Go后端服务器"
     echo ""
     echo "示例:"
-    echo "  ./start.sh start --build    # 构建并启动"
-    echo "  ./start.sh logs backend     # 查看后端日志"
-    echo "  ./start.sh status           # 查看状态"
-    echo "  ./start.sh setup-encryption # 手动设置加密环境"
+    echo "  ./start.sh start --dev    # 开发模式启动"
+    echo "  ./start.sh start           # 生产模式启动"
+    echo "  ./start.sh logs backend    # 查看后端日志"
+    echo "  ./start.sh status          # 查看状态"
+    echo "  ./start.sh build           # 构建生产版本"
     echo ""
     echo "🔐 关于加密:"
     echo "  系统自动检测加密环境，首次运行时会自动设置"
@@ -406,7 +637,9 @@ show_help() {
 # Main: Command Dispatcher
 # ------------------------------------------------------------------------
 main() {
-    check_docker
+    # 检查基本依赖
+    check_nodejs
+    check_go
 
     case "${1:-start}" in
         start)
@@ -420,19 +653,23 @@ main() {
             stop
             ;;
         restart)
-            restart
+            restart "$2"
+            ;;
+        status)
+            status "$2"
             ;;
         logs)
             logs "$@"
             ;;
-        status)
-            status
+        build)
+            check_env
+            check_encryption
+            check_config
+            setup_frontend
+            build
             ;;
         clean)
             clean
-            ;;
-        update)
-            update
             ;;
         setup-encryption)
             setup_encryption_manual

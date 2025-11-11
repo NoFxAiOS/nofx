@@ -562,8 +562,6 @@ func setupTestDB(t *testing.T) (*Database, func()) {
 			ID:           userID,
 			Email:        userID + "@test.com",
 			PasswordHash: "hash",
-			OTPSecret:    "",
-			OTPVerified:  false,
 		}
 		_ = db.CreateUser(user)
 	}

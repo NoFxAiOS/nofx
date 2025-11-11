@@ -257,6 +257,7 @@ func (s *Server) handleGetOrderBook(c *gin.Context) {
 	depthStr := c.DefaultQuery("depth", "20")
 
 	if symbol == "" {
+		log.Printf("❌ Order Book: symbol参数缺失")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol required"})
 		return
 	}
@@ -266,13 +267,17 @@ func (s *Server) handleGetOrderBook(c *gin.Context) {
 		depth = 20
 	}
 
+	log.Printf("📊 获取订单簿: symbol=%s, depth=%d", symbol, depth)
+
 	// 获取订单簿
 	orderBook, err := analytics.FetchOrderBook(symbol, depth)
 	if err != nil {
+		log.Printf("❌ 获取订单簿失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	log.Printf("✅ 订单簿获取成功: symbol=%s, bids=%d, asks=%d", symbol, len(orderBook.Bids), len(orderBook.Asks))
 	c.JSON(http.StatusOK, orderBook)
 }
 

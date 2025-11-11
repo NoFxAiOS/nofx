@@ -64,6 +64,11 @@ func FetchOrderBook(symbol string, depth int) (*OrderBook, error) {
 		depth = 20 // 默认20档
 	}
 
+	// 验证symbol格式（必须大写，例如BTCUSDT）
+	if symbol == "" {
+		return nil, fmt.Errorf("symbol不能为空")
+	}
+
 	// Binance API限制：depth可以是 5, 10, 20, 50, 100, 500, 1000, 5000
 	validDepths := []int{5, 10, 20, 50, 100, 500, 1000, 5000}
 	actualDepth := 20
@@ -79,13 +84,26 @@ func FetchOrderBook(symbol string, depth int) (*OrderBook, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("获取订单簿失败: %w", err)
+		return nil, fmt.Errorf("获取订单簿失败 (网络错误): %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	// 检查HTTP状态码
+	if resp.StatusCode != http.StatusOK {
+		// 尝试解析Binance错误响应
+		var binanceErr struct {
+			Code int    `json:"code"`
+			Msg  string `json:"msg"`
+		}
+		if json.Unmarshal(body, &binanceErr) == nil && binanceErr.Msg != "" {
+			return nil, fmt.Errorf("Binance API错误 (HTTP %d): %s", resp.StatusCode, binanceErr.Msg)
+		}
+		return nil, fmt.Errorf("Binance API错误 (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 
 	var result struct {
@@ -95,7 +113,7 @@ func FetchOrderBook(symbol string, depth int) (*OrderBook, error) {
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("解析订单簿失败: %w", err)
+		return nil, fmt.Errorf("解析订单簿失败: %w (响应: %s)", err, string(body))
 	}
 
 	// 转换为内部格式

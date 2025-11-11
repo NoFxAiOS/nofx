@@ -49,11 +49,11 @@ interface TimeframeAttribution {
 interface AttributionSummary {
   total_trades: number
   total_pnl: number
+  overall_win_rate: number
   best_asset: string
   worst_asset: string
-  best_period: string
-  profitable_assets: number
-  unprofitable_assets: number
+  best_strategy: string
+  best_timeframe: string
   concentration_risk: number
 }
 
@@ -288,12 +288,12 @@ export function PerformanceAttribution({
           style={{ background: '#1E2329', border: '1px solid #2B3139' }}
         >
           <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
-            Profitable Symbols
+            Overall Win Rate
           </div>
-          <div className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
-            {attribution.summary.profitable_assets} /{' '}
-            {attribution.summary.profitable_assets +
-              attribution.summary.unprofitable_assets}
+          <div className="text-2xl font-bold" style={{
+            color: attribution.summary.overall_win_rate >= 0.5 ? '#0ECB81' : '#F6465D'
+          }}>
+            {(attribution.summary.overall_win_rate * 100).toFixed(1)}%
           </div>
         </div>
       </div>
@@ -390,56 +390,55 @@ export function PerformanceAttribution({
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(attribution.by_symbol).map(
-                    ([symbol, data]) => (
-                      <tr
-                        key={symbol}
-                        className="border-b"
-                        style={{ borderColor: '#2B3139' }}
+                  {attribution.by_asset.map((data) => (
+                    <tr
+                      key={data.symbol}
+                      className="border-b"
+                      style={{ borderColor: '#2B3139' }}
+                    >
+                      <td
+                        className="py-3 px-2 font-mono font-semibold"
+                        style={{ color: '#EAECEF' }}
                       >
-                        <td
-                          className="py-3 px-2 font-mono font-semibold"
-                          style={{ color: '#EAECEF' }}
-                        >
-                          {symbol}
-                        </td>
-                        <td
-                          className="text-right py-3 px-2"
-                          style={{ color: '#EAECEF' }}
-                        >
-                          {data.total_trades}
-                        </td>
-                        <td
-                          className="text-right py-3 px-2"
-                          style={{
-                            color: data.win_rate >= 50 ? '#0ECB81' : '#F6465D',
-                          }}
-                        >
-                          {data.win_rate.toFixed(1)}%
-                        </td>
-                        <td
-                          className="text-right py-3 px-2 font-bold"
-                          style={{
-                            color: data.total_pnl >= 0 ? '#0ECB81' : '#F6465D',
-                          }}
-                        >
-                          {data.total_pnl >= 0 ? '+' : ''}
-                          {data.total_pnl.toFixed(2)}
-                        </td>
-                        <td
-                          className="text-right py-3 px-2"
-                          style={{
-                            color: data.avg_pnl >= 0 ? '#0ECB81' : '#F6465D',
-                          }}
-                        >
-                          {data.avg_pnl >= 0 ? '+' : ''}
-                          {data.avg_pnl.toFixed(2)}
+                        {data.symbol}
+                      </td>
+                      <td
+                        className="text-right py-3 px-2"
+                        style={{ color: '#EAECEF' }}
+                      >
+                        {data.trades_count}
+                      </td>
+                      <td
+                        className="text-right py-3 px-2"
+                        style={{
+                          color: (data.win_rate * 100) >= 50 ? '#0ECB81' : '#F6465D',
+                        }}
+                      >
+                        {(data.win_rate * 100).toFixed(1)}%
+                      </td>
+                      <td
+                        className="text-right py-3 px-2 font-bold"
+                        style={{
+                          color: data.total_pnl >= 0 ? '#0ECB81' : '#F6465D',
+                        }}
+                      >
+                        {data.total_pnl >= 0 ? '+' : ''}
+                        {data.total_pnl.toFixed(2)}
+                      </td>
+                      <td
+                        className="text-right py-3 px-2"
+                        style={{
+                          color: data.avg_trade_return >= 0 ? '#0ECB81' : '#F6465D',
+                        }}
+                      >
+                          {data.avg_trade_return >= 0 ? '+' : ''}
+                          {data.avg_trade_return.toFixed(2)}
                         </td>
                         <td
                           className="text-right py-3 px-2"
                           style={{ color: '#848E9C' }}
                         >
-                          {data.contribution_pct.toFixed(1)}%
+                          {data.contribution_percent.toFixed(1)}%
                         </td>
                       </tr>
                     )
@@ -489,97 +488,57 @@ export function PerformanceAttribution({
                 </ResponsiveContainer>
               </div>
 
-              {/* Side Stats */}
+              {/* Strategy Stats */}
               <div className="space-y-4">
-                {/* Long Stats */}
-                <div
-                  className="p-4 rounded"
-                  style={{
-                    background: 'rgba(14, 203, 129, 0.1)',
-                    border: '1px solid rgba(14, 203, 129, 0.2)',
-                  }}
-                >
+                {attribution.by_strategy.map((strategy) => (
                   <div
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: '#0ECB81' }}
+                    key={strategy.strategy_type}
+                    className="p-4 rounded"
+                    style={{
+                      background: strategy.strategy_type === 'Long'
+                        ? 'rgba(14, 203, 129, 0.1)'
+                        : 'rgba(246, 70, 93, 0.1)',
+                      border: strategy.strategy_type === 'Long'
+                        ? '1px solid rgba(14, 203, 129, 0.2)'
+                        : '1px solid rgba(246, 70, 93, 0.2)',
+                    }}
                   >
-                    LONG Positions
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span style={{ color: '#848E9C' }}>Total Trades:</span>
-                      <span style={{ color: '#EAECEF' }}>
-                        {attribution.by_side.long.total_trades}
-                      </span>
+                    <div
+                      className="text-sm font-semibold mb-2"
+                      style={{
+                        color: strategy.strategy_type === 'Long' ? '#0ECB81' : '#F6465D'
+                      }}
+                    >
+                      {strategy.strategy_type.toUpperCase()} Positions
                     </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: '#848E9C' }}>Win Rate:</span>
-                      <span style={{ color: '#EAECEF' }}>
-                        {attribution.by_side.long.win_rate.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: '#848E9C' }}>Total P&L:</span>
-                      <span
-                        className="font-bold"
-                        style={{
-                          color:
-                            attribution.by_side.long.total_pnl >= 0
-                              ? '#0ECB81'
-                              : '#F6465D',
-                        }}
-                      >
-                        {attribution.by_side.long.total_pnl >= 0 ? '+' : ''}
-                        {attribution.by_side.long.total_pnl.toFixed(2)} USDT
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Short Stats */}
-                <div
-                  className="p-4 rounded"
-                  style={{
-                    background: 'rgba(246, 70, 93, 0.1)',
-                    border: '1px solid rgba(246, 70, 93, 0.2)',
-                  }}
-                >
-                  <div
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: '#F6465D' }}
-                  >
-                    SHORT Positions
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span style={{ color: '#848E9C' }}>Total Trades:</span>
-                      <span style={{ color: '#EAECEF' }}>
-                        {attribution.by_side.short.total_trades}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: '#848E9C' }}>Win Rate:</span>
-                      <span style={{ color: '#EAECEF' }}>
-                        {attribution.by_side.short.win_rate.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span style={{ color: '#848E9C' }}>Total P&L:</span>
-                      <span
-                        className="font-bold"
-                        style={{
-                          color:
-                            attribution.by_side.short.total_pnl >= 0
-                              ? '#0ECB81'
-                              : '#F6465D',
-                        }}
-                      >
-                        {attribution.by_side.short.total_pnl >= 0 ? '+' : ''}
-                        {attribution.by_side.short.total_pnl.toFixed(2)} USDT
-                      </span>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span style={{ color: '#848E9C' }}>Total Trades:</span>
+                        <span style={{ color: '#EAECEF' }}>
+                          {strategy.trades_count}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: '#848E9C' }}>Win Rate:</span>
+                        <span style={{ color: '#EAECEF' }}>
+                          {(strategy.win_rate * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span style={{ color: '#848E9C' }}>Total P&L:</span>
+                        <span
+                          className="font-bold"
+                          style={{
+                            color: strategy.total_pnl >= 0 ? '#0ECB81' : '#F6465D',
+                          }}
+                        >
+                          {strategy.total_pnl >= 0 ? '+' : ''}
+                          {strategy.total_pnl.toFixed(2)} USDT
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>

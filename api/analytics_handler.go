@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"nofx/analytics"
 	"nofx/logger"

@@ -228,16 +228,8 @@ func (s *Server) handleGetPerformanceAttribution(c *gin.Context) {
 		return
 	}
 
-	// 转换为TradeRecord格式（需要解析决策日志）
-	// 注意：这里简化处理，实际需要根据decision.Action和后续平仓决策配对
-	trades := []analytics.TradeRecord{}
-
-	// 简化版：假设每个决策都是一个完整交易
-	// 实际实现需要配对开仓和平仓
-	for range filteredDecisions {
-		// 这里需要更复杂的逻辑来配对交易
-		// 暂时跳过，返回模拟数据
-	}
+	// 转换为TradeRecord格式（配对开仓和平仓决策）
+	trades := extractTradesFromDecisions(filteredDecisions)
 
 	// 如果没有完整交易记录，返回空结果
 	if len(trades) == 0 {
@@ -369,4 +361,89 @@ func (s *Server) handleDetectLargeOrders(c *gin.Context) {
 	largeOrders := analytics.DetectLargeOrders(orderBook, multiplier)
 
 	c.JSON(http.StatusOK, largeOrders)
+}
+
+// extractTradesFromDecisions 从决策记录中提取完整交易
+// 将开仓和平仓决策配对成完整的交易记录
+func extractTradesFromDecisions(records []*logger.DecisionRecord) []analytics.TradeRecord {
+	trades := []analytics.TradeRecord{}
+
+	// 使用map跟踪每个symbol的开仓位置
+	// key: symbol_side (e.g., "BTCUSDT_long")
+	openPositions := make(map[string]struct {
+		entryTime  time.Time
+		entryPrice float64
+		side       string
+		symbol     string
+	})
+
+	for _, record := range records {
+		for _, decision := range record.Decisions {
+			if !decision.Success {
+				continue // 跳过失败的决策
+			}
+
+			posKey := decision.Symbol + "_" + getPositionSide(decision.Action)
+
+			switch decision.Action {
+			case "open_long", "open_short":
+				// 记录开仓
+				side := "Long"
+				if decision.Action == "open_short" {
+					side = "Short"
+				}
+				openPositions[posKey] = struct {
+					entryTime  time.Time
+					entryPrice float64
+					side       string
+					symbol     string
+				}{
+					entryTime:  decision.Timestamp,
+					entryPrice: decision.Price,
+					side:       side,
+					symbol:     decision.Symbol,
+				}
+
+			case "close_long", "close_short":
+				// 查找对应的开仓记录
+				if openPos, exists := openPositions[posKey]; exists {
+					// 计算PnL
+					var pnl, pnlPercent float64
+					if openPos.side == "Long" {
+						pnl = decision.Price - openPos.entryPrice
+						pnlPercent = (pnl / openPos.entryPrice) * 100
+					} else {
+						pnl = openPos.entryPrice - decision.Price
+						pnlPercent = (pnl / openPos.entryPrice) * 100
+					}
+
+					// 创建交易记录
+					trade := analytics.TradeRecord{
+						Symbol:     decision.Symbol,
+						EntryTime:  openPos.entryTime,
+						ExitTime:   decision.Timestamp,
+						Side:       openPos.side,
+						PnL:        pnl * decision.Quantity, // 考虑数量
+						PnLPercent: pnlPercent,
+						EntryPrice: openPos.entryPrice,
+						ExitPrice:  decision.Price,
+					}
+					trades = append(trades, trade)
+
+					// 移除已平仓的位置
+					delete(openPositions, posKey)
+				}
+			}
+		}
+	}
+
+	return trades
+}
+
+// getPositionSide 从action中提取持仓方向
+func getPositionSide(action string) string {
+	if action == "open_long" || action == "close_long" {
+		return "long"
+	}
+	return "short"
 }

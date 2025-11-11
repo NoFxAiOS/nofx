@@ -667,22 +667,22 @@ func compactArrayOpen(s string) string {
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	var validationErrors []string
-	for i := range decisions {
-		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+	for i, decision := range decisions {
+		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 			// 验证失败时，移除action字段并在reasoning中追加原因
 			validationErrors = append(validationErrors, fmt.Sprintf("决策 #%d: %s", i+1, err.Error()))
 
 			// 保存原始action用于记录
-			originalAction := decisions[i].Action
+			originalAction := decision.Action
 
 			// 移除action字段，设置为空字符串（而不是删除字段）
 			decisions[i].Action = "wait"
 
 			// 在reasoning中追加失败原因
-			if decisions[i].Reasoning == "" {
+			if decision.Reasoning == "" {
 				decisions[i].Reasoning = fmt.Sprintf("决策无效: %s", err.Error())
 			} else {
-				decisions[i].Reasoning = fmt.Sprintf("%s | 决策无效: %s", decisions[i].Reasoning, err.Error())
+				decisions[i].Reasoning = fmt.Sprintf("%s | 决策无效: %s", decision.Reasoning, err.Error())
 			}
 
 			// 记录日志

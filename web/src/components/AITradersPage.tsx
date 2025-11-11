@@ -1753,11 +1753,41 @@ function ExchangeConfigModal({
     }
   }, [selectedExchangeId])
 
-  const handleCopyIP = (ip: string) => {
-    navigator.clipboard.writeText(ip).then(() => {
-      setCopiedIP(true)
-      setTimeout(() => setCopiedIP(false), 2000)
-    })
+  const handleCopyIP = async (ip: string) => {
+    try {
+      // 优先使用现代 Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(ip)
+        setCopiedIP(true)
+        setTimeout(() => setCopiedIP(false), 2000)
+      } else {
+        // 降级方案: 使用传统的 execCommand 方法
+        const textArea = document.createElement('textarea')
+        textArea.value = ip
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+
+        try {
+          const successful = document.execCommand('copy')
+          if (successful) {
+            setCopiedIP(true)
+            setTimeout(() => setCopiedIP(false), 2000)
+          } else {
+            throw new Error('复制命令执行失败')
+          }
+        } finally {
+          document.body.removeChild(textArea)
+        }
+      }
+    } catch (err) {
+      console.error('复制失败:', err)
+      // 显示错误提示
+      alert(t('copyIPFailed', language) || `复制失败: ${ip}\n请手动复制此IP地址`)
+    }
   }
 
   // 安全输入处理函数

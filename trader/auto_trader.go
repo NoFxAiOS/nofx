@@ -459,6 +459,13 @@ func (at *AutoTrader) runCycle() error {
 	log.Printf("🤖 正在请求AI分析并决策... [模板: %s]", at.systemPromptTemplate)
 	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate)
 
+	if decision != nil && decision.AIRequestDurationMs > 0 {
+		record.AIRequestDurationMs = decision.AIRequestDurationMs
+		log.Printf("⏱️ AI调用耗时: %.2f 秒", float64(record.AIRequestDurationMs)/1000)
+		record.ExecutionLog = append(record.ExecutionLog,
+			fmt.Sprintf("AI调用耗时: %d ms", record.AIRequestDurationMs))
+	}
+
 	// 即使有错误，也保存思维链、决策和输入prompt（用于debug）
 	if decision != nil {
 		record.SystemPrompt = decision.SystemPrompt // 保存系统提示词

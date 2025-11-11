@@ -8,6 +8,7 @@ import (
 	"nofx/mcp"
 	"nofx/pool"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -114,6 +115,8 @@ type FullDecision struct {
 	CoTTrace     string     `json:"cot_trace"`     // 思维链分析（AI输出）
 	Decisions    []Decision `json:"decisions"`     // 具体决策列表
 	Timestamp    time.Time  `json:"timestamp"`
+	// AIRequestDurationMs 记录 AI API 调用耗时（毫秒）方便排查延迟问题
+	AIRequestDurationMs int64 `json:"ai_request_duration_ms,omitempty"`
 }
 
 // GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
@@ -133,13 +136,24 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 	userPrompt := buildUserPrompt(ctx)
 
 	// 3. 调用AI API（使用 system + user prompt）
+	aiCallStart := time.Now()
 	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
+	aiCallDuration := time.Since(aiCallStart)
 	if err != nil {
 		return nil, fmt.Errorf("调用AI API失败: %w", err)
 	}
 
 	// 4. 解析AI响应
 	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
+
+	// 无论是否有错误，都要保存 SystemPrompt 和 UserPrompt（用于调试和决策未执行后的问题定位）
+	if decision != nil {
+		decision.Timestamp = time.Now()
+		decision.SystemPrompt = systemPrompt // 保存系统prompt
+		decision.UserPrompt = userPrompt     // 保存输入prompt
+		decision.AIRequestDurationMs = aiCallDuration.Milliseconds()
+	}
+
 	if err != nil {
 		return decision, fmt.Errorf("解析AI响应失败: %w", err)
 	}

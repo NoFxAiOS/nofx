@@ -9,6 +9,7 @@ import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
+import { AnalyticsPage } from './pages/AnalyticsPage'
 import HeaderBar from './components/landing/HeaderBar'
 import AILearning from './components/AILearning'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -238,6 +239,13 @@ function App() {
   }
   if (route === '/reset-password') {
     return <ResetPasswordPage />
+  }
+  if (route === '/analytics') {
+    // Analytics page requires authentication
+    if (!user || !token) {
+      return <LandingPage />
+    }
+    return <AnalyticsPage />
   }
   if (route === '/competition') {
     return (

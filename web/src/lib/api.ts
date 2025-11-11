@@ -368,4 +368,111 @@ export const api = {
     if (!res.ok) throw new Error('获取服务器IP失败')
     return res.json()
   },
+
+  // ==================== Advanced Analytics APIs ====================
+
+  // 获取相关性矩阵
+  async getCorrelationMatrix(
+    traderId: string,
+    symbols: string[],
+    timeframe: string = '1h'
+  ): Promise<any> {
+    const symbolsParam = symbols.join(',')
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/correlation?trader_id=${traderId}&symbols=${symbolsParam}&timeframe=${timeframe}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('获取相关性矩阵失败')
+    return res.json()
+  },
+
+  // 获取回撤分析
+  async getDrawdownAnalysis(traderId: string): Promise<any> {
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/drawdown?trader_id=${traderId}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('获取回撤分析失败')
+    return res.json()
+  },
+
+  // 运行Monte Carlo模拟
+  async runMonteCarloSimulation(
+    traderId: string,
+    params: {
+      simulations: number
+      time_horizon_days: number
+      include_paths: boolean
+    }
+  ): Promise<any> {
+    const res = await httpClient.post(
+      `${API_BASE}/analytics/montecarlo`,
+      {
+        trader_id: traderId,
+        ...params,
+      },
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('运行Monte Carlo模拟失败')
+    return res.json()
+  },
+
+  // 获取绩效归因分析
+  async getPerformanceAttribution(
+    traderId: string,
+    lookbackDays: number = 30
+  ): Promise<any> {
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/attribution?trader_id=${traderId}&lookback_days=${lookbackDays}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('获取绩效归因失败')
+    return res.json()
+  },
+
+  // 获取订单簿数据
+  async getOrderBook(symbol: string, depth: number = 20): Promise<any> {
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/orderbook?symbol=${symbol}&depth=${depth}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('获取订单簿失败')
+    return res.json()
+  },
+
+  // 获取订单簿深度图数据
+  async getOrderBookDepthChart(
+    symbol: string,
+    maxLevels: number = 50
+  ): Promise<any> {
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/orderbook/depth-chart?symbol=${symbol}&max_levels=${maxLevels}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('获取订单簿深度图失败')
+    return res.json()
+  },
+
+  // 获取订单簿失衡分析
+  async getOrderBookImbalance(symbol: string, topN: number = 10): Promise<any> {
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/orderbook/imbalance?symbol=${symbol}&top_n=${topN}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('获取订单簿失衡分析失败')
+    return res.json()
+  },
+
+  // 检测大单
+  async detectLargeOrders(
+    symbol: string,
+    multiplier: number = 3.0
+  ): Promise<any> {
+    const res = await httpClient.get(
+      `${API_BASE}/analytics/orderbook/large-orders?symbol=${symbol}&multiplier=${multiplier}`,
+      getAuthHeaders()
+    )
+    if (!res.ok) throw new Error('检测大单失败')
+    return res.json()
+  },
 }

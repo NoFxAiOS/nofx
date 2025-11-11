@@ -792,11 +792,14 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	traderID := c.Param("id")
 
 	// 校验交易员是否属于当前用户
-	_, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	traderRecord, _, _, err := s.database.GetTraderConfig(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在或无访问权限"})
 		return
 	}
+
+	// 获取模板名称
+	templateName := traderRecord.SystemPromptTemplate
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
@@ -810,6 +813,9 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "交易员已在运行中"})
 		return
 	}
+
+	// 重新加载系统提示词模板（确保使用最新的硬盘文件）
+	s.reloadPromptTemplatesWithLog(templateName)
 
 	// 启动交易员
 	go func() {
@@ -2317,4 +2323,18 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// reloadPromptTemplatesWithLog 重新加载提示词模板并记录日志
+func (s *Server) reloadPromptTemplatesWithLog(templateName string) {
+	if err := decision.ReloadPromptTemplates(); err != nil {
+		log.Printf("⚠️  重新加载提示词模板失败: %v", err)
+		return
+	}
+
+	if templateName == "" {
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: default (未指定，使用默认)]")
+	} else {
+		log.Printf("✓ 已重新加载系统提示词模板 [当前使用: %s]", templateName)
+	}
 }

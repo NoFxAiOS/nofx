@@ -15,49 +15,55 @@ import useSWR from 'swr'
 import { api } from '../lib/api'
 import { AlertTriangle, TrendingUp, TrendingDown, Clock } from 'lucide-react'
 
+interface AssetAttribution {
+  symbol: string
+  total_pnl: number
+  total_pnl_percent: number
+  win_rate: number
+  trades_count: number
+  avg_trade_return: number
+  best_trade: number
+  worst_trade: number
+  contribution_percent: number
+  sharpe_ratio: number
+}
+
+interface StrategyAttribution {
+  strategy_type: string // "Long" or "Short"
+  total_pnl: number
+  win_rate: number
+  trades_count: number
+  contribution_percent: number
+}
+
+interface TimeframeAttribution {
+  period: string
+  start_hour: number
+  end_hour: number
+  total_pnl: number
+  win_rate: number
+  trades_count: number
+  contribution_percent: number
+}
+
+interface AttributionSummary {
+  total_trades: number
+  total_pnl: number
+  best_asset: string
+  worst_asset: string
+  best_period: string
+  profitable_assets: number
+  unprofitable_assets: number
+  concentration_risk: number
+}
+
 interface PerformanceAttribution {
-  by_symbol: {
-    [symbol: string]: {
-      total_trades: number
-      winning_trades: number
-      losing_trades: number
-      win_rate: number
-      total_pnl: number
-      avg_pnl: number
-      contribution_pct: number
-    }
-  }
-  by_side: {
-    long: {
-      total_trades: number
-      total_pnl: number
-      win_rate: number
-      contribution_pct: number
-    }
-    short: {
-      total_trades: number
-      total_pnl: number
-      win_rate: number
-      contribution_pct: number
-    }
-  }
-  by_timeframe: {
-    [timeframe: string]: {
-      total_trades: number
-      total_pnl: number
-      avg_pnl: number
-      contribution_pct: number
-    }
-  }
-  summary: {
-    total_trades: number
-    total_pnl: number
-    best_symbol: string
-    worst_symbol: string
-    best_timeframe: string
-    profitable_symbols: number
-    unprofitable_symbols: number
-  }
+  by_asset: AssetAttribution[]
+  by_strategy: StrategyAttribution[]
+  by_timeframe: TimeframeAttribution[]
+  summary: AttributionSummary
+  top_contributors: AssetAttribution[]
+  worst_performers: AssetAttribution[]
   calculated_at: string
 }
 
@@ -119,11 +125,11 @@ export function PerformanceAttribution({
   // Check if no data available or incomplete data structure
   if (
     !attribution.summary ||
-    !attribution.by_symbol ||
-    !attribution.by_side ||
+    !attribution.by_asset ||
+    !attribution.by_strategy ||
     !attribution.by_timeframe ||
     attribution.summary.total_trades === 0 ||
-    Object.keys(attribution.by_symbol).length === 0
+    attribution.by_asset.length === 0
   ) {
     return (
       <div className="binance-card p-6">
@@ -144,39 +150,27 @@ export function PerformanceAttribution({
   }
 
   // Prepare data for charts
-  const symbolData = Object.entries(attribution.by_symbol).map(
-    ([symbol, data]) => ({
-      symbol,
-      pnl: data.total_pnl,
-      trades: data.total_trades,
-      winRate: data.win_rate,
-      contribution: data.contribution_pct,
-    })
-  )
+  const symbolData = attribution.by_asset.map((data) => ({
+    symbol: data.symbol,
+    pnl: data.total_pnl,
+    trades: data.trades_count,
+    winRate: data.win_rate,
+    contribution: data.contribution_percent,
+  }))
 
-  const sideData = [
-    {
-      name: 'Long',
-      value: attribution.by_side.long.total_pnl,
-      trades: attribution.by_side.long.total_trades,
-      winRate: attribution.by_side.long.win_rate,
-    },
-    {
-      name: 'Short',
-      value: attribution.by_side.short.total_pnl,
-      trades: attribution.by_side.short.total_trades,
-      winRate: attribution.by_side.short.win_rate,
-    },
-  ]
+  const sideData = attribution.by_strategy.map((data) => ({
+    name: data.strategy_type,
+    value: data.total_pnl,
+    trades: data.trades_count,
+    winRate: data.win_rate,
+  }))
 
-  const timeframeData = Object.entries(attribution.by_timeframe).map(
-    ([timeframe, data]) => ({
-      timeframe,
-      pnl: data.total_pnl,
-      trades: data.total_trades,
-      avgPnl: data.avg_pnl,
-    })
-  )
+  const timeframeData = attribution.by_timeframe.map((data) => ({
+    timeframe: data.period,
+    pnl: data.total_pnl,
+    trades: data.trades_count,
+    avgPnl: data.total_pnl / (data.trades_count || 1),
+  }))
 
   return (
     <div className="binance-card p-6">
@@ -269,7 +263,7 @@ export function PerformanceAttribution({
           <div className="text-xl font-bold flex items-center gap-2">
             <TrendingUp className="w-5 h-5" style={{ color: '#0ECB81' }} />
             <span style={{ color: '#EAECEF' }}>
-              {attribution.summary.best_symbol || 'N/A'}
+              {attribution.summary.best_asset || 'N/A'}
             </span>
           </div>
         </div>
@@ -284,7 +278,7 @@ export function PerformanceAttribution({
           <div className="text-xl font-bold flex items-center gap-2">
             <TrendingDown className="w-5 h-5" style={{ color: '#F6465D' }} />
             <span style={{ color: '#EAECEF' }}>
-              {attribution.summary.worst_symbol || 'N/A'}
+              {attribution.summary.worst_asset || 'N/A'}
             </span>
           </div>
         </div>
@@ -297,9 +291,9 @@ export function PerformanceAttribution({
             Profitable Symbols
           </div>
           <div className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
-            {attribution.summary.profitable_symbols} /{' '}
-            {attribution.summary.profitable_symbols +
-              attribution.summary.unprofitable_symbols}
+            {attribution.summary.profitable_assets} /{' '}
+            {attribution.summary.profitable_assets +
+              attribution.summary.unprofitable_assets}
           </div>
         </div>
       </div>

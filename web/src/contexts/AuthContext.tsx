@@ -69,8 +69,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const savedToken = localStorage.getItem('auth_token')
         const savedUser = localStorage.getItem('auth_user')
         if (savedToken && savedUser) {
-          setToken(savedToken)
-          setUser(JSON.parse(savedUser))
+          try {
+            setToken(savedToken)
+            setUser(JSON.parse(savedUser))
+          } catch (e) {
+            console.error('Failed to parse saved user data:', e)
+            // 清除损坏的数据
+            localStorage.removeItem('auth_token')
+            localStorage.removeItem('auth_user')
+          }
         }
 
         setIsLoading(false)
@@ -82,8 +89,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const savedUser = localStorage.getItem('auth_user')
 
         if (savedToken && savedUser) {
-          setToken(savedToken)
-          setUser(JSON.parse(savedUser))
+          try {
+            setToken(savedToken)
+            setUser(JSON.parse(savedUser))
+          } catch (e) {
+            console.error('Failed to parse saved user data:', e)
+            // 清除损坏的数据
+            localStorage.removeItem('auth_token')
+            localStorage.removeItem('auth_user')
+          }
         }
         setIsLoading(false)
       })

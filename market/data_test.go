@@ -131,19 +131,19 @@ func TestCalculateIntradaySeries_VolumeValues(t *testing.T) {
 // TestCalculateIntradaySeries_ATR14 测试 ATR14 计算
 func TestCalculateIntradaySeries_ATR14(t *testing.T) {
 	tests := []struct {
-		name         string
-		klineCount   int
-		expectZero   bool
+		name          string
+		klineCount    int
+		expectZero    bool
 		expectNonZero bool
 	}{
 		{
-			name:         "足够数据 - 20个K线",
-			klineCount:   20,
+			name:          "足够数据 - 20个K线",
+			klineCount:    20,
 			expectNonZero: true,
 		},
 		{
-			name:         "刚好15个K线（ATR14需要至少15个）",
-			klineCount:   15,
+			name:          "刚好15个K线（ATR14需要至少15个）",
+			klineCount:    15,
 			expectNonZero: true,
 		},
 		{
@@ -253,11 +253,11 @@ func TestCalculateATR(t *testing.T) {
 func TestCalculateATR_TrueRange(t *testing.T) {
 	// 创建一个简单的测试用例，手动计算期望的 ATR
 	klines := []Kline{
-		{High: 50.0, Low: 48.0, Close: 49.0},  // TR = 2.0
-		{High: 51.0, Low: 49.0, Close: 50.0},  // TR = max(2.0, 2.0, 1.0) = 2.0
-		{High: 52.0, Low: 50.0, Close: 51.0},  // TR = max(2.0, 2.0, 1.0) = 2.0
-		{High: 53.0, Low: 51.0, Close: 52.0},  // TR = 2.0
-		{High: 54.0, Low: 52.0, Close: 53.0},  // TR = 2.0
+		{High: 50.0, Low: 48.0, Close: 49.0}, // TR = 2.0
+		{High: 51.0, Low: 49.0, Close: 50.0}, // TR = max(2.0, 2.0, 1.0) = 2.0
+		{High: 52.0, Low: 50.0, Close: 51.0}, // TR = max(2.0, 2.0, 1.0) = 2.0
+		{High: 53.0, Low: 51.0, Close: 52.0}, // TR = 2.0
+		{High: 54.0, Low: 52.0, Close: 53.0}, // TR = 2.0
 	}
 
 	atr := calculateATR(klines, 3)

@@ -18,11 +18,11 @@ import (
 	"sync"
 )
 
-// EncryptionManager 加密管理器（單例模式）
+// EncryptionManager 加密管理器（单例模式）
 type EncryptionManager struct {
 	privateKey   *rsa.PrivateKey
 	publicKeyPEM string
-	masterKey    []byte // 用於數據庫加密的主密鑰
+	masterKey    []byte // 用于数据庫加密的主密鑰
 	mu           sync.RWMutex
 }
 
@@ -31,7 +31,7 @@ var (
 	once     sync.Once
 )
 
-// GetEncryptionManager 獲取加密管理器實例
+// GetEncryptionManager 获取加密管理器实例
 func GetEncryptionManager() (*EncryptionManager, error) {
 	var initErr error
 	once.Do(func() {
@@ -44,14 +44,14 @@ func GetEncryptionManager() (*EncryptionManager, error) {
 func newEncryptionManager() (*EncryptionManager, error) {
 	em := &EncryptionManager{}
 
-	// 1. 加載或生成 RSA 密鑰對
+	// 1. 加載或生成 RSA 密鑰对
 	if err := em.loadOrGenerateRSAKeyPair(); err != nil {
-		return nil, fmt.Errorf("初始化 RSA 密鑰失敗: %w", err)
+		return nil, fmt.Errorf("初始化 RSA 密鑰失败: %w", err)
 	}
 
-	// 2. 加載或生成數據庫主密鑰
+	// 2. 加載或生成数据庫主密鑰
 	if err := em.loadOrGenerateMasterKey(); err != nil {
-		return nil, fmt.Errorf("初始化主密鑰失敗: %w", err)
+		return nil, fmt.Errorf("初始化主密鑰失败: %w", err)
 	}
 
 	log.Println("🔐 加密管理器初始化成功")
@@ -67,20 +67,20 @@ const (
 	masterKeyFile     = ".secrets/master.key"
 )
 
-// loadOrGenerateRSAKeyPair 加載或生成 RSA 密鑰對
+// loadOrGenerateRSAKeyPair 加載或生成 RSA 密鑰对
 func (em *EncryptionManager) loadOrGenerateRSAKeyPair() error {
-	// 確保 .secrets 目錄存在
+	// 确保 .secrets 目录存在
 	if err := os.MkdirAll(".secrets", 0700); err != nil {
 		return err
 	}
 
-	// 嘗試加載現有密鑰
+	// 嘗试加載现有密鑰
 	if _, err := os.Stat(rsaPrivateKeyFile); err == nil {
 		return em.loadRSAKeyPair()
 	}
 
-	// 生成新密鑰對
-	log.Println("🔑 生成新的 RSA-4096 密鑰對...")
+	// 生成新密鑰对
+	log.Println("🔑 生成新的 RSA-4096 密鑰对...")
 	privateKey, err := rsa.GenerateKey(rand.Reader, rsaKeySize)
 	if err != nil {
 		return err
@@ -112,11 +112,11 @@ func (em *EncryptionManager) loadOrGenerateRSAKeyPair() error {
 	}
 
 	em.publicKeyPEM = string(publicKeyPEM)
-	log.Println("✅ RSA 密鑰對已生成並保存")
+	log.Println("✅ RSA 密鑰对已生成并保存")
 	return nil
 }
 
-// loadRSAKeyPair 加載 RSA 密鑰對
+// loadRSAKeyPair 加載 RSA 密鑰对
 func (em *EncryptionManager) loadRSAKeyPair() error {
 	// 加載私鑰
 	privateKeyPEM, err := os.ReadFile(rsaPrivateKeyFile)
@@ -126,7 +126,7 @@ func (em *EncryptionManager) loadRSAKeyPair() error {
 
 	block, _ := pem.Decode(privateKeyPEM)
 	if block == nil || block.Type != "RSA PRIVATE KEY" {
-		return errors.New("無效的私鑰 PEM 格式")
+		return errors.New("无效的私鑰 PEM 格式")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
@@ -142,11 +142,11 @@ func (em *EncryptionManager) loadRSAKeyPair() error {
 	}
 	em.publicKeyPEM = string(publicKeyPEM)
 
-	log.Println("✅ RSA 密鑰對已加載")
+	log.Println("✅ RSA 密鑰对已加載")
 	return nil
 }
 
-// GetPublicKeyPEM 獲取公鑰 (PEM 格式)
+// GetPublicKeyPEM 获取公鑰 (PEM 格式)
 func (em *EncryptionManager) GetPublicKeyPEM() string {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
@@ -155,26 +155,26 @@ func (em *EncryptionManager) GetPublicKeyPEM() string {
 
 // ==================== 混合解密 (RSA + AES) ====================
 
-// DecryptWithPrivateKey 使用私鑰解密數據
-// 數據格式: [加密的 AES 密鑰長度(4字節)] + [加密的 AES 密鑰] + [IV(12字節)] + [加密數據]
+// DecryptWithPrivateKey 使用私鑰解密数据
+// 数据格式: [加密的 AES 密鑰長度(4字节)] + [加密的 AES 密鑰] + [IV(12字节)] + [加密数据]
 func (em *EncryptionManager) DecryptWithPrivateKey(encryptedBase64 string) (string, error) {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
 
-	// Base64 解碼
+	// Base64 解码
 	encryptedData, err := base64.StdEncoding.DecodeString(encryptedBase64)
 	if err != nil {
-		return "", fmt.Errorf("Base64 解碼失敗: %w", err)
+		return "", fmt.Errorf("Base64 解码失败: %w", err)
 	}
 
-	if len(encryptedData) < 4+256+12 { // 最小長度檢查
-		return "", errors.New("加密數據長度不足")
+	if len(encryptedData) < 4+256+12 { // 最小長度检查
+		return "", errors.New("加密数据長度不足")
 	}
 
-	// 1. 讀取加密的 AES 密鑰長度
+	// 1. 读取加密的 AES 密鑰長度
 	aesKeyLen := binary.BigEndian.Uint32(encryptedData[:4])
-	if aesKeyLen > 1024 { // 防止過大的長度值
-		return "", errors.New("無效的 AES 密鑰長度")
+	if aesKeyLen > 1024 { // 防止过大的長度值
+		return "", errors.New("无效的 AES 密鑰長度")
 	}
 
 	offset := 4
@@ -185,14 +185,14 @@ func (em *EncryptionManager) DecryptWithPrivateKey(encryptedBase64 string) (stri
 	// 3. 使用 RSA 私鑰解密 AES 密鑰
 	aesKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, em.privateKey, encryptedAESKey, nil)
 	if err != nil {
-		return "", fmt.Errorf("RSA 解密失敗: %w", err)
+		return "", fmt.Errorf("RSA 解密失败: %w", err)
 	}
 
 	// 4. 提取 IV
 	iv := encryptedData[offset : offset+12]
 	offset += 12
 
-	// 5. 提取加密數據
+	// 5. 提取加密数据
 	ciphertext := encryptedData[offset:]
 
 	// 6. 使用 AES-GCM 解密
@@ -208,10 +208,10 @@ func (em *EncryptionManager) DecryptWithPrivateKey(encryptedBase64 string) (stri
 
 	plaintext, err := aesGCM.Open(nil, iv, ciphertext, nil)
 	if err != nil {
-		return "", fmt.Errorf("AES 解密失敗: %w", err)
+		return "", fmt.Errorf("AES 解密失败: %w", err)
 	}
 
-	// 清除敏感數據
+	// 清除敏感数据
 	for i := range aesKey {
 		aesKey[i] = 0
 	}
@@ -219,22 +219,22 @@ func (em *EncryptionManager) DecryptWithPrivateKey(encryptedBase64 string) (stri
 	return string(plaintext), nil
 }
 
-// ==================== 數據庫加密 (AES-256-GCM) ====================
+// ==================== 数据庫加密 (AES-256-GCM) ====================
 
-// loadOrGenerateMasterKey 加載或生成數據庫主密鑰
+// loadOrGenerateMasterKey 加載或生成数据庫主密鑰
 func (em *EncryptionManager) loadOrGenerateMasterKey() error {
-	// 優先從環境變數加載
+	// 优先从环境变数加載
 	if envKey := os.Getenv("NOFX_MASTER_KEY"); envKey != "" {
 		decoded, err := base64.StdEncoding.DecodeString(envKey)
 		if err == nil && len(decoded) == 32 {
 			em.masterKey = decoded
-			log.Println("✅ 從環境變數加載主密鑰")
+			log.Println("✅ 从环境变数加載主密鑰")
 			return nil
 		}
-		log.Println("⚠️ 環境變數中的主密鑰無效，使用文件密鑰")
+		log.Println("⚠️ 环境变数中的主密鑰无效，使用文件密鑰")
 	}
 
-	// 嘗試從文件加載
+	// 嘗试从文件加載
 	if _, err := os.Stat(masterKeyFile); err == nil {
 		keyBytes, err := os.ReadFile(masterKeyFile)
 		if err != nil {
@@ -242,15 +242,15 @@ func (em *EncryptionManager) loadOrGenerateMasterKey() error {
 		}
 		decoded, err := base64.StdEncoding.DecodeString(string(keyBytes))
 		if err != nil || len(decoded) != 32 {
-			return errors.New("主密鑰文件損壞")
+			return errors.New("主密鑰文件损壞")
 		}
 		em.masterKey = decoded
-		log.Println("✅ 從文件加載主密鑰")
+		log.Println("✅ 从文件加載主密鑰")
 		return nil
 	}
 
 	// 生成新主密鑰
-	log.Println("🔑 生成新的數據庫主密鑰 (AES-256)...")
+	log.Println("🔑 生成新的数据庫主密鑰 (AES-256)...")
 	masterKey := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, masterKey); err != nil {
 		return err
@@ -264,14 +264,14 @@ func (em *EncryptionManager) loadOrGenerateMasterKey() error {
 		return err
 	}
 
-	log.Println("✅ 主密鑰已生成並保存")
-	log.Printf("📁 主密鑰文件位置: %s (權限: 0600)", masterKeyFile)
-	log.Println("🔐 生產環境請設置環境變數: NOFX_MASTER_KEY=<從文件讀取>")
-	log.Println("⚠️  請妥善保管 .secrets 目錄，切勿將密鑰提交到版本控制系統")
+	log.Println("✅ 主密鑰已生成并保存")
+	log.Printf("📁 主密鑰文件位置: %s (权限: 0600)", masterKeyFile)
+	log.Println("🔐 生产环境请设置环境变数: NOFX_MASTER_KEY=<从文件读取>")
+	log.Println("⚠️  请妥善保管 .secrets 目录，切勿将密鑰提交到版本控制系统")
 	return nil
 }
 
-// EncryptForDatabase 使用主密鑰加密數據（用於數據庫存儲）
+// EncryptForDatabase 使用主密鑰加密数据（用于数据庫存儲）
 func (em *EncryptionManager) EncryptForDatabase(plaintext string) (string, error) {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
@@ -295,12 +295,12 @@ func (em *EncryptionManager) EncryptForDatabase(plaintext string) (string, error
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-// DecryptFromDatabase 使用主密鑰解密數據（從數據庫讀取）
+// DecryptFromDatabase 使用主密鑰解密数据（从数据庫读取）
 func (em *EncryptionManager) DecryptFromDatabase(encryptedBase64 string) (string, error) {
 	em.mu.RLock()
 	defer em.mu.RUnlock()
 
-	// 處理空字符串（未加密的舊數據）
+	// 处理空字符串（未加密的旧数据）
 	if encryptedBase64 == "" {
 		return "", nil
 	}
@@ -322,7 +322,7 @@ func (em *EncryptionManager) DecryptFromDatabase(encryptedBase64 string) (string
 
 	nonceSize := aesGCM.NonceSize()
 	if len(ciphertext) < nonceSize {
-		return "", errors.New("加密數據過短")
+		return "", errors.New("加密数据过短")
 	}
 
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
@@ -334,14 +334,14 @@ func (em *EncryptionManager) DecryptFromDatabase(encryptedBase64 string) (string
 	return string(plaintext), nil
 }
 
-// ==================== 密鑰輪換 ====================
+// ==================== 密鑰輪换 ====================
 
-// RotateMasterKey 輪換主密鑰（需要重新加密所有數據）
+// RotateMasterKey 輪换主密鑰（需要重新加密所有数据）
 func (em *EncryptionManager) RotateMasterKey() error {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 
-	log.Println("🔄 開始輪換主密鑰...")
+	log.Println("🔄 开始輪换主密鑰...")
 
 	// 生成新主密鑰
 	newMasterKey := make([]byte, 32)
@@ -349,7 +349,7 @@ func (em *EncryptionManager) RotateMasterKey() error {
 		return err
 	}
 
-	// 備份舊密鑰
+	// 备份旧密鑰
 	oldMasterKey := em.masterKey
 
 	// 更新密鑰
@@ -365,8 +365,8 @@ func (em *EncryptionManager) RotateMasterKey() error {
 		return err
 	}
 
-	log.Println("✅ 主密鑰已輪換")
-	log.Printf("⚠️ 舊密鑰已備份到: %s", backupFile)
+	log.Println("✅ 主密鑰已輪换")
+	log.Printf("⚠️ 旧密鑰已备份到: %s", backupFile)
 	log.Printf("🔐 新主密鑰: %s", encoded)
 
 	return nil

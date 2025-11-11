@@ -7,13 +7,13 @@ import (
 	"time"
 )
 
-// SecureStorage 安全存儲層（自動加密/解密數據庫中的敏感字段）
+// SecureStorage 安全存儲层（自动加密/解密数据庫中的敏感字段）
 type SecureStorage struct {
 	db *sql.DB
 	em *EncryptionManager
 }
 
-// NewSecureStorage 創建安全存儲實例
+// NewSecureStorage 創建安全存儲实例
 func NewSecureStorage(db *sql.DB) (*SecureStorage, error) {
 	em, err := GetEncryptionManager()
 	if err != nil {
@@ -25,9 +25,9 @@ func NewSecureStorage(db *sql.DB) (*SecureStorage, error) {
 		em: em,
 	}
 
-	// 初始化審計日誌表
+	// 初始化审计日誌表
 	if err := ss.initAuditLog(); err != nil {
-		return nil, fmt.Errorf("初始化審計日誌失敗: %w", err)
+		return nil, fmt.Errorf("初始化审计日誌失败: %w", err)
 	}
 
 	return ss, nil
@@ -40,23 +40,23 @@ func (ss *SecureStorage) SaveEncryptedExchangeConfig(userID, exchangeID, apiKey,
 	// 加密敏感字段
 	encryptedAPIKey, err := ss.em.EncryptForDatabase(apiKey)
 	if err != nil {
-		return fmt.Errorf("加密 API Key 失敗: %w", err)
+		return fmt.Errorf("加密 API Key 失败: %w", err)
 	}
 
 	encryptedSecretKey, err := ss.em.EncryptForDatabase(secretKey)
 	if err != nil {
-		return fmt.Errorf("加密 Secret Key 失敗: %w", err)
+		return fmt.Errorf("加密 Secret Key 失败: %w", err)
 	}
 
 	encryptedPrivateKey := ""
 	if asterPrivateKey != "" {
 		encryptedPrivateKey, err = ss.em.EncryptForDatabase(asterPrivateKey)
 		if err != nil {
-			return fmt.Errorf("加密 Private Key 失敗: %w", err)
+			return fmt.Errorf("加密 Private Key 失败: %w", err)
 		}
 	}
 
-	// 更新數據庫
+	// 更新数据庫
 	_, err = ss.db.Exec(`
 		UPDATE exchanges
 		SET api_key = ?, secret_key = ?, aster_private_key = ?, updated_at = datetime('now')
@@ -67,14 +67,14 @@ func (ss *SecureStorage) SaveEncryptedExchangeConfig(userID, exchangeID, apiKey,
 		return err
 	}
 
-	// 記錄審計日誌
+	// 记录审计日誌
 	ss.logAudit(userID, "exchange_config_update", exchangeID, "密鑰已更新")
 
 	log.Printf("🔐 [%s] 交易所 %s 的密鑰已加密保存", userID, exchangeID)
 	return nil
 }
 
-// LoadDecryptedExchangeConfig 加載並解密交易所配置
+// LoadDecryptedExchangeConfig 加載并解密交易所配置
 func (ss *SecureStorage) LoadDecryptedExchangeConfig(userID, exchangeID string) (apiKey, secretKey, asterPrivateKey string, err error) {
 	var encryptedAPIKey, encryptedSecretKey, encryptedPrivateKey sql.NullString
 
@@ -92,7 +92,7 @@ func (ss *SecureStorage) LoadDecryptedExchangeConfig(userID, exchangeID string) 
 	if encryptedAPIKey.Valid && encryptedAPIKey.String != "" {
 		apiKey, err = ss.em.DecryptFromDatabase(encryptedAPIKey.String)
 		if err != nil {
-			return "", "", "", fmt.Errorf("解密 API Key 失敗: %w", err)
+			return "", "", "", fmt.Errorf("解密 API Key 失败: %w", err)
 		}
 	}
 
@@ -100,7 +100,7 @@ func (ss *SecureStorage) LoadDecryptedExchangeConfig(userID, exchangeID string) 
 	if encryptedSecretKey.Valid && encryptedSecretKey.String != "" {
 		secretKey, err = ss.em.DecryptFromDatabase(encryptedSecretKey.String)
 		if err != nil {
-			return "", "", "", fmt.Errorf("解密 Secret Key 失敗: %w", err)
+			return "", "", "", fmt.Errorf("解密 Secret Key 失败: %w", err)
 		}
 	}
 
@@ -108,12 +108,12 @@ func (ss *SecureStorage) LoadDecryptedExchangeConfig(userID, exchangeID string) 
 	if encryptedPrivateKey.Valid && encryptedPrivateKey.String != "" {
 		asterPrivateKey, err = ss.em.DecryptFromDatabase(encryptedPrivateKey.String)
 		if err != nil {
-			return "", "", "", fmt.Errorf("解密 Private Key 失敗: %w", err)
+			return "", "", "", fmt.Errorf("解密 Private Key 失败: %w", err)
 		}
 	}
 
-	// 記錄審計日誌
-	ss.logAudit(userID, "exchange_config_read", exchangeID, "密鑰已讀取")
+	// 记录审计日誌
+	ss.logAudit(userID, "exchange_config_read", exchangeID, "密鑰已读取")
 
 	return apiKey, secretKey, asterPrivateKey, nil
 }
@@ -124,7 +124,7 @@ func (ss *SecureStorage) LoadDecryptedExchangeConfig(userID, exchangeID string) 
 func (ss *SecureStorage) SaveEncryptedAIModelConfig(userID, modelID, apiKey string) error {
 	encryptedAPIKey, err := ss.em.EncryptForDatabase(apiKey)
 	if err != nil {
-		return fmt.Errorf("加密 API Key 失敗: %w", err)
+		return fmt.Errorf("加密 API Key 失败: %w", err)
 	}
 
 	_, err = ss.db.Exec(`
@@ -142,7 +142,7 @@ func (ss *SecureStorage) SaveEncryptedAIModelConfig(userID, modelID, apiKey stri
 	return nil
 }
 
-// LoadDecryptedAIModelConfig 加載並解密 AI 模型配置
+// LoadDecryptedAIModelConfig 加載并解密 AI 模型配置
 func (ss *SecureStorage) LoadDecryptedAIModelConfig(userID, modelID string) (string, error) {
 	var encryptedAPIKey sql.NullString
 
@@ -160,16 +160,16 @@ func (ss *SecureStorage) LoadDecryptedAIModelConfig(userID, modelID string) (str
 
 	apiKey, err := ss.em.DecryptFromDatabase(encryptedAPIKey.String)
 	if err != nil {
-		return "", fmt.Errorf("解密 API Key 失敗: %w", err)
+		return "", fmt.Errorf("解密 API Key 失败: %w", err)
 	}
 
-	ss.logAudit(userID, "ai_model_config_read", modelID, "API Key 已讀取")
+	ss.logAudit(userID, "ai_model_config_read", modelID, "API Key 已读取")
 	return apiKey, nil
 }
 
-// ==================== 審計日誌 ====================
+// ==================== 审计日誌 ====================
 
-// initAuditLog 初始化審計日誌表
+// initAuditLog 初始化审计日誌表
 func (ss *SecureStorage) initAuditLog() error {
 	_, err := ss.db.Exec(`
 		CREATE TABLE IF NOT EXISTS audit_logs (
@@ -188,7 +188,7 @@ func (ss *SecureStorage) initAuditLog() error {
 	return err
 }
 
-// logAudit 記錄審計日誌
+// logAudit 记录审计日誌
 func (ss *SecureStorage) logAudit(userID, action, resource, details string) {
 	_, err := ss.db.Exec(`
 		INSERT INTO audit_logs (user_id, action, resource, details)
@@ -196,11 +196,11 @@ func (ss *SecureStorage) logAudit(userID, action, resource, details string) {
 	`, userID, action, resource, details)
 
 	if err != nil {
-		log.Printf("⚠️ 審計日誌記錄失敗: %v", err)
+		log.Printf("⚠️ 审计日誌记录失败: %v", err)
 	}
 }
 
-// GetAuditLogs 查詢審計日誌
+// GetAuditLogs 查詢审计日誌
 func (ss *SecureStorage) GetAuditLogs(userID string, limit int) ([]AuditLog, error) {
 	rows, err := ss.db.Query(`
 		SELECT id, user_id, action, resource, details, timestamp
@@ -228,7 +228,7 @@ func (ss *SecureStorage) GetAuditLogs(userID string, limit int) ([]AuditLog, err
 	return logs, nil
 }
 
-// AuditLog 審計日誌結構
+// AuditLog 审计日誌结构
 type AuditLog struct {
 	ID        int64     `json:"id"`
 	UserID    string    `json:"user_id"`
@@ -238,11 +238,11 @@ type AuditLog struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// ==================== 數據遷移工具 ====================
+// ==================== 数据遷移工具 ====================
 
-// MigrateToEncrypted 將舊的明文數據遷移到加密格式
+// MigrateToEncrypted 将旧的明文数据遷移到加密格式
 func (ss *SecureStorage) MigrateToEncrypted() error {
-	log.Println("🔄 開始遷移明文數據到加密格式...")
+	log.Println("🔄 开始遷移明文数据到加密格式...")
 
 	tx, err := ss.db.Begin()
 	if err != nil {
@@ -254,7 +254,7 @@ func (ss *SecureStorage) MigrateToEncrypted() error {
 	rows, err := tx.Query(`
 		SELECT user_id, id, api_key, secret_key, aster_private_key
 		FROM exchanges
-		WHERE api_key != '' AND api_key NOT LIKE '%==%' -- 過濾已加密數據
+		WHERE api_key != '' AND api_key NOT LIKE '%==%' -- 过濾已加密数据
 	`)
 	if err != nil {
 		return err
@@ -297,6 +297,6 @@ func (ss *SecureStorage) MigrateToEncrypted() error {
 		return err
 	}
 
-	log.Printf("✅ 已遷移 %d 個交易所配置到加密格式", count)
+	log.Printf("✅ 已遷移 %d 个交易所配置到加密格式", count)
 	return nil
 }

@@ -252,9 +252,9 @@ func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 					stats.TotalOpenPositions++
 				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					stats.TotalClosePositions++
-					// 🔧 BUG FIX：partial_close 不計入 TotalClosePositions，避免重複計數
-					// case "partial_close": // 不計數，因為只有完全平倉才算一次
-					// update_stop_loss 和 update_take_profit 不計入統計
+					// 🔧 BUG FIX：partial_close 不计入 TotalClosePositions，避免重复计数
+					// case "partial_close": // 不计数，因为只有完全平倉才算一次
+					// update_stop_loss 和 update_take_profit 不计入统计
 				}
 			}
 		}
@@ -364,7 +364,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					side = "short"
 				}
 
-				// partial_close 需要根據持倉判斷方向
+				// partial_close 需要根据持倉判断方向
 				if action.Action == "partial_close" && side == "" {
 					for key, pos := range openPositions {
 						if posSymbol, _ := pos["side"].(string); key == symbol+"_"+posSymbol {
@@ -389,7 +389,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					// 移除已平仓记录
 					delete(openPositions, posKey)
-					// partial_close 不處理，保留持倉記錄
+					// partial_close 不处理，保留持倉记录
 				}
 			}
 		}
@@ -410,9 +410,9 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				side = "short"
 			}
 
-			// partial_close 需要根據持倉判斷方向
+			// partial_close 需要根据持倉判断方向
 			if action.Action == "partial_close" {
-				// 從 openPositions 中查找持倉方向
+				// 从 openPositions 中查找持倉方向
 				for key, pos := range openPositions {
 					if posSymbol, _ := pos["side"].(string); key == symbol+"_"+posSymbol {
 						side = posSymbol
@@ -432,10 +432,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					"openTime":           action.Timestamp,
 					"quantity":           action.Quantity,
 					"leverage":           action.Leverage,
-					"remainingQuantity":  action.Quantity, // 🔧 BUG FIX：追蹤剩餘數量
+					"remainingQuantity":  action.Quantity, // 🔧 BUG FIX：追蹤剩余数量
 					"accumulatedPnL":     0.0,             // 🔧 BUG FIX：累積部分平倉盈虧
-					"partialCloseCount":  0,               // 🔧 BUG FIX：部分平倉次數
-					"partialCloseVolume": 0.0,             // 🔧 BUG FIX：部分平倉總量
+					"partialCloseCount":  0,               // 🔧 BUG FIX：部分平倉次数
+					"partialCloseVolume": 0.0,             // 🔧 BUG FIX：部分平倉总量
 				}
 
 			case "close_long", "close_short", "partial_close", "auto_close_long", "auto_close_short":
@@ -447,10 +447,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					quantity := openPos["quantity"].(float64)
 					leverage := openPos["leverage"].(int)
 
-					// 🔧 BUG FIX：取得追蹤字段（若不存在則初始化）
+					// 🔧 BUG FIX：取得追蹤字段（若不存在则初始化）
 					remainingQty, _ := openPos["remainingQuantity"].(float64)
 					if remainingQty == 0 {
-						remainingQty = quantity // 兼容舊數據（沒有 remainingQuantity 字段）
+						remainingQty = quantity // 兼容旧数据（沒有 remainingQuantity 字段）
 					}
 					accumulatedPnL, _ := openPos["accumulatedPnL"].(float64)
 					partialCloseCount, _ := openPos["partialCloseCount"].(int)
@@ -470,23 +470,23 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						pnl = actualQuantity * (openPrice - action.Price)
 					}
 
-					// 🔧 BUG FIX：處理 partial_close 聚合邏輯
+					// 🔧 BUG FIX：处理 partial_close 聚合邏輯
 					if action.Action == "partial_close" {
-						// 累積盈虧和數量
+						// 累積盈虧和数量
 						accumulatedPnL += pnl
 						remainingQty -= actualQuantity
 						partialCloseCount++
 						partialCloseVolume += actualQuantity
 
-						// 更新 openPositions（保留持倉記錄，但更新追蹤數據）
+						// 更新 openPositions（保留持倉记录，但更新追蹤数据）
 						openPos["remainingQuantity"] = remainingQty
 						openPos["accumulatedPnL"] = accumulatedPnL
 						openPos["partialCloseCount"] = partialCloseCount
 						openPos["partialCloseVolume"] = partialCloseVolume
 
-						// 判斷是否已完全平倉
-						if remainingQty <= 0.0001 { // 使用小閾值避免浮點誤差
-							// ✅ 完全平倉：記錄為一筆完整交易
+						// 判断是否已完全平倉
+						if remainingQty <= 0.0001 { // 使用小閾值避免浮点误差
+							// ✅ 完全平倉：记录为一筆完整交易
 							positionValue := quantity * openPrice
 							marginUsed := positionValue / float64(leverage)
 							pnlPct := 0.0
@@ -497,10 +497,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 							outcome := TradeOutcome{
 								Symbol:        symbol,
 								Side:          side,
-								Quantity:      quantity, // 使用原始總量
+								Quantity:      quantity, // 使用原始总量
 								Leverage:      leverage,
 								OpenPrice:     openPrice,
-								ClosePrice:    action.Price, // 最後一次平倉價格
+								ClosePrice:    action.Price, // 最後一次平倉价格
 								PositionValue: positionValue,
 								MarginUsed:    marginUsed,
 								PnL:           accumulatedPnL, // 🔧 使用累積盈虧
@@ -511,7 +511,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 							}
 
 							analysis.RecentTrades = append(analysis.RecentTrades, outcome)
-							analysis.TotalTrades++ // 🔧 只在完全平倉時計數
+							analysis.TotalTrades++ // 🔧 只在完全平倉时计数
 
 							// 分类交易
 							if accumulatedPnL > 0 {
@@ -537,10 +537,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 								stats.LosingTrades++
 							}
 
-							// 刪除持倉記錄
+							// 刪除持倉记录
 							delete(openPositions, posKey)
 						}
-						// ⚠️ 否則不做任何操作（等待後續 partial_close 或 full close）
+						// ⚠️ 否则不做任何操作（等待後續 partial_close 或 full close）
 
 					} else {
 						// 🔧 完全平倉（close_long/close_short/auto_close）
@@ -557,7 +557,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 						outcome := TradeOutcome{
 							Symbol:        symbol,
 							Side:          side,
-							Quantity:      quantity, // 使用原始總量
+							Quantity:      quantity, // 使用原始总量
 							Leverage:      leverage,
 							OpenPrice:     openPrice,
 							ClosePrice:    action.Price,
@@ -597,7 +597,7 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 							stats.LosingTrades++
 						}
 
-						// 刪除持倉記錄
+						// 刪除持倉记录
 						delete(openPositions, posKey)
 					}
 				}

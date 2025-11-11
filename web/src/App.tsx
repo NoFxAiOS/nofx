@@ -712,7 +712,7 @@ function TraderDetailsPage({
         <StatCard
           title={t('availableBalance', language)}
           value={`${account?.available_balance?.toFixed(2) || '0.00'} USDT`}
-          subtitle={`${account?.available_balance && account?.total_equity ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '0.0'}% ${t('free', language)}`}
+          subtitle={`${account?.available_balance && account?.total_equity && account.total_equity > 0 ? ((account.available_balance / account.total_equity) * 100).toFixed(1) : '0.0'}% ${t('free', language)}`}
         />
         <StatCard
           title={t('totalPnL', language)}

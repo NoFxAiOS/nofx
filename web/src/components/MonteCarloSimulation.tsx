@@ -330,7 +330,7 @@ export function MonteCarloSimulation({ traderId }: MonteCarloSimulationProps) {
                             ${data.value.toFixed(2)}
                           </div>
                           <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                            {((data.value / result.initial_balance - 1) * 100).toFixed(2)}% return
+                            {result.initial_balance > 0 ? ((data.value / result.initial_balance - 1) * 100).toFixed(2) : '0.00'}% return
                           </div>
                         </div>
                       )

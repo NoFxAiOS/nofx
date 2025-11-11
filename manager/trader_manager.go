@@ -588,16 +588,25 @@ func (tm *TraderManager) getConcurrentTraderData(traders []*trader.AutoTrader) [
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 
-			// 使用通道来实现超时控制
+			// 🔒 使用通道来实现超时控制（buffered channel 防止 goroutine 泄漏）
+			// 即使 timeout 发生，goroutine 仍然可以写入 channel 而不会 block
 			accountChan := make(chan map[string]interface{}, 1)
 			errorChan := make(chan error, 1)
 
 			go func() {
 				account, err := trader.GetAccountInfo()
 				if err != nil {
-					errorChan <- err
+					select {
+					case errorChan <- err:
+					case <-ctx.Done():
+						// Context 已取消，不发送数据，防止 goroutine 永久阻塞
+					}
 				} else {
-					accountChan <- account
+					select {
+					case accountChan <- account:
+					case <-ctx.Done():
+						// Context 已取消，不发送数据，防止 goroutine 永久阻塞
+					}
 				}
 			}()
 

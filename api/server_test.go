@@ -225,3 +225,156 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 		t.Errorf("SystemPromptTemplate mismatch: expected %q, got %q", "nof1", req.SystemPromptTemplate)
 	}
 }
+
+// TestValidateIndicatorConfig_ValidConfigs 测试合法的指标配置
+func TestValidateIndicatorConfig_ValidConfigs(t *testing.T) {
+	tests := []struct {
+		name   string
+		config map[string]interface{}
+	}{
+		{
+			name: "完整的合法配置",
+			config: map[string]interface{}{
+				"indicators":  []interface{}{"ema", "macd", "rsi", "atr", "volume"},
+				"timeframes":  []interface{}{"3m", "4h"},
+				"data_points": map[string]interface{}{"3m": 40.0, "4h": 25.0},
+				"parameters":  map[string]interface{}{"rsi_period": 14.0},
+			},
+		},
+		{
+			name: "只包含indicators",
+			config: map[string]interface{}{
+				"indicators": []interface{}{"ema", "macd"},
+			},
+		},
+		{
+			name: "只包含timeframes",
+			config: map[string]interface{}{
+				"timeframes": []interface{}{"1m", "5m", "15m"},
+			},
+		},
+		{
+			name: "data_points在合法范围内",
+			config: map[string]interface{}{
+				"data_points": map[string]interface{}{"1h": 10.0, "4h": 100.0},
+			},
+		},
+		{
+			name: "包含bollinger指标",
+			config: map[string]interface{}{
+				"indicators": []interface{}{"bollinger", "rsi"},
+			},
+		},
+		{
+			name:   "空配置",
+			config: map[string]interface{}{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateIndicatorConfig(tt.config)
+			if err != nil {
+				t.Errorf("验证失败: %v", err)
+			}
+		})
+	}
+}
+
+// TestValidateIndicatorConfig_InvalidConfigs 测试不合法的指标配置
+func TestValidateIndicatorConfig_InvalidConfigs(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      map[string]interface{}
+		expectedErr string
+	}{
+		{
+			name: "indicators不是数组",
+			config: map[string]interface{}{
+				"indicators": "ema,macd",
+			},
+			expectedErr: "indicators必须是数组",
+		},
+		{
+			name: "不支持的指标名称",
+			config: map[string]interface{}{
+				"indicators": []interface{}{"ema", "invalid_indicator"},
+			},
+			expectedErr: "不支持的指标: invalid_indicator",
+		},
+		{
+			name: "指标名称不是字符串",
+			config: map[string]interface{}{
+				"indicators": []interface{}{123},
+			},
+			expectedErr: "指标名称必须是字符串",
+		},
+		{
+			name: "timeframes不是数组",
+			config: map[string]interface{}{
+				"timeframes": "1m,5m",
+			},
+			expectedErr: "timeframes必须是数组",
+		},
+		{
+			name: "不支持的时间框架",
+			config: map[string]interface{}{
+				"timeframes": []interface{}{"1m", "10m"},
+			},
+			expectedErr: "不支持的时间框架: 10m",
+		},
+		{
+			name: "时间框架不是字符串",
+			config: map[string]interface{}{
+				"timeframes": []interface{}{60},
+			},
+			expectedErr: "时间框架必须是字符串",
+		},
+		{
+			name: "data_points不是对象",
+			config: map[string]interface{}{
+				"data_points": []interface{}{40, 25},
+			},
+			expectedErr: "data_points必须是对象",
+		},
+		{
+			name: "数据点数量不是数字",
+			config: map[string]interface{}{
+				"data_points": map[string]interface{}{"3m": "40"},
+			},
+			expectedErr: "数据点数量必须是数字",
+		},
+		{
+			name: "数据点数量小于10",
+			config: map[string]interface{}{
+				"data_points": map[string]interface{}{"3m": 5.0},
+			},
+			expectedErr: "数据点数量必须在10-100之间",
+		},
+		{
+			name: "数据点数量大于100",
+			config: map[string]interface{}{
+				"data_points": map[string]interface{}{"3m": 150.0},
+			},
+			expectedErr: "数据点数量必须在10-100之间",
+		},
+		{
+			name: "parameters不是对象",
+			config: map[string]interface{}{
+				"parameters": []interface{}{"rsi_period", 14},
+			},
+			expectedErr: "parameters必须是对象",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateIndicatorConfig(tt.config)
+			if err == nil {
+				t.Errorf("期望验证失败,但验证通过")
+			} else if err.Error() != tt.expectedErr {
+				t.Errorf("错误消息不匹配:\n期望: %q\n实际: %q", tt.expectedErr, err.Error())
+			}
+		})
+	}
+}

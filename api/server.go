@@ -13,6 +13,7 @@ import (
 	"nofx/decision"
 	"nofx/hook"
 	"nofx/manager"
+	"nofx/market"
 	"nofx/trader"
 	"strconv"
 	"strings"
@@ -135,6 +136,10 @@ func (s *Server) setupRoutes() {
 			protected.POST("/traders/:id/stop", s.handleStopTrader)
 			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
 			protected.POST("/traders/:id/sync-balance", s.handleSyncBalance)
+			
+			// 交易员指标配置
+			protected.GET("/traders/:id/indicator-config", s.handleGetIndicatorConfig)
+			protected.PUT("/traders/:id/indicator-config", s.handleUpdateIndicatorConfig)
 
 			// AI模型配置
 			protected.GET("/models", s.handleGetModelConfigs)
@@ -2419,4 +2424,175 @@ func (s *Server) handleVerifyOTP(c *gin.Context) {
 		"email":   user.Email,
 		"message": "登录成功",
 	})
+}
+
+// handleGetIndicatorConfig 获取交易员指标配置
+func (s *Server) handleGetIndicatorConfig(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Param("id")
+
+	// 获取交易员信息
+	trader, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
+	// 如果配置为空，返回默认配置
+	if trader.IndicatorConfig == "" {
+		c.JSON(http.StatusOK, gin.H{
+"indicator_config": nil,
+"using_default":    true,
+})
+		return
+	}
+
+	// 解析并返回配置
+	var config map[string]interface{}
+	if err := json.Unmarshal([]byte(trader.IndicatorConfig), &config); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "解析配置失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+"indicator_config": config,
+"using_default":    false,
+})
+}
+
+// handleUpdateIndicatorConfig 更新交易员指标配置
+func (s *Server) handleUpdateIndicatorConfig(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Param("id")
+
+	var req struct {
+		IndicatorConfig map[string]interface{} `json:"indicator_config"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 获取交易员信息
+	trader, _, _, err := s.database.GetTraderConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
+	// 验证配置
+	if err := validateIndicatorConfig(req.IndicatorConfig); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 将配置序列化为JSON
+	configJSON, err := json.Marshal(req.IndicatorConfig)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "序列化配置失败"})
+		return
+	}
+
+	// 更新配置
+	trader.IndicatorConfig = string(configJSON)
+	if err := s.database.UpdateTrader(trader); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新配置失败"})
+		return
+	}
+
+	// 🔥 热重载配置：如果trader正在运行，立即应用新配置
+	var indicatorConfig market.IndicatorConfig
+	if err := json.Unmarshal(configJSON, &indicatorConfig); err == nil {
+		// 尝试热重载配置
+		if err := s.traderManager.ReloadIndicatorConfig(traderID, &indicatorConfig); err != nil {
+			log.Printf("⚠️  热重载配置失败（trader可能未运行）: %v", err)
+			// 不影响保存成功的响应，因为下次启动时会使用新配置
+		} else {
+			log.Printf("✅ 配置已热重载到运行中的trader: %s", traderID)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+"message":          "指标配置已更新并已热重载",
+"indicator_config": req.IndicatorConfig,
+"hot_reloaded":     true, // 标记已热重载
+})
+}
+
+// validateIndicatorConfig 验证指标配置
+func validateIndicatorConfig(config map[string]interface{}) error {
+	// 验证indicators字段
+	if indicators, ok := config["indicators"]; ok {
+		indicatorList, ok := indicators.([]interface{})
+		if !ok {
+			return fmt.Errorf("indicators必须是数组")
+		}
+
+		allowedIndicators := map[string]bool{
+			"ema": true, "macd": true, "rsi": true, "atr": true, "volume": true, "bollinger": true,
+		}
+
+		for _, ind := range indicatorList {
+			indStr, ok := ind.(string)
+			if !ok {
+				return fmt.Errorf("指标名称必须是字符串")
+			}
+			if !allowedIndicators[indStr] {
+				return fmt.Errorf("不支持的指标: %s", indStr)
+			}
+		}
+	}
+
+	// 验证timeframes字段
+	if timeframes, ok := config["timeframes"]; ok {
+		timeframeList, ok := timeframes.([]interface{})
+		if !ok {
+			return fmt.Errorf("timeframes必须是数组")
+		}
+
+		allowedTimeframes := map[string]bool{
+			"1m": true, "3m": true, "5m": true, "15m": true, "30m": true,
+			"1h": true, "2h": true, "4h": true, "6h": true, "12h": true,
+			"1d": true, "3d": true, "1w": true,
+		}
+
+		for _, tf := range timeframeList {
+			tfStr, ok := tf.(string)
+			if !ok {
+				return fmt.Errorf("时间框架必须是字符串")
+			}
+			if !allowedTimeframes[tfStr] {
+				return fmt.Errorf("不支持的时间框架: %s", tfStr)
+			}
+		}
+	}
+
+	// 验证data_points字段
+	if dataPoints, ok := config["data_points"]; ok {
+		dpMap, ok := dataPoints.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("data_points必须是对象")
+		}
+
+		for _, v := range dpMap {
+			count, ok := v.(float64)
+			if !ok {
+				return fmt.Errorf("数据点数量必须是数字")
+			}
+			if count < 10 || count > 100 {
+				return fmt.Errorf("数据点数量必须在10-100之间")
+			}
+		}
+	}
+
+	// 验证parameters字段
+	if parameters, ok := config["parameters"]; ok {
+		_, ok := parameters.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("parameters必须是对象")
+		}
+	}
+
+	return nil
 }

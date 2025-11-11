@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/config"
+	"nofx/market"
 	"nofx/trader"
 	"sort"
 	"strconv"
@@ -217,6 +218,21 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
+	// 解析指标配置（如果有）
+	var indicatorConfig *market.IndicatorConfig
+	if traderCfg.IndicatorConfig != "" {
+		var cfg market.IndicatorConfig
+		if err := json.Unmarshal([]byte(traderCfg.IndicatorConfig), &cfg); err != nil {
+			log.Printf("⚠️ 解析指标配置失败，使用默认配置: %v", err)
+			indicatorConfig = market.GetDefaultIndicatorConfig()
+		} else {
+			indicatorConfig = &cfg
+		}
+	} else {
+		// 使用默认配置
+		indicatorConfig = market.GetDefaultIndicatorConfig()
+	}
+
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
@@ -244,6 +260,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
+		IndicatorConfig:       indicatorConfig,                // 指标配置
 	}
 
 	// 根据交易所类型设置API密钥
@@ -329,6 +346,21 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
+	// 解析指标配置（如果有）
+	var indicatorConfig *market.IndicatorConfig
+	if traderCfg.IndicatorConfig != "" {
+		var cfg market.IndicatorConfig
+		if err := json.Unmarshal([]byte(traderCfg.IndicatorConfig), &cfg); err != nil {
+			log.Printf("⚠️ 解析指标配置失败，使用默认配置: %v", err)
+			indicatorConfig = market.GetDefaultIndicatorConfig()
+		} else {
+			indicatorConfig = &cfg
+		}
+	} else {
+		// 使用默认配置
+		indicatorConfig = market.GetDefaultIndicatorConfig()
+	}
+
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
@@ -355,6 +387,7 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
+		IndicatorConfig:       indicatorConfig, // 指标配置
 	}
 
 	// 根据交易所类型设置API密钥
@@ -465,6 +498,23 @@ func (tm *TraderManager) StopAll() {
 	for _, t := range tm.traders {
 		t.Stop()
 	}
+}
+
+// ReloadIndicatorConfig 热重载指定trader的技术指标配置
+func (tm *TraderManager) ReloadIndicatorConfig(traderID string, newConfig *market.IndicatorConfig) error {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	t, exists := tm.traders[traderID]
+	if !exists {
+		return fmt.Errorf("trader ID '%s' 不存在", traderID)
+	}
+
+	// 调用trader的热重载方法
+	t.ReloadIndicatorConfig(newConfig)
+	log.Printf("🔄 TraderManager: 已通知 %s 重载配置", traderID)
+	
+	return nil
 }
 
 // GetComparisonData 获取对比数据

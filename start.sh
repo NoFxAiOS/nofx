@@ -428,37 +428,190 @@ start() {
 }
 
 # ------------------------------------------------------------------------
-# Service Management: Stop
+# Service Management: Stop (Enhanced)
 # ------------------------------------------------------------------------
 stop() {
-    print_info "正在停止服务..."
+    print_info "正在停止所有 NOFX 服务..."
+
+    local stopped_backend=false
+    local stopped_frontend=false
+    local forced_kill=false
+
+    # 1. 使用PID文件停止进程（如果存在）
+    print_info "检查PID文件..."
 
     # 停止后端
     if [ -f "nofx.pid" ]; then
         local backend_pid=$(cat nofx.pid)
         if kill -0 $backend_pid 2>/dev/null; then
-            kill $backend_pid
-            print_success "后端服务已停止 (PID: $backend_pid)"
+            print_info "终止后端进程 (PID: $backend_pid)..."
+            if kill $backend_pid 2>/dev/null; then
+                # 等待进程优雅退出
+                local count=0
+                while kill -0 $backend_pid 2>/dev/null && [ $count -lt 10 ]; do
+                    sleep 1
+                    count=$((count + 1))
+                done
+
+                if kill -0 $backend_pid 2>/dev/null; then
+                    print_warning "后端进程未响应SIGTERM，使用SIGKILL强制终止..."
+                    kill -9 $backend_pid 2>/dev/null
+                    forced_kill=true
+                fi
+                stopped_backend=true
+                print_success "后端服务已停止"
+            else
+                print_warning "无法终止后端进程 $backend_pid"
+            fi
+        else
+            print_info "后端进程 $backend_pid 已不存在，清理PID文件"
         fi
         rm -f nofx.pid
+    else
+        print_info "后端PID文件不存在"
     fi
 
     # 停止前端开发服务器
     if [ -f "frontend.pid" ]; then
         local frontend_pid=$(cat frontend.pid)
         if kill -0 $frontend_pid 2>/dev/null; then
-            kill $frontend_pid
-            print_success "前端开发服务器已停止 (PID: $frontend_pid)"
+            print_info "终止前端开发服务器 (PID: $frontend_pid)..."
+            if kill $frontend_pid 2>/dev/null; then
+                # 等待进程优雅退出
+                local count=0
+                while kill -0 $frontend_pid 2>/dev/null && [ $count -lt 5 ]; do
+                    sleep 1
+                    count=$((count + 1))
+                done
+
+                if kill -0 $frontend_pid 2>/dev/null; then
+                    print_warning "前端进程未响应SIGTERM，使用SIGKILL强制终止..."
+                    kill -9 $frontend_pid 2>/dev/null
+                    forced_kill=true
+                fi
+                stopped_frontend=true
+                print_success "前端开发服务器已停止"
+            else
+                print_warning "无法终止前端进程 $frontend_pid"
+            fi
+        else
+            print_info "前端进程 $frontend_pid 已不存在，清理PID文件"
         fi
         rm -f frontend.pid
+    else
+        print_info "前端PID文件不存在"
     fi
 
-    # 杀死可能的遗留进程
-    pkill -f "go run ." 2>/dev/null || true
-    pkill -f "npm run dev" 2>/dev/null || true
-    pkill -f "vite" 2>/dev/null || true
+    # 2. 端口扫描检测并终止残留进程
+    print_info "扫描端口占用情况..."
 
-    print_success "所有服务已停止"
+    # 检查后端端口
+    read_env_vars  # 确保端口变量已设置
+    if is_port_in_use $NOFX_BACKEND_PORT; then
+        print_warning "发现端口 $NOFX_BACKEND_PORT 仍被占用，查找占用进程..."
+        local port_pids=$(lsof -ti:$NOFX_BACKEND_PORT 2>/dev/null)
+        if [ -n "$port_pids" ]; then
+            for pid in $port_pids; do
+                local process_name=$(ps -p $pid -o comm= 2>/dev/null)
+                print_info "终止占用端口的进程: $pid ($process_name)"
+                kill $pid 2>/dev/null || true
+                sleep 1
+                if kill -0 $pid 2>/dev/null; then
+                    print_warning "进程 $pid 未响应，强制终止..."
+                    kill -9 $pid 2>/dev/null || true
+                    forced_kill=true
+                fi
+                stopped_backend=true
+            done
+        fi
+    fi
+
+    # 3. 进程名匹配兜底（更全面的模式匹配）
+    print_info "执行进程名匹配清理..."
+
+    # 定义进程模式数组
+    local process_patterns=(
+        "go run \."                    # go run 命令
+        "\./nofx"                       # nofx 二进制文件
+        "npm run dev"                   # npm dev 命令
+        "vite.*--port"                  # vite 开发服务器
+        "node.*vite"                    # node vite 进程
+    )
+
+    for pattern in "${process_patterns[@]}"; do
+        local pids=$(pgrep -f "$pattern" 2>/dev/null || true)
+        if [ -n "$pids" ]; then
+            for pid in $pids; do
+                # 排除当前的shell和编辑器进程
+                if [ $pid != $$ ] && ps -p $pid > /dev/null 2>&1; then
+                    local cmd=$(ps -p $pid -o command= 2>/dev/null | head -c 100)
+                    print_info "终止匹配进程: $pid ($cmd...)"
+                    kill $pid 2>/dev/null || true
+                    sleep 1
+                    if kill -0 $pid 2>/dev/null; then
+                        print_warning "进程 $pid 未响应，强制终止..."
+                        kill -9 $pid 2>/dev/null || true
+                        forced_kill=true
+                    fi
+                fi
+            done
+        fi
+    done
+
+    # 4. 最终清理和验证
+    print_info "执行最终清理..."
+
+    # 清理可能的残留PID文件
+    rm -f nofx.pid frontend.pid nofx.log frontend.log
+
+    # 清理临时文件
+    find . -name "*.tmp" -delete 2>/dev/null || true
+    find . -name ".#*" -delete 2>/dev/null || true
+
+    # 5. 最终验证
+    sleep 2
+    print_info "验证服务停止状态..."
+
+    local backend_running=false
+    local frontend_running=false
+
+    # 检查后端是否还在运行
+    if is_port_in_use $NOFX_BACKEND_PORT; then
+        backend_running=true
+        print_error "⚠️  后端端口 $NOFX_BACKEND_PORT 仍被占用"
+        local remaining_pids=$(lsof -ti:$NOFX_BACKEND_PORT 2>/dev/null)
+        if [ -n "$remaining_pids" ]; then
+            print_error "占用进程: $remaining_pids"
+        fi
+    else
+        print_success "✅ 后端服务已完全停止"
+    fi
+
+    # 检查前端是否还在运行
+    if is_port_in_use $NOFX_FRONTEND_PORT; then
+        frontend_running=true
+        print_error "⚠️  前端端口 $NOFX_FRONTEND_PORT 仍被占用"
+        local remaining_pids=$(lsof -ti:$NOFX_FRONTEND_PORT 2>/dev/null)
+        if [ -n "$remaining_pids" ]; then
+            print_error "占用进程: $remaining_pids"
+        fi
+    else
+        print_success "✅ 前端服务已完全停止"
+    fi
+
+    # 总结报告
+    echo ""
+    if [ "$backend_running" = false ] && [ "$frontend_running" = false ]; then
+        print_success "🎉 所有 NOFX 服务已成功停止！"
+        if [ "$forced_kill" = true ]; then
+            print_info "部分进程需要强制终止 (SIGKILL)"
+        fi
+    else
+        print_error "❌ 部分服务未能完全停止"
+        print_info "请手动检查上述进程并终止"
+        print_info "或者尝试: sudo lsof -ti:$NOFX_BACKEND_PORT | xargs sudo kill -9"
+        return 1
+    fi
 }
 
 # ------------------------------------------------------------------------

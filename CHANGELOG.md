@@ -12,15 +12,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Hot Reload Configuration** - Technical indicator configuration can now be updated without restarting the backend
+  - Real-time configuration updates through frontend interface
+  - AutoTrader.ReloadIndicatorConfig() method for seamless config updates
+  - TraderManager integration for distributing config updates to running traders
+  - API automatically triggers hot reload after saving configuration
+  - New configuration takes effect in next AI decision cycle (typically 3 minutes)
+  - See `docs/HOT_RELOAD_CONFIG.md` and `docs/HOT_RELOAD_QUICKSTART.zh-CN.md` for usage guide
 - Documentation system with multi-language support (EN/CN/RU/UK)
 - Complete getting-started guides (Docker, PM2, Custom API)
 - Architecture documentation with system design details
 - User guides with FAQ and troubleshooting
 - Community documentation with bounty programs
+- Verification script for indicator configuration fix (`scripts/verify_indicator_config_fix.sh`)
+
+### Fixed
+- **Indicator Configuration Data Flow** - Fixed critical issue where user-configured technical indicator parameters were not being passed to market data layer
+  - Fixed 7 market data retrieval points in AutoTrader to pass IndicatorConfig
+  - Ensures AI receives accurate data points based on user configuration (e.g., 40 vs 60 3m candles)
+  - Front-end configuration now properly persists and loads from database
+  - Technical indicators (RSI, MACD, Bollinger Bands) now calculated based on user-selected timeframes
+  - Complete data flow: Frontend → API → Database → TraderManager → AutoTrader → market.Get()
+  - See `docs/INDICATOR_CONFIG_FIX.md` for detailed analysis and verification
 
 ### Changed
 - Reorganized documentation structure into logical categories
 - Updated all README files with proper navigation links
+- Enhanced API response for indicator config update to include `hot_reloaded` flag
 
 ---
 

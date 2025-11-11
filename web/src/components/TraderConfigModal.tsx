@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import type { AIModel, Exchange, CreateTraderRequest } from '../types'
+import type { AIModel, Exchange, CreateTraderRequest, IndicatorConfig } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { IndicatorConfigPanel } from './IndicatorConfigPanel'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -25,6 +26,7 @@ interface TraderConfigData {
   use_oi_top: boolean
   initial_balance: number
   scan_interval_minutes: number
+  indicator_config?: IndicatorConfig
 }
 
 interface TraderConfigModalProps {
@@ -70,6 +72,12 @@ export function TraderConfigModal({
   const [promptTemplates, setPromptTemplates] = useState<{ name: string }[]>([])
   const [isFetchingBalance, setIsFetchingBalance] = useState(false)
   const [balanceFetchError, setBalanceFetchError] = useState<string>('')
+  const [indicatorConfig, setIndicatorConfig] = useState<IndicatorConfig>({
+    indicators: ['ema', 'macd', 'rsi', 'atr', 'volume'],
+    timeframes: ['3m', '4h'],
+    data_points: { '3m': 40, '4h': 25 },
+    parameters: {}
+  })
 
   useEffect(() => {
     if (traderData) {
@@ -81,6 +89,10 @@ export function TraderConfigModal({
           .map((s) => s.trim())
           .filter((s) => s)
         setSelectedCoins(coins)
+      }
+      // 设置指标配置
+      if (traderData.indicator_config) {
+        setIndicatorConfig(traderData.indicator_config)
       }
     } else if (!isEditMode) {
       setFormData({
@@ -248,13 +260,52 @@ export function TraderConfigModal({
         use_oi_top: formData.use_oi_top,
         initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
+        indicator_config: indicatorConfig,
       }
       await onSave(saveData)
+      
+      // 🔥 如果是编辑模式，额外触发热重载配置
+      if (isEditMode && traderData?.trader_id) {
+        await handleSaveIndicatorConfig(traderData.trader_id)
+      }
+      
       onClose()
     } catch (error) {
       console.error('保存失败:', error)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  // 🔥 热重载指标配置
+  const handleSaveIndicatorConfig = async (traderId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        console.warn('未登录，跳过热重载')
+        return
+      }
+
+      const response = await fetch(`/api/traders/${traderId}/indicator-config`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ indicator_config: indicatorConfig })
+      })
+
+      if (!response.ok) {
+        throw new Error('热重载配置失败')
+      }
+
+      const data = await response.json()
+      if (data.hot_reloaded) {
+        console.log('✅ 配置已热重载到运行中的Trader')
+      }
+    } catch (error) {
+      console.error('热重载配置失败:', error)
+      // 不影响主流程，只记录错误
     }
   }
 
@@ -617,6 +668,12 @@ export function TraderConfigModal({
             </div>
           </div>
 
+          {/* Market Indicators Configuration */}
+          <IndicatorConfigPanel
+            config={indicatorConfig}
+            onConfigChange={setIndicatorConfig}
+          />
+
           {/* Trading Prompt */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
@@ -768,6 +825,23 @@ export function TraderConfigModal({
           >
             取消
           </button>
+          
+          {/* Hot Reload Button (仅编辑模式且trader正在运行时显示) */}
+          {isEditMode && traderData?.trader_id && (
+            <button
+              onClick={() => {
+                if (traderData?.trader_id) {
+                  handleSaveIndicatorConfig(traderData.trader_id)
+                }
+              }}
+              disabled={isSaving}
+              className="px-6 py-3 bg-[#2B3139] text-[#F0B90B] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#F0B90B] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              title="立即热重载配置到运行中的Trader（不重启）"
+            >
+              🔥 仅热重载配置
+            </button>
+          )}
+          
           {onSave && (
             <button
               onClick={handleSave}

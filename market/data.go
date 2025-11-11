@@ -24,36 +24,68 @@ var (
 )
 
 // Get 获取指定代币的市场数据
-func Get(symbol string) (*Data, error) {
+func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
+	// 使用默认配置或传入的配置
+	var cfg *IndicatorConfig
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
+	} else {
+		cfg = GetDefaultIndicatorConfig()
+	}
+	
 	var klines3m, klines4h []Kline
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
-	// 获取3分钟K线数据 (最近10个)
-	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
-	if err != nil {
-		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+	
+	// 根据配置决定需要获取哪些时间框架的数据
+	need3m := false
+	need4h := false
+	for _, tf := range cfg.Timeframes {
+		if tf == "3m" {
+			need3m = true
+		}
+		if tf == "4h" {
+			need4h = true
+		}
+	}
+	
+	// 如果没有配置timeframes,默认获取两个
+	if len(cfg.Timeframes) == 0 {
+		need3m = true
+		need4h = true
+	}
+	
+	// 获取3分钟K线数据
+	if need3m {
+		klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m")
+		if err != nil {
+			return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+		}
+		if len(klines3m) == 0 {
+			return nil, fmt.Errorf("3分钟K线数据为空")
+		}
 	}
 
-	// 获取4小时K线数据 (最近10个)
-	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // 多获取用于计算指标
-	if err != nil {
-		return nil, fmt.Errorf("获取4小时K线失败: %v", err)
-	}
-
-	// 检查数据是否为空
-	if len(klines3m) == 0 {
-		return nil, fmt.Errorf("3分钟K线数据为空")
-	}
-	if len(klines4h) == 0 {
-		return nil, fmt.Errorf("4小时K线数据为空")
+	// 获取4小时K线数据
+	if need4h {
+		klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h")
+		if err != nil {
+			return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+		}
+		if len(klines4h) == 0 {
+			return nil, fmt.Errorf("4小时K线数据为空")
+		}
 	}
 
 	// 计算当前指标 (基于3分钟最新数据)
-	currentPrice := klines3m[len(klines3m)-1].Close
-	currentEMA20 := calculateEMA(klines3m, 20)
-	currentMACD := calculateMACD(klines3m)
-	currentRSI7 := calculateRSI(klines3m, 7)
+	var currentPrice, currentEMA20, currentMACD, currentRSI7 float64
+	if len(klines3m) > 0 {
+		currentPrice = klines3m[len(klines3m)-1].Close
+		currentEMA20 = calculateEMA(klines3m, 20)
+		currentMACD = calculateMACD(klines3m)
+		currentRSI7 = calculateRSI(klines3m, 7)
+	}
 
 	// 计算价格变化百分比
 	// 1小时价格变化 = 20个3分钟K线前的价格
@@ -84,11 +116,25 @@ func Get(symbol string) (*Data, error) {
 	// 获取Funding Rate
 	fundingRate, _ := getFundingRate(symbol)
 
-	// 计算日内系列数据
-	intradayData := calculateIntradaySeries(klines3m)
+	// 计算日内系列数据 (使用配置的数据点数量)
+	var intradayData *IntradayData
+	if len(klines3m) > 0 {
+		dataPoints3m := cfg.DataPoints["3m"]
+		if dataPoints3m == 0 {
+			dataPoints3m = 40 // 默认40个点
+		}
+		intradayData = calculateIntradaySeries(klines3m, dataPoints3m)
+	}
 
-	// 计算长期数据
-	longerTermData := calculateLongerTermData(klines4h)
+	// 计算长期数据 (使用配置的数据点数量)
+	var longerTermData *LongerTermData
+	if len(klines4h) > 0 {
+		dataPoints4h := cfg.DataPoints["4h"]
+		if dataPoints4h == 0 {
+			dataPoints4h = 25 // 默认25个点
+		}
+		longerTermData = calculateLongerTermData(klines4h, dataPoints4h)
+	}
 
 	return &Data{
 		Symbol:            symbol,
@@ -219,19 +265,57 @@ func calculateATR(klines []Kline, period int) float64 {
 	return atr
 }
 
-// calculateIntradaySeries 计算日内系列数据
-func calculateIntradaySeries(klines []Kline) *IntradayData {
-	data := &IntradayData{
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
-		Volume:      make([]float64, 0, 10),
+// calculateBollingerBands 计算布林带
+// 返回值顺序：upper, middle, lower
+func calculateBollingerBands(klines []Kline, period int, numStdDev float64) (float64, float64, float64) {
+	if len(klines) < period {
+		return 0, 0, 0
 	}
 
-	// 获取最近10个数据点
-	start := len(klines) - 10
+	// 计算中轨（SMA）
+	sum := 0.0
+	for i := len(klines) - period; i < len(klines); i++ {
+		sum += klines[i].Close
+	}
+	middle := sum / float64(period)
+
+	// 计算标准差
+	variance := 0.0
+	for i := len(klines) - period; i < len(klines); i++ {
+		diff := klines[i].Close - middle
+		variance += diff * diff
+	}
+	stdDev := math.Sqrt(variance / float64(period))
+
+	// 计算上轨和下轨
+	upper := middle + numStdDev*stdDev
+	lower := middle - numStdDev*stdDev
+
+	return upper, middle, lower
+}
+
+// calculateIntradaySeries 计算日内系列数据
+func calculateIntradaySeries(klines []Kline, dataPoints ...int) *IntradayData {
+	// 默认返回40个数据点
+	numPoints := 40
+	if len(dataPoints) > 0 && dataPoints[0] > 0 {
+		numPoints = dataPoints[0]
+	}
+	
+	data := &IntradayData{
+		MidPrices:      make([]float64, 0, numPoints),
+		EMA20Values:    make([]float64, 0, numPoints),
+		MACDValues:     make([]float64, 0, numPoints),
+		RSI7Values:     make([]float64, 0, numPoints),
+		RSI14Values:    make([]float64, 0, numPoints),
+		Volume:         make([]float64, 0, numPoints),
+		BollingerUpper: make([]float64, 0, numPoints),
+		BollingerMid:   make([]float64, 0, numPoints),
+		BollingerLower: make([]float64, 0, numPoints),
+	}
+
+	// 获取最近N个数据点
+	start := len(klines) - numPoints
 	if start < 0 {
 		start = 0
 	}
@@ -261,6 +345,14 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 			rsi14 := calculateRSI(klines[:i+1], 14)
 			data.RSI14Values = append(data.RSI14Values, rsi14)
 		}
+
+		// 计算布林带（20周期，2倍标准差）
+		if i >= 19 {
+			upper, middle, lower := calculateBollingerBands(klines[:i+1], 20, 2.0)
+			data.BollingerUpper = append(data.BollingerUpper, upper)
+			data.BollingerMid = append(data.BollingerMid, middle)
+			data.BollingerLower = append(data.BollingerLower, lower)
+		}
 	}
 
 	// 计算3m ATR14
@@ -270,10 +362,19 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 }
 
 // calculateLongerTermData 计算长期数据
-func calculateLongerTermData(klines []Kline) *LongerTermData {
+func calculateLongerTermData(klines []Kline, dataPoints ...int) *LongerTermData {
+	// 默认返回25个数据点
+	numPoints := 25
+	if len(dataPoints) > 0 && dataPoints[0] > 0 {
+		numPoints = dataPoints[0]
+	}
+	
 	data := &LongerTermData{
-		MACDValues:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		MACDValues:     make([]float64, 0, numPoints),
+		RSI14Values:    make([]float64, 0, numPoints),
+		BollingerUpper: make([]float64, 0, numPoints),
+		BollingerMid:   make([]float64, 0, numPoints),
+		BollingerLower: make([]float64, 0, numPoints),
 	}
 
 	// 计算EMA
@@ -296,7 +397,7 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	}
 
 	// 计算MACD和RSI序列
-	start := len(klines) - 10
+	start := len(klines) - numPoints
 	if start < 0 {
 		start = 0
 	}
@@ -309,6 +410,13 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 		if i >= 14 {
 			rsi14 := calculateRSI(klines[:i+1], 14)
 			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+		// 计算布林带（20周期，2倍标准差）
+		if i >= 19 {
+			upper, middle, lower := calculateBollingerBands(klines[:i+1], 20, 2.0)
+			data.BollingerUpper = append(data.BollingerUpper, upper)
+			data.BollingerMid = append(data.BollingerMid, middle)
+			data.BollingerLower = append(data.BollingerLower, lower)
 		}
 	}
 
@@ -446,6 +554,13 @@ func Format(data *Data) string {
 			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
 		}
 
+		if len(data.IntradaySeries.BollingerUpper) > 0 {
+			sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
+			sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(data.IntradaySeries.BollingerUpper)))
+			sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(data.IntradaySeries.BollingerMid)))
+			sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(data.IntradaySeries.BollingerLower)))
+		}
+
 		if len(data.IntradaySeries.Volume) > 0 {
 			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
 		}
@@ -471,6 +586,13 @@ func Format(data *Data) string {
 
 		if len(data.LongerTermContext.RSI14Values) > 0 {
 			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
+		}
+
+		if len(data.LongerTermContext.BollingerUpper) > 0 {
+			sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
+			sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(data.LongerTermContext.BollingerUpper)))
+			sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(data.LongerTermContext.BollingerMid)))
+			sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(data.LongerTermContext.BollingerLower)))
 		}
 	}
 

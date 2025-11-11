@@ -25,25 +25,31 @@ type OIData struct {
 
 // IntradayData 日内数据(3分钟间隔)
 type IntradayData struct {
-	MidPrices   []float64
-	EMA20Values []float64
-	MACDValues  []float64
-	RSI7Values  []float64
-	RSI14Values []float64
-	Volume      []float64
-	ATR14       float64
+	MidPrices      []float64
+	EMA20Values    []float64
+	MACDValues     []float64
+	RSI7Values     []float64
+	RSI14Values    []float64
+	Volume         []float64
+	ATR14          float64
+	BollingerUpper []float64
+	BollingerMid   []float64
+	BollingerLower []float64
 }
 
 // LongerTermData 长期数据(4小时时间框架)
 type LongerTermData struct {
-	EMA20         float64
-	EMA50         float64
-	ATR3          float64
-	ATR14         float64
-	CurrentVolume float64
-	AverageVolume float64
-	MACDValues    []float64
-	RSI14Values   []float64
+	EMA20          float64
+	EMA50          float64
+	ATR3           float64
+	ATR14          float64
+	CurrentVolume  float64
+	AverageVolume  float64
+	MACDValues     []float64
+	RSI14Values    []float64
+	BollingerUpper []float64
+	BollingerMid   []float64
+	BollingerLower []float64
 }
 
 // Binance API 响应结构
@@ -156,4 +162,32 @@ var config = Config{
 		CheckInterval:     5 * time.Minute,
 	},
 	UpdateInterval: 60, // 1 minute
+}
+
+// IndicatorConfig 指标配置结构
+type IndicatorConfig struct {
+	Indicators []string          `json:"indicators"`  // 启用的指标列表: ["ema", "macd", "rsi", "atr", "volume", "bollinger"]
+	Timeframes []string          `json:"timeframes"`  // 启用的时间框架: ["3m", "15m", "1h", "4h", "1d"]
+	DataPoints map[string]int    `json:"data_points"` // 每个时间框架的数据点数量: {"3m": 40, "4h": 25}
+	Parameters map[string]int    `json:"parameters"`  // 指标参数: {"rsi_period": 14, "ema_period": 20}
+}
+
+// GetDefaultIndicatorConfig 返回默认的指标配置
+func GetDefaultIndicatorConfig() *IndicatorConfig {
+	return &IndicatorConfig{
+		Indicators: []string{"ema", "macd", "rsi", "atr", "volume"},
+		Timeframes: []string{"3m", "4h"},
+		DataPoints: map[string]int{
+			"3m": 40, // 40条3分钟K线 = 2小时
+			"4h": 25, // 25条4小时K线 = 4.2天
+		},
+		Parameters: map[string]int{
+			"rsi_period":  14,
+			"ema_period":  20,
+			"macd_fast":   12,
+			"macd_slow":   26,
+			"macd_signal": 9,
+			"atr_period":  14,
+		},
+	}
 }

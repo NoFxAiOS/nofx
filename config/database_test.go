@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"nofx/crypto"
 	"os"
 	"testing"
@@ -793,5 +794,208 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 	// 我们允许最多 2 个错误
 	if errorCount > 2 {
 		t.Errorf("并发写入失败次数过多: %d", errorCount)
+	}
+}
+
+// TestIndicatorConfig_CreateAndRetrieve 测试创建trader时保存indicator_config
+func TestIndicatorConfig_CreateAndRetrieve(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-indicator"
+	traderID := fmt.Sprintf("test_indicator_%d", time.Now().Unix())
+	
+	// 创建trader配置，包含indicator_config
+	traderRecord := &TraderRecord{
+		ID:                   traderID,
+		UserID:               userID,
+		Name:                 "Test Indicator Trader",
+		AIModelID:            "test-model",
+		ExchangeID:           "test-exchange",
+		BTCETHLeverage:       5,
+		AltcoinLeverage:      3,
+		TradingSymbols:       "BTC,ETH",
+		CustomPrompt:         "test prompt",
+		OverrideBasePrompt:   false,
+		SystemPromptTemplate: "default",
+		IsCrossMargin:        true,
+		UseCoinPool:          false,
+		UseOITop:             false,
+		InitialBalance:       1000,
+		ScanIntervalMinutes:  3,
+		IndicatorConfig:      `{"indicators":["ema","macd","rsi"],"timeframes":["3m","4h"],"data_points":{"3m":40,"4h":25}}`,
+	}
+
+	err := db.CreateTrader(traderRecord)
+	if err != nil {
+		t.Fatalf("创建trader失败: %v", err)
+	}
+
+	// 检索trader配置
+	traders, err := db.GetTraders(userID)
+	if err != nil {
+		t.Fatalf("获取traders失败: %v", err)
+	}
+
+	if len(traders) == 0 {
+		t.Fatal("未找到trader")
+	}
+
+	// 验证indicator_config已正确保存
+	retrieved := traders[0]
+	if retrieved.IndicatorConfig != traderRecord.IndicatorConfig {
+		t.Errorf("IndicatorConfig不匹配:\n期望: %s\n实际: %s", 
+			traderRecord.IndicatorConfig, retrieved.IndicatorConfig)
+	}
+}
+
+// TestIndicatorConfig_UpdateTrader 测试更新trader时更新indicator_config
+func TestIndicatorConfig_UpdateTrader(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-update-indicator"
+	traderID := fmt.Sprintf("test_update_%d", time.Now().Unix())
+	
+	// 先创建一个trader
+	initialRecord := &TraderRecord{
+		ID:                   traderID,
+		UserID:               userID,
+		Name:                 "Test Trader",
+		AIModelID:            "test-model",
+		ExchangeID:           "test-exchange",
+		BTCETHLeverage:       5,
+		AltcoinLeverage:      3,
+		TradingSymbols:       "BTC",
+		CustomPrompt:         "test",
+		SystemPromptTemplate: "default",
+		IsCrossMargin:        true,
+		InitialBalance:       1000,
+		ScanIntervalMinutes:  3,
+		IndicatorConfig:      `{"indicators":["ema"],"timeframes":["3m"],"data_points":{"3m":40}}`,
+	}
+
+	err := db.CreateTrader(initialRecord)
+	if err != nil {
+		t.Fatalf("创建trader失败: %v", err)
+	}
+
+	traders, _ := db.GetTraders(userID)
+	if len(traders) == 0 {
+		t.Fatal("未找到创建的trader")
+	}
+	retrievedID := traders[0].ID
+
+	// 更新indicator_config
+	updatedConfig := `{"indicators":["ema","macd","rsi","atr","volume"],"timeframes":["3m","4h","1d"],"data_points":{"3m":50,"4h":30,"1d":20},"parameters":{"rsi_period":14}}`
+	
+	updateData := &TraderRecord{
+		ID:              retrievedID,
+		UserID:          userID,
+		Name:            "Test Trader Updated",
+		IndicatorConfig: updatedConfig,
+	}
+
+	err = db.UpdateTrader(updateData)
+	if err != nil {
+		t.Fatalf("更新trader失败: %v", err)
+	}
+
+	// 验证更新是否成功
+	traders, _ = db.GetTraders(userID)
+	if traders[0].IndicatorConfig != updatedConfig {
+		t.Errorf("IndicatorConfig更新失败:\n期望: %s\n实际: %s", 
+			updatedConfig, traders[0].IndicatorConfig)
+	}
+}
+
+// TestIndicatorConfig_BackwardCompatibility 测试向后兼容性（空indicator_config）
+func TestIndicatorConfig_BackwardCompatibility(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-backward-compat"
+	
+	// 创建不包含indicator_config的trader（模拟旧版本数据）
+	traderRecord := &TraderRecord{
+		ID:                   "trader-backward-compat-123",
+		UserID:               userID,
+		Name:                 "Legacy Trader",
+		AIModelID:            "test-model",
+		ExchangeID:           "test-exchange",
+		BTCETHLeverage:       5,
+		AltcoinLeverage:      3,
+		TradingSymbols:       "BTC",
+		CustomPrompt:         "test",
+		SystemPromptTemplate: "default",
+		IsCrossMargin:        true,
+		InitialBalance:       1000,
+		ScanIntervalMinutes:  3,
+		// 不设置IndicatorConfig，应该默认为空
+	}
+
+	err := db.CreateTrader(traderRecord)
+	if err != nil {
+		t.Fatalf("创建trader失败: %v", err)
+	}
+
+	// 检索trader
+	traders, err := db.GetTraders(userID)
+	if err != nil {
+		t.Fatalf("获取traders失败: %v", err)
+	}
+
+	if len(traders) == 0 {
+		t.Fatal("未找到trader")
+	}
+
+	// 验证空indicator_config不会导致错误
+	retrieved := traders[0]
+	if retrieved.ID == "" {
+		t.Error("trader ID不应该为空")
+	}
+	
+	// 空的indicator_config应该是空字符串
+	if retrieved.IndicatorConfig != "" {
+		t.Logf("IndicatorConfig = %q (空字符串是正常的)", retrieved.IndicatorConfig)
+	}
+}
+
+// TestIndicatorConfig_DefaultValues 测试默认配置值
+func TestIndicatorConfig_DefaultValues(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	userID := "test-user-defaults"
+	traderID := fmt.Sprintf("test_default_%d", time.Now().Unix())
+	
+	// 创建trader时使用默认indicator_config
+	defaultConfig := `{"indicators":["ema","macd","rsi","atr","volume"],"timeframes":["3m","4h"],"data_points":{"3m":40,"4h":25},"parameters":{}}`
+	
+	traderRecord := &TraderRecord{
+		ID:                   traderID,
+		UserID:               userID,
+		Name:                 "Default Config Trader",
+		AIModelID:            "test-model",
+		ExchangeID:           "test-exchange",
+		BTCETHLeverage:       5,
+		AltcoinLeverage:      3,
+		TradingSymbols:       "BTC",
+		SystemPromptTemplate: "default",
+		IsCrossMargin:        true,
+		InitialBalance:       1000,
+		ScanIntervalMinutes:  3,
+		IndicatorConfig:      defaultConfig,
+	}
+
+	err := db.CreateTrader(traderRecord)
+	if err != nil {
+		t.Fatalf("创建trader失败: %v", err)
+	}
+
+	traders, _ := db.GetTraders(userID)
+	if traders[0].IndicatorConfig != defaultConfig {
+		t.Errorf("默认配置不匹配:\n期望: %s\n实际: %s", 
+			defaultConfig, traders[0].IndicatorConfig)
 	}
 }

@@ -773,6 +773,36 @@ export const translations = {
     faqGetHelpAnswer:
       'Check GitHub Discussions, join our Telegram Community, or open an issue on GitHub.',
 
+    // Web Crypto Environment Check
+    environmentCheck: {
+      button: 'Check Secure Environment',
+      checking: 'Checking...',
+      description:
+        'Click to verify whether this browser context allows Web Crypto before entering sensitive keys.',
+      secureTitle: 'Secure context detected',
+      secureDesc:
+        'Web Crypto API is available. You can continue entering secrets with encryption enabled.',
+      insecureTitle: 'Insecure context detected',
+      insecureDesc:
+        'This page is not running over HTTPS or a trusted localhost origin, so browsers block Web Crypto calls.',
+      tipsTitle: 'How to fix:',
+      tipHTTPS:
+        'Serve the dashboard over HTTPS with a valid certificate (IP origins also need TLS).',
+      tipLocalhost:
+        'During development, open the app via http://localhost or 127.0.0.1.',
+      tipIframe:
+        'Avoid embedding the app in insecure HTTP iframes or reverse proxies that strip HTTPS.',
+      unsupportedTitle: 'Browser does not expose Web Crypto',
+      unsupportedDesc:
+        'Open NOFX over HTTPS (or http://localhost during development) and avoid insecure iframes/reverse proxies so the browser can enable Web Crypto.',
+      summary: 'Current origin: {origin} • Protocol: {protocol}',
+    },
+
+    environmentSteps: {
+      checkTitle: '1. Environment check',
+      selectTitle: '2. Select exchange',
+    },
+
     // Two-Stage Key Modal
     twoStageKey: {
       title: 'Two-Stage Private Key Input',
@@ -1080,9 +1110,11 @@ export const translations = {
     promptTemplateNof1: 'NoF1 英文框架',
     promptTemplateTaroLong: 'Taro 长仓',
     promptDescDefault: '📊 默认稳健策略',
-    promptDescDefaultContent: '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
+    promptDescDefaultContent:
+      '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
     promptDescAdaptive: '🛡️ 保守策略 (v6.0.0)',
-    promptDescAdaptiveContent: '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
+    promptDescAdaptiveContent:
+      '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
     promptDescAdaptiveRelaxed: '⚡ 激进策略 (v6.0.0)',
     promptDescAdaptiveRelaxedContent:
       '高频交易，BTC 可选确认，追求交易机会，适合波动市场',
@@ -1092,7 +1124,8 @@ export const translations = {
     promptDescNof1Content:
       'Hyperliquid 交易所专用，英文提示词，风险调整回报最大化',
     promptDescTaroLong: '📈 Taro 长仓策略',
-    promptDescTaroLongContent: '数据驱动决策，多维度验证，持续学习进化，长仓专用',
+    promptDescTaroLongContent:
+      '数据驱动决策，多维度验证，持续学习进化，长仓专用',
 
     // Loading & Error
     loading: '加载中...',
@@ -1521,6 +1554,34 @@ export const translations = {
     faqGetHelp: '在哪里可以获得帮助？',
     faqGetHelpAnswer:
       '查看 GitHub Discussions、加入 Telegram 社区或在 GitHub 上提出 issue。',
+
+    // Web Crypto Environment Check
+    environmentCheck: {
+      button: '一键检测环境',
+      checking: '正在检测...',
+      description:
+        '输入 API Key/私钥前点击检测，确认浏览器允许使用 Web Crypto。',
+      secureTitle: '环境安全，已启用 Web Crypto',
+      secureDesc: '页面处于安全上下文，可继续输入敏感信息并使用加密传输。',
+      insecureTitle: '检测到非安全环境',
+      insecureDesc:
+        '当前访问未通过 HTTPS 或可信 localhost，浏览器会阻止 Web Crypto 调用。',
+      tipsTitle: '修改建议：',
+      tipHTTPS:
+        '通过 HTTPS 访问（即使是 IP 也需证书），或部署到支持 TLS 的域名。',
+      tipLocalhost: '开发阶段请使用 http://localhost 或 127.0.0.1。',
+      tipIframe:
+        '避免把应用嵌入在不安全的 HTTP iframe 或会降级协议的反向代理中。',
+      unsupportedTitle: '浏览器未提供 Web Crypto',
+      unsupportedDesc:
+        '请通过 HTTPS 或本机 localhost 访问 NOFX，并避免嵌入不安全 iframe/反向代理，以符合浏览器的 Web Crypto 规则。',
+      summary: '当前来源：{origin} · 协议：{protocol}',
+    },
+
+    environmentSteps: {
+      checkTitle: '1. 环境检测',
+      selectTitle: '2. 选择交易所',
+    },
 
     // Two-Stage Key Modal
     twoStageKey: {

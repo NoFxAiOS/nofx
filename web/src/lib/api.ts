@@ -157,7 +157,6 @@ export const api = {
     if (!res.ok) throw new Error('更新模型配置失败')
   },
 
-
   // 交易所配置接口
   async getExchangeConfigs(): Promise<Exchange[]> {
     const res = await httpClient.get(`${API_BASE}/exchanges`, getAuthHeaders())

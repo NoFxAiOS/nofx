@@ -862,11 +862,11 @@ func (at *AutoTrader) calculateAnalyticsSummary() *decision.AnalyticsSummary {
 func extractEquityPoints(records []*logger.DecisionRecord) []analytics.EquityPoint {
 	points := []analytics.EquityPoint{}
 	for _, record := range records {
-		if record.Account != nil && record.Account.TotalEquity > 0 {
+		if record.AccountState.TotalBalance > 0 {
 			points = append(points, analytics.EquityPoint{
 				Timestamp:   record.Timestamp,
-				Equity:      record.Account.TotalEquity,
-				CycleNumber: record.CallCount,
+				Equity:      record.AccountState.TotalBalance,
+				CycleNumber: record.CycleNumber,
 			})
 		}
 	}
@@ -904,7 +904,7 @@ func extractTradesFromRecords(records []*logger.DecisionRecord) []analytics.Trad
 					symbol     string
 				}{
 					entryTime:  decision.Timestamp,
-					entryPrice: decision.EntryPrice,
+					entryPrice: decision.Price,
 					side:       side,
 					symbol:     decision.Symbol,
 				}
@@ -915,10 +915,10 @@ func extractTradesFromRecords(records []*logger.DecisionRecord) []analytics.Trad
 					// 计算PnL
 					var pnl, pnlPercent float64
 					if openPos.side == "Long" {
-						pnl = decision.ExitPrice - openPos.entryPrice
+						pnl = decision.Price - openPos.entryPrice
 						pnlPercent = (pnl / openPos.entryPrice) * 100
 					} else {
-						pnl = openPos.entryPrice - decision.ExitPrice
+						pnl = openPos.entryPrice - decision.Price
 						pnlPercent = (pnl / openPos.entryPrice) * 100
 					}
 
@@ -933,7 +933,7 @@ func extractTradesFromRecords(records []*logger.DecisionRecord) []analytics.Trad
 						ExitTime:   decision.Timestamp,
 						Side:       openPos.side,
 						EntryPrice: openPos.entryPrice,
-						ExitPrice:  decision.ExitPrice,
+						ExitPrice:  decision.Price,
 						PnL:        pnl,
 						PnLPercent: pnlPercent,
 					}

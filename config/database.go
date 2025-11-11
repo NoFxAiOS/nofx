@@ -463,6 +463,8 @@ type ExchangeConfig struct {
 	AsterUser       string    `json:"asterUser"`
 	AsterSigner     string    `json:"asterSigner"`
 	AsterPrivateKey string    `json:"asterPrivateKey"`
+	// OKX 特定字段
+	OKXPassphrase   string    `json:"okxPassphrase"`   // OKX API Passphrase
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

@@ -274,7 +274,7 @@ func calculateTimeframeAttribution(trades []TradeRecord) []TimeframeAttribution 
 	for _, trade := range trades {
 		hour := trade.EntryTime.Hour()
 
-		for period, attr := range tfMap {
+		for _, attr := range tfMap {
 			if hour >= attr.StartHour && hour < attr.EndHour {
 				attr.TotalPnL += trade.PnL
 				attr.TradesCount++

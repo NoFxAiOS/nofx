@@ -207,44 +207,28 @@ func calculateCorrelationStats(assets []string, matrix [][]float64) *Correlation
 }
 
 // GetHistoricalPrices 从logger获取历史价格数据
+// TODO: Implement proper historical price data fetching from market data API
+// Currently returns empty data as placeholder
 func GetHistoricalPrices(traderId string, symbols []string, lookbackMinutes int) ([]*PriceHistory, error) {
 	histories := make([]*PriceHistory, 0, len(symbols))
 
-	cutoffTime := time.Now().Add(-time.Duration(lookbackMinutes) * time.Minute)
+	// TODO: Implement real historical price fetching
+	// For now, return empty histories to allow compilation
+	// Future implementation should:
+	// 1. Query market data API (Binance/OKX/Bybit) for historical klines
+	// 2. Store and retrieve price data from database
+	// 3. Parse decision logs if they contain price snapshots
 
+	_ = traderId
+	_ = lookbackMinutes
+
+	// Return empty histories for each symbol as placeholder
 	for _, symbol := range symbols {
-		// 获取历史决策记录
-		decisions, err := logger.GetDecisionHistory(traderId, 0, 1000)
-		if err != nil {
-			continue
-		}
-
-		prices := []float64{}
-		timestamps := []time.Time{}
-
-		// 从决策记录中提取价格数据
-		for _, dec := range decisions {
-			if dec.Timestamp.Before(cutoffTime) {
-				continue
-			}
-
-			// 解析市场数据获取价格
-			if dec.MarketDataSnapshot != "" {
-				// 简化版：假设我们有价格数据
-				// 实际实现需要解析MarketDataSnapshot
-				// 这里需要根据实际的market data格式来解析
-				prices = append(prices, 0.0) // placeholder
-				timestamps = append(timestamps, dec.Timestamp)
-			}
-		}
-
-		if len(prices) > 0 {
-			histories = append(histories, &PriceHistory{
-				Symbol:     symbol,
-				Prices:     prices,
-				Timestamps: timestamps,
-			})
-		}
+		histories = append(histories, &PriceHistory{
+			Symbol:     symbol,
+			Prices:     []float64{},
+			Timestamps: []time.Time{},
+		})
 	}
 
 	return histories, nil

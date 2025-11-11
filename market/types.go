@@ -14,6 +14,8 @@ type Data struct {
 	OpenInterest      *OIData
 	FundingRate       float64
 	IntradaySeries    *IntradayData
+	MidTermSeries15m  *MidTermData15m
+	MidTermSeries1h   *MidTermData1h
 	LongerTermContext *LongerTermData
 }
 
@@ -25,6 +27,28 @@ type OIData struct {
 
 // IntradayData 日内数据(3分钟间隔)
 type IntradayData struct {
+	MidPrices   []float64
+	EMA20Values []float64
+	MACDValues  []float64
+	RSI7Values  []float64
+	RSI14Values []float64
+	Volume      []float64
+	ATR14       float64
+}
+
+// MidTermData15m 中期数据(15分钟间隔)
+type MidTermData15m struct {
+	MidPrices   []float64
+	EMA20Values []float64
+	MACDValues  []float64
+	RSI7Values  []float64
+	RSI14Values []float64
+	Volume      []float64
+	ATR14       float64
+}
+
+// MidTermData1h 中期数据(1小时间隔)
+type MidTermData1h struct {
 	MidPrices   []float64
 	EMA20Values []float64
 	MACDValues  []float64

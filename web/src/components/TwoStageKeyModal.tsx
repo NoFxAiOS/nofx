@@ -74,7 +74,9 @@ export function TwoStageKeyModal({
   }, [isOpen, stage])
 
   const handleStage1Next = async () => {
-    if (part1.length < expectedPart1Length) {
+    // ✅ Normalize input (remove possible 0x prefix) before validating length
+    const normalized1 = part1.startsWith('0x') ? part1.slice(2) : part1
+    if (normalized1.length < expectedPart1Length) {
       setError(
         t('errors.privatekeyIncomplete', language, {
           expected: expectedPart1Length,
@@ -129,7 +131,9 @@ export function TwoStageKeyModal({
   }
 
   const handleStage2Complete = () => {
-    if (part2.length < expectedPart2Length) {
+    // ✅ Normalize input (remove possible 0x prefix) before validating length
+    const normalized2 = part2.startsWith('0x') ? part2.slice(2) : part2
+    if (normalized2.length < expectedPart2Length) {
       setError(
         t('errors.privatekeyIncomplete', language, {
           expected: expectedPart2Length,
@@ -138,7 +142,9 @@ export function TwoStageKeyModal({
       return
     }
 
-    const fullKey = part1 + part2
+    // ✅ Concatenate after removing 0x prefix from both parts
+    const normalized1 = part1.startsWith('0x') ? part1.slice(2) : part1
+    const fullKey = normalized1 + normalized2
     if (!validatePrivateKeyFormat(fullKey, expectedLength)) {
       setError(t('errors.privatekeyInvalidFormat', language))
       return

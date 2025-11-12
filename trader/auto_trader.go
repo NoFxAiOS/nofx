@@ -298,6 +298,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 创建决策记录
 	record := &logger.DecisionRecord{
+		Exchange:     at.config.Exchange, // 记录交易所类型，用于计算手续费
 		ExecutionLog: []string{},
 		Success:      true,
 	}

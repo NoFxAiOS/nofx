@@ -1277,12 +1277,13 @@ func (s *Server) handleTraderList(c *gin.Context) {
 		// 返回完整的 AIModelID（如 "admin_deepseek"），不要截断
 		// 前端需要完整 ID 来验证模型是否存在（与 handleGetTraderConfig 保持一致）
 		result = append(result, map[string]interface{}{
-			"trader_id":       trader.ID,
-			"trader_name":     trader.Name,
-			"ai_model":        trader.AIModelID, // 使用完整 ID
-			"exchange_id":     trader.ExchangeID,
-			"is_running":      isRunning,
-			"initial_balance": trader.InitialBalance,
+			"trader_id":              trader.ID,
+			"trader_name":            trader.Name,
+			"ai_model":               trader.AIModelID, // 使用完整 ID
+			"exchange_id":            trader.ExchangeID,
+			"is_running":             isRunning,
+			"initial_balance":        trader.InitialBalance,
+			"system_prompt_template": trader.SystemPromptTemplate,
 		})
 	}
 
@@ -2170,16 +2171,17 @@ func (s *Server) handlePublicTraderList(c *gin.Context) {
 	result := make([]map[string]interface{}, 0, len(traders))
 	for _, trader := range traders {
 		result = append(result, map[string]interface{}{
-			"trader_id":       trader["trader_id"],
-			"trader_name":     trader["trader_name"],
-			"ai_model":        trader["ai_model"],
-			"exchange":        trader["exchange"],
-			"is_running":      trader["is_running"],
-			"total_equity":    trader["total_equity"],
-			"total_pnl":       trader["total_pnl"],
-			"total_pnl_pct":   trader["total_pnl_pct"],
-			"position_count":  trader["position_count"],
-			"margin_used_pct": trader["margin_used_pct"],
+			"trader_id":              trader["trader_id"],
+			"trader_name":            trader["trader_name"],
+			"ai_model":               trader["ai_model"],
+			"exchange":               trader["exchange"],
+			"is_running":             trader["is_running"],
+			"total_equity":           trader["total_equity"],
+			"total_pnl":              trader["total_pnl"],
+			"total_pnl_pct":          trader["total_pnl_pct"],
+			"position_count":         trader["position_count"],
+			"margin_used_pct":        trader["margin_used_pct"],
+			"system_prompt_template": trader["system_prompt_template"],
 		})
 	}
 

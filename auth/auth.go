@@ -3,6 +3,8 @@ package auth
 import (
 	"crypto/rand"
 	"fmt"
+	"log"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,8 +16,14 @@ import (
 // JWTSecret JWT密钥，将从配置中动态设置
 var JWTSecret []byte
 
-// AdminMode 管理员模式标志
-var AdminMode bool = false
+// tokenBlacklist 用于登出后的token黑名单（仅内存，按过期时间清理）
+var tokenBlacklist = struct {
+	sync.RWMutex
+	items map[string]time.Time
+}{items: make(map[string]time.Time)}
+
+// maxBlacklistEntries 黑名单最大容量阈值
+const maxBlacklistEntries = 100_000
 
 // OTPIssuer OTP发行者名称
 const OTPIssuer = "nofxAI"
@@ -25,14 +33,39 @@ func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
 }
 
-// SetAdminMode 设置管理员模式
-func SetAdminMode(enabled bool) {
-	AdminMode = enabled
+// BlacklistToken 将token加入黑名单直到过期
+func BlacklistToken(token string, exp time.Time) {
+	tokenBlacklist.Lock()
+	defer tokenBlacklist.Unlock()
+	tokenBlacklist.items[token] = exp
+
+	// 如果超过容量阈值，则进行一次过期清理；若仍超限，记录警告日志
+	if len(tokenBlacklist.items) > maxBlacklistEntries {
+		now := time.Now()
+		for t, e := range tokenBlacklist.items {
+			if now.After(e) {
+				delete(tokenBlacklist.items, t)
+			}
+		}
+		if len(tokenBlacklist.items) > maxBlacklistEntries {
+			log.Printf("auth: token blacklist size (%d) exceeds limit (%d) after sweep; consider reducing JWT TTL or using a shared persistent store",
+				len(tokenBlacklist.items), maxBlacklistEntries)
+		}
+	}
 }
 
-// IsAdminMode 检查是否为管理员模式
-func IsAdminMode() bool {
-	return AdminMode
+// IsTokenBlacklisted 检查token是否在黑名单中（过期自动清理）
+func IsTokenBlacklisted(token string) bool {
+	tokenBlacklist.Lock()
+	defer tokenBlacklist.Unlock()
+	if exp, ok := tokenBlacklist.items[token]; ok {
+		if time.Now().After(exp) {
+			delete(tokenBlacklist.items, token)
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 // Claims JWT声明

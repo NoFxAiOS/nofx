@@ -5,6 +5,7 @@
 
 # AI 工具
 .claude/
+CLAUDE.md
 
 # 编译产物
 nofx-auto
@@ -29,7 +30,9 @@ Thumbs.db
 # 环境变量
 .env
 config.json
-config.db
+config.db*
+nofx.db
+configbak.json
 
 # 决策日志
 decision_logs/
@@ -44,3 +47,78 @@ web/.vite/
 
 # ESLint 临时报告文件（调试时生成，不纳入版本控制）
 eslint-*.json
+
+# VS code
+.vscode
+
+# 密钥和敏感文件
+# 注意：crypto目录包含加密服务代码，应该被提交
+# 只忽略密钥文件本身
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+rsa_key*
+
+# 加密相关
+DATA_ENCRYPTION_KEY=*
+*.enc
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Python 虚拟环境
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# uv
+.uv/
+uv.lock
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# pyenv
+.python-version
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/

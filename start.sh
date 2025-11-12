@@ -77,6 +77,89 @@ check_env() {
 }
 
 # ------------------------------------------------------------------------
+# Validation: Encryption Environment (RSA Keys + Data Encryption Key)
+# ------------------------------------------------------------------------
+check_encryption() {
+    local need_setup=false
+    
+    print_info "检查加密环境..."
+    
+    # 检查RSA密钥对
+    if [ ! -f "secrets/rsa_key" ] || [ ! -f "secrets/rsa_key.pub" ]; then
+        print_warning "RSA密钥对不存在"
+        need_setup=true
+    fi
+    
+    # 检查数据加密密钥
+    if [ ! -f ".env" ] || ! grep -q "^DATA_ENCRYPTION_KEY=" .env; then
+        print_warning "数据加密密钥未配置"
+        need_setup=true
+    fi
+    
+    # 检查JWT认证密钥
+    if [ ! -f ".env" ] || ! grep -q "^JWT_SECRET=" .env; then
+        print_warning "JWT认证密钥未配置"
+        need_setup=true
+    fi
+    
+    # 如果需要设置加密环境，直接自动设置
+    if [ "$need_setup" = "true" ]; then
+        print_info "🔐 检测到加密环境未配置，正在自动设置..."
+        print_info "加密环境用于保护敏感数据（API密钥、私钥等）"
+        echo ""
+
+        # 检查加密设置脚本是否存在
+        if [ -f "scripts/setup_encryption.sh" ]; then
+            print_info "加密系统将保护: API密钥、私钥、Hyperliquid代理钱包"
+            echo ""
+
+            # 自动运行加密设置脚本
+            echo -e "Y\nn\nn" | bash scripts/setup_encryption.sh
+            if [ $? -eq 0 ]; then
+                echo ""
+                print_success "🔐 加密环境设置完成！"
+                print_info "  • RSA-2048密钥对已生成"
+                print_info "  • AES-256数据加密密钥已配置"
+                print_info "  • JWT认证密钥已配置"
+                print_info "  • 所有敏感数据现在都受加密保护"
+                echo ""
+            else
+                print_error "加密环境设置失败"
+                exit 1
+            fi
+        else
+            print_error "加密设置脚本不存在: scripts/setup_encryption.sh"
+            print_info "请手动运行: ./scripts/setup_encryption.sh"
+            exit 1
+        fi
+    else
+        print_success "🔐 加密环境已配置"
+        print_info "  • RSA密钥对: secrets/rsa_key + secrets/rsa_key.pub"
+        print_info "  • 数据加密密钥: .env (DATA_ENCRYPTION_KEY)"
+        print_info "  • JWT认证密钥: .env (JWT_SECRET)"
+        print_info "  • 加密算法: RSA-OAEP-2048 + AES-256-GCM + HS256"
+        print_info "  • 保护数据: API密钥、私钥、Hyperliquid代理钱包、用户认证"
+        
+        # 验证密钥文件权限
+        if [ -f "secrets/rsa_key" ]; then
+            local perm=$(stat -f "%A" "secrets/rsa_key" 2>/dev/null || stat -c "%a" "secrets/rsa_key" 2>/dev/null)
+            if [ "$perm" != "600" ]; then
+                print_warning "修复RSA私钥权限..."
+                chmod 600 secrets/rsa_key
+            fi
+        fi
+        
+        if [ -f ".env" ]; then
+            local perm=$(stat -f "%A" ".env" 2>/dev/null || stat -c "%a" ".env" 2>/dev/null)
+            if [ "$perm" != "600" ]; then
+                print_warning "修复环境文件权限..."
+                chmod 600 .env
+            fi
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------
 # Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
 # ------------------------------------------------------------------------
 check_config() {
@@ -88,6 +171,28 @@ check_config() {
         print_info "💡 模型/交易所/交易员配置请使用Web界面"
     fi
     print_success "配置文件存在"
+}
+
+# ------------------------------------------------------------------------
+# Validation: Beta Code File (beta_codes.txt)
+# ------------------------------------------------------------------------
+check_beta_codes_file() {
+    local beta_file="beta_codes.txt"
+
+    if [ -d "$beta_file" ]; then
+        print_warning "beta_codes.txt 是目录，正在删除后重建文件..."
+        rm -rf "$beta_file"
+        touch "$beta_file"
+        chmod 600 "$beta_file"
+        print_info "✓ 已重新创建 beta_codes.txt（权限: 600）"
+    elif [ ! -f "$beta_file" ]; then
+        print_warning "beta_codes.txt 不存在，正在创建空文件..."
+        touch "$beta_file"
+        chmod 600 "$beta_file"
+        print_info "✓ 已创建空的内测码文件（权限: 600）"
+    else
+        print_success "内测码文件存在"
+    fi
 }
 
 # ------------------------------------------------------------------------
@@ -117,12 +222,21 @@ read_env_vars() {
 # Validation: Database File (config.db)
 # ------------------------------------------------------------------------
 check_database() {
-    if [ ! -f "config.db" ]; then
+    if [ -d "config.db" ]; then
+        # 如果存在的是目录，删除它
+        print_warning "config.db 是目录而非文件，正在删除目录..."
+        rm -rf config.db
+        print_info "✓ 已删除目录，现在创建文件..."
+        install -m 600 /dev/null config.db
+        print_success "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
+    elif [ ! -f "config.db" ]; then
+        # 如果不存在文件，创建它
         print_warning "数据库文件不存在，创建空数据库文件..."
-        # 创建空文件以避免Docker创建目录
-        touch config.db
-        print_info "✓ 已创建空数据库文件，系统将在启动时初始化"
+        # 创建空文件以避免Docker创建目录（使用安全权限600）
+        install -m 600 /dev/null config.db
+        print_info "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
     else
+        # 文件存在
         print_success "数据库文件存在"
     fi
 }
@@ -169,10 +283,11 @@ start() {
     if [ ! -f "config.db" ]; then
         print_info "创建数据库文件..."
         touch config.db
+        install -m 600 /dev/null config.db
     fi
     if [ ! -d "decision_logs" ]; then
         print_info "创建日志目录..."
-        mkdir -p decision_logs
+        install -m 700 -d decision_logs
     fi
 
     # Auto-build frontend if missing or forced
@@ -266,6 +381,21 @@ update() {
 }
 
 # ------------------------------------------------------------------------
+# Encryption: Manual Setup
+# ------------------------------------------------------------------------
+setup_encryption_manual() {
+    print_info "🔐 手动设置加密环境"
+    
+    if [ -f "scripts/setup_encryption.sh" ]; then
+        bash scripts/setup_encryption.sh
+    else
+        print_error "加密设置脚本不存在: scripts/setup_encryption.sh"
+        print_info "请确保项目文件完整"
+        exit 1
+    fi
+}
+
+# ------------------------------------------------------------------------
 # Help: Usage Information
 # ------------------------------------------------------------------------
 show_help() {
@@ -281,12 +411,18 @@ show_help() {
     echo "  status             查看服务状态"
     echo "  clean              清理所有容器和数据"
     echo "  update             更新代码并重启"
+    echo "  setup-encryption   设置加密环境（RSA密钥+数据加密）"
     echo "  help               显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  ./start.sh start --build    # 构建并启动"
     echo "  ./start.sh logs backend     # 查看后端日志"
     echo "  ./start.sh status           # 查看状态"
+    echo "  ./start.sh setup-encryption # 手动设置加密环境"
+    echo ""
+    echo "🔐 关于加密:"
+    echo "  系统自动检测加密环境，首次运行时会自动设置"
+    echo "  手动设置: ./scripts/setup_encryption.sh"
 }
 
 # ------------------------------------------------------------------------
@@ -298,7 +434,9 @@ main() {
     case "${1:-start}" in
         start)
             check_env
+            check_encryption
             check_config
+            check_beta_codes_file
             check_database
             start "$2"
             ;;
@@ -319,6 +457,9 @@ main() {
             ;;
         update)
             update
+            ;;
+        setup-encryption)
+            setup_encryption_manual
             ;;
         help|--help|-h)
             show_help

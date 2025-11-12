@@ -74,17 +74,19 @@ type OITopData struct {
 
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
-	CurrentTime     string                  `json:"current_time"`
-	RuntimeMinutes  int                     `json:"runtime_minutes"`
-	CallCount       int                     `json:"call_count"`
-	Account         AccountInfo             `json:"account"`
-	Positions       []PositionInfo          `json:"positions"`
-	CandidateCoins  []CandidateCoin         `json:"candidate_coins"`
-	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
-	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
-	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
-	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	CurrentTime     string                             `json:"current_time"`
+	RuntimeMinutes  int                                `json:"runtime_minutes"`
+	CallCount       int                                `json:"call_count"`
+	Account         AccountInfo                        `json:"account"`
+	Positions       []PositionInfo                     `json:"positions"`
+	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
+	PromptVariant   string                             `json:"prompt_variant,omitempty"`
+	MarketDataMap   map[string]*market.Data            `json:"-"` // 不序列化，但内部使用
+	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
+	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top数据映射
+	Performance     interface{}                        `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	BTCETHLeverage  int                                `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
+	AltcoinLeverage int                                `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }
 
 // Decision AI的交易决策
@@ -127,13 +129,30 @@ func GetFullDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error
 
 // GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
 func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
-	// 1. 为所有币种获取市场数据
-	if err := fetchMarketDataForContext(ctx); err != nil {
-		return nil, fmt.Errorf("获取市场数据失败: %w", err)
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+
+	// 1. 为所有币种获取市场数据（若上层已提供，则无需重复拉取）
+	if len(ctx.MarketDataMap) == 0 {
+		if err := fetchMarketDataForContext(ctx); err != nil {
+			return nil, fmt.Errorf("获取市场数据失败: %w", err)
+		}
+	} else if ctx.OITopDataMap == nil {
+		// 确保 OI 数据映射已初始化，避免后续访问空指针
+		ctx.OITopDataMap = make(map[string]*OITopData)
 	}
 
 	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
-	systemPrompt := buildSystemPromptWithCustom(ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage, customPrompt, overrideBase, templateName)
+	systemPrompt := buildSystemPromptWithCustom(
+		ctx.Account.TotalEquity,
+		ctx.BTCETHLeverage,
+		ctx.AltcoinLeverage,
+		customPrompt,
+		overrideBase,
+		templateName,
+		ctx.PromptVariant,
+	)
 	userPrompt := buildUserPrompt(ctx)
 
 	// 3. 调用AI API（使用 system + user prompt）
@@ -272,14 +291,14 @@ func calculateMaxCandidates(ctx *Context) int {
 }
 
 // buildSystemPromptWithCustom 构建包含自定义内容的 System Prompt
-func buildSystemPromptWithCustom(accountEquity float64, btcEthLeverage, altcoinLeverage int, customPrompt string, overrideBase bool, templateName string) string {
+func buildSystemPromptWithCustom(accountEquity float64, btcEthLeverage, altcoinLeverage int, customPrompt string, overrideBase bool, templateName string, variant string) string {
 	// 如果覆盖基础prompt且有自定义prompt，只使用自定义prompt
 	if overrideBase && customPrompt != "" {
 		return customPrompt
 	}
 
 	// 获取基础prompt（使用指定的模板）
-	basePrompt := buildSystemPrompt(accountEquity, btcEthLeverage, altcoinLeverage, templateName)
+	basePrompt := buildSystemPrompt(accountEquity, btcEthLeverage, altcoinLeverage, templateName, variant)
 
 	// 如果没有自定义prompt，直接返回基础prompt
 	if customPrompt == "" {
@@ -299,7 +318,7 @@ func buildSystemPromptWithCustom(accountEquity float64, btcEthLeverage, altcoinL
 }
 
 // buildSystemPrompt 构建 System Prompt（使用模板+动态部分）
-func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage int, templateName string) string {
+func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage int, templateName string, variant string) string {
 	var sb strings.Builder
 
 	// 1. 加载提示词模板（核心交易策略部分）
@@ -325,17 +344,56 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		sb.WriteString("\n\n")
 	}
 
-	// 2. 硬约束（风险控制）- 动态生成
+	// 2. 交易模式变体
+	switch strings.ToLower(strings.TrimSpace(variant)) {
+	case "aggressive":
+		sb.WriteString("## 模式：Aggressive（进攻型）\n- 优先捕捉趋势突破，可在信心度≥70时分批建仓\n- 允许更高仓位，但须严格设置止损并说明盈亏比\n\n")
+	case "conservative":
+		sb.WriteString("## 模式：Conservative（稳健型）\n- 仅在多重信号共振时开仓\n- 优先保留现金，连续亏损必须暂停多个周期\n\n")
+	case "scalping":
+		sb.WriteString("## 模式：Scalping（剥头皮）\n- 聚焦短周期动量，目标收益较小但要求迅速\n- 若价格两根bar内未按预期运行，立即减仓或止损\n\n")
+	}
+
+	// 3. 硬约束（风险控制）
 	sb.WriteString("# 硬约束（风险控制）\n\n")
 	sb.WriteString("1. 风险回报比: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")
 	sb.WriteString("2. 最多持仓: 3个币种（质量>数量）\n")
 	sb.WriteString(fmt.Sprintf("3. 单币仓位: 山寨%.0f-%.0f U | BTC/ETH %.0f-%.0f U\n",
 		accountEquity*0.8, accountEquity*1.5, accountEquity*5, accountEquity*10))
-	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆** (⚠️ 严格执行，不可超过)\n", altcoinLeverage, btcEthLeverage))
-	sb.WriteString("5. 保证金: 总使用率 ≤ 90%\n")
-	sb.WriteString("6. 开仓金额: 建议 **≥12 USDT** (交易所最小名义价值 10 USDT + 安全边际)\n\n")
+	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆**\n", altcoinLeverage, btcEthLeverage))
+	sb.WriteString("5. 保证金使用率 ≤ 90%\n")
+	sb.WriteString("6. 开仓金额: 建议 ≥12 USDT（交易所最小名义价值10 USDT + 安全边际）\n\n")
 
-	// 3. 输出格式 - 动态生成
+	// 4. 交易频率与信号质量
+	sb.WriteString("# ⏱️ 交易频率认知\n\n")
+	sb.WriteString("- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔\n")
+	sb.WriteString("- 每小时>2笔 = 过度交易\n")
+	sb.WriteString("- 单笔持仓时间≥30-60分钟\n")
+	sb.WriteString("如果你发现自己每个周期都在交易 → 标准过低；若持仓<30分钟就平仓 → 过于急躁。\n\n")
+
+	sb.WriteString("# 🎯 开仓标准（严格）\n\n")
+	sb.WriteString("只在多重信号共振时开仓。你拥有：\n")
+	sb.WriteString("- 3分钟价格序列 + 4小时K线序列\n")
+	sb.WriteString("- EMA20 / MACD / RSI7 / RSI14 等指标序列\n")
+	sb.WriteString("- 成交量、持仓量(OI)、资金费率等资金面序列\n")
+	sb.WriteString("- AI500 / OI_Top 筛选标签（若有）\n\n")
+	sb.WriteString("自由运用任何有效的分析方法，但**信心度 ≥75** 才能开仓；避免单一指标、信号矛盾、横盘震荡、刚平仓即重启等低质量行为。\n\n")
+
+	// 5. 夏普比率驱动的自适应
+	sb.WriteString("# 🧬 夏普比率自我进化\n\n")
+	sb.WriteString("- Sharpe < -0.5：立即停止交易，至少观望6个周期并深度复盘\n")
+	sb.WriteString("- -0.5 ~ 0：只做信心度>80的交易，并降低频率\n")
+	sb.WriteString("- 0 ~ 0.7：保持当前策略\n")
+	sb.WriteString("- >0.7：允许适度加仓，但仍遵守风控\n\n")
+
+	// 6. 决策流程提示
+	sb.WriteString("# 📋 决策流程\n\n")
+	sb.WriteString("1. 回顾夏普比率/盈亏 → 是否需要降频或暂停\n")
+	sb.WriteString("2. 检查持仓 → 是否该止盈/止损/调整\n")
+	sb.WriteString("3. 扫描候选币 + 多时间框 → 是否存在强信号\n")
+	sb.WriteString("4. 先写思维链，再输出结构化JSON\n\n")
+
+	// 7. 输出格式 - 动态生成
 	sb.WriteString("# 输出格式 (严格遵守)\n\n")
 	sb.WriteString("**必须使用XML标签 <reasoning> 和 <decision> 标签分隔思维链和决策JSON，避免解析错误**\n\n")
 	sb.WriteString("## 格式要求\n\n")
@@ -344,6 +402,7 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("- 简洁分析你的思考过程 \n")
 	sb.WriteString("</reasoning>\n\n")
 	sb.WriteString("<decision>\n")
+	sb.WriteString("第二步: JSON决策数组\n\n")
 	sb.WriteString("```json\n[\n")
 	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300, \"reasoning\": \"下跌趋势+MACD死叉\"},\n", btcEthLeverage, accountEquity*5))
 	sb.WriteString("  {\"symbol\": \"SOLUSDT\", \"action\": \"update_stop_loss\", \"new_stop_loss\": 155, \"reasoning\": \"移动止损至保本位\"},\n")

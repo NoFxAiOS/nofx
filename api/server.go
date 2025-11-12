@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"nofx/auth"
+	"nofx/backtest"
 	"nofx/config"
 	"nofx/crypto"
 	"nofx/decision"
@@ -25,16 +26,23 @@ import (
 
 // Server HTTP API服务器
 type Server struct {
-	router        *gin.Engine
-	httpServer    *http.Server
-	traderManager *manager.TraderManager
-	database      *config.Database
-	cryptoHandler *CryptoHandler
-	port          int
+	router          *gin.Engine
+	httpServer      *http.Server
+	traderManager   *manager.TraderManager
+	database        *config.Database
+	cryptoHandler   *CryptoHandler
+	backtestManager *backtest.Manager
+	port            int
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, port int) *Server {
+func NewServer(
+	traderManager *manager.TraderManager,
+	database *config.Database,
+	cryptoService *crypto.CryptoService,
+	backtestManager *backtest.Manager,
+	port int,
+) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 
@@ -47,11 +55,15 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
 	s := &Server{
-		router:        router,
-		traderManager: traderManager,
-		database:      database,
-		cryptoHandler: cryptoHandler,
-		port:          port,
+		router:          router,
+		traderManager:   traderManager,
+		database:        database,
+		cryptoHandler:   cryptoHandler,
+		backtestManager: backtestManager,
+		port:            port,
+	}
+	if s.backtestManager != nil {
+		s.backtestManager.SetAIResolver(s.hydrateBacktestAIConfig)
 	}
 
 	// 设置路由
@@ -118,6 +130,11 @@ func (s *Server) setupRoutes() {
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
 		{
+			if s.backtestManager != nil {
+				backtestGroup := protected.Group("/backtest")
+				s.registerBacktestRoutes(backtestGroup)
+			}
+
 			// 注销（加入黑名单）
 			protected.POST("/logout", s.handleLogout)
 
@@ -154,6 +171,7 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
 			protected.GET("/performance", s.handlePerformance)
+			protected.GET("/competition/full", s.handleCompetition)
 		}
 	}
 }
@@ -1996,28 +2014,42 @@ func (s *Server) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
 	log.Printf("🌐 API服务器启动在 http://localhost%s", addr)
 	log.Printf("📊 API文档:")
-	log.Printf("  • GET  /api/health           - 健康检查")
-	log.Printf("  • GET  /api/traders          - 公开的AI交易员排行榜前50名（无需认证）")
-	log.Printf("  • GET  /api/competition      - 公开的竞赛数据（无需认证）")
-	log.Printf("  • GET  /api/top-traders      - 前5名交易员数据（无需认证，表现对比用）")
-	log.Printf("  • GET  /api/equity-history?trader_id=xxx - 公开的收益率历史数据（无需认证，竞赛用）")
-	log.Printf("  • GET  /api/equity-history-batch?trader_ids=a,b,c - 批量获取历史数据（无需认证，表现对比优化）")
-	log.Printf("  • GET  /api/traders/:id/public-config - 公开的交易员配置（无需认证，不含敏感信息）")
-	log.Printf("  • POST /api/traders          - 创建新的AI交易员")
-	log.Printf("  • DELETE /api/traders/:id    - 删除AI交易员")
-	log.Printf("  • POST /api/traders/:id/start - 启动AI交易员")
-	log.Printf("  • POST /api/traders/:id/stop  - 停止AI交易员")
-	log.Printf("  • GET  /api/models           - 获取AI模型配置")
-	log.Printf("  • PUT  /api/models           - 更新AI模型配置")
-	log.Printf("  • GET  /api/exchanges        - 获取交易所配置")
-	log.Printf("  • PUT  /api/exchanges        - 更新交易所配置")
-	log.Printf("  • GET  /api/status?trader_id=xxx     - 指定trader的系统状态")
-	log.Printf("  • GET  /api/account?trader_id=xxx    - 指定trader的账户信息")
-	log.Printf("  • GET  /api/positions?trader_id=xxx  - 指定trader的持仓列表")
-	log.Printf("  • GET  /api/decisions?trader_id=xxx  - 指定trader的决策日志")
-	log.Printf("  • GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
-	log.Printf("  • GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
-	log.Printf("  • GET  /api/performance?trader_id=xxx - 指定trader的AI学习表现分析")
+	log.Printf("  • GET  /api/health                    - 健康检查")
+	log.Printf("  • 公共竞赛/排行榜相关接口")
+	log.Printf("      - GET  /api/traders               - 公开的AI交易员排行榜（无需认证）")
+	log.Printf("      - GET  /api/competition           - 公开竞赛数据（无需认证）")
+	log.Printf("      - GET  /api/top-traders           - 前5名交易员（无需认证）")
+	log.Printf("      - GET  /api/equity-history        - 指定trader收益率历史（无需认证）")
+	log.Printf("      - POST /api/equity-history-batch  - 批量获取收益率历史（无需认证）")
+	log.Printf("      - GET  /api/traders/:id/public-config - 公开交易员配置（无需认证）")
+	log.Printf("  • Backtest")
+	log.Printf("      - GET  /api/backtest/runs         - 回测运行列表")
+	log.Printf("      - POST /api/backtest/start        - 启动新的回测")
+	log.Printf("      - POST /api/backtest/pause        - 暂停指定回测")
+	log.Printf("      - POST /api/backtest/resume       - 恢复指定回测")
+	log.Printf("      - POST /api/backtest/stop         - 停止指定回测")
+	log.Printf("      - GET  /api/backtest/status       - 查询回测状态")
+	log.Printf("      - GET  /api/backtest/equity       - 回测净值曲线")
+	log.Printf("      - GET  /api/backtest/trades       - 回测交易记录")
+	log.Printf("      - GET  /api/backtest/metrics      - 回测统计指标")
+	log.Printf("      - GET  /api/backtest/trace        - 回测AI Trace")
+	log.Printf("      - GET  /api/backtest/export       - 导出回测数据ZIP")
+	log.Printf("  • Trader / 配置（需认证）")
+	log.Printf("      - POST /api/traders               - 创建AI交易员")
+	log.Printf("      - DELETE /api/traders/:id         - 删除AI交易员")
+	log.Printf("      - POST /api/traders/:id/start     - 启动AI交易员")
+	log.Printf("      - POST /api/traders/:id/stop      - 停止AI交易员")
+	log.Printf("      - GET  /api/models                - 获取AI模型配置")
+	log.Printf("      - PUT  /api/models                - 更新AI模型配置")
+	log.Printf("      - GET  /api/exchanges             - 获取交易所配置")
+	log.Printf("      - PUT  /api/exchanges             - 更新交易所配置")
+	log.Printf("      - GET  /api/status?trader_id=xxx  - 指定trader的系统状态")
+	log.Printf("      - GET  /api/account?trader_id=xxx - 指定trader的账户信息")
+	log.Printf("      - GET  /api/positions?trader_id=xxx - 指定trader的持仓列表")
+	log.Printf("      - GET  /api/decisions?trader_id=xxx - 指定trader的决策日志")
+	log.Printf("      - GET  /api/decisions/latest?trader_id=xxx - 指定trader的最新决策")
+	log.Printf("      - GET  /api/statistics?trader_id=xxx - 指定trader的统计信息")
+	log.Printf("      - GET  /api/performance?trader_id=xxx - AI学习表现分析")
 	log.Println()
 
 	// 创建 http.Server 以支持 graceful shutdown

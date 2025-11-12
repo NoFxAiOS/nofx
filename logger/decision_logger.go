@@ -108,11 +108,22 @@ func NewDecisionLogger(logDir string) IDecisionLogger {
 	}
 }
 
+// SetCycleNumber 允许外部恢复内部的周期计数（用于回测恢复）。
+func (l *DecisionLogger) SetCycleNumber(n int) {
+	if n > 0 {
+		l.cycleNumber = n
+	}
+}
+
 // LogDecision 记录决策
 func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 	l.cycleNumber++
 	record.CycleNumber = l.cycleNumber
-	record.Timestamp = time.Now()
+	if record.Timestamp.IsZero() {
+		record.Timestamp = time.Now().UTC()
+	} else {
+		record.Timestamp = record.Timestamp.UTC()
+	}
 
 	// 生成文件名：decision_YYYYMMDD_HHMMSS_cycleN.json
 	filename := fmt.Sprintf("decision_%s_cycle%d.json",

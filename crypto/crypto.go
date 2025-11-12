@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,7 @@ const (
 	storagePrefix    = "ENC:v1:"
 	storageDelimiter = ":"
 	dataKeyEnvName   = "DATA_ENCRYPTION_KEY"
+	dataKeyFilePath  = "secrets/data_key"
 )
 
 type EncryptedPayload struct {
@@ -68,7 +70,7 @@ func NewCryptoService(privateKeyPath string) (*CryptoService, error) {
 		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 
-	dataKey, err := loadDataKeyFromEnv()
+	dataKey, err := resolveDataKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load data encryption key: %w", err)
 	}
@@ -150,20 +152,90 @@ func ParseRSAPrivateKeyFromPEM(pemBytes []byte) (*rsa.PrivateKey, error) {
 	}
 }
 
-func loadDataKeyFromEnv() ([]byte, error) {
+func resolveDataKey() ([]byte, error) {
+	if key, ok := loadDataKeyFromEnv(); ok {
+		return key, nil
+	}
+
+	key, _, err := loadOrCreateDataKeyFile(dataKeyFilePath)
+	return key, err
+}
+
+func loadDataKeyFromEnv() ([]byte, bool) {
 	keyStr := strings.TrimSpace(os.Getenv(dataKeyEnvName))
 	if keyStr == "" {
-		return nil, fmt.Errorf("%s not set", dataKeyEnvName)
+		return nil, false
 	}
 
 	if key, ok := decodePossibleKey(keyStr); ok {
-		return key, nil
+		return key, true
 	}
 
 	sum := sha256.Sum256([]byte(keyStr))
 	key := make([]byte, len(sum))
 	copy(key, sum[:])
-	return key, nil
+	return key, true
+}
+
+var errInvalidDataKeyMaterial = errors.New("invalid data encryption key material")
+
+func loadOrCreateDataKeyFile(path string) ([]byte, bool, error) {
+	key, err := readDataKeyFromFile(path)
+	if err == nil {
+		log.Printf("🔐 使用本地数据加密密钥: %s", path)
+		return key, false, nil
+	}
+
+	if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, errInvalidDataKeyMaterial) {
+		log.Printf("⚠️  无法读取数据加密密钥文件 (%s): %v，尝试重新生成", path, err)
+	}
+
+	key, err = generateAndPersistDataKey(path)
+	if err != nil {
+		return nil, false, err
+	}
+	return key, true, nil
+}
+
+func readDataKeyFromFile(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	encoded := strings.TrimSpace(string(data))
+	if encoded == "" {
+		return nil, errInvalidDataKeyMaterial
+	}
+
+	if key, ok := decodePossibleKey(encoded); ok {
+		return key, nil
+	}
+
+	return nil, errInvalidDataKeyMaterial
+}
+
+func generateAndPersistDataKey(path string) ([]byte, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return nil, err
+	}
+
+	dir := filepath.Dir(path)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, err
+		}
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(raw)
+	if err := os.WriteFile(path, []byte(encoded+"\n"), 0600); err != nil {
+		return nil, err
+	}
+
+	log.Printf("🆕 已生成新的数据加密密钥并保存到 %s", path)
+	log.Printf("   若需在生产或容器环境复用，请设置 %s 为该值", dataKeyEnvName)
+	return raw, nil
 }
 
 func decodePossibleKey(value string) ([]byte, bool) {

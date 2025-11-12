@@ -16,6 +16,9 @@ import (
 // JWTSecret JWT密钥，将从配置中动态设置
 var JWTSecret []byte
 
+// TokenExpireMinutes JWT 过期分钟数（可通过 SetTokenExpireMinutes 动态设置）
+var TokenExpireMinutes int = 1440
+
 // tokenBlacklist 用于登出后的token黑名单（仅内存，按过期时间清理）
 var tokenBlacklist = struct {
 	sync.RWMutex
@@ -31,6 +34,13 @@ const OTPIssuer = "nofxAI"
 // SetJWTSecret 设置JWT密钥
 func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
+}
+
+// SetTokenExpireMinutes 设置 JWT 过期分钟数
+func SetTokenExpireMinutes(minute int) {
+	if minute > 0 {
+		TokenExpireMinutes = minute
+	}
 }
 
 // BlacklistToken 将token加入黑名单直到过期
@@ -117,7 +127,7 @@ func GenerateJWT(userID, email string) (string, error) {
 		UserID: userID,
 		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // 24小时过期
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(TokenExpireMinutes) * time.Minute)), // 设置 token 过期时间
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "nofxAI",

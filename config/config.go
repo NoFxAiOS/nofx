@@ -42,6 +42,7 @@ type Config struct {
 	JWTSecret          string         `json:"jwt_secret"`
 	DataKLineTime      string         `json:"data_k_line_time"`
 	Log                *LogConfig     `json:"log"` // 日志配置
+	TokenExpirationMinutes int        `json:"token_expiration_minutes"` // Token 过期时间，单位分钟
 }
 
 // LoadConfig 从文件加载配置

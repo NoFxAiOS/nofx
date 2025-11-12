@@ -203,6 +203,17 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
+	// 设置 token 过期时间
+	tokenExpirationStr, _ := database.GetSystemConfig("token_expiration_minutes")
+	tokenExpire := 1440
+	if tokenExpirationStr != "" {
+		if v, err := strconv.Atoi(tokenExpirationStr); err == nil && v > 0 {
+			tokenExpire = v
+		}
+	}
+	auth.SetTokenExpireMinutes(tokenExpire)
+	log.Printf("✓ token 过期时间已设置为 %d 分钟", tokenExpire)
+
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {

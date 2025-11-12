@@ -24,6 +24,8 @@
 - [🔮 Roadmap](#-roadmap---universal-market-expansion)
 - [🏗️ Technical Architecture](#️-technical-architecture)
 - [💰 Register Binance Account](#-register-binance-account-save-on-fees)
+- [🔷 Register Hyperliquid Account](#-using-hyperliquid-exchange)
+- [🔶 Register Aster DEX Account](#-using-aster-dex-exchange)
 - [🚀 Quick Start](#-quick-start)
 - [📖 AI Decision Flow](#-ai-decision-flow)
 - [🧠 AI Self-Learning](#-ai-self-learning-example)

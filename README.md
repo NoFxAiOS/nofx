@@ -532,18 +532,93 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-#### 🔷 Alternative: Using Hyperliquid Exchange
+#### 🔷 Using Hyperliquid Exchange
 
-**NOFX also supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid instead of Binance:
+**NOFX supports Hyperliquid** - a high-performance decentralized perpetual futures exchange!
 
-**Step 1**: Get your Ethereum private key (for Hyperliquid authentication)
+**Why Choose Hyperliquid?**
+- 🚀 **High Performance**: Lightning-fast execution on L1 blockchain
+- 💰 **Low Fees**: Competitive maker/taker fees
+- 🔐 **Non-Custodial**: Your keys, your coins
+- 🌐 **No KYC**: Anonymous trading
+- 💎 **Deep Liquidity**: Institutional-grade order book
 
-1. Open **MetaMask** (or any Ethereum wallet)
-2. Export your private key
-3. **Remove the `0x` prefix** from the key
-4. Fund your wallet on [Hyperliquid](https://hyperliquid.xyz)
+---
 
-**Step 2**: ~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
+### 📝 Registration & Setup Guide
+
+**Step 1: Register Hyperliquid Account**
+
+1. **Visit Hyperliquid with Referral Link** (get benefits!):
+
+   **🎁 [Register Hyperliquid - Join AITRADING](https://app.hyperliquid.xyz/join/AITRADING)**
+
+2. **Connect Your Wallet**:
+   - Click "Connect Wallet" on the top right
+   - Choose MetaMask, WalletConnect, or other Web3 wallets
+   - Approve the connection
+
+3. **Enable Trading**:
+   - First connection will prompt you to sign a message
+   - This authorizes your wallet for trading (no gas fees)
+   - You'll see your wallet address displayed
+
+**Step 2: Fund Your Wallet**
+
+1. **Bridge Assets to Arbitrum**:
+   - Hyperliquid runs on Arbitrum L2
+   - Bridge USDC from Ethereum mainnet or other chains
+   - Or directly withdraw USDC from exchanges to Arbitrum
+
+2. **Deposit to Hyperliquid**:
+   - Click "Deposit" on Hyperliquid interface
+   - Select USDC amount to deposit
+   - Confirm the transaction (small gas fee on Arbitrum)
+   - Funds appear in your Hyperliquid account within seconds
+
+**Step 3: Set Up Agent Wallet (Recommended)**
+
+Hyperliquid supports **Agent Wallets** - secure sub-wallets specifically for trading automation!
+
+⚠️ **Why Use Agent Wallet:**
+- ✅ **More Secure**: Never expose your main wallet private key
+- ✅ **Limited Access**: Agent only has trading permissions
+- ✅ **Revocable**: Can be disabled anytime from Hyperliquid interface
+- ✅ **Separate Funds**: Keep main holdings safe
+
+**How to Create Agent Wallet:**
+
+1. **Log in to Hyperliquid** using your main wallet
+   - Visit [https://app.hyperliquid.xyz](https://app.hyperliquid.xyz)
+   - Connect with the wallet you registered (from referral link)
+
+2. **Navigate to Agent Settings**:
+   - Click on your wallet address (top right)
+   - Go to "Settings" → "API & Agents"
+   - Or visit: [https://app.hyperliquid.xyz/agents](https://app.hyperliquid.xyz/agents)
+
+3. **Create New Agent**:
+   - Click "Create Agent" or "Add Agent"
+   - System will generate a new agent wallet automatically
+   - **Save the agent wallet address** (starts with `0x`)
+   - **Save the agent private key** (shown only once!)
+
+4. **Agent Wallet Details**:
+   - Main Wallet: Your connected wallet (holds funds)
+   - Agent Wallet: The sub-wallet for trading (NOFX will use this)
+   - Private Key: Only needed for NOFX configuration
+
+5. **Fund Your Agent** (Optional):
+   - Transfer USDC from main wallet to agent wallet
+   - Or keep funds in main wallet (agent can trade from it)
+
+6. **Save Credentials for NOFX**:
+   - Main Wallet Address: `0xYourMainWalletAddress` (with `0x`)
+   - Agent Private Key: `YourAgentPrivateKeyWithout0x` (remove `0x` prefix)
+
+---
+
+~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
 
 ```json
 {
@@ -576,9 +651,9 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-#### 🔶 Alternative: Using Aster DEX Exchange
+#### 🔶 Using Aster DEX Exchange
 
-**NOFX also supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
+**NOFX supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
 
 **Why Choose Aster?**
 - 🎯 Binance-compatible API (easy migration)

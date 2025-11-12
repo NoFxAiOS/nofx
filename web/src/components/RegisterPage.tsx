@@ -47,9 +47,8 @@ export function RegisterPage() {
     e.preventDefault()
     setError('')
 
-    // 客户端强校验：长度>=8，包含大小写、数字、特殊字符，且两次一致
-    const strong = isStrongPassword(password)
-    if (!strong || password !== confirmPassword) {
+    // 使用 PasswordChecklist 的校验结果
+    if (!passwordValid) {
       setError(t('passwordNotMeetRequirements', language))
       return
     }
@@ -564,14 +563,4 @@ export function RegisterPage() {
       </div>
     </div>
   )
-}
-
-// 本地密码强度校验（与 UI 规则一致）
-function isStrongPassword(pwd: string): boolean {
-  if (!pwd || pwd.length < 8) return false
-  const hasUpper = /[A-Z]/.test(pwd)
-  const hasLower = /[a-z]/.test(pwd)
-  const hasNumber = /\d/.test(pwd)
-  const hasSpecial = /[@#$%!&*?]/.test(pwd)
-  return hasUpper && hasLower && hasNumber && hasSpecial
 }

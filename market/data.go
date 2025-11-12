@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -33,6 +34,12 @@ func Get(symbol string) (*Data, error) {
 	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
 	if err != nil {
 		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+	}
+
+	// Data staleness detection: Prevent DOGEUSDT-style price freeze issues
+	if isStaleData(klines3m, symbol) {
+		log.Printf("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
+		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
 	// 获取4小时K线数据 (最近10个)
@@ -540,4 +547,48 @@ func parseFloat(v interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
+}
+
+// isStaleData detects stale data (consecutive price freeze)
+// Fix DOGEUSDT-style issue: consecutive N periods with completely unchanged prices indicate data source anomaly
+func isStaleData(klines []Kline, symbol string) bool {
+	if len(klines) < 5 {
+		return false // Insufficient data to determine
+	}
+
+	// Detection threshold: 5 consecutive 3-minute periods with unchanged price (15 minutes without fluctuation)
+	const stalePriceThreshold = 5
+	const priceTolerancePct = 0.0001 // 0.01% fluctuation tolerance (avoid false positives)
+
+	// Take the last stalePriceThreshold K-lines
+	recentKlines := klines[len(klines)-stalePriceThreshold:]
+	firstPrice := recentKlines[0].Close
+
+	// Check if all prices are within tolerance
+	for i := 1; i < len(recentKlines); i++ {
+		priceDiff := math.Abs(recentKlines[i].Close-firstPrice) / firstPrice
+		if priceDiff > priceTolerancePct {
+			return false // Price fluctuation exists, data is normal
+		}
+	}
+
+	// Additional check: MACD and volume
+	// If price is unchanged but MACD/volume shows normal fluctuation, it might be a real market situation (extremely low volatility)
+	// Check if volume is also 0 (data completely frozen)
+	allVolumeZero := true
+	for _, k := range recentKlines {
+		if k.Volume > 0 {
+			allVolumeZero = false
+			break
+		}
+	}
+
+	if allVolumeZero {
+		log.Printf("⚠️  %s stale data confirmed: price freeze + zero volume", symbol)
+		return true
+	}
+
+	// Price frozen but has volume: might be extremely low volatility market, allow but log warning
+	log.Printf("⚠️  %s detected extreme price stability (no fluctuation for %d consecutive periods), but volume is normal", symbol, stalePriceThreshold)
+	return false
 }

@@ -25,6 +25,8 @@ type DecisionRecord struct {
 	ExecutionLog   []string           `json:"execution_log"`   // 执行日志
 	Success        bool               `json:"success"`         // 是否成功
 	ErrorMessage   string             `json:"error_message"`   // 错误信息（如果有）
+	// AIRequestDurationMs 记录 AI API 调用耗时（毫秒），方便评估调用性能
+	AIRequestDurationMs int64 `json:"ai_request_duration_ms,omitempty"`
 }
 
 // AccountSnapshot 账户状态快照
@@ -73,9 +75,14 @@ func NewDecisionLogger(logDir string) *DecisionLogger {
 		logDir = "decision_logs"
 	}
 
-	// 确保日志目录存在
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	// 确保日志目录存在（使用安全权限：只有所有者可访问）
+	if err := os.MkdirAll(logDir, 0700); err != nil {
 		fmt.Printf("⚠ 创建日志目录失败: %v\n", err)
+	}
+
+	// 强制设置目录权限（即使目录已存在）- 确保安全
+	if err := os.Chmod(logDir, 0700); err != nil {
+		fmt.Printf("⚠ 设置日志目录权限失败: %v\n", err)
 	}
 
 	return &DecisionLogger{
@@ -103,8 +110,8 @@ func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 		return fmt.Errorf("序列化决策记录失败: %w", err)
 	}
 
-	// 写入文件
-	if err := ioutil.WriteFile(filepath, data, 0644); err != nil {
+	// 写入文件（使用安全权限：只有所有者可读写）
+	if err := ioutil.WriteFile(filepath, data, 0600); err != nil {
 		return fmt.Errorf("写入决策记录失败: %w", err)
 	}
 

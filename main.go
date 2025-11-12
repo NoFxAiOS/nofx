@@ -16,29 +16,26 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/joho/godotenv"
 )
 
-// LeverageConfig 杠杆配置
-type LeverageConfig struct {
-	BTCETHLeverage  int `json:"btc_eth_leverage"`
-	AltcoinLeverage int `json:"altcoin_leverage"`
-}
-
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
+// TODO 现在与config.Config相同，未来会被替换， 现在为了兼容性不得不保留当前文件
 type ConfigFile struct {
-	BetaMode           bool              `json:"beta_mode"`
-	APIServerPort      int               `json:"api_server_port"`
-	UseDefaultCoins    bool              `json:"use_default_coins"`
-	DefaultCoins       []string          `json:"default_coins"`
-	CoinPoolAPIURL     string            `json:"coin_pool_api_url"`
-	OITopAPIURL        string            `json:"oi_top_api_url"`
-	MaxDailyLoss       float64           `json:"max_daily_loss"`
-	MaxDrawdown        float64           `json:"max_drawdown"`
-	StopTradingMinutes int               `json:"stop_trading_minutes"`
-	Leverage           LeverageConfig    `json:"leverage"`
-	JWTSecret          string            `json:"jwt_secret"`
-	DataKLineTime      string            `json:"data_k_line_time"`
-	Log                *config.LogConfig `json:"log"` // 日志配置
+	BetaMode           bool                  `json:"beta_mode"`
+	APIServerPort      int                   `json:"api_server_port"`
+	UseDefaultCoins    bool                  `json:"use_default_coins"`
+	DefaultCoins       []string              `json:"default_coins"`
+	CoinPoolAPIURL     string                `json:"coin_pool_api_url"`
+	OITopAPIURL        string                `json:"oi_top_api_url"`
+	MaxDailyLoss       float64               `json:"max_daily_loss"`
+	MaxDrawdown        float64               `json:"max_drawdown"`
+	StopTradingMinutes int                   `json:"stop_trading_minutes"`
+	Leverage           config.LeverageConfig `json:"leverage"`
+	JWTSecret          string                `json:"jwt_secret"`
+	DataKLineTime      string                `json:"data_k_line_time"`
+	Log                *config.LogConfig     `json:"log"` // 日志配置
 }
 
 // loadConfigFile 读取并解析config.json文件
@@ -65,7 +62,7 @@ func loadConfigFile() (*ConfigFile, error) {
 }
 
 // syncConfigToDatabase 将配置同步到数据库
-func syncConfigToDatabase(database config.DatabaseInterface, configFile *ConfigFile) error {
+func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) error {
 	if configFile == nil {
 		return nil
 	}
@@ -119,7 +116,7 @@ func syncConfigToDatabase(database config.DatabaseInterface, configFile *ConfigF
 }
 
 // loadBetaCodesToDatabase 加载内测码文件到数据库
-func loadBetaCodesToDatabase(database config.DatabaseInterface) error {
+func loadBetaCodesToDatabase(database *config.Database) error {
 	betaCodeFile := "beta_codes.txt"
 
 	// 检查内测码文件是否存在
@@ -159,25 +156,37 @@ func main() {
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
+	// Load environment variables from .env file if present (for local/dev runs)
+	// In Docker Compose, variables are injected by the runtime and this is harmless.
+	_ = godotenv.Load()
+
+	// 初始化数据库配置
+	dbPath := "config.db"
+	if len(os.Args) > 1 {
+		dbPath = os.Args[1]
+	}
+
 	// 读取配置文件
 	configFile, err := loadConfigFile()
 	if err != nil {
 		log.Fatalf("❌ 读取config.json失败: %v", err)
 	}
 
-	log.Printf("📋 初始化配置数据库 (PostgreSQL)")
-	database, err := config.NewDatabase()
+	log.Printf("📋 初始化配置数据库: %s", dbPath)
+	database, err := config.NewDatabase(dbPath)
 	if err != nil {
 		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
 	defer database.Close()
 
-	// 初始化加密服务（用于敏感数据加密存储与传输）
-	cryptoService, err := crypto.NewCryptoService("keys/rsa_private.key")
+	// 初始化加密服务
+	log.Printf("🔐 初始化加密服务...")
+	cryptoService, err := crypto.NewCryptoService("secrets/rsa_key")
 	if err != nil {
 		log.Fatalf("❌ 初始化加密服务失败: %v", err)
 	}
 	database.SetCryptoService(cryptoService)
+	log.Printf("✅ 加密服务初始化成功")
 
 	// 同步config.json到数据库
 	if err := syncConfigToDatabase(database, configFile); err != nil {
@@ -194,13 +203,23 @@ func main() {
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
 
-	// 设置JWT密钥
-	jwtSecret, _ := database.GetSystemConfig("jwt_secret")
+	// 设置JWT密钥（优先使用环境变量）
+	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
-		jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
-		log.Printf("⚠️  使用默认JWT密钥，建议在生产环境中配置")
+		// 回退到数据库配置
+		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
+		if jwtSecret == "" {
+			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
+			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
+		} else {
+			log.Printf("🔑 使用数据库中JWT密钥")
+		}
+	} else {
+		log.Printf("🔑 使用环境变量JWT密钥")
 	}
 	auth.SetJWTSecret(jwtSecret)
+
+	// 管理员模式下需要管理员密码，缺失则退出
 
 	log.Printf("✓ 配置数据库初始化成功")
 	fmt.Println()
@@ -275,6 +294,15 @@ func main() {
 		}
 	}
 
+	// 创建初始化上下文
+	// TODO : 传入实际配置, 现在并未实际使用，未来所有模块初始化都将通过上下文传递配置
+	// ctx := bootstrap.NewContext(&config.Config{})
+
+	// // 执行所有初始化钩子
+	// if err := bootstrap.Run(ctx); err != nil {
+	// 	log.Fatalf("初始化失败: %v", err)
+	// }
+
 	fmt.Println()
 	fmt.Println("🤖 AI全权决策模式:")
 	fmt.Printf("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高5倍，BTC/ETH最高5倍）\n")
@@ -288,12 +316,25 @@ func main() {
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
 
-	// 获取API服务器端口
+	// 获取API服务器端口（优先级：环境变量 > 数据库配置 > 默认值）
 	apiPort := 8080 // 默认端口
-	if apiPortStr != "" {
-		if port, err := strconv.Atoi(apiPortStr); err == nil {
+
+	// 1. 优先从环境变量 NOFX_BACKEND_PORT 读取
+	if envPort := strings.TrimSpace(os.Getenv("NOFX_BACKEND_PORT")); envPort != "" {
+		if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
 			apiPort = port
+			log.Printf("🔌 使用环境变量端口: %d (NOFX_BACKEND_PORT)", apiPort)
+		} else {
+			log.Printf("⚠️  环境变量 NOFX_BACKEND_PORT 无效: %s", envPort)
 		}
+	} else if apiPortStr != "" {
+		// 2. 从数据库配置读取（config.json 同步过来的）
+		if port, err := strconv.Atoi(apiPortStr); err == nil && port > 0 {
+			apiPort = port
+			log.Printf("🔌 使用数据库配置端口: %d (api_server_port)", apiPort)
+		}
+	} else {
+		log.Printf("🔌 使用默认端口: %d", apiPort)
 	}
 
 	// 创建并启动API服务器
@@ -318,8 +359,28 @@ func main() {
 	<-sigChan
 	fmt.Println()
 	fmt.Println()
-	log.Println("📛 收到退出信号，正在停止所有trader...")
+	log.Println("📛 收到退出信号，正在优雅关闭...")
+
+	// 步骤 1: 停止所有交易员
+	log.Println("⏸️  停止所有交易员...")
 	traderManager.StopAll()
+	log.Println("✅ 所有交易员已停止")
+
+	// 步骤 2: 关闭 API 服务器
+	log.Println("🛑 停止 API 服务器...")
+	if err := apiServer.Shutdown(); err != nil {
+		log.Printf("⚠️  关闭 API 服务器时出错: %v", err)
+	} else {
+		log.Println("✅ API 服务器已安全关闭")
+	}
+
+	// 步骤 3: 关闭数据库连接 (确保所有写入完成)
+	log.Println("💾 关闭数据库连接...")
+	if err := database.Close(); err != nil {
+		log.Printf("❌ 关闭数据库失败: %v", err)
+	} else {
+		log.Println("✅ 数据库已安全关闭，所有数据已持久化")
+	}
 
 	fmt.Println()
 	fmt.Println("👋 感谢使用AI交易系统！")

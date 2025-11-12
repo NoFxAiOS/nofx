@@ -1,44 +1,4 @@
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: nofx-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-nofx}
-      POSTGRES_USER: ${POSTGRES_USER:-nofx}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nofx123456}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    ports:
-      - "${POSTGRES_PORT:-5433}:5432"
-    networks:
-      - nofx-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nofx}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: nofx-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123456}
-    volumes:
-      - redis_data:/data
-    ports:
-      - "${REDIS_PORT:-6380}:6379"
-    networks:
-      - nofx-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
   # Backend service (API and core logic)
   nofx:
     build:
@@ -46,31 +6,22 @@ services:
       dockerfile: ./docker/Dockerfile.backend
     container_name: nofx-trading
     restart: unless-stopped
+    stop_grace_period: 30s  # 允许应用有 30 秒时间优雅关闭
     ports:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
     volumes:
       - ./config.json:/app/config.json:ro
+      - ./config.db:/app/config.db
       - ./beta_codes.txt:/app/beta_codes.txt:ro
       - ./decision_logs:/app/decision_logs
       - ./prompts:/app/prompts
+      - ./secrets:/app/secrets:ro  # RSA密钥文件
       - /etc/localtime:/etc/localtime:ro  # Sync host time
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
-      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据加密密钥
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=${POSTGRES_DB:-nofx}
-      - POSTGRES_USER=${POSTGRES_USER:-nofx}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nofx123456}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redis123456}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据库加密密钥
+      - JWT_SECRET=${JWT_SECRET}  # JWT认证密钥
     networks:
       - nofx-network
     healthcheck:
@@ -88,15 +39,13 @@ services:
     container_name: nofx-frontend
     restart: unless-stopped
     ports:
-      - "${NOFX_FRONTEND_PORT:-3000}:443"
-    volumes:
-      - ./certs:/etc/nginx/certs:ro   # 挂载证书目录
+      - "${NOFX_FRONTEND_PORT:-3000}:80"
     networks:
       - nofx-network
     depends_on:
       - nofx
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -105,7 +54,3 @@ services:
 networks:
   nofx-network:
     driver: bridge
-
-volumes:
-  postgres_data:
-  redis_data:

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import type { AIModel, Exchange, CreateTraderRequest } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { toast } from 'sonner'
+import { Pencil, Plus, X as IconX } from 'lucide-react'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -102,7 +104,7 @@ export function TraderConfigModal({
     }
     // 确保旧数据也有默认的 system_prompt_template
     if (traderData && traderData.system_prompt_template === undefined) {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
         system_prompt_template: 'default',
       }))
@@ -153,12 +155,6 @@ export function TraderConfigModal({
     fetchPromptTemplates()
   }, [])
 
-  // 当选择的币种改变时，更新输入框
-  useEffect(() => {
-    const symbolsString = selectedCoins.join(',')
-    setFormData((prev) => ({ ...prev, trading_symbols: symbolsString }))
-  }, [selectedCoins])
-
   if (!isOpen) return null
 
   const handleInputChange = (field: keyof TraderConfigData, value: any) => {
@@ -176,52 +172,62 @@ export function TraderConfigModal({
 
   const handleCoinToggle = (coin: string) => {
     setSelectedCoins((prev) => {
-      if (prev.includes(coin)) {
-        return prev.filter((c) => c !== coin)
-      } else {
-        return [...prev, coin]
-      }
+      const newCoins = prev.includes(coin)
+        ? prev.filter((c) => c !== coin)
+        : [...prev, coin]
+
+      // 同时更新 formData.trading_symbols
+      const symbolsString = newCoins.join(',')
+      setFormData((current) => ({ ...current, trading_symbols: symbolsString }))
+
+      return newCoins
     })
   }
 
   const handleFetchCurrentBalance = async () => {
     if (!isEditMode || !traderData?.trader_id) {
-      setBalanceFetchError('只有在编辑模式下才能获取当前余额');
-      return;
+      setBalanceFetchError('只有在编辑模式下才能获取当前余额')
+      return
     }
 
-    setIsFetchingBalance(true);
-    setBalanceFetchError('');
+    setIsFetchingBalance(true)
+    setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/account?trader_id=${traderData.trader_id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('获取账户余额失败');
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        throw new Error('未登录，请先登录')
       }
 
-      const data = await response.json();
+      const response = await fetch(
+        `/api/account?trader_id=${traderData.trader_id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('获取账户余额失败')
+      }
+
+      const data = await response.json()
 
       // total_equity = 当前账户净值（包含未实现盈亏）
       // 这应该作为新的初始余额
-      const currentBalance = data.total_equity || data.balance || 0;
+      const currentBalance = data.total_equity || data.balance || 0
 
-      setFormData(prev => ({ ...prev, initial_balance: currentBalance }));
-
-      // 显示成功提示
-      console.log('已获取当前余额:', currentBalance);
+      setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
+      toast.success('已获取当前余额')
     } catch (error) {
-      console.error('获取余额失败:', error);
-      setBalanceFetchError('获取余额失败，请检查网络连接');
+      console.error('获取余额失败:', error)
+      setBalanceFetchError('获取余额失败，请检查网络连接')
+      toast.error('获取余额失败，请检查网络连接')
     } finally {
-      setIsFetchingBalance(false);
+      setIsFetchingBalance(false)
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!onSave) return
@@ -244,7 +250,11 @@ export function TraderConfigModal({
         initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
-      await onSave(saveData)
+      await toast.promise(onSave(saveData), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
       onClose()
     } catch (error) {
       console.error('保存失败:', error)
@@ -254,16 +264,21 @@ export function TraderConfigModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
       <div
-        className="bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl max-w-3xl w-full my-8"
+        style={{ maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35]">
+        <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky top-0 z-10 rounded-t-xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center">
-              <span className="text-lg">{isEditMode ? '✏️' : '➕'}</span>
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center text-black">
+              {isEditMode ? (
+                <Pencil className="w-5 h-5" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h2 className="text-xl font-bold text-[#EAECEF]">
@@ -278,12 +293,15 @@ export function TraderConfigModal({
             onClick={onClose}
             className="w-8 h-8 rounded-lg text-[#848E9C] hover:text-[#EAECEF] hover:bg-[#2B3139] transition-colors flex items-center justify-center"
           >
-            ✕
+            <IconX className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-8">
+        <div
+          className="p-6 space-y-8 overflow-y-auto"
+          style={{ maxHeight: 'calc(100vh - 16rem)' }}
+        >
           {/* Basic Info */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
@@ -390,7 +408,9 @@ export function TraderConfigModal({
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-[#EAECEF]">
                       初始余额 ($)
-                      {!isEditMode && <span className="text-[#F0B90B] ml-1">*</span>}
+                      {!isEditMode && (
+                        <span className="text-[#F0B90B] ml-1">*</span>
+                      )}
                     </label>
                     {isEditMode && (
                       <button
@@ -412,13 +432,33 @@ export function TraderConfigModal({
                         Number(e.target.value)
                       )
                     }
+                    onBlur={(e) => {
+                      // Force minimum value on blur
+                      const value = Number(e.target.value)
+                      if (value < 100) {
+                        handleInputChange('initial_balance', 100)
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                     min="100"
                     step="0.01"
                   />
                   {!isEditMode && (
                     <p className="text-xs text-[#F0B90B] mt-1 flex items-center gap-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="w-3.5 h-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                        <line x1="12" x2="12" y1="9" y2="13" />
+                        <line x1="12" x2="12.01" y1="17" y2="17" />
+                      </svg>
                       请输入您交易所账户的当前实际余额。如果输入不准确，P&L统计将会错误。
                     </p>
                   )}
@@ -428,7 +468,9 @@ export function TraderConfigModal({
                     </p>
                   )}
                   {balanceFetchError && (
-                    <p className="text-xs text-red-500 mt-1">{balanceFetchError}</p>
+                    <p className="text-xs text-red-500 mt-1">
+                      {balanceFetchError}
+                    </p>
                   )}
                 </div>
               </div>
@@ -597,7 +639,7 @@ export function TraderConfigModal({
               {/* 系统提示词模板选择 */}
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  系统提示词模板
+                  {t('systemPromptTemplate', language)}
                 </label>
                 <select
                   value={formData.system_prompt_template}
@@ -606,17 +648,75 @@ export function TraderConfigModal({
                   }
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                 >
-                  {promptTemplates.map((template) => (
-                    <option key={template.name} value={template.name}>
-                      {template.name === 'default'
-                        ? 'Default (默认稳健)'
-                        : template.name === 'aggressive'
-                          ? 'Aggressive (激进)'
-                          : template.name.charAt(0).toUpperCase() +
-                            template.name.slice(1)}
-                    </option>
-                  ))}
+                  {promptTemplates.map((template) => {
+                    // Template name mapping with i18n
+                    const getTemplateName = (name: string) => {
+                      const keyMap: Record<string, string> = {
+                        default: 'promptTemplateDefault',
+                        adaptive: 'promptTemplateAdaptive',
+                        adaptive_relaxed: 'promptTemplateAdaptiveRelaxed',
+                        Hansen: 'promptTemplateHansen',
+                        nof1: 'promptTemplateNof1',
+                        taro_long_prompts: 'promptTemplateTaroLong',
+                      }
+                      const key = keyMap[name]
+                      return key
+                        ? t(key, language)
+                        : name.charAt(0).toUpperCase() + name.slice(1)
+                    }
+
+                    return (
+                      <option key={template.name} value={template.name}>
+                        {getTemplateName(template.name)}
+                      </option>
+                    )
+                  })}
                 </select>
+
+                {/* 動態描述區域 */}
+                <div
+                  className="mt-2 p-3 rounded"
+                  style={{
+                    background: 'rgba(240, 185, 11, 0.05)',
+                    border: '1px solid rgba(240, 185, 11, 0.15)',
+                  }}
+                >
+                  <div
+                    className="text-xs font-semibold mb-1"
+                    style={{ color: '#F0B90B' }}
+                  >
+                    {(() => {
+                      const titleKeyMap: Record<string, string> = {
+                        default: 'promptDescDefault',
+                        adaptive: 'promptDescAdaptive',
+                        adaptive_relaxed: 'promptDescAdaptiveRelaxed',
+                        Hansen: 'promptDescHansen',
+                        nof1: 'promptDescNof1',
+                        taro_long_prompts: 'promptDescTaroLong',
+                      }
+                      const key = titleKeyMap[formData.system_prompt_template]
+                      return key
+                        ? t(key, language)
+                        : t('promptDescDefault', language)
+                    })()}
+                  </div>
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {(() => {
+                      const contentKeyMap: Record<string, string> = {
+                        default: 'promptDescDefaultContent',
+                        adaptive: 'promptDescAdaptiveContent',
+                        adaptive_relaxed: 'promptDescAdaptiveRelaxedContent',
+                        Hansen: 'promptDescHansenContent',
+                        nof1: 'promptDescNof1Content',
+                        taro_long_prompts: 'promptDescTaroLongContent',
+                      }
+                      const key = contentKeyMap[formData.system_prompt_template]
+                      return key
+                        ? t(key, language)
+                        : t('promptDescDefaultContent', language)
+                    })()}
+                  </div>
+                </div>
                 <p className="text-xs text-[#848E9C] mt-1">
                   选择预设的交易策略模板（包含交易哲学、风控原则等）
                 </p>
@@ -674,7 +774,7 @@ export function TraderConfigModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35]">
+        <div className="flex justify-end gap-3 p-6 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky bottom-0 z-10 rounded-b-xl">
           <button
             onClick={onClose}
             className="px-6 py-3 bg-[#2B3139] text-[#EAECEF] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#404750]"

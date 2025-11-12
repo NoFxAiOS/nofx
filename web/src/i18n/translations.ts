@@ -11,6 +11,7 @@ export const translations = {
     competition: 'Competition',
     running: 'RUNNING',
     stopped: 'STOPPED',
+    adminMode: 'Admin Mode',
     logout: 'Logout',
     switchTrader: 'Switch Trader:',
     view: 'View',
@@ -19,6 +20,7 @@ export const translations = {
     realtimeNav: 'Live',
     configNav: 'Config',
     dashboardNav: 'Dashboard',
+    faqNav: 'FAQ',
 
     // Footer
     footerTitle: 'NOFX - AI Trading System',
@@ -144,6 +146,10 @@ export const translations = {
     currentTraders: 'Current Traders',
     noTraders: 'No AI Traders',
     createFirstTrader: 'Create your first AI trader to get started',
+    dashboardEmptyTitle: "Let's Get Started!",
+    dashboardEmptyDescription:
+      'Create your first AI trader to automate your trading strategy. Connect an exchange, choose an AI model, and start trading in minutes!',
+    goToTradersPage: 'Create Your First Trader',
     configureModelsFirst: 'Please configure AI models first',
     configureExchangesFirst: 'Please configure exchanges first',
     configureModelsAndExchangesFirst:
@@ -196,6 +202,18 @@ export const translations = {
       'Hyperliquid uses private key for trading authentication',
     hyperliquidWalletAddressDesc:
       'Wallet address corresponding to the private key',
+    // Hyperliquid Agent Wallet (New Security Model)
+    hyperliquidAgentWalletTitle: 'Hyperliquid Agent Wallet Configuration',
+    hyperliquidAgentWalletDesc:
+      'Use Agent Wallet for secure trading: Agent wallet signs transactions (balance ~0), Main wallet holds funds (never expose private key)',
+    hyperliquidAgentPrivateKey: 'Agent Private Key',
+    enterHyperliquidAgentPrivateKey: 'Enter Agent wallet private key',
+    hyperliquidAgentPrivateKeyDesc:
+      'Agent wallet private key for signing transactions (keep balance near 0 for security)',
+    hyperliquidMainWalletAddress: 'Main Wallet Address',
+    enterHyperliquidMainWalletAddress: 'Enter Main wallet address',
+    hyperliquidMainWalletAddressDesc:
+      'Main wallet address that holds your trading funds (never expose its private key)',
     asterUserDesc:
       'Main wallet address - The EVM wallet address you use to log in to Aster (Note: Only EVM wallets are supported, Solana wallets are not supported)',
     asterSignerDesc:
@@ -204,13 +222,19 @@ export const translations = {
       'API wallet private key - Get from https://www.asterdex.com/en/api-wallet (only used locally for signing, never transmitted)',
     asterUsdtWarning:
       'Important: Aster only tracks USDT balance. Please ensure you use USDT as margin currency to avoid P&L calculation errors caused by price fluctuations of other assets (BNB, ETH, etc.)',
+
+    // Exchange names
     hyperliquidExchangeName: 'Hyperliquid',
     asterExchangeName: 'Aster DEX',
+
+    // Secure input
     secureInputButton: 'Secure Input',
     secureInputReenter: 'Re-enter Securely',
     secureInputClear: 'Clear',
     secureInputHint:
-      'Captured via secure two-step input. Use “Re-enter Securely” to update this value.',
+      'Captured via secure two-step input. Use "Re-enter Securely" to update this value.',
+
+    // Two Stage Key Modal
     twoStageModalTitle: 'Secure Key Input',
     twoStageModalDescription:
       'Use a two-step flow to enter your {length}-character private key safely.',
@@ -232,10 +256,6 @@ export const translations = {
       'Remember to paste the obfuscation string before submitting to avoid clipboard leaks.',
     twoStageClipboardManual:
       'Automatic copy failed. Copy the obfuscation string below manually.',
-    twoStageClipboardFailed:
-      'Automatic clipboard copy failed. Please copy the obfuscation string manually.',
-    twoStageClipboardInstruction:
-      'Obfuscation string copied. Paste it once before finishing the input.',
     twoStageBack: 'Back',
     twoStageSubmit: 'Confirm',
     twoStageInvalidFormat:
@@ -272,6 +292,33 @@ export const translations = {
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
     invalidSymbolFormat: 'Invalid symbol format: {symbol}, must end with USDT',
 
+    // System Prompt Templates
+    systemPromptTemplate: 'System Prompt Template',
+    promptTemplateDefault: 'Default Stable',
+    promptTemplateAdaptive: 'Conservative Strategy',
+    promptTemplateAdaptiveRelaxed: 'Aggressive Strategy',
+    promptTemplateHansen: 'Hansen Strategy',
+    promptTemplateNof1: 'NoF1 English Framework',
+    promptTemplateTaroLong: 'Taro Long Position',
+    promptDescDefault: '📊 Default Stable Strategy',
+    promptDescDefaultContent:
+      'Maximize Sharpe ratio, balanced risk-reward, suitable for beginners and stable long-term trading',
+    promptDescAdaptive: '🛡️ Conservative Strategy (v6.0.0)',
+    promptDescAdaptiveContent:
+      'Strict risk control, BTC mandatory confirmation, high win rate priority, suitable for conservative traders',
+    promptDescAdaptiveRelaxed: '⚡ Aggressive Strategy (v6.0.0)',
+    promptDescAdaptiveRelaxedContent:
+      'High-frequency trading, BTC optional confirmation, pursue trading opportunities, suitable for volatile markets',
+    promptDescHansen: '🎯 Hansen Strategy',
+    promptDescHansenContent:
+      'Hansen custom strategy, maximize Sharpe ratio, for professional traders',
+    promptDescNof1: '🌐 NoF1 English Framework',
+    promptDescNof1Content:
+      'Hyperliquid exchange specialist, English prompts, maximize risk-adjusted returns',
+    promptDescTaroLong: '📈 Taro Long Position Strategy',
+    promptDescTaroLongContent:
+      'Data-driven decisions, multi-dimensional validation, continuous learning evolution, long position specialist',
+
     // Loading & Error
     loading: 'Loading...',
     loadingError: '⚠️ Failed to load AI learning data',
@@ -299,6 +346,11 @@ export const translations = {
     addAIModel: 'Add AI Model',
     confirmDeleteModel:
       'Are you sure you want to delete this AI model configuration?',
+    cannotDeleteModelInUse:
+      'Cannot delete this AI model because it is being used by traders',
+    tradersUsing: 'Traders using this configuration',
+    pleaseDeleteTradersFirst:
+      'Please delete or reconfigure these traders first',
     selectModel: 'Select AI Model',
     pleaseSelectModel: 'Please select a model',
     customBaseURL: 'Base URL (Optional)',
@@ -315,6 +367,8 @@ export const translations = {
     addExchange: 'Add Exchange',
     confirmDeleteExchange:
       'Are you sure you want to delete this exchange configuration?',
+    cannotDeleteExchangeInUse:
+      'Cannot delete this exchange because it is being used by traders',
     pleaseSelectExchange: 'Please select an exchange',
     exchangeConfigWarning1:
       '• API keys will be encrypted, recommend using read-only or futures trading permissions',
@@ -331,6 +385,7 @@ export const translations = {
     serverIPAddresses: 'Server IP Addresses',
     copyIP: 'Copy',
     ipCopied: 'IP Copied',
+    copyIPFailed: 'Failed to copy IP address. Please copy manually',
     loadingServerIP: 'Loading server IP...',
 
     // Error Messages
@@ -348,23 +403,28 @@ export const translations = {
     exchangeNotExist: 'Exchange does not exist',
     deleteExchangeConfigFailed: 'Failed to delete exchange configuration',
     saveSignalSourceFailed: 'Failed to save signal source configuration',
-
-    // Delete Confirmation
-    delete: 'Delete',
-    deleteModel: 'Delete Model',
-    deleteExchange: 'Delete Exchange',
-    deleteModelWarning: 'This will remove the AI model configuration. Traders using this model will not work properly.',
-    deleteExchangeWarning: 'This will remove the exchange configuration. Traders using this exchange will not be able to trade.',
+    encryptionFailed: 'Failed to encrypt sensitive data',
 
     // Login & Register
     login: 'Sign In',
     register: 'Sign Up',
+    username: 'Username',
     email: 'Email',
     password: 'Password',
     confirmPassword: 'Confirm Password',
+    usernamePlaceholder: 'your username',
     emailPlaceholder: 'your@email.com',
     passwordPlaceholder: 'Enter your password',
     confirmPasswordPlaceholder: 'Re-enter your password',
+    passwordRequirements: 'Password requirements',
+    passwordRuleMinLength: 'Minimum 8 characters',
+    passwordRuleUppercase: 'At least 1 uppercase letter',
+    passwordRuleLowercase: 'At least 1 lowercase letter',
+    passwordRuleNumber: 'At least 1 number',
+    passwordRuleSpecial: 'At least 1 special character (@#$%!&*?)',
+    passwordRuleMatch: 'Passwords match',
+    passwordNotMeetRequirements:
+      'Password does not meet the security requirements',
     otpPlaceholder: '000000',
     loginTitle: 'Sign in to your account',
     registerTitle: 'Create a new account',
@@ -378,6 +438,15 @@ export const translations = {
     forgotPassword: 'Forgot password?',
     rememberMe: 'Remember me',
     otpCode: 'OTP Code',
+    resetPassword: 'Reset Password',
+    resetPasswordTitle: 'Reset your password',
+    newPassword: 'New Password',
+    newPasswordPlaceholder: 'Enter new password (at least 6 characters)',
+    resetPasswordButton: 'Reset Password',
+    resetPasswordSuccess:
+      'Password reset successful! Please login with your new password',
+    resetPasswordFailed: 'Password reset failed',
+    backToLogin: 'Back to Login',
     scanQRCode: 'Scan QR Code',
     enterOTPCode: 'Enter 6-digit OTP code',
     verifyOTP: 'Verify OTP',
@@ -401,10 +470,17 @@ export const translations = {
     completeRegistrationSubtitle: 'to complete registration',
     loginSuccess: 'Login successful',
     registrationSuccess: 'Registration successful',
-    loginFailed: 'Login failed',
-    registrationFailed: 'Registration failed',
-    verificationFailed: 'OTP verification failed',
+    loginFailed: 'Login failed. Please check your email and password.',
+    registrationFailed: 'Registration failed. Please try again.',
+    verificationFailed:
+      'OTP verification failed. Please check the code and try again.',
     invalidCredentials: 'Invalid email or password',
+    weak: 'Weak',
+    medium: 'Medium',
+    strong: 'Strong',
+    passwordStrength: 'Password strength',
+    passwordStrengthHint:
+      'Use at least 8 characters with mix of letters, numbers and symbols',
     passwordMismatch: 'Passwords do not match',
     emailRequired: 'Email is required',
     passwordRequired: 'Password is required',
@@ -525,16 +601,249 @@ export const translations = {
     candidateCoins: 'Candidate Coins',
     candidateCoinsZeroWarning: 'Candidate Coins Count is 0',
     possibleReasons: 'Possible Reasons:',
-    coinPoolApiNotConfigured: 'Coin pool API not configured or inaccessible (check signal source settings)',
+    coinPoolApiNotConfigured:
+      'Coin pool API not configured or inaccessible (check signal source settings)',
     apiConnectionTimeout: 'API connection timeout or returned empty data',
-    noCustomCoinsAndApiFailed: 'No custom coins configured and API fetch failed',
+    noCustomCoinsAndApiFailed:
+      'No custom coins configured and API fetch failed',
     solutions: 'Solutions:',
     setCustomCoinsInConfig: 'Set custom coin list in trader configuration',
     orConfigureCorrectApiUrl: 'Or configure correct coin pool API address',
-    orDisableCoinPoolOptions: 'Or disable "Use Coin Pool" and "Use OI Top" options',
+    orDisableCoinPoolOptions:
+      'Or disable "Use Coin Pool" and "Use OI Top" options',
     signalSourceNotConfigured: 'Signal Source Not Configured',
-    signalSourceWarningMessage: 'You have traders that enabled "Use Coin Pool" or "Use OI Top", but signal source API address is not configured yet. This will cause candidate coins count to be 0, and traders cannot work properly.',
+    signalSourceWarningMessage:
+      'You have traders that enabled "Use Coin Pool" or "Use OI Top", but signal source API address is not configured yet. This will cause candidate coins count to be 0, and traders cannot work properly.',
     configureSignalSourceNow: 'Configure Signal Source Now',
+
+    // FAQ Page
+    faqTitle: 'Frequently Asked Questions',
+    faqSubtitle: 'Find answers to common questions about NOFX',
+    faqStillHaveQuestions: 'Still Have Questions?',
+    faqContactUs: 'Join our community or check our GitHub for more help',
+
+    // FAQ Categories
+    faqCategoryBasics: 'General Questions',
+    faqCategoryContributing: 'Contributing & Tasks',
+    faqCategorySetup: 'Setup & Configuration',
+    faqCategoryTrading: 'Trading Questions',
+    faqCategoryTechnical: 'Technical Issues',
+    faqCategoryAI: 'AI & Model Questions',
+    faqCategoryData: 'Data & Privacy',
+
+    // FAQ Questions & Answers - General
+    faqWhatIsNOFX: 'What is NOFX?',
+    faqWhatIsNOFXAnswer:
+      'NOFX is an AI-powered cryptocurrency trading bot that uses large language models (LLMs) to make trading decisions on futures markets.',
+
+    faqSupportedExchanges: 'Which exchanges are supported?',
+    faqSupportedExchangesAnswer:
+      'Binance Futures, Hyperliquid, and Aster DEX are supported. More exchanges coming soon.',
+
+    faqIsProfitable: 'Is NOFX profitable?',
+    faqIsProfitableAnswer:
+      'AI trading is experimental and not guaranteed to be profitable. Always start with small amounts and never invest more than you can afford to lose.',
+
+    faqMultipleTraders: 'Can I run multiple traders simultaneously?',
+    faqMultipleTradersAnswer:
+      'Yes! NOFX supports running multiple traders with different configurations, AI models, and trading strategies.',
+
+    // Contributing & Community
+    faqGithubProjectsTasks: 'How to use GitHub Projects and pick up tasks?',
+    faqGithubProjectsTasksAnswer:
+      'Roadmap: https://github.com/orgs/NoFxAiOS/projects/3  • Task Dashboard: https://github.com/orgs/NoFxAiOS/projects/5  • Steps: Open links → filter by labels (good first issue / help wanted / frontend / backend) → read Description & Acceptance Criteria → comment "assign me" or self-assign → Fork the repo → sync your fork\'s dev with upstream/dev → create a feature branch from your fork\'s dev → push to your fork → open PR (base: NoFxAiOS/nofx:dev ← compare: your-username/nofx:feat/your-topic) → reference Issue (Closes #123) and use the proper template.',
+
+    faqContributePR: 'How to properly submit PRs and contribute?',
+    faqContributePRAnswer:
+      "Guidelines: • Fork first; branch from your fork's dev (avoid direct commits to upstream main) • Branch naming: feat/..., fix/..., docs/...; Conventional Commits • Run checks before PR: npm --prefix web run lint && npm --prefix web run build • For UI changes, attach screenshots or a short video • Choose the proper PR template (frontend/backend/docs/general) • Open PR from your fork to NoFxAiOS/nofx:dev and link Issue (Closes #123) • Keep rebasing onto upstream/dev; ensure CI passes; prefer small, focused PRs • Read CONTRIBUTING.md and .github/PR_TITLE_GUIDE.md",
+
+    // Setup & Configuration
+    faqSystemRequirements: 'What are the system requirements?',
+    faqSystemRequirementsAnswer:
+      'OS: Linux, macOS, or Windows (Docker recommended); RAM: 2GB minimum, 4GB recommended; Disk: 1GB for application + logs; Network: Stable internet connection.',
+
+    faqNeedCoding: 'Do I need coding experience?',
+    faqNeedCodingAnswer:
+      'No! NOFX has a web UI for all configuration. However, basic command line knowledge helps with setup and troubleshooting.',
+
+    faqGetApiKeys: 'How do I get API keys?',
+    faqGetApiKeysAnswer:
+      'For Binance: Account → API Management → Create API → Enable Futures. For Hyperliquid: Visit Hyperliquid App → API Settings. For Aster DEX: Configure main wallet address (User), API wallet address (Signer), and private key (Private Key).',
+
+    faqUseSubaccount: 'Should I use a subaccount?',
+    faqUseSubaccountAnswer:
+      'Recommended: Yes, use a subaccount dedicated to NOFX for better risk isolation. However, note that some subaccounts have restrictions (e.g., 5x max leverage on Binance).',
+
+    faqDockerDeployment: 'Docker deployment keeps failing',
+    faqDockerDeploymentAnswer:
+      'Common issues: Network connection problems, dependency installation failures, insufficient memory (needs at least 2C2G). If stuck at "go build", try: docker compose down && docker compose build --no-cache && docker compose up -d',
+
+    faqBalanceZero: 'Account balance shows 0',
+    faqBalanceZeroAnswer:
+      'Funds are likely in spot account instead of futures account, or locked in savings products. You need to manually transfer funds to futures account in Binance.',
+
+    faqTestnet: 'Can I use testnet for testing?',
+    faqTestnetAnswer:
+      'Testnet is not supported at the moment. We recommend using real trading with small amounts (10-50 USDT) for testing.',
+
+    // Trading Questions
+    faqNoTrades: "Why isn't my trader making any trades?",
+    faqNoTradesAnswer:
+      'Common reasons: AI decided to "wait" due to market conditions; Insufficient balance or margin; Position limits reached (default: max 3 positions); Check troubleshooting guide for detailed diagnostics.',
+
+    faqDecisionFrequency: 'How often does the AI make decisions?',
+    faqDecisionFrequencyAnswer:
+      'Configurable! Default is every 3-5 minutes. Too frequent = overtrading, too slow = missed opportunities.',
+
+    faqCustomStrategy: 'Can I customize the trading strategy?',
+    faqCustomStrategyAnswer:
+      'Yes! You can adjust leverage settings, modify coin selection pool, change decision intervals, and customize system prompts (advanced).',
+
+    faqMaxPositions: "What's the maximum number of concurrent positions?",
+    faqMaxPositionsAnswer:
+      'Default: 3 positions. This is a soft limit defined in the AI prompt, not hard-coded.',
+
+    faqMarginInsufficient: 'Margin is insufficient error (code=-2019)',
+    faqMarginInsufficientAnswer:
+      'Common causes: Funds not transferred to futures account; Leverage set too high (default 20-50x); Existing positions using margin; Need to transfer USDT from spot to futures account first.',
+
+    faqHighFees: 'Trading fees are too high',
+    faqHighFeesAnswer:
+      'NOFX default 3-minute scan interval can cause frequent trading. Solutions: Increase decision interval to 5-10 minutes; Optimize system prompt to reduce overtrading; Adjust leverage to reduce position sizes.',
+
+    faqNoTakeProfit: "AI doesn't close profitable positions",
+    faqNoTakeProfitAnswer:
+      'AI may believe the trend will continue. The system lacks trailing stop-loss feature currently. You can manually close positions or adjust the system prompt to be more conservative with profit-taking.',
+
+    // Technical Issues
+    faqBinanceApiFailed: 'Binance API call failed (code=-2015)',
+    faqBinanceApiFailedAnswer:
+      'Error: "Invalid API-key, IP, or permissions for action". Solutions: Add server IP to Binance API whitelist; Check API permissions (needs Read + Futures Trading); Ensure using futures API not unified account API; VPN IP might be unstable.',
+
+    faqBinancePositionMode: 'Binance Position Mode Error (code=-4061)',
+    faqBinancePositionModeAnswer:
+      'Error: "Order\'s position side does not match user\'s setting". Solution: Switch to Hedge Mode (双向持仓) in Binance Futures settings. You must close all positions first before switching.',
+
+    faqPortInUse: "Backend won't start / Port already in use",
+    faqPortInUseAnswer:
+      'Check what\'s using port 8080 with "lsof -i :8080" and change the port in your .env file with NOFX_BACKEND_PORT=8081.',
+
+    faqFrontendLoading: 'Frontend shows "Loading..." forever',
+    faqFrontendLoadingAnswer:
+      'Check if backend is running with "curl http://localhost:8080/api/health". Should return {"status":"ok"}. If not, check the troubleshooting guide.',
+
+    faqDatabaseLocked: 'Database locked error',
+    faqDatabaseLockedAnswer:
+      'Stop all NOFX processes with "docker compose down" or "pkill nofx", then restart with "docker compose up -d".',
+
+    faqAiLearningFailed: 'AI learning data failed to load',
+    faqAiLearningFailedAnswer:
+      'Causes: TA-Lib library not properly installed; Insufficient historical data (need completed trades); Environment configuration issues. Install TA-Lib: pip install TA-Lib or check system dependencies.',
+
+    faqConfigNotEffective: 'Configuration changes not taking effect',
+    faqConfigNotEffectiveAnswer:
+      'For Docker: Need to rebuild with "docker compose down && docker compose up -d --build". For PM2: Restart with "pm2 restart all". Check configuration file format and path are correct.',
+
+    // AI & Model Questions
+    faqWhichModels: 'Which AI models are supported?',
+    faqWhichModelsAnswer:
+      'DeepSeek (recommended for cost/performance), Qwen (Alibaba Cloud), and Custom OpenAI-compatible APIs (can be used for OpenAI, Claude via proxy, or other providers).',
+
+    faqApiCosts: 'How much do API calls cost?',
+    faqApiCostsAnswer:
+      'Depends on your model and decision frequency: DeepSeek: ~$0.10-0.50 per day (1 trader, 5min intervals); Qwen: ~$0.20-0.80 per day; Custom API (e.g., OpenAI GPT-4): ~$2-5 per day. Estimates based on typical usage.',
+
+    faqMultipleModels: 'Can I use multiple AI models?',
+    faqMultipleModelsAnswer:
+      'Yes! Each trader can use a different AI model. You can even A/B test different models.',
+
+    faqAiLearning: 'Does the AI learn from its mistakes?',
+    faqAiLearningAnswer:
+      'Yes, to some extent. NOFX provides historical performance feedback in each decision prompt, allowing the AI to adjust its strategy.',
+
+    faqOnlyShort: 'AI only opens short positions, no long positions',
+    faqOnlyShortAnswer:
+      'The default system prompt contains "Don\'t have a long bias! Shorting is one of your core tools" which may cause this. Also affected by 4-hour timeframe data and model training bias. You can modify the system prompt to be more balanced.',
+
+    faqModelSelection: 'Which DeepSeek version should I use?',
+    faqModelSelectionAnswer:
+      "DeepSeek V3 is recommended for best performance. Alternatives: DeepSeek R1 (reasoning model, slower but better logic), SiliconFlow's DeepSeek (alternative API provider). Most users report good results with V3.",
+
+    // Data & Privacy
+    faqDataStorage: 'Where is my data stored?',
+    faqDataStorageAnswer:
+      'All data is stored locally on your machine in SQLite databases: config.db (trader configurations), trading.db (trade history), and decision_logs/ (AI decision records).',
+
+    faqApiKeySecurity: 'Is my API key secure?',
+    faqApiKeySecurityAnswer:
+      'API keys are stored in local databases. Never share your databases or .env files. We recommend using API keys with IP whitelist restrictions.',
+
+    faqExportHistory: 'Can I export my trading history?',
+    faqExportHistoryAnswer:
+      'Yes! Trading data is in SQLite format. You can query it directly with: sqlite3 trading.db "SELECT * FROM trades;"',
+
+    faqGetHelp: 'Where can I get help?',
+    faqGetHelpAnswer:
+      'Check GitHub Discussions, join our Telegram Community, or open an issue on GitHub.',
+
+    // Web Crypto Environment Check
+    environmentCheck: {
+      button: 'Check Secure Environment',
+      checking: 'Checking...',
+      description:
+        'Automatically verifying whether this browser context allows Web Crypto before entering sensitive keys.',
+      secureTitle: 'Secure context detected',
+      secureDesc:
+        'Web Crypto API is available. You can continue entering secrets with encryption enabled.',
+      insecureTitle: 'Insecure context detected',
+      insecureDesc:
+        'This page is not running over HTTPS or a trusted localhost origin, so browsers block Web Crypto calls.',
+      tipsTitle: 'How to fix:',
+      tipHTTPS:
+        'Serve the dashboard over HTTPS with a valid certificate (IP origins also need TLS).',
+      tipLocalhost:
+        'During development, open the app via http://localhost or 127.0.0.1.',
+      tipIframe:
+        'Avoid embedding the app in insecure HTTP iframes or reverse proxies that strip HTTPS.',
+      unsupportedTitle: 'Browser does not expose Web Crypto',
+      unsupportedDesc:
+        'Open NOFX over HTTPS (or http://localhost during development) and avoid insecure iframes/reverse proxies so the browser can enable Web Crypto.',
+      summary: 'Current origin: {origin} • Protocol: {protocol}',
+    },
+
+    environmentSteps: {
+      checkTitle: '1. Environment check',
+      selectTitle: '2. Select exchange',
+    },
+
+    // Two-Stage Key Modal
+    twoStageKey: {
+      title: 'Two-Stage Private Key Input',
+      stage1Description:
+        'Enter the first {length} characters of your private key',
+      stage2Description:
+        'Enter the remaining {length} characters of your private key',
+      stage1InputLabel: 'First Part',
+      stage2InputLabel: 'Second Part',
+      characters: 'characters',
+      processing: 'Processing...',
+      nextButton: 'Next',
+      cancelButton: 'Cancel',
+      backButton: 'Back',
+      encryptButton: 'Encrypt & Submit',
+      obfuscationCopied: 'Obfuscation data copied to clipboard',
+      obfuscationInstruction:
+        'Paste something else to clear clipboard, then continue',
+      obfuscationManual: 'Manual obfuscation required',
+    },
+
+    // Error Messages
+    errors: {
+      privatekeyIncomplete: 'Please enter at least {expected} characters',
+      privatekeyInvalidFormat:
+        'Invalid private key format (should be 64 hex characters)',
+      privatekeyObfuscationFailed: 'Clipboard obfuscation failed',
+    },
   },
   zh: {
     // Header
@@ -546,6 +855,7 @@ export const translations = {
     competition: '竞赛',
     running: '运行中',
     stopped: '已停止',
+    adminMode: '管理员模式',
     logout: '退出',
     switchTrader: '切换交易员:',
     view: '查看',
@@ -554,6 +864,7 @@ export const translations = {
     realtimeNav: '实时',
     configNav: '配置',
     dashboardNav: '看板',
+    faqNav: '常见问题',
 
     // Footer
     footerTitle: 'NOFX - AI交易系统',
@@ -679,6 +990,10 @@ export const translations = {
     currentTraders: '当前交易员',
     noTraders: '暂无AI交易员',
     createFirstTrader: '创建您的第一个AI交易员开始使用',
+    dashboardEmptyTitle: '开始使用吧！',
+    dashboardEmptyDescription:
+      '创建您的第一个 AI 交易员，自动化您的交易策略。连接交易所、选择 AI 模型，几分钟内即可开始交易！',
+    goToTradersPage: '创建您的第一个交易员',
     configureModelsFirst: '请先配置AI模型',
     configureExchangesFirst: '请先配置交易所',
     configureModelsAndExchangesFirst: '请先配置AI模型和交易所',
@@ -728,6 +1043,18 @@ export const translations = {
     enterPassphrase: '输入Passphrase (OKX必填)',
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
+    // Hyperliquid 代理钱包 (新安全模型)
+    hyperliquidAgentWalletTitle: 'Hyperliquid 代理钱包配置',
+    hyperliquidAgentWalletDesc:
+      '使用代理钱包安全交易：代理钱包用于签名（餘額~0），主钱包持有资金（永不暴露私钥）',
+    hyperliquidAgentPrivateKey: '代理私钥',
+    enterHyperliquidAgentPrivateKey: '输入代理钱包私钥',
+    hyperliquidAgentPrivateKeyDesc:
+      '代理钱包私钥，用于签名交易（为了安全应保持余额接近0）',
+    hyperliquidMainWalletAddress: '主钱包地址',
+    enterHyperliquidMainWalletAddress: '输入主钱包地址',
+    hyperliquidMainWalletAddressDesc:
+      '持有交易资金的主钱包地址（永不暴露其私钥）',
     asterUserDesc:
       '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址（注意：仅支持 EVM 钱包，不支持 Solana 钱包）',
     asterSignerDesc:
@@ -736,17 +1063,25 @@ export const translations = {
       'API 钱包私钥 - 从 https://www.asterdex.com/zh-CN/api-wallet 获取（仅在本地用于签名，不会被传输）',
     asterUsdtWarning:
       '重要提示：Aster 仅统计 USDT 余额。请确保您使用 USDT 作为保证金币种，避免其他资产（BNB、ETH等）的价格波动导致盈亏统计错误',
+
+    // Exchange names
     hyperliquidExchangeName: 'Hyperliquid',
     asterExchangeName: 'Aster DEX',
+
+    // Secure input
     secureInputButton: '安全输入',
     secureInputReenter: '重新安全输入',
     secureInputClear: '清除',
-    secureInputHint: '已通过安全双阶段输入设置。若需修改，请点击“重新安全输入”。',
+    secureInputHint:
+      '已通过安全双阶段输入设置。若需修改，请点击"重新安全输入"。',
+
+    // Two Stage Key Modal
     twoStageModalTitle: '安全私钥输入',
     twoStageModalDescription: '使用双阶段流程安全输入长度为 {length} 的私钥。',
     twoStageStage1Title: '步骤一 · 输入前半段',
     twoStageStage1Placeholder: '前 32 位字符（若有 0x 前缀请保留）',
-    twoStageStage1Hint: '继续后会将扰动字符串复制到剪贴板，用于迷惑剪贴板监控。',
+    twoStageStage1Hint:
+      '继续后会将扰动字符串复制到剪贴板，用于迷惑剪贴板监控。',
     twoStageStage1Error: '请先输入第一段私钥。',
     twoStageNext: '下一步',
     twoStageProcessing: '处理中…',
@@ -759,11 +1094,10 @@ export const translations = {
     twoStageClipboardReminder:
       '记得在提交前粘贴一次扰动字符串，降低剪贴板泄漏风险。',
     twoStageClipboardManual: '自动复制失败，请手动复制下面的扰动字符串。',
-    twoStageClipboardFailed: '自动写入剪贴板失败，请手动复制扰动字符串。',
-    twoStageClipboardInstruction: '扰动字符串已复制，请在完成输入前粘贴一次。',
     twoStageBack: '返回',
     twoStageSubmit: '确认',
-    twoStageInvalidFormat: '私钥格式不正确，应为 {length} 位十六进制字符（可选 0x 前缀）。',
+    twoStageInvalidFormat:
+      '私钥格式不正确，应为 {length} 位十六进制字符（可选 0x 前缀）。',
     testnetDescription: '启用后将连接到交易所测试环境,用于模拟交易',
     securityWarning: '安全提示',
     saveConfiguration: '保存配置',
@@ -792,6 +1126,32 @@ export const translations = {
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
     invalidSymbolFormat: '无效的币种格式：{symbol}，必须以USDT结尾',
 
+    // System Prompt Templates
+    systemPromptTemplate: '系统提示词模板',
+    promptTemplateDefault: '默认稳健',
+    promptTemplateAdaptive: '保守策略',
+    promptTemplateAdaptiveRelaxed: '激进策略',
+    promptTemplateHansen: 'Hansen 策略',
+    promptTemplateNof1: 'NoF1 英文框架',
+    promptTemplateTaroLong: 'Taro 长仓',
+    promptDescDefault: '📊 默认稳健策略',
+    promptDescDefaultContent:
+      '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
+    promptDescAdaptive: '🛡️ 保守策略 (v6.0.0)',
+    promptDescAdaptiveContent:
+      '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
+    promptDescAdaptiveRelaxed: '⚡ 激进策略 (v6.0.0)',
+    promptDescAdaptiveRelaxedContent:
+      '高频交易，BTC 可选确认，追求交易机会，适合波动市场',
+    promptDescHansen: '🎯 Hansen 策略',
+    promptDescHansenContent: 'Hansen 定制策略，最大化夏普比率，专业交易者专用',
+    promptDescNof1: '🌐 NoF1 英文框架',
+    promptDescNof1Content:
+      'Hyperliquid 交易所专用，英文提示词，风险调整回报最大化',
+    promptDescTaroLong: '📈 Taro 长仓策略',
+    promptDescTaroLongContent:
+      '数据驱动决策，多维度验证，持续学习进化，长仓专用',
+
     // Loading & Error
     loading: '加载中...',
     loadingError: '⚠️ 加载AI学习数据失败',
@@ -813,6 +1173,9 @@ export const translations = {
     editAIModel: '编辑AI模型',
     addAIModel: '添加AI模型',
     confirmDeleteModel: '确定要删除此AI模型配置吗？',
+    cannotDeleteModelInUse: '无法删除此AI模型，因为有交易员正在使用',
+    tradersUsing: '正在使用此配置的交易员',
+    pleaseDeleteTradersFirst: '请先删除或重新配置这些交易员',
     selectModel: '选择AI模型',
     pleaseSelectModel: '请选择模型',
     customBaseURL: 'Base URL (可选)',
@@ -825,6 +1188,7 @@ export const translations = {
     editExchange: '编辑交易所',
     addExchange: '添加交易所',
     confirmDeleteExchange: '确定要删除此交易所配置吗？',
+    cannotDeleteExchangeInUse: '无法删除此交易所，因为有交易员正在使用',
     pleaseSelectExchange: '请选择交易所',
     exchangeConfigWarning1: '• API密钥将被加密存储，建议使用只读或期货交易权限',
     exchangeConfigWarning2: '• 不要授予提现权限，确保资金安全',
@@ -838,6 +1202,7 @@ export const translations = {
     serverIPAddresses: '服务器IP地址',
     copyIP: '复制',
     ipCopied: 'IP已复制',
+    copyIPFailed: 'IP地址复制失败，请手动复制',
     loadingServerIP: '正在加载服务器IP...',
 
     // Error Messages
@@ -854,23 +1219,27 @@ export const translations = {
     exchangeNotExist: '交易所不存在',
     deleteExchangeConfigFailed: '删除交易所配置失败',
     saveSignalSourceFailed: '保存信号源配置失败',
-
-    // Delete Confirmation
-    delete: '删除',
-    deleteModel: '删除模型',
-    deleteExchange: '删除交易所',
-    deleteModelWarning: '这将删除AI模型配置。使用此模型的交易员将无法正常工作。',
-    deleteExchangeWarning: '这将删除交易所配置。使用此交易所的交易员将无法进行交易。',
+    encryptionFailed: '加密敏感数据失败',
 
     // Login & Register
     login: '登录',
     register: '注册',
+    username: '用户名',
     email: '邮箱',
     password: '密码',
     confirmPassword: '确认密码',
+    usernamePlaceholder: '请输入用户名',
     emailPlaceholder: '请输入邮箱地址',
     passwordPlaceholder: '请输入密码（至少6位）',
     confirmPasswordPlaceholder: '请再次输入密码',
+    passwordRequirements: '密码要求',
+    passwordRuleMinLength: '至少 8 位',
+    passwordRuleUppercase: '至少 1 个大写字母',
+    passwordRuleLowercase: '至少 1 个小写字母',
+    passwordRuleNumber: '至少 1 个数字',
+    passwordRuleSpecial: '至少 1 个特殊字符（@#$%!&*?）',
+    passwordRuleMatch: '两次密码一致',
+    passwordNotMeetRequirements: '密码不符合安全要求',
     otpPlaceholder: '000000',
     loginTitle: '登录到您的账户',
     registerTitle: '创建新账户',
@@ -883,6 +1252,14 @@ export const translations = {
     loginNow: '立即登录',
     forgotPassword: '忘记密码？',
     rememberMe: '记住我',
+    resetPassword: '重置密码',
+    resetPasswordTitle: '重置您的密码',
+    newPassword: '新密码',
+    newPasswordPlaceholder: '请输入新密码（至少6位）',
+    resetPasswordButton: '重置密码',
+    resetPasswordSuccess: '密码重置成功！请使用新密码登录',
+    resetPasswordFailed: '密码重置失败',
+    backToLogin: '返回登录',
     otpCode: 'OTP验证码',
     scanQRCode: '扫描二维码',
     enterOTPCode: '输入6位OTP验证码',
@@ -904,10 +1281,15 @@ export const translations = {
     completeRegistrationSubtitle: '以完成注册',
     loginSuccess: '登录成功',
     registrationSuccess: '注册成功',
-    loginFailed: '登录失败',
-    registrationFailed: '注册失败',
-    verificationFailed: 'OTP验证失败',
+    loginFailed: '登录失败，请检查您的邮箱和密码。',
+    registrationFailed: '注册失败，请重试。',
+    verificationFailed: 'OTP 验证失败，请检查验证码后重试。',
     invalidCredentials: '邮箱或密码错误',
+    weak: '弱',
+    medium: '中',
+    strong: '强',
+    passwordStrength: '密码强度',
+    passwordStrengthHint: '建议至少8位，包含大小写、数字和符号',
     passwordMismatch: '两次输入的密码不一致',
     emailRequired: '请输入邮箱',
     passwordRequired: '请输入密码',
@@ -1024,8 +1406,231 @@ export const translations = {
     orConfigureCorrectApiUrl: '或者配置正确的币种池API地址',
     orDisableCoinPoolOptions: '或者禁用"使用币种池"和"使用OI Top"选项',
     signalSourceNotConfigured: '信号源未配置',
-    signalSourceWarningMessage: '您有交易员启用了"使用币种池"或"使用OI Top"，但尚未配置信号源API地址。这将导致候选币种数量为0，交易员无法正常工作。',
+    signalSourceWarningMessage:
+      '您有交易员启用了"使用币种池"或"使用OI Top"，但尚未配置信号源API地址。这将导致候选币种数量为0，交易员无法正常工作。',
     configureSignalSourceNow: '立即配置信号源',
+
+    // FAQ Page
+    faqTitle: '常见问题',
+    faqSubtitle: '查找关于 NOFX 的常见问题解答',
+    faqStillHaveQuestions: '还有其他问题？',
+    faqContactUs: '加入我们的社区或查看 GitHub 获取更多帮助',
+
+    // FAQ Categories
+    faqCategoryBasics: '基础问题',
+    faqCategoryContributing: '贡献与任务',
+    faqCategorySetup: '安装与配置',
+    faqCategoryTrading: '交易问题',
+    faqCategoryTechnical: '技术问题',
+    faqCategoryAI: 'AI与模型问题',
+    faqCategoryData: '数据与隐私',
+
+    // FAQ Questions & Answers - General
+    faqWhatIsNOFX: 'NOFX 是什么？',
+    faqWhatIsNOFXAnswer:
+      'NOFX 是一个 AI 驱动的加密货币交易机器人，使用大语言模型（LLM）在期货市场进行交易决策。',
+
+    faqSupportedExchanges: '支持哪些交易所？',
+    faqSupportedExchangesAnswer:
+      '支持币安合约（Binance Futures）、Hyperliquid 和 Aster DEX。更多交易所开发中。',
+
+    faqIsProfitable: 'NOFX 能盈利吗？',
+    faqIsProfitableAnswer:
+      'AI 交易是实验性的，不保证盈利。请始终用小额资金测试，不要投入超过您承受能力的资金。',
+
+    faqMultipleTraders: '可以同时运行多个交易员吗？',
+    faqMultipleTradersAnswer:
+      '可以！NOFX 支持运行多个交易员，每个可配置不同的 AI 模型和交易策略。',
+
+    // Contributing & Community
+    faqGithubProjectsTasks: '如何在 GitHub Projects 中领取任务？',
+    faqGithubProjectsTasksAnswer:
+      '路线图：https://github.com/orgs/NoFxAiOS/projects/3 ｜ 任务看板：https://github.com/orgs/NoFxAiOS/projects/5 ｜ 步骤：打开链接 → 按标签筛选（good first issue / help wanted / frontend / backend）→ 阅读描述与验收标准 → 评论“assign me”或自助分配 → Fork 仓库 → 同步你 fork 的 dev 与 upstream/dev → 从你 fork 的 dev 创建特性分支 → 推送到你的 fork → 打开 PR（base：NoFxAiOS/nofx:dev ← compare：你的用户名/nofx:feat/your-topic）→ 关联 Issue（Closes #123）并选择正确模板。',
+
+    faqContributePR: '如何规范地提交 PR 并参与贡献？',
+    faqContributePRAnswer:
+      '规范：• 先 Fork；在你的 fork 的 dev 分支上创建特性分支（避免直接向上游 main 提交）• 分支命名：feat/...、fix/...、docs/...；提交信息遵循 Conventional Commits • PR 前运行检查：npm --prefix web run lint && npm --prefix web run build • 涉及 UI 变更请附截图/短视频 • 选择正确 PR 模板（frontend/backend/docs/general）• 从你的 fork 发起到 NoFxAiOS/nofx:dev，并在 PR 中关联 Issue（Closes #123）• 持续 rebase 到 upstream/dev，确保 CI 通过；尽量保持 PR 小而聚焦 • 参考 CONTRIBUTING.md 与 .github/PR_TITLE_GUIDE.md',
+
+    // Setup & Configuration
+    faqSystemRequirements: '系统要求是什么？',
+    faqSystemRequirementsAnswer:
+      '操作系统：Linux、macOS 或 Windows（推荐 Docker）；内存：最低 2GB，推荐 4GB；硬盘：应用 + 日志需要 1GB；网络：稳定的互联网连接。',
+
+    faqNeedCoding: '需要编程经验吗？',
+    faqNeedCodingAnswer:
+      '不需要！NOFX 有 Web 界面进行所有配置。但基础的命令行知识有助于安装和故障排查。',
+
+    faqGetApiKeys: '如何获取 API 密钥？',
+    faqGetApiKeysAnswer:
+      '币安：账户 → API 管理 → 创建 API → 启用合约。Hyperliquid：访问 Hyperliquid App → API 设置。Aster DEX：配置主钱包地址（User）、API 钱包地址（Signer）和私钥（Private Key）。',
+
+    faqUseSubaccount: '应该使用子账户吗？',
+    faqUseSubaccountAnswer:
+      '推荐：是的，使用专门的子账户运行 NOFX 可以更好地隔离风险。但请注意，某些子账户有限制（例如币安子账户最高 5 倍杠杆）。',
+
+    faqDockerDeployment: 'Docker 部署一直失败',
+    faqDockerDeploymentAnswer:
+      '常见问题：网络连接问题、依赖安装失败、内存不足（需要至少 2C2G）。如果卡在 "go build" 不动，尝试：docker compose down && docker compose build --no-cache && docker compose up -d',
+
+    faqBalanceZero: '账户余额显示为 0',
+    faqBalanceZeroAnswer:
+      '资金可能在现货账户而非合约账户，或被理财功能锁定。您需要在币安手动将资金划转到合约账户。',
+
+    faqTestnet: '可以使用测试网测试吗？',
+    faqTestnetAnswer:
+      '暂时不支持测试网。我们建议使用真实交易但小额资金（10-50 USDT）进行测试。',
+
+    // Trading Questions
+    faqNoTrades: '为什么我的交易员不开仓？',
+    faqNoTradesAnswer:
+      '常见原因：AI 根据市场情况决定"等待"；余额或保证金不足；达到持仓上限（默认最多 3 个仓位）；查看故障排查指南了解详细诊断。',
+
+    faqDecisionFrequency: 'AI 多久做一次决策？',
+    faqDecisionFrequencyAnswer:
+      '可配置！默认是每 3-5 分钟。太频繁 = 过度交易，太慢 = 错过机会。',
+
+    faqCustomStrategy: '可以自定义交易策略吗？',
+    faqCustomStrategyAnswer:
+      '可以！您可以调整杠杆设置、修改币种选择池、更改决策间隔、自定义系统提示词（高级）。',
+
+    faqMaxPositions: '最多可以同时持有多少个仓位？',
+    faqMaxPositionsAnswer:
+      '默认：3 个仓位。这是 AI 提示词中的软限制，不是硬编码。',
+
+    faqMarginInsufficient: '保证金不足错误 (code=-2019)',
+    faqMarginInsufficientAnswer:
+      '常见原因：资金未划转到合约账户；杠杆倍数设置过高（默认 20-50 倍）；已有持仓占用保证金；需要先从现货账户划转 USDT 到合约账户。',
+
+    faqHighFees: '交易手续费太高',
+    faqHighFeesAnswer:
+      'NOFX 默认 3 分钟扫描间隔会导致频繁交易。解决方案：将决策间隔增加到 5-10 分钟；优化系统提示词减少过度交易；调整杠杆降低仓位大小。',
+
+    faqNoTakeProfit: 'AI 不平掉盈利的仓位',
+    faqNoTakeProfitAnswer:
+      'AI 可能认为趋势会继续。系统目前缺少移动止盈功能。您可以手动平仓或调整系统提示词使其在获利时更保守。',
+
+    // Technical Issues
+    faqBinanceApiFailed: '币安 API 调用失败 (code=-2015)',
+    faqBinanceApiFailedAnswer:
+      '错误："Invalid API-key, IP, or permissions for action"。解决方案：将服务器 IP 添加到币安 API 白名单；检查 API 权限（需要读取 + 合约交易）；确保使用合约 API 而非统一账户 API；VPN IP 可能不稳定。',
+
+    faqBinancePositionMode: '币安持仓模式错误 (code=-4061)',
+    faqBinancePositionModeAnswer:
+      '错误信息："Order\'s position side does not match user\'s setting"。解决方法：切换为双向持仓模式。登录币安合约 → 点击右上角偏好设置 → 选择持仓模式 → 双向持仓。注意：先平掉所有持仓。',
+
+    faqPortInUse: '后端无法启动 / 端口被占用',
+    faqPortInUseAnswer:
+      '使用 "lsof -i :8080" 查看占用端口的进程，在 .env 中修改端口：NOFX_BACKEND_PORT=8081。',
+
+    faqFrontendLoading: '前端一直显示"加载中..."',
+    faqFrontendLoadingAnswer:
+      '使用 "curl http://localhost:8080/api/health" 检查后端是否运行。应该返回 {"status":"ok"}。如果不是，查看故障排查指南。',
+
+    faqDatabaseLocked: '数据库锁定错误',
+    faqDatabaseLockedAnswer:
+      '使用 "docker compose down" 或 "pkill nofx" 停止所有 NOFX 进程，然后使用 "docker compose up -d" 重启。',
+
+    faqAiLearningFailed: 'AI 学习数据加载失败',
+    faqAiLearningFailedAnswer:
+      '原因：TA-Lib 库未正确安装；历史数据不足（需要完成交易）；环境配置问题。安装 TA-Lib：pip install TA-Lib 或检查系统依赖。',
+
+    faqConfigNotEffective: '配置文件修改不生效',
+    faqConfigNotEffectiveAnswer:
+      'Docker 需要重新构建："docker compose down && docker compose up -d --build"。PM2 需要重启："pm2 restart all"。检查配置文件格式和路径是否正确。',
+
+    // AI & Model Questions
+    faqWhichModels: '支持哪些 AI 模型？',
+    faqWhichModelsAnswer:
+      'DeepSeek（推荐性价比）、Qwen（阿里云通义千问）、自定义 OpenAI 兼容 API（可用于 OpenAI、通过代理的 Claude 或其他提供商）。',
+
+    faqApiCosts: 'API 调用成本是多少？',
+    faqApiCostsAnswer:
+      '取决于您的模型和决策频率：DeepSeek：每天约 $0.10-0.50（1 个交易员，5 分钟间隔）；Qwen：每天约 $0.20-0.80；自定义 API（例如 OpenAI GPT-4）：每天约 $2-5。基于典型使用的估算。',
+
+    faqMultipleModels: '可以使用多个 AI 模型吗？',
+    faqMultipleModelsAnswer:
+      '可以！每个交易员可以使用不同的 AI 模型。您甚至可以 A/B 测试不同模型。',
+
+    faqAiLearning: 'AI 会从错误中学习吗？',
+    faqAiLearningAnswer:
+      '会的，在一定程度上。NOFX 在每次决策提示中提供历史表现反馈，允许 AI 调整策略。',
+
+    faqOnlyShort: 'AI 只开空单，不开多单',
+    faqOnlyShortAnswer:
+      '默认系统提示词包含"不要有做多偏见！做空是你的核心工具之一"，可能导致此问题。还受 4 小时周期数据和模型训练偏向性影响。您可以修改系统提示词使其更平衡。',
+
+    faqModelSelection: '应该使用哪个 DeepSeek 版本？',
+    faqModelSelectionAnswer:
+      '推荐使用 DeepSeek V3 以获得最佳性能。备选：DeepSeek R1（推理模型，较慢但逻辑更好）、SiliconFlow 的 DeepSeek（备用 API 提供商）。大多数用户反馈 V3 效果良好。',
+
+    // Data & Privacy
+    faqDataStorage: '我的数据存储在哪里？',
+    faqDataStorageAnswer:
+      '所有数据都本地存储在您的机器上，使用 SQLite 数据库：config.db（交易员配置）、trading.db（交易历史）、decision_logs/（AI 决策记录）。',
+
+    faqApiKeySecurity: 'API 密钥安全吗？',
+    faqApiKeySecurityAnswer:
+      'API 密钥存储在本地数据库中。永远不要分享您的数据库或 .env 文件。我们建议使用带 IP 白名单限制的 API 密钥。',
+
+    faqExportHistory: '可以导出交易历史吗？',
+    faqExportHistoryAnswer:
+      '可以！交易数据是 SQLite 格式。您可以直接查询：sqlite3 trading.db "SELECT * FROM trades;"',
+
+    faqGetHelp: '在哪里可以获得帮助？',
+    faqGetHelpAnswer:
+      '查看 GitHub Discussions、加入 Telegram 社区或在 GitHub 上提出 issue。',
+
+    // Web Crypto Environment Check
+    environmentCheck: {
+      button: '一键检测环境',
+      checking: '正在检测...',
+      description: '系统将自动检测当前浏览器是否允许使用 Web Crypto。',
+      secureTitle: '环境安全，已启用 Web Crypto',
+      secureDesc: '页面处于安全上下文，可继续输入敏感信息并使用加密传输。',
+      insecureTitle: '检测到非安全环境',
+      insecureDesc:
+        '当前访问未通过 HTTPS 或可信 localhost，浏览器会阻止 Web Crypto 调用。',
+      tipsTitle: '修改建议：',
+      tipHTTPS:
+        '通过 HTTPS 访问（即使是 IP 也需证书），或部署到支持 TLS 的域名。',
+      tipLocalhost: '开发阶段请使用 http://localhost 或 127.0.0.1。',
+      tipIframe:
+        '避免把应用嵌入在不安全的 HTTP iframe 或会降级协议的反向代理中。',
+      unsupportedTitle: '浏览器未提供 Web Crypto',
+      unsupportedDesc:
+        '请通过 HTTPS 或本机 localhost 访问 NOFX，并避免嵌入不安全 iframe/反向代理，以符合浏览器的 Web Crypto 规则。',
+      summary: '当前来源：{origin} · 协议：{protocol}',
+    },
+
+    environmentSteps: {
+      checkTitle: '1. 环境检测',
+      selectTitle: '2. 选择交易所',
+    },
+
+    // Two-Stage Key Modal
+    twoStageKey: {
+      title: '两阶段私钥输入',
+      stage1Description: '请输入私钥的前 {length} 位字符',
+      stage2Description: '请输入私钥的后 {length} 位字符',
+      stage1InputLabel: '第一部分',
+      stage2InputLabel: '第二部分',
+      characters: '位字符',
+      processing: '处理中...',
+      nextButton: '下一步',
+      cancelButton: '取消',
+      backButton: '返回',
+      encryptButton: '加密并提交',
+      obfuscationCopied: '混淆数据已复制到剪贴板',
+      obfuscationInstruction: '请粘贴其他内容清空剪贴板，然后继续',
+      obfuscationManual: '需要手动混淆',
+    },
+
+    // Error Messages
+    errors: {
+      privatekeyIncomplete: '请输入至少 {expected} 位字符',
+      privatekeyInvalidFormat: '私钥格式无效（应为64位十六进制字符）',
+      privatekeyObfuscationFailed: '剪贴板混淆失败',
+    },
   },
 }
 
@@ -1034,7 +1639,15 @@ export function t(
   lang: Language,
   params?: Record<string, string | number>
 ): string {
-  let text = translations[lang][key as keyof (typeof translations)['en']] || key
+  // Handle nested keys like 'twoStageKey.title'
+  const keys = key.split('.')
+  let value: any = translations[lang]
+
+  for (const k of keys) {
+    value = value?.[k]
+  }
+
+  let text = typeof value === 'string' ? value : key
 
   // Replace parameters like {count}, {gap}, etc.
   if (params) {

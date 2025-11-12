@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { t, type Language } from '../i18n/translations'
+import { toast } from 'sonner'
+import { WebCryptoEnvironmentCheck } from './WebCryptoEnvironmentCheck'
 
 const DEFAULT_LENGTH = 64
 
 function generateObfuscation(): string {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
+  )
 }
 
-function validatePrivateKeyFormat(value: string, expectedLength: number): boolean {
+function validatePrivateKeyFormat(
+  value: string,
+  expectedLength: number
+): boolean {
   const normalized = value.startsWith('0x') ? value.slice(2) : value
   if (normalized.length !== expectedLength) {
     return false
@@ -44,277 +51,297 @@ export function TwoStageKeyModal({
   const [part1, setPart1] = useState('')
   const [part2, setPart2] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [clipboardStatus, setClipboardStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [clipboardStatus, setClipboardStatus] = useState<
+    'idle' | 'copied' | 'failed'
+  >('idle')
   const [obfuscationLog, setObfuscationLog] = useState<string[]>([])
   const [processing, setProcessing] = useState(false)
-  const [manualObfuscationValue, setManualObfuscationValue] = useState<string | null>(null)
-  const stage1InputRef = useRef<HTMLInputElement | null>(null)
-  const stage2InputRef = useRef<HTMLInputElement | null>(null)
+  const [manualObfuscationValue, setManualObfuscationValue] = useState<
+    string | null
+  >(null)
+
+  const stage1Ref = useRef<HTMLInputElement>(null)
+  const stage2Ref = useRef<HTMLInputElement>(null)
+
+  // UX improvement: Use 58 + 6 split (most of the key + last 6 chars)
+  // Advantage: Second stage only requires entering 6 characters, much easier to count
+  const expectedPart1Length = expectedLength - 6  // 64 - 6 = 58
+  const expectedPart2Length = 6  // Last 6 characters
 
   useEffect(() => {
-    if (!isOpen) return
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        onCancel()
-      }
+    if (isOpen && stage === 1 && stage1Ref.current) {
+      stage1Ref.current.focus()
+    } else if (isOpen && stage === 2 && stage2Ref.current) {
+      stage2Ref.current.focus()
     }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [isOpen, onCancel])
-
-  useEffect(() => {
-    if (!isOpen) {
-      setStage(1)
-      setPart1('')
-      setPart2('')
-      setError(null)
-      setClipboardStatus('idle')
-      setObfuscationLog([])
-      setProcessing(false)
-      setManualObfuscationValue(null)
-      return
-    }
-
-    const focusTimer = setTimeout(() => {
-      if (stage === 1) {
-        stage1InputRef.current?.focus()
-      } else {
-        stage2InputRef.current?.focus()
-      }
-    }, 10)
-
-    return () => clearTimeout(focusTimer)
   }, [isOpen, stage])
 
-  const heading = useMemo(() => {
-    if (!contextLabel) {
-      return t('twoStageModalTitle', language)
-    }
-    return `${t('twoStageModalTitle', language)} · ${contextLabel}`
-  }, [contextLabel, language])
-
-  if (!isOpen) {
-    return null
-  }
-
-  const handleOverlayClick = () => {
-    if (!processing) {
-      onCancel()
-    }
-  }
-
   const handleStage1Next = async () => {
-    if (!part1.trim()) {
-      setError(t('twoStageStage1Error', language))
+    // ✅ Normalize input (remove possible 0x prefix) before validating length
+    const normalized1 = part1.startsWith('0x') ? part1.slice(2) : part1
+    if (normalized1.length < expectedPart1Length) {
+      setError(
+        t('errors.privatekeyIncomplete', language, {
+          expected: expectedPart1Length,
+        })
+      )
       return
     }
-    setProcessing(true)
-    const obfuscation = generateObfuscation()
-    let copied = false
-    try {
-      await navigator.clipboard.writeText(obfuscation)
-      copied = true
-      setClipboardStatus('copied')
-      setManualObfuscationValue(null)
-    } catch (err) {
-      console.warn('Clipboard write failed', err)
-      setClipboardStatus('failed')
-      setManualObfuscationValue(obfuscation)
-    }
-    setObfuscationLog((prev) => [...prev, `stage1:${new Date().toISOString()}`])
-    setProcessing(false)
+
     setError(null)
-    setStage(2)
-    if (copied) {
-      setManualObfuscationValue(null)
+    setProcessing(true)
+
+    try {
+      // 生成混淆字符串
+      const obfuscation = generateObfuscation()
+      setManualObfuscationValue(obfuscation)
+
+      // 尝试复制到剪贴板
+      if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(obfuscation)
+          setClipboardStatus('copied')
+          setObfuscationLog([
+            ...obfuscationLog,
+            `Stage 1: ${new Date().toISOString()} - Auto copied obfuscation`,
+          ])
+          toast.success('已复制混淆字符串到剪贴板')
+        } catch {
+          setClipboardStatus('failed')
+          setObfuscationLog([
+            ...obfuscationLog,
+            `Stage 1: ${new Date().toISOString()} - Auto copy failed, manual required`,
+          ])
+          toast.error('复制失败，请手动复制混淆字符串')
+        }
+      } else {
+        setClipboardStatus('failed')
+        setObfuscationLog([
+          ...obfuscationLog,
+          `Stage 1: ${new Date().toISOString()} - Clipboard API not available`,
+        ])
+        toast('当前浏览器不支持自动复制，请手动复制')
+      }
+
+      setTimeout(() => {
+        setStage(2)
+        setProcessing(false)
+      }, 2000)
+    } catch (err) {
+      setError(t('errors.privatekeyObfuscationFailed', language))
+      setProcessing(false)
     }
   }
 
-  const handleSubmit = () => {
-    const cleanedPart1 = part1.trim()
-    const cleanedPart2 = part2.trim()
-    const combined = (cleanedPart1 + cleanedPart2).replace(/\s+/g, '')
-
-    if (!validatePrivateKeyFormat(combined, expectedLength)) {
-      setError(t('twoStageInvalidFormat', language, { length: expectedLength }))
+  const handleStage2Complete = () => {
+    // ✅ Normalize input (remove possible 0x prefix) before validating length
+    const normalized2 = part2.startsWith('0x') ? part2.slice(2) : part2
+    if (normalized2.length < expectedPart2Length) {
+      setError(
+        t('errors.privatekeyIncomplete', language, {
+          expected: expectedPart2Length,
+        })
+      )
       return
     }
 
-    setObfuscationLog((prev) => [...prev, `stage2:${new Date().toISOString()}`])
-    const result: TwoStageKeyModalResult = {
-      value: combined,
-      obfuscationLog: [...obfuscationLog, `stage2:${new Date().toISOString()}`],
+    // ✅ Concatenate after removing 0x prefix from both parts
+    const normalized1 = part1.startsWith('0x') ? part1.slice(2) : part1
+    const fullKey = normalized1 + normalized2
+    if (!validatePrivateKeyFormat(fullKey, expectedLength)) {
+      setError(t('errors.privatekeyInvalidFormat', language))
+      return
     }
-    onComplete(result)
+
+    const finalLog = [
+      ...obfuscationLog,
+      `Stage 2: ${new Date().toISOString()} - Completed`,
+    ]
+    onComplete({
+      value: fullKey,
+      obfuscationLog: finalLog,
+    })
   }
 
-  const modalContent = (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
-      onClick={handleOverlayClick}
-    >
-      <div
-        className="w-full max-w-md rounded-xl border border-[#2B3139] bg-[#0B0E11] p-6 shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold" style={{ color: '#EAECEF' }}>
-            {heading}
-          </h2>
-          <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-            {t('twoStageModalDescription', language, { length: expectedLength })}
-          </p>
-        </div>
+  const handleReset = () => {
+    setStage(1)
+    setPart1('')
+    setPart2('')
+    setError(null)
+    setClipboardStatus('idle')
+    setObfuscationLog([])
+    setProcessing(false)
+    setManualObfuscationValue(null)
+  }
 
-        {stage === 1 ? (
-          <div className="space-y-4">
-            <div>
-              <label
-                className="block text-sm font-semibold mb-2"
-                style={{ color: '#EAECEF' }}
-              >
-                {t('twoStageStage1Title', language)}
-              </label>
-              <input
-                ref={stage1InputRef}
-                type="password"
-                value={part1}
-                onChange={(event) => setPart1(event.target.value)}
-                placeholder={t('twoStageStage1Placeholder', language)}
-                className="w-full rounded border border-[#2B3139] bg-[#0F111C] px-3 py-2 text-sm text-[#EAECEF] outline-none focus:ring-2 focus:ring-[#F0B90B]/40"
-                disabled={processing}
-              />
-              <p className="mt-2 text-xs" style={{ color: '#848E9C' }}>
-                {t('twoStageStage1Hint', language)}
-              </p>
+  const modalContent = useMemo(() => {
+    if (!isOpen) return null
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div className="bg-gray-900 p-8 rounded-xl max-w-lg w-full mx-4 border border-gray-700">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-bold text-white mb-2">
+              🔐 {t('twoStageKey.title', language)}
+              {contextLabel && (
+                <span className="text-gray-300 text-base font-normal ml-2">
+                  ({contextLabel})
+                </span>
+              )}
+            </h2>
+            <p className="text-gray-300 text-sm">
+              {stage === 1
+                ? t('twoStageKey.stage1Description', language, {
+                    length: expectedPart1Length,
+                  })
+                : t('twoStageKey.stage2Description', language, {
+                    length: expectedPart2Length,
+                  })}
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <WebCryptoEnvironmentCheck language={language} variant="compact" />
+          </div>
+
+          {/* Stage 1 */}
+          {stage === 1 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-300 text-sm mb-2">
+                  {t('twoStageKey.stage1InputLabel', language)} (
+                  {expectedPart1Length} {t('twoStageKey.characters', language)})
+                </label>
+                <input
+                  ref={stage1Ref}
+                  type="password"
+                  value={part1}
+                  onChange={(e) => setPart1(e.target.value)}
+                  placeholder="0x1234..."
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white font-mono text-sm focus:border-blue-500 focus:outline-none"
+                  maxLength={expectedPart1Length + 2} // +2 for optional 0x prefix
+                  disabled={processing}
+                />
+              </div>
+
+              {error && <div className="text-red-400 text-sm">{error}</div>}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleStage1Next}
+                  disabled={
+                    (part1.startsWith('0x') ? part1.slice(2) : part1).length <
+                      expectedPart1Length || processing
+                  }
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                >
+                  {processing
+                    ? t('twoStageKey.processing', language)
+                    : t('twoStageKey.nextButton', language)}
+                </button>
+                <button
+                  onClick={onCancel}
+                  disabled={processing}
+                  className="px-6 py-3 text-gray-300 hover:text-white border border-gray-600 rounded-lg transition-colors"
+                >
+                  {t('twoStageKey.cancelButton', language)}
+                </button>
+              </div>
             </div>
+          )}
 
-            {clipboardStatus === 'failed' && (
-              <div
-                className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs"
-                style={{ color: '#F6465D' }}
-              >
-                <div>{t('twoStageClipboardManual', language)}</div>
-                {manualObfuscationValue && (
-                  <code className="mt-2 block select-all rounded bg-black/40 px-2 py-1 text-[11px] text-[#F0B90B]">
+          {/* Transition Message */}
+          {stage === 2 && clipboardStatus !== 'idle' && (
+            <div className="mb-4 p-4 rounded-lg bg-blue-900/50 border border-blue-600">
+              {clipboardStatus === 'copied' && (
+                <div className="text-blue-300">
+                  <div className="font-medium">
+                    {t('twoStageKey.obfuscationCopied', language)}
+                  </div>
+                  <div className="text-sm mt-1">
+                    {t('twoStageKey.obfuscationInstruction', language)}
+                  </div>
+                </div>
+              )}
+              {clipboardStatus === 'failed' && manualObfuscationValue && (
+                <div className="text-yellow-300">
+                  <div className="font-medium">
+                    {t('twoStageKey.obfuscationManual', language)}
+                  </div>
+                  <div className="text-xs mt-2 p-2 bg-gray-800 rounded font-mono break-all border">
                     {manualObfuscationValue}
-                  </code>
-                )}
-              </div>
-            )}
-
-            {error && (
-              <div
-                className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs"
-                style={{ color: '#F6465D' }}
-              >
-                {error}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="flex-1 rounded px-3 py-2 text-sm font-semibold transition-all hover:scale-[1.01]"
-                style={{ background: '#1B1F2B', color: '#848E9C' }}
-                disabled={processing}
-              >
-                {t('twoStageCancel', language)}
-              </button>
-              <button
-                type="button"
-                onClick={handleStage1Next}
-                className="flex-1 rounded px-3 py-2 text-sm font-semibold transition-all hover:scale-[1.01]"
-                style={{
-                  background: processing ? '#3d2e0d' : '#F0B90B',
-                  color: processing ? '#a18a43' : '#000',
-                  opacity: part1.trim().length === 0 ? 0.7 : 1,
-                }}
-                disabled={processing || part1.trim().length === 0}
-              >
-                {processing ? t('twoStageProcessing', language) : t('twoStageNext', language)}
-              </button>
+                  </div>
+                  <div className="text-sm mt-1">
+                    {t('twoStageKey.obfuscationInstruction', language)}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <label
-                className="block text-sm font-semibold mb-2"
-                style={{ color: '#EAECEF' }}
-              >
-                {t('twoStageStage2Title', language)}
-              </label>
-              <input
-                ref={stage2InputRef}
-                type="password"
-                value={part2}
-                onChange={(event) => setPart2(event.target.value)}
-                placeholder={t('twoStageStage2Placeholder', language)}
-                className="w-full rounded border border-[#2B3139] bg-[#0F111C] px-3 py-2 text-sm text-[#EAECEF] outline-none focus:ring-2 focus:ring-[#F0B90B]/40"
-              />
-              <p className="mt-2 text-xs" style={{ color: '#848E9C' }}>
-                {t('twoStageStage2Hint', language)}
-              </p>
+          )}
+
+          {/* Stage 2 */}
+          {stage === 2 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-300 text-sm mb-2">
+                  {t('twoStageKey.stage2InputLabel', language)} (
+                  {expectedPart2Length} {t('twoStageKey.characters', language)})
+                </label>
+                <input
+                  ref={stage2Ref}
+                  type="password"
+                  value={part2}
+                  onChange={(e) => setPart2(e.target.value)}
+                  placeholder="...5678"
+                  className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white font-mono text-sm focus:border-blue-500 focus:outline-none"
+                  maxLength={expectedPart2Length + 2}
+                />
+              </div>
+
+              {error && <div className="text-red-400 text-sm">{error}</div>}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleStage2Complete}
+                  disabled={
+                    (part2.startsWith('0x') ? part2.slice(2) : part2).length <
+                    expectedPart2Length
+                  }
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                >
+                  🔒 {t('twoStageKey.encryptButton', language)}
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="px-6 py-3 text-gray-300 hover:text-white border border-gray-600 rounded-lg transition-colors"
+                >
+                  {t('twoStageKey.backButton', language)}
+                </button>
+              </div>
             </div>
-
-            {clipboardStatus === 'copied' && (
-              <div
-                className="rounded border border-[#F0B90B]/40 bg-[#F0B90B]/10 px-3 py-2 text-xs"
-                style={{ color: '#F0B90B' }}
-              >
-                {t('twoStageClipboardSuccess', language)}
-              </div>
-            )}
-
-            {clipboardStatus === 'failed' && manualObfuscationValue && (
-              <div
-                className="rounded border border-[#2B3139] bg-[#141821] px-3 py-2 text-xs"
-                style={{ color: '#EAECEF' }}
-              >
-                {t('twoStageClipboardReminder', language)}
-              </div>
-            )}
-
-            {error && (
-              <div
-                className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs"
-                style={{ color: '#F6465D' }}
-              >
-                {error}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setStage(1)
-                  setPart2('')
-                  setError(null)
-                  setClipboardStatus('idle')
-                }}
-                className="rounded px-3 py-2 text-sm font-semibold transition-all hover:scale-[1.01]"
-                style={{ background: '#1B1F2B', color: '#848E9C' }}
-              >
-                {t('twoStageBack', language)}
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                className="flex-1 rounded px-3 py-2 text-sm font-semibold transition-all hover:scale-[1.01]"
-                style={{ background: '#F0B90B', color: '#000' }}
-              >
-                {t('twoStageSubmit', language)}
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }, [
+    isOpen,
+    stage,
+    part1,
+    part2,
+    error,
+    processing,
+    clipboardStatus,
+    manualObfuscationValue,
+    language,
+    expectedPart1Length,
+    expectedPart2Length,
+    contextLabel,
+    obfuscationLog,
+    onCancel,
+    onComplete,
+  ])
+
+  if (!isOpen) return null
 
   return createPortal(modalContent, document.body)
 }

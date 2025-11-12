@@ -55,13 +55,13 @@
 ### 👥 コアチーム
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Zack** - [@0x_ZackH](https://x.com/0x_ZackH)
+- **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 ### 💼 シードラウンド募集中
 
 現在、**シードラウンド**の資金調達を行っています。
 
-**投資に関するお問い合わせ**は、TwitterでTinkleまたはZackにDMをお送りください。
+**投資に関するお問い合わせ**は、TwitterでTinkleまたはTintinにDMをお送りください。
 
 **パートナーシップおよび協業**については、公式Twitter [@nofx_ai](https://x.com/nofx_ai)にDMをお送りください。
 

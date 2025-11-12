@@ -93,7 +93,7 @@ export default function TraderDashboard() {
 
   // 如果在trader页面，获取该trader的数据
   const { data: status } = useSWR<SystemStatus>(
-    selectedTraderId ? `status-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `status-${selectedTraderId}` : null,
     () => api.getStatus(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -103,7 +103,7 @@ export default function TraderDashboard() {
   )
 
   const { data: account } = useSWR<AccountInfo>(
-    selectedTraderId ? `account-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `account-${selectedTraderId}` : null,
     () => api.getAccount(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -113,7 +113,7 @@ export default function TraderDashboard() {
   )
 
   const { data: positions } = useSWR<Position[]>(
-    selectedTraderId ? `positions-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `positions-${selectedTraderId}` : null,
     () => api.getPositions(selectedTraderId),
     {
       refreshInterval: 15000,
@@ -123,7 +123,7 @@ export default function TraderDashboard() {
   )
 
   const { data: decisions } = useSWR<DecisionRecord[]>(
-    selectedTraderId
+    user && token && selectedTraderId
       ? `decisions/latest-${selectedTraderId}-${decisionLimit}`
       : null,
     () => api.getLatestDecisions(selectedTraderId, decisionLimit),
@@ -135,7 +135,7 @@ export default function TraderDashboard() {
   )
 
   const { data: stats } = useSWR<Statistics>(
-    selectedTraderId ? `statistics-${selectedTraderId}` : null,
+    user && token && selectedTraderId ? `statistics-${selectedTraderId}` : null,
     () => api.getStatistics(selectedTraderId),
     {
       refreshInterval: 30000,

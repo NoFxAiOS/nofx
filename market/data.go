@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -210,6 +211,18 @@ func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
 		return nil, fmt.Errorf("没有有效的时间框架配置")
 	}
 
+	// Data staleness detection: Get 3m klines first for staleness check
+	// This prevents trading on frozen/outdated market data (e.g., DOGEUSDT issue)
+	klines3m, err := WSMonitorCli.GetCurrentKlines(symbol, "3m")
+	if err != nil {
+		return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
+	}
+
+	if isStaleData(klines3m, symbol) {
+		log.Printf("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
+		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
+	}
+
 	// 使用 errgroup 并发获取多个时间框架的数据
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -220,11 +233,17 @@ func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
 	var mu sync.Mutex
 	klinesMap := make(map[string][]Kline)
 
+	// Pre-fill 3m klines since we already fetched it for staleness check
+	klinesMap["3m"] = klines3m
+
 	// 限制并发数为5
 	semaphore := make(chan struct{}, 5)
 
-	// 并发获取所有时间框架的K线数据
+	// 并发获取所有时间框架的K线数据 (except 3m which is already fetched)
 	for _, tf := range validTimeframes {
+		if tf == "3m" {
+			continue // Skip 3m since we already have it
+		}
 		timeframe := tf // 捕获循环变量
 		g.Go(func() error {
 			// 获取信号量
@@ -956,4 +975,48 @@ func parseFloat(v interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
+}
+
+// isStaleData detects stale data (consecutive price freeze)
+// Fix DOGEUSDT-style issue: consecutive N periods with completely unchanged prices indicate data source anomaly
+func isStaleData(klines []Kline, symbol string) bool {
+	if len(klines) < 5 {
+		return false // Insufficient data to determine
+	}
+
+	// Detection threshold: 5 consecutive 3-minute periods with unchanged price (15 minutes without fluctuation)
+	const stalePriceThreshold = 5
+	const priceTolerancePct = 0.0001 // 0.01% fluctuation tolerance (avoid false positives)
+
+	// Take the last stalePriceThreshold K-lines
+	recentKlines := klines[len(klines)-stalePriceThreshold:]
+	firstPrice := recentKlines[0].Close
+
+	// Check if all prices are within tolerance
+	for i := 1; i < len(recentKlines); i++ {
+		priceDiff := math.Abs(recentKlines[i].Close-firstPrice) / firstPrice
+		if priceDiff > priceTolerancePct {
+			return false // Price fluctuation exists, data is normal
+		}
+	}
+
+	// Additional check: MACD and volume
+	// If price is unchanged but MACD/volume shows normal fluctuation, it might be a real market situation (extremely low volatility)
+	// Check if volume is also 0 (data completely frozen)
+	allVolumeZero := true
+	for _, k := range recentKlines {
+		if k.Volume > 0 {
+			allVolumeZero = false
+			break
+		}
+	}
+
+	if allVolumeZero {
+		log.Printf("⚠️  %s stale data confirmed: price freeze + zero volume", symbol)
+		return true
+	}
+
+	// Price frozen but has volume: might be extremely low volatility market, allow but log warning
+	log.Printf("⚠️  %s detected extreme price stability (no fluctuation for %d consecutive periods), but volume is normal", symbol, stalePriceThreshold)
+	return false
 }

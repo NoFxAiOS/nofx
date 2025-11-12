@@ -131,19 +131,19 @@ func TestCalculateIntradaySeries_VolumeValues(t *testing.T) {
 // TestCalculateIntradaySeries_ATR14 测试 ATR14 计算
 func TestCalculateIntradaySeries_ATR14(t *testing.T) {
 	tests := []struct {
-		name         string
-		klineCount   int
-		expectZero   bool
+		name          string
+		klineCount    int
+		expectZero    bool
 		expectNonZero bool
 	}{
 		{
-			name:         "足够数据 - 20个K线",
-			klineCount:   20,
+			name:          "足够数据 - 20个K线",
+			klineCount:    20,
 			expectNonZero: true,
 		},
 		{
-			name:         "刚好15个K线（ATR14需要至少15个）",
-			klineCount:   15,
+			name:          "刚好15个K线（ATR14需要至少15个）",
+			klineCount:    15,
 			expectNonZero: true,
 		},
 		{
@@ -253,11 +253,11 @@ func TestCalculateATR(t *testing.T) {
 func TestCalculateATR_TrueRange(t *testing.T) {
 	// 创建一个简单的测试用例，手动计算期望的 ATR
 	klines := []Kline{
-		{High: 50.0, Low: 48.0, Close: 49.0},  // TR = 2.0
-		{High: 51.0, Low: 49.0, Close: 50.0},  // TR = max(2.0, 2.0, 1.0) = 2.0
-		{High: 52.0, Low: 50.0, Close: 51.0},  // TR = max(2.0, 2.0, 1.0) = 2.0
-		{High: 53.0, Low: 51.0, Close: 52.0},  // TR = 2.0
-		{High: 54.0, Low: 52.0, Close: 53.0},  // TR = 2.0
+		{High: 50.0, Low: 48.0, Close: 49.0}, // TR = 2.0
+		{High: 51.0, Low: 49.0, Close: 50.0}, // TR = max(2.0, 2.0, 1.0) = 2.0
+		{High: 52.0, Low: 50.0, Close: 51.0}, // TR = max(2.0, 2.0, 1.0) = 2.0
+		{High: 53.0, Low: 51.0, Close: 52.0}, // TR = 2.0
+		{High: 54.0, Low: 52.0, Close: 53.0}, // TR = 2.0
 	}
 
 	atr := calculateATR(klines, 3)
@@ -345,5 +345,158 @@ func TestCalculateIntradaySeries_VolumePrecision(t *testing.T) {
 			t.Errorf("Volume[%d] = %.4f, want %.4f (precision not preserved)",
 				i, data.Volume[i], expected)
 		}
+	}
+}
+
+// TestIsStaleData_NormalData tests that normal fluctuating data returns false
+func TestIsStaleData_NormalData(t *testing.T) {
+	klines := []Kline{
+		{Close: 100.0, Volume: 1000},
+		{Close: 100.5, Volume: 1200},
+		{Close: 99.8, Volume: 900},
+		{Close: 100.2, Volume: 1100},
+		{Close: 100.1, Volume: 950},
+	}
+
+	result := isStaleData(klines, "BTCUSDT")
+
+	if result {
+		t.Error("Expected false for normal fluctuating data, got true")
+	}
+}
+
+// TestIsStaleData_PriceFreezeWithZeroVolume tests that frozen price + zero volume returns true
+func TestIsStaleData_PriceFreezeWithZeroVolume(t *testing.T) {
+	klines := []Kline{
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+	}
+
+	result := isStaleData(klines, "DOGEUSDT")
+
+	if !result {
+		t.Error("Expected true for frozen price + zero volume, got false")
+	}
+}
+
+// TestIsStaleData_PriceFreezeWithVolume tests that frozen price but normal volume returns false
+func TestIsStaleData_PriceFreezeWithVolume(t *testing.T) {
+	klines := []Kline{
+		{Close: 100.0, Volume: 1000},
+		{Close: 100.0, Volume: 1200},
+		{Close: 100.0, Volume: 900},
+		{Close: 100.0, Volume: 1100},
+		{Close: 100.0, Volume: 950},
+	}
+
+	result := isStaleData(klines, "STABLECOIN")
+
+	if result {
+		t.Error("Expected false for frozen price but normal volume (low volatility market), got true")
+	}
+}
+
+// TestIsStaleData_InsufficientData tests that insufficient data (<5 klines) returns false
+func TestIsStaleData_InsufficientData(t *testing.T) {
+	klines := []Kline{
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+	}
+
+	result := isStaleData(klines, "BTCUSDT")
+
+	if result {
+		t.Error("Expected false for insufficient data (<5 klines), got true")
+	}
+}
+
+// TestIsStaleData_ExactlyFiveKlines tests edge case with exactly 5 klines
+func TestIsStaleData_ExactlyFiveKlines(t *testing.T) {
+	// Stale case: exactly 5 frozen klines with zero volume
+	staleKlines := []Kline{
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+		{Close: 100.0, Volume: 0},
+	}
+
+	result := isStaleData(staleKlines, "TESTUSDT")
+	if !result {
+		t.Error("Expected true for exactly 5 frozen klines with zero volume, got false")
+	}
+
+	// Normal case: exactly 5 klines with fluctuation
+	normalKlines := []Kline{
+		{Close: 100.0, Volume: 1000},
+		{Close: 100.1, Volume: 1100},
+		{Close: 99.9, Volume: 900},
+		{Close: 100.0, Volume: 1000},
+		{Close: 100.05, Volume: 950},
+	}
+
+	result = isStaleData(normalKlines, "TESTUSDT")
+	if result {
+		t.Error("Expected false for exactly 5 normal klines, got true")
+	}
+}
+
+// TestIsStaleData_WithinTolerance tests price changes within tolerance (0.01%)
+func TestIsStaleData_WithinTolerance(t *testing.T) {
+	// Price changes within 0.01% tolerance should be treated as frozen
+	basePrice := 10000.0
+	tolerance := 0.0001                        // 0.01%
+	smallChange := basePrice * tolerance * 0.5 // Half of tolerance
+
+	klines := []Kline{
+		{Close: basePrice, Volume: 1000},
+		{Close: basePrice + smallChange, Volume: 1000},
+		{Close: basePrice - smallChange, Volume: 1000},
+		{Close: basePrice, Volume: 1000},
+		{Close: basePrice + smallChange, Volume: 1000},
+	}
+
+	result := isStaleData(klines, "BTCUSDT")
+
+	// Should return false because there's normal volume despite tiny price changes
+	if result {
+		t.Error("Expected false for price within tolerance but with volume, got true")
+	}
+}
+
+// TestIsStaleData_MixedScenario tests realistic scenario with some history before freeze
+func TestIsStaleData_MixedScenario(t *testing.T) {
+	// Simulate: normal trading → suddenly freezes
+	klines := []Kline{
+		{Close: 100.0, Volume: 1000}, // Normal
+		{Close: 100.5, Volume: 1200}, // Normal
+		{Close: 100.2, Volume: 1100}, // Normal
+		{Close: 50.0, Volume: 0},     // Freeze starts
+		{Close: 50.0, Volume: 0},     // Frozen
+		{Close: 50.0, Volume: 0},     // Frozen
+		{Close: 50.0, Volume: 0},     // Frozen
+		{Close: 50.0, Volume: 0},     // Frozen (last 5 are all frozen)
+	}
+
+	result := isStaleData(klines, "DOGEUSDT")
+
+	// Should detect stale data based on last 5 klines
+	if !result {
+		t.Error("Expected true for frozen last 5 klines with zero volume, got false")
+	}
+}
+
+// TestIsStaleData_EmptyKlines tests edge case with empty slice
+func TestIsStaleData_EmptyKlines(t *testing.T) {
+	klines := []Kline{}
+
+	result := isStaleData(klines, "BTCUSDT")
+
+	if result {
+		t.Error("Expected false for empty klines, got true")
 	}
 }

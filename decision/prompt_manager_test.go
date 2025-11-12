@@ -29,7 +29,7 @@ func TestPromptManager_LoadTemplates(t *testing.T) {
 		{
 			name: "加载多个模板文件",
 			setupFiles: map[string]string{
-				"default.txt":     "默认策略",
+				"default.txt":      "默认策略",
 				"conservative.txt": "保守策略",
 				"aggressive.txt":   "激进策略",
 			},
@@ -130,15 +130,15 @@ func TestPromptManager_GetTemplate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		templateName   string
-		expectError    bool
+		name            string
+		templateName    string
+		expectError     bool
 		expectedContent string
 	}{
 		{
-			name:           "获取存在的模板",
-			templateName:   "default",
-			expectError:    false,
+			name:            "获取存在的模板",
+			templateName:    "default",
+			expectError:     false,
 			expectedContent: "默认策略内容",
 		},
 		{
@@ -225,7 +225,7 @@ func TestPromptManager_ReloadTemplates(t *testing.T) {
 func TestPromptManager_GetAllTemplateNames(t *testing.T) {
 	pm := NewPromptManager()
 	pm.templates = map[string]*PromptTemplate{
-		"default":     {Name: "default", Content: "默认策略"},
+		"default":      {Name: "default", Content: "默认策略"},
 		"conservative": {Name: "conservative", Content: "保守策略"},
 		"aggressive":   {Name: "aggressive", Content: "激进策略"},
 	}

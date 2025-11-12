@@ -54,6 +54,18 @@ export default function TraderDashboard() {
   )
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
 
+  // 决策记录数量选择（从 localStorage 读取，默认 5）
+  const [decisionLimit, setDecisionLimit] = useState<number>(() => {
+    const saved = localStorage.getItem('decisionLimit')
+    return saved ? parseInt(saved, 10) : 5
+  })
+
+  // 当 limit 变化时保存到 localStorage
+  const handleLimitChange = (newLimit: number) => {
+    setDecisionLimit(newLimit)
+    localStorage.setItem('decisionLimit', newLimit.toString())
+  }
+
   // 获取trader列表（仅在用户登录时）
   const { data: traders, error: tradersError } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
@@ -111,8 +123,10 @@ export default function TraderDashboard() {
   )
 
   const { data: decisions } = useSWR<DecisionRecord[]>(
-    selectedTraderId ? `decisions/latest-${selectedTraderId}` : null,
-    () => api.getLatestDecisions(selectedTraderId),
+    selectedTraderId
+      ? `decisions/latest-${selectedTraderId}-${decisionLimit}`
+      : null,
+    () => api.getLatestDecisions(selectedTraderId, decisionLimit),
     {
       refreshInterval: 30000,
       revalidateOnFocus: false,
@@ -570,27 +584,54 @@ export default function TraderDashboard() {
           style={{ animationDelay: '0.2s' }}
         >
           <div
-            className="flex items-center gap-3 mb-5 pb-4 border-b"
+            className="flex items-center justify-between mb-5 pb-4 border-b"
             style={{ borderColor: '#2B3139' }}
           >
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
-              }}
-            >
-              <Brain className="w-5 h-5" style={{ color: '#FFFFFF' }} />
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                  boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
+                }}
+              >
+                <Brain className="w-5 h-5" style={{ color: '#FFFFFF' }} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+                  {t('recentDecisions', language)}
+                </h2>
+                {decisions && decisions.length > 0 && (
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {t('lastCycles', language, { count: decisions.length })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                {t('recentDecisions', language)}
-              </h2>
-              {decisions && decisions.length > 0 && (
-                <div className="text-xs" style={{ color: '#848E9C' }}>
-                  {t('lastCycles', language, { count: decisions.length })}
-                </div>
-              )}
+
+            {/* 显示数量选择器 */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                {language === 'zh' ? '显示' : 'Show'}:
+              </span>
+              <select
+                value={decisionLimit}
+                onChange={(e) => handleLimitChange(parseInt(e.target.value, 10))}
+                className="rounded px-2 py-1 text-xs font-medium cursor-pointer transition-colors"
+                style={{
+                  background: '#1E2329',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                {language === 'zh' ? '条' : ''}
+              </span>
             </div>
           </div>
 

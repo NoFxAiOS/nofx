@@ -157,7 +157,6 @@ export const api = {
     if (!res.ok) throw new Error('更新模型配置失败')
   },
 
-
   // 交易所配置接口
   async getExchangeConfigs(): Promise<Exchange[]> {
     const res = await httpClient.get(`${API_BASE}/exchanges`, getAuthHeaders())
@@ -261,12 +260,21 @@ export const api = {
     return res.json()
   },
 
-  // 获取最新决策（支持trader_id）
-  async getLatestDecisions(traderId?: string): Promise<DecisionRecord[]> {
-    const url = traderId
-      ? `${API_BASE}/decisions/latest?trader_id=${traderId}`
-      : `${API_BASE}/decisions/latest`
-    const res = await httpClient.get(url, getAuthHeaders())
+  // 获取最新决策（支持trader_id和limit参数）
+  async getLatestDecisions(
+    traderId?: string,
+    limit: number = 5
+  ): Promise<DecisionRecord[]> {
+    const params = new URLSearchParams()
+    if (traderId) {
+      params.append('trader_id', traderId)
+    }
+    params.append('limit', limit.toString())
+
+    const res = await httpClient.get(
+      `${API_BASE}/decisions/latest?${params}`,
+      getAuthHeaders()
+    )
     if (!res.ok) throw new Error('获取最新决策失败')
     return res.json()
   },

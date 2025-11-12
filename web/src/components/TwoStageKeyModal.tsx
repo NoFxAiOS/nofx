@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { t, type Language } from '../i18n/translations'
 import { toast } from 'sonner'
+import { WebCryptoEnvironmentCheck } from './WebCryptoEnvironmentCheck'
 
 const DEFAULT_LENGTH = 64
 
@@ -195,6 +196,10 @@ export function TwoStageKeyModal({
                     length: expectedPart2Length,
                   })}
             </p>
+          </div>
+
+          <div className="mb-6">
+            <WebCryptoEnvironmentCheck language={language} variant="compact" />
           </div>
 
           {/* Stage 1 */}

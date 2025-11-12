@@ -19,6 +19,10 @@ import {
   type TwoStageKeyModalResult,
 } from './TwoStageKeyModal'
 import {
+  WebCryptoEnvironmentCheck,
+  type WebCryptoCheckStatus,
+} from './WebCryptoEnvironmentCheck'
+import {
   Bot,
   Brain,
   Landmark,
@@ -1772,6 +1776,8 @@ function ExchangeConfigModal({
   } | null>(null)
   const [loadingIP, setLoadingIP] = useState(false)
   const [copiedIP, setCopiedIP] = useState(false)
+  const [webCryptoStatus, setWebCryptoStatus] =
+    useState<WebCryptoCheckStatus>('idle')
 
   // 币安配置指南展开状态
   const [showBinanceGuide, setShowBinanceGuide] = useState(false)
@@ -2008,34 +2014,51 @@ function ExchangeConfigModal({
             style={{ maxHeight: 'calc(100vh - 16rem)' }}
           >
             {!editingExchangeId && (
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: '#EAECEF' }}
-                >
-                  {t('selectExchange', language)}
-                </label>
-                <select
-                  value={selectedExchangeId}
-                  onChange={(e) => setSelectedExchangeId(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
-                  required
-                >
-                  <option value="">
-                    {t('pleaseSelectExchange', language)}
-                  </option>
-                  {availableExchanges.map((exchange) => (
-                    <option key={exchange.id} value={exchange.id}>
-                      {getShortName(exchange.name)} (
-                      {exchange.type.toUpperCase()})
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <div
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: '#F0B90B' }}
+                  >
+                    {t('environmentSteps.checkTitle', language)}
+                  </div>
+                  <WebCryptoEnvironmentCheck
+                    language={language}
+                    variant="card"
+                    onStatusChange={setWebCryptoStatus}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: '#F0B90B' }}
+                  >
+                    {t('environmentSteps.selectTitle', language)}
+                  </div>
+                  <select
+                    value={selectedExchangeId}
+                    onChange={(e) => setSelectedExchangeId(e.target.value)}
+                    className="w-full px-3 py-2 rounded"
+                    style={{
+                      background: '#0B0E11',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                    aria-label={t('selectExchange', language)}
+                    disabled={webCryptoStatus !== 'secure'}
+                    required
+                  >
+                    <option value="">
+                      {t('pleaseSelectExchange', language)}
                     </option>
-                  ))}
-                </select>
+                    {availableExchanges.map((exchange) => (
+                      <option key={exchange.id} value={exchange.id}>
+                        {getShortName(exchange.name)} (
+                        {exchange.type.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
 

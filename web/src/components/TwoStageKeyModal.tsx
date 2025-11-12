@@ -223,6 +223,7 @@ export function TwoStageKeyModal({
                 <div className="text-gray-400 text-xs mt-1">
                   {t('twoStageKey.helpText', language, {
                     length: expectedPart1Length,
+                    totalWithPrefix: expectedPart1Length + 2,
                   })}
                 </div>
               </div>
@@ -302,6 +303,7 @@ export function TwoStageKeyModal({
                 <div className="text-gray-400 text-xs mt-1">
                   {t('twoStageKey.helpText', language, {
                     length: expectedPart2Length,
+                    totalWithPrefix: expectedPart2Length + 2,
                   })}
                 </div>
               </div>

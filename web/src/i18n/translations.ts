@@ -1611,8 +1611,8 @@ export const translations = {
     // Two-Stage Key Modal
     twoStageKey: {
       title: '两阶段私钥输入',
-      stage1Description: '请输入私钥的前 {length} 位十六进制字符',
-      stage2Description: '请输入私钥的后 {length} 位十六进制字符',
+      stage1Description: '请输入私钥的前 {length} 位字符',
+      stage2Description: '请输入私钥的后 {length} 位字符',
       stage1InputLabel: '第一部分',
       stage2InputLabel: '第二部分',
       characters: '位字符',

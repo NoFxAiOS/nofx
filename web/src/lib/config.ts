@@ -1,5 +1,6 @@
 export interface SystemConfig {
   beta_mode: boolean
+  registration_enabled?: boolean
 }
 
 let configPromise: Promise<SystemConfig> | null = null

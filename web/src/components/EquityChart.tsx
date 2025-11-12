@@ -301,14 +301,20 @@ export function EquityChart({ traderId }: EquityChartProps) {
         <div
           style={{
             position: 'absolute',
-            top: '15px',
-            right: '15px',
-            fontSize: '20px',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '80%',
+            fontSize: 'min(20vw, 160px)',
             fontWeight: 'bold',
-            color: 'rgba(240, 185, 11, 0.15)',
+            color: 'rgba(240, 185, 11, 0.12)',
             zIndex: 10,
             pointerEvents: 'none',
             fontFamily: 'monospace',
+            textAlign: 'center',
+            letterSpacing: '0.4rem',
+            lineHeight: 1,
+            userSelect: 'none',
           }}
         >
           NOFX

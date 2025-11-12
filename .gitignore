@@ -34,6 +34,16 @@ config.db*
 nofx.db
 configbak.json
 
+# 生产配置
+nginx/
+certs/
+beta_codes.txt
+
+# 密钥文件
+keys/
+*.key
+*.pem
+
 # 决策日志
 decision_logs/
 coin_pool_cache/

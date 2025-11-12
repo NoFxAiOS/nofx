@@ -293,8 +293,8 @@ nano config.json  # または任意のエディタを使用
 
 ```bash
 # オプション1：便利スクリプトを使用（推奨）
-chmod +x start.sh
-./start.sh start --build
+chmod +x scripts/start.sh
+./scripts/start.sh start --build
 
 > #### Docker Composeバージョンに関する注意
 >
@@ -315,10 +315,10 @@ docker compose up -d --build
 #### システム管理
 
 ```bash
-./start.sh logs      # ログを表示
-./start.sh status    # ステータスを確認
-./start.sh stop      # サービスを停止
-./start.sh restart   # サービスを再起動
+./scripts/start.sh logs      # ログを表示
+./scripts/start.sh status    # ステータスを確認
+./scripts/start.sh stop      # サービスを停止
+./scripts/start.sh restart   # サービスを再起動
 ```
 
 **📖 詳細なDockerデプロイガイド、トラブルシューティング、高度な設定について：**

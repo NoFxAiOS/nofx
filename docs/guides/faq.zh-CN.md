@@ -152,18 +152,17 @@ docker compose up -d
 ## 数据与隐私
 
 ### 我的数据存储在哪里？
-所有数据都**本地存储**在您的机器上，使用 SQLite 数据库：
-- `config.db` - 交易员配置
-- `trading.db` - 交易历史
+所有数据都**本地存储**在 PostgreSQL（Docker 卷 `postgres_data`）中，另有：
 - `decision_logs/` - AI 决策记录
 
 ### API 密钥安全吗？
 API 密钥存储在本地数据库中。永远不要分享您的数据库或 `.env` 文件。我们建议使用带 IP 白名单限制的 API 密钥。
 
 ### 可以导出交易历史吗？
-可以！交易数据是 SQLite 格式。您可以直接查询：
+可以！使用 `pg_dump` 或 `psql` 导出数据：
 ```bash
-sqlite3 trading.db "SELECT * FROM trades;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT * FROM trades;"
 ```
 
 ---

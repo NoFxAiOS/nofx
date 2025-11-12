@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { t, Language } from '../../i18n/translations'
+import { useSystemConfig } from '../../hooks/useSystemConfig'
 
 interface LoginModalProps {
   onClose: () => void
@@ -8,6 +9,9 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ onClose, language }: LoginModalProps) {
+  const { config: systemConfig } = useSystemConfig()
+  const registrationEnabled = systemConfig?.registration_enabled !== false
+
   return (
     <motion.div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -66,23 +70,25 @@ export default function LoginModal({ onClose, language }: LoginModalProps) {
           >
             {t('signIn', language)}
           </motion.button>
-          <motion.button
-            onClick={() => {
-              window.history.pushState({}, '', '/register')
-              window.dispatchEvent(new PopStateEvent('popstate'))
-              onClose()
-            }}
-            className="block w-full px-6 py-3 rounded-lg font-semibold text-center"
-            style={{
-              background: 'var(--brand-dark-gray)',
-              color: 'var(--brand-light-gray)',
-              border: '1px solid rgba(240, 185, 11, 0.2)',
-            }}
-            whileHover={{ scale: 1.05, borderColor: 'var(--brand-yellow)' }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {t('registerNewAccount', language)}
-          </motion.button>
+          {registrationEnabled && (
+            <motion.button
+              onClick={() => {
+                window.history.pushState({}, '', '/register')
+                window.dispatchEvent(new PopStateEvent('popstate'))
+                onClose()
+              }}
+              className="block w-full px-6 py-3 rounded-lg font-semibold text-center"
+              style={{
+                background: 'var(--brand-dark-gray)',
+                color: 'var(--brand-light-gray)',
+                border: '1px solid rgba(240, 185, 11, 0.2)',
+              }}
+              whileHover={{ scale: 1.05, borderColor: 'var(--brand-yellow)' }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {t('registerNewAccount', language)}
+            </motion.button>
+          )}
         </div>
       </motion.div>
     </motion.div>

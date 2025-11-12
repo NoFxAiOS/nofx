@@ -1,5 +1,6 @@
 {
   "beta_mode": false,
+  "registration_enabled": true,
   "leverage": {
     "btc_eth_leverage": 5,
     "altcoin_leverage": 5

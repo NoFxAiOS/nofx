@@ -197,11 +197,18 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 	betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
 	betaMode := betaModeStr == "true"
 
+	regEnabledStr, err := s.database.GetSystemConfig("registration_enabled")
+	registrationEnabled := true
+	if err == nil {
+		registrationEnabled = strings.ToLower(regEnabledStr) != "false"
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"beta_mode":        betaMode,
-		"default_coins":    defaultCoins,
-		"btc_eth_leverage": btcEthLeverage,
-		"altcoin_leverage": altcoinLeverage,
+		"beta_mode":            betaMode,
+		"default_coins":        defaultCoins,
+		"btc_eth_leverage":     btcEthLeverage,
+		"altcoin_leverage":     altcoinLeverage,
+		"registration_enabled": registrationEnabled,
 	})
 }
 
@@ -1704,6 +1711,14 @@ func (s *Server) handleLogout(c *gin.Context) {
 
 // handleRegister 处理用户注册请求
 func (s *Server) handleRegister(c *gin.Context) {
+	regEnabled := true
+	if regStr, err := s.database.GetSystemConfig("registration_enabled"); err == nil {
+		regEnabled = strings.ToLower(regStr) != "false"
+	}
+	if !regEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭"})
+		return
+	}
 
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`

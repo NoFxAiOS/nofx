@@ -174,28 +174,6 @@ check_config() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Beta Code File (beta_codes.txt)
-# ------------------------------------------------------------------------
-check_beta_codes_file() {
-    local beta_file="beta_codes.txt"
-
-    if [ -d "$beta_file" ]; then
-        print_warning "beta_codes.txt 是目录，正在删除后重建文件..."
-        rm -rf "$beta_file"
-        touch "$beta_file"
-        chmod 600 "$beta_file"
-        print_info "✓ 已重新创建 beta_codes.txt（权限: 600）"
-    elif [ ! -f "$beta_file" ]; then
-        print_warning "beta_codes.txt 不存在，正在创建空文件..."
-        touch "$beta_file"
-        chmod 600 "$beta_file"
-        print_info "✓ 已创建空的内测码文件（权限: 600）"
-    else
-        print_success "内测码文件存在"
-    fi
-}
-
-# ------------------------------------------------------------------------
 # Utility: Read Environment Variables
 # ------------------------------------------------------------------------
 read_env_vars() {
@@ -282,7 +260,6 @@ start() {
     # 确保必要的文件和目录存在（修复 Docker volume 挂载问题）
     if [ ! -f "config.db" ]; then
         print_info "创建数据库文件..."
-        touch config.db
         install -m 600 /dev/null config.db
     fi
     if [ ! -d "decision_logs" ]; then
@@ -436,7 +413,6 @@ main() {
             check_env
             check_encryption
             check_config
-            check_beta_codes_file
             check_database
             start "$2"
             ;;

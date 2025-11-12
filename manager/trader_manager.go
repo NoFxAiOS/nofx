@@ -39,7 +39,7 @@ func NewTraderManager() *TraderManager {
 }
 
 // LoadTradersFromDatabase 从数据库加载所有交易员到内存
-func (tm *TraderManager) LoadTradersFromDatabase(database config.DatabaseInterface) error {
+func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -182,7 +182,7 @@ func (tm *TraderManager) LoadTradersFromDatabase(database config.DatabaseInterfa
 }
 
 // addTraderFromConfig 内部方法：从配置添加交易员（不加锁，因为调用方已加锁）
-func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string, database config.DatabaseInterface, userID string) error {
+func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string, database *config.Database, userID string) error {
 	if _, exists := tm.traders[traderCfg.ID]; exists {
 		return fmt.Errorf("trader ID '%s' 已存在", traderCfg.ID)
 	}
@@ -286,7 +286,7 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 // AddTrader 从数据库配置添加trader (移除旧版兼容性)
 
 // AddTraderFromDB 从数据库配置添加trader
-func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string, database config.DatabaseInterface, userID string) error {
+func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string, database *config.Database, userID string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -709,7 +709,7 @@ func containsUserPrefix(traderID string) bool {
 }
 
 // LoadUserTraders 为特定用户加载交易员到内存
-func (tm *TraderManager) LoadUserTraders(database config.DatabaseInterface, userID string) error {
+func (tm *TraderManager) LoadUserTraders(database *config.Database, userID string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
@@ -995,7 +995,7 @@ func (tm *TraderManager) LoadTraderByID(database *config.Database, userID, trade
 }
 
 // loadSingleTrader 加载单个交易员（从现有代码提取的公共逻辑）
-func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string, database config.DatabaseInterface, userID string) error {
+func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiModelCfg *config.AIModelConfig, exchangeCfg *config.ExchangeConfig, coinPoolURL, oiTopURL string, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, defaultCoins []string, database *config.Database, userID string) error {
 	// 处理交易币种列表
 	var tradingCoins []string
 	if traderCfg.TradingSymbols != "" {

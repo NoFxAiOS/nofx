@@ -104,8 +104,8 @@ export default function AboutSection({ language }: AboutSectionProps) {
                 lines={[
                   '$ git clone https://github.com/tinkle-community/nofx.git',
                   '$ cd nofx',
-                  '$ chmod +x scripts/start.sh',
-                  '$ ./scripts/start.sh start --build',
+                  '$ chmod +x start.sh',
+                  '$ ./start.sh start --build',
                   t('startupMessages1', language),
                   t('startupMessages2', language),
                   t('startupMessages3', language),

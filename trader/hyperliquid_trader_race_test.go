@@ -123,7 +123,7 @@ func TestGetSzDecimals_ValidMeta(t *testing.T) {
 	}
 
 	tests := []struct {
-		coin            string
+		coin             string
 		expectedDecimals int
 	}{
 		{"BTC", 5},

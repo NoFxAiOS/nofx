@@ -382,20 +382,21 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 
 // AI交易员管理相关结构体
 type CreateTraderRequest struct {
-	Name                 string  `json:"name" binding:"required"`
-	AIModelID            string  `json:"ai_model_id" binding:"required"`
-	ExchangeID           string  `json:"exchange_id" binding:"required"`
-	InitialBalance       float64 `json:"initial_balance"`
-	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
-	BTCETHLeverage       int     `json:"btc_eth_leverage"`
-	AltcoinLeverage      int     `json:"altcoin_leverage"`
-	TradingSymbols       string  `json:"trading_symbols"`
-	CustomPrompt         string  `json:"custom_prompt"`
-	OverrideBasePrompt   bool    `json:"override_base_prompt"`
-	SystemPromptTemplate string  `json:"system_prompt_template"` // 系统提示词模板名称
-	IsCrossMargin        *bool   `json:"is_cross_margin"`        // 指针类型，nil表示使用默认值true
-	UseCoinPool          bool    `json:"use_coin_pool"`
-	UseOITop             bool    `json:"use_oi_top"`
+	Name                 string                 `json:"name" binding:"required"`
+	AIModelID            string                 `json:"ai_model_id" binding:"required"`
+	ExchangeID           string                 `json:"exchange_id" binding:"required"`
+	InitialBalance       float64                `json:"initial_balance"`
+	ScanIntervalMinutes  int                    `json:"scan_interval_minutes"`
+	BTCETHLeverage       int                    `json:"btc_eth_leverage"`
+	AltcoinLeverage      int                    `json:"altcoin_leverage"`
+	TradingSymbols       string                 `json:"trading_symbols"`
+	CustomPrompt         string                 `json:"custom_prompt"`
+	OverrideBasePrompt   bool                   `json:"override_base_prompt"`
+	SystemPromptTemplate string                 `json:"system_prompt_template"` // 系统提示词模板名称
+	IsCrossMargin        *bool                  `json:"is_cross_margin"`        // 指针类型，nil表示使用默认值true
+	UseCoinPool          bool                   `json:"use_coin_pool"`
+	UseOITop             bool                   `json:"use_oi_top"`
+	IndicatorConfig      map[string]interface{} `json:"indicator_config"` // 指标配置
 }
 
 type ModelConfig struct {
@@ -604,6 +605,21 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		}
 	}
 
+	// 处理指标配置
+	var indicatorConfigJSON string
+	if req.IndicatorConfig != nil && len(req.IndicatorConfig) > 0 {
+		if err := validateIndicatorConfig(req.IndicatorConfig); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("指标配置无效: %v", err)})
+			return
+		}
+		configBytes, err := json.Marshal(req.IndicatorConfig)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "指标配置序列化失败"})
+			return
+		}
+		indicatorConfigJSON = string(configBytes)
+	}
+
 	// 创建交易员配置（数据库实体）
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -622,6 +638,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
+		IndicatorConfig:      indicatorConfigJSON,
 		IsRunning:            false,
 	}
 
@@ -651,18 +668,19 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest 更新交易员请求
 type UpdateTraderRequest struct {
-	Name                 string  `json:"name" binding:"required"`
-	AIModelID            string  `json:"ai_model_id" binding:"required"`
-	ExchangeID           string  `json:"exchange_id" binding:"required"`
-	InitialBalance       float64 `json:"initial_balance"`
-	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
-	BTCETHLeverage       int     `json:"btc_eth_leverage"`
-	AltcoinLeverage      int     `json:"altcoin_leverage"`
-	TradingSymbols       string  `json:"trading_symbols"`
-	CustomPrompt         string  `json:"custom_prompt"`
-	OverrideBasePrompt   bool    `json:"override_base_prompt"`
-	SystemPromptTemplate string  `json:"system_prompt_template"`
-	IsCrossMargin        *bool   `json:"is_cross_margin"`
+	Name                 string                 `json:"name" binding:"required"`
+	AIModelID            string                 `json:"ai_model_id" binding:"required"`
+	ExchangeID           string                 `json:"exchange_id" binding:"required"`
+	InitialBalance       float64                `json:"initial_balance"`
+	ScanIntervalMinutes  int                    `json:"scan_interval_minutes"`
+	BTCETHLeverage       int                    `json:"btc_eth_leverage"`
+	AltcoinLeverage      int                    `json:"altcoin_leverage"`
+	TradingSymbols       string                 `json:"trading_symbols"`
+	CustomPrompt         string                 `json:"custom_prompt"`
+	OverrideBasePrompt   bool                   `json:"override_base_prompt"`
+	SystemPromptTemplate string                 `json:"system_prompt_template"`
+	IsCrossMargin        *bool                  `json:"is_cross_margin"`
+	IndicatorConfig      map[string]interface{} `json:"indicator_config"` // 指标配置
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -726,6 +744,21 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		systemPromptTemplate = existingTrader.SystemPromptTemplate // 如果请求中没有提供，保持原值
 	}
 
+	// 处理指标配置
+	indicatorConfigJSON := existingTrader.IndicatorConfig // 默认保持原值
+	if req.IndicatorConfig != nil && len(req.IndicatorConfig) > 0 {
+		if err := validateIndicatorConfig(req.IndicatorConfig); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("指标配置无效: %v", err)})
+			return
+		}
+		configBytes, err := json.Marshal(req.IndicatorConfig)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "指标配置序列化失败"})
+			return
+		}
+		indicatorConfigJSON = string(configBytes)
+	}
+
 	// 更新交易员配置
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -742,6 +775,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
+		IndicatorConfig:      indicatorConfigJSON,
 		IsRunning:            existingTrader.IsRunning, // 保持原值
 	}
 
@@ -750,6 +784,18 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易员失败: %v", err)})
 		return
+	}
+
+	// 🔥 热重载指标配置：如果trader正在运行且配置有更新，立即应用新配置
+	if req.IndicatorConfig != nil && len(req.IndicatorConfig) > 0 {
+		var indicatorConfig market.IndicatorConfig
+		if err := json.Unmarshal([]byte(indicatorConfigJSON), &indicatorConfig); err == nil {
+			if err := s.traderManager.ReloadIndicatorConfig(traderID, &indicatorConfig); err != nil {
+				log.Printf("⚠️ 热重载配置失败（trader可能未运行）: %v", err)
+			} else {
+				log.Printf("✅ 配置已热重载到运行中的trader: %s", traderID)
+			}
+		}
 	}
 
 	// 重新加载交易员到内存
@@ -1328,6 +1374,14 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"use_coin_pool":          traderConfig.UseCoinPool,
 		"use_oi_top":             traderConfig.UseOITop,
 		"is_running":             isRunning,
+	}
+
+	// 添加指标配置（如果存在）
+	if traderConfig.IndicatorConfig != "" {
+		var indicatorConfig map[string]interface{}
+		if err := json.Unmarshal([]byte(traderConfig.IndicatorConfig), &indicatorConfig); err == nil {
+			result["indicator_config"] = indicatorConfig
+		}
 	}
 
 	c.JSON(http.StatusOK, result)

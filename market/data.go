@@ -1,6 +1,7 @@
 package market
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // FundingRateCache 资金费率缓存结构
@@ -23,6 +26,156 @@ var (
 	frCacheTTL     = 1 * time.Hour
 )
 
+// GetTimeframeName 将时间框架代码转换为可读名称
+func GetTimeframeName(tf string) string {
+	names := map[string]string{
+		"1m":  "1-minute",
+		"3m":  "3-minute",
+		"5m":  "5-minute",
+		"15m": "15-minute",
+		"30m": "30-minute",
+		"1h":  "1-hour",
+		"2h":  "2-hour",
+		"4h":  "4-hour",
+		"6h":  "6-hour",
+		"12h": "12-hour",
+		"1d":  "1-day",
+	}
+	if name, ok := names[tf]; ok {
+		return name
+	}
+	return tf
+}
+
+// GetDefaultDataPoints 返回时间框架的默认数据点数
+func GetDefaultDataPoints(tf string) int {
+	defaults := map[string]int{
+		"1m":  40, // ~40 分钟
+		"3m":  40, // ~2 小时
+		"5m":  40, // ~3.3 小时
+		"15m": 40, // ~10 小时
+		"30m": 30, // ~15 小时
+		"1h":  30, // ~30 小时
+		"2h":  25, // ~2 天
+		"4h":  25, // ~4 天
+		"6h":  20, // ~5 天
+		"12h": 20, // ~10 天
+		"1d":  15, // ~2 周
+	}
+	if points, ok := defaults[tf]; ok {
+		return points
+	}
+	return 30 // 默认值
+}
+
+// ValidateTimeframe 验证时间框架是否支持
+func ValidateTimeframe(tf string) bool {
+	supported := map[string]bool{
+		"1m": true, "3m": true, "5m": true, "15m": true, "30m": true,
+		"1h": true, "2h": true, "4h": true, "6h": true, "12h": true, "1d": true,
+	}
+	return supported[tf]
+}
+
+// calculateTimeframeData 计算单个时间框架的所有指标数据
+func calculateTimeframeData(klines []Kline, timeframe string, dataPoints int) *TimeframeData {
+	if len(klines) == 0 {
+		return nil
+	}
+
+	// 限制数据点数量不超过实际K线数量
+	if dataPoints > len(klines) {
+		dataPoints = len(klines)
+	}
+	if dataPoints <= 0 {
+		dataPoints = GetDefaultDataPoints(timeframe)
+	}
+
+	// 计算所需的指标数组
+	midPrices := make([]float64, 0, dataPoints)
+	ema20Values := make([]float64, 0, dataPoints)
+	macdValues := make([]float64, 0, dataPoints)
+	rsi7Values := make([]float64, 0, dataPoints)
+	rsi14Values := make([]float64, 0, dataPoints)
+	bollingerUpper := make([]float64, 0, dataPoints)
+	bollingerMid := make([]float64, 0, dataPoints)
+	bollingerLower := make([]float64, 0, dataPoints)
+	volumes := make([]float64, 0, dataPoints)
+
+	// 从最后dataPoints个K线开始计算
+	startIdx := len(klines) - dataPoints
+	if startIdx < 0 {
+		startIdx = 0
+	}
+
+	for i := startIdx; i < len(klines); i++ {
+		// Mid价格 (High + Low) / 2
+		midPrice := (klines[i].High + klines[i].Low) / 2
+		midPrices = append(midPrices, midPrice)
+
+		// 成交量
+		volumes = append(volumes, klines[i].Volume)
+
+		// 计算EMA20 (需要前20个K线)
+		ema20 := 0.0
+		if i >= 19 {
+			ema20 = calculateEMA(klines[:i+1], 20)
+		}
+		ema20Values = append(ema20Values, ema20)
+
+		// 计算MACD (需要足够的历史数据)
+		macd := 0.0
+		if i >= 33 { // MACD需要至少34个数据点
+			macd = calculateMACD(klines[:i+1])
+		}
+		macdValues = append(macdValues, macd)
+
+		// 计算RSI7
+		rsi7 := 0.0
+		if i >= 7 {
+			rsi7 = calculateRSI(klines[:i+1], 7)
+		}
+		rsi7Values = append(rsi7Values, rsi7)
+
+		// 计算RSI14
+		rsi14 := 0.0
+		if i >= 14 {
+			rsi14 = calculateRSI(klines[:i+1], 14)
+		}
+		rsi14Values = append(rsi14Values, rsi14)
+
+		// 计算布林带
+		upper, mid, lower := 0.0, 0.0, 0.0
+		if i >= 19 { // 布林带使用20周期
+			upper, mid, lower = calculateBollingerBands(klines[:i+1], 20, 2.0)
+		}
+		bollingerUpper = append(bollingerUpper, upper)
+		bollingerMid = append(bollingerMid, mid)
+		bollingerLower = append(bollingerLower, lower)
+	}
+
+	// 计算ATR14 (使用所有可用数据)
+	atr14 := 0.0
+	if len(klines) >= 14 {
+		atr14 = calculateATR(klines, 14)
+	}
+
+	return &TimeframeData{
+		Timeframe:      timeframe,
+		DataPoints:     len(midPrices),
+		MidPrices:      midPrices,
+		EMA20Values:    ema20Values,
+		MACDValues:     macdValues,
+		RSI7Values:     rsi7Values,
+		RSI14Values:    rsi14Values,
+		BollingerUpper: bollingerUpper,
+		BollingerMid:   bollingerMid,
+		BollingerLower: bollingerLower,
+		Volume:         volumes,
+		ATR14:          atr14,
+	}
+}
+
 // Get 获取指定代币的市场数据
 func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
 	// 使用默认配置或传入的配置
@@ -32,74 +185,130 @@ func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
 	} else {
 		cfg = GetDefaultIndicatorConfig()
 	}
-	
-	var klines3m, klines4h []Kline
-	var err error
+
 	// 标准化symbol
 	symbol = Normalize(symbol)
-	
-	// 根据配置决定需要获取哪些时间框架的数据
-	need3m := false
-	need4h := false
-	for _, tf := range cfg.Timeframes {
-		if tf == "3m" {
-			need3m = true
-		}
-		if tf == "4h" {
-			need4h = true
-		}
+
+	// 如果没有配置timeframes,使用默认值 [3m, 4h]
+	timeframes := cfg.Timeframes
+	if len(timeframes) == 0 {
+		timeframes = []string{"3m", "4h"}
 	}
-	
-	// 如果没有配置timeframes,默认获取两个
-	if len(cfg.Timeframes) == 0 {
-		need3m = true
-		need4h = true
-	}
-	
-	// 获取3分钟K线数据
-	if need3m {
-		klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m")
-		if err != nil {
-			return nil, fmt.Errorf("获取3分钟K线失败: %v", err)
-		}
-		if len(klines3m) == 0 {
-			return nil, fmt.Errorf("3分钟K线数据为空")
+
+	// 验证所有时间框架
+	validTimeframes := make([]string, 0, len(timeframes))
+	for _, tf := range timeframes {
+		if ValidateTimeframe(tf) {
+			validTimeframes = append(validTimeframes, tf)
+		} else {
+			// 记录警告但继续处理其他时间框架
+			fmt.Printf("警告: 不支持的时间框架 %s,已跳过\n", tf)
 		}
 	}
 
-	// 获取4小时K线数据
-	if need4h {
-		klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h")
-		if err != nil {
-			return nil, fmt.Errorf("获取4小时K线失败: %v", err)
+	if len(validTimeframes) == 0 {
+		return nil, fmt.Errorf("没有有效的时间框架配置")
+	}
+
+	// 使用 errgroup 并发获取多个时间框架的数据
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+
+	// 创建结果存储 (线程安全)
+	var mu sync.Mutex
+	klinesMap := make(map[string][]Kline)
+
+	// 限制并发数为5
+	semaphore := make(chan struct{}, 5)
+
+	// 并发获取所有时间框架的K线数据
+	for _, tf := range validTimeframes {
+		timeframe := tf // 捕获循环变量
+		g.Go(func() error {
+			// 获取信号量
+			select {
+			case semaphore <- struct{}{}:
+				defer func() { <-semaphore }()
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+
+			// 获取K线数据,带超时控制
+			klines, err := WSMonitorCli.GetCurrentKlines(symbol, timeframe)
+			if err != nil {
+				return fmt.Errorf("获取%s K线失败: %v", timeframe, err)
+			}
+
+			if len(klines) == 0 {
+				return fmt.Errorf("%s K线数据为空", timeframe)
+			}
+
+			// 安全地存储结果
+			mu.Lock()
+			klinesMap[timeframe] = klines
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	// 等待所有goroutine完成
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("获取市场数据失败: %v", err)
+	}
+
+	// 计算每个时间框架的指标数据
+	timeframeDataMap := make(map[string]*TimeframeData)
+	for tf, klines := range klinesMap {
+		dataPoints := cfg.DataPoints[tf]
+		if dataPoints == 0 {
+			dataPoints = GetDefaultDataPoints(tf)
 		}
-		if len(klines4h) == 0 {
-			return nil, fmt.Errorf("4小时K线数据为空")
+
+		tfData := calculateTimeframeData(klines, tf, dataPoints)
+		if tfData != nil {
+			timeframeDataMap[tf] = tfData
 		}
 	}
 
-	// 计算当前指标 (基于3分钟最新数据)
+	// 计算当前价格和主要指标 (使用最小时间框架的最新数据)
 	var currentPrice, currentEMA20, currentMACD, currentRSI7 float64
-	if len(klines3m) > 0 {
+	var priceChange1h, priceChange4h float64
+
+	// 使用3m数据计算当前指标 (如果有的话)
+	if klines3m, ok := klinesMap["3m"]; ok && len(klines3m) > 0 {
 		currentPrice = klines3m[len(klines3m)-1].Close
 		currentEMA20 = calculateEMA(klines3m, 20)
 		currentMACD = calculateMACD(klines3m)
 		currentRSI7 = calculateRSI(klines3m, 7)
-	}
 
-	// 计算价格变化百分比
-	// 1小时价格变化 = 20个3分钟K线前的价格
-	priceChange1h := 0.0
-	if len(klines3m) >= 21 { // 至少需要21根K线 (当前 + 20根前)
-		price1hAgo := klines3m[len(klines3m)-21].Close
-		if price1hAgo > 0 {
-			priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
+		// 1小时价格变化 = 20个3分钟K线前的价格
+		if len(klines3m) >= 21 {
+			price1hAgo := klines3m[len(klines3m)-21].Close
+			if price1hAgo > 0 {
+				priceChange1h = ((currentPrice - price1hAgo) / price1hAgo) * 100
+			}
+		}
+	} else if len(klinesMap) > 0 {
+		// 如果没有3m数据,使用第一个可用时间框架的数据
+		for _, klines := range klinesMap {
+			if len(klines) > 0 {
+				currentPrice = klines[len(klines)-1].Close
+				currentEMA20 = calculateEMA(klines, 20)
+				currentMACD = calculateMACD(klines)
+				currentRSI7 = calculateRSI(klines, 7)
+				break
+			}
 		}
 	}
 
-	// 4小时价格变化 = 1个4小时K线前的价格
-	priceChange4h := 0.0
-	if len(klines4h) >= 2 {
+	// 使用4h数据计算4小时价格变化
+	if klines4h, ok := klinesMap["4h"]; ok && len(klines4h) >= 2 {
+		if currentPrice == 0 && len(klines4h) > 0 {
+			currentPrice = klines4h[len(klines4h)-1].Close
+		}
 		price4hAgo := klines4h[len(klines4h)-2].Close
 		if price4hAgo > 0 {
 			priceChange4h = ((currentPrice - price4hAgo) / price4hAgo) * 100
@@ -116,22 +325,22 @@ func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
 	// 获取Funding Rate
 	fundingRate, _ := getFundingRate(symbol)
 
-	// 计算日内系列数据 (使用配置的数据点数量)
+	// 为向后兼容性保留旧字段
 	var intradayData *IntradayData
-	if len(klines3m) > 0 {
+	var longerTermData *LongerTermData
+
+	if klines3m, ok := klinesMap["3m"]; ok && len(klines3m) > 0 {
 		dataPoints3m := cfg.DataPoints["3m"]
 		if dataPoints3m == 0 {
-			dataPoints3m = 40 // 默认40个点
+			dataPoints3m = 40
 		}
 		intradayData = calculateIntradaySeries(klines3m, dataPoints3m)
 	}
 
-	// 计算长期数据 (使用配置的数据点数量)
-	var longerTermData *LongerTermData
-	if len(klines4h) > 0 {
+	if klines4h, ok := klinesMap["4h"]; ok && len(klines4h) > 0 {
 		dataPoints4h := cfg.DataPoints["4h"]
 		if dataPoints4h == 0 {
-			dataPoints4h = 25 // 默认25个点
+			dataPoints4h = 25
 		}
 		longerTermData = calculateLongerTermData(klines4h, dataPoints4h)
 	}
@@ -146,6 +355,7 @@ func Get(symbol string, config ...*IndicatorConfig) (*Data, error) {
 		CurrentRSI7:       currentRSI7,
 		OpenInterest:      oiData,
 		FundingRate:       fundingRate,
+		TimeframeData:     timeframeDataMap,
 		IntradaySeries:    intradayData,
 		LongerTermContext: longerTermData,
 	}, nil
@@ -301,7 +511,7 @@ func calculateIntradaySeries(klines []Kline, dataPoints ...int) *IntradayData {
 	if len(dataPoints) > 0 && dataPoints[0] > 0 {
 		numPoints = dataPoints[0]
 	}
-	
+
 	data := &IntradayData{
 		MidPrices:      make([]float64, 0, numPoints),
 		EMA20Values:    make([]float64, 0, numPoints),
@@ -368,7 +578,7 @@ func calculateLongerTermData(klines []Kline, dataPoints ...int) *LongerTermData 
 	if len(dataPoints) > 0 && dataPoints[0] > 0 {
 		numPoints = dataPoints[0]
 	}
-	
+
 	data := &LongerTermData{
 		MACDValues:     make([]float64, 0, numPoints),
 		RSI14Values:    make([]float64, 0, numPoints),
@@ -509,6 +719,79 @@ func getFundingRate(symbol string) (float64, error) {
 	return rate, nil
 }
 
+// getSortedTimeframes 返回按标准顺序排序的时间框架列表
+func getSortedTimeframes(timeframeMap map[string]*TimeframeData) []string {
+	// 定义标准顺序
+	order := []string{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d"}
+
+	var result []string
+	for _, tf := range order {
+		if _, exists := timeframeMap[tf]; exists {
+			result = append(result, tf)
+		}
+	}
+
+	return result
+}
+
+// formatTimeframeData 格式化单个时间框架的数据
+func formatTimeframeData(tf *TimeframeData) string {
+	if tf == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	// 获取时间框架的友好名称
+	tfName := GetTimeframeName(tf.Timeframe)
+	sb.WriteString(fmt.Sprintf("Time series data (%s timeframe, oldest → latest):\n\n", tfName))
+
+	// Mid prices
+	if len(tf.MidPrices) > 0 {
+		sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(tf.MidPrices)))
+	}
+
+	// EMA20
+	if len(tf.EMA20Values) > 0 {
+		sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(tf.EMA20Values)))
+	}
+
+	// MACD
+	if len(tf.MACDValues) > 0 {
+		sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(tf.MACDValues)))
+	}
+
+	// RSI7
+	if len(tf.RSI7Values) > 0 {
+		sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(tf.RSI7Values)))
+	}
+
+	// RSI14
+	if len(tf.RSI14Values) > 0 {
+		sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(tf.RSI14Values)))
+	}
+
+	// Bollinger Bands
+	if len(tf.BollingerUpper) > 0 {
+		sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
+		sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(tf.BollingerUpper)))
+		sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(tf.BollingerMid)))
+		sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(tf.BollingerLower)))
+	}
+
+	// Volume
+	if len(tf.Volume) > 0 {
+		sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(tf.Volume)))
+	}
+
+	// ATR14
+	if tf.ATR14 > 0 {
+		sb.WriteString(fmt.Sprintf("%s ATR (14‑period): %.3f\n\n", tf.Timeframe, tf.ATR14))
+	}
+
+	return sb.String()
+}
+
 // Format 格式化输出市场数据
 func Format(data *Data) string {
 	var sb strings.Builder
@@ -531,68 +814,79 @@ func Format(data *Data) string {
 
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
 
-	if data.IntradaySeries != nil {
-		sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
+	// 优先使用新的 TimeframeData（动态多时间框架）
+	if data.TimeframeData != nil && len(data.TimeframeData) > 0 {
+		// 按标准顺序输出时间框架数据
+		sortedTimeframes := getSortedTimeframes(data.TimeframeData)
+		for _, tf := range sortedTimeframes {
+			tfData := data.TimeframeData[tf]
+			sb.WriteString(formatTimeframeData(tfData))
+		}
+	} else {
+		// 向后兼容：如果没有 TimeframeData，使用旧字段
+		if data.IntradaySeries != nil {
+			sb.WriteString("Intraday series (3‑minute intervals, oldest → latest):\n\n")
 
-		if len(data.IntradaySeries.MidPrices) > 0 {
-			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
+			if len(data.IntradaySeries.MidPrices) > 0 {
+				sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
+			}
+
+			if len(data.IntradaySeries.EMA20Values) > 0 {
+				sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.IntradaySeries.EMA20Values)))
+			}
+
+			if len(data.IntradaySeries.MACDValues) > 0 {
+				sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.IntradaySeries.MACDValues)))
+			}
+
+			if len(data.IntradaySeries.RSI7Values) > 0 {
+				sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI7Values)))
+			}
+
+			if len(data.IntradaySeries.RSI14Values) > 0 {
+				sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
+			}
+
+			if len(data.IntradaySeries.BollingerUpper) > 0 {
+				sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
+				sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(data.IntradaySeries.BollingerUpper)))
+				sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(data.IntradaySeries.BollingerMid)))
+				sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(data.IntradaySeries.BollingerLower)))
+			}
+
+			if len(data.IntradaySeries.Volume) > 0 {
+				sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
+			}
+
+			sb.WriteString(fmt.Sprintf("3m ATR (14‑period): %.3f\n\n", data.IntradaySeries.ATR14))
 		}
 
-		if len(data.IntradaySeries.EMA20Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.IntradaySeries.EMA20Values)))
-		}
+		if data.LongerTermContext != nil {
+			sb.WriteString("Longer‑term context (4‑hour timeframe):\n\n")
 
-		if len(data.IntradaySeries.MACDValues) > 0 {
-			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.IntradaySeries.MACDValues)))
-		}
+			sb.WriteString(fmt.Sprintf("20‑Period EMA: %.3f vs. 50‑Period EMA: %.3f\n\n",
+				data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))
 
-		if len(data.IntradaySeries.RSI7Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI7Values)))
-		}
+			sb.WriteString(fmt.Sprintf("3‑Period ATR: %.3f vs. 14‑Period ATR: %.3f\n\n",
+				data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
 
-		if len(data.IntradaySeries.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.IntradaySeries.RSI14Values)))
-		}
+			sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
+				data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
 
-		if len(data.IntradaySeries.BollingerUpper) > 0 {
-			sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
-			sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(data.IntradaySeries.BollingerUpper)))
-			sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(data.IntradaySeries.BollingerMid)))
-			sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(data.IntradaySeries.BollingerLower)))
-		}
+			if len(data.LongerTermContext.MACDValues) > 0 {
+				sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.LongerTermContext.MACDValues)))
+			}
 
-		if len(data.IntradaySeries.Volume) > 0 {
-			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.IntradaySeries.Volume)))
-		}
+			if len(data.LongerTermContext.RSI14Values) > 0 {
+				sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
+			}
 
-		sb.WriteString(fmt.Sprintf("3m ATR (14‑period): %.3f\n\n", data.IntradaySeries.ATR14))
-	}
-
-	if data.LongerTermContext != nil {
-		sb.WriteString("Longer‑term context (4‑hour timeframe):\n\n")
-
-		sb.WriteString(fmt.Sprintf("20‑Period EMA: %.3f vs. 50‑Period EMA: %.3f\n\n",
-			data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))
-
-		sb.WriteString(fmt.Sprintf("3‑Period ATR: %.3f vs. 14‑Period ATR: %.3f\n\n",
-			data.LongerTermContext.ATR3, data.LongerTermContext.ATR14))
-
-		sb.WriteString(fmt.Sprintf("Current Volume: %.3f vs. Average Volume: %.3f\n\n",
-			data.LongerTermContext.CurrentVolume, data.LongerTermContext.AverageVolume))
-
-		if len(data.LongerTermContext.MACDValues) > 0 {
-			sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.LongerTermContext.MACDValues)))
-		}
-
-		if len(data.LongerTermContext.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.LongerTermContext.RSI14Values)))
-		}
-
-		if len(data.LongerTermContext.BollingerUpper) > 0 {
-			sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
-			sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(data.LongerTermContext.BollingerUpper)))
-			sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(data.LongerTermContext.BollingerMid)))
-			sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(data.LongerTermContext.BollingerLower)))
+			if len(data.LongerTermContext.BollingerUpper) > 0 {
+				sb.WriteString(fmt.Sprintf("Bollinger Bands (20‑period, 2σ):\n"))
+				sb.WriteString(fmt.Sprintf("  Upper: %s\n", formatFloatSlice(data.LongerTermContext.BollingerUpper)))
+				sb.WriteString(fmt.Sprintf("  Middle: %s\n", formatFloatSlice(data.LongerTermContext.BollingerMid)))
+				sb.WriteString(fmt.Sprintf("  Lower: %s\n\n", formatFloatSlice(data.LongerTermContext.BollingerLower)))
+			}
 		}
 	}
 

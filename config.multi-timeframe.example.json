@@ -1,0 +1,37 @@
+{
+  "trader_id": "btc-multi-tf-001",
+  "symbol": "BTCUSDT",
+  "side": "long",
+  "timeframe": "3m",
+  "leverage": 10,
+  "max_drawdown": 0.05,
+  "take_profit_pct": 0.02,
+  "stop_loss_pct": 0.01,
+  "model_provider": "deepseek",
+  "model_name": "deepseek-chat",
+  "exchange": "binance",
+  "account_type": "paper",
+  
+  "indicator_config": {
+    "timeframes": ["3m", "1h", "4h"],
+    "indicators": ["ema", "macd", "rsi", "atr", "volume"],
+    "data_points": {
+      "3m": 40,
+      "1h": 30,
+      "4h": 25
+    },
+    "parameters": {
+      "rsi_period": 14,
+      "ema_period": 20,
+      "macd_fast": 12,
+      "macd_slow": 26,
+      "macd_signal": 9
+    }
+  },
+  
+  "_comments": {
+    "timeframes": "Supported: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d",
+    "data_points": "Number of klines for each timeframe",
+    "indicators": "Available: ema, macd, rsi, atr, volume, bollinger"
+  }
+}

@@ -166,8 +166,12 @@ NOFX is currently **fully operational in cryptocurrency markets** with the follo
 - **Dynamic Strategy Adjustment**: AI autonomously adapts trading style based on backtest results
 
 ### 📊 Universal Market Data Layer (Crypto Implementation)
-- **Multi-Timeframe Analysis**: 3-minute real-time + 4-hour trend data
-- **Technical Indicators**: EMA20/50, MACD, RSI(7/14), ATR
+- **🆕 Dynamic Multi-Timeframe Analysis**: Configurable 1-11 timeframes (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d)
+  - **Flexible Configuration**: Choose any combination from short-term (1m) to long-term (1d)
+  - **Hot Reload**: Update timeframe settings without restarting traders
+  - **Optimized Performance**: Concurrent data fetching across all timeframes
+  - **Default**: 3-minute real-time + 4-hour trend data (backward compatible)
+- **Technical Indicators**: EMA20/50, MACD, RSI(7/14), ATR, Bollinger Bands, Volume
 - **Open Interest Tracking**: Market sentiment, capital flow analysis
 - **Liquidity Filtering**: Auto-filters low liquidity assets (<15M USD)
 - **Cross-Exchange Support**: Binance, Hyperliquid, Aster DEX with unified data interface

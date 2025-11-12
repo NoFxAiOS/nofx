@@ -200,6 +200,69 @@ body {
   border-bottom: 1px solid var(--panel-border);
 }
 
+/* Sonner (toast) - Binance theme overrides */
+.sonner-toaster {
+  z-index: 9999;
+}
+
+.nofx-toast {
+  background: #0b0e11 !important;
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: 6px !important;
+}
+
+.nofx-toast .sonner-title {
+  color: var(--text-primary) !important;
+  font-weight: 700;
+}
+
+.nofx-toast .sonner-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Success / Error / Warning tint */
+.nofx-toast[data-type='success'] {
+  background: #0b0e11 !important;
+  border-color: var(--binance-green) !important;
+  border-left: 3px solid var(--binance-green) !important;
+}
+.nofx-toast[data-type='success'] .sonner-title,
+.nofx-toast[data-type='success'] .sonner-description {
+  color: var(--binance-green) !important;
+}
+
+.nofx-toast[data-type='error'] {
+  background: #0b0e11 !important;
+  border-color: var(--binance-red) !important;
+  border-left: 3px solid var(--binance-red) !important;
+}
+.nofx-toast[data-type='error'] .sonner-title,
+.nofx-toast[data-type='error'] .sonner-description {
+  color: var(--binance-red) !important;
+}
+
+.nofx-toast[data-type='warning'],
+.nofx-toast[data-type='info'] {
+  background: #0b0e11 !important;
+  border-color: var(--binance-yellow) !important;
+  border-left: 3px solid var(--binance-yellow) !important;
+}
+.nofx-toast[data-type='warning'] .sonner-title,
+.nofx-toast[data-type='warning'] .sonner-description,
+.nofx-toast[data-type='info'] .sonner-title,
+.nofx-toast[data-type='info'] .sonner-description {
+  color: var(--binance-yellow) !important;
+}
+
+.nofx-toast .sonner-close-button {
+  color: var(--text-secondary) !important;
+}
+.nofx-toast .sonner-close-button:hover {
+  color: var(--text-primary) !important;
+}
+
 /* Monospace numbers */
 .mono {
   font-family: 'IBM Plex Mono', 'Courier New', monospace;
@@ -233,6 +296,113 @@ button:disabled {
   border-radius: 4px;
   transition: all 0.2s ease;
   box-shadow: var(--shadow-sm);
+}
+
+.dev-toast-controller {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(320px, 85vw);
+  background: rgba(11, 14, 17, 0.9);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--text-secondary);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(16px);
+  font-size: 0.85rem;
+  z-index: 9999;
+}
+
+.dev-toast-controller__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.dev-toast-controller__header small {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+}
+
+.dev-toast-controller__content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dev-toast-controller__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.dev-toast-controller__label select,
+.dev-toast-controller__label input {
+  width: 100%;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.dev-toast-controller__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.dev-toast-controller__actions button {
+  flex: 1;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 8px 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: transform 0.2s ease;
+}
+
+.dev-toast-controller__actions button:first-child {
+  background: rgba(240, 185, 11, 0.15);
+  color: var(--binance-yellow);
+  border: 1px solid rgba(240, 185, 11, 0.4);
+}
+
+.dev-toast-controller__actions button:last-child {
+  background: rgba(132, 142, 156, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid var(--panel-border);
+}
+
+.dev-toast-controller__actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.dev-custom-toast {
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0b90b, #df8c0c);
+  color: #0a0a0a;
+  font-weight: 600;
+}
+
+.dev-custom-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dev-custom-body {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
 }
 
 .binance-card:hover {

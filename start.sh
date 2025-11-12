@@ -274,22 +274,247 @@ EOF
 }
 
 # ------------------------------------------------------------------------
-# Validation: Database File (config.db)
+# Validation: Database File (config.db) - Enhanced
 # ------------------------------------------------------------------------
 check_database() {
+    print_info "检查数据库环境..."
+
+    # 处理目录与文件冲突
     if [ -d "config.db" ]; then
-        print_warning "config.db 是目录而非文件，正在删除目录..."
-        rm -rf config.db
-        print_info "✓ 已删除目录，现在创建文件..."
+        print_warning "⚠️  config.db 是目录而非文件，正在处理..."
+        if [ -f "config.db.backup" ]; then
+            print_info "发现旧备份文件，先清理..."
+            rm -rf config.db.backup
+        fi
+        mv config.db config.db.backup.$(date +%Y%m%d_%H%M%S).directory 2>/dev/null || true
+        print_info "✓ 已将冲突目录重命名为备份，现在创建正确的数据库文件..."
         install -m 600 /dev/null config.db
         print_success "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
+
+    # 创建新的数据库文件
     elif [ ! -f "config.db" ]; then
-        print_warning "数据库文件不存在，创建空数据库文件..."
+        print_info "📄 数据库文件不存在，创建新的数据库文件..."
         install -m 600 /dev/null config.db
-        print_info "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
+        print_success "✓ 已创建空数据库文件（权限: 600），系统将在启动时初始化"
+
+    # 验证现有数据库文件
     else
-        print_success "数据库文件存在"
+        print_info "🔍 验证现有数据库文件..."
+
+        # 检查文件大小
+        local db_size=$(stat -f%z "config.db" 2>/dev/null || stat -c%s "config.db" 2>/dev/null || echo "0")
+
+        if [ "$db_size" -eq 0 ]; then
+            print_warning "数据库文件为空，系统将自动初始化"
+        elif [ "$db_size" -lt 1024 ]; then
+            print_warning "数据库文件过小 (${db_size} bytes)，可能未完全初始化"
+        else
+            print_success "✓ 数据库文件存在 (${db_size} bytes)"
+
+            # 执行数据库健康检查（如果sqlite3可用）
+            perform_database_health_check
+        fi
+
+        # 验证文件权限
+        local db_perm=$(stat -f "%A" "config.db" 2>/dev/null || stat -c "%a" "config.db" 2>/dev/null)
+        if [ "$db_perm" != "600" ]; then
+            print_warning "数据库文件权限不安全 ($db_perm)，正在修复..."
+            chmod 600 config.db
+            print_success "✓ 权限已修复为 600"
+        fi
     fi
+
+    # 创建数据库备份（仅在服务启动前）
+    if [ "$1" = "startup" ] && [ -f "config.db" ] && [ -s "config.db" ]; then
+        create_database_backup
+    fi
+}
+
+# ------------------------------------------------------------------------
+# Database Health Check Functions
+# ------------------------------------------------------------------------
+perform_database_health_check() {
+    if ! command -v sqlite3 &> /dev/null; then
+        print_info "💡 sqlite3 未安装，跳过数据库完整性检查"
+        print_info "   安装 sqlite3 以启用数据库健康检查: sudo apt install sqlite3"
+        return 0
+    fi
+
+    print_info "🔍 执行数据库完整性检查..."
+
+    # 检查数据库文件是否可以打开
+    if ! sqlite3 config.db "SELECT 1;" >/dev/null 2>&1; then
+        print_error "❌ 数据库文件损坏或无法读取"
+        print_warning "🔄 正在备份数据库并重建..."
+
+        local backup_name="config.db.corrupted.$(date +%Y%m%d_%H%M%S)"
+        mv config.db "$backup_name" 2>/dev/null || true
+        print_info "✓ 损坏的数据库已备份为: $backup_name"
+
+        # 创建新的数据库文件
+        install -m 600 /dev/null config.db
+        print_info "✓ 已创建新的数据库文件"
+        return 1
+    fi
+
+    # 执行完整性检查
+    local integrity_result=$(sqlite3 config.db "PRAGMA integrity_check;" 2>/dev/null | head -1)
+    if [ "$integrity_result" = "ok" ]; then
+        print_success "✅ 数据库完整性检查通过"
+
+        # 检查关键表是否存在
+        check_database_tables
+    else
+        print_error "❌ 数据库完整性检查失败: $integrity_result"
+        print_warning "🔄 建议重建数据库"
+        return 1
+    fi
+}
+
+# 检查数据库表结构
+check_database_tables() {
+    if ! command -v sqlite3 &> /dev/null; then
+        return 0
+    fi
+
+    print_info "🔍 检查数据库表结构..."
+
+    # 关键表列表
+    local required_tables=("users" "ai_models" "exchanges" "system_configs")
+    local missing_tables=()
+
+    for table in "${required_tables[@]}"; do
+        if ! sqlite3 config.db "SELECT name FROM sqlite_master WHERE type='table' AND name='$table';" 2>/dev/null | grep -q "$table"; then
+            missing_tables+=("$table")
+        fi
+    done
+
+    if [ ${#missing_tables[@]} -eq 0 ]; then
+        print_success "✅ 所有必需的数据库表都存在"
+    else
+        print_warning "⚠️  发现缺失的数据库表: ${missing_tables[*]}"
+        print_info "💡 系统启动时会自动创建缺失的表"
+    fi
+}
+
+# 创建数据库备份
+create_database_backup() {
+    local backup_dir="database_backups"
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="$backup_dir/config.db.$timestamp"
+
+    # 创建备份目录
+    if [ ! -d "$backup_dir" ]; then
+        mkdir -p "$backup_dir"
+        chmod 700 "$backup_dir"
+        print_info "✓ 创建备份目录: $backup_dir"
+    fi
+
+    # 创建备份
+    if cp config.db "$backup_file" 2>/dev/null; then
+        chmod 600 "$backup_file"
+        print_success "✅ 数据库已备份到: $backup_file"
+
+        # 清理旧备份（保留最近10个）
+        cleanup_old_backups "$backup_dir" 10
+    else
+        print_warning "⚠️  数据库备份失败"
+    fi
+}
+
+# 清理旧备份文件
+cleanup_old_backups() {
+    local backup_dir="$1"
+    local keep_count="$2"
+
+    if [ -d "$backup_dir" ]; then
+        local backup_count=$(ls -1 "$backup_dir"/config.db.* 2>/dev/null | wc -l)
+        if [ "$backup_count" -gt "$keep_count" ]; then
+            local delete_count=$((backup_count - keep_count))
+            print_info "🗑️  清理 $delete_count 个旧备份文件..."
+            ls -1t "$backup_dir"/config.db.* | tail -n "$delete_count" | xargs rm -f 2>/dev/null || true
+            print_success "✓ 备份清理完成"
+        fi
+    fi
+}
+
+# 数据库恢复功能
+restore_database() {
+    local backup_dir="database_backups"
+
+    if [ ! -d "$backup_dir" ]; then
+        print_error "备份目录不存在: $backup_dir"
+        return 1
+    fi
+
+    print_info "📋 可用的数据库备份:"
+    ls -la "$backup_dir"/config.db.* 2>/dev/null | nl || {
+        print_error "未找到任何数据库备份"
+        return 1
+    }
+
+    echo ""
+    read -p "请选择要恢复的备份编号 (或输入 'q' 取消): " choice
+
+    if [[ "$choice" =~ ^[qQ]$ ]]; then
+        print_info "恢复操作已取消"
+        return 0
+    fi
+
+    if [[ "$choice" =~ ^[0-9]+$ ]]; then
+        local backup_file=$(ls -1t "$backup_dir"/config.db.* | sed -n "${choice}p")
+        if [ -n "$backup_file" ] && [ -f "$backup_file" ]; then
+            print_warning "即将恢复数据库，当前数据库将被覆盖"
+            read -p "确认恢复? [y/N]: " confirm
+
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                # 备份当前数据库
+                if [ -f "config.db" ]; then
+                    mv config.db "config.db.before_restore.$(date +%Y%m%d_%H%M%S)"
+                fi
+
+                # 恢复备份
+                if cp "$backup_file" config.db; then
+                    chmod 600 config.db
+                    print_success "✅ 数据库恢复成功"
+                    print_info "源备份: $backup_file"
+                else
+                    print_error "❌ 数据库恢复失败"
+                    return 1
+                fi
+            else
+                print_info "恢复操作已取消"
+            fi
+        else
+            print_error "无效的备份编号: $choice"
+            return 1
+        fi
+    else
+        print_error "请输入有效的数字编号"
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------------------
+# Create Necessary Directories
+# ------------------------------------------------------------------------
+create_necessary_directories() {
+    local directories=("decision_logs" "logs" "temp" "secrets")
+
+    for dir in "${directories[@]}"; do
+        if [ ! -d "$dir" ]; then
+            if [ "$dir" = "secrets" ]; then
+                install -m 700 -d "$dir"
+                print_info "✓ 创建私密目录: $dir"
+            elif [ "$dir" = "temp" ]; then
+                install -m 755 -d "$dir"
+                print_info "✓ 创建临时目录: $dir"
+            else
+                install -m 755 -d "$dir"
+                print_info "✓ 创建目录: $dir"
+            fi
+        fi
+    done
 }
 
 # ------------------------------------------------------------------------
@@ -349,82 +574,194 @@ setup_frontend() {
 # Service Management: Start
 # ------------------------------------------------------------------------
 start() {
-    print_info "正在启动 NOFX AI Trading System (本地开发模式)..."
+    print_info "🚀 正在启动 NOFX AI Trading System (本地开发模式)..."
 
     # 读取环境变量
     read_env_vars
 
-    # 确保必要的文件和目录存在
-    if [ ! -f "config.db" ]; then
-        print_info "创建数据库文件..."
-        install -m 600 /dev/null config.db
-    fi
-    if [ ! -d "decision_logs" ]; then
-        print_info "创建日志目录..."
-        install -m 700 -d decision_logs
-    fi
+    # 创建必要的目录
+    create_necessary_directories
+
+    # 执行数据库检查（传入启动标志以触发备份）
+    check_database "startup"
 
     # 设置前端环境
     setup_frontend
 
-    # 构建前端（如果是开发模式）
+    # 构建前端（生产模式）
     if [ "$1" != "--dev" ]; then
-        print_info "构建前端..."
-        cd web
-        npm run build
+        print_info "🔨 构建前端..."
+        if ! cd web; then
+            print_error "❌ 无法进入 web 目录"
+            exit 1
+        fi
+
+        if ! npm run build; then
+            print_error "❌ 前端构建失败"
+            cd ..
+            exit 1
+        fi
+
         cd ..
-        print_success "前端构建完成"
+        print_success "✅ 前端构建完成"
     fi
 
-    # 启动后端
-    print_info "启动后端服务..."
+    # 启动后端服务
+    print_info "🚀 启动后端服务..."
+
     # 设置开发模式环境变量
     if [ "$1" == "--dev" ]; then
         export DISABLE_OTP=true
         print_info "🚫 开发模式：已禁用2FA验证"
     fi
 
+    # 清理旧的PID文件
+    rm -f nofx.pid frontend.pid
+
+    # 启动后端（使用二进制文件或源码运行）
     if [ -f "nofx" ]; then
-        # 如果存在编译好的二进制文件
+        print_info "📦 使用编译后的二进制文件启动后端..."
         nohup ./nofx > nofx.log 2>&1 &
         BACKEND_PID=$!
         echo $BACKEND_PID > nofx.pid
     else
-        # 运行Go程序
+        print_info "🔧 使用源码启动后端..."
+        if ! command -v go &> /dev/null; then
+            print_error "❌ Go 未安装，无法启动后端服务"
+            exit 1
+        fi
+
         nohup go run . > nofx.log 2>&1 &
         BACKEND_PID=$!
         echo $BACKEND_PID > nofx.pid
     fi
 
-    # 启动前端（开发模式）
+    # 验证后端启动
+    sleep 3
+    if ! kill -0 $BACKEND_PID 2>/dev/null; then
+        print_error "❌ 后端启动失败，请检查日志: tail -f nofx.log"
+        rm -f nofx.pid
+        exit 1
+    fi
+    print_success "✅ 后端服务已启动 (PID: $BACKEND_PID)"
+
+    # 启动前端开发服务器（开发模式）
     if [ "$1" == "--dev" ]; then
-        print_info "启动前端开发服务器..."
+        print_info "🔧 启动前端开发服务器..."
         cd web
+
+        # 检查Vite是否可用
+        if ! npm list vite &>/dev/null; then
+            print_error "❌ Vite 未安装，请先运行: npm install"
+            cd ..
+            kill $BACKEND_PID 2>/dev/null
+            rm -f nofx.pid
+            exit 1
+        fi
+
         nohup npm run dev > ../frontend.log 2>&1 &
         FRONTEND_PID=$!
         echo $FRONTEND_PID > ../frontend.pid
         cd ..
 
-        print_success "开发服务器已启动！"
+        # 验证前端启动
+        sleep 5
+        if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+            print_error "❌ 前端开发服务器启动失败，请检查日志: tail -f frontend.log"
+            kill $BACKEND_PID 2>/dev/null
+            rm -f nofx.pid frontend.pid
+            exit 1
+        fi
+        print_success "✅ 前端开发服务器已启动 (PID: $FRONTEND_PID)"
+
+        # 等待前端热加载完成
+        sleep 2
+        print_success "🎉 开发服务器已启动！"
     else
-        print_success "生产服务器已启动！"
+        print_success "🎉 生产服务器已启动！"
     fi
 
-    # 等待服务启动
-    sleep 2
+    # 最终健康检查
+    perform_startup_health_check
 
-    print_success "服务已启动！"
-    print_info "Web 界面: http://localhost:${NOFX_FRONTEND_PORT}"
-    print_info "API 端点: http://localhost:${NOFX_BACKEND_PORT}"
-    print_info ""
-    print_info "查看日志:"
-    print_info "  后端: tail -f nofx.log"
-    if [ "$1" == "--dev" ]; then
-        print_info "  前端: tail -f frontend.log"
+    # 显示启动信息
+    display_startup_info "$1"
+}
+
+# 服务启动健康检查
+perform_startup_health_check() {
+    print_info "🔍 执行启动健康检查..."
+
+    # 检查后端API
+    local max_attempts=10
+    local attempt=1
+
+    while [ $attempt -le $max_attempts ]; do
+        if curl -s "http://localhost:${NOFX_BACKEND_PORT}/api/health" >/dev/null 2>&1; then
+            print_success "✅ 后端API健康检查通过"
+            break
+        elif [ $attempt -eq $max_attempts ]; then
+            print_warning "⚠️  后端API健康检查超时，但服务可能仍在启动中"
+            print_info "   请检查后端日志: tail -f nofx.log"
+            break
+        else
+            print_info "   等待后端API响应... ($attempt/$max_attempts)"
+            sleep 2
+            attempt=$((attempt + 1))
+        fi
+    done
+}
+
+# 显示启动信息
+display_startup_info() {
+    local mode="$1"
+
+    echo ""
+    print_success "🎯 NOFX AI Trading System 启动完成！"
+    echo ""
+
+    if [ "$mode" == "--dev" ]; then
+        echo "📱 前端开发服务器: http://localhost:${NOFX_FRONTEND_PORT}"
+    else
+        echo "🌐 Web 界面: http://localhost:${NOFX_FRONTEND_PORT}"
     fi
-    print_info ""
-    print_info "停止服务: ./start.sh stop"
-    print_info "重启服务: ./start.sh restart"
+
+    echo "🔗 API 端点: http://localhost:${NOFX_BACKEND_PORT}"
+    echo ""
+
+    echo "📊 服务状态:"
+    if [ -f "nofx.pid" ]; then
+        local backend_pid=$(cat nofx.pid)
+        if kill -0 $backend_pid 2>/dev/null; then
+            echo "  ✅ 后端服务运行中 (PID: $backend_pid)"
+        fi
+    fi
+
+    if [ "$mode" == "--dev" ] && [ -f "frontend.pid" ]; then
+        local frontend_pid=$(cat frontend.pid)
+        if kill -0 $frontend_pid 2>/dev/null; then
+            echo "  ✅ 前端开发服务器运行中 (PID: $frontend_pid)"
+        fi
+    fi
+
+    echo ""
+    echo "📋 常用命令:"
+    echo "  查看服务状态: ./start.sh status"
+    echo "  查看后端日志: tail -f nofx.log"
+
+    if [ "$mode" == "--dev" ]; then
+        echo "  查看前端日志: tail -f frontend.log"
+    fi
+
+    echo "  停止服务: ./start.sh stop"
+    echo "  重启服务: ./start.sh restart"
+    echo "  数据库恢复: ./start.sh restore-db"
+
+    echo ""
+    if [ "$mode" == "--dev" ]; then
+        print_info "💡 开发模式支持热重载，修改代码后会自动更新"
+    fi
+    print_info "💡 数据库已自动备份到 ./database_backups/ 目录"
 }
 
 # ------------------------------------------------------------------------
@@ -755,35 +1092,46 @@ setup_encryption_manual() {
 # Help: Usage Information
 # ------------------------------------------------------------------------
 show_help() {
-    echo "NOFX AI Trading System - 本地开发管理脚本"
+    echo "NOFX AI Trading System - 增强版本地开发管理脚本"
     echo ""
     echo "用法: ./start.sh [command] [options]"
     echo ""
-    echo "命令:"
-    echo "  start [--dev]     启动服务（默认：生产模式，--dev：开发模式）"
-    echo "  stop              停止服务"
-    echo "  restart [--dev]   重启服务"
-    echo "  status [--prod]    查看服务状态"
-    echo "  logs [service]    查看日志（backend/all）"
-    echo "  build             构建生产版本"
-    echo "  clean             清理构建文件和日志"
-    echo "  setup-encryption  设置加密环境（RSA密钥+数据加密）"
-    echo "  help              显示此帮助信息"
+    echo "📋 基础命令:"
+    echo "  start [--dev]       启动服务（默认：生产模式，--dev：开发模式）"
+    echo "  stop                停止服务"
+    echo "  restart [--dev]     重启服务"
+    echo "  status [--prod]      查看服务状态"
+    echo "  logs [service]      查看日志（backend/all）"
+    echo "  build               构建生产版本"
+    echo "  clean               清理构建文件和日志"
+    echo "  help                显示此帮助信息"
     echo ""
-    echo "模式说明:"
+    echo "🔧 高级命令:"
+    echo "  setup-encryption    设置加密环境（RSA密钥+数据加密）"
+    echo "  restore-db          恢复数据库备份"
+    echo ""
+    echo "🔍 模式说明:"
     echo "  生产模式: 构建前端静态文件，启动Go后端服务器"
     echo "  开发模式: 启动前端开发服务器(Vite) + Go后端服务器"
     echo ""
-    echo "示例:"
-    echo "  ./start.sh start --dev    # 开发模式启动"
-    echo "  ./start.sh start           # 生产模式启动"
-    echo "  ./start.sh logs backend    # 查看后端日志"
-    echo "  ./start.sh status          # 查看状态"
-    echo "  ./start.sh build           # 构建生产版本"
+    echo "💡 使用示例:"
+    echo "  ./start.sh start --dev      # 开发模式启动"
+    echo "  ./start.sh start             # 生产模式启动"
+    echo "  ./start.sh logs backend      # 查看后端日志"
+    echo "  ./start.sh status            # 查看状态"
+    echo "  ./start.sh build             # 构建生产版本"
+    echo "  ./start.sh restore-db        # 恢复数据库"
     echo ""
     echo "🔐 关于加密:"
     echo "  系统自动检测加密环境，首次运行时会自动设置"
     echo "  手动设置: ./scripts/setup_encryption.sh"
+    echo ""
+    echo "💾 数据库管理:"
+    echo "  自动备份: 每次启动前自动备份数据库"
+    echo "  备份位置: ./database_backups/"
+    echo "  保留策略: 自动保留最近10个备份"
+    echo "  健康检查: 自动验证数据库完整性"
+    echo "  sqlite3 可选: 安装后可启用高级健康检查"
 }
 
 # ------------------------------------------------------------------------
@@ -796,25 +1144,30 @@ main() {
 
     case "${1:-start}" in
         start)
+            print_info "🔍 执行启动前检查..."
             check_env
             check_encryption
             check_config
-            check_database
+            # 数据库检查将在 start 函数内部执行，以便触发备份
             start "$2"
             ;;
         stop)
+            print_info "🛑 正在停止服务..."
             stop
             ;;
         restart)
+            print_info "🔄 正在重启服务..."
             restart "$2"
             ;;
         status)
+            print_info "📊 检查服务状态..."
             status "$2"
             ;;
         logs)
             logs "$@"
             ;;
         build)
+            print_info "🔨 执行生产构建..."
             check_env
             check_encryption
             check_config
@@ -822,16 +1175,22 @@ main() {
             build
             ;;
         clean)
+            print_info "🧹 清理项目文件..."
             clean
             ;;
         setup-encryption)
+            print_info "🔐 设置加密环境..."
             setup_encryption_manual
+            ;;
+        restore-db)
+            print_info "💾 恢复数据库..."
+            restore_database
             ;;
         help|--help|-h)
             show_help
             ;;
         *)
-            print_error "未知命令: $1"
+            print_error "❌ 未知命令: $1"
             show_help
             exit 1
             ;;

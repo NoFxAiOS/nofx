@@ -1097,18 +1097,35 @@ func (d *Database) UpdateUserSignalSource(userID, coinPoolURL, oiTopURL string) 
 func (d *Database) GetCustomCoins() []string {
 	var symbol string
 	var symbols []string
-	_ = d.db.QueryRow(`
+	err := d.db.QueryRow(`
 		SELECT GROUP_CONCAT(custom_coins , ',') as symbol
 		FROM main.traders where custom_coins != ''
 	`).Scan(&symbol)
+	
+	if err != nil {
+		log.Printf("⚠️  查询交易员自定义币种失败: %v", err)
+	}
+	
 	// 检测用户是否未配置币种 - 兼容性
 	if symbol == "" {
-		symbolJSON, _ := d.GetSystemConfig("default_coins")
-		if err := json.Unmarshal([]byte(symbolJSON), &symbols); err != nil {
+		log.Printf("📋 交易员未配置自定义币种,尝试从系统配置读取default_coins")
+		symbolJSON, err := d.GetSystemConfig("default_coins")
+		if err != nil {
+			log.Printf("⚠️  获取系统配置default_coins失败: %v,使用硬编码默认值", err)
+			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
+		} else if symbolJSON == "" {
+			log.Printf("⚠️  系统配置default_coins为空,使用硬编码默认值")
+			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
+		} else if err := json.Unmarshal([]byte(symbolJSON), &symbols); err != nil {
 			log.Printf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
 			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
+		} else {
+			log.Printf("✅ 从系统配置读取到default_coins: %v", symbols)
 		}
+	} else {
+		log.Printf("✅ 从交易员配置读取到自定义币种: %s", symbol)
 	}
+	
 	// filter Symbol
 	for _, s := range strings.Split(symbol, ",") {
 		if s == "" {
@@ -1119,6 +1136,8 @@ func (d *Database) GetCustomCoins() []string {
 			symbols = append(symbols, coin)
 		}
 	}
+	
+	log.Printf("📋 GetCustomCoins最终返回: %d 个币种 %v", len(symbols), symbols)
 	return symbols
 }
 

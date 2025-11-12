@@ -1276,6 +1276,7 @@ func (s *Server) handleTraderList(c *gin.Context) {
 			"exchange_id":     trader.ExchangeID,
 			"is_running":      isRunning,
 			"initial_balance": trader.InitialBalance,
+			"system_prompt_template": trader.SystemPromptTemplate,
 		})
 	}
 
@@ -2165,6 +2166,7 @@ func (s *Server) handlePublicTraderList(c *gin.Context) {
 			"total_pnl_pct":   trader["total_pnl_pct"],
 			"position_count":  trader["position_count"],
 			"margin_used_pct": trader["margin_used_pct"],
+			"system_prompt_template": trader["system_prompt_template"],
 		})
 	}
 

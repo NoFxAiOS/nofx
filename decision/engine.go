@@ -42,6 +42,8 @@ type PositionInfo struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	UpdateTime       int64   `json:"update_time"` // 持仓更新时间戳（毫秒）
+	StopLoss         float64 `json:"stop_loss,omitempty"`         // 止损价格（用于推断平仓原因）
+	TakeProfit       float64 `json:"take_profit,omitempty"`       // 止盈价格（用于推断平仓原因）
 }
 
 // AccountInfo 账户信息

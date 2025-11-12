@@ -227,7 +227,10 @@ export function TwoStageKeyModal({
               <div className="flex gap-3">
                 <button
                   onClick={handleStage1Next}
-                  disabled={part1.length < expectedPart1Length || processing}
+                  disabled={
+                    (part1.startsWith('0x') ? part1.slice(2) : part1).length <
+                      expectedPart1Length || processing
+                  }
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
                   {processing
@@ -298,7 +301,10 @@ export function TwoStageKeyModal({
               <div className="flex gap-3">
                 <button
                   onClick={handleStage2Complete}
-                  disabled={part2.length < expectedPart2Length}
+                  disabled={
+                    (part2.startsWith('0x') ? part2.slice(2) : part2).length <
+                    expectedPart2Length
+                  }
                   className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
                   🔒 {t('twoStageKey.encryptButton', language)}

@@ -363,8 +363,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     clearFields: (item: T) => T
     buildRequest: (items: T[]) => any
     updateApi: (request: any) => Promise<void>
-    refreshApi: () => Promise<T[]>
-    setItems: (items: T[]) => void
+    setItems: () => void
     closeModal: () => void
     errorKey: string
   }) => {
@@ -396,9 +395,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         error: '更新配置失败',
       })
 
-      // 重新获取用户配置以确保数据同步
-      const refreshedItems = await config.refreshApi()
-      config.setItems(refreshedItems)
+      // 使用 SWR mutate 自动刷新数据
+      config.setItems()
 
       config.closeModal()
     } catch (error) {
@@ -437,7 +435,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }),
       updateApi: api.updateModelConfigs,
-      refreshApi: api.getModelConfigs,
       setItems: () => {
         // 自动刷新模型列表
         mutateModels()
@@ -563,7 +560,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }),
       updateApi: api.updateExchangeConfigsEncrypted,
-      refreshApi: api.getExchangeConfigs,
       setItems: () => {
         // 自动刷新交易所列表
         mutateExchanges()

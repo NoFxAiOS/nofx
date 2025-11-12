@@ -12,6 +12,7 @@ import {
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
 import { t } from '../i18n/translations'
 import {
   AlertTriangle,
@@ -36,10 +37,11 @@ interface EquityChartProps {
 
 export function EquityChart({ traderId }: EquityChartProps) {
   const { language } = useLanguage()
+  const { user, token } = useAuth()
   const [displayMode, setDisplayMode] = useState<'dollar' | 'percent'>('dollar')
 
   const { data: history, error } = useSWR<EquityPoint[]>(
-    traderId ? `equity-history-${traderId}` : 'equity-history',
+    user && token && traderId ? `equity-history-${traderId}` : null,
     () => api.getEquityHistory(traderId),
     {
       refreshInterval: 30000, // 30秒刷新（历史数据更新频率较低）
@@ -49,7 +51,7 @@ export function EquityChart({ traderId }: EquityChartProps) {
   )
 
   const { data: account } = useSWR(
-    traderId ? `account-${traderId}` : 'account',
+    user && token && traderId ? `account-${traderId}` : null,
     () => api.getAccount(traderId),
     {
       refreshInterval: 15000, // 15秒刷新（配合后端缓存）
@@ -113,9 +115,12 @@ export function EquityChart({ traderId }: EquityChartProps) {
       : validHistory
 
   // 计算初始余额（优先从 account 获取配置的初始余额，备选从历史数据反推）
-  const initialBalance = account?.initial_balance  // 从交易员配置读取真实初始余额
-    || (validHistory[0] ? validHistory[0].total_equity - validHistory[0].pnl : undefined)  // 备选：淨值 - 盈亏
-    || 1000;  // 默认值（与创建交易员时的默认配置一致）
+  const initialBalance =
+    account?.initial_balance || // 从交易员配置读取真实初始余额
+    (validHistory[0]
+      ? validHistory[0].total_equity - validHistory[0].pnl
+      : undefined) || // 备选：淨值 - 盈亏
+    1000 // 默认值（与创建交易员时的默认配置一致）
 
   // 转换数据格式
   const chartData = displayHistory.map((point) => {
@@ -296,14 +301,20 @@ export function EquityChart({ traderId }: EquityChartProps) {
         <div
           style={{
             position: 'absolute',
-            top: '15px',
-            right: '15px',
-            fontSize: '20px',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: '80%',
+            fontSize: 'min(20vw, 160px)',
             fontWeight: 'bold',
-            color: 'rgba(240, 185, 11, 0.15)',
+            color: 'rgba(240, 185, 11, 0.12)',
             zIndex: 10,
             pointerEvents: 'none',
             fontFamily: 'monospace',
+            textAlign: 'center',
+            letterSpacing: '0.4rem',
+            lineHeight: 1,
+            userSelect: 'none',
           }}
         >
           NOFX

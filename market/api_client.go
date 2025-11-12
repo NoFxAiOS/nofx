@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"nofx/hook"
 	"strconv"
 	"time"
 )
@@ -19,10 +20,18 @@ type APIClient struct {
 }
 
 func NewAPIClient() *APIClient {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	hookRes := hook.HookExec[hook.SetHttpClientResult](hook.SET_HTTP_CLIENT, client)
+	if hookRes != nil && hookRes.Error() == nil {
+		log.Printf("使用Hook设置的HTTP客户端")
+		client = hookRes.GetResult()
+	}
+
 	return &APIClient{
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		client: client,
 	}
 }
 
@@ -74,6 +83,7 @@ func (c *APIClient) GetKlines(symbol, interval string, limit int) ([]Kline, erro
 	var klineResponses []KlineResponse
 	err = json.Unmarshal(body, &klineResponses)
 	if err != nil {
+		log.Printf("获取K线数据失败,响应内容: %s", string(body))
 		return nil, err
 	}
 

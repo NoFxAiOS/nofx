@@ -121,7 +121,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://asterdex.com/"
+                  href="https://www.asterdex.com/en/referral/fdfc0e"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -131,7 +131,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://www.binance.com/"
+                  href="https://www.maxweb.red/join?ref=NOFXAI"
                   target="_blank"
                   rel="noopener noreferrer"
                 >

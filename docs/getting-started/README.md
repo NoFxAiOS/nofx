@@ -24,32 +24,11 @@ Choose the method that best fits your needs:
 **Quick Start:**
 ```bash
 cp config.json.example config.json
-./start.sh start --build
+./scripts/start.sh start --build
 ```
 
 ---
 
-### 🔧 PM2 Deployment
-
-**Best for:** Advanced users, development, custom setups
-
-- **English:** [pm2-deploy.en.md](pm2-deploy.en.md)
-- **中文:** [pm2-deploy.md](pm2-deploy.md)
-
-**Pros:**
-- ✅ Direct process control
-- ✅ Better for development
-- ✅ Lower resource usage
-- ✅ More flexible
-
-**Quick Start:**
-```bash
-go build -o nofx
-cd web && npm install && npm run build
-pm2 start ecosystem.config.js
-```
-
----
 
 ## 🤖 AI Configuration
 
@@ -77,7 +56,6 @@ Before starting, ensure you have:
 - ✅ Go 1.21+
 - ✅ Node.js 18+
 - ✅ TA-Lib library
-- ✅ PM2 (optional)
 
 ---
 
@@ -89,6 +67,23 @@ After deployment:
 2. **Set Up Exchange** → Add Binance/Hyperliquid credentials
 3. **Create Traders** → Combine AI models with exchanges
 4. **Start Trading** → Monitor performance in dashboard
+
+### 🔐 Optional: Enable Admin Mode (Single-User)
+
+For single-tenant/self-hosted usage, you can enable strict admin-only access:
+
+1) In `config.json` set the 2 fields below:
+```jsonc
+{
+	"admin_mode": true,
+  ...
+  "jwt_secret": "YOUR_JWT_SCR"
+}
+```
+2) Set environment variables (Docker compose already wired):
+- `NOFX_ADMIN_PASSWORD` — admin password (plaintext; hashed on startup)
+
+3) Login at `/login` using the admin password. All non-essential endpoints are blocked to unauthenticated users while admin mode is enabled.
 
 ---
 

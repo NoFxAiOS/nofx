@@ -108,18 +108,16 @@ export interface AIModel {
 
 export interface Exchange {
   id: string
+  user_id: string
   name: string
   type: 'cex' | 'dex'
   enabled: boolean
-  apiKey?: string
-  secretKey?: string
   testnet?: boolean
-  // Hyperliquid 特定字段
-  hyperliquidWalletAddr?: string
-  // Aster 特定字段
-  asterUser?: string
-  asterSigner?: string
-  asterPrivateKey?: string
+  hyperliquidWalletAddr?: string // 钱包地址，非敏感信息
+  asterUser?: string             // Aster用户名，非敏感信息
+  deleted: boolean
+  created_at: string
+  updated_at: string
 }
 
 export interface CreateTraderRequest {
@@ -197,6 +195,7 @@ export interface TraderConfigData {
   trading_symbols: string
   custom_prompt: string
   override_base_prompt: boolean
+  system_prompt_template: string
   is_cross_margin: boolean
   use_coin_pool: boolean
   use_oi_top: boolean

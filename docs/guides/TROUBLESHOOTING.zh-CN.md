@@ -403,20 +403,22 @@ docker compose up -d
 #### ❌ 交易员配置无法保存
 
 **检查:**
-1. **权限:**
+1. **PostgreSQL 容器状态**
    ```bash
-   ls -l config.db trading.db
-   # 应该对当前用户可写
+   docker compose ps postgres
+   docker compose exec postgres pg_isready -U nofx -d nofx
    ```
 
-2. **磁盘空间:**
+2. **直接检查数据库数据**
+   ```bash
+   ./scripts/view_pg_data.sh                        # 快速总览
+   docker compose exec postgres \
+     psql -U nofx -d nofx -c "SELECT COUNT(*) FROM traders;"
+   ```
+
+3. **磁盘空间**
    ```bash
    df -h  # 确保磁盘未满
-   ```
-
-3. **数据库完整性:**
-   ```bash
-   sqlite3 config.db "PRAGMA integrity_check;"
    ```
 
 ---
@@ -437,15 +439,9 @@ docker compose logs -f backend
 docker compose logs backend --tail=500 > backend_logs.txt
 ```
 
-**手动/PM2:**
+**手动运行:**
 ```bash
-# 运行 ./nofx 的终端会显示日志
-
-# PM2:
-pm2 logs nofx --lines 100
-
-# 保存到文件
-pm2 logs nofx --lines 500 > backend_logs.txt
+# 如果不是通过 Docker，而是手动运行 ./nofx，可直接在终端查看日志
 ```
 
 ---
@@ -532,13 +528,16 @@ docker compose restart frontend
 
 ```bash
 # 检查数据库中的交易员
-sqlite3 config.db "SELECT id, name, ai_model_id, exchange_id, is_running FROM traders;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT id, name, ai_model_id, exchange_id, is_running FROM traders;"
 
 # 检查 AI 模型
-sqlite3 config.db "SELECT id, name, model_type, enabled FROM ai_models;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT id, name, provider, enabled FROM ai_models;"
 
 # 检查系统配置
-sqlite3 config.db "SELECT key, value FROM system_config;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT key, value FROM system_config;"
 ```
 
 ---
@@ -572,12 +571,12 @@ sqlite3 config.db "SELECT key, value FROM system_config;"
 # 停止所有服务
 docker compose down
 
-# 备份数据库（以防万一）
-cp config.db config.db.backup
-cp trading.db trading.db.backup
+# 可选：备份 PostgreSQL 数据
+docker compose exec postgres \
+  pg_dump -U nofx -d nofx > backup_nofx.sql
 
-# 删除数据库（全新开始）
-rm config.db trading.db
+# 删除所有持久化卷（全新开始）
+docker compose down -v
 
 # 重启
 docker compose up -d --build

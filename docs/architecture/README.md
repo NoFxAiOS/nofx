@@ -93,7 +93,7 @@ nofx/
 | `github.com/gin-gonic/gin` | HTTP API framework | v1.9+ |
 | `github.com/adshao/go-binance/v2` | Binance API client | v2.4+ |
 | `github.com/markcheno/go-talib` | Technical indicators (TA-Lib) | Latest |
-| `github.com/mattn/go-sqlite3` | SQLite database driver | v1.14+ |
+| `github.com/lib/pq` | PostgreSQL database driver | v1.10+ |
 | `github.com/golang-jwt/jwt/v5` | JWT authentication | v5.0+ |
 | `github.com/pquerna/otp` | 2FA/TOTP support | v1.4+ |
 | `golang.org/x/crypto` | Password hashing (bcrypt) | Latest |

@@ -27,6 +27,8 @@ interface TraderConfigData {
   use_oi_top: boolean
   initial_balance: number
   scan_interval_minutes: number
+  taker_fee_rate: number  // Taker 费率 (默认 0.0004 = 0.04%)
+  maker_fee_rate: number  // Maker 费率 (默认 0.0002 = 0.02%)
 }
 
 interface TraderConfigModalProps {
@@ -64,6 +66,8 @@ export function TraderConfigModal({
     use_oi_top: false,
     initial_balance: 1000,
     scan_interval_minutes: 3,
+    taker_fee_rate: 0.0004, // 默认 Binance Taker 费率 (0.04%)
+    maker_fee_rate: 0.0002, // 默认 Binance Maker 费率 (0.02%)
   })
   const [isSaving, setIsSaving] = useState(false)
   const [availableCoins, setAvailableCoins] = useState<string[]>([])
@@ -100,6 +104,8 @@ export function TraderConfigModal({
         use_oi_top: false,
         initial_balance: 1000,
         scan_interval_minutes: 3,
+        taker_fee_rate: 0.0004, // 默认 Binance Taker 费率 (0.04%)
+        maker_fee_rate: 0.0002, // 默认 Binance Maker 费率 (0.02%)
       })
     }
     // 确保旧数据也有默认的 system_prompt_template
@@ -249,6 +255,8 @@ export function TraderConfigModal({
         use_oi_top: formData.use_oi_top,
         initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
+        taker_fee_rate: formData.taker_fee_rate,  // 添加 Taker 费率
+        maker_fee_rate: formData.maker_fee_rate,  // 添加 Maker 费率
       }
       await toast.promise(onSave(saveData), {
         loading: '正在保存…',
@@ -543,7 +551,55 @@ export function TraderConfigModal({
                 </div>
               </div>
 
-              {/* 第三行：交易币种 */}
+              {/* 第四行：费率设置 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-[#EAECEF] block mb-2">
+                    Taker 费率 (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={(formData.taker_fee_rate * 100).toFixed(4)}
+                    onChange={(e) =>
+                      handleInputChange(
+                        'taker_fee_rate',
+                        Number(e.target.value) / 100
+                      )
+                    }
+                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                    min="0"
+                    max="1"
+                    step="0.0001"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    默认 0.04% (Binance 标准费率)
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm text-[#EAECEF] block mb-2">
+                    Maker 费率 (%)
+                  </label>
+                  <input
+                    type="number"
+                    value={(formData.maker_fee_rate * 100).toFixed(4)}
+                    onChange={(e) =>
+                      handleInputChange(
+                        'maker_fee_rate',
+                        Number(e.target.value) / 100
+                      )
+                    }
+                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                    min="0"
+                    max="1"
+                    step="0.0001"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    默认 0.02% (Binance 标准费率)
+                  </p>
+                </div>
+              </div>
+
+              {/* 第五行：交易币种 */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm text-[#EAECEF]">

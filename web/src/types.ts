@@ -138,6 +138,8 @@ export interface CreateTraderRequest {
   is_cross_margin?: boolean
   use_coin_pool?: boolean
   use_oi_top?: boolean
+  taker_fee_rate?: number  // Taker 费率 (默认 0.0004 = 0.04%)
+  maker_fee_rate?: number  // Maker 费率 (默认 0.0002 = 0.02%)
 }
 
 export interface UpdateModelConfigRequest {
@@ -204,5 +206,7 @@ export interface TraderConfigData {
   use_oi_top: boolean
   initial_balance: number
   scan_interval_minutes: number
+  taker_fee_rate: number  // Taker 费率
+  maker_fee_rate: number  // Maker 费率
   is_running: boolean
 }

@@ -396,6 +396,8 @@ type CreateTraderRequest struct {
 	IsCrossMargin        *bool   `json:"is_cross_margin"`        // 指针类型，nil表示使用默认值true
 	UseCoinPool          bool    `json:"use_coin_pool"`
 	UseOITop             bool    `json:"use_oi_top"`
+	TakerFeeRate         float64 `json:"taker_fee_rate"` // Taker fee rate, default 0.0004 (0.04%)
+	MakerFeeRate         float64 `json:"maker_fee_rate"` // Maker fee rate, default 0.0002 (0.02%)
 }
 
 type ModelConfig struct {
@@ -604,6 +606,31 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		}
 	}
 
+	// 设置默认费率
+	takerFeeRate := req.TakerFeeRate
+	makerFeeRate := req.MakerFeeRate
+
+	// 如果用户未设置，使用默认值
+	if takerFeeRate == 0 {
+		takerFeeRate = 0.0004 // Binance 标准 Taker 费率
+	}
+	if makerFeeRate == 0 {
+		makerFeeRate = 0.0002 // Binance 标准 Maker 费率
+	}
+
+	// 添加费率范围验证
+	if takerFeeRate < 0 || takerFeeRate > 0.01 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Taker费率必须在0-1%之间"})
+		return
+	}
+	if makerFeeRate < 0 || makerFeeRate > 0.01 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Maker费率必须在0-1%之间"})
+		return
+	}
+
+	log.Printf("✓ 费率配置: Taker=%.4f (%.2f%%), Maker=%.4f (%.2f%%)",
+		takerFeeRate, takerFeeRate*100, makerFeeRate, makerFeeRate*100)
+
 	// 创建交易员配置（数据库实体）
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -622,6 +649,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
+		TakerFeeRate:         takerFeeRate, // 添加 Taker 费率
+		MakerFeeRate:         makerFeeRate, // 添加 Maker 费率
 		IsRunning:            false,
 	}
 
@@ -663,6 +692,8 @@ type UpdateTraderRequest struct {
 	OverrideBasePrompt   bool    `json:"override_base_prompt"`
 	SystemPromptTemplate string  `json:"system_prompt_template"`
 	IsCrossMargin        *bool   `json:"is_cross_margin"`
+	TakerFeeRate         float64 `json:"taker_fee_rate"` // Taker fee rate
+	MakerFeeRate         float64 `json:"maker_fee_rate"` // Maker fee rate
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -726,6 +757,43 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		systemPromptTemplate = existingTrader.SystemPromptTemplate // 如果请求中没有提供，保持原值
 	}
 
+	// 设置费率，允许更新
+	takerFeeRate := req.TakerFeeRate
+	makerFeeRate := req.MakerFeeRate
+
+	// 如果用户未提供或为0，保持原有配置
+	if takerFeeRate == 0 {
+		if existingTrader.TakerFeeRate > 0 {
+			takerFeeRate = existingTrader.TakerFeeRate // 保持原值
+		} else {
+			takerFeeRate = 0.0004 // 使用默认值
+		}
+	}
+	if makerFeeRate == 0 {
+		if existingTrader.MakerFeeRate > 0 {
+			makerFeeRate = existingTrader.MakerFeeRate // 保持原值
+		} else {
+			makerFeeRate = 0.0002 // 使用默认值
+		}
+	}
+
+	// 验证费率范围
+	if takerFeeRate < 0 || takerFeeRate > 0.01 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Taker费率必须在0-1%之间"})
+		return
+	}
+	if makerFeeRate < 0 || makerFeeRate > 0.01 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Maker费率必须在0-1%之间"})
+		return
+	}
+
+	// 记录费率变化
+	if takerFeeRate != existingTrader.TakerFeeRate || makerFeeRate != existingTrader.MakerFeeRate {
+		log.Printf("✓ 更新费率配置: Taker %.4f→%.4f, Maker %.4f→%.4f",
+			existingTrader.TakerFeeRate, takerFeeRate,
+			existingTrader.MakerFeeRate, makerFeeRate)
+	}
+
 	// 更新交易员配置
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -742,6 +810,8 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
+		TakerFeeRate:         takerFeeRate,             // 添加 Taker 费率
+		MakerFeeRate:         makerFeeRate,             // 添加 Maker 费率
 		IsRunning:            existingTrader.IsRunning, // 保持原值
 	}
 

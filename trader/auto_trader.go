@@ -61,6 +61,10 @@ type AutoTraderConfig struct {
 	BTCETHLeverage  int // BTC和ETH的杠杆倍数
 	AltcoinLeverage int // 山寨币的杠杆倍数
 
+	// 手续费率配置
+	TakerFeeRate float64 // Taker fee rate (default 0.0004)
+	MakerFeeRate float64 // Maker fee rate (default 0.0002)
+
 	// 风险控制（仅作为提示，AI可自主决定）
 	MaxDailyLoss    float64       // 最大日亏损百分比（提示）
 	MaxDrawdown     float64       // 最大回撤百分比（提示）
@@ -711,6 +715,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CallCount:       at.callCount,
 		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
 		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		TakerFeeRate:    at.config.TakerFeeRate,    // Use configured taker fee rate
+		MakerFeeRate:    at.config.MakerFeeRate,    // Use configured maker fee rate
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,

@@ -84,6 +84,8 @@ type Context struct {
 	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
 	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	TakerFeeRate    float64                 `json:"-"` // Taker fee rate (from config, default 0.0004)
+	MakerFeeRate    float64                 `json:"-"` // Maker fee rate (from config, default 0.0002)
 }
 
 // Decision AI的交易决策

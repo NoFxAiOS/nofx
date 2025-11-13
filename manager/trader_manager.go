@@ -232,6 +232,8 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		InitialBalance:        traderCfg.InitialBalance,
 		BTCETHLeverage:        traderCfg.BTCETHLeverage,
 		AltcoinLeverage:       traderCfg.AltcoinLeverage,
+		TakerFeeRate:          traderCfg.TakerFeeRate, // Taker fee rate from config
+		MakerFeeRate:          traderCfg.MakerFeeRate, // Maker fee rate from config
 		MaxDailyLoss:          maxDailyLoss,
 		MaxDrawdown:           maxDrawdown,
 		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
@@ -339,6 +341,8 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		InitialBalance:        traderCfg.InitialBalance,
 		BTCETHLeverage:        traderCfg.BTCETHLeverage,
 		AltcoinLeverage:       traderCfg.AltcoinLeverage,
+		TakerFeeRate:          traderCfg.TakerFeeRate, // Taker fee rate from config
+		MakerFeeRate:          traderCfg.MakerFeeRate, // Maker fee rate from config
 		MaxDailyLoss:          maxDailyLoss,
 		MaxDrawdown:           maxDrawdown,
 		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
@@ -1033,6 +1037,8 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 		InitialBalance:       traderCfg.InitialBalance,
 		BTCETHLeverage:       traderCfg.BTCETHLeverage,
 		AltcoinLeverage:      traderCfg.AltcoinLeverage,
+		TakerFeeRate:         traderCfg.TakerFeeRate, // Taker fee rate from config
+		MakerFeeRate:         traderCfg.MakerFeeRate, // Maker fee rate from config
 		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
 		CoinPoolAPIURL:       effectiveCoinPoolURL,
 		CustomAPIURL:         aiModelCfg.CustomAPIURL,    // 自定义API URL

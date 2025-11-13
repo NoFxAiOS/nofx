@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
@@ -1282,39 +1283,73 @@ function Tooltip({
   children: React.ReactNode
 }) {
   const [show, setShow] = useState(false)
+  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (show && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      // 计算 Tooltip 位置：在触发元素上方居中
+      const tooltipWidth = 256 // w-64 = 16rem = 256px
+      let tooltipLeft = rect.left + rect.width / 2 - tooltipWidth / 2
+      const tooltipTop = rect.top - 8 // 8px 间距
+
+      // 边界处理：确保 Tooltip 不会超出屏幕左右边界
+      const padding = 8 // 距离屏幕边缘的最小距离
+      if (tooltipLeft < padding) {
+        tooltipLeft = padding
+      } else if (tooltipLeft + tooltipWidth > window.innerWidth - padding) {
+        tooltipLeft = window.innerWidth - tooltipWidth - padding
+      }
+
+      setPosition({
+        top: tooltipTop,
+        left: tooltipLeft,
+      })
+    }
+  }, [show])
+
+  const tooltipContent = show ? (
+    <div
+      className="fixed z-[9999] px-3 py-2 text-sm rounded-lg shadow-lg w-64"
+      style={{
+        background: '#2B3139',
+        color: '#EAECEF',
+        border: '1px solid #474D57',
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        transform: 'translateY(-100%)',
+      }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {content}
+      <div
+        className="absolute left-1/2 transform -translate-x-1/2 top-full"
+        style={{
+          width: 0,
+          height: 0,
+          borderLeft: '6px solid transparent',
+          borderRight: '6px solid transparent',
+          borderTop: '6px solid #2B3139',
+        }}
+      />
+    </div>
+  ) : null
 
   return (
-    <div className="relative inline-block">
+    <>
       <div
+        ref={triggerRef}
+        className="relative inline-block"
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
         onClick={() => setShow(!show)}
       >
         {children}
       </div>
-      {show && (
-        <div
-          className="absolute z-10 px-3 py-2 text-sm rounded-lg shadow-lg w-64 left-1/2 transform -translate-x-1/2 bottom-full mb-2"
-          style={{
-            background: '#2B3139',
-            color: '#EAECEF',
-            border: '1px solid #474D57',
-          }}
-        >
-          {content}
-          <div
-            className="absolute left-1/2 transform -translate-x-1/2 top-full"
-            style={{
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderTop: '6px solid #2B3139',
-            }}
-          />
-        </div>
-      )}
-    </div>
+      {tooltipContent && createPortal(tooltipContent, document.body)}
+    </>
   )
 }
 

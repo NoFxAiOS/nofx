@@ -48,7 +48,6 @@ export function LoginPage() {
       <HeaderBar
         onLoginClick={() => {}}
         isLoggedIn={false}
-        isHomePage={false}
         currentPage="login"
         language={language}
         onLanguageChange={() => {}}

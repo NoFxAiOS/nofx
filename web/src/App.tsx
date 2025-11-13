@@ -26,7 +26,7 @@ import type {
   TraderInfo,
 } from './types'
 
-type Page = 'competition' | 'traders' | 'trader'
+type Page = 'competition' | 'traders' | 'trader' | 'strategies'
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -56,6 +56,7 @@ function App() {
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
+    if (path === '/strategies' || hash === 'strategies') return 'strategies'
     return 'competition' // 默认为竞赛页面
   }
 
@@ -77,6 +78,8 @@ function App() {
         hash === 'details'
       ) {
         setCurrentPage('trader')
+      } else if (path === '/strategies' || hash === 'strategies') {
+        setCurrentPage('strategies')
       } else if (
         path === '/competition' ||
         hash === 'competition' ||
@@ -205,6 +208,8 @@ function App() {
       setCurrentPage('traders')
     } else if (route === '/dashboard') {
       setCurrentPage('trader')
+    } else if (route === '/strategies') {
+      setCurrentPage('strategies')
     }
   }, [route])
 

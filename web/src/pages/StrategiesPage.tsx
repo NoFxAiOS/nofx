@@ -111,8 +111,18 @@ export default function StrategiesPage() {
 
     try {
       const token = localStorage.getItem('token')
-      // 从文件名中提取策略名（移除 user_<userid>_ 前缀）
-      const strategyName = strategy.name.replace(/^user_[^_]+_/, '')
+      // Extract pure strategy name from template ID (removes user_<userid>_ prefix and .txt suffix)
+      // e.g., "user_123_mystrategy" -> "mystrategy"
+      const parts = strategy.name.split('_')
+      let strategyName = strategy.name
+      
+      // If it starts with user_, remove the first two parts (user and userid)
+      if (parts.length >= 3 && parts[0] === 'user') {
+        strategyName = parts.slice(2).join('_')
+      }
+      
+      // Remove .txt suffix if present
+      strategyName = strategyName.replace(/\.txt$/, '')
 
       const response = await fetch(`/api/strategies/${strategyName}`, {
         method: 'DELETE',

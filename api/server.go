@@ -107,11 +107,6 @@ func (s *Server) setupRoutes() {
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)
 		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
-		
-		// 用户自定义策略管理（无需认证 - 临时修复，后续应改为需要认证）
-		api.POST("/strategies", s.handleCreateStrategy)
-		api.PUT("/strategies/:name", s.handleUpdateStrategy)
-		api.DELETE("/strategies/:name", s.handleDeleteStrategy)
 
 		// 公开的竞赛数据（无需认证）
 		api.GET("/traders", s.handlePublicTraderList)
@@ -161,10 +156,10 @@ func (s *Server) setupRoutes() {
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
 
-			// 用户策略管理（移到上方无需认证区域进行临时修复）
-			// protected.POST("/strategies", s.handleCreateStrategy)
-			// protected.PUT("/strategies/:name", s.handleUpdateStrategy)
-			// protected.DELETE("/strategies/:name", s.handleDeleteStrategy)
+			// 用户策略管理（需要认证）
+			protected.POST("/strategies", s.handleCreateStrategy)
+			protected.PUT("/strategies/:name", s.handleUpdateStrategy)
+			protected.DELETE("/strategies/:name", s.handleDeleteStrategy)
 
 			// 指定trader的数据（使用query参数 ?trader_id=xxx）
 			protected.GET("/status", s.handleStatus)
@@ -2194,14 +2189,11 @@ func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 
 // handleCreateStrategy 创建用户自定义策略
 func (s *Server) handleCreateStrategy(c *gin.Context) {
-	// 临时修复：如果没有user_id，使用默认值
+	// 获取认证用户ID（必需）
 	userID, exists := c.Get("user_id")
-	if !exists {
-		// 记录警告日志
-		log.Printf("⚠️  临时修复：未找到user_id，使用默认值 'default_user'")
-		userID = "default_user"
-		// c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
-		// return
+	if !exists || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		return
 	}
 
 	var req struct {
@@ -2259,14 +2251,11 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 
 // handleUpdateStrategy 更新用户自定义策略
 func (s *Server) handleUpdateStrategy(c *gin.Context) {
-	// 临时修复：如果没有user_id，使用默认值
+	// 获取认证用户ID（必需）
 	userID, exists := c.Get("user_id")
-	if !exists {
-		// 记录警告日志
-		log.Printf("⚠️  临时修复：未找到user_id，使用默认值 'default_user'")
-		userID = "default_user"
-		// c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
-		// return
+	if !exists || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		return
 	}
 
 	strategyName := c.Param("name")
@@ -2309,14 +2298,11 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 
 // handleDeleteStrategy 删除用户自定义策略
 func (s *Server) handleDeleteStrategy(c *gin.Context) {
-	// 临时修复：如果没有user_id，使用默认值
+	// 获取认证用户ID（必需）
 	userID, exists := c.Get("user_id")
-	if !exists {
-		// 记录警告日志
-		log.Printf("⚠️  临时修复：未找到user_id，使用默认值 'default_user'")
-		userID = "default_user"
-		// c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
-		// return
+	if !exists || userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		return
 	}
 
 	strategyName := c.Param("name")

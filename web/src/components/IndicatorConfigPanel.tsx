@@ -91,16 +91,16 @@ const PRESETS = {
 }
 
 export function IndicatorConfigPanel({
-  traderId,
+  traderId: _traderId,
   config,
   onConfigChange,
   isEditing = true,
 }: IndicatorConfigPanelProps) {
-  const { language } = useLanguage()
+  const { language: _language } = useLanguage()
   const [localConfig, setLocalConfig] = useState<IndicatorConfig>(
     config || DEFAULT_CONFIG
   )
-  const [isLoading, setIsLoading] = useState(false)
+  const [_isLoading, _setIsLoading] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
@@ -129,12 +129,12 @@ export function IndicatorConfigPanel({
       : [...localConfig.timeframes, timeframeId]
 
     const newConfig = { ...localConfig, timeframes: newTimeframes }
-    
+
     // 如果添加新时间框架，设置默认数据点
     if (!localConfig.timeframes.includes(timeframeId)) {
       newConfig.data_points[timeframeId] = 30
     }
-    
+
     setLocalConfig(newConfig)
     onConfigChange?.(newConfig)
   }

@@ -4,9 +4,6 @@ import { ArrowRight } from 'lucide-react'
 import HeaderBar from '../components/landing/HeaderBar'
 import HeroSection from '../components/landing/HeroSection'
 import AboutSection from '../components/landing/AboutSection'
-import FeaturesSection from '../components/landing/FeaturesSection'
-import HowItWorksSection from '../components/landing/HowItWorksSection'
-import CommunitySection from '../components/landing/CommunitySection'
 import AnimatedSection from '../components/landing/AnimatedSection'
 import LoginModal from '../components/landing/LoginModal'
 import FooterSection from '../components/landing/FooterSection'
@@ -20,25 +17,31 @@ export function LandingPage() {
   const { language, setLanguage } = useLanguage()
   const isLoggedIn = !!user
 
-  console.log('LandingPage - user:', user, 'isLoggedIn:', isLoggedIn)
   return (
     <>
       <HeaderBar
         onLoginClick={() => setShowLoginModal(true)}
         isLoggedIn={isLoggedIn}
-        isHomePage={true}
         language={language}
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
         onPageChange={(page) => {
-          console.log('LandingPage onPageChange called with:', page)
           if (page === 'competition') {
-            window.location.href = '/competition'
+            window.history.pushState(null, '', '/competition')
+            window.dispatchEvent(new PopStateEvent('popstate'))
           } else if (page === 'traders') {
-            window.location.href = '/traders'
+            window.history.pushState(null, '', '/traders')
+            window.dispatchEvent(new PopStateEvent('popstate'))
           } else if (page === 'trader') {
-            window.location.href = '/dashboard'
+            window.history.pushState(null, '', '/dashboard')
+            window.dispatchEvent(new PopStateEvent('popstate'))
+          } else if (page === 'faq') {
+            window.history.pushState(null, '', '/faq')
+            window.dispatchEvent(new PopStateEvent('popstate'))
+          } else if (page === 'strategies') {
+            window.history.pushState(null, '', '/strategies')
+            window.dispatchEvent(new PopStateEvent('popstate'))
           }
         }}
       />
@@ -51,9 +54,6 @@ export function LandingPage() {
       >
         <HeroSection language={language} />
         <AboutSection language={language} />
-        <FeaturesSection language={language} />
-        <HowItWorksSection language={language} />
-        <CommunitySection />
 
         {/* CTA */}
         <AnimatedSection backgroundColor="var(--panel-bg)">

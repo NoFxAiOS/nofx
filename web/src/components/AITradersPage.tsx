@@ -1803,7 +1803,10 @@ function ExchangeConfigModal({
     if (!selectedExchangeId) return
 
     // 根据交易所类型验证不同字段
-    if (selectedExchange?.id === 'binance' || selectedExchange?.id === 'paper_trading') {
+    if (
+      selectedExchange?.id === 'binance' ||
+      selectedExchange?.id === 'paper_trading'
+    ) {
       if (!apiKey.trim() || !secretKey.trim()) return
       await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
     } else if (selectedExchange?.id === 'hyperliquid') {

@@ -37,7 +37,12 @@ interface OTPVerificationProps {
   onBack: () => void
 }
 
-export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerificationProps) {
+export function OTPVerification({
+  mode,
+  userId,
+  qrCodeUrl,
+  onBack,
+}: OTPVerificationProps) {
   const { language } = useLanguage()
   const { completeRegistration, verifyOTP } = useAuth()
   const [otpCode, setOtpCode] = useState('')
@@ -68,10 +73,14 @@ export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerifica
     setLoading(false)
   }
 
-  const title = mode === 'register' ? t('completeRegistration', language) : t('verifyIdentity', language)
-  const description = mode === 'register'
-    ? t('scanQRCodeCompleteRegistration', language)
-    : t('enterAuthenticationCode', language)
+  const title =
+    mode === 'register'
+      ? t('completeRegistration', language)
+      : t('verifyIdentity', language)
+  const description =
+    mode === 'register'
+      ? t('scanQRCodeCompleteRegistration', language)
+      : t('enterAuthenticationCode', language)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--brand-black)' }}>
@@ -88,11 +97,19 @@ export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerifica
 
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full"
-               style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}>
+          <div
+            className="w-16 h-16 mx-auto mb-4 flex items-center justify-center rounded-full"
+            style={{
+              background: 'var(--brand-yellow)',
+              color: 'var(--brand-black)',
+            }}
+          >
             <Shield size={32} />
           </div>
-          <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
+          <h1
+            className="text-2xl font-bold mb-2"
+            style={{ color: 'var(--brand-light-gray)' }}
+          >
             {title}
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -104,7 +121,10 @@ export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerifica
         {mode === 'register' && qrCodeUrl && (
           <div className="mb-8">
             <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--brand-light-gray)' }}>
+              <h3
+                className="text-lg font-semibold mb-2"
+                style={{ color: 'var(--brand-light-gray)' }}
+              >
                 {t('scanQRCode', language)}
               </h3>
               <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -128,7 +148,7 @@ export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerifica
                 style={{
                   background: 'var(--panel-bg)',
                   border: '1px solid var(--panel-border)',
-                  color: 'var(--brand-light-gray)'
+                  color: 'var(--brand-light-gray)',
                 }}
               >
                 {t('copySecretKey', language)}
@@ -156,7 +176,9 @@ export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerifica
               <input
                 type="text"
                 value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onChange={(e) =>
+                  setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                }
                 placeholder="000000"
                 className="w-full px-4 py-3 rounded text-center text-2xl font-mono tracking-widest"
                 style={{
@@ -170,7 +192,10 @@ export function OTPVerification({ mode, userId, qrCodeUrl, onBack }: OTPVerifica
                 required
                 autoFocus
               />
-              <p className="text-xs mt-2 text-center" style={{ color: 'var(--text-secondary)' }}>
+              <p
+                className="text-xs mt-2 text-center"
+                style={{ color: 'var(--text-secondary)' }}
+              >
                 {t('enter6DigitCode', language)}
               </p>
             </div>

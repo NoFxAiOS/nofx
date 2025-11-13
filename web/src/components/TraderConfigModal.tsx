@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react'
-import type { AIModel, Exchange, CreateTraderRequest, IndicatorConfig } from '../types'
+import type {
+  AIModel,
+  Exchange,
+  CreateTraderRequest,
+  IndicatorConfig,
+} from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { IndicatorConfigPanel } from './IndicatorConfigPanel'
@@ -76,7 +81,7 @@ export function TraderConfigModal({
     indicators: ['ema', 'macd', 'rsi', 'atr', 'volume'],
     timeframes: ['3m', '4h'],
     data_points: { '3m': 40, '4h': 25 },
-    parameters: {}
+    parameters: {},
   })
 
   useEffect(() => {
@@ -263,12 +268,12 @@ export function TraderConfigModal({
         indicator_config: indicatorConfig,
       }
       await onSave(saveData)
-      
+
       // 🔥 如果是编辑模式，额外触发热重载配置
       if (isEditMode && traderData?.trader_id) {
         await handleSaveIndicatorConfig(traderData.trader_id)
       }
-      
+
       onClose()
     } catch (error) {
       console.error('保存失败:', error)
@@ -286,14 +291,17 @@ export function TraderConfigModal({
         return
       }
 
-      const response = await fetch(`/api/traders/${traderId}/indicator-config`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ indicator_config: indicatorConfig })
-      })
+      const response = await fetch(
+        `/api/traders/${traderId}/indicator-config`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ indicator_config: indicatorConfig }),
+        }
+      )
 
       if (!response.ok) {
         throw new Error('热重载配置失败')
@@ -825,7 +833,7 @@ export function TraderConfigModal({
           >
             取消
           </button>
-          
+
           {/* Hot Reload Button (仅编辑模式且trader正在运行时显示) */}
           {isEditMode && traderData?.trader_id && (
             <button
@@ -841,7 +849,7 @@ export function TraderConfigModal({
               🔥 仅热重载配置
             </button>
           )}
-          
+
           {onSave && (
             <button
               onClick={handleSave}

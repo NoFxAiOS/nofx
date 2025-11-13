@@ -6,7 +6,6 @@ import { t, type Language } from '../../i18n/translations'
 interface HeaderBarProps {
   onLoginClick?: () => void
   isLoggedIn?: boolean
-  isHomePage?: boolean
   currentPage?: string
   language?: Language
   onLanguageChange?: (lang: Language) => void
@@ -17,7 +16,6 @@ interface HeaderBarProps {
 
 export default function HeaderBar({
   isLoggedIn = false,
-  isHomePage = false,
   currentPage,
   language = 'zh' as Language,
   onLanguageChange,
@@ -380,46 +378,8 @@ export default function HeaderBar({
               )}
             </div>
 
-            {/* Right Side - Original Navigation Items and Login */}
+            {/* Right Side - User Info and Actions */}
             <div className="flex items-center gap-6">
-              {/* Only show original navigation items on home page */}
-              {isHomePage &&
-                [
-                  { key: 'features', label: t('features', language) },
-                  { key: 'howItWorks', label: t('howItWorks', language) },
-                  { key: 'GitHub', label: 'GitHub' },
-                  { key: 'community', label: t('community', language) },
-                ].map((item) => (
-                  <a
-                    key={item.key}
-                    href={
-                      item.key === 'GitHub'
-                        ? 'https://github.com/tinkle-community/nofx'
-                        : item.key === 'community'
-                          ? 'https://t.me/nofx_dev_community'
-                          : `#${item.key === 'features' ? 'features' : 'how-it-works'}`
-                    }
-                    target={
-                      item.key === 'GitHub' || item.key === 'community'
-                        ? '_blank'
-                        : undefined
-                    }
-                    rel={
-                      item.key === 'GitHub' || item.key === 'community'
-                        ? 'noopener noreferrer'
-                        : undefined
-                    }
-                    className="text-sm transition-colors relative group"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {item.label}
-                    <span
-                      className="absolute -bottom-1 left-0 w-0 h-0.5 group-hover:w-full transition-all duration-300"
-                      style={{ background: 'var(--brand-yellow)' }}
-                    />
-                  </a>
-                ))}
-
               {/* User Info and Actions */}
               {isLoggedIn && user ? (
                 <div className="flex items-center gap-3">
@@ -845,40 +805,6 @@ export default function HeaderBar({
               </button>
             </>
           )}
-
-          {/* Original Navigation Items - Only on home page */}
-          {isHomePage &&
-            [
-              { key: 'features', label: t('features', language) },
-              { key: 'howItWorks', label: t('howItWorks', language) },
-              { key: 'GitHub', label: 'GitHub' },
-              { key: 'community', label: t('community', language) },
-            ].map((item) => (
-              <a
-                key={item.key}
-                href={
-                  item.key === 'GitHub'
-                    ? 'https://github.com/tinkle-community/nofx'
-                    : item.key === 'community'
-                      ? 'https://t.me/nofx_dev_community'
-                      : `#${item.key === 'features' ? 'features' : 'how-it-works'}`
-                }
-                target={
-                  item.key === 'GitHub' || item.key === 'community'
-                    ? '_blank'
-                    : undefined
-                }
-                rel={
-                  item.key === 'GitHub' || item.key === 'community'
-                    ? 'noopener noreferrer'
-                    : undefined
-                }
-                className="block text-sm py-2"
-                style={{ color: 'var(--brand-light-gray)' }}
-              >
-                {item.label}
-              </a>
-            ))}
 
           {/* Language Toggle */}
           <div className="py-2">

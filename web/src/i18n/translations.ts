@@ -440,14 +440,17 @@ export const translations = {
     enter6DigitCode: 'Enter the 6-digit code from your authenticator app',
     scanQRCode: 'Scan QR Code',
     useGoogleAuthenticator: 'Use Google Authenticator or any TOTP app',
-    scanQRCodeCompleteRegistration: 'Scan the QR code with Google Authenticator to complete registration',
-    enterAuthenticationCode: 'Enter the authentication code from your authenticator app',
+    scanQRCodeCompleteRegistration:
+      'Scan the QR code with Google Authenticator to complete registration',
+    enterAuthenticationCode:
+      'Enter the authentication code from your authenticator app',
     orEnterCodeManually: 'Or enter the code manually in your authenticator app',
     copySecretKey: 'Copy Secret Key',
     verify: 'Verify',
     verifying: 'Verifying...',
     otpVerificationFailed: 'OTP verification failed',
-    otpInstructions: 'Open your authenticator app and enter the 6-digit code to continue',
+    otpInstructions:
+      'Open your authenticator app and enter the 6-digit code to continue',
     completeRegistrationSubtitle: 'to complete registration',
     loginSuccess: 'Login successful',
     registrationSuccess: 'Registration successful',
@@ -1109,9 +1112,11 @@ export const translations = {
     promptTemplateNof1: 'NoF1 英文框架',
     promptTemplateTaroLong: 'Taro 长仓',
     promptDescDefault: '📊 默认稳健策略',
-    promptDescDefaultContent: '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
+    promptDescDefaultContent:
+      '最大化夏普比率，平衡风险收益，适合新手和长期稳定交易',
     promptDescAdaptive: '🛡️ 保守策略 (v6.0.0)',
-    promptDescAdaptiveContent: '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
+    promptDescAdaptiveContent:
+      '严格风控，BTC 强制确认，高胜率优先，适合保守型交易者',
     promptDescAdaptiveRelaxed: '⚡ 激进策略 (v6.0.0)',
     promptDescAdaptiveRelaxedContent:
       '高频交易，BTC 可选确认，追求交易机会，适合波动市场',
@@ -1121,7 +1126,8 @@ export const translations = {
     promptDescNof1Content:
       'Hyperliquid 交易所专用，英文提示词，风险调整回报最大化',
     promptDescTaroLong: '📈 Taro 长仓策略',
-    promptDescTaroLongContent: '数据驱动决策，多维度验证，持续学习进化，长仓专用',
+    promptDescTaroLongContent:
+      '数据驱动决策，多维度验证，持续学习进化，长仓专用',
 
     // Loading & Error
     loading: '加载中...',
@@ -1237,7 +1243,8 @@ export const translations = {
     enter6DigitCode: '输入验证器应用中的6位数字验证码',
     scanQRCode: '扫描二维码',
     useGoogleAuthenticator: '使用Google Authenticator或任何TOTP应用',
-    scanQRCodeCompleteRegistration: '使用Google Authenticator扫描二维码完成注册',
+    scanQRCodeCompleteRegistration:
+      '使用Google Authenticator扫描二维码完成注册',
     enterAuthenticationCode: '输入验证器应用中的验证码',
     orEnterCodeManually: '或在验证器应用中手动输入代码',
     copySecretKey: '复制密钥',

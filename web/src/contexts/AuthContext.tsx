@@ -130,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             success: true,
             requires_otp: true,
             user_id: data.user_id,
-            message: data.message
+            message: data.message,
           }
         } else {
           // Reset 401 flag on successful login

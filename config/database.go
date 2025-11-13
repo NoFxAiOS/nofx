@@ -34,6 +34,12 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("创建表失败: %w", err)
 	}
 
+	// 为现有数据库添加新字段（向后兼容）
+	if err := database.alterTables(); err != nil {
+		log.Printf("⚠️ 数据库迁移警告: %v", err)
+		// 不返回错误，因为alterTables只会添加缺失的字段
+	}
+
 	if err := database.initDefaultData(); err != nil {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}

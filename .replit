@@ -47,5 +47,5 @@ localPort = 9999
 externalPort = 3001
 
 [deployment]
-deploymentTarget = "autoscale"
+deploymentTarget = "vm"
 run = ["./nofx-backend"]

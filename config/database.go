@@ -548,13 +548,22 @@ func GenerateOTPSecret() (string, error) {
 
 // CreateUser 创建用户
 func (d *Database) CreateUser(user *User) error {
+	// 处理可空时间字段
+	var lockedUntil, lastFailedAt sql.NullTime
+	if user.LockedUntil != nil {
+		lockedUntil = sql.NullTime{Time: *user.LockedUntil, Valid: true}
+	}
+	if user.LastFailedAt != nil {
+		lastFailedAt = sql.NullTime{Time: *user.LastFailedAt, Valid: true}
+	}
+
 	_, err := d.db.Exec(`
 		INSERT INTO users (id, email, password_hash, otp_secret, otp_verified,
 		                   locked_until, failed_attempts, last_failed_at,
 		                   is_active, is_admin, beta_code, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, user.ID, user.Email, user.PasswordHash, user.OTPSecret, user.OTPVerified,
-		user.LockedUntil, user.FailedAttempts, user.LastFailedAt,
+		lockedUntil, user.FailedAttempts, lastFailedAt,
 		user.IsActive, user.IsAdmin, user.BetaCode, user.CreatedAt, user.UpdatedAt)
 	return err
 }

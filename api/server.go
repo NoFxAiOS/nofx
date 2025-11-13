@@ -970,33 +970,66 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	// 提取可用余额
-	var actualBalance float64
-	if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-		actualBalance = totalBalance
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取可用余额"})
-		return
+	// 提取总权益（钱包余额 + 未实现盈亏）而不是可用余额
+	// 理由：可用余额会因为保证金占用而变化，导致错误地认为余额减少了
+	var totalWalletBalance, totalUnrealizedProfit float64
+	if wallet, ok := balanceInfo["totalWalletBalance"].(float64); ok {
+		totalWalletBalance = wallet
+	}
+	if unrealized, ok := balanceInfo["totalUnrealizedProfit"].(float64); ok {
+		totalUnrealizedProfit = unrealized
+	}
+	totalEquity := totalWalletBalance + totalUnrealizedProfit
+
+	// 如果无法获取totalEquity，降级使用可用余额
+	if totalEquity <= 0 {
+		if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
+			totalEquity = availableBalance
+		} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
+			totalEquity = availableBalance
+		} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
+			totalEquity = totalBalance
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "无法获取账户权益"})
+			return
+		}
 	}
 
 	oldBalance := traderConfig.InitialBalance
 
-	// ✅ 选项C：智能检测余额变化
-	changePercent := ((actualBalance - oldBalance) / oldBalance) * 100
+	// ⚠️ 智能检测余额变化并警告
+	changePercent := 0.0
+	if oldBalance > 0 {
+		changePercent = ((totalEquity - oldBalance) / oldBalance) * 100
+	}
 	changeType := "增加"
 	if changePercent < 0 {
 		changeType = "减少"
 	}
 
-	log.Printf("✓ 查询到交易所实际余额: %.2f USDT (当前配置: %.2f USDT, 变化: %.2f%%)",
-		actualBalance, oldBalance, changePercent)
+	log.Printf("✓ 查询到交易所总权益: %.2f USDT (当前配置: %.2f USDT, 变化: %.2f%%)",
+		totalEquity, oldBalance, changePercent)
+
+	// 🚨 安全检查：如果有持仓，警告用户可能误操作
+	positions, err := tempTrader.GetPositions()
+	hasPositions := false
+	if err == nil && len(positions) > 0 {
+		for _, pos := range positions {
+			if quantity, ok := pos["positionAmt"].(float64); ok && quantity != 0 {
+				hasPositions = true
+				break
+			}
+		}
+	}
+
+	warningMsg := ""
+	if hasPositions {
+		warningMsg = "⚠️ 检测到当前有持仓，同步余额可能导致盈亏数据不准确！建议在平仓后或充值/提现后再同步。"
+		log.Printf("🚨 [%s] %s", traderID, warningMsg)
+	}
 
 	// 更新数据库中的 initial_balance
-	err = s.database.UpdateTraderInitialBalance(userID, traderID, actualBalance)
+	err = s.database.UpdateTraderInitialBalance(userID, traderID, totalEquity)
 	if err != nil {
 		log.Printf("❌ 更新initial_balance失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新余额失败"})
@@ -1009,15 +1042,21 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		log.Printf("⚠️ 重新加载交易员到内存失败: %v", err)
 	}
 
-	log.Printf("✅ 已同步余额: %.2f → %.2f USDT (%s %.2f%%)", oldBalance, actualBalance, changeType, changePercent)
+	log.Printf("✅ 已同步余额: %.2f → %.2f USDT (%s %.2f%%)", oldBalance, totalEquity, changeType, changePercent)
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"message":        "余额同步成功",
 		"old_balance":    oldBalance,
-		"new_balance":    actualBalance,
+		"new_balance":    totalEquity,
 		"change_percent": changePercent,
 		"change_type":    changeType,
-	})
+		"has_positions":  hasPositions,
+	}
+	if warningMsg != "" {
+		response["warning"] = warningMsg
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // handleGetModelConfigs 获取AI模型配置

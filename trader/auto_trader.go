@@ -412,8 +412,13 @@ func (at *AutoTrader) runCycle() error {
 		log.Println("📅 日盈亏已重置")
 	}
 
-	// 3. 自动同步余额（每10分钟检查一次，充值/提现后自动更新）
-	at.autoSyncBalanceIfNeeded()
+	// 3. 自动同步余额（已禁用：防止交易导致初始余额被错误修改）
+	// 🚨 重要: 无法区分余额变化是由于"充值/提现"还是"交易盈亏/保证金占用"
+	// 错误的自动更新会导致初始余额被篡改，进而使盈亏计算错误，AI决策基于错误数据
+	// 如需更新初始余额，请使用:
+	//   1. 手动同步余额功能 (/api/traders/{id}/sync-balance)
+	//   2. 编辑交易员配置手动修改
+	// at.autoSyncBalanceIfNeeded()
 
 	// 4. 收集交易上下文
 	ctx, err := at.buildTradingContext()

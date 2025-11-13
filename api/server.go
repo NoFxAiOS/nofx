@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"nofx/auth"
@@ -775,7 +776,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	// 如果请求中包含initial_balance且与现有值不同，单独更新它
 	// UpdateTrader不会更新initial_balance，需要使用专门的方法
-	if req.InitialBalance > 0 && req.InitialBalance-existingTrader.InitialBalance > 0.1 {
+	if req.InitialBalance > 0 && math.Abs(req.InitialBalance-existingTrader.InitialBalance) > 0.1 {
 		err = s.database.UpdateTraderInitialBalance(userID, traderID, req.InitialBalance)
 		if err != nil {
 			log.Printf("⚠️ 更新初始余额失败: %v", err)
@@ -784,6 +785,9 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 			log.Printf("✓ 初始余额已更新: %.2f -> %.2f", existingTrader.InitialBalance, req.InitialBalance)
 		}
 	}
+
+	// 🔄 从内存中移除旧的trader实例，以便重新加载最新配置
+	s.traderManager.RemoveTrader(traderID)
 
 	// 重新加载交易员到内存
 	err = s.traderManager.LoadTraderByID(s.database, userID, traderID)

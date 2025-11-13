@@ -1,0 +1,181 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+env:
+  REGISTRY_GHCR: ghcr.io
+
+jobs:
+  prepare:
+    name: Prepare repository metadata
+    runs-on: ubuntu-22.04
+    outputs:
+      image_base: ${{ steps.lowercase.outputs.image_base }}
+    steps:
+      - name: Convert repository name to lowercase
+        id: lowercase
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_base=${REPO_LOWER}" >> $GITHUB_OUTPUT
+          echo "Lowercase repository: ${REPO_LOWER}"
+
+  build-and-push:
+    name: Build ${{ matrix.name }} (${{ matrix.arch_tag }})
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            dockerfile: ./docker/Dockerfile.backend
+            image_suffix: backend
+            platform: linux/amd64
+            arch_tag: amd64
+            runner: ubuntu-22.04
+          - name: backend
+            dockerfile: ./docker/Dockerfile.backend
+            image_suffix: backend
+            platform: linux/arm64
+            arch_tag: arm64
+            runner: ubuntu-22.04-arm
+          - name: frontend
+            dockerfile: ./docker/Dockerfile.frontend
+            image_suffix: frontend
+            platform: linux/amd64
+            arch_tag: amd64
+            runner: ubuntu-22.04
+          - name: frontend
+            dockerfile: ./docker/Dockerfile.frontend
+            image_suffix: frontend
+            platform: linux/arm64
+            arch_tag: arm64
+            runner: ubuntu-22.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ needs.prepare.outputs.image_base }}/nofx-${{ matrix.image_suffix }}
+            ${{ secrets.DOCKERHUB_USERNAME && format('{0}/nofx-{1}', secrets.DOCKERHUB_USERNAME, matrix.image_suffix) || '' }}
+          tags: |
+            type=ref,event=branch,suffix=-${{ matrix.arch_tag }}
+            type=semver,pattern={{version}},suffix=-${{ matrix.arch_tag }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.arch_tag }}
+            type=semver,pattern={{major}},suffix=-${{ matrix.arch_tag }}
+            type=sha,prefix={{branch}}-,suffix=-${{ matrix.arch_tag }}
+
+      - name: Build and push ${{ matrix.name }}-${{ matrix.arch_tag }} image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}-${{ matrix.arch_tag }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-${{ matrix.arch_tag }}
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+
+      - name: Image digest
+        run: |
+          echo "✅ Built: ${{ matrix.name }}-${{ matrix.arch_tag }}"
+          echo "Platform: ${{ matrix.platform }}"
+          echo "Tags: ${{ steps.meta.outputs.tags }}"
+
+  create-manifest:
+    name: Create multi-arch manifests
+    if: github.event_name != 'pull_request'
+    needs: [prepare, build-and-push]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        image_suffix: [backend, frontend]
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create and push multi-arch manifest
+        env:
+          IMAGE_BASE: ${{ needs.prepare.outputs.image_base }}
+        run: |
+          REF_NAME="${{ github.ref_name }}"
+          GHCR_IMAGE="${{ env.REGISTRY_GHCR }}/${IMAGE_BASE}/nofx-${{ matrix.image_suffix }}"
+
+          echo "📦 Creating manifest for ${{ matrix.image_suffix }}"
+          echo "Repository: ${IMAGE_BASE}"
+          echo "Image: ${GHCR_IMAGE}"
+
+          docker buildx imagetools create -t "${GHCR_IMAGE}:${REF_NAME}" \
+            "${GHCR_IMAGE}:${REF_NAME}-amd64" \
+            "${GHCR_IMAGE}:${REF_NAME}-arm64"
+
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+            docker buildx imagetools create -t "${GHCR_IMAGE}:latest" \
+              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
+              "${GHCR_IMAGE}:${REF_NAME}-arm64"
+            echo "✅ Created latest tag"
+          fi
+
+          if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]]; then
+            DOCKERHUB_IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/nofx-${{ matrix.image_suffix }}"
+            docker buildx imagetools create -t "${DOCKERHUB_IMAGE}:${REF_NAME}" \
+              "${DOCKERHUB_IMAGE}:${REF_NAME}-amd64" \
+              "${DOCKERHUB_IMAGE}:${REF_NAME}-arm64" || true
+            echo "✅ Created Docker Hub manifest"
+          fi
+
+          echo "🎉 Multi-arch manifest created successfully!"

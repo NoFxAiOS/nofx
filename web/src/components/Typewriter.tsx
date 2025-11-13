@@ -21,7 +21,10 @@ export default function Typewriter({
   const charIndexRef = useRef(0)
   const timerRef = useRef<number | null>(null)
   const blinkRef = useRef<number | null>(null)
-  const sanitizedLines = useMemo(() => lines.map((l) => String(l ?? '')), [lines])
+  const sanitizedLines = useMemo(
+    () => lines.map((l) => String(l ?? '')),
+    [lines]
+  )
 
   useEffect(() => {
     // 重置状态
@@ -69,7 +72,10 @@ export default function Typewriter({
     }
   }, [sanitizedLines, typingSpeed, lineDelay])
 
-  const displayText = useMemo(() => typedLines.join('\n').replace(/undefined/g, ''), [typedLines])
+  const displayText = useMemo(
+    () => typedLines.join('\n').replace(/undefined/g, ''),
+    [typedLines]
+  )
 
   return (
     <pre className={className} style={{ whiteSpace: 'pre-wrap', ...style }}>

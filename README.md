@@ -3,14 +3,14 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
-**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md)
+**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md)
 
 **Official Twitter:** [@nofx_ai](https://x.com/nofx_ai)
 
-**📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
+**📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Prompt Writing Guide](docs/prompt-guide.md) ([中文](docs/prompt-guide.zh-CN.md)) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
 ---
 
@@ -24,11 +24,14 @@
 - [🔮 Roadmap](#-roadmap---universal-market-expansion)
 - [🏗️ Technical Architecture](#️-technical-architecture)
 - [💰 Register Binance Account](#-register-binance-account-save-on-fees)
+- [🔷 Register Hyperliquid Account](#-using-hyperliquid-exchange)
+- [🔶 Register Aster DEX Account](#-using-aster-dex-exchange)
 - [🚀 Quick Start](#-quick-start)
 - [📖 AI Decision Flow](#-ai-decision-flow)
 - [🧠 AI Self-Learning](#-ai-self-learning-example)
 - [📊 Web Interface Features](#-web-interface-features)
 - [🎛️ API Endpoints](#️-api-endpoints)
+- [🔐 Admin Mode (Single-User)](#-admin-mode-single-user) 
 - [⚠️ Important Risk Warnings](#️-important-risk-warnings)
 - [🛠️ Common Issues](#️-common-issues)
 - [📈 Performance Tips](#-performance-optimization-tips)
@@ -242,6 +245,48 @@ NOFX is built with a modern, modular architecture:
 
 ---
 
+## 🔐 Admin Mode (Single-User)
+
+For self-hosted or single-tenant setups, NOFX supports a strict admin-only mode that disables public features and requires an admin password for all access.
+
+### How it works
+- All API endpoints require a valid JWT when `admin_mode=true`, except:
+  - `GET /api/health`
+  - `GET /api/config`
+  - `POST /api/admin-login`
+- Logout invalidates the current token via an in-memory blacklist (sufficient for single instance; use Redis for multi-instance – see Notes).
+
+### Quick setup
+1) Set flags in `config.json`:
+```jsonc
+{
+  // ... other config
+  "admin_mode": true,
+  "jwt_secret": "YOUR_JWT_SCR" 
+}
+```
+
+2) Provide required environment variables:
+- `NOFX_ADMIN_PASSWORD` — plaintext admin password (only used at startup to derive a bcrypt hash)
+
+Docker Compose example (already wired):
+```yaml
+services:
+  nofx:
+    environment:
+      - NOFX_ADMIN_PASSWORD=${NOFX_ADMIN_PASSWORD}
+```
+
+1) Login flow (admin mode):
+- Open the web UI → you’ll be redirected to the login page
+- Enter admin password → the server returns a JWT
+- The UI stores the token and authenticates subsequent API calls
+
+### Notes
+- Token lifetime: 24h. On logout, tokens are blacklisted in-memory until expiry. For multi-instance deployments, use a shared store (e.g., Redis) to sync the blacklist.
+
+---
+
 ## 💰 Register Binance Account (Save on Fees!)
 
 Before using this system, you need a Binance Futures account. **Use our referral link to save on trading fees:**
@@ -281,7 +326,7 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 #### Step 1: Prepare Configuration
 ```bash
 # Copy configuration template
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # Edit and fill in your API keys
 nano config.json  # or use any editor
@@ -292,8 +337,8 @@ nano config.json  # or use any editor
 #### Step 2: One-Click Start
 ```bash
 # Option 1: Use convenience script (Recommended)
-chmod +x start.sh
-./start.sh start --build
+chmod +x scripts/start.sh
+./scripts/start.sh start --build
 
 > #### Docker Compose Version Notes
 >
@@ -318,10 +363,10 @@ Open your browser and visit: **http://localhost:3000**
 
 #### Manage Your System
 ```bash
-./start.sh logs      # View logs
-./start.sh status    # Check status
-./start.sh stop      # Stop services
-./start.sh restart   # Restart services
+./scripts/start.sh logs      # View logs
+./scripts/start.sh status    # Check status
+./scripts/start.sh stop      # Stop services
+./scripts/start.sh restart   # Restart services
 ```
 
 **📖 For detailed Docker deployment guide, troubleshooting, and advanced configuration:**
@@ -489,18 +534,93 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-#### 🔷 Alternative: Using Hyperliquid Exchange
+#### 🔷 Using Hyperliquid Exchange
 
-**NOFX also supports Hyperliquid** - a decentralized perpetual futures exchange. To use Hyperliquid instead of Binance:
+**NOFX supports Hyperliquid** - a high-performance decentralized perpetual futures exchange!
 
-**Step 1**: Get your Ethereum private key (for Hyperliquid authentication)
+**Why Choose Hyperliquid?**
+- 🚀 **High Performance**: Lightning-fast execution on L1 blockchain
+- 💰 **Low Fees**: Competitive maker/taker fees
+- 🔐 **Non-Custodial**: Your keys, your coins
+- 🌐 **No KYC**: Anonymous trading
+- 💎 **Deep Liquidity**: Institutional-grade order book
 
-1. Open **MetaMask** (or any Ethereum wallet)
-2. Export your private key
-3. **Remove the `0x` prefix** from the key
-4. Fund your wallet on [Hyperliquid](https://hyperliquid.xyz)
+---
 
-**Step 2**: ~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
+### 📝 Registration & Setup Guide
+
+**Step 1: Register Hyperliquid Account**
+
+1. **Visit Hyperliquid with Referral Link** (get benefits!):
+
+   **🎁 [Register Hyperliquid - Join AITRADING](https://app.hyperliquid.xyz/join/AITRADING)**
+
+2. **Connect Your Wallet**:
+   - Click "Connect Wallet" on the top right
+   - Choose MetaMask, WalletConnect, or other Web3 wallets
+   - Approve the connection
+
+3. **Enable Trading**:
+   - First connection will prompt you to sign a message
+   - This authorizes your wallet for trading (no gas fees)
+   - You'll see your wallet address displayed
+
+**Step 2: Fund Your Wallet**
+
+1. **Bridge Assets to Arbitrum**:
+   - Hyperliquid runs on Arbitrum L2
+   - Bridge USDC from Ethereum mainnet or other chains
+   - Or directly withdraw USDC from exchanges to Arbitrum
+
+2. **Deposit to Hyperliquid**:
+   - Click "Deposit" on Hyperliquid interface
+   - Select USDC amount to deposit
+   - Confirm the transaction (small gas fee on Arbitrum)
+   - Funds appear in your Hyperliquid account within seconds
+
+**Step 3: Set Up Agent Wallet (Recommended)**
+
+Hyperliquid supports **Agent Wallets** - secure sub-wallets specifically for trading automation!
+
+⚠️ **Why Use Agent Wallet:**
+- ✅ **More Secure**: Never expose your main wallet private key
+- ✅ **Limited Access**: Agent only has trading permissions
+- ✅ **Revocable**: Can be disabled anytime from Hyperliquid interface
+- ✅ **Separate Funds**: Keep main holdings safe
+
+**How to Create Agent Wallet:**
+
+1. **Log in to Hyperliquid** using your main wallet
+   - Visit [https://app.hyperliquid.xyz](https://app.hyperliquid.xyz)
+   - Connect with the wallet you registered (from referral link)
+
+2. **Navigate to Agent Settings**:
+   - Click on your wallet address (top right)
+   - Go to "Settings" → "API & Agents"
+   - Or visit: [https://app.hyperliquid.xyz/agents](https://app.hyperliquid.xyz/agents)
+
+3. **Create New Agent**:
+   - Click "Create Agent" or "Add Agent"
+   - System will generate a new agent wallet automatically
+   - **Save the agent wallet address** (starts with `0x`)
+   - **Save the agent private key** (shown only once!)
+
+4. **Agent Wallet Details**:
+   - Main Wallet: Your connected wallet (holds funds)
+   - Agent Wallet: The sub-wallet for trading (NOFX will use this)
+   - Private Key: Only needed for NOFX configuration
+
+5. **Fund Your Agent** (Optional):
+   - Transfer USDC from main wallet to agent wallet
+   - Or keep funds in main wallet (agent can trade from it)
+
+6. **Save Credentials for NOFX**:
+   - Main Wallet Address: `0xYourMainWalletAddress` (with `0x`)
+   - Agent Private Key: `YourAgentPrivateKeyWithout0x` (remove `0x` prefix)
+
+---
+
+~~Configure `config.json` for Hyperliquid~~ *Configure through web interface*
 
 ```json
 {
@@ -533,9 +653,9 @@ Open your browser and visit: **🌐 http://localhost:3000**
 
 ---
 
-#### 🔶 Alternative: Using Aster DEX Exchange
+#### 🔶 Using Aster DEX Exchange
 
-**NOFX also supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
+**NOFX supports Aster DEX** - a Binance-compatible decentralized perpetual futures exchange!
 
 **Why Choose Aster?**
 - 🎯 Binance-compatible API (easy migration)
@@ -1240,7 +1360,15 @@ sudo apt-get install libta-lib0-dev
 
 ## 📄 License
 
-MIT License - See [LICENSE](LICENSE) file for details
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - See [LICENSE](LICENSE) file for details.
+
+**What this means:**
+- ✅ You can use, modify, and distribute this software
+- ✅ You must disclose source code of your modifications
+- ✅ If you run a modified version on a server, you must make the source code available to users
+- ✅ All derivatives must also be licensed under AGPL-3.0
+
+For commercial licensing or questions, please contact the maintainers.
 
 ---
 

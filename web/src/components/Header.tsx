@@ -1,16 +1,17 @@
-import { useLanguage } from '../contexts/LanguageContext';
-import { t } from '../i18n/translations';
+import { useLanguage } from '../contexts/LanguageContext'
+import { t } from '../i18n/translations'
+import { Container } from './Container'
 
 interface HeaderProps {
-  simple?: boolean; // For login/register pages
+  simple?: boolean // For login/register pages
 }
 
 export function Header({ simple = false }: HeaderProps) {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage } = useLanguage()
 
   return (
     <header className="glass sticky top-0 z-50 backdrop-blur-xl">
-      <div className="max-w-[1920px] mx-auto px-6 py-4">
+      <Container className="py-4">
         <div className="flex items-center justify-between">
           {/* Left - Logo and Title */}
           <div className="flex items-center gap-3">
@@ -28,15 +29,19 @@ export function Header({ simple = false }: HeaderProps) {
               )}
             </div>
           </div>
-          
+
           {/* Right - Language Toggle (always show) */}
-          <div className="flex gap-1 rounded p-1" style={{ background: '#1E2329' }}>
+          <div
+            className="flex gap-1 rounded p-1"
+            style={{ background: '#1E2329' }}
+          >
             <button
               onClick={() => setLanguage('zh')}
               className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-              style={language === 'zh'
-                ? { background: '#F0B90B', color: '#000' }
-                : { background: 'transparent', color: '#848E9C' }
+              style={
+                language === 'zh'
+                  ? { background: '#F0B90B', color: '#000' }
+                  : { background: 'transparent', color: '#848E9C' }
               }
             >
               中文
@@ -44,16 +49,17 @@ export function Header({ simple = false }: HeaderProps) {
             <button
               onClick={() => setLanguage('en')}
               className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-              style={language === 'en'
-                ? { background: '#F0B90B', color: '#000' }
-                : { background: 'transparent', color: '#848E9C' }
+              style={
+                language === 'en'
+                  ? { background: '#F0B90B', color: '#000' }
+                  : { background: 'transparent', color: '#848E9C' }
               }
             >
               EN
             </button>
           </div>
         </div>
-      </div>
+      </Container>
     </header>
-  );
+  )
 }

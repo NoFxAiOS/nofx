@@ -12,54 +12,62 @@ html {
 
 :root {
   /* Binance Brand Colors */
-  --brand-yellow: #F0B90B;
+  --brand-yellow: #f0b90b;
   --brand-black: #000000;
-  --brand-dark-gray: #0A0A0A;
-  --brand-light-gray: #EAECEF;
-  --brand-almost-white: #FAFAFA;
-  --brand-white: #FFFFFF;
+  --brand-dark-gray: #0a0a0a;
+  --brand-light-gray: #eaecef;
+  --brand-almost-white: #fafafa;
+  --brand-white: #ffffff;
 
   /* Binance Theme Colors */
-  --binance-yellow: #F0B90B;
-  --binance-yellow-dark: #C99400;
-  --binance-yellow-light: #FCD535;
+  --binance-yellow: #f0b90b;
+  --binance-yellow-dark: #c99400;
+  --binance-yellow-light: #fcd535;
   --binance-yellow-glow: rgba(240, 185, 11, 0.2);
 
   --background: #000000; /* Binance body bg */
-  --header-bg: #000000;  /* Binance header bg */
+  --header-bg: #000000; /* Binance header bg */
   --background-elevated: #000000;
-  --foreground: #EAECEF;
-  --panel-bg: #0A0A0A;
+  --foreground: #eaecef;
+  --panel-bg: #0a0a0a;
   --panel-bg-hover: #111111;
-  --panel-border: #1A1A1A;
-  --panel-border-hover: #2A2A2A;
+  --panel-border: #1a1a1a;
+  --panel-border-hover: #2a2a2a;
 
   /* Binance Signature Colors */
-  --binance-green: #0ECB81;
+  --binance-green: #0ecb81;
   --binance-green-bg: rgba(14, 203, 129, 0.1);
   --binance-green-border: rgba(14, 203, 129, 0.2);
-  --binance-red: #F6465D;
+  --binance-red: #f6465d;
   --binance-red-bg: rgba(246, 70, 93, 0.1);
   --binance-red-border: rgba(246, 70, 93, 0.2);
 
   /* UI Colors */
-  --text-primary: #EAECEF;
-  --text-secondary: #848E9C;
-  --text-tertiary: #5E6673;
-  --text-disabled: #474D57;
+  --text-primary: #eaecef;
+  --text-secondary: #848e9c;
+  --text-tertiary: #5e6673;
+  --text-disabled: #474d57;
 
   /* Chart Colors */
-  --grid-stroke: #1A1A1A;
-  --axis-tick: #5E6673;
-  --ref-line: #474D57;
+  --grid-stroke: #1a1a1a;
+  --axis-tick: #5e6673;
+  --ref-line: #474d57;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+  --shadow-md:
+    0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg:
+    0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl:
+    0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
 
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   line-height: 1.6;
   font-weight: 400;
   color-scheme: dark;
@@ -69,7 +77,7 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "tnum";
+  font-feature-settings: 'tnum';
   font-variant-numeric: tabular-nums;
 }
 
@@ -140,7 +148,8 @@ body {
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     box-shadow: 0 0 8px currentColor;
   }
@@ -160,7 +169,8 @@ body {
 }
 
 @keyframes pulse-scale {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {
@@ -188,6 +198,69 @@ body {
 .header-bar {
   background: var(--header-bg);
   border-bottom: 1px solid var(--panel-border);
+}
+
+/* Sonner (toast) - Binance theme overrides */
+.sonner-toaster {
+  z-index: 9999;
+}
+
+.nofx-toast {
+  background: #0b0e11 !important;
+  border: 1px solid var(--panel-border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border-radius: 6px !important;
+}
+
+.nofx-toast .sonner-title {
+  color: var(--text-primary) !important;
+  font-weight: 700;
+}
+
+.nofx-toast .sonner-description {
+  color: var(--text-secondary) !important;
+}
+
+/* Success / Error / Warning tint */
+.nofx-toast[data-type='success'] {
+  background: #0b0e11 !important;
+  border-color: var(--binance-green) !important;
+  border-left: 3px solid var(--binance-green) !important;
+}
+.nofx-toast[data-type='success'] .sonner-title,
+.nofx-toast[data-type='success'] .sonner-description {
+  color: var(--binance-green) !important;
+}
+
+.nofx-toast[data-type='error'] {
+  background: #0b0e11 !important;
+  border-color: var(--binance-red) !important;
+  border-left: 3px solid var(--binance-red) !important;
+}
+.nofx-toast[data-type='error'] .sonner-title,
+.nofx-toast[data-type='error'] .sonner-description {
+  color: var(--binance-red) !important;
+}
+
+.nofx-toast[data-type='warning'],
+.nofx-toast[data-type='info'] {
+  background: #0b0e11 !important;
+  border-color: var(--binance-yellow) !important;
+  border-left: 3px solid var(--binance-yellow) !important;
+}
+.nofx-toast[data-type='warning'] .sonner-title,
+.nofx-toast[data-type='warning'] .sonner-description,
+.nofx-toast[data-type='info'] .sonner-title,
+.nofx-toast[data-type='info'] .sonner-description {
+  color: var(--binance-yellow) !important;
+}
+
+.nofx-toast .sonner-close-button {
+  color: var(--text-secondary) !important;
+}
+.nofx-toast .sonner-close-button:hover {
+  color: var(--text-primary) !important;
 }
 
 /* Monospace numbers */
@@ -225,6 +298,113 @@ button:disabled {
   box-shadow: var(--shadow-sm);
 }
 
+.dev-toast-controller {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: min(320px, 85vw);
+  background: rgba(11, 14, 17, 0.9);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--text-secondary);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(16px);
+  font-size: 0.85rem;
+  z-index: 9999;
+}
+
+.dev-toast-controller__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.dev-toast-controller__header small {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+}
+
+.dev-toast-controller__content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dev-toast-controller__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.dev-toast-controller__label select,
+.dev-toast-controller__label input {
+  width: 100%;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.dev-toast-controller__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.dev-toast-controller__actions button {
+  flex: 1;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 8px 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: transform 0.2s ease;
+}
+
+.dev-toast-controller__actions button:first-child {
+  background: rgba(240, 185, 11, 0.15);
+  color: var(--binance-yellow);
+  border: 1px solid rgba(240, 185, 11, 0.4);
+}
+
+.dev-toast-controller__actions button:last-child {
+  background: rgba(132, 142, 156, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid var(--panel-border);
+}
+
+.dev-toast-controller__actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.dev-custom-toast {
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0b90b, #df8c0c);
+  color: #0a0a0a;
+  font-weight: 600;
+}
+
+.dev-custom-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dev-custom-body {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
 .binance-card:hover {
   border-color: var(--panel-border-hover);
   box-shadow: var(--shadow-md);
@@ -240,11 +420,19 @@ button:disabled {
 
 /* Binance gradient backgrounds */
 .binance-gradient {
-  background: linear-gradient(135deg, var(--binance-yellow) 0%, var(--binance-yellow-light) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--binance-yellow) 0%,
+    var(--binance-yellow-light) 100%
+  );
 }
 
 .binance-gradient-subtle {
-  background: linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(252, 213, 53, 0.05) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(240, 185, 11, 0.15) 0%,
+    rgba(252, 213, 53, 0.05) 100%
+  );
   border: 1px solid rgba(240, 185, 11, 0.2);
 }
 
@@ -456,7 +644,12 @@ tr:hover {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, var(--binance-yellow), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--binance-yellow),
+    transparent
+  );
   opacity: 0;
   transition: opacity 0.2s ease;
 }

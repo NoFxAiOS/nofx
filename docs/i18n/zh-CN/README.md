@@ -3,10 +3,10 @@
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
-**语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md)
+**语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md)
 
 **官方推特:** [@nofx_ai](https://x.com/nofx_ai)
 
@@ -24,6 +24,8 @@
 - [🔮 路线图](#-路线图---通用市场扩展)
 - [🏗️ 技术架构](#️-技术架构)
 - [💰 注册币安账户](#-注册币安账户省手续费)
+- [🔷 注册Hyperliquid账户](#-使用hyperliquid交易所)
+- [🔶 注册Aster DEX账户](#-使用aster-dex交易所)
 - [🚀 快速开始](#-快速开始)
 - [📖 AI决策流程](#-ai决策流程)
 - [🧠 AI自我学习示例](#-ai自我学习示例)
@@ -283,7 +285,7 @@ Docker会自动处理所有依赖（Go、Node.js、TA-Lib）和环境配置，�
 #### 步骤1：准备配置文件
 ```bash
 # 复制配置文件模板
-cp config.example.jsonc config.json
+cp config.json.example config.json
 
 # 编辑并填入你的API密钥
 nano config.json  # 或使用其他编辑器
@@ -294,8 +296,8 @@ nano config.json  # 或使用其他编辑器
 #### 步骤2：一键启动
 ```bash
 # 方式1：使用便捷脚本（推荐）
-chmod +x start.sh
-./start.sh start --build
+chmod +x scripts/start.sh
+./scripts/start.sh start --build
 
 
 # 方式2：直接使用docker compose
@@ -310,15 +312,16 @@ docker compose up -d --build
 
 #### 管理你的系统
 ```bash
-./start.sh logs      # 查看日志
-./start.sh status    # 检查状态
-./start.sh stop      # 停止服务
-./start.sh restart   # 重启服务
+./scripts/start.sh logs      # 查看日志
+./scripts/start.sh status    # 检查状态
+./scripts/start.sh stop      # 停止服务
+./scripts/start.sh restart   # 重启服务
 ```
 
 **📖 详细的Docker部署教程、故障排查和高级配置：**
 - **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
 - **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
+- **日本語**: [DOCKER_DEPLOY.ja.md](DOCKER_DEPLOY.ja.md)を参照
 
 ---
 
@@ -422,7 +425,7 @@ cd ..
 ~~**步骤1**：复制并重命名示例配置文件~~
 
 ```bash
-cp config.example.jsonc config.json
+cp config.json.example config.json
 ```
 
 ~~**步骤2**：编辑`config.json`填入您的API密钥~~ 
@@ -481,18 +484,82 @@ cp config.example.jsonc config.json
 
 ---
 
-#### 🔷 备选：使用Hyperliquid交易所
+#### 🔷 使用Hyperliquid交易所
 
-**NOFX也支持Hyperliquid** - 去中心化永续期货交易所。使用Hyperliquid而非Binance：
+### 📝 注册与设置指南
 
-**步骤1**：获取以太坊私钥（用于Hyperliquid身份验证）
+**步骤1：注册Hyperliquid账户**
 
-1. 打开**MetaMask**（或任何以太坊钱包）
-2. 导出你的私钥
-3. **去掉`0x`前缀**
-4. 在[Hyperliquid](https://hyperliquid.xyz)上为钱包充值
+1. **通过邀请链接访问Hyperliquid**（享受优惠！）：
 
-~~**步骤2**：为Hyperliquid配置`config.json`~~ *通过Web界面配置*
+   **🎁 [注册Hyperliquid - 加入AITRADING](https://app.hyperliquid.xyz/join/AITRADING)**
+
+2. **连接你的钱包**：
+   - 点击右上角"Connect Wallet"
+   - 选择MetaMask、WalletConnect或其他Web3钱包
+   - 批准连接
+
+3. **启用交易**：
+   - 首次连接会提示你签名消息
+   - 这会授权你的钱包进行交易（无gas费）
+   - 你将看到钱包地址显示出来
+
+**步骤2：为钱包充值**
+
+1. **将资产桥接到Arbitrum**：
+   - Hyperliquid运行在Arbitrum L2上
+   - 从以太坊主网或其他链桥接USDC
+   - 或者直接从交易所提现USDC到Arbitrum
+
+2. **充值到Hyperliquid**：
+   - 在Hyperliquid界面点击"Deposit"
+   - 选择要充值的USDC数量
+   - 确认交易（Arbitrum上的小额gas费）
+   - 资金会在几秒内到达你的Hyperliquid账户
+
+**步骤3：设置代理钱包（推荐）**
+
+Hyperliquid支持**代理钱包**功能 - 专门用于交易自动化的安全子钱包！
+
+⚠️ **为什么使用代理钱包：**
+- ✅ **更安全**：永远不暴露主钱包私钥
+- ✅ **权限受限**：代理钱包只有交易权限
+- ✅ **可随时撤销**：可从Hyperliquid界面随时禁用
+- ✅ **资金隔离**：保持主要资产安全
+
+**如何创建代理钱包：**
+
+1. **登录Hyperliquid**，使用你的主钱包
+   - 访问 [https://app.hyperliquid.xyz](https://app.hyperliquid.xyz)
+   - 连接你注册时使用的钱包（来自邀请链接）
+
+2. **进入代理设置**：
+   - 点击钱包地址（右上角）
+   - 进入"Settings" → "API & Agents"
+   - 或直接访问：[https://app.hyperliquid.xyz/agents](https://app.hyperliquid.xyz/agents)
+
+3. **创建新代理**：
+   - 点击"Create Agent"或"Add Agent"
+   - 系统会自动生成新的代理钱包
+   - **保存代理钱包地址**（以`0x`开头）
+   - **保存代理私钥**（仅显示一次！）
+
+4. **代理钱包详情**：
+   - 主钱包：你连接的钱包（持有资金）
+   - 代理钱包：用于交易的子钱包（NOFX将使用此钱包）
+   - 私钥：仅用于NOFX配置
+
+5. **为代理充值**（可选）：
+   - 从主钱包转账USDC到代理钱包
+   - 或保持资金在主钱包（代理可以从主钱包交易）
+
+6. **保存NOFX配置凭据**：
+   - 主钱包地址：`0xYourMainWalletAddress`（保留`0x`前缀）
+   - 代理私钥：`YourAgentPrivateKeyWithout0x`（去掉`0x`前缀）
+
+---
+
+~~**配置`config.json`**~~ *通过Web界面配置*
 
 ```json
 {
@@ -503,8 +570,8 @@ cp config.example.jsonc config.json
       "enabled": true,
       "ai_model": "deepseek",
       "exchange": "hyperliquid",
-      "hyperliquid_private_key": "your_private_key_without_0x",
-      "hyperliquid_wallet_addr": "your_ethereum_address",
+      "hyperliquid_private_key": "your_agent_private_key_without_0x",
+      "hyperliquid_wallet_addr": "0xYourMainWalletAddress",
       "hyperliquid_testnet": false,
       "deepseek_key": "sk-xxxxxxxxxxxxx",
       "initial_balance": 1000.0,
@@ -516,18 +583,23 @@ cp config.example.jsonc config.json
 }
 ```
 
-**与Binance配置的关键区别：**
-- 用`hyperliquid_private_key`替换`binance_api_key` + `binance_secret_key`
-- 添加`"exchange": "hyperliquid"`字段
-- 设置`hyperliquid_testnet: false`用于主网（或`true`用于测试网）
+**关键配置字段：**
+- `"exchange": "hyperliquid"` - 设置交易所为Hyperliquid
+- `hyperliquid_private_key` - 代理钱包私钥（去掉`0x`前缀）
+- `hyperliquid_wallet_addr` - 主钱包地址（保留`0x`前缀）
+- `hyperliquid_testnet: false` - 使用主网（设为`true`使用测试网）
 
-**⚠️ 安全警告**：切勿分享你的私钥！使用专门的钱包进行交易，而非主钱包。
+**⚠️ 安全提示**：
+- 优先使用代理钱包而非主钱包私钥
+- 切勿分享你的私钥
+- 可以随时从Hyperliquid界面撤销代理权限
+- 定期检查代理钱包活动
 
 ---
 
-#### 🔶 备选：使用Aster DEX交易所
+#### 🔶 使用Aster DEX交易所
 
-**NOFX也支持Aster DEX** - 兼容Binance的去中心化永续期货交易所！
+**NOFX支持Aster DEX** - 兼容Binance的去中心化永续期货交易所！
 
 **为什么选择Aster？**
 - 🎯 兼容Binance API（轻松迁移）
@@ -1262,7 +1334,15 @@ sudo apt-get install libta-lib0-dev
 
 ## 📄 开源协议
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
+本项目采用 **GNU Affero 通用公共许可证 v3.0 (AGPL-3.0)** - 详见 [LICENSE](LICENSE) 文件
+
+**这意味着什么：**
+- ✅ 你可以使用、修改和分发此软件
+- ✅ 你必须公开你修改版本的源代码
+- ✅ 如果你在服务器上运行修改版本，必须向用户提供源代码
+- ✅ 所有衍生作品也必须使用 AGPL-3.0 许可证
+
+如需商业许可或有疑问,请联系维护者。
 
 ---
 

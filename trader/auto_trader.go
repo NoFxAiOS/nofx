@@ -651,7 +651,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 
 		// 获取该持仓的历史最高收益率
 		at.peakPnLCacheMutex.RLock()
-		peakPnlPct := at.peakPnLCache[symbol]
+		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
 		positionInfos = append(positionInfos, decision.PositionInfo{

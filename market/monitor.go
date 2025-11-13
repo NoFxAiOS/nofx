@@ -232,26 +232,26 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 	klineDataMap.Store(symbol, klines)
 }
 
-func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, error) {
+func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, error) {
 	// 对每一个进来的symbol检测是否存在内类 是否的话就订阅它
-	value, exists := m.getKlineDataMap(_time).Load(symbol)
+	value, exists := m.getKlineDataMap(duration).Load(symbol)
 	if !exists {
 		// 如果Ws数据未初始化完成时,单独使用api获取 - 兼容性代码 (防止在未初始化完成是,已经有交易员运行)
 		apiClient := NewAPIClient()
-		klines, err := apiClient.GetKlines(symbol, _time, 100)
+		klines, err := apiClient.GetKlines(symbol, duration, 100)
 		if err != nil {
-			return nil, fmt.Errorf("获取%v分钟K线失败: %v", _time, err)
+			return nil, fmt.Errorf("获取%v分钟K线失败: %v", duration, err)
 		}
 
 		// 动态缓存进缓存
-		m.getKlineDataMap(_time).Store(strings.ToUpper(symbol), klines)
+		m.getKlineDataMap(duration).Store(strings.ToUpper(symbol), klines)
 
 		// 订阅 WebSocket 流
-		subStr := m.subscribeSymbol(symbol, _time)
+		subStr := m.subscribeSymbol(symbol, duration)
 		subErr := m.combinedClient.subscribeStreams(subStr)
 		log.Printf("动态订阅流: %v", subStr)
 		if subErr != nil {
-			log.Printf("警告: 动态订阅%v分钟K线失败: %v (使用API数据)", _time, subErr)
+			log.Printf("警告: 动态订阅%v分钟K线失败: %v (使用API数据)", duration, subErr)
 		}
 
 		// ✅ FIX: 返回深拷贝而非引用

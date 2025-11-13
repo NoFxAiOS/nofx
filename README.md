@@ -61,7 +61,7 @@
 
 We are currently raising our **seed round**. 
 
-**For investment inquiries**, please DM **Tinkle** or **Zack** via Twitter.
+**For investment inquiries**, please DM **Tinkle** or **Tintin** via Twitter.
 
 **For partnerships and collaborations**, please DM our official Twitter [@nofx_ai](https://x.com/nofx_ai).
 

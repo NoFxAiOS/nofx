@@ -139,11 +139,11 @@ trader := &config.TraderRecord{
 
 ### 4. 提供手动更新API
 
-**端点：** `POST /api/traders/:id/sync-balance`
+**端点：** `POST /traders/:id`
 
-**实现：** `api/server.go:handleSyncBalance()`
+**实现：** `api/server.go:handleUpdateTrader()`
 
-**用途：** 用户主动设置Initial Balance基准值
+**用途：** update trader, 包括Initial Balance基准值
 
 **请求体：**
 ```json
@@ -271,27 +271,6 @@ trader := &config.TraderRecord{
   请输入新的初始余额（用于重新校准PNL统计）
   ```
 
-### 3. API调用示例
-```javascript
-// 更新Initial Balance
-const updateInitialBalance = async (traderId, newBalance) => {
-  const response = await fetch(`/api/traders/${traderId}/sync-balance`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      initial_balance: newBalance
-    })
-  });
-
-  const result = await response.json();
-  // result包含：
-  // - message: "初始余额已更新"
-  // - old_balance: 10000
-  // - new_balance: 15000
-  // - change_percent: 50.0
-  // - change_type: "增加"
-};
-```
 
 ### 4. 用户体验建议
 - 💡 可以在输入框旁边显示当前账户净值作为参考

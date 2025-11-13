@@ -952,7 +952,6 @@ func (d *Database) UpdateTraderStatus(userID, id string, isRunning bool) error {
 }
 
 // UpdateTrader 更新交易员配置
-// 🔒 注意：initial_balance 不可更新，只能在创建时设置
 func (d *Database) UpdateTrader(trader *TraderRecord) error {
 	_, err := d.db.Exec(`
 		UPDATE traders SET

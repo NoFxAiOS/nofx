@@ -133,8 +133,6 @@ func (s *Server) setupRoutes() {
 			protected.POST("/traders/:id/start", s.handleStartTrader)
 			protected.POST("/traders/:id/stop", s.handleStopTrader)
 			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
-			// 手动同步Initial Balance（充值/提现后使用）
-			protected.POST("/traders/:id/sync-balance", s.handleSyncBalance)
 
 			// AI模型配置
 			protected.GET("/models", s.handleGetModelConfigs)
@@ -948,69 +946,6 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "自定义prompt已更新"})
-}
-
-// SyncBalanceRequest 更新初始余额请求
-type SyncBalanceRequest struct {
-	InitialBalance float64 `json:"initial_balance" binding:"required,gt=0"`
-}
-
-// handleSyncBalance 手动更新initial_balance
-// 💡 用于用户主动设置Initial Balance基准值
-// ⚠️ 注意：用户可以输入任意值，不一定是交易所当前余额
-func (s *Server) handleSyncBalance(c *gin.Context) {
-	userID := c.GetString("user_id")
-	traderID := c.Param("id")
-
-	// 解析请求体
-	var req SyncBalanceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
-		return
-	}
-
-	log.Printf("🔄 用户 %s 请求更新交易员 %s 的初始余额: %.2f USDT", userID, traderID, req.InitialBalance)
-
-	// 从数据库获取交易员配置
-	traderConfig, _, _, err := s.database.GetTraderConfig(userID, traderID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
-		return
-	}
-
-	oldBalance := traderConfig.InitialBalance
-	newBalance := req.InitialBalance
-
-	// 计算变化
-	changePercent := ((newBalance - oldBalance) / oldBalance) * 100
-	changeType := "增加"
-	if changePercent < 0 {
-		changeType = "减少"
-	}
-
-	// 更新数据库中的 initial_balance
-	err = s.database.UpdateTraderInitialBalance(userID, traderID, newBalance)
-	if err != nil {
-		log.Printf("❌ 更新initial_balance失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新余额失败"})
-		return
-	}
-
-	// 重新加载交易员到内存
-	err = s.traderManager.LoadTraderByID(s.database, userID, traderID)
-	if err != nil {
-		log.Printf("⚠️ 重新加载交易员到内存失败: %v", err)
-	}
-
-	log.Printf("✅ 已更新初始余额: %.2f → %.2f USDT (%s %.2f%%)", oldBalance, newBalance, changeType, changePercent)
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":        "初始余额已更新",
-		"old_balance":    oldBalance,
-		"new_balance":    newBalance,
-		"change_percent": changePercent,
-		"change_type":    changeType,
-	})
 }
 
 // handleGetModelConfigs 获取AI模型配置

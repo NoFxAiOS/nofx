@@ -513,3 +513,13 @@ tr:hover {
     padding: 1rem;
   }
 }
+
+/* Spin animation for refresh button */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

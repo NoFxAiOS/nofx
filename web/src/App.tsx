@@ -134,7 +134,7 @@ function App() {
     }
   )
 
-  const { data: account } = useSWR<AccountInfo>(
+  const { data: account, mutate: refreshAccount } = useSWR<AccountInfo>(
     currentPage === 'trader' && selectedTraderId
       ? `account-${selectedTraderId}`
       : null,
@@ -145,6 +145,25 @@ function App() {
       dedupingInterval: 10000, // 10秒去重，防止短时间内重复请求
     }
   )
+
+  // 账户余额刷新状态
+  const [isRefreshingAccount, setIsRefreshingAccount] = useState(false)
+
+  // 手动刷新账户余额
+  const handleRefreshAccount = async () => {
+    if (!selectedTraderId || isRefreshingAccount) return
+    
+    setIsRefreshingAccount(true)
+    try {
+      await refreshAccount()
+      // 显示成功提示（可选）
+      console.log('账户余额已刷新')
+    } catch (error) {
+      console.error('刷新账户余额失败:', error)
+    } finally {
+      setTimeout(() => setIsRefreshingAccount(false), 500) // 延迟500ms以显示刷新动画
+    }
+  }
 
   const { data: positions } = useSWR<Position[]>(
     currentPage === 'trader' && selectedTraderId
@@ -745,6 +764,36 @@ function TraderDetailsPage({
       )}
 
       {/* Account Overview */}
+      <div className="mb-2 flex justify-between items-center">
+        <h2 className="text-lg font-semibold" style={{ color: '#EAECEF' }}>
+          {t('accountOverview', language) || '账户概览'}
+        </h2>
+        <button
+          onClick={handleRefreshAccount}
+          disabled={isRefreshingAccount}
+          className="flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors"
+          style={{
+            background: isRefreshingAccount ? '#2B3139' : '#1E2329',
+            border: '1px solid #2B3139',
+            color: isRefreshingAccount ? '#848E9C' : '#F0B90B',
+            cursor: isRefreshingAccount ? 'not-allowed' : 'pointer'
+          }}
+          onMouseEnter={(e) => {
+            if (!isRefreshingAccount) {
+              e.currentTarget.style.background = '#2B3139'
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = isRefreshingAccount ? '#2B3139' : '#1E2329'
+          }}
+        >
+          <span style={{
+            display: 'inline-block',
+            animation: isRefreshingAccount ? 'spin 1s linear infinite' : 'none'
+          }}>🔄</span>
+          {isRefreshingAccount ? (t('refreshing', language) || '刷新中...') : (t('refresh', language) || '刷新余额')}
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           title={t('totalEquity', language)}

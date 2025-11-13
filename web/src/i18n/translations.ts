@@ -33,6 +33,9 @@ export const translations = {
     positions: 'Positions',
     margin: 'Margin',
     free: 'Free',
+    accountOverview: 'Account Overview',
+    refresh: 'Refresh Balance',
+    refreshing: 'Refreshing...',
 
     // Positions Table
     currentPositions: 'Current Positions',
@@ -869,6 +872,9 @@ export const translations = {
     positions: '持仓',
     margin: '保证金',
     free: '空闲',
+    accountOverview: '账户概览',
+    refresh: '刷新余额',
+    refreshing: '刷新中...',
 
     // Positions Table
     currentPositions: '当前持仓',

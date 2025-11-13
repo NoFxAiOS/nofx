@@ -55,8 +55,11 @@ feature/hotfix 分支
   ↓ Pull Request
   ↓ Review
   ↓ 测试：测试人员拉取当前开发者的feature/hotfix分支，对feature/hotfix进行测试  
-test (合并回test分支)
+test-cp (合并进test-cp分支测试)
   ↓ 完整测试  --> 失败回滚
+test (合并进test分支)
+  ↓ 合并test分支  
+  ↓ 更新test环境    
 main (合并回main分支)  
   ↓ 自动发布
 Release Tag
@@ -65,29 +68,21 @@ Release Tag
 
 **分支规范：**
 - `main`：生产环境稳定分支
-- `test`：测试环境分支（从 `main` 检出）
+- `test`：测试环境分支（从 `main` 检出）- 
+- `test-cp`：测试者的临时测试环境分支（从 `test` 检出）
 - 功能开发分支：开发者自建 `feature/功能描述` 格式（从 `test` 检出）
 - 热修复分支：开发者自建 `hotfix/问题描述` 格式（从 `test` 检出）
 
 **操作流程：**
 
-**新功能开发场景：**
+**开发场景：**
 ```
 1. test → 创建 feature/f-support-sql-driver
 2. feature/f-support-sql-driver → 开发完成后PR
-3. 测试人员拉取当前开发者的feature/hotfix分支，对feature/hotfix进行测试
+3. 测试人员拉取当前开发者的feature/hotfix分支合并到 test-cp，对test-cp进行测试
 4. PR合并到 test
-4. test测试验证通过 → 提交 PR 合并到 main
-5. main → 完成自动触发 release 打 tag
-```
-
-**Bug 修复场景：**
-```
-1. main → 创建 hotfix/h-fix-login-token-invalide
-2. hotfix/h-fix-login-token-invalide → 开发完成后（如需验证）合并到 test
-3. test → 自动构建部署到测试环境
-4. 测试验证通过 → 提交 PR 合并到 main
-5. main → 阶段性完成自动触发 release 打 tag
+5. test测试验证通过 → 提交 PR 合并到 main
+6. main → 完成自动触发 release 打 tag
 ```
 
 ## 3. 开源与闭源版本管理
@@ -125,7 +120,7 @@ Release Tag
 
 **新建功能开发：**
 ```bash
-# 1. 切换到 main 分支并更新
+# 1. 切换到 dev 分支并更新
 git checkout dev
 git pull origin dev
 
@@ -148,7 +143,7 @@ git push origin feature/功能描述
 
 **新建功能开发：**
 ```bash
-# 1. 切换到 main 分支并更新
+# 1. 切换到 test 分支并更新
 git checkout test
 git pull origin test
 
@@ -163,10 +158,11 @@ git commit -m "功能描述"
 git push origin feature/功能描述
 
 # 5. 在 GitHub 上创建 Pull Request
-# 6. 测试人员拉取当前开发者的feature/hotfix分支，对feature/hotfix进行测试
-# 7. 测试通过后PR合并到 test分支
-# 8. 测试人员test分支完整测试验证通过 → 提交 PR 合并到 main
-# 9. main → 完成自动触发 release 打 tag
+# 6. 测试人员拉取当前开发者的feature/hotfix分支并到 test-cp，对test-cp进行测试
+# 7. 测试人员test-cp分支完整测试验证通过
+# 8. 测试通过后PR合并到 test分支，更新测试环境
+# 9. 提交 PR 合并到 main
+# 10. main → 完成自动触发 release 打 tag
 ```
 
 ## 5. 定期同步开源版本到闭源版本
@@ -292,9 +288,38 @@ git push origin --delete test-tmp
 
 ## 9. 分支模型合并流转图
 
-### 9.1 开源版本分支模型 // Todo:
+角色说明
+- [开] 开发者（Developer）
+- [评] 评审者（Reviewer）
+- [维] 维护者（Maintainer）: 暂由Tester兼任
+- [测] 测试人员或测试责任（可由 Maintainer/CI/QA 共同承担）
+- [CI] CI/CD 系统（自动化构建/测试/发布）
 
-### 9.2 闭源版本分支模型 // Todo:
+### 9.1 开源版本分支模型
+```text
+Feature/Hotfix 分支 ───● 从Dev检出创建分支[开]──────────● 开发&自测[开]──────────● 提交PR→dev[开]                               
+                                                                   
+                                                                                             
+Dev 分支                 ● 接收PR/Review[评]───● 合并到 dev[评]───● dev 不定期完整测试[测/CI][通过?]───● 发起 PR：dev→main[维]
+                                                                  
+                                                                   
+Main 分支            ───● Review[评]───────────● 合并到 main[维]───────────● Release + Tag[CI]────────▶
+```
+
+### 9.2 闭源版本分支模型
+```
+Feature/Hotfix 分支 ───● 从Test检出创建分支[开]───────────● 开发&自测[开]──────────● 提交PR→test[开]      ● 修复并更新PR[开]────▶
+                                                                                                   ╱
+                                                                                                  ╱  测试失败回路：test 未通过 → 返回修复并更新 PR）
+Test 分支         ● 接收PR/Review[评]───● 合并到test-cp[维]───● 构建环境[CI]───● 回归测试[测][通过?]───● 合并进test，发起PR：test→main[维]
+                                                                                       
+                                                                                     
+Main 分支         ● Review[评]──────────● 合并到 main[维]──────────● Release + Tag[CI]────────▶
+
+```
+说明
+- 失败回路：若 test-cp 分支的完整测试未通过，返回到 Feature/Hotfix 的“修复并更新PR”，开发者继续提交修复，PR 自动更新，再次进入 Review→合并→测试流程。
+
 
 ### 9.3 跨仓库代码流转图
 

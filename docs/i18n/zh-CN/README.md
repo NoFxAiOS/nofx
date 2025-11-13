@@ -1302,6 +1302,24 @@ sudo apt-get install libta-lib0-dev
 - 如果API失败，系统会使用默认主流币种（BTC、ETH等）
 - ~~检查config.json中的API URL和auth参数~~ *检查Web界面中的配置*
 
+### 6. 代理环境下 WebSocket 无法连接
+
+**解决**:
+- 启动后端前导出标准代理环境变量：
+  ```bash
+  export HTTPS_PROXY=http://<代理主机>:<端口>
+  export HTTP_PROXY=http://<代理主机>:<端口>
+
+  # 如果代理需要账号密码
+  export HTTPS_PROXY=http://用户名:密码@<代理主机>:<端口>
+  export HTTP_PROXY=http://用户名:密码@<代理主机>:<端口>
+
+  # 正常启动 NOFX
+  ./start.sh
+  ```
+- **Docker Compose**：将变量写到 `.env` 或 `docker-compose.yml` 的 `environment` 中。
+- NOFX 使用 Go 的 `http.ProxyFromEnvironment`，只要环境变量设置正确，包括 Binance 合并流在内的所有出站请求都会自动走代理。
+
 ---
 
 ## 📈 性能优化建议

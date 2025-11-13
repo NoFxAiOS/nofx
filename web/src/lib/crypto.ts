@@ -7,6 +7,16 @@ export interface EncryptedPayload {
   ts?: number // 可选：unix 秒，用于重放保护
 }
 
+export interface WebCryptoEnvironmentInfo {
+  isBrowser: boolean
+  isSecureContext: boolean
+  hasSubtleCrypto: boolean
+  origin?: string
+  protocol?: string
+  hostname?: string
+  isLocalhost?: boolean
+}
+
 export class CryptoService {
   private static publicKey: CryptoKey | null = null
   private static publicKeyPEM: string | null = null
@@ -185,4 +195,41 @@ export function validatePrivateKeyFormat(
     return false
   }
   return /^[0-9a-fA-F]+$/.test(normalized)
+}
+
+export function diagnoseWebCryptoEnvironment(): WebCryptoEnvironmentInfo {
+  if (typeof window === 'undefined') {
+    return {
+      isBrowser: false,
+      isSecureContext: false,
+      hasSubtleCrypto: false,
+    }
+  }
+
+  const { location } = window
+  const hostname = location?.hostname
+  const protocol = location?.protocol
+  const origin = location?.origin
+  const isLocalhost = hostname
+    ? ['localhost', '127.0.0.1', '::1'].includes(hostname)
+    : false
+
+  const secureContext =
+    typeof window.isSecureContext === 'boolean'
+      ? window.isSecureContext
+      : protocol === 'https:' || (protocol === 'http:' && isLocalhost)
+
+  const hasSubtleCrypto =
+    typeof window.crypto !== 'undefined' &&
+    typeof window.crypto.subtle !== 'undefined'
+
+  return {
+    isBrowser: true,
+    isSecureContext: secureContext,
+    hasSubtleCrypto,
+    origin: origin || undefined,
+    protocol: protocol || undefined,
+    hostname,
+    isLocalhost,
+  }
 }

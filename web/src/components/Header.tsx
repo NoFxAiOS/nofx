@@ -1,5 +1,6 @@
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { Container } from './Container'
 
 interface HeaderProps {
   simple?: boolean // For login/register pages
@@ -10,7 +11,7 @@ export function Header({ simple = false }: HeaderProps) {
 
   return (
     <header className="glass sticky top-0 z-50 backdrop-blur-xl">
-      <div className="max-w-[1920px] mx-auto px-6 py-4">
+      <Container className="py-4">
         <div className="flex items-center justify-between">
           {/* Left - Logo and Title */}
           <div className="flex items-center gap-3">
@@ -58,7 +59,7 @@ export function Header({ simple = false }: HeaderProps) {
             </button>
           </div>
         </div>
-      </div>
+      </Container>
     </header>
   )
 }

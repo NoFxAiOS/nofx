@@ -6,6 +6,7 @@ services:
       dockerfile: ./docker/Dockerfile.backend
     container_name: nofx-trading
     restart: unless-stopped
+    stop_grace_period: 30s  # 允许应用有 30 秒时间优雅关闭
     ports:
       - "${NOFX_BACKEND_PORT:-8088}:8088"
     volumes:
@@ -44,7 +45,7 @@ services:
     depends_on:
       - nofx
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3

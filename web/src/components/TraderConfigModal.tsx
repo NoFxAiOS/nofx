@@ -500,6 +500,14 @@ export function TraderConfigModal({
                   <p className="text-xs text-gray-500 mt-1">
                     {t('scanIntervalRecommend', language)}
                   </p>
+                  {formData.scan_interval_minutes < 3 && (
+                    <div className="flex items-start gap-2 mt-2 p-2 bg-yellow-900/20 border border-yellow-700/50 rounded">
+                      <span className="text-yellow-500 text-sm flex-shrink-0">⚠️</span>
+                      <p className="text-xs text-yellow-500">
+                        {t('scanIntervalCostWarning', language)}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div></div>
               </div>

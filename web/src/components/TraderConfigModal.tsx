@@ -312,10 +312,19 @@ export function TraderConfigModal({
                     type="number"
                     value={formData.initial_balance}
                     onChange={(e) => handleInputChange('initial_balance', Number(e.target.value))}
+                    onBlur={(e) => {
+                      const value = Number(e.target.value);
+                      if (value > 0 && value < 100) {
+                        handleInputChange('initial_balance', 100);
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="100"
-                    step="100"
+                    min="0.01"
+                    step="0.01"
                   />
+                  <p className="text-xs text-[#848E9C] mt-1">
+                    建议最低 100 USDT。失焦时自动调整低于 100 的值。
+                  </p>
                 </div>
               </div>
 

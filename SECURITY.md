@@ -164,8 +164,8 @@ chmod 777 nofx.db  # NEVER DO THIS
 ```bash
 # ✅ Use firewall to restrict API access
 # Only allow localhost to access API server
-iptables -A INPUT -p tcp --dport 8080 -s 127.0.0.1 -j ACCEPT
-iptables -A INPUT -p tcp --dport 8080 -j DROP
+iptables -A INPUT -p tcp --dport 8088 -s 127.0.0.1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8088 -j DROP
 
 # ❌ DON'T: Expose API to public internet without authentication
 ```
@@ -404,8 +404,8 @@ chmod 777 nofx.db  # 永远不要这样做
 ```bash
 # ✅ 使用防火墙限制 API 访问
 # 仅允许本地访问 API 服务器
-iptables -A INPUT -p tcp --dport 8080 -s 127.0.0.1 -j ACCEPT
-iptables -A INPUT -p tcp --dport 8080 -j DROP
+iptables -A INPUT -p tcp --dport 8088 -s 127.0.0.1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8088 -j DROP
 
 # ❌ 不要：在没有身份验证的情况下将 API 暴露到公共互联网
 ```

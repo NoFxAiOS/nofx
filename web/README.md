@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:3000
+访问 http://localhost:5173
 
 ## 构建生产版本
 
@@ -54,7 +54,7 @@ npm run build
 - 决策日志、统计：每10秒刷新
 
 ### API集成
-前端通过Vite代理访问后端API（http://localhost:8080）
+前端通过Vite代理访问后端API（http://localhost:8088）
 
 **API端点：**
 - `GET /api/status` - 系统状态

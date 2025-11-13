@@ -152,7 +152,7 @@ func loadBetaCodesToDatabase(database *config.Database) error {
 
 func main() {
 	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
+	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek, Qwen & Ollama   ║")
 	fmt.Println("╚════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
@@ -202,7 +202,6 @@ func main() {
 	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
-
 
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
@@ -318,7 +317,7 @@ func main() {
 	fmt.Println()
 
 	// 获取API服务器端口
-	apiPort := 8080 // 默认端口
+	apiPort := 8088 // 默认端口
 	if apiPortStr != "" {
 		if port, err := strconv.Atoi(apiPortStr); err == nil {
 			apiPort = port

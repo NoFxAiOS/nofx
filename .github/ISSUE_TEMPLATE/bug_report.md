@@ -157,7 +157,7 @@ Paste backend logs here (last 50-100 lines around the error)
 3. ✅ Check decision logs in `decision_logs/{trader_id}/` for AI reasoning
 
 **For Connection Issues:**
-4. ✅ Test API connectivity: `curl http://localhost:8080/api/health`
+4. ✅ Test API connectivity: `curl http://localhost:8088/api/health`
 5. ✅ Check API rate limits on exchange
 6. ✅ Verify API keys are not expired
 

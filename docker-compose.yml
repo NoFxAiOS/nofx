@@ -7,7 +7,7 @@ services:
     container_name: nofx-trading
     restart: unless-stopped
     ports:
-      - "${NOFX_BACKEND_PORT:-8080}:8080"
+      - "${NOFX_BACKEND_PORT:-8088}:8088"
     volumes:
       - ./config.json:/app/config.json:ro
       - ./config.db:/app/config.db
@@ -24,7 +24,7 @@ services:
     networks:
       - nofx-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8088/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -38,7 +38,7 @@ services:
     container_name: nofx-frontend
     restart: unless-stopped
     ports:
-      - "${NOFX_FRONTEND_PORT:-3000}:80"
+      - "${NOFX_FRONTEND_PORT:-5173}:80"
     networks:
       - nofx-network
     depends_on:

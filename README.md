@@ -349,7 +349,7 @@ docker compose up -d --build
 ```
 
 #### Step 2: Access Web Interface
-Open your browser and visit: **http://localhost:3000**
+Open your browser and visit: **http://localhost:5173**
 
 **That's it! 🎉** Your AI trading platform is now running!
 
@@ -498,7 +498,7 @@ npm run dev
 
 #### **Step 3: Access the Web Interface**
 
-Open your browser and visit: **🌐 http://localhost:3000**
+Open your browser and visit: **🌐 http://localhost:5173**
 
 ### 6. Configure Through Web Interface
 
@@ -563,7 +563,7 @@ Open your browser and visit: **🌐 http://localhost:3000**
     }
   ],
   "use_default_coins": true,
-  "api_server_port": 8080
+  "api_server_port": 8088
 }
 ```
 
@@ -620,7 +620,7 @@ Open your browser and visit: **🌐 http://localhost:3000**
     }
   ],
   "use_default_coins": true,
-  "api_server_port": 8080,
+  "api_server_port": 8088,
   "leverage": {
     "btc_eth_leverage": 5,
     "altcoin_leverage": 5
@@ -678,7 +678,7 @@ For running multiple AI traders competing against each other:
   "use_default_coins": true,
   "coin_pool_api_url": "",
   "oi_top_api_url": "",
-  "api_server_port": 8080
+  "api_server_port": 8088
 }
 ```
 
@@ -714,7 +714,7 @@ For running multiple AI traders competing against each other:
 | `use_default_coins` | Use built-in coin list<br>**✨ Smart Default: `true`** (v2.0.2+)<br>Auto-enabled if no API URL provided | `true` or omit | ❌ No<br>(Optional, auto-defaults) |
 | `coin_pool_api_url` | Custom coin pool API<br>*Only needed when `use_default_coins: false`* | `""` (empty) | ❌ No |
 | `oi_top_api_url` | Open interest API<br>*Optional supplement data* | `""` (empty) | ❌ No |
-| `api_server_port` | Web dashboard port | `8080` | ✅ Yes |
+| `api_server_port` | Web dashboard port | `8088` | ✅ Yes |
 
 ~~**Default Trading Coins** (when `use_default_coins: true`):
 - BTC, ETH, SOL, BNB, XRP, DOGE, ADA, HYPE~~

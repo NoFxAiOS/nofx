@@ -37,6 +37,8 @@ function getModelDisplayName(modelId: string): string {
       return 'DeepSeek'
     case 'qwen':
       return 'Qwen'
+    case 'ollama':
+      return 'Ollama'
     case 'claude':
       return 'Claude'
     default:
@@ -1431,7 +1433,9 @@ function ModelConfigModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
+    // Ollama için API key zorunlu değil, diğer modeller için zorunlu
+    const isOllama = selectedModel?.provider === 'ollama' || selectedModelId === 'ollama'
+    if (!selectedModelId || (!isOllama && !apiKey.trim())) return
 
     onSave(
       selectedModelId,
@@ -1543,7 +1547,7 @@ function ModelConfigModal({
                   className="block text-sm font-semibold mb-2"
                   style={{ color: '#EAECEF' }}
                 >
-                  API Key
+                  API Key {(selectedModel?.provider === 'ollama' || selectedModelId === 'ollama') && '(Opsiyonel)'}
                 </label>
                 <input
                   type="password"
@@ -1556,7 +1560,7 @@ function ModelConfigModal({
                     border: '1px solid #2B3139',
                     color: '#EAECEF',
                   }}
-                  required
+                  required={selectedModel?.provider !== 'ollama' && selectedModelId !== 'ollama'}
                 />
               </div>
 

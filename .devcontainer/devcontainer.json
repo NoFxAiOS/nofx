@@ -1,0 +1,19 @@
+{
+  "name": "NOFX Dev",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "backend",
+  "workspaceFolder": "/app",
+  "forwardPorts": [3000, 8080, 8081],
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {}
+  },
+  "overrideCommand": false,
+  "mounts": [
+    "source=${localWorkspaceFolder}/config.json,target=/app/config.json,type=bind",
+    "source=${localWorkspaceFolder}/.env,target=/app/.env,type=bind"
+  ],
+  "remoteEnv": {
+    "NOFX_ADMIN_PASSWORD": "${localEnv:NOFX_ADMIN_PASSWORD}"
+  },
+  "postCreateCommand": "echo 'Dev container ready'"
+}

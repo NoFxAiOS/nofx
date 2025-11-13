@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Ollama Logo - Simple circular design with llama silhouette -->
+  <circle cx="50" cy="50" r="45" fill="#000000"/>
+  <circle cx="50" cy="50" r="40" fill="#FFFFFF"/>
+  
+  <!-- Stylized llama head -->
+  <g transform="translate(50, 50)">
+    <!-- Head -->
+    <ellipse cx="0" cy="-5" rx="12" ry="15" fill="#000000"/>
+    
+    <!-- Ears -->
+    <ellipse cx="-8" cy="-15" rx="3" ry="6" fill="#000000" transform="rotate(-20 -8 -15)"/>
+    <ellipse cx="8" cy="-15" rx="3" ry="6" fill="#000000" transform="rotate(20 8 -15)"/>
+    
+    <!-- Eyes -->
+    <circle cx="-4" cy="-7" r="1.5" fill="#FFFFFF"/>
+    <circle cx="4" cy="-7" r="1.5" fill="#FFFFFF"/>
+    
+    <!-- Snout -->
+    <ellipse cx="0" cy="-2" rx="4" ry="3" fill="#000000"/>
+    <ellipse cx="0" cy="0" rx="2" ry="1.5" fill="#FFFFFF"/>
+    
+    <!-- Neck -->
+    <rect x="-5" y="5" width="10" height="10" rx="2" fill="#000000"/>
+  </g>
+  
+  <!-- Text "O" at bottom -->
+  <text x="50" y="85" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="#000000">O</text>
+</svg>

@@ -45,6 +45,7 @@ type AutoTraderConfig struct {
 	UseQwen     bool
 	DeepSeekKey string
 	QwenKey     string
+	OllamaKey   string // Ollama API密钥（通常为空，本地运行不需要）
 
 	// 自定义AI API配置
 	CustomAPIURL    string
@@ -133,6 +134,14 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		// 使用自定义API
 		mcpClient.SetCustomAPI(config.CustomAPIURL, config.CustomAPIKey, config.CustomModelName)
 		log.Printf("🤖 [%s] 使用自定义AI API: %s (模型: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
+	} else if config.AIModel == "ollama" {
+		// 使用Ollama本地模型 (支持自定义URL和Model)
+		mcpClient.SetOllamaAPIKey(config.OllamaKey, config.CustomAPIURL, config.CustomModelName)
+		if config.CustomAPIURL != "" || config.CustomModelName != "" {
+			log.Printf("🤖 [%s] 使用Ollama本地AI (自定义URL: %s, 模型: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
+		} else {
+			log.Printf("🤖 [%s] 使用Ollama本地AI", config.Name)
+		}
 	} else if config.UseQwen || config.AIModel == "qwen" {
 		// 使用Qwen (支持自定义URL和Model)
 		mcpClient.SetQwenAPIKey(config.QwenKey, config.CustomAPIURL, config.CustomModelName)

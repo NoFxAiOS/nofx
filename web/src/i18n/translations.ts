@@ -685,7 +685,7 @@ export const translations = {
 
     faqFrontendLoading: 'Frontend shows "Loading..." forever',
     faqFrontendLoadingAnswer:
-      'Check if backend is running with "curl http://localhost:8080/api/health". Should return {"status":"ok"}. If not, check the troubleshooting guide.',
+      'Check if backend is running with "curl http://localhost:8088/api/health". Should return {"status":"ok"}. If not, check the troubleshooting guide.',
 
     faqDatabaseLocked: 'Database locked error',
     faqDatabaseLockedAnswer:
@@ -1406,7 +1406,7 @@ export const translations = {
 
     faqFrontendLoading: '前端一直显示"加载中..."',
     faqFrontendLoadingAnswer:
-      '使用 "curl http://localhost:8080/api/health" 检查后端是否运行。应该返回 {"status":"ok"}。如果不是，查看故障排查指南。',
+      '使用 "curl http://localhost:8088/api/health" 检查后端是否运行。应该返回 {"status":"ok"}。如果不是，查看故障排查指南。',
 
     faqDatabaseLocked: '数据库锁定错误',
     faqDatabaseLockedAnswer:

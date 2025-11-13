@@ -19,6 +19,7 @@ type Provider string
 const (
 	ProviderDeepSeek Provider = "deepseek"
 	ProviderQwen     Provider = "qwen"
+	ProviderOllama   Provider = "ollama"
 	ProviderCustom   Provider = "custom"
 )
 
@@ -105,6 +106,32 @@ func (client *Client) SetQwenAPIKey(apiKey string, customURL string, customModel
 	}
 }
 
+// SetOllamaAPIKey 设置本地Ollama API
+// customURL 为空时使用默认本地地址，customModel 为空时使用默认模型
+func (client *Client) SetOllamaAPIKey(apiKey string, customURL string, customModel string) {
+	client.Provider = ProviderOllama
+	client.APIKey = apiKey // Ollama通常不需要API密钥，但保留以支持受保护的实例
+	if customURL != "" {
+		client.BaseURL = customURL
+		log.Printf("🔧 [MCP] Ollama 使用自定义 BaseURL: %s", customURL)
+	} else {
+		client.BaseURL = "http://localhost:11434/v1"
+		log.Printf("🔧 [MCP] Ollama 使用默认 BaseURL: %s", client.BaseURL)
+	}
+	if customModel != "" {
+		client.Model = customModel
+		log.Printf("🔧 [MCP] Ollama 使用自定义 Model: %s", customModel)
+	} else {
+		client.Model = "deepseek-r1"
+		log.Printf("🔧 [MCP] Ollama 使用默认 Model: %s", client.Model)
+	}
+	if apiKey != "" && len(apiKey) > 8 {
+		log.Printf("🔧 [MCP] Ollama API Key: %s...%s", apiKey[:4], apiKey[len(apiKey)-4:])
+	} else {
+		log.Printf("🔧 [MCP] Ollama 无需 API Key（本地运行）")
+	}
+}
+
 // SetCustomAPI 设置自定义OpenAI兼容API
 func (client *Client) SetCustomAPI(apiURL, apiKey, modelName string) {
 	client.Provider = ProviderCustom
@@ -133,7 +160,8 @@ func (client *Client) SetClient(Client Client) {
 
 // CallWithMessages 使用 system + user prompt 调用AI API（推荐）
 func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string, error) {
-	if client.APIKey == "" {
+	// Ollama için API key kontrolü yapma (local çalışıyor)
+	if client.Provider != ProviderOllama && client.APIKey == "" {
 		return "", fmt.Errorf("AI API密钥未设置，请先调用 SetDeepSeekAPIKey() 或 SetQwenAPIKey()")
 	}
 
@@ -200,12 +228,19 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		"content": userPrompt,
 	})
 
+	// Ollama için max_tokens'ı artır (reasoning modelleri için)
+	maxTokens := client.MaxTokens
+	if client.Provider == ProviderOllama && maxTokens < 8000 {
+		maxTokens = 8000 // Deepseek-R1 gibi reasoning modelleri için yeterli alan
+		log.Printf("🔧 [MCP] Ollama için max_tokens artırıldı: %d", maxTokens)
+	}
+
 	// 构建请求体
 	requestBody := map[string]interface{}{
 		"model":       client.Model,
 		"messages":    messages,
 		"temperature": 0.5, // 降低temperature以提高JSON格式稳定性
-		"max_tokens":  client.MaxTokens,
+		"max_tokens":  maxTokens,
 	}
 
 	// 注意：response_format 参数仅 OpenAI 支持，DeepSeek/Qwen 不支持
@@ -242,6 +277,11 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		// 阿里云Qwen使用API-Key认证
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
 		// 注意：如果使用的不是兼容模式，可能需要不同的认证方式
+	case ProviderOllama:
+		// Ollama通常不需要认证，但如果设置了API Key则添加
+		if client.APIKey != "" {
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
+		}
 	default:
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
 	}
@@ -281,7 +321,19 @@ func (client *Client) callOnce(systemPrompt, userPrompt string) (string, error) 
 		return "", fmt.Errorf("API返回空响应")
 	}
 
-	return result.Choices[0].Message.Content, nil
+	content := result.Choices[0].Message.Content
+
+	// Ollama için debug logging - AI yanıtının formatını görmek için
+	if client.Provider == ProviderOllama {
+		log.Printf("🔍 [DEBUG] Ollama Raw Response (first 1000 chars):")
+		if len(content) > 1000 {
+			log.Printf("%s...", content[:1000])
+		} else {
+			log.Printf("%s", content)
+		}
+	}
+
+	return content, nil
 }
 
 // isRetryableError 判断错误是否可重试

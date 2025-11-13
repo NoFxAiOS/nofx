@@ -1552,16 +1552,16 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 		CycleNumber      int     `json:"cycle_number"`
 	}
 
-	// 从AutoTrader获取初始余额（用于计算盈亏百分比）
-	initialBalance := 0.0
+	// 从AutoTrader获取当前初始余额（用作旧数据的fallback）
+	base := 0.0
 	if status := trader.GetStatus(); status != nil {
 		if ib, ok := status["initial_balance"].(float64); ok && ib > 0 {
-			initialBalance = ib
+			base = ib
 		}
 	}
 
 	// 如果还是无法获取，返回错误
-	if initialBalance == 0 {
+	if base == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "无法获取初始余额",
 		})
@@ -1577,11 +1577,18 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 		walletBalance := record.AccountState.TotalBalance
 		unrealizedPnL := record.AccountState.TotalUnrealizedProfit
 		totalEquity := walletBalance + unrealizedPnL
-		totalPnL := totalEquity - initialBalance
+
+		// 🔄 使用历史记录中保存的initial_balance（如果有）
+		// 这样可以保持历史PNL%的准确性，即使用户后来更新了initial_balance
+		if record.AccountState.InitialBalance > 0 {
+			base = record.AccountState.InitialBalance
+		}
+
+		totalPnL := totalEquity - base
 		// 计算盈亏百分比
 		totalPnLPct := 0.0
-		if initialBalance > 0 {
-			totalPnLPct = (totalPnL / initialBalance) * 100
+		if base > 0 {
+			totalPnLPct = (totalPnL / base) * 100
 		}
 
 		history = append(history, EquityPoint{

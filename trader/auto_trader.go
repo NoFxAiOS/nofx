@@ -333,6 +333,7 @@ func (at *AutoTrader) runCycle() error {
 		TotalUnrealizedProfit: ctx.Account.UnrealizedPnL,
 		PositionCount:         ctx.Account.PositionCount,
 		MarginUsedPct:         ctx.Account.MarginUsedPct,
+		InitialBalance:        at.initialBalance, // 记录当时的初始余额基准
 	}
 
 	// 保存持仓快照

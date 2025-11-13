@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
@@ -47,6 +48,7 @@ type PositionInfo struct {
 type AccountInfo struct {
 	TotalEquity      float64 `json:"total_equity"`      // 账户净值
 	AvailableBalance float64 `json:"available_balance"` // 可用余额
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // 未实现盈亏
 	TotalPnL         float64 `json:"total_pnl"`         // 总盈亏
 	TotalPnLPct      float64 `json:"total_pnl_pct"`     // 总盈亏百分比
 	MarginUsed       float64 `json:"margin_used"`       // 已用保证金
@@ -386,9 +388,12 @@ func buildUserPrompt(ctx *Context) string {
 				}
 			}
 
-			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 盈亏%+.2f%% | 盈亏金额%+.2f USDT | 最高收益率%.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f%s\n\n",
+			// 计算仓位价值（用于 partial_close 检查）
+			positionValue := math.Abs(pos.Quantity) * pos.MarkPrice
+
+			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 数量%.4f | 仓位价值%.2f USDT | 盈亏%+.2f%% | 盈亏金额%+.2f USDT | 最高收益率%.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f%s\n\n",
 				i+1, pos.Symbol, strings.ToUpper(pos.Side),
-				pos.EntryPrice, pos.MarkPrice, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
+				pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
 				pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
 
 			// 使用FormatMarketData输出完整市场数据

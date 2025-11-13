@@ -773,6 +773,18 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		return
 	}
 
+	// 如果请求中包含initial_balance且与现有值不同，单独更新它
+	// UpdateTrader不会更新initial_balance，需要使用专门的方法
+	if req.InitialBalance > 0 && req.InitialBalance-existingTrader.InitialBalance > 0.1 {
+		err = s.database.UpdateTraderInitialBalance(userID, traderID, req.InitialBalance)
+		if err != nil {
+			log.Printf("⚠️ 更新初始余额失败: %v", err)
+			// 不返回错误，因为主要配置已更新成功
+		} else {
+			log.Printf("✓ 初始余额已更新: %.2f -> %.2f", existingTrader.InitialBalance, req.InitialBalance)
+		}
+	}
+
 	// 重新加载交易员到内存
 	err = s.traderManager.LoadTraderByID(s.database, userID, traderID)
 	if err != nil {
@@ -1548,12 +1560,6 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 		}
 	}
 
-	// 如果无法从status获取，且有历史记录，则从第一条记录获取
-	if initialBalance == 0 && len(records) > 0 {
-		// 第一条记录的equity作为初始余额
-		initialBalance = records[0].AccountState.TotalBalance
-	}
-
 	// 如果还是无法获取，返回错误
 	if initialBalance == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1565,10 +1571,13 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 	var history []EquityPoint
 	for _, record := range records {
 		// TotalBalance字段实际存储的是TotalEquity
-		totalEquity := record.AccountState.TotalBalance
+		// totalEquity := record.AccountState.TotalBalance
 		// TotalUnrealizedProfit字段实际存储的是TotalPnL（相对初始余额）
-		totalPnL := record.AccountState.TotalUnrealizedProfit
-
+		// totalPnL := record.AccountState.TotalUnrealizedProfit
+		walletBalance := record.AccountState.TotalBalance
+		unrealizedPnL := record.AccountState.TotalUnrealizedProfit
+		totalEquity := walletBalance + unrealizedPnL
+		totalPnL := totalEquity - initialBalance
 		// 计算盈亏百分比
 		totalPnLPct := 0.0
 		if initialBalance > 0 {

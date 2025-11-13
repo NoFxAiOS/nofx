@@ -9,6 +9,7 @@ import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
+import StrategiesPage from './pages/StrategiesPage'
 import HeaderBar from './components/landing/HeaderBar'
 import AILearning from './components/AILearning'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -239,6 +240,44 @@ function App() {
   if (route === '/reset-password') {
     return <ResetPasswordPage />
   }
+  if (route === '/strategies') {
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: '#000000', color: '#EAECEF' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="strategies"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onPageChange={(page) => {
+            if (page === 'competition') {
+              window.history.pushState({}, '', '/competition')
+              setRoute('/competition')
+            } else if (page === 'traders') {
+              window.history.pushState({}, '', '/traders')
+              setRoute('/traders')
+            } else if (page === 'trader') {
+              window.history.pushState({}, '', '/dashboard')
+              setRoute('/dashboard')
+            } else if (page === 'faq') {
+              window.history.pushState({}, '', '/faq')
+              setRoute('/faq')
+            } else if (page === 'strategies') {
+              window.history.pushState({}, '', '/strategies')
+              setRoute('/strategies')
+            }
+          }}
+        />
+        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+          <StrategiesPage />
+        </main>
+      </div>
+    )
+  }
   if (route === '/competition') {
     return (
       <div
@@ -275,6 +314,10 @@ function App() {
               console.log('Navigating to faq')
               window.history.pushState({}, '', '/faq')
               setRoute('/faq')
+            } else if (page === 'strategies') {
+              console.log('Navigating to strategies')
+              window.history.pushState({}, '', '/strategies')
+              setRoute('/strategies')
             }
 
             console.log(
@@ -333,6 +376,9 @@ function App() {
           } else if (page === 'faq') {
             window.history.pushState({}, '', '/faq')
             setRoute('/faq')
+          } else if (page === 'strategies') {
+            window.history.pushState({}, '', '/strategies')
+            setRoute('/strategies')
           }
         }}
       />

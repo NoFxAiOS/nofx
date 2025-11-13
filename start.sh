@@ -380,7 +380,7 @@ check_database_tables() {
     print_info "🔍 检查数据库表结构..."
 
     # 关键表列表
-    local required_tables=("users" "ai_models" "exchanges" "system_configs")
+    local required_tables=("users" "ai_models" "exchanges" "system_config")
     local missing_tables=()
 
     for table in "${required_tables[@]}"; do

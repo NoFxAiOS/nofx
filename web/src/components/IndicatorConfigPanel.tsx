@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface IndicatorConfig {
   indicators: string[]
@@ -8,6 +9,7 @@ interface IndicatorConfig {
 }
 
 interface IndicatorConfigPanelProps {
+  traderId?: string
   config?: IndicatorConfig | null
   onConfigChange?: (config: IndicatorConfig) => void
   isEditing?: boolean
@@ -89,13 +91,16 @@ const PRESETS = {
 }
 
 export function IndicatorConfigPanel({
+  traderId,
   config,
   onConfigChange,
   isEditing = true,
 }: IndicatorConfigPanelProps) {
+  const { language } = useLanguage()
   const [localConfig, setLocalConfig] = useState<IndicatorConfig>(
     config || DEFAULT_CONFIG
   )
+  const [isLoading, setIsLoading] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {

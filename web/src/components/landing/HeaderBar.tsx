@@ -256,6 +256,49 @@ export default function HeaderBar({
 
                     {t('faqNav', language)}
                   </button>
+
+                  <button
+                    onClick={() => {
+                      console.log(
+                        'Strategies button clicked, onPageChange:',
+                        onPageChange
+                      )
+                      onPageChange?.('strategies')
+                    }}
+                    className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                    style={{
+                      color:
+                        currentPage === 'strategies'
+                          ? 'var(--brand-yellow)'
+                          : 'var(--brand-light-gray)',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (currentPage !== 'strategies') {
+                        e.currentTarget.style.color = 'var(--brand-yellow)'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (currentPage !== 'strategies') {
+                        e.currentTarget.style.color = 'var(--brand-light-gray)'
+                      }
+                    }}
+                  >
+                    {/* Background for selected state */}
+                    {currentPage === 'strategies' && (
+                      <span
+                        className="absolute inset-0 rounded-lg"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.15)',
+                          zIndex: -1,
+                        }}
+                      />
+                    )}
+
+                    {t('strategies', language)}
+                  </button>
                 </>
               ) : (
                 // Landing page navigation when not logged in
@@ -764,6 +807,41 @@ export default function HeaderBar({
                 )}
 
                 {t('faqNav', language)}
+              </button>
+              <button
+                onClick={() => {
+                  console.log(
+                    '移动端 Strategies button clicked, onPageChange:',
+                    onPageChange
+                  )
+                  onPageChange?.('strategies')
+                  setMobileMenuOpen(false)
+                }}
+                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
+                style={{
+                  color:
+                    currentPage === 'strategies'
+                      ? 'var(--brand-yellow)'
+                      : 'var(--brand-light-gray)',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  position: 'relative',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+              >
+                {/* Background for selected state */}
+                {currentPage === 'strategies' && (
+                  <span
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.15)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+
+                {t('strategies', language)}
               </button>
             </>
           )}

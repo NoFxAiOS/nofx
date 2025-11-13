@@ -578,12 +578,12 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		liquidationPrice := pos["liquidationPrice"].(float64)
 
-		// 计算占用保证金（估算）
+		// 计算占用保证金（基于开仓价）
 		leverage := 10 // 默认值，实际应该从持仓信息获取
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
 		}
-		marginUsed := (quantity * markPrice) / float64(leverage)
+		marginUsed := (quantity * entryPrice) / float64(leverage)
 		totalMarginUsed += marginUsed
 
 		// 计算盈亏百分比（基于保证金，考虑杠杆）
@@ -1329,7 +1329,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	totalUnrealizedPnLCalculated := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
+		entryPrice := pos["entryPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
 		if quantity < 0 {
 			quantity = -quantity
@@ -1341,7 +1341,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
 		}
-		marginUsed := (quantity * markPrice) / float64(leverage)
+		marginUsed := (quantity * entryPrice) / float64(leverage)
 		totalMarginUsed += marginUsed
 	}
 
@@ -1410,8 +1410,8 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			leverage = int(lev)
 		}
 
-		// 计算占用保证金
-		marginUsed := (quantity * markPrice) / float64(leverage)
+		// 计算占用保证金（基于开仓价，而非当前价）
+		marginUsed := (quantity * entryPrice) / float64(leverage)
 
 		// 计算盈亏百分比（基于保证金）
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)

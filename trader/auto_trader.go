@@ -442,9 +442,6 @@ func (at *AutoTrader) runCycle() error {
 		log.Println("📅 日盈亏已重置")
 	}
 
-	// 3. 自动同步余额（每10分钟检查一次，充值/提现后自动更新）
-	at.autoSyncBalanceIfNeeded()
-
 	// 4. 收集交易上下文
 	ctx, err := at.buildTradingContext()
 	if err != nil {
@@ -456,11 +453,12 @@ func (at *AutoTrader) runCycle() error {
 
 	// 保存账户状态快照
 	record.AccountState = logger.AccountSnapshot{
-		TotalBalance:          ctx.Account.TotalEquity,
+		TotalBalance:          ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
 		AvailableBalance:      ctx.Account.AvailableBalance,
-		TotalUnrealizedProfit: ctx.Account.TotalPnL,
+		TotalUnrealizedProfit: ctx.Account.UnrealizedPnL,
 		PositionCount:         ctx.Account.PositionCount,
 		MarginUsedPct:         ctx.Account.MarginUsedPct,
+		InitialBalance:        at.initialBalance, // 记录当时的初始余额基准
 	}
 
 	// 保存持仓快照
@@ -738,6 +736,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
+			UnrealizedPnL:    totalUnrealizedProfit,
 			TotalPnL:         totalPnL,
 			TotalPnLPct:      totalPnLPct,
 			MarginUsed:       totalMarginUsed,
@@ -1329,7 +1328,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	}
 
 	totalMarginUsed := 0.0
-	totalUnrealizedPnL := 0.0
+	totalUnrealizedPnLCalculated := 0.0
 	for _, pos := range positions {
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
@@ -1337,7 +1336,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 			quantity = -quantity
 		}
 		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		totalUnrealizedPnL += unrealizedPnl
+		totalUnrealizedPnLCalculated += unrealizedPnl
 
 		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {
@@ -1347,10 +1346,19 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		totalMarginUsed += marginUsed
 	}
 
+	// 验证未实现盈亏的一致性（API值 vs 从持仓计算）
+	diff := math.Abs(totalUnrealizedProfit - totalUnrealizedPnLCalculated)
+	if diff > 0.1 { // 允许0.01 USDT的误差
+		log.Printf("⚠️ 未实现盈亏不一致: API=%.4f, 计算=%.4f, 差异=%.4f",
+			totalUnrealizedProfit, totalUnrealizedPnLCalculated, diff)
+	}
+
 	totalPnL := totalEquity - at.initialBalance
 	totalPnLPct := 0.0
 	if at.initialBalance > 0 {
 		totalPnLPct = (totalPnL / at.initialBalance) * 100
+	} else {
+		log.Printf("⚠️ Initial Balance异常: %.2f，无法计算PNL百分比", at.initialBalance)
 	}
 
 	marginUsedPct := 0.0
@@ -1362,15 +1370,14 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		// 核心字段
 		"total_equity":      totalEquity,           // 账户净值 = wallet + unrealized
 		"wallet_balance":    totalWalletBalance,    // 钱包余额（不含未实现盈亏）
-		"unrealized_profit": totalUnrealizedProfit, // 未实现盈亏（从API）
+		"unrealized_profit": totalUnrealizedProfit, // 未实现盈亏（交易所API官方值）
 		"available_balance": availableBalance,      // 可用余额
 
 		// 盈亏统计
-		"total_pnl":            totalPnL,           // 总盈亏 = equity - initial
-		"total_pnl_pct":        totalPnLPct,        // 总盈亏百分比
-		"total_unrealized_pnl": totalUnrealizedPnL, // 未实现盈亏（从持仓计算）
-		"initial_balance":      at.initialBalance,  // 初始余额
-		"daily_pnl":            at.dailyPnL,        // 日盈亏
+		"total_pnl":       totalPnL,          // 总盈亏 = equity - initial
+		"total_pnl_pct":   totalPnLPct,       // 总盈亏百分比
+		"initial_balance": at.initialBalance, // 初始余额
+		"daily_pnl":       at.dailyPnL,       // 日盈亏
 
 		// 持仓信息
 		"position_count":  len(positions),  // 持仓数量

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import type {
   AIModel,
   Exchange,
@@ -29,7 +30,7 @@ interface TraderConfigData {
   is_cross_margin: boolean
   use_coin_pool: boolean
   use_oi_top: boolean
-  initial_balance: number
+  initial_balance?: number // 可选：创建时不需要，编辑时使用
   scan_interval_minutes: number
   indicator_config?: IndicatorConfig
 }
@@ -67,7 +68,6 @@ export function TraderConfigModal({
     is_cross_margin: true,
     use_coin_pool: false,
     use_oi_top: false,
-    initial_balance: 1000,
     scan_interval_minutes: 3,
   })
   const [isSaving, setIsSaving] = useState(false)
@@ -263,11 +263,20 @@ export function TraderConfigModal({
         is_cross_margin: formData.is_cross_margin,
         use_coin_pool: formData.use_coin_pool,
         use_oi_top: formData.use_oi_top,
-        initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
         indicator_config: indicatorConfig,
       }
-      await onSave(saveData)
+
+      // 只在编辑模式时包含initial_balance（用于手动更新）
+      if (isEditMode && formData.initial_balance !== undefined) {
+        saveData.initial_balance = formData.initial_balance
+      }
+
+      await toast.promise(onSave(saveData), {
+        loading: '正在保存…',
+        success: '保存成功',
+        error: '保存失败',
+      })
 
       // 🔥 如果是编辑模式，额外触发热重载配置
       if (isEditMode && traderData?.trader_id) {
@@ -450,15 +459,12 @@ export function TraderConfigModal({
                     </button>
                   </div>
                 </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm text-[#EAECEF]">
-                      初始余额 ($)
-                      {!isEditMode && (
-                        <span className="text-[#F0B90B] ml-1">*</span>
-                      )}
-                    </label>
-                    {isEditMode && (
+                {isEditMode && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-[#EAECEF]">
+                        初始余额 ($)
+                      </label>
                       <button
                         type="button"
                         onClick={handleFetchCurrentBalance}
@@ -467,33 +473,46 @@ export function TraderConfigModal({
                       >
                         {isFetchingBalance ? '获取中...' : '获取当前余额'}
                       </button>
+                    </div>
+                    <input
+                      type="number"
+                      value={formData.initial_balance || 0}
+                      onChange={(e) =>
+                        handleInputChange(
+                          'initial_balance',
+                          Number(e.target.value)
+                        )
+                      }
+                      onBlur={(e) => {
+                        // Force minimum value on blur
+                        const value = Number(e.target.value)
+                        if (value < 100) {
+                          handleInputChange('initial_balance', 100)
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                      min="100"
+                      step="0.01"
+                    />
+                    <p className="text-xs text-[#848E9C] mt-1">
+                      用于手动更新初始余额基准（例如充值/提现后）
+                    </p>
+                    {balanceFetchError && (
+                      <p className="text-xs text-red-500 mt-1">
+                        {balanceFetchError}
+                      </p>
                     )}
                   </div>
-                  <input
-                    type="number"
-                    value={formData.initial_balance}
-                    onChange={(e) =>
-                      handleInputChange(
-                        'initial_balance',
-                        Number(e.target.value)
-                      )
-                    }
-                    onBlur={(e) => {
-                      // Force minimum value on blur
-                      const value = Number(e.target.value)
-                      if (value < 100) {
-                        handleInputChange('initial_balance', 100)
-                      }
-                    }}
-                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="100"
-                    step="0.01"
-                  />
-                  {!isEditMode && (
-                    <p className="text-xs text-[#F0B90B] mt-1 flex items-center gap-1">
+                )}
+                {!isEditMode && (
+                  <div>
+                    <label className="text-sm text-[#EAECEF] mb-2 block">
+                      初始余额
+                    </label>
+                    <div className="w-full px-3 py-2 bg-[#1E2329] border border-[#2B3139] rounded text-[#848E9C] flex items-center gap-2">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="w-3.5 h-3.5"
+                        className="w-4 h-4 text-[#F0B90B]"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -501,24 +520,16 @@ export function TraderConfigModal({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
-                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-                        <line x1="12" x2="12" y1="9" y2="13" />
-                        <line x1="12" x2="12.01" y1="17" y2="17" />
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" x2="12" y1="8" y2="12" />
+                        <line x1="12" x2="12.01" y1="16" y2="16" />
                       </svg>
-                      请输入您交易所账户的当前实际余额。如果输入不准确，P&L统计将会错误。
-                    </p>
-                  )}
-                  {isEditMode && (
-                    <p className="text-xs text-[#848E9C] mt-1">
-                      点击"获取当前余额"按钮可自动获取您交易所账户的当前净值
-                    </p>
-                  )}
-                  {balanceFetchError && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {balanceFetchError}
-                    </p>
-                  )}
-                </div>
+                      <span className="text-sm">
+                        系统将自动获取您的账户净值作为初始余额
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 第二行：AI 扫描决策间隔 */}

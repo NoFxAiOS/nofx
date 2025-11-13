@@ -1317,6 +1317,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 
         // 创建用户（直接激活，无需OTP验证）
         userID := uuid.New().String()
+        now := time.Now()
         user := &config.User{
                 ID:             userID,
                 Email:          req.Email,
@@ -1326,6 +1327,8 @@ func (s *Server) handleRegister(c *gin.Context) {
                 IsActive:       true,      // 账户激活状态
                 IsAdmin:        false,     // 非管理员
                 FailedAttempts: 0,         // 失败尝试次数
+                CreatedAt:      now,       // 创建时间
+                UpdatedAt:      now,       // 更新时间
         }
 
         err = s.database.CreateUser(user)

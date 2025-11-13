@@ -550,10 +550,12 @@ func GenerateOTPSecret() (string, error) {
 func (d *Database) CreateUser(user *User) error {
 	_, err := d.db.Exec(`
 		INSERT INTO users (id, email, password_hash, otp_secret, otp_verified,
-		                   is_active, is_admin, beta_code)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                   locked_until, failed_attempts, last_failed_at,
+		                   is_active, is_admin, beta_code, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, user.ID, user.Email, user.PasswordHash, user.OTPSecret, user.OTPVerified,
-		user.IsActive, user.IsAdmin, user.BetaCode)
+		user.LockedUntil, user.FailedAttempts, user.LastFailedAt,
+		user.IsActive, user.IsAdmin, user.BetaCode, user.CreatedAt, user.UpdatedAt)
 	return err
 }
 
@@ -572,12 +574,18 @@ func (d *Database) EnsureAdminUser() error {
 	}
 
 	// 创建admin用户（密码为空，因为管理员模式下不需要密码）
+	now := time.Now()
 	adminUser := &User{
-		ID:           "admin",
-		Email:        "admin@localhost",
-		PasswordHash: "", // 管理员模式下不使用密码
-		OTPSecret:    "",
-		OTPVerified:  true,
+		ID:             "admin",
+		Email:          "admin@localhost",
+		PasswordHash:   "", // 管理员模式下不使用密码
+		OTPSecret:      "",
+		OTPVerified:    true,
+		IsActive:       true,
+		IsAdmin:        true,
+		FailedAttempts: 0,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	return d.CreateUser(adminUser)

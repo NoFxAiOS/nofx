@@ -282,6 +282,8 @@ export default function TraderDashboard() {
     )
   }
 
+  const highlightColor = '#60a5fa'
+
   return (
     <div>
       {/* Trader Header */}
@@ -346,7 +348,7 @@ export default function TraderDashboard() {
               style={{
                 color: selectedTrader.ai_model.includes('qwen')
                   ? '#c084fc'
-                  : '#60a5fa',
+                  : highlightColor,
               }}
             >
               {getModelDisplayName(
@@ -354,6 +356,10 @@ export default function TraderDashboard() {
                   selectedTrader.ai_model
               )}
             </span>
+          </span>
+          <span>•</span>
+          <span>
+            Prompt: <span className="font-semibold" style={{ color: highlightColor }}>{selectedTrader.system_prompt_template || '-'}</span>
           </span>
           {status && (
             <>

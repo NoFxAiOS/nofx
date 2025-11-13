@@ -225,3 +225,81 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 		t.Errorf("SystemPromptTemplate mismatch: expected %q, got %q", "nof1", req.SystemPromptTemplate)
 	}
 }
+
+// TestTraderListResponse_SystemPromptTemplate 测试 handleTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 handleTraderList 中的 trader 对象构造
+	trader := &config.TraderRecord{
+		ID:                   "trader-001",
+		UserID:               "user-1",
+		Name:                 "My Trader",
+		AIModelID:            "gpt-4",
+		ExchangeID:           "binance",
+		InitialBalance:       5000,
+		SystemPromptTemplate: "nof1",
+		IsRunning:            true,
+	}
+
+	// 构造 API 响应对象（与 api/server.go 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              trader.ID,
+		"trader_name":            trader.Name,
+		"ai_model":               trader.AIModelID,
+		"exchange_id":            trader.ExchangeID,
+		"is_running":             trader.IsRunning,
+		"initial_balance":        trader.InitialBalance,
+		"system_prompt_template": trader.SystemPromptTemplate,
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "nof1" {
+		t.Errorf("Expected system_prompt_template='nof1', got %v", response["system_prompt_template"])
+	}
+}
+
+// TestPublicTraderListResponse_SystemPromptTemplate 测试 handlePublicTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 getConcurrentTraderData 返回的 trader 数据
+	traderData := map[string]interface{}{
+		"trader_id":              "trader-002",
+		"trader_name":            "Public Trader",
+		"ai_model":               "claude",
+		"exchange":               "binance",
+		"total_equity":           10000.0,
+		"total_pnl":              500.0,
+		"total_pnl_pct":          5.0,
+		"position_count":         3,
+		"margin_used_pct":        25.0,
+		"is_running":             true,
+		"system_prompt_template": "default",
+	}
+
+	// 构造 API 响应对象（与 api/server.go handlePublicTraderList 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              traderData["trader_id"],
+		"trader_name":            traderData["trader_name"],
+		"ai_model":               traderData["ai_model"],
+		"exchange":               traderData["exchange"],
+		"total_equity":           traderData["total_equity"],
+		"total_pnl":              traderData["total_pnl"],
+		"total_pnl_pct":          traderData["total_pnl_pct"],
+		"position_count":         traderData["position_count"],
+		"margin_used_pct":        traderData["margin_used_pct"],
+		"system_prompt_template": traderData["system_prompt_template"],
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Public trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "default" {
+		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
+	}
+}

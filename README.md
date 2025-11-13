@@ -56,7 +56,7 @@
 ### 👥 Core Team
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Zack** - [@0x_ZackH](https://x.com/0x_ZackH)
+- **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 ### 💼 Seed Funding Round Open
 

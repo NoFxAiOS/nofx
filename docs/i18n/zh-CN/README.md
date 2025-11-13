@@ -8,8 +8,6 @@
 
 **语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md)
 
-**官方推特:** [@nofx_ai](https://x.com/nofx_ai)
-
 **📚 文档中心:** [文档首页](../../README.md) | [快速开始](../../getting-started/README.zh-CN.md) | [更新日志](../../../CHANGELOG.zh-CN.md) | [社区指南](../../community/README.md)
 
 ---
@@ -57,15 +55,12 @@
 ### 👥 核心团队
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 ### 💼 种子轮融资进行中
 
 我们正在进行**种子轮融资**。
 
-**投资咨询**，请通过 Twitter 私信联系 **Tinkle** 或 **Tintin**。
-
-**商务合作**，请私信官方推特 [@nofx_ai](https://x.com/nofx_ai)。
+**投资咨询**，请通过 Twitter 私信联系 **Tinkle**。
 
 ---
 

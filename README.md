@@ -8,8 +8,6 @@
 
 **Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md)
 
-**Official Twitter:** [@nofx_ai](https://x.com/nofx_ai)
-
 **📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Prompt Writing Guide](docs/prompt-guide.md) ([中文](docs/prompt-guide.zh-CN.md)) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
 ---
@@ -55,15 +53,12 @@
 ### 👥 Core Team
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 ### 💼 Seed Funding Round Open
 
-We are currently raising our **seed round**. 
+We are currently raising our **seed round**.
 
-**For investment inquiries**, please DM **Tinkle** or **Tintin** via Twitter.
-
-**For partnerships and collaborations**, please DM our official Twitter [@nofx_ai](https://x.com/nofx_ai).
+**For investment inquiries**, please DM **Tinkle** via Twitter.
 
 ---
 

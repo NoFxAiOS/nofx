@@ -127,7 +127,9 @@ export function EquityChart({ traderId }: EquityChartProps) {
     const pnl = point.total_equity - initialBalance
     const pnlPct = ((pnl / initialBalance) * 100).toFixed(2)
     return {
-      time: new Date(point.timestamp).toLocaleTimeString('zh-CN', {
+      time: new Date(point.timestamp).toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
       }),

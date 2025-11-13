@@ -1089,3 +1089,15 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 	log.Printf("✓ Trader '%s' (%s + %s) 已为用户加载到内存", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID)
 	return nil
 }
+
+// RemoveTrader 从内存中移除指定的trader（不影响数据库）
+// 用于更新trader配置时强制重新加载
+func (tm *TraderManager) RemoveTrader(traderID string) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	if _, exists := tm.traders[traderID]; exists {
+		delete(tm.traders, traderID)
+		log.Printf("✓ Trader %s 已从内存中移除", traderID)
+	}
+}

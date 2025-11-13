@@ -43,3 +43,9 @@ node_modules/
 web/dist/
 web/.vite/
 web/yarn.lock
+
+# 项目敏感文件
+api.md
+secrets/
+
+

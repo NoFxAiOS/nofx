@@ -13,7 +13,7 @@
 ```
 dev 分支
   ↓ Developer 新建功能分支
-feature/hotfix 分支
+feat/hotfix 分支
   ↓ 开发、测试
   ↓ Pull Request
   ↓ Review
@@ -27,7 +27,7 @@ Release Tag
 **分支规范：**
 - `main`：唯一稳定分支
 - `dev`：高频更新分支
-- 功能开发分支：开发者自建分支，`feature/功能描述` 格式（从 `dev` 检出）
+- 功能开发分支：开发者自建分支，`feat/功能描述` 格式（从 `dev` 检出）
 - 热修复分支：开发者自建分支，`hotfix/问题描述` 格式（从 `dev` 检出）
 
 **操作流程：**
@@ -50,7 +50,7 @@ Release Tag
 ```
 test 分支(测试环境)
   ↓ Developer 新建功能分支
-feature/hotfix 分支
+feat/hotfix 分支
   ↓ 开发、测试
   ↓ Pull Request
   ↓ Review
@@ -70,15 +70,15 @@ Release Tag
 - `main`：生产环境稳定分支
 - `test`：测试环境分支（从 `main` 检出）- 
 - `test-cp`：测试者的临时测试环境分支（从 `test` 检出）
-- 功能开发分支：开发者自建 `feature/功能描述` 格式（从 `test` 检出）
+- 功能开发分支：开发者自建 `feat/功能描述` 格式（从 `test` 检出）
 - 热修复分支：开发者自建 `hotfix/问题描述` 格式（从 `test` 检出）
 
 **操作流程：**
 
 **开发场景：**
 ```
-1. test → 创建 feature/f-support-sql-driver
-2. feature/f-support-sql-driver → 开发完成后PR
+1. test → 创建 feat/f-support-sql-driver
+2. feat/f-support-sql-driver → 开发完成后PR
 3. 测试人员拉取当前开发者的feature/hotfix分支合并到 test-cp，对test-cp进行测试
 4. PR合并到 test
 5. test测试验证通过 → 提交 PR 合并到 main
@@ -125,14 +125,14 @@ git checkout dev
 git pull origin dev
 
 # 2. 创建功能分支
-git checkout -b feature/功能描述
+git checkout -b feat/功能描述
 
 # 3. 开发并提交代码
 git add .
 git commit -m "功能描述"
 
 # 4. 推送分支到远程仓库
-git push origin feature/功能描述
+git push origin feat/功能描述
 
 # 5. 在 GitHub 上创建 Pull Request
 # 6. 代码审查通过后合并到dev
@@ -148,14 +148,14 @@ git checkout test
 git pull origin test
 
 # 2. 创建功能分支
-git checkout -b feature/功能描述
+git checkout -b feat/功能描述
 
 # 3. 开发并提交代码
 git add .
 git commit -m "功能描述"
 
 # 4. 推送分支到远程仓库
-git push origin feature/功能描述
+git push origin feat/功能描述
 
 # 5. 在 GitHub 上创建 Pull Request
 # 6. 测试人员拉取当前开发者的feature/hotfix分支并到 test-cp，对test-cp进行测试
@@ -256,7 +256,7 @@ jobs:
 git checkout -b test-tmp origin/test
 
 # 2. 将功能分支合并到临时分支
-git merge feature/功能分支名称
+git merge feat/功能分支名称
 
 # 3. 解决冲突并提交
 #    在编辑器中解决冲突文件
@@ -356,7 +356,7 @@ Main 分支         ● Review[评]──────────● 合并到 m
    - 遵循约定式提交格式：`<type>(<scope>): <subject>`
 
 2. **分支命名规范：**
-   - 功能分支：`feature/功能简述`
+   - 功能分支：`feat/功能简述`
    - 热修复分支：`hotfix/问题简述`
    - 使用英文小写字母，单词间用连字符分隔
 

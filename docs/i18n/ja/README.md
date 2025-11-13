@@ -350,9 +350,9 @@ docker compose up -d --build
 ```
 
 **📖 詳細なDockerデプロイガイド、トラブルシューティング、高度な設定について：**
-- **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
-- **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
-- **日本語**: [DOCKER_DEPLOY.ja.md](DOCKER_DEPLOY.ja.md)を参照
+- **English**: See [docker-deploy.md](../../getting-started/docker-deploy.en.md)
+- **中文**: 查看 [docker-deploy.zh-CN.md](../../getting-started/docker-deploy.zh-CN.md)
+- **日本語**: [docker-deploy.md](docker-deploy.md)を参照
 
 ---
 

@@ -469,7 +469,6 @@ Reviewers will check:
 
 - [Project Roadmap](docs/roadmap/README.md)
 - [Architecture Documentation](docs/architecture/README.md)
-- [API Documentation](docs/api/README.md)
 - [Deployment Guide](docs/getting-started/docker-deploy.en.md)
 
 ---

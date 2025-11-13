@@ -36,6 +36,7 @@ type AccountSnapshot struct {
 	TotalUnrealizedProfit float64 `json:"total_unrealized_profit"`
 	PositionCount         int     `json:"position_count"`
 	MarginUsedPct         float64 `json:"margin_used_pct"`
+	InitialBalance        float64 `json:"initial_balance"` // 记录当时的初始余额基准
 }
 
 // PositionSnapshot 持仓快照

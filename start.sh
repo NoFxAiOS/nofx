@@ -659,6 +659,8 @@ start() {
             exit 1
         fi
 
+        # Ensure Vite dev server proxy target is aligned with backend
+        export VITE_API_URL="http://localhost:${NOFX_BACKEND_PORT}"
         nohup npm run dev > ../frontend.log 2>&1 &
         FRONTEND_PID=$!
         echo $FRONTEND_PID > ../frontend.pid

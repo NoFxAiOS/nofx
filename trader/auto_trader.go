@@ -306,7 +306,7 @@ func (at *AutoTrader) ReloadIndicatorConfig(newConfig *market.IndicatorConfig) {
 
 	// 更新配置
 	at.config.IndicatorConfig = newConfig
-	
+
 	log.Printf("🔄 [%s] 技术指标配置已热重载", at.name)
 	log.Printf("   ├─ 时间框架: %v", newConfig.Timeframes)
 	log.Printf("   ├─ 3m数据点: %d", newConfig.DataPoints["3m"])
@@ -730,9 +730,9 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CurrentTime:     time.Now().Format("2006-01-02 15:04:05"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
 		CallCount:       at.callCount,
-		BTCETHLeverage:  at.config.BTCETHLeverage,   // 使用配置的杠杆倍数
-		AltcoinLeverage: at.config.AltcoinLeverage,  // 使用配置的杠杆倍数
-		IndicatorConfig: at.config.IndicatorConfig,  // 使用配置的指标参数
+		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
+		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		IndicatorConfig: at.config.IndicatorConfig, // 使用配置的指标参数
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,

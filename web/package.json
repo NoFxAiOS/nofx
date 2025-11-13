@@ -23,7 +23,9 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-password-checklist": "^1.8.1",
+    "react-router-dom": "^7.9.5",
     "recharts": "^2.15.2",
+    "sonner": "^2.0.7",
     "swr": "^2.2.5",
     "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.2"

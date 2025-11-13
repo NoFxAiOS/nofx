@@ -12,6 +12,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Upstream Integration: Critical Bug Fixes & Improvements** - Integrated 4 high-value commits from upstream (NoFxAiOS/nofx)
+  - **Data Staleness Detection** (#800) - Prevents trading on frozen/outdated market data
+    - Detects 5 consecutive periods of identical prices with zero volume
+    - Automatically skips stale symbols with warning logs
+    - Comprehensive test coverage (8 test cases) for edge cases
+  - **Registration Toggle** (#760) - Production-ready user registration control
+    - System-level `registration_enabled` configuration flag
+    - Backward compatible (defaults to enabled)
+    - Seamless integration with existing authentication system
+  - **Partial Close Safety Checks** (#713) - Enhanced position management validation
+    - Minimum position size threshold (10 USDT) enforcement
+    - Automatic full-close when remaining position too small
+    - Percentage validation (0-100%) with comprehensive error handling
+    - Stop-loss/take-profit recovery after partial close
+  - See `openspec/changes/integrate-upstream-low-risk-updates/` for full details
 - **Hot Reload Configuration** - Technical indicator configuration can now be updated without restarting the backend
   - Real-time configuration updates through frontend interface
   - AutoTrader.ReloadIndicatorConfig() method for seamless config updates
@@ -27,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verification script for indicator configuration fix (`scripts/verify_indicator_config_fix.sh`)
 
 ### Fixed
+- **PNL Calculation Accuracy** (#963) - Corrected profit/loss computation errors
+  - Fixed calculation logic across API, trader, and manager components
+  - Enhanced PNL tracking for both open and closed positions
+  - Added comprehensive documentation in `docs/pnl.md`
+  - Updated frontend components (ComparisonChart, TraderConfigModal) for accurate display
 - **Indicator Configuration Data Flow** - Fixed critical issue where user-configured technical indicator parameters were not being passed to market data layer
   - Fixed 7 market data retrieval points in AutoTrader to pass IndicatorConfig
   - Ensures AI receives accurate data points based on user configuration (e.g., 40 vs 60 3m candles)

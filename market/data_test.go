@@ -455,7 +455,7 @@ func TestCalculateLongerTermData_CustomDataPoints(t *testing.T) {
 			if data.EMA20 == 0 && data.EMA50 == 0 {
 				t.Error("Both EMA20 and EMA50 are zero, expected calculated values")
 			}
-			
+
 			// Verify CurrentVolume is set
 			if data.CurrentVolume == 0 {
 				t.Error("CurrentVolume should be set")
@@ -511,10 +511,10 @@ func TestGetDefaultIndicatorConfig(t *testing.T) {
 func TestIndicatorConfig_EdgeCases(t *testing.T) {
 	t.Run("空配置应该使用默认值", func(t *testing.T) {
 		klines := generateTestKlines(50)
-		
+
 		// 模拟空配置的情况，使用默认数据点数量
 		data := calculateIntradaySeries(klines, 40) // 默认3m = 40个点
-		
+
 		if len(data.Volume) != 40 {
 			t.Errorf("使用默认值时Volume length = %d, want 40", len(data.Volume))
 		}
@@ -523,7 +523,7 @@ func TestIndicatorConfig_EdgeCases(t *testing.T) {
 	t.Run("最小数据点数量", func(t *testing.T) {
 		klines := generateTestKlines(20)
 		data := calculateIntradaySeries(klines, 10)
-		
+
 		if len(data.Volume) != 10 {
 			t.Errorf("最小数据点Volume length = %d, want 10", len(data.Volume))
 		}
@@ -532,7 +532,7 @@ func TestIndicatorConfig_EdgeCases(t *testing.T) {
 	t.Run("最大数据点数量", func(t *testing.T) {
 		klines := generateTestKlines(150)
 		data := calculateIntradaySeries(klines, 100)
-		
+
 		if len(data.Volume) != 100 {
 			t.Errorf("最大数据点Volume length = %d, want 100", len(data.Volume))
 		}

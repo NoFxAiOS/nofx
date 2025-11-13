@@ -50,6 +50,8 @@ services:
     restart: unless-stopped
     ports:
       - "${NOFX_FRONTEND_PORT:-3000}:80"
+    environment:
+      - VITE_API_URL=http://nofx:${NOFX_BACKEND_PORT:-8080}
     networks:
       - nofx-network
     depends_on:

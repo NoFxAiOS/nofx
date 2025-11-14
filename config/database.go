@@ -287,19 +287,60 @@ func (d *Database) createTables() error {
 func (d *Database) initDefaultData() error {
 	// 初始化AI模型（使用default用户）
 	aiModels := []struct {
-		id, name, provider string
+		modelID, name, provider string
 	}{
 		{"deepseek", "DeepSeek", "deepseek"},
 		{"qwen", "Qwen", "qwen"},
 	}
 
 	for _, model := range aiModels {
-		_, err := d.db.Exec(`
-			INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled) 
-			VALUES (?, 'default', ?, ?, 0)
-		`, model.id, model.name, model.provider)
+		// 检查表结构以确定使用哪个字段
+		var hasModelIDColumn int
+		err := d.db.QueryRow(`
+			SELECT COUNT(*) FROM pragma_table_info('ai_models')
+			WHERE name = 'model_id'
+		`).Scan(&hasModelIDColumn)
 		if err != nil {
-			return fmt.Errorf("初始化AI模型失败: %w", err)
+			return fmt.Errorf("检查表结构失败: %w", err)
+		}
+
+		// 检查是否已存在
+		var count int
+		if hasModelIDColumn > 0 {
+			// 新结构: 使用 model_id
+			err = d.db.QueryRow(`
+				SELECT COUNT(*) FROM ai_models
+				WHERE model_id = ? AND user_id = 'default'
+			`, model.modelID).Scan(&count)
+		} else {
+			// 旧结构: 使用 id
+			err = d.db.QueryRow(`
+				SELECT COUNT(*) FROM ai_models
+				WHERE id = ? AND user_id = 'default'
+			`, model.modelID).Scan(&count)
+		}
+		if err != nil {
+			return fmt.Errorf("检查AI模型失败: %w", err)
+		}
+
+		// 如果不存在则插入
+		if count == 0 {
+			if hasModelIDColumn > 0 {
+				// 新结构: id 是自增的，插入 model_id
+				_, err = d.db.Exec(`
+					INSERT INTO ai_models (user_id, model_id, name, provider, enabled)
+					VALUES ('default', ?, ?, ?, 0)
+				`, model.modelID, model.name, model.provider)
+			} else {
+				// 旧结构: id 是 TEXT PRIMARY KEY
+				_, err = d.db.Exec(`
+					INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled)
+					VALUES (?, 'default', ?, ?, 0)
+				`, model.modelID, model.name, model.provider)
+			}
+			if err != nil {
+				return fmt.Errorf("初始化AI模型失败: %w", err)
+			}
 		}
 	}
 
@@ -807,13 +848,14 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 
 // GetExchanges 获取用户的交易所配置
 func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
+	// 查詢 exchange_id（字符串 ID，如 "binance"），不是 id（整數自增 ID）
 	rows, err := d.db.Query(`
-		SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet, 
+		SELECT exchange_id, user_id, name, type, enabled, api_key, secret_key, testnet,
 		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
 		       COALESCE(aster_user, '') as aster_user,
 		       COALESCE(aster_signer, '') as aster_signer,
 		       COALESCE(aster_private_key, '') as aster_private_key,
-		       created_at, updated_at 
+		       created_at, updated_at
 		FROM exchanges WHERE user_id = ? ORDER BY id
 	`, userID)
 	if err != nil {
@@ -883,13 +925,13 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 		args = append(args, encryptedAsterPrivateKey)
 	}
 
-	// WHERE 条件
+	// WHERE 条件 - 使用 exchange_id（新結構）
 	args = append(args, id, userID)
 
 	// 构建完整的 UPDATE 语句
 	query := fmt.Sprintf(`
 		UPDATE exchanges SET %s
-		WHERE id = ? AND user_id = ?
+		WHERE exchange_id = ? AND user_id = ?
 	`, strings.Join(setClauses, ", "))
 
 	// 执行更新
@@ -930,9 +972,9 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 
 		log.Printf("🆕 UpdateExchange: 创建新记录 ID=%s, name=%s, type=%s", id, name, typ)
 
-		// 创建用户特定的配置，使用原始的交易所ID
+		// 创建用户特定的配置，使用 exchange_id（新結構）
 		_, err = d.db.Exec(`
-			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet,
+			INSERT INTO exchanges (exchange_id, user_id, name, type, enabled, api_key, secret_key, testnet,
 			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, created_at, updated_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
 		`, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
@@ -951,8 +993,9 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 
 // CreateAIModel 创建AI模型配置
 func (d *Database) CreateAIModel(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error {
+	// 使用新結構：model_id
 	_, err := d.db.Exec(`
-		INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url) 
+		INSERT INTO ai_models (model_id, user_id, name, provider, enabled, api_key, custom_api_url)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, id, userID, name, provider, enabled, apiKey, customAPIURL)
 	return err
@@ -965,8 +1008,9 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 	encryptedSecretKey := d.encryptSensitiveData(secretKey)
 	encryptedAsterPrivateKey := d.encryptSensitiveData(asterPrivateKey)
 
+	// 使用新結構：exchange_id
 	_, err := d.db.Exec(`
-		INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
+		INSERT INTO exchanges (exchange_id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, id, userID, name, typ, enabled, encryptedAPIKey, encryptedSecretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, encryptedAsterPrivateKey)
 	return err

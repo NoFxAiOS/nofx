@@ -49,3 +49,4 @@ externalPort = 3001
 [deployment]
 deploymentTarget = "vm"
 run = ["./nofx-backend"]
+build = ["go", "build", "-o", "nofx-backend", "main.go"]

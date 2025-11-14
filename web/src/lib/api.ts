@@ -5,6 +5,7 @@ import type {
   DecisionRecord,
   Statistics,
   TraderInfo,
+  TraderConfig,
   AIModel,
   Exchange,
   CreateTraderRequest,
@@ -94,7 +95,7 @@ export const api = {
     if (!res.ok) throw new Error('更新自定义策略失败')
   },
 
-  async getTraderConfig(traderId: string): Promise<any> {
+  async getTraderConfig(traderId: string): Promise<TraderConfig> {
     const res = await httpClient.get(
       `${API_BASE}/traders/${traderId}/config`,
       getAuthHeaders()

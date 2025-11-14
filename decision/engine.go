@@ -685,27 +685,39 @@ func compactArrayOpen(s string) string {
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	var validationErrors []string
-	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-			// 验证失败时，移除action字段并在reasoning中追加原因
+
+	for i := range decisions {
+		if err := validateAndSanitizeDecision(&decisions[i], i, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 			validationErrors = append(validationErrors, fmt.Sprintf("决策 #%d: %s", i+1, err.Error()))
-
-			// 保存原始action用于记录
-			originalAction := decision.Action
-
-			// 移除action字段，设置为空字符串（而不是删除字段）
-			decisions[i].Action = "wait"
-
-			// 在reasoning中追加失败原因
-			if decision.Reasoning == "" {
-				decisions[i].Reasoning = fmt.Sprintf("决策无效: %s", err.Error())
-			} else {
-				decisions[i].Reasoning = fmt.Sprintf("%s | 决策无效: %s", decision.Reasoning, err.Error())
-			}
-
-			// 记录日志
-			log.Printf("⚠️  决策已降级为wait: 位置#%d, 原action: %s, 原因: %s", i+1, originalAction, err.Error())
 		}
+	}
+
+	// 如果有验证错误，返回汇总错误（但不中断流程，因为决策已被降级）
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("部分决策验证失败: %s", strings.Join(validationErrors, "; "))
+	}
+
+	return nil
+}
+
+// validateAndSanitizeDecision 验证单个决策并在失败时进行降级处理
+func validateAndSanitizeDecision(decision *Decision, index int, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+	if err := validateDecision(decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+		// 保存原始action用于记录
+		originalAction := decision.Action
+
+		// 降级为wait并记录原因
+		decision.Action = "wait"
+		if decision.Reasoning == "" {
+			decision.Reasoning = fmt.Sprintf("决策无效: %s", err.Error())
+		} else {
+			decision.Reasoning = fmt.Sprintf("%s | 决策无效: %s", decision.Reasoning, err.Error())
+		}
+
+		// 记录日志
+		log.Printf("⚠️  决策已降级为wait: 位置#%d, 原action: %s, 原因: %s", index+1, originalAction, err.Error())
+
+		return err
 	}
 	return nil
 }

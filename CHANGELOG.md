@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Account Balance Refresh Button** - Manual refresh capability for account balance data
+  - One-click refresh button in account overview section
+  - Visual loading indicator with spin animation
+  - Uses SWR's mutate function for optimistic UI updates
+  - Internationalized labels (EN/ZH) for refresh states
+  - 500ms minimum delay for better UX feedback
 - **Upstream Integration: Critical Bug Fixes & Improvements** - Integrated 4 high-value commits from upstream (NoFxAiOS/nofx)
   - **Data Staleness Detection** (#800) - Prevents trading on frozen/outdated market data
     - Detects 5 consecutive periods of identical prices with zero volume
@@ -41,7 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Community documentation with bounty programs
 - Verification script for indicator configuration fix (`scripts/verify_indicator_config_fix.sh`)
 
+
 ### Fixed
+
+- **Frontend Black Screen Issue** - Critical bug fix for authentication pages
+  - Removed react-router-dom dependency from LoginPage and RegisterPage
+  - Replaced useNavigate() with window.location.href for navigation
+  - Aligned with custom state-based routing architecture in App.tsx
+  - Fixes: Black screen when accessing login/register/reset-password pages
+  - Root cause: useNavigate() requires Router context which was not provided
+  - Tested: All authentication navigation flows work correctly
 - **PNL Calculation Accuracy** (#963) - Corrected profit/loss computation errors
   - Fixed calculation logic across API, trader, and manager components
   - Enhanced PNL tracking for both open and closed positions

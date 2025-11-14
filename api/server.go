@@ -492,6 +492,19 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		}
 	}
 
+	// ✅ 检查交易员名称是否重复
+	existingTraders, err := s.database.GetTraders(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("检查交易员名称失败: %v", err)})
+		return
+	}
+	for _, existing := range existingTraders {
+		if existing.Name == req.Name {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("交易员名称 '%s' 已存在，请使用其他名称", req.Name)})
+			return
+		}
+	}
+
 	// 生成交易员ID
 	traderID := fmt.Sprintf("%s_%s_%d", req.ExchangeID, req.AIModelID, time.Now().Unix())
 
@@ -808,23 +821,20 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
 
-	// 从数据库删除
+	// ✅ 步骤1：先从内存中停止并移除交易员（RemoveTrader会处理停止逻辑和竞赛缓存清除）
+	if err := s.traderManager.RemoveTrader(traderID); err != nil {
+		// 交易员不在内存中也不是错误，可能已经被移除或从未加载
+		log.Printf("⚠️ 从内存中移除交易员时出现警告: %v", err)
+	}
+
+	// ✅ 步骤2：最后才从数据库删除
 	err := s.database.DeleteTrader(userID, traderID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("删除交易员失败: %v", err)})
 		return
 	}
 
-	// 如果交易员正在运行，先停止它
-	if trader, err := s.traderManager.GetTrader(traderID); err == nil {
-		status := trader.GetStatus()
-		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
-			trader.Stop()
-			log.Printf("⏹  已停止运行中的交易员: %s", traderID)
-		}
-	}
-
-	log.Printf("✓ 交易员已删除: %s", traderID)
+	log.Printf("✓ 交易员已完全删除: %s", traderID)
 	c.JSON(http.StatusOK, gin.H{"message": "交易员已删除"})
 }
 

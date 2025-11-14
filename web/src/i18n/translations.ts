@@ -824,12 +824,13 @@ export const translations = {
     twoStageKey: {
       title: 'Two-Stage Private Key Input',
       stage1Description:
-        'Enter the first {length} characters of your private key',
+        'Enter the first {length} hex characters of your private key',
       stage2Description:
-        'Enter the remaining {length} characters of your private key',
+        'Enter the remaining {length} hex characters of your private key',
       stage1InputLabel: 'First Part',
       stage2InputLabel: 'Second Part',
       characters: 'characters',
+      helpText: '💡 Enter {length} hex chars (without 0x) or {totalWithPrefix} chars (with 0x)',
       processing: 'Processing...',
       nextButton: 'Next',
       cancelButton: 'Cancel',
@@ -1622,6 +1623,7 @@ export const translations = {
       stage1InputLabel: '第一部分',
       stage2InputLabel: '第二部分',
       characters: '位字符',
+      helpText: '💡 請輸入 {length} 位（不含 0x）或 {totalWithPrefix} 位（含 0x 前綴）',
       processing: '处理中...',
       nextButton: '下一步',
       cancelButton: '取消',

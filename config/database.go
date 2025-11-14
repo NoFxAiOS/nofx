@@ -99,23 +99,29 @@ func NewDatabase(dbPath string) (*Database, error) {
 // createTables 创建数据库表
 func (d *Database) createTables() error {
 	queries := []string{
-		// AI模型配置表
+		// AI模型配置表（使用自增ID支持多配置）
 		`CREATE TABLE IF NOT EXISTS ai_models (
-			id TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			model_id TEXT NOT NULL,
 			user_id TEXT NOT NULL DEFAULT 'default',
+			display_name TEXT DEFAULT '',
 			name TEXT NOT NULL,
 			provider TEXT NOT NULL,
 			enabled BOOLEAN DEFAULT 0,
 			api_key TEXT DEFAULT '',
+			custom_api_url TEXT DEFAULT '',
+			custom_model_name TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
 
-		// 交易所配置表
+		// 交易所配置表（使用自增ID支持多配置）
 		`CREATE TABLE IF NOT EXISTS exchanges (
-			id TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			exchange_id TEXT NOT NULL,
 			user_id TEXT NOT NULL DEFAULT 'default',
+			display_name TEXT DEFAULT '',
 			name TEXT NOT NULL,
 			type TEXT NOT NULL, -- 'cex' or 'dex'
 			enabled BOOLEAN DEFAULT 0,
@@ -150,8 +156,8 @@ func (d *Database) createTables() error {
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL DEFAULT 'default',
 			name TEXT NOT NULL,
-			ai_model_id TEXT NOT NULL,
-			exchange_id TEXT NOT NULL,
+			ai_model_id INTEGER NOT NULL,
+			exchange_id INTEGER NOT NULL,
 			initial_balance REAL NOT NULL,
 			scan_interval_minutes INTEGER DEFAULT 3,
 			is_running BOOLEAN DEFAULT 0,
@@ -387,22 +393,37 @@ func (d *Database) initDefaultData() error {
 
 // migrateExchangesTable 迁移exchanges表支持多用户
 func (d *Database) migrateExchangesTable() error {
-	// 检查是否已经迁移过
-	var count int
+	// 检查表是否已经有 exchange_id 欄位（表示已經是新結構或已遷移）
+	var hasExchangeIDColumn int
 	err := d.db.QueryRow(`
-		SELECT COUNT(*) FROM sqlite_master 
-		WHERE type='table' AND name='exchanges_new'
-	`).Scan(&count)
+		SELECT COUNT(*) FROM pragma_table_info('exchanges')
+		WHERE name = 'exchange_id'
+	`).Scan(&hasExchangeIDColumn)
 	if err != nil {
 		return err
 	}
 
-	// 如果已经迁移过，直接返回
-	if count > 0 {
+	// 如果表已經有 exchange_id 欄位，說明是新結構或已遷移，直接跳過
+	if hasExchangeIDColumn > 0 {
 		return nil
 	}
 
-	log.Printf("🔄 开始迁移exchanges表...")
+	// 检查是否正在迁移中（exchanges_new 表存在）
+	var migratingCount int
+	err = d.db.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master
+		WHERE type='table' AND name='exchanges_new'
+	`).Scan(&migratingCount)
+	if err != nil {
+		return err
+	}
+
+	// 如果正在迁移中，直接返回
+	if migratingCount > 0 {
+		return nil
+	}
+
+	log.Printf("🔄 开始迁移exchanges表（舊TEXT PRIMARY KEY -> 新TEXT複合主鍵）...")
 
 	// 创建新的exchanges表，使用复合主键
 	_, err = d.db.Exec(`

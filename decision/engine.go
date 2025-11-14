@@ -381,10 +381,14 @@ func buildUserPrompt(ctx *Context) string {
 		ctx.Account.MarginUsedPct,
 		ctx.Account.PositionCount))
 
+	// 收集持仓符号，用于过滤候选币种
+	positionSymbols := make(map[string]bool)
+
 	// 持仓（完整市场数据）
 	if len(ctx.Positions) > 0 {
 		sb.WriteString("## 当前持仓\n")
 		for i, pos := range ctx.Positions {
+			positionSymbols[pos.Symbol] = true
 			// 计算持仓时长
 			holdingDuration := ""
 			if pos.UpdateTime > 0 {
@@ -421,6 +425,10 @@ func buildUserPrompt(ctx *Context) string {
 	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n\n", len(ctx.MarketDataMap)))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
+		// 跳过已持仓的币种
+		if positionSymbols[coin.Symbol] {
+			continue
+		}
 		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
 		if !hasData {
 			continue
@@ -676,10 +684,40 @@ func compactArrayOpen(s string) string {
 
 // validateDecisions 验证所有决策（需要账户信息和杠杆配置）
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
-	for i, decision := range decisions {
-		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
+	var validationErrors []string
+
+	for i := range decisions {
+		if err := validateAndSanitizeDecision(&decisions[i], i, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+			validationErrors = append(validationErrors, fmt.Sprintf("决策 #%d: %s", i+1, err.Error()))
 		}
+	}
+
+	// 如果有验证错误，返回汇总错误（但不中断流程，因为决策已被降级）
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("部分决策验证失败: %s", strings.Join(validationErrors, "; "))
+	}
+
+	return nil
+}
+
+// validateAndSanitizeDecision 验证单个决策并在失败时进行降级处理
+func validateAndSanitizeDecision(decision *Decision, index int, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
+	if err := validateDecision(decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
+		// 保存原始action用于记录
+		originalAction := decision.Action
+
+		// 降级为wait并记录原因
+		decision.Action = "wait"
+		if decision.Reasoning == "" {
+			decision.Reasoning = fmt.Sprintf("决策无效: %s", err.Error())
+		} else {
+			decision.Reasoning = fmt.Sprintf("%s | 决策无效: %s", decision.Reasoning, err.Error())
+		}
+
+		// 记录日志
+		log.Printf("⚠️  决策已降级为wait: 位置#%d, 原action: %s, 原因: %s", index+1, originalAction, err.Error())
+
+		return err
 	}
 	return nil
 }

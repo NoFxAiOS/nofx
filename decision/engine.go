@@ -640,17 +640,10 @@ func validateJSONFormat(jsonStr string) error {
 		return fmt.Errorf("JSON 中不可包含范围符号 ~，所有数字必须是精确的单一值")
 	}
 
-	// 检查是否包含千位分隔符（如 98,000）
-	// 使用简单的模式匹配：数字+逗号+3位数字
-	for i := 0; i < len(jsonStr)-4; i++ {
-		if jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
-			jsonStr[i+1] == ',' &&
-			jsonStr[i+2] >= '0' && jsonStr[i+2] <= '9' &&
-			jsonStr[i+3] >= '0' && jsonStr[i+3] <= '9' &&
-			jsonStr[i+4] >= '0' && jsonStr[i+4] <= '9' {
-			return fmt.Errorf("JSON 数字不可包含千位分隔符逗号，发现: %s", jsonStr[i:min(i+10, len(jsonStr))])
-		}
-	}
+	// ✅ ลบการตรวจสอบ thousands separator เพราะทำให้เกิด false positive
+	// ตัวเลขที่มี comma ภายใน string value (เช่น "reasoning": "价格94,935") เป็น valid JSON
+	// การตรวจสอบแบบ naive ไม่สามารถแยกระหว่าง JSON number กับ string content ได้
+	// json.Unmarshal() จะตรวจสอบ JSON number format ได้อยู่แล้ว
 
 	return nil
 }

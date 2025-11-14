@@ -31,7 +31,7 @@ type AutoTraderTestSuite struct {
 	// Mock 依赖
 	mockTrader *MockTrader
 	mockDB     *MockDatabase
-	mockLogger *logger.DecisionLogger
+	mockLogger logger.IDecisionLogger
 
 	// gomonkey patches
 	patches *gomonkey.Patches

@@ -492,8 +492,9 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		}
 	}
 
-	// 生成交易员ID
-	traderID := fmt.Sprintf("%s_%s_%d", req.ExchangeID, req.AIModelID, time.Now().Unix())
+	// 生成交易员ID (使用 UUID 确保唯一性，解决 Issue #893)
+	// 保留前缀以便调试和日志追踪
+	traderID := fmt.Sprintf("%s_%s_%s", req.ExchangeID, req.AIModelID, uuid.New().String())
 
 	// 设置默认值
 	isCrossMargin := true // 默认为全仓模式

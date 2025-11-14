@@ -50,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dashboard and Traders Page Routing** - Critical routing bug fix for authenticated pages
+  - Added explicit route handlers for `/dashboard` and `/traders` paths
+  - Prevents black screen by properly rendering components for each route
+  - Added authentication checks with redirect to `/login` for unauthenticated users
+  - Fixed account refresh button integration on dashboard page
+  - Root cause: Missing route handlers caused fall-through to default rendering
+  - Tested: All navigation flows (login → dashboard → traders) work correctly
 - **Frontend Black Screen Issue** - Critical bug fix for authentication pages
   - Removed react-router-dom dependency from LoginPage and RegisterPage
   - Replaced useNavigate() with window.location.href for navigation

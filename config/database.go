@@ -160,6 +160,10 @@ func (d *Database) createTables() error {
 			trading_symbols TEXT DEFAULT '',
 			use_coin_pool BOOLEAN DEFAULT 0,
 			use_oi_top BOOLEAN DEFAULT 0,
+			custom_prompt TEXT DEFAULT '',
+			override_base_prompt BOOLEAN DEFAULT 0,
+			system_prompt_template TEXT DEFAULT 'default',
+			is_cross_margin BOOLEAN DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -303,12 +307,53 @@ func (d *Database) initDefaultData() error {
 	}
 
 	for _, exchange := range exchanges {
-		_, err := d.db.Exec(`
-			INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled) 
-			VALUES (?, 'default', ?, ?, 0)
-		`, exchange.id, exchange.name, exchange.typ)
+		// 检查表结构以确定使用哪个字段
+		var hasExchangeIDColumn int
+		err := d.db.QueryRow(`
+			SELECT COUNT(*) FROM pragma_table_info('exchanges')
+			WHERE name = 'exchange_id'
+		`).Scan(&hasExchangeIDColumn)
 		if err != nil {
-			return fmt.Errorf("初始化交易所失败: %w", err)
+			return fmt.Errorf("检查表结构失败: %w", err)
+		}
+
+		// 检查是否已存在
+		var count int
+		if hasExchangeIDColumn > 0 {
+			// 新结构: 使用 exchange_id
+			err = d.db.QueryRow(`
+				SELECT COUNT(*) FROM exchanges
+				WHERE exchange_id = ? AND user_id = 'default'
+			`, exchange.id).Scan(&count)
+		} else {
+			// 旧结构: 使用 id
+			err = d.db.QueryRow(`
+				SELECT COUNT(*) FROM exchanges
+				WHERE id = ? AND user_id = 'default'
+			`, exchange.id).Scan(&count)
+		}
+		if err != nil {
+			return fmt.Errorf("检查交易所失败: %w", err)
+		}
+
+		// 如果不存在则插入
+		if count == 0 {
+			if hasExchangeIDColumn > 0 {
+				// 新结构
+				_, err = d.db.Exec(`
+					INSERT INTO exchanges (user_id, exchange_id, name, type, enabled)
+					VALUES ('default', ?, ?, ?, 0)
+				`, exchange.id, exchange.name, exchange.typ)
+			} else {
+				// 旧结构
+				_, err = d.db.Exec(`
+					INSERT INTO exchanges (user_id, id, name, type, enabled)
+					VALUES ('default', ?, ?, ?, 0)
+				`, exchange.id, exchange.name, exchange.typ)
+			}
+			if err != nil {
+				return fmt.Errorf("初始化交易所失败: %w", err)
+			}
 		}
 	}
 
@@ -384,10 +429,18 @@ func (d *Database) migrateExchangesTable() error {
 		return fmt.Errorf("创建新exchanges表失败: %w", err)
 	}
 
-	// 复制数据到新表
+	// 复制数据到新表（明确指定列名以兼容不同版本的表结构）
 	_, err = d.db.Exec(`
-		INSERT INTO exchanges_new 
-		SELECT * FROM exchanges
+		INSERT INTO exchanges_new (
+			id, user_id, name, type, enabled, api_key, secret_key, testnet,
+			hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
+			created_at, updated_at
+		)
+		SELECT
+			id, user_id, name, type, enabled, api_key, secret_key, testnet,
+			hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
+			created_at, updated_at
+		FROM exchanges
 	`)
 	if err != nil {
 		return fmt.Errorf("复制数据失败: %w", err)

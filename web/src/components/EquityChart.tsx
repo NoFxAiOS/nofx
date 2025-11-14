@@ -397,6 +397,15 @@ export function EquityChart({ traderId }: EquityChartProps) {
           >
             {initialBalance.toFixed(2)} USDT
           </div>
+          {currentValue && (
+            <div
+              className="text-xs mono font-bold mt-1"
+              style={{ color: isProfit ? '#0ECB81' : '#F6465D' }}
+            >
+              {isProfit ? '+' : ''}
+              {currentValue.raw_pnl.toFixed(2)} USDT
+            </div>
+          )}
         </div>
         <div
           className="p-2 rounded transition-all hover:bg-opacity-50"
@@ -414,6 +423,17 @@ export function EquityChart({ traderId }: EquityChartProps) {
           >
             {currentValue.raw_equity.toFixed(2)} USDT
           </div>
+          {currentValue && (
+            <div className="flex items-center gap-1 mt-1">
+              <div
+                className="text-xs mono font-bold"
+                style={{ color: isProfit ? '#0ECB81' : '#F6465D' }}
+              >
+                {isProfit ? '▲' : '▼'} {isProfit ? '+' : ''}
+                {currentValue.raw_pnl_pct}%
+              </div>
+            </div>
+          )}
         </div>
         <div
           className="p-2 rounded transition-all hover:bg-opacity-50"

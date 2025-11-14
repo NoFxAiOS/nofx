@@ -39,7 +39,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx"
+                  href="https://github.com/xqliu/nofx"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -49,7 +49,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://t.me/nofx_dev_community"
+                  href="https://t.me/xqliu"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -59,7 +59,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://x.com/nofx_ai"
+                  href="https://x.com/xqliu"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -80,7 +80,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/blob/main/README.md"
+                  href="https://github.com/xqliu/nofx/blob/xqliu-dev/README.md"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -90,7 +90,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/issues"
+                  href="https://github.com/xqliu/nofx/issues"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -100,7 +100,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/pulls"
+                  href="https://github.com/xqliu/nofx/pulls"
                   target="_blank"
                   rel="noopener noreferrer"
                 >

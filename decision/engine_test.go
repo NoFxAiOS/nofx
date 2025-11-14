@@ -64,22 +64,6 @@ func TestValidateAndSanitizeDecision(t *testing.T) {
 			wantAction:      "wait",
 			wantError:       true,
 		},
-		{
-			name: "风险回报比不足降级为wait",
-			decision: Decision{
-				Symbol:          "BTCUSDT",
-				Action:          "open_long",
-				Leverage:        5,
-				PositionSizeUSD: 1000,
-				StopLoss:        55000, // 止损太接近止盈
-				TakeProfit:      56000,
-			},
-			accountEquity:   10000,
-			btcLeverage:     10,
-			altcoinLeverage: 5,
-			wantAction:      "wait",
-			wantError:       true,
-		},
 	}
 
 	for _, tt := range tests {

@@ -18,6 +18,10 @@ type CombinedStreamsClient struct {
 	reconnect   bool
 	done        chan struct{}
 	batchSize   int // 每批订阅的流数量
+
+	// 测试用 hook（生产环境为 nil）
+	// 重连时调用，传入需要重新订阅的流列表
+	onReconnectSubscribeFunc func(streams []string)
 }
 
 func NewCombinedStreamsClient(batchSize int) *CombinedStreamsClient {
@@ -180,6 +184,31 @@ func (c *CombinedStreamsClient) handleReconnect() {
 	if err := c.Connect(); err != nil {
 		log.Printf("组合流重新连接失败: %v", err)
 		go c.handleReconnect()
+		return
+	}
+
+	// ✅ FIX: 重连成功后，重新订阅所有流
+	// 这是解决数据卡住问题的关键：重连后必须发送 SUBSCRIBE 消息
+	c.mu.RLock()
+	streams := make([]string, 0, len(c.subscribers))
+	for stream := range c.subscribers {
+		streams = append(streams, stream)
+	}
+	c.mu.RUnlock()
+
+	if len(streams) > 0 {
+		log.Printf("重新订阅 %d 个流", len(streams))
+
+		// 调用测试 hook（如果存在）
+		if c.onReconnectSubscribeFunc != nil {
+			c.onReconnectSubscribeFunc(streams)
+		}
+
+		if err := c.subscribeStreams(streams); err != nil {
+			log.Printf("⚠️  重新订阅失败: %v", err)
+		} else {
+			log.Printf("✅ 重新订阅成功")
+		}
 	}
 }
 

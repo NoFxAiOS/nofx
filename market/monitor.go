@@ -31,6 +31,13 @@ type SymbolStats struct {
 	Score            float64 // 综合评分
 }
 
+// KlineCacheEntry 带时间戳的K线缓存条目
+// 用于检测数据新鲜度，防止使用过期数据
+type KlineCacheEntry struct {
+	Klines     []Kline   // K线数据
+	ReceivedAt time.Time // 数据接收时间
+}
+
 var WSMonitorCli *WSMonitor
 var subKlineTime = []string{"3m", "4h"} // 管理订阅流的K线周期
 
@@ -210,7 +217,9 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 	value, exists := klineDataMap.Load(symbol)
 	var klines []Kline
 	if exists {
-		klines = value.([]Kline)
+		// 从缓存条目中提取K线数据
+		entry := value.(*KlineCacheEntry)
+		klines = entry.Klines
 
 		// 检查是否是新的K线
 		if len(klines) > 0 && klines[len(klines)-1].OpenTime == kline.OpenTime {
@@ -229,7 +238,12 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 		klines = []Kline{kline}
 	}
 
-	klineDataMap.Store(symbol, klines)
+	// 存储时加上接收时间戳
+	entry := &KlineCacheEntry{
+		Klines:     klines,
+		ReceivedAt: time.Now(),
+	}
+	klineDataMap.Store(symbol, entry)
 }
 
 func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, error) {
@@ -243,8 +257,12 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, e
 			return nil, fmt.Errorf("获取%v分钟K线失败: %v", duration, err)
 		}
 
-		// 动态缓存进缓存
-		m.getKlineDataMap(duration).Store(strings.ToUpper(symbol), klines)
+		// 动态缓存进缓存（使用 KlineCacheEntry 包装，加上时间戳）
+		entry := &KlineCacheEntry{
+			Klines:     klines,
+			ReceivedAt: time.Now(),
+		}
+		m.getKlineDataMap(duration).Store(strings.ToUpper(symbol), entry)
 
 		// 订阅 WebSocket 流
 		subStr := m.subscribeSymbol(symbol, duration)
@@ -260,8 +278,25 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, e
 		return result, nil
 	}
 
-	// ✅ FIX: 返回深拷贝而非引用，避免并发竞态条件
-	klines := value.([]Kline)
+	// 从缓存读取数据
+	entry := value.(*KlineCacheEntry)
+
+	// ✅ 检查数据新鲜度（防止使用过期数据）
+	// 使用 15 分钟阈值：对于 3m 和 4h K线都适用
+	// - 3m K线：15分钟 = 5个周期，足以检测 WebSocket 停止
+	// - 4h K线：虽然新 K线 4小时才生成，但当前 K线 是实时更新的
+	dataAge := time.Since(entry.ReceivedAt)
+	maxAge := 15 * time.Minute
+
+	if dataAge > maxAge {
+		// 数据过期，返回错误（不 fallback API，避免增加负担）
+		// 这表明 WebSocket 可能未正常工作，需要修复根本原因
+		return nil, fmt.Errorf("%s 的 %s K线数据已过期 (%.1f 分钟)，WebSocket 可能未正常工作",
+			symbol, duration, dataAge.Minutes())
+	}
+
+	// 数据新鲜，返回缓存数据（深拷贝）
+	klines := entry.Klines
 	result := make([]Kline, len(klines))
 	copy(result, klines)
 	return result, nil

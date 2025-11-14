@@ -359,6 +359,121 @@ function App() {
     )
   }
 
+  // Handle traders page
+  if (route === '/traders') {
+    if (!user || !token) {
+      window.location.href = '/login'
+      return null
+    }
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: '#0B0E11', color: '#EAECEF' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="traders"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onPageChange={(page) => {
+            if (page === 'competition') {
+              window.history.pushState({}, '', '/competition')
+              setRoute('/competition')
+            } else if (page === 'traders') {
+              window.history.pushState({}, '', '/traders')
+              setRoute('/traders')
+            } else if (page === 'trader') {
+              window.history.pushState({}, '', '/dashboard')
+              setRoute('/dashboard')
+            } else if (page === 'faq') {
+              window.history.pushState({}, '', '/faq')
+              setRoute('/faq')
+            } else if (page === 'strategies') {
+              window.history.pushState({}, '', '/strategies')
+              setRoute('/strategies')
+            }
+          }}
+        />
+        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+          <AITradersPage
+            onTraderSelect={(traderId) => {
+              setSelectedTraderId(traderId)
+              window.history.pushState({}, '', '/dashboard')
+              setRoute('/dashboard')
+              setCurrentPage('trader')
+            }}
+          />
+        </main>
+      </div>
+    )
+  }
+
+  // Handle dashboard page
+  if (route === '/dashboard') {
+    if (!user || !token) {
+      window.location.href = '/login'
+      return null
+    }
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: '#0B0E11', color: '#EAECEF' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="trader"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onPageChange={(page) => {
+            if (page === 'competition') {
+              window.history.pushState({}, '', '/competition')
+              setRoute('/competition')
+            } else if (page === 'traders') {
+              window.history.pushState({}, '', '/traders')
+              setRoute('/traders')
+            } else if (page === 'trader') {
+              window.history.pushState({}, '', '/dashboard')
+              setRoute('/dashboard')
+            } else if (page === 'faq') {
+              window.history.pushState({}, '', '/faq')
+              setRoute('/faq')
+            } else if (page === 'strategies') {
+              window.history.pushState({}, '', '/strategies')
+              setRoute('/strategies')
+            }
+          }}
+        />
+        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+          <TraderDetailsPage
+            selectedTrader={selectedTrader}
+            status={status}
+            account={account}
+            positions={positions}
+            decisions={decisions}
+            stats={stats}
+            lastUpdate={lastUpdate}
+            language={language}
+            traders={traders}
+            tradersError={tradersError}
+            selectedTraderId={selectedTraderId}
+            onTraderSelect={setSelectedTraderId}
+            onNavigateToTraders={() => {
+              window.history.pushState({}, '', '/traders')
+              setRoute('/traders')
+              setCurrentPage('traders')
+            }}
+            isRefreshingAccount={isRefreshingAccount}
+            onRefreshAccount={handleRefreshAccount}
+          />
+        </main>
+      </div>
+    )
+  }
+
   // Show landing page for root route
   if (route === '/' || route === '') {
     return <LandingPage />
@@ -439,6 +554,8 @@ function App() {
               setRoute('/traders')
               setCurrentPage('traders')
             }}
+            isRefreshingAccount={isRefreshingAccount}
+            onRefreshAccount={handleRefreshAccount}
           />
         )}
       </main>
@@ -507,6 +624,8 @@ function TraderDetailsPage({
   selectedTraderId,
   onTraderSelect,
   onNavigateToTraders,
+  isRefreshingAccount,
+  onRefreshAccount,
 }: {
   selectedTrader?: TraderInfo
   traders?: TraderInfo[]
@@ -521,6 +640,8 @@ function TraderDetailsPage({
   stats?: Statistics
   lastUpdate: string
   language: Language
+  isRefreshingAccount?: boolean
+  onRefreshAccount?: () => void
 }) {
   // If API failed with error, show empty state (likely backend not running)
   if (tradersError) {
@@ -768,31 +889,33 @@ function TraderDetailsPage({
         <h2 className="text-lg font-semibold" style={{ color: '#EAECEF' }}>
           {t('accountOverview', language) || '账户概览'}
         </h2>
-        <button
-          onClick={handleRefreshAccount}
-          disabled={isRefreshingAccount}
-          className="flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors"
-          style={{
-            background: isRefreshingAccount ? '#2B3139' : '#1E2329',
-            border: '1px solid #2B3139',
-            color: isRefreshingAccount ? '#848E9C' : '#F0B90B',
-            cursor: isRefreshingAccount ? 'not-allowed' : 'pointer'
-          }}
-          onMouseEnter={(e) => {
-            if (!isRefreshingAccount) {
-              e.currentTarget.style.background = '#2B3139'
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = isRefreshingAccount ? '#2B3139' : '#1E2329'
-          }}
-        >
-          <span style={{
-            display: 'inline-block',
-            animation: isRefreshingAccount ? 'spin 1s linear infinite' : 'none'
-          }}>🔄</span>
-          {isRefreshingAccount ? (t('refreshing', language) || '刷新中...') : (t('refresh', language) || '刷新余额')}
-        </button>
+        {onRefreshAccount && (
+          <button
+            onClick={onRefreshAccount}
+            disabled={isRefreshingAccount}
+            className="flex items-center gap-2 px-3 py-1.5 rounded text-sm transition-colors"
+            style={{
+              background: isRefreshingAccount ? '#2B3139' : '#1E2329',
+              border: '1px solid #2B3139',
+              color: isRefreshingAccount ? '#848E9C' : '#F0B90B',
+              cursor: isRefreshingAccount ? 'not-allowed' : 'pointer'
+            }}
+            onMouseEnter={(e) => {
+              if (!isRefreshingAccount) {
+                e.currentTarget.style.background = '#2B3139'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isRefreshingAccount ? '#2B3139' : '#1E2329'
+            }}
+          >
+            <span style={{
+              display: 'inline-block',
+              animation: isRefreshingAccount ? 'spin 1s linear infinite' : 'none'
+            }}>🔄</span>
+            {isRefreshingAccount ? (t('refreshing', language) || '刷新中...') : (t('refresh', language) || '刷新余额')}
+          </button>
+        )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <StatCard

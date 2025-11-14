@@ -6,9 +6,8 @@
  * - Automatic 401 token expiration handling
  * - Auth state cleanup on unauthorized
  * - Automatic redirect to login page
+ * - Notification shown on login page after redirect
  */
-
-import { toast } from 'sonner'
 
 export class HttpClient {
   // Singleton flag to prevent duplicate 401 handling
@@ -19,13 +18,6 @@ export class HttpClient {
    */
   public reset401Flag(): void {
     HttpClient.isHandling401 = false
-  }
-
-  /**
-   * Show login required notification to user
-   */
-  private showLoginRequiredNotification(): void {
-    toast.warning('登录已过期，请先登录', { duration: 1800 })
   }
 
   /**
@@ -53,23 +45,24 @@ export class HttpClient {
       // Notify global listeners (AuthContext will react to this)
       window.dispatchEvent(new Event('unauthorized'))
 
-      // Show user-friendly notification (only once)
-      this.showLoginRequiredNotification()
-
-      // Delay redirect to let user see the notification
-      setTimeout(() => {
-        // Only redirect if not already on login page
-        if (!window.location.pathname.includes('/login')) {
-          // Save current location for post-login redirect
-          const returnUrl = window.location.pathname + window.location.search
-          if (returnUrl !== '/login' && returnUrl !== '/') {
-            sessionStorage.setItem('returnUrl', returnUrl)
-          }
-
-          window.location.href = '/login'
+      // Only redirect if not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        // Save current location for post-login redirect
+        const returnUrl = window.location.pathname + window.location.search
+        if (returnUrl !== '/login' && returnUrl !== '/') {
+          sessionStorage.setItem('returnUrl', returnUrl)
         }
-        // Note: No need to reset flag since we're redirecting
-      }, 1500) // 1.5秒延迟,让用户看到提示
+
+        // Mark that user came from 401 (login page will show notification)
+        sessionStorage.setItem('from401', 'true')
+
+        // Redirect immediately to login page
+        window.location.href = '/login'
+
+        // Return pending promise to prevent error from being caught by SWR/React
+        // The notification will be shown on the login page
+        return new Promise(() => {}) as Promise<Response>
+      }
 
       throw new Error('登录已过期，请重新登录')
     }

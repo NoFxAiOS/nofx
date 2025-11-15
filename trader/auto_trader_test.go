@@ -1086,6 +1086,10 @@ func (m *MockTrader) FormatQuantity(symbol string, quantity float64) (string, er
 	return fmt.Sprintf("%.4f", quantity), nil
 }
 
+func (m *MockTrader) GetOpenOrders(symbol string) ([]decision.OpenOrderInfo, error) {
+	return []decision.OpenOrderInfo{}, nil
+}
+
 // ============================================================
 // 测试套件入口
 // ============================================================

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"nofx/decision"
 	"strconv"
 	"strings"
 	"sync"
@@ -903,4 +904,12 @@ func absFloat(x float64) float64 {
 		return -x
 	}
 	return x
+}
+
+// GetOpenOrders 获取未成交订单（用于 AI 决策上下文）
+// TODO: 实现完整的 Hyperliquid open orders API 调用
+func (t *HyperliquidTrader) GetOpenOrders(symbol string) ([]decision.OpenOrderInfo, error) {
+	// 暂时返回空列表，避免阻塞主流程
+	// 后续需要实现完整的 Hyperliquid open orders API 调用
+	return []decision.OpenOrderInfo{}, nil
 }

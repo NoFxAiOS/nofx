@@ -609,7 +609,17 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		performance = nil
 	}
 
-	// 6. 构建上下文
+	// 6. 获取未成交订单（用于 AI 决策上下文，避免重复下单）
+	openOrders, err := at.trader.GetOpenOrders("")
+	if err != nil {
+		log.Printf("⚠️  获取未成交订单失败: %v (继续执行，但 AI 将无法看到挂单状态)", err)
+		// 不影响主流程，但设置为空列表
+		openOrders = []decision.OpenOrderInfo{}
+	} else {
+		log.Printf("  ✓ 获取到 %d 个未成交订单", len(openOrders))
+	}
+
+	// 7. 构建上下文
 	ctx := &decision.Context{
 		CurrentTime:     time.Now().Format("2006-01-02 15:04:05"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
@@ -627,6 +637,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			PositionCount:    len(positionInfos),
 		},
 		Positions:      positionInfos,
+		OpenOrders:     openOrders, // 添加未成交订单（用于 AI 了解挂单状态，避免重复下单）
 		CandidateCoins: candidateCoins,
 		Performance:    performance, // 添加历史表现分析
 	}

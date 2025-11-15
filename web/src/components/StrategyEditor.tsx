@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { t } from '../i18n/translations'
 import { X, Save, FileText, Eye, BookOpen } from 'lucide-react'
+import { getAuthHeaders } from '../lib/api'
 
 interface StrategyEditorProps {
   strategy: {
@@ -39,11 +40,8 @@ export default function StrategyEditor({
 
   const loadTemplates = async () => {
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch('/api/prompt-templates', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
       })
 
       if (response.ok) {
@@ -59,11 +57,8 @@ export default function StrategyEditor({
 
   const loadTemplateContent = async (templateName: string) => {
     try {
-      const token = localStorage.getItem('token')
       const response = await fetch(`/api/prompt-templates/${templateName}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: getAuthHeaders(),
       })
 
       if (response.ok) {

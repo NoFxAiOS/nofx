@@ -355,6 +355,8 @@ docker compose up -d --build
 #### Step 2: Access Web Interface
 Open your browser and visit: **http://localhost:3000**
 
+> Tip: You can change the frontend and backend ports via `.env` or environment variables. `NOFX_BACKEND_PORT` (default 8080) and `NOFX_FRONTEND_PORT` (default 3000) are used by `start.sh` and `docker-compose`. When running the frontend dev server, `start.sh` automatically exports `VITE_API_URL=http://localhost:${NOFX_BACKEND_PORT}` to keep the proxy aligned.
+
 **That's it! 🎉** Your AI trading platform is now running!
 
 #### Initial Setup (Through Web Interface)

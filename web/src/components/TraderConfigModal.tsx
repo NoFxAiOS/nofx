@@ -265,6 +265,12 @@ export function TraderConfigModal({
 
     setIsSaving(true)
     try {
+      const initialBalanceValue =
+        typeof formData.initial_balance === 'number' &&
+        formData.initial_balance > 0
+          ? formData.initial_balance
+          : 1000
+
       const saveData: CreateTraderRequest = {
         name: formData.trader_name,
         ai_model_id: formData.ai_model,
@@ -279,12 +285,8 @@ export function TraderConfigModal({
         use_coin_pool: formData.use_coin_pool,
         use_oi_top: formData.use_oi_top,
         scan_interval_minutes: formData.scan_interval_minutes,
+        initial_balance: initialBalanceValue,
         indicator_config: indicatorConfig,
-      }
-
-      // 只在编辑模式时包含initial_balance（用于手动更新）
-      if (isEditMode && formData.initial_balance !== undefined) {
-        saveData.initial_balance = formData.initial_balance
       }
 
       await toast.promise(onSave(saveData), {

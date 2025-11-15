@@ -265,6 +265,11 @@ NOFX_BACKEND_PORT=8081
    - 后端默认: 8080
    - 前端默认: 3000
    - 确认 `.env` 设置匹配
+   - 如果你在本地使用 `start.sh --dev`，脚本会自动导出 `VITE_API_URL=http://localhost:${NOFX_BACKEND_PORT}`，这样 Vite dev 服务器代理 `/api` 请求到后端。
+   - 如果你手动启动前端，请在运行 `npm run dev` 前导出 `VITE_API_URL`：
+```bash
+export VITE_API_URL="http://localhost:${NOFX_BACKEND_PORT}"
+```
 
 3. **CORS 问题:**
    - 如果前端和后端运行在不同端口/域名

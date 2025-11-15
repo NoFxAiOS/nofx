@@ -18,7 +18,7 @@ import { httpClient } from './httpClient'
 const API_BASE = '/api'
 
 // Helper function to get auth headers
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('auth_token')
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

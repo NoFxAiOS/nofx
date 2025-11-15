@@ -11,6 +11,7 @@ import {
   BookOpen,
 } from 'lucide-react'
 import StrategyEditor from '../components/StrategyEditor'
+import { getAuthHeaders } from '../lib/api'
 
 interface Strategy {
   name: string
@@ -31,14 +32,22 @@ export default function StrategiesPage() {
     loadStrategies()
   }, [])
 
+  const requireAuthHeaders = () => {
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      alert(
+        language === 'zh'
+          ? '登录已过期，请重新登录后再试'
+          : 'Login expired, please sign in again and retry.'
+      )
+      return null
+    }
+    return getAuthHeaders()
+  }
+
   const loadStrategies = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/prompt-templates', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await fetch('/api/prompt-templates')
 
       if (response.ok) {
         const data = await response.json()
@@ -63,12 +72,7 @@ export default function StrategiesPage() {
 
   const handleEdit = async (strategy: Strategy) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/prompt-templates/${strategy.name}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await fetch(`/api/prompt-templates/${strategy.name}`)
 
       if (response.ok) {
         const data = await response.json()
@@ -85,12 +89,7 @@ export default function StrategiesPage() {
 
   const handleView = async (strategy: Strategy) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/prompt-templates/${strategy.name}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await fetch(`/api/prompt-templates/${strategy.name}`)
 
       if (response.ok) {
         const data = await response.json()
@@ -110,7 +109,8 @@ export default function StrategiesPage() {
     }
 
     try {
-      const token = localStorage.getItem('token')
+      const headers = requireAuthHeaders()
+      if (!headers) return
       // Extract pure strategy name from template ID (removes user_<userid>_ prefix and .txt suffix)
       // e.g., "user_123_mystrategy" -> "mystrategy"
       const parts = strategy.name.split('_')
@@ -126,9 +126,7 @@ export default function StrategiesPage() {
 
       const response = await fetch(`/api/strategies/${strategyName}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       })
 
       if (response.ok) {
@@ -146,18 +144,19 @@ export default function StrategiesPage() {
 
   const handleSave = async (name: string, content: string) => {
     try {
-      const token = localStorage.getItem('token')
       const isUpdate = editingStrategy !== null
 
       const url = isUpdate ? `/api/strategies/${name}` : '/api/strategies'
       const method = isUpdate ? 'PUT' : 'POST'
 
+      const headers = requireAuthHeaders()
+      if (!headers) return
+
+      headers['Content-Type'] = 'application/json'
+
       const response = await fetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({
           name,
           content,

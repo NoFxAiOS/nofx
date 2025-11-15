@@ -392,6 +392,14 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 		}
 	}
 
+	// 如果指定的交易员尚未加载，尝试按需加载，避免出现“交易员不存在”错误
+	if _, err := s.traderManager.GetTrader(traderID); err != nil {
+		log.Printf("ℹ️ Trader %s 未在内存中，尝试按需加载: %v", traderID, err)
+		if loadErr := s.traderManager.LoadTraderByID(s.database, userID, traderID); loadErr != nil {
+			return nil, "", fmt.Errorf("交易员 %s 无法加载: %w", traderID, loadErr)
+		}
+	}
+
 	return s.traderManager, traderID, nil
 }
 
@@ -642,7 +650,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 	// 处理指标配置
 	var indicatorConfigJSON string
-	if req.IndicatorConfig != nil && len(req.IndicatorConfig) > 0 {
+	if len(req.IndicatorConfig) > 0 {
 		if err := validateIndicatorConfig(req.IndicatorConfig); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("指标配置无效: %v", err)})
 			return
@@ -656,6 +664,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 创建交易员配置（数据库实体）
+	if actualBalance <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "初始余额必须大于0，请在配置中设置InitialBalance"})
+		return
+	}
+
 	trader := &config.TraderRecord{
 		ID:                   traderID,
 		UserID:               userID,
@@ -781,7 +794,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	// 处理指标配置
 	indicatorConfigJSON := existingTrader.IndicatorConfig // 默认保持原值
-	if req.IndicatorConfig != nil && len(req.IndicatorConfig) > 0 {
+	if len(req.IndicatorConfig) > 0 {
 		if err := validateIndicatorConfig(req.IndicatorConfig); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("指标配置无效: %v", err)})
 			return
@@ -834,7 +847,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	}
 
 	// 🔥 热重载指标配置：如果trader正在运行且配置有更新，立即应用新配置
-	if req.IndicatorConfig != nil && len(req.IndicatorConfig) > 0 {
+	if len(req.IndicatorConfig) > 0 {
 		var indicatorConfig market.IndicatorConfig
 		if err := json.Unmarshal([]byte(indicatorConfigJSON), &indicatorConfig); err == nil {
 			if err := s.traderManager.ReloadIndicatorConfig(traderID, &indicatorConfig); err != nil {

@@ -48,6 +48,7 @@ type PositionInfo struct {
 type AccountInfo struct {
 	TotalEquity      float64 `json:"total_equity"`      // 账户净值
 	AvailableBalance float64 `json:"available_balance"` // 可用余额
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // 未实现盈亏
 	TotalPnL         float64 `json:"total_pnl"`         // 总盈亏
 	TotalPnLPct      float64 `json:"total_pnl_pct"`     // 总盈亏百分比
 	MarginUsed       float64 `json:"margin_used"`       // 已用保证金
@@ -120,12 +121,12 @@ type FullDecision struct {
 }
 
 // GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
-func GetFullDecision(ctx *Context, mcpClient *mcp.Client) (*FullDecision, error) {
+func GetFullDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error) {
 	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
 }
 
 // GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
-func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
+func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
 	// 1. 为所有币种获取市场数据
 	if err := fetchMarketDataForContext(ctx); err != nil {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)

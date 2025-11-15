@@ -2,7 +2,7 @@ import { api } from '../lib/api'
 import type {
   TraderInfo,
   CreateTraderRequest,
-  TraderConfig,
+  TraderConfigData,
   AIModel,
   Exchange,
 } from '../types'
@@ -32,8 +32,8 @@ interface UseTraderActionsParams {
   setShowSignalSourceModal: (show: boolean) => void
   setEditingModel: (modelId: string | null) => void
   setEditingExchange: (exchangeId: string | null) => void
-  editingTrader: TraderConfig | null
-  setEditingTrader: (trader: TraderConfig | null) => void
+  editingTrader: TraderConfigData | null
+  setEditingTrader: (trader: TraderConfigData | null) => void
 }
 
 export function useTraderActions({
@@ -131,7 +131,7 @@ export function useTraderActions({
   }
 
   const handleSaveEditTrader = async (data: CreateTraderRequest) => {
-    if (!editingTrader) return
+    if (!editingTrader || !editingTrader.trader_id) return
 
     try {
       const enabledModels = allModels?.filter((m) => m.enabled) || []

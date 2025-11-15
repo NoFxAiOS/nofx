@@ -139,11 +139,6 @@ export interface CreateTraderRequest {
   use_oi_top?: boolean
 }
 
-// 交易员配置类型(用于编辑场景,包含trader_id)
-export interface TraderConfig extends CreateTraderRequest {
-  trader_id: string
-}
-
 export interface UpdateModelConfigRequest {
   models: {
     [key: string]: {

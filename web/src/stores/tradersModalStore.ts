@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TraderConfig } from '../types'
+import type { TraderConfigData } from '../types'
 
 interface TradersModalState {
   // Modal 显示状态
@@ -12,7 +12,7 @@ interface TradersModalState {
   // 编辑状态
   editingModel: string | null
   editingExchange: string | null
-  editingTrader: TraderConfig | null
+  editingTrader: TraderConfigData | null
 
   // Actions
   setShowCreateModal: (show: boolean) => void
@@ -23,7 +23,7 @@ interface TradersModalState {
 
   setEditingModel: (modelId: string | null) => void
   setEditingExchange: (exchangeId: string | null) => void
-  setEditingTrader: (trader: TraderConfig | null) => void
+  setEditingTrader: (trader: TraderConfigData | null) => void
 
   // 便捷方法
   openModelModal: (modelId?: string) => void

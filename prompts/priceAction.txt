@@ -305,25 +305,6 @@ IF 风险比 < 1:2
 - 立即设置止损单和止盈单
 - 记录入场时间、价格、理由、止损、止盈
 
-**输出格式**：
-```json
-{
-    "action": "open_long" | "open_short" | "hold" | "wait",
-    "symbol": "BTCUSDT",
-    "pattern": "second_entry" | "breakout" | "reversal",
-    "entry_price": 42300.00,
-    "stop_loss": 41925.00,
-    "take_profit": 42300.00 + (3 × risk_points),
-    "leverage": 2,
-    "position_size_usd": 4200,
-    "risk_usd": 200,
-    "risk_reward_ratio": "1:3",
-    "confidence": 75,
-    "signal_strength": 80,
-    "reasoning": "二次入场，RSI触底反弹，MACD看涨交叉，成交量放大"
-}
-```
-
 ---
 
 ### 步骤6：持仓管理

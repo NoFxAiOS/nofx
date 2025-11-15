@@ -890,15 +890,21 @@ function DecisionCard({
           style={{ background: '#0B0E11', color: '#848E9C' }}
         >
           <span>
-            净值: {decision.account_state.total_balance.toFixed(2)} USDT
+            {t('totalEquity', language)}:{' '}
+            {decision.account_state.total_balance.toFixed(2)} USDT
           </span>
           <span>
-            可用: {decision.account_state.available_balance.toFixed(2)} USDT
+            {t('availableBalance', language)}:{' '}
+            {decision.account_state.available_balance.toFixed(2)} USDT
           </span>
           <span>
-            保证金率: {decision.account_state.margin_used_pct.toFixed(1)}%
+            {t('marginUsed', language)}:{' '}
+            {decision.account_state.margin_used_pct.toFixed(1)}%
           </span>
-          <span>持仓: {decision.account_state.position_count}</span>
+          <span>
+            {t('positions', language)}:{' '}
+            {decision.account_state.position_count}
+          </span>
           <span
             style={{
               color:

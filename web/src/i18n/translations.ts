@@ -32,6 +32,7 @@ export const translations = {
     totalPnL: 'Total P&L',
     positions: 'Positions',
     margin: 'Margin',
+    marginUsed: 'Margin Used',
     free: 'Free',
 
     // Positions Table
@@ -876,6 +877,7 @@ export const translations = {
     totalPnL: '总盈亏',
     positions: '持仓',
     margin: '保证金',
+    marginUsed: '保证金率',
     free: '空闲',
 
     // Positions Table

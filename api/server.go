@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -392,8 +394,8 @@ type SafeModelConfig struct {
 	Name            string `json:"name"`
 	Provider        string `json:"provider"`
 	Enabled         bool   `json:"enabled"`
-	CustomAPIURL    string `json:"customApiUrl"`        // 自定义API URL（通常不敏感）
-	CustomModelName string `json:"customModelName"`     // 自定义模型名（不敏感）
+	CustomAPIURL    string `json:"customApiUrl"`    // 自定义API URL（通常不敏感）
+	CustomModelName string `json:"customModelName"` // 自定义模型名（不敏感）
 }
 
 type ExchangeConfig struct {
@@ -414,8 +416,8 @@ type SafeExchangeConfig struct {
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid钱包地址（不敏感）
-	AsterUser             string `json:"asterUser"`              // Aster用户名（不敏感）
-	AsterSigner           string `json:"asterSigner"`            // Aster签名者（不敏感）
+	AsterUser             string `json:"asterUser"`             // Aster用户名（不敏感）
+	AsterSigner           string `json:"asterSigner"`           // Aster签名者（不敏感）
 }
 
 type UpdateModelConfigRequest struct {
@@ -630,17 +632,18 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest 更新交易员请求
 type UpdateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	BTCETHLeverage      int     `json:"btc_eth_leverage"`
-	AltcoinLeverage     int     `json:"altcoin_leverage"`
-	TradingSymbols      string  `json:"trading_symbols"`
-	CustomPrompt        string  `json:"custom_prompt"`
-	OverrideBasePrompt  bool    `json:"override_base_prompt"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`
+	Name                 string  `json:"name" binding:"required"`
+	AIModelID            string  `json:"ai_model_id" binding:"required"`
+	ExchangeID           string  `json:"exchange_id" binding:"required"`
+	InitialBalance       float64 `json:"initial_balance"`
+	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
+	BTCETHLeverage       int     `json:"btc_eth_leverage"`
+	AltcoinLeverage      int     `json:"altcoin_leverage"`
+	TradingSymbols       string  `json:"trading_symbols"`
+	CustomPrompt         string  `json:"custom_prompt"`
+	OverrideBasePrompt   bool    `json:"override_base_prompt"`
+	SystemPromptTemplate string  `json:"system_prompt_template"` // ✅ 新增
+	IsCrossMargin        *bool   `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -648,11 +651,22 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traderID := c.Param("id")
 
+	// 📝 日志：记录原始请求体
+	body, _ := c.GetRawData()
+	log.Printf("📝 [UPDATE_TRADER] 原始请求体: %s", string(body))
+
+	// 重新设置请求体以便后续解析
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+
 	var req UpdateTraderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("❌ [UPDATE_TRADER] JSON解析失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// 📝 日志：记录接收到的系统提示词模板
+	log.Printf("📝 [UPDATE_TRADER] 接收到 system_prompt_template: '%s'", req.SystemPromptTemplate)
 
 	// 检查交易员是否存在且属于当前用户
 	traders, err := s.database.GetTraders(userID)
@@ -698,6 +712,16 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		scanIntervalMinutes = 3
 	}
 
+	// 设置系统提示词模板，允许更新
+	systemPromptTemplate := req.SystemPromptTemplate
+	log.Printf("📝 [UPDATE_TRADER] 处理 system_prompt_template - 旧值: '%s', 请求值: '%s'", existingTrader.SystemPromptTemplate, req.SystemPromptTemplate)
+	if systemPromptTemplate == "" {
+		systemPromptTemplate = existingTrader.SystemPromptTemplate // 保持原值
+		log.Printf("📝 [UPDATE_TRADER] system_prompt_template 为空，使用旧值: '%s'", systemPromptTemplate)
+	} else {
+		log.Printf("📝 [UPDATE_TRADER] 使用新值 system_prompt_template: '%s'", systemPromptTemplate)
+	}
+
 	// 更新交易员配置
 	trader := &config.TraderRecord{
 		ID:                   traderID,
@@ -711,7 +735,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		TradingSymbols:       req.TradingSymbols,
 		CustomPrompt:         req.CustomPrompt,
 		OverrideBasePrompt:   req.OverrideBasePrompt,
-		SystemPromptTemplate: existingTrader.SystemPromptTemplate, // 保持原值
+		SystemPromptTemplate: systemPromptTemplate, // ✅ 使用请求值或保持原值
 		IsCrossMargin:        isCrossMargin,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // 保持原值
@@ -720,9 +744,11 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	// 更新数据库
 	err = s.database.UpdateTrader(trader)
 	if err != nil {
+		log.Printf("❌ [UPDATE_TRADER] 数据库更新失败: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易员失败: %v", err)})
 		return
 	}
+	log.Printf("✅ [UPDATE_TRADER] 数据库更新成功，system_prompt_template: '%s'", systemPromptTemplate)
 
 	// 重新加载交易员到内存
 	err = s.traderManager.LoadUserTraders(s.database, userID)
@@ -730,7 +756,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		log.Printf("⚠️ 重新加载用户交易员到内存失败: %v", err)
 	}
 
-	log.Printf("✓ 更新交易员成功: %s (模型: %s, 交易所: %s)", req.Name, req.AIModelID, req.ExchangeID)
+	log.Printf("✓ 更新交易员成功: %s (模型: %s, 交易所: %s, 提示词模板: %s)", req.Name, req.AIModelID, req.ExchangeID, systemPromptTemplate)
 
 	c.JSON(http.StatusOK, gin.H{
 		"trader_id":   traderID,
@@ -1267,9 +1293,13 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 
 	traderConfig, _, _, err := s.database.GetTraderConfig(userID, traderID)
 	if err != nil {
+		log.Printf("❌ [GET_TRADER_CONFIG] 获取交易员配置失败: traderID=%s, error=%v", traderID, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("获取交易员配置失败: %v", err)})
 		return
 	}
+
+	// 📝 日志：记录从数据库获取到的系统提示词模板
+	log.Printf("📝 [GET_TRADER_CONFIG] 从数据库获取 system_prompt_template: '%s' (traderID: %s)", traderConfig.SystemPromptTemplate, traderID)
 
 	// 获取实时运行状态
 	isRunning := traderConfig.IsRunning
@@ -1284,22 +1314,26 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 	aiModelID := traderConfig.AIModelID
 
 	result := map[string]interface{}{
-		"trader_id":             traderConfig.ID,
-		"trader_name":           traderConfig.Name,
-		"ai_model":              aiModelID,
-		"exchange_id":           traderConfig.ExchangeID,
-		"initial_balance":       traderConfig.InitialBalance,
-		"scan_interval_minutes": traderConfig.ScanIntervalMinutes,
-		"btc_eth_leverage":      traderConfig.BTCETHLeverage,
-		"altcoin_leverage":      traderConfig.AltcoinLeverage,
-		"trading_symbols":       traderConfig.TradingSymbols,
-		"custom_prompt":         traderConfig.CustomPrompt,
-		"override_base_prompt":  traderConfig.OverrideBasePrompt,
-		"is_cross_margin":       traderConfig.IsCrossMargin,
-		"use_coin_pool":         traderConfig.UseCoinPool,
-		"use_oi_top":            traderConfig.UseOITop,
-		"is_running":            isRunning,
+		"trader_id":              traderConfig.ID,
+		"trader_name":            traderConfig.Name,
+		"ai_model":               aiModelID,
+		"exchange_id":            traderConfig.ExchangeID,
+		"initial_balance":        traderConfig.InitialBalance,
+		"scan_interval_minutes":  traderConfig.ScanIntervalMinutes,
+		"btc_eth_leverage":       traderConfig.BTCETHLeverage,
+		"altcoin_leverage":       traderConfig.AltcoinLeverage,
+		"trading_symbols":        traderConfig.TradingSymbols,
+		"custom_prompt":          traderConfig.CustomPrompt,
+		"override_base_prompt":   traderConfig.OverrideBasePrompt,
+		"system_prompt_template": traderConfig.SystemPromptTemplate,
+		"is_cross_margin":        traderConfig.IsCrossMargin,
+		"use_coin_pool":          traderConfig.UseCoinPool,
+		"use_oi_top":             traderConfig.UseOITop,
+		"is_running":             isRunning,
 	}
+
+	// 📝 日志：记录返回给前端的系统提示词模板
+	log.Printf("📝 [GET_TRADER_CONFIG] 返回给前端 system_prompt_template: '%s' (traderID: %s)", traderConfig.SystemPromptTemplate, traderID)
 
 	c.JSON(http.StatusOK, result)
 }
@@ -1637,7 +1671,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
 
 // handleLogout 将当前token加入黑名单
 func (s *Server) handleLogout(c *gin.Context) {

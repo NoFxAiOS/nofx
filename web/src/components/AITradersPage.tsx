@@ -276,10 +276,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         trading_symbols: data.trading_symbols,
         custom_prompt: data.custom_prompt,
         override_base_prompt: data.override_base_prompt,
+        system_prompt_template: data.system_prompt_template, // ✅ 修复：添加缺失的字段
         is_cross_margin: data.is_cross_margin,
         use_coin_pool: data.use_coin_pool,
         use_oi_top: data.use_oi_top,
       }
+
+      console.log('🔍 [AITradersPage] 准备更新交易员，请求数据:', JSON.stringify(request, null, 2))
+      console.log('🔍 [AITradersPage] system_prompt_template:', request.system_prompt_template)
 
       await api.updateTrader(editingTrader.trader_id, request)
       setShowEditModal(false)

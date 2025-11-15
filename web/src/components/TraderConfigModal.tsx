@@ -73,6 +73,8 @@ export function TraderConfigModal({
 
   useEffect(() => {
     if (traderData) {
+      console.log('🔍 [FRONTEND] 初始化表单数据:', traderData)
+      console.log('🔍 [FRONTEND] system_prompt_template 值:', traderData.system_prompt_template)
       setFormData(traderData)
       // 设置已选择的币种
       if (traderData.trading_symbols) {
@@ -229,6 +231,9 @@ export function TraderConfigModal({
   const handleSave = async () => {
     if (!onSave) return
 
+    console.log('🔍 [FRONTEND] 准备保存交易员数据，当前 formData:', formData)
+    console.log('🔍 [FRONTEND] system_prompt_template 值:', formData.system_prompt_template)
+
     setIsSaving(true)
     try {
       const saveData: CreateTraderRequest = {
@@ -247,6 +252,12 @@ export function TraderConfigModal({
         initial_balance: formData.initial_balance,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
+
+      console.log('🔍 [FRONTEND] 构建的保存数据:', JSON.stringify(saveData, null, 2))
+      console.log('🔍 [FRONTEND] saveData.system_prompt_template:', saveData.system_prompt_template)
+      console.log('🔍 [FRONTEND] saveData.system_prompt_template 类型:', typeof saveData.system_prompt_template)
+      console.log('🔍 [FRONTEND] saveData.system_prompt_template 长度:', saveData.system_prompt_template?.length || 0)
+
       await onSave(saveData)
       onClose()
     } catch (error) {
@@ -621,9 +632,10 @@ export function TraderConfigModal({
                 </label>
                 <select
                   value={formData.system_prompt_template}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    console.log('🔍 [FRONTEND] 用户选择 system_prompt_template:', e.target.value)
                     handleInputChange('system_prompt_template', e.target.value)
-                  }
+                  }}
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                 >
                   {promptTemplates.map((template) => (
@@ -718,5 +730,5 @@ export function TraderConfigModal({
         </div>
       </div>
     </div>
-  )
-}
+    )
+  }

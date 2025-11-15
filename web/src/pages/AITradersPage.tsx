@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -24,6 +25,7 @@ interface AITradersPageProps {
 export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
+  const navigate = useNavigate()
 
   // Zustand stores
   const {
@@ -131,6 +133,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     !userSignalSource.coinPoolUrl &&
     !userSignalSource.oiTopUrl
 
+  // 处理交易员查看
+  const handleTraderSelect = (traderId: string) => {
+    if (onTraderSelect) {
+      onTraderSelect(traderId)
+    } else {
+      navigate(`/dashboard?trader=${traderId}`)
+    }
+  }
+
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
@@ -174,7 +185,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       <TradersGrid
         language={language}
         traders={traders}
-        onTraderSelect={onTraderSelect || (() => {})}
+        onTraderSelect={handleTraderSelect}
         onEditTrader={handleEditTrader}
         onDeleteTrader={handleDeleteTrader}
         onToggleTrader={handleToggleTrader}

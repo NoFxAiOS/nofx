@@ -30,24 +30,9 @@ Thumbs.db
 # 环境变量
 .env
 config.json
-<<<<<<< HEAD
-config.db
-.tool-versions
-=======
 config.db*
 nofx.db
 configbak.json
-
-# 生产配置
-nginx/
-certs/
-beta_codes.txt
-
-# 密钥文件
-keys/
-*.key
-*.pem
->>>>>>> beta
 
 # 决策日志
 decision_logs/
@@ -59,9 +44,6 @@ web/node_modules/
 node_modules/
 web/dist/
 web/.vite/
-<<<<<<< HEAD
-web/yarn.lock
-=======
 
 # ESLint 临时报告文件（调试时生成，不纳入版本控制）
 eslint-*.json
@@ -140,4 +122,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
->>>>>>> beta
+PR_DESCRIPTION.md

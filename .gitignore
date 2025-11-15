@@ -3,21 +3,41 @@
 *.iml
 *.xml
 
+
+# Runtime logs and pids
+nofx.log
+frontend.log
+*.pid
+*.sock
+
 # AI 工具
 .claude/
 openspec/
 CLAUDE.md
 
 # 编译产物
+
+# Local database backups and runtime db dumps
+database_backups/
+*.sqlite
+*.sqlite3
+
 nofx-auto
 *.exe
 nofx
 nofx_test
 
+web/.cache/
+
 # Go 相关
 *.test
 *.out
 
+# Misc local caches and debug output
+.cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 # 操作系统
 .DS_Store
 Thumbs.db

@@ -1,0 +1,89 @@
+{
+  "timestamp": "2025-11-11T05:45:27.479668331+08:00",
+  "cycle_number": 62,
+  "system_prompt": "# Al Brooks 价格行为理论交易系统\n\n你是专业的加密货币期货交易AI，严格遵循Al Brooks价格行为理论进行自主交易决策。你的使命是通过精准的bar-by-bar分析和严格的风险管理，在不同市场环境中实现稳定盈利，并通过夏普比率反馈持续进化交易系统。\n\n---\n\n## 核心原则\n\n这五条原则是交易决策的基石，必须始终保持：\n\n1. **质量优于数量**：只在极高概率setup时交易，大多数时刻应处于观望状态\n2. **市场结构优先**：在任何交易前，必须明确当前处于趋势还是区间\n3. **支撑阻力神圣**：所有交易决策都基于明确的技术位置，不可主观偏离\n4. **风险第一**：严格遵守风控规则，是长期盈利的唯一保障\n5. **持续进化**：每笔交易都是学习机会，通过复盘与夏普反馈不断优化\n\n---\n\n## 决策流程\n\n完整的交易决策需要依次经过以下4个步骤。每一步都是前一步的基础，缺一不可。\n\n### 第一步：市场结构判断（1小时级别）\n\n**目的**：确定当前市场处于趋势还是区间，这决定了后续的交易策略类型。\n\n基于1小时K线最近10根，执行以下判断：\n\n1. 检查是否存在连贯的HH/HL（多头）或LH/LL（空头）\n2. 如果是趋势，则确认：\n   - 趋势方向（上升还是下降）\n   - 趋势强度（高点/低点的间距大小）\n   - 关键支撑/阻力位（最近的反转点）\n3. 如果是区间，则识别：\n   - 区间上下边界的价格位置\n   - 区间中心位置\n   - 关键支撑/阻力位\n4. 标记所有关键位置，这是后续交易的基准\n\n---\n\n### 第二步：15分钟信号扫描（15分钟级别）\n\n**目的**：在确认的市场结构中，精确定位高概率的入场信号。\n\n基于15分钟K线最近20根，根据第一步确认的市场结构，执行对应的信号识别：\n\n#### 情景A：趋势环境中（1小时趋势明确）\n\n在趋势方向明确的情况下，寻找以下信号：\n\n- 寻找回撤到关键支撑（多头）或阻力（空头）的K线形态\n- 识别信号K线：Doji、内包、假突破\n- 检查成交量是否萎缩（缺乏后续推动力的迹象）\n- 确认15分钟K线与1小时方向一致\n- 如满足上述条件，将其记录为\"高概率回撤机会\"\n\n#### 情景B：区间环境中（1小时无趋势）\n\n在区间震荡的情况下，寻找以下信号：\n\n- 寻找触及区间边界的K线\n- 检查是否出现二次突破确认信号\n- 禁止在首根突破K线时入场\n- 如满足上述条件，将其记录为\"区间反弹或突破机会\"\n\n#### 情景C：失败信号识别\n\n识别市场结构被打破的信号：\n\n- 突破K线是否快速回吐？\n- 反弹/反压是否缺乏后续动力？\n- 如是，将其记录为\"失败信号利用机会\"\n\n---\n\n### 第三步：共振确认与风险评估（综合评估）\n\n**目的**：在进入第四步前，对信号进行多维度的综合评估，确保共振度足够高。\n\n确认以下所有条件都满足才考虑进入入场决策：\n\n| 评估维度 | 确认标准 | 备注 |\n|--------|--------|------|\n| 时间框架对齐 | 1小时与15分钟方向一致 | YES/NO |\n| 价格距离 | 入场位置与关键支撑/阻力的距离≥10点 | YES/NO |\n| K线质量 | 信号K线强度评分 | ≥7分才可进行 |\n| 成交量确认 | 成交量高于平均水平 | YES/NO |\n| BTC相关性 | 信号是否与BTC趋势一致 | 冲突时权重减半 |\n| 资金费率 | 资金费率是否处于极端 | \u003e0.05%或\u003c-0.01%时谨慎 |\n\n**决策规则**：\n- 所有条件都满足 → 进入第四步：仓位计算与风控\n- 任何条件不满足 → 记录为\"待观察\"，返回第二步继续扫描\n\n---\n\n### 第四步：仓位计算与风控（执行层面）\n\n**目的**：根据确认的交易信号，计算具体的仓位大小、风险参数，并设置完整的交易计划。\n\n#### 仓位大小计算基础\n\n重要：`position_size_usd` 是**名义价值**（包含杠杆），而非实际保证金需求。\n\n**标准计算流程**：\n\n1. **可用保证金** = Available Cash × 0.88\n   - 预留12%给手续费、滑点与清算保证金缓冲\n\n2. **名义价值** = 可用保证金 × 杠杆倍数\n\n3. **position_size_usd** = 名义价值（在JSON中填写此值）\n\n4. **实际币数** = position_size_usd / 当前价格\n\n**计算示例**：\n\n假设可用资金 $500，杠杆选择 5x\n\n- 可用保证金 = $500 × 0.88 = $440\n- position_size_usd = $440 × 5 = **$2,200** ← 在JSON中填写此值\n- 实际占用保证金 = $440\n- 保留资金 = $60（用于手续费、滑点与清算保护）\n\n#### 1. 确定止损位置\n\n- 技术基础：基于K线极端点或结构破坏点\n- 计算公式：止损点数 = (入场价 - 止损价) × 合约乘数\n\n#### 2. 确定止盈位置\n\n- 最低标准：确保风险回报比≥1:3\n- 优先位置：\n  - 下一个关键支撑/阻力位\n  - 1小时通道的边界\n\n#### 3. 计算合约张数\n\n- 单笔风险金额 = 账户权益 × 当前风险比例（根据夏普层级调整）\n- 合约张数 = 单笔风险金额 / (止损点数 × 合约乘数)\n- 总仓位检查 ≤ 6% 账户权益且 ≤ 3个币种\n\n#### 4. 执行前的最后检查\n\n在确认入场之前，必须确认以下三点：\n\n- 是否违反\"连续亏损\"规则？\n- 是否处于\"回撤控制\"熔断状态？\n- 入场时间是否在禁止时段？\n\n---\n\n## 自我进化触发条件\n\n交易是持续学习的过程。每完成一笔交易后，执行以下回顾程序：\n\n1. **记录交易结果**：盈亏金额、持仓时长、成交量变化\n2. **评估信号质量**：该信号在历史中的胜率是多少\n3. **计算滚动夏普比率**：评估当前策略的有效性\n4. **触发调整条件**：\n   - 如夏普比率下降≥0.2 → 立即触发复盘调整\n   - 如胜率连续下降3笔 → 切换到保守模式\n   - 如资金增长≥10% → 评估是否提高仓位上限\n\n---\n\n## 硬性规则（绝不可违反）\n\n这些规则是资本保护的最后防线，必须无条件执行：\n\n**仓位与风险限制**：\n- 单笔风险 \u003e 2% 账户权益 → 禁止开仓\n\n**止损调整限制**：\n- 入场后止损被动扩大 \u003e 50% → 禁止继续持仓，必须平仓\n\n**日度熔断机制**：\n- 日亏损 ≥ 5% → 停止新交易，观望剩余时间\n\n**周度熔断机制**：\n- 周亏损 ≥ 10% → 全部平仓，冷却24小时\n\n**币种限制机制**：\n- 连续5笔亏损（同一币种） → 停止该币种交易24小时\n\n---\n\n## 总结\n\n这套系统的核心逻辑遵循以下流程：\n\n| 步骤 | 内容 | 作用 |\n|-----|------|------|\n| 1 | **市场结构** | 决定交易类型（趋势跟随 vs 区间操作） |\n| 2 | **K线形态** | 确定精确的入场时机和位置 |\n| 3 | **共振评估** | 验证信号的有效性和概率 |\n| 4 | **风险管理** | 保证每笔交易的可控性和长期生存 |\n| 5 | **夏普反馈** | 驱动系统的持续进化和优化 |\n\n成功的交易不在于追求最大收益，而在于在可控风险下实现稳定增长。\n\n\n# 硬约束（风险控制）\n\n1. 风险回报比: 必须 ≥ 1:2（冒1%风险，赚2%+收益）\n2. 最多持仓: 3个币种（质量\u003e数量）\n3. 单币仓位: 山寨138-259 U | BTC/ETH 863-1727 U\n4. 杠杆限制: **山寨币最大3x杠杆** | **BTC/ETH最大5x杠杆** (⚠️ 严格执行，不可超过)\n5. 保证金: 总使用率 ≤ 90%\n6. 开仓金额: 建议 **≥12 USDT** (交易所最小名义价值 10 USDT + 安全边际)\n\n# 输出格式 (严格遵守)\n\n**必须使用XML标签 \u003creasoning\u003e 和 \u003cdecision\u003e 标签分隔思维链和决策JSON，避免解析错误**\n\n## 格式要求\n\n\u003creasoning\u003e\n你的思维链分析...\n- 简洁分析你的思考过程 \n\u003c/reasoning\u003e\n\n\u003cdecision\u003e\n```json\n[\n  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": 5, \"position_size_usd\": 863, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300, \"reasoning\": \"下跌趋势+MACD死叉\"},\n  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\", \"reasoning\": \"止盈离场\"}\n]\n```\n\u003c/decision\u003e\n\n## 字段说明\n\n- `action`: open_long | open_short | close_long | close_short | hold | wait\n- `confidence`: 0-100（开仓建议≥75）\n- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, reasoning\n\n",
+  "input_prompt": "时间: 2025-11-11 05:44:58 | 周期: #62 | 运行: 305分钟\n\nBTC: 105440.00 (1h: -0.71%, 4h: -0.44%) | MACD: 5.1590 | RSI: 37.87\n\n账户: 净值172.67 | 余额172.67 (100.0%) | 盈亏-46.21% | 保证金0.0% | 持仓0个\n\n当前持仓: 无\n\n## 候选币种 (5个)\n\n### 1. BTCUSDT\n\ncurrent_price = 105440.00, current_ema20 = 105699.903, current_macd = 5.159, current_rsi (7 period) = 37.874\n\nIn addition, here is the latest BTCUSDT open interest and funding rate for perps:\n\nOpen Interest: Latest: 86795.42 Average: 86708.62\n\nFunding Rate: 2.13e-05\n\nIntraday series (15‑minute intervals, oldest → latest):\n\nMid prices: [105667.80, 105750.30, 105767.20, 106179.50, 105984.00, 106192.90, 105956.70, 105547.60, 105505.90, 105440.00]\n\nEMA indicators (20‑period): [105593.99, 105608.88, 105623.96, 105676.87, 105706.12, 105752.48, 105771.93, 105750.56, 105727.26, 105699.90]\n\nMACD indicators: [-34.55042121, -18.87126612, -5.02382250, 38.7726, 57.0487, 87.3819, 91.3092, 60.7109, 32.7195, 5.1590]\n\nRSI indicators (7‑Period): [53.7001, 56.8121, 57.4948, 70.6856, 60.3286, 66.4558, 55.2079, 41.1384, 39.9283, 37.8743]\n\nRSI indicators (14‑Period): [50.8177, 52.3656, 52.6941, 59.9498, 55.5955, 59.0206, 53.9531, 46.5054, 45.8112, 44.6762]\n\nLonger‑term context (1‑hour timeframe):\n\n20‑Period EMA: 105492.673 vs. 50‑Period EMA: 104522.901\n\n3‑Period ATR: 636.908 vs. 14‑Period ATR: 700.185\n\nCurrent Volume: 1988.843 vs. Average Volume: 4697.238\n\nMACD indicators: [802.92, 797.19, 650.97, 543.54, 465.96, 457.10, 407.39, 390.24, 387.47, 339.67]\n\nRSI indicators (14‑Period): [61.4178, 66.4921, 47.9550, 49.6143, 51.0901, 57.1405, 52.5465, 55.2725, 56.8007, 51.6217]\n\n\n### 2. ETHUSDT\n\ncurrent_price = 3538.54, current_ema20 = 3552.799, current_macd = -3.054, current_rsi (7 period) = 39.958\n\nIn addition, here is the latest ETHUSDT open interest and funding rate for perps:\n\nOpen Interest: Latest: 1742291.50 Average: 1740549.21\n\nFunding Rate: -2.78e-06\n\nIntraday series (15‑minute intervals, oldest → latest):\n\nMid prices: [3540.85, 3562.35, 3556.83, 3575.15, 3564.65, 3578.52, 3570.22, 3545.88, 3538.32, 3538.54]\n\nEMA indicators (20‑period): [3547.44, 3548.86, 3549.62, 3552.05, 3553.25, 3555.66, 3557.05, 3555.98, 3554.30, 3552.80]\n\nMACD indicators: [-10.92424276, -8.46297689, -6.87853239, -4.09734615, -2.70926752, -0.48442794, 0.6021, -0.49515932, -1.95226345, -3.05407138]\n\nRSI indicators (7‑Period): [49.0208, 61.4345, 57.2582, 66.1643, 58.0730, 64.7217, 58.2705, 43.4523, 39.7860, 39.9580]\n\nRSI indicators (14‑Period): [45.5242, 52.7470, 50.8817, 56.3932, 52.7405, 56.7278, 53.8024, 46.2674, 44.1970, 44.2751]\n\nLonger‑term context (1‑hour timeframe):\n\n20‑Period EMA: 3561.905 vs. 50‑Period EMA: 3523.453\n\n3‑Period ATR: 38.324 vs. 14‑Period ATR: 37.349\n\nCurrent Volume: 96637.284 vs. Average Volume: 153307.101\n\nMACD indicators: [34.1590, 32.7902, 25.4481, 17.6587, 12.1476, 9.7128, 5.8892, 4.9069, 5.1495, 2.7537]\n\nRSI indicators (14‑Period): [57.9670, 62.9492, 44.8893, 41.1244, 43.4430, 48.9611, 44.7609, 50.0763, 52.5982, 46.6002]\n\n\n### 3. SOLUSDT\n\ncurrent_price = 166.09, current_ema20 = 166.834, current_macd = -0.147, current_rsi (7 period) = 40.059\n\nIn addition, here is the latest SOLUSDT open interest and funding rate for perps:\n\nOpen Interest: Latest: 7952668.52 Average: 7944715.85\n\nFunding Rate: -8.03e-05\n\nIntraday series (15‑minute intervals, oldest → latest):\n\nMid prices: [166.26, 166.72, 167.13, 167.63, 166.99, 167.99, 167.74, 166.27, 166.06, 166.09]\n\nEMA indicators (20‑period): [166.79, 166.79, 166.82, 166.90, 166.91, 167.01, 167.08, 167.00, 166.91, 166.83]\n\nMACD indicators: [-0.29182259, -0.26164055, -0.20230544, -0.11362630, -0.09390759, 0.002384, 0.0579, -0.01660791, -0.09151112, -0.14675994]\n\nRSI indicators (7‑Period): [45.3480, 50.9412, 55.6600, 60.9975, 51.7032, 62.2020, 58.4934, 41.5138, 39.5980, 40.0591]\n\nRSI indicators (14‑Period): [45.8870, 48.8053, 51.3251, 54.2804, 50.0883, 55.8286, 54.1519, 45.4987, 44.4070, 44.6115]\n\nLonger‑term context (1‑hour timeframe):\n\n20‑Period EMA: 166.583 vs. 50‑Period EMA: 164.318\n\n3‑Period ATR: 2.083 vs. 14‑Period ATR: 2.112\n\nCurrent Volume: 457390.170 vs. Average Volume: 811334.697\n\nMACD indicators: [1.8937, 1.9357, 1.6649, 1.4401, 1.2349, 1.1948, 0.9783, 0.9235, 0.9187, 0.7729]\n\nRSI indicators (14‑Period): [62.6301, 67.5074, 51.5285, 51.8069, 51.1739, 57.1325, 48.9484, 54.1467, 56.0091, 50.0835]\n\n\n### 4. BNBUSDT\n\ncurrent_price = 986.11, current_ema20 = 986.619, current_macd = -0.710, current_rsi (7 period) = 48.559\n\nIn addition, here is the latest BNBUSDT open interest and funding rate for perps:\n\nOpen Interest: Latest: 498170.28 Average: 497672.11\n\nFunding Rate: -2.14e-04\n\nIntraday series (15‑minute intervals, oldest → latest):\n\nMid prices: [984.12, 986.52, 987.10, 991.45, 988.97, 990.03, 988.40, 985.42, 984.54, 986.11]\n\nEMA indicators (20‑period): [985.56, 985.66, 985.79, 986.33, 986.58, 986.91, 987.05, 986.90, 986.67, 986.62]\n\nMACD indicators: [-2.84904710, -2.44287286, -2.05053837, -1.37277729, -1.02395846, -0.65443992, -0.48750157, -0.58887464, -0.73178659, -0.71017304]\n\nRSI indicators (7‑Period): [49.6105, 58.4517, 60.4101, 71.9708, 60.2656, 63.2464, 55.7442, 44.4885, 41.5950, 48.5589]\n\nRSI indicators (14‑Period): [44.2605, 48.8727, 49.9505, 57.2325, 52.5391, 54.2655, 51.1825, 46.0333, 44.6062, 47.7202]\n\nLonger‑term context (1‑hour timeframe):\n\n20‑Period EMA: 991.943 vs. 50‑Period EMA: 991.563\n\n3‑Period ATR: 6.619 vs. 14‑Period ATR: 8.563\n\nCurrent Volume: 14819.160 vs. Average Volume: 37520.488\n\nMACD indicators: [1.5295, 1.4586, -0.07819598, -1.64192668, -2.82203561, -3.17201228, -3.78259786, -3.78151706, -3.63387237, -3.65946275]\n\nRSI indicators (14‑Period): [46.2227, 51.9316, 38.7970, 36.3590, 36.6719, 42.9016, 39.9920, 44.7211, 45.8140, 44.1578]\n\n\n### 5. HYPEUSDT\n\ncurrent_price = 41.6370, current_ema20 = 41.785, current_macd = 0.048, current_rsi (7 period) = 41.359\n\nIn addition, here is the latest HYPEUSDT open interest and funding rate for perps:\n\nOpen Interest: Latest: 4095838.93 Average: 4091743.09\n\nFunding Rate: 5.00e-05\n\nIntraday series (15‑minute intervals, oldest → latest):\n\nMid prices: [41.5850, 41.7820, 41.7210, 42.2330, 42.0570, 42.2720, 42.2220, 41.9540, 41.7090, 41.6370]\n\nEMA indicators (20‑period): [41.5621, 41.5831, 41.5962, 41.6569, 41.6950, 41.7499, 41.7949, 41.8100, 41.8004, 41.7848]\n\nMACD indicators: [-0.10613450, -0.07715877, -0.05844378, -0.00227171, 0.0277, 0.0681, 0.0949, 0.0935, 0.0717, 0.0481]\n\nRSI indicators (7‑Period): [53.6696, 61.9309, 58.1830, 73.7431, 64.1675, 69.7632, 66.9275, 53.3635, 43.8789, 41.3586]\n\nRSI indicators (14‑Period): [48.7682, 53.3000, 51.7728, 61.6936, 57.3280, 60.9622, 59.6890, 53.2677, 48.1663, 46.7493]\n\nLonger‑term context (1‑hour timeframe):\n\n20‑Period EMA: 41.851 vs. 50‑Period EMA: 41.518\n\n3‑Period ATR: 0.691 vs. 14‑Period ATR: 0.697\n\nCurrent Volume: 214488.530 vs. Average Volume: 379224.256\n\nMACD indicators: [0.3676, 0.3281, 0.2405, 0.1445, 0.0496, 0.0318, 0.000394, -0.00579686, 0.0294, 0.009947]\n\nRSI indicators (14‑Period): [49.2494, 52.5640, 45.5423, 42.6679, 40.6535, 48.8967, 46.7976, 49.3152, 54.3597, 48.3132]\n\n\n\n## 📊 夏普比率: -0.12\n\n---\n\n现在请分析并输出决策（思维链 + JSON）\n",
+  "cot_trace": "基于Al Brooks价格行为理论，我将按照决策流程进行分析：\n\n**第一步：市场结构判断（1小时级别）**\n- BTC 1小时级别：价格105440，EMA20=105492.673，EMA50=104522.901，价格在EMA20附近震荡\n- 从1小时MACD看：从802.92持续下降至339.67，显示动量减弱\n- RSI 14周期：51.62，处于中性偏弱区域\n- 整体判断：BTC处于震荡偏弱结构，无明显趋势\n\n**第二步：15分钟信号扫描**\n分析各币种15分钟K线形态：\n\n1. **BTCUSDT**：价格从106192.9下跌至105440，MACD从87.38快速下降至5.16，RSI从66.46降至37.87，显示短期超卖。当前价格接近EMA20支撑，但缺乏明确的反弹信号。\n\n2. **ETHUSDT**：类似BTC，价格从3578.52下跌至3538.54，MACD转负，RSI 39.96接近超卖，但无明确反转形态。\n\n3. **SOLUSDT**：价格在166-168区间震荡，MACD接近零轴，RSI 40.06，无明显方向信号。\n\n4. **BNBUSDT**：价格在984-991区间震荡，MACD负值收窄，RSI 48.56相对中性。\n\n5. **HYPEUSDT**：价格从42.272下跌至41.637，MACD从0.0949下降至0.0481，RSI 41.36，短期偏弱。\n\n**第三步：共振确认与风险评估**\n- 时间框架对齐：1小时震荡偏弱，15分钟普遍下跌，方向一致\n- 价格距离：各币种距离关键支撑较近，但缺乏明确的入场信号\n- K线质量：当前K线多为下跌后的整理，无明显反转形态\n- 成交量确认：当前成交量普遍低于平均水平，缺乏动能\n- BTC相关性：各币种与BTC走势高度相关\n- 资金费率：普遍接近中性，无极端情况\n\n**第四步：仓位计算与风控**\n当前无明确的高概率setup，所有币种都处于下跌后的整理阶段，缺乏明确的入场信号。根据\"质量优于数量\"原则，应保持观望。\n\n**风险控制检查**：\n- 账户净值172.67，无持仓\n- 夏普比率-0.12，显示近期策略表现不佳，应更加谨慎\n- 无连续亏损记录，无熔断状态",
+  "decision_json": "[\n  {\n    \"symbol\": \"BTCUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"震荡偏弱结构,缺乏明确入场信号,RSI接近超卖但无反转形态\"\n  },\n  {\n    \"symbol\": \"ETHUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"跟随BTC下跌,MACD转负但无明确支撑反弹信号\"\n  },\n  {\n    \"symbol\": \"SOLUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"区间震荡,无明显方向信号\"\n  },\n  {\n    \"symbol\": \"BNBUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"震荡整理,MACD负值收窄但无明确入场时机\"\n  },\n  {\n    \"symbol\": \"HYPEUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"短期下跌后整理,缺乏反转确认信号\"\n  }\n]",
+  "account_state": {
+    "total_balance": 172.67421933,
+    "available_balance": 172.67421933,
+    "total_unrealized_profit": -148.32578067,
+    "position_count": 0,
+    "margin_used_pct": 0
+  },
+  "positions": null,
+  "candidate_coins": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "HYPEUSDT"
+  ],
+  "decisions": [
+    {
+      "action": "wait",
+      "symbol": "BTCUSDT",
+      "quantity": 0,
+      "leverage": 0,
+      "price": 0,
+      "order_id": 0,
+      "timestamp": "2025-11-11T05:45:22.478024104+08:00",
+      "success": true,
+      "error": ""
+    },
+    {
+      "action": "wait",
+      "symbol": "ETHUSDT",
+      "quantity": 0,
+      "leverage": 0,
+      "price": 0,
+      "order_id": 0,
+      "timestamp": "2025-11-11T05:45:23.478182463+08:00",
+      "success": true,
+      "error": ""
+    },
+    {
+      "action": "wait",
+      "symbol": "SOLUSDT",
+      "quantity": 0,
+      "leverage": 0,
+      "price": 0,
+      "order_id": 0,
+      "timestamp": "2025-11-11T05:45:24.478611832+08:00",
+      "success": true,
+      "error": ""
+    },
+    {
+      "action": "wait",
+      "symbol": "BNBUSDT",
+      "quantity": 0,
+      "leverage": 0,
+      "price": 0,
+      "order_id": 0,
+      "timestamp": "2025-11-11T05:45:25.478903112+08:00",
+      "success": true,
+      "error": ""
+    },
+    {
+      "action": "wait",
+      "symbol": "HYPEUSDT",
+      "quantity": 0,
+      "leverage": 0,
+      "price": 0,
+      "order_id": 0,
+      "timestamp": "2025-11-11T05:45:26.479458174+08:00",
+      "success": true,
+      "error": ""
+    }
+  ],
+  "execution_log": [
+    "✓ BTCUSDT wait 成功",
+    "✓ ETHUSDT wait 成功",
+    "✓ SOLUSDT wait 成功",
+    "✓ BNBUSDT wait 成功",
+    "✓ HYPEUSDT wait 成功"
+  ],
+  "success": true,
+  "error_message": ""
+}

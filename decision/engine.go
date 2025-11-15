@@ -460,18 +460,18 @@ func buildUserPrompt(ctx *Context) string {
 	return sb.String()
 }
 
-// parseFullDecisionResponse 解析AI的完整决策响应
+// parseFullDecisionResponse parses AI's full decision response
 func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
-	// 1. 提取思维链
+	// 1. Extract chain of thought
 	cotTrace := extractCoTTrace(aiResponse)
 
-	// 2. 提取JSON决策列表
+	// 2. Extract JSON decision list
 	decisions, err := extractDecisions(aiResponse)
 	if err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: []Decision{},
-		}, fmt.Errorf("提取决策失败: %w", err)
+		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
 	// 3. Validate decisions
@@ -622,33 +622,33 @@ func fixMissingQuotes(jsonStr string) string {
 	return jsonStr
 }
 
-// validateJSONFormat 验证 JSON 格式，检测常见错误
+// validateJSONFormat validates JSON format and detects common errors
 func validateJSONFormat(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
 
-	// 允许 [ 和 { 之间存在任意空白（含零宽）
+	// Allow arbitrary whitespace (including zero-width) between [ and {
 	if !reArrayHead.MatchString(trimmed) {
-		// 检查是否是纯数字/范围数组（常见错误）
+		// Check if it's a pure number/range array (common error)
 		if strings.HasPrefix(trimmed, "[") && !strings.Contains(trimmed[:min(20, len(trimmed))], "{") {
-			return fmt.Errorf("不是有效的决策数组（必须包含对象 {}），实际内容: %s", trimmed[:min(50, len(trimmed))])
+			return fmt.Errorf("not a valid decision array (must contain objects {}), actual content: %s", trimmed[:min(50, len(trimmed))])
 		}
-		return fmt.Errorf("JSON 必须以 [{ 开头（允许空白），实际: %s", trimmed[:min(20, len(trimmed))])
+		return fmt.Errorf("JSON must start with [{ (whitespace allowed), actual: %s", trimmed[:min(20, len(trimmed))])
 	}
 
-	// 检查是否包含范围符号 ~（LLM 常见错误）
+	// Check for range symbol ~ (common LLM error)
 	if strings.Contains(jsonStr, "~") {
-		return fmt.Errorf("JSON 中不可包含范围符号 ~，所有数字必须是精确的单一值")
+		return fmt.Errorf("JSON cannot contain range symbol ~, all numbers must be exact single values")
 	}
 
-	// ✅ ลบการตรวจสอบ thousands separator เพราะทำให้เกิด false positive
-	// ตัวเลขที่มี comma ภายใน string value (เช่น "reasoning": "价格94,935") เป็น valid JSON
-	// การตรวจสอบแบบ naive ไม่สามารถแยกระหว่าง JSON number กับ string content ได้
-	// json.Unmarshal() จะตรวจสอบ JSON number format ได้อยู่แล้ว
+	// ✅ Removed thousands separator validation to avoid false positives
+	// Numbers with commas inside string values (e.g., "reasoning": "price 94,935") are valid JSON
+	// Naive checking cannot distinguish between JSON numbers and string content
+	// json.Unmarshal() already validates JSON number format
 
 	return nil
 }
 
-// min 返回两个整数中的较小值
+// min returns the smaller of two integers
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -656,21 +656,21 @@ func min(a, b int) int {
 	return b
 }
 
-// removeInvisibleRunes 去除零宽字符和 BOM，避免肉眼看不见的前缀破坏校验
+// removeInvisibleRunes removes zero-width characters and BOM to avoid invisible prefixes breaking validation
 func removeInvisibleRunes(s string) string {
 	return reInvisibleRunes.ReplaceAllString(s, "")
 }
 
-// compactArrayOpen 规整开头的 "[ {" → "[{"
+// compactArrayOpen normalizes array opening "[ {" → "[{"
 func compactArrayOpen(s string) string {
 	return reArrayOpenSpace.ReplaceAllString(strings.TrimSpace(s), "[{")
 }
 
-// validateDecisions 验证所有决策（需要账户信息和杠杆配置）
+// validateDecisions validates all decisions (requires account info and leverage config)
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	for i, decision := range decisions {
 		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
+			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
 		}
 	}
 	return nil

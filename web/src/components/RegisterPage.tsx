@@ -9,6 +9,7 @@ import { copyWithToast } from '../lib/clipboard'
 import { Eye, EyeOff } from 'lucide-react'
 import { Input } from './ui/input'
 import PasswordChecklist from 'react-password-checklist'
+import { RegistrationDisabled } from './RegistrationDisabled'
 
 export function RegisterPage() {
   const { language } = useLanguage()
@@ -22,6 +23,7 @@ export function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [betaCode, setBetaCode] = useState('')
   const [betaMode, setBetaMode] = useState(false)
+  const [registrationEnabled, setRegistrationEnabled] = useState(true)
   const [otpCode, setOtpCode] = useState('')
   const [userID, setUserID] = useState('')
   const [otpSecret, setOtpSecret] = useState('')
@@ -33,15 +35,21 @@ export function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
-    // 获取系统配置，检查是否开启内测模式
+    // 获取系统配置，检查是否开启内测模式和注册功能
     getSystemConfig()
       .then((config) => {
         setBetaMode(config.beta_mode || false)
+        setRegistrationEnabled(config.registration_enabled !== false)
       })
       .catch((err) => {
         console.error('Failed to fetch system config:', err)
       })
   }, [])
+
+  // 如果注册功能被禁用，显示注册已关闭页面
+  if (!registrationEnabled) {
+    return <RegistrationDisabled />
+  }
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()

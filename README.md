@@ -8,8 +8,6 @@
 
 **Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md)
 
-**Official Twitter:** [@nofx_ai](https://x.com/nofx_ai)
-
 **📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Prompt Writing Guide](docs/prompt-guide.md) ([中文](docs/prompt-guide.zh-CN.md)) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md)
 
 ---
@@ -31,7 +29,6 @@
 - [🧠 AI Self-Learning](#-ai-self-learning-example)
 - [📊 Web Interface Features](#-web-interface-features)
 - [🎛️ API Endpoints](#️-api-endpoints)
-- [🔐 Admin Mode (Single-User)](#-admin-mode-single-user) 
 - [⚠️ Important Risk Warnings](#️-important-risk-warnings)
 - [🛠️ Common Issues](#️-common-issues)
 - [📈 Performance Tips](#-performance-optimization-tips)
@@ -56,15 +53,12 @@
 ### 👥 Core Team
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 ### 💼 Seed Funding Round Open
 
-We are currently raising our **seed round**. 
+We are currently raising our **seed round**.
 
-**For investment inquiries**, please DM **Tinkle** or **Zack** via Twitter.
-
-**For partnerships and collaborations**, please DM our official Twitter [@nofx_ai](https://x.com/nofx_ai).
+**For investment inquiries**, please DM **Tinkle** via Twitter.
 
 ---
 
@@ -242,48 +236,6 @@ NOFX is built with a modern, modular architecture:
 📖 **For detailed architecture documentation, see:**
 - **English:** [Architecture Documentation](docs/architecture/README.md)
 - **中文:** [架构文档](docs/architecture/README.zh-CN.md)
-
----
-
-## 🔐 Admin Mode (Single-User)
-
-For self-hosted or single-tenant setups, NOFX supports a strict admin-only mode that disables public features and requires an admin password for all access.
-
-### How it works
-- All API endpoints require a valid JWT when `admin_mode=true`, except:
-  - `GET /api/health`
-  - `GET /api/config`
-  - `POST /api/admin-login`
-- Logout invalidates the current token via an in-memory blacklist (sufficient for single instance; use Redis for multi-instance – see Notes).
-
-### Quick setup
-1) Set flags in `config.json`:
-```jsonc
-{
-  // ... other config
-  "admin_mode": true,
-  "jwt_secret": "YOUR_JWT_SCR" 
-}
-```
-
-2) Provide required environment variables:
-- `NOFX_ADMIN_PASSWORD` — plaintext admin password (only used at startup to derive a bcrypt hash)
-
-Docker Compose example (already wired):
-```yaml
-services:
-  nofx:
-    environment:
-      - NOFX_ADMIN_PASSWORD=${NOFX_ADMIN_PASSWORD}
-```
-
-1) Login flow (admin mode):
-- Open the web UI → you’ll be redirected to the login page
-- Enter admin password → the server returns a JWT
-- The UI stores the token and authenticates subsequent API calls
-
-### Notes
-- Token lifetime: 24h. On logout, tokens are blacklisted in-memory until expiry. For multi-instance deployments, use a shared store (e.g., Redis) to sync the blacklist.
 
 ---
 

@@ -474,6 +474,7 @@ export const translations = {
     registrationFailed: 'Registration failed. Please try again.',
     verificationFailed:
       'OTP verification failed. Please check the code and try again.',
+    sessionExpired: 'Session expired, please login again',
     invalidCredentials: 'Invalid email or password',
     weak: 'Weak',
     medium: 'Medium',
@@ -496,6 +497,9 @@ export const translations = {
     exitLogin: 'Sign Out',
     signIn: 'Sign In',
     signUp: 'Sign Up',
+    registrationClosed: 'Registration Closed',
+    registrationClosedMessage:
+      'User registration is currently disabled. Please contact the administrator for access.',
 
     // Hero Section
     githubStarsInDays: '2.5K+ GitHub Stars in 3 days',
@@ -1284,6 +1288,7 @@ export const translations = {
     loginFailed: '登录失败，请检查您的邮箱和密码。',
     registrationFailed: '注册失败，请重试。',
     verificationFailed: 'OTP 验证失败，请检查验证码后重试。',
+    sessionExpired: '登录已过期，请重新登录',
     invalidCredentials: '邮箱或密码错误',
     weak: '弱',
     medium: '中',
@@ -1305,6 +1310,8 @@ export const translations = {
     exitLogin: '退出登录',
     signIn: '登录',
     signUp: '注册',
+    registrationClosed: '注册已关闭',
+    registrationClosedMessage: '平台当前不开放新用户注册，如需访问请联系管理员获取账号。',
 
     // Hero Section
     githubStarsInDays: '3 天内 2.5K+ GitHub Stars',

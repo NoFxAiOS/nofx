@@ -8,8 +8,6 @@
 
 **言語:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](README.md)
 
-**公式Twitter:** [@nofx_ai](https://x.com/nofx_ai)
-
 ---
 
 ## 📑 目次
@@ -55,15 +53,12 @@
 ### 👥 コアチーム
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **Tintin** - [@Tintinx2021](https://x.com/Tintinx2021)
 
 ### 💼 シードラウンド募集中
 
 現在、**シードラウンド**の資金調達を行っています。
 
-**投資に関するお問い合わせ**は、TwitterでTinkleまたはTintinにDMをお送りください。
-
-**パートナーシップおよび協業**については、公式Twitter [@nofx_ai](https://x.com/nofx_ai)にDMをお送りください。
+**投資に関するお問い合わせ**は、TwitterでTinkleにDMをお送りください。
 
 ---
 
@@ -350,9 +345,9 @@ docker compose up -d --build
 ```
 
 **📖 詳細なDockerデプロイガイド、トラブルシューティング、高度な設定について：**
-- **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
-- **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
-- **日本語**: [DOCKER_DEPLOY.ja.md](DOCKER_DEPLOY.ja.md)を参照
+- **English**: See [docker-deploy.md](../../getting-started/docker-deploy.en.md)
+- **中文**: 查看 [docker-deploy.zh-CN.md](../../getting-started/docker-deploy.zh-CN.md)
+- **日本語**: [docker-deploy.md](docker-deploy.md)を参照
 
 ---
 

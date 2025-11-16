@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -6,6 +6,7 @@ import { t } from '../i18n/translations'
 import { Eye, EyeOff } from 'lucide-react'
 import { Input } from './ui/input'
 import { toast } from 'sonner'
+import { useSystemConfig } from '../hooks/useSystemConfig'
 
 export function LoginPage() {
   const { language } = useLanguage()
@@ -21,6 +22,20 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
   const adminMode = false
+  const { config: systemConfig } = useSystemConfig()
+  const registrationEnabled = systemConfig?.registration_enabled !== false
+  const [expiredToastId, setExpiredToastId] = useState<string | number | null>(null)
+
+  // Show notification if user was redirected here due to 401
+  useEffect(() => {
+    if (sessionStorage.getItem('from401') === 'true') {
+      const id = toast.warning(t('sessionExpired', language), {
+        duration: Infinity // Keep showing until user dismisses or logs in
+      })
+      setExpiredToastId(id)
+      sessionStorage.removeItem('from401')
+    }
+  }, [language])
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,6 +46,11 @@ export function LoginPage() {
       const msg = result.message || t('loginFailed', language)
       setError(msg)
       toast.error(msg)
+    } else {
+      // Dismiss the "login expired" toast on successful login
+      if (expiredToastId) {
+        toast.dismiss(expiredToastId)
+      }
     }
     setLoading(false)
   }
@@ -46,6 +66,11 @@ export function LoginPage() {
       if (result.requiresOTP && result.userID) {
         setUserID(result.userID)
         setStep('otp')
+      } else {
+        // Dismiss the "login expired" toast on successful login (no OTP required)
+        if (expiredToastId) {
+          toast.dismiss(expiredToastId)
+        }
       }
     } else {
       const msg = result.message || t('loginFailed', language)
@@ -67,6 +92,11 @@ export function LoginPage() {
       const msg = result.message || t('verificationFailed', language)
       setError(msg)
       toast.error(msg)
+    } else {
+      // Dismiss the "login expired" toast on successful OTP verification
+      if (expiredToastId) {
+        toast.dismiss(expiredToastId)
+      }
     }
     // 成功的话AuthContext会自动处理登录状态
 
@@ -313,7 +343,7 @@ export function LoginPage() {
         </div>
 
         {/* Register Link */}
-        {!adminMode && (
+        {!adminMode && registrationEnabled && (
           <div className="text-center mt-6">
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               还没有账户？{' '}

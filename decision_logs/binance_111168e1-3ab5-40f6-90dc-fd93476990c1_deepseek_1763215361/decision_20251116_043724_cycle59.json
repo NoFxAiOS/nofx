@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-11-16T04:37:24.234816662+08:00",
+  "cycle_number": 59,
+  "system_prompt": "",
+  "input_prompt": "",
+  "cot_trace": "基于Al Brooks价格行为交易系统分析：\n\n**宏观趋势判定（1小时）**：\n- BTC：EMA20(96035.97) \u003c EMA50(97079.56)，MACD(-189.04)为负，RSI(42.64) \u003c 50 → BEARISH_MACRO\n- ETH：EMA20(3182.41) \u003c EMA50(3214.60)，MACD(1.02)接近0但RSI(49.94) \u003c 50 → 弱BEARISH_MACRO\n- SOL：EMA20(141.80) \u003c EMA50(143.57)，MACD(-0.20)为负，RSI(45.27) \u003c 50 → BEARISH_MACRO\n- BNB：EMA20(935.11) \u003e EMA50(934.29)，但差值很小，MACD(3.20)为正，RSI(52.86) \u003e 50 → NEUTRAL_MACRO\n- HYPE：EMA20(38.66) \u003e EMA50(38.43)，MACD(0.21)为正，RSI(51.20) \u003e 50 → BULLISH_MACRO\n\n**形态识别与入场信号（15分钟）**：\n\n**BTCUSDT** - 最强做空信号：\n- 15分钟RSI(7)=26.30极度超卖，但仍在下降趋势中\n- MACD从-38.99继续下跌至-62.47，动能强劲向下\n- 价格95623.10 \u003c EMA20(95951.20)，持续承压\n- 形态：连续创新低，符合下降趋势中的二次入场做空逻辑\n- 风险回报：止损=EMA20上方(约96200)，止盈=前期低点(约94000)，风险比约1:2.5\n\n**ETHUSDT** - 观望：\n- RSI(7)=33.27超卖，但MACD(4.07)仍为正，动能不明确\n- 价格3185接近EMA20(3194.54)，无明显突破\n\n**SOLUSDT** - 弱做空信号：\n- RSI(7)=28.66超卖，MACD(-0.04)接近0，动能不足\n- 价格141.00 \u003c EMA20(141.99)，但下跌力度有限\n\n**BNBUSDT** - 观望：\n- 宏观中性，RSI(7)=33.83超卖但MACD(0.85)仍为正\n- 无明显趋势方向\n\n**HYPEUSDT** - 观望：\n- 宏观看涨但15分钟形态不明确，RSI(7)=40.58中性\n\n**风险检查**：\n- 账户净值97.01，单笔风险=97.01×2%=1.94 USDT\n- BTC止损幅度约577点，仓位=1.94/577=0.00336 BTC ≈ 321 USDT\n- 但受限于最小开仓金额12 USDT，实际仓位可设为12 USDT，风险远低于2%",
+  "decision_json": "[\n  {\n    \"symbol\": \"BTCUSDT\",\n    \"action\": \"open_short\",\n    \"leverage\": 5,\n    \"position_size_usd\": 12,\n    \"stop_loss\": 96200,\n    \"take_profit\": 94000,\n    \"confidence\": 78,\n    \"risk_usd\": 1.94,\n    \"reasoning\": \"BEARISH_MACRO趋势+RSI超卖反弹失败+MACD持续下行+二次入场形态\"\n  },\n  {\n    \"symbol\": \"ETHUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"宏观弱看跌但15分钟动能不明确,等待更清晰信号\"\n  },\n  {\n    \"symbol\": \"SOLUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"超卖但MACD接近0,下跌动能不足,风险比不理想\"\n  },\n  {\n    \"symbol\": \"BNBUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"宏观中性,无明显趋势方向\"\n  },\n  {\n    \"symbol\": \"HYPEUSDT\",\n    \"action\": \"wait\",\n    \"reasoning\": \"宏观看涨但15分钟形态不明确,方向冲突\"\n  }\n]",
+  "account_state": {
+    "total_balance": 97.00901744,
+    "available_balance": 97.00901744,
+    "total_unrealized_profit": -2.990982560000006,
+    "position_count": 0,
+    "margin_used_pct": 0
+  },
+  "positions": null,
+  "candidate_coins": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "HYPEUSDT"
+  ],
+  "decisions": null,
+  "execution_log": [],
+  "success": false,
+  "error_message": "获取AI决策失败: 解析AI响应失败: 决策验证失败: 决策 #1 验证失败: BTCUSDT 开仓金额过小(12.00 USDT)，必须≥60.00 USDT（因价格高且精度限制，避免数量四舍五入为0）"
+}

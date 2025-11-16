@@ -14,6 +14,7 @@ import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { t } from '../i18n/translations'
+import { formatTimestamp } from '../lib/formatTimestamp'
 import {
   AlertTriangle,
   BarChart3,
@@ -136,11 +137,17 @@ export function EquityChart({ traderId }: EquityChartProps) {
       raw_equity: point.total_equity,
       raw_pnl: pnl,
       raw_pnl_pct: parseFloat(pnlPct),
+      timestamp: point.timestamp,
     }
   })
 
   const currentValue = chartData[chartData.length - 1]
   const isProfit = currentValue.raw_pnl >= 0
+
+  // Get the latest timestamp for display
+  const latestTimestamp = validHistory.length > 0
+    ? validHistory[validHistory.length - 1].timestamp
+    : null
 
   // 计算Y轴范围
   const calculateYDomain = () => {
@@ -175,6 +182,11 @@ export function EquityChart({ traderId }: EquityChartProps) {
           <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
             Cycle #{data.cycle}
           </div>
+          {data.timestamp && (
+            <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
+              {formatTimestamp(data.timestamp, language)}
+            </div>
+          )}
           <div className="font-bold mono" style={{ color: '#EAECEF' }}>
             {data.raw_equity.toFixed(2)} USDT
           </div>
@@ -414,6 +426,14 @@ export function EquityChart({ traderId }: EquityChartProps) {
           >
             {currentValue.raw_equity.toFixed(2)} USDT
           </div>
+          {latestTimestamp && (
+            <div
+              className="text-xs mt-1"
+              style={{ color: '#848E9C' }}
+            >
+              {formatTimestamp(latestTimestamp, language)}
+            </div>
+          )}
         </div>
         <div
           className="p-2 rounded transition-all hover:bg-opacity-50"

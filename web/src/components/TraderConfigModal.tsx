@@ -249,11 +249,9 @@ export function TraderConfigModal({
         saveData.initial_balance = formData.initial_balance
       }
 
-      await toast.promise(onSave(saveData), {
-        loading: '正在保存…',
-        success: '保存成功',
-        error: '保存失败',
-      })
+      // 直接调用 onSave，让父组件处理 toast 通知
+      // 避免重复弹窗（父组件 AITradersPage 已有 toast.promise）
+      await onSave(saveData)
       onClose()
     } catch (error) {
       console.error('保存失败:', error)

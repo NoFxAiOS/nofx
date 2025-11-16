@@ -359,7 +359,10 @@ export default function TraderDashboard() {
           </span>
           <span>•</span>
           <span>
-            Prompt: <span className="font-semibold" style={{ color: highlightColor }}>{selectedTrader.system_prompt_template || '-'}</span>
+            Prompt:{' '}
+            <span className="font-semibold" style={{ color: highlightColor }}>
+              {selectedTrader.system_prompt_template || '-'}
+            </span>
           </span>
           {status && (
             <>
@@ -597,7 +600,8 @@ export default function TraderDashboard() {
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center"
                 style={{
-                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                  background:
+                    'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
                   boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
                 }}
               >
@@ -622,7 +626,9 @@ export default function TraderDashboard() {
               </span>
               <select
                 value={decisionLimit}
-                onChange={(e) => handleLimitChange(parseInt(e.target.value, 10))}
+                onChange={(e) =>
+                  handleLimitChange(parseInt(e.target.value, 10))
+                }
                 className="rounded px-2 py-1 text-xs font-medium cursor-pointer transition-colors"
                 style={{
                   background: '#1E2329',

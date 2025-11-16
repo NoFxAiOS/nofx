@@ -23,19 +23,20 @@ import (
 // ConfigFile 配置文件结构，只包含需要同步到数据库的字段
 // TODO 现在与config.Config相同，未来会被替换， 现在为了兼容性不得不保留当前文件
 type ConfigFile struct {
-	BetaMode           bool                  `json:"beta_mode"`
-	APIServerPort      int                   `json:"api_server_port"`
-	UseDefaultCoins    bool                  `json:"use_default_coins"`
-	DefaultCoins       []string              `json:"default_coins"`
-	CoinPoolAPIURL     string                `json:"coin_pool_api_url"`
-	OITopAPIURL        string                `json:"oi_top_api_url"`
-	MaxDailyLoss       float64               `json:"max_daily_loss"`
-	MaxDrawdown        float64               `json:"max_drawdown"`
-	StopTradingMinutes int                   `json:"stop_trading_minutes"`
-	Leverage           config.LeverageConfig `json:"leverage"`
-	JWTSecret          string                `json:"jwt_secret"`
-	DataKLineTime      string                `json:"data_k_line_time"`
-	Log                *config.LogConfig     `json:"log"` // 日志配置
+	BetaMode               bool                  `json:"beta_mode"`
+	APIServerPort          int                   `json:"api_server_port"`
+	UseDefaultCoins        bool                  `json:"use_default_coins"`
+	DefaultCoins           []string              `json:"default_coins"`
+	CoinPoolAPIURL         string                `json:"coin_pool_api_url"`
+	OITopAPIURL            string                `json:"oi_top_api_url"`
+	MaxDailyLoss           float64               `json:"max_daily_loss"`
+	MaxDrawdown            float64               `json:"max_drawdown"`
+	StopTradingMinutes     int                   `json:"stop_trading_minutes"`
+	Leverage               config.LeverageConfig `json:"leverage"`
+	JWTSecret              string                `json:"jwt_secret"`
+	DataKLineTime          string                `json:"data_k_line_time"`
+	Log                    *config.LogConfig     `json:"log"`                      // 日志配置
+	TokenExpirationMinutes int                   `json:"token_expiration_minutes"` // Token 过期时间，单位分钟
 }
 
 // loadConfigFile 读取并解析config.json文件
@@ -71,14 +72,15 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 
 	// 同步各配置项到数据库
 	configs := map[string]string{
-		"beta_mode":            fmt.Sprintf("%t", configFile.BetaMode),
-		"api_server_port":      strconv.Itoa(configFile.APIServerPort),
-		"use_default_coins":    fmt.Sprintf("%t", configFile.UseDefaultCoins),
-		"coin_pool_api_url":    configFile.CoinPoolAPIURL,
-		"oi_top_api_url":       configFile.OITopAPIURL,
-		"max_daily_loss":       fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
-		"max_drawdown":         fmt.Sprintf("%.1f", configFile.MaxDrawdown),
-		"stop_trading_minutes": strconv.Itoa(configFile.StopTradingMinutes),
+		"beta_mode":                fmt.Sprintf("%t", configFile.BetaMode),
+		"api_server_port":          strconv.Itoa(configFile.APIServerPort),
+		"token_expiration_minutes": strconv.Itoa(configFile.TokenExpirationMinutes),
+		"use_default_coins":        fmt.Sprintf("%t", configFile.UseDefaultCoins),
+		"coin_pool_api_url":        configFile.CoinPoolAPIURL,
+		"oi_top_api_url":           configFile.OITopAPIURL,
+		"max_daily_loss":           fmt.Sprintf("%.1f", configFile.MaxDailyLoss),
+		"max_drawdown":             fmt.Sprintf("%.1f", configFile.MaxDrawdown),
+		"stop_trading_minutes":     strconv.Itoa(configFile.StopTradingMinutes),
 	}
 
 	// 同步default_coins（转换为JSON字符串存储）
@@ -202,6 +204,17 @@ func main() {
 	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
+
+	// 设置 token 过期时间
+	tokenExpirationStr, _ := database.GetSystemConfig("token_expiration_minutes")
+	tokenExpire := 1440
+	if tokenExpirationStr != "" {
+		if v, err := strconv.Atoi(tokenExpirationStr); err == nil && v > 0 {
+			tokenExpire = v
+		}
+	}
+	auth.SetTokenExpireMinutes(tokenExpire)
+	log.Printf("✓ token 过期时间已设置为 %d 分钟", tokenExpire)
 
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))

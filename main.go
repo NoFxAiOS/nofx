@@ -35,7 +35,8 @@ type ConfigFile struct {
 	Leverage           config.LeverageConfig `json:"leverage"`
 	JWTSecret          string                `json:"jwt_secret"`
 	DataKLineTime      string                `json:"data_k_line_time"`
-	Log                *config.LogConfig     `json:"log"` // 日志配置
+	KLineBarsCount     int                   `json:"k_line_bars_count"` // 发送给AI的K线数量（默认72）
+	Log                *config.LogConfig     `json:"log"`               // 日志配置
 }
 
 // loadConfigFile 读取并解析config.json文件
@@ -193,6 +194,14 @@ func main() {
 		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
 	}
 
+	// 初始化市场数据配置
+	if configFile.KLineBarsCount > 0 {
+		market.SetKLineBarsCount(configFile.KLineBarsCount)
+		log.Printf("📊 K线数量配置: %d 根", configFile.KLineBarsCount)
+	} else {
+		log.Printf("📊 K线数量配置: 使用默认值 72 根")
+	}
+
 	// 加载内测码到数据库
 	if err := loadBetaCodesToDatabase(database); err != nil {
 		log.Printf("⚠️  加载内测码到数据库失败: %v", err)
@@ -202,7 +211,6 @@ func main() {
 	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
 	apiPortStr, _ := database.GetSystemConfig("api_server_port")
-
 
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))

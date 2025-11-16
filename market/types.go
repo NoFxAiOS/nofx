@@ -23,17 +23,25 @@ type OIData struct {
 	Average float64
 }
 
-// IntradayData 日内数据(3分钟间隔)
+// IntradayData 日内数据(15分钟间隔)
 type IntradayData struct {
-	MidPrices   []float64
+	OpenPrices  []float64 // 开盘价序列
+	HighPrices  []float64 // 最高价序列
+	LowPrices   []float64 // 最低价序列
+	ClosePrices []float64 // 收盘价序列
+	MidPrices   []float64 // 中点价格序列（保留兼容性）
 	EMA20Values []float64
 	MACDValues  []float64
 	RSI7Values  []float64
 	RSI14Values []float64
 }
 
-// LongerTermData 长期数据(4小时时间框架)
+// LongerTermData 长期数据(1小时时间框架)
 type LongerTermData struct {
+	OpenPrices    []float64 // 开盘价序列
+	HighPrices    []float64 // 最高价序列
+	LowPrices     []float64 // 最低价序列
+	ClosePrices   []float64 // 收盘价序列
 	EMA20         float64
 	EMA50         float64
 	ATR3          float64

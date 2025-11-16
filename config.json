@@ -22,5 +22,6 @@
   "jwt_secret": "zJy21Z2OXNSOVt3lai5WmxuPb/AIYmUbS0Ygj8IEwwuombnBBPTvOmJ1LpJtFnVmU4RtkI/MHNz60D9uTOenCw==",
   "log": {
     "level": "info"
-  }
+  },
+  "k_line_bars_count": 72
 }

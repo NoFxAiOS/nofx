@@ -41,7 +41,8 @@ type Config struct {
 	Leverage           LeverageConfig `json:"leverage"`
 	JWTSecret          string         `json:"jwt_secret"`
 	DataKLineTime      string         `json:"data_k_line_time"`
-	Log                *LogConfig     `json:"log"` // 日志配置
+	KLineBarsCount     int            `json:"k_line_bars_count"` // 发送给AI的K线数量（默认72）
+	Log                *LogConfig     `json:"log"`               // 日志配置
 }
 
 // LoadConfig 从文件加载配置

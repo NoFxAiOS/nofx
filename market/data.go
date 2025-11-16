@@ -10,6 +10,21 @@ import (
 	"strings"
 )
 
+// kLineBarsCount 发送给AI的K线数量（从配置文件读取，默认72）
+var kLineBarsCount = 72
+
+// SetKLineBarsCount 设置K线数量（从配置文件调用）
+func SetKLineBarsCount(count int) {
+	if count > 0 {
+		kLineBarsCount = count
+	}
+}
+
+// GetKLineBarsCount 获取K线数量
+func GetKLineBarsCount() int {
+	return kLineBarsCount
+}
+
 // Get 获取指定代币的市场数据
 func Get(symbol string) (*Data, error) {
 	var klines15m, klines1h []Kline
@@ -200,22 +215,33 @@ func calculateATR(klines []Kline, period int) float64 {
 
 // calculateIntradaySeries 计算日内系列数据
 func calculateIntradaySeries(klines []Kline) *IntradayData {
+	count := kLineBarsCount
 	data := &IntradayData{
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		OpenPrices:  make([]float64, 0, count),
+		HighPrices:  make([]float64, 0, count),
+		LowPrices:   make([]float64, 0, count),
+		ClosePrices: make([]float64, 0, count),
+		MidPrices:   make([]float64, 0, count),
+		EMA20Values: make([]float64, 0, count),
+		MACDValues:  make([]float64, 0, count),
+		RSI7Values:  make([]float64, 0, count),
+		RSI14Values: make([]float64, 0, count),
 	}
 
-	// 获取最近10个数据点
-	start := len(klines) - 10
+	// 获取最近N个数据点（N根15分钟K线）
+	start := len(klines) - count
 	if start < 0 {
 		start = 0
 	}
 
 	for i := start; i < len(klines); i++ {
-		data.MidPrices = append(data.MidPrices, klines[i].Close)
+		// 存储完整的OHLC数据
+		data.OpenPrices = append(data.OpenPrices, klines[i].Open)
+		data.HighPrices = append(data.HighPrices, klines[i].High)
+		data.LowPrices = append(data.LowPrices, klines[i].Low)
+		data.ClosePrices = append(data.ClosePrices, klines[i].Close)
+		// 中点价格（保留兼容性）
+		data.MidPrices = append(data.MidPrices, (klines[i].High+klines[i].Low)/2)
 
 		// 计算每个点的EMA20
 		if i >= 19 {
@@ -245,9 +271,10 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 
 // calculateLongerTermData 计算长期数据
 func calculateLongerTermData(klines []Kline) *LongerTermData {
+	count := kLineBarsCount
 	data := &LongerTermData{
-		MACDValues:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
+		MACDValues:  make([]float64, 0, count),
+		RSI14Values: make([]float64, 0, count),
 	}
 
 	// 计算EMA
@@ -269,13 +296,25 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 		data.AverageVolume = sum / float64(len(klines))
 	}
 
-	// 计算MACD和RSI序列
-	start := len(klines) - 10
+	// 存储完整的OHLC数据（获取最近N个数据点，N根1小时K线）
+	data.OpenPrices = make([]float64, 0, count)
+	data.HighPrices = make([]float64, 0, count)
+	data.LowPrices = make([]float64, 0, count)
+	data.ClosePrices = make([]float64, 0, count)
+
+	start := len(klines) - count
 	if start < 0 {
 		start = 0
 	}
 
 	for i := start; i < len(klines); i++ {
+		// 存储完整的OHLC数据
+		data.OpenPrices = append(data.OpenPrices, klines[i].Open)
+		data.HighPrices = append(data.HighPrices, klines[i].High)
+		data.LowPrices = append(data.LowPrices, klines[i].Low)
+		data.ClosePrices = append(data.ClosePrices, klines[i].Close)
+
+		// 计算MACD和RSI序列
 		if i >= 25 {
 			macd := calculateMACD(klines[:i+1])
 			data.MACDValues = append(data.MACDValues, macd)
@@ -378,10 +417,20 @@ func Format(data *Data) string {
 	sb.WriteString(fmt.Sprintf("Funding Rate: %.2e\n\n", data.FundingRate))
 
 	if data.IntradaySeries != nil {
-		sb.WriteString("Intraday series (15‑minute intervals, oldest → latest):\n\n")
+		sb.WriteString(fmt.Sprintf("Intraday series (15‑minute intervals, oldest → latest, %d bars):\n\n", kLineBarsCount))
 
-		if len(data.IntradaySeries.MidPrices) > 0 {
-			sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.IntradaySeries.MidPrices)))
+		// 输出完整的OHLC数据
+		if len(data.IntradaySeries.OpenPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Open prices: %s\n\n", formatFloatSlice(data.IntradaySeries.OpenPrices)))
+		}
+		if len(data.IntradaySeries.HighPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("High prices: %s\n\n", formatFloatSlice(data.IntradaySeries.HighPrices)))
+		}
+		if len(data.IntradaySeries.LowPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Low prices: %s\n\n", formatFloatSlice(data.IntradaySeries.LowPrices)))
+		}
+		if len(data.IntradaySeries.ClosePrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Close prices: %s\n\n", formatFloatSlice(data.IntradaySeries.ClosePrices)))
 		}
 
 		if len(data.IntradaySeries.EMA20Values) > 0 {
@@ -402,7 +451,21 @@ func Format(data *Data) string {
 	}
 
 	if data.LongerTermContext != nil {
-		sb.WriteString("Longer‑term context (1‑hour timeframe):\n\n")
+		sb.WriteString(fmt.Sprintf("Longer‑term context (1‑hour timeframe, %d bars):\n\n", kLineBarsCount))
+
+		// 输出完整的OHLC数据
+		if len(data.LongerTermContext.OpenPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Open prices: %s\n\n", formatFloatSlice(data.LongerTermContext.OpenPrices)))
+		}
+		if len(data.LongerTermContext.HighPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("High prices: %s\n\n", formatFloatSlice(data.LongerTermContext.HighPrices)))
+		}
+		if len(data.LongerTermContext.LowPrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Low prices: %s\n\n", formatFloatSlice(data.LongerTermContext.LowPrices)))
+		}
+		if len(data.LongerTermContext.ClosePrices) > 0 {
+			sb.WriteString(fmt.Sprintf("Close prices: %s\n\n", formatFloatSlice(data.LongerTermContext.ClosePrices)))
+		}
 
 		sb.WriteString(fmt.Sprintf("20‑Period EMA: %.3f vs. 50‑Period EMA: %.3f\n\n",
 			data.LongerTermContext.EMA20, data.LongerTermContext.EMA50))

@@ -245,7 +245,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         error: '创建失败',
       })
       setShowCreateModal(false)
-      mutateTraders()
+      // Immediately refresh traders list for better UX
+      await mutateTraders()
     } catch (error) {
       console.error('Failed to create trader:', error)
       toast.error(t('createTraderFailed', language))
@@ -304,7 +305,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       })
       setShowEditModal(false)
       setEditingTrader(null)
-      mutateTraders()
+      // Immediately refresh traders list for better UX
+      await mutateTraders()
     } catch (error) {
       console.error('Failed to update trader:', error)
       toast.error(t('updateTraderFailed', language))
@@ -323,7 +325,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         success: '删除成功',
         error: '删除失败',
       })
-      mutateTraders()
+
+      // Immediately refresh traders list for better UX
+      await mutateTraders()
     } catch (error) {
       console.error('Failed to delete trader:', error)
       toast.error(t('deleteTraderFailed', language))
@@ -345,7 +349,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           error: '启动失败',
         })
       }
-      mutateTraders()
+
+      // Immediately refresh traders list to update running status
+      await mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
       toast.error(t('operationFailed', language))

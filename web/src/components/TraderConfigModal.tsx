@@ -4,6 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { toast } from 'sonner'
 import { Pencil, Plus, X as IconX } from 'lucide-react'
+import { httpClient } from '../lib/httpClient'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -114,7 +115,7 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch('/api/config')
+        const response = await httpClient.get('/api/config')
         const config = await response.json()
         if (config.default_coins) {
           setAvailableCoins(config.default_coins)
@@ -140,7 +141,7 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchPromptTemplates = async () => {
       try {
-        const response = await fetch('/api/prompt-templates')
+        const response = await httpClient.get('/api/prompt-templates')
         const data = await response.json()
         if (data.templates) {
           setPromptTemplates(data.templates)
@@ -198,18 +199,12 @@ export function TraderConfigModal({
         throw new Error('未登录，请先登录')
       }
 
-      const response = await fetch(
+      const response = await httpClient.get(
         `/api/account?trader_id=${traderData.trader_id}`,
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          Authorization: `Bearer ${token}`,
         }
       )
-
-      if (!response.ok) {
-        throw new Error('获取账户余额失败')
-      }
 
       const data = await response.json()
 

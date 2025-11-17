@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getSystemConfig } from '../lib/config'
-import { reset401Flag } from '../lib/httpClient'
+import { reset401Flag, httpClient } from '../lib/httpClient'
 
 interface User {
   id: string
@@ -183,39 +183,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     betaCode?: string
   ) => {
-    try {
-      const requestBody: {
-        email: string
-        password: string
-        beta_code?: string
-      } = { email, password }
-      if (betaCode) {
-        requestBody.beta_code = betaCode
+    const requestBody: {
+      email: string
+      password: string
+      beta_code?: string
+    } = { email, password }
+    if (betaCode) {
+      requestBody.beta_code = betaCode
+    }
+
+    const result = await httpClient.post<{
+      user_id: string
+      otp_secret: string
+      qr_code_url: string
+      message: string
+    }>('/api/register', requestBody)
+
+    if (result.success && result.data) {
+      return {
+        success: true,
+        userID: result.data.user_id,
+        otpSecret: result.data.otp_secret,
+        qrCodeURL: result.data.qr_code_url,
+        message: result.message || result.data.message,
       }
+    }
 
-      const response = await fetch('/api/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        return {
-          success: true,
-          userID: data.user_id,
-          otpSecret: data.otp_secret,
-          qrCodeURL: data.qr_code_url,
-          message: data.message,
-        }
-      } else {
-        return { success: false, message: data.error }
-      }
-    } catch (error) {
-      return { success: false, message: '注册失败，请重试' }
+    // Only business errors reach here (system/network errors were intercepted)
+    return {
+      success: false,
+      message: result.message || 'Registration failed',
     }
   }
 

@@ -118,6 +118,8 @@ export interface Exchange {
   asterUser?: string;
   asterSigner?: string;
   asterPrivateKey?: string;
+  // OKX 特定字段
+  okxPassphrase?: string;
 }
 
 export interface CreateTraderRequest {
@@ -161,6 +163,8 @@ export interface UpdateExchangeConfigRequest {
       aster_user?: string;
       aster_signer?: string;
       aster_private_key?: string;
+      // OKX 特定字段
+      okx_passphrase?: string;
     };
   };
 }

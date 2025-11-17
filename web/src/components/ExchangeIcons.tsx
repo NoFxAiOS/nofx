@@ -41,11 +41,11 @@ const HyperliquidIcon: React.FC<IconProps> = ({ width = 24, height = 24, classNa
 
 // Aster SVG 图标组件
 const AsterIcon: React.FC<IconProps> = ({ width = 24, height = 24, className }) => (
-  <svg 
-    width={width} 
-    height={height} 
-    viewBox="0 0 32 32" 
-    fill="none" 
+  <svg
+    width={width}
+    height={height}
+    viewBox="0 0 32 32"
+    fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
   >
@@ -73,12 +73,50 @@ const AsterIcon: React.FC<IconProps> = ({ width = 24, height = 24, className }) 
   </svg>
 );
 
+// OKX SVG 图标组件
+const OKXIcon: React.FC<IconProps> = ({ width = 24, height = 24, className }) => (
+  <svg
+    width={width}
+    height={height}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path
+      d="M12 2L2 7.5V16.5L12 22L22 16.5V7.5L12 2Z"
+      fill="url(#okx_gradient)"
+      stroke="#00C2FF"
+      strokeWidth="0.5"
+    />
+    <defs>
+      <linearGradient id="okx_gradient" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#00D4FF" stopOpacity="0.8"/>
+        <stop offset="0.5" stopColor="#0066FF" stopOpacity="0.9"/>
+        <stop offset="1" stopColor="#0000FF" stopOpacity="1"/>
+      </linearGradient>
+    </defs>
+    <text
+      x="12"
+      y="16"
+      textAnchor="middle"
+      fontSize="10"
+      fontWeight="bold"
+      fill="white"
+      fontFamily="Arial, sans-serif"
+    >
+      OKX
+    </text>
+  </svg>
+);
+
 // 获取交易所图标的函数
 export const getExchangeIcon = (exchangeType: string, props: IconProps = {}) => {
   // 支持完整ID或类型名
   const type = exchangeType.toLowerCase().includes('binance') ? 'binance' :
                exchangeType.toLowerCase().includes('hyperliquid') ? 'hyperliquid' :
-               exchangeType.toLowerCase().includes('aster') ? 'aster' : 
+               exchangeType.toLowerCase().includes('aster') ? 'aster' :
+               exchangeType.toLowerCase().includes('okx') ? 'okx' :
                exchangeType.toLowerCase();
   
   const iconProps = {
@@ -96,6 +134,8 @@ export const getExchangeIcon = (exchangeType: string, props: IconProps = {}) => 
       return <HyperliquidIcon {...iconProps} />;
     case 'aster':
       return <AsterIcon {...iconProps} />;
+    case 'okx':
+      return <OKXIcon {...iconProps} />;
     default:
       return (
         <div 

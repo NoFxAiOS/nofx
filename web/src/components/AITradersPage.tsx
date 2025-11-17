@@ -377,7 +377,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
   };
 
-  const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string) => {
+  const handleSaveExchangeConfig = async (exchangeId: string, apiKey: string, secretKey?: string, testnet?: boolean, hyperliquidWalletAddr?: string, asterUser?: string, asterSigner?: string, asterPrivateKey?: string, okxPassphrase?: string) => {
     try {
       // 找到要配置的交易所（从supportedExchanges中）
       const exchangeToUpdate = supportedExchanges?.find(e => e.id === exchangeId);
@@ -392,31 +392,33 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       
       if (existingExchange) {
         // 更新现有配置
-        updatedExchanges = allExchanges?.map(e => 
-          e.id === exchangeId ? { 
-            ...e, 
-            apiKey, 
-            secretKey, 
-            testnet, 
-            hyperliquidWalletAddr, 
-            asterUser, 
-            asterSigner, 
-            asterPrivateKey, 
-            enabled: true 
+        updatedExchanges = allExchanges?.map(e =>
+          e.id === exchangeId ? {
+            ...e,
+            apiKey,
+            secretKey,
+            testnet,
+            hyperliquidWalletAddr,
+            asterUser,
+            asterSigner,
+            asterPrivateKey,
+            okxPassphrase,
+            enabled: true
           } : e
         ) || [];
       } else {
         // 添加新配置
-        const newExchange = { 
-          ...exchangeToUpdate, 
-          apiKey, 
-          secretKey, 
-          testnet, 
-          hyperliquidWalletAddr, 
-          asterUser, 
-          asterSigner, 
-          asterPrivateKey, 
-          enabled: true 
+        const newExchange = {
+          ...exchangeToUpdate,
+          apiKey,
+          secretKey,
+          testnet,
+          hyperliquidWalletAddr,
+          asterUser,
+          asterSigner,
+          asterPrivateKey,
+          okxPassphrase,
+          enabled: true
         };
         updatedExchanges = [...(allExchanges || []), newExchange];
       }
@@ -433,7 +435,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
               hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
               aster_user: exchange.asterUser || '',
               aster_signer: exchange.asterSigner || '',
-              aster_private_key: exchange.asterPrivateKey || ''
+              aster_private_key: exchange.asterPrivateKey || '',
+              okx_passphrase: exchange.okxPassphrase || ''
             }
           ])
         )

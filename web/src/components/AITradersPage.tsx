@@ -1953,6 +1953,55 @@ function ExchangeConfigModal({
                 selectedExchange.id !== 'hyperliquid' &&
                 selectedExchange.id !== 'aster' && (
                   <>
+                    {/* Paper Trading 配置提示 */}
+                    {selectedExchange.id === 'paper_trading' && (
+                      <div
+                        className="mb-4 p-3 rounded"
+                        style={{
+                          background: '#1a4d2e',
+                          border: '1px solid #27ae60',
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span style={{ color: '#27ae60' }}>📝</span>
+                          <span
+                            className="text-sm font-bold"
+                            style={{ color: '#EAECEF' }}
+                          >
+                            Paper Trading 使用 Binance Testnet API
+                          </span>
+                        </div>
+                        <div
+                          className="text-sm space-y-2"
+                          style={{ color: '#c9d1d9' }}
+                        >
+                          <p>
+                            <strong>1. 访问测试网：</strong>
+                            <a
+                              href="https://testnet.binancefuture.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-2 underline"
+                              style={{ color: '#58a6ff' }}
+                            >
+                              https://testnet.binancefuture.com
+                            </a>
+                          </p>
+                          <p>
+                            <strong>2. 登录后创建 API Key：</strong>
+                            右上角头像 → API Management → Create API
+                          </p>
+                          <p>
+                            <strong>3. 系统赠送 10,000 USDT 测试金：</strong>
+                            可用于模拟交易，无需真实资金
+                          </p>
+                          <p style={{ color: '#f85149' }}>
+                            ⚠️ 注意：Testnet API 与正式网 API 不同，不能混用！
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 币安用户配置提示 (D1 方案) */}
                     {selectedExchange.id === 'binance' && (
                       <div

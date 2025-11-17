@@ -507,7 +507,6 @@ type UserSignalSource struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-
 // CreateUser 创建用户
 func (d *Database) CreateUser(user *User) error {
 	_, err := d.db.Exec(`
@@ -1103,11 +1102,11 @@ func (d *Database) GetCustomCoins() []string {
 		SELECT GROUP_CONCAT(custom_coins , ',') as symbol
 		FROM main.traders where custom_coins != ''
 	`).Scan(&symbol)
-	
+
 	if err != nil {
 		log.Printf("⚠️  查询交易员自定义币种失败: %v", err)
 	}
-	
+
 	// 检测用户是否未配置币种 - 兼容性
 	if symbol == "" {
 		log.Printf("📋 交易员未配置自定义币种,尝试从系统配置读取default_coins")
@@ -1127,7 +1126,7 @@ func (d *Database) GetCustomCoins() []string {
 	} else {
 		log.Printf("✅ 从交易员配置读取到自定义币种: %s", symbol)
 	}
-	
+
 	// filter Symbol
 	for _, s := range strings.Split(symbol, ",") {
 		if s == "" {
@@ -1138,7 +1137,7 @@ func (d *Database) GetCustomCoins() []string {
 			symbols = append(symbols, coin)
 		}
 	}
-	
+
 	log.Printf("📋 GetCustomCoins最终返回: %d 个币种 %v", len(symbols), symbols)
 	return symbols
 }

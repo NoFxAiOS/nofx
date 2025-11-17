@@ -13,6 +13,7 @@ This directory contains documentation for NOFX project maintainers and contribut
 | [PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md) | Guide for reviewing pull requests |
 | [PROJECT_MANAGEMENT.md](PROJECT_MANAGEMENT.md) | Project management workflow and processes |
 | [SETUP_GUIDE.md](SETUP_GUIDE.md) | Setup guide for the PR management system |
+| [FORK_SYNC.md](FORK_SYNC.md) | How to work with upstream + fork + feature branches |
 
 **Available in:** 🇬🇧 English | 🇨🇳 中文
 

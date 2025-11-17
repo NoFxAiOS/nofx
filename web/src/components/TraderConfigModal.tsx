@@ -115,10 +115,22 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await httpClient.get('/api/config')
-        const config = await response.json()
-        if (config.default_coins) {
-          setAvailableCoins(config.default_coins)
+        const result = await httpClient.get<{ default_coins?: string[] }>(
+          '/api/config'
+        )
+        if (result.success && result.data?.default_coins) {
+          setAvailableCoins(result.data.default_coins)
+        } else {
+          // 使用默认币种列表
+          setAvailableCoins([
+            'BTCUSDT',
+            'ETHUSDT',
+            'SOLUSDT',
+            'BNBUSDT',
+            'XRPUSDT',
+            'DOGEUSDT',
+            'ADAUSDT',
+          ])
         }
       } catch (error) {
         console.error('Failed to fetch config:', error)
@@ -141,10 +153,14 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchPromptTemplates = async () => {
       try {
-        const response = await httpClient.get('/api/prompt-templates')
-        const data = await response.json()
-        if (data.templates) {
-          setPromptTemplates(data.templates)
+        const result = await httpClient.get<{ templates?: { name: string }[] }>(
+          '/api/prompt-templates'
+        )
+        if (result.success && result.data?.templates) {
+          setPromptTemplates(result.data.templates)
+        } else {
+          // 使用默认模板列表
+          setPromptTemplates([{ name: 'default' }, { name: 'aggressive' }])
         }
       } catch (error) {
         console.error('Failed to fetch prompt templates:', error)
@@ -194,30 +210,26 @@ export function TraderConfigModal({
     setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        throw new Error('未登录，请先登录')
+      const result = await httpClient.get<{
+        total_equity?: number
+        balance?: number
+      }>(`/api/account?trader_id=${traderData.trader_id}`)
+
+      if (result.success && result.data) {
+        // total_equity = 当前账户净值（包含未实现盈亏）
+        // 这应该作为新的初始余额
+        const currentBalance =
+          result.data.total_equity || result.data.balance || 0
+
+        setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
+        toast.success('已获取当前余额')
+      } else {
+        throw new Error(result.message || '获取余额失败')
       }
-
-      const response = await httpClient.get(
-        `/api/account?trader_id=${traderData.trader_id}`,
-        {
-          Authorization: `Bearer ${token}`,
-        }
-      )
-
-      const data = await response.json()
-
-      // total_equity = 当前账户净值（包含未实现盈亏）
-      // 这应该作为新的初始余额
-      const currentBalance = data.total_equity || data.balance || 0
-
-      setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-      toast.success('已获取当前余额')
     } catch (error) {
       console.error('获取余额失败:', error)
       setBalanceFetchError('获取余额失败，请检查网络连接')
-      toast.error('获取余额失败，请检查网络连接')
+      // Note: Network/system errors already shown via toast by httpClient
     } finally {
       setIsFetchingBalance(false)
     }

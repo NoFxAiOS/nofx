@@ -76,9 +76,9 @@ export function RegisterPage() {
       setQrCodeURL(result.qrCodeURL || '')
       setStep('setup-otp')
     } else {
+      // Only business errors reach here (system/network errors shown via toast)
       const msg = result.message || t('registrationFailed', language)
       setError(msg)
-      toast.error(msg)
     }
 
     setLoading(false)

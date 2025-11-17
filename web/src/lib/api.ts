@@ -318,7 +318,9 @@ export const api = {
 
   // 获取公开交易员配置（无需认证）
   async getPublicTraderConfig(traderId: string): Promise<any> {
-    const res = await httpClient.get(`${API_BASE}/trader/${traderId}/config`)
+    const res = await httpClient.get(
+      `${API_BASE}/traders/${traderId}/public-config`
+    )
     if (!res.ok) throw new Error('获取公开交易员配置失败')
     return res.json()
   },

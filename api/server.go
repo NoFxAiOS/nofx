@@ -120,6 +120,8 @@ func (s *Server) setupRoutes() {
 		// 认证相关路由（无需认证）
 		api.POST("/register", s.handleRegister)
 		api.POST("/login", s.handleLogin)
+		api.POST("/verify-otp", s.handleVerifyOTP)
+		api.POST("/complete-registration", s.handleCompleteRegistration)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -1935,46 +1937,23 @@ func (s *Server) handleLogin(c *gin.Context) {
 		return
 	}
 
-	// 在开发模式下，如果OTP被禁用，则直接登录成功
-	if s.disableOTP {
-		// 生成JWT token
-		token, err := auth.GenerateJWT(user.ID, user.Email)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"token":   token,
-			"user_id": user.ID,
-			"email":   user.Email,
-			"message": "登录成功（开发模式）",
-		})
-		return
-	}
-
-	// 检查用户是否已验证OTP
+	// 检查OTP是否已验证
 	if !user.OTPVerified {
 		c.JSON(http.StatusOK, gin.H{
-			"user_id":      user.ID,
-			"message":      "请输入Google Authenticator验证码",
-			"requires_otp": true,
+			"error":              "账户未完成OTP设置",
+			"user_id":            user.ID,
+			"requires_otp":       true,
+			"requires_otp_setup": true,
 		})
 		return
 	}
 
-	// 生成JWT token
-	token, err := auth.GenerateJWT(user.ID, user.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成token失败"})
-		return
-	}
-
+	// 返回需要OTP验证的状态
 	c.JSON(http.StatusOK, gin.H{
-		"token":   token,
-		"user_id": user.ID,
-		"email":   user.Email,
-		"message": "登录成功",
+		"user_id":      user.ID,
+		"email":        user.Email,
+		"message":      "请输入Google Authenticator验证码",
+		"requires_otp": true,
 	})
 }
 

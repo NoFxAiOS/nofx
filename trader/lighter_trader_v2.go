@@ -53,6 +53,10 @@ type LighterTraderV2 struct {
 	// 市場信息緩存
 	symbolPrecision map[string]SymbolPrecision
 	precisionMutex  sync.RWMutex
+
+	// 市場索引緩存
+	marketIndexMap map[string]uint8 // symbol -> market_id
+	marketMutex    sync.RWMutex
 }
 
 // NewLighterTraderV2 創建新的 LIGHTER 交易器（使用官方 SDK）
@@ -98,6 +102,7 @@ func NewLighterTraderV2(l1PrivateKeyHex, walletAddr, apiKeyPrivateKeyHex string,
 		apiKeyPrivateKey: apiKeyPrivateKeyHex,
 		apiKeyIndex:      0, // 默認使用索引 0
 		symbolPrecision:  make(map[string]SymbolPrecision),
+		marketIndexMap:   make(map[string]uint8),
 	}
 
 	// 5. 初始化賬戶（獲取賬戶索引）

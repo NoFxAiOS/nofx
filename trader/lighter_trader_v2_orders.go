@@ -1,8 +1,15 @@
 package trader
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"strconv"
+
+	"github.com/elliottech/lighter-go/types"
 )
 
 // SetStopLoss 設置止損單（實現 Trader 接口）
@@ -133,12 +140,54 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 		return nil, fmt.Errorf("認證令牌無效: %w", err)
 	}
 
-	// TODO: 實現HTTP GET到LIGHTER API獲取活躍訂單
-	// endpoint := fmt.Sprintf("%s/api/v1/order/active?account_index=%d&symbol=%s",
-	//     t.baseURL, t.accountIndex, symbol)
+	// 獲取市場索引
+	marketIndex, err := t.getMarketIndex(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("獲取市場索引失敗: %w", err)
+	}
 
-	// 暫時返回空列表
-	return []OrderResponse{}, nil
+	// 構建請求 URL
+	endpoint := fmt.Sprintf("%s/api/v1/accountActiveOrders?account_index=%d&market_id=%d",
+		t.baseURL, t.accountIndex, marketIndex)
+
+	// 發送 GET 請求
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("創建請求失敗: %w", err)
+	}
+
+	// 添加認證頭
+	req.Header.Set("Authorization", t.authToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("請求失敗: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("讀取響應失敗: %w", err)
+	}
+
+	// 解析響應
+	var apiResp struct {
+		Code    int              `json:"code"`
+		Message string           `json:"message"`
+		Data    []OrderResponse  `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("解析響應失敗: %w, body: %s", err, string(body))
+	}
+
+	if apiResp.Code != 200 {
+		return nil, fmt.Errorf("獲取活躍訂單失敗 (code %d): %s", apiResp.Code, apiResp.Message)
+	}
+
+	log.Printf("✓ LIGHTER - 獲取到 %d 個活躍訂單", len(apiResp.Data))
+	return apiResp.Data, nil
 }
 
 // CancelOrder 取消單個訂單
@@ -147,7 +196,101 @@ func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 		return fmt.Errorf("TxClient 未初始化")
 	}
 
-	// TODO: 使用SDK簽名CancelOrder交易並提交
+	// 獲取市場索引
+	marketIndex, err := t.getMarketIndex(symbol)
+	if err != nil {
+		return fmt.Errorf("獲取市場索引失敗: %w", err)
+	}
+
+	// 將 orderID 轉換為 int64
+	orderIndex, err := strconv.ParseInt(orderID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("無效的訂單ID: %w", err)
+	}
+
+	// 構建取消訂單請求
+	txReq := &types.CancelOrderTxReq{
+		MarketIndex: marketIndex,
+		Index:       orderIndex,
+	}
+
+	// 使用 SDK 簽名交易
+	nonce := int64(-1) // -1 表示自動獲取
+	tx, err := t.txClient.GetCancelOrderTransaction(txReq, &types.TransactOpts{
+		Nonce: &nonce,
+	})
+	if err != nil {
+		return fmt.Errorf("簽名取消訂單失敗: %w", err)
+	}
+
+	// 序列化交易
+	txBytes, err := json.Marshal(tx)
+	if err != nil {
+		return fmt.Errorf("序列化交易失敗: %w", err)
+	}
+
+	// 提交取消訂單到 LIGHTER API
+	_, err = t.submitCancelOrder(txBytes)
+	if err != nil {
+		return fmt.Errorf("提交取消訂單失敗: %w", err)
+	}
+
 	log.Printf("✓ LIGHTER訂單已取消 - ID: %s", orderID)
 	return nil
+}
+
+// submitCancelOrder 提交已簽名的取消訂單到 LIGHTER API
+func (t *LighterTraderV2) submitCancelOrder(signedTx []byte) (map[string]interface{}, error) {
+	const TX_TYPE_CANCEL_ORDER = 15
+
+	// 構建請求
+	req := SendTxRequest{
+		TxType:          TX_TYPE_CANCEL_ORDER,
+		TxInfo:          string(signedTx),
+		PriceProtection: false, // 取消訂單不需要價格保護
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("序列化請求失敗: %w", err)
+	}
+
+	// 發送 POST 請求到 /api/v1/sendTx
+	endpoint := fmt.Sprintf("%s/api/v1/sendTx", t.baseURL)
+	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析響應
+	var sendResp SendTxResponse
+	if err := json.Unmarshal(body, &sendResp); err != nil {
+		return nil, fmt.Errorf("解析響應失敗: %w, body: %s", err, string(body))
+	}
+
+	// 檢查響應碼
+	if sendResp.Code != 200 {
+		return nil, fmt.Errorf("提交取消訂單失敗 (code %d): %s", sendResp.Code, sendResp.Message)
+	}
+
+	result := map[string]interface{}{
+		"tx_hash": sendResp.Data["tx_hash"],
+		"status":  "cancelled",
+	}
+
+	log.Printf("✓ 取消訂單已提交到 LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
+	return result, nil
 }

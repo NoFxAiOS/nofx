@@ -1,9 +1,12 @@
 package trader
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/elliottech/lighter-go/types"
@@ -237,30 +240,195 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	return orderResp, nil
 }
 
-// submitOrder 提交已簽名的訂單到LIGHTER API
-func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, error) {
-	// TODO: 實現HTTP POST到LIGHTER API
-	// endpoint := fmt.Sprintf("%s/api/v1/order", t.baseURL)
-
-	// 暫時返回模擬響應
-	return map[string]interface{}{
-		"orderId": fmt.Sprintf("order_%d", time.Now().Unix()),
-		"status":  "pending",
-	}, nil
+// SendTxRequest 發送交易請求
+type SendTxRequest struct {
+	TxType          int    `json:"tx_type"`
+	TxInfo          string `json:"tx_info"`
+	PriceProtection bool   `json:"price_protection,omitempty"`
 }
 
-// getMarketIndex 獲取市場索引（從symbol轉換）
+// SendTxResponse 發送交易響應
+type SendTxResponse struct {
+	Code    int                    `json:"code"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data"`
+}
+
+// submitOrder 提交已簽名的訂單到LIGHTER API
+func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, error) {
+	const TX_TYPE_CREATE_ORDER = 14
+
+	// 構建請求
+	req := SendTxRequest{
+		TxType:          TX_TYPE_CREATE_ORDER,
+		TxInfo:          string(signedTx),
+		PriceProtection: true,
+	}
+
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("序列化請求失敗: %w", err)
+	}
+
+	// 發送 POST 請求到 /api/v1/sendTx
+	endpoint := fmt.Sprintf("%s/api/v1/sendTx", t.baseURL)
+	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 解析響應
+	var sendResp SendTxResponse
+	if err := json.Unmarshal(body, &sendResp); err != nil {
+		return nil, fmt.Errorf("解析響應失敗: %w, body: %s", err, string(body))
+	}
+
+	// 檢查響應碼
+	if sendResp.Code != 200 {
+		return nil, fmt.Errorf("提交訂單失敗 (code %d): %s", sendResp.Code, sendResp.Message)
+	}
+
+	// 提取交易哈希和訂單ID
+	result := map[string]interface{}{
+		"tx_hash": sendResp.Data["tx_hash"],
+		"status":  "submitted",
+	}
+
+	// 如果有訂單ID，添加到結果中
+	if orderID, ok := sendResp.Data["order_id"]; ok {
+		result["orderId"] = orderID
+	} else if txHash, ok := sendResp.Data["tx_hash"].(string); ok {
+		// 使用 tx_hash 作為 orderID
+		result["orderId"] = txHash
+	}
+
+	log.Printf("✓ 訂單已提交到 LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
+
+	return result, nil
+}
+
+// getMarketIndex 獲取市場索引（從symbol轉換）- 動態從API獲取
 func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
-	// TODO: 從API獲取市場列表並緩存
-	// 暫時使用硬編碼映射
-	marketMap := map[string]uint8{
+	// 1. 檢查緩存
+	t.marketMutex.RLock()
+	if index, ok := t.marketIndexMap[symbol]; ok {
+		t.marketMutex.RUnlock()
+		return index, nil
+	}
+	t.marketMutex.RUnlock()
+
+	// 2. 從 API 獲取市場列表
+	markets, err := t.fetchMarketList()
+	if err != nil {
+		// 如果 API 失敗，回退到硬編碼映射
+		log.Printf("⚠️  從 API 獲取市場列表失敗，使用硬編碼映射: %v", err)
+		return t.getFallbackMarketIndex(symbol)
+	}
+
+	// 3. 更新緩存
+	t.marketMutex.Lock()
+	for _, market := range markets {
+		t.marketIndexMap[market.Symbol] = market.MarketID
+	}
+	t.marketMutex.Unlock()
+
+	// 4. 從緩存中獲取
+	t.marketMutex.RLock()
+	index, ok := t.marketIndexMap[symbol]
+	t.marketMutex.RUnlock()
+
+	if !ok {
+		return 0, fmt.Errorf("未知的市場符號: %s", symbol)
+	}
+
+	return index, nil
+}
+
+// MarketInfo 市場信息
+type MarketInfo struct {
+	Symbol   string `json:"symbol"`
+	MarketID uint8  `json:"market_id"`
+}
+
+// fetchMarketList 從 API 獲取市場列表
+func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
+	endpoint := fmt.Sprintf("%s/api/v1/orderBooks", t.baseURL)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("創建請求失敗: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("請求失敗: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("讀取響應失敗: %w", err)
+	}
+
+	// 解析響應
+	var apiResp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    []struct {
+			Symbol      string `json:"symbol"`
+			MarketIndex uint8  `json:"market_index"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("解析響應失敗: %w", err)
+	}
+
+	if apiResp.Code != 200 {
+		return nil, fmt.Errorf("獲取市場列表失敗 (code %d): %s", apiResp.Code, apiResp.Message)
+	}
+
+	// 轉換為 MarketInfo 列表
+	markets := make([]MarketInfo, len(apiResp.Data))
+	for i, market := range apiResp.Data {
+		markets[i] = MarketInfo{
+			Symbol:   market.Symbol,
+			MarketID: market.MarketIndex,
+		}
+	}
+
+	log.Printf("✓ 獲取到 %d 個市場", len(markets))
+	return markets, nil
+}
+
+// getFallbackMarketIndex 硬編碼的回退映射
+func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint8, error) {
+	fallbackMap := map[string]uint8{
 		"BTC-PERP":  0,
 		"ETH-PERP":  1,
 		"SOL-PERP":  2,
 		"DOGE-PERP": 3,
+		"AVAX-PERP": 4,
+		"XRP-PERP":  5,
 	}
 
-	if index, ok := marketMap[symbol]; ok {
+	if index, ok := fallbackMap[symbol]; ok {
+		log.Printf("✓ 使用硬編碼市場索引: %s -> %d", symbol, index)
 		return index, nil
 	}
 

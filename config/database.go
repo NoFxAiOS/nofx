@@ -131,6 +131,7 @@ func (d *Database) createTables() error {
 			-- LIGHTER 特定字段
 			lighter_wallet_addr TEXT DEFAULT '',
 			lighter_private_key TEXT DEFAULT '',
+			lighter_api_key_private_key TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -249,6 +250,7 @@ func (d *Database) createTables() error {
 		`ALTER TABLE exchanges ADD COLUMN aster_private_key TEXT DEFAULT ''`,
 		`ALTER TABLE exchanges ADD COLUMN lighter_wallet_addr TEXT DEFAULT ''`,
 		`ALTER TABLE exchanges ADD COLUMN lighter_private_key TEXT DEFAULT ''`,
+		`ALTER TABLE exchanges ADD COLUMN lighter_api_key_private_key TEXT DEFAULT ''`,
 		`ALTER TABLE traders ADD COLUMN custom_prompt TEXT DEFAULT ''`,
 		`ALTER TABLE traders ADD COLUMN override_base_prompt BOOLEAN DEFAULT 0`,
 		`ALTER TABLE traders ADD COLUMN is_cross_margin BOOLEAN DEFAULT 1`,             // 默认为全仓模式
@@ -382,6 +384,7 @@ func (d *Database) migrateExchangesTable() error {
 			aster_private_key TEXT DEFAULT '',
 			lighter_wallet_addr TEXT DEFAULT '',
 			lighter_private_key TEXT DEFAULT '',
+			lighter_api_key_private_key TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (id, user_id),

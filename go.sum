@@ -40,6 +40,10 @@ github.com/elastic/go-sysinfo v1.15.4 h1:A3zQcunCxik14MgXu39cXFXcIw2sFXZ0zL886ey
 github.com/elastic/go-sysinfo v1.15.4/go.mod h1:ZBVXmqS368dOn/jvijV/zHLfakWTYHBZPk3G244lHrU=
 github.com/elastic/go-windows v1.0.2 h1:yoLLsAsV5cfg9FLhZ9EXZ2n2sQFKeDYrHenkcivY4vI=
 github.com/elastic/go-windows v1.0.2/go.mod h1:bGcDpBzXgYSqM0Gx3DM4+UxFj300SZLixie9u9ixLM8=
+github.com/elliottech/lighter-go v0.0.0-20251104171447-78b9b55ebc48 h1:gUQjmjTTDDYtB2BOYpZhIO4IU7Kx0p/XbWHraWnhK5E=
+github.com/elliottech/lighter-go v0.0.0-20251104171447-78b9b55ebc48/go.mod h1:9ag9xaUe6jIFHcclX8BE8H5k6sdQEa6FYNwsmiMZnE0=
+github.com/elliottech/poseidon_crypto v0.0.11 h1:iX4rCg0m1XIX/7mhXVUEYUJIdQD57zNGNLeb6RZRl7g=
+github.com/elliottech/poseidon_crypto v0.0.11/go.mod h1:NhWxSjPGr5JXRuB2Aepl/+ZrbmUG3hvku/GarB1JR8c=
 github.com/emicklei/dot v1.6.2 h1:08GN+DD79cy/tzN6uLCT84+2Wk9u+wvqP+Hkx/dIR8A=
 github.com/emicklei/dot v1.6.2/go.mod h1:DeV7GvQtIw4h2u73RKBkkFdvVAz0D9fzeJrgPW6gy/s=
 github.com/ethereum/c-kzg-4844/v2 v2.1.5 h1:aVtoLK5xwJ6c5RiqO8g8ptJ5KU+2Hdquf6G3aXiHh5s=

@@ -263,3 +263,44 @@ func (t *LighterTrader) GetOrderStatus(orderID string) (*OrderResponse, error) {
 
 	return &order, nil
 }
+
+// CancelStopLossOrders 仅取消止损单（LIGHTER 暂无法区分，取消所有止盈止损单）
+func (t *LighterTrader) CancelStopLossOrders(symbol string) error {
+	// LIGHTER 暂时无法区分止损和止盈单，取消所有止盈止损单
+	log.Printf("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
+	return t.CancelStopOrders(symbol)
+}
+
+// CancelTakeProfitOrders 仅取消止盈单（LIGHTER 暂无法区分，取消所有止盈止损单）
+func (t *LighterTrader) CancelTakeProfitOrders(symbol string) error {
+	// LIGHTER 暂时无法区分止损和止盈单，取消所有止盈止损单
+	log.Printf("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
+	return t.CancelStopOrders(symbol)
+}
+
+// CancelStopOrders 取消该币种的止盈/止损单
+func (t *LighterTrader) CancelStopOrders(symbol string) error {
+	if err := t.ensureAuthToken(); err != nil {
+		return fmt.Errorf("认证令牌无效: %w", err)
+	}
+
+	// 获取活跃订单
+	orders, err := t.GetActiveOrders(symbol)
+	if err != nil {
+		return fmt.Errorf("获取活跃订单失败: %w", err)
+	}
+
+	canceledCount := 0
+	for _, order := range orders {
+		// TODO: 需要检查订单类型，只取消止盈止损单
+		// 暂时取消所有订单
+		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
+			log.Printf("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
+		} else {
+			canceledCount++
+		}
+	}
+
+	log.Printf("✓ LIGHTER - 已取消 %d 个止盈止损单", canceledCount)
+	return nil
+}

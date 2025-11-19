@@ -16,8 +16,8 @@ interface AuthContextType {
   ) => Promise<{
     success: boolean
     message?: string
-    requires_otp?: boolean
-    user_id?: string
+    requiresOTP?: boolean
+    userID?: string
   }>
   loginAdmin: (password: string) => Promise<{
     success: boolean
@@ -30,9 +30,10 @@ interface AuthContextType {
   ) => Promise<{
     success: boolean
     message?: string
-    user_id?: string
-    qr_code_url?: string
-    requires_otp?: boolean
+    userID?: string
+    qrCodeURL?: string
+    otpSecret?: string
+    requiresOTP?: boolean
   }>
   completeRegistration: (
     userId: string,
@@ -128,8 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // 需要OTP验证
           return {
             success: true,
-            requires_otp: true,
-            user_id: data.user_id,
+            requiresOTP: true,
+            userID: data.user_id,
             message: data.message,
           }
         } else {
@@ -235,12 +236,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Reset 401 flag on successful registration
         reset401Flag()
 
+        // 从 qrCodeURL 中提取 otpSecret
+        let otpSecret = ''
+        if (data.qr_code_url) {
+          const match = data.qr_code_url.match(/secret=([^&]+)/)
+          if (match) {
+            otpSecret = match[1]
+          }
+        }
+
         // 注册返回OTP信息，等待验证
         return {
           success: true,
-          user_id: data.user_id,
-          qr_code_url: data.qr_code_url,
-          requires_otp: true,
+          userID: data.user_id,
+          qrCodeURL: data.qr_code_url,
+          otpSecret,
+          requiresOTP: true,
           message: data.message,
         }
       } else {

@@ -1,0 +1,57 @@
+name: Sync Upstream and Deploy to HF
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+  push:
+    branches: [ main ]
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Sync upstream changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+          
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+          git checkout main
+          git merge upstream/main --no-commit --no-ff || true
+          
+          if git diff --staged --quiet; then
+            echo "没有更新需要同步"
+          else
+            git commit -m "🔀 chore: sync upstream changes from NoFxAiOS/nofx"
+            git push origin main
+          fi
+
+  deploy-to-hf:
+    needs: sync-upstream
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Hugging Face
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          personal_token: ${{ secrets.HF_TOKEN }}
+          external_repository: lcy1313/nofxbishenjigir
+          publish_branch: main
+          keep_files: false
+          files: |
+            app.py
+            requirements.txt
+            Dockerfile
+            README.md
+            supabase_config.py

@@ -209,13 +209,25 @@ func main() {
 		// 回退到数据库配置
 		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
 		if jwtSecret == "" {
-			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
-			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
+			// 檢查是否為生產環境
+			env := strings.ToLower(os.Getenv("ENVIRONMENT"))
+			if env == "" {
+				env = strings.ToLower(os.Getenv("GO_ENV"))
+			}
+
+			if env == "production" || env == "prod" {
+				log.Fatalf("❌ 生產環境必須設置 JWT_SECRET 環境變數或在數據庫中配置 jwt_secret！")
+			}
+
+			// 開發環境允許使用默認值，但發出警告
+			jwtSecret = "dev-jwt-secret-do-not-use-in-production"
+			log.Printf("⚠️  使用開發環境默認JWT密鑰")
+			log.Printf("⚠️  生產環境請務必設置 JWT_SECRET 環境變數或使用加密設置腳本")
 		} else {
-			log.Printf("🔑 使用数据库中JWT密钥")
+			log.Printf("🔑 使用數據庫中的JWT密鑰")
 		}
 	} else {
-		log.Printf("🔑 使用环境变量JWT密钥")
+		log.Printf("🔑 使用環境變數JWT密鑰")
 	}
 	auth.SetJWTSecret(jwtSecret)
 

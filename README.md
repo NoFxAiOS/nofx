@@ -277,14 +277,27 @@ Docker automatically handles all dependencies (Go, Node.js, TA-Lib, SQLite) and 
 
 #### Step 1: Prepare Configuration
 ```bash
-# Copy configuration template
+# 1. Copy environment variables template
+cp .env.example .env
+
+# 2. Generate security keys (Important for production!)
+# Generate JWT secret
+openssl rand -base64 64
+
+# Edit .env and set JWT_SECRET with the generated key
+nano .env  # Add: JWT_SECRET=your-generated-key
+
+# 3. Copy configuration template
 cp config.json.example config.json
 
-# Edit and fill in your API keys
+# 4. Edit and fill in your API keys
 nano config.json  # or use any editor
 ```
 
-⚠️ **Note**: Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
+⚠️ **Security Notes**:
+- **JWT_SECRET** is required for production environments
+- Set **ENVIRONMENT=production** in .env for production deployment
+- Basic config.json is still needed for some settings, but ~~trader configurations~~ are now done through the web interface.
 
 #### Step 2: One-Click Start
 ```bash

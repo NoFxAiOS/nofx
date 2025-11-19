@@ -121,10 +121,10 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
                 # 替换现有密钥
                 if [[ "$OSTYPE" == "darwin"* ]]; then
                     # macOS
-                    sed -i '' "s/^DATA_ENCRYPTION_KEY=.*/DATA_ENCRYPTION_KEY=$RAW_KEY/" .env
+                    sed -i '' "s/^DATA_ENCRYPTION_KEY=.*/DATA_ENCRYPTION_KEY=$DATA_KEY/" .env
                 else
                     # Linux
-                    sed -i "s/^DATA_ENCRYPTION_KEY=.*/DATA_ENCRYPTION_KEY=$RAW_KEY/" .env
+                    sed -i "s/^DATA_ENCRYPTION_KEY=.*/DATA_ENCRYPTION_KEY=$DATA_KEY/" .env
                 fi
                 echo -e "${GREEN}✓ .env 文件中的密钥已更新${NC}"
             else
@@ -132,12 +132,12 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             fi
         else
             # 追加新密钥
-            echo "DATA_ENCRYPTION_KEY=$RAW_KEY" >> .env
+            echo "DATA_ENCRYPTION_KEY=$DATA_KEY" >> .env
             echo -e "${GREEN}✓ 密钥已保存到 .env 文件${NC}"
         fi
     else
         # 创建新的 .env 文件
-        echo "DATA_ENCRYPTION_KEY=$RAW_KEY" > .env
+        echo "DATA_ENCRYPTION_KEY=$DATA_KEY" > .env
         echo -e "${GREEN}✓ 密钥已保存到 .env 文件${NC}"
     fi
 fi

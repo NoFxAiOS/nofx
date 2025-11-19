@@ -180,7 +180,10 @@ export function ExchangeConfigModal({
     if (secureInputTarget === 'aster') {
       setAsterPrivateKey(trimmed)
     }
-    console.log('Secure input obfuscation log:', obfuscationLog)
+    // 仅在开发环境输出调试信息
+    if (import.meta.env.DEV) {
+      console.log('Secure input obfuscation log:', obfuscationLog)
+    }
     setSecureInputTarget(null)
   }
 

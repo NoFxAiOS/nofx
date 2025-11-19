@@ -433,7 +433,12 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}
@@ -488,7 +493,12 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = -pos["positionAmt"].(float64) // 空仓数量是负的，取绝对值
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = -qty // 空仓数量是负的，取绝对值
 				break
 			}
 		}
@@ -834,7 +844,11 @@ func (t *FuturesTrader) GetSymbolPrecision(symbol string) (int, error) {
 			// 从LOT_SIZE filter获取精度
 			for _, filter := range s.Filters {
 				if filter["filterType"] == "LOT_SIZE" {
-					stepSize := filter["stepSize"].(string)
+					stepSize, err := SafeString(filter, "stepSize")
+					if err != nil {
+						log.Printf("⚠️ 无法解析 stepSize: %v", err)
+						continue
+					}
 					precision := calculatePrecision(stepSize)
 					log.Printf("  %s 数量精度: %d (stepSize: %s)", symbol, precision, stepSize)
 					return precision, nil

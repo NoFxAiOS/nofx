@@ -8,12 +8,12 @@ import (
 func TestRemoveTrader(t *testing.T) {
 	tm := NewTraderManager()
 
-	// 创建一个模拟的 trader 并添加到 map
+	// 使用测试辅助方法添加trader
 	traderID := "test-trader-123"
-	tm.traders[traderID] = nil // 使用 nil 作为占位符，实际测试中只需验证删除逻辑
+	tm.AddTraderForTest(traderID, nil) // 使用 nil 作为占位符，实际测试中只需验证删除逻辑
 
 	// 验证 trader 存在
-	if _, exists := tm.traders[traderID]; !exists {
+	if !tm.HasTrader(traderID) {
 		t.Fatal("trader 应该存在于 map 中")
 	}
 
@@ -21,7 +21,7 @@ func TestRemoveTrader(t *testing.T) {
 	tm.RemoveTrader(traderID)
 
 	// 验证 trader 已被移除
-	if _, exists := tm.traders[traderID]; exists {
+	if tm.HasTrader(traderID) {
 		t.Error("trader 应该已从 map 中移除")
 	}
 }
@@ -45,8 +45,8 @@ func TestRemoveTrader_Concurrent(t *testing.T) {
 	tm := NewTraderManager()
 	traderID := "test-trader-concurrent"
 
-	// 添加 trader
-	tm.traders[traderID] = nil
+	// 使用测试辅助方法添加trader
+	tm.AddTraderForTest(traderID, nil)
 
 	// 并发调用 RemoveTrader
 	done := make(chan bool, 10)
@@ -63,7 +63,7 @@ func TestRemoveTrader_Concurrent(t *testing.T) {
 	}
 
 	// 验证 trader 已被移除
-	if _, exists := tm.traders[traderID]; exists {
+	if tm.HasTrader(traderID) {
 		t.Error("trader 应该已从 map 中移除")
 	}
 }
@@ -73,8 +73,8 @@ func TestGetTrader_AfterRemove(t *testing.T) {
 	tm := NewTraderManager()
 	traderID := "test-trader-get"
 
-	// 添加 trader
-	tm.traders[traderID] = nil
+	// 使用测试辅助方法添加trader
+	tm.AddTraderForTest(traderID, nil)
 
 	// 移除 trader
 	tm.RemoveTrader(traderID)
@@ -83,5 +83,32 @@ func TestGetTrader_AfterRemove(t *testing.T) {
 	_, err := tm.GetTrader(traderID)
 	if err == nil {
 		t.Error("获取已移除的 trader 应该返回错误")
+	}
+}
+
+// TestHasTrader 测试HasTrader方法
+func TestHasTrader(t *testing.T) {
+	tm := NewTraderManager()
+	traderID := "test-trader-has"
+
+	// 初始状态：trader 不存在
+	if tm.HasTrader(traderID) {
+		t.Error("trader 不应该存在")
+	}
+
+	// 添加 trader
+	tm.AddTraderForTest(traderID, nil)
+
+	// 验证 trader 存在
+	if !tm.HasTrader(traderID) {
+		t.Error("trader 应该存在")
+	}
+
+	// 移除 trader
+	tm.RemoveTrader(traderID)
+
+	// 验证 trader 不存在
+	if tm.HasTrader(traderID) {
+		t.Error("trader 不应该存在")
 	}
 }

@@ -3,9 +3,11 @@ package trader
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -27,10 +29,25 @@ type HyperliquidTestSuite struct {
 
 // NewHyperliquidTestSuite 创建 Hyperliquid 测试套件
 func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
-	// 创建测试用私钥
-	privateKey, err := crypto.HexToECDSA("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-	if err != nil {
-		t.Fatalf("创建测试私钥失败: %v", err)
+	// 创建测试用私钥（优先使用环境变量，否则生成临时密钥）
+	testPrivateKeyHex := os.Getenv("TEST_PRIVATE_KEY")
+	var privateKey *ecdsa.PrivateKey
+	var err error
+
+	if testPrivateKeyHex == "" {
+		// 如果没有环境变量，生成一个临时测试密钥
+		privateKey, err = crypto.GenerateKey()
+		if err != nil {
+			t.Fatalf("生成测试私钥失败: %v", err)
+		}
+		t.Log("使用临时生成的测试私钥（生产环境请设置 TEST_PRIVATE_KEY 环境变量）")
+	} else {
+		// 使用环境变量中的私钥
+		privateKey, err = crypto.HexToECDSA(testPrivateKeyHex)
+		if err != nil {
+			t.Fatalf("解析测试私钥失败: %v", err)
+		}
+		t.Log("使用环境变量中的测试私钥")
 	}
 
 	// 创建 mock HTTP 服务器

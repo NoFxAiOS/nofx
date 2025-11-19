@@ -1101,3 +1101,19 @@ func (tm *TraderManager) RemoveTrader(traderID string) {
 		log.Printf("✓ Trader %s 已从内存中移除", traderID)
 	}
 }
+
+// HasTrader 检查trader是否存在（测试辅助方法）
+func (tm *TraderManager) HasTrader(traderID string) bool {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	_, exists := tm.traders[traderID]
+	return exists
+}
+
+// AddTraderForTest 添加测试用trader（仅用于测试）
+// 注意：此方法不应在生产代码中使用
+func (tm *TraderManager) AddTraderForTest(traderID string, t *trader.AutoTrader) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.traders[traderID] = t
+}

@@ -29,13 +29,20 @@ type Position struct {
 	MarginUsed       float64 `json:"margin_used"`        // 已用保证金
 }
 
-// GetBalance 获取账户余额
-func (t *LighterTrader) GetBalance() (float64, error) {
+// GetBalance 获取账户余额（实现 Trader 接口）
+func (t *LighterTrader) GetBalance() (map[string]interface{}, error) {
 	balance, err := t.GetAccountBalance()
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return balance.TotalEquity, nil
+
+	return map[string]interface{}{
+		"total_equity":       balance.TotalEquity,
+		"available_balance":  balance.AvailableBalance,
+		"margin_used":        balance.MarginUsed,
+		"unrealized_pnl":     balance.UnrealizedPnL,
+		"maintenance_margin": balance.MaintenanceMargin,
+	}, nil
 }
 
 // GetAccountBalance 获取账户详细余额信息
@@ -83,8 +90,8 @@ func (t *LighterTrader) GetAccountBalance() (*AccountBalance, error) {
 	return &balance, nil
 }
 
-// GetPositions 获取所有持仓
-func (t *LighterTrader) GetPositions(symbol string) ([]Position, error) {
+// GetPositionsRaw 获取所有持仓（返回原始类型）
+func (t *LighterTrader) GetPositionsRaw(symbol string) ([]Position, error) {
 	if err := t.ensureAuthToken(); err != nil {
 		return nil, fmt.Errorf("认证令牌无效: %w", err)
 	}
@@ -131,9 +138,34 @@ func (t *LighterTrader) GetPositions(symbol string) ([]Position, error) {
 	return positions, nil
 }
 
+// GetPositions 获取所有持仓（实现 Trader 接口）
+func (t *LighterTrader) GetPositions() ([]map[string]interface{}, error) {
+	positions, err := t.GetPositionsRaw("")
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]map[string]interface{}, 0, len(positions))
+	for _, pos := range positions {
+		result = append(result, map[string]interface{}{
+			"symbol":             pos.Symbol,
+			"side":               pos.Side,
+			"size":               pos.Size,
+			"entry_price":        pos.EntryPrice,
+			"mark_price":         pos.MarkPrice,
+			"liquidation_price":  pos.LiquidationPrice,
+			"unrealized_pnl":     pos.UnrealizedPnL,
+			"leverage":           pos.Leverage,
+			"margin_used":        pos.MarginUsed,
+		})
+	}
+
+	return result, nil
+}
+
 // GetPosition 获取指定币种的持仓
 func (t *LighterTrader) GetPosition(symbol string) (*Position, error) {
-	positions, err := t.GetPositions(symbol)
+	positions, err := t.GetPositionsRaw(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +226,7 @@ func (t *LighterTrader) GetAccountInfo() (map[string]interface{}, error) {
 		return nil, err
 	}
 
-	positions, err := t.GetPositions("")
+	positions, err := t.GetPositionsRaw("")
 	if err != nil {
 		return nil, err
 	}

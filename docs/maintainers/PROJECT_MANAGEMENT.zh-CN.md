@@ -319,7 +319,7 @@ Available → Claimed → In Progress → Under Review → Paid
 - **Telegram：** [@nofx_dev_community](https://t.me/nofx_dev_community)
 - **GitHub Issues：** Bug 报告、功能请求
 - **GitHub Discussions：** 一般问题、想法
-- **Twitter：** [@nofx_ai](https://x.com/nofx_ai) - 公告
+- **Twitter：** [@nofx_official](https://x.com/nofx_official) - 公告
 
 ---
 

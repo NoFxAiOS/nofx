@@ -70,7 +70,7 @@ reported to the community leaders responsible for enforcement at:
 
 You can also report via:
 - **Telegram:** Direct message to [@Web3Tinkle](https://t.me/Web3Tinkle)
-- **Twitter:** DM to [@nofx_ai](https://x.com/nofx_ai)
+- **Twitter:** DM to [@nofx_official](https://x.com/nofx_official)
 
 All complaints will be reviewed and investigated promptly and fairly.
 
@@ -187,7 +187,7 @@ For answers to common questions about this code of conduct, see the FAQ at
 
 您也可以通过以下方式报告：
 - **Telegram:** 直接消息 [@Web3Tinkle](https://t.me/Web3Tinkle)
-- **Twitter:** 私信 [@nofx_ai](https://x.com/nofx_ai)
+- **Twitter:** 私信 [@nofx_official](https://x.com/nofx_official)
 
 所有投诉都将得到迅速和公正的审查和调查。
 

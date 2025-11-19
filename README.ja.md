@@ -8,7 +8,7 @@
 
 **言語:** [English](README.md) | [中文](README.zh-CN.md) | [Українська](README.uk.md) | [Русский](README.ru.md) | [日本語](README.ja.md)
 
-**公式Twitter:** [@nofx_ai](https://x.com/nofx_ai)
+**公式Twitter:** [@nofx_official](https://x.com/nofx_official)
 
 ---
 
@@ -35,7 +35,7 @@
 
 **投資に関するお問い合わせ**は、TwitterでTinkleまたはZackにDMをお送りください。
 
-**パートナーシップおよび協業**については、公式Twitter [@nofx_ai](https://x.com/nofx_ai)にDMをお送りください。
+**パートナーシップおよび協業**については、公式Twitter [@nofx_official](https://x.com/nofx_official)にDMをお送りください。
 
 ---
 

@@ -131,7 +131,7 @@ Run multiple AI models simultaneously:
 **Can't find what you need?**
 - 💬 [Telegram Community](https://t.me/nofx_dev_community)
 - 🐛 [GitHub Issues](https://github.com/tinkle-community/nofx/issues)
-- 🐦 [Twitter @nofx_ai](https://x.com/nofx_ai)
+- 🐦 [Twitter @nofx_official](https://x.com/nofx_official)
 
 ---
 

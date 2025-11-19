@@ -319,7 +319,7 @@ We use GitHub Actions for automation:
 - **Telegram:** [@nofx_dev_community](https://t.me/nofx_dev_community)
 - **GitHub Issues:** Bug reports, feature requests
 - **GitHub Discussions:** General questions, ideas
-- **Twitter:** [@nofx_ai](https://x.com/nofx_ai) - Announcements
+- **Twitter:** [@nofx_official](https://x.com/nofx_official) - Announcements
 
 ---
 

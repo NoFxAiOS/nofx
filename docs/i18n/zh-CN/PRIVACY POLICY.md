@@ -108,4 +108,4 @@ C. 如何行使您的权利
 八、 联系方式
 
 如果您对本隐私政策或我们的数据处理做法有任何疑问，请联系我们：
-[@nofx_ai](https://x.com/nofx_ai)
+[@nofx_official](https://x.com/nofx_official)

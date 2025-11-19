@@ -329,7 +329,7 @@ perf(ai): optimize prompt generation
 ### 获取帮助
 - [GitHub Discussions](https://github.com/tinkle-community/nofx/discussions) - 提问
 - [Telegram](https://t.me/nofx_dev_community) - 社区聊天
-- [Twitter](https://x.com/nofx_ai) - 更新和公告
+- [Twitter](https://x.com/nofx_official) - 更新和公告
 
 ---
 

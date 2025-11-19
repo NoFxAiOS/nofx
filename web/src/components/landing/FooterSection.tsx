@@ -59,7 +59,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               <li>
                 <a
                   className="hover:text-[#F0B90B]"
-                  href="https://x.com/nofx_ai"
+                  href="https://x.com/nofx_official"
                   target="_blank"
                   rel="noopener noreferrer"
                 >

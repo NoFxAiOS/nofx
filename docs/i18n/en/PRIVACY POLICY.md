@@ -108,4 +108,4 @@ We reserve the right to modify this Privacy Policy at any time. Any changes will
 VIII. Contact Information
 
 If you have any questions about this Privacy Policy or our data processing practices, please contact us:
-[@nofx_ai](https://x.com/nofx_ai)
+[@nofx_official](https://x.com/nofx_official)

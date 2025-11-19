@@ -108,4 +108,4 @@ VII. プライバシーポリシーの変更
 VIII. 連絡先情報
 
 本プライバシーポリシーまたは当社のデータ処理の実施についてご質問がある場合は、以下までお問い合わせください:
-[@nofx_ai](https://x.com/nofx_ai)
+[@nofx_official](https://x.com/nofx_official)

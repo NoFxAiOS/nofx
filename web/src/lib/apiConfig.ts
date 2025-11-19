@@ -12,12 +12,8 @@ const DEFAULT_API_URL = 'https://nofx-gyc567.replit.app';
  * 开发环境使用相对路径，生产环境使用绝对路径
  */
 export function getApiBaseUrl(): string {
-  // 开发环境使用相对路径
-  if (import.meta.env.DEV) {
-    return '/api';
-  }
-
-  // 生产环境使用环境变量或默认值
+  // 生产环境直接调用后端API
+  // 注意: 需要后端配置CORS允许Vercel域名
   const apiUrl = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
   return `${apiUrl}/api`;
 }

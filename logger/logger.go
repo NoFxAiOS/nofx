@@ -109,7 +109,15 @@ func InitFromLogConfig(logConfig *config.LogConfig) error {
 
 	// 如果启用了Telegram，添加配置
 	if logConfig.Telegram != nil && logConfig.Telegram.Enabled {
-		if botToken := logConfig.Telegram.BotToken; botToken != "" && logConfig.Telegram.ChatID != 0 {
+		botToken := logConfig.Telegram.BotToken
+
+		// 优先使用环境变量中的 Telegram Bot Token（安全最佳实践）
+		envBotToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+		if envBotToken != "" {
+			botToken = envBotToken
+		}
+
+		if botToken != "" && logConfig.Telegram.ChatID != 0 {
 			cfg.Telegram = &TelegramConfig{
 				Enabled:  true,
 				BotToken: botToken,
@@ -126,6 +134,12 @@ func InitFromLogConfig(logConfig *config.LogConfig) error {
 // 适用于不依赖config包的场景
 func InitFromParams(level string, telegramEnabled bool, botToken string, chatID int64) error {
 	cfg := &Config{Level: level}
+
+	// 优先使用环境变量中的 Telegram Bot Token（安全最佳实践）
+	envBotToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if envBotToken != "" {
+		botToken = envBotToken
+	}
 
 	if telegramEnabled && botToken != "" && chatID != 0 {
 		cfg.Telegram = &TelegramConfig{

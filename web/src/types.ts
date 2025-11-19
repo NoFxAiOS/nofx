@@ -120,6 +120,10 @@ export interface Exchange {
   asterUser?: string
   asterSigner?: string
   asterPrivateKey?: string
+  // LIGHTER 特定字段
+  lighterWalletAddr?: string
+  lighterPrivateKey?: string
+  lighterApiKeyPrivateKey?: string
 }
 
 export interface CreateTraderRequest {

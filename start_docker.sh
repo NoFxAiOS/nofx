@@ -164,6 +164,12 @@ EOF
     fi
     print_success "数据库文件存在"
     
+    # 检查 beta_codes.txt
+    if [ ! -f "beta_codes.txt" ]; then
+        touch beta_codes.txt
+        print_info "已创建空的 beta_codes.txt (Docker 挂载需要)"
+    fi
+    
     # 确保必要目录存在
     mkdir -p secrets logs decision_logs prompts database_backups
     chmod 700 secrets
@@ -176,6 +182,25 @@ build_images() {
     local no_cache=$1
     
     print_info "构建 Docker 镜像..."
+    
+    # 智能代理检测 (针对中国用户)
+    if [ -z "$GOPROXY" ] && grep -q "Asia/Shanghai" .env; then
+        print_info "🌐 检测到 Asia/Shanghai 时区，自动设置 Go 代理..."
+        export GOPROXY="https://goproxy.cn,direct"
+    fi
+    
+    if [ -z "$NPM_REGISTRY" ] && grep -q "Asia/Shanghai" .env; then
+        print_info "🌐 检测到 Asia/Shanghai 时区，自动设置 NPM 镜像..."
+        export NPM_REGISTRY="https://registry.npmmirror.com/"
+    fi
+    
+    # 显示构建参数
+    if [ -n "$GOPROXY" ]; then
+        print_info "🔧 Build Arg: GOPROXY=$GOPROXY"
+    fi
+    if [ -n "$NPM_REGISTRY" ]; then
+        print_info "🔧 Build Arg: NPM_REGISTRY=$NPM_REGISTRY"
+    fi
     
     if [ "$no_cache" == "--no-cache" ]; then
         print_warning "使用 --no-cache 重新构建（将花费更长时间）"
@@ -393,11 +418,13 @@ show_help() {
     echo "  status          查看状态"
     echo "  logs [service]  查看日志"
     echo "  build           重新构建镜像"
+    echo "  update          更新镜像并重启 (保留数据)"
     echo "  rebuild-fresh   删除数据库并重新构建（修复 Paper Trading 缺失问题）"
     echo "  help            显示此帮助"
     echo ""
     echo "Examples:"
     echo "  $0 start                    # 启动服务"
+    echo "  $0 update                   # 更新代码并重启"
     echo "  $0 logs                     # 查看所有日志"
     echo "  $0 logs nofx                # 只查看后端日志"
     echo "  $0 build                    # 重新构建镜像"
@@ -438,6 +465,11 @@ main() {
             ;;
         build)
             build_images "$arg2"
+            ;;
+        update)
+            print_info "开始更新流程 (保留数据)..."
+            build_images
+            restart_services "$arg2"
             ;;
         rebuild-fresh)
             rebuild_fresh

@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.backend
+      args:
+        - GOPROXY=${GOPROXY:-https://proxy.golang.org,direct}
     container_name: nofx-trading
     restart: unless-stopped
     stop_grace_period: 30s  # 允许应用有 30 秒时间优雅关闭
@@ -46,6 +48,8 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.frontend
+      args:
+        - NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org/}
     container_name: nofx-frontend
     restart: unless-stopped
     ports:

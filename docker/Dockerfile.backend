@@ -44,6 +44,8 @@ COPY --from=ta-lib-builder /usr/local /usr/local
 
 WORKDIR /app
 COPY go.mod go.sum ./
+ARG GOPROXY
+RUN go env -w GOPROXY=${GOPROXY:-https://proxy.golang.org,direct}
 RUN go mod download
 
 COPY . .

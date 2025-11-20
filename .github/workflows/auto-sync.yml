@@ -1,10 +1,77 @@
+name: Auto Sync to Hugging Face
+
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时自动同步一次
+  workflow_dispatch:  # 也支持手动触发
+
 jobs:
-  sync-official:
+  sync-to-hf:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout our repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}  # ← 这行很重要
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install huggingface-hub
+          # 如果有 requirements.txt 也安装
+          [ -f requirements.txt ] && pip install -r requirements.txt
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Sync to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python -c "
+          from huggingface_hub import HfApi, Repository
+          import os
+          import shutil
+          
+          # 仓库信息
+          hf_repo_id = 'lcy1313/nofxbishenjiqir'
+          local_dir = './hf_sync'
+          
+          # 克隆 HF 仓库
+          repo = Repository(
+              local_dir=local_dir,
+              repo_id=hf_repo_id,
+              use_auth_token=os.environ['HF_TOKEN']
+          )
+          
+          # 复制所有文件到 HF 仓库目录（排除 .git）
+          for item in os.listdir('.'):
+              if item != '.git' and item != 'hf_sync':
+                  src_path = os.path.join('.', item)
+                  dst_path = os.path.join(local_dir, item)
+                  if os.path.isdir(src_path):
+                      if os.path.exists(dst_path):
+                          shutil.rmtree(dst_path)
+                      shutil.copytree(src_path, dst_path)
+                  else:
+                      shutil.copy2(src_path, dst_path)
+          
+          # 提交和推送更改
+          repo.git_add()
+          repo.git_commit('Auto-sync from GitHub: ${{ github.sha }}')
+          repo.git_push()
+          "
+
+      - name: Verify Deployment
+        run: |
+          echo "同步完成！"
+          echo "Hugging Face Space: https://huggingface.co/spaces/lcy1313/nofxbishenjiqir"
+          echo "在线演示: https://lcy1313-nofxbishenjiqir.hf.space"

@@ -1,0 +1,111 @@
+name: Robust Sync and Deploy
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时自动同步一次
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  robust-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: dev
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@users.noreply.github.com"
+
+      - name: Add upstream repository
+        run: |
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+
+      - name: Show sync information
+        run: |
+          echo "=== 同步信息 ==="
+          echo "官方仓库最新提交:"
+          git log -1 --oneline upstream/main
+          echo ""
+          echo "当前dev分支提交:"
+          git log -1 --oneline HEAD
+          echo ""
+          echo "开始同步应用文件..."
+
+      - name: Sync application files only
+        run: |
+          echo "同步应用核心文件..."
+          
+          # 同步主要的应用文件
+          # Python 文件
+          git checkout upstream/main -- app.py 2>/dev/null || echo "app.py 不存在"
+          git checkout upstream/main -- requirements.txt 2>/dev/null || echo "requirements.txt 不存在"
+          git checkout upstream/main -- main.py 2>/dev/null || echo "main.py 不存在"
+          git checkout upstream/main -- config.py 2>/dev/null || echo "config.py 不存在"
+          
+          # Go 后端文件
+          git checkout upstream/main -- *.go 2>/dev/null || echo "Go文件不存在"
+          git checkout upstream/main -- go.mod 2>/dev/null || echo "go.mod 不存在"
+          git checkout upstream/main -- go.sum 2>/dev/null || echo "go.sum 不存在"
+          
+          echo "✅ 应用文件同步完成"
+
+      - name: Install huggingface_hub with retry
+        run: |
+          echo "安装 huggingface_hub..."
+          pip install huggingface_hub --upgrade || pip install huggingface_hub
+          echo "✅ 依赖安装完成"
+
+      - name: Deploy to Hugging Face with detailed logging
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "开始部署到 Hugging Face..."
+          echo "当前目录内容:"
+          ls -la
+          
+          echo "检查 app.py 是否存在:"
+          [ -f "app.py" ] && echo "✅ app.py 存在" || echo "❌ app.py 不存在"
+          echo "检查 requirements.txt 是否存在:"
+          [ -f "requirements.txt" ] && echo "✅ requirements.txt 存在" || echo "❌ requirements.txt 不存在"
+          
+          echo "开始上传..."
+          python -c "
+          import os
+          from huggingface_hub import HfApi
+          
+          print('HF_TOKEN 长度:', len(os.environ.get('HF_TOKEN', '')))
+          print('Repo ID: lcy1313/nofxbishenjiqir')
+          
+          try:
+              api = HfApi(token=os.environ['HF_TOKEN'])
+              print('✅ HfApi 初始化成功')
+              
+              result = api.upload_folder(
+                  folder_path='.',
+                  repo_id='lcy1313/nofxbishenjiqir',
+                  repo_type='space',
+                  commit_message='Robust sync: Application files from official'
+              )
+              print('✅ 上传成功完成')
+              print('上传结果:', result)
+              
+          except Exception as e:
+              print(f'❌ 上传失败: {e}')
+              print('错误类型:', type(e).__name__)
+              import traceback
+              traceback.print_exc()
+              exit(1)
+          "
+          echo "✅ 部署步骤完成"
+
+      - name: Show final status
+        run: |
+          echo "=== 工作流完成 ==="
+          echo "✅ 应用文件已同步"
+          echo "✅ 已部署到 Hugging Face"
+          echo "Space 地址: https://lcy1313-nofxbishenjiqir.hf.space"

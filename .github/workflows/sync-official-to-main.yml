@@ -1,4 +1,4 @@
-name: Sync Official to Main Branch
+name: Sync Official to Dev Branch
 
 on:
   schedule:
@@ -6,14 +6,14 @@ on:
   workflow_dispatch:  # 手动触发
 
 jobs:
-  sync-main:
+  sync-dev:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main branch
+      - name: Checkout dev branch
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: main  # 明确指定main分支
+          ref: dev  # 改为 dev 分支
           fetch-depth: 0
 
       - name: Configure Git
@@ -32,7 +32,7 @@ jobs:
           echo "官方仓库最新提交:"
           git log -1 --oneline upstream/main
           echo ""
-          echo "当前main分支提交:"
+          echo "当前dev分支提交:"
           git log -1 --oneline HEAD
           echo ""
           echo "开始同步..."
@@ -43,10 +43,10 @@ jobs:
           git reset --hard upstream/main
           echo "✅ 已重置到官方main分支"
 
-      - name: Push to origin main
+      - name: Push to origin dev branch
         run: |
-          git push --force origin main
-          echo "✅ 已强制推送到自己的main分支"
+          git push --force origin dev  # 改为推送到 dev 分支
+          echo "✅ 已强制推送到自己的dev分支"
 
       - name: Deploy to Hugging Face
         env:

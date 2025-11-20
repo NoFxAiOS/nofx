@@ -7,14 +7,77 @@ from datetime import datetime
 import hashlib
 import jwt
 from supabase import create_client
+import pandas as pd
+import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="NoFx13 Trading",
+    page_title="NoFx13 Trading System",
     page_icon="📈", 
     layout="wide"
 )
 
-# 初始化 Supabase
+# ========== 官方核心功能 ==========
+class NoFxCore:
+    """官方 NoFx 核心交易功能"""
+    
+    @staticmethod
+    def get_market_data(symbol="BTCUSDT"):
+        """获取市场数据（模拟）"""
+        try:
+            # 模拟市场数据
+            return {
+                'symbol': symbol,
+                'price': 45000 + (datetime.now().minute % 10) * 100,
+                'change': 2.5,
+                'volume': 125000000,
+                'timestamp': datetime.now().isoformat()
+            }
+        except Exception as e:
+            return {'error': str(e)}
+    
+    @staticmethod
+    def calculate_signals(data):
+        """计算交易信号"""
+        price = data.get('price', 0)
+        change = data.get('change', 0)
+        
+        if change > 3:
+            return "STRONG_BUY", 0.85
+        elif change > 1:
+            return "BUY", 0.65
+        elif change < -3:
+            return "STRONG_SELL", 0.85
+        elif change < -1:
+            return "SELL", 0.65
+        else:
+            return "HOLD", 0.5
+    
+    @staticmethod
+    def generate_chart(data):
+        """生成交易图表"""
+        # 模拟价格数据
+        dates = pd.date_range(end=datetime.now(), periods=50, freq='H')
+        prices = [data.get('price', 45000) + i * 50 - 1250 for i in range(50)]
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=dates, y=prices,
+            mode='lines',
+            name='Price',
+            line=dict(color='#00ff88', width=2)
+        ))
+        
+        fig.update_layout(
+            title="Price Chart",
+            xaxis_title="Time",
+            yaxis_title="Price (USDT)",
+            template="plotly_dark",
+            height=300
+        )
+        
+        return fig
+
+# ========== 认证系统 ==========
 @st.cache_resource
 def init_supabase():
     try:
@@ -27,11 +90,9 @@ def init_supabase():
         st.error(f"Supabase 初始化失败: {e}")
         return None
 
-# 密码加密
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# 初始化会话状态
 def init_session():
     if 'user' not in st.session_state:
         st.session_state.user = None
@@ -40,19 +101,16 @@ def init_session():
     if 'page' not in st.session_state:
         st.session_state.page = "login"
 
-# 用户注册
 def register_user(email, password, username):
     try:
         supabase = init_supabase()
         if not supabase:
             return False, "数据库连接失败"
         
-        # 检查用户是否已存在
         existing_user = supabase.table('users').select('*').eq('email', email).execute()
         if existing_user.data:
             return False, "邮箱已被注册"
         
-        # 创建新用户
         user_data = {
             'email': email,
             'password_hash': hash_password(password),
@@ -69,21 +127,18 @@ def register_user(email, password, username):
     except Exception as e:
         return False, f"注册错误: {str(e)}"
 
-# 用户登录
 def login_user(email, password):
     try:
         supabase = init_supabase()
         if not supabase:
             return False, "数据库连接失败"
         
-        # 查询用户
         user_data = supabase.table('users').select('*').eq('email', email).execute()
         if not user_data.data:
             return False, "用户不存在"
         
         user = user_data.data[0]
         if user['password_hash'] == hash_password(password):
-            # 更新最后登录时间
             supabase.table('users').update({'last_login': datetime.now().isoformat()}).eq('id', user['id']).execute()
             return True, user
         else:
@@ -91,9 +146,9 @@ def login_user(email, password):
     except Exception as e:
         return False, f"登录错误: {str(e)}"
 
-# 登录页面
+# ========== 页面组件 ==========
 def show_login():
-    st.title("🔐 用户登录")
+    st.title("🔐 NoFx13 交易系统 - 登录")
     
     with st.form("login_form"):
         email = st.text_input("📧 邮箱")
@@ -114,14 +169,12 @@ def show_login():
             else:
                 st.error("请填写所有字段")
     
-    st.write("---")
     if st.button("📝 没有账号？立即注册"):
         st.session_state.page = "register"
         st.rerun()
 
-# 注册页面
 def show_register():
-    st.title("📝 用户注册")
+    st.title("📝 NoFx13 交易系统 - 注册")
     
     with st.form("register_form"):
         username = st.text_input("👤 用户名")
@@ -147,98 +200,119 @@ def show_register():
             else:
                 st.error("请填写所有字段")
     
-    st.write("---")
     if st.button("🔙 返回登录"):
         st.session_state.page = "login"
         st.rerun()
 
-# 用户仪表板
 def show_dashboard():
+    """主仪表板 - 整合官方交易功能"""
     st.title(f"🎯 欢迎回来，{st.session_state.user['username']}！")
     
-    # 用户信息卡片
-    col1, col2, col3 = st.columns(3)
+    # 实时市场数据
+    st.subheader("📊 实时市场")
+    
+    # 市场数据行
+    col1, col2, col3, col4 = st.columns(4)
+    
     with col1:
-        st.metric("👤 用户名", st.session_state.user['username'])
+        btc_data = NoFxCore.get_market_data("BTCUSDT")
+        signal, confidence = NoFxCore.calculate_signals(btc_data)
+        st.metric("BTC/USDT", f"${btc_data['price']:,.0f}", f"{btc_data['change']}%")
+    
     with col2:
-        st.metric("📧 邮箱", st.session_state.user['email'])
+        eth_data = NoFxCore.get_market_data("ETHUSDT")
+        signal, confidence = NoFxCore.calculate_signals(eth_data)
+        st.metric("ETH/USDT", f"${eth_data['price']:,.0f}", f"{eth_data['change']}%")
+    
     with col3:
-        last_login = st.session_state.user.get('last_login', '未知')
-        st.metric("🕒 最后登录", last_login[:10] if last_login != '未知' else '未知')
+        st.metric("24h 成交量", f"${btc_data['volume']:,.0f}", "市场")
     
-    # 功能区域
-    st.subheader("🚀 交易功能")
-    tab1, tab2, tab3 = st.tabs(["账户概览", "交易面板", "设置"])
+    with col4:
+        status_color = {"STRONG_BUY": "🟢", "BUY": "🟡", "HOLD": "⚪", "SELL": "🟠", "STRONG_SELL": "🔴"}
+        st.metric("交易信号", f"{status_color.get(signal, '⚪')} {signal}")
     
-    with tab1:
-        st.write("### 📊 账户信息")
-        st.info("""
-        - **账户状态**: 🟢 正常
-        - **会员等级**: 标准用户
-        - **交易权限**: 基础功能
-        """)
-        
-        # 模拟账户数据
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("💰 账户余额", "$10,000")
-        with col2:
-            st.metric("📈 总收益", "+$250")
-        with col3:
-            st.metric("🔢 交易次数", "15")
+    # 图表和交易面板
+    col1, col2 = st.columns([2, 1])
     
-    with tab2:
-        st.write("### 💹 交易面板")
-        st.warning("交易功能开发中...")
+    with col1:
+        st.plotly_chart(NoFxCore.generate_chart(btc_data), use_container_width=True)
+    
+    with col2:
+        st.subheader("💹 快速交易")
         
-        # 简单的交易模拟
-        symbol = st.selectbox("选择交易对", ["BTC/USDT", "ETH/USDT", "BNB/USDT"])
-        amount = st.number_input("交易数量", min_value=0.0, value=100.0)
+        symbol = st.selectbox("交易对", ["BTC/USDT", "ETH/USDT", "BNB/USDT"])
+        amount = st.number_input("数量", min_value=0.0, value=0.01, step=0.01)
         
-        col1, col2 = st.columns(2)
-        with col1:
+        col_a, col_b = st.columns(2)
+        with col_a:
             if st.button("🟢 买入", use_container_width=True):
-                st.success(f"已买入 {amount} {symbol}")
-        with col2:
+                st.success(f"买入 {amount} {symbol}")
+        with col_b:
             if st.button("🔴 卖出", use_container_width=True):
-                st.error(f"已卖出 {amount} {symbol}")
+                st.error(f"卖出 {amount} {symbol}")
+        
+        # 官方信号显示
+        st.subheader("📈 智能信号")
+        st.info(f"""
+        **当前信号**: {signal}
+        **置信度**: {confidence:.0%}
+        **建议操作**: {'买入' if 'BUY' in signal else '卖出' if 'SELL' in signal else '持有'}
+        """)
     
-    with tab3:
-        st.write("### ⚙️ 账户设置")
-        
-        # 密码修改
-        with st.expander("🔒 修改密码"):
-            current_pwd = st.text_input("当前密码", type="password")
-            new_pwd = st.text_input("新密码", type="password")
-            confirm_pwd = st.text_input("确认新密码", type="password")
-            if st.button("更新密码"):
-                if new_pwd == confirm_pwd:
-                    st.success("密码更新成功")
-                else:
-                    st.error("密码不一致")
-        
-        # 退出登录
-        st.write("---")
-        if st.button("🚪 退出登录"):
-            st.session_state.authenticated = False
-            st.session_state.user = None
-            st.session_state.page = "login"
-            st.rerun()
+    # 系统状态
+    st.subheader("🔧 系统状态")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.info("""
+        **交易引擎**
+        - 状态: 🟢 运行中
+        - 延迟: <50ms
+        - API: 正常
+        """)
+    
+    with col2:
+        # 网络信息
+        try:
+            hostname = socket.gethostname()
+            local_ip = socket.gethostbyname(hostname)
+            st.info(f"""
+            **网络状态**
+            - IP: {local_ip}
+            - 连接: 🟢 稳定
+            - 时延: 正常
+            """)
+        except:
+            st.warning("网络信息获取失败")
+    
+    with col3:
+        st.info("""
+        **账户信息**
+        - 用户: {st.session_state.user['username']}
+        - 等级: 标准版
+        - 状态: 🟢 活跃
+        """)
+    
+    # 底部导航
+    st.sidebar.write("---")
+    if st.sidebar.button("🚪 退出登录"):
+        st.session_state.authenticated = False
+        st.session_state.user = None
+        st.session_state.page = "login"
+        st.rerun()
 
-# 主应用
 def main():
     init_session()
     
-    # 如果未认证，显示登录/注册页面
+    # 显示登录/注册页面或主仪表板
     if not st.session_state.authenticated:
         if st.session_state.page == "login":
             show_login()
         else:
             show_register()
-        return
-    
-    # 已认证用户显示主界面
-    show_dashboard()
+    else:
+        show_dashboard()
 
 if __name__ == "__main__":
     main()

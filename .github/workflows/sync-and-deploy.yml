@@ -14,30 +14,12 @@ jobs:
 
       - name: Prepare deployment files
         run: |
-          # 创建临时部署目录
           mkdir -p deploy_temp
-          
-          # 复制核心部署文件
           cp app.py deploy_temp/
           cp requirements.txt deploy_temp/
           cp Dockerfile deploy_temp/
           cp README.md deploy_temp/
           cp supabase_config.py deploy_temp/
-          
-          # 复制 src 目录及其内容
-          if [ -d "src" ]; then
-            cp -r src deploy_temp/
-          fi
-          
-          # 复制配置文件
-          if [ -f "config.py" ]; then
-            cp config.py deploy_temp/
-          fi
-          
-          # 显示部署文件列表
-          echo "📁 部署文件列表:"
-          find deploy_temp -type f -name "*.py" -o -name "*.txt" -o -name "*.md" -o -name "Dockerfile" | sort
-          
           echo "✅ 部署文件准备完成"
 
       - name: Deploy to Hugging Face
@@ -48,4 +30,3 @@ jobs:
           publish_branch: main
           keep_files: false
           publish_dir: ./deploy_temp
-          commit_message: "🚀 Deploy from GitHub Actions - $(date +'%Y-%m-%d %H:%M:%S')"

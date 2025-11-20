@@ -1,0 +1,72 @@
+name: Deploy with Retry
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时自动同步一次
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  deploy-with-retry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: dev
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@users.noreply.github.com"
+
+      - name: Sync from upstream
+        run: |
+          echo "开始从官方仓库同步..."
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+          
+          # 同步核心应用文件
+          echo "同步应用文件..."
+          git checkout upstream/main -- app.py 2>/dev/null || echo "app.py 不存在"
+          git checkout upstream/main -- requirements.txt 2>/dev/null || echo "requirements.txt 不存在"
+          git checkout upstream/main -- main.py 2>/dev/null || echo "main.py 不存在"
+          git checkout upstream/main -- config.py 2>/dev/null || echo "config.py 不存在"
+          git checkout upstream/main -- *.go 2>/dev/null || echo "Go文件不存在"
+          git checkout upstream/main -- go.mod 2>/dev/null || echo "go.mod 不存在"
+          git checkout upstream/main -- go.sum 2>/dev/null || echo "go.sum 不存在"
+          git checkout upstream/main -- web/ 2>/dev/null || echo "web目录不存在"
+          
+          echo "✅ 应用文件同步完成"
+
+      - name: Install dependencies
+        run: |
+          echo "安装依赖包..."
+          pip install huggingface_hub requests
+          echo "✅ 依赖安装完成"
+
+      - name: Verify files before deploy
+        run: |
+          echo "部署前文件检查..."
+          [ -f "app.py" ] && echo "✅ app.py 存在" || echo "❌ app.py 不存在"
+          [ -f "requirements.txt" ] && echo "✅ requirements.txt 存在" || echo "❌ requirements.txt 不存在"
+          [ -f "main.py" ] && echo "✅ main.py 存在" || echo "❌ main.py 不存在"
+          echo "当前目录文件:"
+          ls -la | head -10
+
+      - name: Deploy with retry logic
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "开始部署到 Hugging Face（带重试机制）..."
+          echo "HF Token 长度: ${#HF_TOKEN}"
+          
+          python -c "
+          import os
+          import time
+          from huggingface_hub import HfApi
+          from huggingface_hub.utils import HfHubHTTPError
+          import traceback
+          
+          HF_TOKEN = os.environ['HF_TOKEN']
+          REPO_ID = 'lcy1313/nofx

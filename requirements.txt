@@ -1,5 +1,6 @@
-flask==2.3.3
+streamlit==1.28.0
+requests==2.31.0
 supabase==2.3.1
-python-dotenv==1.0.0
-gunicorn==21.2.0
-psycopg2-binary==2.9.7
+pandas==2.1.0
+plotly==5.15.0
+flask==2.3.3

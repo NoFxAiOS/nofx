@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: dev  # 改为 dev 分支
+          ref: dev
           fetch-depth: 0
 
       - name: Configure Git
@@ -37,16 +37,65 @@ jobs:
           echo ""
           echo "开始同步..."
 
+      - name: Backup custom workflows and configurations
+        run: |
+          # 创建备份目录
+          mkdir -p .github/backup
+          
+          # 备份所有自定义工作流和配置文件
+          echo "备份自定义文件..."
+          
+          # 备份工作流文件
+          if [ -d ".github/workflows" ]; then
+            cp -r .github/workflows/* .github/backup/ 2>/dev/null || echo "没有工作流文件需要备份"
+          fi
+          
+          # 备份其他自定义配置文件（如果有）
+          [ -f "README.md" ] && cp README.md .github/backup/README_backup.md
+          [ -f ".gitignore" ] && cp .gitignore .github/backup/gitignore_backup
+          
+          echo "✅ 自定义文件备份完成"
+          ls -la .github/backup/
+
       - name: Reset to official main branch
         run: |
           # 强制重置到官方main分支
           git reset --hard upstream/main
           echo "✅ 已重置到官方main分支"
 
-      - name: Push to origin dev branch
+      - name: Restore custom workflows
         run: |
-          git push --force origin dev  # 改为推送到 dev 分支
-          echo "✅ 已强制推送到自己的dev分支"
+          # 恢复自定义的工作流文件
+          echo "恢复自定义工作流文件..."
+          
+          if [ -d ".github/backup" ]; then
+            # 恢复工作流目录
+            mkdir -p .github/workflows
+            cp -r .github/backup/* .github/workflows/ 2>/dev/null || echo "没有工作流文件需要恢复"
+            
+            # 清理备份的README和gitignore（我们不恢复这些）
+            rm -f .github/workflows/README_backup.md 2>/dev/null || true
+            rm -f .github/workflows/gitignore_backup 2>/dev/null || true
+            
+            echo "✅ 自定义工作流文件已恢复"
+            ls -la .github/workflows/
+          else
+            echo "⚠️ 没有找到备份文件"
+          fi
+
+      - name: Commit and push changes
+        run: |
+          # 添加所有更改
+          git add .
+          
+          # 检查是否有更改需要提交
+          if git diff-index --quiet HEAD --; then
+            echo "✅ 没有更改需要提交"
+          else
+            git commit -m "Sync: Official updates with preserved custom workflows [Automated]"
+            git push origin dev
+            echo "✅ 已提交并推送到dev分支"
+          fi
 
       - name: Deploy to Hugging Face
         env:
@@ -55,16 +104,19 @@ jobs:
           echo "开始部署到 Hugging Face..."
           pip install huggingface_hub
           
-          # 部署到您的 Space
           python -c "
           from huggingface_hub import HfApi
           import os
           api = HfApi(token=os.environ['HF_TOKEN'])
-          api.upload_folder(
-              folder_path='.',
-              repo_id='lcy1313/nofxbishenjiqir',
-              repo_type='space',
-              commit_message='Official version deployment from GitHub Actions'
-          )
+          try:
+              api.upload_folder(
+                  folder_path='.',
+                  repo_id='lcy1313/nofxbishenjiqir',
+                  repo_type='space',
+                  commit_message='Sync: Official updates with custom workflows'
+              )
+              print('✅ 已成功部署到 Hugging Face Space')
+          except Exception as e:
+              print(f'❌ 部署失败: {e}')
+              exit(1)
           "
-          echo "✅ 已部署到 Hugging Face Space"

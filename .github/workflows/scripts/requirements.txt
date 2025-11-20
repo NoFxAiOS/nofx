@@ -1,2 +1,5 @@
-# Python dependencies for GitHub Actions scripts
-requests>=2.31.0
+streamlit>=1.28.0
+supabase>=2.0.0
+pandas>=1.5.0
+numpy>=1.21.0
+python-dotenv>=1.0.0

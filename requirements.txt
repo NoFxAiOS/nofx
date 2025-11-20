@@ -1,6 +1,7 @@
 streamlit==1.28.0
-requests==2.31.0
 supabase==2.3.1
+requests==2.31.0
 pandas==2.1.0
 plotly==5.15.0
 PyJWT==2.8.0
+python-dotenv==1.0.0

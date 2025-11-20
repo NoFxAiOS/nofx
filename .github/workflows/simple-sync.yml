@@ -1,0 +1,92 @@
+name: Simple Sync and Deploy
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时自动同步一次
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  simple-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: dev
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@users.noreply.github.com"
+
+      - name: Add upstream repository
+        run: |
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+
+      - name: Sync only application files
+        run: |
+          echo "开始同步应用核心文件..."
+          
+          # 只同步应用文件，不涉及工作流文件
+          # 同步主要的Python/Go应用文件
+          git checkout upstream/main -- app.py 2>/dev/null || echo "app.py 不存在"
+          git checkout upstream/main -- requirements.txt 2>/dev/null || echo "requirements.txt 不存在"
+          git checkout upstream/main -- main.py 2>/dev/null || echo "main.py 不存在"
+          git checkout upstream/main -- config.py 2>/dev/null || echo "config.py 不存在"
+          git checkout upstream/main -- *.md 2>/dev/null || echo "Markdown文件不存在"
+          
+          # 同步主要的Go后端文件
+          git checkout upstream/main -- *.go 2>/dev/null || echo "Go文件不存在"
+          git checkout upstream/main -- go.mod 2>/dev/null || echo "go.mod 不存在"
+          git checkout upstream/main -- go.sum 2>/dev/null || echo "go.sum 不存在"
+          
+          # 同步前端文件（如果您的Space需要）
+          git checkout upstream/main -- web/ 2>/dev/null || echo "web目录不存在"
+          
+          echo "✅ 应用文件同步完成"
+
+      - name: Commit application changes
+        run: |
+          git add .
+          if git diff-index --quiet HEAD --; then
+            echo "✅ 没有应用文件需要更新"
+          else
+            git commit -m "Sync: Update application files from official [Automated]"
+            echo "✅ 应用文件更改已提交"
+          fi
+
+      - name: Deploy to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "开始部署到 Hugging Face..."
+          pip install huggingface_hub
+          
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          try:
+              api.upload_folder(
+                  folder_path='.',
+                  repo_id='lcy1313/nofxbishenjiqir',
+                  repo_type='space',
+                  commit_message='Update application from official'
+              )
+              print('✅ 已成功部署到 Hugging Face Space')
+          except Exception as e:
+              print(f'❌ 部署失败: {e}')
+              exit(1)
+          "
+
+      - name: Push application changes (optional)
+        run: |
+          # 可选：推送应用文件更改到GitHub
+          if git log -1 --oneline | grep -q "Sync: Update application files"; then
+            git push origin dev
+            echo "✅ 已推送应用文件更新到GitHub"
+          else
+            echo "✅ 没有应用文件需要推送"
+          fi

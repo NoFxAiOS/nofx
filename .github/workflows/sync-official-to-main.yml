@@ -1,0 +1,70 @@
+name: Sync Official to Main Branch
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时自动同步一次
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  sync-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main  # 明确指定main分支
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@users.noreply.github.com"
+
+      - name: Add upstream repository
+        run: |
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+
+      - name: Show sync information
+        run: |
+          echo "=== 同步信息 ==="
+          echo "官方仓库最新提交:"
+          git log -1 --oneline upstream/main
+          echo ""
+          echo "当前main分支提交:"
+          git log -1 --oneline HEAD
+          echo ""
+          echo "开始同步..."
+
+      - name: Reset to official main branch
+        run: |
+          # 强制重置到官方main分支
+          git reset --hard upstream/main
+          echo "✅ 已重置到官方main分支"
+
+      - name: Push to origin main
+        run: |
+          git push --force origin main
+          echo "✅ 已强制推送到自己的main分支"
+
+      - name: Deploy to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "开始部署到 Hugging Face..."
+          pip install huggingface_hub
+          
+          # 部署到您的 Space
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.upload_folder(
+              folder_path='.',
+              repo_id='lcy1313/nofxbishenjiqir',
+              repo_type='space',
+              commit_message='Official version deployment from GitHub Actions'
+          )
+          "
+          echo "✅ 已部署到 Hugging Face Space"

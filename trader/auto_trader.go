@@ -23,7 +23,7 @@ type AutoTraderConfig struct {
 	AIModel string // AI模型: "qwen" 或 "deepseek"
 
 	// 交易平台选择
-	Exchange string // "binance", "hyperliquid" 或 "aster"
+	Exchange string // "binance", "hyperliquid", "aster" 或 "lighter"
 
 	// 币安API配置
 	BinanceAPIKey    string
@@ -38,6 +38,12 @@ type AutoTraderConfig struct {
 	AsterUser       string // Aster主钱包地址
 	AsterSigner     string // Aster API钱包地址
 	AsterPrivateKey string // Aster API钱包私钥
+
+	// LIGHTER配置
+	LighterWalletAddr       string // LIGHTER钱包地址（L1 wallet）
+	LighterPrivateKey       string // LIGHTER L1私钥（用于识别账户）
+	LighterAPIKeyPrivateKey string // LIGHTER API Key私钥（40字节，用于签名交易）
+	LighterTestnet          bool   // 是否使用testnet
 
 	CoinPoolAPIURL string
 
@@ -189,6 +195,29 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		trader, err = NewAsterTrader(config.AsterUser, config.AsterSigner, config.AsterPrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("初始化Aster交易器失败: %w", err)
+		}
+	case "lighter":
+		log.Printf("🏦 [%s] 使用LIGHTER交易", config.Name)
+
+		// 優先使用 V2（需要 API Key）
+		if config.LighterAPIKeyPrivateKey != "" {
+			log.Printf("✓ 使用 LIGHTER SDK (V2) - 完整簽名支持")
+			trader, err = NewLighterTraderV2(
+				config.LighterPrivateKey,
+				config.LighterWalletAddr,
+				config.LighterAPIKeyPrivateKey,
+				config.LighterTestnet,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("初始化LIGHTER交易器(V2)失败: %w", err)
+			}
+		} else {
+			// 降級使用 V1（基本HTTP實現）
+			log.Printf("⚠️  使用 LIGHTER 基本實現 (V1) - 功能受限，請配置 API Key")
+			trader, err = NewLighterTrader(config.LighterPrivateKey, config.LighterWalletAddr, config.LighterTestnet)
+			if err != nil {
+				return nil, fmt.Errorf("初始化LIGHTER交易器(V1)失败: %w", err)
+			}
 		}
 	default:
 		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)

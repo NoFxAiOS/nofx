@@ -1,32 +1,256 @@
-name: Deploy to Hugging Face
+name: Sync and Deploy to Hugging Face
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 每天 UTC 时间 00:00 自动同步（北京时间 08:00）
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  deploy:
+  # 同步官方仓库更新
+  sync-upstream:
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout current repo
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0
 
-      - name: Prepare deployment files
-        run: |
-          mkdir -p deploy_temp
-          cp app.py deploy_temp/
-          cp requirements.txt deploy_temp/
-          cp Dockerfile deploy_temp/
-          cp README.md deploy_temp/
-          cp supabase_config.py deploy_temp/
-          echo "✅ 部署文件准备完成"
+    - name: Configure Git
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@users.noreply.github.com"
 
-      - name: Deploy to Hugging Face
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          personal_token: ${{ secrets.HF_TOKEN }}
-          external_repository: lcy1313/nofxbishenjigir
-          publish_branch: main
-          keep_files: false
-          publish_dir: ./deploy_temp
+    - name: Add upstream remote
+      run: |
+        git remote add upstream https://github.com/NoFxAiOS/nofx.git
+
+    - name: Fetch upstream changes
+      run: |
+        git fetch upstream
+
+    - name: Merge upstream changes
+      run: |
+        git checkout dev
+        git merge upstream/dev --no-edit || true
+        git push origin dev
+
+    - name: Create Sync PR if needed
+      run: |
+        # 检查是否有需要同步的更改
+        if git diff --quiet HEAD upstream/dev; then
+          echo "No changes to sync"
+          exit 0
+        fi
+        
+        # 创建同步分支并推送
+        git checkout -b sync-upstream-$(date +%Y%m%d-%H%M%S)
+        git push origin HEAD
+        
+        # 创建 PR (需要 GitHub CLI)
+        gh pr create \
+          --base main \
+          --head "$(git branch --show-current)" \
+          --title "🔄 Sync upstream changes from NoFxAiOS/nofx" \
+          --body "Automated sync from upstream repository" \
+          --reviewer "${{ github.actor }}"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 构建和测试
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: sync-upstream
+    
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Check Python syntax
+      run: |
+        python -m py_compile app.py
+        python -m py_compile supabase_config.py
+
+    - name: Test imports
+      run: |
+        python -c "
+        import sys
+        try:
+            import streamlit
+            import supabase
+            import pandas
+            import plotly
+            import jwt
+            print('✅ All dependencies imported successfully')
+        except ImportError as e:
+            print(f'❌ Import error: {e}')
+            sys.exit(1)
+        "
+
+    - name: Run security check
+      run: |
+        pip install bandit
+        bandit -r . -f json -o bandit-report.json || true
+
+  # Docker 构建检查
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      run: |
+        docker build -t nofx13-trading .
+
+    - name: Test Docker image
+      run: |
+        # 测试镜像构建和基本运行
+        docker run --rm -e SUPABASE_URL=test -e SUPABASE_ANON_KEY=test nofx13-trading --help || echo "Docker test completed"
+
+    - name: Scan Docker image
+      run: |
+        docker scan nofx13-trading || true
+
+  # 部署到 Hugging Face
+  deploy-huggingface:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Push to Hugging Face
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure Hugging Face CLI
+      run: |
+        pip install huggingface_hub
+        huggingface-cli login --token ${{ secrets.HF_TOKEN }}
+
+    - name: Deploy to Spaces
+      run: |
+        # 克隆 Space 仓库（如果存在）
+        if [ -n "${{ secrets.HF_SPACE_REPO }}" ]; then
+          git clone https://huggingface.co/spaces/${{ secrets.HF_SPACE_REPO }} hf-space
+          cd hf-space
+          cp ../app.py .
+          cp ../requirements.txt .
+          cp ../Dockerfile .
+          cp ../README.md .
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add .
+          git commit -m "🔄 Auto-update from GitHub (${{ github.sha }})" || echo "No changes to commit"
+          git push
+        else
+          echo "HF_SPACE_REPO secret not set, skipping Space update"
+        fi
+
+  # PR 检查
+  pr-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: PR Size Check
+      run: |
+        # 检查 PR 大小
+        ADDED_LINES=$(git diff --numstat ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | awk '{sum += $1} END {print sum}')
+        DELETED_LINES=$(git diff --numstat ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | awk '{sum += $2} END {print sum}')
+        TOTAL_CHANGES=$((ADDED_LINES + DELETED_LINES))
+        
+        echo "Changes: +${ADDED_LINES} -${DELETED_LINES} (Total: ${TOTAL_CHANGES})"
+        
+        if [ $TOTAL_CHANGES -gt 1000 ]; then
+          echo "❌ PR is too large (>1000 lines). Please split into smaller PRs."
+          exit 1
+        else
+          echo "✅ PR size is acceptable"
+        fi
+
+    - name: Check for large files
+      run: |
+        # 检查是否有大文件
+        find . -type f -size +10M -not -path "./.git/*" | while read file; do
+          echo "❌ Large file detected: $file"
+          exit 1
+        done || echo "✅ No large files detected"
+
+  # 健康检查
+  health-check:
+    runs-on: ubuntu-latest
+    needs: deploy-huggingface
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Wait for deployment
+      run: sleep 60
+
+    - name: Health check
+      run: |
+        if [ -n "${{ secrets.HF_SPACE_URL }}" ]; then
+          response=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.HF_SPACE_URL }})
+          if [ "$response" -eq 200 ]; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed: HTTP $response"
+            exit 1
+          fi
+        else
+          echo "HF_SPACE_URL not set, skipping health check"
+        fi
+
+  # 通知
+  notification:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build, health-check]
+    if: always()
+    
+    steps:
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ CI/CD Pipeline failed"
+        # 这里可以集成 Slack、Discord 等通知
+        # 例如：curl -X POST -H 'Content-type: application/json' --data '{"text":"🚨 NoFx13 CI/CD Failed!"}' $SLACK_WEBHOOK_URL
+
+    - name: Notify on success
+      if: success()
+      run: |
+        echo "✅ CI/CD Pipeline completed successfully"

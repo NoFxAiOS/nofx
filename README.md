@@ -289,8 +289,8 @@ nano config.json  # or use any editor
 #### Step 2: One-Click Start
 ```bash
 # Option 1: Use convenience script (Recommended)
-chmod +x scripts/start.sh
-./scripts/start.sh start --build
+chmod +x ./start.sh
+./start.sh start --build
 
 > #### Docker Compose Version Notes
 >
@@ -315,10 +315,10 @@ Open your browser and visit: **http://localhost:3000**
 
 #### Manage Your System
 ```bash
-./scripts/start.sh logs      # View logs
-./scripts/start.sh status    # Check status
-./scripts/start.sh stop      # Stop services
-./scripts/start.sh restart   # Restart services
+./start.sh logs      # View logs
+./start.sh status    # Check status
+./start.sh stop      # Stop services
+./start.sh restart   # Restart services
 ```
 
 **📖 For detailed Docker deployment guide, troubleshooting, and advanced configuration:**

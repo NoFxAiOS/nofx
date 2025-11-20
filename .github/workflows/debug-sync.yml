@@ -1,0 +1,42 @@
+name: Debug Sync Issues
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Debug information
+        run: |
+          echo "=== 调试信息 ==="
+          echo "当前分支: $(git branch --show-current)"
+          echo "远程仓库:"
+          git remote -v
+          echo ""
+          
+          echo "=== 添加上游仓库 ==="
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+          
+          echo ""
+          echo "=== 比较差异 ==="
+          echo "官方仓库最新提交:"
+          git log -1 --oneline upstream/main
+          echo ""
+          echo "当前仓库最新提交:"
+          git log -1 --oneline HEAD
+          echo ""
+          
+          echo "=== 文件差异 ==="
+          git diff --name-only upstream/main HEAD | head -20
+          echo "..."
+          echo ""
+          
+          echo "=== 提交历史差异 ==="
+          git log --oneline upstream/main..HEAD --graph | head -10

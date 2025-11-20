@@ -93,6 +93,13 @@ jobs:
             echo "✅ 没有更改需要提交"
           else
             git commit -m "Sync: Official updates with preserved custom workflows [Automated]"
+            
+            # 先拉取远程更改，使用 rebase 避免合并提交
+            echo "拉取远程更改..."
+            git pull origin dev --rebase
+            
+            # 然后推送更改
+            echo "推送更改..."
             git push origin dev
             echo "✅ 已提交并推送到dev分支"
           fi

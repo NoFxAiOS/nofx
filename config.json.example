@@ -17,6 +17,7 @@
     "HYPEUSDT"
   ],
   "api_server_port": 8080,
+  "token_expiration_minutes": 1440,
   "max_daily_loss": 10.0,
   "max_drawdown": 20.0,
   "stop_trading_minutes": 60,

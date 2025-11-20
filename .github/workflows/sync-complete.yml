@@ -1,0 +1,129 @@
+name: Sync Complete Official Features
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # 每6小时自动同步一次
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  sync-complete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: dev
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@users.noreply.github.com"
+
+      - name: Add upstream repository
+        run: |
+          git remote add upstream https://github.com/NoFxAiOS/nofx.git
+          git fetch upstream
+
+      - name: Show sync information
+        run: |
+          echo "=== 同步信息 ==="
+          echo "官方仓库最新提交:"
+          git log -1 --oneline upstream/main
+          echo ""
+          echo "当前dev分支提交:"
+          git log -1 --oneline HEAD
+          echo ""
+          echo "开始完整同步..."
+
+      - name: Backup custom workflows
+        run: |
+          # 备份所有自定义工作流和配置
+          echo "备份自定义工作流..."
+          mkdir -p .github/custom-backup
+          
+          # 备份工作流目录
+          if [ -d ".github/workflows" ]; then
+            cp -r .github/workflows/* .github/custom-backup/ 2>/dev/null || echo "没有工作流文件需要备份"
+          fi
+          
+          # 备份其他自定义配置文件
+          [ -f "custom_config.py" ] && cp custom_config.py .github/custom-backup/
+          [ -f "README.md" ] && cp README.md .github/custom-backup/README_backup.md
+          
+          echo "✅ 自定义文件备份完成"
+          ls -la .github/custom-backup/
+
+      - name: Create complete file list from upstream
+        run: |
+          # 获取官方仓库的所有文件列表（排除.git目录）
+          git ls-tree -r upstream/main --name-only > .github/upstream-files.txt
+          echo "官方仓库文件总数: $(wc -l < .github/upstream-files.txt)"
+          echo "前20个文件:"
+          head -20 .github/upstream-files.txt
+
+      - name: Sync all official files
+        run: |
+          echo "开始同步所有官方文件..."
+          
+          # 使用git archive获取官方所有文件
+          git archive --format=tar upstream/main | tar -x
+          echo "✅ 已提取官方所有文件"
+
+      - name: Restore custom workflows
+        run: |
+          echo "恢复自定义工作流..."
+          
+          if [ -d ".github/custom-backup" ]; then
+            # 恢复工作流目录
+            mkdir -p .github/workflows
+            cp -r .github/custom-backup/* .github/workflows/ 2>/dev/null || echo "没有工作流文件需要恢复"
+            
+            # 清理备份的README（我们不恢复这个）
+            rm -f .github/workflows/README_backup.md 2>/dev/null || true
+            
+            echo "✅ 自定义工作流文件已恢复"
+            echo "当前工作流文件:"
+            ls -la .github/workflows/
+          else
+            echo "⚠️ 没有找到备份文件"
+          fi
+
+      - name: Clean up backup files
+        run: |
+          # 清理临时文件
+          rm -rf .github/custom-backup .github/upstream-files.txt
+          echo "✅ 临时文件已清理"
+
+      - name: Force push changes
+        run: |
+          # 强制推送，完全替换dev分支
+          git add .
+          git commit -m "Sync: Complete official features with custom workflows [Automated]" || echo "没有更改需要提交"
+          git push --force-with-lease origin dev
+          echo "✅ 已强制推送到dev分支"
+
+      - name: Deploy to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "开始部署到 Hugging Face..."
+          pip install huggingface_hub
+          
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          try:
+              api.upload_folder(
+                  folder_path='.',
+                  repo_id='lcy1313/nofxbishenjiqir',
+                  repo_type='space',
+                  commit_message='Complete sync: Official features + custom workflows'
+              )
+              print('✅ 已成功部署到 Hugging Face Space')
+          except Exception as e:
+              print(f'❌ 部署失败: {e}')
+              exit(1)
+          "

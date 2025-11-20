@@ -1,0 +1,39 @@
+name: Direct Deploy from Official
+
+on:
+  workflow_dispatch:
+
+jobs:
+  direct-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download official repository
+        run: |
+          echo "下载官方仓库..."
+          wget -q https://github.com/NoFxAiOS/nofx/archive/refs/heads/main.zip
+          unzip -q main.zip
+          echo "✅ 官方仓库下载完成"
+
+      - name: Deploy to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "部署到 Hugging Face..."
+          cd nofx-main
+          pip install huggingface_hub
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          try:
+              api.upload_folder(
+                  folder_path='.',
+                  repo_id='lcy1313/nofxbishenjiqir',
+                  repo_type='space',
+                  commit_message='Direct deploy from official repository'
+              )
+              print('✅ 已直接从官方仓库部署到Hugging Face')
+          except Exception as e:
+              print(f'❌ 部署失败: {e}')
+              exit(1)
+          "

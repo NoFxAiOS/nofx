@@ -1,0 +1,30 @@
+name: Verify Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check HF_TOKEN
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "检查 HF_TOKEN 设置..."
+          
+          if [ -z "$HF_TOKEN" ]; then
+            echo "❌ HF_TOKEN 未设置"
+            exit 1
+          fi
+          
+          echo "✅ HF_TOKEN 已设置"
+          echo "Token 长度: ${#HF_TOKEN}"
+          echo "Token 前缀: ${HF_TOKEN:0:10}"
+          
+          if [[ "$HF_TOKEN" =~ ^hf_ ]]; then
+            echo "✅ Token 格式正确（以 hf_ 开头）"
+          else
+            echo "❌ Token 格式错误，应该以 hf_ 开头"
+            exit 1
+          fi

@@ -1,93 +1,71 @@
-name: Smart Sync with Custom Features
+name: Sync from Official Repository
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
-    inputs:
-      force_sync:
-        description: '强制同步（覆盖自定义修改）'
-        required: false
-        default: 'false'
+    - cron: '0 */6 * * *'  # 每6小时自动同步
+  workflow_dispatch:  # 手动触发
 
 jobs:
-  sync:
+  sync-official:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout current repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Identify custom files
-        run: |
-          # 创建自定义文件列表（根据您的实际情况调整）
-          echo "custom_app.py" >> .github/custom-files.txt
-          echo "custom_utils.py" >> .github/custom-files.txt
-          echo "custom_modules/" >> .github/custom-files.txt
-          echo "my_features.py" >> .github/custom-files.txt
-
-      - name: Backup custom files
-        run: |
-          mkdir -p .github/custom-backup
-          while IFS= read -r file; do
-            if [ -e "$file" ]; then
-              if [ -d "$file" ]; then
-                cp -r "$file" ".github/custom-backup/"
-              else
-                cp "$file" ".github/custom-backup/"
-              fi
-              echo "已备份: $file"
-            fi
-          done < .github/custom-files.txt
-
-      - name: Sync from upstream
+      - name: Configure Git
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@users.noreply.github.com"
-          
+
+      - name: Add upstream repository
+        run: |
           git remote add upstream https://github.com/NoFxAiOS/nofx.git
           git fetch upstream
-          
-          # 根据输入决定同步方式
-          if [ "${{ github.event.inputs.force_sync }}" = "true" ]; then
-            echo "执行强制同步..."
-            git reset --hard upstream/main
-          else
-            echo "执行智能合并..."
-            git merge upstream/main --no-commit --no-ff || echo "合并可能有冲突"
-          fi
 
-      - name: Restore and integrate custom features
+      - name: Show upstream status
         run: |
-          # 恢复自定义文件
-          if [ -d ".github/custom-backup" ]; then
-            cp -r .github/custom-backup/* ./
-            echo "自定义文件已恢复"
-          fi
+          echo "当前分支: $(git branch --show-current)"
+          echo "上游仓库最新提交:"
+          git log -1 --oneline upstream/main
+          echo "当前仓库最新提交:"
+          git log -1 --oneline origin/main
+
+      - name: Merge upstream changes
+        run: |
+          # 尝试合并上游更新
+          git merge upstream/main --no-commit --no-ff || echo "可能有合并冲突需要处理"
           
-          # 检查并报告合并状态
+          # 检查合并状态
           if git status | grep -q "Unmerged paths"; then
             echo "❌ 检测到合并冲突，需要手动解决"
             echo "冲突文件:"
             git diff --name-only --diff-filter=U
             exit 1
-          else
-            echo "✅ 同步完成，无冲突"
           fi
 
-      - name: Commit and push
+      - name: Commit and push changes
         run: |
-          git add .
-          git commit -m "Auto-sync: $(date +'%Y-%m-%d %H:%M') with custom features" || echo "无新更改"
-          git push origin main
+          if git status --porcelain | grep -q "M"; then
+            git add .
+            git commit -m "Sync: Update from official repository $(date +'%Y-%m-%d %H:%M')"
+            git push origin main
+            echo "✅ 已同步官方更新并推送到仓库"
+          else
+            echo "✅ 已是最新版本，无需更新"
+          fi
 
-      - name: Deploy to HF
+      - name: Deploy to Hugging Face
+        if: success()
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          echo "开始部署到 Hugging Face..."
           pip install huggingface_hub
+          
+          # 部署到您的 Space
           python -c "
           from huggingface_hub import HfApi
           import os
@@ -96,6 +74,7 @@ jobs:
               folder_path='.',
               repo_id='lcy1313/nofxbishenjiqir',
               repo_type='space',
-              commit_message='Updated with latest sync'
+              commit_message='Auto-deploy after upstream sync'
           )
           "
+          echo "✅ 已部署到 Hugging Face Space"

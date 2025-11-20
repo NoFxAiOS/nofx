@@ -498,7 +498,12 @@ func (t *HyperliquidTrader) CloseLong(symbol string, quantity float64) (map[stri
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}
@@ -570,7 +575,12 @@ func (t *HyperliquidTrader) CloseShort(symbol string, quantity float64) (map[str
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64)
+				qty, err := SafeFloat64(pos, "positionAmt")
+				if err != nil {
+					log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+					continue
+				}
+				quantity = qty
 				break
 			}
 		}

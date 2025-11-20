@@ -34,6 +34,9 @@ config.db*
 nofx.db
 configbak.json
 
+# Logger 配置（包含敏感信息）
+logger/config.telegram.json
+
 # 决策日志
 decision_logs/
 coin_pool_cache/

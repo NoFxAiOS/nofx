@@ -517,11 +517,35 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	currentPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		symbol, err := SafeString(pos, "symbol")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 symbol: %v", err)
+			continue
+		}
+
+		side, err := SafeString(pos, "side")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 side: %v", err)
+			continue
+		}
+
+		entryPrice, err := SafeFloat64(pos, "entryPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 entryPrice: %v", err)
+			continue
+		}
+
+		markPrice, err := SafeFloat64(pos, "markPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 markPrice: %v", err)
+			continue
+		}
+
+		quantity, err := SafeFloat64(pos, "positionAmt")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 positionAmt: %v", err)
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity // 空仓数量为负，转为正数
 		}
@@ -531,8 +555,17 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			continue
 		}
 
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl, err := SafeFloat64(pos, "unRealizedProfit")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 unRealizedProfit: %v", err)
+			continue
+		}
+
+		liquidationPrice, err := SafeFloat64(pos, "liquidationPrice")
+		if err != nil {
+			log.Printf("⚠️ 无法解析 liquidationPrice: %v", err)
+			continue
+		}
 
 		// 计算占用保证金（估算）
 		leverage := 10 // 默认值，实际应该从持仓信息获取

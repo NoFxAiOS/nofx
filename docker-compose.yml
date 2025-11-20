@@ -22,6 +22,7 @@ services:
       - AI_MAX_TOKENS=4000  # AI响应的最大token数（默认2000，建议4000-8000）
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}  # 数据库加密密钥
       - JWT_SECRET=${JWT_SECRET}  # JWT认证密钥
+      - ENVIRONMENT=${ENVIRONMENT:-production}  # 环境类型 (development/production)
     networks:
       - nofx-network
     healthcheck:

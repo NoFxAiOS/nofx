@@ -1,0 +1,35 @@
+name: Minimal Direct Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  minimal-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download official source directly
+        run: |
+          echo "直接下载官方源代码..."
+          wget -q https://github.com/NoFxAiOS/nofx/archive/refs/heads/main.zip -O official.zip
+          unzip -q official.zip -d official_source
+          cd official_source/nofx-main
+          echo "当前目录: $(pwd)"
+          ls -la
+          
+          # 检查关键文件
+          [ -f "app.py" ] && echo "✅ app.py 存在" || echo "❌ app.py 不存在"
+          [ -f "requirements.txt" ] && echo "✅ requirements.txt 存在" || echo "❌ requirements.txt 不存在"
+
+      - name: Deploy using huggingface-cli
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd official_source/nofx-main
+          echo "使用 huggingface-cli 部署..."
+          
+          pip install huggingface_hub
+          
+          # 使用命令行工具部署
+          huggingface-cli upload lcy1313/nofxbishenjiqir ./ --repo-type=space --commit-message "Minimal direct deploy"
+          
+          echo "✅ 部署完成"

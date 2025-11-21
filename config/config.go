@@ -29,19 +29,20 @@ type TelegramConfig struct {
 
 // Config 总配置
 type Config struct {
-	BetaMode           bool           `json:"beta_mode"`
-	APIServerPort      int            `json:"api_server_port"`
-	UseDefaultCoins    bool           `json:"use_default_coins"`
-	DefaultCoins       []string       `json:"default_coins"`
-	CoinPoolAPIURL     string         `json:"coin_pool_api_url"`
-	OITopAPIURL        string         `json:"oi_top_api_url"`
-	MaxDailyLoss       float64        `json:"max_daily_loss"`
-	MaxDrawdown        float64        `json:"max_drawdown"`
-	StopTradingMinutes int            `json:"stop_trading_minutes"`
-	Leverage           LeverageConfig `json:"leverage"`
-	JWTSecret          string         `json:"jwt_secret"`
-	DataKLineTime      string         `json:"data_k_line_time"`
-	Log                *LogConfig     `json:"log"` // 日志配置
+	BetaMode               bool           `json:"beta_mode"`
+	APIServerPort          int            `json:"api_server_port"`
+	UseDefaultCoins        bool           `json:"use_default_coins"`
+	DefaultCoins           []string       `json:"default_coins"`
+	CoinPoolAPIURL         string         `json:"coin_pool_api_url"`
+	OITopAPIURL            string         `json:"oi_top_api_url"`
+	MaxDailyLoss           float64        `json:"max_daily_loss"`
+	MaxDrawdown            float64        `json:"max_drawdown"`
+	StopTradingMinutes     int            `json:"stop_trading_minutes"`
+	Leverage               LeverageConfig `json:"leverage"`
+	JWTSecret              string         `json:"jwt_secret"`
+	DataKLineTime          string         `json:"data_k_line_time"`
+	Log                    *LogConfig     `json:"log"`                      // 日志配置
+	TokenExpirationMinutes int            `json:"token_expiration_minutes"` // Token 过期时间，单位分钟
 }
 
 // LoadConfig 从文件加载配置

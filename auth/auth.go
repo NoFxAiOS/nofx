@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,6 +23,12 @@ var tokenBlacklist = struct {
 	items map[string]time.Time
 }{items: make(map[string]time.Time)}
 
+// Token 过期时间，单位分钟，默认 1440 分钟（ 24 小时）
+var DefaultTokenExpirationMinutes int = 1440
+
+// 实际生效的 Token 过期时间
+var tokenExpirationMinutes int = DefaultTokenExpirationMinutes
+
 // maxBlacklistEntries 黑名单最大容量阈值
 const maxBlacklistEntries = 100_000
 
@@ -31,6 +38,20 @@ const OTPIssuer = "nofxAI"
 // SetJWTSecret 设置JWT密钥
 func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
+}
+
+// SetTokenExpiration 设置 Token 过期时间
+func SetTokenExpiration(tokenExpirationTime string) {
+	tokenExpire := DefaultTokenExpirationMinutes
+	if tokenExpirationTime != "" {
+		if v, err := strconv.Atoi(tokenExpirationTime); err == nil && v > 0 {
+			tokenExpire = v
+		} else {
+			tokenExpire = DefaultTokenExpirationMinutes
+		}
+	}
+	tokenExpirationMinutes = tokenExpire
+	log.Printf("✓ Token 过期时间已设置为 %d 分钟", tokenExpire)
 }
 
 // BlacklistToken 将token加入黑名单直到过期
@@ -117,7 +138,7 @@ func GenerateJWT(userID, email string) (string, error) {
 		UserID: userID,
 		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // 24小时过期
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(tokenExpirationMinutes) * time.Minute)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "nofxAI",

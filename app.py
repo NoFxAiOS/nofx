@@ -134,10 +134,10 @@ def init_supabase():
             st.info("URL 应该是 https://your-project-id.supabase.co 格式")
             return None
         
-        # 验证 Key 格式
-        if not key.startswith('eyJ') or len(key) < 50:
+        # 验证 Key 格式 - 支持新旧格式
+        if not (key.startswith('eyJ') or key.startswith('sb_publishable_')) or len(key) < 50:
             st.error(f"❌ SUPABASE_ANON_KEY 格式不正确")
-            st.info("Key 应该是长的 JWT 令牌，以 'eyJ' 开头")
+            st.info("Key 应该是 JWT 令牌（以 'eyJ' 开头）或新的 publishable key（以 'sb_publishable_' 开头）")
             return None
         
         # 尝试创建客户端
@@ -303,7 +303,7 @@ def show_dashboard():
     # 显示侧边栏
     show_sidebar()
     
-    # 用户欢迎信息 - 修复了这里的语法错误
+    # 用户欢迎信息
     if st.session_state.authenticated:
         st.success(f"🎯 欢迎回来，{st.session_state.user['username']}！")
     

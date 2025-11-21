@@ -108,7 +108,7 @@ class NoFxCore:
 # ========== 数据库和认证功能 ==========
 @st.cache_resource
 def init_supabase():
-    """初始化 Supabase 客户端 - 增强错误处理版本"""
+    """初始化 Supabase 客户端 - 简化验证版本"""
     try:
         url = os.environ.get('SUPABASE_URL')
         key = os.environ.get('SUPABASE_ANON_KEY')
@@ -122,22 +122,16 @@ def init_supabase():
             st.write(f"- URL 格式: {url[:30]}..." if len(url) > 30 else f"- URL 格式: {url}")
         if key:
             st.write(f"- Key 格式: {key[:10]}..." if len(key) > 10 else f"- Key 格式: {key}")
+            st.write(f"- Key 长度: {len(key)}")
         
         if not url or not key:
             st.error("❌ Supabase 环境变量未设置完整")
             st.info("请在 Hugging Face Space 设置中添加 SUPABASE_URL 和 SUPABASE_ANON_KEY")
             return None
         
-        # 验证 URL 格式
-        if not url.startswith('https://') or 'supabase.co' not in url:
-            st.error(f"❌ SUPABASE_URL 格式不正确: {url}")
-            st.info("URL 应该是 https://your-project-id.supabase.co 格式")
-            return None
-        
-        # 验证 Key 格式 - 支持所有 Supabase 密钥格式
-        if not (key.startswith('eyJ') or key.startswith('sb_publishable_') or key.startswith('sb_secret_')) or len(key) < 50:
-            st.error(f"❌ SUPABASE_ANON_KEY 格式不正确")
-            st.info("Key 应该是 JWT 令牌（以 'eyJ' 开头）或 publishable key（以 'sb_publishable_' 开头）或 secret key（以 'sb_secret_' 开头）")
+        # 简化验证 - 只检查基本格式
+        if len(key) < 10:
+            st.error(f"❌ SUPABASE_ANON_KEY 太短")
             return None
         
         # 尝试创建客户端
@@ -158,7 +152,7 @@ def init_supabase():
                 1. 登录 Supabase 控制台 (app.supabase.com)
                 2. 进入你的项目
                 3. 点击 Settings → API
-                4. 复制正确的 anon public key
+                4. 复制正确的 anon public key (以 sb_publishable_ 开头)
                 5. 更新 Hugging Face 中的 SUPABASE_ANON_KEY
                 """)
             elif "JWT" in str(test_error):

@@ -303,6 +303,212 @@ def show_dashboard():
     # 显示侧边栏
     show_sidebar()
     
-    # 用户欢迎信息
+    # 用户欢迎信息 - 修复了这里的语法错误
     if st.session_state.authenticated:
-        st.success(f"🎯 欢迎
+        st.success(f"🎯 欢迎回来，{st.session_state.user['username']}！")
+    
+    # 实时市场数据行
+    st.subheader("📈 实时行情")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        btc_data = NoFxCore.get_market_data("BTCUSDT")
+        btc_signal, btc_confidence = NoFxCore.calculate_signals(btc_data)
+        st.metric("BTC/USDT", f"${btc_data['price']:,.0f}", f"{btc_data['change']}%")
+    
+    with col2:
+        eth_data = NoFxCore.get_market_data("ETHUSDT")
+        eth_signal, eth_confidence = NoFxCore.calculate_signals(eth_data)
+        st.metric("ETH/USDT", f"${eth_data['price']:,.0f}", f"{eth_data['change']}%")
+    
+    with col3:
+        bnb_data = NoFxCore.get_market_data("BNBUSDT")
+        st.metric("BNB/USDT", f"${bnb_data['price']:,.0f}", f"{bnb_data['change']}%")
+    
+    with col4:
+        total_volume = btc_data['volume'] + eth_data['volume']
+        st.metric("总成交量", f"${total_volume:,.0f}")
+
+    # 图表和交易面板
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("💹 价格图表")
+        chart_data = NoFxCore.get_market_data("BTCUSDT")
+        st.plotly_chart(NoFxCore.generate_chart(chart_data), use_container_width=True)
+    
+    with col2:
+        st.subheader("⚡ 快速交易")
+        
+        if not st.session_state.authenticated:
+            st.warning("请先登录以进行交易")
+            if st.button("🔐 立即登录"):
+                st.session_state.page = "login"
+                st.rerun()
+            return
+        
+        symbol = st.selectbox("交易对", ["BTC/USDT", "ETH/USDT", "BNB/USDT"])
+        amount = st.number_input("数量", min_value=0.001, value=0.01, step=0.001, format="%.3f")
+        price = NoFxCore.get_market_data(symbol.replace("/", ""))['price']
+        
+        st.write(f"**当前价格:** ${price:,.2f}")
+        st.write(f"**总金额:** ${amount * price:,.2f}")
+        
+        col_buy, col_sell = st.columns(2)
+        with col_buy:
+            if st.button("🟢 买入", use_container_width=True):
+                success, message = execute_trade(
+                    st.session_state.user['id'],
+                    symbol,
+                    "BUY",
+                    amount,
+                    price
+                )
+                if success:
+                    st.success(f"✅ {message}")
+                    st.session_state.trade_history.append({
+                        'symbol': symbol,
+                        'side': 'BUY',
+                        'amount': amount,
+                        'price': price,
+                        'time': datetime.now()
+                    })
+                else:
+                    st.error(f"❌ {message}")
+        
+        with col_sell:
+            if st.button("🔴 卖出", use_container_width=True):
+                success, message = execute_trade(
+                    st.session_state.user['id'],
+                    symbol,
+                    "SELL",
+                    amount,
+                    price
+                )
+                if success:
+                    st.success(f"✅ {message}")
+                    st.session_state.trade_history.append({
+                        'symbol': symbol,
+                        'side': 'SELL',
+                        'amount': amount,
+                        'price': price,
+                        'time': datetime.now()
+                    })
+                else:
+                    st.error(f"❌ {message}")
+        
+        # 交易信号
+        st.subheader("📊 交易信号")
+        signal, confidence = NoFxCore.calculate_signals(btc_data)
+        signal_color = {
+            "STRONG_BUY": "🟢", "BUY": "🟡", 
+            "HOLD": "⚪", "SELL": "🟠", "STRONG_SELL": "🔴"
+        }
+        
+        st.info(f"""
+        **信号:** {signal_color.get(signal, '⚪')} {signal}
+        **置信度:** {confidence:.0%}
+        **建议:** {'积极买入' if 'BUY' in signal else '考虑卖出' if 'SELL' in signal else '保持观望'}
+        """)
+
+    # 交易历史和账户信息
+    st.subheader("📋 交易历史")
+    
+    if st.session_state.trade_history:
+        history_df = pd.DataFrame(st.session_state.trade_history)
+        st.dataframe(history_df, use_container_width=True)
+    else:
+        st.info("暂无交易记录")
+
+def show_login():
+    """登录页面"""
+    st.title("🔐 NoFx13 - 用户登录")
+    
+    # 显示 Supabase 连接状态
+    with st.expander("🔧 数据库连接状态", expanded=False):
+        init_supabase()
+    
+    with st.form("login_form"):
+        email = st.text_input("📧 邮箱地址")
+        password = st.text_input("🔑 密码", type="password")
+        submit = st.form_submit_button("登录")
+        
+        if submit:
+            if email and password:
+                with st.spinner("登录中..."):
+                    success, result = login_user(email, password)
+                    if success:
+                        st.session_state.user = result
+                        st.session_state.authenticated = True
+                        st.session_state.page = "dashboard"
+                        st.success("✅ 登录成功！")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {result}")
+            else:
+                st.error("⚠️ 请填写所有字段")
+    
+    st.write("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📝 注册新账户"):
+            st.session_state.page = "register"
+            st.rerun()
+    with col2:
+        if st.button("🏠 返回主页"):
+            st.session_state.page = "dashboard"
+            st.rerun()
+
+def show_register():
+    """注册页面"""
+    st.title("📝 NoFx13 - 用户注册")
+    
+    # 显示 Supabase 连接状态
+    with st.expander("🔧 数据库连接状态", expanded=False):
+        init_supabase()
+    
+    with st.form("register_form"):
+        username = st.text_input("👤 用户名")
+        email = st.text_input("📧 邮箱地址")
+        password = st.text_input("🔑 密码", type="password")
+        confirm_password = st.text_input("✅ 确认密码", type="password")
+        submit = st.form_submit_button("注册")
+        
+        if submit:
+            if all([username, email, password, confirm_password]):
+                if password != confirm_password:
+                    st.error("❌ 密码不一致")
+                elif len(password) < 6:
+                    st.error("❌ 密码至少需要6位字符")
+                else:
+                    with st.spinner("注册中..."):
+                        success, message = register_user(email, password, username)
+                        if success:
+                            st.success(f"✅ {message}")
+                            st.session_state.page = "login"
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
+            else:
+                st.error("⚠️ 请填写所有字段")
+    
+    st.write("---")
+    if st.button("🔙 返回登录"):
+        st.session_state.page = "login"
+        st.rerun()
+
+def main():
+    """主应用"""
+    init_session()
+    
+    # 页面路由
+    if st.session_state.page == "login":
+        show_login()
+    elif st.session_state.page == "register":
+        show_register()
+    else:
+        show_dashboard()
+
+if __name__ == "__main__":
+    main()

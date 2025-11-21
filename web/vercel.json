@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "name": "nofx-frontend",
-  "root": "web/",
   "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",

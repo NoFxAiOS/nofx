@@ -108,7 +108,7 @@ class NoFxCore:
 # ========== 数据库和认证功能 ==========
 @st.cache_resource
 def init_supabase():
-    """初始化 Supabase 客户端 - 简化验证版本"""
+    """初始化 Supabase 客户端 - 无格式验证版本"""
     try:
         url = os.environ.get('SUPABASE_URL')
         key = os.environ.get('SUPABASE_ANON_KEY')
@@ -119,22 +119,17 @@ def init_supabase():
         st.write(f"- SUPABASE_ANON_KEY 存在: {bool(key)}")
         
         if url:
-            st.write(f"- URL 格式: {url[:30]}..." if len(url) > 30 else f"- URL 格式: {url}")
+            st.write(f"- URL: {url}")
         if key:
-            st.write(f"- Key 格式: {key[:10]}..." if len(key) > 10 else f"- Key 格式: {key}")
-            st.write(f"- Key 长度: {len(key)}")
+            st.write(f"- Key 前20位: {key[:20]}...")
+            st.write(f"- Key 长度: {len(key)} 字符")
         
         if not url or not key:
             st.error("❌ Supabase 环境变量未设置完整")
-            st.info("请在 Hugging Face Space 设置中添加 SUPABASE_URL 和 SUPABASE_ANON_KEY")
             return None
         
-        # 简化验证 - 只检查基本格式
-        if len(key) < 10:
-            st.error(f"❌ SUPABASE_ANON_KEY 太短")
-            return None
-        
-        # 尝试创建客户端
+        # 直接尝试连接，不进行格式验证
+        st.write("🔄 尝试连接 Supabase...")
         client = create_client(url, key)
         
         # 测试连接 - 尝试一个简单的查询
@@ -143,20 +138,21 @@ def init_supabase():
             st.success("✅ Supabase 连接成功")
             return client
         except Exception as test_error:
-            st.error(f"❌ Supabase 连接测试失败: {str(test_error)}")
+            error_msg = str(test_error)
+            st.error(f"❌ Supabase 连接测试失败: {error_msg}")
             
             # 提供具体的错误解决建议
-            if "Invalid API key" in str(test_error):
+            if "Invalid API key" in error_msg:
                 st.error("""
                 **API Key 错误解决方案:**
-                1. 登录 Supabase 控制台 (app.supabase.com)
-                2. 进入你的项目
-                3. 点击 Settings → API
-                4. 复制正确的 anon public key (以 sb_publishable_ 开头)
-                5. 更新 Hugging Face 中的 SUPABASE_ANON_KEY
+                1. 确认使用的是正确的 publishable key (以 sb_publishable_ 开头)
+                2. 确认密钥没有多余的空格或换行符
+                3. 在 Supabase 控制台中重新生成密钥
                 """)
-            elif "JWT" in str(test_error):
-                st.error("JWT 令牌格式错误，请检查 SUPABASE_ANON_KEY 的值")
+            elif "JWT" in error_msg:
+                st.error("JWT 令牌格式错误")
+            elif "connect" in error_msg.lower() or "network" in error_msg.lower():
+                st.error("网络连接问题，请检查 URL 是否正确")
             
             return None
             

@@ -497,10 +497,7 @@ export function useTraderActions({
     hyperliquidWalletAddr?: string,
     asterUser?: string,
     asterSigner?: string,
-    asterPrivateKey?: string,
-    lighterWalletAddr?: string,
-    lighterPrivateKey?: string,
-    lighterApiKeyPrivateKey?: string
+    asterPrivateKey?: string
   ) => {
     try {
       // 找到要配置的交易所(从supportedExchanges中)
@@ -530,9 +527,6 @@ export function useTraderActions({
                   asterUser,
                   asterSigner,
                   asterPrivateKey,
-                  lighterWalletAddr,
-                  lighterPrivateKey,
-                  lighterApiKeyPrivateKey,
                   enabled: true,
                 }
               : e
@@ -548,9 +542,6 @@ export function useTraderActions({
           asterUser,
           asterSigner,
           asterPrivateKey,
-          lighterWalletAddr,
-          lighterPrivateKey,
-          lighterApiKeyPrivateKey,
           enabled: true,
         }
         updatedExchanges = [...(allExchanges || []), newExchange]
@@ -569,9 +560,6 @@ export function useTraderActions({
               aster_user: exchange.asterUser || '',
               aster_signer: exchange.asterSigner || '',
               aster_private_key: exchange.asterPrivateKey || '',
-              lighter_wallet_addr: exchange.lighterWalletAddr || '',
-              lighter_private_key: exchange.lighterPrivateKey || '',
-              lighter_api_key_private_key: exchange.lighterApiKeyPrivateKey || '',
             },
           ])
         ),

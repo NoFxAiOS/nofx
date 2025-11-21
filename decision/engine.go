@@ -122,46 +122,138 @@ type FullDecision struct {
 
 // GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
 func GetFullDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error) {
-	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
+	// Switch to Debate Mode
+	return GetDebateDecision(ctx, mcpClient)
 }
 
 // GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
+// Deprecated: Use GetDebateDecision instead, or keep for legacy support
 func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
-	// 1. 为所有币种获取市场数据
+	// For now, redirect to GetDebateDecision regardless of custom prompts,
+	// as the user requested a complete transformation of the decision making part.
+	// If we need to support custom prompts in debate mode, we can add that later.
+	return GetDebateDecision(ctx, mcpClient)
+}
+
+// callAgent 辅助函数：调用单个智能体
+func callAgent(mcpClient mcp.AIClient, systemPrompt, userPrompt string) (string, error) {
+	resp, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
+	if err != nil {
+		return "", err
+	}
+	return resp, nil
+}
+
+// GetDebateDecision 多智能体辩论模式决策
+func GetDebateDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error) {
+	// 1. 获取市场数据
 	if err := fetchMarketDataForContext(ctx); err != nil {
 		return nil, fmt.Errorf("获取市场数据失败: %w", err)
 	}
 
-	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
-	systemPrompt := buildSystemPromptWithCustom(ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage, customPrompt, overrideBase, templateName)
-	userPrompt := buildUserPrompt(ctx)
+	// 2. 构建初始市场数据 Prompt
+	marketDataPrompt := buildUserPrompt(ctx)
 
-	// 3. 调用AI API（使用 system + user prompt）
-	aiCallStart := time.Now()
-	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
-	aiCallDuration := time.Since(aiCallStart)
+	// 3. 加载各智能体 Prompts
+	longTemplate, err := GetPromptTemplate("long_agent")
 	if err != nil {
-		return nil, fmt.Errorf("调用AI API失败: %w", err)
+		return nil, fmt.Errorf("failed to load long_agent prompt: %w", err)
+	}
+	shortTemplate, err := GetPromptTemplate("short_agent")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load short_agent prompt: %w", err)
+	}
+	judgeTemplate, err := GetPromptTemplate("judge_agent")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load judge_agent prompt: %w", err)
 	}
 
-	// 4. 解析AI响应
-	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
+	// 4. 初始化辩论记录
+	var transcript strings.Builder
+	transcript.WriteString("MARKET DATA:\n" + marketDataPrompt + "\n\n")
 
-	// 无论是否有错误，都要保存 SystemPrompt 和 UserPrompt（用于调试和决策未执行后的问题定位）
+	startTime := time.Now()
+
+	// --- ROUND 1: Initial Arguments ---
+
+	// Long Agent Round 1
+	longTask1 := transcript.String() + "\n\n[TASK]: Analyze the market data above. Provide your initial detailed argument for opening a LONG position. If the market is bearish, explain why you are cautious but look for potential support."
+	longArg1, err := callAgent(mcpClient, longTemplate.Content, longTask1)
+	if err != nil {
+		return nil, fmt.Errorf("Long Agent Round 1 failed: %w", err)
+	}
+	transcript.WriteString("--- BULLISH AGENT (ROUND 1) ---\n" + longArg1 + "\n\n")
+
+	// Short Agent Round 1
+	shortTask1 := transcript.String() + "\n\n[TASK]: Analyze the market data above. Provide your initial detailed argument for opening a SHORT position. If the market is bullish, explain why you are cautious but look for potential resistance."
+	shortArg1, err := callAgent(mcpClient, shortTemplate.Content, shortTask1)
+	if err != nil {
+		return nil, fmt.Errorf("Short Agent Round 1 failed: %w", err)
+	}
+	transcript.WriteString("--- BEARISH AGENT (ROUND 1) ---\n" + shortArg1 + "\n\n")
+
+	// --- ROUND 2: Rebuttal ---
+
+	// Long Agent Round 2
+	longTask2 := transcript.String() + "\n\n[TASK]: Review the Bearish Agent's argument above. Refute their points and refine your Bullish case. Point out weaknesses in their analysis."
+	longArg2, err := callAgent(mcpClient, longTemplate.Content, longTask2)
+	if err != nil {
+		return nil, fmt.Errorf("Long Agent Round 2 failed: %w", err)
+	}
+	transcript.WriteString("--- BULLISH AGENT (ROUND 2 - REBUTTAL) ---\n" + longArg2 + "\n\n")
+
+	// Short Agent Round 2
+	shortTask2 := transcript.String() + "\n\n[TASK]: Review the Bullish Agent's argument above. Refute their points and refine your Bearish case. Point out weaknesses in their analysis."
+	shortArg2, err := callAgent(mcpClient, shortTemplate.Content, shortTask2)
+	if err != nil {
+		return nil, fmt.Errorf("Short Agent Round 2 failed: %w", err)
+	}
+	transcript.WriteString("--- BEARISH AGENT (ROUND 2 - REBUTTAL) ---\n" + shortArg2 + "\n\n")
+
+	// --- ROUND 3: Final Summary & Recommendation ---
+
+	// Long Agent Final
+	longTask3 := transcript.String() + "\n\n[TASK]: This is your final turn. Provide a concluding summary and your recommended JSON trade output (or WAIT). Be concise."
+	longFinal, err := callAgent(mcpClient, longTemplate.Content, longTask3)
+	if err != nil {
+		return nil, fmt.Errorf("Long Agent Final failed: %w", err)
+	}
+	transcript.WriteString("--- BULLISH AGENT (FINAL RECOMMENDATION) ---\n" + longFinal + "\n\n")
+
+	// Short Agent Final
+	shortTask3 := transcript.String() + "\n\n[TASK]: This is your final turn. Provide a concluding summary and your recommended JSON trade output (or WAIT). Be concise."
+	shortFinal, err := callAgent(mcpClient, shortTemplate.Content, shortTask3)
+	if err != nil {
+		return nil, fmt.Errorf("Short Agent Final failed: %w", err)
+	}
+	transcript.WriteString("--- BEARISH AGENT (FINAL RECOMMENDATION) ---\n" + shortFinal + "\n\n")
+
+	// --- JUDGE: Final Verdict ---
+
+	judgeTask := transcript.String() + "\n\n[TASK]: Act as the Judge. Analyze the entire debate above. Who made the stronger case? What is the safest and most profitable move? Output your reasoning <reasoning>...</reasoning> and the final decision JSON <decision>...</decision>."
+	judgeDecisionStr, err := callAgent(mcpClient, judgeTemplate.Content, judgeTask)
+	if err != nil {
+		return nil, fmt.Errorf("Judge Agent failed: %w", err)
+	}
+
+	totalDuration := time.Since(startTime)
+
+	// 5. 解析 Judge 的决策
+	decision, err := parseFullDecisionResponse(judgeDecisionStr, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
+
+	// 无论是否有错误，都要保存完整流程
 	if decision != nil {
 		decision.Timestamp = time.Now()
-		decision.SystemPrompt = systemPrompt // 保存系统prompt
-		decision.UserPrompt = userPrompt     // 保存输入prompt
-		decision.AIRequestDurationMs = aiCallDuration.Milliseconds()
+		decision.SystemPrompt = judgeTemplate.Content // 记录 Judge 的 System Prompt
+		decision.UserPrompt = "See CoTTrace for full debate transcript"
+		decision.CoTTrace = transcript.String() + "\n\n--- JUDGE VERDICT ---\n" + judgeDecisionStr
+		decision.AIRequestDurationMs = totalDuration.Milliseconds()
 	}
 
 	if err != nil {
-		return decision, fmt.Errorf("解析AI响应失败: %w", err)
+		return decision, fmt.Errorf("解析 Judge 决策失败: %w", err)
 	}
 
-	decision.Timestamp = time.Now()
-	decision.SystemPrompt = systemPrompt // 保存系统prompt
-	decision.UserPrompt = userPrompt     // 保存输入prompt
 	return decision, nil
 }
 

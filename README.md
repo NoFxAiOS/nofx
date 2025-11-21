@@ -3,9 +3,9 @@ title: NoFx13 Trading App
 emoji: 🚀
 colorFrom: blue
 colorTo: purple
-sdk: static
+sdk: docker
 sdk_version: 3.0.0
-app_file: index.html
+app_file: Dockerfile
 pinned: false
 ---
 

@@ -134,10 +134,10 @@ def init_supabase():
             st.info("URL 应该是 https://your-project-id.supabase.co 格式")
             return None
         
-        # 验证 Key 格式 - 支持新旧格式
-        if not (key.startswith('eyJ') or key.startswith('sb_publishable_')) or len(key) < 50:
+        # 验证 Key 格式 - 支持所有 Supabase 密钥格式
+        if not (key.startswith('eyJ') or key.startswith('sb_publishable_') or key.startswith('sb_secret_')) or len(key) < 50:
             st.error(f"❌ SUPABASE_ANON_KEY 格式不正确")
-            st.info("Key 应该是 JWT 令牌（以 'eyJ' 开头）或新的 publishable key（以 'sb_publishable_' 开头）")
+            st.info("Key 应该是 JWT 令牌（以 'eyJ' 开头）或 publishable key（以 'sb_publishable_' 开头）或 secret key（以 'sb_secret_' 开头）")
             return None
         
         # 尝试创建客户端

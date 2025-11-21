@@ -1,0 +1,130 @@
+name: Fix Hugging Face Config
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: dev
+
+      - name: Create correct README.md configuration
+        run: |
+          echo "创建正确的 Hugging Face 配置..."
+          
+          # 创建正确的 README.md 配置
+          cat > README.md << 'EOF'
+---
+title: NOFX AI Trading
+emoji: 🚀
+colorFrom: blue
+colorTo: purple
+sdk: streamlit
+sdk_version: "1.28.0"
+app_file: app.py
+pinned: false
+---
+
+# NOFX AI Trading Platform
+
+A multi-exchange AI trading platform with multi-AI competition and real-time dashboard.
+
+## Features
+- Multi-exchange support (Binance/Hyperliquid/Aster)
+- Multi-AI competition (deepseek/qwen/claude)  
+- Self-evolution capabilities
+- Real-time dashboard
+
+## Deployment
+This Space is automatically synced from the official repository.
+
+## Official Repository
+https://github.com/NoFxAiOS/nofx
+EOF
+          
+          echo "✅ 正确的 README.md 配置已创建"
+
+      - name: Verify YAML syntax
+        run: |
+          echo "验证 YAML 语法..."
+          pip install pyyaml
+          python -c "
+          import yaml
+          with open('README.md', 'r') as f:
+              content = f.read()
+          
+          # 提取 YAML front matter
+          if content.startswith('---'):
+              parts = content.split('---')
+              if len(parts) >= 3:
+                  yaml_content = parts[1]
+                  try:
+                      data = yaml.safe_load(yaml_content)
+                      print('✅ YAML 配置语法正确')
+                      print('配置内容:', data)
+                  except Exception as e:
+                      print(f'❌ YAML 语法错误: {e}')
+                      exit(1)
+          "
+          
+          echo "✅ 配置验证完成"
+
+      - name: Ensure app.py exists and is valid
+        run: |
+          echo "确保 app.py 存在且有效..."
+          [ -f "app.py" ] && echo "✅ app.py 存在" || echo "❌ app.py 不存在，创建默认版本"
+          
+          # 如果 app.py 不存在，创建一个简单的版本
+          if [ ! -f "app.py" ]; then
+            cat > app.py << 'EOF'
+import streamlit as st
+
+def main():
+    st.set_page_config(page_title="NOFX AI Trading", layout="wide")
+    st.title("🚀 NOFX AI Trading Platform")
+    st.write("Application is starting...")
+    
+    # 添加一些简单的内容避免递归错误
+    st.success("✅ Application loaded successfully!")
+
+if __name__ == "__main__":
+    main()
+EOF
+            echo "✅ 已创建默认 app.py"
+          fi
+
+      - name: Deploy fixed configuration
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          echo "部署修复后的配置..."
+          pip install huggingface_hub
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          try:
+              api.upload_folder(
+                  folder_path='.',
+                  repo_id='lcy1313/nofxbishenjiqir',
+                  repo_type='space',
+                  commit_message='Fix: Correct Hugging Face configuration'
+              )
+              print('✅ 配置修复已部署')
+          except Exception as e:
+              print(f'❌ 部署失败: {e}')
+              exit(1)
+          "
+
+      - name: Wait for build and check status
+        run: |
+          echo "等待构建完成..."
+          echo "请等待2-3分钟让 Hugging Face 完成构建"
+          echo "然后访问: https://lcy1313-nofxbishenjiqir.hf.space"
+          echo ""
+          echo "如果仍有问题，请检查 Hugging Face 的构建日志"

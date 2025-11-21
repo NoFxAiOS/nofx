@@ -1,7 +1,6 @@
 import { getApiBaseUrl } from './apiConfig';
 
 export interface SystemConfig {
-  admin_mode: boolean;
   beta_mode: boolean;
 }
 

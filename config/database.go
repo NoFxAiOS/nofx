@@ -1387,3 +1387,61 @@ func (d *Database) GetAuditLogs(userID string, limit int) ([]map[string]interfac
 func GenerateUUID() string {
 	return strings.Replace(uuid.New().String(), "-", "", -1)
 }
+
+// MigrateUserBetaCodes 回填用户的 beta_code 字段
+// 从 beta_codes 表的 used_by 字段获取用户邮箱，然后更新到用户表的 beta_code 字段
+func (d *Database) MigrateUserBetaCodes() (int, error) {
+	// 查询已使用的内测码及其用户邮箱
+	rows, err := d.db.Query(`
+		SELECT DISTINCT bc.code, bc.used_by
+		FROM beta_codes bc
+		WHERE bc.used = 1 AND bc.used_by IS NOT NULL AND bc.used_by != ''
+	`)
+	if err != nil {
+		return 0, fmt.Errorf("查询内测码失败: %w", err)
+	}
+	defer rows.Close()
+
+	updatedCount := 0
+	for rows.Next() {
+		var code, usedBy string
+		if err := rows.Scan(&code, &usedBy); err != nil {
+			log.Printf("⚠️ 扫描内测码记录失败: %v", err)
+			continue
+		}
+
+		// 更新用户表的 beta_code 字段
+		result, err := d.db.Exec(`
+			UPDATE users
+			SET beta_code = ?
+			WHERE email = ? AND beta_code IS NULL
+		`, code, usedBy)
+		if err != nil {
+			log.Printf("⚠️ 更新用户 %s 的 beta_code 失败: %v", usedBy, err)
+			continue
+		}
+
+		rowsAffected, _ := result.RowsAffected()
+		if rowsAffected > 0 {
+			updatedCount++
+			log.Printf("✅ 已为用户 %s 关联内测码 %s", usedBy, code)
+		}
+	}
+
+	return updatedCount, nil
+}
+
+// GetUserBetaCode 获取用户关联的内测码
+func (d *Database) GetUserBetaCode(userID string) (string, error) {
+	var betaCode sql.NullString
+	err := d.db.QueryRow(`
+		SELECT beta_code FROM users WHERE id = ?
+	`, userID).Scan(&betaCode)
+	if err != nil {
+		return "", err
+	}
+	if !betaCode.Valid {
+		return "", nil
+	}
+	return betaCode.String, nil
+}

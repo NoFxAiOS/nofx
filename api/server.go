@@ -199,7 +199,6 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
         betaMode := betaModeStr == "true"
 
         c.JSON(http.StatusOK, gin.H{
-                "admin_mode":       auth.IsAdminMode(),
                 "beta_mode":        betaMode,
                 "default_coins":    defaultCoins,
                 "btc_eth_leverage": btcEthLeverage,
@@ -1383,6 +1382,7 @@ func (s *Server) handleRegister(c *gin.Context) {
                 OTPVerified:    true,      // 直接标记为已验证
                 IsActive:       true,      // 账户激活状态
                 IsAdmin:        false,     // 非管理员
+                BetaCode:       req.BetaCode, // 关联内测码
                 FailedAttempts: 0,         // 失败尝试次数
                 CreatedAt:      now,       // 创建时间
                 UpdatedAt:      now,       // 更新时间
@@ -1509,6 +1509,38 @@ func (s *Server) handleLogin(c *gin.Context) {
         if !auth.CheckPassword(req.Password, user.PasswordHash) {
                 c.JSON(http.StatusUnauthorized, gin.H{"error": "邮箱或密码错误"})
                 return
+        }
+
+        // 检查是否开启内测模式
+        betaModeStr, _ := s.database.GetSystemConfig("beta_mode")
+        if betaModeStr == "true" {
+                // 内测模式下，验证用户是否有有效的内测码
+                userBetaCode, err := s.database.GetUserBetaCode(user.ID)
+                if err != nil {
+                        log.Printf("⚠️ 获取用户内测码失败: %v", err)
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "验证失败，请稍后重试"})
+                        return
+                }
+
+                if userBetaCode == "" {
+                        c.JSON(http.StatusUnauthorized, gin.H{"error": "内测码无效，请联系管理员"})
+                        return
+                }
+
+                // 验证内测码是否仍然有效
+                isValid, err := s.database.ValidateBetaCode(userBetaCode)
+                if err != nil {
+                        log.Printf("⚠️ 验证内测码失败: %v", err)
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": "验证失败，请稍后重试"})
+                        return
+                }
+
+                if !isValid {
+                        c.JSON(http.StatusUnauthorized, gin.H{"error": "内测码无效，请联系管理员"})
+                        return
+                }
+
+                log.Printf("✓ 用户 %s 登录成功（内测码: %s）", user.Email, userBetaCode)
         }
 
         // 生成JWT token

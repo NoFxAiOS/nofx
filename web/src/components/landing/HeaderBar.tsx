@@ -12,11 +12,10 @@ interface HeaderBarProps {
   onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
-  isAdminMode?: boolean
   onPageChange?: (page: string) => void
 }
 
-export default function HeaderBar({ isLoggedIn = false, isHomePage = false, currentPage, language = 'zh' as Language, onLanguageChange, user, onLogout, isAdminMode = false, onPageChange }: HeaderBarProps) {
+export default function HeaderBar({ isLoggedIn = false, isHomePage = false, currentPage, language = 'zh' as Language, onLanguageChange, user, onLogout, onPageChange }: HeaderBarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
@@ -264,7 +263,7 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
                           <div className='text-xs' style={{ color: 'var(--text-secondary)' }}>{t('loggedInAs', language)}</div>
                           <div className='text-sm font-medium' style={{ color: 'var(--brand-light-gray)' }}>{user.email}</div>
                         </div>
-                        {!isAdminMode && onLogout && (
+                        {onLogout && (
                           <button
                             onClick={() => {
                               onLogout()
@@ -565,7 +564,7 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
                   <div className='text-sm' style={{ color: 'var(--brand-light-gray)' }}>{user.email}</div>
                 </div>
               </div>
-              {!isAdminMode && onLogout && (
+              {onLogout && (
                 <button
                   onClick={() => {
                     onLogout()

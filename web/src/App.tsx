@@ -13,7 +13,6 @@ import AILearning from './components/AILearning';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
-import { useSystemConfig } from './hooks/useSystemConfig';
 import type {
   SystemStatus,
   AccountInfo,
@@ -42,7 +41,6 @@ function getModelDisplayName(modelId: string): string {
 function App() {
   const { language, setLanguage } = useLanguage();
   const { user, token, logout, isLoading } = useAuth();
-  const { config: systemConfig, loading: configLoading } = useSystemConfig();
   const [route, setRoute] = useState(window.location.pathname);
 
   // 从URL路径读取初始页面状态（支持刷新保持页面）
@@ -195,8 +193,8 @@ function App() {
     }
   }, [route]);
 
-  // Show loading spinner while checking auth or config
-  if (isLoading || configLoading) {
+  // Show loading spinner while checking auth
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#0B0E11' }}>
         <div className="text-center">
@@ -228,7 +226,6 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
-          isAdminMode={systemConfig?.admin_mode}
           onPageChange={(page) => {
             console.log('Competition page onPageChange called with:', page);
             console.log('Current route:', route, 'Current page:', currentPage);
@@ -266,7 +263,7 @@ function App() {
   }
   
   // Show main app for authenticated users on other routes
-  if (!systemConfig?.admin_mode && (!user || !token)) {
+  if (!user || !token) {
     // Default to landing page when not authenticated and no specific route
     return <LandingPage />;
   }
@@ -280,7 +277,6 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        isAdminMode={systemConfig?.admin_mode}
         onPageChange={(page) => {
           console.log('Main app onPageChange called with:', page);
           

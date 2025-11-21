@@ -198,7 +198,6 @@ func main() {
                 } else {
                         log.Printf("✓ 管理员模式已启用，无需登录")
                 }
-                auth.SetAdminMode(true)
         }
 
         log.Printf("✓ 配置数据库初始化成功")

@@ -51,12 +51,25 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 
 // corsMiddleware CORS中间件
 func corsMiddleware() gin.HandlerFunc {
-        // 从环境变量获取允许的域名列表，默认为开发环境域名
+        // 从环境变量获取允许的域名列表，默认为开发环境和Vercel域名
         allowedOrigins := []string{
+                // 开发环境
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "http://127.0.0.1:3000",
                 "http://127.0.0.1:5173",
+
+                // Vercel部署域名 - 主要实例
+                "https://web-3c7a7psvt-gyc567s-projects.vercel.app",
+                "https://web-pink-omega-40.vercel.app",
+                "https://web-gyc567s-projects.vercel.app",
+                "https://web-7jc87z3u4-gyc567s-projects.vercel.app",
+                "https://web-gyc567-gyc567s-projects.vercel.app",
+
+                // Vercel部署域名 - 历史实例
+                "https://web-fej4rs4y2-gyc567s-projects.vercel.app",
+                "https://web-fco5upt1e-gyc567s-projects.vercel.app",
+                "https://web-2ybunmaej-gyc567s-projects.vercel.app",
         }
 
         // 如果设置了环境变量，使用环境变量中的值

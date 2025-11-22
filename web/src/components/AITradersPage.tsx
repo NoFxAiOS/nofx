@@ -75,8 +75,6 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingExchange, setEditingExchange] = useState<string | null>(null)
   const [editingTrader, setEditingTrader] = useState<any>(null)
-  const [allModels, setAllModels] = useState<AIModel[]>([])
-  const [allExchanges, setAllExchanges] = useState<Exchange[]>([])
   const [supportedModels, setSupportedModels] = useState<AIModel[]>([])
   const [supportedExchanges, setSupportedExchanges] = useState<Exchange[]>([])
   const [userSignalSource, setUserSignalSource] = useState<{
@@ -93,56 +91,49 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     { refreshInterval: 5000 }
   )
 
-  // 加载AI模型和交易所配置
-  useEffect(() => {
-    const loadConfigs = async () => {
-      if (!user || !token) {
-        // 未登录时只加载公开的支持模型和交易所
-        try {
-          const [supportedModels, supportedExchanges] = await Promise.all([
-            api.getSupportedModels(),
-            api.getSupportedExchanges(),
-          ])
-          setSupportedModels(supportedModels)
-          setSupportedExchanges(supportedExchanges)
-        } catch (err) {
-          console.error('Failed to load supported configs:', err)
-        }
-        return
-      }
+  const { data: allModels, mutate: mutateModels } = useSWR<AIModel[]>(
+    user && token ? 'models' : null,
+    api.getModelConfigs
+  )
 
+  const { data: allExchanges, mutate: mutateExchanges } = useSWR<Exchange[]>(
+    user && token ? 'exchanges' : null,
+    api.getExchangeConfigs
+  )
+
+  // 加载支持的模型和交易所列表（用于选择）
+  useEffect(() => {
+    const loadSupportedConfigs = async () => {
       try {
-        const [
-          modelConfigs,
-          exchangeConfigs,
-          supportedModels,
-          supportedExchanges,
-        ] = await Promise.all([
-          api.getModelConfigs(),
-          api.getExchangeConfigs(),
+        const [supportedModels, supportedExchanges] = await Promise.all([
           api.getSupportedModels(),
           api.getSupportedExchanges(),
         ])
-        setAllModels(modelConfigs)
-        setAllExchanges(exchangeConfigs)
         setSupportedModels(supportedModels)
         setSupportedExchanges(supportedExchanges)
-
-        // 加载用户信号源配置
-        try {
-          const signalSource = await api.getUserSignalSource()
-          setUserSignalSource({
-            coinPoolUrl: signalSource.coin_pool_url || '',
-            oiTopUrl: signalSource.oi_top_url || '',
-          })
-        } catch (error) {
-          console.log('📡 用户信号源配置暂未设置')
-        }
-      } catch (error) {
-        console.error('Failed to load configs:', error)
+      } catch (err) {
+        console.error('Failed to load supported configs:', err)
       }
     }
-    loadConfigs()
+    loadSupportedConfigs()
+  }, [])
+
+  // 加载用户信号源配置
+  useEffect(() => {
+    const loadSignalSource = async () => {
+      if (!user || !token) return
+
+      try {
+        const signalSource = await api.getUserSignalSource()
+        setUserSignalSource({
+          coinPoolUrl: signalSource.coin_pool_url || '',
+          oiTopUrl: signalSource.oi_top_url || '',
+        })
+      } catch (error) {
+        console.log('📡 用户信号源配置暂未设置')
+      }
+    }
+    loadSignalSource()
   }, [user, token])
 
   // 只显示已配置的模型和交易所
@@ -383,8 +374,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     clearFields: (item: T) => T
     buildRequest: (items: T[]) => any
     updateApi: (request: any) => Promise<void>
-    refreshApi: () => Promise<T[]>
-    setItems: (items: T[]) => void
+    setItems: () => void
     closeModal: () => void
     errorKey: string
   }) => {
@@ -416,9 +406,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         error: '更新配置失败',
       })
 
-      // 重新获取用户配置以确保数据同步
-      const refreshedItems = await config.refreshApi()
-      config.setItems(refreshedItems)
+      // 使用 SWR mutate 自动刷新数据
+      config.setItems()
 
       config.closeModal()
     } catch (error) {
@@ -457,10 +446,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }),
       updateApi: api.updateModelConfigs,
-      refreshApi: api.getModelConfigs,
-      setItems: (items) => {
-        // 使用函数式更新确保状态正确更新
-        setAllModels([...items])
+      setItems: () => {
+        // 自动刷新模型列表
+        mutateModels()
       },
       closeModal: () => {
         setShowModelModal(false)
@@ -535,9 +523,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         error: '更新模型配置失败',
       })
 
-      // 重新获取用户配置以确保数据同步
-      const refreshedModels = await api.getModelConfigs()
-      setAllModels(refreshedModels)
+      // 自动刷新模型列表
+      mutateModels()
 
       setShowModelModal(false)
       setEditingModel(null)
@@ -584,10 +571,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }),
       updateApi: api.updateExchangeConfigsEncrypted,
-      refreshApi: api.getExchangeConfigs,
-      setItems: (items) => {
-        // 使用函数式更新确保状态正确更新
-        setAllExchanges([...items])
+      setItems: () => {
+        // 自动刷新交易所列表
+        mutateExchanges()
       },
       closeModal: () => {
         setShowExchangeModal(false)
@@ -679,9 +665,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         error: '更新交易所配置失败',
       })
 
-      // 重新获取用户配置以确保数据同步
-      const refreshedExchanges = await api.getExchangeConfigs()
-      setAllExchanges(refreshedExchanges)
+      // 自动刷新交易所列表
+      mutateExchanges()
 
       setShowExchangeModal(false)
       setEditingExchange(null)
@@ -1238,7 +1223,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       {showModelModal && (
         <ModelConfigModal
           allModels={supportedModels}
-          configuredModels={allModels}
+          configuredModels={allModels || []}
           editingModelId={editingModel}
           onSave={handleSaveModelConfig}
           onDelete={handleDeleteModelConfig}

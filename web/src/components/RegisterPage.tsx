@@ -33,6 +33,7 @@ export function RegisterPage() {
   const [passwordValid, setPasswordValid] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
 
   useEffect(() => {
     // 获取系统配置，检查是否开启内测模式和注册功能
@@ -105,8 +106,12 @@ export function RegisterPage() {
     setLoading(false)
   }
 
-  const copyToClipboard = (text: string) => {
-    copyWithToast(text)
+  const copyToClipboard = async (text: string) => {
+    const success = await copyWithToast(text)
+    if (success) {
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    }
   }
 
   return (
@@ -405,13 +410,13 @@ export function RegisterPage() {
                       </code>
                       <button
                         onClick={() => copyToClipboard(otpSecret)}
-                        className="px-2 py-1 text-xs rounded"
+                        className="px-2 py-1 text-xs rounded transition-all"
                         style={{
-                          background: 'var(--brand-yellow)',
-                          color: 'var(--brand-black)',
+                          background: copySuccess ? '#0ECB81' : 'var(--brand-yellow)',
+                          color: copySuccess ? '#FFF' : 'var(--brand-black)',
                         }}
                       >
-                        {t('copy', language)}
+                        {copySuccess ? '✓ ' + (t('copied', language) || 'Copied!') : t('copy', language)}
                       </button>
                     </div>
                   </div>

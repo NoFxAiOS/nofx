@@ -222,6 +222,12 @@ export function TwoStageKeyModal({
                   maxLength={expectedPart1Length + 2} // +2 for optional 0x prefix
                   disabled={processing}
                 />
+                <div className="text-gray-400 text-xs mt-1">
+                  {t('twoStageKey.helpText', language, {
+                    length: expectedPart1Length,
+                    totalWithPrefix: expectedPart1Length + 2,
+                  })}
+                </div>
               </div>
 
               {error && <div className="text-red-400 text-sm">{error}</div>}
@@ -296,6 +302,12 @@ export function TwoStageKeyModal({
                   className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-white font-mono text-sm focus:border-blue-500 focus:outline-none"
                   maxLength={expectedPart2Length + 2}
                 />
+                <div className="text-gray-400 text-xs mt-1">
+                  {t('twoStageKey.helpText', language, {
+                    length: expectedPart2Length,
+                    totalWithPrefix: expectedPart2Length + 2,
+                  })}
+                </div>
               </div>
 
               {error && <div className="text-red-400 text-sm">{error}</div>}

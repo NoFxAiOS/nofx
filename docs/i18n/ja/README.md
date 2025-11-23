@@ -53,7 +53,7 @@
 ### 👥 コアチーム
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
-- **公式推特** - [@nofx_official](https://x.com/nofx_official)
+- **唯一公式推特** - [@nofx_official](https://x.com/nofx_official)
 
 ### 💼 シードラウンド募集中
 

@@ -6,6 +6,7 @@ import HeroSection from '../components/landing/HeroSection'
 import AboutSection from '../components/landing/AboutSection'
 import FeaturesSection from '../components/landing/FeaturesSection'
 import CommunitySection from '../components/landing/CommunitySection'
+import UserManualLink from '../components/landing/UserManualLink'
 import AnimatedSection from '../components/landing/AnimatedSection'
 import LoginModal from '../components/landing/LoginModal'
 import FooterSection from '../components/landing/FooterSection'
@@ -46,6 +47,9 @@ export function LandingPage() {
       <AboutSection language={language} />
       <FeaturesSection language={language} />
       <CommunitySection />
+
+      {/* User Manual Link */}
+      <UserManualLink />
 
       {/* CTA */}
       <AnimatedSection backgroundColor='var(--panel-bg)'>

@@ -31,6 +31,12 @@ type SymbolStats struct {
 	Score            float64 // 综合评分
 }
 
+// KlineCacheEntry 存储K线数据及其接收时间，用于检测数据新鲜度
+type KlineCacheEntry struct {
+	Klines     []Kline
+	ReceivedAt time.Time
+}
+
 var WSMonitorCli *WSMonitor
 var subKlineTime = []string{"3m", "4h"} // 管理订阅流的K线周期
 
@@ -96,7 +102,7 @@ func (m *WSMonitor) initializeHistoricalData() error {
 				return
 			}
 			if len(klines) > 0 {
-				m.klineDataMap3m.Store(s, klines)
+				m.klineDataMap3m.Store(s, &KlineCacheEntry{Klines: klines, ReceivedAt: time.Now()})
 				log.Printf("已加载 %s 的历史K线数据-3m: %d 条", s, len(klines))
 			}
 			// 获取历史K线数据
@@ -106,7 +112,7 @@ func (m *WSMonitor) initializeHistoricalData() error {
 				return
 			}
 			if len(klines4h) > 0 {
-				m.klineDataMap4h.Store(s, klines4h)
+				m.klineDataMap4h.Store(s, &KlineCacheEntry{Klines: klines4h, ReceivedAt: time.Now()})
 				log.Printf("已加载 %s 的历史K线数据-4h: %d 条", s, len(klines4h))
 			}
 		}(symbol)
@@ -210,7 +216,8 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 	value, exists := klineDataMap.Load(symbol)
 	var klines []Kline
 	if exists {
-		klines = value.([]Kline)
+		entry := value.(*KlineCacheEntry)
+		klines = entry.Klines
 
 		// 检查是否是新的K线
 		if len(klines) > 0 && klines[len(klines)-1].OpenTime == kline.OpenTime {
@@ -229,7 +236,8 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 		klines = []Kline{kline}
 	}
 
-	klineDataMap.Store(symbol, klines)
+	// 存储时带上时间戳，用于检测数据新鲜度
+	klineDataMap.Store(symbol, &KlineCacheEntry{Klines: klines, ReceivedAt: time.Now()})
 }
 
 func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, error) {
@@ -243,8 +251,8 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, e
 			return nil, fmt.Errorf("获取%v分钟K线失败: %v", duration, err)
 		}
 
-		// 动态缓存进缓存
-		m.getKlineDataMap(duration).Store(strings.ToUpper(symbol), klines)
+		// 动态缓存进缓存（带时间戳）
+		m.getKlineDataMap(duration).Store(strings.ToUpper(symbol), &KlineCacheEntry{Klines: klines, ReceivedAt: time.Now()})
 
 		// 订阅 WebSocket 流
 		subStr := m.subscribeSymbol(symbol, duration)
@@ -260,10 +268,45 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, e
 		return result, nil
 	}
 
-	// ✅ FIX: 返回深拷贝而非引用，避免并发竞态条件
-	klines := value.([]Kline)
-	result := make([]Kline, len(klines))
-	copy(result, klines)
+	// 从缓存读取数据
+	entry := value.(*KlineCacheEntry)
+
+	// ✅ 检查数据新鲜度（防止使用过期数据）
+	// 🔧 修复：縮短閾值至 5 分鐘，快速檢測 WebSocket 數據停止
+	// - 3m K线：5分钟 = 不到 2个周期，及时检测问题
+	// - 4h K线：虽然新 K线 4小时才生成，但当前 K线是实时更新的
+	// 如果 5 分钟內沒有任何更新，WebSocket 很可能已停止工作
+	dataAge := time.Since(entry.ReceivedAt)
+	maxAge := 5 * time.Minute
+
+	if dataAge > maxAge {
+		// ⚠️ 数据过期，记录警告并尝试 API fallback
+		log.Printf("⚠️ %s 的 %s K线数据已过期 (%.1f 分钟)，WebSocket 可能停止工作，尝试 API fallback",
+			symbol, duration, dataAge.Minutes())
+
+		// 🔧 修复：數據過期時，嘗試 API fallback（避免 AI 用過期數據決策）
+		apiClient := NewAPIClient()
+		freshKlines, err := apiClient.GetKlines(symbol, duration, 100)
+		if err != nil {
+			return nil, fmt.Errorf("%s 的 %s K线数据已过期且 API fallback 失败: %v", symbol, duration, err)
+		}
+
+		// 更新緩存並返回新數據
+		freshEntry := &KlineCacheEntry{
+			Klines:     freshKlines,
+			ReceivedAt: time.Now(),
+		}
+		m.getKlineDataMap(duration).Store(strings.ToUpper(symbol), freshEntry)
+		log.Printf("✅ %s %s API fallback 成功，已更新緩存 (%d 條數據)", symbol, duration, len(freshKlines))
+
+		result := make([]Kline, len(freshKlines))
+		copy(result, freshKlines)
+		return result, nil
+	}
+
+	// 数据新鲜，返回缓存数据（深拷贝）
+	result := make([]Kline, len(entry.Klines))
+	copy(result, entry.Klines)
 	return result, nil
 }
 

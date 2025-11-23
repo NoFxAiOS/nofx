@@ -2095,8 +2095,9 @@ function ExchangeConfigModal({
 
             {selectedExchange && (
               <>
-                {/* Binance 和其他 CEX 交易所的字段 */}
+                {/* Binance/Bybit 和其他 CEX 交易所的字段 */}
                 {(selectedExchange.id === 'binance' ||
+                  selectedExchange.id === 'bybit' ||
                   selectedExchange.type === 'cex') &&
                   selectedExchange.id !== 'hyperliquid' &&
                   selectedExchange.id !== 'aster' && (
@@ -2584,10 +2585,13 @@ function ExchangeConfigModal({
                   (!asterUser.trim() ||
                     !asterSigner.trim() ||
                     !asterPrivateKey.trim())) ||
+                (selectedExchange.id === 'bybit' &&
+                  (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedExchange.type === 'cex' &&
                   selectedExchange.id !== 'hyperliquid' &&
                   selectedExchange.id !== 'aster' &&
                   selectedExchange.id !== 'binance' &&
+                  selectedExchange.id !== 'bybit' &&
                   selectedExchange.id !== 'okx' &&
                   (!apiKey.trim() || !secretKey.trim()))
               }

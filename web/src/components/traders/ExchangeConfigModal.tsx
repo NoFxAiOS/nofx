@@ -404,8 +404,9 @@ export function ExchangeConfigModal({
 
             {selectedExchange && (
               <>
-                {/* Binance 和其他 CEX 交易所的字段 */}
+                {/* Binance/Bybit 和其他 CEX 交易所的字段 */}
                 {(selectedExchange.id === 'binance' ||
+                  selectedExchange.id === 'bybit' ||
                   selectedExchange.type === 'cex') &&
                   selectedExchange.id !== 'hyperliquid' &&
                   selectedExchange.id !== 'aster' && (
@@ -1012,11 +1013,14 @@ export function ExchangeConfigModal({
                     !asterPrivateKey.trim())) ||
                 (selectedExchange.id === 'lighter' &&
                   (!lighterWalletAddr.trim() || !lighterPrivateKey.trim())) ||
+                (selectedExchange.id === 'bybit' &&
+                  (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedExchange.type === 'cex' &&
                   selectedExchange.id !== 'hyperliquid' &&
                   selectedExchange.id !== 'aster' &&
                   selectedExchange.id !== 'lighter' &&
                   selectedExchange.id !== 'binance' &&
+                  selectedExchange.id !== 'bybit' &&
                   selectedExchange.id !== 'okx' &&
                   (!apiKey.trim() || !secretKey.trim()))
               }

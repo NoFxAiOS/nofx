@@ -55,6 +55,7 @@
 ### 👥 核心团队
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **官方推特** - [@nofx_official](https://x.com/nofx_official)
 
 ### 💼 种子轮融资进行中
 

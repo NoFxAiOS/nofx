@@ -53,6 +53,7 @@
 ### 👥 Core Team
 
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
+- **Official Twitter** - [@nofx_official](https://x.com/nofx_official)
 
 ### 💼 Seed Funding Round Open
 

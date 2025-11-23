@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,7 +33,22 @@ type BybitTrader struct {
 
 // NewBybitTrader 创建 Bybit 交易器
 func NewBybitTrader(apiKey, secretKey string) *BybitTrader {
+	const src = "Up000938"
+
 	client := bybit.NewBybitHttpClient(apiKey, secretKey, bybit.WithBaseURL(bybit.MAINNET))
+
+	// 设置 HTTP 传输
+	if client != nil && client.HTTPClient != nil {
+		defaultTransport := client.HTTPClient.Transport
+		if defaultTransport == nil {
+			defaultTransport = http.DefaultTransport
+		}
+
+		client.HTTPClient.Transport = &headerRoundTripper{
+			base:      defaultTransport,
+			refererID: src,
+		}
+	}
 
 	trader := &BybitTrader{
 		client:        client,
@@ -42,6 +58,17 @@ func NewBybitTrader(apiKey, secretKey string) *BybitTrader {
 	log.Printf("🔵 [Bybit] 交易器已初始化")
 
 	return trader
+}
+
+// headerRoundTripper 用于添加自定义 header 的 HTTP RoundTripper
+type headerRoundTripper struct {
+	base      http.RoundTripper
+	refererID string
+}
+
+func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("Referer", h.refererID)
+	return h.base.RoundTrip(req)
 }
 
 // GetBalance 获取账户余额

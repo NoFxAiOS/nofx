@@ -1144,10 +1144,12 @@ func (at *AutoTrader) executePartialCloseWithRecord(decision *decision.Decision,
 		// 🔄 自动修正为全部平仓
 		if positionSide == "LONG" {
 			decision.Action = "close_long"
+			actionRecord.Action = "close_long" // 🔧 修复：同步更新 actionRecord，确保日志记录一致
 			log.Printf("  ✓ 已修正为: close_long")
 			return at.executeCloseLongWithRecord(decision, actionRecord)
 		} else {
 			decision.Action = "close_short"
+			actionRecord.Action = "close_short" // 🔧 修复：同步更新 actionRecord，确保日志记录一致
 			log.Printf("  ✓ 已修正为: close_short")
 			return at.executeCloseShortWithRecord(decision, actionRecord)
 		}

@@ -271,7 +271,7 @@ nofx/
 
 このシステムを使用する前に、Binance先物アカウントが必要です。**紹介リンクを使用して取引手数料を節約しましょう：**
 
-**🎁 [Binance登録 - 手数料割引を取得](https://www.binance.com/join?ref=TINKLEVIP)**
+**🎁 [Binance登録 - 手数料割引を取得](https://www.binance.com/join?ref=NOFXJAPAN)**
 
 ### 登録手順：
 

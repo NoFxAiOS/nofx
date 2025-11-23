@@ -247,7 +247,7 @@ NOFX는 현대적이고 모듈화된 아키텍처로 구축되었습니다:
 
 이 시스템을 사용하기 전에 바이낸스 선물 계정이 필요합니다. **추천 링크를 사용하여 거래 수수료를 절약하세요:**
 
-**🎁 [바이낸스 등록 - 수수료 할인 받기](https://www.binance.com/join?ref=TINKLEVIP)**
+**🎁 [바이낸스 등록 - 수수료 할인 받기](https://www.binance.com/join?ref=NOFXKOREA)**
 
 ### 등록 단계:
 

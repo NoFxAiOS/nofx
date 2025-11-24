@@ -17,15 +17,12 @@ Welcome to the NOFX documentation! This page helps you find the right documentat
 | [Getting Started Index (中文)](getting-started/README.zh-CN.md) | 所有部署选项 | All deployment options |
 | [Docker Deployment (EN)](getting-started/docker-deploy.en.md) | Deploy with Docker (recommended) | Docker 部署（推荐） |
 | [Docker Deployment (中文)](getting-started/docker-deploy.zh-CN.md) | Docker 部署指南（中文） | Docker deployment guide |
-| [PM2 Deployment (EN)](getting-started/pm2-deploy.en.md) | Deploy with PM2 process manager | PM2 进程管理器部署 |
-| [PM2 Deployment (中文)](getting-started/pm2-deploy.md) | PM2 部署指南（中文） | PM2 deployment guide |
 | [Custom API (EN)](getting-started/custom-api.en.md) | Connect custom AI API providers | 连接自定义 AI API |
 | [Custom API (中文)](getting-started/custom-api.md) | 连接自定义 AI API 提供商 | Custom AI provider guide |
 
 **Quick Links:**
 - 📖 See all options → [Getting Started](getting-started/README.md) / [快速开始](getting-started/README.zh-CN.md)
 - 🐳 Want easiest setup? → [Docker (EN)](getting-started/docker-deploy.en.md) / [Docker (中文)](getting-started/docker-deploy.zh-CN.md)
-- 🔧 Advanced user? → [PM2 (EN)](getting-started/pm2-deploy.en.md) / [PM2 (中文)](getting-started/pm2-deploy.md)
 - 🤖 Custom AI model? → [Custom API (EN)](getting-started/custom-api.en.md) / [自定义 API](getting-started/custom-api.md)
 
 ---

@@ -6,18 +6,12 @@ import (
 	"fmt"
 	"log"
 	"nofx/config"
-	"nofx/market"
 	"nofx/trader"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-)
-
-// Binance Testnet API endpoints (用于 Paper Trading)
-const (
-	BINANCE_TESTNET_BASE_URL = "https://testnet.binance.vision"
 )
 
 // CompetitionCache 竞赛数据缓存
@@ -218,21 +212,6 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
-	// 解析指标配置（如果有）
-	var indicatorConfig *market.IndicatorConfig
-	if traderCfg.IndicatorConfig != "" {
-		var cfg market.IndicatorConfig
-		if err := json.Unmarshal([]byte(traderCfg.IndicatorConfig), &cfg); err != nil {
-			log.Printf("⚠️ 解析指标配置失败，使用默认配置: %v", err)
-			indicatorConfig = market.GetDefaultIndicatorConfig()
-		} else {
-			indicatorConfig = &cfg
-		}
-	} else {
-		// 使用默认配置
-		indicatorConfig = market.GetDefaultIndicatorConfig()
-	}
-
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
@@ -260,18 +239,12 @@ func (tm *TraderManager) addTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
 		SystemPromptTemplate:  traderCfg.SystemPromptTemplate, // 系统提示词模板
-		IndicatorConfig:       indicatorConfig,                // 指标配置
 	}
 
 	// 根据交易所类型设置API密钥
 	if exchangeCfg.ID == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "paper_trading" {
-		// Paper Trading 使用 Binance Testnet API
-		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
-		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-		log.Printf("🧪 交易员 %s 使用 Paper Trading (Testnet API)", traderCfg.Name)
 	} else if exchangeCfg.ID == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
@@ -346,21 +319,6 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
 	}
 
-	// 解析指标配置（如果有）
-	var indicatorConfig *market.IndicatorConfig
-	if traderCfg.IndicatorConfig != "" {
-		var cfg market.IndicatorConfig
-		if err := json.Unmarshal([]byte(traderCfg.IndicatorConfig), &cfg); err != nil {
-			log.Printf("⚠️ 解析指标配置失败，使用默认配置: %v", err)
-			indicatorConfig = market.GetDefaultIndicatorConfig()
-		} else {
-			indicatorConfig = &cfg
-		}
-	} else {
-		// 使用默认配置
-		indicatorConfig = market.GetDefaultIndicatorConfig()
-	}
-
 	// 构建AutoTraderConfig
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
@@ -387,18 +345,12 @@ func (tm *TraderManager) AddTraderFromDB(traderCfg *config.TraderRecord, aiModel
 		IsCrossMargin:         traderCfg.IsCrossMargin,
 		DefaultCoins:          defaultCoins,
 		TradingCoins:          tradingCoins,
-		IndicatorConfig:       indicatorConfig, // 指标配置
 	}
 
 	// 根据交易所类型设置API密钥
 	if exchangeCfg.ID == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "paper_trading" {
-		// Paper Trading 使用 Binance Testnet API
-		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
-		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-		log.Printf("🧪 交易员 %s 使用 Paper Trading (Testnet API)", traderCfg.Name)
 	} else if exchangeCfg.ID == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
@@ -498,23 +450,6 @@ func (tm *TraderManager) StopAll() {
 	for _, t := range tm.traders {
 		t.Stop()
 	}
-}
-
-// ReloadIndicatorConfig 热重载指定trader的技术指标配置
-func (tm *TraderManager) ReloadIndicatorConfig(traderID string, newConfig *market.IndicatorConfig) error {
-	tm.mu.RLock()
-	defer tm.mu.RUnlock()
-
-	t, exists := tm.traders[traderID]
-	if !exists {
-		return fmt.Errorf("trader ID '%s' 不存在", traderID)
-	}
-
-	// 调用trader的热重载方法
-	t.ReloadIndicatorConfig(newConfig)
-	log.Printf("🔄 TraderManager: 已通知 %s 重载配置", traderID)
-	
-	return nil
 }
 
 // GetComparisonData 获取对比数据
@@ -655,48 +590,51 @@ func (tm *TraderManager) getConcurrentTraderData(traders []*trader.AutoTrader) [
 			case account := <-accountChan:
 				// 成功获取账户信息
 				traderData = map[string]interface{}{
-					"trader_id":       trader.GetID(),
-					"trader_name":     trader.GetName(),
-					"ai_model":        trader.GetAIModel(),
-					"exchange":        trader.GetExchange(),
-					"total_equity":    account["total_equity"],
-					"total_pnl":       account["total_pnl"],
-					"total_pnl_pct":   account["total_pnl_pct"],
-					"position_count":  account["position_count"],
-					"margin_used_pct": account["margin_used_pct"],
-					"is_running":      status["is_running"],
+					"trader_id":              trader.GetID(),
+					"trader_name":            trader.GetName(),
+					"ai_model":               trader.GetAIModel(),
+					"exchange":               trader.GetExchange(),
+					"total_equity":           account["total_equity"],
+					"total_pnl":              account["total_pnl"],
+					"total_pnl_pct":          account["total_pnl_pct"],
+					"position_count":         account["position_count"],
+					"margin_used_pct":        account["margin_used_pct"],
+					"is_running":             status["is_running"],
+					"system_prompt_template": trader.GetSystemPromptTemplate(),
 				}
 			case err := <-errorChan:
 				// 获取账户信息失败
 				log.Printf("⚠️ 获取交易员 %s 账户信息失败: %v", trader.GetID(), err)
 				traderData = map[string]interface{}{
-					"trader_id":       trader.GetID(),
-					"trader_name":     trader.GetName(),
-					"ai_model":        trader.GetAIModel(),
-					"exchange":        trader.GetExchange(),
-					"total_equity":    0.0,
-					"total_pnl":       0.0,
-					"total_pnl_pct":   0.0,
-					"position_count":  0,
-					"margin_used_pct": 0.0,
-					"is_running":      status["is_running"],
-					"error":           "账户数据获取失败",
+					"trader_id":              trader.GetID(),
+					"trader_name":            trader.GetName(),
+					"ai_model":               trader.GetAIModel(),
+					"exchange":               trader.GetExchange(),
+					"total_equity":           0.0,
+					"total_pnl":              0.0,
+					"total_pnl_pct":          0.0,
+					"position_count":         0,
+					"margin_used_pct":        0.0,
+					"is_running":             status["is_running"],
+					"system_prompt_template": trader.GetSystemPromptTemplate(),
+					"error":                  "账户数据获取失败",
 				}
 			case <-ctx.Done():
 				// 超时
 				log.Printf("⏰ 获取交易员 %s 账户信息超时", trader.GetID())
 				traderData = map[string]interface{}{
-					"trader_id":       trader.GetID(),
-					"trader_name":     trader.GetName(),
-					"ai_model":        trader.GetAIModel(),
-					"exchange":        trader.GetExchange(),
-					"total_equity":    0.0,
-					"total_pnl":       0.0,
-					"total_pnl_pct":   0.0,
-					"position_count":  0,
-					"margin_used_pct": 0.0,
-					"is_running":      status["is_running"],
-					"error":           "获取超时",
+					"trader_id":              trader.GetID(),
+					"trader_name":            trader.GetName(),
+					"ai_model":               trader.GetAIModel(),
+					"exchange":               trader.GetExchange(),
+					"total_equity":           0.0,
+					"total_pnl":              0.0,
+					"total_pnl_pct":          0.0,
+					"position_count":         0,
+					"margin_used_pct":        0.0,
+					"is_running":             status["is_running"],
+					"system_prompt_template": trader.GetSystemPromptTemplate(),
+					"error":                  "获取超时",
 				}
 			}
 
@@ -915,6 +853,7 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 //   - database: 数据库实例
 //   - userID: 用户ID
 //   - traderID: 交易员ID
+//
 // 返回:
 //   - error: 如果交易员不存在、配置无效或加载失败则返回错误
 func (tm *TraderManager) LoadTraderByID(database *config.Database, userID, traderID string) error {
@@ -1113,11 +1052,6 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
 	if exchangeCfg.ID == "binance" {
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-	} else if exchangeCfg.ID == "paper_trading" {
-		// Paper Trading 使用 Binance Testnet API
-		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
-		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-		log.Printf("🧪 交易员 %s 使用 Paper Trading (Testnet API)", traderCfg.Name)
 	} else if exchangeCfg.ID == "hyperliquid" {
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr

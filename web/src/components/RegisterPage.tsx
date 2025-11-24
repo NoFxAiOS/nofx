@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
@@ -13,6 +14,7 @@ import { RegistrationDisabled } from './RegistrationDisabled'
 export function RegisterPage() {
   const { language } = useLanguage()
   const { register, completeRegistration } = useAuth()
+  const navigate = useNavigate()
   const [step, setStep] = useState<'register' | 'setup-otp' | 'verify-otp'>(
     'register'
   )
@@ -74,9 +76,9 @@ export function RegisterPage() {
       setQrCodeURL(result.qrCodeURL || '')
       setStep('setup-otp')
     } else {
+      // Only business errors reach here (system/network errors shown via toast)
       const msg = result.message || t('registrationFailed', language)
       setError(msg)
-      toast.error(msg)
     }
 
     setLoading(false)
@@ -117,8 +119,8 @@ export function RegisterPage() {
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <img
-              src="/icons/nofx.svg"
-              alt="NoFx Logo"
+              src="/icons/ares.svg"
+              alt="Ares Logo"
               className="w-16 h-16 object-contain"
             />
           </div>
@@ -296,36 +298,7 @@ export function RegisterPage() {
                     color: 'var(--binance-red)',
                   }}
                 >
-                  <div
-                    className="mb-1"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('passwordRequirements', language)}
-                  </div>
-                  <PasswordChecklist
-                    rules={[
-                      'minLength',
-                      'capital',
-                      'lowercase',
-                      'number',
-                      'specialChar',
-                      'match',
-                    ]}
-                    minLength={8}
-                    specialCharsRegex={/[@#$%!&*?]/}
-                    value={password}
-                    valueAgain={confirmPassword}
-                    messages={{
-                      minLength: t('passwordRuleMinLength', language),
-                      capital: t('passwordRuleUppercase', language),
-                      lowercase: t('passwordRuleLowercase', language),
-                      number: t('passwordRuleNumber', language),
-                      specialChar: t('passwordRuleSpecial', language),
-                      match: t('passwordRuleMatch', language),
-                    }}
-                    className="space-y-1"
-                    onChange={(isValid) => setPasswordValid(isValid)}
-                  />
+                  {error}
                 </div>
               )}
 
@@ -557,7 +530,7 @@ export function RegisterPage() {
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               已有账户？{' '}
               <button
-                onClick={() => window.location.href = '/login'}
+                onClick={() => navigate('/login')}
                 className="font-semibold hover:underline transition-colors"
                 style={{ color: 'var(--brand-yellow)' }}
               >

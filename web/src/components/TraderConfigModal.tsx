@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
-import type {
-  AIModel,
-  Exchange,
-  CreateTraderRequest,
-  IndicatorConfig,
-} from '../types'
+import type { AIModel, Exchange, CreateTraderRequest } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
-import { IndicatorConfigPanel } from './IndicatorConfigPanel'
+import { toast } from 'sonner'
+import { Pencil, Plus, X as IconX } from 'lucide-react'
+import { httpClient } from '../lib/httpClient'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -32,7 +28,6 @@ interface TraderConfigData {
   use_oi_top: boolean
   initial_balance?: number // 可选：创建时不需要，编辑时使用
   scan_interval_minutes: number
-  indicator_config?: IndicatorConfig
 }
 
 interface TraderConfigModalProps {
@@ -77,12 +72,6 @@ export function TraderConfigModal({
   const [promptTemplates, setPromptTemplates] = useState<{ name: string }[]>([])
   const [isFetchingBalance, setIsFetchingBalance] = useState(false)
   const [balanceFetchError, setBalanceFetchError] = useState<string>('')
-  const [indicatorConfig, setIndicatorConfig] = useState<IndicatorConfig>({
-    indicators: ['ema', 'macd', 'rsi', 'atr', 'volume'],
-    timeframes: ['3m', '4h'],
-    data_points: { '3m': 40, '4h': 25 },
-    parameters: {},
-  })
 
   useEffect(() => {
     if (traderData) {
@@ -94,10 +83,6 @@ export function TraderConfigModal({
           .map((s) => s.trim())
           .filter((s) => s)
         setSelectedCoins(coins)
-      }
-      // 设置指标配置
-      if (traderData.indicator_config) {
-        setIndicatorConfig(traderData.indicator_config)
       }
     } else if (!isEditMode) {
       setFormData({
@@ -130,10 +115,22 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch('/api/config')
-        const config = await response.json()
-        if (config.default_coins) {
-          setAvailableCoins(config.default_coins)
+        const result = await httpClient.get<{ default_coins?: string[] }>(
+          '/api/config'
+        )
+        if (result.success && result.data?.default_coins) {
+          setAvailableCoins(result.data.default_coins)
+        } else {
+          // 使用默认币种列表
+          setAvailableCoins([
+            'BTCUSDT',
+            'ETHUSDT',
+            'SOLUSDT',
+            'BNBUSDT',
+            'XRPUSDT',
+            'DOGEUSDT',
+            'ADAUSDT',
+          ])
         }
       } catch (error) {
         console.error('Failed to fetch config:', error)
@@ -156,10 +153,14 @@ export function TraderConfigModal({
   useEffect(() => {
     const fetchPromptTemplates = async () => {
       try {
-        const response = await fetch('/api/prompt-templates')
-        const data = await response.json()
-        if (data.templates) {
-          setPromptTemplates(data.templates)
+        const result = await httpClient.get<{ templates?: { name: string }[] }>(
+          '/api/prompt-templates'
+        )
+        if (result.success && result.data?.templates) {
+          setPromptTemplates(result.data.templates)
+        } else {
+          // 使用默认模板列表
+          setPromptTemplates([{ name: 'default' }, { name: 'aggressive' }])
         }
       } catch (error) {
         console.error('Failed to fetch prompt templates:', error)
@@ -209,52 +210,26 @@ export function TraderConfigModal({
     setBalanceFetchError('')
 
     try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        throw new Error('未登录，请先登录')
+      const result = await httpClient.get<{
+        total_equity?: number
+        balance?: number
+      }>(`/api/account?trader_id=${traderData.trader_id}`)
+
+      if (result.success && result.data) {
+        // total_equity = 当前账户净值（包含未实现盈亏）
+        // 这应该作为新的初始余额
+        const currentBalance =
+          result.data.total_equity || result.data.balance || 0
+
+        setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
+        toast.success('已获取当前余额')
+      } else {
+        throw new Error(result.message || '获取余额失败')
       }
-
-      const response = await fetch(
-        `/api/account?trader_id=${traderData.trader_id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        const errorMsg = errorData.error || `HTTP ${response.status}`
-        
-        // 根据不同错误提供更详细的提示
-        if (response.status === 404) {
-          throw new Error('交易员不存在，请刷新页面后重试')
-        } else if (response.status === 401) {
-          throw new Error('登录已过期，请重新登录')
-        } else if (response.status === 500) {
-          throw new Error(`获取余额失败: ${errorMsg}\n提示: 请确保交易员已启动并且交易所配置正确`)
-        } else {
-          throw new Error(`获取账户余额失败 (${response.status}): ${errorMsg}`)
-        }
-      }
-
-      const data = await response.json()
-
-      // total_equity = 当前账户净值（包含未实现盈亏）
-      // 这应该作为新的初始余额
-      const currentBalance = data.total_equity || data.balance || 0
-
-      setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-
-      // 显示成功提示
-      console.log('已获取当前余额:', currentBalance)
-      toast.success(`成功获取当前余额: ${currentBalance.toFixed(2)} USDT`)
     } catch (error) {
       console.error('获取余额失败:', error)
-      const errorMessage = error instanceof Error ? error.message : '获取余额失败，请检查网络连接'
-      setBalanceFetchError(errorMessage)
-      toast.error(errorMessage)
+      setBalanceFetchError('获取余额失败，请检查网络连接')
+      // Note: Network/system errors already shown via toast by httpClient
     } finally {
       setIsFetchingBalance(false)
     }
@@ -265,12 +240,6 @@ export function TraderConfigModal({
 
     setIsSaving(true)
     try {
-      const initialBalanceValue =
-        typeof formData.initial_balance === 'number' &&
-        formData.initial_balance > 0
-          ? formData.initial_balance
-          : 1000
-
       const saveData: CreateTraderRequest = {
         name: formData.trader_name,
         ai_model_id: formData.ai_model,
@@ -285,8 +254,11 @@ export function TraderConfigModal({
         use_coin_pool: formData.use_coin_pool,
         use_oi_top: formData.use_oi_top,
         scan_interval_minutes: formData.scan_interval_minutes,
-        initial_balance: initialBalanceValue,
-        indicator_config: indicatorConfig,
+      }
+
+      // 只在编辑模式时包含initial_balance（用于手动更新）
+      if (isEditMode && formData.initial_balance !== undefined) {
+        saveData.initial_balance = formData.initial_balance
       }
 
       await toast.promise(onSave(saveData), {
@@ -294,12 +266,6 @@ export function TraderConfigModal({
         success: '保存成功',
         error: '保存失败',
       })
-
-      // 🔥 如果是编辑模式，额外触发热重载配置
-      if (isEditMode && traderData?.trader_id) {
-        await handleSaveIndicatorConfig(traderData.trader_id)
-      }
-
       onClose()
     } catch (error) {
       console.error('保存失败:', error)
@@ -308,52 +274,22 @@ export function TraderConfigModal({
     }
   }
 
-  // 🔥 热重载指标配置
-  const handleSaveIndicatorConfig = async (traderId: string) => {
-    try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        console.warn('未登录，跳过热重载')
-        return
-      }
-
-      const response = await fetch(
-        `/api/traders/${traderId}/indicator-config`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ indicator_config: indicatorConfig }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('热重载配置失败')
-      }
-
-      const data = await response.json()
-      if (data.hot_reloaded) {
-        console.log('✅ 配置已热重载到运行中的Trader')
-      }
-    } catch (error) {
-      console.error('热重载配置失败:', error)
-      // 不影响主流程，只记录错误
-    }
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4 overflow-y-auto">
       <div
-        className="bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        className="bg-[#1E2329] border border-[#2B3139] rounded-xl shadow-2xl max-w-3xl w-full my-8"
+        style={{ maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35]">
+        <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky top-0 z-10 rounded-t-xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center">
-              <span className="text-lg">{isEditMode ? '✏️' : '➕'}</span>
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center text-black">
+              {isEditMode ? (
+                <Pencil className="w-5 h-5" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h2 className="text-xl font-bold text-[#EAECEF]">
@@ -368,12 +304,15 @@ export function TraderConfigModal({
             onClick={onClose}
             className="w-8 h-8 rounded-lg text-[#848E9C] hover:text-[#EAECEF] hover:bg-[#2B3139] transition-colors flex items-center justify-center"
           >
-            ✕
+            <IconX className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-8">
+        <div
+          className="p-6 space-y-8 overflow-y-auto"
+          style={{ maxHeight: 'calc(100vh - 16rem)' }}
+        >
           {/* Basic Info */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
@@ -704,12 +643,6 @@ export function TraderConfigModal({
             </div>
           </div>
 
-          {/* Market Indicators Configuration */}
-          <IndicatorConfigPanel
-            config={indicatorConfig}
-            onConfigChange={setIndicatorConfig}
-          />
-
           {/* Trading Prompt */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
@@ -854,30 +787,13 @@ export function TraderConfigModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35]">
+        <div className="flex justify-end gap-3 p-6 border-t border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35] sticky bottom-0 z-10 rounded-b-xl">
           <button
             onClick={onClose}
             className="px-6 py-3 bg-[#2B3139] text-[#EAECEF] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#404750]"
           >
             取消
           </button>
-
-          {/* Hot Reload Button (仅编辑模式且trader正在运行时显示) */}
-          {isEditMode && traderData?.trader_id && (
-            <button
-              onClick={() => {
-                if (traderData?.trader_id) {
-                  handleSaveIndicatorConfig(traderData.trader_id)
-                }
-              }}
-              disabled={isSaving}
-              className="px-6 py-3 bg-[#2B3139] text-[#F0B90B] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#F0B90B] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-              title="立即热重载配置到运行中的Trader（不重启）"
-            >
-              🔥 仅热重载配置
-            </button>
-          )}
-
           {onSave && (
             <button
               onClick={handleSave}

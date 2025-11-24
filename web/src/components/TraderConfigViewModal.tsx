@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import type { TraderConfigData } from '../types'
 
 // 提取下划线后面的名称部分
@@ -27,8 +28,10 @@ export function TraderConfigViewModal({
       await navigator.clipboard.writeText(text)
       setCopiedField(fieldName)
       setTimeout(() => setCopiedField(null), 2000)
+      toast.success('已复制到剪贴板')
     } catch (error) {
       console.error('Failed to copy:', error)
+      toast.error('复制失败，请手动复制')
     }
   }
 

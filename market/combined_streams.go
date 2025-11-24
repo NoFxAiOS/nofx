@@ -35,34 +35,19 @@ func (c *CombinedStreamsClient) Connect() error {
 	}
 
 	// 组合流使用不同的端点
-	// 尝试多个端点以提高连接成功率
-	endpoints := []string{
-		"wss://fstream.binance.com/stream",
-		"wss://stream.binance.com:9443/stream", // 备用端点
+	conn, _, err := dialer.Dial("wss://fstream.binance.com/stream", nil)
+	if err != nil {
+		return fmt.Errorf("组合流WebSocket连接失败: %v", err)
 	}
 
-	var lastErr error
-	for _, endpoint := range endpoints {
-		conn, _, err := dialer.Dial(endpoint, nil)
-		if err != nil {
-			log.Printf("⚠️ WebSocket连接失败 (%s): %v", endpoint, err)
-			lastErr = err
-			continue
-		}
+	c.mu.Lock()
+	c.conn = conn
+	c.mu.Unlock()
 
-		c.mu.Lock()
-		c.conn = conn
-		c.mu.Unlock()
+	log.Println("组合流WebSocket连接成功")
+	go c.readMessages()
 
-		log.Printf("✅ 组合流WebSocket连接成功: %s", endpoint)
-		go c.readMessages()
-		return nil
-	}
-
-	// 所有端点都失败
-	log.Printf("⚠️ WebSocket实时数据流暂时不可用（网络问题）")
-	log.Printf("💡 提示：系统将使用历史数据继续运行，AI决策不受影响")
-	return fmt.Errorf("组合流WebSocket连接失败: %v", lastErr)
+	return nil
 }
 
 // BatchSubscribeKlines 批量订阅K线

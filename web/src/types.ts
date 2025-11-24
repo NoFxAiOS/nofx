@@ -93,6 +93,7 @@ export interface TraderInfo {
   custom_prompt?: string
   use_coin_pool?: boolean
   use_oi_top?: boolean
+  system_prompt_template?: string
 }
 
 export interface AIModel {
@@ -136,14 +137,6 @@ export interface CreateTraderRequest {
   is_cross_margin?: boolean
   use_coin_pool?: boolean
   use_oi_top?: boolean
-  indicator_config?: IndicatorConfig
-}
-
-export interface IndicatorConfig {
-  indicators: string[]
-  timeframes: string[]
-  data_points: { [key: string]: number }
-  parameters: { [key: string]: number }
 }
 
 export interface UpdateModelConfigRequest {
@@ -211,5 +204,4 @@ export interface TraderConfigData {
   initial_balance: number
   scan_interval_minutes: number
   is_running: boolean
-  indicator_config?: IndicatorConfig
 }

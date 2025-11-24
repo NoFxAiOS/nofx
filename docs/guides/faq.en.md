@@ -152,18 +152,17 @@ Yes, to some extent. NOFX provides historical performance feedback in each decis
 ## Data & Privacy
 
 ### Where is my data stored?
-All data is stored **locally** on your machine in SQLite databases:
-- `config.db` - Trader configurations
-- `trading.db` - Trade history
+All data is stored **locally** in PostgreSQL (Docker volume `postgres_data`) plus:
 - `decision_logs/` - AI decision records
 
 ### Is my API key secure?
 API keys are stored in local databases. Never share your databases or `.env` files. We recommend using API keys with IP whitelist restrictions.
 
 ### Can I export my trading history?
-Yes! Trading data is in SQLite format. You can query it directly:
+Yes! Use `pg_dump` or `psql` to export data:
 ```bash
-sqlite3 trading.db "SELECT * FROM trades;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT * FROM trades;"
 ```
 
 ---

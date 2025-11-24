@@ -12,75 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Account Balance Refresh Button** - Manual refresh capability for account balance data
-  - One-click refresh button in account overview section
-  - Visual loading indicator with spin animation
-  - Uses SWR's mutate function for optimistic UI updates
-  - Internationalized labels (EN/ZH) for refresh states
-  - 500ms minimum delay for better UX feedback
-- **Upstream Integration: Critical Bug Fixes & Improvements** - Integrated 4 high-value commits from upstream (NoFxAiOS/nofx)
-  - **Data Staleness Detection** (#800) - Prevents trading on frozen/outdated market data
-    - Detects 5 consecutive periods of identical prices with zero volume
-    - Automatically skips stale symbols with warning logs
-    - Comprehensive test coverage (8 test cases) for edge cases
-  - **Registration Toggle** (#760) - Production-ready user registration control
-    - System-level `registration_enabled` configuration flag
-    - Backward compatible (defaults to enabled)
-    - Seamless integration with existing authentication system
-  - **Partial Close Safety Checks** (#713) - Enhanced position management validation
-    - Minimum position size threshold (10 USDT) enforcement
-    - Automatic full-close when remaining position too small
-    - Percentage validation (0-100%) with comprehensive error handling
-    - Stop-loss/take-profit recovery after partial close
-  - See `openspec/changes/integrate-upstream-low-risk-updates/` for full details
-- **Hot Reload Configuration** - Technical indicator configuration can now be updated without restarting the backend
-  - Real-time configuration updates through frontend interface
-  - AutoTrader.ReloadIndicatorConfig() method for seamless config updates
-  - TraderManager integration for distributing config updates to running traders
-  - API automatically triggers hot reload after saving configuration
-  - New configuration takes effect in next AI decision cycle (typically 3 minutes)
-  - See `docs/HOT_RELOAD_CONFIG.md` and `docs/HOT_RELOAD_QUICKSTART.zh-CN.md` for usage guide
 - Documentation system with multi-language support (EN/CN/RU/UK)
-- Complete getting-started guides (Docker, PM2, Custom API)
+- Complete getting-started guides (Docker, Custom API)
 - Architecture documentation with system design details
 - User guides with FAQ and troubleshooting
 - Community documentation with bounty programs
-- Verification script for indicator configuration fix (`scripts/verify_indicator_config_fix.sh`)
-
-
-### Fixed
-
-- **Dashboard and Traders Page Routing** - Critical routing bug fix for authenticated pages
-  - Added explicit route handlers for `/dashboard` and `/traders` paths
-  - Prevents black screen by properly rendering components for each route
-  - Added authentication checks with redirect to `/login` for unauthenticated users
-  - Fixed account refresh button integration on dashboard page
-  - Root cause: Missing route handlers caused fall-through to default rendering
-  - Tested: All navigation flows (login → dashboard → traders) work correctly
-- **Frontend Black Screen Issue** - Critical bug fix for authentication pages
-  - Removed react-router-dom dependency from LoginPage and RegisterPage
-  - Replaced useNavigate() with window.location.href for navigation
-  - Aligned with custom state-based routing architecture in App.tsx
-  - Fixes: Black screen when accessing login/register/reset-password pages
-  - Root cause: useNavigate() requires Router context which was not provided
-  - Tested: All authentication navigation flows work correctly
-- **PNL Calculation Accuracy** (#963) - Corrected profit/loss computation errors
-  - Fixed calculation logic across API, trader, and manager components
-  - Enhanced PNL tracking for both open and closed positions
-  - Added comprehensive documentation in `docs/pnl.md`
-  - Updated frontend components (ComparisonChart, TraderConfigModal) for accurate display
-- **Indicator Configuration Data Flow** - Fixed critical issue where user-configured technical indicator parameters were not being passed to market data layer
-  - Fixed 7 market data retrieval points in AutoTrader to pass IndicatorConfig
-  - Ensures AI receives accurate data points based on user configuration (e.g., 40 vs 60 3m candles)
-  - Front-end configuration now properly persists and loads from database
-  - Technical indicators (RSI, MACD, Bollinger Bands) now calculated based on user-selected timeframes
-  - Complete data flow: Frontend → API → Database → TraderManager → AutoTrader → market.Get()
-  - See `docs/INDICATOR_CONFIG_FIX.md` for detailed analysis and verification
 
 ### Changed
 - Reorganized documentation structure into logical categories
 - Updated all README files with proper navigation links
-- Enhanced API response for indicator config update to include `hot_reloaded` flag
 
 ---
 

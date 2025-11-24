@@ -25,6 +25,8 @@ type DecisionRecord struct {
 	ExecutionLog   []string           `json:"execution_log"`   // 执行日志
 	Success        bool               `json:"success"`         // 是否成功
 	ErrorMessage   string             `json:"error_message"`   // 错误信息（如果有）
+	// AIRequestDurationMs 记录 AI API 调用耗时（毫秒），方便评估调用性能
+	AIRequestDurationMs int64 `json:"ai_request_duration_ms,omitempty"`
 }
 
 // AccountSnapshot 账户状态快照
@@ -62,6 +64,22 @@ type DecisionAction struct {
 	Error     string    `json:"error"`     // 错误信息
 }
 
+// IDecisionLogger 决策日志记录器接口
+type IDecisionLogger interface {
+	// LogDecision 记录决策
+	LogDecision(record *DecisionRecord) error
+	// GetLatestRecords 获取最近N条记录（按时间正序：从旧到新）
+	GetLatestRecords(n int) ([]*DecisionRecord, error)
+	// GetRecordByDate 获取指定日期的所有记录
+	GetRecordByDate(date time.Time) ([]*DecisionRecord, error)
+	// CleanOldRecords 清理N天前的旧记录
+	CleanOldRecords(days int) error
+	// GetStatistics 获取统计信息
+	GetStatistics() (*Statistics, error)
+	// AnalyzePerformance 分析最近N个周期的交易表现
+	AnalyzePerformance(lookbackCycles int) (*PerformanceAnalysis, error)
+}
+
 // DecisionLogger 决策日志记录器
 type DecisionLogger struct {
 	logDir      string
@@ -69,7 +87,7 @@ type DecisionLogger struct {
 }
 
 // NewDecisionLogger 创建决策日志记录器
-func NewDecisionLogger(logDir string) *DecisionLogger {
+func NewDecisionLogger(logDir string) IDecisionLogger {
 	if logDir == "" {
 		logDir = "decision_logs"
 	}

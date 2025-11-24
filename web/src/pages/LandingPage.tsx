@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
-import HeaderBar from '../components/landing/HeaderBar'
+import HeaderBar from '../components/HeaderBar'
 import HeroSection from '../components/landing/HeroSection'
 import AboutSection from '../components/landing/AboutSection'
 import AnimatedSection from '../components/landing/AnimatedSection'
@@ -14,42 +14,33 @@ import { t } from '../i18n/translations'
 export function LandingPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
   const { user, logout } = useAuth()
-  const { language, setLanguage } = useLanguage()
+  const { language } = useLanguage()
   const isLoggedIn = !!user
 
+  console.log('LandingPage - user:', user, 'isLoggedIn:', isLoggedIn)
   return (
     <>
       <HeaderBar
         onLoginClick={() => setShowLoginModal(true)}
         isLoggedIn={isLoggedIn}
-        language={language}
-        onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
         onPageChange={(page) => {
+          console.log('LandingPage onPageChange called with:', page)
           if (page === 'competition') {
-            window.history.pushState(null, '', '/competition')
-            window.dispatchEvent(new PopStateEvent('popstate'))
+            window.location.href = '/competition'
           } else if (page === 'traders') {
-            window.history.pushState(null, '', '/traders')
-            window.dispatchEvent(new PopStateEvent('popstate'))
+            window.location.href = '/traders'
           } else if (page === 'trader') {
-            window.history.pushState(null, '', '/dashboard')
-            window.dispatchEvent(new PopStateEvent('popstate'))
-          } else if (page === 'faq') {
-            window.history.pushState(null, '', '/faq')
-            window.dispatchEvent(new PopStateEvent('popstate'))
-          } else if (page === 'strategies') {
-            window.history.pushState(null, '', '/strategies')
-            window.dispatchEvent(new PopStateEvent('popstate'))
+            window.location.href = '/dashboard'
           }
         }}
       />
       <div
         className="min-h-screen px-4 sm:px-6 lg:px-8"
         style={{
-          background: 'var(--brand-black)',
-          color: 'var(--brand-light-gray)',
+          background: 'var(--background)',
+          color: 'var(--text-primary)',
         }}
       >
         <HeroSection language={language} />
@@ -60,7 +51,7 @@ export function LandingPage() {
           <div className="max-w-4xl mx-auto text-center">
             <motion.h2
               className="text-5xl font-bold mb-6"
-              style={{ color: 'var(--brand-light-gray)' }}
+              style={{ color: 'var(--text-primary)' }}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -96,24 +87,6 @@ export function LandingPage() {
                   <ArrowRight className="w-5 h-5" />
                 </motion.div>
               </motion.button>
-              <motion.a
-                href="https://github.com/tinkle-community/nofx/tree/dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-10 py-4 rounded-lg font-semibold text-lg"
-                style={{
-                  background: 'transparent',
-                  color: 'var(--brand-light-gray)',
-                  border: '2px solid var(--brand-yellow)',
-                }}
-                whileHover={{
-                  scale: 1.05,
-                  backgroundColor: 'rgba(240, 185, 11, 0.1)',
-                }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {t('viewSourceCode', language)}
-              </motion.a>
             </div>
           </div>
         </AnimatedSection>

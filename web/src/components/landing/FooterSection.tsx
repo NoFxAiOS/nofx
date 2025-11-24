@@ -9,18 +9,18 @@ export default function FooterSection({ language }: FooterSectionProps) {
     <footer
       style={{
         borderTop: '1px solid var(--panel-border)',
-        background: 'var(--brand-dark-gray)',
+        background: 'var(--panel-bg)',
       }}
     >
       <div className="max-w-[1200px] mx-auto px-6 py-10">
         {/* Brand */}
         <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
+          <img src="/icons/ares.svg" alt="Ares Logo" className="w-8 h-8" />
           <div>
-            <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
-              NOFX
+            <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+              Ares
             </div>
-            <div className="text-xs" style={{ color: '#848E9C' }}>
+            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {t('futureStandardAI', language)}
             </div>
           </div>
@@ -31,35 +31,15 @@ export default function FooterSection({ language }: FooterSectionProps) {
           <div>
             <h3
               className="text-sm font-semibold mb-3"
-              style={{ color: '#EAECEF' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               {t('links', language)}
             </h3>
-            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
+            <ul className="space-y-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
               <li>
                 <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  GitHub
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://t.me/nofx_dev_community"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Telegram
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://x.com/nofx_ai"
+                  className="hover:text-[var(--accent-red)]"
+                  href="https://x.com/ares_ai"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -72,55 +52,14 @@ export default function FooterSection({ language }: FooterSectionProps) {
           <div>
             <h3
               className="text-sm font-semibold mb-3"
-              style={{ color: '#EAECEF' }}
-            >
-              {t('resources', language)}
-            </h3>
-            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/blob/main/README.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t('documentation', language)}
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Issues
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/pulls"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Pull Requests
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h3
-              className="text-sm font-semibold mb-3"
-              style={{ color: '#EAECEF' }}
+              style={{ color: 'var(--text-primary)' }}
             >
               {t('supporters', language)}
             </h3>
-            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
+            <ul className="space-y-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
               <li>
                 <a
-                  className="hover:text-[#F0B90B]"
+                  className="hover:text-[var(--accent-red)]"
                   href="https://www.asterdex.com/en/referral/fdfc0e"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -130,8 +69,8 @@ export default function FooterSection({ language }: FooterSectionProps) {
               </li>
               <li>
                 <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://www.maxweb.red/join?ref=NOFXAI"
+                  className="hover:text-[var(--accent-red)]"
+                  href="https://www.maxweb.red/join?ref=AresAI"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -140,7 +79,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               </li>
               <li>
                 <a
-                  className="hover:text-[#F0B90B]"
+                  className="hover:text-[var(--accent-red)]"
                   href="https://hyperliquid.xyz/"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -150,7 +89,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
               </li>
               <li>
                 <a
-                  className="hover:text-[#F0B90B]"
+                  className="hover:text-[var(--accent-red)]"
                   href="https://amber.ac/"
                   target="_blank"
                   rel="noopener noreferrer"

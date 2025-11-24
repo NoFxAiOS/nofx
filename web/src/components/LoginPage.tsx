@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
@@ -10,6 +11,7 @@ import { useSystemConfig } from '../hooks/useSystemConfig'
 export function LoginPage() {
   const { language } = useLanguage()
   const { login, loginAdmin, verifyOTP } = useAuth()
+  const navigate = useNavigate()
   const [step, setStep] = useState<'login' | 'otp'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -22,6 +24,18 @@ export function LoginPage() {
   const adminMode = false
   const { config: systemConfig } = useSystemConfig()
   const registrationEnabled = systemConfig?.registration_enabled !== false
+  const [expiredToastId, setExpiredToastId] = useState<string | number | null>(null)
+
+  // Show notification if user was redirected here due to 401
+  useEffect(() => {
+    if (sessionStorage.getItem('from401') === 'true') {
+      const id = toast.warning(t('sessionExpired', language), {
+        duration: Infinity // Keep showing until user dismisses or logs in
+      })
+      setExpiredToastId(id)
+      sessionStorage.removeItem('from401')
+    }
+  }, [language])
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,6 +46,11 @@ export function LoginPage() {
       const msg = result.message || t('loginFailed', language)
       setError(msg)
       toast.error(msg)
+    } else {
+      // Dismiss the "login expired" toast on successful login
+      if (expiredToastId) {
+        toast.dismiss(expiredToastId)
+      }
     }
     setLoading(false)
   }
@@ -47,6 +66,11 @@ export function LoginPage() {
       if (result.requiresOTP && result.userID) {
         setUserID(result.userID)
         setStep('otp')
+      } else {
+        // Dismiss the "login expired" toast on successful login (no OTP required)
+        if (expiredToastId) {
+          toast.dismiss(expiredToastId)
+        }
       }
     } else {
       const msg = result.message || t('loginFailed', language)
@@ -68,6 +92,11 @@ export function LoginPage() {
       const msg = result.message || t('verificationFailed', language)
       setError(msg)
       toast.error(msg)
+    } else {
+      // Dismiss the "login expired" toast on successful OTP verification
+      if (expiredToastId) {
+        toast.dismiss(expiredToastId)
+      }
     }
     // 成功的话AuthContext会自动处理登录状态
 
@@ -84,8 +113,8 @@ export function LoginPage() {
         <div className="text-center mb-8">
           <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
             <img
-              src="/icons/nofx.svg"
-              alt="NoFx Logo"
+              src="/icons/ares.svg"
+              alt="Ares Logo"
               className="w-16 h-16 object-contain"
             />
           </div>
@@ -93,7 +122,7 @@ export function LoginPage() {
             className="text-2xl font-bold"
             style={{ color: 'var(--brand-light-gray)' }}
           >
-            登录 NOFX
+            登录 Ares
           </h1>
           <p
             className="text-sm mt-2"
@@ -207,7 +236,7 @@ export function LoginPage() {
                 <div className="text-right mt-2">
                   <button
                     type="button"
-                    onClick={() => window.location.href = '/reset-password'}
+                    onClick={() => navigate('/reset-password')}
                     className="text-xs hover:underline"
                     style={{ color: '#F0B90B' }}
                   >
@@ -319,7 +348,7 @@ export function LoginPage() {
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               还没有账户？{' '}
               <button
-                onClick={() => window.location.href = '/register'}
+                onClick={() => navigate('/register')}
                 className="font-semibold hover:underline transition-colors"
                 style={{ color: 'var(--brand-yellow)' }}
               >

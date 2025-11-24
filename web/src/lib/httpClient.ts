@@ -1,16 +1,46 @@
 /**
- * HTTP Client with unified error handling and 401 interception
+ * HTTP Client with Axios
  *
  * Features:
- * - Unified fetch wrapper
+ * - Axios-based unified request wrapper
+ * - Automatic error interception and toast notifications
+ * - Network errors and system errors are intercepted and shown via toast
+ * - Only business logic errors are returned to the caller
  * - Automatic 401 token expiration handling
- * - Auth state cleanup on unauthorized
- * - Automatic redirect to login page
  */
 
+import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios'
+import { toast } from 'sonner'
+
+/**
+ * Business response format - only business errors reach the caller
+ */
+export interface ApiResponse<T = any> {
+  success: boolean
+  data?: T
+  message?: string
+}
+
+/**
+ * HTTP Client Class
+ */
 export class HttpClient {
-  // Singleton flag to prevent duplicate 401 handling
+  private axiosInstance: AxiosInstance
   private static isHandling401 = false
+
+  constructor() {
+    // Create axios instance
+    this.axiosInstance = axios.create({
+      baseURL: '/',
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    // Setup interceptors
+    this.setupInterceptors()
+  }
 
   /**
    * Reset 401 handling flag (call after successful login)
@@ -20,188 +50,212 @@ export class HttpClient {
   }
 
   /**
-   * Show login required notification to user
+   * Setup request and response interceptors
    */
-  private showLoginRequiredNotification(): void {
-    // Create notification element
-    const notification = document.createElement('div')
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #F0B90B 0%, #FCD535 100%);
-      color: #0B0E11;
-      padding: 16px 24px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: bold;
-      z-index: 10000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      animation: slideDown 0.3s ease-out;
-    `
-    notification.textContent = '⚠️ 登录已过期，请先登录'
-
-    // Add slide down animation
-    const style = document.createElement('style')
-    style.textContent = `
-      @keyframes slideDown {
-        from {
-          opacity: 0;
-          transform: translateX(-50%) translateY(-20px);
+  private setupInterceptors(): void {
+    // Request interceptor - add auth token
+    this.axiosInstance.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('auth_token')
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
         }
-        to {
-          opacity: 1;
-          transform: translateX(-50%) translateY(0);
-        }
+        return config
+      },
+      (error) => {
+        return Promise.reject(error)
       }
-    `
-    document.head.appendChild(style)
+    )
 
-    // Add to page
-    document.body.appendChild(notification)
-
-    // Auto remove after animation
-    setTimeout(() => {
-      notification.style.animation = 'slideDown 0.3s ease-out reverse'
-      setTimeout(() => {
-        document.body.removeChild(notification)
-        document.head.removeChild(style)
-      }, 300)
-    }, 1800)
+    // Response interceptor - handle errors
+    this.axiosInstance.interceptors.response.use(
+      (response: AxiosResponse) => {
+        // Success response - pass through
+        return response
+      },
+      (error: AxiosError) => {
+        return this.handleError(error)
+      }
+    )
   }
 
   /**
-   * Response interceptor - handles common HTTP errors
-   *
-   * @param response - Fetch Response object
-   * @returns Response if successful
-   * @throws Error with user-friendly message
+   * Handle different types of errors
+   * Network and system errors are intercepted and shown via toast
+   * Only business errors are returned to caller
    */
-  private async handleResponse(response: Response): Promise<Response> {
-    // Handle 401 Unauthorized - Token expired or invalid
-    if (response.status === 401) {
-      // Prevent duplicate 401 handling when multiple API calls fail simultaneously
+  private async handleError(error: AxiosError): Promise<any> {
+    // Network error (no response from server)
+    if (!error.response) {
+      toast.error('Network error - Please check your connection', {
+        description: 'Unable to reach the server',
+      })
+      throw new Error('Network error')
+    }
+
+    const { status } = error.response as AxiosResponse<{
+      error?: string
+      message?: string
+    }>
+
+    // Handle 401 Unauthorized
+    if (status === 401) {
       if (HttpClient.isHandling401) {
-        throw new Error('登录已过期，请重新登录')
+        throw new Error('Session expired')
       }
 
-      // Set flag to prevent race conditions
       HttpClient.isHandling401 = true
 
-      // Clean up local storage
+      // Clean up
       localStorage.removeItem('auth_token')
       localStorage.removeItem('auth_user')
 
-      // Notify global listeners (AuthContext will react to this)
+      // Notify global listeners
       window.dispatchEvent(new Event('unauthorized'))
 
-      // Show user-friendly notification (only once)
-      this.showLoginRequiredNotification()
-
-      // Delay redirect to let user see the notification
-      setTimeout(() => {
-        // Only redirect if not already on login page
-        if (!window.location.pathname.includes('/login')) {
-          // Save current location for post-login redirect
-          const returnUrl = window.location.pathname + window.location.search
-          if (returnUrl !== '/login' && returnUrl !== '/') {
-            sessionStorage.setItem('returnUrl', returnUrl)
-          }
-
-          window.location.href = '/login'
+      // Only redirect if not already on login page
+      if (!window.location.pathname.includes('/login')) {
+        const returnUrl = window.location.pathname + window.location.search
+        if (returnUrl !== '/login' && returnUrl !== '/') {
+          sessionStorage.setItem('returnUrl', returnUrl)
         }
-        // Note: No need to reset flag since we're redirecting
-      }, 1500) // 1.5秒延迟,让用户看到提示
 
-      throw new Error('登录已过期，请重新登录')
+        sessionStorage.setItem('from401', 'true')
+        window.location.href = '/login'
+
+        // Return pending promise
+        return new Promise(() => {})
+      }
+
+      throw new Error('Session expired')
     }
 
-    // Handle other common errors
-    if (response.status === 403) {
-      throw new Error('没有权限访问此资源')
+    // Handle 403 Forbidden - system error
+    if (status === 403) {
+      toast.error('Permission Denied', {
+        description: 'You do not have permission to access this resource',
+      })
+      throw new Error('Permission denied')
     }
 
-    if (response.status === 404) {
-      throw new Error('请求的资源不存在')
+    // Handle 404 Not Found - system error
+    if (status === 404) {
+      toast.error('API Not Found', {
+        description: 'The requested endpoint does not exist (404)',
+      })
+      throw new Error('API not found')
     }
 
-    if (response.status >= 500) {
-      throw new Error('服务器错误，请稍后重试')
+    // Handle 500+ Server Error - system error
+    if (status >= 500) {
+      toast.error('Server Error', {
+        description: 'Please try again later or contact support',
+      })
+      throw new Error('Server error')
     }
 
-    return response
+    // 4xx errors (except 401/403/404) are business logic errors
+    // Return them to the caller for handling
+    return Promise.reject(error)
+  }
+
+  /**
+   * Generic JSON request with standardized response
+   * System/network errors are already intercepted and shown via toast
+   * Only business errors are returned
+   */
+  async request<T = any>(
+    url: string,
+    options: {
+      method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+      data?: any
+      params?: any
+      headers?: Record<string, string>
+    } = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await this.axiosInstance.request<T>({
+        url,
+        method: options.method || 'GET',
+        data: options.data,
+        params: options.params,
+        headers: options.headers,
+      })
+
+      // Success
+      return {
+        success: true,
+        data: response.data,
+        message: (response.data as any)?.message,
+      }
+    } catch (error) {
+      // If we get here, it's a business logic error (4xx except 401/403/404)
+      // System errors were already intercepted and toasted
+      if (axios.isAxiosError(error) && error.response) {
+        const errorData = error.response.data as any
+        return {
+          success: false,
+          message: errorData?.error || errorData?.message || 'Operation failed',
+        }
+      }
+
+      // Network error or other exception (already toasted)
+      throw error
+    }
   }
 
   /**
    * GET request
    */
-  async get(url: string, headers?: Record<string, string>): Promise<Response> {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-    })
-    return this.handleResponse(response)
+  async get<T = any>(
+    url: string,
+    params?: any,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(url, { method: 'GET', params, headers })
   }
 
   /**
    * POST request
    */
-  async post(
+  async post<T = any>(
     url: string,
-    body?: any,
+    data?: any,
     headers?: Record<string, string>
-  ): Promise<Response> {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-    return this.handleResponse(response)
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(url, { method: 'POST', data, headers })
   }
 
   /**
    * PUT request
    */
-  async put(
+  async put<T = any>(
     url: string,
-    body?: any,
+    data?: any,
     headers?: Record<string, string>
-  ): Promise<Response> {
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    })
-    return this.handleResponse(response)
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(url, { method: 'PUT', data, headers })
   }
 
   /**
    * DELETE request
    */
-  async delete(
+  async delete<T = any>(
     url: string,
     headers?: Record<string, string>
-  ): Promise<Response> {
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers,
-    })
-    return this.handleResponse(response)
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(url, { method: 'DELETE', headers })
   }
 
   /**
-   * Generic request method for custom configurations
+   * PATCH request
    */
-  async request(url: string, options: RequestInit = {}): Promise<Response> {
-    const response = await fetch(url, options)
-    return this.handleResponse(response)
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(url, { method: 'PATCH', data, headers })
   }
 }
 

@@ -160,12 +160,6 @@ func main() {
 	// In Docker Compose, variables are injected by the runtime and this is harmless.
 	_ = godotenv.Load()
 
-	// Check if OTP should be disabled in development mode
-	disableOTP := os.Getenv("DISABLE_OTP") == "true"
-	if disableOTP {
-		log.Printf("🚫 OTP已禁用 (开发模式)")
-	}
-
 	// 初始化数据库配置
 	dbPath := "config.db"
 	if len(os.Args) > 1 {
@@ -344,7 +338,7 @@ func main() {
 	}
 
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort, disableOTP)
+	apiServer := api.NewServer(traderManager, database, cryptoService, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)
@@ -352,9 +346,7 @@ func main() {
 	}()
 
 	// 启动流行情数据 - 默认使用所有交易员设置的币种 如果没有设置币种 则优先使用系统默认
-	customCoins := database.GetCustomCoins()
-	log.Printf("📋 从数据库获取的币种列表: %d 个币种 %v", len(customCoins), customCoins)
-	go market.NewWSMonitor(150).Start(customCoins)
+	go market.NewWSMonitor(150).Start(database.GetCustomCoins())
 	//go market.NewWSMonitor(150).Start([]string{}) //这里是一个使用方式 传入空的话 则使用market市场的所有币种
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)

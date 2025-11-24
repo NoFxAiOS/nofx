@@ -94,17 +94,6 @@ func (t *FuturesTrader) setDualSidePosition() error {
 		Do(context.Background())
 
 	if err != nil {
-		// 检查是否是账户未激活错误
-		if strings.Contains(err.Error(), "This account is inactive") {
-			log.Printf("⚠️ Binance Testnet账户未激活")
-			log.Printf("📝 请访问以下网址激活您的Testnet账户：")
-			log.Printf("   https://testnet.binance.vision/")
-			log.Printf("   1. 使用GitHub账号登录")
-			log.Printf("   2. 点击 'Generate HMAC_SHA256 Key' 生成API密钥")
-			log.Printf("   3. 账户会自动激活并获得测试USDT")
-			return fmt.Errorf("账户未激活，请先访问 https://testnet.binance.vision/ 激活账户")
-		}
-
 		// 如果错误信息包含"No need to change"，说明已经是双向持仓模式
 		if strings.Contains(err.Error(), "No need to change position side") {
 			log.Printf("  ✓ 账户已是双向持仓模式（Hedge Mode）")

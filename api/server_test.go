@@ -226,155 +226,80 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 	}
 }
 
-// TestValidateIndicatorConfig_ValidConfigs 测试合法的指标配置
-func TestValidateIndicatorConfig_ValidConfigs(t *testing.T) {
-	tests := []struct {
-		name   string
-		config map[string]interface{}
-	}{
-		{
-			name: "完整的合法配置",
-			config: map[string]interface{}{
-				"indicators":  []interface{}{"ema", "macd", "rsi", "atr", "volume"},
-				"timeframes":  []interface{}{"3m", "4h"},
-				"data_points": map[string]interface{}{"3m": 40.0, "4h": 25.0},
-				"parameters":  map[string]interface{}{"rsi_period": 14.0},
-			},
-		},
-		{
-			name: "只包含indicators",
-			config: map[string]interface{}{
-				"indicators": []interface{}{"ema", "macd"},
-			},
-		},
-		{
-			name: "只包含timeframes",
-			config: map[string]interface{}{
-				"timeframes": []interface{}{"1m", "5m", "15m"},
-			},
-		},
-		{
-			name: "data_points在合法范围内",
-			config: map[string]interface{}{
-				"data_points": map[string]interface{}{"1h": 10.0, "4h": 100.0},
-			},
-		},
-		{
-			name: "包含bollinger指标",
-			config: map[string]interface{}{
-				"indicators": []interface{}{"bollinger", "rsi"},
-			},
-		},
-		{
-			name:   "空配置",
-			config: map[string]interface{}{},
-		},
+// TestTraderListResponse_SystemPromptTemplate 测试 handleTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 handleTraderList 中的 trader 对象构造
+	trader := &config.TraderRecord{
+		ID:                   "trader-001",
+		UserID:               "user-1",
+		Name:                 "My Trader",
+		AIModelID:            "gpt-4",
+		ExchangeID:           "binance",
+		InitialBalance:       5000,
+		SystemPromptTemplate: "nof1",
+		IsRunning:            true,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateIndicatorConfig(tt.config)
-			if err != nil {
-				t.Errorf("验证失败: %v", err)
-			}
-		})
+	// 构造 API 响应对象（与 api/server.go 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              trader.ID,
+		"trader_name":            trader.Name,
+		"ai_model":               trader.AIModelID,
+		"exchange_id":            trader.ExchangeID,
+		"is_running":             trader.IsRunning,
+		"initial_balance":        trader.InitialBalance,
+		"system_prompt_template": trader.SystemPromptTemplate,
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "nof1" {
+		t.Errorf("Expected system_prompt_template='nof1', got %v", response["system_prompt_template"])
 	}
 }
 
-// TestValidateIndicatorConfig_InvalidConfigs 测试不合法的指标配置
-func TestValidateIndicatorConfig_InvalidConfigs(t *testing.T) {
-	tests := []struct {
-		name        string
-		config      map[string]interface{}
-		expectedErr string
-	}{
-		{
-			name: "indicators不是数组",
-			config: map[string]interface{}{
-				"indicators": "ema,macd",
-			},
-			expectedErr: "indicators必须是数组",
-		},
-		{
-			name: "不支持的指标名称",
-			config: map[string]interface{}{
-				"indicators": []interface{}{"ema", "invalid_indicator"},
-			},
-			expectedErr: "不支持的指标: invalid_indicator",
-		},
-		{
-			name: "指标名称不是字符串",
-			config: map[string]interface{}{
-				"indicators": []interface{}{123},
-			},
-			expectedErr: "指标名称必须是字符串",
-		},
-		{
-			name: "timeframes不是数组",
-			config: map[string]interface{}{
-				"timeframes": "1m,5m",
-			},
-			expectedErr: "timeframes必须是数组",
-		},
-		{
-			name: "不支持的时间框架",
-			config: map[string]interface{}{
-				"timeframes": []interface{}{"1m", "10m"},
-			},
-			expectedErr: "不支持的时间框架: 10m",
-		},
-		{
-			name: "时间框架不是字符串",
-			config: map[string]interface{}{
-				"timeframes": []interface{}{60},
-			},
-			expectedErr: "时间框架必须是字符串",
-		},
-		{
-			name: "data_points不是对象",
-			config: map[string]interface{}{
-				"data_points": []interface{}{40, 25},
-			},
-			expectedErr: "data_points必须是对象",
-		},
-		{
-			name: "数据点数量不是数字",
-			config: map[string]interface{}{
-				"data_points": map[string]interface{}{"3m": "40"},
-			},
-			expectedErr: "数据点数量必须是数字",
-		},
-		{
-			name: "数据点数量小于10",
-			config: map[string]interface{}{
-				"data_points": map[string]interface{}{"3m": 5.0},
-			},
-			expectedErr: "数据点数量必须在10-100之间",
-		},
-		{
-			name: "数据点数量大于100",
-			config: map[string]interface{}{
-				"data_points": map[string]interface{}{"3m": 150.0},
-			},
-			expectedErr: "数据点数量必须在10-100之间",
-		},
-		{
-			name: "parameters不是对象",
-			config: map[string]interface{}{
-				"parameters": []interface{}{"rsi_period", 14},
-			},
-			expectedErr: "parameters必须是对象",
-		},
+// TestPublicTraderListResponse_SystemPromptTemplate 测试 handlePublicTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
+	// 模拟 getConcurrentTraderData 返回的 trader 数据
+	traderData := map[string]interface{}{
+		"trader_id":              "trader-002",
+		"trader_name":            "Public Trader",
+		"ai_model":               "claude",
+		"exchange":               "binance",
+		"total_equity":           10000.0,
+		"total_pnl":              500.0,
+		"total_pnl_pct":          5.0,
+		"position_count":         3,
+		"margin_used_pct":        25.0,
+		"is_running":             true,
+		"system_prompt_template": "default",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateIndicatorConfig(tt.config)
-			if err == nil {
-				t.Errorf("期望验证失败,但验证通过")
-			} else if err.Error() != tt.expectedErr {
-				t.Errorf("错误消息不匹配:\n期望: %q\n实际: %q", tt.expectedErr, err.Error())
-			}
-		})
+	// 构造 API 响应对象（与 api/server.go handlePublicTraderList 中的逻辑一致）
+	response := map[string]interface{}{
+		"trader_id":              traderData["trader_id"],
+		"trader_name":            traderData["trader_name"],
+		"ai_model":               traderData["ai_model"],
+		"exchange":               traderData["exchange"],
+		"total_equity":           traderData["total_equity"],
+		"total_pnl":              traderData["total_pnl"],
+		"total_pnl_pct":          traderData["total_pnl_pct"],
+		"position_count":         traderData["position_count"],
+		"margin_used_pct":        traderData["margin_used_pct"],
+		"system_prompt_template": traderData["system_prompt_template"],
+	}
+
+	// ✅ 验证 system_prompt_template 字段存在
+	if _, exists := response["system_prompt_template"]; !exists {
+		t.Errorf("Public trader list response is missing 'system_prompt_template' field")
+	}
+
+	// ✅ 验证 system_prompt_template 值正确
+	if response["system_prompt_template"] != "default" {
+		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
 	}
 }

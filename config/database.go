@@ -1,7 +1,9 @@
 package config
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -22,7 +24,6 @@ type DatabaseInterface interface {
 	GetUserByEmail(email string) (*User, error)
 	GetUserByID(userID string) (*User, error)
 	GetAllUsers() ([]string, error)
-	UpdateUserPassword(userID, newPasswordHash string) error
 	UpdateUserOTPVerified(userID string, verified bool) error
 	GetAIModels(userID string) ([]*AIModelConfig, error)
 	UpdateAIModel(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error
@@ -64,19 +65,8 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
 
-	// 🔒 启用 WAL 模式,提高并发性能和崩溃恢复能力
-	// WAL (Write-Ahead Logging) 模式的优势:
-	// 1. 更好的并发性能:读操作不会被写操作阻塞
-	// 2. 崩溃安全:即使在断电或强制终止时也能保证数据完整性
-	// 3. 更快的写入:不需要每次都写入主数据库文件
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("启用WAL模式失败: %w", err)
-	}
-
 	// 🔒 设置 synchronous=FULL 确保数据持久性
 	// FULL (2) 模式: 确保数据在关键时刻完全写入磁盘
-	// 配合 WAL 模式,在保证数据安全的同时获得良好性能
 	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("设置synchronous失败: %w", err)
@@ -91,7 +81,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}
 
-	log.Printf("✅ 数据库已启用 WAL 模式和 FULL 同步,数据持久性得到保证")
+	log.Printf("✅ 数据库已初始化，使用默认日志模式和 FULL 同步，数据持久性得到保证")
 	return database, nil
 }
 
@@ -159,7 +149,6 @@ func (d *Database) createTables() error {
 			trading_symbols TEXT DEFAULT '',
 			use_coin_pool BOOLEAN DEFAULT 0,
 			use_oi_top BOOLEAN DEFAULT 0,
-			indicator_config TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -255,12 +244,8 @@ func (d *Database) createTables() error {
 		`ALTER TABLE traders ADD COLUMN use_coin_pool BOOLEAN DEFAULT 0`,               // 是否使用COIN POOL信号源
 		`ALTER TABLE traders ADD COLUMN use_oi_top BOOLEAN DEFAULT 0`,                  // 是否使用OI TOP信号源
 		`ALTER TABLE traders ADD COLUMN system_prompt_template TEXT DEFAULT 'default'`, // 系统提示词模板名称
-		`ALTER TABLE traders ADD COLUMN indicator_config TEXT DEFAULT ''`,              // 指标配置（JSON格式）
 		`ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`,              // 自定义API地址
 		`ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`,           // 自定义模型名称
-		// 2FA 相关字段
-		`ALTER TABLE users ADD COLUMN otp_secret TEXT`,
-		`ALTER TABLE users ADD COLUMN otp_verified BOOLEAN DEFAULT 0`,
 	}
 
 	for _, query := range alterQueries {
@@ -304,7 +289,6 @@ func (d *Database) initDefaultData() error {
 		{"binance", "Binance Futures", "binance"},
 		{"hyperliquid", "Hyperliquid", "hyperliquid"},
 		{"aster", "Aster DEX", "aster"},
-		{"paper_trading", "Paper Trading (Binance Testnet)", "paper_trading"},
 	}
 
 	for _, exchange := range exchanges {
@@ -492,7 +476,6 @@ type TraderRecord struct {
 	OverrideBasePrompt   bool      `json:"override_base_prompt"`   // 是否覆盖基础prompt
 	SystemPromptTemplate string    `json:"system_prompt_template"` // 系统提示词模板名称
 	IsCrossMargin        bool      `json:"is_cross_margin"`        // 是否为全仓模式（true=全仓，false=逐仓）
-	IndicatorConfig      string    `json:"indicator_config"`       // 指标配置（JSON格式）
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
@@ -505,6 +488,16 @@ type UserSignalSource struct {
 	OITopURL    string    `json:"oi_top_url"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// GenerateOTPSecret 生成OTP密钥
+func GenerateOTPSecret() (string, error) {
+	secret := make([]byte, 20)
+	_, err := rand.Read(secret)
+	if err != nil {
+		return "", err
+	}
+	return base32.StdEncoding.EncodeToString(secret), nil
 }
 
 // CreateUser 创建用户
@@ -535,6 +528,8 @@ func (d *Database) EnsureAdminUser() error {
 		ID:           "admin",
 		Email:        "admin@localhost",
 		PasswordHash: "", // 管理员模式下不使用密码
+		OTPSecret:    "",
+		OTPVerified:  true,
 	}
 
 	return d.CreateUser(adminUser)
@@ -544,7 +539,7 @@ func (d *Database) EnsureAdminUser() error {
 func (d *Database) GetUserByEmail(email string) (*User, error) {
 	var user User
 	err := d.db.QueryRow(`
-		SELECT id, email, password_hash, COALESCE(otp_secret, '') as otp_secret, COALESCE(otp_verified, 0) as otp_verified, created_at, updated_at
+		SELECT id, email, password_hash, otp_secret, otp_verified, created_at, updated_at
 		FROM users WHERE email = ?
 	`, email).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret,
@@ -560,7 +555,7 @@ func (d *Database) GetUserByEmail(email string) (*User, error) {
 func (d *Database) GetUserByID(userID string) (*User, error) {
 	var user User
 	err := d.db.QueryRow(`
-		SELECT id, email, password_hash, COALESCE(otp_secret, '') as otp_secret, COALESCE(otp_verified, 0) as otp_verified, created_at, updated_at
+		SELECT id, email, password_hash, otp_secret, otp_verified, created_at, updated_at
 		FROM users WHERE id = ?
 	`, userID).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret,
@@ -591,6 +586,12 @@ func (d *Database) GetAllUsers() ([]string, error) {
 	return userIDs, nil
 }
 
+// UpdateUserOTPVerified 更新用户OTP验证状态
+func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
+	_, err := d.db.Exec(`UPDATE users SET otp_verified = ? WHERE id = ?`, verified, userID)
+	return err
+}
+
 // UpdateUserPassword 更新用户密码
 func (d *Database) UpdateUserPassword(userID, passwordHash string) error {
 	_, err := d.db.Exec(`
@@ -598,12 +599,6 @@ func (d *Database) UpdateUserPassword(userID, passwordHash string) error {
 		SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
 	`, passwordHash, userID)
-	return err
-}
-
-// UpdateUserOTPVerified 更新用户OTP验证状态
-func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
-	_, err := d.db.Exec(`UPDATE users SET otp_verified = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, verified, userID)
 	return err
 }
 
@@ -895,9 +890,9 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 // CreateTrader 创建交易员
 func (d *Database) CreateTrader(trader *TraderRecord) error {
 	_, err := d.db.Exec(`
-		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, btc_eth_leverage, altcoin_leverage, trading_symbols, use_coin_pool, use_oi_top, custom_prompt, override_base_prompt, system_prompt_template, is_cross_margin, indicator_config)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.BTCETHLeverage, trader.AltcoinLeverage, trader.TradingSymbols, trader.UseCoinPool, trader.UseOITop, trader.CustomPrompt, trader.OverrideBasePrompt, trader.SystemPromptTemplate, trader.IsCrossMargin, trader.IndicatorConfig)
+		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, btc_eth_leverage, altcoin_leverage, trading_symbols, use_coin_pool, use_oi_top, custom_prompt, override_base_prompt, system_prompt_template, is_cross_margin)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.BTCETHLeverage, trader.AltcoinLeverage, trader.TradingSymbols, trader.UseCoinPool, trader.UseOITop, trader.CustomPrompt, trader.OverrideBasePrompt, trader.SystemPromptTemplate, trader.IsCrossMargin)
 	return err
 }
 
@@ -910,8 +905,7 @@ func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 		       COALESCE(use_coin_pool, 0) as use_coin_pool, COALESCE(use_oi_top, 0) as use_oi_top,
 		       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, 0) as override_base_prompt,
 		       COALESCE(system_prompt_template, 'default') as system_prompt_template,
-		       COALESCE(is_cross_margin, 1) as is_cross_margin,
-		       COALESCE(indicator_config, '') as indicator_config, created_at, updated_at
+		       COALESCE(is_cross_margin, 1) as is_cross_margin, created_at, updated_at
 		FROM traders WHERE user_id = ? ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
@@ -928,7 +922,7 @@ func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 			&trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
 			&trader.UseCoinPool, &trader.UseOITop,
 			&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
-			&trader.IsCrossMargin, &trader.IndicatorConfig,
+			&trader.IsCrossMargin,
 			&trader.CreatedAt, &trader.UpdatedAt,
 		)
 		if err != nil {
@@ -948,17 +942,31 @@ func (d *Database) UpdateTraderStatus(userID, id string, isRunning bool) error {
 
 // UpdateTrader 更新交易员配置
 func (d *Database) UpdateTrader(trader *TraderRecord) error {
-	_, err := d.db.Exec(`
+	log.Printf("💾 [数据库层] 开始执行UPDATE交易员策略 - TraderID: %s, UserID: %s", trader.ID, trader.UserID)
+	log.Printf("💾 [数据库层] 更新参数 - Name: %s, AIModelID: %s, ExchangeID: %s, ScanInterval: %d, BTCETHLeverage: %d, AltcoinLeverage: %d",
+		trader.Name, trader.AIModelID, trader.ExchangeID, trader.ScanIntervalMinutes, trader.BTCETHLeverage, trader.AltcoinLeverage)
+	log.Printf("💾 [数据库层] 更新参数 - TradingSymbols: %s, OverrideBasePrompt: %v, IsCrossMargin: %v",
+		trader.TradingSymbols, trader.OverrideBasePrompt, trader.IsCrossMargin)
+
+	result, err := d.db.Exec(`
 		UPDATE traders SET
 			name = ?, ai_model_id = ?, exchange_id = ?,
 			scan_interval_minutes = ?, btc_eth_leverage = ?, altcoin_leverage = ?,
 			trading_symbols = ?, custom_prompt = ?, override_base_prompt = ?,
-			system_prompt_template = ?, is_cross_margin = ?, indicator_config = ?, updated_at = CURRENT_TIMESTAMP
+			system_prompt_template = ?, is_cross_margin = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ? AND user_id = ?
 	`, trader.Name, trader.AIModelID, trader.ExchangeID,
 		trader.ScanIntervalMinutes, trader.BTCETHLeverage, trader.AltcoinLeverage,
 		trader.TradingSymbols, trader.CustomPrompt, trader.OverrideBasePrompt,
-		trader.SystemPromptTemplate, trader.IsCrossMargin, trader.IndicatorConfig, trader.ID, trader.UserID)
+		trader.SystemPromptTemplate, trader.IsCrossMargin, trader.ID, trader.UserID)
+
+	if err != nil {
+		log.Printf("❌ [数据库层] UPDATE交易员策略执行失败 - TraderID: %s, Error: %v", trader.ID, err)
+		return err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	log.Printf("✅ [数据库层] UPDATE交易员策略执行成功 - TraderID: %s, 受影响行数: %d", trader.ID, rowsAffected)
 	return err
 }
 
@@ -999,7 +1007,6 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 			COALESCE(t.override_base_prompt, 0) as override_base_prompt,
 			COALESCE(t.system_prompt_template, 'default') as system_prompt_template,
 			COALESCE(t.is_cross_margin, 1) as is_cross_margin,
-			COALESCE(t.indicator_config, '') as indicator_config,
 			t.created_at, t.updated_at,
 			a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key,
 			COALESCE(a.custom_api_url, '') as custom_api_url,
@@ -1021,7 +1028,7 @@ func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIM
 		&trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
 		&trader.UseCoinPool, &trader.UseOITop,
 		&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
-		&trader.IsCrossMargin, &trader.IndicatorConfig,
+		&trader.IsCrossMargin,
 		&trader.CreatedAt, &trader.UpdatedAt,
 		&aiModel.ID, &aiModel.UserID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
 		&aiModel.CustomAPIURL, &aiModel.CustomModelName,
@@ -1098,35 +1105,18 @@ func (d *Database) UpdateUserSignalSource(userID, coinPoolURL, oiTopURL string) 
 func (d *Database) GetCustomCoins() []string {
 	var symbol string
 	var symbols []string
-	err := d.db.QueryRow(`
+	_ = d.db.QueryRow(`
 		SELECT GROUP_CONCAT(custom_coins , ',') as symbol
 		FROM main.traders where custom_coins != ''
 	`).Scan(&symbol)
-
-	if err != nil {
-		log.Printf("⚠️  查询交易员自定义币种失败: %v", err)
-	}
-
 	// 检测用户是否未配置币种 - 兼容性
 	if symbol == "" {
-		log.Printf("📋 交易员未配置自定义币种,尝试从系统配置读取default_coins")
-		symbolJSON, err := d.GetSystemConfig("default_coins")
-		if err != nil {
-			log.Printf("⚠️  获取系统配置default_coins失败: %v,使用硬编码默认值", err)
-			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
-		} else if symbolJSON == "" {
-			log.Printf("⚠️  系统配置default_coins为空,使用硬编码默认值")
-			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
-		} else if err := json.Unmarshal([]byte(symbolJSON), &symbols); err != nil {
+		symbolJSON, _ := d.GetSystemConfig("default_coins")
+		if err := json.Unmarshal([]byte(symbolJSON), &symbols); err != nil {
 			log.Printf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
 			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
-		} else {
-			log.Printf("✅ 从系统配置读取到default_coins: %v", symbols)
 		}
-	} else {
-		log.Printf("✅ 从交易员配置读取到自定义币种: %s", symbol)
 	}
-
 	// filter Symbol
 	for _, s := range strings.Split(symbol, ",") {
 		if s == "" {
@@ -1137,8 +1127,6 @@ func (d *Database) GetCustomCoins() []string {
 			symbols = append(symbols, coin)
 		}
 	}
-
-	log.Printf("📋 GetCustomCoins最终返回: %d 个币种 %v", len(symbols), symbols)
 	return symbols
 }
 

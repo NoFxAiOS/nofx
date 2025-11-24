@@ -403,20 +403,22 @@ docker compose up -d
 #### ❌ Trader Configuration Not Saving
 
 **Check:**
-1. **Permissions:**
+1. **PostgreSQL container health**
    ```bash
-   ls -l config.db trading.db
-   # Should be writable by current user
+   docker compose ps postgres
+   docker compose exec postgres pg_isready -U nofx -d nofx
    ```
 
-2. **Disk Space:**
+2. **Inspect data directly**
+   ```bash
+   ./scripts/view_pg_data.sh                        # quick overview
+   docker compose exec postgres \
+     psql -U nofx -d nofx -c "SELECT COUNT(*) FROM traders;"
+   ```
+
+3. **Disk space**
    ```bash
    df -h  # Ensure disk not full
-   ```
-
-3. **Database Integrity:**
-   ```bash
-   sqlite3 config.db "PRAGMA integrity_check;"
    ```
 
 ---
@@ -437,15 +439,9 @@ docker compose logs -f backend
 docker compose logs backend --tail=500 > backend_logs.txt
 ```
 
-**Manual/PM2:**
+**Manual binary:**
 ```bash
-# Terminal where you ran ./nofx shows logs
-
-# PM2:
-pm2 logs nofx --lines 100
-
-# Save to file
-pm2 logs nofx --lines 500 > backend_logs.txt
+# If running without Docker, the terminal running ./nofx prints logs
 ```
 
 ---
@@ -532,13 +528,16 @@ docker compose restart frontend
 
 ```bash
 # Check traders in database
-sqlite3 config.db "SELECT id, name, ai_model_id, exchange_id, is_running FROM traders;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT id, name, ai_model_id, exchange_id, is_running FROM traders;"
 
 # Check AI models
-sqlite3 config.db "SELECT id, name, model_type, enabled FROM ai_models;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT id, name, provider, enabled FROM ai_models;"
 
 # Check system config
-sqlite3 config.db "SELECT key, value FROM system_config;"
+docker compose exec postgres \
+  psql -U nofx -d nofx -c "SELECT key, value FROM system_config;"
 ```
 
 ---
@@ -572,12 +571,12 @@ If you've tried all the above and still have problems:
 # Stop everything
 docker compose down
 
-# Backup databases (just in case)
-cp config.db config.db.backup
-cp trading.db trading.db.backup
+# Optional: back up PostgreSQL data
+docker compose exec postgres \
+  pg_dump -U nofx -d nofx > backup_nofx.sql
 
-# Remove databases (fresh start)
-rm config.db trading.db
+# Remove all persisted volumes (fresh start)
+docker compose down -v
 
 # Restart
 docker compose up -d --build

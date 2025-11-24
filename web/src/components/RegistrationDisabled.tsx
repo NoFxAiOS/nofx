@@ -16,8 +16,8 @@ export function RegistrationDisabled() {
     >
       <div className="text-center max-w-md px-6">
         <img
-          src="/icons/nofx.svg"
-          alt="NoFx Logo"
+          src="/icons/ares.svg"
+          alt="Ares Logo"
           className="w-16 h-16 mx-auto mb-4"
         />
         <h1 className="text-2xl font-semibold mb-3">

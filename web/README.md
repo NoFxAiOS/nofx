@@ -1,4 +1,4 @@
-# NOFX Web Dashboard
+# Ares Web Dashboard
 
 基于 Vite + React + TypeScript 的AI自动交易监控面板
 
@@ -88,8 +88,6 @@ web/
 ## 注意事项
 
 1. **确保后端API服务已启动**（默认端口8080）
-	- 开发时，`start.sh` 会自动为 Vite dev server 设置 `VITE_API_URL=http://localhost:${NOFX_BACKEND_PORT}`，以确保前后端代理指向一致。
-	- 如需手动设置，请在启动前导出 `VITE_API_URL`（例如：`export VITE_API_URL=http://localhost:8080`）。
 2. **Node.js版本要求**：>= 18.0.0
 3. **网络连接**：需要访问Binance API
 

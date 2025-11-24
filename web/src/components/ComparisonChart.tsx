@@ -260,7 +260,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
           position: 'relative',
         }}
       >
-        {/* NOFX Watermark */}
+        {/* Ares Watermark */}
         <div
           style={{
             position: 'absolute',
@@ -268,13 +268,13 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
             right: '20px',
             fontSize: '24px',
             fontWeight: 'bold',
-            color: 'rgba(240, 185, 11, 0.15)',
+            color: 'rgba(229, 0, 18, 0.15)',
             zIndex: 10,
             pointerEvents: 'none',
             fontFamily: 'monospace',
           }}
         >
-          NOFX
+          Ares
         </div>
         <ResponsiveContainer width="100%" height={520}>
           <LineChart

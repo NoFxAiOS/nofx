@@ -10,7 +10,7 @@ interface AboutSectionProps {
 
 export default function AboutSection({ language }: AboutSectionProps) {
   return (
-    <AnimatedSection id="about" backgroundColor="var(--brand-dark-gray)">
+    <AnimatedSection id="about" backgroundColor="var(--panel-bg)">
       <div className="max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <motion.div
@@ -23,44 +23,44 @@ export default function AboutSection({ language }: AboutSectionProps) {
             <motion.div
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
               style={{
-                background: 'rgba(240, 185, 11, 0.1)',
-                border: '1px solid rgba(240, 185, 11, 0.2)',
+                background: 'rgba(229, 0, 18, 0.1)',
+                border: '1px solid rgba(229, 0, 18, 0.2)',
               }}
               whileHover={{ scale: 1.05 }}
             >
               <Target
                 className="w-4 h-4"
-                style={{ color: 'var(--brand-yellow)' }}
+                style={{ color: 'var(--accent-red)' }}
               />
               <span
                 className="text-sm font-semibold"
-                style={{ color: 'var(--brand-yellow)' }}
+                style={{ color: 'var(--accent-red)' }}
               >
-                {t('aboutNofx', language)}
+                {t('aboutAres', language)}
               </span>
             </motion.div>
 
             <h2
               className="text-4xl font-bold"
-              style={{ color: 'var(--brand-light-gray)' }}
+              style={{ color: 'var(--text-primary)' }}
             >
-              {t('whatIsNofx', language)}
+              {t('whatIsAres', language)}
             </h2>
             <p
               className="text-lg leading-relaxed"
               style={{ color: 'var(--text-secondary)' }}
             >
-              {t('nofxNotAnotherBot', language)}{' '}
-              {t('nofxDescription1', language)}{' '}
-              {t('nofxDescription2', language)}
+              {t('aresNotAnotherBot', language)}{' '}
+              {t('aresDescription1', language)}{' '}
+              {t('aresDescription2', language)}
             </p>
             <p
               className="text-lg leading-relaxed"
               style={{ color: 'var(--text-secondary)' }}
             >
-              {t('nofxDescription3', language)}{' '}
-              {t('nofxDescription4', language)}{' '}
-              {t('nofxDescription5', language)}
+              {t('aresDescription3', language)}{' '}
+              {t('aresDescription4', language)}{' '}
+              {t('aresDescription5', language)}
             </p>
             <motion.div
               className="flex items-center gap-3 pt-4"
@@ -68,17 +68,17 @@ export default function AboutSection({ language }: AboutSectionProps) {
             >
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ background: 'rgba(240, 185, 11, 0.1)' }}
+                style={{ background: 'rgba(229, 0, 18, 0.1)' }}
               >
                 <Shield
                   className="w-6 h-6"
-                  style={{ color: 'var(--brand-yellow)' }}
+                  style={{ color: 'var(--accent-red)' }}
                 />
               </div>
               <div>
                 <div
                   className="font-semibold"
-                  style={{ color: 'var(--brand-light-gray)' }}
+                  style={{ color: 'var(--text-primary)' }}
                 >
                   {t('youFullControl', language)}
                 </div>
@@ -96,14 +96,13 @@ export default function AboutSection({ language }: AboutSectionProps) {
             <div
               className="rounded-2xl p-8"
               style={{
-                background: 'var(--brand-black)',
+                background: 'var(--panel-bg)',
                 border: '1px solid var(--panel-border)',
               }}
             >
               <Typewriter
                 lines={[
-                  '$ git clone https://github.com/tinkle-community/nofx.git',
-                  '$ cd nofx',
+                  '$ cd ares',
                   '$ chmod +x start.sh',
                   '$ ./start.sh start --build',
                   t('startupMessages1', language),

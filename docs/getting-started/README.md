@@ -24,32 +24,11 @@ Choose the method that best fits your needs:
 **Quick Start:**
 ```bash
 cp config.json.example config.json
-./start.sh start --build
+./scripts/start.sh start --build
 ```
 
 ---
 
-### 🔧 PM2 Deployment
-
-**Best for:** Advanced users, development, custom setups
-
-- **English:** [pm2-deploy.en.md](pm2-deploy.en.md)
-- **中文:** [pm2-deploy.md](pm2-deploy.md)
-
-**Pros:**
-- ✅ Direct process control
-- ✅ Better for development
-- ✅ Lower resource usage
-- ✅ More flexible
-
-**Quick Start:**
-```bash
-go build -o nofx
-cd web && npm install && npm run build
-pm2 start ecosystem.config.js
-```
-
----
 
 ## 🤖 AI Configuration
 
@@ -77,7 +56,6 @@ Before starting, ensure you have:
 - ✅ Go 1.21+
 - ✅ Node.js 18+
 - ✅ TA-Lib library
-- ✅ PM2 (optional)
 
 ---
 

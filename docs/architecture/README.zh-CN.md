@@ -93,7 +93,7 @@ nofx/
 | `github.com/gin-gonic/gin` | HTTP API 框架 | v1.9+ |
 | `github.com/adshao/go-binance/v2` | Binance API 客户端 | v2.4+ |
 | `github.com/markcheno/go-talib` | 技术指标（TA-Lib） | 最新 |
-| `github.com/mattn/go-sqlite3` | SQLite 数据库驱动 | v1.14+ |
+| `github.com/lib/pq` | PostgreSQL 数据库驱动 | v1.10+ |
 | `github.com/golang-jwt/jwt/v5` | JWT 认证 | v5.0+ |
 | `github.com/pquerna/otp` | 2FA/TOTP 支持 | v1.4+ |
 | `golang.org/x/crypto` | 密码哈希（bcrypt） | 最新 |
@@ -282,7 +282,6 @@ GET  /api/decisions/latest  # 最近决策
 - 基于 JWT token 的认证
 - 使用 TOTP 的 2FA（Google Authenticator）
 - Bcrypt 密码哈希
-- 管理员模式（简化的单用户模式）
 
 ---
 

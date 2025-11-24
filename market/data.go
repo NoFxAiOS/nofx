@@ -30,6 +30,12 @@ func Get(symbol string) (*Data, error) {
 	var err error
 	// 标准化symbol
 	symbol = Normalize(symbol)
+
+	// 🔧 FIX: 优先使用 API 获取实时价格（解决 WebSocket K线价格不实时更新的问题）
+	apiClient := NewAPIClient()
+	currentPrice, priceErr := apiClient.GetCurrentPrice(symbol)
+	var useAPIPrice bool = (priceErr == nil && currentPrice > 0)
+
 	// 获取3分钟K线数据 (最近10个)
 	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // 多获取一些用于计算
 	if err != nil {
@@ -57,7 +63,21 @@ func Get(symbol string) (*Data, error) {
 	}
 
 	// 计算当前指标 (基于3分钟最新数据)
-	currentPrice := klines3m[len(klines3m)-1].Close
+	// 🔧 FIX: 如果 API 价格获取失败，回退到 K线价格
+	if !useAPIPrice {
+		currentPrice = klines3m[len(klines3m)-1].Close
+		if priceErr != nil {
+			log.Printf("⚠️  %s 使用K线价格(%.2f)，API获取失败: %v", symbol, currentPrice, priceErr)
+		}
+	} else {
+		// 记录价格来源用于调试
+		klinePrice := klines3m[len(klines3m)-1].Close
+		priceDiff := math.Abs(currentPrice-klinePrice) / klinePrice * 100
+		if priceDiff > 0.1 { // 差异超过 0.1% 时记录
+			log.Printf("🔍 %s 价格来源: API=%.2f, K线=%.2f (差异%.2f%%)",
+				symbol, currentPrice, klinePrice, priceDiff)
+		}
+	}
 	currentEMA20 := calculateEMA(klines3m, 20)
 	currentMACD := calculateMACD(klines3m)
 	currentRSI7 := calculateRSI(klines3m, 7)
@@ -552,13 +572,28 @@ func parseFloat(v interface{}) (float64, error) {
 // isStaleData detects stale data (consecutive price freeze)
 // Fix DOGEUSDT-style issue: consecutive N periods with completely unchanged prices indicate data source anomaly
 func isStaleData(klines []Kline, symbol string) bool {
-	if len(klines) < 5 {
+	if len(klines) < 3 {
 		return false // Insufficient data to determine
 	}
 
-	// Detection threshold: 5 consecutive 3-minute periods with unchanged price (15 minutes without fluctuation)
-	const stalePriceThreshold = 5
+	// 🔧 FIX 1: 检查最新K线的时间戳是否过期
+	latestKline := klines[len(klines)-1]
+	timeSinceUpdate := time.Now().UnixMilli() - latestKline.CloseTime
+	maxAge := int64(5 * 60 * 1000) // 5分钟
+
+	if timeSinceUpdate > maxAge {
+		log.Printf("⚠️  %s K线数据过期! 距离上次更新: %.1f 分钟 (CloseTime: %d, Now: %d)",
+			symbol, float64(timeSinceUpdate)/(60*1000), latestKline.CloseTime, time.Now().UnixMilli())
+		return true
+	}
+
+	// 🔧 FIX 2: 更严格的价格冻结检测（3个周期 -> 9分钟，原来是5个周期15分钟）
+	const stalePriceThreshold = 3
 	const priceTolerancePct = 0.0001 // 0.01% fluctuation tolerance (avoid false positives)
+
+	if len(klines) < stalePriceThreshold {
+		return false
+	}
 
 	// Take the last stalePriceThreshold K-lines
 	recentKlines := klines[len(klines)-stalePriceThreshold:]

@@ -8,7 +8,7 @@
 
 **언어 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md) | [한국어](README.md) | [Tiếng Việt](../vi/README.md)
 
-**📚 문서:** [문서 홈](../../README.md) | [시작 가이드](../../getting-started/README.md) | [커뮤니티](../../community/README.md) | [변경 로그](../../../CHANGELOG.md)
+**📚 문서:** [문서 홈](../../README.md) | [시작 가이드](../../getting-started/README.md) | [커뮤니티](../../community/README.md) | [변경 로그](../../../CHANGELOG.md) | [⚠️ 면책 조항](../../../DISCLAIMER.md)
 
 ---
 

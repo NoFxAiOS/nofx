@@ -8,7 +8,7 @@
 
 **Ngôn ngữ:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Tiếng Việt](README.md)
 
-**📚 Tài liệu:** [Trang chủ Docs](../../README.md) | [Bắt đầu](../../getting-started/README.md) | [Hướng dẫn viết Prompt](../../prompt-guide.md) ([中文](../../prompt-guide.zh-CN.md)) | [Nhật ký thay đổi](../../../CHANGELOG.md) | [Đóng góp](../../../CONTRIBUTING.md) | [Bảo mật](../../../SECURITY.md)
+**📚 Tài liệu:** [Trang chủ Docs](../../README.md) | [Bắt đầu](../../getting-started/README.md) | [Hướng dẫn viết Prompt](../../prompt-guide.md) ([中文](../../prompt-guide.zh-CN.md)) | [Nhật ký thay đổi](../../../CHANGELOG.md) | [Đóng góp](../../../CONTRIBUTING.md) | [Bảo mật](../../../SECURITY.md) | [⚠️ Miễn Trừ Trách Nhiệm](../../../DISCLAIMER.md)
 
 ---
 

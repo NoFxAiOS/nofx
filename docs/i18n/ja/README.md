@@ -8,6 +8,8 @@
 
 **言語:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](README.md) | [한국어](../ko/README.md) | [Tiếng Việt](../vi/README.md)
 
+**📚 ドキュメント:** [⚠️ 免責事項](../../../DISCLAIMER.md)
+
 ---
 
 ## 📑 目次

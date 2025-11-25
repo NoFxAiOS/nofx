@@ -73,7 +73,7 @@ func corsMiddleware() gin.HandlerFunc {
                 "https://web-fej4rs4y2-gyc567s-projects.vercel.app",
                 "https://web-fco5upt1e-gyc567s-projects.vercel.app",
                 "https://web-2ybunmaej-gyc567s-projects.vercel.app",
-
+                "https://web-ge79k4nzy-gyc567s-projects.vercel.app",
                 // 新增生产前端域名
                 "https://www.agentrade.xyz",
         }

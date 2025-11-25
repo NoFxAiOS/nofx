@@ -1163,11 +1163,11 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
                 newModelID = fmt.Sprintf("%s_%s", userID, provider)
         }
 
-        log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
-        _, err = d.exec(`
-                INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-        `, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
+	_, err = d.exec(`
+		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
 
         return err
 }

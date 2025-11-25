@@ -21,7 +21,7 @@
 # 这些用户将被请求审查所有 PR
 # =============================================================================
 
-* @hzb1115 @Icyoung @tangmengqiu @xqliu @SkywalkerJi
+* @tinkle-community @hzb1115 @tangmengqiu @mykelio1001  @Icyoung @SkywalkerJi
 
 # =============================================================================
 # Specific Component Owners | 特定组件所有者
@@ -31,27 +31,27 @@
 
 # Backend / Go Code | 后端 / Go 代码
 # Go files and backend logic
-*.go @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
-go.mod @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
-go.sum @xqliu @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+*.go @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+go.mod @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
+go.sum @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
 
 
 # Frontend / Web | 前端 / Web
 # React/TypeScript frontend code
-/web/ @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-/web/src/ @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.tsx @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.ts @0xEmberZz @hzb1115 @xqliu @tangmengqiu (frontend TypeScript only)
-*.jsx @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.css @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.scss @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+/web/ @0xEmberZz @hzb1115 @tangmengqiu
+/web/src/ @0xEmberZz @hzb1115 @tangmengqiu
+*.tsx @0xEmberZz @hzb1115 @tangmengqiu
+*.ts @0xEmberZz @hzb1115 @tangmengqiu (frontend TypeScript only)
+*.jsx @0xEmberZz @hzb1115 @tangmengqiu
+*.css @0xEmberZz @hzb1115 @tangmengqiu
+*.scss @0xEmberZz @hzb1115 @tangmengqiu
 
 # Configuration Files | 配置文件
-*.json @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.yaml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.yml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.toml @0xEmberZz @hzb1115 @xqliu @tangmengqiu
-*.ini @0xEmberZz @hzb1115 @xqliu @tangmengqiu
+*.json @0xEmberZz @hzb1115 @tangmengqiu
+*.yaml @0xEmberZz @hzb1115 @tangmengqiu
+*.yml @0xEmberZz @hzb1115 @tangmengqiu
+*.toml @0xEmberZz @hzb1115 @tangmengqiu
+*.ini @0xEmberZz @hzb1115 @tangmengqiu
 
 # Documentation | 文档
 # Markdown and documentation files
@@ -77,28 +77,28 @@ docker-compose.yml @tangmengqiu
 *.sql @SkywalkerJi @hzb1115 @Icyoung @tangmengqiu
 
 # Scripts | 脚本
-/scripts/ @hzb1115 @xqliu @tangmengqiu
-*.sh @hzb1115 @xqliu @tangmengqiu
+/scripts/ @hzb1115 @tangmengqiu
+*.sh @hzb1115 @tangmengqiu
 *.bash @hzb1115 @tangmengqiu
 *.py @hzb1115 @tangmengqiu (if Python scripts exist)
 
 # Tests | 测试
 # Test files require review from component owners
-*_test.go @xqliu @SkywalkerJi @heronsbillC
-/tests/ @xqliu @SkywalkerJi @Icyoung @heronsbillC
+*_test.go @SkywalkerJi @heronsbillC
+/tests/ @SkywalkerJi @Icyoung @heronsbillC
 /web/tests/ @Icyoung @hzb1115 @heronsbillC
 
 # Security & Dependencies | 安全和依赖
 # Security-sensitive files require extra attention
 .env.example @hzb1115 @tangmengqiu
 .gitignore @hzb1115 @tangmengqiu
-go.sum @xqliu @hzb1115 @tangmengqiu
+go.sum @hzb1115 @tangmengqiu
 package-lock.json @Icyoung @hzb1115 @tangmengqiu
 yarn.lock @Icyoung @hzb1115 @tangmengqiu
 
 # Build Configuration | 构建配置
-Makefile @hzb1115 @xqliu @tangmengqiu
-/build/ @hzb1115 @xqliu @tangmengqiu
+Makefile @hzb1115 @tangmengqiu
+/build/ @hzb1115 @tangmengqiu
 /dist/ @hzb1115 @tangmengqiu
 
 # License & Legal | 许可证和法律文件

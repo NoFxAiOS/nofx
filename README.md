@@ -189,8 +189,8 @@ NOFX is built with a modern, modular architecture:
 | Exchange | Status | Register (Fee Discount) | API Setup |
 |----------|--------|-------------------------|-----------|
 | **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) | [API Guide](docs/getting-started/binance-api.md) |
-| **OKX** | 🚧 Coming Soon | [Register](https://www.okx.com/join/1865360) | Coming Soon |
-| **Bybit** | 🚧 Coming Soon | [Register](https://partner.bybit.com/b/83856) | Coming Soon |
+| **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) | [API Guide](docs/getting-started/bybit-api.md) |
+| **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) | [API Guide](docs/getting-started/okx-api.md) |
 
 ### Perp-DEX (Decentralized Perpetual Exchanges)
 
@@ -198,6 +198,7 @@ NOFX is built with a modern, modular architecture:
 |----------|--------|-------------------------|--------------------|
 | **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) | [Agent Wallet Guide](docs/getting-started/hyperliquid-agent-wallet.md) |
 | **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) | [API Wallet Guide](docs/getting-started/aster-api-wallet.md) |
+| **Lighter** | ✅ Supported | [Register](https://lighter.xyz) | [Agent Wallet Guide](docs/getting-started/lighter-agent-wallet.md) |
 
 ---
 

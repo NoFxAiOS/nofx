@@ -192,8 +192,8 @@ NOFX는 현대적이고 모듈화된 아키텍처로 구축되었습니다:
 | 거래소 | 상태 | 등록 (수수료 할인) | API 설정 |
 |--------|------|-------------------|----------|
 | **Binance** | ✅ 지원됨 | [등록](https://www.binance.com/join?ref=NOFXKOREA) | [API 가이드](../../getting-started/binance-api.md) |
-| **OKX** | 🚧 곧 지원 | [등록](https://www.okx.com/join/1865360) | 곧 공개 |
-| **Bybit** | 🚧 곧 지원 | [등록](https://partner.bybit.com/b/83856) | 곧 공개 |
+| **Bybit** | ✅ 지원됨 | [등록](https://partner.bybit.com/b/83856) | [API 가이드](../../getting-started/bybit-api.md) |
+| **OKX** | ✅ 지원됨 | [등록](https://www.okx.com/join/1865360) | [API 가이드](../../getting-started/okx-api.md) |
 
 ### Perp-DEX (탈중앙화 무기한 거래소)
 
@@ -201,6 +201,7 @@ NOFX는 현대적이고 모듈화된 아키텍처로 구축되었습니다:
 |--------|------|-------------------|-------------------|
 | **Hyperliquid** | ✅ 지원됨 | [등록](https://app.hyperliquid.xyz/join/AITRADING) | [에이전트 지갑 가이드](../../getting-started/hyperliquid-agent-wallet.md) |
 | **Aster DEX** | ✅ 지원됨 | [등록](https://www.asterdex.com/en/referral/fdfc0e) | [API 지갑 가이드](../../getting-started/aster-api-wallet.md) |
+| **Lighter** | ✅ 지원됨 | [등록](https://lighter.xyz) | [에이전트 지갑 가이드](../../getting-started/lighter-agent-wallet.md) |
 
 ---
 

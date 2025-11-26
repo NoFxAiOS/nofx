@@ -295,15 +295,15 @@ func (d *Database) alterTables() error {
 
 // initDefaultData 初始化默认数据
 func (d *Database) initDefaultData() error {
-	// 确保default系统用户存在（必须在初始化默认数据之前）
-	if err := d.EnsureDefaultUser(); err != nil {
-		return fmt.Errorf("创建default用户失败: %w", err)
-	}
+        // 确保default系统用户存在（必须在初始化默认数据之前）
+        if err := d.EnsureDefaultUser(); err != nil {
+                return fmt.Errorf("创建default用户失败: %w", err)
+        }
 
-	// 确保admin用户存在（如果启用admin模式）
-	if err := d.EnsureAdminUser(); err != nil {
-		return fmt.Errorf("创建admin用户失败: %w", err)
-	}
+        // 确保admin用户存在（如果启用admin模式）
+        if err := d.EnsureAdminUser(); err != nil {
+                return fmt.Errorf("创建admin用户失败: %w", err)
+        }
 
         // 初始化AI模型（使用default用户）
         aiModels := []struct {
@@ -500,35 +500,35 @@ func (d *Database) CreateUser(user *User) error {
 
 // EnsureDefaultUser 确保default系统用户存在（用于存储系统级别配置）
 func (d *Database) EnsureDefaultUser() error {
-	// 检查default用户是否已存在
-	var count int
-	err := d.queryRow(`SELECT COUNT(*) FROM users WHERE id = 'default'`).Scan(&count)
-	if err != nil {
-		return err
-	}
+        // 检查default用户是否已存在
+        var count int
+        err := d.queryRow(`SELECT COUNT(*) FROM users WHERE id = 'default'`).Scan(&count)
+        if err != nil {
+                return err
+        }
 
-	// 如果已存在，直接返回
-	if count > 0 {
-		return nil
-	}
+        // 如果已存在，直接返回
+        if count > 0 {
+                return nil
+        }
 
-	// 创建default用户（系统级别用户，用于存储系统默认配置）
-	now := time.Now()
-	defaultUser := &User{
-		ID:             "default",
-		Email:          "default@system",
-		PasswordHash:   "", // 系统用户不需要密码
-		OTPSecret:      "",
-		OTPVerified:    true,
-		IsActive:       true,
-		IsAdmin:        false, // 不是管理员，只是系统用户
-		FailedAttempts: 0,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
+        // 创建default用户（系统级别用户，用于存储系统默认配置）
+        now := time.Now()
+        defaultUser := &User{
+                ID:             "default",
+                Email:          "default@system",
+                PasswordHash:   "", // 系统用户不需要密码
+                OTPSecret:      "",
+                OTPVerified:    true,
+                IsActive:       true,
+                IsAdmin:        false, // 不是管理员，只是系统用户
+                FailedAttempts: 0,
+                CreatedAt:      now,
+                UpdatedAt:      now,
+        }
 
-	log.Println("📝 创建default系统用户（用于存储系统级别配置）...")
-	return d.CreateUser(defaultUser)
+        log.Println("📝 创建default系统用户（用于存储系统级别配置）...")
+        return d.CreateUser(defaultUser)
 }
 
 // EnsureAdminUser 确保admin用户存在（用于管理员模式）
@@ -855,11 +855,11 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
                 newModelID = fmt.Sprintf("%s_%s", userID, provider)
         }
 
-	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
-	_, err = d.exec(`
-		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
+        log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
+        _, err = d.exec(`
+                INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, newModelID, userID, name, provider, enabled, apiKey, customAPIURL, customModelName)
 
         return err
 }
@@ -951,11 +951,22 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 
                 log.Printf("🆕 UpdateExchange: 创建新记录 ID=%s, name=%s, type=%s", id, name, typ)
 
-                // 创建用户特定的配置，使用原始的交易所ID
+                // 创建用户特定的配置，使用ON CONFLICT处理冲突
                 _, err = d.exec(`
                         INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet,
                                                hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key, okx_passphrase)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        ON CONFLICT (id, user_id) DO UPDATE SET
+                                enabled = EXCLUDED.enabled,
+                                api_key = EXCLUDED.api_key,
+                                secret_key = EXCLUDED.secret_key,
+                                testnet = EXCLUDED.testnet,
+                                hyperliquid_wallet_addr = EXCLUDED.hyperliquid_wallet_addr,
+                                aster_user = EXCLUDED.aster_user,
+                                aster_signer = EXCLUDED.aster_signer,
+                                aster_private_key = EXCLUDED.aster_private_key,
+                                okx_passphrase = EXCLUDED.okx_passphrase,
+                                updated_at = CURRENT_TIMESTAMP
                 `, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, okxPassphrase)
 
                 if err != nil {

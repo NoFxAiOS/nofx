@@ -1306,8 +1306,26 @@ func (s *Server) handlePerformance(c *gin.Context) {
 // authMiddleware JWT认证中间件
 func (s *Server) authMiddleware() gin.HandlerFunc {
         return func(c *gin.Context) {
+                // 检查是否开启admin模式
+                adminModeStr, _ := s.database.GetSystemConfig("admin_mode")
+                isAdminMode := adminModeStr == "true"
+
                 authHeader := c.GetHeader("Authorization")
                 if authHeader == "" {
+                        // 如果是admin模式，使用admin用户
+                        if isAdminMode {
+                                user, err := s.database.GetUserByID("admin")
+                                if err != nil {
+                                        log.Printf("获取admin用户失败: %v", err)
+                                        c.JSON(http.StatusUnauthorized, gin.H{"error": "admin用户不存在"})
+                                        c.Abort()
+                                        return
+                                }
+                                c.Set("user", user)
+                                c.Set("user_id", "admin")
+                                c.Next()
+                                return
+                        }
                         c.JSON(http.StatusUnauthorized, gin.H{"error": "缺少Authorization头"})
                         c.Abort()
                         return
@@ -1324,6 +1342,20 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
                 // 验证JWT token
                 claims, err := auth.ValidateJWT(tokenParts[1])
                 if err != nil {
+                        // 如果是admin模式且token验证失败，使用admin用户
+                        if isAdminMode {
+                                user, err := s.database.GetUserByID("admin")
+                                if err != nil {
+                                        log.Printf("获取admin用户失败: %v", err)
+                                        c.JSON(http.StatusUnauthorized, gin.H{"error": "admin用户不存在"})
+                                        c.Abort()
+                                        return
+                                }
+                                c.Set("user", user)
+                                c.Set("user_id", "admin")
+                                c.Next()
+                                return
+                        }
                         c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的token: " + err.Error()})
                         c.Abort()
                         return

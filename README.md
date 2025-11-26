@@ -6,6 +6,11 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
+| 🎁 **CONTRIBUTOR AIRDROP PROGRAM** |
+|:----------------------------------:|
+| Code · Bug Fixes · Issues → Token Airdrop |
+| [Learn More](#-contributor-airdrop-program) |
+
 **Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [Українська](docs/i18n/uk/README.md) | [Русский](docs/i18n/ru/README.md) | [日本語](docs/i18n/ja/README.md) | [한국어](docs/i18n/ko/README.md) | [Tiếng Việt](docs/i18n/vi/README.md)
 
 **📚 Documentation:** [Docs Home](docs/README.md) | [Getting Started](docs/getting-started/README.md) | [Prompt Writing Guide](docs/prompt-guide.md) ([中文](docs/prompt-guide.zh-CN.md)) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [⚠️ Disclaimer](DISCLAIMER.md)
@@ -33,6 +38,7 @@
 - [🔄 Changelog](#-changelog)
 - [📄 License](#-license)
 - [🤝 Contributing](#-contributing)
+- [🎁 Contributor Airdrop Program](#-contributor-airdrop-program)
 
 ---
 
@@ -1100,6 +1106,30 @@ We welcome contributions from the community! See our comprehensive guides:
 3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to branch (`git push origin feature/AmazingFeature`)
 5. Open Pull Request
+
+---
+
+## 🎁 Contributor Airdrop Program
+
+All contributions are tracked on GitHub. When NOFX generates revenue, contributors will receive token airdrops based on their contributions.
+
+### Contribution Weights
+
+| Contribution Type | Weight | Description |
+|------------------|:------:|-------------|
+| **Code Commits** (Merged PRs) | ⭐⭐⭐⭐⭐ | Core features, optimizations, new integrations |
+| **Bug Fixes** | ⭐⭐⭐⭐ | Fix confirmed bugs and issues |
+| **Feature Suggestions** (Adopted Issues) | ⭐⭐⭐ | Ideas that get implemented |
+| **Bug Reports** (Confirmed) | ⭐⭐ | Report valid bugs with reproducible steps |
+| **Documentation** | ⭐⭐ | Translations, guides, tutorials |
+
+### How It Works
+
+1. **Contribute** - Submit PRs, report bugs, suggest features
+2. **Track** - All contributions recorded via GitHub activity
+3. **Earn** - Receive airdrops proportional to your contribution weight
+
+> 💡 Start contributing today! Every commit counts.
 
 ---
 

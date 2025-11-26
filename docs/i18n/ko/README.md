@@ -6,6 +6,11 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
+| 🎁 **기여자 에어드롭 프로그램** |
+|:----------------------------------:|
+| 코드 · 버그 수정 · Issue → 토큰 에어드롭 |
+| [자세히 보기](#-기여자-에어드롭-프로그램) |
+
 **언어 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md) | [한국어](README.md) | [Tiếng Việt](../vi/README.md)
 
 **📚 문서:** [문서 홈](../../README.md) | [시작 가이드](../../getting-started/README.md) | [커뮤니티](../../community/README.md) | [변경 로그](../../../CHANGELOG.md) | [⚠️ 면책 조항](../../../DISCLAIMER.md)
@@ -32,6 +37,7 @@
 - [🔄 변경 로그](#-변경-로그)
 - [📄 라이선스](#-라이선스)
 - [🤝 기여하기](#-기여하기)
+- [🎁 기여자 에어드롭 프로그램](#-기여자-에어드롭-프로그램)
 
 ---
 
@@ -667,6 +673,30 @@ Issue 및 Pull Request를 환영합니다!
 3. 변경 사항 커밋 (`git commit -m 'Add some AmazingFeature'`)
 4. 브랜치에 푸시 (`git push origin feature/AmazingFeature`)
 5. Pull Request 열기
+
+---
+
+## 🎁 기여자 에어드롭 프로그램
+
+모든 기여는 GitHub에서 추적됩니다. NOFX가 수익을 창출하면, 기여자는 기여도에 따라 토큰 에어드롭을 받게 됩니다.
+
+### 기여 가중치
+
+| 기여 유형 | 가중치 | 설명 |
+|----------|:------:|------|
+| **코드 커밋** (병합된 PR) | ⭐⭐⭐⭐⭐ | 핵심 기능, 최적화, 새로운 통합 |
+| **버그 수정** | ⭐⭐⭐⭐ | 확인된 버그 수정 |
+| **기능 제안** (채택된 Issue) | ⭐⭐⭐ | 구현된 아이디어 |
+| **버그 보고** (확인됨) | ⭐⭐ | 재현 가능한 유효한 버그 보고 |
+| **문서** | ⭐⭐ | 번역, 가이드, 튜토리얼 |
+
+### 작동 방식
+
+1. **기여** - PR 제출, 버그 보고, 기능 제안
+2. **추적** - 모든 기여는 GitHub 활동으로 기록
+3. **획득** - 기여 가중치에 비례하여 에어드롭 수령
+
+> 💡 오늘부터 기여를 시작하세요! 모든 커밋이 카운트됩니다.
 
 ---
 

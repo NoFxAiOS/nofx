@@ -6,6 +6,11 @@
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
+| 🎁 **贡献者空投计划** |
+|:----------------------------------:|
+| 代码提交 · Bug修复 · Issue反馈 → 代币空投 |
+| [了解详情](#-贡献者空投计划) |
+
 **语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Tiếng Việt](../vi/README.md)
 
 **📚 文档中心:** [文档首页](../../README.md) | [快速开始](../../getting-started/README.zh-CN.md) | [更新日志](../../../CHANGELOG.zh-CN.md) | [社区指南](../../community/README.md) | [⚠️ 免责声明](../../../DISCLAIMER.md)
@@ -35,6 +40,7 @@
 - [🔄 更新日志](#-更新日志)
 - [📄 开源协议](#-开源协议)
 - [🤝 贡献指南](#-贡献指南)
+- [🎁 贡献者空投计划](#-贡献者空投计划)
 
 ---
 
@@ -1121,6 +1127,30 @@ sudo apt-get install libta-lib0-dev
 3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启Pull Request
+
+---
+
+## 🎁 贡献者空投计划
+
+所有贡献都会在 GitHub 上记录。当 NOFX 产生收益时，贡献者将根据贡献获得代币空投。
+
+### 贡献权重
+
+| 贡献类型 | 权重 | 说明 |
+|---------|:----:|------|
+| **代码提交** (合并的PR) | ⭐⭐⭐⭐⭐ | 核心功能、优化、新集成 |
+| **Bug修复** | ⭐⭐⭐⭐ | 修复已确认的Bug |
+| **功能建议** (被采纳的Issue) | ⭐⭐⭐ | 被实现的想法和建议 |
+| **Bug反馈** (已确认) | ⭐⭐ | 提交可复现的有效Bug |
+| **文档贡献** | ⭐⭐ | 翻译、指南、教程 |
+
+### 运作方式
+
+1. **贡献** - 提交PR、报告Bug、建议功能
+2. **记录** - 所有贡献通过GitHub活动记录
+3. **获得** - 按贡献权重比例获得空投
+
+> 💡 现在就开始贡献吧！每一次提交都有价值。
 
 ---
 

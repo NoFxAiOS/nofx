@@ -17,11 +17,11 @@
 - [🚀 Universal AI Trading Operating System](#-universal-ai-trading-operating-system)
 - [👥 Developer Community](#-developer-community)
 - [📸 Screenshots](#-screenshots)
+- [🏦 Supported Exchanges (DEX/CEX Tutorials)](#-supported-exchanges-dexcex-tutorials)
+- [🤖 Supported AI Models](#-supported-ai-models)
 - [✨ Current Implementation](#-current-implementation---crypto-markets)
 - [🔮 Roadmap](#-roadmap---universal-market-expansion)
 - [🏗️ Technical Architecture](#️-technical-architecture)
-- [🏦 Supported Exchanges (DEX/CEX Tutorials)](#-supported-exchanges-dexcex-tutorials)
-- [🤖 Supported AI Models](#-supported-ai-models)
 - [🚀 Quick Start](#-quick-start)
 - [📖 AI Decision Flow](#-ai-decision-flow)
 - [🧠 AI Self-Learning](#-ai-self-learning-example)
@@ -80,6 +80,40 @@ Join our Telegram developer community to discuss, share ideas, and get support:
 ### 📊 Trader Details - Complete Trading Dashboard
 ![Details Page](screenshots/details-page.png)
 *Professional trading interface with equity curves, live positions, and AI decision logs with expandable input prompts & chain-of-thought reasoning*
+
+---
+
+## 🏦 Supported Exchanges (DEX/CEX Tutorials)
+
+### CEX (Centralized Exchanges)
+
+| Exchange | Status | Register (Fee Discount) | API Setup |
+|----------|--------|-------------------------|-----------|
+| **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) | [API Guide](docs/getting-started/binance-api.md) |
+| **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) | [API Guide](docs/getting-started/bybit-api.md) |
+| **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) | [API Guide](docs/getting-started/okx-api.md) |
+
+### Perp-DEX (Decentralized Perpetual Exchanges)
+
+| Exchange | Status | Register (Fee Discount) | Agent Wallet Setup |
+|----------|--------|-------------------------|--------------------|
+| **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) | [Agent Wallet Guide](docs/getting-started/hyperliquid-agent-wallet.md) |
+| **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) | [API Wallet Guide](docs/getting-started/aster-api-wallet.md) |
+| **Lighter** | ✅ Supported | [Register](https://lighter.xyz) | [Agent Wallet Guide](docs/getting-started/lighter-agent-wallet.md) |
+
+---
+
+## 🤖 Supported AI Models
+
+| AI Model | Status | Get API Key |
+|----------|--------|-------------|
+| **DeepSeek** | ✅ Supported | [Get API Key](https://platform.deepseek.com) |
+| **Qwen** | ✅ Supported | [Get API Key](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ Supported | [Get API Key](https://platform.openai.com) |
+| **Claude** | ✅ Supported | [Get API Key](https://console.anthropic.com) |
+| **Gemini** | ✅ Supported | [Get API Key](https://aistudio.google.com) |
+| **Grok** | ✅ Supported | [Get API Key](https://console.x.ai) |
+| **Kimi** | ✅ Supported | [Get API Key](https://platform.moonshot.cn) |
 
 ---
 
@@ -177,38 +211,6 @@ NOFX is built with a modern, modular architecture:
 📖 **For detailed architecture documentation, see:**
 - **English:** [Architecture Documentation](docs/architecture/README.md)
 - **中文:** [架构文档](docs/architecture/README.zh-CN.md)
-
----
-
-## 🏦 Supported Exchanges (DEX/CEX Tutorials)
-
-### CEX (Centralized Exchanges)
-
-| Exchange | Status | Register (Fee Discount) | API Setup |
-|----------|--------|-------------------------|-----------|
-| **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) | [API Guide](docs/getting-started/binance-api.md) |
-| **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) | [API Guide](docs/getting-started/bybit-api.md) |
-| **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) | [API Guide](docs/getting-started/okx-api.md) |
-
-### Perp-DEX (Decentralized Perpetual Exchanges)
-
-| Exchange | Status | Register (Fee Discount) | Agent Wallet Setup |
-|----------|--------|-------------------------|--------------------|
-| **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) | [Agent Wallet Guide](docs/getting-started/hyperliquid-agent-wallet.md) |
-| **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) | [API Wallet Guide](docs/getting-started/aster-api-wallet.md) |
-| **Lighter** | ✅ Supported | [Register](https://lighter.xyz) | [Agent Wallet Guide](docs/getting-started/lighter-agent-wallet.md) |
-
-### 🤖 Supported AI Models
-
-| AI Model | Status | Get API Key |
-|----------|--------|-------------|
-| **DeepSeek** | ✅ Supported | [Get API Key](https://platform.deepseek.com) |
-| **Qwen** | ✅ Supported | [Get API Key](https://dashscope.console.aliyun.com) |
-| **OpenAI (GPT)** | ✅ Supported | [Get API Key](https://platform.openai.com) |
-| **Claude** | ✅ Supported | [Get API Key](https://console.anthropic.com) |
-| **Gemini** | ✅ Supported | [Get API Key](https://aistudio.google.com) |
-| **Grok** | ✅ Supported | [Get API Key](https://console.x.ai) |
-| **Kimi** | ✅ Supported | [Get API Key](https://platform.moonshot.cn) |
 
 ---
 

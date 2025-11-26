@@ -17,11 +17,11 @@
 - [🚀 범용 AI 트레이딩 운영 체제](#-범용-ai-트레이딩-운영-체제)
 - [👥 개발자 커뮤니티](#-개발자-커뮤니티)
 - [📸 시스템 스크린샷](#-시스템-스크린샷)
+- [🏦 지원 거래소 (DEX/CEX 튜토리얼)](#-지원-거래소-dexcex-튜토리얼)
+- [🤖 지원 AI 모델](#-지원-ai-모델)
 - [✨ 현재 구현](#-현재-구현---암호화폐-시장)
 - [🔮 로드맵](#-로드맵---범용-시장-확장)
 - [🏗️ 기술 아키텍처](#️-기술-아키텍처)
-- [🏦 지원 거래소 (DEX/CEX 튜토리얼)](#-지원-거래소-dexcex-튜토리얼)
-- [🤖 지원 AI 모델](#-지원-ai-모델)
 - [🚀 빠른 시작](#-빠른-시작)
 - [📖 AI 의사결정 흐름](#-ai-의사결정-흐름)
 - [🧠 AI 자가학습 예시](#-ai-자가학습-예시)
@@ -83,6 +83,40 @@
 ---
 
 > 📘 **참고**: 이것은 간소화된 한국어 버전 README입니다. 시스템 아키텍처, API 인터페이스 및 고급 구성을 포함한 전체 기술 문서는 [영문 버전](../../../README.md) 또는 [중문 버전](../zh-CN/README.md)을 참조하세요.
+
+---
+
+## 🏦 지원 거래소 (DEX/CEX 튜토리얼)
+
+### CEX (중앙화 거래소)
+
+| 거래소 | 상태 | 등록 (수수료 할인) | API 설정 |
+|--------|------|-------------------|----------|
+| **Binance** | ✅ 지원됨 | [등록](https://www.binance.com/join?ref=NOFXKOREA) | [API 가이드](../../getting-started/binance-api.md) |
+| **Bybit** | ✅ 지원됨 | [등록](https://partner.bybit.com/b/83856) | [API 가이드](../../getting-started/bybit-api.md) |
+| **OKX** | ✅ 지원됨 | [등록](https://www.okx.com/join/1865360) | [API 가이드](../../getting-started/okx-api.md) |
+
+### Perp-DEX (탈중앙화 무기한 거래소)
+
+| 거래소 | 상태 | 등록 (수수료 할인) | 에이전트 지갑 설정 |
+|--------|------|-------------------|-------------------|
+| **Hyperliquid** | ✅ 지원됨 | [등록](https://app.hyperliquid.xyz/join/AITRADING) | [에이전트 지갑 가이드](../../getting-started/hyperliquid-agent-wallet.md) |
+| **Aster DEX** | ✅ 지원됨 | [등록](https://www.asterdex.com/en/referral/fdfc0e) | [API 지갑 가이드](../../getting-started/aster-api-wallet.md) |
+| **Lighter** | ✅ 지원됨 | [등록](https://lighter.xyz) | [에이전트 지갑 가이드](../../getting-started/lighter-agent-wallet.md) |
+
+---
+
+## 🤖 지원 AI 모델
+
+| AI 모델 | 상태 | API 키 받기 |
+|---------|------|-------------|
+| **DeepSeek** | ✅ 지원됨 | [API 키 받기](https://platform.deepseek.com) |
+| **Qwen** | ✅ 지원됨 | [API 키 받기](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ 지원됨 | [API 키 받기](https://platform.openai.com) |
+| **Claude** | ✅ 지원됨 | [API 키 받기](https://console.anthropic.com) |
+| **Gemini** | ✅ 지원됨 | [API 키 받기](https://aistudio.google.com) |
+| **Grok** | ✅ 지원됨 | [API 키 받기](https://console.x.ai) |
+| **Kimi** | ✅ 지원됨 | [API 키 받기](https://platform.moonshot.cn) |
 
 ---
 
@@ -180,38 +214,6 @@ NOFX는 현대적이고 모듈화된 아키텍처로 구축되었습니다:
 📖 **자세한 아키텍처 문서는 다음을 참조하세요:**
 - **English:** [Architecture Documentation](../../architecture/README.md)
 - **中文:** [架构文档](../../architecture/README.zh-CN.md)
-
----
-
-## 🏦 지원 거래소 (DEX/CEX 튜토리얼)
-
-### CEX (중앙화 거래소)
-
-| 거래소 | 상태 | 등록 (수수료 할인) | API 설정 |
-|--------|------|-------------------|----------|
-| **Binance** | ✅ 지원됨 | [등록](https://www.binance.com/join?ref=NOFXKOREA) | [API 가이드](../../getting-started/binance-api.md) |
-| **Bybit** | ✅ 지원됨 | [등록](https://partner.bybit.com/b/83856) | [API 가이드](../../getting-started/bybit-api.md) |
-| **OKX** | ✅ 지원됨 | [등록](https://www.okx.com/join/1865360) | [API 가이드](../../getting-started/okx-api.md) |
-
-### Perp-DEX (탈중앙화 무기한 거래소)
-
-| 거래소 | 상태 | 등록 (수수료 할인) | 에이전트 지갑 설정 |
-|--------|------|-------------------|-------------------|
-| **Hyperliquid** | ✅ 지원됨 | [등록](https://app.hyperliquid.xyz/join/AITRADING) | [에이전트 지갑 가이드](../../getting-started/hyperliquid-agent-wallet.md) |
-| **Aster DEX** | ✅ 지원됨 | [등록](https://www.asterdex.com/en/referral/fdfc0e) | [API 지갑 가이드](../../getting-started/aster-api-wallet.md) |
-| **Lighter** | ✅ 지원됨 | [등록](https://lighter.xyz) | [에이전트 지갑 가이드](../../getting-started/lighter-agent-wallet.md) |
-
-### 🤖 지원 AI 모델
-
-| AI 모델 | 상태 | API 키 받기 |
-|---------|------|-------------|
-| **DeepSeek** | ✅ 지원됨 | [API 키 받기](https://platform.deepseek.com) |
-| **Qwen** | ✅ 지원됨 | [API 키 받기](https://dashscope.console.aliyun.com) |
-| **OpenAI (GPT)** | ✅ 지원됨 | [API 키 받기](https://platform.openai.com) |
-| **Claude** | ✅ 지원됨 | [API 키 받기](https://console.anthropic.com) |
-| **Gemini** | ✅ 지원됨 | [API 키 받기](https://aistudio.google.com) |
-| **Grok** | ✅ 지원됨 | [API 키 받기](https://console.x.ai) |
-| **Kimi** | ✅ 지원됨 | [API 키 받기](https://platform.moonshot.cn) |
 
 ---
 

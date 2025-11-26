@@ -17,11 +17,11 @@
 - [🚀 ユニバーサルAIトレーディングOS](#-ユニバーサルaiトレーディングos)
 - [👥 開発者コミュニティ](#-開発者コミュニティ)
 - [📸 スクリーンショット](#-スクリーンショット)
+- [🏦 対応取引所（DEX/CEXチュートリアル）](#-対応取引所dexcexチュートリアル)
+- [🤖 対応AIモデル](#-対応aiモデル)
 - [✨ 現在の実装 - 暗号通貨市場](#-現在の実装---暗号通貨市場)
 - [🔮 ロードマップ](#-ロードマップ---ユニバーサルマーケット拡大)
 - [🏗️ 技術アーキテクチャ](#️-技術アーキテクチャ)
-- [🏦 対応取引所（DEX/CEXチュートリアル）](#-対応取引所dexcexチュートリアル)
-- [🤖 対応AIモデル](#-対応aiモデル)
 - [🚀 クイックスタート](#-クイックスタート)
 - [📖 AI判断フロー](#-ai判断フロー)
 - [🧠 AI自己学習の例](#-ai自己学習の例)
@@ -82,6 +82,40 @@ Telegram開発者コミュニティに参加して、議論、アイデアの共
 ### 📊 トレーダー詳細 - 完全なトレーディングダッシュボード
 ![詳細ページ](screenshots/details-page.png)
 *エクイティカーブ、ライブポジション、展開可能な入力プロンプトと思考連鎖推論を持つAI判断ログを備えたプロフェッショナルな取引インターフェース*
+
+---
+
+## 🏦 対応取引所（DEX/CEXチュートリアル）
+
+### CEX（中央集権型取引所）
+
+| 取引所 | ステータス | 登録（手数料割引） | API設定 |
+|--------|------------|-------------------|---------|
+| **Binance** | ✅ 対応済み | [登録](https://www.binance.com/join?ref=NOFXJAPAN) | [APIガイド](../../getting-started/binance-api.md) |
+| **Bybit** | ✅ 対応済み | [登録](https://partner.bybit.com/b/83856) | [APIガイド](../../getting-started/bybit-api.md) |
+| **OKX** | ✅ 対応済み | [登録](https://www.okx.com/join/1865360) | [APIガイド](../../getting-started/okx-api.md) |
+
+### Perp-DEX（分散型無期限取引所）
+
+| 取引所 | ステータス | 登録（手数料割引） | エージェントウォレット設定 |
+|--------|------------|-------------------|---------------------------|
+| **Hyperliquid** | ✅ 対応済み | [登録](https://app.hyperliquid.xyz/join/AITRADING) | [エージェントウォレットガイド](../../getting-started/hyperliquid-agent-wallet.md) |
+| **Aster DEX** | ✅ 対応済み | [登録](https://www.asterdex.com/en/referral/fdfc0e) | [APIウォレットガイド](../../getting-started/aster-api-wallet.md) |
+| **Lighter** | ✅ 対応済み | [登録](https://lighter.xyz) | [エージェントウォレットガイド](../../getting-started/lighter-agent-wallet.md) |
+
+---
+
+## 🤖 対応AIモデル
+
+| AIモデル | ステータス | APIキー取得 |
+|----------|------------|-------------|
+| **DeepSeek** | ✅ 対応済み | [APIキー取得](https://platform.deepseek.com) |
+| **Qwen** | ✅ 対応済み | [APIキー取得](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ 対応済み | [APIキー取得](https://platform.openai.com) |
+| **Claude** | ✅ 対応済み | [APIキー取得](https://console.anthropic.com) |
+| **Gemini** | ✅ 対応済み | [APIキー取得](https://aistudio.google.com) |
+| **Grok** | ✅ 対応済み | [APIキー取得](https://console.x.ai) |
+| **Kimi** | ✅ 対応済み | [APIキー取得](https://platform.moonshot.cn) |
 
 ---
 
@@ -207,38 +241,6 @@ nofx/
 - `recharts` - チャートライブラリ（エクイティカーブ、比較チャート）
 - `swr` - データフェッチングとキャッシング
 - `tailwindcss` - CSSフレームワーク
-
----
-
-## 🏦 対応取引所（DEX/CEXチュートリアル）
-
-### CEX（中央集権型取引所）
-
-| 取引所 | ステータス | 登録（手数料割引） | API設定 |
-|--------|------------|-------------------|---------|
-| **Binance** | ✅ 対応済み | [登録](https://www.binance.com/join?ref=NOFXJAPAN) | [APIガイド](../../getting-started/binance-api.md) |
-| **Bybit** | ✅ 対応済み | [登録](https://partner.bybit.com/b/83856) | [APIガイド](../../getting-started/bybit-api.md) |
-| **OKX** | ✅ 対応済み | [登録](https://www.okx.com/join/1865360) | [APIガイド](../../getting-started/okx-api.md) |
-
-### Perp-DEX（分散型無期限取引所）
-
-| 取引所 | ステータス | 登録（手数料割引） | エージェントウォレット設定 |
-|--------|------------|-------------------|---------------------------|
-| **Hyperliquid** | ✅ 対応済み | [登録](https://app.hyperliquid.xyz/join/AITRADING) | [エージェントウォレットガイド](../../getting-started/hyperliquid-agent-wallet.md) |
-| **Aster DEX** | ✅ 対応済み | [登録](https://www.asterdex.com/en/referral/fdfc0e) | [APIウォレットガイド](../../getting-started/aster-api-wallet.md) |
-| **Lighter** | ✅ 対応済み | [登録](https://lighter.xyz) | [エージェントウォレットガイド](../../getting-started/lighter-agent-wallet.md) |
-
-### 🤖 対応AIモデル
-
-| AIモデル | ステータス | APIキー取得 |
-|----------|------------|-------------|
-| **DeepSeek** | ✅ 対応済み | [APIキー取得](https://platform.deepseek.com) |
-| **Qwen** | ✅ 対応済み | [APIキー取得](https://dashscope.console.aliyun.com) |
-| **OpenAI (GPT)** | ✅ 対応済み | [APIキー取得](https://platform.openai.com) |
-| **Claude** | ✅ 対応済み | [APIキー取得](https://console.anthropic.com) |
-| **Gemini** | ✅ 対応済み | [APIキー取得](https://aistudio.google.com) |
-| **Grok** | ✅ 対応済み | [APIキー取得](https://console.x.ai) |
-| **Kimi** | ✅ 対応済み | [APIキー取得](https://platform.moonshot.cn) |
 
 ---
 

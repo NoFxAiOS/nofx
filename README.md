@@ -1113,10 +1113,17 @@ We welcome contributions from the community! See our comprehensive guides:
 
 All contributions are tracked on GitHub. When NOFX generates revenue, contributors will receive token airdrops based on their contributions.
 
+### 🔥 Priority Rewards: Pinned Issues
+
+**PRs that resolve [Pinned Issues](https://github.com/NoFxAiOS/nofx/issues) receive the HIGHEST rewards!**
+
+Check our pinned issues for high-priority features and bugs - these carry bonus multipliers.
+
 ### Contribution Weights
 
 | Contribution Type | Weight | Description |
 |------------------|:------:|-------------|
+| **🔥 Pinned Issue PRs** | ⭐⭐⭐⭐⭐⭐ | PRs solving pinned/priority issues (HIGHEST REWARD) |
 | **Code Commits** (Merged PRs) | ⭐⭐⭐⭐⭐ | Core features, optimizations, new integrations |
 | **Bug Fixes** | ⭐⭐⭐⭐ | Fix confirmed bugs and issues |
 | **Feature Suggestions** (Adopted Issues) | ⭐⭐⭐ | Ideas that get implemented |
@@ -1125,11 +1132,12 @@ All contributions are tracked on GitHub. When NOFX generates revenue, contributo
 
 ### How It Works
 
-1. **Contribute** - Submit PRs, report bugs, suggest features
-2. **Track** - All contributions recorded via GitHub activity
-3. **Earn** - Receive airdrops proportional to your contribution weight
+1. **Check Pinned Issues** - High-priority tasks with bonus rewards
+2. **Contribute** - Submit PRs, report bugs, suggest features
+3. **Track** - All contributions recorded via GitHub activity
+4. **Earn** - Receive airdrops proportional to your contribution weight
 
-> 💡 Start contributing today! Every commit counts.
+> 💡 Start with [Pinned Issues](https://github.com/NoFxAiOS/nofx/issues) for maximum rewards!
 
 ---
 

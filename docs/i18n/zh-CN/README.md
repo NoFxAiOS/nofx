@@ -8,7 +8,7 @@
 
 | 🎁 **贡献者空投计划** |
 |:----------------------------------:|
-| 代码提交 · Bug修复 · Issue反馈 → 代币空投 |
+| 代码提交 · Bug修复 · Issue反馈 → 空投 |
 | [了解详情](#-贡献者空投计划) |
 
 **语言 / Languages:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Українська](../uk/README.md) | [Русский](../ru/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Tiếng Việt](../vi/README.md)
@@ -1132,7 +1132,7 @@ sudo apt-get install libta-lib0-dev
 
 ## 🎁 贡献者空投计划
 
-所有贡献都会在 GitHub 上记录。当 NOFX 产生收益时，贡献者将根据贡献获得代币空投。
+所有贡献都会在 GitHub 上记录。当 NOFX 产生收益时，贡献者将根据贡献获得空投。
 
 ### 🔥 重点奖励：置顶Issue
 

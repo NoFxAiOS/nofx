@@ -21,6 +21,7 @@
 - [🔮 로드맵](#-로드맵---범용-시장-확장)
 - [🏗️ 기술 아키텍처](#️-기술-아키텍처)
 - [🏦 지원 거래소 (DEX/CEX 튜토리얼)](#-지원-거래소-dexcex-튜토리얼)
+- [🤖 지원 AI 모델](#-지원-ai-모델)
 - [🚀 빠른 시작](#-빠른-시작)
 - [📖 AI 의사결정 흐름](#-ai-의사결정-흐름)
 - [🧠 AI 자가학습 예시](#-ai-자가학습-예시)
@@ -199,6 +200,18 @@ NOFX는 현대적이고 모듈화된 아키텍처로 구축되었습니다:
 | **Hyperliquid** | ✅ 지원됨 | [등록](https://app.hyperliquid.xyz/join/AITRADING) | [에이전트 지갑 가이드](../../getting-started/hyperliquid-agent-wallet.md) |
 | **Aster DEX** | ✅ 지원됨 | [등록](https://www.asterdex.com/en/referral/fdfc0e) | [API 지갑 가이드](../../getting-started/aster-api-wallet.md) |
 | **Lighter** | ✅ 지원됨 | [등록](https://lighter.xyz) | [에이전트 지갑 가이드](../../getting-started/lighter-agent-wallet.md) |
+
+### 🤖 지원 AI 모델
+
+| AI 모델 | 상태 | API 키 받기 |
+|---------|------|-------------|
+| **DeepSeek** | ✅ 지원됨 | [API 키 받기](https://platform.deepseek.com) |
+| **Qwen** | ✅ 지원됨 | [API 키 받기](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ 지원됨 | [API 키 받기](https://platform.openai.com) |
+| **Claude** | ✅ 지원됨 | [API 키 받기](https://console.anthropic.com) |
+| **Gemini** | ✅ 지원됨 | [API 키 받기](https://aistudio.google.com) |
+| **Grok** | ✅ 지원됨 | [API 키 받기](https://console.x.ai) |
+| **Kimi** | ✅ 지원됨 | [API 키 받기](https://platform.moonshot.cn) |
 
 ---
 

@@ -21,6 +21,7 @@
 - [🔮 Roadmap](#-roadmap---universal-market-expansion)
 - [🏗️ Technical Architecture](#️-technical-architecture)
 - [🏦 Supported Exchanges (DEX/CEX Tutorials)](#-supported-exchanges-dexcex-tutorials)
+- [🤖 Supported AI Models](#-supported-ai-models)
 - [🚀 Quick Start](#-quick-start)
 - [📖 AI Decision Flow](#-ai-decision-flow)
 - [🧠 AI Self-Learning](#-ai-self-learning-example)
@@ -196,6 +197,18 @@ NOFX is built with a modern, modular architecture:
 | **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) | [Agent Wallet Guide](docs/getting-started/hyperliquid-agent-wallet.md) |
 | **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) | [API Wallet Guide](docs/getting-started/aster-api-wallet.md) |
 | **Lighter** | ✅ Supported | [Register](https://lighter.xyz) | [Agent Wallet Guide](docs/getting-started/lighter-agent-wallet.md) |
+
+### 🤖 Supported AI Models
+
+| AI Model | Status | Get API Key |
+|----------|--------|-------------|
+| **DeepSeek** | ✅ Supported | [Get API Key](https://platform.deepseek.com) |
+| **Qwen** | ✅ Supported | [Get API Key](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ Supported | [Get API Key](https://platform.openai.com) |
+| **Claude** | ✅ Supported | [Get API Key](https://console.anthropic.com) |
+| **Gemini** | ✅ Supported | [Get API Key](https://aistudio.google.com) |
+| **Grok** | ✅ Supported | [Get API Key](https://console.x.ai) |
+| **Kimi** | ✅ Supported | [Get API Key](https://platform.moonshot.cn) |
 
 ---
 

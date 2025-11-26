@@ -59,6 +59,22 @@ function getShortName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : fullName
 }
 
+// 获取策略模板翻译 key
+function getStrategyTemplateKey(template: string | undefined): string {
+  if (!template) return 'promptTemplateDefault'
+
+  const keyMap: Record<string, string> = {
+    default: 'promptTemplateDefault',
+    adaptive: 'promptTemplateAdaptive',
+    adaptive_relaxed: 'promptTemplateAdaptiveRelaxed',
+    Hansen: 'promptTemplateHansen',
+    nof1: 'promptTemplateNof1',
+    taro_long_prompts: 'promptTemplateTaroLong',
+  }
+
+  return keyMap[template] || 'promptTemplateDefault'
+}
+
 interface AITradersPageProps {
   onTraderSelect?: (traderId: string) => void
 }
@@ -1071,6 +1087,18 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                       )}{' '}
                       Model • {trader.exchange_id?.toUpperCase()}
                     </div>
+                    {trader.system_prompt_template && (
+                      <div
+                        className="text-xs truncate mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('strategy', language)}:{' '}
+                        {t(
+                          getStrategyTemplateKey(trader.system_prompt_template),
+                          language
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -15,53 +15,34 @@ import (
 
         "github.com/google/uuid"
         _ "github.com/lib/pq"
-        _ "github.com/mattn/go-sqlite3"
 )
 
 // Database 配置数据库
 type Database struct {
-        db        *sql.DB
-        usingNeon bool // 是否使用Neon PostgreSQL
+        db *sql.DB
 }
 
-// NewDatabase 创建配置数据库
+// NewDatabase 创建配置数据库（仅支持PostgreSQL）
 func NewDatabase(dbPath string) (*Database, error) {
-        useNeon := os.Getenv("USE_NEON") == "true"
-        neonDSN := os.Getenv("DATABASE_URL")
-
-        var db *sql.DB
-        var err error
-        var usingNeon bool
-
-        // 尝试连接Neon PostgreSQL
-        if useNeon && neonDSN != "" {
-                log.Println("🔄 尝试连接Neon PostgreSQL...")
-                db, err = sql.Open("postgres", neonDSN)
-                if err != nil {
-                        log.Printf("⚠️  Neon连接失败: %v, 回退到SQLite", err)
-                } else {
-                        if pingErr := db.Ping(); pingErr != nil {
-                                log.Printf("⚠️  Neon连接测试失败: %v, 回退到SQLite", pingErr)
-                                db.Close()
-                                db = nil
-                        } else {
-                                usingNeon = true
-                                log.Println("✅ 成功连接Neon PostgreSQL!")
-                        }
-                }
+        databaseURL := os.Getenv("DATABASE_URL")
+        if databaseURL == "" {
+                return nil, fmt.Errorf("DATABASE_URL环境变量未设置")
         }
 
-        // 如果Neon不可用，使用SQLite
-        if db == nil {
-                log.Printf("📋 使用SQLite数据库: %s", dbPath)
-                db, err = sql.Open("sqlite3", dbPath)
-                if err != nil {
-                        return nil, fmt.Errorf("打开数据库失败: %w", err)
-                }
-                usingNeon = false
+        log.Println("🔄 连接PostgreSQL数据库...")
+        db, err := sql.Open("postgres", databaseURL)
+        if err != nil {
+                return nil, fmt.Errorf("连接数据库失败: %w", err)
         }
 
-        database := &Database{db: db, usingNeon: usingNeon}
+        if pingErr := db.Ping(); pingErr != nil {
+                db.Close()
+                return nil, fmt.Errorf("数据库连接测试失败: %w", pingErr)
+        }
+
+        log.Println("✅ 成功连接PostgreSQL数据库!")
+
+        database := &Database{db: db}
         if err := database.createTables(); err != nil {
                 return nil, fmt.Errorf("创建表失败: %w", err)
         }
@@ -78,24 +59,8 @@ func NewDatabase(dbPath string) (*Database, error) {
         return database, nil
 }
 
-// placeholder 返回适当的占位符
-func (d *Database) placeholder(index int) string {
-        if d.usingNeon {
-                return fmt.Sprintf("$%d", index)
-        }
-        return "?"
-}
-
-// IsUsingNeon 返回是否使用Neon
-func (d *Database) IsUsingNeon() bool {
-        return d.usingNeon
-}
-
 // convertPlaceholders 将?占位符转换为PostgreSQL的$1, $2格式
 func (d *Database) convertPlaceholders(query string) string {
-        if !d.usingNeon {
-                return query
-        }
         result := query
         index := 1
         for strings.Contains(result, "?") {
@@ -122,10 +87,7 @@ func (d *Database) exec(query string, args ...interface{}) (sql.Result, error) {
 
 // createTables 创建数据库表
 func (d *Database) createTables() error {
-        if d.usingNeon {
-                return d.createTablesPostgres()
-        }
-        return d.createTablesSQLite()
+        return d.createTablesPostgres()
 }
 
 // createTablesPostgres PostgreSQL版本的表创建
@@ -560,19 +522,11 @@ func (d *Database) initDefaultData() error {
         }
 
         for _, model := range aiModels {
-                var err error
-                if d.usingNeon {
-                        _, err = d.exec(`
-                                INSERT INTO ai_models (id, user_id, name, provider, enabled) 
-                                VALUES ($1, 'default', $2, $3, false)
-                                ON CONFLICT (id) DO NOTHING
-                        `, model.id, model.name, model.provider)
-                } else {
-                        _, err = d.exec(`
-                                INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled) 
-                                VALUES (?, 'default', ?, ?, 0)
-                        `, model.id, model.name, model.provider)
-                }
+                _, err := d.exec(`
+                        INSERT INTO ai_models (id, user_id, name, provider, enabled)
+                        VALUES ($1, 'default', $2, $3, false)
+                        ON CONFLICT (id) DO NOTHING
+                `, model.id, model.name, model.provider)
                 if err != nil {
                         return fmt.Errorf("初始化AI模型失败: %w", err)
                 }
@@ -589,19 +543,11 @@ func (d *Database) initDefaultData() error {
         }
 
         for _, exchange := range exchanges {
-                var err error
-                if d.usingNeon {
-                        _, err = d.exec(`
-                                INSERT INTO exchanges (id, user_id, name, type, enabled)
-                                VALUES ($1, 'default', $2, $3, false)
-                                ON CONFLICT (id, user_id) DO NOTHING
-                        `, exchange.id, exchange.name, exchange.typ)
-                } else {
-                        _, err = d.exec(`
-                                INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled) 
-                                VALUES (?, 'default', ?, ?, 0)
-                        `, exchange.id, exchange.name, exchange.typ)
-                }
+                _, err := d.exec(`
+                        INSERT INTO exchanges (id, user_id, name, type, enabled)
+                        VALUES ($1, 'default', $2, $3, false)
+                        ON CONFLICT (id, user_id) DO NOTHING
+                `, exchange.id, exchange.name, exchange.typ)
                 if err != nil {
                         return fmt.Errorf("初始化交易所失败: %w", err)
                 }
@@ -623,19 +569,11 @@ func (d *Database) initDefaultData() error {
         }
 
         for key, value := range systemConfigs {
-                var err error
-                if d.usingNeon {
-                        _, err = d.exec(`
-                                INSERT INTO system_config (key, value) 
-                                VALUES ($1, $2)
-                                ON CONFLICT (key) DO NOTHING
-                        `, key, value)
-                } else {
-                        _, err = d.exec(`
-                                INSERT OR IGNORE INTO system_config (key, value) 
-                                VALUES (?, ?)
-                        `, key, value)
-                }
+                _, err := d.exec(`
+                        INSERT INTO system_config (key, value)
+                        VALUES ($1, $2)
+                        ON CONFLICT (key) DO NOTHING
+                `, key, value)
                 if err != nil {
                         return fmt.Errorf("初始化系统配置失败: %w", err)
                 }
@@ -647,87 +585,6 @@ func (d *Database) initDefaultData() error {
 // migrateExchangesTable 迁移exchanges表支持多用户
 func (d *Database) migrateExchangesTable() error {
         // PostgreSQL不需要这个迁移，已经在createTablesPostgres中创建了正确的表结构
-        if d.usingNeon {
-                return nil
-        }
-
-        // 检查是否已经迁移过 (SQLite only)
-        var count int
-        err := d.queryRow(`
-                SELECT COUNT(*) FROM sqlite_master 
-                WHERE type='table' AND name='exchanges_new'
-        `).Scan(&count)
-        if err != nil {
-                return err
-        }
-
-        // 如果已经迁移过，直接返回
-        if count > 0 {
-                return nil
-        }
-
-        log.Printf("🔄 开始迁移exchanges表...")
-
-        // 创建新的exchanges表，使用复合主键
-        _, err = d.exec(`
-                CREATE TABLE exchanges_new (
-                        id TEXT NOT NULL,
-                        user_id TEXT NOT NULL DEFAULT 'default',
-                        name TEXT NOT NULL,
-                        type TEXT NOT NULL,
-                        enabled BOOLEAN DEFAULT 0,
-                        api_key TEXT DEFAULT '',
-                        secret_key TEXT DEFAULT '',
-                        testnet BOOLEAN DEFAULT 0,
-                        hyperliquid_wallet_addr TEXT DEFAULT '',
-                        aster_user TEXT DEFAULT '',
-                        aster_signer TEXT DEFAULT '',
-                        aster_private_key TEXT DEFAULT '',
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        PRIMARY KEY (id, user_id),
-                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                )
-        `)
-        if err != nil {
-                return fmt.Errorf("创建新exchanges表失败: %w", err)
-        }
-
-        // 复制数据到新表
-        _, err = d.exec(`
-                INSERT INTO exchanges_new 
-                SELECT * FROM exchanges
-        `)
-        if err != nil {
-                return fmt.Errorf("复制数据失败: %w", err)
-        }
-
-        // 删除旧表
-        _, err = d.exec(`DROP TABLE exchanges`)
-        if err != nil {
-                return fmt.Errorf("删除旧表失败: %w", err)
-        }
-
-        // 重命名新表
-        _, err = d.exec(`ALTER TABLE exchanges_new RENAME TO exchanges`)
-        if err != nil {
-                return fmt.Errorf("重命名表失败: %w", err)
-        }
-
-        // 重新创建触发器
-        _, err = d.exec(`
-                CREATE TRIGGER IF NOT EXISTS update_exchanges_updated_at
-                        AFTER UPDATE ON exchanges
-                        BEGIN
-                                UPDATE exchanges SET updated_at = CURRENT_TIMESTAMP 
-                                WHERE id = NEW.id AND user_id = NEW.user_id;
-                        END
-        `)
-        if err != nil {
-                return fmt.Errorf("创建触发器失败: %w", err)
-        }
-
-        log.Printf("✅ exchanges表迁移完成")
         return nil
 }
 
@@ -1323,37 +1180,21 @@ func (d *Database) UpdateExchange(userID, id string, enabled bool, apiKey, secre
 
 // CreateAIModel 创建AI模型配置
 func (d *Database) CreateAIModel(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error {
-        var err error
-        if d.usingNeon {
-                _, err = d.exec(`
-                        INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url) 
-                        VALUES ($1, $2, $3, $4, $5, $6, $7)
-                        ON CONFLICT (id) DO NOTHING
-                `, id, userID, name, provider, enabled, apiKey, customAPIURL)
-        } else {
-                _, err = d.exec(`
-                        INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                `, id, userID, name, provider, enabled, apiKey, customAPIURL)
-        }
+        _, err := d.exec(`
+                INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (id) DO NOTHING
+        `, id, userID, name, provider, enabled, apiKey, customAPIURL)
         return err
 }
 
 // CreateExchange 创建交易所配置
 func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
-        var err error
-        if d.usingNeon {
-                _, err = d.exec(`
-                        INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-                        ON CONFLICT (id) DO NOTHING
-                `, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
-        } else {
-                _, err = d.exec(`
-                        INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
-        }
+        _, err := d.exec(`
+                INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, testnet, hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                ON CONFLICT (id) DO NOTHING
+        `, id, userID, name, typ, enabled, apiKey, secretKey, testnet, hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey)
         return err
 }
 
@@ -1361,7 +1202,7 @@ func (d *Database) CreateExchange(userID, id, name, typ string, enabled bool, ap
 func (d *Database) CreateTrader(trader *TraderRecord) error {
         _, err := d.exec(`
                 INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running, btc_eth_leverage, altcoin_leverage, trading_symbols, use_coin_pool, use_oi_top, custom_prompt, override_base_prompt, system_prompt_template, is_cross_margin)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         `, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.BTCETHLeverage, trader.AltcoinLeverage, trader.TradingSymbols, trader.UseCoinPool, trader.UseOITop, trader.CustomPrompt, trader.OverrideBasePrompt, trader.SystemPromptTemplate, trader.IsCrossMargin)
         return err
 }
@@ -1493,35 +1334,20 @@ func (d *Database) GetSystemConfig(key string) (string, error) {
 
 // SetSystemConfig 设置系统配置
 func (d *Database) SetSystemConfig(key, value string) error {
-        var err error
-        if d.usingNeon {
-                _, err = d.exec(`
-                        INSERT INTO system_config (key, value) VALUES ($1, $2)
-                        ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
-                `, key, value)
-        } else {
-                _, err = d.exec(`
-                        INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)
-                `, key, value)
-        }
+        _, err := d.exec(`
+                INSERT INTO system_config (key, value) VALUES ($1, $2)
+                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
+        `, key, value)
         return err
 }
 
 // CreateUserSignalSource 创建用户信号源配置
 func (d *Database) CreateUserSignalSource(userID, coinPoolURL, oiTopURL string) error {
-        var err error
-        if d.usingNeon {
-                _, err = d.exec(`
-                        INSERT INTO user_signal_sources (user_id, coin_pool_url, oi_top_url, updated_at)
-                        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-                        ON CONFLICT (user_id) DO UPDATE SET coin_pool_url = $2, oi_top_url = $3, updated_at = CURRENT_TIMESTAMP
-                `, userID, coinPoolURL, oiTopURL)
-        } else {
-                _, err = d.exec(`
-                        INSERT OR REPLACE INTO user_signal_sources (user_id, coin_pool_url, oi_top_url, updated_at)
-                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                `, userID, coinPoolURL, oiTopURL)
-        }
+        _, err := d.exec(`
+                INSERT INTO user_signal_sources (user_id, coin_pool_url, oi_top_url, updated_at)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET coin_pool_url = $2, oi_top_url = $3, updated_at = CURRENT_TIMESTAMP
+        `, userID, coinPoolURL, oiTopURL)
         return err
 }
 
@@ -1530,7 +1356,7 @@ func (d *Database) GetUserSignalSource(userID string) (*UserSignalSource, error)
         var source UserSignalSource
         err := d.queryRow(`
                 SELECT id, user_id, coin_pool_url, oi_top_url, created_at, updated_at
-                FROM user_signal_sources WHERE user_id = ?
+                FROM user_signal_sources WHERE user_id = $1
         `, userID).Scan(
                 &source.ID, &source.UserID, &source.CoinPoolURL, &source.OITopURL,
                 &source.CreatedAt, &source.UpdatedAt,
@@ -1609,12 +1435,7 @@ func (d *Database) LoadBetaCodesFromFile(filePath string) error {
         }
         defer tx.Rollback()
 
-        var stmt *sql.Stmt
-        if d.usingNeon {
-                stmt, err = tx.Prepare(`INSERT INTO beta_codes (code) VALUES ($1) ON CONFLICT (code) DO NOTHING`)
-        } else {
-                stmt, err = tx.Prepare(`INSERT OR IGNORE INTO beta_codes (code) VALUES (?)`)
-        }
+        stmt, err := tx.Prepare(`INSERT INTO beta_codes (code) VALUES ($1) ON CONFLICT (code) DO NOTHING`)
         if err != nil {
                 return fmt.Errorf("准备语句失败: %w", err)
         }

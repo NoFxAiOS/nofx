@@ -69,6 +69,8 @@ func corsMiddleware() gin.HandlerFunc {
                 "https://web-gyc567s-projects.vercel.app",
                 "https://web-7jc87z3u4-gyc567s-projects.vercel.app",
                 "https://web-gyc567-gyc567s-projects.vercel.app",
+                // 新部署实例 - 2025-11-26
+                "https://agentrade-nd2sevhec-gyc567s-projects.vercel.app",
 
                 // Vercel部署域名 - 历史实例
                 "https://web-fej4rs4y2-gyc567s-projects.vercel.app",

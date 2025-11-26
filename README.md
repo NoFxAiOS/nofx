@@ -16,11 +16,11 @@
 
 - [🚀 Universal AI Trading Operating System](#-universal-ai-trading-operating-system)
 - [👥 Developer Community](#-developer-community)
-- [🆕 What's New](#-whats-new-latest-update)
 - [📸 Screenshots](#-screenshots)
 - [✨ Current Implementation](#-current-implementation---crypto-markets)
 - [🔮 Roadmap](#-roadmap---universal-market-expansion)
 - [🏗️ Technical Architecture](#️-technical-architecture)
+- [🏦 Supported Exchanges](#-supported-exchanges)
 - [💰 Register Binance Account](#-register-binance-account-save-on-fees)
 - [🔷 Register Hyperliquid Account](#-using-hyperliquid-exchange)
 - [🔶 Register Aster DEX Account](#-using-aster-dex-exchange)
@@ -70,64 +70,6 @@ We are currently raising our **seed round**.
 Join our Telegram developer community to discuss, share ideas, and get support:
 
 **💬 [NOFX Developer Community](https://t.me/nofx_dev_community)**
-
----
-
-## 🆕 What's New (Latest Update)
-
-### 🚀 Multi-Exchange Support!
-
-NOFX now supports **three major exchanges**: Binance, Hyperliquid, and Aster DEX!
-
-#### **Hyperliquid Exchange**
-
-A high-performance decentralized perpetual futures exchange!
-
-**Key Features:**
-- ✅ Full trading support (long/short, leverage, stop-loss/take-profit)
-- ✅ Automatic precision handling (order size & price)
-- ✅ Unified trader interface (seamless exchange switching)
-- ✅ Support for both mainnet and testnet
-- ✅ No API keys needed - just your Ethereum private key
-
-**New Workflow:**
-1. **Configure AI Models**: Add your DeepSeek/Qwen API keys through the web interface
-2. **Configure Exchanges**: Set up Binance/Hyperliquid API credentials
-3. **Create Traders**: Combine any AI model with any exchange to create custom traders
-4. **Monitor & Control**: Start/stop traders and monitor performance in real-time
-
-**Why This Update?**
-- 🎯 **User-Friendly**: No more editing JSON files or server restarts
-- 🔧 **Flexible**: Mix and match different AI models with different exchanges
-- 📊 **Scalable**: Create unlimited trader combinations
-- 🔒 **Secure**: Database storage with proper data management
-
-See [Quick Start](#-quick-start) for the new setup process!
-
-#### **Aster DEX Exchange** (NEW! v2.0.2)
-
-A Binance-compatible decentralized perpetual futures exchange!
-
-**Key Features:**
-- ✅ Binance-style API (easy migration from Binance)
-- ✅ Web3 wallet authentication (secure and decentralized)
-- ✅ Full trading support with automatic precision handling
-- ✅ Lower trading fees than CEX
-- ✅ EVM-compatible (Ethereum, BSC, Polygon, etc.)
-
-**Why Aster?**
-- 🎯 **Binance-compatible API** - minimal code changes required
-- 🔐 **API Wallet System** - separate trading wallet for security
-- 💰 **Competitive fees** - lower than most centralized exchanges
-- 🌐 **Multi-chain support** - trade on your preferred EVM chain
-
-**Quick Start:**
-1. Register via [Aster Referral Link](https://www.asterdex.com/en/referral/fdfc0e) (get fee discounts!)
-2. Visit [Aster API Wallet](https://www.asterdex.com/en/api-wallet)
-3. Connect your main wallet and create an API wallet
-4. Copy the API Signer address and Private Key
-5. Set `"exchange": "aster"` in config.json
-6. Add `"aster_user"`, `"aster_signer"`, and `"aster_private_key"`
 
 ---
 
@@ -237,6 +179,25 @@ NOFX is built with a modern, modular architecture:
 📖 **For detailed architecture documentation, see:**
 - **English:** [Architecture Documentation](docs/architecture/README.md)
 - **中文:** [架构文档](docs/architecture/README.zh-CN.md)
+
+---
+
+## 🏦 Supported Exchanges
+
+### CEX (Centralized Exchanges)
+
+| Exchange | Status | Register (Fee Discount) | API Setup |
+|----------|--------|-------------------------|-----------|
+| **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) | [API Guide](docs/getting-started/binance-api.md) |
+| **OKX** | 🚧 Coming Soon | [Register](https://www.okx.com/join/1865360) | Coming Soon |
+| **Bybit** | 🚧 Coming Soon | [Register](https://partner.bybit.com/b/83856) | Coming Soon |
+
+### Perp-DEX (Decentralized Perpetual Exchanges)
+
+| Exchange | Status | Register (Fee Discount) | Agent Wallet Setup |
+|----------|--------|-------------------------|--------------------|
+| **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) | [Agent Wallet Guide](docs/getting-started/hyperliquid-agent-wallet.md) |
+| **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) | [API Wallet Guide](docs/getting-started/aster-api-wallet.md) |
 
 ---
 

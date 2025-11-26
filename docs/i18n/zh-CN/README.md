@@ -16,11 +16,11 @@
 
 - [🚀 通用AI交易操作系统](#-通用ai交易操作系统)
 - [👥 开发者社区](#-开发者社区)
-- [🆕 最新更新](#-最新更新)
 - [📸 系统截图](#-系统截图)
 - [✨ 当前实现](#-当前实现---加密货币市场)
 - [🔮 路线图](#-路线图---通用市场扩展)
 - [🏗️ 技术架构](#️-技术架构)
+- [🏦 支持的交易所](#-支持的交易所)
 - [💰 注册币安账户](#-注册币安账户省手续费)
 - [🔷 注册Hyperliquid账户](#-使用hyperliquid交易所)
 - [🔶 注册Aster DEX账户](#-使用aster-dex交易所)
@@ -72,64 +72,6 @@
 加入我们的Telegram开发者社区，讨论、分享想法并获得支持：
 
 **💬 [NOFX开发者社区](https://t.me/nofx_dev_community)**
-
----
-
-## 🆕 最新更新
-
-### 🚀 多交易所支持！
-
-NOFX现已支持**三大交易所**：Binance、Hyperliquid和Aster DEX！
-
-#### **Hyperliquid交易所**
-
-高性能的去中心化永续期货交易所！
-
-**核心特性：**
-- ✅ 完整交易支持（做多/做空、杠杆、止损/止盈）
-- ✅ 自动精度处理（订单数量和价格）
-- ✅ 统一trader接口（无缝切换交易所）
-- ✅ 支持主网和测试网
-- ✅ 无需API密钥 - 只需以太坊私钥
-
-**为什么选择Hyperliquid？**
-- 🔥 比中心化交易所手续费更低
-- 🔒 非托管 - 你掌控自己的资金
-- ⚡ 快速执行与链上结算
-- 🌍 无需KYC
-
-**快速开始：**
-1. 获取你的MetaMask私钥（去掉`0x`前缀）
-2. ~~在config.json中设置`"exchange": "hyperliquid"`~~ *通过Web界面配置*
-3. 添加`"hyperliquid_private_key": "your_key"`
-4. 开始交易！
-
-详见[配置指南](#-备选使用hyperliquid交易所)。
-
-#### **Aster DEX交易所**（新！v2.0.2）
-
-兼容Binance的去中心化永续期货交易所！
-
-**核心特性：**
-- ✅ Binance风格API（从Binance轻松迁移）
-- ✅ Web3钱包认证（安全且去中心化）
-- ✅ 完整交易支持，自动精度处理
-- ✅ 比中心化交易所手续费更低
-- ✅ 兼容EVM（以太坊、BSC、Polygon等）
-
-**为什么选择Aster？**
-- 🎯 **兼容Binance API** - 需要最少的代码修改
-- 🔐 **API钱包系统** - 独立交易钱包提升安全性
-- 💰 **有竞争力的手续费** - 比大多数中心化交易所更低
-- 🌐 **多链支持** - 在你喜欢的EVM链上交易
-
-**快速开始：**
-1. 通过[推荐链接注册Aster](https://www.asterdex.com/en/referral/fdfc0e)（享手续费优惠）
-2. 访问[Aster API钱包](https://www.asterdex.com/en/api-wallet)
-3. 连接你的主钱包并创建API钱包
-4. 复制API Signer地址和私钥
-5. 在config.json中设置`"exchange": "aster"`
-6. 添加`"aster_user"`、`"aster_signer"`和`"aster_private_key"`
 
 ---
 
@@ -239,6 +181,25 @@ NOFX 采用现代化的模块化架构：
 📖 **详细架构文档，请查看：**
 - **中文版：** [架构文档](../../architecture/README.zh-CN.md)
 - **English:** [Architecture Documentation](../../architecture/README.md)
+
+---
+
+## 🏦 支持的交易所
+
+### CEX（中心化交易所）
+
+| 交易所 | 状态 | 注册（手续费优惠） | API设置 |
+|--------|------|-------------------|---------|
+| **Binance** | ✅ 已支持 | [注册](https://www.binance.com/join?ref=NOFXCHI) | [API指南](../../getting-started/binance-api.md) |
+| **OKX** | 🚧 即将支持 | [注册](https://www.okx.com/join/1865360) | 即将推出 |
+| **Bybit** | 🚧 即将支持 | [注册](https://partner.bybit.com/b/83856) | 即将推出 |
+
+### Perp-DEX（去中心化永续交易所）
+
+| 交易所 | 状态 | 注册（手续费优惠） | 代理钱包设置 |
+|--------|------|-------------------|--------------|
+| **Hyperliquid** | ✅ 已支持 | [注册](https://app.hyperliquid.xyz/join/AITRADING) | [代理钱包指南](../../getting-started/hyperliquid-agent-wallet.md) |
+| **Aster DEX** | ✅ 已支持 | [注册](https://www.asterdex.com/en/referral/fdfc0e) | [API钱包指南](../../getting-started/aster-api-wallet.md) |
 
 ---
 

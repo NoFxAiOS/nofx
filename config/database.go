@@ -1139,7 +1139,7 @@ func (d *Database) GetSystemConfig(key string) (string, error) {
 func (d *Database) SetSystemConfig(key, value string) error {
         _, err := d.exec(`
                 INSERT INTO system_config (key, value) VALUES ($1, $2)
-                ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
         `, key, value)
         return err
 }
@@ -1149,7 +1149,7 @@ func (d *Database) CreateUserSignalSource(userID, coinPoolURL, oiTopURL string) 
         _, err := d.exec(`
                 INSERT INTO user_signal_sources (user_id, coin_pool_url, oi_top_url, updated_at)
                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-                ON CONFLICT (user_id) DO UPDATE SET coin_pool_url = $2, oi_top_url = $3, updated_at = CURRENT_TIMESTAMP
+                ON CONFLICT (user_id) DO UPDATE SET coin_pool_url = EXCLUDED.coin_pool_url, oi_top_url = EXCLUDED.oi_top_url, updated_at = CURRENT_TIMESTAMP
         `, userID, coinPoolURL, oiTopURL)
         return err
 }

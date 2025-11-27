@@ -1306,6 +1306,13 @@ func (s *Server) handlePerformance(c *gin.Context) {
 // authMiddleware JWT认证中间件
 func (s *Server) authMiddleware() gin.HandlerFunc {
         return func(c *gin.Context) {
+                // OPTIONS预检请求不需要认证，直接放行
+                // CORS预检请求由corsMiddleware处理
+                if c.Request.Method == "OPTIONS" {
+                        c.Next()
+                        return
+                }
+
                 // 检查是否开启admin模式
                 adminModeStr, _ := s.database.GetSystemConfig("admin_mode")
                 isAdminMode := adminModeStr == "true"

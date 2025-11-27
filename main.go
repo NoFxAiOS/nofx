@@ -163,6 +163,9 @@ func main() {
         }
         defer database.Close()
 
+        // 启动数据库连接保活协程（防止Neon PostgreSQL冷启动问题）
+        database.StartKeepAlive()
+
         // 同步config.json到数据库
         if err := syncConfigToDatabase(database); err != nil {
                 log.Printf("⚠️  同步config.json到数据库失败: %v", err)

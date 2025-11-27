@@ -35,6 +35,14 @@ func NewDatabase(dbPath string) (*Database, error) {
                 return nil, fmt.Errorf("连接数据库失败: %w", err)
         }
 
+        // 配置连接池 - 针对Neon PostgreSQL serverless优化
+        // 这些设置有助于防止冷启动问题
+        db.SetMaxOpenConns(10)                  // 最大打开连接数
+        db.SetMaxIdleConns(5)                   // 最大空闲连接数
+        db.SetConnMaxIdleTime(30 * time.Second) // 空闲连接最大存活时间
+        db.SetConnMaxLifetime(5 * time.Minute)  // 连接最大生命周期
+        log.Println("📋 数据库连接池配置: MaxOpen=10, MaxIdle=5, IdleTime=30s, Lifetime=5m")
+
         if pingErr := db.Ping(); pingErr != nil {
                 db.Close()
                 return nil, fmt.Errorf("数据库连接测试失败: %w", pingErr)
@@ -62,6 +70,85 @@ func NewDatabase(dbPath string) (*Database, error) {
         log.Println("✅ 默认数据初始化完成!")
 
         return database, nil
+}
+
+// isTransientError 检查是否是可重试的临时错误
+func isTransientError(err error) bool {
+        if err == nil {
+                return false
+        }
+        errStr := err.Error()
+        // Neon PostgreSQL冷启动和连接断开的常见错误
+        transientErrors := []string{
+                "connection not available",
+                "connection reset",
+                "connection refused",
+                "broken pipe",
+                "EOF",
+                "timeout",
+                "no connection",
+                "connection is closed",
+                "unexpected EOF",
+                "driver: bad connection",
+        }
+        for _, te := range transientErrors {
+                if strings.Contains(strings.ToLower(errStr), strings.ToLower(te)) {
+                        return true
+                }
+        }
+        return false
+}
+
+// withRetry 执行带重试的数据库操作
+// 最多重试3次，使用指数退避策略（100ms, 200ms, 400ms）
+func withRetry[T any](operation func() (T, error)) (T, error) {
+        var result T
+        var lastErr error
+        maxRetries := 3
+        baseDelay := 100 * time.Millisecond
+
+        for attempt := 0; attempt < maxRetries; attempt++ {
+                result, lastErr = operation()
+                if lastErr == nil {
+                        return result, nil
+                }
+
+                if !isTransientError(lastErr) {
+                        // 非临时性错误，不重试
+                        return result, lastErr
+                }
+
+                if attempt < maxRetries-1 {
+                        delay := baseDelay * time.Duration(1<<attempt) // 指数退避: 100ms, 200ms, 400ms
+                        log.Printf("⚠️ 数据库操作失败 (尝试 %d/%d): %v, %v后重试...", attempt+1, maxRetries, lastErr, delay)
+                        time.Sleep(delay)
+                }
+        }
+
+        return result, fmt.Errorf("数据库操作重试%d次后仍失败: %w", maxRetries, lastErr)
+}
+
+// Ping 检测数据库连接（带重试）
+func (d *Database) Ping() error {
+        _, err := withRetry(func() (bool, error) {
+                return true, d.db.Ping()
+        })
+        return err
+}
+
+// StartKeepAlive 启动后台连接保活协程
+// 每5分钟执行一次ping，防止Neon PostgreSQL连接被断开
+func (d *Database) StartKeepAlive() {
+        go func() {
+                ticker := time.NewTicker(5 * time.Minute)
+                defer ticker.Stop()
+                for range ticker.C {
+                        if err := d.db.Ping(); err != nil {
+                                log.Printf("⚠️ 数据库保活ping失败: %v", err)
+                        }
+                }
+        }()
+        log.Println("🔄 数据库连接保活协程已启动 (每5分钟ping一次)")
 }
 
 // convertPlaceholders 将?占位符转换为PostgreSQL的$1, $2格式
@@ -593,30 +680,32 @@ func (d *Database) GetUserByEmail(email string) (*User, error) {
 
 // GetUserByID 通过ID获取用户
 func (d *Database) GetUserByID(userID string) (*User, error) {
-        var user User
-        var lockedUntil, lastFailedAt sql.NullTime
-        err := d.queryRow(`
-                SELECT id, email, password_hash, otp_secret, otp_verified,
-                       locked_until, failed_attempts, last_failed_at,
-                       is_active, is_admin, beta_code,
-                       created_at, updated_at
-                FROM users WHERE id = ?
-        `, userID).Scan(
-                &user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret, &user.OTPVerified,
-                &lockedUntil, &user.FailedAttempts, &lastFailedAt,
-                &user.IsActive, &user.IsAdmin, &user.BetaCode,
-                &user.CreatedAt, &user.UpdatedAt,
-        )
-        if err != nil {
-                return nil, err
-        }
-        if lockedUntil.Valid {
-                user.LockedUntil = &lockedUntil.Time
-        }
-        if lastFailedAt.Valid {
-                user.LastFailedAt = &lastFailedAt.Time
-        }
-        return &user, nil
+        return withRetry(func() (*User, error) {
+                var user User
+                var lockedUntil, lastFailedAt sql.NullTime
+                err := d.queryRow(`
+                        SELECT id, email, password_hash, otp_secret, otp_verified,
+                               locked_until, failed_attempts, last_failed_at,
+                               is_active, is_admin, beta_code,
+                               created_at, updated_at
+                        FROM users WHERE id = ?
+                `, userID).Scan(
+                        &user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret, &user.OTPVerified,
+                        &lockedUntil, &user.FailedAttempts, &lastFailedAt,
+                        &user.IsActive, &user.IsAdmin, &user.BetaCode,
+                        &user.CreatedAt, &user.UpdatedAt,
+                )
+                if err != nil {
+                        return nil, err
+                }
+                if lockedUntil.Valid {
+                        user.LockedUntil = &lockedUntil.Time
+                }
+                if lastFailedAt.Valid {
+                        user.LastFailedAt = &lastFailedAt.Time
+                }
+                return &user, nil
+        })
 }
 
 // GetUsers 获取用户列表（分页、搜索、排序）
@@ -753,34 +842,36 @@ func (d *Database) UpdateUserOTPVerified(userID string, verified bool) error {
 
 // GetAIModels 获取用户的AI模型配置
 func (d *Database) GetAIModels(userID string) ([]*AIModelConfig, error) {
-        rows, err := d.query(`
-                SELECT id, user_id, name, provider, enabled, api_key,
-                       COALESCE(custom_api_url, '') as custom_api_url,
-                       COALESCE(custom_model_name, '') as custom_model_name,
-                       created_at, updated_at
-                FROM ai_models WHERE user_id = ? ORDER BY id
-        `, userID)
-        if err != nil {
-                return nil, err
-        }
-        defer rows.Close()
-
-        // 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
-        models := make([]*AIModelConfig, 0)
-        for rows.Next() {
-                var model AIModelConfig
-                err := rows.Scan(
-                        &model.ID, &model.UserID, &model.Name, &model.Provider,
-                        &model.Enabled, &model.APIKey, &model.CustomAPIURL, &model.CustomModelName,
-                        &model.CreatedAt, &model.UpdatedAt,
-                )
+        return withRetry(func() ([]*AIModelConfig, error) {
+                rows, err := d.query(`
+                        SELECT id, user_id, name, provider, enabled, api_key,
+                               COALESCE(custom_api_url, '') as custom_api_url,
+                               COALESCE(custom_model_name, '') as custom_model_name,
+                               created_at, updated_at
+                        FROM ai_models WHERE user_id = ? ORDER BY id
+                `, userID)
                 if err != nil {
                         return nil, err
                 }
-                models = append(models, &model)
-        }
+                defer rows.Close()
 
-        return models, nil
+                // 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
+                models := make([]*AIModelConfig, 0)
+                for rows.Next() {
+                        var model AIModelConfig
+                        err := rows.Scan(
+                                &model.ID, &model.UserID, &model.Name, &model.Provider,
+                                &model.Enabled, &model.APIKey, &model.CustomAPIURL, &model.CustomModelName,
+                                &model.CreatedAt, &model.UpdatedAt,
+                        )
+                        if err != nil {
+                                return nil, err
+                        }
+                        models = append(models, &model)
+                }
+
+                return models, nil
+        })
 }
 
 // UpdateAIModel 更新AI模型配置，如果不存在则创建用户特定配置
@@ -866,40 +957,42 @@ func (d *Database) UpdateAIModel(userID, id string, enabled bool, apiKey, custom
 
 // GetExchanges 获取用户的交易所配置
 func (d *Database) GetExchanges(userID string) ([]*ExchangeConfig, error) {
-        rows, err := d.query(`
-                SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet,
-                       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-                       COALESCE(aster_user, '') as aster_user,
-                       COALESCE(aster_signer, '') as aster_signer,
-                       COALESCE(aster_private_key, '') as aster_private_key,
-                       COALESCE(okx_passphrase, '') as okx_passphrase,
-                       created_at, updated_at
-                FROM exchanges WHERE user_id = ? ORDER BY id
-        `, userID)
-        if err != nil {
-                return nil, err
-        }
-        defer rows.Close()
-
-        // 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
-        exchanges := make([]*ExchangeConfig, 0)
-        for rows.Next() {
-                var exchange ExchangeConfig
-                err := rows.Scan(
-                        &exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
-                        &exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
-                        &exchange.HyperliquidWalletAddr, &exchange.AsterUser,
-                        &exchange.AsterSigner, &exchange.AsterPrivateKey,
-                        &exchange.OKXPassphrase,
-                        &exchange.CreatedAt, &exchange.UpdatedAt,
-                )
+        return withRetry(func() ([]*ExchangeConfig, error) {
+                rows, err := d.query(`
+                        SELECT id, user_id, name, type, enabled, api_key, secret_key, testnet,
+                               COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+                               COALESCE(aster_user, '') as aster_user,
+                               COALESCE(aster_signer, '') as aster_signer,
+                               COALESCE(aster_private_key, '') as aster_private_key,
+                               COALESCE(okx_passphrase, '') as okx_passphrase,
+                               created_at, updated_at
+                        FROM exchanges WHERE user_id = ? ORDER BY id
+                `, userID)
                 if err != nil {
                         return nil, err
                 }
-                exchanges = append(exchanges, &exchange)
-        }
+                defer rows.Close()
 
-        return exchanges, nil
+                // 初始化为空切片而不是nil，确保JSON序列化为[]而不是null
+                exchanges := make([]*ExchangeConfig, 0)
+                for rows.Next() {
+                        var exchange ExchangeConfig
+                        err := rows.Scan(
+                                &exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type,
+                                &exchange.Enabled, &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
+                                &exchange.HyperliquidWalletAddr, &exchange.AsterUser,
+                                &exchange.AsterSigner, &exchange.AsterPrivateKey,
+                                &exchange.OKXPassphrase,
+                                &exchange.CreatedAt, &exchange.UpdatedAt,
+                        )
+                        if err != nil {
+                                return nil, err
+                        }
+                        exchanges = append(exchanges, &exchange)
+                }
+
+                return exchanges, nil
+        })
 }
 
 // UpdateExchange 更新交易所配置，如果不存在则创建用户特定配置

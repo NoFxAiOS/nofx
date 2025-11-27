@@ -42,7 +42,7 @@ func TestPromptReloadEndToEnd(t *testing.T) {
 	}
 
 	// 步骤4: 使用 buildSystemPrompt 验证模板被正确使用
-	systemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy")
+	systemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy", "")
 	if !strings.Contains(systemPrompt, initialContent) {
 		t.Errorf("buildSystemPrompt 未包含模板内容\n生成的 prompt:\n%s", systemPrompt)
 	}
@@ -69,7 +69,7 @@ func TestPromptReloadEndToEnd(t *testing.T) {
 	}
 
 	// 步骤8: 验证 buildSystemPrompt 使用了新内容
-	newSystemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy")
+	newSystemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy", "")
 	if !strings.Contains(newSystemPrompt, updatedContent) {
 		t.Errorf("buildSystemPrompt 未包含更新后的模板内容\n生成的 prompt:\n%s", newSystemPrompt)
 	}
@@ -108,7 +108,7 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 
 	// 测试1: 基础模板 + 自定义 prompt（不覆盖）
 	customPrompt := "个性化规则：只交易 BTC"
-	result := buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base")
+	result := buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base", "")
 	if !strings.Contains(result, baseContent) {
 		t.Errorf("未包含基础模板内容")
 	}
@@ -117,7 +117,7 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 	}
 
 	// 测试2: 覆盖基础 prompt
-	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, true, "base")
+	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, true, "base", "")
 	if strings.Contains(result, baseContent) {
 		t.Errorf("覆盖模式下仍包含基础模板内容")
 	}
@@ -135,7 +135,7 @@ func TestPromptReloadWithCustomPrompt(t *testing.T) {
 		t.Fatalf("重新加载失败: %v", err)
 	}
 
-	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base")
+	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base", "")
 	if !strings.Contains(result, updatedBase) {
 		t.Errorf("重新加载后未包含更新的基础模板内容")
 	}
@@ -168,13 +168,13 @@ func TestPromptReloadFallback(t *testing.T) {
 	}
 
 	// 测试1: 请求不存在的模板，应该降级到 default
-	result := buildSystemPrompt(10000.0, 10, 5, "nonexistent")
+	result := buildSystemPrompt(10000.0, 10, 5, "nonexistent", "")
 	if !strings.Contains(result, defaultContent) {
 		t.Errorf("请求不存在的模板时，未降级到 default")
 	}
 
 	// 测试2: 空模板名，应该使用 default
-	result = buildSystemPrompt(10000.0, 10, 5, "")
+	result = buildSystemPrompt(10000.0, 10, 5, "", "")
 	if !strings.Contains(result, defaultContent) {
 		t.Errorf("空模板名时，未使用 default")
 	}

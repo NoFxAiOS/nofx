@@ -21,7 +21,7 @@ func TestBuildSystemPrompt_ContainsAllValidActions(t *testing.T) {
 	}
 
 	// 构建 prompt
-	prompt := buildSystemPrompt(1000.0, 10, 5, "default")
+	prompt := buildSystemPrompt(1000.0, 10, 5, "default", "")
 
 	// 验证每个有效 action 都在 prompt 中出现
 	for _, action := range validActions {
@@ -33,7 +33,7 @@ func TestBuildSystemPrompt_ContainsAllValidActions(t *testing.T) {
 
 // TestBuildSystemPrompt_ActionListCompleteness 测试 action 列表的完整性
 func TestBuildSystemPrompt_ActionListCompleteness(t *testing.T) {
-	prompt := buildSystemPrompt(1000.0, 10, 5, "default")
+	prompt := buildSystemPrompt(1000.0, 10, 5, "default", "")
 
 	// 检查是否包含关键的缺失 action
 	missingActions := []string{

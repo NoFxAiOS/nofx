@@ -667,8 +667,50 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
                 return err
         }
 
-        // 计算数量
-        quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+        // ===== 保证金检查与自动调整 =====
+        adjustedPositionSizeUSD := decision.PositionSizeUSD
+        balance, balanceErr := at.trader.GetBalance()
+        if balanceErr == nil {
+                availableBalance := 0.0
+                if free, ok := balance["free"].(float64); ok {
+                        availableBalance = free
+                }
+                
+                // 计算最大可开仓价值 = 可用保证金 * 80% * 杠杆
+                // 保留20%作为安全边际，防止价格波动导致保证金不足
+                maxMarginToUse := availableBalance * 0.80
+                maxPositionValue := maxMarginToUse * float64(decision.Leverage)
+                
+                if decision.PositionSizeUSD > maxPositionValue {
+                        log.Printf("  ⚠️ 保证金检查: AI请求开仓 $%.2f，但可用保证金 $%.2f (80%% = $%.2f)，杠杆 %dx，最大可开仓 $%.2f",
+                                decision.PositionSizeUSD, availableBalance, maxMarginToUse, decision.Leverage, maxPositionValue)
+                        
+                        if maxPositionValue < 10 {
+                                // 如果最大可开仓金额太小（<$10），拒绝开仓
+                                return fmt.Errorf("保证金不足: 可用 $%.2f, 需要至少 $%.2f 保证金才能开仓 (杠杆 %dx)", 
+                                        availableBalance, decision.PositionSizeUSD/float64(decision.Leverage)/0.8, decision.Leverage)
+                        }
+                        
+                        // 自动调整到最大可开仓值
+                        adjustedPositionSizeUSD = maxPositionValue
+                        log.Printf("  ✅ 自动调整开仓金额: $%.2f -> $%.2f (可用保证金的80%%)", decision.PositionSizeUSD, adjustedPositionSizeUSD)
+                } else {
+                        log.Printf("  ✅ 保证金检查通过: 开仓 $%.2f, 可用保证金 $%.2f, 杠杆 %dx", 
+                                decision.PositionSizeUSD, availableBalance, decision.Leverage)
+                }
+        } else {
+                log.Printf("  ⚠️ 无法获取账户余额进行保证金检查: %v, 继续使用AI决定的仓位", balanceErr)
+        }
+        
+        // 最小开仓金额检查（无论是否调整过，都需要检查）
+        const minPositionSizeUSD = 10.0
+        if adjustedPositionSizeUSD < minPositionSizeUSD {
+                return fmt.Errorf("开仓金额过小: $%.2f < 最小要求 $%.2f", adjustedPositionSizeUSD, minPositionSizeUSD)
+        }
+        // ===== 保证金检查结束 =====
+
+        // 计算数量（使用调整后的仓位大小）
+        quantity := adjustedPositionSizeUSD / marketData.CurrentPrice
         actionRecord.Quantity = quantity
         actionRecord.Price = marketData.CurrentPrice
 
@@ -726,8 +768,50 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
                 return err
         }
 
-        // 计算数量
-        quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+        // ===== 保证金检查与自动调整 =====
+        adjustedPositionSizeUSD := decision.PositionSizeUSD
+        balance, balanceErr := at.trader.GetBalance()
+        if balanceErr == nil {
+                availableBalance := 0.0
+                if free, ok := balance["free"].(float64); ok {
+                        availableBalance = free
+                }
+                
+                // 计算最大可开仓价值 = 可用保证金 * 80% * 杠杆
+                // 保留20%作为安全边际，防止价格波动导致保证金不足
+                maxMarginToUse := availableBalance * 0.80
+                maxPositionValue := maxMarginToUse * float64(decision.Leverage)
+                
+                if decision.PositionSizeUSD > maxPositionValue {
+                        log.Printf("  ⚠️ 保证金检查: AI请求开仓 $%.2f，但可用保证金 $%.2f (80%% = $%.2f)，杠杆 %dx，最大可开仓 $%.2f",
+                                decision.PositionSizeUSD, availableBalance, maxMarginToUse, decision.Leverage, maxPositionValue)
+                        
+                        if maxPositionValue < 10 {
+                                // 如果最大可开仓金额太小（<$10），拒绝开仓
+                                return fmt.Errorf("保证金不足: 可用 $%.2f, 需要至少 $%.2f 保证金才能开仓 (杠杆 %dx)", 
+                                        availableBalance, decision.PositionSizeUSD/float64(decision.Leverage)/0.8, decision.Leverage)
+                        }
+                        
+                        // 自动调整到最大可开仓值
+                        adjustedPositionSizeUSD = maxPositionValue
+                        log.Printf("  ✅ 自动调整开仓金额: $%.2f -> $%.2f (可用保证金的80%%)", decision.PositionSizeUSD, adjustedPositionSizeUSD)
+                } else {
+                        log.Printf("  ✅ 保证金检查通过: 开仓 $%.2f, 可用保证金 $%.2f, 杠杆 %dx", 
+                                decision.PositionSizeUSD, availableBalance, decision.Leverage)
+                }
+        } else {
+                log.Printf("  ⚠️ 无法获取账户余额进行保证金检查: %v, 继续使用AI决定的仓位", balanceErr)
+        }
+        
+        // 最小开仓金额检查（无论是否调整过，都需要检查）
+        const minPositionSizeUSD = 10.0
+        if adjustedPositionSizeUSD < minPositionSizeUSD {
+                return fmt.Errorf("开仓金额过小: $%.2f < 最小要求 $%.2f", adjustedPositionSizeUSD, minPositionSizeUSD)
+        }
+        // ===== 保证金检查结束 =====
+
+        // 计算数量（使用调整后的仓位大小）
+        quantity := adjustedPositionSizeUSD / marketData.CurrentPrice
         actionRecord.Quantity = quantity
         actionRecord.Price = marketData.CurrentPrice
 

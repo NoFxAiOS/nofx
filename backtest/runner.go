@@ -35,8 +35,8 @@ type Runner struct {
 	feed    *DataFeed
 	account *BacktestAccount
 
-	decisionLogger *logger.DecisionLogger
-	mcpClient      *mcp.Client
+	decisionLogger logger.IDecisionLogger
+	mcpClient      mcp.AIClient
 
 	statusMu sync.RWMutex
 	status   RunState
@@ -64,7 +64,7 @@ type Runner struct {
 }
 
 // NewRunner 构建回测运行器。
-func NewRunner(cfg BacktestConfig, mcpClient *mcp.Client) (*Runner, error) {
+func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 	if err := ensureRunDir(cfg.RunID); err != nil {
 		return nil, err
 	}

@@ -19,13 +19,13 @@ type Manager struct {
 	runners    map[string]*Runner
 	metadata   map[string]*RunMetadata
 	cancels    map[string]context.CancelFunc
-	mcpClient  *mcp.Client
+	mcpClient  mcp.AIClient
 	aiResolver AIConfigResolver
 }
 
 type AIConfigResolver func(*BacktestConfig) error
 
-func NewManager(defaultClient *mcp.Client) *Manager {
+func NewManager(defaultClient mcp.AIClient) *Manager {
 	return &Manager{
 		runners:   make(map[string]*Runner),
 		metadata:  make(map[string]*RunMetadata),
@@ -102,7 +102,7 @@ func (m *Manager) Start(ctx context.Context, cfg BacktestConfig) (*Runner, error
 	return runner, nil
 }
 
-func (m *Manager) client() *mcp.Client {
+func (m *Manager) client() mcp.AIClient {
 	if m.mcpClient != nil {
 		return m.mcpClient
 	}

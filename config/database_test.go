@@ -31,6 +31,8 @@ func TestUpdateExchange_EmptyValuesShouldNotOverwrite(t *testing.T) {
 		"",
 		"",
 		"",
+		"", // lighter_wallet_addr
+		"", // lighter_private_key
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -63,6 +65,8 @@ func TestUpdateExchange_EmptyValuesShouldNotOverwrite(t *testing.T) {
 		"",
 		"",
 		"", // 空 aster_private_key - 不应该覆盖
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -112,6 +116,8 @@ func TestUpdateExchange_AsterEmptyValuesShouldNotOverwrite(t *testing.T) {
 		"0xAsterUser",
 		"0xAsterSigner",
 		initialAsterKey,
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("初始化 Aster 失败: %v", err)
@@ -129,6 +135,8 @@ func TestUpdateExchange_AsterEmptyValuesShouldNotOverwrite(t *testing.T) {
 		"0xAsterUser",
 		"0xAsterSigner",
 		"", // 空 aster_private_key
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -164,6 +172,8 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 		"",
 		"",
 		"",
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -181,6 +191,8 @@ func TestUpdateExchange_NonEmptyValuesShouldUpdate(t *testing.T) {
 		newSecretKey,
 		false,
 		"0xNewWallet",
+		"",
+		"",
 		"",
 		"",
 		"",
@@ -225,6 +237,8 @@ func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 		"",
 		"",
 		"",
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -239,6 +253,8 @@ func TestUpdateExchange_PartialUpdateShouldWork(t *testing.T) {
 		"", // 留空
 		true,
 		"0xWallet2",
+		"",
+		"",
 		"",
 		"",
 		"",
@@ -304,6 +320,8 @@ func TestUpdateExchange_MultipleExchangeTypes(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
+				"",
 			)
 			if err != nil {
 				t.Fatalf("创建 %s 失败: %v", tc.exchangeID, err)
@@ -358,6 +376,8 @@ func TestUpdateExchange_MixedSensitiveFields(t *testing.T) {
 		"",
 		"",
 		"",
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -372,6 +392,8 @@ func TestUpdateExchange_MixedSensitiveFields(t *testing.T) {
 		"", // 留空
 		true,
 		"0xNewWallet",
+		"",
+		"",
 		"",
 		"",
 		"",
@@ -397,6 +419,8 @@ func TestUpdateExchange_MixedSensitiveFields(t *testing.T) {
 		"new-secret-key",
 		false,
 		"0xFinalWallet",
+		"",
+		"",
 		"",
 		"",
 		"",
@@ -439,6 +463,8 @@ func TestUpdateExchange_OnlyNonSensitiveFields(t *testing.T) {
 		"0xUser1",
 		"0xSigner1",
 		"aster-private-key-1",
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -455,6 +481,8 @@ func TestUpdateExchange_OnlyNonSensitiveFields(t *testing.T) {
 		"",
 		"0xUser2",
 		"0xSigner2",
+		"",
+		"",
 		"",
 	)
 	if err != nil {
@@ -507,6 +535,8 @@ func TestUpdateExchange_AllSensitiveFieldsUpdate(t *testing.T) {
 		"",
 		"",
 		"old-aster-key",
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("初始化失败: %v", err)
@@ -524,6 +554,8 @@ func TestUpdateExchange_AllSensitiveFieldsUpdate(t *testing.T) {
 		"0xUser",
 		"0xSigner",
 		"new-aster-key",
+		"",
+		"",
 	)
 	if err != nil {
 		t.Fatalf("更新失败: %v", err)
@@ -556,7 +588,11 @@ func setupTestDB(t *testing.T) (*Database, func()) {
 	}
 
 	// 创建测试用户
-	testUsers := []string{"test-user-001", "test-user-002", "test-user-003", "test-user-004", "test-user-005", "test-user-006", "test-user-007", "test-user-008", "test-user-009"}
+	testUsers := []string{
+		"test-user-001", "test-user-002", "test-user-003", "test-user-004", "test-user-005",
+		"test-user-006", "test-user-007", "test-user-008", "test-user-009",
+		"test-user-persistence", "user1", "user2",
+	}
 	for _, userID := range testUsers {
 		user := &User{
 			ID:           userID,
@@ -658,6 +694,15 @@ func TestDataPersistenceAcrossReopen(t *testing.T) {
 		}
 		db.SetCryptoService(cryptoService)
 
+		// 创建持久化测试用户，避免外键约束失败
+		_ = db.CreateUser(&User{
+			ID:           userID,
+			Email:        userID + "@test.com",
+			PasswordHash: "hash",
+			OTPSecret:    "",
+			OTPVerified:  true,
+		})
+
 		// 写入交易所配置
 		err = db.UpdateExchange(
 			userID,
@@ -666,6 +711,8 @@ func TestDataPersistenceAcrossReopen(t *testing.T) {
 			testAPIKey,
 			testSecretKey,
 			false,
+			"",
+			"",
 			"",
 			"",
 			"",
@@ -745,6 +792,8 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 				"",
 				"",
 				"",
+				"",
+				"",
 			)
 			if err != nil {
 				errors <- err
@@ -766,6 +815,8 @@ func TestConcurrentWritesWithWAL(t *testing.T) {
 				"secret2",
 				false,
 				"0xWallet",
+				"",
+				"",
 				"",
 				"",
 				"",

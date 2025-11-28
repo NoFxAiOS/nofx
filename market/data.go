@@ -549,6 +549,55 @@ func parseFloat(v interface{}) (float64, error) {
 	}
 }
 
+// BuildDataFromKlines 根据预加载的K线序列构造市场数据快照（用于回测/模拟）。
+func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data, error) {
+	if len(primary) == 0 {
+		return nil, fmt.Errorf("primary series is empty")
+	}
+
+	symbol = Normalize(symbol)
+	current := primary[len(primary)-1]
+	currentPrice := current.Close
+
+	data := &Data{
+		Symbol:            symbol,
+		CurrentPrice:      currentPrice,
+		CurrentEMA20:      calculateEMA(primary, 20),
+		CurrentMACD:       calculateMACD(primary),
+		CurrentRSI7:       calculateRSI(primary, 7),
+		PriceChange1h:     priceChangeFromSeries(primary, time.Hour),
+		PriceChange4h:     priceChangeFromSeries(primary, 4*time.Hour),
+		OpenInterest:      &OIData{Latest: 0, Average: 0},
+		FundingRate:       0,
+		IntradaySeries:    calculateIntradaySeries(primary),
+		LongerTermContext: nil,
+	}
+
+	if len(longer) > 0 {
+		data.LongerTermContext = calculateLongerTermData(longer)
+	}
+
+	return data, nil
+}
+
+func priceChangeFromSeries(series []Kline, duration time.Duration) float64 {
+	if len(series) == 0 || duration <= 0 {
+		return 0
+	}
+	last := series[len(series)-1]
+	target := last.CloseTime - duration.Milliseconds()
+	for i := len(series) - 1; i >= 0; i-- {
+		if series[i].CloseTime <= target {
+			price := series[i].Close
+			if price > 0 {
+				return ((last.Close - price) / price) * 100
+			}
+			break
+		}
+	}
+	return 0
+}
+
 // isStaleData detects stale data (consecutive price freeze)
 // Fix DOGEUSDT-style issue: consecutive N periods with completely unchanged prices indicate data source anomaly
 func isStaleData(klines []Kline, symbol string) bool {

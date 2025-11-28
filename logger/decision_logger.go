@@ -78,6 +78,8 @@ type IDecisionLogger interface {
 	GetStatistics() (*Statistics, error)
 	// AnalyzePerformance 分析最近N个周期的交易表现
 	AnalyzePerformance(lookbackCycles int) (*PerformanceAnalysis, error)
+	// SetCycleNumber 允许恢复内部计数（用于回测恢复）
+	SetCycleNumber(n int)
 }
 
 // DecisionLogger 决策日志记录器
@@ -108,11 +110,22 @@ func NewDecisionLogger(logDir string) IDecisionLogger {
 	}
 }
 
+// SetCycleNumber 允许外部恢复内部的周期计数（用于回测恢复）。
+func (l *DecisionLogger) SetCycleNumber(n int) {
+	if n > 0 {
+		l.cycleNumber = n
+	}
+}
+
 // LogDecision 记录决策
 func (l *DecisionLogger) LogDecision(record *DecisionRecord) error {
 	l.cycleNumber++
 	record.CycleNumber = l.cycleNumber
-	record.Timestamp = time.Now()
+	if record.Timestamp.IsZero() {
+		record.Timestamp = time.Now().UTC()
+	} else {
+		record.Timestamp = record.Timestamp.UTC()
+	}
 
 	// 生成文件名：decision_YYYYMMDD_HHMMSS_cycleN.json
 	filename := fmt.Sprintf("decision_%s_cycle%d.json",

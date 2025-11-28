@@ -6,16 +6,25 @@ import { t, type Language } from '../i18n/translations'
 import { Container } from './Container'
 import { useSystemConfig } from '../hooks/useSystemConfig'
 
+type Page =
+  | 'competition'
+  | 'traders'
+  | 'trader'
+  | 'backtest'
+  | 'faq'
+  | 'login'
+  | 'register'
+
 interface HeaderBarProps {
   onLoginClick?: () => void
   isLoggedIn?: boolean
   isHomePage?: boolean
-  currentPage?: string
+  currentPage?: Page
   language?: Language
   onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
-  onPageChange?: (page: string) => void
+  onPageChange?: (page: Page) => void
 }
 
 export default function HeaderBar({
@@ -205,6 +214,47 @@ export default function HeaderBar({
                   )}
 
                   {t('dashboardNav', language)}
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (onPageChange) {
+                      onPageChange('backtest')
+                    }
+                    navigate('/backtest')
+                  }}
+                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  style={{
+                    color:
+                      currentPage === 'backtest'
+                        ? 'var(--brand-yellow)'
+                        : 'var(--brand-light-gray)',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentPage !== 'backtest') {
+                      e.currentTarget.style.color = 'var(--brand-yellow)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentPage !== 'backtest') {
+                      e.currentTarget.style.color = 'var(--brand-light-gray)'
+                    }
+                  }}
+                >
+                  {currentPage === 'backtest' && (
+                    <span
+                      className="absolute inset-0 rounded-lg"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.15)',
+                        zIndex: -1,
+                      }}
+                    />
+                  )}
+
+                  Backtest
                 </button>
 
                 <button

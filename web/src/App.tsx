@@ -9,7 +9,7 @@ import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
-import HeaderBar from './components/landing/HeaderBar'
+import HeaderBar from './components/HeaderBar'
 import AILearning from './components/AILearning'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -26,7 +26,14 @@ import type {
   TraderInfo,
 } from './types'
 
-type Page = 'competition' | 'traders' | 'trader' | 'backtest'
+type Page =
+  | 'competition'
+  | 'traders'
+  | 'trader'
+  | 'backtest'
+  | 'faq'
+  | 'login'
+  | 'register'
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -256,7 +263,7 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
-          onPageChange={(page) => {
+          onPageChange={(page: Page) => {
             console.log('Competition page onPageChange called with:', page)
             console.log('Current route:', route, 'Current page:', currentPage)
 
@@ -324,7 +331,7 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        onPageChange={(page) => {
+        onPageChange={(page: Page) => {
           console.log('Main app onPageChange called with:', page)
 
           if (page === 'competition') {

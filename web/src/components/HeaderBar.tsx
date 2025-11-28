@@ -6,16 +6,25 @@ import { t, type Language } from '../i18n/translations'
 import { Container } from './Container'
 import { useSystemConfig } from '../hooks/useSystemConfig'
 
+type Page =
+  | 'competition'
+  | 'traders'
+  | 'trader'
+  | 'backtest'
+  | 'faq'
+  | 'login'
+  | 'register'
+
 interface HeaderBarProps {
   onLoginClick?: () => void
   isLoggedIn?: boolean
   isHomePage?: boolean
-  currentPage?: string
+  currentPage?: Page
   language?: Language
   onLanguageChange?: (lang: Language) => void
   user?: { email: string } | null
   onLogout?: () => void
-  onPageChange?: (page: string) => void
+  onPageChange?: (page: Page) => void
 }
 
 export default function HeaderBar({

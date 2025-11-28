@@ -50,4 +50,8 @@ type Trader interface {
 
 	// FormatQuantity 格式化数量到正确的精度
 	FormatQuantity(symbol string, quantity float64) (string, error)
+
+	// GetOpenOrders 获取未完成订单列表
+	// symbol: 币种符号，如果为空字符串则获取所有币种的订单
+	GetOpenOrders(symbol string) ([]map[string]interface{}, error)
 }

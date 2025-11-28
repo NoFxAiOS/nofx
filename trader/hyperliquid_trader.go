@@ -813,6 +813,49 @@ func (t *HyperliquidTrader) FormatQuantity(symbol string, quantity float64) (str
 	return fmt.Sprintf(formatStr, quantity), nil
 }
 
+// GetOpenOrders 获取未完成订单列表（实现Trader接口）
+// symbol: 币种符号，如果为空字符串则获取所有币种的订单
+func (t *HyperliquidTrader) GetOpenOrders(symbol string) ([]map[string]interface{}, error) {
+	// 获取所有挂单
+	openOrders, err := t.exchange.Info().OpenOrders(t.ctx, t.walletAddr)
+	if err != nil {
+		return nil, fmt.Errorf("获取未完成订单失败: %w", err)
+	}
+
+	result := make([]map[string]interface{}, 0)
+	for _, order := range openOrders {
+		// 如果指定了币种，只返回该币种的订单
+		if symbol != "" {
+			coin := convertSymbolToHyperliquid(symbol)
+			if order.Coin != coin {
+				continue
+			}
+		}
+
+		// 将 Hyperliquid 订单转换为通用格式
+		orderMap := make(map[string]interface{})
+		orderMap["symbol"] = convertHyperliquidToSymbol(order.Coin)
+		orderMap["orderId"] = order.Oid
+		orderMap["type"] = "LIMIT" // Hyperliquid 主要使用限价单
+		if order.IsBuy {
+			orderMap["side"] = "BUY"
+		} else {
+			orderMap["side"] = "SELL"
+		}
+		orderMap["quantity"] = order.Sz
+		if order.LimitPx != nil {
+			orderMap["price"] = *order.LimitPx
+		}
+		// Hyperliquid 没有 positionSide 概念，使用空字符串
+		orderMap["positionSide"] = ""
+		orderMap["status"] = "NEW" // 未完成订单状态
+
+		result = append(result, orderMap)
+	}
+
+	return result, nil
+}
+
 // getSzDecimals 获取币种的数量精度
 func (t *HyperliquidTrader) getSzDecimals(coin string) int {
 	// ✅ 并发安全：使用读锁保护 meta 字段访问

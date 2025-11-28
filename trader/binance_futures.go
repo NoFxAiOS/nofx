@@ -902,6 +902,58 @@ func (t *FuturesTrader) FormatQuantity(symbol string, quantity float64) (string,
 	return fmt.Sprintf(format, quantity), nil
 }
 
+// GetOpenOrders 获取未完成订单列表
+// symbol: 币种符号，如果为空字符串则获取所有币种的订单
+func (t *FuturesTrader) GetOpenOrders(symbol string) ([]map[string]interface{}, error) {
+	var orders []*futures.Order
+	var err error
+
+	if symbol == "" {
+		// 获取所有币种的未完成订单
+		orders, err = t.client.NewListOpenOrdersService().
+			Do(context.Background())
+	} else {
+		// 获取指定币种的未完成订单
+		orders, err = t.client.NewListOpenOrdersService().
+			Symbol(symbol).
+			Do(context.Background())
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("获取未完成订单失败: %w", err)
+	}
+
+	// 转换为 map 格式
+	result := make([]map[string]interface{}, 0, len(orders))
+	for _, order := range orders {
+		orderMap := make(map[string]interface{})
+		orderMap["symbol"] = order.Symbol
+		orderMap["orderId"] = order.OrderID
+		orderMap["type"] = string(order.Type)
+		orderMap["side"] = string(order.Side)
+		orderMap["positionSide"] = string(order.PositionSide)
+		orderMap["status"] = string(order.Status)
+		if order.StopPrice != "" {
+			if stopPrice, err := strconv.ParseFloat(order.StopPrice, 64); err == nil {
+				orderMap["stopPrice"] = stopPrice
+			}
+		}
+		if order.Price != "" {
+			if price, err := strconv.ParseFloat(order.Price, 64); err == nil {
+				orderMap["price"] = price
+			}
+		}
+		if order.OrigQuantity != "" {
+			if quantity, err := strconv.ParseFloat(order.OrigQuantity, 64); err == nil {
+				orderMap["quantity"] = quantity
+			}
+		}
+		result = append(result, orderMap)
+	}
+
+	return result, nil
+}
+
 // 辅助函数
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && stringContains(s, substr)

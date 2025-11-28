@@ -97,17 +97,23 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 		AsterUser             string `json:"aster_user"`
 		AsterSigner           string `json:"aster_signer"`
 		AsterPrivateKey       string `json:"aster_private_key"`
+		LighterWalletAddr     string `json:"lighter_wallet_addr"`
+		LighterPrivateKey     string `json:"lighter_private_key"`
 	}{
 		"binance": {
 			Enabled:   true,
 			APIKey:    "binance_api_key_1234567890abcdef",
 			SecretKey: "binance_secret_key_1234567890abcdef",
 			Testnet:   false,
+			LighterWalletAddr:   "",
+			LighterPrivateKey:   "",
 		},
 		"hyperliquid": {
 			Enabled:               true,
 			HyperliquidWalletAddr: "0x1234567890abcdef1234567890abcdef12345678",
 			Testnet:               false,
+			LighterWalletAddr:     "",
+			LighterPrivateKey:     "",
 		},
 	}
 

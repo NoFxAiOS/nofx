@@ -100,6 +100,14 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("初始化回测表结构失败: %w", err)
 	}
 
+	// 确保存在默认用户（用于外键约束和默认配置种子）
+	if _, err := db.Exec(`
+		INSERT OR IGNORE INTO users (id, email, password_hash, otp_secret, otp_verified)
+		VALUES ('default', 'default@local', '__default__', '', 1)
+	`); err != nil {
+		return nil, fmt.Errorf("创建默认用户失败: %w", err)
+	}
+
 	if err := database.initDefaultData(); err != nil {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}

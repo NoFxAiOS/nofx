@@ -79,6 +79,7 @@ func isTransientError(err error) bool {
         }
         errStr := err.Error()
         // Neon PostgreSQL冷启动和连接断开的常见错误
+        // 参考: https://neon.com/docs/connect/connection-errors
         transientErrors := []string{
                 "connection not available",
                 "connection reset",
@@ -90,6 +91,15 @@ func isTransientError(err error) bool {
                 "connection is closed",
                 "unexpected EOF",
                 "driver: bad connection",
+                // Neon 特有的冷启动错误
+                "terminating connection due to administrator command",
+                "can't reach database server",
+                "the database system is starting up",
+                "connection timed out",
+                "network is unreachable",
+                "i/o timeout",
+                "connection reset by peer",
+                "no such host",
         }
         for _, te := range transientErrors {
                 if strings.Contains(strings.ToLower(errStr), strings.ToLower(te)) {
@@ -1105,40 +1115,42 @@ func (d *Database) CreateTrader(trader *TraderRecord) error {
 
 // GetTraders 获取用户的交易员
 func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
-        rows, err := d.query(`
-                SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running,
-                       COALESCE(btc_eth_leverage, 5) as btc_eth_leverage, COALESCE(altcoin_leverage, 5) as altcoin_leverage,
-                       COALESCE(trading_symbols, '') as trading_symbols,
-                       COALESCE(use_coin_pool, false) as use_coin_pool, COALESCE(use_oi_top, false) as use_oi_top,
-                       COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, false) as override_base_prompt,
-                       COALESCE(system_prompt_template, 'default') as system_prompt_template,
-                       COALESCE(is_cross_margin, true) as is_cross_margin, created_at, updated_at
-                FROM traders WHERE user_id = ? ORDER BY created_at DESC
-        `, userID)
-        if err != nil {
-                return nil, err
-        }
-        defer rows.Close()
-
-        var traders []*TraderRecord
-        for rows.Next() {
-                var trader TraderRecord
-                err := rows.Scan(
-                        &trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
-                        &trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
-                        &trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
-                        &trader.UseCoinPool, &trader.UseOITop,
-                        &trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
-                        &trader.IsCrossMargin,
-                        &trader.CreatedAt, &trader.UpdatedAt,
-                )
+        return withRetry(func() ([]*TraderRecord, error) {
+                rows, err := d.query(`
+                        SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance, scan_interval_minutes, is_running,
+                               COALESCE(btc_eth_leverage, 5) as btc_eth_leverage, COALESCE(altcoin_leverage, 5) as altcoin_leverage,
+                               COALESCE(trading_symbols, '') as trading_symbols,
+                               COALESCE(use_coin_pool, false) as use_coin_pool, COALESCE(use_oi_top, false) as use_oi_top,
+                               COALESCE(custom_prompt, '') as custom_prompt, COALESCE(override_base_prompt, false) as override_base_prompt,
+                               COALESCE(system_prompt_template, 'default') as system_prompt_template,
+                               COALESCE(is_cross_margin, true) as is_cross_margin, created_at, updated_at
+                        FROM traders WHERE user_id = ? ORDER BY created_at DESC
+                `, userID)
                 if err != nil {
                         return nil, err
                 }
-                traders = append(traders, &trader)
-        }
+                defer rows.Close()
 
-        return traders, nil
+                var traders []*TraderRecord
+                for rows.Next() {
+                        var trader TraderRecord
+                        err := rows.Scan(
+                                &trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
+                                &trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
+                                &trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
+                                &trader.UseCoinPool, &trader.UseOITop,
+                                &trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
+                                &trader.IsCrossMargin,
+                                &trader.CreatedAt, &trader.UpdatedAt,
+                        )
+                        if err != nil {
+                                return nil, err
+                        }
+                        traders = append(traders, &trader)
+                }
+
+                return traders, nil
+        })
 }
 
 // UpdateTraderStatus 更新交易员状态
@@ -1175,57 +1187,78 @@ func (d *Database) DeleteTrader(userID, id string) error {
         return err
 }
 
+// traderConfigResult 用于 withRetry 的返回结构
+type traderConfigResult struct {
+        trader   *TraderRecord
+        aiModel  *AIModelConfig
+        exchange *ExchangeConfig
+}
+
 // GetTraderConfig 获取交易员完整配置（包含AI模型和交易所信息）
 func (d *Database) GetTraderConfig(userID, traderID string) (*TraderRecord, *AIModelConfig, *ExchangeConfig, error) {
-        var trader TraderRecord
-        var aiModel AIModelConfig
-        var exchange ExchangeConfig
+        result, err := withRetry(func() (*traderConfigResult, error) {
+                var trader TraderRecord
+                var aiModel AIModelConfig
+                var exchange ExchangeConfig
 
-        err := d.queryRow(`
-                SELECT 
-                        t.id, t.user_id, t.name, t.ai_model_id, t.exchange_id, t.initial_balance, t.scan_interval_minutes, t.is_running, t.created_at, t.updated_at,
-                        a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key, a.created_at, a.updated_at,
-                        e.id, e.user_id, e.name, e.type, e.enabled, e.api_key, e.secret_key, e.testnet,
-                        COALESCE(e.hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-                        COALESCE(e.aster_user, '') as aster_user,
-                        COALESCE(e.aster_signer, '') as aster_signer,
-                        COALESCE(e.aster_private_key, '') as aster_private_key,
-                        e.created_at, e.updated_at
-                FROM traders t
-                JOIN ai_models a ON t.ai_model_id = a.id AND t.user_id = a.user_id
-                JOIN exchanges e ON t.exchange_id = e.id AND t.user_id = e.user_id
-                WHERE t.id = ? AND t.user_id = ?
-        `, traderID, userID).Scan(
-                &trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
-                &trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
-                &trader.CreatedAt, &trader.UpdatedAt,
-                &aiModel.ID, &aiModel.UserID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
-                &aiModel.CreatedAt, &aiModel.UpdatedAt,
-                &exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type, &exchange.Enabled,
-                &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
-                &exchange.HyperliquidWalletAddr, &exchange.AsterUser, &exchange.AsterSigner, &exchange.AsterPrivateKey,
-                &exchange.CreatedAt, &exchange.UpdatedAt,
-        )
+                err := d.queryRow(`
+                        SELECT 
+                                t.id, t.user_id, t.name, t.ai_model_id, t.exchange_id, t.initial_balance, t.scan_interval_minutes, t.is_running, t.created_at, t.updated_at,
+                                a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key, a.created_at, a.updated_at,
+                                e.id, e.user_id, e.name, e.type, e.enabled, e.api_key, e.secret_key, e.testnet,
+                                COALESCE(e.hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
+                                COALESCE(e.aster_user, '') as aster_user,
+                                COALESCE(e.aster_signer, '') as aster_signer,
+                                COALESCE(e.aster_private_key, '') as aster_private_key,
+                                e.created_at, e.updated_at
+                        FROM traders t
+                        JOIN ai_models a ON t.ai_model_id = a.id AND t.user_id = a.user_id
+                        JOIN exchanges e ON t.exchange_id = e.id AND t.user_id = e.user_id
+                        WHERE t.id = ? AND t.user_id = ?
+                `, traderID, userID).Scan(
+                        &trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID,
+                        &trader.InitialBalance, &trader.ScanIntervalMinutes, &trader.IsRunning,
+                        &trader.CreatedAt, &trader.UpdatedAt,
+                        &aiModel.ID, &aiModel.UserID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
+                        &aiModel.CreatedAt, &aiModel.UpdatedAt,
+                        &exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type, &exchange.Enabled,
+                        &exchange.APIKey, &exchange.SecretKey, &exchange.Testnet,
+                        &exchange.HyperliquidWalletAddr, &exchange.AsterUser, &exchange.AsterSigner, &exchange.AsterPrivateKey,
+                        &exchange.CreatedAt, &exchange.UpdatedAt,
+                )
+
+                if err != nil {
+                        return nil, err
+                }
+
+                return &traderConfigResult{
+                        trader:   &trader,
+                        aiModel:  &aiModel,
+                        exchange: &exchange,
+                }, nil
+        })
 
         if err != nil {
                 return nil, nil, nil, err
         }
 
-        return &trader, &aiModel, &exchange, nil
+        return result.trader, result.aiModel, result.exchange, nil
 }
 
 // GetSystemConfig 获取系统配置
 func (d *Database) GetSystemConfig(key string) (string, error) {
-        var value string
-        err := d.queryRow(`SELECT value FROM system_config WHERE key = $1`, key).Scan(&value)
-        if err != nil {
-                if err == sql.ErrNoRows {
-                        // 如果 key 不存在，返回空字符串和 nil 错误
-                        return "", nil
+        return withRetry(func() (string, error) {
+                var value string
+                err := d.queryRow(`SELECT value FROM system_config WHERE key = $1`, key).Scan(&value)
+                if err != nil {
+                        if err == sql.ErrNoRows {
+                                // 如果 key 不存在，返回空字符串和 nil 错误
+                                return "", nil
+                        }
+                        return "", err
                 }
-                return "", err
-        }
-        return value, nil
+                return value, nil
+        })
 }
 
 // SetSystemConfig 设置系统配置

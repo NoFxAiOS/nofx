@@ -574,16 +574,25 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			if balanceErr != nil {
 				log.Printf("⚠️ 查询交易所余额失败，使用用户输入的初始资金: %v", balanceErr)
 			} else {
-				// 提取可用余额
-				if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
+				// 提取可用余额 - 支持多种字段名格式
+				if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
+					// Binance 格式: availableBalance (camelCase)
 					actualBalance = availableBalance
 					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
+				} else if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
+					// 其他格式: available_balance (snake_case)
+					actualBalance = availableBalance
+					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
+				} else if totalBalance, ok := balanceInfo["totalWalletBalance"].(float64); ok && totalBalance > 0 {
+					// Binance 格式: totalWalletBalance (camelCase)
+					actualBalance = totalBalance
+					log.Printf("✓ 查询到交易所总余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
 				} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-					// 有些交易所可能只返回 balance 字段
+					// 其他格式: balance
 					actualBalance = totalBalance
 					log.Printf("✓ 查询到交易所实际余额: %.2f USDT (用户输入: %.2f USDT)", actualBalance, req.InitialBalance)
 				} else {
-					log.Printf("⚠️ 无法从余额信息中提取可用余额，使用用户输入的初始资金")
+					log.Printf("⚠️ 无法从余额信息中提取可用余额，balanceInfo=%v，使用用户输入的初始资金", balanceInfo)
 				}
 			}
 		}

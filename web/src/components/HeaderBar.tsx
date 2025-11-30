@@ -101,6 +101,9 @@ export default function HeaderBar({
               <>
                 <button
                   onClick={() => {
+                    if (onPageChange) {
+                      onPageChange('competition')
+                    }
                     navigate('/competition')
                   }}
                   className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
@@ -140,6 +143,9 @@ export default function HeaderBar({
 
                 <button
                   onClick={() => {
+                    if (onPageChange) {
+                      onPageChange('traders')
+                    }
                     navigate('/traders')
                   }}
                   className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
@@ -179,6 +185,9 @@ export default function HeaderBar({
 
                 <button
                   onClick={() => {
+                    if (onPageChange) {
+                      onPageChange('trader')
+                    }
                     navigate('/dashboard')
                   }}
                   className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
@@ -261,9 +270,8 @@ export default function HeaderBar({
                   onClick={() => {
                     if (onPageChange) {
                       onPageChange('faq')
-                    } else {
-                      navigate('/faq')
                     }
+                    navigate('/faq')
                   }}
                   className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
@@ -708,9 +716,8 @@ export default function HeaderBar({
                 onClick={() => {
                   if (onPageChange) {
                     onPageChange('traders')
-                  } else {
-                    navigate('/traders')
                   }
+                  navigate('/traders')
                   setMobileMenuOpen(false)
                 }}
                 className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
@@ -743,9 +750,8 @@ export default function HeaderBar({
                 onClick={() => {
                   if (onPageChange) {
                     onPageChange('trader')
-                  } else {
-                    navigate('/dashboard')
                   }
+                  navigate('/dashboard')
                   setMobileMenuOpen(false)
                 }}
                 className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
@@ -778,9 +784,8 @@ export default function HeaderBar({
                 onClick={() => {
                   if (onPageChange) {
                     onPageChange('faq')
-                  } else {
-                    navigate('/faq')
                   }
+                  navigate('/faq')
                   setMobileMenuOpen(false)
                 }}
                 className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"

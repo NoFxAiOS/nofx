@@ -13,6 +13,7 @@ import HeaderBar from './components/HeaderBar'
 import AILearning from './components/AILearning'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ConfirmDialogProvider } from './components/ConfirmDialog'
 import { t, type Language } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
 import { DecisionCard } from './components/DecisionCard'
@@ -1062,7 +1063,9 @@ export default function AppWithProviders() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <App />
+        <ConfirmDialogProvider>
+          <App />
+        </ConfirmDialogProvider>
       </AuthProvider>
     </LanguageProvider>
   )

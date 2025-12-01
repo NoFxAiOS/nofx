@@ -10,10 +10,7 @@ interface UseWeb3State {
   isConnecting: boolean;
 }
 
-interface ConnectOptions {
-  onSuccess?: (address: string) => void;
-  onError?: (error: string) => void;
-}
+// ConnectOptions - 已移除，未使用
 
 interface AuthResult {
   success: boolean;
@@ -56,7 +53,7 @@ const sanitizeErrorMessage = (error: unknown): string => {
 
 const connectMetaMask = async (): Promise<string> => {
   // 检查MetaMask是否存在
-  if (typeof window.ethereum === 'undefined') {
+  if (typeof window.ethereum === 'undefined' || !window.ethereum) {
     throw new Error('MetaMask未安装，请访问 https://metamask.io 下载安装');
   }
 
@@ -87,7 +84,7 @@ const connectMetaMask = async (): Promise<string> => {
 
 const connectTPWallet = async (): Promise<string> => {
   // 检查TP钱包是否存在
-  if (typeof window.ethereum === 'undefined') {
+  if (typeof window.ethereum === 'undefined' || !window.ethereum) {
     throw new Error('TP钱包未安装，请从应用商店下载TP钱包');
   }
 
@@ -128,6 +125,11 @@ const generateSignature = async (
 
   if (!message || message.length === 0) {
     throw new Error('签名消息不能为空');
+  }
+
+  // 检查钱包是否存在
+  if (typeof window.ethereum === 'undefined' || !window.ethereum) {
+    throw new Error('未检测到钱包扩展');
   }
 
   let signature: string;
@@ -359,7 +361,7 @@ export const useWeb3 = () => {
 
   // 监听钱包地址变化
   useEffect(() => {
-    if (typeof window.ethereum === 'undefined') return;
+    if (typeof window.ethereum === 'undefined' || !window.ethereum) return;
 
     const handleAccountsChanged = (accounts: string[]) => {
       if (accounts.length === 0) {
@@ -384,12 +386,12 @@ export const useWeb3 = () => {
       }));
     };
 
-    window.ethereum.on?.('accountsChanged', handleAccountsChanged);
-    window.ethereum.on?.('chainChanged', handleChainChanged);
+    window.ethereum?.on?.('accountsChanged', handleAccountsChanged);
+    window.ethereum?.on?.('chainChanged', handleChainChanged);
 
     return () => {
-      window.ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
-      window.ethereum.removeListener?.('chainChanged', handleChainChanged);
+      window.ethereum?.removeListener?.('accountsChanged', handleAccountsChanged);
+      window.ethereum?.removeListener?.('chainChanged', handleChainChanged);
     };
   }, [state.address, disconnect]);
 

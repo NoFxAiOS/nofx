@@ -562,6 +562,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 				exchangeCfg.AsterSigner,
 				exchangeCfg.AsterPrivateKey,
 			)
+		case "bybit":
+			tempTrader = trader.NewBybitTrader(
+				exchangeCfg.APIKey,
+				exchangeCfg.SecretKey,
+			)
 		default:
 			log.Printf("⚠️ 不支持的交易所类型: %s，使用用户输入的初始资金", req.ExchangeID)
 		}
@@ -938,6 +943,11 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			exchangeCfg.AsterSigner,
 			exchangeCfg.AsterPrivateKey,
 		)
+		case "bybit":
+			tempTrader = trader.NewBybitTrader(
+				exchangeCfg.APIKey,
+				exchangeCfg.SecretKey,
+			)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的交易所类型"})
 		return

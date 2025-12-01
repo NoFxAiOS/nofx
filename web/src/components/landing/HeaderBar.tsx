@@ -242,67 +242,69 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
               ))}
 
               {/* User Info and Actions */}
-              {isLoggedIn && user ? (
+              {!['login', 'register'].includes(currentPage || '') && (
                 <div className='flex items-center gap-3'>
-                  {/* User Info with Dropdown */}
-                  <div className='relative' ref={userDropdownRef}>
-                    <button
-                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                      className='flex items-center gap-2 px-3 py-2 rounded transition-colors'
-                      style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'var(--panel-bg)'}
-                    >
-                      <div className='w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold' style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}>
-                        {user.email[0].toUpperCase()}
-                      </div>
-                      <span className='text-sm' style={{ color: 'var(--brand-light-gray)' }}>{user.email}</span>
-                      <ChevronDown className='w-4 h-4' style={{ color: 'var(--brand-light-gray)' }} />
-                    </button>
-                    
-                    {userDropdownOpen && (
-                      <div className='absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg overflow-hidden z-50' style={{ background: 'var(--brand-dark-gray)', border: '1px solid var(--panel-border)' }}>
-                        <div className='px-3 py-2 border-b' style={{ borderColor: 'var(--panel-border)' }}>
-                          <div className='text-xs' style={{ color: 'var(--text-secondary)' }}>{t('loggedInAs', language)}</div>
-                          <div className='text-sm font-medium' style={{ color: 'var(--brand-light-gray)' }}>{user.email}</div>
+                  {/* Web3 Connect Button - Always show except on login/register pages */}
+                  <Web3ConnectButton size="small" variant="secondary" />
+                  
+                  {isLoggedIn && user ? (
+                    /* User Info with Dropdown when logged in */
+                    <div className='relative' ref={userDropdownRef}>
+                      <button
+                        onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                        className='flex items-center gap-2 px-3 py-2 rounded transition-colors'
+                        style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'var(--panel-bg)'}
+                      >
+                        <div className='w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold' style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}>
+                          {user.email[0].toUpperCase()}
                         </div>
-                        {onLogout && (
-                          <button
-                            onClick={() => {
-                              onLogout()
-                              setUserDropdownOpen(false)
-                            }}
-                            className='w-full px-3 py-2 text-sm font-semibold transition-colors hover:opacity-80 text-center'
-                            style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}
-                          >
-{t('exitLogin', language)}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                        <span className='text-sm' style={{ color: 'var(--brand-light-gray)' }}>{user.email}</span>
+                        <ChevronDown className='w-4 h-4' style={{ color: 'var(--brand-light-gray)' }} />
+                      </button>
+                      
+                      {userDropdownOpen && (
+                        <div className='absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg overflow-hidden z-50' style={{ background: 'var(--brand-dark-gray)', border: '1px solid var(--panel-border)' }}>
+                          <div className='px-3 py-2 border-b' style={{ borderColor: 'var(--panel-border)' }}>
+                            <div className='text-xs' style={{ color: 'var(--text-secondary)' }}>{t('loggedInAs', language)}</div>
+                            <div className='text-sm font-medium' style={{ color: 'var(--brand-light-gray)' }}>{user.email}</div>
+                          </div>
+                          {onLogout && (
+                            <button
+                              onClick={() => {
+                                onLogout()
+                                setUserDropdownOpen(false)
+                              }}
+                              className='w-full px-3 py-2 text-sm font-semibold transition-colors hover:opacity-80 text-center'
+                              style={{ background: 'var(--binance-red-bg)', color: 'var(--binance-red)' }}
+                            >
+                              {t('exitLogin', language)}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Login/Register buttons when not logged in */
+                    <>
+                      <a
+                        href='/login'
+                        className='px-3 py-2 text-sm font-medium transition-colors rounded'
+                        style={{ color: 'var(--brand-light-gray)' }}
+                      >
+                        {t('signIn', language)}
+                      </a>
+                      <a
+                        href='/register'
+                        className='px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90'
+                        style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
+                      >
+                        {t('signUp', language)}
+                      </a>
+                    </>
+                  )}
                 </div>
-              ) : (
-                /* Show Web3 wallet button, login/register buttons when not logged in and not on login/register pages */
-                !['login', 'register'].includes(currentPage || '') && (
-                  <div className='flex items-center gap-3'>
-                    <Web3ConnectButton size="small" variant="secondary" />
-                    <a
-                      href='/login'
-                      className='px-3 py-2 text-sm font-medium transition-colors rounded'
-                      style={{ color: 'var(--brand-light-gray)' }}
-                    >
-{t('signIn', language)}
-                    </a>
-                    <a
-                      href='/register'
-                      className='px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90'
-                      style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}
-                    >
-{t('signUp', language)}
-                    </a>
-                  </div>
-                )
               )}
               
               {/* Language Toggle - Always at the rightmost */}
@@ -558,6 +560,13 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
             </div>
           </div>
 
+          {/* Web3 wallet button - Always show except on login/register pages */}
+          {!['login', 'register'].includes(currentPage || '') && (
+            <div className='mt-4 pt-4' style={{ borderTop: '1px solid var(--panel-border)' }}>
+              <Web3ConnectButton size="small" variant="secondary" />
+            </div>
+          )}
+
           {/* User info and logout for mobile when logged in */}
           {isLoggedIn && user && (
             <div className='mt-4 pt-4' style={{ borderTop: '1px solid var(--panel-border)' }}>
@@ -585,10 +594,9 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
             </div>
           )}
 
-          {/* Show Web3 wallet button and login/register buttons when not logged in and not on login/register pages */}
+          {/* Login/Register buttons when not logged in and not on login/register pages */}
           {!isLoggedIn && !['login', 'register'].includes(currentPage || '') && (
             <div className='space-y-2 mt-2'>
-              <Web3ConnectButton size="small" variant="secondary" />
               <a
                 href='/login'
                 className='block w-full px-4 py-2 rounded text-sm font-medium text-center transition-colors'

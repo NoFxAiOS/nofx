@@ -670,7 +670,7 @@ func GenerateOTPSecret() (string, error) {
         return base32.StdEncoding.EncodeToString(secret), nil
 }
 
-// CreateUser 创建用户
+// CreateUser 创建用户（带重试逻辑，处理Neon冷启动）
 func (d *Database) CreateUser(user *User) error {
         // 处理可空时间字段
         var lockedUntil, lastFailedAt sql.NullTime
@@ -681,14 +681,18 @@ func (d *Database) CreateUser(user *User) error {
                 lastFailedAt = sql.NullTime{Time: *user.LastFailedAt, Valid: true}
         }
 
-        _, err := d.exec(`
-                INSERT INTO users (id, email, password_hash, otp_secret, otp_verified,
-                                   locked_until, failed_attempts, last_failed_at,
-                                   is_active, is_admin, beta_code, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        `, user.ID, user.Email, user.PasswordHash, user.OTPSecret, user.OTPVerified,
-                lockedUntil, user.FailedAttempts, lastFailedAt,
-                user.IsActive, user.IsAdmin, user.BetaCode, user.CreatedAt, user.UpdatedAt)
+        // 使用 withRetry 处理 Neon 冷启动问题
+        _, err := withRetry(func() (bool, error) {
+                _, execErr := d.exec(`
+                        INSERT INTO users (id, email, password_hash, otp_secret, otp_verified,
+                                           locked_until, failed_attempts, last_failed_at,
+                                           is_active, is_admin, beta_code, created_at, updated_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                `, user.ID, user.Email, user.PasswordHash, user.OTPSecret, user.OTPVerified,
+                        lockedUntil, user.FailedAttempts, lastFailedAt,
+                        user.IsActive, user.IsAdmin, user.BetaCode, user.CreatedAt, user.UpdatedAt)
+                return true, execErr
+        })
         return err
 }
 
@@ -757,32 +761,34 @@ func (d *Database) EnsureAdminUser() error {
         return d.CreateUser(adminUser)
 }
 
-// GetUserByEmail 通过邮箱获取用户
+// GetUserByEmail 通过邮箱获取用户（带重试逻辑，处理Neon冷启动）
 func (d *Database) GetUserByEmail(email string) (*User, error) {
-        var user User
-        var lockedUntil, lastFailedAt sql.NullTime
-        err := d.queryRow(`
-                SELECT id, email, password_hash, otp_secret, otp_verified,
-                       locked_until, failed_attempts, last_failed_at,
-                       is_active, is_admin, beta_code,
-                       created_at, updated_at
-                FROM users WHERE email = ?
-        `, email).Scan(
-                &user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret, &user.OTPVerified,
-                &lockedUntil, &user.FailedAttempts, &lastFailedAt,
-                &user.IsActive, &user.IsAdmin, &user.BetaCode,
-                &user.CreatedAt, &user.UpdatedAt,
-        )
-        if err != nil {
-                return nil, err
-        }
-        if lockedUntil.Valid {
-                user.LockedUntil = &lockedUntil.Time
-        }
-        if lastFailedAt.Valid {
-                user.LastFailedAt = &lastFailedAt.Time
-        }
-        return &user, nil
+        return withRetry(func() (*User, error) {
+                var user User
+                var lockedUntil, lastFailedAt sql.NullTime
+                err := d.queryRow(`
+                        SELECT id, email, password_hash, otp_secret, otp_verified,
+                               locked_until, failed_attempts, last_failed_at,
+                               is_active, is_admin, beta_code,
+                               created_at, updated_at
+                        FROM users WHERE email = ?
+                `, email).Scan(
+                        &user.ID, &user.Email, &user.PasswordHash, &user.OTPSecret, &user.OTPVerified,
+                        &lockedUntil, &user.FailedAttempts, &lastFailedAt,
+                        &user.IsActive, &user.IsAdmin, &user.BetaCode,
+                        &user.CreatedAt, &user.UpdatedAt,
+                )
+                if err != nil {
+                        return nil, err
+                }
+                if lockedUntil.Valid {
+                        user.LockedUntil = &lockedUntil.Time
+                }
+                if lastFailedAt.Valid {
+                        user.LastFailedAt = &lastFailedAt.Time
+                }
+                return &user, nil
+        })
 }
 
 // GetUserByID 通过ID获取用户

@@ -7,10 +7,10 @@ Monnaire Trading Agent OS is an AI-powered cryptocurrency trading system with su
 - ✅ **Fixed user registration 500 error** - Root cause: GetUserByEmail and CreateUser lacked retry logic for Neon cold start
 - ✅ **Added withRetry to GetUserByEmail** - Handles Neon cold start during email existence check
 - ✅ **Added withRetry to CreateUser** - Handles Neon cold start during user creation
-- ✅ **Investigated Web3 wallet button missing** - Analyzed 3 potential causes in production (www.agentrade.xyz)
-- ✅ **Added currentPage="home" to LandingPage** - Explicit parameter to avoid undefined condition ambiguity
-- ✅ **Improved HeaderBar condition logic** - Better handling of undefined currentPage values
-- 📋 **Root cause identified**: Vercel deployment version drift - requires redeploy to sync Web3 components
+- ✅ **Fixed Web3 wallet button missing when logged in** - Root cause: HeaderBar conditional rendering excluded button for authenticated users
+- ✅ **Restructured HeaderBar desktop section** - Web3ConnectButton now renders outside auth conditional
+- ✅ **Restructured HeaderBar mobile section** - Web3ConnectButton now independent of login state
+- 📋 **Deployment required**: Push to GitHub and Vercel will auto-deploy the fix
 
 ## Previous Changes (November 29, 2025)
 - ✅ **Fixed AI model dropdown empty issue** - Root cause: ai_models table had single-column primary key (id), preventing multi-user support

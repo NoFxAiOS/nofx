@@ -443,6 +443,7 @@ type UpdateExchangeConfigRequest struct {
 		AsterPrivateKey       string `json:"aster_private_key"`
 		LighterWalletAddr     string `json:"lighter_wallet_addr"`
 		LighterPrivateKey     string `json:"lighter_private_key"`
+		OKXPassphrase         string `json:"okx_passphrase"`
 	} `json:"exchanges"`
 }
 
@@ -550,6 +551,13 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		switch req.ExchangeID {
 		case "binance":
 			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+		case "okx":
+			tempTrader = trader.NewOKXTrader(
+				exchangeCfg.APIKey,
+				exchangeCfg.SecretKey,
+				exchangeCfg.OKXPassphrase,
+				exchangeCfg.Testnet,
+			)
 		case "hyperliquid":
 			tempTrader, createErr = trader.NewHyperliquidTrader(
 				exchangeCfg.APIKey, // private key
@@ -1208,7 +1216,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 	// 更新每个交易所的配置
 	for exchangeID, exchangeData := range req.Exchanges {
-		err := s.database.UpdateExchange(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey)
+		err := s.database.UpdateExchange(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.OKXPassphrase)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
 			return

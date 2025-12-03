@@ -139,9 +139,12 @@ func (t *OKXTrader) request(method, path string, params map[string]interface{}) 
 		return nil, fmt.Errorf("解析響應失敗: %w, body: %s", err, string(respBody))
 	}
 
-	// 檢查錯誤
+	// 檢查錯誤（安全的類型斷言）
 	if code, ok := result["code"].(string); ok && code != "0" {
-		msg := result["msg"].(string)
+		msg, _ := result["msg"].(string)
+		if msg == "" {
+			msg = "Unknown error"
+		}
 		return nil, fmt.Errorf("OKX API 錯誤 [%s]: %s", code, msg)
 	}
 
@@ -173,22 +176,40 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("OKX API 返回數據格式錯誤")
 	}
 
-	accountData := data[0].(map[string]interface{})
-	details := accountData["details"].([]interface{})
+	accountData, ok := data[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("OKX API 返回賬戶數據格式錯誤")
+	}
 
-	// 計算 USDT 餘額
+	details, ok := accountData["details"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("OKX API 返回 details 格式錯誤")
+	}
+
+	// 計算 USDT 餘額（使用安全的類型斷言）
 	var totalEq, availEq, upl float64
 	for _, detail := range details {
-		d := detail.(map[string]interface{})
-		if d["ccy"].(string) == "USDT" {
-			totalEq, _ = strconv.ParseFloat(d["eq"].(string), 64)
-			availEq, _ = strconv.ParseFloat(d["availEq"].(string), 64)
-			uplStr, ok := d["upl"].(string)
-			if ok {
-				upl, _ = strconv.ParseFloat(uplStr, 64)
-			}
-			break
+		d, ok := detail.(map[string]interface{})
+		if !ok {
+			continue
 		}
+
+		ccy, ok := d["ccy"].(string)
+		if !ok || ccy != "USDT" {
+			continue
+		}
+
+		// 安全解析數值
+		if eqStr, ok := d["eq"].(string); ok {
+			totalEq, _ = strconv.ParseFloat(eqStr, 64)
+		}
+		if availEqStr, ok := d["availEq"].(string); ok {
+			availEq, _ = strconv.ParseFloat(availEqStr, 64)
+		}
+		if uplStr, ok := d["upl"].(string); ok {
+			upl, _ = strconv.ParseFloat(uplStr, 64)
+		}
+		break
 	}
 
 	balance := map[string]interface{}{
@@ -238,41 +259,65 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	positions := make([]map[string]interface{}, 0)
 	for _, item := range data {
-		pos := item.(map[string]interface{})
-
-		// 跳過空倉位
-		posStr := pos["pos"].(string)
-		if posStr == "0" {
+		pos, ok := item.(map[string]interface{})
+		if !ok {
 			continue
 		}
 
-		// 解析數據
+		// 跳過空倉位（安全獲取持倉數量）
+		posStr, ok := pos["pos"].(string)
+		if !ok || posStr == "0" {
+			continue
+		}
+
+		// 安全解析數值
 		quantity, _ := strconv.ParseFloat(posStr, 64)
-		entryPrice, _ := strconv.ParseFloat(pos["avgPx"].(string), 64)
-		markPrice, _ := strconv.ParseFloat(pos["markPx"].(string), 64)
-		upl, _ := strconv.ParseFloat(pos["upl"].(string), 64)
-		leverage, _ := strconv.ParseFloat(pos["lever"].(string), 64)
-		liqPx, _ := strconv.ParseFloat(pos["liqPx"].(string), 64)
+
+		var entryPrice, markPrice, upl, leverage, liqPx, notionalUsd float64
+		if avgPxStr, ok := pos["avgPx"].(string); ok {
+			entryPrice, _ = strconv.ParseFloat(avgPxStr, 64)
+		}
+		if markPxStr, ok := pos["markPx"].(string); ok {
+			markPrice, _ = strconv.ParseFloat(markPxStr, 64)
+		}
+		if uplStr, ok := pos["upl"].(string); ok {
+			upl, _ = strconv.ParseFloat(uplStr, 64)
+		}
+		if leverStr, ok := pos["lever"].(string); ok {
+			leverage, _ = strconv.ParseFloat(leverStr, 64)
+		}
+		if liqPxStr, ok := pos["liqPx"].(string); ok {
+			liqPx, _ = strconv.ParseFloat(liqPxStr, 64)
+		}
+		if notionalStr, ok := pos["notionalUsd"].(string); ok {
+			notionalUsd, _ = strconv.ParseFloat(notionalStr, 64)
+		}
 
 		// 計算保證金
-		notionalUsd, _ := strconv.ParseFloat(pos["notionalUsd"].(string), 64)
-		marginUsed := notionalUsd / leverage
+		marginUsed := 0.0
+		if leverage > 0 {
+			marginUsed = notionalUsd / leverage
+		}
 
 		// 計算盈虧百分比
 		uplPct := 0.0
-		if entryPrice > 0 {
+		if entryPrice > 0 && quantity != 0 {
 			uplPct = (upl / (quantity * entryPrice)) * 100
 		}
 
-		// 處理方向
+		// 處理方向（安全獲取）
 		side := "long"
-		if pos["posSide"].(string) == "short" {
+		posSide, _ := pos["posSide"].(string)
+		if posSide == "short" {
 			side = "short"
 			quantity = -quantity // 空倉顯示負數
 		}
 
-		// 標準化 symbol：BTC-USDT-SWAP → BTCUSDT
-		instId := pos["instId"].(string)
+		// 標準化 symbol：BTC-USDT-SWAP → BTCUSDT（安全獲取）
+		instId, ok := pos["instId"].(string)
+		if !ok {
+			continue
+		}
 		symbol := strings.ReplaceAll(strings.ReplaceAll(instId, "-USDT-SWAP", ""), "-", "")
 
 		position := map[string]interface{}{
@@ -412,14 +457,22 @@ func (t *OKXTrader) GetMarketPrice(symbol string) (float64, error) {
 		return 0, fmt.Errorf("獲取市場價格失敗: %w", err)
 	}
 
-	// 解析響應
+	// 解析響應（使用安全的類型斷言）
 	data, ok := result["data"].([]interface{})
 	if !ok || len(data) == 0 {
 		return 0, fmt.Errorf("OKX API 返回數據格式錯誤")
 	}
 
-	ticker := data[0].(map[string]interface{})
-	priceStr := ticker["last"].(string)
+	ticker, ok := data[0].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("OKX API 返回 ticker 數據格式錯誤")
+	}
+
+	priceStr, ok := ticker["last"].(string)
+	if !ok {
+		return 0, fmt.Errorf("OKX API 返回價格字段格式錯誤")
+	}
+
 	price, err := strconv.ParseFloat(priceStr, 64)
 	if err != nil {
 		return 0, fmt.Errorf("解析價格失敗: %w", err)

@@ -753,7 +753,7 @@ type ExchangeConfig struct {
 	LighterPrivateKey       string `json:"lighterPrivateKey"`       // L1私钥（用于识别账户）
 	LighterAPIKeyPrivateKey string `json:"lighterAPIKeyPrivateKey"` // API Key私钥（40字节，用于签名交易）
 	// OKX 特定字段
-	OKXPassphrase string `json:"okxPassphrase"` // OKX API Passphrase
+	OKXPassphrase string    `json:"okxPassphrase"` // OKX API Passphrase
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

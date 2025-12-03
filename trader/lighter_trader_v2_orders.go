@@ -173,9 +173,9 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 
 	// 解析響應
 	var apiResp struct {
-		Code    int              `json:"code"`
-		Message string           `json:"message"`
-		Data    []OrderResponse  `json:"data"`
+		Code    int             `json:"code"`
+		Message string          `json:"message"`
+		Data    []OrderResponse `json:"data"`
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {

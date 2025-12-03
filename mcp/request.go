@@ -22,9 +22,9 @@ type FunctionDef struct {
 // Request AI API 请求（支持高级功能）
 type Request struct {
 	// 基础字段
-	Model    string    `json:"model"`              // 模型名称
-	Messages []Message `json:"messages"`           // 对话消息列表
-	Stream   bool      `json:"stream,omitempty"`   // 是否流式响应
+	Model    string    `json:"model"`            // 模型名称
+	Messages []Message `json:"messages"`         // 对话消息列表
+	Stream   bool      `json:"stream,omitempty"` // 是否流式响应
 
 	// 可选参数（用于精细控制）
 	Temperature      *float64 `json:"temperature,omitempty"`       // 温度 (0-2)，控制随机性

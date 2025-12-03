@@ -9,24 +9,24 @@ import (
 
 // AccountBalance 账户余额信息
 type AccountBalance struct {
-	TotalEquity       float64 `json:"total_equity"`        // 总权益
-	AvailableBalance  float64 `json:"available_balance"`   // 可用余额
-	MarginUsed        float64 `json:"margin_used"`         // 已用保证金
-	UnrealizedPnL     float64 `json:"unrealized_pnl"`      // 未实现盈亏
-	MaintenanceMargin float64 `json:"maintenance_margin"`  // 维持保证金
+	TotalEquity       float64 `json:"total_equity"`       // 总权益
+	AvailableBalance  float64 `json:"available_balance"`  // 可用余额
+	MarginUsed        float64 `json:"margin_used"`        // 已用保证金
+	UnrealizedPnL     float64 `json:"unrealized_pnl"`     // 未实现盈亏
+	MaintenanceMargin float64 `json:"maintenance_margin"` // 维持保证金
 }
 
 // Position 持仓信息
 type Position struct {
-	Symbol           string  `json:"symbol"`             // 交易对
-	Side             string  `json:"side"`               // "long" 或 "short"
-	Size             float64 `json:"size"`               // 持仓大小
-	EntryPrice       float64 `json:"entry_price"`        // 开仓均价
-	MarkPrice        float64 `json:"mark_price"`         // 标记价格
-	LiquidationPrice float64 `json:"liquidation_price"`  // 强平价格
-	UnrealizedPnL    float64 `json:"unrealized_pnl"`     // 未实现盈亏
-	Leverage         float64 `json:"leverage"`           // 杠杆倍数
-	MarginUsed       float64 `json:"margin_used"`        // 已用保证金
+	Symbol           string  `json:"symbol"`            // 交易对
+	Side             string  `json:"side"`              // "long" 或 "short"
+	Size             float64 `json:"size"`              // 持仓大小
+	EntryPrice       float64 `json:"entry_price"`       // 开仓均价
+	MarkPrice        float64 `json:"mark_price"`        // 标记价格
+	LiquidationPrice float64 `json:"liquidation_price"` // 强平价格
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // 未实现盈亏
+	Leverage         float64 `json:"leverage"`          // 杠杆倍数
+	MarginUsed       float64 `json:"margin_used"`       // 已用保证金
 }
 
 // GetBalance 获取账户余额（实现 Trader 接口）
@@ -148,15 +148,15 @@ func (t *LighterTrader) GetPositions() ([]map[string]interface{}, error) {
 	result := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
 		result = append(result, map[string]interface{}{
-			"symbol":             pos.Symbol,
-			"side":               pos.Side,
-			"size":               pos.Size,
-			"entry_price":        pos.EntryPrice,
-			"mark_price":         pos.MarkPrice,
-			"liquidation_price":  pos.LiquidationPrice,
-			"unrealized_pnl":     pos.UnrealizedPnL,
-			"leverage":           pos.Leverage,
-			"margin_used":        pos.MarginUsed,
+			"symbol":            pos.Symbol,
+			"side":              pos.Side,
+			"size":              pos.Size,
+			"entry_price":       pos.EntryPrice,
+			"mark_price":        pos.MarkPrice,
+			"liquidation_price": pos.LiquidationPrice,
+			"unrealized_pnl":    pos.UnrealizedPnL,
+			"leverage":          pos.Leverage,
+			"margin_used":       pos.MarginUsed,
 		})
 	}
 

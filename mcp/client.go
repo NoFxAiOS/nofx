@@ -43,7 +43,7 @@ type Client struct {
 	MaxTokens  int  // AI响应的最大token数
 
 	httpClient *http.Client
-	logger     Logger // 日志器（可替换）
+	logger     Logger  // 日志器（可替换）
 	config     *Config // 配置对象（保存所有配置）
 
 	// hooks 用于实现动态分派（多态）
@@ -62,21 +62,22 @@ func New() AIClient {
 // NewClient 创建客户端（支持选项模式）
 //
 // 使用示例：
-//   // 基础用法（向前兼容）
-//   client := mcp.NewClient()
 //
-//   // 自定义日志
-//   client := mcp.NewClient(mcp.WithLogger(customLogger))
+//	// 基础用法（向前兼容）
+//	client := mcp.NewClient()
 //
-//   // 自定义超时
-//   client := mcp.NewClient(mcp.WithTimeout(60*time.Second))
+//	// 自定义日志
+//	client := mcp.NewClient(mcp.WithLogger(customLogger))
 //
-//   // 组合多个选项
-//   client := mcp.NewClient(
-//       mcp.WithDeepSeekConfig("sk-xxx"),
-//       mcp.WithLogger(customLogger),
-//       mcp.WithTimeout(60*time.Second),
-//   )
+//	// 自定义超时
+//	client := mcp.NewClient(mcp.WithTimeout(60*time.Second))
+//
+//	// 组合多个选项
+//	client := mcp.NewClient(
+//	    mcp.WithDeepSeekConfig("sk-xxx"),
+//	    mcp.WithLogger(customLogger),
+//	    mcp.WithTimeout(60*time.Second),
+//	)
 func NewClient(opts ...ClientOption) AIClient {
 	// 1. 创建默认配置
 	cfg := DefaultConfig()
@@ -341,12 +342,13 @@ func (client *Client) isRetryableError(err error) bool {
 // - 流式响应（未来支持）
 //
 // 使用示例：
-//   request := NewRequestBuilder().
-//       WithSystemPrompt("You are helpful").
-//       WithUserPrompt("Hello").
-//       WithTemperature(0.8).
-//       Build()
-//   result, err := client.CallWithRequest(request)
+//
+//	request := NewRequestBuilder().
+//	    WithSystemPrompt("You are helpful").
+//	    WithUserPrompt("Hello").
+//	    WithTemperature(0.8).
+//	    Build()
+//	result, err := client.CallWithRequest(request)
 func (client *Client) CallWithRequest(req *Request) (string, error) {
 	if client.APIKey == "" {
 		return "", fmt.Errorf("AI API密钥未设置，请先调用 SetAPIKey")

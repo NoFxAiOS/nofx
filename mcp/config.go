@@ -21,8 +21,8 @@ type Config struct {
 	UseFullURL  bool
 
 	// 重试配置
-	MaxRetries     int
-	RetryWaitBase  time.Duration
+	MaxRetries      int
+	RetryWaitBase   time.Duration
 	RetryableErrors []string
 
 	// 超时配置
@@ -37,11 +37,11 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		// 默认值
-		MaxTokens:      getEnvInt("AI_MAX_TOKENS", 2000),
-		Temperature:    MCPClientTemperature,
-		MaxRetries:     MaxRetryTimes,
-		RetryWaitBase:  2 * time.Second,
-		Timeout:        DefaultTimeout,
+		MaxTokens:       getEnvInt("AI_MAX_TOKENS", 2000),
+		Temperature:     MCPClientTemperature,
+		MaxRetries:      MaxRetryTimes,
+		RetryWaitBase:   2 * time.Second,
+		Timeout:         DefaultTimeout,
 		RetryableErrors: retryableErrors,
 
 		// 默认依赖

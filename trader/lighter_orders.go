@@ -11,14 +11,14 @@ import (
 
 // CreateOrderRequest 创建订单请求
 type CreateOrderRequest struct {
-	Symbol       string  `json:"symbol"`        // 交易对，如 "BTC-PERP"
-	Side         string  `json:"side"`          // "buy" 或 "sell"
-	OrderType    string  `json:"order_type"`    // "market" 或 "limit"
-	Quantity     float64 `json:"quantity"`      // 数量
-	Price        float64 `json:"price"`         // 价格（限价单必填）
-	ReduceOnly   bool    `json:"reduce_only"`   // 是否只减仓
-	TimeInForce  string  `json:"time_in_force"` // "GTC", "IOC", "FOK"
-	PostOnly     bool    `json:"post_only"`     // 是否只做Maker
+	Symbol      string  `json:"symbol"`        // 交易对，如 "BTC-PERP"
+	Side        string  `json:"side"`          // "buy" 或 "sell"
+	OrderType   string  `json:"order_type"`    // "market" 或 "limit"
+	Quantity    float64 `json:"quantity"`      // 数量
+	Price       float64 `json:"price"`         // 价格（限价单必填）
+	ReduceOnly  bool    `json:"reduce_only"`   // 是否只减仓
+	TimeInForce string  `json:"time_in_force"` // "GTC", "IOC", "FOK"
+	PostOnly    bool    `json:"post_only"`     // 是否只做Maker
 }
 
 // OrderResponse 订单响应

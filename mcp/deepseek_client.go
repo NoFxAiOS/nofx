@@ -24,15 +24,16 @@ func NewDeepSeekClient() AIClient {
 // NewDeepSeekClientWithOptions 创建 DeepSeek 客户端（支持选项模式）
 //
 // 使用示例：
-//   // 基础用法
-//   client := mcp.NewDeepSeekClientWithOptions()
 //
-//   // 自定义配置
-//   client := mcp.NewDeepSeekClientWithOptions(
-//       mcp.WithAPIKey("sk-xxx"),
-//       mcp.WithLogger(customLogger),
-//       mcp.WithTimeout(60*time.Second),
-//   )
+//	// 基础用法
+//	client := mcp.NewDeepSeekClientWithOptions()
+//
+//	// 自定义配置
+//	client := mcp.NewDeepSeekClientWithOptions(
+//	    mcp.WithAPIKey("sk-xxx"),
+//	    mcp.WithLogger(customLogger),
+//	    mcp.WithTimeout(60*time.Second),
+//	)
 func NewDeepSeekClientWithOptions(opts ...ClientOption) AIClient {
 	// 1. 创建 DeepSeek 预设选项
 	deepseekOpts := []ClientOption{

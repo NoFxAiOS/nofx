@@ -27,11 +27,11 @@ type LighterTrader struct {
 	testnet    bool
 
 	// 账户信息缓存
-	accountIndex  int    // LIGHTER账户索引
-	apiKey        string // API密钥（从私钥派生）
-	authToken     string // 认证令牌（8小时有效期）
-	tokenExpiry   time.Time
-	accountMutex  sync.RWMutex
+	accountIndex int    // LIGHTER账户索引
+	apiKey       string // API密钥（从私钥派生）
+	authToken    string // 认证令牌（8小时有效期）
+	tokenExpiry  time.Time
+	accountMutex sync.RWMutex
 
 	// 市场信息缓存
 	symbolPrecision map[string]SymbolPrecision

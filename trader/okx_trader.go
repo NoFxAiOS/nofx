@@ -192,13 +192,13 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	}
 
 	balance := map[string]interface{}{
-		"totalWalletBalance":     totalEq,
-		"availableBalance":       availEq,
-		"totalUnrealizedProfit":  upl,
-		"wallet_balance":         totalEq,
-		"available_balance":      availEq,
-		"unrealized_profit":      upl,
-		"balance":                totalEq,
+		"totalWalletBalance":    totalEq,
+		"availableBalance":      availEq,
+		"totalUnrealizedProfit": upl,
+		"wallet_balance":        totalEq,
+		"available_balance":     availEq,
+		"unrealized_profit":     upl,
+		"balance":               totalEq,
 	}
 
 	// 更新緩存
@@ -276,16 +276,16 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		symbol := strings.ReplaceAll(strings.ReplaceAll(instId, "-USDT-SWAP", ""), "-", "")
 
 		position := map[string]interface{}{
-			"symbol":            symbol,
-			"side":              side,
-			"entry_price":       entryPrice,
-			"mark_price":        markPrice,
-			"quantity":          quantity,
-			"leverage":          int(leverage),
-			"unrealized_pnl":    upl,
+			"symbol":             symbol,
+			"side":               side,
+			"entry_price":        entryPrice,
+			"mark_price":         markPrice,
+			"quantity":           quantity,
+			"leverage":           int(leverage),
+			"unrealized_pnl":     upl,
 			"unrealized_pnl_pct": uplPct,
-			"liquidation_price": liqPx,
-			"margin_used":       marginUsed,
+			"liquidation_price":  liqPx,
+			"margin_used":        marginUsed,
 		}
 
 		positions = append(positions, position)
@@ -342,10 +342,10 @@ func (t *OKXTrader) placeOrder(symbol, side, posSide string, quantity float64, l
 	// 構建訂單參數
 	params := map[string]interface{}{
 		"instId":  instId,
-		"tdMode":  "cross",                // 全倉模式
-		"side":    side,                   // buy/sell
-		"posSide": posSide,                // long/short
-		"ordType": "market",               // 市價單
+		"tdMode":  "cross",  // 全倉模式
+		"side":    side,     // buy/sell
+		"posSide": posSide,  // long/short
+		"ordType": "market", // 市價單
 		"sz":      fmt.Sprintf("%f", quantity),
 	}
 

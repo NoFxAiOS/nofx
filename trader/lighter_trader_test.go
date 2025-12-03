@@ -47,22 +47,22 @@ func createMockLighterServer() *httptest.Server {
 		// Mock GetBalance
 		case "/api/v1/account":
 			respBody = map[string]interface{}{
-				"totalBalance":      "10000.00",
-				"availableBalance":  "8000.00",
-				"marginUsed":        "2000.00",
-				"unrealizedPnl":     "100.50",
+				"totalBalance":     "10000.00",
+				"availableBalance": "8000.00",
+				"marginUsed":       "2000.00",
+				"unrealizedPnl":    "100.50",
 			}
 
 		// Mock GetPositions
 		case "/api/v1/positions":
 			respBody = []map[string]interface{}{
 				{
-					"symbol":          "BTC_USDT",
-					"side":            "long",
-					"positionSize":    "0.5",
-					"entryPrice":      "50000.00",
-					"markPrice":       "50500.00",
-					"unrealizedPnl":   "250.00",
+					"symbol":        "BTC_USDT",
+					"side":          "long",
+					"positionSize":  "0.5",
+					"entryPrice":    "50000.00",
+					"markPrice":     "50500.00",
+					"unrealizedPnl": "250.00",
 				},
 			}
 

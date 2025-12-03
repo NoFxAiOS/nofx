@@ -22,11 +22,12 @@ type RequestBuilder struct {
 // NewRequestBuilder 创建请求构建器
 //
 // 使用示例：
-//   request := NewRequestBuilder().
-//       WithSystemPrompt("You are helpful").
-//       WithUserPrompt("Hello").
-//       WithTemperature(0.8).
-//       Build()
+//
+//	request := NewRequestBuilder().
+//	    WithSystemPrompt("You are helpful").
+//	    WithUserPrompt("Hello").
+//	    WithTemperature(0.8).
+//	    Build()
 func NewRequestBuilder() *RequestBuilder {
 	return &RequestBuilder{
 		messages: make([]Message, 0),

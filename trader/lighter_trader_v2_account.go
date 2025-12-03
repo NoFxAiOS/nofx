@@ -77,15 +77,15 @@ func (t *LighterTraderV2) GetPositions() ([]map[string]interface{}, error) {
 	result := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
 		result = append(result, map[string]interface{}{
-			"symbol":             pos.Symbol,
-			"side":               pos.Side,
-			"size":               pos.Size,
-			"entry_price":        pos.EntryPrice,
-			"mark_price":         pos.MarkPrice,
-			"liquidation_price":  pos.LiquidationPrice,
-			"unrealized_pnl":     pos.UnrealizedPnL,
-			"leverage":           pos.Leverage,
-			"margin_used":        pos.MarginUsed,
+			"symbol":            pos.Symbol,
+			"side":              pos.Side,
+			"size":              pos.Size,
+			"entry_price":       pos.EntryPrice,
+			"mark_price":        pos.MarkPrice,
+			"liquidation_price": pos.LiquidationPrice,
+			"unrealized_pnl":    pos.UnrealizedPnL,
+			"leverage":          pos.Leverage,
+			"margin_used":       pos.MarginUsed,
 		})
 	}
 

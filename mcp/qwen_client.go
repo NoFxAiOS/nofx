@@ -24,15 +24,16 @@ func NewQwenClient() AIClient {
 // NewQwenClientWithOptions 创建 Qwen 客户端（支持选项模式）
 //
 // 使用示例：
-//   // 基础用法
-//   client := mcp.NewQwenClientWithOptions()
 //
-//   // 自定义配置
-//   client := mcp.NewQwenClientWithOptions(
-//       mcp.WithAPIKey("sk-xxx"),
-//       mcp.WithLogger(customLogger),
-//       mcp.WithTimeout(60*time.Second),
-//   )
+//	// 基础用法
+//	client := mcp.NewQwenClientWithOptions()
+//
+//	// 自定义配置
+//	client := mcp.NewQwenClientWithOptions(
+//	    mcp.WithAPIKey("sk-xxx"),
+//	    mcp.WithLogger(customLogger),
+//	    mcp.WithTimeout(60*time.Second),
+//	)
 func NewQwenClientWithOptions(opts ...ClientOption) AIClient {
 	// 1. 创建 Qwen 预设选项
 	qwenOpts := []ClientOption{

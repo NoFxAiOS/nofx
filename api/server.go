@@ -32,6 +32,7 @@ type Server struct {
 	httpServer      *http.Server
 	port            int
 }
+
 // NewServer 创建API服务器
 func NewServer(traderManager *manager.TraderManager, database *config.Database, cryptoService *crypto.CryptoService, backtestManager *backtest.Manager, port int) *Server {
 	// 设置为Release模式（减少日志输出）
@@ -396,8 +397,8 @@ type SafeModelConfig struct {
 	Name            string `json:"name"`
 	Provider        string `json:"provider"`
 	Enabled         bool   `json:"enabled"`
-	CustomAPIURL    string `json:"customApiUrl"`        // 自定义API URL（通常不敏感）
-	CustomModelName string `json:"customModelName"`     // 自定义模型名（不敏感）
+	CustomAPIURL    string `json:"customApiUrl"`    // 自定义API URL（通常不敏感）
+	CustomModelName string `json:"customModelName"` // 自定义模型名（不敏感）
 }
 
 type ExchangeConfig struct {
@@ -418,8 +419,8 @@ type SafeExchangeConfig struct {
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid钱包地址（不敏感）
-	AsterUser             string `json:"asterUser"`              // Aster用户名（不敏感）
-	AsterSigner           string `json:"asterSigner"`            // Aster签名者（不敏感）
+	AsterUser             string `json:"asterUser"`             // Aster用户名（不敏感）
+	AsterSigner           string `json:"asterSigner"`           // Aster签名者（不敏感）
 }
 
 type UpdateModelConfigRequest struct {
@@ -951,11 +952,11 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			exchangeCfg.AsterSigner,
 			exchangeCfg.AsterPrivateKey,
 		)
-		case "bybit":
-			tempTrader = trader.NewBybitTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
-			)
+	case "bybit":
+		tempTrader = trader.NewBybitTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+		)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的交易所类型"})
 		return
@@ -1131,7 +1132,7 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 		return
 	}
 	log.Printf("✅ 找到 %d 个交易所配置", len(exchanges))
-	
+
 	// 调试：输出配置详情（脱敏）
 	for _, ex := range exchanges {
 		apiKeyMasked := ""
@@ -1693,7 +1694,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
 
 // handleLogout 将当前token加入黑名单
 func (s *Server) handleLogout(c *gin.Context) {

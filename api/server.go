@@ -665,17 +665,18 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest 更新交易员请求
 type UpdateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	BTCETHLeverage      int     `json:"btc_eth_leverage"`
-	AltcoinLeverage     int     `json:"altcoin_leverage"`
-	TradingSymbols      string  `json:"trading_symbols"`
-	CustomPrompt        string  `json:"custom_prompt"`
-	OverrideBasePrompt  bool    `json:"override_base_prompt"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`
+	Name                   string  `json:"name" binding:"required"`
+	AIModelID              string  `json:"ai_model_id" binding:"required"`
+	ExchangeID             string  `json:"exchange_id" binding:"required"`
+	InitialBalance         float64 `json:"initial_balance"`
+	ScanIntervalMinutes    int     `json:"scan_interval_minutes"`
+	BTCETHLeverage         int     `json:"btc_eth_leverage"`
+	AltcoinLeverage        int     `json:"altcoin_leverage"`
+	TradingSymbols         string  `json:"trading_symbols"`
+	CustomPrompt           string  `json:"custom_prompt"`
+	OverrideBasePrompt     bool    `json:"override_base_prompt"`
+	SystemPromptTemplate   string  `json:"system_prompt_template"`
+	IsCrossMargin          *bool   `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置

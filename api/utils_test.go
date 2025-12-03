@@ -99,6 +99,7 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 		AsterPrivateKey       string `json:"aster_private_key"`
 		LighterWalletAddr     string `json:"lighter_wallet_addr"`
 		LighterPrivateKey     string `json:"lighter_private_key"`
+		OKXPassphrase         string `json:"okx_passphrase"`
 	}{
 		"binance": {
 			Enabled:           true,
@@ -107,6 +108,7 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 			Testnet:           false,
 			LighterWalletAddr: "",
 			LighterPrivateKey: "",
+			OKXPassphrase:     "",
 		},
 		"hyperliquid": {
 			Enabled:               true,
@@ -114,6 +116,7 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 			Testnet:               false,
 			LighterWalletAddr:     "",
 			LighterPrivateKey:     "",
+			OKXPassphrase:         "",
 		},
 	}
 

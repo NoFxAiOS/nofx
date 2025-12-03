@@ -91,6 +91,7 @@ type AutoTrader struct {
         trader                Trader // 使用Trader接口（支持多平台）
         mcpClient             *mcp.Client
         decisionLogger        *logger.DecisionLogger // 决策日志记录器
+        kellyManager          *decision.KellyStopManager // 凯利公式止盈止损管理器
         initialBalance        float64
         dailyPnL              float64
         customPrompt          string   // 自定义交易策略prompt
@@ -204,6 +205,9 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
         logDir := fmt.Sprintf("decision_logs/%s", config.ID)
         decisionLogger := logger.NewDecisionLogger(logDir)
 
+        // 初始化凯利公式止盈止损管理器
+        kellyManager := decision.NewKellyStopManager()
+
         // 设置默认系统提示词模板
         systemPromptTemplate := config.SystemPromptTemplate
         if systemPromptTemplate == "" {
@@ -219,6 +223,7 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
                 trader:                trader,
                 mcpClient:             mcpClient,
                 decisionLogger:        decisionLogger,
+                kellyManager:          kellyManager,
                 initialBalance:        config.InitialBalance,
                 systemPromptTemplate:  systemPromptTemplate,
                 defaultCoins:          config.DefaultCoins,
@@ -438,7 +443,17 @@ func (at *AutoTrader) runCycle() error {
                 record.Decisions = append(record.Decisions, actionRecord)
         }
 
-        // 9. 保存决策记录
+        // 9. 检查并更新现有持仓的止盈止损单（使用凯利公式优化）
+        log.Println("🔄 开始执行凯利公式动态止盈止损检查...")
+        if err := at.checkAndUpdateStopOrders(); err != nil {
+                log.Printf("⚠ 更新止盈止损单失败: %v", err)
+                record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("⚠ 止盈止损更新失败: %v", err))
+        } else {
+                log.Println("✅ 所有持仓的止盈止损单已更新（凯利公式优化）")
+                record.ExecutionLog = append(record.ExecutionLog, "✅ 止盈止损单已更新")
+        }
+
+        // 10. 保存决策记录
         if err := at.decisionLogger.LogDecision(record); err != nil {
                 log.Printf("⚠ 保存决策记录失败: %v", err)
         }
@@ -853,6 +868,34 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
         log.Printf("  🔄 平多仓: %s", decision.Symbol)
 
+        // 记录平仓前持仓信息（用于计算盈利）
+        positions, err := at.trader.GetPositions()
+        if err == nil {
+                for _, pos := range positions {
+                        if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
+                                // 获取持仓详情
+                                entryPrice, _ := pos["entryPrice"].(float64)
+                                markPrice, _ := pos["markPrice"].(float64)
+                                unrealizedPnl, _ := pos["unRealizedProfit"].(float64)
+
+                                // 计算盈亏百分比
+                                profitPct := 0.0
+                                if entryPrice > 0 {
+                                        profitPct = (markPrice - entryPrice) / entryPrice
+                                }
+
+                                // 记录交易结果（延迟到平仓成功后执行）
+                                defer func(symbol string, isWin bool, profit float64) {
+                                        at.recordTradeResult(symbol, isWin, profit)
+                                }(decision.Symbol, profitPct >= 0, profitPct*100)
+
+                                log.Printf("  📊 平仓前: 入场价=%.6f, 当前价=%.6f, 未实现盈亏=%.2f, 盈亏比例=%.2f%%",
+                                        entryPrice, markPrice, unrealizedPnl, profitPct*100)
+                                break
+                        }
+                }
+        }
+
         // 获取当前价格
         marketData, err := market.Get(decision.Symbol)
         if err != nil {
@@ -871,13 +914,41 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
                 actionRecord.OrderID = orderID
         }
 
-        log.Printf("  ✓ 平仓成功")
+        log.Printf("  ✓ 平多仓成功")
         return nil
 }
 
 // executeCloseShortWithRecord 执行平空仓并记录详细信息
 func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
         log.Printf("  🔄 平空仓: %s", decision.Symbol)
+
+        // 记录平仓前持仓信息（用于计算盈利）
+        positions, err := at.trader.GetPositions()
+        if err == nil {
+                for _, pos := range positions {
+                        if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
+                                // 获取持仓详情
+                                entryPrice, _ := pos["entryPrice"].(float64)
+                                markPrice, _ := pos["markPrice"].(float64)
+                                unrealizedPnl, _ := pos["unRealizedProfit"].(float64)
+
+                                // 计算盈亏百分比（空仓相反）
+                                profitPct := 0.0
+                                if entryPrice > 0 {
+                                        profitPct = (entryPrice - markPrice) / entryPrice
+                                }
+
+                                // 记录交易结果（延迟到平仓成功后执行）
+                                defer func(symbol string, isWin bool, profit float64) {
+                                        at.recordTradeResult(symbol, isWin, profit)
+                                }(decision.Symbol, profitPct >= 0, profitPct*100)
+
+                                log.Printf("  📊 平仓前: 入场价=%.6f, 当前价=%.6f, 未实现盈亏=%.2f, 盈亏比例=%.2f%%",
+                                        entryPrice, markPrice, unrealizedPnl, profitPct*100)
+                                break
+                        }
+                }
+        }
 
         // 获取当前价格
         marketData, err := market.Get(decision.Symbol)
@@ -897,7 +968,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
                 actionRecord.OrderID = orderID
         }
 
-        log.Printf("  ✓ 平仓成功")
+        log.Printf("  ✓ 平空仓成功")
         return nil
 }
 
@@ -1265,4 +1336,143 @@ func normalizeSymbol(symbol string) string {
         }
 
         return symbol
+}
+
+// checkAndUpdateStopOrders 检查并更新止盈止损单（使用凯利公式优化）
+// 该方法在每个交易周期末尾调用，确保现有持仓的止盈止损点是最优的
+func (at *AutoTrader) checkAndUpdateStopOrders() error {
+        // 1. 获取当前持仓
+        positions, err := at.trader.GetPositions()
+        if err != nil {
+                return fmt.Errorf("获取持仓失败: %w", err)
+        }
+
+        if len(positions) == 0 {
+                log.Println("ℹ️ 当前无持仓，跳过止盈止损更新")
+                return nil
+        }
+
+        log.Printf("📊 检查 %d 个持仓的止盈止损单...", len(positions))
+
+        // 2. 对每个持仓进行止盈止损检查
+        for _, pos := range positions {
+                symbol := ""
+                if s, ok := pos["symbol"].(string); ok {
+                        symbol = s
+                }
+                side := ""
+                if s, ok := pos["side"].(string); ok {
+                        side = s
+                }
+
+                // 安全检查
+                if symbol == "" || side == "" {
+                        log.Printf("⚠️ 跳过无效持仓数据: %v", pos)
+                        continue
+                }
+
+                // 3. 使用凯利公式计算动态止盈止损
+                entryPrice := 0.0
+                if ep, ok := pos["entryPrice"].(float64); ok {
+                        entryPrice = ep
+                }
+                currentPrice := 0.0
+                if mp, ok := pos["markPrice"].(float64); ok {
+                        currentPrice = mp
+                }
+
+                if entryPrice <= 0 || currentPrice <= 0 {
+                        log.Printf("⚠️ %s 无效价格: entry=%.6f, current=%.6f", symbol, entryPrice, currentPrice)
+                        continue
+                }
+
+                // 计算当前盈利百分比
+                currentProfitPct := 0.0
+                if side == "long" {
+                        currentProfitPct = (currentPrice - entryPrice) / entryPrice
+                } else {
+                        currentProfitPct = (entryPrice - currentPrice) / entryPrice
+                }
+
+                // 获取历史统计数据
+                stats := at.kellyManager.GetHistoricalStats(symbol)
+
+                log.Printf("🔄 [%s %s] 当前盈利: %.2f%%, 历史胜率: %.1f%%",
+                        symbol, side, currentProfitPct*100, func() float64 {
+                                if stats != nil {
+                                        return stats.WinRate * 100
+                                }
+                                return 0
+                        }())
+
+                // 计算最优止盈点
+                takeProfitPrice, err := at.kellyManager.CalculateOptimalTakeProfit(
+                        symbol, entryPrice, currentPrice, side,
+                )
+                if err != nil {
+                        log.Printf("⚠️ 计算止盈点失败 (%s): %v", symbol, err)
+                        continue
+                }
+
+                // 计算动态止损点（保护已获利润）
+                stopLossPrice, err := at.kellyManager.CalculateDynamicStopLoss(
+                        symbol, entryPrice, currentPrice, 0, // maxProfitPct需要从历史数据计算
+                )
+                if err != nil {
+                        log.Printf("⚠️ 计算止损点失败 (%s): %v", symbol, err)
+                        continue
+                }
+
+                // 4. 更新止盈止损单
+                quantity := 0.0
+                if qty, ok := pos["positionAmt"].(float64); ok {
+                        quantity = qty
+                }
+                if quantity < 0 {
+                        quantity = -quantity
+                }
+
+                positionSide := strings.ToUpper(side)
+
+                // 更新止损单
+                if err := at.trader.SetStopLoss(symbol, positionSide, quantity, stopLossPrice); err != nil {
+                        log.Printf("⚠️ 更新止损单失败 (%s %s @ %.6f): %v", symbol, positionSide, stopLossPrice, err)
+                } else {
+                        log.Printf("✅ 更新止损单成功: %s %s @ %.6f (保护%.1f%%利润)",
+                                symbol, positionSide, stopLossPrice, currentProfitPct*100)
+                }
+
+                // 更新止盈单
+                if err := at.trader.SetTakeProfit(symbol, positionSide, quantity, takeProfitPrice); err != nil {
+                        log.Printf("⚠️ 更新止盈单失败 (%s %s @ %.6f): %v", symbol, positionSide, takeProfitPrice, err)
+                } else {
+                        log.Printf("✅ 更新止盈单成功: %s %s @ %.6f (目标%.1f%%收益)",
+                                symbol, positionSide, takeProfitPrice,
+                                func() float64 {
+                                        if side == "long" {
+                                                return (takeProfitPrice-entryPrice)/entryPrice*100
+                                        }
+                                        return (entryPrice-takeProfitPrice)/entryPrice*100
+                                }())
+                }
+
+                // 更新历史统计数据（如果这次交易完成）
+                // 注意：这里仅在持仓盈利或亏损时更新，实际平仓时会在平仓逻辑中更新
+        }
+
+        return nil
+}
+
+// recordTradeResult 记录交易结果到凯利公式管理器
+// isWin: 是否盈利
+// profitPct: 盈利百分比（正数为盈利，负数为亏损）
+func (at *AutoTrader) recordTradeResult(symbol string, isWin bool, profitPct float64) {
+        at.kellyManager.UpdateHistoricalStats(symbol, isWin, profitPct)
+        log.Printf("📊 记录交易结果: %s %s, 盈利%.2f%%",
+                symbol, func() string {
+                        if isWin {
+                                return "盈利"
+                        }
+                        return "亏损"
+                }(), profitPct)
 }

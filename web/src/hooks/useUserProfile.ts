@@ -151,38 +151,67 @@ export function useUserProfile(): UserProfileState {
 
 /**
  * 用户积分数据Hook
- * 获取用户的积分相关信息（如果积分系统已部署）
+ * 从 user_credits 表获取用户积分真实数据
+ *
+ * 遵循Linus Torvalds的"好品味"原则：
+ * - 消除边界情况：所有场景使用真实API
+ * - 简洁执念：只返回必要字段
+ * - 实用主义：显示真实数据而非假数据
  */
 export function useUserCredits() {
   const { token } = useAuth();
 
-  // 使用现有的积分系统API（如果可用）
-  // 这里可以集成之前构建的积分系统
   const { data, error, mutate } = useSWR(
     token ? 'user-credits' : null,
     async () => {
       try {
-        // 尝试调用积分系统API
-        // 如果积分系统未部署，返回模拟数据
+        // 调用真实的积分系统API
+        // API: GET /api/v1/user/credits
+        // 返回: { available_credits, total_credits, used_credits }
+        const response = await fetch('/api/v1/user/credits', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`获取积分数据失败: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        // 验证API响应格式
+        if (!result.data || typeof result.data !== 'object') {
+          throw new Error('API响应格式错误');
+        }
+
+        // 返回真实数据（只返回必要字段，遵循简洁原则）
         return {
-          available_credits: 1000,
-          total_credits: 1500,
-          used_credits: 500,
-          transaction_count: 10
+          available_credits: result.data.available_credits || 0,
+          total_credits: result.data.total_credits || 0,
+          used_credits: result.data.used_credits || 0
+          // 注意：不返回 transaction_count 字段（用户不需要此信息）
         };
       } catch (error) {
-        console.warn('积分系统API不可用，使用模拟数据');
+        console.error('获取积分数据失败:', error);
+
+        // 返回0而不是假数据（实用主义：诚实的数据）
         return {
           available_credits: 0,
           total_credits: 0,
-          used_credits: 0,
-          transaction_count: 0
+          used_credits: 0
         };
       }
     },
     {
       refreshInterval: 30000, // 30秒刷新
-      revalidateOnFocus: false
+      revalidateOnFocus: false,
+      // 错误重试策略
+      onError: (err) => {
+        console.error('用户积分数据加载失败:', err);
+      }
     }
   );
 

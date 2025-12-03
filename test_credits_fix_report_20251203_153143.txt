@@ -1,0 +1,53 @@
+积分系统数据显示修复 - 测试报告
+=====================================
+
+测试时间: Wed Dec  3 15:31:43 CST 2025
+测试用户: gyc567@gmail.com
+用户ID: 68003b68-2f1d-4618-8124-e93e4a86200a
+
+测试项目:
+---------
+
+1. API端点测试
+   - 端点: GET /api/v1/user/credits
+   - 状态: 需要手动验证
+   - 备注: 需要真实token进行认证
+
+2. 数据库验证
+   - 表: user_credits
+   - 预期数据:
+     * available_credits: 10000
+     * total_credits: 10000
+     * used_credits: 0
+
+3. 前端代码修改
+   - useUserProfile.ts: ✓ 已修改为调用真实API
+   - UserProfilePage.tsx: ✓ 已移除交易次数字段
+   - 布局: ✓ 已改为3列显示
+
+修复文件:
+---------
+1. web/src/hooks/useUserProfile.ts
+   - 修改 useUserCredits Hook调用真实API
+   - 移除 transaction_count 字段
+
+2. web/src/pages/UserProfilePage.tsx
+   - 移除"交易次数"显示字段
+   - 调整布局从4列到3列
+   - 优化字段显示顺序
+
+3. web/openspec/bugs/credits-display-incorrect-data-bug.md
+   - 创建bug修复提案文档
+
+预期结果:
+---------
+✅ 总积分显示: 10000 (蓝色)
+✅ 可用积分显示: 10000 (绿色)
+✅ 已用积分显示: 0 (橙色)
+✅ 不显示"交易次数"字段
+✅ 数据来自user_credits表（真实数据）
+
+测试结论:
+---------
+代码修改已完成，需要进行功能验证测试。
+

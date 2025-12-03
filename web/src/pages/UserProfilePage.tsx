@@ -200,7 +200,18 @@ const UserProfilePage: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {credits?.total_credits || 0}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      总积分
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      账户总余额
+                    </div>
+                  </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                       {credits?.available_credits || 0}
@@ -208,13 +219,8 @@ const UserProfilePage: React.FC = () => {
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       可用积分
                     </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {credits?.total_credits || 0}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      总积分
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      可用于消费
                     </div>
                   </div>
                   <div className="text-center">
@@ -224,13 +230,8 @@ const UserProfilePage: React.FC = () => {
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       已用积分
                     </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      {credits?.transaction_count || 0}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      交易次数
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      历史累计消费
                     </div>
                   </div>
                 </div>
@@ -315,11 +316,12 @@ const UserProfileSkeleton: React.FC = () => {
           {[1, 2].map((i) => (
             <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4"></div>
-              <div className="grid grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((j) => (
+              <div className="grid grid-cols-3 gap-4">
+                {[1, 2, 3].map((j) => (
                   <div key={j} className="text-center">
                     <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mb-1"></div>
                     <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto"></div>
+                    <div className="h-3 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto mt-1"></div>
                   </div>
                 ))}
               </div>

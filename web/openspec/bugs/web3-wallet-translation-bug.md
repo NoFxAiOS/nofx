@@ -47,7 +47,7 @@
 
 ## 🔍 根因分析
 
-### 根本原因
+### 根本原因（开发环境）
 翻译键名不匹配：代码调用的键与翻译文件中定义的键完全不同。
 
 ### 问题路径分析
@@ -67,24 +67,60 @@ WalletSelector.tsx
 | `web3.selectWallet` | `web3.selectWallet` | ✅ 匹配 |
 | `web3.connectWallet` | `web3.connectWallet` | ✅ 匹配 |
 
-### 可能的原因树
+---
 
-1. **键名命名不一致** (高概率)
-   - 开发者A使用camelCase (`metaMaskDesc`)
-   - 开发者B使用snake_case (`metamask.description`)
-   - 缺乏统一的命名规范
+## 🔍 正式环境分析（新增）
 
-2. **代码重构未同步** (中概率)
-   - 翻译文件被重构但组件代码未更新
-   - 或者相反情况
+### 根本原因（生产环境）
+**部署链路上的缓存断点**导致修复未生效。我们发现问题不是代码层面，而是环境传递层面。
 
-3. **复制粘贴错误** (中概率)
-   - 从其他项目复制了不匹配的键名
-   - 手动输入时的拼写错误
+### 断点1：边缘节点缓存（已确认）
+```
+现象验证:
+curl -I https://www.agentrade.xyz/
+→ x-vercel-cache: HIT
+→ age: 528
+```
+**分析结果**: CDN边缘节点缓存了旧版本，优先返回缓存内容而非最新代码。
+**概率**: 高 (100%确认)
+**影响**: 正式环境显示[Select Wallet]而非修复后的文本
 
-4. **缺乏类型检查** (低概率)
-   - TypeScript未对翻译键进行类型约束
-   - 编译时无法发现键名错误
+### 断点2：域名绑定配置（待确认）
+```plaintext
+可能情况1: www.agentrade.xyz → 旧部署ID (非最新)
+可能情况2: www.agentrade.xyz → agentrade-8ryth5f1g-gyc567s-projects.vercel.app (最新)
+```
+**验证命令**: `vercel domains inspect www.agentrade.xyz`
+**概率**: 中
+**影响**: 如果绑定了旧部署，任何推送都不会生效
+
+### 断点3：GitHub CI/CD触发失败（排除）
+```
+验证结果:
+git log → 9ac9e5c (最新提交: 修复Web3钱包按钮翻译)
+git push → origin/main 已同步
+Vercel部署 → 成功完成
+```
+**分析结果**: GitHub Webhook正常触发Vercel生产环境部署，构建成功，代码包含修复。
+**概率**: 低（已排除）
+**影响**: N/A
+
+### 完整问题链分析
+```
+正确流程:
+Git提交(9ac9e5c) → Push → Vercel获取代码 → 构建 → 生产环境部署 → 域名绑定 → 用户访问
+
+发现问题:
+Git提交(9ac9e5c) → Push → Vercel获取代码 → 构建 → 生产环境部署 → 域名绑定 → ⚠️ 边缘节点缓存 → 用户看到旧版本
+```
+
+### 缓存时间轴分析
+```
+时间线:
+t0:     部署完成 (agentrade-8ryth5f1g-gyc567s-projects.vercel.app)
+t0+9m:  边缘节点缓存创建 (age: 528秒 ≈ 9分钟)
+t现在:  用户访问 → 缓存命中 → 返回旧版本
+```
 
 ---
 

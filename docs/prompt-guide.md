@@ -153,8 +153,7 @@ BTC broke support, MACD death cross, volume increased...
     "position_size_usd": 5000,
     "stop_loss": 97000,
     "take_profit": 91000,
-    "confidence": 85,
-    "reasoning": "Bearish technical turn"
+    "confidence": 85
   }
 ]
 ```
@@ -462,8 +461,7 @@ Your analysis...
     "stop_loss": 97000,
     "take_profit": 91000,
     "confidence": 85,
-    "risk_usd": 300,
-    "reasoning": "Bearish technical"
+    "risk_usd": 300
   }
 ]
 ```
@@ -500,14 +498,14 @@ Your analysis...
 {
   "symbol": "BTCUSDT",
   "action": "open_long",  // Open long
-  "reasoning": "This is a great long opportunity because..."  // Too long
+  "confidence": 80  // Only necessary fields
 }
 
 // Correct
 {
   "symbol": "BTCUSDT",
   "action": "open_long",
-  "reasoning": "MACD golden cross + volume surge"
+  "confidence": 85
 }
 ```
 

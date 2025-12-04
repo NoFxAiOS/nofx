@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"nofx/config"
+	"nofx/pool" // ← 必须加
 	"nofx/trader"
 	"sort"
 	"strconv"
@@ -167,6 +168,14 @@ func (tm *TraderManager) LoadTradersFromDatabase(database *config.Database) erro
 		} else {
 			// 如果用户没有配置信号源，使用空字符串
 			log.Printf("🔍 用户 %s 暂未配置信号源", traderCfg.UserID)
+		}
+
+		// 🚀 必须新增：注入信号源 URL
+		if strings.TrimSpace(coinPoolURL) != "" {
+			pool.SetCoinPoolAPI(coinPoolURL)
+		}
+		if strings.TrimSpace(oiTopURL) != "" {
+			pool.SetOITopAPI(oiTopURL)
 		}
 
 		// 添加到TraderManager
@@ -754,6 +763,14 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
 		log.Printf("🔍 用户 %s 暂未配置信号源", userID)
 	}
 
+	// 🚀 核心补丁：把 URL 注入到池模块，否则永远显示“未配置”
+	if strings.TrimSpace(coinPoolURL) != "" {
+		pool.SetCoinPoolAPI(coinPoolURL)
+	}
+	if strings.TrimSpace(oiTopURL) != "" {
+		pool.SetOITopAPI(oiTopURL)
+	}
+
 	// 解析配置
 	maxDailyLoss := 10.0 // 默认值
 	if val, err := strconv.ParseFloat(maxDailyLossStr, 64); err == nil {
@@ -967,6 +984,14 @@ func (tm *TraderManager) LoadTraderByID(database *config.Database, userID, trade
 		log.Printf("📡 加载用户 %s 的信号源配置: COIN POOL=%s, OI TOP=%s", userID, coinPoolURL, oiTopURL)
 	} else {
 		log.Printf("🔍 用户 %s 暂未配置信号源", userID)
+	}
+
+	// 🚀 核心补丁：把 URL 注入到池模块，否则永远显示“未配置”
+	if strings.TrimSpace(coinPoolURL) != "" {
+		pool.SetCoinPoolAPI(coinPoolURL)
+	}
+	if strings.TrimSpace(oiTopURL) != "" {
+		pool.SetOITopAPI(oiTopURL)
 	}
 
 	// 7. 解析系统配置

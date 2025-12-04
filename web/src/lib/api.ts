@@ -24,11 +24,13 @@ function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
-  if (token) {
+
+  // Bug修复: 严格的token检查，避免无效token导致401错误
+  // 检查token是否为有效字符串（不是null、undefined、空字符串或"undefined"/"null"）
+  if (token && typeof token === 'string' && token.length > 0 && token !== 'undefined' && token !== 'null') {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   return headers;
 }
 
@@ -38,7 +40,27 @@ export const api = {
     const res = await fetch(`${API_BASE}/my-traders`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error('获取trader列表失败');
+
+    // Bug修复: 改进错误处理，针对401错误提供友好提示
+    if (!res.ok) {
+      if (res.status === 401) {
+        // 401错误通常意味着token无效或已过期
+        console.error('Token无效或已过期:', res.statusText);
+        throw new Error('登录已过期，请重新登录');
+      }
+
+      let errorMsg = '获取trader列表失败';
+      try {
+        const errorData = await res.json();
+        if (errorData.error) {
+          errorMsg = errorData.error;
+        }
+      } catch (e) {
+        // 使用默认错误信息
+      }
+      throw new Error(errorMsg);
+    }
+
     return res.json();
   },
 
@@ -206,7 +228,27 @@ export const api = {
         'Cache-Control': 'no-cache',
       },
     });
-    if (!res.ok) throw new Error('获取账户信息失败');
+
+    // Bug修复: 改进错误处理，针对401错误提供友好提示
+    if (!res.ok) {
+      if (res.status === 401) {
+        // 401错误通常意味着token无效或已过期
+        console.error('Token无效或已过期:', res.statusText);
+        throw new Error('登录已过期，请重新登录');
+      }
+
+      let errorMsg = '获取账户信息失败';
+      try {
+        const errorData = await res.json();
+        if (errorData.error) {
+          errorMsg = errorData.error;
+        }
+      } catch (e) {
+        // 使用默认错误信息
+      }
+      throw new Error(errorMsg);
+    }
+
     const data = await res.json();
     console.log('Account data fetched:', data);
     return data;

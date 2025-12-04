@@ -6,7 +6,7 @@ import (
 
 const (
 	ProviderDeepSeek       = "deepseek"
-	DefaultDeepSeekBaseURL = "https://api.deepseek.com/v1"
+	DefaultDeepSeekBaseURL = "https://api.deepseek.com"
 	DefaultDeepSeekModel   = "deepseek-chat"
 )
 

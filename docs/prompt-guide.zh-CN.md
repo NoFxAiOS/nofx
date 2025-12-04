@@ -153,8 +153,7 @@ BTC 跌破支撑位，MACD 死叉，成交量放大...
     "position_size_usd": 5000,
     "stop_loss": 97000,
     "take_profit": 91000,
-    "confidence": 85,
-    "reasoning": "技术面转空"
+    "confidence": 85
   }
 ]
 ```
@@ -462,8 +461,7 @@ AI 必须按照以下格式输出决策：
     "stop_loss": 97000,
     "take_profit": 91000,
     "confidence": 85,
-    "risk_usd": 300,
-    "reasoning": "技术面转空"
+    "risk_usd": 300
   }
 ]
 ```
@@ -500,14 +498,14 @@ AI 必须按照以下格式输出决策：
 {
   "symbol": "BTCUSDT",
   "action": "open_long",  // 开多仓
-  "reasoning": "这是一个很好的做多机会，因为..."  // 太长
+  "confidence": 80  // 只需要必要字段
 }
 
 // 正确
 {
   "symbol": "BTCUSDT",
   "action": "open_long",
-  "reasoning": "MACD金叉+成交量放大"
+  "confidence": 85
 }
 ```
 

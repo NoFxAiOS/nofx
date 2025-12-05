@@ -48,6 +48,12 @@ export const translations = {
     availableCredits: 'Available Credits',
     usedCredits: 'Used Credits',
     totalTransactions: 'Total Transactions',
+    totalCredits: 'Total Credits',
+    accountTotalBalance: 'Account Total Balance',
+    availableForUse: 'Available for Use',
+    historicallyConsumed: 'Historically Consumed',
+    loadingCreditData: 'Loading credit data...',
+    creditDataLoadFailed: 'Failed to load credit data',
 
     // Footer
     footerTitle: 'Agent Trade - AI Trading System',
@@ -530,6 +536,12 @@ export const translations = {
     availableCredits: '可用积分',
     usedCredits: '已用积分',
     totalTransactions: '总交易数',
+    totalCredits: '总积分',
+    accountTotalBalance: '账户总余额',
+    availableForUse: '可用于消费',
+    historicallyConsumed: '历史累计消费',
+    loadingCreditData: '加载积分数据中...',
+    creditDataLoadFailed: '积分数据加载失败',
 
     // Stats Cards
     totalEquity: '总净值',

@@ -45,7 +45,7 @@ const UserProfilePage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">{t('profile.profile_error', language) || '获取用户信息失败'}</h3>
+            <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">{t('profile.profile_error', language)}</h3>
             <p className="text-[var(--text-secondary)] mb-4">{error}</p>
             <button
               onClick={refetch}
@@ -135,12 +135,12 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.total_equity ? `$${userProfile.total_equity.toFixed(2)}` : '$0.00'}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    总净值
+                    {t('totalEquity', language)}
                   </div>
                   <div className={`text-xs mt-1 ${
                     (userProfile?.daily_pnl || 0) >= 0 ? 'text-[var(--binance-green)]' : 'text-[var(--binance-red)]'
                   }`}>
-                    {(userProfile?.daily_pnl || 0) >= 0 ? '+' : ''}{userProfile?.daily_pnl?.toFixed(2) || 0} 日收益
+                    {(userProfile?.daily_pnl || 0) >= 0 ? '+' : ''}{userProfile?.daily_pnl?.toFixed(2) || 0} {t('profile.dailyPnl', language)}
                   </div>
                 </div>
 
@@ -149,7 +149,7 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.total_pnl ? `$${userProfile.total_pnl.toFixed(2)}` : '$0.00'}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    总盈亏
+                    {t('totalPnL', language)}
                   </div>
                 </div>
 
@@ -158,10 +158,10 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.active_traders || 0}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    活跃交易员
+                    {t('profile.activeTraders', language)}
                   </div>
                   <div className="text-xs text-[var(--text-tertiary)]">
-                    /{userProfile?.trader_count || 0} 总计
+                    /{userProfile?.trader_count || 0} {t('profile.totalTraders', language)}
                   </div>
                 </div>
 
@@ -170,7 +170,7 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.position_count || 0}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    持仓数量
+                    {t('totalPositions', language)}
                   </div>
                 </div>
               </div>
@@ -185,7 +185,7 @@ const UserProfilePage: React.FC = () => {
                 <div className="text-center py-8">
                   <div className="spinner mx-auto mb-2"></div>
                   <p className="text-[var(--text-secondary)]">
-                    加载积分数据中...
+                    {t('loadingCreditData', language)}
                   </p>
                 </div>
               ) : creditsError ? (
@@ -194,7 +194,7 @@ const UserProfilePage: React.FC = () => {
                     ⚠️
                   </div>
                   <p className="text-[var(--binance-red)]">
-                    积分数据加载失败
+                    {t('creditDataLoadFailed', language)}
                   </p>
                 </div>
               ) : (
@@ -204,10 +204,10 @@ const UserProfilePage: React.FC = () => {
                       {credits?.total_credits || 0}
                     </div>
                     <div className="text-sm text-[var(--text-secondary)]">
-                      总积分
+                      {t('totalCredits', language)}
                     </div>
                     <div className="text-xs text-[var(--text-tertiary)] mt-1">
-                      账户总余额
+                      {t('accountTotalBalance', language)}
                     </div>
                   </div>
                   <div className="text-center">
@@ -215,10 +215,10 @@ const UserProfilePage: React.FC = () => {
                       {credits?.available_credits || 0}
                     </div>
                     <div className="text-sm text-[var(--text-secondary)]">
-                      可用积分
+                      {t('availableCredits', language)}
                     </div>
                     <div className="text-xs text-[var(--text-tertiary)] mt-1">
-                      可用于消费
+                      {t('availableForUse', language)}
                     </div>
                   </div>
                   <div className="text-center">
@@ -226,10 +226,10 @@ const UserProfilePage: React.FC = () => {
                       {credits?.used_credits || 0}
                     </div>
                     <div className="text-sm text-[var(--text-secondary)]">
-                      已用积分
+                      {t('usedCredits', language)}
                     </div>
                     <div className="text-xs text-[var(--text-tertiary)] mt-1">
-                      历史累计消费
+                      {t('historicallyConsumed', language)}
                     </div>
                   </div>
                 </div>
@@ -252,7 +252,7 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.trader_count || 0}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    总交易员数
+                    {t('profile.totalTraders', language)}
                   </div>
                 </div>
 
@@ -261,7 +261,7 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.active_traders || 0}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    活跃交易员
+                    {t('profile.activeTraders', language)}
                   </div>
                 </div>
 
@@ -270,7 +270,7 @@ const UserProfilePage: React.FC = () => {
                     {userProfile?.position_count || 0}
                   </div>
                   <div className="text-sm text-[var(--text-secondary)]">
-                    总持仓数
+                    {t('profile.totalPositions', language)}
                   </div>
                 </div>
               </div>

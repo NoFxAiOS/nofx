@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
@@ -14,7 +13,6 @@ import { RegistrationDisabled } from './RegistrationDisabled'
 export function RegisterPage() {
   const { language } = useLanguage()
   const { register, completeRegistration } = useAuth()
-  const navigate = useNavigate()
   const [step, setStep] = useState<'register' | 'setup-otp' | 'verify-otp'>(
     'register'
   )
@@ -530,7 +528,9 @@ export function RegisterPage() {
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               已有账户？{' '}
               <button
-                onClick={() => navigate('/login')}
+                onClick={() => {
+                  window.location.href = '/login'
+                }}
                 className="font-semibold hover:underline transition-colors"
                 style={{ color: 'var(--brand-yellow)' }}
               >

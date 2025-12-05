@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"nofx/config"
 	"os"
 
 	"github.com/sirupsen/logrus"
@@ -10,10 +9,19 @@ import (
 var (
 	// Log 全局logger实例
 	Log *logrus.Logger
-
-	// telegramHook 保存hook引用，用于优雅关闭
-	telegramHook *TelegramHook
 )
+
+func init() {
+	// 自动初始化默认 logger，确保在 Init 被调用前也能使用
+	Log = logrus.New()
+	Log.SetLevel(logrus.InfoLevel)
+	Log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		ForceColors:     true,
+	})
+	Log.SetOutput(os.Stdout)
+}
 
 // ============================================================================
 // 初始化函数
@@ -52,26 +60,6 @@ func Init(cfg *Config) error {
 	// 启用调用位置信息
 	Log.SetReportCaller(true)
 
-	// 添加Telegram Hook（可选）
-	if cfg.Telegram != nil && cfg.Telegram.Enabled {
-		if err := setupTelegramHook(cfg.Telegram); err != nil {
-			Log.Warnf("初始化Telegram推送失败，将继续使用普通日志: %v", err)
-		}
-	}
-
-	return nil
-}
-
-// setupTelegramHook 设置Telegram Hook
-func setupTelegramHook(telegramCfg *TelegramConfig) error {
-	hook, err := NewTelegramHook(telegramCfg)
-	if err != nil {
-		return err
-	}
-
-	Log.AddHook(hook)
-	telegramHook = hook
-	Log.Info("✅ Telegram日志推送已启用")
 	return nil
 }
 
@@ -81,69 +69,9 @@ func InitWithSimpleConfig(level string) error {
 	return Init(&Config{Level: level})
 }
 
-// InitWithTelegram 使用Telegram配置初始化logger
-func InitWithTelegram(botToken string, chatID int64) error {
-	return Init(&Config{
-		Level: "info",
-		Telegram: &TelegramConfig{
-			Enabled:  true,
-			BotToken: botToken,
-			ChatID:   chatID,
-		},
-	})
-}
-
-// InitFromLogConfig 从config.LogConfig初始化logger
-func InitFromLogConfig(logConfig *config.LogConfig) error {
-	if logConfig == nil {
-		return InitWithSimpleConfig("info")
-	}
-
-	cfg := &Config{
-		Level: logConfig.Level,
-	}
-
-	if cfg.Level == "" {
-		cfg.Level = "info"
-	}
-
-	// 如果启用了Telegram，添加配置
-	if logConfig.Telegram != nil && logConfig.Telegram.Enabled {
-		if botToken := logConfig.Telegram.BotToken; botToken != "" && logConfig.Telegram.ChatID != 0 {
-			cfg.Telegram = &TelegramConfig{
-				Enabled:  true,
-				BotToken: botToken,
-				ChatID:   logConfig.Telegram.ChatID,
-				MinLevel: logConfig.Telegram.MinLevel,
-			}
-		}
-	}
-
-	return Init(cfg)
-}
-
-// InitFromParams 从参数初始化logger
-// 适用于不依赖config包的场景
-func InitFromParams(level string, telegramEnabled bool, botToken string, chatID int64) error {
-	cfg := &Config{Level: level}
-
-	if telegramEnabled && botToken != "" && chatID != 0 {
-		cfg.Telegram = &TelegramConfig{
-			Enabled:  true,
-			BotToken: botToken,
-			ChatID:   chatID,
-		}
-	}
-
-	return Init(cfg)
-}
-
-// Shutdown 优雅关闭logger（主要用于关闭Telegram发送器）
+// Shutdown 优雅关闭logger
 func Shutdown() {
-	if telegramHook != nil {
-		telegramHook.Stop()
-		telegramHook = nil
-	}
+	// 预留用于未来扩展
 }
 
 // ============================================================================
@@ -207,4 +135,33 @@ func Panic(args ...interface{}) {
 
 func Panicf(format string, args ...interface{}) {
 	Log.Panicf(format, args...)
+}
+
+// ============================================================================
+// MCP Logger 适配器
+// ============================================================================
+
+// MCPLogger 适配器，使 MCP 包使用全局 logger
+// 实现 mcp.Logger 接口
+type MCPLogger struct{}
+
+// NewMCPLogger 创建 MCP 日志适配器
+func NewMCPLogger() *MCPLogger {
+	return &MCPLogger{}
+}
+
+func (l *MCPLogger) Debugf(format string, args ...any) {
+	Log.Debugf(format, args...)
+}
+
+func (l *MCPLogger) Infof(format string, args ...any) {
+	Log.Infof(format, args...)
+}
+
+func (l *MCPLogger) Warnf(format string, args ...any) {
+	Log.Warnf(format, args...)
+}
+
+func (l *MCPLogger) Errorf(format string, args ...any) {
+	Log.Errorf(format, args...)
 }

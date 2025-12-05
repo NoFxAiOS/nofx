@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
-import { EquityChart } from '../components/EquityChart'
-import AILearning from '../components/AILearning'
+import { ChartTabs } from '../components/ChartTabs'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { t, type Language } from '../i18n/translations'
@@ -419,9 +418,9 @@ export default function TraderDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* 左侧：图表 + 持仓 */}
         <div className="space-y-6">
-          {/* Equity Chart */}
+          {/* Chart Tabs (Equity / K-line) */}
           <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
-            <EquityChart traderId={selectedTrader.trader_id} />
+            <ChartTabs traderId={selectedTrader.trader_id} />
           </div>
 
           {/* Current Positions */}
@@ -669,10 +668,6 @@ export default function TraderDashboard() {
         </div>
       </div>
 
-      {/* AI Learning & Performance Analysis */}
-      <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
-        <AILearning traderId={selectedTrader.trader_id} />
-      </div>
     </div>
   )
 }

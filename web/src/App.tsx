@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { api } from './lib/api'
-import { EquityChart } from './components/EquityChart'
+import { ChartTabs } from './components/ChartTabs'
 import { AITradersPage } from './components/AITradersPage'
 import { LoginPage } from './components/LoginPage'
 import { RegisterPage } from './components/RegisterPage'
@@ -10,7 +10,6 @@ import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import HeaderBar from './components/HeaderBar'
-import AILearning from './components/AILearning'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/ConfirmDialog'
@@ -780,9 +779,9 @@ function TraderDetailsPage({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* 左侧：图表 + 持仓 */}
         <div className="space-y-6">
-          {/* Equity Chart */}
+          {/* Chart Tabs (Equity / K-line) */}
           <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
-            <EquityChart traderId={selectedTrader.trader_id} />
+            <ChartTabs traderId={selectedTrader.trader_id} />
           </div>
 
           {/* Current Positions */}
@@ -1002,10 +1001,6 @@ function TraderDetailsPage({
         {/* 右侧结束 */}
       </div>
 
-      {/* AI Learning & Performance Analysis */}
-      <div className="mb-6 animate-slide-in" style={{ animationDelay: '0.3s' }}>
-        <AILearning traderId={selectedTrader.trader_id} />
-      </div>
     </div>
   )
 }

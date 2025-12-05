@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"nofx/logger"
 	"math"
 	"math/big"
 	"net/http"
@@ -469,13 +469,13 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	}
 
 	if !foundUSDT {
-		log.Printf("⚠️  未找到USDT资产记录！")
+		logger.Infof("⚠️  未找到USDT资产记录！")
 	}
 
 	// 获取持仓计算保证金占用和真实未实现盈亏
 	positions, err := t.GetPositions()
 	if err != nil {
-		log.Printf("⚠️  获取持仓信息失败: %v", err)
+		logger.Infof("⚠️  获取持仓信息失败: %v", err)
 		// fallback: 无法获取持仓时使用简单计算
 		return map[string]interface{}{
 			"totalWalletBalance":    crossWalletBalance,
@@ -577,7 +577,7 @@ func (t *AsterTrader) GetPositions() ([]map[string]interface{}, error) {
 func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// 开仓前先取消所有挂单,防止残留挂单导致仓位叠加
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败(继续开仓): %v", err)
+		logger.Infof("  ⚠ 取消挂单失败(继续开仓): %v", err)
 	}
 
 	// 先设置杠杆
@@ -614,7 +614,7 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	logger.Infof("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -644,7 +644,7 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// 开仓前先取消所有挂单,防止残留挂单导致仓位叠加
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败(继续开仓): %v", err)
+		logger.Infof("  ⚠ 取消挂单失败(继续开仓): %v", err)
 	}
 
 	// 先设置杠杆
@@ -681,7 +681,7 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	logger.Infof("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -726,7 +726,7 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		if quantity == 0 {
 			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
 		}
-		log.Printf("  📊 获取到多仓数量: %.8f", quantity)
+		logger.Infof("  📊 获取到多仓数量: %.8f", quantity)
 	}
 
 	price, err := t.GetMarketPrice(symbol)
@@ -756,7 +756,7 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	logger.Infof("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -779,11 +779,11 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		return nil, err
 	}
 
-	log.Printf("✓ 平多仓成功: %s 数量: %s", symbol, qtyStr)
+	logger.Infof("✓ 平多仓成功: %s 数量: %s", symbol, qtyStr)
 
 	// 平仓后取消该币种的所有挂单(止损止盈单)
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败: %v", err)
+		logger.Infof("  ⚠ 取消挂单失败: %v", err)
 	}
 
 	return result, nil
@@ -809,7 +809,7 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		if quantity == 0 {
 			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
 		}
-		log.Printf("  📊 获取到空仓数量: %.8f", quantity)
+		logger.Infof("  📊 获取到空仓数量: %.8f", quantity)
 	}
 
 	price, err := t.GetMarketPrice(symbol)
@@ -839,7 +839,7 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
 	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
 
-	log.Printf("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
+	logger.Infof("  📏 精度处理: 价格 %.8f -> %s (精度=%d), 数量 %.8f -> %s (精度=%d)",
 		limitPrice, priceStr, prec.PricePrecision, quantity, qtyStr, prec.QuantityPrecision)
 
 	params := map[string]interface{}{
@@ -862,11 +862,11 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		return nil, err
 	}
 
-	log.Printf("✓ 平空仓成功: %s 数量: %s", symbol, qtyStr)
+	logger.Infof("✓ 平空仓成功: %s 数量: %s", symbol, qtyStr)
 
 	// 平仓后取消该币种的所有挂单(止损止盈单)
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("  ⚠ 取消挂单失败: %v", err)
+		logger.Infof("  ⚠ 取消挂单失败: %v", err)
 	}
 
 	return result, nil
@@ -892,30 +892,30 @@ func (t *AsterTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 		// 如果错误表示无需更改，忽略错误
 		if strings.Contains(err.Error(), "No need to change") ||
 			strings.Contains(err.Error(), "Margin type cannot be changed") {
-			log.Printf("  ✓ %s 仓位模式已是 %s 或有持仓无法更改", symbol, marginType)
+			logger.Infof("  ✓ %s 仓位模式已是 %s 或有持仓无法更改", symbol, marginType)
 			return nil
 		}
 		// 检测多资产模式（错误码 -4168）
 		if strings.Contains(err.Error(), "Multi-Assets mode") ||
 			strings.Contains(err.Error(), "-4168") ||
 			strings.Contains(err.Error(), "4168") {
-			log.Printf("  ⚠️ %s 检测到多资产模式，强制使用全仓模式", symbol)
-			log.Printf("  💡 提示：如需使用逐仓模式，请在交易所关闭多资产模式")
+			logger.Infof("  ⚠️ %s 检测到多资产模式，强制使用全仓模式", symbol)
+			logger.Infof("  💡 提示：如需使用逐仓模式，请在交易所关闭多资产模式")
 			return nil
 		}
 		// 检测统一账户 API
 		if strings.Contains(err.Error(), "unified") ||
 			strings.Contains(err.Error(), "portfolio") ||
 			strings.Contains(err.Error(), "Portfolio") {
-			log.Printf("  ❌ %s 检测到统一账户 API，无法进行合约交易", symbol)
+			logger.Infof("  ❌ %s 检测到统一账户 API，无法进行合约交易", symbol)
 			return fmt.Errorf("请使用「现货与合约交易」API 权限，不要使用「统一账户 API」")
 		}
-		log.Printf("  ⚠️ 设置仓位模式失败: %v", err)
+		logger.Infof("  ⚠️ 设置仓位模式失败: %v", err)
 		// 不返回错误，让交易继续
 		return nil
 	}
 
-	log.Printf("  ✓ %s 仓位模式已设置为 %s", symbol, marginType)
+	logger.Infof("  ✓ %s 仓位模式已设置为 %s", symbol, marginType)
 	return nil
 }
 
@@ -1075,19 +1075,19 @@ func (t *AsterTrader) CancelStopLossOrders(symbol string) error {
 			if err != nil {
 				errMsg := fmt.Sprintf("订单ID %d: %v", int64(orderID), err)
 				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
-				log.Printf("  ⚠ 取消止损单失败: %s", errMsg)
+				logger.Infof("  ⚠ 取消止损单失败: %s", errMsg)
 				continue
 			}
 
 			canceledCount++
-			log.Printf("  ✓ 已取消止损单 (订单ID: %d, 类型: %s, 方向: %s)", int64(orderID), orderType, positionSide)
+			logger.Infof("  ✓ 已取消止损单 (订单ID: %d, 类型: %s, 方向: %s)", int64(orderID), orderType, positionSide)
 		}
 	}
 
 	if canceledCount == 0 && len(cancelErrors) == 0 {
-		log.Printf("  ℹ %s 没有止损单需要取消", symbol)
+		logger.Infof("  ℹ %s 没有止损单需要取消", symbol)
 	} else if canceledCount > 0 {
-		log.Printf("  ✓ 已取消 %s 的 %d 个止损单", symbol, canceledCount)
+		logger.Infof("  ✓ 已取消 %s 的 %d 个止损单", symbol, canceledCount)
 	}
 
 	// 如果所有取消都失败了，返回错误
@@ -1134,19 +1134,19 @@ func (t *AsterTrader) CancelTakeProfitOrders(symbol string) error {
 			if err != nil {
 				errMsg := fmt.Sprintf("订单ID %d: %v", int64(orderID), err)
 				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
-				log.Printf("  ⚠ 取消止盈单失败: %s", errMsg)
+				logger.Infof("  ⚠ 取消止盈单失败: %s", errMsg)
 				continue
 			}
 
 			canceledCount++
-			log.Printf("  ✓ 已取消止盈单 (订单ID: %d, 类型: %s, 方向: %s)", int64(orderID), orderType, positionSide)
+			logger.Infof("  ✓ 已取消止盈单 (订单ID: %d, 类型: %s, 方向: %s)", int64(orderID), orderType, positionSide)
 		}
 	}
 
 	if canceledCount == 0 && len(cancelErrors) == 0 {
-		log.Printf("  ℹ %s 没有止盈单需要取消", symbol)
+		logger.Infof("  ℹ %s 没有止盈单需要取消", symbol)
 	} else if canceledCount > 0 {
-		log.Printf("  ✓ 已取消 %s 的 %d 个止盈单", symbol, canceledCount)
+		logger.Infof("  ✓ 已取消 %s 的 %d 个止盈单", symbol, canceledCount)
 	}
 
 	// 如果所有取消都失败了，返回错误
@@ -1203,20 +1203,20 @@ func (t *AsterTrader) CancelStopOrders(symbol string) error {
 
 			_, err := t.request("DELETE", "/fapi/v3/order", cancelParams)
 			if err != nil {
-				log.Printf("  ⚠ 取消订单 %d 失败: %v", int64(orderID), err)
+				logger.Infof("  ⚠ 取消订单 %d 失败: %v", int64(orderID), err)
 				continue
 			}
 
 			canceledCount++
-			log.Printf("  ✓ 已取消 %s 的止盈/止损单 (订单ID: %d, 类型: %s)",
+			logger.Infof("  ✓ 已取消 %s 的止盈/止损单 (订单ID: %d, 类型: %s)",
 				symbol, int64(orderID), orderType)
 		}
 	}
 
 	if canceledCount == 0 {
-		log.Printf("  ℹ %s 没有止盈/止损单需要取消", symbol)
+		logger.Infof("  ℹ %s 没有止盈/止损单需要取消", symbol)
 	} else {
-		log.Printf("  ✓ 已取消 %s 的 %d 个止盈/止损单", symbol, canceledCount)
+		logger.Infof("  ✓ 已取消 %s 的 %d 个止盈/止损单", symbol, canceledCount)
 	}
 
 	return nil
@@ -1229,4 +1229,53 @@ func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, e
 		return "", err
 	}
 	return fmt.Sprintf("%v", formatted), nil
+}
+
+// GetOrderStatus 获取订单状态
+func (t *AsterTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"symbol":  symbol,
+		"orderId": orderID,
+	}
+
+	body, err := t.request("GET", "/fapi/v3/order", params)
+	if err != nil {
+		return nil, fmt.Errorf("获取订单状态失败: %w", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("解析订单响应失败: %w", err)
+	}
+
+	// 标准化返回字段
+	response := map[string]interface{}{
+		"orderId":     result["orderId"],
+		"symbol":      result["symbol"],
+		"status":      result["status"],
+		"side":        result["side"],
+		"type":        result["type"],
+		"time":        result["time"],
+		"updateTime":  result["updateTime"],
+		"commission":  0.0, // Aster 可能需要单独查询
+	}
+
+	// 解析数值字段
+	if avgPrice, ok := result["avgPrice"].(string); ok {
+		if v, err := strconv.ParseFloat(avgPrice, 64); err == nil {
+			response["avgPrice"] = v
+		}
+	} else if avgPrice, ok := result["avgPrice"].(float64); ok {
+		response["avgPrice"] = avgPrice
+	}
+
+	if executedQty, ok := result["executedQty"].(string); ok {
+		if v, err := strconv.ParseFloat(executedQty, 64); err == nil {
+			response["executedQty"] = v
+		}
+	} else if executedQty, ok := result["executedQty"].(float64); ok {
+		response["executedQty"] = executedQty
+	}
+
+	return response, nil
 }

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"nofx/logger"
 )
 
 // Config 客户端配置（集中管理所有配置）
@@ -44,8 +46,8 @@ func DefaultConfig() *Config {
 		Timeout:        DefaultTimeout,
 		RetryableErrors: retryableErrors,
 
-		// 默认依赖
-		Logger:     &defaultLogger{},
+		// 默认依赖（使用全局 logger）
+		Logger:     logger.NewMCPLogger(),
 		HTTPClient: &http.Client{Timeout: DefaultTimeout},
 	}
 }

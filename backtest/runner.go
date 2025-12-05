@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"nofx/decision"
-	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
+	"nofx/store"
 )
 
 var (
@@ -35,7 +35,7 @@ type Runner struct {
 	feed    *DataFeed
 	account *BacktestAccount
 
-	decisionLogger logger.IDecisionLogger
+	decisionLogDir string
 	mcpClient      mcp.AIClient
 
 	statusMu sync.RWMutex
@@ -83,7 +83,7 @@ func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 		return nil, err
 	}
 
-	dLog := logger.NewDecisionLogger(decisionLogDir(cfg.RunID))
+	dLogDir := decisionLogDir(cfg.RunID)
 	account := NewBacktestAccount(cfg.InitialBalance, cfg.FeeBps, cfg.SlippageBps)
 
 	createdAt := time.Now().UTC()
@@ -119,7 +119,7 @@ func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 		cfg:            cfg,
 		feed:           feed,
 		account:        account,
-		decisionLogger: dLog,
+		decisionLogDir: dLogDir,
 		mcpClient:      client,
 		status:         RunStateCreated,
 		state:          state,
@@ -160,7 +160,7 @@ func (r *Runner) lockHeartbeatLoop() {
 		select {
 		case <-ticker.C:
 			if err := updateRunLockHeartbeat(r.lockInfo); err != nil {
-				log.Printf("failed to update lock heartbeat for %s: %v", r.cfg.RunID, err)
+				logger.Infof("failed to update lock heartbeat for %s: %v", r.cfg.RunID, err)
 			}
 		case <-r.lockStop:
 			return
@@ -174,7 +174,7 @@ func (r *Runner) releaseLock() {
 		r.lockStop = nil
 	}
 	if err := deleteRunLock(r.cfg.RunID); err != nil {
-		log.Printf("failed to release lock for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to release lock for %s: %v", r.cfg.RunID, err)
 	}
 	r.lockInfo = nil
 }
@@ -279,8 +279,8 @@ func (r *Runner) stepOnce() error {
 	shouldDecide := r.shouldTriggerDecision(state.BarIndex)
 
 	var (
-		record          *logger.DecisionRecord
-		decisionActions []logger.DecisionAction
+		record          *store.DecisionRecord
+		decisionActions []store.DecisionAction
 		tradeEvents     = make([]TradeEvent, 0)
 		execLog         []string
 		hadError        bool
@@ -317,7 +317,7 @@ func (r *Runner) stepOnce() error {
 					return decisionErr
 				}
 			} else {
-				log.Printf("failed to compute ai cache key: %v", err)
+				logger.Infof("failed to compute ai cache key: %v", err)
 			}
 		}
 
@@ -334,7 +334,7 @@ func (r *Runner) stepOnce() error {
 				fullDecision = fd
 				if r.cfg.CacheAI && r.aiCache != nil && cacheKey != "" {
 					if err := r.aiCache.Put(cacheKey, r.cfg.PromptVariant, ts, fullDecision); err != nil {
-						log.Printf("failed to persist ai cache for %s: %v", r.cfg.RunID, err)
+						logger.Infof("failed to persist ai cache for %s: %v", r.cfg.RunID, err)
 					}
 				}
 			}
@@ -346,7 +346,7 @@ func (r *Runner) stepOnce() error {
 			sorted := sortDecisionsByPriority(fullDecision.Decisions)
 
 			prevLogs := execLog
-			decisionActions = make([]logger.DecisionAction, 0, len(sorted))
+			decisionActions = make([]store.DecisionAction, 0, len(sorted))
 			execLog = make([]string, 0, len(sorted)+len(prevLogs))
 			if len(prevLogs) > 0 {
 				execLog = append(execLog, prevLogs...)
@@ -464,7 +464,7 @@ func (r *Runner) stepOnce() error {
 	return nil
 }
 
-func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Data, multiTF map[string]map[string]*market.Data, priceMap map[string]float64, callCount int) (*decision.Context, *logger.DecisionRecord, error) {
+func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Data, multiTF map[string]map[string]*market.Data, priceMap map[string]float64, callCount int) (*decision.Context, *store.DecisionRecord, error) {
 	equity, unrealized, _ := r.account.TotalEquity(priceMap)
 	available := r.account.Cash()
 	marginUsed := r.totalMarginUsed()
@@ -505,8 +505,8 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 		AltcoinLeverage: r.cfg.Leverage.AltcoinLeverage,
 	}
 
-	record := &logger.DecisionRecord{
-		AccountState: logger.AccountSnapshot{
+	record := &store.DecisionRecord{
+		AccountState: store.AccountSnapshot{
 			TotalBalance:          accountInfo.TotalEquity,
 			AvailableBalance:      accountInfo.AvailableBalance,
 			TotalUnrealizedProfit: unrealized,
@@ -524,7 +524,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 	return ctx, record, nil
 }
 
-func (r *Runner) fillDecisionRecord(record *logger.DecisionRecord, full *decision.FullDecision) {
+func (r *Runner) fillDecisionRecord(record *store.DecisionRecord, full *decision.FullDecision) {
 	record.InputPrompt = full.UserPrompt
 	record.CoTTrace = full.CoTTrace
 	if len(full.Decisions) > 0 {
@@ -554,10 +554,10 @@ func (r *Runner) invokeAIWithRetry(ctx *decision.Context) (*decision.FullDecisio
 	return nil, lastErr
 }
 
-func (r *Runner) executeDecision(dec decision.Decision, priceMap map[string]float64, ts int64, cycle int) (logger.DecisionAction, []TradeEvent, string, error) {
+func (r *Runner) executeDecision(dec decision.Decision, priceMap map[string]float64, ts int64, cycle int) (store.DecisionAction, []TradeEvent, string, error) {
 	symbol := dec.Symbol
 	usedLeverage := r.resolveLeverage(dec.Leverage, symbol)
-	actionRecord := logger.DecisionAction{
+	actionRecord := store.DecisionAction{
 		Action:    dec.Action,
 		Symbol:    symbol,
 		Leverage:  usedLeverage,
@@ -748,12 +748,12 @@ func (r *Runner) remainingPosition(symbol, side string) float64 {
 	return 0
 }
 
-func (r *Runner) snapshotPositions(priceMap map[string]float64) []logger.PositionSnapshot {
+func (r *Runner) snapshotPositions(priceMap map[string]float64) []store.PositionSnapshot {
 	positions := r.account.Positions()
-	list := make([]logger.PositionSnapshot, 0, len(positions))
+	list := make([]store.PositionSnapshot, 0, len(positions))
 	for _, pos := range positions {
 		price := priceMap[pos.Symbol]
-		list = append(list, logger.PositionSnapshot{
+		list = append(list, store.PositionSnapshot{
 			Symbol:           pos.Symbol,
 			Side:             pos.Side,
 			PositionAmt:      pos.Quantity,
@@ -1124,20 +1124,17 @@ func (r *Runner) persistMetadata() {
 	meta := r.buildMetadata(state, r.Status())
 	meta.CreatedAt = r.createdAt
 	if err := SaveRunMetadata(meta); err != nil {
-		log.Printf("failed to save run metadata for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to save run metadata for %s: %v", r.cfg.RunID, err)
 	} else {
 		if err := updateRunIndex(meta, &r.cfg); err != nil {
-			log.Printf("failed to update index for %s: %v", r.cfg.RunID, err)
+			logger.Infof("failed to update index for %s: %v", r.cfg.RunID, err)
 		}
 	}
 }
 
-func (r *Runner) logDecision(record *logger.DecisionRecord) error {
+func (r *Runner) logDecision(record *store.DecisionRecord) error {
 	if record == nil {
 		return nil
-	}
-	if err := r.decisionLogger.LogDecision(record); err != nil {
-		return err
 	}
 	persistDecisionRecord(r.cfg.RunID, record)
 	return nil
@@ -1157,14 +1154,14 @@ func (r *Runner) persistMetrics(force bool) {
 	state := r.snapshotState()
 	metrics, err := CalculateMetrics(r.cfg.RunID, &r.cfg, &state)
 	if err != nil {
-		log.Printf("failed to compute metrics for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to compute metrics for %s: %v", r.cfg.RunID, err)
 		return
 	}
 	if metrics == nil {
 		return
 	}
 	if err := PersistMetrics(r.cfg.RunID, metrics); err != nil {
-		log.Printf("failed to persist metrics for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to persist metrics for %s: %v", r.cfg.RunID, err)
 		return
 	}
 	r.lastMetricsWrite = time.Now()
@@ -1264,7 +1261,7 @@ func (r *Runner) saveCheckpoint(state BacktestState) error {
 func (r *Runner) forceCheckpoint() {
 	state := r.snapshotState()
 	if err := r.saveCheckpoint(state); err != nil {
-		log.Printf("failed to save checkpoint for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to save checkpoint for %s: %v", r.cfg.RunID, err)
 	}
 }
 
@@ -1281,7 +1278,6 @@ func (r *Runner) applyCheckpoint(ckpt *Checkpoint) error {
 		return fmt.Errorf("checkpoint is nil")
 	}
 	r.account.RestoreFromSnapshots(ckpt.Cash, ckpt.RealizedPnL, ckpt.Positions)
-	r.decisionLogger.SetCycleNumber(ckpt.DecisionCycle)
 	r.stateMu.Lock()
 	defer r.stateMu.Unlock()
 	r.state.BarIndex = ckpt.BarIndex

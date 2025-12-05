@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"nofx/backtest"
-	"nofx/config"
 	"nofx/decision"
+	"nofx/store"
 
 	"github.com/gin-gonic/gin"
 )
@@ -486,9 +486,6 @@ func (s *Server) ensureBacktestRunOwnership(runID, userID string) (*backtest.Run
 	if owner == "" {
 		return meta, nil
 	}
-	if owner == "default" && userID == "admin" {
-		return meta, nil
-	}
 	if owner != userID {
 		return nil, errBacktestForbidden
 	}
@@ -514,7 +511,7 @@ func (s *Server) resolveBacktestAIConfig(cfg *backtest.BacktestConfig, userID st
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
-	if s.database == nil {
+	if s.store == nil {
 		return fmt.Errorf("系统数据库未就绪，无法加载AI模型配置")
 	}
 
@@ -527,7 +524,7 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
-	if s.database == nil {
+	if s.store == nil {
 		return fmt.Errorf("系统数据库未就绪，无法加载AI模型配置")
 	}
 
@@ -535,17 +532,17 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 	modelID := strings.TrimSpace(cfg.AIModelID)
 
 	var (
-		model *config.AIModelConfig
+		model *store.AIModel
 		err   error
 	)
 
 	if modelID != "" {
-		model, err = s.database.GetAIModel(cfg.UserID, modelID)
+		model, err = s.store.AIModel().Get(cfg.UserID, modelID)
 		if err != nil {
 			return fmt.Errorf("加载AI模型失败: %w", err)
 		}
 	} else {
-		model, err = s.database.GetDefaultAIModel(cfg.UserID)
+		model, err = s.store.AIModel().GetDefault(cfg.UserID)
 		if err != nil {
 			return fmt.Errorf("未找到可用的AI模型: %w", err)
 		}

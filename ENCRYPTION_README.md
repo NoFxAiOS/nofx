@@ -116,7 +116,7 @@ If needed, rollback is simple:
 
 ```bash
 # Restore backup
-cp config.db.backup config.db
+cp data.db.backup data.db
 
 # Comment out 3 lines in main.go
 # (encryption initialization)

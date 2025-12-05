@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"nofx/config"
+	"nofx/store"
 )
 
 // TestUpdateTraderRequest_SystemPromptTemplate 测试更新交易员时 SystemPromptTemplate 字段是否存在
@@ -100,12 +100,12 @@ func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 	tests := []struct {
 		name             string
-		traderConfig     *config.TraderRecord
+		traderConfig     *store.Trader
 		expectedTemplate string
 	}{
 		{
 			name: "获取配置应该返回 system_prompt_template=nof1",
-			traderConfig: &config.TraderRecord{
+			traderConfig: &store.Trader{
 				ID:                   "trader-123",
 				UserID:               "user-1",
 				Name:                 "Test Trader",
@@ -126,7 +126,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 		},
 		{
 			name: "获取配置应该返回 system_prompt_template=default",
-			traderConfig: &config.TraderRecord{
+			traderConfig: &store.Trader{
 				ID:                   "trader-456",
 				UserID:               "user-1",
 				Name:                 "Test Trader 2",
@@ -229,7 +229,7 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 // TestTraderListResponse_SystemPromptTemplate 测试 handleTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
 func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
 	// 模拟 handleTraderList 中的 trader 对象构造
-	trader := &config.TraderRecord{
+	trader := &store.Trader{
 		ID:                   "trader-001",
 		UserID:               "user-1",
 		Name:                 "My Trader",

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"nofx/decision"
-	"nofx/logger"
 	"nofx/market"
 	"nofx/pool"
+	"nofx/store"
 
 	"github.com/agiledragon/gomonkey/v2"
 	"github.com/stretchr/testify/suite"
@@ -30,8 +30,7 @@ type AutoTraderTestSuite struct {
 
 	// Mock 依赖
 	mockTrader *MockTrader
-	mockDB     *MockDatabase
-	mockLogger logger.IDecisionLogger
+	mockStore  *store.Store
 
 	// gomonkey patches
 	patches *gomonkey.Patches
@@ -65,10 +64,9 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		positions: []map[string]interface{}{},
 	}
 
-	s.mockDB = &MockDatabase{}
 
-	// 创建临时决策日志记录器
-	s.mockLogger = logger.NewDecisionLogger("/tmp/test_decision_logs")
+	// 创建临时store（使用nil表示测试中不需要实际的store）
+	s.mockStore = nil
 
 	// 设置默认配置
 	s.config = AutoTraderConfig{
@@ -93,7 +91,7 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		config:                s.config,
 		trader:                s.mockTrader,
 		mcpClient:             nil, // 测试中不需要实际的 MCP Client
-		decisionLogger:        s.mockLogger,
+		store:                 s.mockStore,
 		initialBalance:        s.config.InitialBalance,
 		systemPromptTemplate:  s.config.SystemPromptTemplate,
 		defaultCoins:          []string{"BTC", "ETH"},
@@ -106,7 +104,6 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		stopMonitorCh:         make(chan struct{}),
 		peakPnLCache:          make(map[string]float64),
 		lastBalanceSyncTime:   time.Now(),
-		database:              s.mockDB,
 		userID:                "test_user",
 	}
 }
@@ -134,9 +131,8 @@ func (s *AutoTraderTestSuite) TestSortDecisionsByPriority() {
 				{Action: "open_long", Symbol: "BTCUSDT"},
 				{Action: "close_short", Symbol: "ETHUSDT"},
 				{Action: "hold", Symbol: "BNBUSDT"},
-				{Action: "update_stop_loss", Symbol: "SOLUSDT"},
 				{Action: "open_short", Symbol: "ADAUSDT"},
-				{Action: "partial_close", Symbol: "DOGEUSDT"},
+				{Action: "close_long", Symbol: "DOGEUSDT"},
 			},
 		},
 	}
@@ -150,14 +146,12 @@ func (s *AutoTraderTestSuite) TestSortDecisionsByPriority() {
 			// 验证优先级是否递增
 			getActionPriority := func(action string) int {
 				switch action {
-				case "close_long", "close_short", "partial_close":
+				case "close_long", "close_short":
 					return 1
-				case "update_stop_loss", "update_take_profit":
-					return 2
 				case "open_long", "open_short":
-					return 3
+					return 2
 				case "hold", "wait":
-					return 4
+					return 3
 				default:
 					return 999
 				}
@@ -413,14 +407,14 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 		existingSide  string
 		availBalance  float64
 		expectedErr   string
-		executeFn     func(*decision.Decision, *logger.DecisionAction) error
+		executeFn     func(*decision.Decision, *store.DecisionAction) error
 	}{
 		{
 			name:          "成功开多仓",
 			action:        "open_long",
 			expectedOrder: 123456,
 			availBalance:  8000.0,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenLongWithRecord(d, a)
 			},
 		},
@@ -429,7 +423,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			action:        "open_short",
 			expectedOrder: 123457,
 			availBalance:  8000.0,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenShortWithRecord(d, a)
 			},
 		},
@@ -438,7 +432,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			action:       "open_long",
 			availBalance: 0.0,
 			expectedErr:  "保证金不足",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenLongWithRecord(d, a)
 			},
 		},
@@ -447,7 +441,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			action:       "open_short",
 			availBalance: 0.0,
 			expectedErr:  "保证金不足",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenShortWithRecord(d, a)
 			},
 		},
@@ -457,7 +451,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			existingSide: "long",
 			availBalance: 8000.0,
 			expectedErr:  "已有多仓",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenLongWithRecord(d, a)
 			},
 		},
@@ -467,7 +461,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			existingSide: "short",
 			availBalance: 8000.0,
 			expectedErr:  "已有空仓",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenShortWithRecord(d, a)
 			},
 		},
@@ -488,7 +482,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			}
 
 			decision := &decision.Decision{Action: tt.action, Symbol: "BTCUSDT", PositionSizeUSD: 1000.0, Leverage: 10}
-			actionRecord := &logger.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
+			actionRecord := &store.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
 
 			err := tt.executeFn(decision, actionRecord)
 
@@ -516,14 +510,14 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 		action        string
 		currentPrice  float64
 		expectedOrder int64
-		executeFn     func(*decision.Decision, *logger.DecisionAction) error
+		executeFn     func(*decision.Decision, *store.DecisionAction) error
 	}{
 		{
 			name:          "成功平多仓",
 			action:        "close_long",
 			currentPrice:  51000.0,
 			expectedOrder: 123458,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeCloseLongWithRecord(d, a)
 			},
 		},
@@ -532,7 +526,7 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 			action:        "close_short",
 			currentPrice:  49000.0,
 			expectedOrder: 123459,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeCloseShortWithRecord(d, a)
 			},
 		},
@@ -546,7 +540,7 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 			})
 
 			decision := &decision.Decision{Action: tt.action, Symbol: "BTCUSDT"}
-			actionRecord := &logger.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
+			actionRecord := &store.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
 
 			err := tt.executeFn(decision, actionRecord)
 
@@ -555,221 +549,6 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 			s.Equal(tt.currentPrice, actionRecord.Price)
 		})
 	}
-}
-
-// TestExecuteUpdateStopOrTakeProfit 测试更新止损/止盈（多空通用）
-func (s *AutoTraderTestSuite) TestExecuteUpdateStopOrTakeProfit() {
-	// 使用指针变量来控制 market.Get 的返回值
-	var testPrice *float64
-	s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
-		price := 50000.0
-		if testPrice != nil {
-			price = *testPrice
-		}
-		return &market.Data{Symbol: symbol, CurrentPrice: price}, nil
-	})
-
-	tests := []struct {
-		name         string
-		action       string
-		symbol       string
-		side         string
-		currentPrice float64
-		newPrice     float64
-		hasPosition  bool
-		expectedErr  string
-		executeFn    func(*decision.Decision, *logger.DecisionAction) error
-	}{
-		{
-			name:         "成功更新多头止损",
-			action:       "update_stop_loss",
-			symbol:       "BTCUSDT",
-			side:         "long",
-			currentPrice: 52000.0,
-			newPrice:     51000.0,
-			hasPosition:  true,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateStopLossWithRecord(d, a)
-			},
-		},
-		{
-			name:         "成功更新空头止损",
-			action:       "update_stop_loss",
-			symbol:       "ETHUSDT",
-			side:         "short",
-			currentPrice: 2900.0,
-			newPrice:     2950.0,
-			hasPosition:  true,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateStopLossWithRecord(d, a)
-			},
-		},
-		{
-			name:         "成功更新多头止盈",
-			action:       "update_take_profit",
-			symbol:       "BTCUSDT",
-			side:         "long",
-			currentPrice: 52000.0,
-			newPrice:     55000.0,
-			hasPosition:  true,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateTakeProfitWithRecord(d, a)
-			},
-		},
-		{
-			name:         "成功更新空头止盈",
-			action:       "update_take_profit",
-			symbol:       "ETHUSDT",
-			side:         "short",
-			currentPrice: 2900.0,
-			newPrice:     2800.0,
-			hasPosition:  true,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateTakeProfitWithRecord(d, a)
-			},
-		},
-		{
-			name:         "多头止损价格不合理",
-			action:       "update_stop_loss",
-			symbol:       "BTCUSDT",
-			side:         "long",
-			currentPrice: 50000.0,
-			newPrice:     51000.0,
-			hasPosition:  true,
-			expectedErr:  "多单止损必须低于当前价格",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateStopLossWithRecord(d, a)
-			},
-		},
-		{
-			name:         "多头止盈价格不合理",
-			action:       "update_take_profit",
-			symbol:       "BTCUSDT",
-			side:         "long",
-			currentPrice: 50000.0,
-			newPrice:     49000.0,
-			hasPosition:  true,
-			expectedErr:  "多单止盈必须高于当前价格",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateTakeProfitWithRecord(d, a)
-			},
-		},
-		{
-			name:         "止损_持仓不存在",
-			action:       "update_stop_loss",
-			symbol:       "BTCUSDT",
-			currentPrice: 50000.0,
-			newPrice:     49000.0,
-			hasPosition:  false,
-			expectedErr:  "持仓不存在",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateStopLossWithRecord(d, a)
-			},
-		},
-		{
-			name:         "止盈_持仓不存在",
-			action:       "update_take_profit",
-			symbol:       "BTCUSDT",
-			currentPrice: 50000.0,
-			newPrice:     55000.0,
-			hasPosition:  false,
-			expectedErr:  "持仓不存在",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
-				return s.autoTrader.executeUpdateTakeProfitWithRecord(d, a)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		time.Sleep(time.Millisecond)
-		s.Run(tt.name, func() {
-			// 设置当前测试用例的价格
-			testPrice = &tt.currentPrice
-
-			if tt.hasPosition {
-				s.mockTrader.positions = []map[string]interface{}{
-					{"symbol": tt.symbol, "side": tt.side, "positionAmt": 0.1},
-				}
-			} else {
-				s.mockTrader.positions = []map[string]interface{}{}
-			}
-
-			decision := &decision.Decision{Action: tt.action, Symbol: tt.symbol}
-			if tt.action == "update_stop_loss" {
-				decision.NewStopLoss = tt.newPrice
-			} else {
-				decision.NewTakeProfit = tt.newPrice
-			}
-			actionRecord := &logger.DecisionAction{Action: tt.action, Symbol: tt.symbol}
-
-			err := tt.executeFn(decision, actionRecord)
-
-			if tt.expectedErr != "" {
-				s.Error(err)
-				s.Contains(err.Error(), tt.expectedErr)
-			} else {
-				s.NoError(err)
-				s.Equal(tt.currentPrice, actionRecord.Price)
-			}
-
-			// 恢复默认状态
-			s.mockTrader.positions = []map[string]interface{}{}
-		})
-	}
-}
-
-func (s *AutoTraderTestSuite) TestExecutePartialCloseWithRecord() {
-	s.Run("成功部分平仓", func() {
-		// 设置持仓
-		s.mockTrader.positions = []map[string]interface{}{
-			{
-				"symbol":      "BTCUSDT",
-				"side":        "long",
-				"positionAmt": 0.1,
-				"entryPrice":  50000.0,
-				"markPrice":   52000.0,
-			},
-		}
-
-		// Mock market.Get
-		s.patches.ApplyFunc(market.Get, func(symbol string) (*market.Data, error) {
-			return &market.Data{
-				Symbol:       symbol,
-				CurrentPrice: 52000.0,
-			}, nil
-		})
-
-		decision := &decision.Decision{
-			Action:          "partial_close",
-			Symbol:          "BTCUSDT",
-			ClosePercentage: 50.0,
-		}
-
-		actionRecord := &logger.DecisionAction{
-			Action: "partial_close",
-			Symbol: "BTCUSDT",
-		}
-
-		err := s.autoTrader.executePartialCloseWithRecord(decision, actionRecord)
-
-		s.NoError(err)
-		s.Equal(0.05, actionRecord.Quantity) // 50% of 0.1
-	})
-
-	s.Run("无效的平仓百分比", func() {
-		decision := &decision.Decision{
-			Action:          "partial_close",
-			Symbol:          "BTCUSDT",
-			ClosePercentage: 150.0, // 无效
-		}
-
-		actionRecord := &logger.DecisionAction{}
-
-		err := s.autoTrader.executePartialCloseWithRecord(decision, actionRecord)
-
-		s.Error(err)
-		s.Contains(err.Error(), "平仓百分比必须在 0-100 之间")
-	})
 }
 
 // ============================================================
@@ -792,7 +571,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			PositionSizeUSD: 1000.0,
 			Leverage:        10,
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.NoError(err)
@@ -803,7 +582,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			Action: "close_long",
 			Symbol: "BTCUSDT",
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.NoError(err)
@@ -814,7 +593,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			Action: "hold",
 			Symbol: "BTCUSDT",
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.NoError(err)
@@ -825,7 +604,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			Action: "unknown_action",
 			Symbol: "BTCUSDT",
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.Error(err)

@@ -3,21 +3,24 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"nofx/api"
 	"nofx/auth"
 	"nofx/backtest"
 	"nofx/config"
 	"nofx/crypto"
+	"nofx/logger"
 	"nofx/manager"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
+	"nofx/store"
+	"nofx/trader"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -44,7 +47,7 @@ type ConfigFile struct {
 func loadConfigFile() (*ConfigFile, error) {
 	// 检查config.json是否存在
 	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
-		log.Printf("📄 config.json不存在，使用默认配置")
+		logger.Info("📄 config.json不存在，使用默认配置")
 		return &ConfigFile{}, nil
 	}
 
@@ -64,12 +67,12 @@ func loadConfigFile() (*ConfigFile, error) {
 }
 
 // syncConfigToDatabase 将配置同步到数据库
-func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) error {
+func syncConfigToDatabase(st *store.Store, configFile *ConfigFile) error {
 	if configFile == nil {
 		return nil
 	}
 
-	log.Printf("🔄 开始同步config.json到数据库...")
+	logger.Info("🔄 开始同步config.json到数据库...")
 
 	// 同步各配置项到数据库
 	configs := map[string]string{
@@ -106,24 +109,24 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 
 	// 更新数据库配置
 	for key, value := range configs {
-		if err := database.SetSystemConfig(key, value); err != nil {
-			log.Printf("⚠️  更新配置 %s 失败: %v", key, err)
+		if err := st.SystemConfig().Set(key, value); err != nil {
+			logger.Warnf("⚠️  更新配置 %s 失败: %v", key, err)
 		} else {
-			log.Printf("✓ 同步配置: %s = %s", key, value)
+			logger.Infof("✓ 同步配置: %s = %s", key, value)
 		}
 	}
 
-	log.Printf("✅ config.json同步完成")
+	logger.Info("✅ config.json同步完成")
 	return nil
 }
 
 // loadBetaCodesToDatabase 加载内测码文件到数据库
-func loadBetaCodesToDatabase(database *config.Database) error {
+func loadBetaCodesToDatabase(st *store.Store) error {
 	betaCodeFile := "beta_codes.txt"
 
 	// 检查内测码文件是否存在
 	if _, err := os.Stat(betaCodeFile); os.IsNotExist(err) {
-		log.Printf("📄 内测码文件 %s 不存在，跳过加载", betaCodeFile)
+		logger.Infof("📄 内测码文件 %s 不存在，跳过加载", betaCodeFile)
 		return nil
 	}
 
@@ -133,37 +136,39 @@ func loadBetaCodesToDatabase(database *config.Database) error {
 		return fmt.Errorf("获取内测码文件信息失败: %w", err)
 	}
 
-	log.Printf("🔄 发现内测码文件 %s (%.1f KB)，开始加载...", betaCodeFile, float64(fileInfo.Size())/1024)
+	logger.Infof("🔄 发现内测码文件 %s (%.1f KB)，开始加载...", betaCodeFile, float64(fileInfo.Size())/1024)
 
 	// 加载内测码到数据库
-	err = database.LoadBetaCodesFromFile(betaCodeFile)
+	err = st.BetaCode().LoadFromFile(betaCodeFile)
 	if err != nil {
 		return fmt.Errorf("加载内测码失败: %w", err)
 	}
 
 	// 显示统计信息
-	total, used, err := database.GetBetaCodeStats()
+	total, used, err := st.BetaCode().GetStats()
 	if err != nil {
-		log.Printf("⚠️  获取内测码统计失败: %v", err)
+		logger.Warnf("⚠️  获取内测码统计失败: %v", err)
 	} else {
-		log.Printf("✅ 内测码加载完成: 总计 %d 个，已使用 %d 个，剩余 %d 个", total, used, total-used)
+		logger.Infof("✅ 内测码加载完成: 总计 %d 个，已使用 %d 个，剩余 %d 个", total, used, total-used)
 	}
 
 	return nil
 }
 
 func main() {
-	fmt.Println("╔════════════════════════════════════════════════════════════╗")
-	fmt.Println("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
-	fmt.Println("╚════════════════════════════════════════════════════════════╝")
-	fmt.Println()
-
 	// Load environment variables from .env file if present (for local/dev runs)
 	// In Docker Compose, variables are injected by the runtime and this is harmless.
 	_ = godotenv.Load()
 
+	// 初始化日志
+	logger.Init(nil)
+
+	logger.Info("╔════════════════════════════════════════════════════════════╗")
+	logger.Info("║    🤖 AI多模型交易系统 - 支持 DeepSeek & Qwen            ║")
+	logger.Info("╚════════════════════════════════════════════════════════════╝")
+
 	// 初始化数据库配置
-	dbPath := "config.db"
+	dbPath := "data.db"
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
 	}
@@ -171,163 +176,174 @@ func main() {
 	// 读取配置文件
 	configFile, err := loadConfigFile()
 	if err != nil {
-		log.Fatalf("❌ 读取config.json失败: %v", err)
+		logger.Fatalf("❌ 读取config.json失败: %v", err)
 	}
 
-	log.Printf("📋 初始化配置数据库: %s", dbPath)
-	database, err := config.NewDatabase(dbPath)
+	logger.Infof("📋 初始化配置数据库: %s", dbPath)
+	st, err := store.New(dbPath)
 	if err != nil {
-		log.Fatalf("❌ 初始化数据库失败: %v", err)
+		logger.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
-	defer database.Close()
-	backtest.UseDatabase(database.Conn())
+	defer st.Close()
+	backtest.UseDatabase(st.DB())
 
 	// 初始化加密服务
-	log.Printf("🔐 初始化加密服务...")
-	cryptoService, err := crypto.NewCryptoService("secrets/rsa_key")
+	logger.Info("🔐 初始化加密服务...")
+	cryptoService, err := crypto.NewCryptoService()
 	if err != nil {
-		log.Fatalf("❌ 初始化加密服务失败: %v", err)
+		logger.Fatalf("❌ 初始化加密服务失败: %v", err)
 	}
-	database.SetCryptoService(cryptoService)
-	log.Printf("✅ 加密服务初始化成功")
+	// 创建加密/解密包装函数
+	encryptFunc := func(plaintext string) string {
+		if plaintext == "" {
+			return plaintext
+		}
+		encrypted, err := cryptoService.EncryptForStorage(plaintext)
+		if err != nil {
+			logger.Warnf("⚠️ 加密失败: %v", err)
+			return plaintext
+		}
+		return encrypted
+	}
+	decryptFunc := func(encrypted string) string {
+		if encrypted == "" {
+			return encrypted
+		}
+		if !cryptoService.IsEncryptedStorageValue(encrypted) {
+			return encrypted
+		}
+		decrypted, err := cryptoService.DecryptFromStorage(encrypted)
+		if err != nil {
+			logger.Warnf("⚠️ 解密失败: %v", err)
+			return encrypted
+		}
+		return decrypted
+	}
+	st.SetCryptoFuncs(encryptFunc, decryptFunc)
+	logger.Info("✅ 加密服务初始化成功")
 
 	// 同步config.json到数据库
-	if err := syncConfigToDatabase(database, configFile); err != nil {
-		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
+	if err := syncConfigToDatabase(st, configFile); err != nil {
+		logger.Warnf("⚠️  同步config.json到数据库失败: %v", err)
 	}
 
 	// 加载内测码到数据库
-	if err := loadBetaCodesToDatabase(database); err != nil {
-		log.Printf("⚠️  加载内测码到数据库失败: %v", err)
+	if err := loadBetaCodesToDatabase(st); err != nil {
+		logger.Warnf("⚠️  加载内测码到数据库失败: %v", err)
 	}
 
 	// 获取系统配置
-	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
+	useDefaultCoinsStr, _ := st.SystemConfig().Get("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
-	apiPortStr, _ := database.GetSystemConfig("api_server_port")
+	apiPortStr, _ := st.SystemConfig().Get("api_server_port")
 
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
 		// 回退到数据库配置
-		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
+		jwtSecret, _ = st.SystemConfig().Get("jwt_secret")
 		if jwtSecret == "" {
 			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
-			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
+			logger.Warn("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
 		} else {
-			log.Printf("🔑 使用数据库中JWT密钥")
+			logger.Info("🔑 使用数据库中JWT密钥")
 		}
 	} else {
-		log.Printf("🔑 使用环境变量JWT密钥")
+		logger.Info("🔑 使用环境变量JWT密钥")
 	}
 	auth.SetJWTSecret(jwtSecret)
 
 	// 管理员模式下需要管理员密码，缺失则退出
 
-	log.Printf("✓ 配置数据库初始化成功")
-	fmt.Println()
+	logger.Info("✓ 配置数据库初始化成功")
 
 	// 从数据库读取默认主流币种列表
-	defaultCoinsJSON, _ := database.GetSystemConfig("default_coins")
+	defaultCoinsJSON, _ := st.SystemConfig().Get("default_coins")
 	var defaultCoins []string
 
 	if defaultCoinsJSON != "" {
 		// 尝试从JSON解析
 		if err := json.Unmarshal([]byte(defaultCoinsJSON), &defaultCoins); err != nil {
-			log.Printf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
+			logger.Warnf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
 			defaultCoins = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "HYPEUSDT"}
 		} else {
-			log.Printf("✓ 从数据库加载默认币种列表（共%d个）: %v", len(defaultCoins), defaultCoins)
+			logger.Infof("✓ 从数据库加载默认币种列表（共%d个）: %v", len(defaultCoins), defaultCoins)
 		}
 	} else {
 		// 如果数据库中没有配置，使用硬编码默认值
 		defaultCoins = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "HYPEUSDT"}
-		log.Printf("⚠️  数据库中未配置default_coins，使用硬编码默认值")
+		logger.Warn("⚠️  数据库中未配置default_coins，使用硬编码默认值")
 	}
 
 	pool.SetDefaultCoins(defaultCoins)
 	// 设置是否使用默认主流币种
 	pool.SetUseDefaultCoins(useDefaultCoins)
 	if useDefaultCoins {
-		log.Printf("✓ 已启用默认主流币种列表")
+		logger.Info("✓ 已启用默认主流币种列表")
 	}
 
 	// 设置币种池API URL
-	coinPoolAPIURL, _ := database.GetSystemConfig("coin_pool_api_url")
+	coinPoolAPIURL, _ := st.SystemConfig().Get("coin_pool_api_url")
 	if coinPoolAPIURL != "" {
 		pool.SetCoinPoolAPI(coinPoolAPIURL)
-		log.Printf("✓ 已配置AI500币种池API")
+		logger.Info("✓ 已配置AI500币种池API")
 	}
 
-	oiTopAPIURL, _ := database.GetSystemConfig("oi_top_api_url")
+	oiTopAPIURL, _ := st.SystemConfig().Get("oi_top_api_url")
 	if oiTopAPIURL != "" {
 		pool.SetOITopAPI(oiTopAPIURL)
-		log.Printf("✓ 已配置OI Top API")
+		logger.Info("✓ 已配置OI Top API")
 	}
 
 	// 创建TraderManager 与 BacktestManager
 	cfgForAI, cfgErr := config.LoadConfig("config.json")
 	if cfgErr != nil {
-		log.Printf("⚠️  加载config.json用于AI客户端失败: %v", cfgErr)
+		logger.Warnf("⚠️  加载config.json用于AI客户端失败: %v", cfgErr)
 	}
 
 	traderManager := manager.NewTraderManager()
 	mcpClient := newSharedMCPClient(cfgForAI)
 	backtestManager := backtest.NewManager(mcpClient)
 	if err := backtestManager.RestoreRuns(); err != nil {
-		log.Printf("⚠️  恢复历史回测失败: %v", err)
+		logger.Warnf("⚠️  恢复历史回测失败: %v", err)
 	}
 
 	// 从数据库加载所有交易员到内存
-	err = traderManager.LoadTradersFromDatabase(database)
+	err = traderManager.LoadTradersFromStore(st)
 	if err != nil {
-		log.Fatalf("❌ 加载交易员失败: %v", err)
+		logger.Fatalf("❌ 加载交易员失败: %v", err)
 	}
 
 	// 获取数据库中的所有交易员配置（用于显示，使用default用户）
-	traders, err := database.GetTraders("default")
+	traders, err := st.Trader().List("default")
 	if err != nil {
-		log.Fatalf("❌ 获取交易员列表失败: %v", err)
+		logger.Fatalf("❌ 获取交易员列表失败: %v", err)
 	}
 
 	// 显示加载的交易员信息
-	fmt.Println()
-	fmt.Println("🤖 数据库中的AI交易员配置:")
+	logger.Info("🤖 数据库中的AI交易员配置:")
 	if len(traders) == 0 {
-		fmt.Println("  • 暂无配置的交易员，请通过Web界面创建")
+		logger.Info("  • 暂无配置的交易员，请通过Web界面创建")
 	} else {
 		for _, trader := range traders {
 			status := "停止"
 			if trader.IsRunning {
 				status = "运行中"
 			}
-			fmt.Printf("  • %s (%s + %s) - 初始资金: %.0f USDT [%s]\n",
+			logger.Infof("  • %s (%s + %s) - 初始资金: %.0f USDT [%s]",
 				trader.Name, strings.ToUpper(trader.AIModelID), strings.ToUpper(trader.ExchangeID),
 				trader.InitialBalance, status)
 		}
 	}
 
-	// 创建初始化上下文
-	// TODO : 传入实际配置, 现在并未实际使用，未来所有模块初始化都将通过上下文传递配置
-	// ctx := bootstrap.NewContext(&config.Config{})
-
-	// // 执行所有初始化钩子
-	// if err := bootstrap.Run(ctx); err != nil {
-	// 	log.Fatalf("初始化失败: %v", err)
-	// }
-
-	fmt.Println()
-	fmt.Println("🤖 AI全权决策模式:")
-	fmt.Printf("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高5倍，BTC/ETH最高5倍）\n")
-	fmt.Println("  • AI将自主决定每笔交易的仓位大小")
-	fmt.Println("  • AI将自主设置止损和止盈价格")
-	fmt.Println("  • AI将基于市场数据、技术指标、账户状态做出全面分析")
-	fmt.Println()
-	fmt.Println("⚠️  风险提示: AI自动交易有风险，建议小额资金测试！")
-	fmt.Println()
-	fmt.Println("按 Ctrl+C 停止运行")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println()
+	logger.Info("🤖 AI全权决策模式:")
+	logger.Info("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高5倍，BTC/ETH最高5倍）")
+	logger.Info("  • AI将自主决定每笔交易的仓位大小")
+	logger.Info("  • AI将自主设置止损和止盈价格")
+	logger.Info("  • AI将基于市场数据、技术指标、账户状态做出全面分析")
+	logger.Warn("⚠️  风险提示: AI自动交易有风险，建议小额资金测试！")
+	logger.Info("按 Ctrl+C 停止运行")
+	logger.Info(strings.Repeat("=", 60))
 
 	// 获取API服务器端口（优先级：环境变量 > 数据库配置 > 默认值）
 	apiPort := 8080 // 默认端口
@@ -336,30 +352,38 @@ func main() {
 	if envPort := strings.TrimSpace(os.Getenv("NOFX_BACKEND_PORT")); envPort != "" {
 		if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
 			apiPort = port
-			log.Printf("🔌 使用环境变量端口: %d (NOFX_BACKEND_PORT)", apiPort)
+			logger.Infof("🔌 使用环境变量端口: %d (NOFX_BACKEND_PORT)", apiPort)
 		} else {
-			log.Printf("⚠️  环境变量 NOFX_BACKEND_PORT 无效: %s", envPort)
+			logger.Warnf("⚠️  环境变量 NOFX_BACKEND_PORT 无效: %s", envPort)
 		}
 	} else if apiPortStr != "" {
 		// 2. 从数据库配置读取（config.json 同步过来的）
 		if port, err := strconv.Atoi(apiPortStr); err == nil && port > 0 {
 			apiPort = port
-			log.Printf("🔌 使用数据库配置端口: %d (api_server_port)", apiPort)
+			logger.Infof("🔌 使用数据库配置端口: %d (api_server_port)", apiPort)
 		}
 	} else {
-		log.Printf("🔌 使用默认端口: %d", apiPort)
+		logger.Infof("🔌 使用默认端口: %d", apiPort)
 	}
 
+	// 启动订单同步管理器
+	orderSyncManager := trader.NewOrderSyncManager(st, 10*time.Second)
+	orderSyncManager.Start()
+
+	// 启动仓位同步管理器（检测手动平仓等变化）
+	positionSyncManager := trader.NewPositionSyncManager(st, 10*time.Second)
+	positionSyncManager.Start()
+
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, cryptoService, backtestManager, apiPort)
+	apiServer := api.NewServer(traderManager, st, cryptoService, backtestManager, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
-			log.Printf("❌ API服务器错误: %v", err)
+			logger.Errorf("❌ API服务器错误: %v", err)
 		}
 	}()
 
 	// 启动流行情数据 - 默认使用所有交易员设置的币种 如果没有设置币种 则优先使用系统默认
-	go market.NewWSMonitor(150).Start(database.GetCustomCoins())
+	go market.NewWSMonitor(150).Start(st.Trader().GetCustomCoins())
 	//go market.NewWSMonitor(150).Start([]string{}) //这里是一个使用方式 传入空的话 则使用market市场的所有币种
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)
@@ -370,33 +394,36 @@ func main() {
 
 	// 等待退出信号
 	<-sigChan
-	fmt.Println()
-	fmt.Println()
-	log.Println("📛 收到退出信号，正在优雅关闭...")
+	logger.Info("📛 收到退出信号，正在优雅关闭...")
 
 	// 步骤 1: 停止所有交易员
-	log.Println("⏸️  停止所有交易员...")
+	logger.Info("⏸️  停止所有交易员...")
 	traderManager.StopAll()
-	log.Println("✅ 所有交易员已停止")
+	logger.Info("✅ 所有交易员已停止")
 
-	// 步骤 2: 关闭 API 服务器
-	log.Println("🛑 停止 API 服务器...")
+	// 步骤 2: 停止订单同步管理器和仓位同步管理器
+	logger.Info("📦 停止订单同步管理器...")
+	orderSyncManager.Stop()
+	logger.Info("📊 停止仓位同步管理器...")
+	positionSyncManager.Stop()
+
+	// 步骤 3: 关闭 API 服务器
+	logger.Info("🛑 停止 API 服务器...")
 	if err := apiServer.Shutdown(); err != nil {
-		log.Printf("⚠️  关闭 API 服务器时出错: %v", err)
+		logger.Warnf("⚠️  关闭 API 服务器时出错: %v", err)
 	} else {
-		log.Println("✅ API 服务器已安全关闭")
+		logger.Info("✅ API 服务器已安全关闭")
 	}
 
-	// 步骤 3: 关闭数据库连接 (确保所有写入完成)
-	log.Println("💾 关闭数据库连接...")
-	if err := database.Close(); err != nil {
-		log.Printf("❌ 关闭数据库失败: %v", err)
+	// 步骤 4: 关闭数据库连接 (确保所有写入完成)
+	logger.Info("💾 关闭数据库连接...")
+	if err := st.Close(); err != nil {
+		logger.Errorf("❌ 关闭数据库失败: %v", err)
 	} else {
-		log.Println("✅ 数据库已安全关闭，所有数据已持久化")
+		logger.Info("✅ 数据库已安全关闭，所有数据已持久化")
 	}
 
-	fmt.Println()
-	fmt.Println("👋 感谢使用AI交易系统！")
+	logger.Info("👋 感谢使用AI交易系统！")
 }
 
 func newSharedMCPClient(cfg *config.Config) mcp.AIClient {

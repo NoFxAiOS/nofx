@@ -83,6 +83,13 @@ export const translations = {
     currentGap: 'Current Gap',
     count: '{count} pts',
 
+    // TradingView Chart
+    marketChart: 'Market Chart',
+    enterSymbol: 'Enter symbol...',
+    popularSymbols: 'Popular Symbols',
+    fullscreen: 'Fullscreen',
+    exitFullscreen: 'Exit Fullscreen',
+
     // Backtest Page
     backtestPage: {
       title: 'Backtest Lab',
@@ -263,40 +270,6 @@ export const translations = {
     equity: 'Equity',
     pnl: 'P&L',
     pos: 'Pos',
-
-    // AI Learning
-    aiLearning: 'AI Learning & Reflection',
-    tradesAnalyzed: '{count} trades analyzed · Real-time evolution',
-    latestReflection: 'Latest Reflection',
-    fullCoT: 'Full Chain of Thought',
-    totalTrades: 'Total Trades',
-    winRate: 'Win Rate',
-    avgWin: 'Avg Win',
-    avgLoss: 'Avg Loss',
-    profitFactor: 'Profit Factor',
-    avgWinDivLoss: 'Avg Win ÷ Avg Loss',
-    excellent: '🔥 Excellent - Strong profitability',
-    good: '✓ Good - Stable profits',
-    fair: '⚠️ Fair - Needs optimization',
-    poor: '❌ Poor - Losses exceed gains',
-    bestPerformer: 'Best Performer',
-    worstPerformer: 'Worst Performer',
-    symbolPerformance: 'Symbol Performance',
-    tradeHistory: 'Trade History',
-    completedTrades: 'Recent {count} completed trades',
-    noCompletedTrades: 'No completed trades yet',
-    completedTradesWillAppear: 'Completed trades will appear here',
-    entry: 'Entry',
-    exit: 'Exit',
-    stopLoss: 'Stop Loss',
-    latest: 'Latest',
-
-    // AI Learning Description
-    howAILearns: 'How AI Learns & Evolves',
-    aiLearningPoint1: 'Analyzes last 20 trading cycles before each decision',
-    aiLearningPoint2: 'Identifies best & worst performing symbols',
-    aiLearningPoint3: 'Optimizes position sizing based on win rate',
-    aiLearningPoint4: 'Avoids repeating past mistakes',
 
     // AI Traders Management
     manageAITraders: 'Manage your AI trading bots',
@@ -499,9 +472,6 @@ export const translations = {
 
     // Loading & Error
     loading: 'Loading...',
-    loadingError: '⚠️ Failed to load AI learning data',
-    noCompleteData:
-      'No complete trading data (needs to complete open → close cycle)',
 
     // AI Traders Page - Additional
     inUse: 'In Use',
@@ -954,7 +924,7 @@ export const translations = {
     // Data & Privacy
     faqDataStorage: 'Where is my data stored?',
     faqDataStorageAnswer:
-      'All data is stored locally on your machine in SQLite databases: config.db (trader configurations), trading.db (trade history), and decision_logs/ (AI decision records).',
+      'All data is stored locally on your machine in SQLite databases: data.db (all configurations and trade history), and decision_logs/ (AI decision records).',
 
     faqApiKeySecurity: 'Is my API key secure?',
     faqApiKeySecurityAnswer:
@@ -1108,6 +1078,13 @@ export const translations = {
     dataPoints: '数据点数',
     currentGap: '当前差距',
     count: '{count} 个',
+
+    // TradingView Chart
+    marketChart: '行情图表',
+    enterSymbol: '输入币种...',
+    popularSymbols: '热门币种',
+    fullscreen: '全屏',
+    exitFullscreen: '退出全屏',
 
     // Backtest Page
     backtestPage: {
@@ -1287,40 +1264,6 @@ export const translations = {
     equity: '权益',
     pnl: '收益',
     pos: '持仓',
-
-    // AI Learning
-    aiLearning: 'AI学习与反思',
-    tradesAnalyzed: '已分析 {count} 笔交易 · 实时演化',
-    latestReflection: '最新反思',
-    fullCoT: '📋 完整思维链',
-    totalTrades: '总交易数',
-    winRate: '胜率',
-    avgWin: '平均盈利',
-    avgLoss: '平均亏损',
-    profitFactor: '盈亏比',
-    avgWinDivLoss: '平均盈利 ÷ 平均亏损',
-    excellent: '🔥 优秀 - 盈利能力强',
-    good: '✓ 良好 - 稳定盈利',
-    fair: '⚠️ 一般 - 需要优化',
-    poor: '❌ 较差 - 亏损超过盈利',
-    bestPerformer: '最佳表现',
-    worstPerformer: '最差表现',
-    symbolPerformance: '📊 币种表现',
-    tradeHistory: '历史成交',
-    completedTrades: '最近 {count} 笔已完成交易',
-    noCompletedTrades: '暂无完成的交易',
-    completedTradesWillAppear: '已完成的交易将显示在这里',
-    entry: '入场',
-    exit: '出场',
-    stopLoss: '止损',
-    latest: '最新',
-
-    // AI Learning Description
-    howAILearns: '💡 AI如何学习和进化',
-    aiLearningPoint1: '每次决策前分析最近20个交易周期',
-    aiLearningPoint2: '识别表现最好和最差的币种',
-    aiLearningPoint3: '根据胜率优化仓位大小',
-    aiLearningPoint4: '避免重复过去的错误',
 
     // AI Traders Management
     manageAITraders: '管理您的AI交易机器人',
@@ -1512,8 +1455,6 @@ export const translations = {
 
     // Loading & Error
     loading: '加载中...',
-    loadingError: '⚠️ 加载AI学习数据失败',
-    noCompleteData: '暂无完整交易数据（需要完成开仓→平仓的完整周期）',
 
     // AI Traders Page - Additional
     inUse: '正在使用',
@@ -1927,7 +1868,7 @@ export const translations = {
     // Data & Privacy
     faqDataStorage: '我的数据存储在哪里？',
     faqDataStorageAnswer:
-      '所有数据都本地存储在您的机器上，使用 SQLite 数据库：config.db（交易员配置）、trading.db（交易历史）、decision_logs/（AI 决策记录）。',
+      '所有数据都本地存储在您的机器上，使用 SQLite 数据库：data.db（所有配置和交易历史）、decision_logs/（AI 决策记录）。',
 
     faqApiKeySecurity: 'API 密钥安全吗？',
     faqApiKeySecurityAnswer:

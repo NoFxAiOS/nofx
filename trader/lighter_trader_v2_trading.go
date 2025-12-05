@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"nofx/logger"
 	"net/http"
 	"time"
 
@@ -18,11 +18,11 @@ func (t *LighterTraderV2) OpenLong(symbol string, quantity float64, leverage int
 		return nil, fmt.Errorf("TxClient 未初始化，請先設置 API Key")
 	}
 
-	log.Printf("📈 LIGHTER 開多倉: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
+	logger.Infof("📈 LIGHTER 開多倉: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
 
 	// 1. 設置杠杆（如果需要）
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		log.Printf("⚠️  設置杠杆失敗: %v", err)
+		logger.Infof("⚠️  設置杠杆失敗: %v", err)
 	}
 
 	// 2. 獲取市場價格
@@ -37,7 +37,7 @@ func (t *LighterTraderV2) OpenLong(symbol string, quantity float64, leverage int
 		return nil, fmt.Errorf("開多倉失敗: %w", err)
 	}
 
-	log.Printf("✓ LIGHTER 開多倉成功: %s @ %.2f", symbol, marketPrice)
+	logger.Infof("✓ LIGHTER 開多倉成功: %s @ %.2f", symbol, marketPrice)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -54,11 +54,11 @@ func (t *LighterTraderV2) OpenShort(symbol string, quantity float64, leverage in
 		return nil, fmt.Errorf("TxClient 未初始化，請先設置 API Key")
 	}
 
-	log.Printf("📉 LIGHTER 開空倉: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
+	logger.Infof("📉 LIGHTER 開空倉: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
 
 	// 1. 設置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		log.Printf("⚠️  設置杠杆失敗: %v", err)
+		logger.Infof("⚠️  設置杠杆失敗: %v", err)
 	}
 
 	// 2. 獲取市場價格
@@ -73,7 +73,7 @@ func (t *LighterTraderV2) OpenShort(symbol string, quantity float64, leverage in
 		return nil, fmt.Errorf("開空倉失敗: %w", err)
 	}
 
-	log.Printf("✓ LIGHTER 開空倉成功: %s @ %.2f", symbol, marketPrice)
+	logger.Infof("✓ LIGHTER 開空倉成功: %s @ %.2f", symbol, marketPrice)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -105,7 +105,7 @@ func (t *LighterTraderV2) CloseLong(symbol string, quantity float64) (map[string
 		quantity = pos.Size
 	}
 
-	log.Printf("🔻 LIGHTER 平多倉: %s, qty=%.4f", symbol, quantity)
+	logger.Infof("🔻 LIGHTER 平多倉: %s, qty=%.4f", symbol, quantity)
 
 	// 創建市價賣出單平倉（reduceOnly=true）
 	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market")
@@ -115,10 +115,10 @@ func (t *LighterTraderV2) CloseLong(symbol string, quantity float64) (map[string
 
 	// 平倉後取消所有掛單
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("⚠️  取消掛單失敗: %v", err)
+		logger.Infof("⚠️  取消掛單失敗: %v", err)
 	}
 
-	log.Printf("✓ LIGHTER 平多倉成功: %s", symbol)
+	logger.Infof("✓ LIGHTER 平多倉成功: %s", symbol)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -148,7 +148,7 @@ func (t *LighterTraderV2) CloseShort(symbol string, quantity float64) (map[strin
 		quantity = pos.Size
 	}
 
-	log.Printf("🔺 LIGHTER 平空倉: %s, qty=%.4f", symbol, quantity)
+	logger.Infof("🔺 LIGHTER 平空倉: %s, qty=%.4f", symbol, quantity)
 
 	// 創建市價買入單平倉（reduceOnly=true）
 	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market")
@@ -158,10 +158,10 @@ func (t *LighterTraderV2) CloseShort(symbol string, quantity float64) (map[strin
 
 	// 平倉後取消所有掛單
 	if err := t.CancelAllOrders(symbol); err != nil {
-		log.Printf("⚠️  取消掛單失敗: %v", err)
+		logger.Infof("⚠️  取消掛單失敗: %v", err)
 	}
 
-	log.Printf("✓ LIGHTER 平空倉成功: %s", symbol)
+	logger.Infof("✓ LIGHTER 平空倉成功: %s", symbol)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -235,7 +235,7 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	if isAsk {
 		side = "sell"
 	}
-	log.Printf("✓ LIGHTER訂單已創建: %s %s qty=%.4f", symbol, side, quantity)
+	logger.Infof("✓ LIGHTER訂單已創建: %s %s qty=%.4f", symbol, side, quantity)
 
 	return orderResp, nil
 }
@@ -315,7 +315,7 @@ func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, 
 		result["orderId"] = txHash
 	}
 
-	log.Printf("✓ 訂單已提交到 LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
+	logger.Infof("✓ 訂單已提交到 LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
 
 	return result, nil
 }
@@ -334,7 +334,7 @@ func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
 	markets, err := t.fetchMarketList()
 	if err != nil {
 		// 如果 API 失敗，回退到硬編碼映射
-		log.Printf("⚠️  從 API 獲取市場列表失敗，使用硬編碼映射: %v", err)
+		logger.Infof("⚠️  從 API 獲取市場列表失敗，使用硬編碼映射: %v", err)
 		return t.getFallbackMarketIndex(symbol)
 	}
 
@@ -412,7 +412,7 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 		}
 	}
 
-	log.Printf("✓ 獲取到 %d 個市場", len(markets))
+	logger.Infof("✓ 獲取到 %d 個市場", len(markets))
 	return markets, nil
 }
 
@@ -428,7 +428,7 @@ func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint8, error) {
 	}
 
 	if index, ok := fallbackMap[symbol]; ok {
-		log.Printf("✓ 使用硬編碼市場索引: %s -> %d", symbol, index)
+		logger.Infof("✓ 使用硬編碼市場索引: %s -> %d", symbol, index)
 		return index, nil
 	}
 
@@ -442,7 +442,7 @@ func (t *LighterTraderV2) SetLeverage(symbol string, leverage int) error {
 	}
 
 	// TODO: 使用SDK簽名並提交SetLeverage交易
-	log.Printf("⚙️  設置杠杆: %s = %dx", symbol, leverage)
+	logger.Infof("⚙️  設置杠杆: %s = %dx", symbol, leverage)
 
 	return nil // 暫時返回成功
 }
@@ -458,7 +458,7 @@ func (t *LighterTraderV2) SetMarginMode(symbol string, isCrossMargin bool) error
 		modeStr = "全倉"
 	}
 
-	log.Printf("⚙️  設置倉位模式: %s = %s", symbol, modeStr)
+	logger.Infof("⚙️  設置倉位模式: %s = %s", symbol, modeStr)
 
 	// TODO: 使用SDK簽名並提交SetMarginMode交易
 	return nil

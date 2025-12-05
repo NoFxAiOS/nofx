@@ -50,10 +50,11 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("启用外键失败: %w", err)
 	}
 
-	// 启用 WAL 模式
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+	// 使用 DELETE 模式（传统模式）以确保 Docker bind mount 兼容性
+	// 注意：WAL 模式在 macOS Docker 下会导致数据同步问题
+	if _, err := db.Exec("PRAGMA journal_mode=DELETE"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("启用WAL模式失败: %w", err)
+		return nil, fmt.Errorf("设置journal_mode失败: %w", err)
 	}
 
 	// 设置 synchronous=FULL
@@ -82,7 +83,7 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}
 
-	logger.Info("✅ 数据库已启用 WAL 模式和 FULL 同步")
+	logger.Info("✅ 数据库已启用 DELETE 模式和 FULL 同步")
 	return s, nil
 }
 

@@ -83,6 +83,13 @@ export const translations = {
     currentGap: 'Current Gap',
     count: '{count} pts',
 
+    // TradingView Chart
+    marketChart: 'Market Chart',
+    enterSymbol: 'Enter symbol...',
+    popularSymbols: 'Popular Symbols',
+    fullscreen: 'Fullscreen',
+    exitFullscreen: 'Exit Fullscreen',
+
     // Backtest Page
     backtestPage: {
       title: 'Backtest Lab',
@@ -1071,6 +1078,13 @@ export const translations = {
     dataPoints: '数据点数',
     currentGap: '当前差距',
     count: '{count} 个',
+
+    // TradingView Chart
+    marketChart: '行情图表',
+    enterSymbol: '输入币种...',
+    popularSymbols: '热门币种',
+    fullscreen: '全屏',
+    exitFullscreen: '退出全屏',
 
     // Backtest Page
     backtestPage: {

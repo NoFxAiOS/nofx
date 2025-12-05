@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import { EquityChart } from '../components/EquityChart'
+import { TradingViewChart } from '../components/TradingViewChart'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { t, type Language } from '../i18n/translations'
@@ -421,6 +422,11 @@ export default function TraderDashboard() {
           {/* Equity Chart */}
           <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
             <EquityChart traderId={selectedTrader.trader_id} />
+          </div>
+
+          {/* TradingView Market Chart */}
+          <div className="animate-slide-in" style={{ animationDelay: '0.12s' }}>
+            <TradingViewChart height={350} />
           </div>
 
           {/* Current Positions */}

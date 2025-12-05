@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"strings"
 	"time"
 )
@@ -237,7 +237,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 	provider := id
 	err = s.db.QueryRow(`SELECT id FROM ai_models WHERE user_id = ? AND provider = ? LIMIT 1`, userID, provider).Scan(&existingID)
 	if err == nil {
-		log.Printf("⚠️ 使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
+		logger.Warnf("⚠️ 使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
 		encryptedAPIKey := s.encrypt(apiKey)
 		_, err = s.db.Exec(`
 			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
@@ -275,7 +275,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 		newModelID = fmt.Sprintf("%s_%s", userID, provider)
 	}
 
-	log.Printf("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
+	logger.Infof("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
 	encryptedAPIKey := s.encrypt(apiKey)
 	_, err = s.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)

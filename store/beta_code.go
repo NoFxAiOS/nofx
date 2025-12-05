@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"os"
 	"strings"
 )
@@ -58,7 +58,7 @@ func (s *BetaCodeStore) LoadFromFile(filePath string) error {
 	for _, code := range codes {
 		result, err := stmt.Exec(code)
 		if err != nil {
-			log.Printf("插入内测码 %s 失败: %v", code, err)
+			logger.Warnf("插入内测码 %s 失败: %v", code, err)
 			continue
 		}
 		if rowsAffected, _ := result.RowsAffected(); rowsAffected > 0 {
@@ -70,7 +70,7 @@ func (s *BetaCodeStore) LoadFromFile(filePath string) error {
 		return fmt.Errorf("提交事务失败: %w", err)
 	}
 
-	log.Printf("✅ 成功加载 %d 个内测码到数据库 (总计 %d 个)", insertedCount, len(codes))
+	logger.Infof("✅ 成功加载 %d 个内测码到数据库 (总计 %d 个)", insertedCount, len(codes))
 	return nil
 }
 

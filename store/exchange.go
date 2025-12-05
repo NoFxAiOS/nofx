@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"strings"
 	"time"
 )
@@ -161,7 +161,7 @@ func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
 func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKey string, testnet bool,
 	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey string) error {
 
-	log.Printf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
+	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
 	setClauses := []string{
 		"enabled = ?",

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"os"
 	"path/filepath"
 	"sort"
@@ -160,7 +160,7 @@ func (r *Runner) lockHeartbeatLoop() {
 		select {
 		case <-ticker.C:
 			if err := updateRunLockHeartbeat(r.lockInfo); err != nil {
-				log.Printf("failed to update lock heartbeat for %s: %v", r.cfg.RunID, err)
+				logger.Infof("failed to update lock heartbeat for %s: %v", r.cfg.RunID, err)
 			}
 		case <-r.lockStop:
 			return
@@ -174,7 +174,7 @@ func (r *Runner) releaseLock() {
 		r.lockStop = nil
 	}
 	if err := deleteRunLock(r.cfg.RunID); err != nil {
-		log.Printf("failed to release lock for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to release lock for %s: %v", r.cfg.RunID, err)
 	}
 	r.lockInfo = nil
 }
@@ -317,7 +317,7 @@ func (r *Runner) stepOnce() error {
 					return decisionErr
 				}
 			} else {
-				log.Printf("failed to compute ai cache key: %v", err)
+				logger.Infof("failed to compute ai cache key: %v", err)
 			}
 		}
 
@@ -334,7 +334,7 @@ func (r *Runner) stepOnce() error {
 				fullDecision = fd
 				if r.cfg.CacheAI && r.aiCache != nil && cacheKey != "" {
 					if err := r.aiCache.Put(cacheKey, r.cfg.PromptVariant, ts, fullDecision); err != nil {
-						log.Printf("failed to persist ai cache for %s: %v", r.cfg.RunID, err)
+						logger.Infof("failed to persist ai cache for %s: %v", r.cfg.RunID, err)
 					}
 				}
 			}
@@ -1124,10 +1124,10 @@ func (r *Runner) persistMetadata() {
 	meta := r.buildMetadata(state, r.Status())
 	meta.CreatedAt = r.createdAt
 	if err := SaveRunMetadata(meta); err != nil {
-		log.Printf("failed to save run metadata for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to save run metadata for %s: %v", r.cfg.RunID, err)
 	} else {
 		if err := updateRunIndex(meta, &r.cfg); err != nil {
-			log.Printf("failed to update index for %s: %v", r.cfg.RunID, err)
+			logger.Infof("failed to update index for %s: %v", r.cfg.RunID, err)
 		}
 	}
 }
@@ -1154,14 +1154,14 @@ func (r *Runner) persistMetrics(force bool) {
 	state := r.snapshotState()
 	metrics, err := CalculateMetrics(r.cfg.RunID, &r.cfg, &state)
 	if err != nil {
-		log.Printf("failed to compute metrics for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to compute metrics for %s: %v", r.cfg.RunID, err)
 		return
 	}
 	if metrics == nil {
 		return
 	}
 	if err := PersistMetrics(r.cfg.RunID, metrics); err != nil {
-		log.Printf("failed to persist metrics for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to persist metrics for %s: %v", r.cfg.RunID, err)
 		return
 	}
 	r.lastMetricsWrite = time.Now()
@@ -1261,7 +1261,7 @@ func (r *Runner) saveCheckpoint(state BacktestState) error {
 func (r *Runner) forceCheckpoint() {
 	state := r.snapshotState()
 	if err := r.saveCheckpoint(state); err != nil {
-		log.Printf("failed to save checkpoint for %s: %v", r.cfg.RunID, err)
+		logger.Infof("failed to save checkpoint for %s: %v", r.cfg.RunID, err)
 	}
 }
 

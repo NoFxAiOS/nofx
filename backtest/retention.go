@@ -1,7 +1,7 @@
 package backtest
 
 import (
-	"log"
+	"nofx/logger"
 	"os"
 	"sort"
 	"time"
@@ -56,13 +56,13 @@ func enforceRetention(maxRuns int) {
 	for i := 0; i < toRemove; i++ {
 		runID := candidates[i].entry.RunID
 		if err := os.RemoveAll(runDir(runID)); err != nil {
-			log.Printf("failed to prune run %s: %v", runID, err)
+			logger.Infof("failed to prune run %s: %v", runID, err)
 			continue
 		}
 		delete(idx.Runs, runID)
 	}
 	if err := saveRunIndex(idx); err != nil {
-		log.Printf("failed to save index after pruning: %v", err)
+		logger.Infof("failed to save index after pruning: %v", err)
 	}
 }
 
@@ -91,11 +91,11 @@ func enforceRetentionDB(maxRuns int) {
 			continue
 		}
 		if err := deleteRunDB(runID); err != nil {
-			log.Printf("failed to remove run %s: %v", runID, err)
+			logger.Infof("failed to remove run %s: %v", runID, err)
 			continue
 		}
 		if err := os.RemoveAll(runDir(runID)); err != nil {
-			log.Printf("failed to remove run dir %s: %v", runID, err)
+			logger.Infof("failed to remove run dir %s: %v", runID, err)
 		}
 	}
 }

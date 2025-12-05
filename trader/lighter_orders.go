@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"nofx/logger"
 	"net/http"
 )
 
@@ -62,7 +62,7 @@ func (t *LighterTrader) CreateOrder(symbol, side string, quantity, price float64
 		return "", err
 	}
 
-	log.Printf("✓ LIGHTER订单已创建 - ID: %s, Symbol: %s, Side: %s, Qty: %.4f",
+	logger.Infof("✓ LIGHTER订单已创建 - ID: %s, Symbol: %s, Side: %s, Qty: %.4f",
 		orderResp.OrderID, symbol, side, quantity)
 
 	return orderResp.OrderID, nil
@@ -143,7 +143,7 @@ func (t *LighterTrader) CancelOrder(symbol, orderID string) error {
 		return fmt.Errorf("取消订单失败 (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	log.Printf("✓ LIGHTER订单已取消 - ID: %s", orderID)
+	logger.Infof("✓ LIGHTER订单已取消 - ID: %s", orderID)
 	return nil
 }
 
@@ -160,18 +160,18 @@ func (t *LighterTrader) CancelAllOrders(symbol string) error {
 	}
 
 	if len(orders) == 0 {
-		log.Printf("✓ LIGHTER - 无需取消订单（无活跃订单）")
+		logger.Infof("✓ LIGHTER - 无需取消订单（无活跃订单）")
 		return nil
 	}
 
 	// 批量取消
 	for _, order := range orders {
 		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
-			log.Printf("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
+			logger.Infof("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
 		}
 	}
 
-	log.Printf("✓ LIGHTER - 已取消 %d 个订单", len(orders))
+	logger.Infof("✓ LIGHTER - 已取消 %d 个订单", len(orders))
 	return nil
 }
 
@@ -267,14 +267,14 @@ func (t *LighterTrader) GetOrderStatus(orderID string) (*OrderResponse, error) {
 // CancelStopLossOrders 仅取消止损单（LIGHTER 暂无法区分，取消所有止盈止损单）
 func (t *LighterTrader) CancelStopLossOrders(symbol string) error {
 	// LIGHTER 暂时无法区分止损和止盈单，取消所有止盈止损单
-	log.Printf("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
+	logger.Infof("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
 	return t.CancelStopOrders(symbol)
 }
 
 // CancelTakeProfitOrders 仅取消止盈单（LIGHTER 暂无法区分，取消所有止盈止损单）
 func (t *LighterTrader) CancelTakeProfitOrders(symbol string) error {
 	// LIGHTER 暂时无法区分止损和止盈单，取消所有止盈止损单
-	log.Printf("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
+	logger.Infof("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
 	return t.CancelStopOrders(symbol)
 }
 
@@ -295,12 +295,12 @@ func (t *LighterTrader) CancelStopOrders(symbol string) error {
 		// TODO: 需要检查订单类型，只取消止盈止损单
 		// 暂时取消所有订单
 		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
-			log.Printf("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
+			logger.Infof("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
 		} else {
 			canceledCount++
 		}
 	}
 
-	log.Printf("✓ LIGHTER - 已取消 %d 个止盈止损单", canceledCount)
+	logger.Infof("✓ LIGHTER - 已取消 %d 个止盈止损单", canceledCount)
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"nofx/logger"
 	"net/http"
 	"strings"
 	"sync"
@@ -59,7 +59,7 @@ func NewLighterTrader(privateKeyHex string, walletAddr string, testnet bool) (*L
 	// 从私钥派生钱包地址（如果未提供）
 	if walletAddr == "" {
 		walletAddr = crypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey)).Hex()
-		log.Printf("✓ 从私钥派生钱包地址: %s", walletAddr)
+		logger.Infof("✓ 从私钥派生钱包地址: %s", walletAddr)
 	}
 
 	// 选择API URL
@@ -78,7 +78,7 @@ func NewLighterTrader(privateKeyHex string, walletAddr string, testnet bool) (*L
 		symbolPrecision: make(map[string]SymbolPrecision),
 	}
 
-	log.Printf("✓ LIGHTER交易器初始化成功 (testnet=%v, wallet=%s)", testnet, walletAddr)
+	logger.Infof("✓ LIGHTER交易器初始化成功 (testnet=%v, wallet=%s)", testnet, walletAddr)
 
 	// 初始化账户信息（获取账户索引和API密钥）
 	if err := trader.initializeAccount(); err != nil {
@@ -100,7 +100,7 @@ func (t *LighterTrader) initializeAccount() error {
 	t.accountIndex = accountInfo["index"].(int)
 	t.accountMutex.Unlock()
 
-	log.Printf("✓ LIGHTER账户索引: %d", t.accountIndex)
+	logger.Infof("✓ LIGHTER账户索引: %d", t.accountIndex)
 
 	// 2. 生成认证令牌（有效期8小时）
 	if err := t.refreshAuthToken(); err != nil {
@@ -153,7 +153,7 @@ func (t *LighterTrader) refreshAuthToken() error {
 
 	// 临时实现：设置过期时间为8小时后
 	t.tokenExpiry = time.Now().Add(8 * time.Hour)
-	log.Printf("✓ 认证令牌已生成（有效期至: %s）", t.tokenExpiry.Format(time.RFC3339))
+	logger.Infof("✓ 认证令牌已生成（有效期至: %s）", t.tokenExpiry.Format(time.RFC3339))
 
 	return nil
 }
@@ -165,7 +165,7 @@ func (t *LighterTrader) ensureAuthToken() error {
 	t.accountMutex.RUnlock()
 
 	if expired {
-		log.Println("🔄 认证令牌即将过期，刷新中...")
+		logger.Info("🔄 认证令牌即将过期，刷新中...")
 		return t.refreshAuthToken()
 	}
 
@@ -204,12 +204,12 @@ func (t *LighterTrader) GetExchangeType() string {
 
 // Close 关闭交易器
 func (t *LighterTrader) Close() error {
-	log.Println("✓ LIGHTER交易器已关闭")
+	logger.Info("✓ LIGHTER交易器已关闭")
 	return nil
 }
 
 // Run 运行交易器（实现Trader接口）
 func (t *LighterTrader) Run() error {
-	log.Println("⚠️ LIGHTER交易器的Run方法应由AutoTrader调用")
+	logger.Info("⚠️ LIGHTER交易器的Run方法应由AutoTrader调用")
 	return fmt.Errorf("请使用AutoTrader管理交易器生命周期")
 }

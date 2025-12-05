@@ -11,6 +11,18 @@ var (
 	Log *logrus.Logger
 )
 
+func init() {
+	// 自动初始化默认 logger，确保在 Init 被调用前也能使用
+	Log = logrus.New()
+	Log.SetLevel(logrus.InfoLevel)
+	Log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		ForceColors:     true,
+	})
+	Log.SetOutput(os.Stdout)
+}
+
 // ============================================================================
 // 初始化函数
 // ============================================================================

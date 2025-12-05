@@ -5,7 +5,7 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -82,7 +82,7 @@ func New(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}
 
-	log.Printf("✅ 数据库已启用 WAL 模式和 FULL 同步")
+	logger.Info("✅ 数据库已启用 WAL 模式和 FULL 同步")
 	return s, nil
 }
 

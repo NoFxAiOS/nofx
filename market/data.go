@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"nofx/logger"
 	"math"
 	"strconv"
 	"strings"
@@ -38,7 +38,7 @@ func Get(symbol string) (*Data, error) {
 
 	// Data staleness detection: Prevent DOGEUSDT-style price freeze issues
 	if isStaleData(klines3m, symbol) {
-		log.Printf("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
+		logger.Infof("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
 		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
@@ -633,11 +633,11 @@ func isStaleData(klines []Kline, symbol string) bool {
 	}
 
 	if allVolumeZero {
-		log.Printf("⚠️  %s stale data confirmed: price freeze + zero volume", symbol)
+		logger.Infof("⚠️  %s stale data confirmed: price freeze + zero volume", symbol)
 		return true
 	}
 
 	// Price frozen but has volume: might be extremely low volatility market, allow but log warning
-	log.Printf("⚠️  %s detected extreme price stability (no fluctuation for %d consecutive periods), but volume is normal", symbol, stalePriceThreshold)
+	logger.Infof("⚠️  %s detected extreme price stability (no fluctuation for %d consecutive periods), but volume is normal", symbol, stalePriceThreshold)
 	return false
 }

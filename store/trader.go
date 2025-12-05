@@ -3,7 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
+	"nofx/logger"
 	"nofx/market"
 	"slices"
 	"strings"
@@ -285,7 +285,7 @@ func (s *TraderStore) GetCustomCoins() []string {
 		_ = s.db.QueryRow(`SELECT value FROM system_config WHERE key = 'default_coins'`).Scan(&symbolJSON)
 		if symbolJSON != "" {
 			if err := json.Unmarshal([]byte(symbolJSON), &symbols); err != nil {
-				log.Printf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
+				logger.Warnf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
 				symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
 			}
 		} else {

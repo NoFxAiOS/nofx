@@ -3,7 +3,7 @@ package trader
 import (
 	"context"
 	"fmt"
-	"log"
+	"nofx/logger"
 	"net/http"
 	"strconv"
 	"strings"
@@ -55,7 +55,7 @@ func NewBybitTrader(apiKey, secretKey string) *BybitTrader {
 		cacheDuration: 15 * time.Second,
 	}
 
-	log.Printf("🔵 [Bybit] 交易器已初始化")
+	logger.Infof("🔵 [Bybit] 交易器已初始化")
 
 	return trader
 }
@@ -224,7 +224,7 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// 先设置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		log.Printf("⚠️ [Bybit] 设置杠杆失败: %v", err)
+		logger.Infof("⚠️ [Bybit] 设置杠杆失败: %v", err)
 	}
 
 	params := map[string]interface{}{
@@ -251,7 +251,7 @@ func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 func (t *BybitTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	// 先设置杠杆
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		log.Printf("⚠️ [Bybit] 设置杠杆失败: %v", err)
+		logger.Infof("⚠️ [Bybit] 设置杠杆失败: %v", err)
 	}
 
 	params := map[string]interface{}{
@@ -485,7 +485,7 @@ func (t *BybitTrader) SetStopLoss(symbol string, positionSide string, quantity, 
 		return fmt.Errorf("设置止损失败: %s", result.RetMsg)
 	}
 
-	log.Printf("  ✓ [Bybit] 止损单已设置: %s @ %.2f", symbol, stopPrice)
+	logger.Infof("  ✓ [Bybit] 止损单已设置: %s @ %.2f", symbol, stopPrice)
 	return nil
 }
 
@@ -528,7 +528,7 @@ func (t *BybitTrader) SetTakeProfit(symbol string, positionSide string, quantity
 		return fmt.Errorf("设置止盈失败: %s", result.RetMsg)
 	}
 
-	log.Printf("  ✓ [Bybit] 止盈单已设置: %s @ %.2f", symbol, takeProfitPrice)
+	logger.Infof("  ✓ [Bybit] 止盈单已设置: %s @ %.2f", symbol, takeProfitPrice)
 	return nil
 }
 
@@ -560,10 +560,10 @@ func (t *BybitTrader) CancelAllOrders(symbol string) error {
 // CancelStopOrders 取消所有止盈止损单
 func (t *BybitTrader) CancelStopOrders(symbol string) error {
 	if err := t.CancelStopLossOrders(symbol); err != nil {
-		log.Printf("⚠️ [Bybit] 取消止损单失败: %v", err)
+		logger.Infof("⚠️ [Bybit] 取消止损单失败: %v", err)
 	}
 	if err := t.CancelTakeProfitOrders(symbol); err != nil {
-		log.Printf("⚠️ [Bybit] 取消止盈单失败: %v", err)
+		logger.Infof("⚠️ [Bybit] 取消止盈单失败: %v", err)
 	}
 	return nil
 }

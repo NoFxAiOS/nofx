@@ -15,6 +15,21 @@ type Data struct {
 	FundingRate       float64
 	IntradaySeries    *IntradayData
 	LongerTermContext *LongerTermData
+	// 多时间周期数据（新增）
+	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
+}
+
+// TimeframeSeriesData 单个时间周期的序列数据
+type TimeframeSeriesData struct {
+	Timeframe   string    `json:"timeframe"`    // 时间周期标识，如 "5m", "15m", "1h"
+	MidPrices   []float64 `json:"mid_prices"`   // 价格序列
+	EMA20Values []float64 `json:"ema20_values"` // EMA20 序列
+	EMA50Values []float64 `json:"ema50_values"` // EMA50 序列
+	MACDValues  []float64 `json:"macd_values"`  // MACD 序列
+	RSI7Values  []float64 `json:"rsi7_values"`  // RSI7 序列
+	RSI14Values []float64 `json:"rsi14_values"` // RSI14 序列
+	Volume      []float64 `json:"volume"`       // 成交量序列
+	ATR14       float64   `json:"atr14"`        // ATR14
 }
 
 // OIData Open Interest数据

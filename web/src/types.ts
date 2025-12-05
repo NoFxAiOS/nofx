@@ -347,3 +347,79 @@ export interface BacktestStartConfig {
     altcoin_leverage?: number;
   };
 }
+
+// Strategy Studio Types
+export interface Strategy {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  is_default: boolean;
+  config: StrategyConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StrategyConfig {
+  coin_source: CoinSourceConfig;
+  indicators: IndicatorConfig;
+  custom_prompt?: string;
+  risk_control: RiskControlConfig;
+}
+
+export interface CoinSourceConfig {
+  source_type: 'static' | 'coinpool' | 'oi_top' | 'mixed';
+  static_coins?: string[];
+  use_coin_pool: boolean;
+  coin_pool_limit?: number;
+  coin_pool_api_url?: string;  // AI500 币种池 API URL
+  use_oi_top: boolean;
+  oi_top_limit?: number;
+  oi_top_api_url?: string;     // OI Top API URL
+}
+
+export interface IndicatorConfig {
+  klines: KlineConfig;
+  enable_ema: boolean;
+  enable_macd: boolean;
+  enable_rsi: boolean;
+  enable_atr: boolean;
+  enable_volume: boolean;
+  enable_oi: boolean;
+  enable_funding_rate: boolean;
+  ema_periods?: number[];
+  rsi_periods?: number[];
+  atr_periods?: number[];
+  external_data_sources?: ExternalDataSource[];
+}
+
+export interface KlineConfig {
+  primary_timeframe: string;
+  primary_count: number;
+  longer_timeframe?: string;
+  longer_count?: number;
+  enable_multi_timeframe: boolean;
+  // 新增：支持选择多个时间周期
+  selected_timeframes?: string[];
+}
+
+export interface ExternalDataSource {
+  name: string;
+  type: 'api' | 'webhook';
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  data_path?: string;
+  refresh_secs?: number;
+}
+
+export interface RiskControlConfig {
+  max_positions: number;
+  btc_eth_max_leverage: number;
+  altcoin_max_leverage: number;
+  min_risk_reward_ratio: number;
+  max_margin_usage: number;
+  max_position_ratio: number;
+  min_position_size: number;
+  min_confidence: number;
+}

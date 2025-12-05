@@ -144,6 +144,20 @@ func (s *Server) setupRoutes() {
 			protected.GET("/exchanges", s.handleGetExchangeConfigs)
 			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
 
+			// 策略管理
+			protected.GET("/strategies", s.handleGetStrategies)
+			protected.GET("/strategies/active", s.handleGetActiveStrategy)
+			protected.GET("/strategies/default-config", s.handleGetDefaultStrategyConfig)
+			protected.GET("/strategies/templates", s.handleGetPromptTemplates)
+			protected.POST("/strategies/preview-prompt", s.handlePreviewPrompt)
+			protected.POST("/strategies/test-run", s.handleStrategyTestRun)
+			protected.GET("/strategies/:id", s.handleGetStrategy)
+			protected.POST("/strategies", s.handleCreateStrategy)
+			protected.PUT("/strategies/:id", s.handleUpdateStrategy)
+			protected.DELETE("/strategies/:id", s.handleDeleteStrategy)
+			protected.POST("/strategies/:id/activate", s.handleActivateStrategy)
+			protected.POST("/strategies/:id/duplicate", s.handleDuplicateStrategy)
+
 			// 用户信号源配置
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)

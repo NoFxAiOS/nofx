@@ -112,6 +112,230 @@ func Get(symbol string) (*Data, error) {
 	}, nil
 }
 
+// GetWithTimeframes 获取指定多个时间周期的市场数据
+// timeframes: 时间周期列表，如 ["5m", "15m", "1h", "4h"]
+// primaryTimeframe: 主时间周期（用于计算当前指标），默认使用 timeframes[0]
+// count: 每个时间周期的 K 线数量
+func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
+	symbol = Normalize(symbol)
+
+	if len(timeframes) == 0 {
+		return nil, fmt.Errorf("至少需要一个时间周期")
+	}
+
+	// 如果未指定主周期，使用第一个
+	if primaryTimeframe == "" {
+		primaryTimeframe = timeframes[0]
+	}
+
+	// 确保主周期在列表中
+	hasPrimary := false
+	for _, tf := range timeframes {
+		if tf == primaryTimeframe {
+			hasPrimary = true
+			break
+		}
+	}
+	if !hasPrimary {
+		timeframes = append([]string{primaryTimeframe}, timeframes...)
+	}
+
+	// 存储所有时间周期的数据
+	timeframeData := make(map[string]*TimeframeSeriesData)
+	var primaryKlines []Kline
+
+	// 获取每个时间周期的 K 线数据
+	for _, tf := range timeframes {
+		klines, err := WSMonitorCli.GetCurrentKlines(symbol, tf)
+		if err != nil {
+			logger.Infof("⚠️ 获取 %s %s K线失败: %v", symbol, tf, err)
+			continue
+		}
+
+		if len(klines) == 0 {
+			logger.Infof("⚠️ %s %s K线数据为空", symbol, tf)
+			continue
+		}
+
+		// 保存主周期的 K 线用于计算基础指标
+		if tf == primaryTimeframe {
+			primaryKlines = klines
+		}
+
+		// 计算该时间周期的系列数据
+		seriesData := calculateTimeframeSeries(klines, tf)
+		timeframeData[tf] = seriesData
+	}
+
+	// 如果主周期数据为空，返回错误
+	if len(primaryKlines) == 0 {
+		return nil, fmt.Errorf("主时间周期 %s K线数据为空", primaryTimeframe)
+	}
+
+	// Data staleness detection
+	if isStaleData(primaryKlines, symbol) {
+		logger.Infof("⚠️  WARNING: %s detected stale data (consecutive price freeze), skipping symbol", symbol)
+		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
+	}
+
+	// 计算当前指标 (基于主周期最新数据)
+	currentPrice := primaryKlines[len(primaryKlines)-1].Close
+	currentEMA20 := calculateEMA(primaryKlines, 20)
+	currentMACD := calculateMACD(primaryKlines)
+	currentRSI7 := calculateRSI(primaryKlines, 7)
+
+	// 计算价格变化
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1小时
+	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4小时
+
+	// 获取OI数据
+	oiData, err := getOpenInterestData(symbol)
+	if err != nil {
+		oiData = &OIData{Latest: 0, Average: 0}
+	}
+
+	// 获取Funding Rate
+	fundingRate, _ := getFundingRate(symbol)
+
+	return &Data{
+		Symbol:        symbol,
+		CurrentPrice:  currentPrice,
+		PriceChange1h: priceChange1h,
+		PriceChange4h: priceChange4h,
+		CurrentEMA20:  currentEMA20,
+		CurrentMACD:   currentMACD,
+		CurrentRSI7:   currentRSI7,
+		OpenInterest:  oiData,
+		FundingRate:   fundingRate,
+		TimeframeData: timeframeData,
+	}, nil
+}
+
+// calculateTimeframeSeries 计算单个时间周期的系列数据
+func calculateTimeframeSeries(klines []Kline, timeframe string) *TimeframeSeriesData {
+	data := &TimeframeSeriesData{
+		Timeframe:   timeframe,
+		MidPrices:   make([]float64, 0, 10),
+		EMA20Values: make([]float64, 0, 10),
+		EMA50Values: make([]float64, 0, 10),
+		MACDValues:  make([]float64, 0, 10),
+		RSI7Values:  make([]float64, 0, 10),
+		RSI14Values: make([]float64, 0, 10),
+		Volume:      make([]float64, 0, 10),
+	}
+
+	// 获取最近10个数据点
+	start := len(klines) - 10
+	if start < 0 {
+		start = 0
+	}
+
+	for i := start; i < len(klines); i++ {
+		data.MidPrices = append(data.MidPrices, klines[i].Close)
+		data.Volume = append(data.Volume, klines[i].Volume)
+
+		// 计算每个点的 EMA20
+		if i >= 19 {
+			ema20 := calculateEMA(klines[:i+1], 20)
+			data.EMA20Values = append(data.EMA20Values, ema20)
+		}
+
+		// 计算每个点的 EMA50
+		if i >= 49 {
+			ema50 := calculateEMA(klines[:i+1], 50)
+			data.EMA50Values = append(data.EMA50Values, ema50)
+		}
+
+		// 计算每个点的 MACD
+		if i >= 25 {
+			macd := calculateMACD(klines[:i+1])
+			data.MACDValues = append(data.MACDValues, macd)
+		}
+
+		// 计算每个点的 RSI
+		if i >= 7 {
+			rsi7 := calculateRSI(klines[:i+1], 7)
+			data.RSI7Values = append(data.RSI7Values, rsi7)
+		}
+		if i >= 14 {
+			rsi14 := calculateRSI(klines[:i+1], 14)
+			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+	}
+
+	// 计算 ATR14
+	data.ATR14 = calculateATR(klines, 14)
+
+	return data
+}
+
+// calculatePriceChangeByBars 根据时间周期计算需要回溯多少根 K 线来计算价格变化
+func calculatePriceChangeByBars(klines []Kline, timeframe string, targetMinutes int) float64 {
+	if len(klines) < 2 {
+		return 0
+	}
+
+	// 解析时间周期为分钟数
+	tfMinutes := parseTimeframeToMinutes(timeframe)
+	if tfMinutes <= 0 {
+		return 0
+	}
+
+	// 计算需要回溯多少根 K 线
+	barsBack := targetMinutes / tfMinutes
+	if barsBack < 1 {
+		barsBack = 1
+	}
+
+	currentPrice := klines[len(klines)-1].Close
+	idx := len(klines) - 1 - barsBack
+	if idx < 0 {
+		idx = 0
+	}
+
+	oldPrice := klines[idx].Close
+	if oldPrice > 0 {
+		return ((currentPrice - oldPrice) / oldPrice) * 100
+	}
+	return 0
+}
+
+// parseTimeframeToMinutes 将时间周期字符串解析为分钟数
+func parseTimeframeToMinutes(tf string) int {
+	switch tf {
+	case "1m":
+		return 1
+	case "3m":
+		return 3
+	case "5m":
+		return 5
+	case "15m":
+		return 15
+	case "30m":
+		return 30
+	case "1h":
+		return 60
+	case "2h":
+		return 120
+	case "4h":
+		return 240
+	case "6h":
+		return 360
+	case "8h":
+		return 480
+	case "12h":
+		return 720
+	case "1d":
+		return 1440
+	case "3d":
+		return 4320
+	case "1w":
+		return 10080
+	default:
+		return 0
+	}
+}
+
 // calculateEMA 计算EMA
 func calculateEMA(klines []Kline, period int) float64 {
 	if len(klines) < period {
@@ -481,7 +705,52 @@ func Format(data *Data) string {
 		}
 	}
 
+	// 多时间周期数据（新增）
+	if len(data.TimeframeData) > 0 {
+		// 按时间周期排序输出
+		timeframeOrder := []string{"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w"}
+		for _, tf := range timeframeOrder {
+			if tfData, ok := data.TimeframeData[tf]; ok {
+				sb.WriteString(fmt.Sprintf("=== %s Timeframe ===\n\n", strings.ToUpper(tf)))
+				formatTimeframeData(&sb, tfData)
+			}
+		}
+	}
+
 	return sb.String()
+}
+
+// formatTimeframeData 格式化单个时间周期的数据
+func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
+	if len(data.MidPrices) > 0 {
+		sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidPrices)))
+	}
+
+	if len(data.EMA20Values) > 0 {
+		sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.EMA20Values)))
+	}
+
+	if len(data.EMA50Values) > 0 {
+		sb.WriteString(fmt.Sprintf("EMA indicators (50‑period): %s\n\n", formatFloatSlice(data.EMA50Values)))
+	}
+
+	if len(data.MACDValues) > 0 {
+		sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.MACDValues)))
+	}
+
+	if len(data.RSI7Values) > 0 {
+		sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.RSI7Values)))
+	}
+
+	if len(data.RSI14Values) > 0 {
+		sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.RSI14Values)))
+	}
+
+	if len(data.Volume) > 0 {
+		sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+	}
+
+	sb.WriteString(fmt.Sprintf("ATR (14‑period): %.3f\n\n", data.ATR14))
 }
 
 // formatPriceWithDynamicPrecision 根据价格区间动态选择精度

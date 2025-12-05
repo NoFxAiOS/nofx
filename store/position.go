@@ -69,7 +69,11 @@ func (s *PositionStore) InitTables() error {
 		return fmt.Errorf("创建trader_positions表失败: %w", err)
 	}
 
-	// 创建索引
+	// 迁移：为现有表添加 exchange_id 列（如果不存在）
+	// 必须在创建索引之前执行！
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_id TEXT NOT NULL DEFAULT ''`)
+
+	// 创建索引（在迁移之后）
 	indices := []string{
 		`CREATE INDEX IF NOT EXISTS idx_positions_trader ON trader_positions(trader_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_exchange ON trader_positions(exchange_id)`,
@@ -83,9 +87,6 @@ func (s *PositionStore) InitTables() error {
 			return fmt.Errorf("创建索引失败: %w", err)
 		}
 	}
-
-	// 迁移：为现有表添加 exchange_id 列（如果不存在）
-	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_id TEXT NOT NULL DEFAULT ''`)
 
 	return nil
 }

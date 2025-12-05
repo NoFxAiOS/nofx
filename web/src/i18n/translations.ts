@@ -21,6 +21,7 @@ export const translations = {
     realtimeNav: 'Live',
     configNav: 'Config',
     dashboardNav: 'Dashboard',
+    strategyNav: 'Strategy',
     faqNav: 'FAQ',
 
     // Footer
@@ -1017,6 +1018,7 @@ export const translations = {
     realtimeNav: '实时',
     configNav: '配置',
     dashboardNav: '看板',
+    strategyNav: '策略',
     faqNav: '常见问题',
 
     // Footer

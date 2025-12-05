@@ -663,8 +663,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 
 	// 6. 添加交易统计和历史订单（如果store可用）
 	if at.store != nil {
-		// 获取交易统计
-		if stats, err := at.store.Order().GetTraderStats(at.id); err == nil {
+		// 获取交易统计（使用新的 positions 表）
+		if stats, err := at.store.Position().GetFullStats(at.id); err == nil {
 			ctx.TradingStats = &decision.TradingStats{
 				TotalTrades:    stats.TotalTrades,
 				WinRate:        stats.WinRate,
@@ -677,17 +677,17 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			}
 		}
 
-		// 获取最近10条已完成订单
-		if recentOrders, err := at.store.Order().GetRecentCompletedOrders(at.id, 10); err == nil {
-			for _, order := range recentOrders {
+		// 获取最近10条已平仓交易（使用新的 positions 表）
+		if recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10); err == nil {
+			for _, trade := range recentTrades {
 				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
-					Symbol:      order.Symbol,
-					Side:        order.Side,
-					EntryPrice:  order.EntryPrice,
-					ExitPrice:   order.ExitPrice,
-					RealizedPnL: order.RealizedPnL,
-					PnLPct:      order.PnLPct,
-					FilledAt:    order.FilledAt.Format("01-02 15:04"),
+					Symbol:      trade.Symbol,
+					Side:        trade.Side,
+					EntryPrice:  trade.EntryPrice,
+					ExitPrice:   trade.ExitPrice,
+					RealizedPnL: trade.RealizedPnL,
+					PnLPct:      trade.PnLPct,
+					FilledAt:    trade.ExitTime,
 				})
 			}
 		}
@@ -1532,6 +1532,68 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 	}
 
 	logger.Infof("  📝 订单已记录 (ID: %s, action: %s)", orderID, action)
-	// 订单状态将由 OrderSyncManager 统一同步
+
+	// 记录仓位变化
+	at.recordPositionChange(orderID, symbol, positionSide, action, quantity, price, leverage, entryPrice)
+}
+
+// recordPositionChange 记录仓位变化（开仓创建记录，平仓更新记录）
+func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string, quantity, price float64, leverage int, entryPrice float64) {
+	if at.store == nil {
+		return
+	}
+
+	switch action {
+	case "open_long", "open_short":
+		// 开仓：创建新的仓位记录
+		pos := &store.TraderPosition{
+			TraderID:     at.id,
+			Symbol:       symbol,
+			Side:         side, // LONG or SHORT
+			Quantity:     quantity,
+			EntryPrice:   price,
+			EntryOrderID: orderID,
+			EntryTime:    time.Now(),
+			Leverage:     leverage,
+			Status:       "OPEN",
+		}
+		if err := at.store.Position().Create(pos); err != nil {
+			logger.Infof("  ⚠️ 记录仓位失败: %v", err)
+		} else {
+			logger.Infof("  📊 仓位已记录 [%s] %s %s @ %.4f", at.id[:8], symbol, side, price)
+		}
+
+	case "close_long", "close_short":
+		// 平仓：找到对应的开仓记录并更新
+		openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side)
+		if err != nil || openPos == nil {
+			logger.Infof("  ⚠️ 找不到对应的开仓记录 (%s %s)", symbol, side)
+			return
+		}
+
+		// 计算盈亏
+		var realizedPnL float64
+		if side == "LONG" {
+			realizedPnL = (price - openPos.EntryPrice) * openPos.Quantity
+		} else {
+			realizedPnL = (openPos.EntryPrice - price) * openPos.Quantity
+		}
+
+		// 更新仓位记录
+		err = at.store.Position().ClosePosition(
+			openPos.ID,
+			price,       // exitPrice
+			orderID,     // exitOrderID
+			realizedPnL,
+			0,           // fee (暂不计算)
+			"ai_decision",
+		)
+		if err != nil {
+			logger.Infof("  ⚠️ 更新仓位失败: %v", err)
+		} else {
+			logger.Infof("  📊 仓位已平仓 [%s] %s %s @ %.4f → %.4f, PnL: %.2f",
+				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL)
+		}
+	}
 }
 

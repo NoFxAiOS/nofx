@@ -126,6 +126,11 @@ export function DecisionCard({ decision, language }: DecisionCardProps) {
                         background: 'rgba(14, 203, 129, 0.1)',
                         color: '#0ECB81',
                       }
+                    : action.action === 'wait' || action.action === 'hold'
+                    ? {
+                        background: 'rgba(132, 142, 156, 0.1)',
+                        color: '#848E9C',
+                      }
                     : {
                         background: 'rgba(248, 113, 113, 0.1)',
                         color: '#F87171',

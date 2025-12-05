@@ -370,6 +370,10 @@ func main() {
 	orderSyncManager := trader.NewOrderSyncManager(st, 10*time.Second)
 	orderSyncManager.Start()
 
+	// 启动仓位同步管理器（检测手动平仓等变化）
+	positionSyncManager := trader.NewPositionSyncManager(st, 10*time.Second)
+	positionSyncManager.Start()
+
 	// 创建并启动API服务器
 	apiServer := api.NewServer(traderManager, st, cryptoService, backtestManager, apiPort)
 	go func() {
@@ -397,9 +401,11 @@ func main() {
 	traderManager.StopAll()
 	logger.Info("✅ 所有交易员已停止")
 
-	// 步骤 2: 停止订单同步管理器
+	// 步骤 2: 停止订单同步管理器和仓位同步管理器
 	logger.Info("📦 停止订单同步管理器...")
 	orderSyncManager.Stop()
+	logger.Info("📊 停止仓位同步管理器...")
+	positionSyncManager.Stop()
 
 	// 步骤 3: 关闭 API 服务器
 	logger.Info("🛑 停止 API 服务器...")

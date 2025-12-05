@@ -26,6 +26,7 @@ type Store struct {
 	decision     *DecisionStore
 	backtest     *BacktestStore
 	order        *OrderStore
+	position     *PositionStore
 
 	// 加密函数
 	encryptFunc func(string) string
@@ -146,6 +147,9 @@ func (s *Store) initTables() error {
 	}
 	if err := s.Order().InitTables(); err != nil {
 		return fmt.Errorf("初始化订单表失败: %w", err)
+	}
+	if err := s.Position().InitTables(); err != nil {
+		return fmt.Errorf("初始化仓位表失败: %w", err)
 	}
 	return nil
 }
@@ -273,6 +277,16 @@ func (s *Store) Order() *OrderStore {
 		s.order = NewOrderStore(s.db)
 	}
 	return s.order
+}
+
+// Position 获取仓位存储
+func (s *Store) Position() *PositionStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.position == nil {
+		s.position = NewPositionStore(s.db)
+	}
+	return s.position
 }
 
 // Close 关闭数据库连接

@@ -3,14 +3,14 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { ChevronDown, TrendingUp, X } from 'lucide-react'
 
-// 支持的交易所列表
+// 支持的交易所列表 (合约格式)
 const EXCHANGES = [
-  { id: 'BINANCE', name: 'Binance', prefix: 'BINANCE:' },
-  { id: 'BYBIT', name: 'Bybit', prefix: 'BYBIT:' },
-  { id: 'OKX', name: 'OKX', prefix: 'OKX:' },
-  { id: 'COINBASE', name: 'Coinbase', prefix: 'COINBASE:' },
-  { id: 'KRAKEN', name: 'Kraken', prefix: 'KRAKEN:' },
-  { id: 'KUCOIN', name: 'KuCoin', prefix: 'KUCOIN:' },
+  { id: 'BINANCE', name: 'Binance', prefix: 'BINANCE:', suffix: '.P' },
+  { id: 'BYBIT', name: 'Bybit', prefix: 'BYBIT:', suffix: '.P' },
+  { id: 'OKX', name: 'OKX', prefix: 'OKX:', suffix: '.P' },
+  { id: 'BITGET', name: 'Bitget', prefix: 'BITGET:', suffix: '.P' },
+  { id: 'MEXC', name: 'MEXC', prefix: 'MEXC:', suffix: '.P' },
+  { id: 'GATEIO', name: 'Gate.io', prefix: 'GATEIO:', suffix: '.P' },
 ] as const
 
 // 热门交易对
@@ -66,10 +66,12 @@ function TradingViewChartComponent({
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
-  // 获取完整的交易对符号
+  // 获取完整的交易对符号 (合约格式: BINANCE:BTCUSDT.P)
   const getFullSymbol = () => {
     const exchangeInfo = EXCHANGES.find((e) => e.id === exchange)
-    return `${exchangeInfo?.prefix || 'BINANCE:'}${symbol}`
+    const prefix = exchangeInfo?.prefix || 'BINANCE:'
+    const suffix = exchangeInfo?.suffix || '.P'
+    return `${prefix}${symbol}${suffix}`
   }
 
   // 加载 TradingView Widget
@@ -130,7 +132,12 @@ function TradingViewChartComponent({
   // 处理自定义交易对输入
   const handleCustomSymbolSubmit = () => {
     if (customSymbol.trim()) {
-      setSymbol(customSymbol.trim().toUpperCase())
+      let sym = customSymbol.trim().toUpperCase()
+      // 如果没有 USDT 后缀，自动加上
+      if (!sym.endsWith('USDT')) {
+        sym = sym + 'USDT'
+      }
+      setSymbol(sym)
       setCustomSymbol('')
       setShowSymbolDropdown(false)
     }

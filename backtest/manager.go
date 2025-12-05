@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"nofx/logger"
 	"nofx/mcp"
+	"nofx/store"
 )
 
 type Manager struct {
@@ -445,7 +445,7 @@ func (m *Manager) resolveAIConfig(cfg *BacktestConfig) error {
 	return resolver(cfg)
 }
 
-func (m *Manager) GetTrace(runID string, cycle int) (*logger.DecisionRecord, error) {
+func (m *Manager) GetTrace(runID string, cycle int) (*store.DecisionRecord, error) {
 	return LoadDecisionTrace(runID, cycle)
 }
 

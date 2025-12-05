@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"nofx/logger"
+	"nofx/store"
 )
 
 const (
@@ -380,7 +380,7 @@ func PersistMetrics(runID string, metrics *Metrics) error {
 	return saveMetrics(runID, metrics)
 }
 
-func LoadDecisionTrace(runID string, cycle int) (*logger.DecisionRecord, error) {
+func LoadDecisionTrace(runID string, cycle int) (*store.DecisionRecord, error) {
 	if usingDB() {
 		return loadDecisionTraceDB(runID, cycle)
 	}
@@ -418,7 +418,7 @@ func LoadDecisionTrace(runID string, cycle int) (*logger.DecisionRecord, error) 
 		if err != nil {
 			continue
 		}
-		var record logger.DecisionRecord
+		var record store.DecisionRecord
 		if err := json.Unmarshal(data, &record); err != nil {
 			continue
 		}
@@ -429,7 +429,7 @@ func LoadDecisionTrace(runID string, cycle int) (*logger.DecisionRecord, error) 
 	return nil, fmt.Errorf("decision trace not found for run %s cycle %d", runID, cycle)
 }
 
-func LoadDecisionRecords(runID string, limit, offset int) ([]*logger.DecisionRecord, error) {
+func LoadDecisionRecords(runID string, limit, offset int) ([]*store.DecisionRecord, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -443,7 +443,7 @@ func LoadDecisionRecords(runID string, limit, offset int) ([]*logger.DecisionRec
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return []*logger.DecisionRecord{}, nil
+			return []*store.DecisionRecord{}, nil
 		}
 		return nil, err
 	}
@@ -471,19 +471,19 @@ func LoadDecisionRecords(runID string, limit, offset int) ([]*logger.DecisionRec
 		return infoI.ModTime().After(infoJ.ModTime())
 	})
 	if offset >= len(files) {
-		return []*logger.DecisionRecord{}, nil
+		return []*store.DecisionRecord{}, nil
 	}
 	end := offset + limit
 	if end > len(files) {
 		end = len(files)
 	}
-	records := make([]*logger.DecisionRecord, 0, end-offset)
+	records := make([]*store.DecisionRecord, 0, end-offset)
 	for _, file := range files[offset:end] {
 		data, err := os.ReadFile(file.path)
 		if err != nil {
 			continue
 		}
-		var record logger.DecisionRecord
+		var record store.DecisionRecord
 		if err := json.Unmarshal(data, &record); err != nil {
 			continue
 		}
@@ -553,7 +553,7 @@ func CreateRunExport(runID string) (string, error) {
 	return tmpFile.Name(), nil
 }
 
-func persistDecisionRecord(runID string, record *logger.DecisionRecord) {
+func persistDecisionRecord(runID string, record *store.DecisionRecord) {
 	if !usingDB() || record == nil {
 		return
 	}

@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"fmt"
 	"log"
-	"nofx/logger"
 	"sort"
 	"sync"
 	"time"
@@ -130,7 +129,7 @@ func RunWithPolicy(ctx *Context, defaultPolicy ErrorPolicy) error {
 
 	// 汇总结果
 	if len(errors) > 0 {
-		logger.Log.Warnf("⚠️  初始化完成，但有 %d 个模块失败 (总耗时: %v)",
+		log.Printf("⚠️  初始化完成，但有 %d 个模块失败 (总耗时: %v)",
 			len(errors), totalElapsed)
 		log.Printf("📊 统计: 成功=%d, 失败=%d, 跳过=%d",
 			successCount, len(errors), skippedCount)

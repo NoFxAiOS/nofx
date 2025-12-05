@@ -13,6 +13,7 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
+	"nofx/store"
 	"os"
 	"os/signal"
 	"strconv"
@@ -64,7 +65,7 @@ func loadConfigFile() (*ConfigFile, error) {
 }
 
 // syncConfigToDatabase 将配置同步到数据库
-func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) error {
+func syncConfigToDatabase(st *store.Store, configFile *ConfigFile) error {
 	if configFile == nil {
 		return nil
 	}
@@ -106,7 +107,7 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 
 	// 更新数据库配置
 	for key, value := range configs {
-		if err := database.SetSystemConfig(key, value); err != nil {
+		if err := st.SystemConfig().Set(key, value); err != nil {
 			log.Printf("⚠️  更新配置 %s 失败: %v", key, err)
 		} else {
 			log.Printf("✓ 同步配置: %s = %s", key, value)
@@ -118,7 +119,7 @@ func syncConfigToDatabase(database *config.Database, configFile *ConfigFile) err
 }
 
 // loadBetaCodesToDatabase 加载内测码文件到数据库
-func loadBetaCodesToDatabase(database *config.Database) error {
+func loadBetaCodesToDatabase(st *store.Store) error {
 	betaCodeFile := "beta_codes.txt"
 
 	// 检查内测码文件是否存在
@@ -136,13 +137,13 @@ func loadBetaCodesToDatabase(database *config.Database) error {
 	log.Printf("🔄 发现内测码文件 %s (%.1f KB)，开始加载...", betaCodeFile, float64(fileInfo.Size())/1024)
 
 	// 加载内测码到数据库
-	err = database.LoadBetaCodesFromFile(betaCodeFile)
+	err = st.BetaCode().LoadFromFile(betaCodeFile)
 	if err != nil {
 		return fmt.Errorf("加载内测码失败: %w", err)
 	}
 
 	// 显示统计信息
-	total, used, err := database.GetBetaCodeStats()
+	total, used, err := st.BetaCode().GetStats()
 	if err != nil {
 		log.Printf("⚠️  获取内测码统计失败: %v", err)
 	} else {
@@ -175,12 +176,12 @@ func main() {
 	}
 
 	log.Printf("📋 初始化配置数据库: %s", dbPath)
-	database, err := config.NewDatabase(dbPath)
+	st, err := store.New(dbPath)
 	if err != nil {
 		log.Fatalf("❌ 初始化数据库失败: %v", err)
 	}
-	defer database.Close()
-	backtest.UseDatabase(database.Conn())
+	defer st.Close()
+	backtest.UseDatabase(st.DB())
 
 	// 初始化加密服务
 	log.Printf("🔐 初始化加密服务...")
@@ -188,29 +189,55 @@ func main() {
 	if err != nil {
 		log.Fatalf("❌ 初始化加密服务失败: %v", err)
 	}
-	database.SetCryptoService(cryptoService)
+	// 创建加密/解密包装函数
+	encryptFunc := func(plaintext string) string {
+		if plaintext == "" {
+			return plaintext
+		}
+		encrypted, err := cryptoService.EncryptForStorage(plaintext)
+		if err != nil {
+			log.Printf("⚠️ 加密失败: %v", err)
+			return plaintext
+		}
+		return encrypted
+	}
+	decryptFunc := func(encrypted string) string {
+		if encrypted == "" {
+			return encrypted
+		}
+		if !cryptoService.IsEncryptedStorageValue(encrypted) {
+			return encrypted
+		}
+		decrypted, err := cryptoService.DecryptFromStorage(encrypted)
+		if err != nil {
+			log.Printf("⚠️ 解密失败: %v", err)
+			return encrypted
+		}
+		return decrypted
+	}
+	st.SetCryptoFuncs(encryptFunc, decryptFunc)
 	log.Printf("✅ 加密服务初始化成功")
 
 	// 同步config.json到数据库
-	if err := syncConfigToDatabase(database, configFile); err != nil {
+	if err := syncConfigToDatabase(st, configFile); err != nil {
 		log.Printf("⚠️  同步config.json到数据库失败: %v", err)
 	}
 
 	// 加载内测码到数据库
-	if err := loadBetaCodesToDatabase(database); err != nil {
+	if err := loadBetaCodesToDatabase(st); err != nil {
 		log.Printf("⚠️  加载内测码到数据库失败: %v", err)
 	}
 
 	// 获取系统配置
-	useDefaultCoinsStr, _ := database.GetSystemConfig("use_default_coins")
+	useDefaultCoinsStr, _ := st.SystemConfig().Get("use_default_coins")
 	useDefaultCoins := useDefaultCoinsStr == "true"
-	apiPortStr, _ := database.GetSystemConfig("api_server_port")
+	apiPortStr, _ := st.SystemConfig().Get("api_server_port")
 
 	// 设置JWT密钥（优先使用环境变量）
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 	if jwtSecret == "" {
 		// 回退到数据库配置
-		jwtSecret, _ = database.GetSystemConfig("jwt_secret")
+		jwtSecret, _ = st.SystemConfig().Get("jwt_secret")
 		if jwtSecret == "" {
 			jwtSecret = "your-jwt-secret-key-change-in-production-make-it-long-and-random"
 			log.Printf("⚠️  使用默认JWT密钥，建议使用加密设置脚本生成安全密钥")
@@ -228,7 +255,7 @@ func main() {
 	fmt.Println()
 
 	// 从数据库读取默认主流币种列表
-	defaultCoinsJSON, _ := database.GetSystemConfig("default_coins")
+	defaultCoinsJSON, _ := st.SystemConfig().Get("default_coins")
 	var defaultCoins []string
 
 	if defaultCoinsJSON != "" {
@@ -253,13 +280,13 @@ func main() {
 	}
 
 	// 设置币种池API URL
-	coinPoolAPIURL, _ := database.GetSystemConfig("coin_pool_api_url")
+	coinPoolAPIURL, _ := st.SystemConfig().Get("coin_pool_api_url")
 	if coinPoolAPIURL != "" {
 		pool.SetCoinPoolAPI(coinPoolAPIURL)
 		log.Printf("✓ 已配置AI500币种池API")
 	}
 
-	oiTopAPIURL, _ := database.GetSystemConfig("oi_top_api_url")
+	oiTopAPIURL, _ := st.SystemConfig().Get("oi_top_api_url")
 	if oiTopAPIURL != "" {
 		pool.SetOITopAPI(oiTopAPIURL)
 		log.Printf("✓ 已配置OI Top API")
@@ -279,13 +306,13 @@ func main() {
 	}
 
 	// 从数据库加载所有交易员到内存
-	err = traderManager.LoadTradersFromDatabase(database)
+	err = traderManager.LoadTradersFromStore(st)
 	if err != nil {
 		log.Fatalf("❌ 加载交易员失败: %v", err)
 	}
 
 	// 获取数据库中的所有交易员配置（用于显示，使用default用户）
-	traders, err := database.GetTraders("default")
+	traders, err := st.Trader().List("default")
 	if err != nil {
 		log.Fatalf("❌ 获取交易员列表失败: %v", err)
 	}
@@ -351,7 +378,7 @@ func main() {
 	}
 
 	// 创建并启动API服务器
-	apiServer := api.NewServer(traderManager, database, cryptoService, backtestManager, apiPort)
+	apiServer := api.NewServer(traderManager, st, cryptoService, backtestManager, apiPort)
 	go func() {
 		if err := apiServer.Start(); err != nil {
 			log.Printf("❌ API服务器错误: %v", err)
@@ -359,7 +386,7 @@ func main() {
 	}()
 
 	// 启动流行情数据 - 默认使用所有交易员设置的币种 如果没有设置币种 则优先使用系统默认
-	go market.NewWSMonitor(150).Start(database.GetCustomCoins())
+	go market.NewWSMonitor(150).Start(st.Trader().GetCustomCoins())
 	//go market.NewWSMonitor(150).Start([]string{}) //这里是一个使用方式 传入空的话 则使用market市场的所有币种
 	// 设置优雅退出
 	sigChan := make(chan os.Signal, 1)
@@ -389,7 +416,7 @@ func main() {
 
 	// 步骤 3: 关闭数据库连接 (确保所有写入完成)
 	log.Println("💾 关闭数据库连接...")
-	if err := database.Close(); err != nil {
+	if err := st.Close(); err != nil {
 		log.Printf("❌ 关闭数据库失败: %v", err)
 	} else {
 		log.Println("✅ 数据库已安全关闭，所有数据已持久化")

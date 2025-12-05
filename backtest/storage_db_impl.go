@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"nofx/logger"
+	"nofx/store"
 )
 
 func saveCheckpointDB(runID string, ckpt *Checkpoint) error {
@@ -273,7 +273,7 @@ func saveProgressDB(runID string, payload progressPayload) error {
 	return err
 }
 
-func loadDecisionTraceDB(runID string, cycle int) (*logger.DecisionRecord, error) {
+func loadDecisionTraceDB(runID string, cycle int) (*store.DecisionRecord, error) {
 	query := `SELECT payload FROM backtest_decisions WHERE run_id = ?`
 	var rows *sql.Rows
 	var err error
@@ -293,14 +293,14 @@ func loadDecisionTraceDB(runID string, cycle int) (*logger.DecisionRecord, error
 	if err := rows.Scan(&payload); err != nil {
 		return nil, err
 	}
-	var record logger.DecisionRecord
+	var record store.DecisionRecord
 	if err := json.Unmarshal(payload, &record); err != nil {
 		return nil, err
 	}
 	return &record, nil
 }
 
-func saveDecisionRecordDB(runID string, record *logger.DecisionRecord) error {
+func saveDecisionRecordDB(runID string, record *store.DecisionRecord) error {
 	if record == nil {
 		return nil
 	}
@@ -315,7 +315,7 @@ func saveDecisionRecordDB(runID string, record *logger.DecisionRecord) error {
 	return err
 }
 
-func loadDecisionRecordsDB(runID string, limit, offset int) ([]*logger.DecisionRecord, error) {
+func loadDecisionRecordsDB(runID string, limit, offset int) ([]*store.DecisionRecord, error) {
 	rows, err := persistenceDB.Query(`
 		SELECT payload FROM backtest_decisions
 		WHERE run_id = ?
@@ -326,13 +326,13 @@ func loadDecisionRecordsDB(runID string, limit, offset int) ([]*logger.DecisionR
 		return nil, err
 	}
 	defer rows.Close()
-	records := make([]*logger.DecisionRecord, 0, limit)
+	records := make([]*store.DecisionRecord, 0, limit)
 	for rows.Next() {
 		var payload []byte
 		if err := rows.Scan(&payload); err != nil {
 			return nil, err
 		}
-		var record logger.DecisionRecord
+		var record store.DecisionRecord
 		if err := json.Unmarshal(payload, &record); err != nil {
 			return nil, err
 		}

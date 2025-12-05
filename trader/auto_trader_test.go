@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"nofx/decision"
-	"nofx/logger"
 	"nofx/market"
 	"nofx/pool"
+	"nofx/store"
 
 	"github.com/agiledragon/gomonkey/v2"
 	"github.com/stretchr/testify/suite"
@@ -30,8 +30,7 @@ type AutoTraderTestSuite struct {
 
 	// Mock 依赖
 	mockTrader *MockTrader
-	mockDB     *MockDatabase
-	mockLogger logger.IDecisionLogger
+	mockStore  *store.Store
 
 	// gomonkey patches
 	patches *gomonkey.Patches
@@ -65,10 +64,9 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		positions: []map[string]interface{}{},
 	}
 
-	s.mockDB = &MockDatabase{}
 
-	// 创建临时决策日志记录器
-	s.mockLogger = logger.NewDecisionLogger("/tmp/test_decision_logs")
+	// 创建临时store（使用nil表示测试中不需要实际的store）
+	s.mockStore = nil
 
 	// 设置默认配置
 	s.config = AutoTraderConfig{
@@ -93,7 +91,7 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		config:                s.config,
 		trader:                s.mockTrader,
 		mcpClient:             nil, // 测试中不需要实际的 MCP Client
-		decisionLogger:        s.mockLogger,
+		store:                 s.mockStore,
 		initialBalance:        s.config.InitialBalance,
 		systemPromptTemplate:  s.config.SystemPromptTemplate,
 		defaultCoins:          []string{"BTC", "ETH"},
@@ -106,7 +104,6 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		stopMonitorCh:         make(chan struct{}),
 		peakPnLCache:          make(map[string]float64),
 		lastBalanceSyncTime:   time.Now(),
-		database:              s.mockDB,
 		userID:                "test_user",
 	}
 }
@@ -410,14 +407,14 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 		existingSide  string
 		availBalance  float64
 		expectedErr   string
-		executeFn     func(*decision.Decision, *logger.DecisionAction) error
+		executeFn     func(*decision.Decision, *store.DecisionAction) error
 	}{
 		{
 			name:          "成功开多仓",
 			action:        "open_long",
 			expectedOrder: 123456,
 			availBalance:  8000.0,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenLongWithRecord(d, a)
 			},
 		},
@@ -426,7 +423,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			action:        "open_short",
 			expectedOrder: 123457,
 			availBalance:  8000.0,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenShortWithRecord(d, a)
 			},
 		},
@@ -435,7 +432,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			action:       "open_long",
 			availBalance: 0.0,
 			expectedErr:  "保证金不足",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenLongWithRecord(d, a)
 			},
 		},
@@ -444,7 +441,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			action:       "open_short",
 			availBalance: 0.0,
 			expectedErr:  "保证金不足",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenShortWithRecord(d, a)
 			},
 		},
@@ -454,7 +451,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			existingSide: "long",
 			availBalance: 8000.0,
 			expectedErr:  "已有多仓",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenLongWithRecord(d, a)
 			},
 		},
@@ -464,7 +461,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			existingSide: "short",
 			availBalance: 8000.0,
 			expectedErr:  "已有空仓",
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeOpenShortWithRecord(d, a)
 			},
 		},
@@ -485,7 +482,7 @@ func (s *AutoTraderTestSuite) TestExecuteOpenPosition() {
 			}
 
 			decision := &decision.Decision{Action: tt.action, Symbol: "BTCUSDT", PositionSizeUSD: 1000.0, Leverage: 10}
-			actionRecord := &logger.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
+			actionRecord := &store.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
 
 			err := tt.executeFn(decision, actionRecord)
 
@@ -513,14 +510,14 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 		action        string
 		currentPrice  float64
 		expectedOrder int64
-		executeFn     func(*decision.Decision, *logger.DecisionAction) error
+		executeFn     func(*decision.Decision, *store.DecisionAction) error
 	}{
 		{
 			name:          "成功平多仓",
 			action:        "close_long",
 			currentPrice:  51000.0,
 			expectedOrder: 123458,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeCloseLongWithRecord(d, a)
 			},
 		},
@@ -529,7 +526,7 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 			action:        "close_short",
 			currentPrice:  49000.0,
 			expectedOrder: 123459,
-			executeFn: func(d *decision.Decision, a *logger.DecisionAction) error {
+			executeFn: func(d *decision.Decision, a *store.DecisionAction) error {
 				return s.autoTrader.executeCloseShortWithRecord(d, a)
 			},
 		},
@@ -543,7 +540,7 @@ func (s *AutoTraderTestSuite) TestExecuteClosePosition() {
 			})
 
 			decision := &decision.Decision{Action: tt.action, Symbol: "BTCUSDT"}
-			actionRecord := &logger.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
+			actionRecord := &store.DecisionAction{Action: tt.action, Symbol: "BTCUSDT"}
 
 			err := tt.executeFn(decision, actionRecord)
 
@@ -574,7 +571,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			PositionSizeUSD: 1000.0,
 			Leverage:        10,
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.NoError(err)
@@ -585,7 +582,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			Action: "close_long",
 			Symbol: "BTCUSDT",
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.NoError(err)
@@ -596,7 +593,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			Action: "hold",
 			Symbol: "BTCUSDT",
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.NoError(err)
@@ -607,7 +604,7 @@ func (s *AutoTraderTestSuite) TestExecuteDecisionWithRecord() {
 			Action: "unknown_action",
 			Symbol: "BTCUSDT",
 		}
-		actionRecord := &logger.DecisionAction{}
+		actionRecord := &store.DecisionAction{}
 
 		err := s.autoTrader.executeDecisionWithRecord(decision, actionRecord)
 		s.Error(err)

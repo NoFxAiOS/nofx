@@ -6,10 +6,10 @@ import (
 	"log"
 	"math"
 	"nofx/decision"
-	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
+	"nofx/store"
 	"strings"
 	"sync"
 	"time"
@@ -96,7 +96,8 @@ type AutoTrader struct {
 	config                AutoTraderConfig
 	trader                Trader // 使用Trader接口（支持多平台）
 	mcpClient             mcp.AIClient
-	decisionLogger        logger.IDecisionLogger // 决策日志记录器
+	store                 *store.Store // 数据存储（决策记录等）
+	cycleNumber           int          // 当前周期编号
 	initialBalance        float64
 	dailyPnL              float64
 	customPrompt          string   // 自定义交易策略prompt
@@ -115,12 +116,12 @@ type AutoTrader struct {
 	peakPnLCache          map[string]float64 // 最高收益缓存 (symbol -> 峰值盈亏百分比)
 	peakPnLCacheMutex     sync.RWMutex       // 缓存读写锁
 	lastBalanceSyncTime   time.Time          // 上次余额同步时间
-	database              interface{}        // 数据库引用（用于自动更新余额）
 	userID                string             // 用户ID
 }
 
 // NewAutoTrader 创建自动交易器
-func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string) (*AutoTrader, error) {
+// st 参数用于存储决策记录到数据库
+func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*AutoTrader, error) {
 	// 设置默认值
 	if config.ID == "" {
 		config.ID = "default_trader"
@@ -235,9 +236,12 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		return nil, fmt.Errorf("初始金额必须大于0，请在配置中设置InitialBalance")
 	}
 
-	// 初始化决策日志记录器（使用trader ID创建独立目录）
-	logDir := fmt.Sprintf("decision_logs/%s", config.ID)
-	decisionLogger := logger.NewDecisionLogger(logDir)
+	// 获取最后的周期编号（用于恢复）
+	var cycleNumber int
+	if st != nil {
+		cycleNumber, _ = st.Decision().GetLastCycleNumber(config.ID)
+		log.Printf("📊 [%s] 决策记录将存储到数据库", config.Name)
+	}
 
 	// 设置默认系统提示词模板
 	systemPromptTemplate := config.SystemPromptTemplate
@@ -254,7 +258,8 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		config:                config,
 		trader:                trader,
 		mcpClient:             mcpClient,
-		decisionLogger:        decisionLogger,
+		store:                 st,
+		cycleNumber:           cycleNumber,
 		initialBalance:        config.InitialBalance,
 		systemPromptTemplate:  systemPromptTemplate,
 		defaultCoins:          config.DefaultCoins,
@@ -268,8 +273,7 @@ func NewAutoTrader(config AutoTraderConfig, database interface{}, userID string)
 		monitorWg:             sync.WaitGroup{},
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
-		lastBalanceSyncTime:   time.Now(), // 初始化为当前时间
-		database:              database,
+		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
 }
@@ -333,7 +337,7 @@ func (at *AutoTrader) runCycle() error {
 	log.Println(strings.Repeat("=", 70))
 
 	// 创建决策记录
-	record := &logger.DecisionRecord{
+	record := &store.DecisionRecord{
 		ExecutionLog: []string{},
 		Success:      true,
 	}
@@ -344,7 +348,7 @@ func (at *AutoTrader) runCycle() error {
 		log.Printf("⏸ 风险控制：暂停交易中，剩余 %.0f 分钟", remaining.Minutes())
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("风险控制暂停中，剩余 %.0f 分钟", remaining.Minutes())
-		at.decisionLogger.LogDecision(record)
+		at.saveDecision(record)
 		return nil
 	}
 
@@ -360,12 +364,12 @@ func (at *AutoTrader) runCycle() error {
 	if err != nil {
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("构建交易上下文失败: %v", err)
-		at.decisionLogger.LogDecision(record)
+		at.saveDecision(record)
 		return fmt.Errorf("构建交易上下文失败: %w", err)
 	}
 
 	// 保存账户状态快照
-	record.AccountState = logger.AccountSnapshot{
+	record.AccountState = store.AccountSnapshot{
 		TotalBalance:          ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
 		AvailableBalance:      ctx.Account.AvailableBalance,
 		TotalUnrealizedProfit: ctx.Account.UnrealizedPnL,
@@ -376,7 +380,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 保存持仓快照
 	for _, pos := range ctx.Positions {
-		record.Positions = append(record.Positions, logger.PositionSnapshot{
+		record.Positions = append(record.Positions, store.PositionSnapshot{
 			Symbol:           pos.Symbol,
 			Side:             pos.Side,
 			PositionAmt:      pos.Quantity,
@@ -439,7 +443,7 @@ func (at *AutoTrader) runCycle() error {
 			}
 		}
 
-		at.decisionLogger.LogDecision(record)
+		at.saveDecision(record)
 		return fmt.Errorf("获取AI决策失败: %w", err)
 	}
 
@@ -482,7 +486,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 执行决策并记录结果
 	for _, d := range sortedDecisions {
-		actionRecord := logger.DecisionAction{
+		actionRecord := store.DecisionAction{
 			Action:    d.Action,
 			Symbol:    d.Symbol,
 			Quantity:  0,
@@ -507,7 +511,7 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	// 9. 保存决策记录
-	if err := at.decisionLogger.LogDecision(record); err != nil {
+	if err := at.saveDecision(record); err != nil {
 		log.Printf("⚠ 保存决策记录失败: %v", err)
 	}
 
@@ -661,7 +665,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 }
 
 // executeDecisionWithRecord 执行AI决策并记录详细信息
-func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
+func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {
 	case "open_long":
 		return at.executeOpenLongWithRecord(decision, actionRecord)
@@ -680,7 +684,7 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, act
 }
 
 // executeOpenLongWithRecord 执行开多仓并记录详细信息
-func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
+func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	log.Printf("  📈 开多仓: %s", decision.Symbol)
 
 	// ⚠️ 关键：检查是否已有同币种同方向持仓，如果有则拒绝开仓（防止仓位叠加超限）
@@ -760,7 +764,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 }
 
 // executeOpenShortWithRecord 执行开空仓并记录详细信息
-func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
+func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	log.Printf("  📉 开空仓: %s", decision.Symbol)
 
 	// ⚠️ 关键：检查是否已有同币种同方向持仓，如果有则拒绝开仓（防止仓位叠加超限）
@@ -840,7 +844,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 }
 
 // executeCloseLongWithRecord 执行平多仓并记录详细信息
-func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
+func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	log.Printf("  🔄 平多仓: %s", decision.Symbol)
 
 	// 获取当前价格
@@ -866,7 +870,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 }
 
 // executeCloseShortWithRecord 执行平空仓并记录详细信息
-func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, actionRecord *logger.DecisionAction) error {
+func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	log.Printf("  🔄 平空仓: %s", decision.Symbol)
 
 	// 获取当前价格
@@ -931,9 +935,32 @@ func (at *AutoTrader) GetSystemPromptTemplate() string {
 	return at.systemPromptTemplate
 }
 
-// GetDecisionLogger 获取决策日志记录器
-func (at *AutoTrader) GetDecisionLogger() logger.IDecisionLogger {
-	return at.decisionLogger
+// saveDecision 保存决策记录到数据库
+func (at *AutoTrader) saveDecision(record *store.DecisionRecord) error {
+	if at.store == nil {
+		return nil // 没有 store 时静默忽略
+	}
+
+	at.cycleNumber++
+	record.CycleNumber = at.cycleNumber
+	record.TraderID = at.id
+
+	if record.Timestamp.IsZero() {
+		record.Timestamp = time.Now().UTC()
+	}
+
+	if err := at.store.Decision().LogDecision(record); err != nil {
+		log.Printf("⚠️ 保存决策记录失败: %v", err)
+		return err
+	}
+
+	log.Printf("📝 决策记录已保存: trader=%s, cycle=%d", at.id, at.cycleNumber)
+	return nil
+}
+
+// GetStore 获取数据存储（用于外部访问决策记录等）
+func (at *AutoTrader) GetStore() *store.Store {
+	return at.store
 }
 
 // GetStatus 获取系统状态（用于API）

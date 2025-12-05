@@ -403,6 +403,8 @@ export interface IndicatorConfig {
   rsi_periods?: number[];
   atr_periods?: number[];
   external_data_sources?: ExternalDataSource[];
+  enable_quant_data?: boolean;
+  quant_data_api_url?: string;
 }
 
 export interface KlineConfig {

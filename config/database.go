@@ -11,6 +11,7 @@ import (
 	"nofx/crypto"
 	"nofx/market"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -61,16 +62,42 @@ type Database struct {
 
 // NewDatabase 创建配置数据库
 func NewDatabase(dbPath string) (*Database, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	absPath, err := filepath.Abs(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("解析数据库路径失败: %w", err)
+	}
+
+	dir := filepath.Dir(absPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("无法创建数据库目录 [%s]: %w", dir, err)
+	}
+
+	log.Printf("📂 数据库完整路径: %s", absPath)
+
+	// 3. 针对 modernc.org/sqlite 优化的连接字符串
+	// 注意：纯 Go 驱动也支持 busy_timeout，但不需要复杂的 flag
+	// 这里的 driverName 必须是 "sqlite" (modernc 的注册名)
+	// 之前的 mattn 驱动通常注册名为 "sqlite3"
+	dsn := fmt.Sprintf("%s?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", absPath)
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
 	}
+
+	// 验证连接
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("连接数据库失败(CGO/IO错误): %w", err)
+	}
+
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
 		return nil, fmt.Errorf("启用外键失败: %w", err)
 	}
 	if err := tuneSQLiteConnection(db); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 
@@ -80,7 +107,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 	// 2. 崩溃安全:即使在断电或强制终止时也能保证数据完整性
 	// 3. 更快的写入:不需要每次都写入主数据库文件
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("启用WAL模式失败: %w", err)
 	}
 
@@ -88,15 +115,17 @@ func NewDatabase(dbPath string) (*Database, error) {
 	// FULL (2) 模式: 确保数据在关键时刻完全写入磁盘
 	// 配合 WAL 模式,在保证数据安全的同时获得良好性能
 	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("设置synchronous失败: %w", err)
 	}
 
 	database := &Database{db: db}
 	if err := database.createTables(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("创建表失败: %w", err)
 	}
 	if err := database.ensureBacktestRunColumns(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("初始化回测表结构失败: %w", err)
 	}
 
@@ -105,10 +134,12 @@ func NewDatabase(dbPath string) (*Database, error) {
 		INSERT OR IGNORE INTO users (id, email, password_hash, otp_secret, otp_verified)
 		VALUES ('default', 'default@local', '__default__', '', 1)
 	`); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("创建默认用户失败: %w", err)
 	}
 
 	if err := database.initDefaultData(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
 	}
 
@@ -745,11 +776,11 @@ type ExchangeConfig struct {
 	AsterSigner     string `json:"asterSigner"`
 	AsterPrivateKey string `json:"asterPrivateKey"`
 	// LIGHTER 特定字段
-	LighterWalletAddr       string `json:"lighterWalletAddr"`       // Ethereum 钱包地址 (L1)
-	LighterPrivateKey       string `json:"lighterPrivateKey"`       // L1私钥（用于识别账户）
-	LighterAPIKeyPrivateKey string `json:"lighterAPIKeyPrivateKey"` // API Key私钥（40字节，用于签名交易）
-	CreatedAt          time.Time `json:"created_at"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	LighterWalletAddr       string    `json:"lighterWalletAddr"`       // Ethereum 钱包地址 (L1)
+	LighterPrivateKey       string    `json:"lighterPrivateKey"`       // L1私钥（用于识别账户）
+	LighterAPIKeyPrivateKey string    `json:"lighterAPIKeyPrivateKey"` // API Key私钥（40字节，用于签名交易）
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 // TraderRecord 交易员配置（数据库实体）

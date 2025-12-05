@@ -56,7 +56,22 @@ func NewCryptoService(privateKeyPath string) (*CryptoService, error) {
 	if err != nil {
 		// 如果私钥文件不存在，生成新的密钥对
 		if err := GenerateRSAKeyPair(privateKeyPath); err != nil {
-			return nil, fmt.Errorf("failed to generate RSA key pair: %w", err)
+			errStr := strings.ToLower(err.Error())
+			isReadOnlyError := strings.Contains(errStr, "read-only file system") ||
+				strings.Contains(errStr, "readonly") ||
+				strings.Contains(errStr, "read-only") ||
+				strings.Contains(errStr, "permission denied") ||
+				strings.Contains(errStr, "access is denied") ||
+				errors.Is(err, os.ErrPermission)
+
+			if isReadOnlyError {
+				return nil, fmt.Errorf(
+					"无法在只读文件系统中创建RSA密钥对 (%s)。请使用以下方式之一:\n"+
+						"  1. 在宿主机上生成密钥文件: 运行 'go run scripts/generate_rsa_keys.go'\n"+
+						"  2. 修改 docker-compose.yml: 将 secrets 目录挂载改为可写（移除 :ro）\n"+
+						"  3. 确保 %s 目录可写",
+					privateKeyPath, filepath.Dir(privateKeyPath))
+			}
 		}
 		privateKeyPEM, err = ioutil.ReadFile(privateKeyPath)
 		if err != nil {
@@ -192,7 +207,17 @@ func loadOrCreateDataKeyFile(path string) ([]byte, bool, error) {
 
 	key, err = generateAndPersistDataKey(path)
 	if err != nil {
-		return nil, false, err
+		// 检查是否是只读文件系统错误
+		if strings.Contains(err.Error(), "read-only file system") ||
+			strings.Contains(err.Error(), "readonly") ||
+			errors.Is(err, os.ErrPermission) {
+			return nil, false, fmt.Errorf(
+				"无法在只读文件系统中创建数据加密密钥文件 (%s)。请使用以下方式之一:\n"+
+					"  1. 在宿主机上生成密钥文件: 运行 'go run scripts/generate_data_key.go'\n"+
+					"  2. 使用环境变量: 设置 %s 环境变量 (base64编码的32字节密钥)\n"+
+					"  3. 修改文件系统权限: 确保 %s 目录可写",
+				path, dataKeyEnvName, filepath.Dir(path))
+		}
 	}
 	return key, true, nil
 }

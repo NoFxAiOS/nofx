@@ -15,7 +15,7 @@ services:
       - ./beta_codes.txt:/app/beta_codes.txt:ro
       - ./decision_logs:/app/decision_logs
       - ./prompts:/app/prompts
-      - ./secrets:/app/secrets:ro  # RSA密钥文件
+      - ./secrets:/app/secrets    # RSA密钥文件（可写，容器启动时自动生成）
       - /etc/localtime:/etc/localtime:ro  # Sync host time
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { EquityChart } from './EquityChart'
 import { TradingViewChart } from './TradingViewChart'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -7,13 +7,25 @@ import { BarChart3, CandlestickChart } from 'lucide-react'
 
 interface ChartTabsProps {
   traderId: string
+  selectedSymbol?: string // 从外部选择的币种
+  updateKey?: number // 强制更新的 key
 }
 
 type ChartTab = 'equity' | 'kline'
 
-export function ChartTabs({ traderId }: ChartTabsProps) {
+export function ChartTabs({ traderId, selectedSymbol, updateKey }: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
+  const [chartSymbol, setChartSymbol] = useState<string>('BTCUSDT')
+
+  // 当从外部选择币种时，自动切换到K线图
+  useEffect(() => {
+    if (selectedSymbol) {
+      console.log('[ChartTabs] 收到币种选择:', selectedSymbol, 'updateKey:', updateKey)
+      setChartSymbol(selectedSymbol)
+      setActiveTab('kline')
+    }
+  }, [selectedSymbol, updateKey])
 
   console.log('[ChartTabs] rendering, activeTab:', activeTab)
 
@@ -81,7 +93,12 @@ export function ChartTabs({ traderId }: ChartTabsProps) {
         {activeTab === 'equity' ? (
           <EquityChart traderId={traderId} embedded />
         ) : (
-          <TradingViewChart height={400} embedded />
+          <TradingViewChart
+            height={400}
+            embedded
+            defaultSymbol={chartSymbol}
+            key={chartSymbol} // 强制重新渲染当币种变化时
+          />
         )}
       </div>
     </div>

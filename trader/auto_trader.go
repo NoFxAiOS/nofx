@@ -683,6 +683,27 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		}
 	}
 
+	// 8. 获取量化数据（如果策略配置启用）
+	if strategyConfig.Indicators.EnableQuantData && strategyConfig.Indicators.QuantDataAPIURL != "" {
+		// 收集需要查询的币种（候选币种 + 持仓币种）
+		symbolsToQuery := make(map[string]bool)
+		for _, coin := range candidateCoins {
+			symbolsToQuery[coin.Symbol] = true
+		}
+		for _, pos := range positionInfos {
+			symbolsToQuery[pos.Symbol] = true
+		}
+
+		symbols := make([]string, 0, len(symbolsToQuery))
+		for sym := range symbolsToQuery {
+			symbols = append(symbols, sym)
+		}
+
+		logger.Infof("📊 [%s] 正在获取 %d 个币种的量化数据...", at.name, len(symbols))
+		ctx.QuantDataMap = at.strategyEngine.FetchQuantDataBatch(symbols)
+		logger.Infof("📊 [%s] 成功获取 %d 个币种的量化数据", at.name, len(ctx.QuantDataMap))
+	}
+
 	return ctx, nil
 }
 

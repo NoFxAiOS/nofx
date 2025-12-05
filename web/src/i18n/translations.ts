@@ -86,6 +86,7 @@ export const translations = {
 
     // TradingView Chart
     marketChart: 'Market Chart',
+    viewChart: 'Click to view chart',
     enterSymbol: 'Enter symbol...',
     popularSymbols: 'Popular Symbols',
     fullscreen: 'Fullscreen',
@@ -1083,6 +1084,7 @@ export const translations = {
 
     // TradingView Chart
     marketChart: '行情图表',
+    viewChart: '点击查看图表',
     enterSymbol: '输入币种...',
     popularSymbols: '热门币种',
     fullscreen: '全屏',

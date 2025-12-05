@@ -59,6 +59,16 @@ export default function TraderDashboard() {
     return saved ? parseInt(saved, 10) : 5
   })
 
+  // 选中的币种（用于图表显示）
+  const [selectedChartSymbol, setSelectedChartSymbol] = useState<string | undefined>()
+  const [chartUpdateKey, setChartUpdateKey] = useState(0)
+
+  // 点击持仓币种时调用
+  const handlePositionSymbolClick = (symbol: string) => {
+    setSelectedChartSymbol(symbol)
+    setChartUpdateKey(prev => prev + 1) // 强制触发更新
+  }
+
   // 当 limit 变化时保存到 localStorage
   const handleLimitChange = (newLimit: number) => {
     setDecisionLimit(newLimit)
@@ -420,7 +430,11 @@ export default function TraderDashboard() {
         <div className="space-y-6">
           {/* Chart Tabs (Equity / K-line) */}
           <div className="animate-slide-in" style={{ animationDelay: '0.1s' }}>
-            <ChartTabs traderId={selectedTrader.trader_id} />
+            <ChartTabs
+              traderId={selectedTrader.trader_id}
+              selectedSymbol={selectedChartSymbol}
+              updateKey={chartUpdateKey}
+            />
           </div>
 
           {/* Current Positions */}
@@ -490,7 +504,24 @@ export default function TraderDashboard() {
                         className="border-b border-gray-800 last:border-0"
                       >
                         <td className="py-3 font-mono font-semibold">
-                          {pos.symbol}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              console.log('点击了币种:', pos.symbol)
+                              handlePositionSymbolClick(pos.symbol)
+                            }}
+                            className="hover:underline cursor-pointer px-2 py-1 rounded transition-all"
+                            style={{
+                              color: '#F0B90B',
+                              background: 'rgba(240, 185, 11, 0.1)',
+                              border: '1px solid rgba(240, 185, 11, 0.3)'
+                            }}
+                            title={t('viewChart', language)}
+                          >
+                            📈 {pos.symbol}
+                          </button>
                         </td>
                         <td className="py-3">
                           <span

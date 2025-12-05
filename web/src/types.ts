@@ -403,6 +403,9 @@ export interface IndicatorConfig {
   rsi_periods?: number[];
   atr_periods?: number[];
   external_data_sources?: ExternalDataSource[];
+  // 量化数据源（资金流向、持仓变化、价格变化）
+  enable_quant_data?: boolean;
+  quant_data_api_url?: string;
 }
 
 export interface KlineConfig {

@@ -91,6 +91,9 @@ type IndicatorConfig struct {
 	ATRPeriods []int `json:"atr_periods,omitempty"` // 默认 [14]
 	// 外部数据源
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
+	// 量化数据源（资金流向、持仓变化、价格变化）
+	EnableQuantData  bool   `json:"enable_quant_data"`            // 是否启用量化数据
+	QuantDataAPIURL  string `json:"quant_data_api_url,omitempty"` // 量化数据 API 地址
 }
 
 // KlineConfig K线配置
@@ -211,6 +214,8 @@ func (s *StrategyStore) initDefaultData() error {
 			EMAPeriods:        []int{20, 50},
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
+			EnableQuantData:  true,
+			QuantDataAPIURL:  "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:       3,

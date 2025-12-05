@@ -177,6 +177,193 @@ func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 	return externalData, nil
 }
 
+// QuantData 量化数据结构（资金流向、持仓变化、价格变化）
+type QuantData struct {
+	Symbol      string                 `json:"symbol"`
+	Price       float64                `json:"price"`
+	Netflow     *NetflowData           `json:"netflow,omitempty"`
+	OI          map[string]*OIData     `json:"oi,omitempty"`
+	PriceChange map[string]float64     `json:"price_change,omitempty"`
+}
+
+type NetflowData struct {
+	Institution *FlowTypeData `json:"institution,omitempty"`
+	Personal    *FlowTypeData `json:"personal,omitempty"`
+}
+
+type FlowTypeData struct {
+	Future map[string]float64 `json:"future,omitempty"`
+	Spot   map[string]float64 `json:"spot,omitempty"`
+}
+
+type OIData struct {
+	CurrentOI float64                `json:"current_oi"`
+	NetLong   float64                `json:"net_long"`
+	NetShort  float64                `json:"net_short"`
+	Delta     map[string]*OIDeltaData `json:"delta,omitempty"`
+}
+
+type OIDeltaData struct {
+	OIDelta        float64 `json:"oi_delta"`
+	OIDeltaValue   float64 `json:"oi_delta_value"`
+	OIDeltaPercent float64 `json:"oi_delta_percent"`
+}
+
+// FetchQuantData 获取单个币种的量化数据
+func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
+	if !e.config.Indicators.EnableQuantData || e.config.Indicators.QuantDataAPIURL == "" {
+		return nil, nil
+	}
+
+	// 替换 {symbol} 占位符
+	url := strings.Replace(e.config.Indicators.QuantDataAPIURL, "{symbol}", symbol, -1)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP状态码: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	// 解析响应
+	var apiResp struct {
+		Code int       `json:"code"`
+		Data *QuantData `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return nil, fmt.Errorf("解析JSON失败: %w", err)
+	}
+
+	if apiResp.Code != 0 {
+		return nil, fmt.Errorf("API返回错误码: %d", apiResp.Code)
+	}
+
+	return apiResp.Data, nil
+}
+
+// FetchQuantDataBatch 批量获取量化数据
+func (e *StrategyEngine) FetchQuantDataBatch(symbols []string) map[string]*QuantData {
+	result := make(map[string]*QuantData)
+
+	if !e.config.Indicators.EnableQuantData || e.config.Indicators.QuantDataAPIURL == "" {
+		return result
+	}
+
+	for _, symbol := range symbols {
+		data, err := e.FetchQuantData(symbol)
+		if err != nil {
+			logger.Infof("⚠️  获取 %s 量化数据失败: %v", symbol, err)
+			continue
+		}
+		if data != nil {
+			result[symbol] = data
+		}
+	}
+
+	return result
+}
+
+// formatQuantData 格式化量化数据
+func (e *StrategyEngine) formatQuantData(data *QuantData) string {
+	if data == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("📊 量化数据:\n")
+
+	// 价格变化
+	if len(data.PriceChange) > 0 {
+		sb.WriteString("价格变化: ")
+		timeframes := []string{"5m", "15m", "1h", "4h", "24h"}
+		parts := []string{}
+		for _, tf := range timeframes {
+			if v, ok := data.PriceChange[tf]; ok {
+				parts = append(parts, fmt.Sprintf("%s: %+.2f%%", tf, v))
+			}
+		}
+		sb.WriteString(strings.Join(parts, " | "))
+		sb.WriteString("\n")
+	}
+
+	// 资金流向
+	if data.Netflow != nil {
+		sb.WriteString("资金流向(USDT):\n")
+
+		// 机构资金
+		if data.Netflow.Institution != nil {
+			if data.Netflow.Institution.Future != nil {
+				sb.WriteString("  机构合约: ")
+				parts := []string{}
+				for _, tf := range []string{"1h", "4h", "24h"} {
+					if v, ok := data.Netflow.Institution.Future[tf]; ok {
+						parts = append(parts, fmt.Sprintf("%s: %+.0f", tf, v))
+					}
+				}
+				sb.WriteString(strings.Join(parts, " | "))
+				sb.WriteString("\n")
+			}
+			if data.Netflow.Institution.Spot != nil {
+				sb.WriteString("  机构现货: ")
+				parts := []string{}
+				for _, tf := range []string{"1h", "4h", "24h"} {
+					if v, ok := data.Netflow.Institution.Spot[tf]; ok {
+						parts = append(parts, fmt.Sprintf("%s: %+.0f", tf, v))
+					}
+				}
+				sb.WriteString(strings.Join(parts, " | "))
+				sb.WriteString("\n")
+			}
+		}
+
+		// 散户资金
+		if data.Netflow.Personal != nil {
+			if data.Netflow.Personal.Future != nil {
+				sb.WriteString("  散户合约: ")
+				parts := []string{}
+				for _, tf := range []string{"1h", "4h", "24h"} {
+					if v, ok := data.Netflow.Personal.Future[tf]; ok {
+						parts = append(parts, fmt.Sprintf("%s: %+.0f", tf, v))
+					}
+				}
+				sb.WriteString(strings.Join(parts, " | "))
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	// 持仓数据
+	if len(data.OI) > 0 {
+		for exchange, oiData := range data.OI {
+			sb.WriteString(fmt.Sprintf("持仓(%s): 当前%.2f | 多%.2f 空%.2f\n",
+				exchange, oiData.CurrentOI, oiData.NetLong, oiData.NetShort))
+			if len(oiData.Delta) > 0 {
+				sb.WriteString("  持仓变化: ")
+				parts := []string{}
+				for _, tf := range []string{"1h", "4h", "24h"} {
+					if d, ok := oiData.Delta[tf]; ok {
+						parts = append(parts, fmt.Sprintf("%s: %+.2f%%", tf, d.OIDeltaPercent))
+					}
+				}
+				sb.WriteString(strings.Join(parts, " | "))
+				sb.WriteString("\n")
+			}
+		}
+	}
+
+	return sb.String()
+}
+
 // fetchSingleExternalSource 获取单个外部数据源
 func (e *StrategyEngine) fetchSingleExternalSource(source store.ExternalDataSource) (interface{}, error) {
 	client := &http.Client{
@@ -316,6 +503,13 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sourceTags := e.formatCoinSourceTag(coin.Sources)
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
 		sb.WriteString(e.formatMarketData(marketData))
+
+		// 添加量化数据（如果有）
+		if ctx.QuantDataMap != nil {
+			if quantData, hasQuant := ctx.QuantDataMap[coin.Symbol]; hasQuant {
+				sb.WriteString(e.formatQuantData(quantData))
+			}
+		}
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
@@ -358,6 +552,13 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 	// 使用策略配置的指标输出市场数据
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))
+
+		// 添加量化数据（如果有）
+		if ctx.QuantDataMap != nil {
+			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
+				sb.WriteString(e.formatQuantData(quantData))
+			}
+		}
 		sb.WriteString("\n")
 	}
 
@@ -705,6 +906,10 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 
 	if len(e.config.CoinSource.StaticCoins) > 0 || e.config.CoinSource.UseCoinPool || e.config.CoinSource.UseOITop {
 		sb.WriteString("- AI500 / OI_Top 筛选标签（若有）\n")
+	}
+
+	if indicators.EnableQuantData {
+		sb.WriteString("- 量化数据（机构/散户资金流向、持仓变化、多周期价格变化）\n")
 	}
 }
 

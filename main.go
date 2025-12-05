@@ -185,7 +185,7 @@ func main() {
 
 	// 初始化加密服务
 	log.Printf("🔐 初始化加密服务...")
-	cryptoService, err := crypto.NewCryptoService("secrets/rsa_key")
+	cryptoService, err := crypto.NewCryptoService()
 	if err != nil {
 		log.Fatalf("❌ 初始化加密服务失败: %v", err)
 	}

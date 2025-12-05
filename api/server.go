@@ -198,11 +198,16 @@ func (s *Server) handleGetSystemConfig(c *gin.Context) {
 	betaModeStr, _ := s.store.SystemConfig().Get("beta_mode")
 	betaMode := betaModeStr == "true"
 
+	// 获取注册开关配置（默认开启）
+	registrationEnabledStr, _ := s.store.SystemConfig().Get("registration_enabled")
+	registrationEnabled := registrationEnabledStr != "false"
+
 	c.JSON(http.StatusOK, gin.H{
-		"beta_mode":        betaMode,
-		"default_coins":    defaultCoins,
-		"btc_eth_leverage": btcEthLeverage,
-		"altcoin_leverage": altcoinLeverage,
+		"beta_mode":            betaMode,
+		"registration_enabled": registrationEnabled,
+		"default_coins":        defaultCoins,
+		"btc_eth_leverage":     btcEthLeverage,
+		"altcoin_leverage":     altcoinLeverage,
 	})
 }
 

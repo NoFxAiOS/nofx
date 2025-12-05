@@ -334,15 +334,6 @@ func main() {
 		}
 	}
 
-	// 创建初始化上下文
-	// TODO : 传入实际配置, 现在并未实际使用，未来所有模块初始化都将通过上下文传递配置
-	// ctx := bootstrap.NewContext(&config.Config{})
-
-	// // 执行所有初始化钩子
-	// if err := bootstrap.Run(ctx); err != nil {
-	// 	log.Fatalf("初始化失败: %v", err)
-	// }
-
 	fmt.Println()
 	fmt.Println("🤖 AI全权决策模式:")
 	fmt.Printf("  • AI将自主决定每笔交易的杠杆倍数（山寨币最高5倍，BTC/ETH最高5倍）\n")

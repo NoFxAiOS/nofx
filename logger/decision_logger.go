@@ -53,7 +53,7 @@ type PositionSnapshot struct {
 
 // DecisionAction 决策动作
 type DecisionAction struct {
-	Action    string    `json:"action"`    // open_long, open_short, close_long, close_short, update_stop_loss, update_take_profit, partial_close
+	Action    string    `json:"action"`    // open_long, open_short, close_long, close_short, hold, wait
 	Symbol    string    `json:"symbol"`    // 币种
 	Quantity  float64   `json:"quantity"`  // 数量（部分平仓时使用）
 	Leverage  int       `json:"leverage"`  // 杠杆（开仓时）
@@ -282,9 +282,6 @@ func (l *DecisionLogger) GetStatistics() (*Statistics, error) {
 					stats.TotalOpenPositions++
 				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					stats.TotalClosePositions++
-					// 🔧 BUG FIX：partial_close 不計入 TotalClosePositions，避免重複計數
-					// case "partial_close": // 不計數，因為只有完全平倉才算一次
-					// update_stop_loss 和 update_take_profit 不計入統計
 				}
 			}
 		}
@@ -388,20 +385,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 				symbol := action.Symbol
 				side := ""
-				if action.Action == "open_long" || action.Action == "close_long" || action.Action == "partial_close" || action.Action == "auto_close_long" {
+				if action.Action == "open_long" || action.Action == "close_long" || action.Action == "auto_close_long" {
 					side = "long"
 				} else if action.Action == "open_short" || action.Action == "close_short" || action.Action == "auto_close_short" {
 					side = "short"
-				}
-
-				// partial_close 需要根據持倉判斷方向
-				if action.Action == "partial_close" && side == "" {
-					for key, pos := range openPositions {
-						if posSymbol, _ := pos["side"].(string); key == symbol+"_"+posSymbol {
-							side = posSymbol
-							break
-						}
-					}
 				}
 
 				posKey := symbol + "_" + side
@@ -419,7 +406,6 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 				case "close_long", "close_short", "auto_close_long", "auto_close_short":
 					// 移除已平仓记录
 					delete(openPositions, posKey)
-					// partial_close 不處理，保留持倉記錄
 				}
 			}
 		}
@@ -434,21 +420,10 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 
 			symbol := action.Symbol
 			side := ""
-			if action.Action == "open_long" || action.Action == "close_long" || action.Action == "partial_close" || action.Action == "auto_close_long" {
+			if action.Action == "open_long" || action.Action == "close_long" || action.Action == "auto_close_long" {
 				side = "long"
 			} else if action.Action == "open_short" || action.Action == "close_short" || action.Action == "auto_close_short" {
 				side = "short"
-			}
-
-			// partial_close 需要根據持倉判斷方向
-			if action.Action == "partial_close" {
-				// 從 openPositions 中查找持倉方向
-				for key, pos := range openPositions {
-					if posSymbol, _ := pos["side"].(string); key == symbol+"_"+posSymbol {
-						side = posSymbol
-						break
-					}
-				}
 			}
 
 			posKey := symbol + "_" + side // 使用symbol_side作为key，区分多空持仓
@@ -457,18 +432,14 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 			case "open_long", "open_short":
 				// 更新开仓记录（可能已经在预填充时记录过了）
 				openPositions[posKey] = map[string]interface{}{
-					"side":               side,
-					"openPrice":          action.Price,
-					"openTime":           action.Timestamp,
-					"quantity":           action.Quantity,
-					"leverage":           action.Leverage,
-					"remainingQuantity":  action.Quantity, // 🔧 BUG FIX：追蹤剩餘數量
-					"accumulatedPnL":     0.0,             // 🔧 BUG FIX：累積部分平倉盈虧
-					"partialCloseCount":  0,               // 🔧 BUG FIX：部分平倉次數
-					"partialCloseVolume": 0.0,             // 🔧 BUG FIX：部分平倉總量
+					"side":      side,
+					"openPrice": action.Price,
+					"openTime":  action.Timestamp,
+					"quantity":  action.Quantity,
+					"leverage":  action.Leverage,
 				}
 
-			case "close_long", "close_short", "partial_close", "auto_close_long", "auto_close_short":
+			case "close_long", "close_short", "auto_close_long", "auto_close_short":
 				// 查找对应的开仓记录（可能来自预填充或当前窗口）
 				if openPos, exists := openPositions[posKey]; exists {
 					openPrice := openPos["openPrice"].(float64)
@@ -477,159 +448,66 @@ func (l *DecisionLogger) AnalyzePerformance(lookbackCycles int) (*PerformanceAna
 					quantity := openPos["quantity"].(float64)
 					leverage := openPos["leverage"].(int)
 
-					// 🔧 BUG FIX：取得追蹤字段（若不存在則初始化）
-					remainingQty, _ := openPos["remainingQuantity"].(float64)
-					if remainingQty == 0 {
-						remainingQty = quantity // 兼容舊數據（沒有 remainingQuantity 字段）
-					}
-					accumulatedPnL, _ := openPos["accumulatedPnL"].(float64)
-					partialCloseCount, _ := openPos["partialCloseCount"].(int)
-					partialCloseVolume, _ := openPos["partialCloseVolume"].(float64)
-
-					// 对于 partial_close，使用实际平仓数量；否则使用剩余仓位数量
-					actualQuantity := remainingQty
-					if action.Action == "partial_close" {
-						actualQuantity = action.Quantity
-					}
-
-					// 计算本次平仓的盈亏（USDT）
+					// 计算平仓的盈亏（USDT）
 					var pnl float64
 					if side == "long" {
-						pnl = actualQuantity * (action.Price - openPrice)
+						pnl = quantity * (action.Price - openPrice)
 					} else {
-						pnl = actualQuantity * (openPrice - action.Price)
+						pnl = quantity * (openPrice - action.Price)
 					}
 
-					// 🔧 BUG FIX：處理 partial_close 聚合邏輯
-					if action.Action == "partial_close" {
-						// 累積盈虧和數量
-						accumulatedPnL += pnl
-						remainingQty -= actualQuantity
-						partialCloseCount++
-						partialCloseVolume += actualQuantity
-
-						// 更新 openPositions（保留持倉記錄，但更新追蹤數據）
-						openPos["remainingQuantity"] = remainingQty
-						openPos["accumulatedPnL"] = accumulatedPnL
-						openPos["partialCloseCount"] = partialCloseCount
-						openPos["partialCloseVolume"] = partialCloseVolume
-
-						// 判斷是否已完全平倉
-						if remainingQty <= 0.0001 { // 使用小閾值避免浮點誤差
-							// ✅ 完全平倉：記錄為一筆完整交易
-							positionValue := quantity * openPrice
-							marginUsed := positionValue / float64(leverage)
-							pnlPct := 0.0
-							if marginUsed > 0 {
-								pnlPct = (accumulatedPnL / marginUsed) * 100
-							}
-
-							outcome := TradeOutcome{
-								Symbol:        symbol,
-								Side:          side,
-								Quantity:      quantity, // 使用原始總量
-								Leverage:      leverage,
-								OpenPrice:     openPrice,
-								ClosePrice:    action.Price, // 最後一次平倉價格
-								PositionValue: positionValue,
-								MarginUsed:    marginUsed,
-								PnL:           accumulatedPnL, // 🔧 使用累積盈虧
-								PnLPct:        pnlPct,
-								Duration:      action.Timestamp.Sub(openTime).String(),
-								OpenTime:      openTime,
-								CloseTime:     action.Timestamp,
-							}
-
-							analysis.RecentTrades = append(analysis.RecentTrades, outcome)
-							analysis.TotalTrades++ // 🔧 只在完全平倉時計數
-
-							// 分类交易
-							if accumulatedPnL > 0 {
-								analysis.WinningTrades++
-								analysis.AvgWin += accumulatedPnL
-							} else if accumulatedPnL < 0 {
-								analysis.LosingTrades++
-								analysis.AvgLoss += accumulatedPnL
-							}
-
-							// 更新币种统计
-							if _, exists := analysis.SymbolStats[symbol]; !exists {
-								analysis.SymbolStats[symbol] = &SymbolPerformance{
-									Symbol: symbol,
-								}
-							}
-							stats := analysis.SymbolStats[symbol]
-							stats.TotalTrades++
-							stats.TotalPnL += accumulatedPnL
-							if accumulatedPnL > 0 {
-								stats.WinningTrades++
-							} else if accumulatedPnL < 0 {
-								stats.LosingTrades++
-							}
-
-							// 刪除持倉記錄
-							delete(openPositions, posKey)
-						}
-						// ⚠️ 否則不做任何操作（等待後續 partial_close 或 full close）
-
-					} else {
-						// 🔧 完全平倉（close_long/close_short/auto_close）
-						// 如果之前有部分平倉，需要加上累積的 PnL
-						totalPnL := accumulatedPnL + pnl
-
-						positionValue := quantity * openPrice
-						marginUsed := positionValue / float64(leverage)
-						pnlPct := 0.0
-						if marginUsed > 0 {
-							pnlPct = (totalPnL / marginUsed) * 100
-						}
-
-						outcome := TradeOutcome{
-							Symbol:        symbol,
-							Side:          side,
-							Quantity:      quantity, // 使用原始總量
-							Leverage:      leverage,
-							OpenPrice:     openPrice,
-							ClosePrice:    action.Price,
-							PositionValue: positionValue,
-							MarginUsed:    marginUsed,
-							PnL:           totalPnL, // 🔧 包含之前部分平倉的 PnL
-							PnLPct:        pnlPct,
-							Duration:      action.Timestamp.Sub(openTime).String(),
-							OpenTime:      openTime,
-							CloseTime:     action.Timestamp,
-						}
-
-						analysis.RecentTrades = append(analysis.RecentTrades, outcome)
-						analysis.TotalTrades++
-
-						// 分类交易
-						if totalPnL > 0 {
-							analysis.WinningTrades++
-							analysis.AvgWin += totalPnL
-						} else if totalPnL < 0 {
-							analysis.LosingTrades++
-							analysis.AvgLoss += totalPnL
-						}
-
-						// 更新币种统计
-						if _, exists := analysis.SymbolStats[symbol]; !exists {
-							analysis.SymbolStats[symbol] = &SymbolPerformance{
-								Symbol: symbol,
-							}
-						}
-						stats := analysis.SymbolStats[symbol]
-						stats.TotalTrades++
-						stats.TotalPnL += totalPnL
-						if totalPnL > 0 {
-							stats.WinningTrades++
-						} else if totalPnL < 0 {
-							stats.LosingTrades++
-						}
-
-						// 刪除持倉記錄
-						delete(openPositions, posKey)
+					positionValue := quantity * openPrice
+					marginUsed := positionValue / float64(leverage)
+					pnlPct := 0.0
+					if marginUsed > 0 {
+						pnlPct = (pnl / marginUsed) * 100
 					}
+
+					outcome := TradeOutcome{
+						Symbol:        symbol,
+						Side:          side,
+						Quantity:      quantity,
+						Leverage:      leverage,
+						OpenPrice:     openPrice,
+						ClosePrice:    action.Price,
+						PositionValue: positionValue,
+						MarginUsed:    marginUsed,
+						PnL:           pnl,
+						PnLPct:        pnlPct,
+						Duration:      action.Timestamp.Sub(openTime).String(),
+						OpenTime:      openTime,
+						CloseTime:     action.Timestamp,
+					}
+
+					analysis.RecentTrades = append(analysis.RecentTrades, outcome)
+					analysis.TotalTrades++
+
+					// 分类交易
+					if pnl > 0 {
+						analysis.WinningTrades++
+						analysis.AvgWin += pnl
+					} else if pnl < 0 {
+						analysis.LosingTrades++
+						analysis.AvgLoss += pnl
+					}
+
+					// 更新币种统计
+					if _, exists := analysis.SymbolStats[symbol]; !exists {
+						analysis.SymbolStats[symbol] = &SymbolPerformance{
+							Symbol: symbol,
+						}
+					}
+					stats := analysis.SymbolStats[symbol]
+					stats.TotalTrades++
+					stats.TotalPnL += pnl
+					if pnl > 0 {
+						stats.WinningTrades++
+					} else if pnl < 0 {
+						stats.LosingTrades++
+					}
+
+					// 刪除持倉記錄
+					delete(openPositions, posKey)
 				}
 			}
 		}

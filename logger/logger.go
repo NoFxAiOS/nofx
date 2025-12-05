@@ -124,3 +124,32 @@ func Panic(args ...interface{}) {
 func Panicf(format string, args ...interface{}) {
 	Log.Panicf(format, args...)
 }
+
+// ============================================================================
+// MCP Logger 适配器
+// ============================================================================
+
+// MCPLogger 适配器，使 MCP 包使用全局 logger
+// 实现 mcp.Logger 接口
+type MCPLogger struct{}
+
+// NewMCPLogger 创建 MCP 日志适配器
+func NewMCPLogger() *MCPLogger {
+	return &MCPLogger{}
+}
+
+func (l *MCPLogger) Debugf(format string, args ...any) {
+	Log.Debugf(format, args...)
+}
+
+func (l *MCPLogger) Infof(format string, args ...any) {
+	Log.Infof(format, args...)
+}
+
+func (l *MCPLogger) Warnf(format string, args ...any) {
+	Log.Warnf(format, args...)
+}
+
+func (l *MCPLogger) Errorf(format string, args ...any) {
+	Log.Errorf(format, args...)
+}

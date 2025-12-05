@@ -604,6 +604,67 @@ func (t *BybitTrader) parseOrderResult(result *bybit.ServerResponse) (map[string
 	}, nil
 }
 
+// GetOrderStatus 获取订单状态
+func (t *BybitTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"category": "linear",
+		"symbol":   symbol,
+		"orderId":  orderID,
+	}
+
+	result, err := t.client.NewUtaBybitServiceWithParams(params).GetOrderHistory(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("获取订单状态失败: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("API 错误: %s", result.RetMsg)
+	}
+
+	resultData, ok := result.Result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("返回格式错误")
+	}
+
+	list, _ := resultData["list"].([]interface{})
+	if len(list) == 0 {
+		return nil, fmt.Errorf("未找到订单 %s", orderID)
+	}
+
+	order, _ := list[0].(map[string]interface{})
+
+	// 解析订单数据
+	status, _ := order["orderStatus"].(string)
+	avgPriceStr, _ := order["avgPrice"].(string)
+	cumExecQtyStr, _ := order["cumExecQty"].(string)
+	cumExecFeeStr, _ := order["cumExecFee"].(string)
+
+	avgPrice, _ := strconv.ParseFloat(avgPriceStr, 64)
+	executedQty, _ := strconv.ParseFloat(cumExecQtyStr, 64)
+	commission, _ := strconv.ParseFloat(cumExecFeeStr, 64)
+
+	// 转换状态为统一格式
+	unifiedStatus := status
+	switch status {
+	case "Filled":
+		unifiedStatus = "FILLED"
+	case "New", "Created":
+		unifiedStatus = "NEW"
+	case "Cancelled", "Rejected":
+		unifiedStatus = "CANCELED"
+	case "PartiallyFilled":
+		unifiedStatus = "PARTIALLY_FILLED"
+	}
+
+	return map[string]interface{}{
+		"orderId":     orderID,
+		"status":      unifiedStatus,
+		"avgPrice":    avgPrice,
+		"executedQty": executedQty,
+		"commission":  commission,
+	}, nil
+}
+
 func (t *BybitTrader) cancelConditionalOrders(symbol string, orderType string) error {
 	// 先获取所有条件单
 	params := map[string]interface{}{

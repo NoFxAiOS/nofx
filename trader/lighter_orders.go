@@ -223,8 +223,8 @@ func (t *LighterTrader) GetActiveOrders(symbol string) ([]OrderResponse, error) 
 	return orders, nil
 }
 
-// GetOrderStatus 获取订单状态
-func (t *LighterTrader) GetOrderStatus(orderID string) (*OrderResponse, error) {
+// GetOrderStatus 获取订单状态（实现 Trader 接口）
+func (t *LighterTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
 	if err := t.ensureAuthToken(); err != nil {
 		return nil, fmt.Errorf("认证令牌无效: %w", err)
 	}
@@ -261,7 +261,24 @@ func (t *LighterTrader) GetOrderStatus(orderID string) (*OrderResponse, error) {
 		return nil, fmt.Errorf("解析订单响应失败: %w", err)
 	}
 
-	return &order, nil
+	// 转换状态为统一格式
+	unifiedStatus := order.Status
+	switch order.Status {
+	case "filled":
+		unifiedStatus = "FILLED"
+	case "open":
+		unifiedStatus = "NEW"
+	case "cancelled":
+		unifiedStatus = "CANCELED"
+	}
+
+	return map[string]interface{}{
+		"orderId":     order.OrderID,
+		"status":      unifiedStatus,
+		"avgPrice":    order.Price,
+		"executedQty": order.FilledQty,
+		"commission":  0.0,
+	}, nil
 }
 
 // CancelStopLossOrders 仅取消止损单（LIGHTER 暂无法区分，取消所有止盈止损单）

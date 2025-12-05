@@ -14,11 +14,13 @@ import (
 	"nofx/mcp"
 	"nofx/pool"
 	"nofx/store"
+	"nofx/trader"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -364,6 +366,10 @@ func main() {
 		logger.Infof("🔌 使用默认端口: %d", apiPort)
 	}
 
+	// 启动订单同步管理器
+	orderSyncManager := trader.NewOrderSyncManager(st, 10*time.Second)
+	orderSyncManager.Start()
+
 	// 创建并启动API服务器
 	apiServer := api.NewServer(traderManager, st, cryptoService, backtestManager, apiPort)
 	go func() {
@@ -391,7 +397,11 @@ func main() {
 	traderManager.StopAll()
 	logger.Info("✅ 所有交易员已停止")
 
-	// 步骤 2: 关闭 API 服务器
+	// 步骤 2: 停止订单同步管理器
+	logger.Info("📦 停止订单同步管理器...")
+	orderSyncManager.Stop()
+
+	// 步骤 3: 关闭 API 服务器
 	logger.Info("🛑 停止 API 服务器...")
 	if err := apiServer.Shutdown(); err != nil {
 		logger.Warnf("⚠️  关闭 API 服务器时出错: %v", err)
@@ -399,7 +409,7 @@ func main() {
 		logger.Info("✅ API 服务器已安全关闭")
 	}
 
-	// 步骤 3: 关闭数据库连接 (确保所有写入完成)
+	// 步骤 4: 关闭数据库连接 (确保所有写入完成)
 	logger.Info("💾 关闭数据库连接...")
 	if err := st.Close(); err != nil {
 		logger.Errorf("❌ 关闭数据库失败: %v", err)

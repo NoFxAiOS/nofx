@@ -25,6 +25,7 @@ type Store struct {
 	signalSource *SignalSourceStore
 	decision     *DecisionStore
 	backtest     *BacktestStore
+	order        *OrderStore
 
 	// 加密函数
 	encryptFunc func(string) string
@@ -143,6 +144,9 @@ func (s *Store) initTables() error {
 	if err := s.Backtest().initTables(); err != nil {
 		return fmt.Errorf("初始化回测表失败: %w", err)
 	}
+	if err := s.Order().InitTables(); err != nil {
+		return fmt.Errorf("初始化订单表失败: %w", err)
+	}
 	return nil
 }
 
@@ -259,6 +263,16 @@ func (s *Store) Backtest() *BacktestStore {
 		s.backtest = &BacktestStore{db: s.db}
 	}
 	return s.backtest
+}
+
+// Order 获取订单存储
+func (s *Store) Order() *OrderStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.order == nil {
+		s.order = NewOrderStore(s.db)
+	}
+	return s.order
 }
 
 // Close 关闭数据库连接

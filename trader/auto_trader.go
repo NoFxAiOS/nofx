@@ -661,6 +661,38 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CandidateCoins: candidateCoins,
 	}
 
+	// 6. 添加交易统计和历史订单（如果store可用）
+	if at.store != nil {
+		// 获取交易统计
+		if stats, err := at.store.Order().GetTraderStats(at.id); err == nil {
+			ctx.TradingStats = &decision.TradingStats{
+				TotalTrades:    stats.TotalTrades,
+				WinRate:        stats.WinRate,
+				ProfitFactor:   stats.ProfitFactor,
+				SharpeRatio:    stats.SharpeRatio,
+				TotalPnL:       stats.TotalPnL,
+				AvgWin:         stats.AvgWin,
+				AvgLoss:        stats.AvgLoss,
+				MaxDrawdownPct: stats.MaxDrawdownPct,
+			}
+		}
+
+		// 获取最近10条已完成订单
+		if recentOrders, err := at.store.Order().GetRecentCompletedOrders(at.id, 10); err == nil {
+			for _, order := range recentOrders {
+				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
+					Symbol:      order.Symbol,
+					Side:        order.Side,
+					EntryPrice:  order.EntryPrice,
+					ExitPrice:   order.ExitPrice,
+					RealizedPnL: order.RealizedPnL,
+					PnLPct:      order.PnLPct,
+					FilledAt:    order.FilledAt.Format("01-02 15:04"),
+				})
+			}
+		}
+	}
+
 	return ctx, nil
 }
 
@@ -748,6 +780,9 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 
 	logger.Infof("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantity)
 
+	// 记录订单到数据库并轮询确认
+	at.recordAndConfirmOrder(order, decision.Symbol, "open_long", quantity, marketData.CurrentPrice, decision.Leverage, 0)
+
 	// 记录开仓时间
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
@@ -828,6 +863,9 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 
 	logger.Infof("  ✓ 开仓成功，订单ID: %v, 数量: %.4f", order["orderId"], quantity)
 
+	// 记录订单到数据库并轮询确认
+	at.recordAndConfirmOrder(order, decision.Symbol, "open_short", quantity, marketData.CurrentPrice, decision.Leverage, 0)
+
 	// 记录开仓时间
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
@@ -854,6 +892,16 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	}
 	actionRecord.Price = marketData.CurrentPrice
 
+	// 获取开仓价格（用于计算盈亏）
+	var entryPrice float64
+	var quantity float64
+	if at.store != nil {
+		if openOrder, err := at.store.Order().GetLatestOpenOrder(at.id, decision.Symbol, "long"); err == nil {
+			entryPrice = openOrder.AvgPrice
+			quantity = openOrder.ExecutedQty
+		}
+	}
+
 	// 平仓
 	order, err := at.trader.CloseLong(decision.Symbol, 0) // 0 = 全部平仓
 	if err != nil {
@@ -864,6 +912,9 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	if orderID, ok := order["orderId"].(int64); ok {
 		actionRecord.OrderID = orderID
 	}
+
+	// 记录订单到数据库并轮询确认
+	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, marketData.CurrentPrice, 0, entryPrice)
 
 	logger.Infof("  ✓ 平仓成功")
 	return nil
@@ -880,6 +931,16 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	}
 	actionRecord.Price = marketData.CurrentPrice
 
+	// 获取开仓价格（用于计算盈亏）
+	var entryPrice float64
+	var quantity float64
+	if at.store != nil {
+		if openOrder, err := at.store.Order().GetLatestOpenOrder(at.id, decision.Symbol, "short"); err == nil {
+			entryPrice = openOrder.AvgPrice
+			quantity = openOrder.ExecutedQty
+		}
+	}
+
 	// 平仓
 	order, err := at.trader.CloseShort(decision.Symbol, 0) // 0 = 全部平仓
 	if err != nil {
@@ -890,6 +951,9 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	if orderID, ok := order["orderId"].(int64); ok {
 		actionRecord.OrderID = orderID
 	}
+
+	// 记录订单到数据库并轮询确认
+	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, marketData.CurrentPrice, 0, entryPrice)
 
 	logger.Infof("  ✓ 平仓成功")
 	return nil
@@ -1401,3 +1465,73 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 	posKey := symbol + "_" + side
 	delete(at.peakPnLCache, posKey)
 }
+
+// recordAndConfirmOrder 记录订单并轮询确认状态
+// action: open_long, open_short, close_long, close_short
+// entryPrice: 平仓时的开仓价（开仓时为0）
+func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, symbol, action string, quantity float64, price float64, leverage int, entryPrice float64) {
+	if at.store == nil {
+		return
+	}
+
+	// 获取订单ID（支持多种类型）
+	var orderID string
+	switch v := orderResult["orderId"].(type) {
+	case int64:
+		orderID = fmt.Sprintf("%d", v)
+	case float64:
+		orderID = fmt.Sprintf("%.0f", v)
+	case string:
+		orderID = v
+	default:
+		orderID = fmt.Sprintf("%v", v)
+	}
+
+	if orderID == "" || orderID == "0" {
+		logger.Infof("  ⚠️ 订单ID为空，跳过记录")
+		return
+	}
+
+	// 确定 side 和 positionSide
+	var side, positionSide string
+	switch action {
+	case "open_long":
+		side = "BUY"
+		positionSide = "LONG"
+	case "close_long":
+		side = "SELL"
+		positionSide = "LONG"
+	case "open_short":
+		side = "SELL"
+		positionSide = "SHORT"
+	case "close_short":
+		side = "BUY"
+		positionSide = "SHORT"
+	}
+
+	// 创建订单记录
+	order := &store.TraderOrder{
+		TraderID:     at.id,
+		OrderID:      orderID,
+		Symbol:       symbol,
+		Side:         side,
+		PositionSide: positionSide,
+		Action:       action,
+		OrderType:    "MARKET",
+		Quantity:     quantity,
+		Price:        price,
+		Leverage:     leverage,
+		Status:       "NEW",
+		EntryPrice:   entryPrice,
+	}
+
+	// 保存到数据库
+	if err := at.store.Order().Create(order); err != nil {
+		logger.Infof("  ⚠️ 记录订单失败: %v", err)
+		return
+	}
+
+	logger.Infof("  📝 订单已记录 (ID: %s, action: %s)", orderID, action)
+	// 订单状态将由 OrderSyncManager 统一同步
+}
+

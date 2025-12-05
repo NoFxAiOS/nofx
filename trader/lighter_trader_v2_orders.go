@@ -89,6 +89,80 @@ func (t *LighterTraderV2) CancelAllOrders(symbol string) error {
 	return nil
 }
 
+// GetOrderStatus 獲取訂單狀態（實現 Trader 接口）
+func (t *LighterTraderV2) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	// LIGHTER 使用市價單通常立即成交
+	// 嘗試查詢訂單狀態
+	if err := t.ensureAuthToken(); err != nil {
+		return nil, fmt.Errorf("認證令牌無效: %w", err)
+	}
+
+	// 構建請求 URL
+	endpoint := fmt.Sprintf("%s/api/v1/order/%s", t.baseURL, orderID)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", t.authToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		// 如果查詢失敗，假設訂單已完成
+		return map[string]interface{}{
+			"orderId":     orderID,
+			"status":      "FILLED",
+			"avgPrice":    0.0,
+			"executedQty": 0.0,
+			"commission":  0.0,
+		}, nil
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return map[string]interface{}{
+			"orderId":     orderID,
+			"status":      "FILLED",
+			"avgPrice":    0.0,
+			"executedQty": 0.0,
+			"commission":  0.0,
+		}, nil
+	}
+
+	var order OrderResponse
+	if err := json.Unmarshal(body, &order); err != nil {
+		return map[string]interface{}{
+			"orderId":     orderID,
+			"status":      "FILLED",
+			"avgPrice":    0.0,
+			"executedQty": 0.0,
+			"commission":  0.0,
+		}, nil
+	}
+
+	// 轉換狀態為統一格式
+	unifiedStatus := order.Status
+	switch order.Status {
+	case "filled":
+		unifiedStatus = "FILLED"
+	case "open":
+		unifiedStatus = "NEW"
+	case "cancelled":
+		unifiedStatus = "CANCELED"
+	}
+
+	return map[string]interface{}{
+		"orderId":     order.OrderID,
+		"status":      unifiedStatus,
+		"avgPrice":    order.Price,
+		"executedQty": order.FilledQty,
+		"commission":  0.0,
+	}, nil
+}
+
 // CancelStopLossOrders 僅取消止損單（實現 Trader 接口）
 func (t *LighterTraderV2) CancelStopLossOrders(symbol string) error {
 	// LIGHTER 暫時無法區分止損和止盈單，取消所有止盈止損單

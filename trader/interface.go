@@ -50,4 +50,8 @@ type Trader interface {
 
 	// FormatQuantity 格式化数量到正确的精度
 	FormatQuantity(symbol string, quantity float64) (string, error)
+
+	// GetOrderStatus 获取订单状态
+	// 返回: status(FILLED/NEW/CANCELED), avgPrice, executedQty, commission
+	GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error)
 }

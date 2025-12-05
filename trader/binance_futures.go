@@ -915,3 +915,42 @@ func stringContains(s, substr string) bool {
 	}
 	return false
 }
+
+// GetOrderStatus 获取订单状态
+func (t *FuturesTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	// 将 orderID 转换为 int64
+	orderIDInt, err := strconv.ParseInt(orderID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("无效的订单ID: %s", orderID)
+	}
+
+	order, err := t.client.NewGetOrderService().
+		Symbol(symbol).
+		OrderID(orderIDInt).
+		Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("获取订单状态失败: %w", err)
+	}
+
+	// 解析成交价格
+	avgPrice, _ := strconv.ParseFloat(order.AvgPrice, 64)
+	executedQty, _ := strconv.ParseFloat(order.ExecutedQuantity, 64)
+
+	result := map[string]interface{}{
+		"orderId":     order.OrderID,
+		"symbol":      order.Symbol,
+		"status":      string(order.Status),
+		"avgPrice":    avgPrice,
+		"executedQty": executedQty,
+		"side":        string(order.Side),
+		"type":        string(order.Type),
+		"time":        order.Time,
+		"updateTime":  order.UpdateTime,
+	}
+
+	// 币安合约的手续费需要通过 GetUserTrades 获取，这里暂时不获取
+	// 后续可以通过 WebSocket 或单独查询获取
+	result["commission"] = 0.0
+
+	return result, nil
+}

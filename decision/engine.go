@@ -72,6 +72,29 @@ type OITopData struct {
 	NetShort          float64 // 净空仓
 }
 
+// TradingStats 交易统计（用于AI输入）
+type TradingStats struct {
+	TotalTrades    int     `json:"total_trades"`     // 总交易数（已平仓）
+	WinRate        float64 `json:"win_rate"`         // 胜率 (%)
+	ProfitFactor   float64 `json:"profit_factor"`    // 盈亏比
+	SharpeRatio    float64 `json:"sharpe_ratio"`     // 夏普比
+	TotalPnL       float64 `json:"total_pnl"`        // 总盈亏
+	AvgWin         float64 `json:"avg_win"`          // 平均盈利
+	AvgLoss        float64 `json:"avg_loss"`         // 平均亏损
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"` // 最大回撤 (%)
+}
+
+// RecentOrder 最近完成的订单（用于AI输入）
+type RecentOrder struct {
+	Symbol      string  `json:"symbol"`       // 交易对
+	Side        string  `json:"side"`         // long/short
+	EntryPrice  float64 `json:"entry_price"`  // 开仓价
+	ExitPrice   float64 `json:"exit_price"`   // 平仓价
+	RealizedPnL float64 `json:"realized_pnl"` // 已实现盈亏
+	PnLPct      float64 `json:"pnl_pct"`      // 盈亏百分比
+	FilledAt    string  `json:"filled_at"`    // 成交时间
+}
+
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
 	CurrentTime     string                             `json:"current_time"`
@@ -81,7 +104,9 @@ type Context struct {
 	Positions       []PositionInfo                     `json:"positions"`
 	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
 	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	MarketDataMap   map[string]*market.Data            `json:"-"` // 不序列化，但内部使用
+	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`  // 交易统计指标
+	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`  // 最近完成的订单（10条）
+	MarketDataMap   map[string]*market.Data            `json:"-"`                        // 不序列化，但内部使用
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top数据映射
 	BTCETHLeverage  int                                `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
@@ -460,6 +485,38 @@ func buildUserPrompt(ctx *Context) string {
 		}
 	} else {
 		sb.WriteString("当前持仓: 无\n\n")
+	}
+
+	// 交易统计（如果有）
+	if ctx.TradingStats != nil && ctx.TradingStats.TotalTrades > 0 {
+		sb.WriteString("## 历史交易统计\n")
+		sb.WriteString(fmt.Sprintf("总交易数: %d | 胜率: %.1f%% | 盈亏比: %.2f | 夏普比: %.2f\n",
+			ctx.TradingStats.TotalTrades,
+			ctx.TradingStats.WinRate,
+			ctx.TradingStats.ProfitFactor,
+			ctx.TradingStats.SharpeRatio))
+		sb.WriteString(fmt.Sprintf("总盈亏: %.2f USDT | 平均盈利: %.2f | 平均亏损: %.2f | 最大回撤: %.1f%%\n\n",
+			ctx.TradingStats.TotalPnL,
+			ctx.TradingStats.AvgWin,
+			ctx.TradingStats.AvgLoss,
+			ctx.TradingStats.MaxDrawdownPct))
+	}
+
+	// 最近完成的订单（如果有）
+	if len(ctx.RecentOrders) > 0 {
+		sb.WriteString("## 最近完成的交易\n")
+		for i, order := range ctx.RecentOrders {
+			resultStr := "盈利"
+			if order.RealizedPnL < 0 {
+				resultStr = "亏损"
+			}
+			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场%.4f 出场%.4f | %s: %+.2f USDT (%+.2f%%) | %s\n",
+				i+1, order.Symbol, order.Side,
+				order.EntryPrice, order.ExitPrice,
+				resultStr, order.RealizedPnL, order.PnLPct,
+				order.FilledAt))
+		}
+		sb.WriteString("\n")
 	}
 
 	// 候选币种（完整市场数据）

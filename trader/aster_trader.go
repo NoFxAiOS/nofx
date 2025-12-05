@@ -1230,3 +1230,52 @@ func (t *AsterTrader) FormatQuantity(symbol string, quantity float64) (string, e
 	}
 	return fmt.Sprintf("%v", formatted), nil
 }
+
+// GetOrderStatus 获取订单状态
+func (t *AsterTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"symbol":  symbol,
+		"orderId": orderID,
+	}
+
+	body, err := t.request("GET", "/fapi/v3/order", params)
+	if err != nil {
+		return nil, fmt.Errorf("获取订单状态失败: %w", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("解析订单响应失败: %w", err)
+	}
+
+	// 标准化返回字段
+	response := map[string]interface{}{
+		"orderId":     result["orderId"],
+		"symbol":      result["symbol"],
+		"status":      result["status"],
+		"side":        result["side"],
+		"type":        result["type"],
+		"time":        result["time"],
+		"updateTime":  result["updateTime"],
+		"commission":  0.0, // Aster 可能需要单独查询
+	}
+
+	// 解析数值字段
+	if avgPrice, ok := result["avgPrice"].(string); ok {
+		if v, err := strconv.ParseFloat(avgPrice, 64); err == nil {
+			response["avgPrice"] = v
+		}
+	} else if avgPrice, ok := result["avgPrice"].(float64); ok {
+		response["avgPrice"] = avgPrice
+	}
+
+	if executedQty, ok := result["executedQty"].(string); ok {
+		if v, err := strconv.ParseFloat(executedQty, 64); err == nil {
+			response["executedQty"] = v
+		}
+	} else if executedQty, ok := result["executedQty"].(float64); ok {
+		response["executedQty"] = executedQty
+	}
+
+	return response, nil
+}

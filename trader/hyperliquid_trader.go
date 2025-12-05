@@ -897,6 +897,53 @@ func convertSymbolToHyperliquid(symbol string) string {
 	return symbol
 }
 
+// GetOrderStatus 获取订单状态
+// Hyperliquid 使用 IOC 订单，通常立即成交或取消
+// 对于已完成的订单，需要查询历史记录
+func (t *HyperliquidTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	// Hyperliquid 的 IOC 订单几乎立即完成
+	// 如果订单是通过本系统下单的，返回的 status 都是 FILLED
+	// 这里尝试查询开放订单来判断是否还在等待
+	coin := convertSymbolToHyperliquid(symbol)
+
+	// 首先检查是否在开放订单中
+	openOrders, err := t.exchange.Info().OpenOrders(t.ctx, t.walletAddr)
+	if err != nil {
+		// 如果查询失败，假设订单已完成
+		return map[string]interface{}{
+			"orderId":     orderID,
+			"status":      "FILLED",
+			"avgPrice":    0.0,
+			"executedQty": 0.0,
+			"commission":  0.0,
+		}, nil
+	}
+
+	// 检查订单是否在开放订单列表中
+	for _, order := range openOrders {
+		if order.Coin == coin && fmt.Sprintf("%d", order.Oid) == orderID {
+			// 订单仍在等待
+			return map[string]interface{}{
+				"orderId":     orderID,
+				"status":      "NEW",
+				"avgPrice":    0.0,
+				"executedQty": 0.0,
+				"commission":  0.0,
+			}, nil
+		}
+	}
+
+	// 订单不在开放列表中，说明已完成或已取消
+	// Hyperliquid IOC 订单如果不在开放列表中，通常是已成交
+	return map[string]interface{}{
+		"orderId":     orderID,
+		"status":      "FILLED",
+		"avgPrice":    0.0, // Hyperliquid 不直接返回成交价格，需要从持仓信息获取
+		"executedQty": 0.0,
+		"commission":  0.0,
+	}, nil
+}
+
 // absFloat 返回浮点数的绝对值
 func absFloat(x float64) float64 {
 	if x < 0 {

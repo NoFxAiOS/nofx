@@ -98,7 +98,7 @@ func (s *BacktestStore) initTables() error {
 		// 回测运行主表
 		`CREATE TABLE IF NOT EXISTS backtest_runs (
 			run_id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL DEFAULT 'default',
+			user_id TEXT NOT NULL DEFAULT '',
 			config_json TEXT NOT NULL DEFAULT '',
 			state TEXT NOT NULL DEFAULT 'created',
 			label TEXT DEFAULT '',
@@ -248,9 +248,6 @@ func (s *BacktestStore) SaveRunMetadata(meta *RunMetadata) error {
 	created := meta.CreatedAt.UTC().Format(time.RFC3339)
 	updated := meta.UpdatedAt.UTC().Format(time.RFC3339)
 	userID := meta.UserID
-	if userID == "" {
-		userID = "default"
-	}
 
 	if _, err := s.db.Exec(`
 		INSERT INTO backtest_runs (run_id, user_id, label, last_error, created_at, updated_at)
@@ -323,9 +320,6 @@ func (s *BacktestStore) LoadRunMetadata(runID string) (*RunMetadata, error) {
 		},
 	}
 
-	if meta.UserID == "" {
-		meta.UserID = "default"
-	}
 	meta.CreatedAt, _ = time.Parse(time.RFC3339, createdISO)
 	meta.UpdatedAt, _ = time.Parse(time.RFC3339, updatedISO)
 

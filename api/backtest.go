@@ -486,9 +486,6 @@ func (s *Server) ensureBacktestRunOwnership(runID, userID string) (*backtest.Run
 	if owner == "" {
 		return meta, nil
 	}
-	if owner == "default" && userID == "admin" {
-		return meta, nil
-	}
 	if owner != userID {
 		return nil, errBacktestForbidden
 	}

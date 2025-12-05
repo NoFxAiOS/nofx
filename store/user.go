@@ -61,12 +61,7 @@ func (s *UserStore) initTables() error {
 		return err
 	}
 
-	// 确保默认用户存在
-	_, err = s.db.Exec(`
-		INSERT OR IGNORE INTO users (id, email, password_hash, otp_secret, otp_verified)
-		VALUES ('default', 'default@local', '__default__', '', 1)
-	`)
-	return err
+	return nil
 }
 
 // Create 创建用户

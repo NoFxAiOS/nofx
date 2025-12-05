@@ -15,7 +15,7 @@ func main() {
 	log.Println("🔄 开始迁移数据库到加密格式...")
 
 	// 1. 检查数据库文件
-	dbPath := "config.db"
+	dbPath := "data.db"
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
 	}

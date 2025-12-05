@@ -30,8 +30,7 @@ Thumbs.db
 # 环境变量
 .env
 config.json
-config.db*
-nofx.db
+data.db*
 configbak.json
 
 # 决策日志

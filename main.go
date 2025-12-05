@@ -166,7 +166,7 @@ func main() {
 	logger.Info("╚════════════════════════════════════════════════════════════╝")
 
 	// 初始化数据库配置
-	dbPath := "config.db"
+	dbPath := "data.db"
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
 	}

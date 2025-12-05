@@ -11,11 +11,10 @@ services:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
     volumes:
       - ./config.json:/app/config.json:ro
-      - ./config.db:/app/config.db
+      - ./data.db:/app/data.db
       - ./beta_codes.txt:/app/beta_codes.txt:ro
       - ./decision_logs:/app/decision_logs
       - ./prompts:/app/prompts
-      - ./secrets:/app/secrets:ro  # RSA密钥文件
       - /etc/localtime:/etc/localtime:ro  # Sync host time
     environment:
       - TZ=${NOFX_TIMEZONE:-Asia/Shanghai}  # Set timezone

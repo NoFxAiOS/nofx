@@ -206,17 +206,17 @@ read_env_vars() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Database File (config.db)
+# Validation: Database File (data.db)
 # ------------------------------------------------------------------------
 check_database() {
-    if [ -d "config.db" ]; then
-        print_warning "config.db 是目录而非文件，正在删除目录..."
-        rm -rf config.db
-        install -m 600 /dev/null config.db
+    if [ -d "data.db" ]; then
+        print_warning "data.db 是目录而非文件，正在删除目录..."
+        rm -rf data.db
+        install -m 600 /dev/null data.db
         print_success "已创建空数据库文件"
-    elif [ ! -f "config.db" ]; then
+    elif [ ! -f "data.db" ]; then
         print_warning "数据库文件不存在，创建空数据库文件..."
-        install -m 600 /dev/null config.db
+        install -m 600 /dev/null data.db
         print_info "已创建空数据库文件，系统将在启动时初始化"
     else
         print_success "数据库文件存在"
@@ -231,9 +231,9 @@ start() {
 
     read_env_vars
 
-    if [ ! -f "config.db" ]; then
+    if [ ! -f "data.db" ]; then
         print_info "创建数据库文件..."
-        install -m 600 /dev/null config.db
+        install -m 600 /dev/null data.db
     fi
     if [ ! -d "decision_logs" ]; then
         print_info "创建日志目录..."

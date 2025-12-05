@@ -203,7 +203,7 @@ spec:
 ./scripts/generate_data_key.sh
 
 # 2. 备份旧数据库
-cp config.db config.db.backup
+cp data.db data.db.backup
 
 # 3. 重启服务 (会自动处理密钥迁移)
 source .env && ./mars

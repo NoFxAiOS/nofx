@@ -146,6 +146,164 @@ func GetFullDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error
 	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
 }
 
+// GetFullDecisionWithStrategy 使用 StrategyEngine 获取AI决策（新版：策略驱动）
+// 关键：使用策略配置的时间周期来获取市场数据，与 api/strategy.go 的测试运行逻辑保持一致
+func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *StrategyEngine, variant string) (*FullDecision, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if engine == nil {
+		// 如果没有策略引擎，回退到默认行为
+		return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
+	}
+
+	// 1. 使用策略配置获取市场数据（关键：使用多时间周期）
+	if len(ctx.MarketDataMap) == 0 {
+		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {
+			return nil, fmt.Errorf("获取市场数据失败: %w", err)
+		}
+	}
+
+	// 确保 OITopDataMap 已初始化
+	if ctx.OITopDataMap == nil {
+		ctx.OITopDataMap = make(map[string]*OITopData)
+		// 加载 OI Top 数据
+		oiPositions, err := pool.GetOITopPositions()
+		if err == nil {
+			for _, pos := range oiPositions {
+				ctx.OITopDataMap[pos.Symbol] = &OITopData{
+					Rank:              pos.Rank,
+					OIDeltaPercent:    pos.OIDeltaPercent,
+					OIDeltaValue:      pos.OIDeltaValue,
+					PriceDeltaPercent: pos.PriceDeltaPercent,
+					NetLong:           pos.NetLong,
+					NetShort:          pos.NetShort,
+				}
+			}
+		}
+	}
+
+	// 2. 使用策略引擎构建 System Prompt
+	riskConfig := engine.GetRiskControlConfig()
+	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant)
+
+	// 3. 使用策略引擎构建 User Prompt（包含多周期数据）
+	userPrompt := engine.BuildUserPrompt(ctx)
+
+	// 4. 调用AI API
+	aiCallStart := time.Now()
+	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
+	aiCallDuration := time.Since(aiCallStart)
+	if err != nil {
+		return nil, fmt.Errorf("调用AI API失败: %w", err)
+	}
+
+	// 5. 解析AI响应
+	decision, err := parseFullDecisionResponse(
+		aiResponse,
+		ctx.Account.TotalEquity,
+		riskConfig.BTCETHMaxLeverage,
+		riskConfig.AltcoinMaxLeverage,
+	)
+
+	if decision != nil {
+		decision.Timestamp = time.Now()
+		decision.SystemPrompt = systemPrompt
+		decision.UserPrompt = userPrompt
+		decision.AIRequestDurationMs = aiCallDuration.Milliseconds()
+	}
+
+	if err != nil {
+		return decision, fmt.Errorf("解析AI响应失败: %w", err)
+	}
+
+	return decision, nil
+}
+
+// fetchMarketDataWithStrategy 使用策略配置获取市场数据（多时间周期）
+// 完全按照 api/strategy.go handleStrategyTestRun 的逻辑实现
+func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
+	config := engine.GetConfig()
+	ctx.MarketDataMap = make(map[string]*market.Data)
+
+	// 获取时间周期配置（与 api/strategy.go 逻辑完全一致）
+	timeframes := config.Indicators.Klines.SelectedTimeframes
+	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
+	klineCount := config.Indicators.Klines.PrimaryCount
+
+	// 兼容旧配置
+	if len(timeframes) == 0 {
+		if primaryTimeframe != "" {
+			timeframes = append(timeframes, primaryTimeframe)
+		} else {
+			timeframes = append(timeframes, "3m")
+		}
+		if config.Indicators.Klines.LongerTimeframe != "" {
+			timeframes = append(timeframes, config.Indicators.Klines.LongerTimeframe)
+		}
+	}
+	if primaryTimeframe == "" {
+		primaryTimeframe = timeframes[0]
+	}
+	if klineCount <= 0 {
+		klineCount = 30
+	}
+
+	logger.Infof("📊 策略时间周期: %v, 主周期: %s, K线数量: %d", timeframes, primaryTimeframe, klineCount)
+
+	// 1. 先获取持仓币种的数据（必须获取）
+	for _, pos := range ctx.Positions {
+		data, err := market.GetWithTimeframes(pos.Symbol, timeframes, primaryTimeframe, klineCount)
+		if err != nil {
+			logger.Infof("⚠️  获取持仓 %s 市场数据失败: %v", pos.Symbol, err)
+			continue
+		}
+		ctx.MarketDataMap[pos.Symbol] = data
+	}
+
+	// 2. 获取所有候选币种的数据（与 api/strategy.go 完全一致，不做数量限制）
+	// 持仓币种集合（用于判断是否跳过OI检查）
+	positionSymbols := make(map[string]bool)
+	for _, pos := range ctx.Positions {
+		positionSymbols[pos.Symbol] = true
+	}
+
+	// OI 流动性过滤阈值（百万美元）
+	const minOIThresholdMillions = 15.0 // 15M USD 最小持仓价值
+
+	for _, coin := range ctx.CandidateCoins {
+		// 跳过已获取的持仓币种
+		if _, exists := ctx.MarketDataMap[coin.Symbol]; exists {
+			continue
+		}
+
+		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		if err != nil {
+			logger.Infof("⚠️  获取 %s 市场数据失败: %v", coin.Symbol, err)
+			continue
+		}
+
+		// ⚠️ 流动性过滤：持仓价值低于阈值的币种不做（多空都不做）
+		// 但现有持仓必须保留（需要决策是否平仓）
+		isExistingPosition := positionSymbols[coin.Symbol]
+		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
+			// 计算持仓价值（USD）= 持仓量 × 当前价格
+			oiValue := data.OpenInterest.Latest * data.CurrentPrice
+			oiValueInMillions := oiValue / 1_000_000 // 转换为百万美元单位
+			if oiValueInMillions < minOIThresholdMillions {
+				logger.Infof("⚠️  %s 持仓价值过低(%.2fM USD < %.1fM)，跳过此币种 [持仓量:%.0f × 价格:%.4f]",
+					coin.Symbol, oiValueInMillions, minOIThresholdMillions, data.OpenInterest.Latest, data.CurrentPrice)
+				continue
+			}
+		}
+
+		ctx.MarketDataMap[coin.Symbol] = data
+	}
+
+	logger.Infof("📊 成功获取 %d 个币种的多时间周期市场数据（已过滤低流动性币种）", len(ctx.MarketDataMap))
+	return nil
+}
+
 // GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
 func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
 	if ctx == nil {

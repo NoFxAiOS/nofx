@@ -27,6 +27,7 @@ type Store struct {
 	backtest     *BacktestStore
 	order        *OrderStore
 	position     *PositionStore
+	strategy     *StrategyStore
 
 	// 加密函数
 	encryptFunc func(string) string
@@ -151,6 +152,9 @@ func (s *Store) initTables() error {
 	if err := s.Position().InitTables(); err != nil {
 		return fmt.Errorf("初始化仓位表失败: %w", err)
 	}
+	if err := s.Strategy().initTables(); err != nil {
+		return fmt.Errorf("初始化策略表失败: %w", err)
+	}
 	return nil
 }
 
@@ -163,6 +167,9 @@ func (s *Store) initDefaultData() error {
 		return err
 	}
 	if err := s.SystemConfig().initDefaultData(); err != nil {
+		return err
+	}
+	if err := s.Strategy().initDefaultData(); err != nil {
 		return err
 	}
 	return nil
@@ -287,6 +294,16 @@ func (s *Store) Position() *PositionStore {
 		s.position = NewPositionStore(s.db)
 	}
 	return s.position
+}
+
+// Strategy 获取策略存储
+func (s *Store) Strategy() *StrategyStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.strategy == nil {
+		s.strategy = &StrategyStore{db: s.db}
+	}
+	return s.strategy
 }
 
 // Close 关闭数据库连接

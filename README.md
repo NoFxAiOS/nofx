@@ -87,6 +87,10 @@ Join our Telegram developer community to discuss, share ideas, and get support:
 ![Details Page](screenshots/details-page.png)
 *Professional trading interface with equity curves, live positions, and AI decision logs with expandable input prompts & chain-of-thought reasoning*
 
+### 🎛️ Strategy Studio - Custom Strategy Builder
+![Strategy Studio](screenshots/strategy-studio.png)
+*Three-column strategy editor with multi-timeframe selection (5m/15m/1h/4h), technical indicators configuration, risk control settings, and real-time AI test run with live market data*
+
 ---
 
 ## 🏦 Supported Exchanges (DEX/CEX Tutorials)

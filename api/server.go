@@ -144,6 +144,20 @@ func (s *Server) setupRoutes() {
 			protected.GET("/exchanges", s.handleGetExchangeConfigs)
 			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
 
+			// 策略管理
+			protected.GET("/strategies", s.handleGetStrategies)
+			protected.GET("/strategies/active", s.handleGetActiveStrategy)
+			protected.GET("/strategies/default-config", s.handleGetDefaultStrategyConfig)
+			protected.GET("/strategies/templates", s.handleGetPromptTemplates)
+			protected.POST("/strategies/preview-prompt", s.handlePreviewPrompt)
+			protected.POST("/strategies/test-run", s.handleStrategyTestRun)
+			protected.GET("/strategies/:id", s.handleGetStrategy)
+			protected.POST("/strategies", s.handleCreateStrategy)
+			protected.PUT("/strategies/:id", s.handleUpdateStrategy)
+			protected.DELETE("/strategies/:id", s.handleDeleteStrategy)
+			protected.POST("/strategies/:id/activate", s.handleActivateStrategy)
+			protected.POST("/strategies/:id/duplicate", s.handleDuplicateStrategy)
+
 			// 用户信号源配置
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
@@ -373,15 +387,17 @@ type CreateTraderRequest struct {
 	Name                 string  `json:"name" binding:"required"`
 	AIModelID            string  `json:"ai_model_id" binding:"required"`
 	ExchangeID           string  `json:"exchange_id" binding:"required"`
+	StrategyID           string  `json:"strategy_id"`              // 策略ID（新版）
 	InitialBalance       float64 `json:"initial_balance"`
 	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
+	IsCrossMargin        *bool   `json:"is_cross_margin"`          // 指针类型，nil表示使用默认值true
+	// 以下字段为向后兼容保留，新版使用策略配置
 	BTCETHLeverage       int     `json:"btc_eth_leverage"`
 	AltcoinLeverage      int     `json:"altcoin_leverage"`
 	TradingSymbols       string  `json:"trading_symbols"`
 	CustomPrompt         string  `json:"custom_prompt"`
 	OverrideBasePrompt   bool    `json:"override_base_prompt"`
 	SystemPromptTemplate string  `json:"system_prompt_template"` // 系统提示词模板名称
-	IsCrossMargin        *bool   `json:"is_cross_margin"`        // 指针类型，nil表示使用默认值true
 	UseCoinPool          bool    `json:"use_coin_pool"`
 	UseOITop             bool    `json:"use_oi_top"`
 }
@@ -609,14 +625,15 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// 创建交易员配置（数据库实体）
-	logger.Infof("🔧 DEBUG: 开始创建交易员配置, ID=%s, Name=%s, AIModel=%s, Exchange=%s", traderID, req.Name, req.AIModelID, req.ExchangeID)
+	logger.Infof("🔧 DEBUG: 开始创建交易员配置, ID=%s, Name=%s, AIModel=%s, Exchange=%s, StrategyID=%s", traderID, req.Name, req.AIModelID, req.ExchangeID, req.StrategyID)
 	traderRecord := &store.Trader{
 		ID:                   traderID,
 		UserID:               userID,
 		Name:                 req.Name,
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
-		InitialBalance:       actualBalance, // 使用实际查询的余额
+		StrategyID:           req.StrategyID,  // 关联策略ID（新版）
+		InitialBalance:       actualBalance,   // 使用实际查询的余额
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
@@ -664,15 +681,17 @@ type UpdateTraderRequest struct {
 	Name                 string  `json:"name" binding:"required"`
 	AIModelID            string  `json:"ai_model_id" binding:"required"`
 	ExchangeID           string  `json:"exchange_id" binding:"required"`
+	StrategyID           string  `json:"strategy_id"`              // 策略ID（新版）
 	InitialBalance       float64 `json:"initial_balance"`
 	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
+	IsCrossMargin        *bool   `json:"is_cross_margin"`
+	// 以下字段为向后兼容保留，新版使用策略配置
 	BTCETHLeverage       int     `json:"btc_eth_leverage"`
 	AltcoinLeverage      int     `json:"altcoin_leverage"`
 	TradingSymbols       string  `json:"trading_symbols"`
 	CustomPrompt         string  `json:"custom_prompt"`
 	OverrideBasePrompt   bool    `json:"override_base_prompt"`
 	SystemPromptTemplate string  `json:"system_prompt_template"`
-	IsCrossMargin        *bool   `json:"is_cross_margin"`
 }
 
 // handleUpdateTrader 更新交易员配置
@@ -736,6 +755,12 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		systemPromptTemplate = existingTrader.SystemPromptTemplate // 保持原值
 	}
 
+	// 处理策略ID（如果没有提供，保持原值）
+	strategyID := req.StrategyID
+	if strategyID == "" {
+		strategyID = existingTrader.StrategyID
+	}
+
 	// 更新交易员配置
 	traderRecord := &store.Trader{
 		ID:                   traderID,
@@ -743,6 +768,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		Name:                 req.Name,
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
+		StrategyID:           strategyID, // 关联策略ID
 		InitialBalance:       req.InitialBalance,
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,

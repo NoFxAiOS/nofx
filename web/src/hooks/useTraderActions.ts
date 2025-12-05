@@ -21,15 +21,10 @@ interface UseTraderActionsParams {
   mutateTraders: () => Promise<any>
   setAllModels: (models: AIModel[]) => void
   setAllExchanges: (exchanges: Exchange[]) => void
-  setUserSignalSource: (config: {
-    coinPoolUrl: string
-    oiTopUrl: string
-  }) => void
   setShowCreateModal: (show: boolean) => void
   setShowEditModal: (show: boolean) => void
   setShowModelModal: (show: boolean) => void
   setShowExchangeModal: (show: boolean) => void
-  setShowSignalSourceModal: (show: boolean) => void
   setEditingModel: (modelId: string | null) => void
   setEditingExchange: (exchangeId: string | null) => void
   editingTrader: TraderConfigData | null
@@ -46,12 +41,10 @@ export function useTraderActions({
   mutateTraders,
   setAllModels,
   setAllExchanges,
-  setUserSignalSource,
   setShowCreateModal,
   setShowEditModal,
   setShowModelModal,
   setShowExchangeModal,
-  setShowSignalSourceModal,
   setEditingModel,
   setEditingExchange,
   editingTrader,
@@ -605,24 +598,6 @@ export function useTraderActions({
     setShowExchangeModal(true)
   }
 
-  const handleSaveSignalSource = async (
-    coinPoolUrl: string,
-    oiTopUrl: string
-  ) => {
-    try {
-      await toast.promise(api.saveUserSignalSource(coinPoolUrl, oiTopUrl), {
-        loading: '正在保存…',
-        success: '保存成功',
-        error: '保存失败',
-      })
-      setUserSignalSource({ coinPoolUrl, oiTopUrl })
-      setShowSignalSourceModal(false)
-    } catch (error) {
-      console.error('Failed to save signal source:', error)
-      toast.error(t('saveSignalSourceFailed', language))
-    }
-  }
-
   return {
     // 辅助函数
     isModelInUse,
@@ -646,6 +621,5 @@ export function useTraderActions({
     handleDeleteModel,
     handleSaveExchange,
     handleDeleteExchange,
-    handleSaveSignalSource,
   }
 }

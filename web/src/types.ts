@@ -131,15 +131,17 @@ export interface CreateTraderRequest {
   name: string
   ai_model_id: string
   exchange_id: string
+  strategy_id?: string // 策略ID（新版，使用保存的策略配置）
   initial_balance?: number // 可选：创建时由后端自动获取，编辑时可手动更新
   scan_interval_minutes?: number
+  is_cross_margin?: boolean
+  // 以下字段为向后兼容保留，新版使用策略配置
   btc_eth_leverage?: number
   altcoin_leverage?: number
   trading_symbols?: string
   custom_prompt?: string
   override_base_prompt?: boolean
   system_prompt_template?: string
-  is_cross_margin?: boolean
   use_coin_pool?: boolean
   use_oi_top?: boolean
 }
@@ -201,18 +203,20 @@ export interface TraderConfigData {
   trader_name: string
   ai_model: string
   exchange_id: string
+  strategy_id?: string  // 策略ID（新版）
+  is_cross_margin: boolean
+  scan_interval_minutes: number
+  initial_balance: number
+  is_running: boolean
+  // 以下为旧版字段（向后兼容）
   btc_eth_leverage: number
   altcoin_leverage: number
   trading_symbols: string
   custom_prompt: string
   override_base_prompt: boolean
   system_prompt_template: string
-  is_cross_margin: boolean
   use_coin_pool: boolean
   use_oi_top: boolean
-  initial_balance: number
-  scan_interval_minutes: number
-  is_running: boolean
 }
 
 // Backtest types
@@ -346,4 +350,88 @@ export interface BacktestStartConfig {
     btc_eth_leverage?: number;
     altcoin_leverage?: number;
   };
+}
+
+// Strategy Studio Types
+export interface Strategy {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  is_default: boolean;
+  config: StrategyConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromptSectionsConfig {
+  role_definition?: string;
+  trading_frequency?: string;
+  entry_standards?: string;
+  decision_process?: string;
+}
+
+export interface StrategyConfig {
+  coin_source: CoinSourceConfig;
+  indicators: IndicatorConfig;
+  custom_prompt?: string;
+  risk_control: RiskControlConfig;
+  prompt_sections?: PromptSectionsConfig;
+}
+
+export interface CoinSourceConfig {
+  source_type: 'static' | 'coinpool' | 'oi_top' | 'mixed';
+  static_coins?: string[];
+  use_coin_pool: boolean;
+  coin_pool_limit?: number;
+  coin_pool_api_url?: string;  // AI500 币种池 API URL
+  use_oi_top: boolean;
+  oi_top_limit?: number;
+  oi_top_api_url?: string;     // OI Top API URL
+}
+
+export interface IndicatorConfig {
+  klines: KlineConfig;
+  enable_ema: boolean;
+  enable_macd: boolean;
+  enable_rsi: boolean;
+  enable_atr: boolean;
+  enable_volume: boolean;
+  enable_oi: boolean;
+  enable_funding_rate: boolean;
+  ema_periods?: number[];
+  rsi_periods?: number[];
+  atr_periods?: number[];
+  external_data_sources?: ExternalDataSource[];
+}
+
+export interface KlineConfig {
+  primary_timeframe: string;
+  primary_count: number;
+  longer_timeframe?: string;
+  longer_count?: number;
+  enable_multi_timeframe: boolean;
+  // 新增：支持选择多个时间周期
+  selected_timeframes?: string[];
+}
+
+export interface ExternalDataSource {
+  name: string;
+  type: 'api' | 'webhook';
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  data_path?: string;
+  refresh_secs?: number;
+}
+
+export interface RiskControlConfig {
+  max_positions: number;
+  btc_eth_max_leverage: number;
+  altcoin_max_leverage: number;
+  min_risk_reward_ratio: number;
+  max_margin_usage: number;
+  max_position_ratio: number;
+  min_position_size: number;
+  min_confidence: number;
 }

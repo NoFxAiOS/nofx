@@ -9,6 +9,7 @@ import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
+import { StrategyStudioPage } from './pages/StrategyStudioPage'
 import HeaderBar from './components/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -31,6 +32,7 @@ type Page =
   | 'traders'
   | 'trader'
   | 'backtest'
+  | 'strategy'
   | 'faq'
   | 'login'
   | 'register'
@@ -62,6 +64,7 @@ function App() {
 
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/backtest' || hash === 'backtest') return 'backtest'
+    if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -81,6 +84,8 @@ function App() {
         setCurrentPage('traders')
       } else if (path === '/backtest' || hash === 'backtest') {
         setCurrentPage('backtest')
+      } else if (path === '/strategy' || hash === 'strategy') {
+        setCurrentPage('strategy')
       } else if (
         path === '/dashboard' ||
         hash === 'trader' ||
@@ -291,6 +296,11 @@ function App() {
               window.history.pushState({}, '', '/backtest')
               setRoute('/backtest')
               setCurrentPage('backtest')
+            } else if (page === 'strategy') {
+              console.log('Navigating to strategy')
+              window.history.pushState({}, '', '/strategy')
+              setRoute('/strategy')
+              setCurrentPage('strategy')
             }
 
             console.log(
@@ -384,6 +394,10 @@ function App() {
             window.history.pushState({}, '', '/backtest')
             setRoute('/backtest')
             setCurrentPage('backtest')
+          } else if (page === 'strategy') {
+            window.history.pushState({}, '', '/strategy')
+            setRoute('/strategy')
+            setCurrentPage('strategy')
           } else if (page === 'faq') {
             window.history.pushState({}, '', '/faq')
             setRoute('/faq')
@@ -406,6 +420,8 @@ function App() {
           />
         ) : currentPage === 'backtest' ? (
           <BacktestPage />
+        ) : currentPage === 'strategy' ? (
+          <StrategyStudioPage />
         ) : (
           <TraderDetailsPage
             selectedTrader={selectedTrader}

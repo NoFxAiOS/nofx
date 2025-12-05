@@ -56,8 +56,7 @@ func (s *ExchangeStore) initTables() error {
 			lighter_api_key_private_key TEXT DEFAULT '',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id, user_id),
-			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+			PRIMARY KEY (id, user_id)
 		)
 	`)
 	if err != nil {

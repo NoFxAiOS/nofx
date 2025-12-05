@@ -3,12 +3,11 @@ package trader
 import (
 	"encoding/json"
 	"fmt"
-	"nofx/logger"
 	"math"
 	"nofx/decision"
+	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
-	"nofx/pool"
 	"nofx/store"
 	"strings"
 	"sync"
@@ -49,8 +48,6 @@ type AutoTraderConfig struct {
 	LighterAPIKeyPrivateKey string // LIGHTER API Key私钥（40字节，用于签名交易）
 	LighterTestnet          bool   // 是否使用testnet
 
-	CoinPoolAPIURL string
-
 	// AI配置
 	UseQwen     bool
 	DeepSeekKey string
@@ -67,10 +64,6 @@ type AutoTraderConfig struct {
 	// 账户配置
 	InitialBalance float64 // 初始金额（用于计算盈亏，需手动设置）
 
-	// 杠杆配置
-	BTCETHLeverage  int // BTC和ETH的杠杆倍数
-	AltcoinLeverage int // 山寨币的杠杆倍数
-
 	// 风险控制（仅作为提示，AI可自主决定）
 	MaxDailyLoss    float64       // 最大日亏损百分比（提示）
 	MaxDrawdown     float64       // 最大回撤百分比（提示）
@@ -79,12 +72,8 @@ type AutoTraderConfig struct {
 	// 仓位模式
 	IsCrossMargin bool // true=全仓模式, false=逐仓模式
 
-	// 币种配置
-	DefaultCoins []string // 默认币种列表（从数据库获取）
-	TradingCoins []string // 实际交易币种列表
-
-	// 系统提示词模板
-	SystemPromptTemplate string // 系统提示词模板名称（如 "default", "aggressive"）
+	// 策略配置（使用完整策略配置）
+	StrategyConfig *store.StrategyConfig // 策略配置（包含币种来源、指标、风控、Prompt等）
 }
 
 // AutoTrader 自动交易器
@@ -96,15 +85,13 @@ type AutoTrader struct {
 	config                AutoTraderConfig
 	trader                Trader // 使用Trader接口（支持多平台）
 	mcpClient             mcp.AIClient
-	store                 *store.Store // 数据存储（决策记录等）
-	cycleNumber           int          // 当前周期编号
+	store                 *store.Store             // 数据存储（决策记录等）
+	strategyEngine        *decision.StrategyEngine // 策略引擎（使用策略配置）
+	cycleNumber           int                      // 当前周期编号
 	initialBalance        float64
 	dailyPnL              float64
-	customPrompt          string   // 自定义交易策略prompt
-	overrideBasePrompt    bool     // 是否覆盖基础prompt
-	systemPromptTemplate  string   // 系统提示词模板名称
-	defaultCoins          []string // 默认币种列表（从数据库获取）
-	tradingCoins          []string // 实际交易币种列表
+	customPrompt          string // 自定义交易策略prompt
+	overrideBasePrompt    bool   // 是否覆盖基础prompt
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
@@ -162,11 +149,6 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		} else {
 			logger.Infof("🤖 [%s] 使用DeepSeek AI", config.Name)
 		}
-	}
-
-	// 初始化币种池API
-	if config.CoinPoolAPIURL != "" {
-		pool.SetCoinPoolAPI(config.CoinPoolAPIURL)
 	}
 
 	// 设置默认交易平台
@@ -243,12 +225,12 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		logger.Infof("📊 [%s] 决策记录将存储到数据库", config.Name)
 	}
 
-	// 设置默认系统提示词模板
-	systemPromptTemplate := config.SystemPromptTemplate
-	if systemPromptTemplate == "" {
-		// feature/partial-close-dynamic-tpsl 分支默认使用 adaptive（支持动态止盈止损）
-		systemPromptTemplate = "adaptive"
+	// 创建策略引擎（必须有策略配置）
+	if config.StrategyConfig == nil {
+		return nil, fmt.Errorf("[%s] 未配置策略", config.Name)
 	}
+	strategyEngine := decision.NewStrategyEngine(config.StrategyConfig)
+	logger.Infof("✓ [%s] 使用策略引擎（策略配置已加载）", config.Name)
 
 	return &AutoTrader{
 		id:                    config.ID,
@@ -259,11 +241,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		trader:                trader,
 		mcpClient:             mcpClient,
 		store:                 st,
+		strategyEngine:        strategyEngine,
 		cycleNumber:           cycleNumber,
 		initialBalance:        config.InitialBalance,
-		systemPromptTemplate:  systemPromptTemplate,
-		defaultCoins:          config.DefaultCoins,
-		tradingCoins:          config.TradingCoins,
 		lastResetTime:         time.Now(),
 		startTime:             time.Now(),
 		callCount:             0,
@@ -400,24 +380,24 @@ func (at *AutoTrader) runCycle() error {
 	logger.Infof("📊 账户净值: %.2f USDT | 可用: %.2f USDT | 持仓: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
-	// 5. 调用AI获取完整决策
-	logger.Infof("🤖 正在请求AI分析并决策... [模板: %s]", at.systemPromptTemplate)
-	decision, err := decision.GetFullDecisionWithCustomPrompt(ctx, at.mcpClient, at.customPrompt, at.overrideBasePrompt, at.systemPromptTemplate)
+	// 5. 使用策略引擎调用AI获取决策
+	logger.Infof("🤖 正在请求AI分析并决策... [策略引擎]")
+	aiDecision, err := decision.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
 
-	if decision != nil && decision.AIRequestDurationMs > 0 {
-		record.AIRequestDurationMs = decision.AIRequestDurationMs
+	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
+		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
 		logger.Infof("⏱️ AI调用耗时: %.2f 秒", float64(record.AIRequestDurationMs)/1000)
 		record.ExecutionLog = append(record.ExecutionLog,
 			fmt.Sprintf("AI调用耗时: %d ms", record.AIRequestDurationMs))
 	}
 
 	// 即使有错误，也保存思维链、决策和输入prompt（用于debug）
-	if decision != nil {
-		record.SystemPrompt = decision.SystemPrompt // 保存系统提示词
-		record.InputPrompt = decision.UserPrompt
-		record.CoTTrace = decision.CoTTrace
-		if len(decision.Decisions) > 0 {
-			decisionJSON, _ := json.MarshalIndent(decision.Decisions, "", "  ")
+	if aiDecision != nil {
+		record.SystemPrompt = aiDecision.SystemPrompt // 保存系统提示词
+		record.InputPrompt = aiDecision.UserPrompt
+		record.CoTTrace = aiDecision.CoTTrace
+		if len(aiDecision.Decisions) > 0 {
+			decisionJSON, _ := json.MarshalIndent(aiDecision.Decisions, "", "  ")
 			record.DecisionJSON = string(decisionJSON)
 		}
 	}
@@ -427,18 +407,18 @@ func (at *AutoTrader) runCycle() error {
 		record.ErrorMessage = fmt.Sprintf("获取AI决策失败: %v", err)
 
 		// 打印系统提示词和AI思维链（即使有错误，也要输出以便调试）
-		if decision != nil {
+		if aiDecision != nil {
 			logger.Info("\n" + strings.Repeat("=", 70) + "\n")
-			logger.Infof("📋 系统提示词 [模板: %s] (错误情况)", at.systemPromptTemplate)
+			logger.Infof("📋 系统提示词 (错误情况)")
 			logger.Info(strings.Repeat("=", 70))
-			logger.Info(decision.SystemPrompt)
+			logger.Info(aiDecision.SystemPrompt)
 			logger.Info(strings.Repeat("=", 70))
 
-			if decision.CoTTrace != "" {
+			if aiDecision.CoTTrace != "" {
 				logger.Info("\n" + strings.Repeat("-", 70) + "\n")
 				logger.Info("💭 AI思维链分析（错误情况）:")
 				logger.Info(strings.Repeat("-", 70))
-				logger.Info(decision.CoTTrace)
+				logger.Info(aiDecision.CoTTrace)
 				logger.Info(strings.Repeat("-", 70))
 			}
 		}
@@ -476,7 +456,7 @@ func (at *AutoTrader) runCycle() error {
 	logger.Info(strings.Repeat("-", 70))
 
 	// 8. 对决策排序：确保先平仓后开仓（防止仓位叠加超限）
-	sortedDecisions := sortDecisionsByPriority(decision.Decisions)
+	sortedDecisions := sortDecisionsByPriority(aiDecision.Decisions)
 
 	logger.Info("🔄 执行顺序（已优化）: 先平仓→后开仓")
 	for i, d := range sortedDecisions {
@@ -622,11 +602,15 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		}
 	}
 
-	// 3. 获取交易员的候选币种池
-	candidateCoins, err := at.getCandidateCoins()
+	// 3. 使用策略引擎获取候选币种（必须有策略引擎）
+	if at.strategyEngine == nil {
+		return nil, fmt.Errorf("交易员未配置策略引擎")
+	}
+	candidateCoins, err := at.strategyEngine.GetCandidateCoins()
 	if err != nil {
 		return nil, fmt.Errorf("获取候选币种失败: %w", err)
 	}
+	logger.Infof("📋 [%s] 策略引擎获取候选币种: %d个", at.name, len(candidateCoins))
 
 	// 4. 计算总盈亏
 	totalPnL := totalEquity - at.initialBalance
@@ -640,13 +624,19 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		marginUsedPct = (totalMarginUsed / totalEquity) * 100
 	}
 
-	// 5. 构建上下文
+	// 5. 从策略配置获取杠杆
+	strategyConfig := at.strategyEngine.GetConfig()
+	btcEthLeverage := strategyConfig.RiskControl.BTCETHMaxLeverage
+	altcoinLeverage := strategyConfig.RiskControl.AltcoinMaxLeverage
+	logger.Infof("📋 [%s] 策略杠杆配置: BTC/ETH=%dx, 山寨币=%dx", at.name, btcEthLeverage, altcoinLeverage)
+
+	// 6. 构建上下文
 	ctx := &decision.Context{
 		CurrentTime:     time.Now().Format("2006-01-02 15:04:05"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
 		CallCount:       at.callCount,
-		BTCETHLeverage:  at.config.BTCETHLeverage,  // 使用配置的杠杆倍数
-		AltcoinLeverage: at.config.AltcoinLeverage, // 使用配置的杠杆倍数
+		BTCETHLeverage:  btcEthLeverage,
+		AltcoinLeverage: altcoinLeverage,
 		Account: decision.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
@@ -661,7 +651,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CandidateCoins: candidateCoins,
 	}
 
-	// 6. 添加交易统计和历史订单（如果store可用）
+	// 7. 添加交易统计和历史订单（如果store可用）
 	if at.store != nil {
 		// 获取交易统计（使用新的 positions 表）
 		if stats, err := at.store.Position().GetFullStats(at.id); err == nil {
@@ -989,14 +979,15 @@ func (at *AutoTrader) SetOverrideBasePrompt(override bool) {
 	at.overrideBasePrompt = override
 }
 
-// SetSystemPromptTemplate 设置系统提示词模板
-func (at *AutoTrader) SetSystemPromptTemplate(templateName string) {
-	at.systemPromptTemplate = templateName
-}
-
-// GetSystemPromptTemplate 获取当前系统提示词模板名称
+// GetSystemPromptTemplate 获取当前系统提示词模板名称（从策略配置获取）
 func (at *AutoTrader) GetSystemPromptTemplate() string {
-	return at.systemPromptTemplate
+	if at.strategyEngine != nil {
+		config := at.strategyEngine.GetConfig()
+		if config.CustomPrompt != "" {
+			return "custom"
+		}
+	}
+	return "strategy"
 }
 
 // saveDecision 保存决策记录到数据库
@@ -1233,77 +1224,6 @@ func sortDecisionsByPriority(decisions []decision.Decision) []decision.Decision 
 	}
 
 	return sorted
-}
-
-// getCandidateCoins 获取交易员的候选币种列表
-func (at *AutoTrader) getCandidateCoins() ([]decision.CandidateCoin, error) {
-	if len(at.tradingCoins) == 0 {
-		// 使用数据库配置的默认币种列表
-		var candidateCoins []decision.CandidateCoin
-
-		if len(at.defaultCoins) > 0 {
-			// 使用数据库中配置的默认币种
-			for _, coin := range at.defaultCoins {
-				symbol := normalizeSymbol(coin)
-				candidateCoins = append(candidateCoins, decision.CandidateCoin{
-					Symbol:  symbol,
-					Sources: []string{"default"}, // 标记为数据库默认币种
-				})
-			}
-			logger.Infof("📋 [%s] 使用数据库默认币种: %d个币种 %v",
-				at.name, len(candidateCoins), at.defaultCoins)
-			return candidateCoins, nil
-		} else {
-			// 如果数据库中没有配置默认币种，则使用AI500+OI Top作为fallback
-			const ai500Limit = 20 // AI500取前20个评分最高的币种
-
-			mergedPool, err := pool.GetMergedCoinPool(ai500Limit)
-			if err != nil {
-				return nil, fmt.Errorf("获取合并币种池失败: %w", err)
-			}
-
-			// 构建候选币种列表（包含来源信息）
-			for _, symbol := range mergedPool.AllSymbols {
-				sources := mergedPool.SymbolSources[symbol]
-				candidateCoins = append(candidateCoins, decision.CandidateCoin{
-					Symbol:  symbol,
-					Sources: sources, // "ai500" 和/或 "oi_top"
-				})
-			}
-
-			logger.Infof("📋 [%s] 数据库无默认币种配置，使用AI500+OI Top: AI500前%d + OI_Top20 = 总计%d个候选币种",
-				at.name, ai500Limit, len(candidateCoins))
-			return candidateCoins, nil
-		}
-	} else {
-		// 使用自定义币种列表
-		var candidateCoins []decision.CandidateCoin
-		for _, coin := range at.tradingCoins {
-			// 确保币种格式正确（转为大写USDT交易对）
-			symbol := normalizeSymbol(coin)
-			candidateCoins = append(candidateCoins, decision.CandidateCoin{
-				Symbol:  symbol,
-				Sources: []string{"custom"}, // 标记为自定义来源
-			})
-		}
-
-		logger.Infof("📋 [%s] 使用自定义币种: %d个币种 %v",
-			at.name, len(candidateCoins), at.tradingCoins)
-		return candidateCoins, nil
-	}
-}
-
-// normalizeSymbol 标准化币种符号（确保以USDT结尾）
-func normalizeSymbol(symbol string) string {
-	// 转为大写
-	symbol = strings.ToUpper(strings.TrimSpace(symbol))
-
-	// 确保以USDT结尾
-	if !strings.HasSuffix(symbol, "USDT") {
-		symbol = symbol + "USDT"
-	}
-
-	return symbol
 }
 
 // 启动回撤监控

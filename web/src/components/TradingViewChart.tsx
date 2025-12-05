@@ -46,6 +46,7 @@ interface TradingViewChartProps {
   defaultExchange?: string
   height?: number
   showToolbar?: boolean
+  embedded?: boolean // 嵌入模式（不显示外层卡片）
 }
 
 function TradingViewChartComponent({
@@ -53,6 +54,7 @@ function TradingViewChartComponent({
   defaultExchange = 'BINANCE',
   height = 400,
   showToolbar = true,
+  embedded = false,
 }: TradingViewChartProps) {
   const { language } = useLanguage()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -136,7 +138,7 @@ function TradingViewChartComponent({
 
   return (
     <div
-      className={`binance-card overflow-hidden animate-fade-in ${
+      className={`${embedded ? '' : 'binance-card'} overflow-hidden ${embedded ? '' : 'animate-fade-in'} ${
         isFullscreen
           ? 'fixed inset-0 z-50 rounded-none'
           : ''
@@ -145,20 +147,22 @@ function TradingViewChartComponent({
       {/* Header */}
       <div
         className="flex flex-wrap items-center gap-2 p-3 sm:p-4"
-        style={{ borderBottom: '1px solid #2B3139' }}
+        style={{ borderBottom: embedded ? 'none' : '1px solid #2B3139' }}
       >
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5" style={{ color: '#F0B90B' }} />
-          <h3
-            className="text-base sm:text-lg font-bold"
-            style={{ color: '#EAECEF' }}
-          >
-            {t('marketChart', language)}
-          </h3>
-        </div>
+        {!embedded && (
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" style={{ color: '#F0B90B' }} />
+            <h3
+              className="text-base sm:text-lg font-bold"
+              style={{ color: '#EAECEF' }}
+            >
+              {t('marketChart', language)}
+            </h3>
+          </div>
+        )}
 
         {/* Controls */}
-        <div className="flex flex-wrap items-center gap-2 ml-auto">
+        <div className={`flex flex-wrap items-center gap-2 ${embedded ? '' : 'ml-auto'}`}>
           {/* Exchange Selector */}
           <div className="relative">
             <button

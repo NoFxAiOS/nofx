@@ -33,9 +33,10 @@ interface EquityPoint {
 
 interface EquityChartProps {
   traderId?: string
+  embedded?: boolean // 嵌入模式（不显示外层卡片）
 }
 
-export function EquityChart({ traderId }: EquityChartProps) {
+export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
   const [displayMode, setDisplayMode] = useState<'dollar' | 'percent'>('dollar')
@@ -193,16 +194,18 @@ export function EquityChart({ traderId }: EquityChartProps) {
   }
 
   return (
-    <div className="binance-card p-3 sm:p-5 animate-fade-in">
+    <div className={embedded ? 'p-3 sm:p-5' : 'binance-card p-3 sm:p-5 animate-fade-in'}>
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
         <div className="flex-1">
-          <h3
-            className="text-base sm:text-lg font-bold mb-2"
-            style={{ color: '#EAECEF' }}
-          >
-            {t('accountEquityCurve', language)}
-          </h3>
+          {!embedded && (
+            <h3
+              className="text-base sm:text-lg font-bold mb-2"
+              style={{ color: '#EAECEF' }}
+            >
+              {t('accountEquityCurve', language)}
+            </h3>
+          )}
           <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
             <span
               className="text-2xl sm:text-3xl font-bold mono"

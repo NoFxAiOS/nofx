@@ -11,6 +11,7 @@ import (
 type TraderPosition struct {
 	ID           int64      `json:"id"`
 	TraderID     string     `json:"trader_id"`
+	ExchangeID   string     `json:"exchange_id"`    // 交易所ID: binance/bybit/hyperliquid/aster/lighter
 	Symbol       string     `json:"symbol"`
 	Side         string     `json:"side"`           // LONG/SHORT
 	Quantity     float64    `json:"quantity"`       // 开仓数量
@@ -45,6 +46,7 @@ func (s *PositionStore) InitTables() error {
 		CREATE TABLE IF NOT EXISTS trader_positions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			trader_id TEXT NOT NULL,
+			exchange_id TEXT NOT NULL DEFAULT '',
 			symbol TEXT NOT NULL,
 			side TEXT NOT NULL,
 			quantity REAL NOT NULL,
@@ -70,6 +72,7 @@ func (s *PositionStore) InitTables() error {
 	// 创建索引
 	indices := []string{
 		`CREATE INDEX IF NOT EXISTS idx_positions_trader ON trader_positions(trader_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_positions_exchange ON trader_positions(exchange_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_status ON trader_positions(trader_id, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_symbol ON trader_positions(trader_id, symbol, side, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_entry ON trader_positions(trader_id, entry_time DESC)`,
@@ -80,6 +83,9 @@ func (s *PositionStore) InitTables() error {
 			return fmt.Errorf("创建索引失败: %w", err)
 		}
 	}
+
+	// 迁移：为现有表添加 exchange_id 列（如果不存在）
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_id TEXT NOT NULL DEFAULT ''`)
 
 	return nil
 }
@@ -93,11 +99,11 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 
 	result, err := s.db.Exec(`
 		INSERT INTO trader_positions (
-			trader_id, symbol, side, quantity, entry_price, entry_order_id,
+			trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, leverage, status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		pos.TraderID, pos.Symbol, pos.Side, pos.Quantity, pos.EntryPrice,
+		pos.TraderID, pos.ExchangeID, pos.Symbol, pos.Side, pos.Quantity, pos.EntryPrice,
 		pos.EntryOrderID, pos.EntryTime.Format(time.RFC3339), pos.Leverage,
 		pos.Status, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
@@ -132,7 +138,7 @@ func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID s
 // GetOpenPositions 获取所有未平仓位
 func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
@@ -153,14 +159,14 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 	var entryTime, exitTime, createdAt, updatedAt sql.NullString
 
 	err := s.db.QueryRow(`
-		SELECT id, trader_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
 		WHERE trader_id = ? AND symbol = ? AND side = ? AND status = 'OPEN'
 		ORDER BY entry_time DESC LIMIT 1
 	`, traderID, symbol, side).Scan(
-		&pos.ID, &pos.TraderID, &pos.Symbol, &pos.Side, &pos.Quantity,
+		&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.Symbol, &pos.Side, &pos.Quantity,
 		&pos.EntryPrice, &pos.EntryOrderID, &entryTime, &pos.ExitPrice,
 		&pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
 		&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,
@@ -179,7 +185,7 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 // GetClosedPositions 获取已平仓位（历史记录）
 func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
@@ -198,7 +204,7 @@ func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*Trade
 // GetAllOpenPositions 获取所有trader的未平仓位（用于全局同步）
 func (s *PositionStore) GetAllOpenPositions() ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
@@ -439,7 +445,7 @@ func (s *PositionStore) scanPositions(rows *sql.Rows) ([]*TraderPosition, error)
 		var entryTime, exitTime, createdAt, updatedAt sql.NullString
 
 		err := rows.Scan(
-			&pos.ID, &pos.TraderID, &pos.Symbol, &pos.Side, &pos.Quantity,
+			&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.Symbol, &pos.Side, &pos.Quantity,
 			&pos.EntryPrice, &pos.EntryOrderID, &entryTime, &pos.ExitPrice,
 			&pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
 			&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,

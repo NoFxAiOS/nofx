@@ -1548,6 +1548,7 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		// 开仓：创建新的仓位记录
 		pos := &store.TraderPosition{
 			TraderID:     at.id,
+			ExchangeID:   at.exchange, // 记录具体的交易所ID
 			Symbol:       symbol,
 			Side:         side, // LONG or SHORT
 			Quantity:     quantity,

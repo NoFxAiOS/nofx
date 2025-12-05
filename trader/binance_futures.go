@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"nofx/logger"
 	"nofx/hook"
+	"nofx/logger"
 	"strconv"
 	"strings"
 	"sync"
@@ -748,6 +748,7 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
+		NewClientOrderID(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
@@ -786,6 +787,7 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		Quantity(quantityStr).
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
+		NewClientOrderID(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {

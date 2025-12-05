@@ -15,16 +15,24 @@ export function ChartTabs({ traderId }: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
 
+  console.log('[ChartTabs] rendering, activeTab:', activeTab)
+
   return (
-    <div className="binance-card overflow-hidden">
-      {/* Tab Headers */}
+    <div className="binance-card">
+      {/* Tab Headers - 这是Tab切换按钮区域 */}
       <div
-        className="flex items-center gap-1 p-2"
-        style={{ borderBottom: '1px solid #2B3139', background: '#0B0E11' }}
+        className="flex items-center gap-2 p-3"
+        style={{
+          borderBottom: '1px solid #2B3139',
+          background: '#0B0E11',
+        }}
       >
         <button
-          onClick={() => setActiveTab('equity')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+          onClick={() => {
+            console.log('[ChartTabs] switching to equity')
+            setActiveTab('equity')
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
           style={
             activeTab === 'equity'
               ? {
@@ -44,8 +52,11 @@ export function ChartTabs({ traderId }: ChartTabsProps) {
         </button>
 
         <button
-          onClick={() => setActiveTab('kline')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+          onClick={() => {
+            console.log('[ChartTabs] switching to kline')
+            setActiveTab('kline')
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
           style={
             activeTab === 'kline'
               ? {

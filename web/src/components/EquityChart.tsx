@@ -63,7 +63,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
 
   if (error) {
     return (
-      <div className="binance-card p-6">
+      <div className={embedded ? 'p-6' : 'binance-card p-6'}>
         <div
           className="flex items-center gap-3 p-4 rounded"
           style={{
@@ -90,10 +90,12 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
 
   if (!validHistory || validHistory.length === 0) {
     return (
-      <div className="binance-card p-6">
-        <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>
-          {t('accountEquityCurve', language)}
-        </h3>
+      <div className={embedded ? 'p-6' : 'binance-card p-6'}>
+        {!embedded && (
+          <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>
+            {t('accountEquityCurve', language)}
+          </h3>
+        )}
         <div className="text-center py-16" style={{ color: '#848E9C' }}>
           <div className="mb-4 flex justify-center opacity-50">
             <BarChart3 className="w-16 h-16" />

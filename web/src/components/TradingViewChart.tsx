@@ -60,7 +60,7 @@ function TradingViewChartComponent({
   const containerRef = useRef<HTMLDivElement>(null)
   const [exchange, setExchange] = useState(defaultExchange)
   const [symbol, setSymbol] = useState(defaultSymbol)
-  const [interval, setInterval] = useState('60')
+  const [timeInterval, setTimeInterval] = useState('60')
   const [customSymbol, setCustomSymbol] = useState('')
   const [showExchangeDropdown, setShowExchangeDropdown] = useState(false)
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false)
@@ -102,7 +102,7 @@ function TradingViewChartComponent({
     script.innerHTML = JSON.stringify({
       autosize: true,
       symbol: getFullSymbol(),
-      interval: interval,
+      interval: timeInterval,
       timezone: 'Etc/UTC',
       theme: 'dark',
       style: '1',
@@ -125,7 +125,7 @@ function TradingViewChartComponent({
         containerRef.current.innerHTML = ''
       }
     }
-  }, [exchange, symbol, interval, language, showToolbar])
+  }, [exchange, symbol, timeInterval, language, showToolbar])
 
   // 处理自定义交易对输入
   const handleCustomSymbolSubmit = () => {
@@ -309,11 +309,11 @@ function TradingViewChartComponent({
             {INTERVALS.map((int) => (
               <button
                 key={int.id}
-                onClick={() => setInterval(int.id)}
+                onClick={() => setTimeInterval(int.id)}
                 className="px-2 py-1 rounded text-xs font-medium transition-all"
                 style={{
-                  background: interval === int.id ? '#F0B90B' : 'transparent',
-                  color: interval === int.id ? '#0B0E11' : '#848E9C',
+                  background: timeInterval === int.id ? '#F0B90B' : 'transparent',
+                  color: timeInterval === int.id ? '#0B0E11' : '#848E9C',
                 }}
               >
                 {int.label}

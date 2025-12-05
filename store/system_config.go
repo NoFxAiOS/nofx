@@ -36,13 +36,9 @@ func (s *SystemConfigStore) initDefaultData() error {
 	configs := map[string]string{
 		"beta_mode":            "false",
 		"api_server_port":      "8080",
-		"use_default_coins":    "true",
-		"default_coins":        `["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","HYPEUSDT"]`,
 		"max_daily_loss":       "10.0",
 		"max_drawdown":         "20.0",
 		"stop_trading_minutes": "60",
-		"btc_eth_leverage":     "5",
-		"altcoin_leverage":     "5",
 		"jwt_secret":           "",
 		"registration_enabled": "true",
 	}

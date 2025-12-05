@@ -31,10 +31,24 @@ type StrategyConfig struct {
 	CoinSource CoinSourceConfig `json:"coin_source"`
 	// 量化数据配置
 	Indicators IndicatorConfig `json:"indicators"`
-	// 自定义 Prompt
+	// 自定义 Prompt（附加在最后）
 	CustomPrompt string `json:"custom_prompt,omitempty"`
 	// 风险控制配置
 	RiskControl RiskControlConfig `json:"risk_control"`
+	// System Prompt 可编辑部分
+	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+}
+
+// PromptSectionsConfig System Prompt 可编辑部分
+type PromptSectionsConfig struct {
+	// 角色定义（标题+描述）
+	RoleDefinition string `json:"role_definition,omitempty"`
+	// 交易频率认知
+	TradingFrequency string `json:"trading_frequency,omitempty"`
+	// 开仓标准
+	EntryStandards string `json:"entry_standards,omitempty"`
+	// 决策流程
+	DecisionProcess string `json:"decision_process,omitempty"`
 }
 
 // CoinSourceConfig 币种来源配置
@@ -171,19 +185,21 @@ func (s *StrategyStore) initDefaultData() error {
 	// 创建系统默认策略
 	defaultConfig := StrategyConfig{
 		CoinSource: CoinSourceConfig{
-			SourceType:    "mixed",
-			UseCoinPool:   true,
-			CoinPoolLimit: 30,
-			UseOITop:      true,
-			OITopLimit:    20,
+			SourceType:     "coinpool",
+			UseCoinPool:    true,
+			CoinPoolLimit:  30,
+			CoinPoolAPIURL: "http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c",
+			UseOITop:       false,
+			OITopLimit:     0,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
-				PrimaryTimeframe:     "3m",
+				PrimaryTimeframe:     "5m",
 				PrimaryCount:         30,
 				LongerTimeframe:      "4h",
 				LongerCount:          10,
 				EnableMultiTimeframe: true,
+				SelectedTimeframes:   []string{"5m", "15m", "1h", "4h"},
 			},
 			EnableEMA:         true,
 			EnableMACD:        true,
@@ -206,13 +222,32 @@ func (s *StrategyStore) initDefaultData() error {
 			MinPositionSize:    12,
 			MinConfidence:      75,
 		},
+		PromptSections: PromptSectionsConfig{
+			RoleDefinition: `# 你是专业的加密货币交易AI
+
+你的任务是根据提供的市场数据做出交易决策。你是一位经验丰富的量化交易员，擅长技术分析和风险管理。`,
+			TradingFrequency: `# ⏱️ 交易频率认知
+
+- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔
+- 每小时>2笔 = 过度交易
+- 单笔持仓时间≥30-60分钟
+如果你发现自己每个周期都在交易 → 标准过低；若持仓<30分钟就平仓 → 过于急躁。`,
+			EntryStandards: `# 🎯 开仓标准（严格）
+
+只在多重信号共振时开仓。自由运用任何有效的分析方法，避免单一指标、信号矛盾、横盘震荡、刚平仓即重启等低质量行为。`,
+			DecisionProcess: `# 📋 决策流程
+
+1. 检查持仓 → 是否该止盈/止损
+2. 扫描候选币 + 多时间框 → 是否存在强信号
+3. 先写思维链，再输出结构化JSON`,
+		},
 	}
 
 	configJSON, _ := json.Marshal(defaultConfig)
 
 	_, err := s.db.Exec(`
 		INSERT INTO strategies (id, user_id, name, description, is_active, is_default, config)
-		VALUES ('default', 'system', '默认策略', '系统默认的交易策略，使用 AI500 + OI Top 币种池，包含完整的技术指标', 0, 1, ?)
+		VALUES ('default', 'system', '默认山寨策略', '系统默认的山寨币交易策略，使用 AI500 币种池，包含完整的技术指标', 0, 1, ?)
 	`, string(configJSON))
 
 	return err

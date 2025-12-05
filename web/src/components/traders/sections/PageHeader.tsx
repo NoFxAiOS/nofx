@@ -1,4 +1,4 @@
-import { Bot, Plus, Radio } from 'lucide-react'
+import { Bot, Plus } from 'lucide-react'
 import { t, type Language } from '../../../i18n/translations'
 
 interface PageHeaderProps {
@@ -8,7 +8,6 @@ interface PageHeaderProps {
   configuredExchangesCount: number
   onAddModel: () => void
   onAddExchange: () => void
-  onConfigureSignalSource: () => void
   onCreateTrader: () => void
 }
 
@@ -19,7 +18,6 @@ export function PageHeader({
   configuredExchangesCount,
   onAddModel,
   onAddExchange,
-  onConfigureSignalSource,
   onCreateTrader,
 }: PageHeaderProps) {
   const canCreateTrader =
@@ -84,19 +82,6 @@ export function PageHeader({
         >
           <Plus className="w-3 h-3 md:w-4 md:h-4" />
           {t('exchanges', language)}
-        </button>
-
-        <button
-          onClick={onConfigureSignalSource}
-          className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap"
-          style={{
-            background: '#2B3139',
-            color: '#EAECEF',
-            border: '1px solid #474D57',
-          }}
-        >
-          <Radio className="w-3 h-3 md:w-4 md:h-4" />
-          {t('signalSource', language)}
         </button>
 
         <button

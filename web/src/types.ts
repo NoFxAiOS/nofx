@@ -131,15 +131,17 @@ export interface CreateTraderRequest {
   name: string
   ai_model_id: string
   exchange_id: string
+  strategy_id?: string // 策略ID（新版，使用保存的策略配置）
   initial_balance?: number // 可选：创建时由后端自动获取，编辑时可手动更新
   scan_interval_minutes?: number
+  is_cross_margin?: boolean
+  // 以下字段为向后兼容保留，新版使用策略配置
   btc_eth_leverage?: number
   altcoin_leverage?: number
   trading_symbols?: string
   custom_prompt?: string
   override_base_prompt?: boolean
   system_prompt_template?: string
-  is_cross_margin?: boolean
   use_coin_pool?: boolean
   use_oi_top?: boolean
 }
@@ -201,18 +203,20 @@ export interface TraderConfigData {
   trader_name: string
   ai_model: string
   exchange_id: string
+  strategy_id?: string  // 策略ID（新版）
+  is_cross_margin: boolean
+  scan_interval_minutes: number
+  initial_balance: number
+  is_running: boolean
+  // 以下为旧版字段（向后兼容）
   btc_eth_leverage: number
   altcoin_leverage: number
   trading_symbols: string
   custom_prompt: string
   override_base_prompt: boolean
   system_prompt_template: string
-  is_cross_margin: boolean
   use_coin_pool: boolean
   use_oi_top: boolean
-  initial_balance: number
-  scan_interval_minutes: number
-  is_running: boolean
 }
 
 // Backtest types
@@ -360,11 +364,19 @@ export interface Strategy {
   updated_at: string;
 }
 
+export interface PromptSectionsConfig {
+  role_definition?: string;
+  trading_frequency?: string;
+  entry_standards?: string;
+  decision_process?: string;
+}
+
 export interface StrategyConfig {
   coin_source: CoinSourceConfig;
   indicators: IndicatorConfig;
   custom_prompt?: string;
   risk_control: RiskControlConfig;
+  prompt_sections?: PromptSectionsConfig;
 }
 
 export interface CoinSourceConfig {

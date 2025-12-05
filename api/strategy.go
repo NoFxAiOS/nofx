@@ -286,7 +286,7 @@ func (s *Server) handleGetDefaultStrategyConfig(c *gin.Context) {
 	// 返回默认配置结构，供前端创建新策略时使用
 	defaultConfig := store.StrategyConfig{
 		CoinSource: store.CoinSourceConfig{
-			SourceType:    "mixed",
+			SourceType:    "coinpool",
 			UseCoinPool:   true,
 			CoinPoolLimit: 30,
 			UseOITop:      true,
@@ -295,11 +295,12 @@ func (s *Server) handleGetDefaultStrategyConfig(c *gin.Context) {
 		},
 		Indicators: store.IndicatorConfig{
 			Klines: store.KlineConfig{
-				PrimaryTimeframe:     "3m",
+				PrimaryTimeframe:     "5m",
 				PrimaryCount:         30,
 				LongerTimeframe:      "4h",
 				LongerCount:          10,
 				EnableMultiTimeframe: true,
+				SelectedTimeframes:   []string{"5m", "15m", "1h", "4h"},
 			},
 			EnableEMA:         true,
 			EnableMACD:        true,
@@ -321,6 +322,33 @@ func (s *Server) handleGetDefaultStrategyConfig(c *gin.Context) {
 			MaxPositionRatio:   1.5,
 			MinPositionSize:    12,
 			MinConfidence:      75,
+		},
+		PromptSections: store.PromptSectionsConfig{
+			RoleDefinition: `# 你是专业的加密货币交易AI
+
+你专注于技术分析和风险管理，基于市场数据做出理性的交易决策。
+你的目标是在控制风险的前提下，捕捉高概率的交易机会。`,
+			TradingFrequency: `# ⏱️ 交易频率认知
+
+- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔
+- 每小时>2笔 = 过度交易
+- 单笔持仓时间≥30-60分钟
+如果你发现自己每个周期都在交易 → 标准过低；若持仓<30分钟就平仓 → 过于急躁。`,
+			EntryStandards: `# 🎯 开仓标准（严格）
+
+只在多重信号共振时开仓：
+- 趋势方向明确（EMA排列、价格位置）
+- 动量确认（MACD、RSI协同）
+- 波动率适中（ATR合理范围）
+- 量价配合（成交量支持方向）
+
+避免：单一指标、信号矛盾、横盘震荡、刚平仓即重启。`,
+			DecisionProcess: `# 📋 决策流程
+
+1. 检查持仓 → 是否该止盈/止损
+2. 扫描候选币 + 多时间框 → 是否存在强信号
+3. 评估风险回报比 → 是否满足最小要求
+4. 先写思维链，再输出结构化JSON`,
 		},
 	}
 

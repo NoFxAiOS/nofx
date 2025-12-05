@@ -549,10 +549,16 @@ func formatFloatSlice(values []float64) string {
 func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string) string {
 	var sb strings.Builder
 	riskControl := e.config.RiskControl
+	promptSections := e.config.PromptSections
 
-	// 1. 角色定义
-	sb.WriteString("# 你是专业的加密货币交易AI\n\n")
-	sb.WriteString("你的任务是根据提供的市场数据做出交易决策。\n\n")
+	// 1. 角色定义（可编辑）
+	if promptSections.RoleDefinition != "" {
+		sb.WriteString(promptSections.RoleDefinition)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString("# 你是专业的加密货币交易AI\n\n")
+		sb.WriteString("你的任务是根据提供的市场数据做出交易决策。\n\n")
+	}
 
 	// 2. 交易模式变体
 	switch strings.ToLower(strings.TrimSpace(variant)) {
@@ -564,7 +570,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("## 模式：Scalping（剥头皮）\n- 聚焦短周期动量，目标收益较小但要求迅速\n- 若价格两根bar内未按预期运行，立即减仓或止损\n\n")
 	}
 
-	// 3. 硬约束（风险控制）- 来自策略配置
+	// 3. 硬约束（风险控制）- 来自策略配置（不可编辑，自动生成）
 	sb.WriteString("# 硬约束（风险控制）\n\n")
 	sb.WriteString(fmt.Sprintf("1. 风险回报比: 必须 ≥ 1:%.1f\n", riskControl.MinRiskRewardRatio))
 	sb.WriteString(fmt.Sprintf("2. 最多持仓: %d个币种（质量>数量）\n", riskControl.MaxPositions))
@@ -577,24 +583,41 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("6. 开仓金额: 建议 ≥%.0f USDT\n", riskControl.MinPositionSize))
 	sb.WriteString(fmt.Sprintf("7. 最小信心度: ≥%d\n\n", riskControl.MinConfidence))
 
-	// 4. 交易频率与信号质量
-	sb.WriteString("# ⏱️ 交易频率认知\n\n")
-	sb.WriteString("- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔\n")
-	sb.WriteString("- 每小时>2笔 = 过度交易\n")
-	sb.WriteString("- 单笔持仓时间≥30-60分钟\n")
-	sb.WriteString("如果你发现自己每个周期都在交易 → 标准过低；若持仓<30分钟就平仓 → 过于急躁。\n\n")
+	// 4. 交易频率与信号质量（可编辑）
+	if promptSections.TradingFrequency != "" {
+		sb.WriteString(promptSections.TradingFrequency)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString("# ⏱️ 交易频率认知\n\n")
+		sb.WriteString("- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔\n")
+		sb.WriteString("- 每小时>2笔 = 过度交易\n")
+		sb.WriteString("- 单笔持仓时间≥30-60分钟\n")
+		sb.WriteString("如果你发现自己每个周期都在交易 → 标准过低；若持仓<30分钟就平仓 → 过于急躁。\n\n")
+	}
 
-	// 5. 开仓标准
-	sb.WriteString("# 🎯 开仓标准（严格）\n\n")
-	sb.WriteString("只在多重信号共振时开仓。你拥有：\n")
-	e.writeAvailableIndicators(&sb)
-	sb.WriteString(fmt.Sprintf("\n自由运用任何有效的分析方法，但**信心度 ≥%d** 才能开仓；避免单一指标、信号矛盾、横盘震荡、刚平仓即重启等低质量行为。\n\n", riskControl.MinConfidence))
+	// 5. 开仓标准（可编辑）
+	if promptSections.EntryStandards != "" {
+		sb.WriteString(promptSections.EntryStandards)
+		sb.WriteString("\n\n你拥有以下指标数据：\n")
+		e.writeAvailableIndicators(&sb)
+		sb.WriteString(fmt.Sprintf("\n**信心度 ≥%d** 才能开仓。\n\n", riskControl.MinConfidence))
+	} else {
+		sb.WriteString("# 🎯 开仓标准（严格）\n\n")
+		sb.WriteString("只在多重信号共振时开仓。你拥有：\n")
+		e.writeAvailableIndicators(&sb)
+		sb.WriteString(fmt.Sprintf("\n自由运用任何有效的分析方法，但**信心度 ≥%d** 才能开仓；避免单一指标、信号矛盾、横盘震荡、刚平仓即重启等低质量行为。\n\n", riskControl.MinConfidence))
+	}
 
-	// 6. 决策流程提示
-	sb.WriteString("# 📋 决策流程\n\n")
-	sb.WriteString("1. 检查持仓 → 是否该止盈/止损\n")
-	sb.WriteString("2. 扫描候选币 + 多时间框 → 是否存在强信号\n")
-	sb.WriteString("3. 先写思维链，再输出结构化JSON\n\n")
+	// 6. 决策流程提示（可编辑）
+	if promptSections.DecisionProcess != "" {
+		sb.WriteString(promptSections.DecisionProcess)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString("# 📋 决策流程\n\n")
+		sb.WriteString("1. 检查持仓 → 是否该止盈/止损\n")
+		sb.WriteString("2. 扫描候选币 + 多时间框 → 是否存在强信号\n")
+		sb.WriteString("3. 先写思维链，再输出结构化JSON\n\n")
+	}
 
 	// 7. 输出格式
 	sb.WriteString("# 输出格式 (严格遵守)\n\n")
@@ -688,4 +711,9 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 // GetRiskControlConfig 获取风险控制配置
 func (e *StrategyEngine) GetRiskControlConfig() store.RiskControlConfig {
 	return e.config.RiskControl
+}
+
+// GetConfig 获取完整策略配置
+func (e *StrategyEngine) GetConfig() *store.StrategyConfig {
+	return e.config
 }

@@ -31,6 +31,7 @@ import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
+import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -55,6 +56,7 @@ export function StrategyStudioPage() {
     coinSource: true,
     indicators: false,
     riskControl: false,
+    promptSections: false,
     customPrompt: false,
   })
 
@@ -332,7 +334,8 @@ export function StrategyStudioPage() {
       coinSource: { zh: '币种来源', en: 'Coin Source' },
       indicators: { zh: '技术指标', en: 'Indicators' },
       riskControl: { zh: '风控参数', en: 'Risk Control' },
-      customPrompt: { zh: '自定义Prompt', en: 'Custom Prompt' },
+      promptSections: { zh: 'Prompt 编辑', en: 'Prompt Editor' },
+      customPrompt: { zh: '附加提示', en: 'Extra Prompt' },
       save: { zh: '保存', en: 'Save' },
       saving: { zh: '保存中...', en: 'Saving...' },
       activate: { zh: '激活', en: 'Activate' },
@@ -418,19 +421,38 @@ export function StrategyStudioPage() {
       ),
     },
     {
+      key: 'promptSections' as const,
+      icon: FileText,
+      color: '#a855f7',
+      title: t('promptSections'),
+      content: editingConfig && (
+        <PromptSectionsEditor
+          config={editingConfig.prompt_sections}
+          onChange={(promptSections) => updateConfig('prompt_sections', promptSections)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
       key: 'customPrompt' as const,
       icon: Settings,
       color: '#60a5fa',
       title: t('customPrompt'),
       content: editingConfig && (
-        <textarea
-          value={editingConfig.custom_prompt || ''}
-          onChange={(e) => updateConfig('custom_prompt', e.target.value)}
-          disabled={selectedStrategy?.is_default}
-          placeholder={language === 'zh' ? '输入自定义提示词...' : 'Enter custom prompt...'}
-          className="w-full h-32 px-3 py-2 rounded-lg resize-none font-mono text-xs"
-          style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-        />
+        <div>
+          <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+            {language === 'zh' ? '附加在 System Prompt 末尾的额外提示，用于补充个性化交易风格' : 'Extra prompt appended to System Prompt for personalized trading style'}
+          </p>
+          <textarea
+            value={editingConfig.custom_prompt || ''}
+            onChange={(e) => updateConfig('custom_prompt', e.target.value)}
+            disabled={selectedStrategy?.is_default}
+            placeholder={language === 'zh' ? '输入自定义提示词...' : 'Enter custom prompt...'}
+            className="w-full h-32 px-3 py-2 rounded-lg resize-none font-mono text-xs"
+            style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+          />
+        </div>
       ),
     },
   ]

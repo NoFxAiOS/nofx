@@ -109,6 +109,7 @@ type Context struct {
 	MarketDataMap   map[string]*market.Data            `json:"-"`                        // 不序列化，但内部使用
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top数据映射
+	QuantDataMap    map[string]*QuantData              `json:"-"` // 量化数据映射（资金流向、持仓变化）
 	BTCETHLeverage  int                                `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                                `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }

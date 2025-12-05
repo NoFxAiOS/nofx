@@ -1,4 +1,4 @@
-import { Clock, Activity } from 'lucide-react'
+import { Clock, Activity, Database } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 
 interface IndicatorEditorProps {
@@ -51,6 +51,9 @@ export function IndicatorEditor({
       intraday: { zh: '日内', en: 'Intraday' },
       swing: { zh: '波段', en: 'Swing' },
       position: { zh: '趋势', en: 'Position' },
+      quantData: { zh: '量化数据', en: 'Quant Data' },
+      quantDataDesc: { zh: '资金流向、持仓变化、价格变化（按币种查询）', en: 'Netflow, OI delta, price change (per coin)' },
+      quantDataUrl: { zh: '量化数据 API', en: 'Quant Data API' },
     }
     return translations[key]?.[language] || key
   }
@@ -255,6 +258,57 @@ export function IndicatorEditor({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Quant Data Source */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Database className="w-4 h-4" style={{ color: '#22c55e' }} />
+          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('quantData')}</span>
+        </div>
+        <p className="text-xs mb-3" style={{ color: '#848E9C' }}>{t('quantDataDesc')}</p>
+
+        <div
+          className="p-3 rounded-lg space-y-3"
+          style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+        >
+          {/* Enable Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} />
+              <span className="text-xs" style={{ color: '#EAECEF' }}>{t('quantData')}</span>
+            </div>
+            <input
+              type="checkbox"
+              checked={config.enable_quant_data || false}
+              onChange={(e) =>
+                !disabled && onChange({ ...config, enable_quant_data: e.target.checked })
+              }
+              disabled={disabled}
+              className="w-4 h-4 rounded accent-green-500"
+            />
+          </div>
+
+          {/* API URL */}
+          {config.enable_quant_data && (
+            <div>
+              <label className="text-[10px] mb-1 block" style={{ color: '#848E9C' }}>
+                {t('quantDataUrl')} <span style={{ color: '#5E6673' }}>({'{symbol}'} = 币种)</span>
+              </label>
+              <input
+                type="text"
+                value={config.quant_data_api_url || ''}
+                onChange={(e) =>
+                  !disabled && onChange({ ...config, quant_data_api_url: e.target.value })
+                }
+                disabled={disabled}
+                placeholder="http://example.com/api/coin/{symbol}?include=netflow,oi,price"
+                className="w-full px-2 py-1.5 rounded text-xs font-mono"
+                style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

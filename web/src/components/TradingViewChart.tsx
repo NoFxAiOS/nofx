@@ -66,6 +66,14 @@ function TradingViewChartComponent({
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // 当外部传入的 defaultSymbol 变化时，更新内部 symbol
+  useEffect(() => {
+    if (defaultSymbol && defaultSymbol !== symbol) {
+      console.log('[TradingViewChart] 更新币种:', defaultSymbol)
+      setSymbol(defaultSymbol)
+    }
+  }, [defaultSymbol])
+
   // 获取完整的交易对符号 (合约格式: BINANCE:BTCUSDT.P)
   const getFullSymbol = () => {
     const exchangeInfo = EXCHANGES.find((e) => e.id === exchange)
@@ -102,7 +110,8 @@ function TradingViewChartComponent({
     script.type = 'text/javascript'
     script.async = true
     script.innerHTML = JSON.stringify({
-      autosize: true,
+      width: '100%',
+      height: '100%',
       symbol: getFullSymbol(),
       interval: timeInterval,
       timezone: 'Etc/UTC',
@@ -147,9 +156,10 @@ function TradingViewChartComponent({
     <div
       className={`${embedded ? '' : 'binance-card'} overflow-hidden ${embedded ? '' : 'animate-fade-in'} ${
         isFullscreen
-          ? 'fixed inset-0 z-50 rounded-none'
+          ? 'fixed inset-0 z-50 rounded-none flex flex-col'
           : ''
       }`}
+      style={isFullscreen ? { background: '#0B0E11' } : undefined}
     >
       {/* Header */}
       <div
@@ -354,8 +364,9 @@ function TradingViewChartComponent({
       <div
         ref={containerRef}
         style={{
-          height: isFullscreen ? 'calc(100vh - 60px)' : height,
+          height: isFullscreen ? 'calc(100vh - 65px)' : height,
           background: '#0B0E11',
+          overflow: 'hidden',
         }}
       />
 

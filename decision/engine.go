@@ -84,7 +84,6 @@ type Context struct {
 	MarketDataMap   map[string]*market.Data            `json:"-"` // 不序列化，但内部使用
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top数据映射
-	Performance     interface{}                        `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
 	BTCETHLeverage  int                                `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
 	AltcoinLeverage int                                `json:"-"` // 山寨币杠杆倍数（从配置读取）
 }
@@ -374,19 +373,11 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("- AI500 / OI_Top 筛选标签（若有）\n\n")
 	sb.WriteString("自由运用任何有效的分析方法，但**信心度 ≥75** 才能开仓；避免单一指标、信号矛盾、横盘震荡、刚平仓即重启等低质量行为。\n\n")
 
-	// 5. 夏普比率驱动的自适应
-	sb.WriteString("# 🧬 夏普比率自我进化\n\n")
-	sb.WriteString("- Sharpe < -0.5：立即停止交易，至少观望6个周期并深度复盘\n")
-	sb.WriteString("- -0.5 ~ 0：只做信心度>80的交易，并降低频率\n")
-	sb.WriteString("- 0 ~ 0.7：保持当前策略\n")
-	sb.WriteString("- >0.7：允许适度加仓，但仍遵守风控\n\n")
-
-	// 6. 决策流程提示
+	// 5. 决策流程提示
 	sb.WriteString("# 📋 决策流程\n\n")
-	sb.WriteString("1. 回顾夏普比率/盈亏 → 是否需要降频或暂停\n")
-	sb.WriteString("2. 检查持仓 → 是否该止盈/止损/调整\n")
-	sb.WriteString("3. 扫描候选币 + 多时间框 → 是否存在强信号\n")
-	sb.WriteString("4. 先写思维链，再输出结构化JSON\n\n")
+	sb.WriteString("1. 检查持仓 → 是否该止盈/止损\n")
+	sb.WriteString("2. 扫描候选币 + 多时间框 → 是否存在强信号\n")
+	sb.WriteString("3. 先写思维链，再输出结构化JSON\n\n")
 
 	// 7. 输出格式 - 动态生成
 	sb.WriteString("# 输出格式 (严格遵守)\n\n")
@@ -494,20 +485,6 @@ func buildUserPrompt(ctx *Context) string {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
-
-	// 夏普比率（直接传值，不要复杂格式化）
-	if ctx.Performance != nil {
-		// 直接从interface{}中提取SharpeRatio
-		type PerformanceData struct {
-			SharpeRatio float64 `json:"sharpe_ratio"`
-		}
-		var perfData PerformanceData
-		if jsonData, err := json.Marshal(ctx.Performance); err == nil {
-			if err := json.Unmarshal(jsonData, &perfData); err == nil {
-				sb.WriteString(fmt.Sprintf("## 📊 夏普比率: %.2f\n\n", perfData.SharpeRatio))
-			}
-		}
-	}
 
 	sb.WriteString("---\n\n")
 	sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")

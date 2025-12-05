@@ -337,16 +337,6 @@ export const api = {
     return result.data!
   },
 
-  // 获取AI学习表现分析（支持trader_id）
-  async getPerformance(traderId?: string): Promise<any> {
-    const url = traderId
-      ? `${API_BASE}/performance?trader_id=${traderId}`
-      : `${API_BASE}/performance`
-    const result = await httpClient.get<any>(url)
-    if (!result.success) throw new Error('获取AI学习数据失败')
-    return result.data!
-  },
-
   // 获取竞赛数据（无需认证）
   async getCompetition(): Promise<CompetitionData> {
     const result = await httpClient.get<CompetitionData>(

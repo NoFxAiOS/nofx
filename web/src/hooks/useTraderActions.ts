@@ -445,6 +445,7 @@ export function useTraderActions({
         ...e,
         apiKey: '',
         secretKey: '',
+        passphrase: '', // OKX专用
         hyperliquidWalletAddr: '',
         asterUser: '',
         asterSigner: '',
@@ -459,6 +460,7 @@ export function useTraderActions({
               enabled: exchange.enabled,
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
+              passphrase: exchange.passphrase || '', // OKX专用
               testnet: exchange.testnet || false,
               hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
               aster_user: exchange.asterUser || '',
@@ -486,6 +488,7 @@ export function useTraderActions({
     exchangeId: string,
     apiKey: string,
     secretKey?: string,
+    passphrase?: string, // OKX专用
     testnet?: boolean,
     hyperliquidWalletAddr?: string,
     asterUser?: string,
@@ -518,6 +521,7 @@ export function useTraderActions({
                   ...e,
                   apiKey,
                   secretKey,
+                  passphrase, // OKX专用
                   testnet,
                   hyperliquidWalletAddr,
                   asterUser,
@@ -536,6 +540,7 @@ export function useTraderActions({
           ...exchangeToUpdate,
           apiKey,
           secretKey,
+          passphrase, // OKX专用
           testnet,
           hyperliquidWalletAddr,
           asterUser,
@@ -557,6 +562,7 @@ export function useTraderActions({
               enabled: exchange.enabled,
               api_key: exchange.apiKey || '',
               secret_key: exchange.secretKey || '',
+              passphrase: exchange.passphrase || '', // OKX专用
               testnet: exchange.testnet || false,
               hyperliquid_wallet_addr: exchange.hyperliquidWalletAddr || '',
               aster_user: exchange.asterUser || '',

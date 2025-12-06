@@ -630,6 +630,10 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	case "bybit":
 		traderConfig.BybitAPIKey = exchangeCfg.APIKey
 		traderConfig.BybitSecretKey = exchangeCfg.SecretKey
+	case "okx":
+		traderConfig.OKXAPIKey = exchangeCfg.APIKey
+		traderConfig.OKXSecretKey = exchangeCfg.SecretKey
+		traderConfig.OKXPassphrase = exchangeCfg.Passphrase
 	case "hyperliquid":
 		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr

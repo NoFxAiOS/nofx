@@ -18,6 +18,7 @@ import { t, type Language } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
 import { DecisionCard } from './components/DecisionCard'
 import { BacktestPage } from './components/BacktestPage'
+import { LogOut, Loader2 } from 'lucide-react'
 import type {
   SystemStatus,
   AccountInfo,
@@ -524,6 +525,31 @@ function TraderDetailsPage({
   lastUpdate: string
   language: Language
 }) {
+  const [closingPosition, setClosingPosition] = useState<string | null>(null)
+
+  // 平仓操作
+  const handleClosePosition = async (symbol: string, side: string) => {
+    if (!selectedTraderId) return
+
+    const confirmMsg = language === 'zh'
+      ? `确定要平仓 ${symbol} ${side === 'LONG' ? '多仓' : '空仓'} 吗？`
+      : `Are you sure you want to close ${symbol} ${side === 'LONG' ? 'LONG' : 'SHORT'} position?`
+
+    if (!confirm(confirmMsg)) return
+
+    setClosingPosition(symbol)
+    try {
+      await api.closePosition(selectedTraderId, symbol, side)
+      const successMsg = language === 'zh' ? '平仓成功' : 'Position closed successfully'
+      alert(successMsg)
+      window.location.reload()
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : (language === 'zh' ? '平仓失败' : 'Failed to close position')
+      alert(errorMsg)
+    } finally {
+      setClosingPosition(null)
+    }
+  }
   // If API failed with error, show empty state (likely backend not running)
   if (tradersError) {
     return (
@@ -837,6 +863,9 @@ function TraderDetailsPage({
                         {t('side', language)}
                       </th>
                       <th className="pb-3 font-semibold text-gray-400">
+                        {language === 'zh' ? '操作' : 'Action'}
+                      </th>
+                      <th className="pb-3 font-semibold text-gray-400">
                         {t('entryPrice', language)}
                       </th>
                       <th className="pb-3 font-semibold text-gray-400">
@@ -888,6 +917,27 @@ function TraderDetailsPage({
                               language
                             )}
                           </span>
+                        </td>
+                        <td className="py-3">
+                          <button
+                            type="button"
+                            onClick={() => handleClosePosition(pos.symbol, pos.side.toUpperCase())}
+                            disabled={closingPosition === pos.symbol}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{
+                              background: 'rgba(246, 70, 93, 0.1)',
+                              color: '#F6465D',
+                              border: '1px solid rgba(246, 70, 93, 0.3)',
+                            }}
+                            title={language === 'zh' ? '平仓' : 'Close Position'}
+                          >
+                            {closingPosition === pos.symbol ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <LogOut className="w-3 h-3" />
+                            )}
+                            {language === 'zh' ? '平仓' : 'Close'}
+                          </button>
                         </td>
                         <td
                           className="py-3 font-mono"

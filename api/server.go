@@ -135,6 +135,7 @@ func (s *Server) setupRoutes() {
 			protected.POST("/traders/:id/stop", s.handleStopTrader)
 			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
 			protected.POST("/traders/:id/sync-balance", s.handleSyncBalance)
+			protected.POST("/traders/:id/close-position", s.handleClosePosition)
 
 			// AI模型配置
 			protected.GET("/models", s.handleGetModelConfigs)
@@ -1095,6 +1096,122 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		"new_balance":    actualBalance,
 		"change_percent": changePercent,
 		"change_type":    changeType,
+	})
+}
+
+// handleClosePosition 一键平仓
+func (s *Server) handleClosePosition(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Param("id")
+
+	var req struct {
+		Symbol string `json:"symbol" binding:"required"`
+		Side   string `json:"side" binding:"required"` // "LONG" or "SHORT"
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: symbol和side必填"})
+		return
+	}
+
+	logger.Infof("🔻 用户 %s 请求平仓: trader=%s, symbol=%s, side=%s", userID, traderID, req.Symbol, req.Side)
+
+	// 从数据库获取交易员配置（包含交易所信息）
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
+		return
+	}
+
+	traderConfig := fullConfig.Trader
+	exchangeCfg := fullConfig.Exchange
+
+	if exchangeCfg == nil || !exchangeCfg.Enabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "交易所未配置或未启用"})
+		return
+	}
+
+	// 创建临时 trader 执行平仓
+	var tempTrader trader.Trader
+	var createErr error
+
+	switch traderConfig.ExchangeID {
+	case "binance":
+		tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+	case "hyperliquid":
+		tempTrader, createErr = trader.NewHyperliquidTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.HyperliquidWalletAddr,
+			exchangeCfg.Testnet,
+		)
+	case "aster":
+		tempTrader, createErr = trader.NewAsterTrader(
+			exchangeCfg.AsterUser,
+			exchangeCfg.AsterSigner,
+			exchangeCfg.AsterPrivateKey,
+		)
+	case "bybit":
+		tempTrader = trader.NewBybitTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+		)
+	case "okx":
+		tempTrader = trader.NewOKXTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+			exchangeCfg.Passphrase,
+		)
+	case "lighter":
+		if exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			tempTrader, createErr = trader.NewLighterTraderV2(
+				exchangeCfg.LighterPrivateKey,
+				exchangeCfg.LighterWalletAddr,
+				exchangeCfg.LighterAPIKeyPrivateKey,
+				exchangeCfg.Testnet,
+			)
+		} else {
+			tempTrader, createErr = trader.NewLighterTrader(
+				exchangeCfg.LighterPrivateKey,
+				exchangeCfg.LighterWalletAddr,
+				exchangeCfg.Testnet,
+			)
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "不支持的交易所类型"})
+		return
+	}
+
+	if createErr != nil {
+		logger.Infof("⚠️ 创建临时 trader 失败: %v", createErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("连接交易所失败: %v", createErr)})
+		return
+	}
+
+	// 执行平仓操作
+	var result map[string]interface{}
+	var closeErr error
+
+	if req.Side == "LONG" {
+		result, closeErr = tempTrader.CloseLong(req.Symbol, 0) // 0 表示全部平仓
+	} else if req.Side == "SHORT" {
+		result, closeErr = tempTrader.CloseShort(req.Symbol, 0) // 0 表示全部平仓
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "side必须是LONG或SHORT"})
+		return
+	}
+
+	if closeErr != nil {
+		logger.Infof("❌ 平仓失败: symbol=%s, side=%s, error=%v", req.Symbol, req.Side, closeErr)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("平仓失败: %v", closeErr)})
+		return
+	}
+
+	logger.Infof("✅ 平仓成功: symbol=%s, side=%s, result=%v", req.Symbol, req.Side, result)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "平仓成功",
+		"symbol":  req.Symbol,
+		"side":    req.Side,
+		"result":  result,
 	})
 }
 

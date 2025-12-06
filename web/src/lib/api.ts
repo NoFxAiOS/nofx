@@ -102,6 +102,15 @@ export const api = {
     if (!result.success) throw new Error('停止交易员失败')
   },
 
+  async closePosition(traderId: string, symbol: string, side: string): Promise<{ message: string }> {
+    const result = await httpClient.post<{ message: string }>(
+      `${API_BASE}/traders/${traderId}/close-position`,
+      { symbol, side }
+    )
+    if (!result.success) throw new Error('平仓失败')
+    return result.data!
+  },
+
   async updateTraderPrompt(
     traderId: string,
     customPrompt: string

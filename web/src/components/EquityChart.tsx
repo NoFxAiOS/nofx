@@ -41,7 +41,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   const { user, token } = useAuth()
   const [displayMode, setDisplayMode] = useState<'dollar' | 'percent'>('dollar')
 
-  const { data: history, error } = useSWR<EquityPoint[]>(
+  const { data: history, error, isLoading } = useSWR<EquityPoint[]>(
     user && token && traderId ? `equity-history-${traderId}` : null,
     () => api.getEquityHistory(traderId),
     {
@@ -60,6 +60,22 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
       dedupingInterval: 10000,
     }
   )
+
+  // Loading state - show skeleton
+  if (isLoading) {
+    return (
+      <div className={embedded ? 'p-6' : 'binance-card p-6'}>
+        {!embedded && (
+          <h3 className="text-lg font-semibold mb-6" style={{ color: '#EAECEF' }}>
+            {t('accountEquityCurve', language)}
+          </h3>
+        )}
+        <div className="animate-pulse">
+          <div className="skeleton h-64 w-full rounded"></div>
+        </div>
+      </div>
+    )
+  }
 
   if (error) {
     return (

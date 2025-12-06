@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"nofx/logger"
 	"strconv"
 	"strings"
@@ -95,11 +96,17 @@ func genOkxClOrdID() string {
 	return orderID
 }
 
+// noProxyFunc 返回一个始终返回 nil 的代理函数，用于禁用代理
+func noProxyFunc(req *http.Request) (*neturl.URL, error) {
+	return nil, nil
+}
+
 // NewOKXTrader 创建OKX交易器
 func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
-	// 创建禁用代理的 HTTP 客户端
+	// 创建完全禁用代理的 HTTP 客户端
+	// 这对于 Docker 容器环境很重要，因为容器可能继承宿主机的代理环境变量
 	transport := &http.Transport{
-		Proxy: nil, // 显式禁用代理
+		Proxy: noProxyFunc,
 	}
 	httpClient := &http.Client{
 		Timeout:   30 * time.Second,
@@ -341,11 +348,14 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		// 转换symbol格式
 		symbol := t.convertSymbolBack(pos.InstId)
 
-		// 确定方向
+		// 确定方向，并确保 posAmt 是正数
 		side := "long"
-		if pos.PosSide == "short" || posAmt < 0 {
+		if pos.PosSide == "short" {
 			side = "short"
-			posAmt = -posAmt // 取绝对值
+		}
+		// OKX 空仓的 pos 是负数，需要取绝对值
+		if posAmt < 0 {
+			posAmt = -posAmt
 		}
 
 		posMap := map[string]interface{}{
@@ -726,9 +736,13 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		if err != nil {
 			return nil, err
 		}
+		logger.Infof("🔍 OKX CloseShort 查找持仓: symbol=%s, 当前持仓数=%d", symbol, len(positions))
 		for _, pos := range positions {
+			logger.Infof("🔍 OKX 持仓: symbol=%v, side=%v, positionAmt=%v",
+				pos["symbol"], pos["side"], pos["positionAmt"])
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64) // 这已经是张数
+				quantity = pos["positionAmt"].(float64)
+				logger.Infof("🔍 OKX 找到空仓: quantity=%f", quantity)
 				break
 			}
 		}
@@ -737,11 +751,19 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		}
 	}
 
+	// 确保 quantity 是正数（OKX sz 参数必须为正）
+	if quantity < 0 {
+		quantity = -quantity
+	}
+
 	// 获取合约信息用于格式化张数
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("获取合约信息失败: %w", err)
 	}
+
+	logger.Infof("🔍 OKX 合约信息: instId=%s, lotSz=%f, minSz=%f, ctVal=%f",
+		inst.InstID, inst.LotSz, inst.MinSz, inst.CtVal)
 
 	// quantity 已经是张数，直接格式化
 	szStr := t.formatSize(quantity, inst)

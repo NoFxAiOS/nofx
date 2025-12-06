@@ -87,7 +87,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     oiTopUrl: '',
   })
 
-  const { data: traders, mutate: mutateTraders } = useSWR<TraderInfo[]>(
+  const { data: traders, mutate: mutateTraders, isLoading: isTradersLoading } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
     api.getTraders,
     { refreshInterval: 5000 }
@@ -1047,7 +1047,31 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </h2>
         </div>
 
-        {traders && traders.length > 0 ? (
+        {isTradersLoading ? (
+          /* Loading Skeleton */
+          <div className="space-y-3 md:space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="flex flex-col md:flex-row md:items-center justify-between p-3 md:p-4 rounded gap-3 md:gap-4 animate-pulse"
+                style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+              >
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full skeleton"></div>
+                  <div className="min-w-0 space-y-2">
+                    <div className="skeleton h-5 w-32"></div>
+                    <div className="skeleton h-3 w-24"></div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="skeleton h-6 w-16"></div>
+                  <div className="skeleton h-6 w-16"></div>
+                  <div className="skeleton h-8 w-20"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : traders && traders.length > 0 ? (
           <div className="space-y-3 md:space-y-4">
             {traders.map((trader) => (
               <div

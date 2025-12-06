@@ -28,6 +28,7 @@ import {
   Send,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
+import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
@@ -175,16 +176,30 @@ export function StrategyStudioPage() {
 
   // Delete strategy
   const handleDeleteStrategy = async (id: string) => {
-    if (!token || !confirm(language === 'zh' ? '确定删除此策略？' : 'Delete this strategy?')) return
+    if (!token) return
+
+    const confirmed = await confirmToast(
+      language === 'zh' ? '确定删除此策略？' : 'Delete this strategy?',
+      {
+        title: language === 'zh' ? '确认删除' : 'Confirm Delete',
+        okText: language === 'zh' ? '删除' : 'Delete',
+        cancelText: language === 'zh' ? '取消' : 'Cancel',
+      }
+    )
+    if (!confirmed) return
+
     try {
       const response = await fetch(`${API_BASE}/api/strategies/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!response.ok) throw new Error('Failed to delete strategy')
+      notify.success(language === 'zh' ? '策略已删除' : 'Strategy deleted')
       await fetchStrategies()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+      setError(errorMsg)
+      notify.error(errorMsg)
     }
   }
 

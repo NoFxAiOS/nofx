@@ -12,6 +12,7 @@ import {
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { confirmToast } from '../lib/notify'
 import { DecisionCard } from './DecisionCard'
 import type {
   BacktestStatusPayload,
@@ -308,12 +309,17 @@ export function BacktestPage() {
 
   const handleDeleteRun = async () => {
     if (!selectedRunId) return
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm(tr('toasts.confirmDelete', { id: selectedRunId }))
-    ) {
-      return
-    }
+
+    const confirmed = await confirmToast(
+      tr('toasts.confirmDelete', { id: selectedRunId }),
+      {
+        title: language === 'zh' ? '确认删除' : 'Confirm Delete',
+        okText: language === 'zh' ? '删除' : 'Delete',
+        cancelText: language === 'zh' ? '取消' : 'Cancel',
+      }
+    )
+    if (!confirmed) return
+
     try {
       await api.deleteBacktestRun(selectedRunId)
       setToast({ text: tr('toasts.deleteSuccess'), tone: 'success' })

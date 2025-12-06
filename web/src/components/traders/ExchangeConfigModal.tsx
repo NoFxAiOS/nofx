@@ -23,6 +23,7 @@ interface ExchangeConfigModalProps {
     exchangeId: string,
     apiKey: string,
     secretKey?: string,
+    passphrase?: string, // OKX专用
     testnet?: boolean,
     hyperliquidWalletAddr?: string,
     asterUser?: string,
@@ -222,12 +223,16 @@ export function ExchangeConfigModal({
     // 根据交易所类型验证不同字段
     if (selectedExchange?.id === 'binance') {
       if (!apiKey.trim() || !secretKey.trim()) return
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
+      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), '', testnet)
+    } else if (selectedExchange?.id === 'okx') {
+      if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
+      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
     } else if (selectedExchange?.id === 'hyperliquid') {
       if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return // 验证私钥和钱包地址
       await onSave(
         selectedExchangeId,
         apiKey.trim(),
+        '',
         '',
         testnet,
         hyperliquidWalletAddr.trim()
@@ -237,6 +242,7 @@ export function ExchangeConfigModal({
         return
       await onSave(
         selectedExchangeId,
+        '',
         '',
         '',
         testnet,
@@ -251,6 +257,7 @@ export function ExchangeConfigModal({
         selectedExchangeId,
         lighterPrivateKey.trim(),
         '',
+        '',
         testnet,
         lighterWalletAddr.trim(),
         undefined,
@@ -260,13 +267,10 @@ export function ExchangeConfigModal({
         lighterPrivateKey.trim(),
         lighterApiKeyPrivateKey.trim()
       )
-    } else if (selectedExchange?.id === 'okx') {
-      if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
     } else {
       // 默认情况（其他CEX交易所）
       if (!apiKey.trim() || !secretKey.trim()) return
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), testnet)
+      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), '', testnet)
     }
   }
 
@@ -404,12 +408,10 @@ export function ExchangeConfigModal({
 
             {selectedExchange && (
               <>
-                {/* Binance/Bybit 和其他 CEX 交易所的字段 */}
+                {/* Binance/Bybit/OKX 的输入字段 */}
                 {(selectedExchange.id === 'binance' ||
                   selectedExchange.id === 'bybit' ||
-                  selectedExchange.type === 'cex') &&
-                  selectedExchange.id !== 'hyperliquid' &&
-                  selectedExchange.id !== 'aster' && (
+                  selectedExchange.id === 'okx') && (
                     <>
                       {/* 币安用户配置提示 (D1 方案) */}
                       {selectedExchange.id === 'binance' && (

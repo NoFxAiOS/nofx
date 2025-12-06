@@ -454,16 +454,18 @@ type UpdateModelConfigRequest struct {
 
 type UpdateExchangeConfigRequest struct {
 	Exchanges map[string]struct {
-		Enabled               bool   `json:"enabled"`
-		APIKey                string `json:"api_key"`
-		SecretKey             string `json:"secret_key"`
-		Testnet               bool   `json:"testnet"`
-		HyperliquidWalletAddr string `json:"hyperliquid_wallet_addr"`
-		AsterUser             string `json:"aster_user"`
-		AsterSigner           string `json:"aster_signer"`
-		AsterPrivateKey       string `json:"aster_private_key"`
-		LighterWalletAddr     string `json:"lighter_wallet_addr"`
-		LighterPrivateKey     string `json:"lighter_private_key"`
+		Enabled                 bool   `json:"enabled"`
+		APIKey                  string `json:"api_key"`
+		SecretKey               string `json:"secret_key"`
+		Passphrase              string `json:"passphrase"` // OKX专用
+		Testnet                 bool   `json:"testnet"`
+		HyperliquidWalletAddr   string `json:"hyperliquid_wallet_addr"`
+		AsterUser               string `json:"aster_user"`
+		AsterSigner             string `json:"aster_signer"`
+		AsterPrivateKey         string `json:"aster_private_key"`
+		LighterWalletAddr       string `json:"lighter_wallet_addr"`
+		LighterPrivateKey       string `json:"lighter_private_key"`
+		LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
 	} `json:"exchanges"`
 }
 
@@ -843,8 +845,46 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "交易员不存在"})
-		return
+		// 交易员不在内存中，尝试从数据库加载
+		logger.Infof("🔄 交易员 %s 不在内存中，尝试加载...", traderID)
+		if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
+			logger.Infof("❌ 加载用户交易员失败: %v", loadErr)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "加载交易员失败: " + loadErr.Error()})
+			return
+		}
+		// 再次尝试获取
+		trader, err = s.traderManager.GetTrader(traderID)
+		if err != nil {
+			// 检查详细原因
+			fullCfg, _ := s.store.Trader().GetFullConfig(userID, traderID)
+			if fullCfg != nil && fullCfg.Trader != nil {
+				// 检查策略
+				if fullCfg.Strategy == nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "交易员未配置策略，请先在策略工作室创建策略并关联到交易员"})
+					return
+				}
+				// 检查AI模型
+				if fullCfg.AIModel == nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "交易员的AI模型不存在，请检查AI模型配置"})
+					return
+				}
+				if !fullCfg.AIModel.Enabled {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "交易员的AI模型未启用，请先启用AI模型"})
+					return
+				}
+				// 检查交易所
+				if fullCfg.Exchange == nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "交易员的交易所不存在，请检查交易所配置"})
+					return
+				}
+				if !fullCfg.Exchange.Enabled {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "交易员的交易所未启用，请先启用交易所"})
+					return
+				}
+			}
+			c.JSON(http.StatusNotFound, gin.H{"error": "交易员加载失败，请检查AI模型、交易所和策略配置"})
+			return
+		}
 	}
 
 	// 检查交易员是否已经在运行
@@ -1249,7 +1289,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 	// 更新每个交易所的配置
 	for exchangeID, exchangeData := range req.Exchanges {
-		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey)
+		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("更新交易所 %s 失败: %v", exchangeID, err)})
 			return

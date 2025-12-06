@@ -177,16 +177,40 @@ func (t *OKXTrader) parsePositions(resp map[string]interface{}) []map[string]int
         if data, ok := resp["data"].([]interface{}); ok {
                 for _, item := range data {
                         if pos, ok := item.(map[string]interface{}); ok {
-                                // 标准化持仓数据格式
+                                // 辅助函数：安全解析float字符串
+                                parseFloat := func(key string) float64 {
+                                        if valStr, ok := pos[key].(string); ok && valStr != "" {
+                                                if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+                                                        return val
+                                                }
+                                        }
+                                        return 0.0
+                                }
+
+                                // 解析关键数值字段
+                                markPrice := parseFloat("markPx")
+                                entryPrice := parseFloat("avgPx")
+                                quantity := parseFloat("pos")
+                                upl := parseFloat("upl")
+                                liqPx := parseFloat("liqPx")
+                                leverage := parseFloat("lever")
+
+                                // 标准化持仓数据格式 (适配 AutoTrader 要求)
                                 standardizedPos := map[string]interface{}{
-                                        "symbol":    pos["instId"],
-                                        "position":  pos["pos"],
-                                        "posSide":   pos["posSide"],
-                                        "avgPrice":  pos["avgPx"],
-                                        "leverage":  pos["lever"],
-                                        "marginMode": pos["mgnMode"],
-                                        "upl":       pos["upl"],      // 未实现盈亏
-                                        "uplRatio":  pos["uplRatio"], // 未实现盈亏率
+                                        // 核心字段 (AutoTrader 必需)
+                                        "symbol":           pos["instId"],
+                                        "side":             pos["posSide"],     // AutoTrader期望 key="side"
+                                        "markPrice":        markPrice,          // AutoTrader期望 key="markPrice" (float64)
+                                        "entryPrice":       entryPrice,         // AutoTrader期望 key="entryPrice" (float64)
+                                        "positionAmt":      quantity,           // AutoTrader期望 key="positionAmt" (float64)
+                                        "unRealizedProfit": upl,                // AutoTrader期望 key="unRealizedProfit" (float64)
+                                        "leverage":         leverage,           // AutoTrader期望 key="leverage" (float64)
+                                        "liquidationPrice": liqPx,              // AutoTrader期望 key="liquidationPrice" (float64)
+
+                                        // 兼容性/原始字段
+                                        "posSide":          pos["posSide"],
+                                        "marginMode":       pos["mgnMode"],
+                                        "uplRatio":         pos["uplRatio"],
                                 }
                                 positions = append(positions, standardizedPos)
                         }

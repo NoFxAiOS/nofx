@@ -117,8 +117,38 @@ func (s *ExchangeStore) decrypt(encrypted string) string {
 	return encrypted
 }
 
+// EnsureUserExchanges 确保用户有所有支持的交易所记录
+func (s *ExchangeStore) EnsureUserExchanges(userID string) error {
+	exchanges := []struct {
+		id, name, typ string
+	}{
+		{"binance", "Binance Futures", "binance"},
+		{"bybit", "Bybit Futures", "bybit"},
+		{"okx", "OKX Futures", "okx"},
+		{"hyperliquid", "Hyperliquid", "hyperliquid"},
+		{"aster", "Aster DEX", "aster"},
+		{"lighter", "LIGHTER DEX", "lighter"},
+	}
+
+	for _, exchange := range exchanges {
+		_, err := s.db.Exec(`
+			INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled)
+			VALUES (?, ?, ?, ?, 0)
+		`, exchange.id, userID, exchange.name, exchange.typ)
+		if err != nil {
+			return fmt.Errorf("确保用户交易所失败: %w", err)
+		}
+	}
+	return nil
+}
+
 // List 获取用户的交易所列表
 func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
+	// 确保用户有所有支持的交易所记录
+	if err := s.EnsureUserExchanges(userID); err != nil {
+		logger.Debugf("⚠️ 确保用户交易所记录失败: %v", err)
+	}
+
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, type, enabled, api_key, secret_key,
 		       COALESCE(passphrase, '') as passphrase, testnet,

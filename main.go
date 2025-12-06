@@ -345,6 +345,9 @@ func main() {
 	logger.Info("按 Ctrl+C 停止运行")
 	logger.Info(strings.Repeat("=", 60))
 
+	// 自动恢复之前运行中的交易员
+	traderManager.AutoStartRunningTraders(st)
+
 	// 获取API服务器端口（优先级：环境变量 > 数据库配置 > 默认值）
 	apiPort := 8080 // 默认端口
 

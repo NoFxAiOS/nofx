@@ -99,6 +99,49 @@ func (tm *TraderManager) StopAll() {
 	}
 }
 
+// AutoStartRunningTraders 自动启动数据库中标记为运行中的交易员
+func (tm *TraderManager) AutoStartRunningTraders(st *store.Store) {
+	// 先获取所有交易员配置（一次性查询）
+	traderList, err := st.Trader().ListAll()
+	if err != nil {
+		logger.Infof("⚠️ 获取交易员列表失败: %v", err)
+		return
+	}
+
+	// 构建运行中交易员的ID集合
+	runningTraderIDs := make(map[string]bool)
+	for _, traderCfg := range traderList {
+		if traderCfg.IsRunning {
+			runningTraderIDs[traderCfg.ID] = true
+		}
+	}
+
+	if len(runningTraderIDs) == 0 {
+		logger.Info("📋 没有需要自动恢复的交易员")
+		return
+	}
+
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	startedCount := 0
+	for id, t := range tm.traders {
+		if runningTraderIDs[id] {
+			go func(traderID string, at *trader.AutoTrader) {
+				logger.Infof("▶️  自动恢复启动 %s...", at.GetName())
+				if err := at.Run(); err != nil {
+					logger.Infof("❌ %s 运行错误: %v", at.GetName(), err)
+				}
+			}(id, t)
+			startedCount++
+		}
+	}
+
+	if startedCount > 0 {
+		logger.Infof("✓ 自动恢复启动了 %d 个交易员", startedCount)
+	}
+}
+
 // GetComparisonData 获取对比数据
 func (tm *TraderManager) GetComparisonData() (map[string]interface{}, error) {
 	tm.mu.RLock()

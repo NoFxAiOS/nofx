@@ -18,27 +18,21 @@ import (
 	"time"
 )
 
-// OKX 订单标签
-var okxTag = func() string {
-	b, _ := base64.StdEncoding.DecodeString("NGMzNjNjODFlZGM1QkNERQ==")
-	return string(b)
-}()
-
 // OKX API endpoints
 const (
-	okxBaseURL     = "https://www.okx.com"
-	okxAccountPath = "/api/v5/account/balance"
-	okxPositionPath = "/api/v5/account/positions"
-	okxOrderPath   = "/api/v5/trade/order"
-	okxLeveragePath = "/api/v5/account/set-leverage"
-	okxTickerPath  = "/api/v5/market/ticker"
-	okxInstrumentsPath = "/api/v5/public/instruments"
-	okxCancelOrderPath = "/api/v5/trade/cancel-order"
+	okxBaseURL           = "https://www.okx.com"
+	okxAccountPath       = "/api/v5/account/balance"
+	okxPositionPath      = "/api/v5/account/positions"
+	okxOrderPath         = "/api/v5/trade/order"
+	okxLeveragePath      = "/api/v5/account/set-leverage"
+	okxTickerPath        = "/api/v5/market/ticker"
+	okxInstrumentsPath   = "/api/v5/public/instruments"
+	okxCancelOrderPath   = "/api/v5/trade/cancel-order"
 	okxPendingOrdersPath = "/api/v5/trade/orders-pending"
-	okxAlgoOrderPath = "/api/v5/trade/order-algo"
-	okxCancelAlgoPath = "/api/v5/trade/cancel-algos"
-	okxAlgoPendingPath = "/api/v5/trade/orders-algo-pending"
-	okxPositionModePath = "/api/v5/account/set-position-mode"
+	okxAlgoOrderPath     = "/api/v5/trade/order-algo"
+	okxCancelAlgoPath    = "/api/v5/trade/cancel-algos"
+	okxAlgoPendingPath   = "/api/v5/trade/orders-algo-pending"
+	okxPositionModePath  = "/api/v5/account/set-position-mode"
 )
 
 // OKXTrader OKX合约交易器
@@ -58,8 +52,8 @@ type OKXTrader struct {
 	positionsCacheMutex sync.RWMutex
 
 	// 合约信息缓存
-	instrumentsCache     map[string]*OKXInstrument
-	instrumentsCacheTime time.Time
+	instrumentsCache      map[string]*OKXInstrument
+	instrumentsCacheTime  time.Time
 	instrumentsCacheMutex sync.RWMutex
 
 	// 缓存有效期
@@ -68,13 +62,13 @@ type OKXTrader struct {
 
 // OKXInstrument OKX合约信息
 type OKXInstrument struct {
-	InstID    string  // 合约ID
-	CtVal     float64 // 合约面值
-	CtMult    float64 // 合约乘数
-	LotSz     float64 // 最小下单数量
-	MinSz     float64 // 最小下单数量
-	TickSz    float64 // 最小价格变动
-	CtType    string  // 合约类型
+	InstID string  // 合约ID
+	CtVal  float64 // 合约面值
+	CtMult float64 // 合约乘数
+	LotSz  float64 // 最小下单数量
+	MinSz  float64 // 最小下单数量
+	TickSz float64 // 最小价格变动
+	CtType string  // 合约类型
 }
 
 // OKXResponse OKX API响应
@@ -232,16 +226,16 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	}
 
 	var balances []struct {
-		TotalEq    string `json:"totalEq"`
-		AdjEq      string `json:"adjEq"`
-		IsoEq      string `json:"isoEq"`
-		OrdFroz    string `json:"ordFroz"`
-		Details    []struct {
-			Ccy       string `json:"ccy"`
-			Eq        string `json:"eq"`
-			CashBal   string `json:"cashBal"`
-			AvailBal  string `json:"availBal"`
-			UPL       string `json:"upl"`
+		TotalEq string `json:"totalEq"`
+		AdjEq   string `json:"adjEq"`
+		IsoEq   string `json:"isoEq"`
+		OrdFroz string `json:"ordFroz"`
+		Details []struct {
+			Ccy      string `json:"ccy"`
+			Eq       string `json:"eq"`
+			CashBal  string `json:"cashBal"`
+			AvailBal string `json:"availBal"`
+			UPL      string `json:"upl"`
 		} `json:"details"`
 	}
 
@@ -302,15 +296,15 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 	}
 
 	var positions []struct {
-		InstId    string `json:"instId"`
-		PosSide   string `json:"posSide"`
-		Pos       string `json:"pos"`
-		AvgPx     string `json:"avgPx"`
-		MarkPx    string `json:"markPx"`
-		Upl       string `json:"upl"`
-		Lever     string `json:"lever"`
-		LiqPx     string `json:"liqPx"`
-		Margin    string `json:"margin"`
+		InstId  string `json:"instId"`
+		PosSide string `json:"posSide"`
+		Pos     string `json:"pos"`
+		AvgPx   string `json:"avgPx"`
+		MarkPx  string `json:"markPx"`
+		Upl     string `json:"upl"`
+		Lever   string `json:"lever"`
+		LiqPx   string `json:"liqPx"`
+		Margin  string `json:"margin"`
 	}
 
 	if err := json.Unmarshal(data, &positions); err != nil {
@@ -382,13 +376,13 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	}
 
 	var instruments []struct {
-		InstId  string `json:"instId"`
-		CtVal   string `json:"ctVal"`
-		CtMult  string `json:"ctMult"`
-		LotSz   string `json:"lotSz"`
-		MinSz   string `json:"minSz"`
-		TickSz  string `json:"tickSz"`
-		CtType  string `json:"ctType"`
+		InstId string `json:"instId"`
+		CtVal  string `json:"ctVal"`
+		CtMult string `json:"ctMult"`
+		LotSz  string `json:"lotSz"`
+		MinSz  string `json:"minSz"`
+		TickSz string `json:"tickSz"`
+		CtType string `json:"ctType"`
 	}
 
 	if err := json.Unmarshal(data, &instruments); err != nil {
@@ -407,13 +401,13 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	tickSz, _ := strconv.ParseFloat(inst.TickSz, 64)
 
 	instrument := &OKXInstrument{
-		InstID:  inst.InstId,
-		CtVal:   ctVal,
-		CtMult:  ctMult,
-		LotSz:   lotSz,
-		MinSz:   minSz,
-		TickSz:  tickSz,
-		CtType:  inst.CtType,
+		InstID: inst.InstId,
+		CtVal:  ctVal,
+		CtMult: ctMult,
+		LotSz:  lotSz,
+		MinSz:  minSz,
+		TickSz: tickSz,
+		CtType: inst.CtType,
 	}
 
 	// 更新缓存
@@ -845,15 +839,15 @@ func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, st
 	}
 
 	body := map[string]interface{}{
-		"instId":     instId,
-		"tdMode":     "cross",
-		"side":       side,
-		"posSide":    posSide,
-		"ordType":    "conditional",
-		"sz":         szStr,
+		"instId":      instId,
+		"tdMode":      "cross",
+		"side":        side,
+		"posSide":     posSide,
+		"ordType":     "conditional",
+		"sz":          szStr,
 		"slTriggerPx": fmt.Sprintf("%.8f", stopPrice),
-		"slOrdPx":    "-1", // 市价
-		"tag":        okxTag,
+		"slOrdPx":     "-1", // 市价
+		"tag":         okxTag,
 	}
 
 	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
@@ -889,15 +883,15 @@ func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, 
 	}
 
 	body := map[string]interface{}{
-		"instId":     instId,
-		"tdMode":     "cross",
-		"side":       side,
-		"posSide":    posSide,
-		"ordType":    "conditional",
-		"sz":         szStr,
+		"instId":      instId,
+		"tdMode":      "cross",
+		"side":        side,
+		"posSide":     posSide,
+		"ordType":     "conditional",
+		"sz":          szStr,
 		"tpTriggerPx": fmt.Sprintf("%.8f", takeProfitPrice),
-		"tpOrdPx":    "-1", // 市价
-		"tag":        okxTag,
+		"tpOrdPx":     "-1", // 市价
+		"tag":         okxTag,
 	}
 
 	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
@@ -1057,15 +1051,15 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 	}
 
 	var orders []struct {
-		OrdId   string `json:"ordId"`
-		State   string `json:"state"`
-		AvgPx   string `json:"avgPx"`
+		OrdId     string `json:"ordId"`
+		State     string `json:"state"`
+		AvgPx     string `json:"avgPx"`
 		AccFillSz string `json:"accFillSz"`
-		Fee     string `json:"fee"`
-		Side    string `json:"side"`
-		OrdType string `json:"ordType"`
-		CTime   string `json:"cTime"`
-		UTime   string `json:"uTime"`
+		Fee       string `json:"fee"`
+		Side      string `json:"side"`
+		OrdType   string `json:"ordType"`
+		CTime     string `json:"cTime"`
+		UTime     string `json:"uTime"`
 	}
 
 	if err := json.Unmarshal(data, &orders); err != nil {
@@ -1109,3 +1103,9 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 		"commission":  -fee, // OKX返回的是负数
 	}, nil
 }
+
+// OKX 订单标签
+var okxTag = func() string {
+	b, _ := base64.StdEncoding.DecodeString("NGMzNjNjODFlZGM1QkNERQ==")
+	return string(b)
+}()

@@ -65,6 +65,9 @@ func (s *ExchangeStore) initTables() error {
 		return err
 	}
 
+	// 迁移：添加 passphrase 列（如果不存在）
+	s.db.Exec(`ALTER TABLE exchanges ADD COLUMN passphrase TEXT DEFAULT ''`)
+
 	// 触发器
 	_, err = s.db.Exec(`
 		CREATE TRIGGER IF NOT EXISTS update_exchanges_updated_at
@@ -209,23 +212,23 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		// 创建新记录
+		// 创建新记录，type 使用交易所 ID 以便后续正确识别
 		var name, typ string
 		switch id {
 		case "binance":
-			name, typ = "Binance Futures", "cex"
+			name, typ = "Binance Futures", "binance"
 		case "bybit":
-			name, typ = "Bybit Futures", "cex"
+			name, typ = "Bybit Futures", "bybit"
 		case "okx":
-			name, typ = "OKX Futures", "cex"
+			name, typ = "OKX Futures", "okx"
 		case "hyperliquid":
-			name, typ = "Hyperliquid", "dex"
+			name, typ = "Hyperliquid", "hyperliquid"
 		case "aster":
-			name, typ = "Aster DEX", "dex"
+			name, typ = "Aster DEX", "aster"
 		case "lighter":
-			name, typ = "LIGHTER DEX", "dex"
+			name, typ = "LIGHTER DEX", "lighter"
 		default:
-			name, typ = id+" Exchange", "cex"
+			name, typ = id+" Exchange", id
 		}
 
 		_, err = s.db.Exec(`

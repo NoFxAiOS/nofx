@@ -408,11 +408,6 @@ export function ExchangeConfigModal({
 
             {selectedExchange && (
               <>
-                {/* DEBUG: 显示交易所ID用于调试 */}
-                <div style={{ background: '#ff0', color: '#000', padding: '8px', marginBottom: '8px', borderRadius: '4px' }}>
-                  DEBUG: id={selectedExchange.id}, type={selectedExchange.type}
-                </div>
-
                 {/* Binance/Bybit/OKX 的输入字段 */}
                 {(selectedExchange.id === 'binance' ||
                   selectedExchange.id === 'bybit' ||

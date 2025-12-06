@@ -221,9 +221,28 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		return nil, fmt.Errorf("不支持的交易平台: %s", config.Exchange)
 	}
 
-	// 验证初始金额配置
+	// 验证初始金额配置，如果为0则自动从交易所获取
 	if config.InitialBalance <= 0 {
-		return nil, fmt.Errorf("初始金额必须大于0，请在配置中设置InitialBalance")
+		logger.Infof("📊 [%s] 初始金额未设置，尝试从交易所获取当前余额...", config.Name)
+		account, err := trader.GetBalance()
+		if err != nil {
+			return nil, fmt.Errorf("初始金额未设置且无法从交易所获取余额: %w", err)
+		}
+		// 尝试多种余额字段名（不同交易所返回格式不同）
+		balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
+		var foundBalance float64
+		for _, key := range balanceKeys {
+			if balance, ok := account[key].(float64); ok && balance > 0 {
+				foundBalance = balance
+				break
+			}
+		}
+		if foundBalance > 0 {
+			config.InitialBalance = foundBalance
+			logger.Infof("✓ [%s] 自动获取初始金额: %.2f USDT", config.Name, foundBalance)
+		} else {
+			return nil, fmt.Errorf("初始金额必须大于0，请在配置中设置InitialBalance或确保交易所账户有余额")
+		}
 	}
 
 	// 获取最后的周期编号（用于恢复）

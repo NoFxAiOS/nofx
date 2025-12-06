@@ -443,9 +443,10 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 		}
 
 		// 使用现有的方法加载交易员
+		logger.Infof("📦 正在加载交易员 %s (AI模型: %s, 交易所: %s, 策略ID: %s)", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID, traderCfg.StrategyID)
 		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, maxDailyLoss, maxDrawdown, stopTradingMinutes, st)
 		if err != nil {
-			logger.Infof("⚠️ 加载交易员 %s 失败: %v", traderCfg.Name, err)
+			logger.Infof("❌ 加载交易员 %s 失败: %v", traderCfg.Name, err)
 		}
 	}
 

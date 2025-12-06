@@ -196,7 +196,7 @@ func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
 
 // Update 更新交易所配置
 func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKey, passphrase string, testnet bool,
-	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey string) error {
+	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string) error {
 
 	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
@@ -231,6 +231,10 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 		setClauses = append(setClauses, "lighter_private_key = ?")
 		args = append(args, s.encrypt(lighterPrivateKey))
 	}
+	if lighterApiKeyPrivateKey != "" {
+		setClauses = append(setClauses, "lighter_api_key_private_key = ?")
+		args = append(args, s.encrypt(lighterApiKeyPrivateKey))
+	}
 
 	args = append(args, id, userID)
 	query := fmt.Sprintf(`UPDATE exchanges SET %s WHERE id = ? AND user_id = ?`, strings.Join(setClauses, ", "))
@@ -264,11 +268,11 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 		_, err = s.db.Exec(`
 			INSERT INTO exchanges (id, user_id, name, type, enabled, api_key, secret_key, passphrase, testnet,
 			                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
-			                       lighter_wallet_addr, lighter_private_key, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+			                       lighter_wallet_addr, lighter_private_key, lighter_api_key_private_key, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
 		`, id, userID, name, typ, enabled, s.encrypt(apiKey), s.encrypt(secretKey), s.encrypt(passphrase), testnet,
 			hyperliquidWalletAddr, asterUser, asterSigner, s.encrypt(asterPrivateKey),
-			lighterWalletAddr, s.encrypt(lighterPrivateKey))
+			lighterWalletAddr, s.encrypt(lighterPrivateKey), s.encrypt(lighterApiKeyPrivateKey))
 		return err
 	}
 	return nil

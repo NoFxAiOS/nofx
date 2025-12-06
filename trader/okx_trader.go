@@ -41,6 +41,9 @@ type OKXTrader struct {
 	secretKey  string
 	passphrase string
 
+	// HTTP 客户端（禁用代理）
+	httpClient *http.Client
+
 	// 余额缓存
 	cachedBalance     map[string]interface{}
 	balanceCacheTime  time.Time
@@ -94,10 +97,20 @@ func genOkxClOrdID() string {
 
 // NewOKXTrader 创建OKX交易器
 func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
+	// 创建禁用代理的 HTTP 客户端
+	transport := &http.Transport{
+		Proxy: nil, // 显式禁用代理
+	}
+	httpClient := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+	}
+
 	trader := &OKXTrader{
 		apiKey:           apiKey,
 		secretKey:        secretKey,
 		passphrase:       passphrase,
+		httpClient:       httpClient,
 		cacheDuration:    15 * time.Second,
 		instrumentsCache: make(map[string]*OKXInstrument),
 	}
@@ -166,8 +179,7 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 	// 设置请求头
 	req.Header.Set("x-simulated-trading", "0")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := t.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}

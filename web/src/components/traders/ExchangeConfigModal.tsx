@@ -408,9 +408,15 @@ export function ExchangeConfigModal({
 
             {selectedExchange && (
               <>
-                {/* Binance/Bybit/OKX 和其他 CEX 交易所的字段 */}
-                {['binance', 'bybit', 'okx'].includes(selectedExchange.id) &&
-                  !['hyperliquid', 'aster', 'lighter'].includes(selectedExchange.id) && (
+                {/* DEBUG: 显示交易所ID用于调试 */}
+                <div style={{ background: '#ff0', color: '#000', padding: '8px', marginBottom: '8px', borderRadius: '4px' }}>
+                  DEBUG: id={selectedExchange.id}, type={selectedExchange.type}
+                </div>
+
+                {/* Binance/Bybit/OKX 的输入字段 */}
+                {(selectedExchange.id === 'binance' ||
+                  selectedExchange.id === 'bybit' ||
+                  selectedExchange.id === 'okx') && (
                     <>
                       {/* 币安用户配置提示 (D1 方案) */}
                       {selectedExchange.id === 'binance' && (

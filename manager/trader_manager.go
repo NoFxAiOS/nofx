@@ -199,8 +199,9 @@ func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 
 	// 获取所有交易员列表
 	allTraders := make([]*trader.AutoTrader, 0, len(tm.traders))
-	for _, t := range tm.traders {
+	for id, t := range tm.traders {
 		allTraders = append(allTraders, t)
+		logger.Infof("📋 竞赛数据包含交易员: %s (%s)", t.GetName(), id)
 	}
 	tm.mu.RUnlock()
 

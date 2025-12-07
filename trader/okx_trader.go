@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	neturl "net/url"
 	"nofx/logger"
 	"strconv"
 	"strings"
@@ -96,28 +95,15 @@ func genOkxClOrdID() string {
 	return orderID
 }
 
-// noProxyFunc 返回一个始终返回 nil 的代理函数，用于禁用代理
-func noProxyFunc(req *http.Request) (*neturl.URL, error) {
-	return nil, nil
-}
-
 // NewOKXTrader 创建OKX交易器
 func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
-	// 创建完全禁用代理的 HTTP 客户端
-	// 这对于 Docker 容器环境很重要，因为容器可能继承宿主机的代理环境变量
-	transport := &http.Transport{
-		Proxy: noProxyFunc,
-	}
-	httpClient := &http.Client{
-		Timeout:   30 * time.Second,
-		Transport: transport,
-	}
-
+	// 使用 http.DefaultClient，与 Binance/Bybit SDK 保持一致
+	// DefaultClient 使用 DefaultTransport，会读取环境变量代理设置
 	trader := &OKXTrader{
 		apiKey:           apiKey,
 		secretKey:        secretKey,
 		passphrase:       passphrase,
-		httpClient:       httpClient,
+		httpClient:       http.DefaultClient,
 		cacheDuration:    15 * time.Second,
 		instrumentsCache: make(map[string]*OKXInstrument),
 	}

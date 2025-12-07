@@ -11,13 +11,13 @@ import (
 // OrderSyncManager Order status synchronization manager
 // Responsible for periodically scanning all NEW status orders and updating their status
 type OrderSyncManager struct {
-	store        *store.Store
-	interval     time.Duration
-	stopCh       chan struct{}
-	wg           sync.WaitGroup
-	traderCache  map[string]Trader // trader_id -> Trader instance cache
-	configCache  map[string]*store.TraderFullConfig // trader_id -> config cache
-	cacheMutex   sync.RWMutex
+	store       *store.Store
+	interval    time.Duration
+	stopCh      chan struct{}
+	wg          sync.WaitGroup
+	traderCache map[string]Trader                  // trader_id -> Trader instance cache
+	configCache map[string]*store.TraderFullConfig // trader_id -> config cache
+	cacheMutex  sync.RWMutex
 }
 
 // NewOrderSyncManager Create order synchronization manager

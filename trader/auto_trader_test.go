@@ -64,7 +64,6 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		positions: []map[string]interface{}{},
 	}
 
-
 	// Create temporary store (using nil means no actual store needed in test)
 	s.mockStore = nil
 

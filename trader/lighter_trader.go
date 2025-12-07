@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"nofx/logger"
 	"net/http"
+	"nofx/logger"
 	"strings"
 	"sync"
 	"time"
@@ -27,11 +27,11 @@ type LighterTrader struct {
 	testnet    bool
 
 	// Account information cache
-	accountIndex  int    // LIGHTER account index
-	apiKey        string // API key (derived from private key)
-	authToken     string // Authentication token (8-hour validity)
-	tokenExpiry   time.Time
-	accountMutex  sync.RWMutex
+	accountIndex int    // LIGHTER account index
+	apiKey       string // API key (derived from private key)
+	authToken    string // Authentication token (8-hour validity)
+	tokenExpiry  time.Time
+	accountMutex sync.RWMutex
 
 	// Market information cache
 	symbolPrecision map[string]SymbolPrecision

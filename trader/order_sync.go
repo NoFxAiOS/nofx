@@ -270,12 +270,16 @@ func (m *OrderSyncManager) getTraderConfig(traderID string) (*store.TraderFullCo
 func (m *OrderSyncManager) createTrader(config *store.TraderFullConfig) (Trader, error) {
 	exchange := config.Exchange
 
-	switch exchange.Type {
+	// 使用 exchange.ID 判断具体的交易所，而不是 exchange.Type (cex/dex)
+	switch exchange.ID {
 	case "binance":
 		return NewFuturesTrader(exchange.APIKey, exchange.SecretKey, config.Trader.UserID), nil
 
 	case "bybit":
 		return NewBybitTrader(exchange.APIKey, exchange.SecretKey), nil
+
+	case "okx":
+		return NewOKXTrader(exchange.APIKey, exchange.SecretKey, exchange.Passphrase), nil
 
 	case "hyperliquid":
 		return NewHyperliquidTrader(exchange.SecretKey, exchange.HyperliquidWalletAddr, exchange.Testnet)
@@ -295,7 +299,7 @@ func (m *OrderSyncManager) createTrader(config *store.TraderFullConfig) (Trader,
 		return NewLighterTrader(exchange.LighterPrivateKey, exchange.LighterWalletAddr, exchange.Testnet)
 
 	default:
-		return nil, fmt.Errorf("不支持的交易所类型: %s", exchange.Type)
+		return nil, fmt.Errorf("不支持的交易所: %s", exchange.ID)
 	}
 }
 

@@ -4,17 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"nofx/logger"
 	"net"
 	"net/http"
 	"nofx/auth"
 	"nofx/backtest"
+	"nofx/config"
 	"nofx/crypto"
 	"nofx/decision"
+	"nofx/logger"
 	"nofx/manager"
 	"nofx/store"
 	"nofx/trader"
-	"strconv"
 	"strings"
 	"time"
 
@@ -159,10 +159,6 @@ func (s *Server) setupRoutes() {
 			protected.POST("/strategies/:id/activate", s.handleActivateStrategy)
 			protected.POST("/strategies/:id/duplicate", s.handleDuplicateStrategy)
 
-			// 用户信号源配置
-			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
-			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
-
 			// 指定trader的数据（使用query参数 ?trader_id=xxx）
 			protected.GET("/status", s.handleStatus)
 			protected.GET("/account", s.handleAccount)
@@ -184,45 +180,12 @@ func (s *Server) handleHealth(c *gin.Context) {
 
 // handleGetSystemConfig 获取系统配置（客户端需要知道的配置）
 func (s *Server) handleGetSystemConfig(c *gin.Context) {
-	// 获取默认币种
-	defaultCoinsStr, _ := s.store.SystemConfig().Get("default_coins")
-	var defaultCoins []string
-	if defaultCoinsStr != "" {
-		json.Unmarshal([]byte(defaultCoinsStr), &defaultCoins)
-	}
-	if len(defaultCoins) == 0 {
-		// 使用硬编码的默认币种
-		defaultCoins = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "HYPEUSDT"}
-	}
-
-	// 获取杠杆配置
-	btcEthLeverageStr, _ := s.store.SystemConfig().Get("btc_eth_leverage")
-	altcoinLeverageStr, _ := s.store.SystemConfig().Get("altcoin_leverage")
-
-	btcEthLeverage := 5
-	if val, err := strconv.Atoi(btcEthLeverageStr); err == nil && val > 0 {
-		btcEthLeverage = val
-	}
-
-	altcoinLeverage := 5
-	if val, err := strconv.Atoi(altcoinLeverageStr); err == nil && val > 0 {
-		altcoinLeverage = val
-	}
-
-	// 获取内测模式配置
-	betaModeStr, _ := s.store.SystemConfig().Get("beta_mode")
-	betaMode := betaModeStr == "true"
-
-	// 获取注册开关配置（默认开启）
-	registrationEnabledStr, _ := s.store.SystemConfig().Get("registration_enabled")
-	registrationEnabled := registrationEnabledStr != "false"
+	cfg := config.Get()
 
 	c.JSON(http.StatusOK, gin.H{
-		"beta_mode":            betaMode,
-		"registration_enabled": registrationEnabled,
-		"default_coins":        defaultCoins,
-		"btc_eth_leverage":     btcEthLeverage,
-		"altcoin_leverage":     altcoinLeverage,
+		"registration_enabled": cfg.RegistrationEnabled,
+		"btc_eth_leverage":     10, // 默认值
+		"altcoin_leverage":     5,  // 默认值
 	})
 }
 
@@ -510,28 +473,14 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		isCrossMargin = *req.IsCrossMargin
 	}
 
-	// 设置杠杆默认值（从系统配置获取）
-	btcEthLeverage := 5
-	altcoinLeverage := 5
+	// 设置杠杆默认值
+	btcEthLeverage := 10 // 默认值
+	altcoinLeverage := 5 // 默认值
 	if req.BTCETHLeverage > 0 {
 		btcEthLeverage = req.BTCETHLeverage
-	} else {
-		// 从系统配置获取默认值
-		if btcEthLeverageStr, _ := s.store.SystemConfig().Get("btc_eth_leverage"); btcEthLeverageStr != "" {
-			if val, err := strconv.Atoi(btcEthLeverageStr); err == nil && val > 0 {
-				btcEthLeverage = val
-			}
-		}
 	}
 	if req.AltcoinLeverage > 0 {
 		altcoinLeverage = req.AltcoinLeverage
-	} else {
-		// 从系统配置获取默认值
-		if altcoinLeverageStr, _ := s.store.SystemConfig().Get("altcoin_leverage"); altcoinLeverageStr != "" {
-			if val, err := strconv.Atoi(altcoinLeverageStr); err == nil && val > 0 {
-				altcoinLeverage = val
-			}
-		}
 	}
 
 	// 设置系统提示词模板默认值
@@ -1424,48 +1373,6 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "交易所配置已更新"})
 }
 
-// handleGetUserSignalSource 获取用户信号源配置
-func (s *Server) handleGetUserSignalSource(c *gin.Context) {
-	userID := c.GetString("user_id")
-	source, err := s.store.SignalSource().Get(userID)
-	if err != nil {
-		// 如果配置不存在，返回空配置而不是404错误
-		c.JSON(http.StatusOK, gin.H{
-			"coin_pool_url": "",
-			"oi_top_url":    "",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"coin_pool_url": source.CoinPoolURL,
-		"oi_top_url":    source.OITopURL,
-	})
-}
-
-// handleSaveUserSignalSource 保存用户信号源配置
-func (s *Server) handleSaveUserSignalSource(c *gin.Context) {
-	userID := c.GetString("user_id")
-	var req struct {
-		CoinPoolURL string `json:"coin_pool_url"`
-		OITopURL    string `json:"oi_top_url"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	err := s.store.SignalSource().Create(userID, req.CoinPoolURL, req.OITopURL)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("保存用户信号源配置失败: %v", err)})
-		return
-	}
-
-	logger.Infof("✓ 用户信号源配置已保存: user=%s, coin_pool=%s, oi_top=%s", userID, req.CoinPoolURL, req.OITopURL)
-	c.JSON(http.StatusOK, gin.H{"message": "用户信号源配置已保存"})
-}
-
 // handleTraderList trader列表
 func (s *Server) handleTraderList(c *gin.Context) {
 	userID := c.GetString("user_id")
@@ -1731,6 +1638,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 }
 
 // handleEquityHistory 收益率历史数据
+// 直接从数据库查询，不依赖内存中的 trader（这样重启后也能获取历史数据）
 func (s *Server) handleEquityHistory(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
@@ -1738,19 +1646,18 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 		return
 	}
 
-	trader, err := s.traderManager.GetTrader(traderID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
-	}
-
-	// 获取尽可能多的历史数据（几天的数据）
+	// 从新的 equity 表获取净值历史数据
 	// 每3分钟一个周期：10000条 = 约20天的数据
-	records, err := trader.GetStore().Decision().GetLatestRecords(trader.GetID(), 10000)
+	snapshots, err := s.store.Equity().GetLatest(traderID, 10000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("获取历史数据失败: %v", err),
 		})
+		return
+	}
+
+	if len(snapshots) == 0 {
+		c.JSON(http.StatusOK, []interface{}{})
 		return
 	}
 
@@ -1759,57 +1666,34 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 		Timestamp        string  `json:"timestamp"`
 		TotalEquity      float64 `json:"total_equity"`      // 账户净值（wallet + unrealized）
 		AvailableBalance float64 `json:"available_balance"` // 可用余额
-		TotalPnL         float64 `json:"total_pnl"`         // 总盈亏（相对初始余额）
+		TotalPnL         float64 `json:"total_pnl"`         // 总盈亏（未实现盈亏）
 		TotalPnLPct      float64 `json:"total_pnl_pct"`     // 总盈亏百分比
 		PositionCount    int     `json:"position_count"`    // 持仓数量
 		MarginUsedPct    float64 `json:"margin_used_pct"`   // 保证金使用率
-		CycleNumber      int     `json:"cycle_number"`
 	}
 
-	// 从AutoTrader获取初始余额（用于计算盈亏百分比）
-	initialBalance := 0.0
-	if status := trader.GetStatus(); status != nil {
-		if ib, ok := status["initial_balance"].(float64); ok && ib > 0 {
-			initialBalance = ib
-		}
-	}
-
-	// 如果无法从status获取，且有历史记录，则从第一条记录获取
-	if initialBalance == 0 && len(records) > 0 {
-		// 第一条记录的equity作为初始余额
-		initialBalance = records[0].AccountState.TotalBalance
-	}
-
-	// 如果还是无法获取，返回错误
+	// 使用第一条记录的余额作为初始余额来计算收益率
+	initialBalance := snapshots[0].Balance
 	if initialBalance == 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "无法获取初始余额",
-		})
-		return
+		initialBalance = 1 // 避免除零
 	}
 
 	var history []EquityPoint
-	for _, record := range records {
-		// TotalBalance字段实际存储的是TotalEquity
-		totalEquity := record.AccountState.TotalBalance
-		// TotalUnrealizedProfit字段实际存储的是TotalPnL（相对初始余额）
-		totalPnL := record.AccountState.TotalUnrealizedProfit
-
+	for _, snap := range snapshots {
 		// 计算盈亏百分比
 		totalPnLPct := 0.0
 		if initialBalance > 0 {
-			totalPnLPct = (totalPnL / initialBalance) * 100
+			totalPnLPct = (snap.UnrealizedPnL / initialBalance) * 100
 		}
 
 		history = append(history, EquityPoint{
-			Timestamp:        record.Timestamp.Format("2006-01-02 15:04:05"),
-			TotalEquity:      totalEquity,
-			AvailableBalance: record.AccountState.AvailableBalance,
-			TotalPnL:         totalPnL,
+			Timestamp:        snap.Timestamp.Format("2006-01-02 15:04:05"),
+			TotalEquity:      snap.TotalEquity,
+			AvailableBalance: snap.Balance,
+			TotalPnL:         snap.UnrealizedPnL,
 			TotalPnLPct:      totalPnLPct,
-			PositionCount:    record.AccountState.PositionCount,
-			MarginUsedPct:    record.AccountState.MarginUsedPct,
-			CycleNumber:      record.CycleNumber,
+			PositionCount:    snap.PositionCount,
+			MarginUsedPct:    snap.MarginUsedPct,
 		})
 	}
 
@@ -1889,37 +1773,20 @@ func (s *Server) handleLogout(c *gin.Context) {
 
 // handleRegister 处理用户注册请求
 func (s *Server) handleRegister(c *gin.Context) {
+	// 检查是否允许注册
+	if !config.Get().RegistrationEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"error": "注册功能已关闭"})
+		return
+	}
 
 	var req struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`
-		BetaCode string `json:"beta_code"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-	}
-
-	// 检查是否开启了内测模式
-	betaModeStr, _ := s.store.SystemConfig().Get("beta_mode")
-	if betaModeStr == "true" {
-		// 内测模式下必须提供有效的内测码
-		if req.BetaCode == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "内测期间，注册需要提供内测码"})
-			return
-		}
-
-		// 验证内测码
-		isValid, err := s.store.BetaCode().Validate(req.BetaCode)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "验证内测码失败"})
-			return
-		}
-		if !isValid {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "内测码无效或已被使用"})
-			return
-		}
 	}
 
 	// 检查邮箱是否已存在
@@ -1957,18 +1824,6 @@ func (s *Server) handleRegister(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户失败: " + err.Error()})
 		return
-	}
-
-	// 如果是内测模式，标记内测码为已使用
-	betaModeStr2, _ := s.store.SystemConfig().Get("beta_mode")
-	if betaModeStr2 == "true" && req.BetaCode != "" {
-		err := s.store.BetaCode().Use(req.BetaCode, req.Email)
-		if err != nil {
-			logger.Infof("⚠️ 标记内测码为已使用失败: %v", err)
-			// 这里不返回错误，因为用户已经创建成功
-		} else {
-			logger.Infof("✓ 内测码 %s 已被用户 %s 使用", req.BetaCode, req.Email)
-		}
 	}
 
 	// 返回OTP设置信息
@@ -2420,6 +2275,7 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 }
 
 // getEquityHistoryForTraders 获取多个交易员的历史数据
+// 直接从数据库查询，不依赖内存中的 trader（这样重启后也能获取历史数据）
 func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]interface{} {
 	result := make(map[string]interface{})
 	histories := make(map[string]interface{})
@@ -2430,30 +2286,27 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 			continue
 		}
 
-		trader, err := s.traderManager.GetTrader(traderID)
-		if err != nil {
-			errors[traderID] = "交易员不存在"
-			continue
-		}
-
-		// 获取历史数据（用于对比展示，限制数据量）
-		records, err := trader.GetStore().Decision().GetLatestRecords(trader.GetID(), 500)
+		// 从新的 equity 表获取净值历史数据
+		snapshots, err := s.store.Equity().GetLatest(traderID, 500)
 		if err != nil {
 			errors[traderID] = fmt.Sprintf("获取历史数据失败: %v", err)
 			continue
 		}
 
-		// 构建收益率历史数据
-		history := make([]map[string]interface{}, 0, len(records))
-		for _, record := range records {
-			// 计算总权益（余额+未实现盈亏）
-			totalEquity := record.AccountState.TotalBalance + record.AccountState.TotalUnrealizedProfit
+		if len(snapshots) == 0 {
+			// 没有历史记录，返回空数组
+			histories[traderID] = []map[string]interface{}{}
+			continue
+		}
 
+		// 构建收益率历史数据
+		history := make([]map[string]interface{}, 0, len(snapshots))
+		for _, snap := range snapshots {
 			history = append(history, map[string]interface{}{
-				"timestamp":    record.Timestamp,
-				"total_equity": totalEquity,
-				"total_pnl":    record.AccountState.TotalUnrealizedProfit,
-				"balance":      record.AccountState.TotalBalance,
+				"timestamp":    snap.Timestamp,
+				"total_equity": snap.TotalEquity,
+				"total_pnl":    snap.UnrealizedPnL,
+				"balance":      snap.Balance,
 			})
 		}
 

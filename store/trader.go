@@ -2,11 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"encoding/json"
-	"nofx/logger"
-	"nofx/market"
-	"slices"
-	"strings"
 	"time"
 )
 
@@ -339,43 +334,6 @@ func (s *TraderStore) getActiveOrDefaultStrategy(userID string) (*Strategy, erro
 	strategy.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
 	strategy.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &strategy, nil
-}
-
-// GetCustomCoins 获取所有交易员自定义币种
-func (s *TraderStore) GetCustomCoins() []string {
-	var symbol string
-	var symbols []string
-	_ = s.db.QueryRow(`
-		SELECT GROUP_CONCAT(trading_symbols, ',') as symbol
-		FROM traders WHERE trading_symbols != ''
-	`).Scan(&symbol)
-
-	// 如果没有自定义币种，返回默认币种
-	if symbol == "" {
-		var symbolJSON string
-		_ = s.db.QueryRow(`SELECT value FROM system_config WHERE key = 'default_coins'`).Scan(&symbolJSON)
-		if symbolJSON != "" {
-			if err := json.Unmarshal([]byte(symbolJSON), &symbols); err != nil {
-				logger.Warnf("⚠️  解析default_coins配置失败: %v，使用硬编码默认值", err)
-				symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
-			}
-		} else {
-			symbols = []string{"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"}
-		}
-		return symbols
-	}
-
-	// 处理并去重币种列表
-	for _, s := range strings.Split(symbol, ",") {
-		if s == "" {
-			continue
-		}
-		coin := market.Normalize(s)
-		if !slices.Contains(symbols, coin) {
-			symbols = append(symbols, coin)
-		}
-	}
-	return symbols
 }
 
 // ListAll 获取所有用户的交易员列表

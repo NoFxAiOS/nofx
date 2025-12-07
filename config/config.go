@@ -1,59 +1,55 @@
 package config
 
 import (
-	"encoding/json"
-	"fmt"
-	"nofx/logger"
 	"os"
+	"strconv"
+	"strings"
 )
 
-// LeverageConfig 杠杆配置
-type LeverageConfig struct {
-	BTCETHLeverage  int `json:"btc_eth_leverage"` // BTC和ETH的杠杆倍数（主账户建议5-50，子账户≤5）
-	AltcoinLeverage int `json:"altcoin_leverage"` // 山寨币的杠杆倍数（主账户建议5-20，子账户≤5）
-}
+// 全局配置实例
+var global *Config
 
-// LogConfig 日志配置
-type LogConfig struct {
-	Level string `json:"level"` // 日志级别: debug, info, warn, error (默认: info)
-}
-
-// Config 总配置
+// Config 全局配置（从 .env 加载）
+// 只包含真正的全局配置，交易相关配置在 trader/策略 级别
 type Config struct {
-	BetaMode           bool           `json:"beta_mode"`
-	APIServerPort      int            `json:"api_server_port"`
-	UseDefaultCoins    bool           `json:"use_default_coins"`
-	DefaultCoins       []string       `json:"default_coins"`
-	CoinPoolAPIURL     string         `json:"coin_pool_api_url"`
-	OITopAPIURL        string         `json:"oi_top_api_url"`
-	MaxDailyLoss       float64        `json:"max_daily_loss"`
-	MaxDrawdown        float64        `json:"max_drawdown"`
-	StopTradingMinutes int            `json:"stop_trading_minutes"`
-	Leverage           LeverageConfig `json:"leverage"`
-	JWTSecret          string         `json:"jwt_secret"`
-	DataKLineTime      string         `json:"data_k_line_time"`
-	Log                *LogConfig     `json:"nofx/logger"` // 日志配置
+	// 服务配置
+	APIServerPort       int
+	JWTSecret           string
+	RegistrationEnabled bool
 }
 
-// LoadConfig 从文件加载配置
-func LoadConfig(filename string) (*Config, error) {
-	// 检查filename是否存在
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		logger.Infof("📄 %s不存在，使用默认配置", filename)
-		return &Config{}, nil
+// Init 初始化全局配置（从 .env 加载）
+func Init() {
+	cfg := &Config{
+		APIServerPort:       8080,
+		RegistrationEnabled: true,
 	}
 
-	// 读取 filename
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("读取%s失败: %w", filename, err)
+	// 从环境变量加载
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		cfg.JWTSecret = strings.TrimSpace(v)
+	}
+	if cfg.JWTSecret == "" {
+		cfg.JWTSecret = "default-jwt-secret-change-in-production"
 	}
 
-	// 解析JSON
-	var configFile Config
-	if err := json.Unmarshal(data, &configFile); err != nil {
-		return nil, fmt.Errorf("解析%s失败: %w", filename, err)
+	if v := os.Getenv("REGISTRATION_ENABLED"); v != "" {
+		cfg.RegistrationEnabled = strings.ToLower(v) == "true"
 	}
 
-	return &configFile, nil
+	if v := os.Getenv("API_SERVER_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil && port > 0 {
+			cfg.APIServerPort = port
+		}
+	}
+
+	global = cfg
+}
+
+// Get 获取全局配置
+func Get() *Config {
+	if global == nil {
+		Init()
+	}
+	return global
 }

@@ -357,30 +357,6 @@ export const api = {
     return result.data!
   },
 
-  // 用户信号源配置接口
-  async getUserSignalSource(): Promise<{
-    coin_pool_url: string
-    oi_top_url: string
-  }> {
-    const result = await httpClient.get<{
-      coin_pool_url: string
-      oi_top_url: string
-    }>(`${API_BASE}/user/signal-sources`)
-    if (!result.success) throw new Error('获取用户信号源配置失败')
-    return result.data!
-  },
-
-  async saveUserSignalSource(
-    coinPoolUrl: string,
-    oiTopUrl: string
-  ): Promise<void> {
-    const result = await httpClient.post(`${API_BASE}/user/signal-sources`, {
-      coin_pool_url: coinPoolUrl,
-      oi_top_url: oiTopUrl,
-    })
-    if (!result.success) throw new Error('保存用户信号源配置失败')
-  },
-
   // 获取服务器IP（需要认证，用于白名单配置）
   async getServerIP(): Promise<{
     public_ip: string

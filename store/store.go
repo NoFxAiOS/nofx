@@ -16,18 +16,16 @@ type Store struct {
 	db *sql.DB
 
 	// 子存储（延迟初始化）
-	user         *UserStore
-	aiModel      *AIModelStore
-	exchange     *ExchangeStore
-	trader       *TraderStore
-	systemConfig *SystemConfigStore
-	betaCode     *BetaCodeStore
-	signalSource *SignalSourceStore
-	decision     *DecisionStore
-	backtest     *BacktestStore
-	order        *OrderStore
-	position     *PositionStore
-	strategy     *StrategyStore
+	user     *UserStore
+	aiModel  *AIModelStore
+	exchange *ExchangeStore
+	trader   *TraderStore
+	decision *DecisionStore
+	backtest *BacktestStore
+	order    *OrderStore
+	position *PositionStore
+	strategy *StrategyStore
+	equity   *EquityStore
 
 	// 加密函数
 	encryptFunc func(string) string
@@ -131,15 +129,6 @@ func (s *Store) initTables() error {
 	if err := s.Trader().initTables(); err != nil {
 		return fmt.Errorf("初始化交易员表失败: %w", err)
 	}
-	if err := s.SystemConfig().initTables(); err != nil {
-		return fmt.Errorf("初始化系统配置表失败: %w", err)
-	}
-	if err := s.BetaCode().initTables(); err != nil {
-		return fmt.Errorf("初始化内测码表失败: %w", err)
-	}
-	if err := s.SignalSource().initTables(); err != nil {
-		return fmt.Errorf("初始化信号源表失败: %w", err)
-	}
 	if err := s.Decision().initTables(); err != nil {
 		return fmt.Errorf("初始化决策日志表失败: %w", err)
 	}
@@ -155,6 +144,9 @@ func (s *Store) initTables() error {
 	if err := s.Strategy().initTables(); err != nil {
 		return fmt.Errorf("初始化策略表失败: %w", err)
 	}
+	if err := s.Equity().initTables(); err != nil {
+		return fmt.Errorf("初始化净值表失败: %w", err)
+	}
 	return nil
 }
 
@@ -166,11 +158,14 @@ func (s *Store) initDefaultData() error {
 	if err := s.Exchange().initDefaultData(); err != nil {
 		return err
 	}
-	if err := s.SystemConfig().initDefaultData(); err != nil {
-		return err
-	}
 	if err := s.Strategy().initDefaultData(); err != nil {
 		return err
+	}
+	// 迁移旧的 decision_account_snapshots 数据到新的 trader_equity_snapshots 表
+	if migrated, err := s.Equity().MigrateFromDecision(); err != nil {
+		logger.Warnf("迁移净值数据失败: %v", err)
+	} else if migrated > 0 {
+		logger.Infof("✅ 已迁移 %d 条净值数据到新表", migrated)
 	}
 	return nil
 }
@@ -226,36 +221,6 @@ func (s *Store) Trader() *TraderStore {
 	return s.trader
 }
 
-// SystemConfig 获取系统配置存储
-func (s *Store) SystemConfig() *SystemConfigStore {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.systemConfig == nil {
-		s.systemConfig = &SystemConfigStore{db: s.db}
-	}
-	return s.systemConfig
-}
-
-// BetaCode 获取内测码存储
-func (s *Store) BetaCode() *BetaCodeStore {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.betaCode == nil {
-		s.betaCode = &BetaCodeStore{db: s.db}
-	}
-	return s.betaCode
-}
-
-// SignalSource 获取信号源存储
-func (s *Store) SignalSource() *SignalSourceStore {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.signalSource == nil {
-		s.signalSource = &SignalSourceStore{db: s.db}
-	}
-	return s.signalSource
-}
-
 // Decision 获取决策日志存储
 func (s *Store) Decision() *DecisionStore {
 	s.mu.Lock()
@@ -304,6 +269,16 @@ func (s *Store) Strategy() *StrategyStore {
 		s.strategy = &StrategyStore{db: s.db}
 	}
 	return s.strategy
+}
+
+// Equity 获取净值存储
+func (s *Store) Equity() *EquityStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.equity == nil {
+		s.equity = &EquityStore{db: s.db}
+	}
+	return s.equity
 }
 
 // Close 关闭数据库连接

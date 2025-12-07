@@ -7,7 +7,6 @@ import (
 	"nofx/store"
 	"nofx/trader"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -398,27 +397,6 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 
 	logger.Infof("📋 为用户 %s 加载交易员配置: %d 个", userID, len(traders))
 
-	// 获取系统配置
-	maxDailyLossStr, _ := st.SystemConfig().Get("max_daily_loss")
-	maxDrawdownStr, _ := st.SystemConfig().Get("max_drawdown")
-	stopTradingMinutesStr, _ := st.SystemConfig().Get("stop_trading_minutes")
-
-	// 解析配置
-	maxDailyLoss := 10.0 // 默认值
-	if val, err := strconv.ParseFloat(maxDailyLossStr, 64); err == nil {
-		maxDailyLoss = val
-	}
-
-	maxDrawdown := 20.0 // 默认值
-	if val, err := strconv.ParseFloat(maxDrawdownStr, 64); err == nil {
-		maxDrawdown = val
-	}
-
-	stopTradingMinutes := 60 // 默认值
-	if val, err := strconv.Atoi(stopTradingMinutesStr); err == nil {
-		stopTradingMinutes = val
-	}
-
 	// 获取AI模型和交易所列表（在循环外只查询一次）
 	aiModels, err := st.AIModel().List(userID)
 	if err != nil {
@@ -488,7 +466,7 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 
 		// 使用现有的方法加载交易员
 		logger.Infof("📦 正在加载交易员 %s (AI模型: %s, 交易所: %s, 策略ID: %s)", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID, traderCfg.StrategyID)
-		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, maxDailyLoss, maxDrawdown, stopTradingMinutes, st)
+		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
 			logger.Infof("❌ 加载交易员 %s 失败: %v", traderCfg.Name, err)
 		}
@@ -523,27 +501,6 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 	}
 
 	logger.Infof("📋 总共加载 %d 个交易员配置", len(allTraders))
-
-	// 获取系统配置
-	maxDailyLossStr, _ := st.SystemConfig().Get("max_daily_loss")
-	maxDrawdownStr, _ := st.SystemConfig().Get("max_drawdown")
-	stopTradingMinutesStr, _ := st.SystemConfig().Get("stop_trading_minutes")
-
-	// 解析配置
-	maxDailyLoss := 10.0 // 默认值
-	if val, err := strconv.ParseFloat(maxDailyLossStr, 64); err == nil {
-		maxDailyLoss = val
-	}
-
-	maxDrawdown := 20.0 // 默认值
-	if val, err := strconv.ParseFloat(maxDrawdownStr, 64); err == nil {
-		maxDrawdown = val
-	}
-
-	stopTradingMinutes := 60 // 默认值
-	if val, err := strconv.Atoi(stopTradingMinutesStr); err == nil {
-		stopTradingMinutes = val
-	}
 
 	// 为每个交易员获取AI模型和交易所配置
 	for _, traderCfg := range allTraders {
@@ -609,7 +566,7 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 		}
 
 		// 添加到TraderManager（coinPoolURL/oiTopURL 已从策略配置中获取）
-		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, maxDailyLoss, maxDrawdown, stopTradingMinutes, st)
+		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
 			logger.Infof("❌ 添加交易员 %s 失败: %v", traderCfg.Name, err)
 			continue
@@ -621,7 +578,7 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 }
 
 // addTraderFromStore 内部方法：从store配置添加交易员
-func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg *store.AIModel, exchangeCfg *store.Exchange, maxDailyLoss, maxDrawdown float64, stopTradingMinutes int, st *store.Store) error {
+func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg *store.AIModel, exchangeCfg *store.Exchange, st *store.Store) error {
 	if _, exists := tm.traders[traderCfg.ID]; exists {
 		return fmt.Errorf("trader ID '%s' 已存在", traderCfg.ID)
 	}
@@ -658,12 +615,9 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		QwenKey:               "",
 		CustomAPIURL:          aiModelCfg.CustomAPIURL,
 		CustomModelName:       aiModelCfg.CustomModelName,
-		ScanInterval:          time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		InitialBalance:        traderCfg.InitialBalance,
-		MaxDailyLoss:          maxDailyLoss,
-		MaxDrawdown:           maxDrawdown,
-		StopTradingTime:       time.Duration(stopTradingMinutes) * time.Minute,
-		IsCrossMargin:         traderCfg.IsCrossMargin,
+		ScanInterval:    time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
+		InitialBalance:  traderCfg.InitialBalance,
+		IsCrossMargin:   traderCfg.IsCrossMargin,
 		StrategyConfig:        strategyConfig,
 	}
 

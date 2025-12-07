@@ -375,29 +375,8 @@ func (at *AutoTrader) runCycle() error {
 		return fmt.Errorf("构建交易上下文失败: %w", err)
 	}
 
-	// 保存账户状态快照
-	record.AccountState = store.AccountSnapshot{
-		TotalBalance:          ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
-		AvailableBalance:      ctx.Account.AvailableBalance,
-		TotalUnrealizedProfit: ctx.Account.UnrealizedPnL,
-		PositionCount:         ctx.Account.PositionCount,
-		MarginUsedPct:         ctx.Account.MarginUsedPct,
-		InitialBalance:        at.initialBalance, // 记录当时的初始余额基准
-	}
-
-	// 保存持仓快照
-	for _, pos := range ctx.Positions {
-		record.Positions = append(record.Positions, store.PositionSnapshot{
-			Symbol:           pos.Symbol,
-			Side:             pos.Side,
-			PositionAmt:      pos.Quantity,
-			EntryPrice:       pos.EntryPrice,
-			MarkPrice:        pos.MarkPrice,
-			UnrealizedProfit: pos.UnrealizedPnL,
-			Leverage:         float64(pos.Leverage),
-			LiquidationPrice: pos.LiquidationPrice,
-		})
-	}
+	// 独立保存净值快照（与 AI 决策解耦，用于绘制收益曲线）
+	at.saveEquitySnapshot(ctx)
 
 	logger.Info(strings.Repeat("=", 70))
 	for _, coin := range ctx.CandidateCoins {
@@ -1038,10 +1017,31 @@ func (at *AutoTrader) GetSystemPromptTemplate() string {
 	return "strategy"
 }
 
-// saveDecision 保存决策记录到数据库
+// saveEquitySnapshot 独立保存净值快照（用于绘制收益曲线，与 AI 决策解耦）
+func (at *AutoTrader) saveEquitySnapshot(ctx *decision.Context) {
+	if at.store == nil || ctx == nil {
+		return
+	}
+
+	snapshot := &store.EquitySnapshot{
+		TraderID:      at.id,
+		Timestamp:     time.Now().UTC(),
+		TotalEquity:   ctx.Account.TotalEquity,
+		Balance:       ctx.Account.TotalEquity - ctx.Account.UnrealizedPnL,
+		UnrealizedPnL: ctx.Account.UnrealizedPnL,
+		PositionCount: ctx.Account.PositionCount,
+		MarginUsedPct: ctx.Account.MarginUsedPct,
+	}
+
+	if err := at.store.Equity().Save(snapshot); err != nil {
+		logger.Infof("⚠️ 保存净值快照失败: %v", err)
+	}
+}
+
+// saveDecision 保存 AI 决策日志到数据库（仅记录 AI 输入输出，用于调试）
 func (at *AutoTrader) saveDecision(record *store.DecisionRecord) error {
 	if at.store == nil {
-		return nil // 没有 store 时静默忽略
+		return nil
 	}
 
 	at.cycleNumber++

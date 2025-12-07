@@ -1,27 +1,17 @@
 {
-  "beta_mode": false,
-  "registration_enabled": true,
-  "leverage": {
-    "btc_eth_leverage": 5,
-    "altcoin_leverage": 5
+  "_说明": "此文件仅供参考，系统不会读取此文件。所有配置从 .env 文件加载。",
+
+  "_env配置说明": {
+    "JWT_SECRET": "JWT密钥，必须设置",
+    "REGISTRATION_ENABLED": "是否允许注册，true/false",
+    "API_SERVER_PORT": "API服务器端口，默认8080",
+    "DEEPSEEK_API_KEY": "DeepSeek API Key（回测用）"
   },
-  "use_default_coins": true,
-  "default_coins": [
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "BNBUSDT",
-    "XRPUSDT",
-    "DOGEUSDT",
-    "ADAUSDT",
-    "HYPEUSDT"
-  ],
-  "api_server_port": 8080,
-  "max_daily_loss": 10.0,
-  "max_drawdown": 20.0,
-  "stop_trading_minutes": 60,
-  "jwt_secret": "Qk0kAa+d0iIEzXVHXbNbm+UaN3RNabmWtH8rDWZ5OPf+4GX8pBflAHodfpbipVMyrw1fsDanHsNBjhgbDeK9Jg==",
-  "log": {
-    "level": "info"
+
+  "_数据库配置说明": {
+    "traders表": "交易员配置，包含杠杆、扫描间隔等",
+    "strategies表": "策略配置，包含AI500 API URL、OI Top API URL等",
+    "ai_models表": "AI模型配置",
+    "exchanges表": "交易所配置"
   }
 }

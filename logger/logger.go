@@ -1,7 +1,11 @@
 package logger
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -11,15 +15,40 @@ var (
 	Log *logrus.Logger
 )
 
+// compactFormatter is a custom formatter for cleaner log output
+type compactFormatter struct {
+	logrus.TextFormatter
+}
+
+func (f *compactFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	level := strings.ToUpper(entry.Level.String())[0:4]
+
+	// Skip frames to find actual caller (skip logrus + our wrapper functions)
+	caller := ""
+	for i := 3; i < 10; i++ {
+		_, file, line, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		// Skip logrus internal and our logger.go
+		if !strings.Contains(file, "logrus") && !strings.HasSuffix(file, "logger/logger.go") {
+			// Get package name from path (e.g., "nofx/manager/trader_manager.go" -> "manager")
+			dir := filepath.Dir(file)
+			pkg := filepath.Base(dir)
+			caller = fmt.Sprintf("%s/%s:%d", pkg, filepath.Base(file), line)
+			break
+		}
+	}
+
+	msg := fmt.Sprintf("[%s] %s %s\n", level, caller, entry.Message)
+	return []byte(msg), nil
+}
+
 func init() {
 	// Auto-initialize default logger to ensure it works before Init is called
 	Log = logrus.New()
 	Log.SetLevel(logrus.InfoLevel)
-	Log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-		ForceColors:     true,
-	})
+	Log.SetFormatter(&compactFormatter{})
 	Log.SetOutput(os.Stdout)
 }
 
@@ -47,17 +76,9 @@ func Init(cfg *Config) error {
 	}
 	Log.SetLevel(level)
 
-	// Set formatter (always use colored text format)
-	Log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp:   true,
-		TimestampFormat: "2006-01-02 15:04:05",
-		ForceColors:     true,
-	})
-
-	// Set output target (default stdout)
+	// Set compact formatter
+	Log.SetFormatter(&compactFormatter{})
 	Log.SetOutput(os.Stdout)
-
-	// Enable caller location info
 	Log.SetReportCaller(true)
 
 	return nil

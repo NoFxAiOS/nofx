@@ -348,22 +348,22 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 
 // AI trader management related structures
 type CreateTraderRequest struct {
-	Name                 string  `json:"name" binding:"required"`
-	AIModelID            string  `json:"ai_model_id" binding:"required"`
-	ExchangeID           string  `json:"exchange_id" binding:"required"`
-	StrategyID           string  `json:"strategy_id"`              // Strategy ID (new version)
-	InitialBalance       float64 `json:"initial_balance"`
-	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
-	IsCrossMargin        *bool   `json:"is_cross_margin"`          // Pointer type, nil means use default value true
+	Name                string  `json:"name" binding:"required"`
+	AIModelID           string  `json:"ai_model_id" binding:"required"`
+	ExchangeID          string  `json:"exchange_id" binding:"required"`
+	StrategyID          string  `json:"strategy_id"` // Strategy ID (new version)
+	InitialBalance      float64 `json:"initial_balance"`
+	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
+	IsCrossMargin       *bool   `json:"is_cross_margin"` // Pointer type, nil means use default value true
 	// The following fields are kept for backward compatibility, new version uses strategy config
-	BTCETHLeverage       int     `json:"btc_eth_leverage"`
-	AltcoinLeverage      int     `json:"altcoin_leverage"`
-	TradingSymbols       string  `json:"trading_symbols"`
-	CustomPrompt         string  `json:"custom_prompt"`
-	OverrideBasePrompt   bool    `json:"override_base_prompt"`
-	SystemPromptTemplate string  `json:"system_prompt_template"` // System prompt template name
-	UseCoinPool          bool    `json:"use_coin_pool"`
-	UseOITop             bool    `json:"use_oi_top"`
+	BTCETHLeverage       int    `json:"btc_eth_leverage"`
+	AltcoinLeverage      int    `json:"altcoin_leverage"`
+	TradingSymbols       string `json:"trading_symbols"`
+	CustomPrompt         string `json:"custom_prompt"`
+	OverrideBasePrompt   bool   `json:"override_base_prompt"`
+	SystemPromptTemplate string `json:"system_prompt_template"` // System prompt template name
+	UseCoinPool          bool   `json:"use_coin_pool"`
+	UseOITop             bool   `json:"use_oi_top"`
 }
 
 type ModelConfig struct {
@@ -381,8 +381,8 @@ type SafeModelConfig struct {
 	Name            string `json:"name"`
 	Provider        string `json:"provider"`
 	Enabled         bool   `json:"enabled"`
-	CustomAPIURL    string `json:"customApiUrl"`        // Custom API URL (usually not sensitive)
-	CustomModelName string `json:"customModelName"`     // Custom model name (not sensitive)
+	CustomAPIURL    string `json:"customApiUrl"`    // Custom API URL (usually not sensitive)
+	CustomModelName string `json:"customModelName"` // Custom model name (not sensitive)
 }
 
 type ExchangeConfig struct {
@@ -403,8 +403,8 @@ type SafeExchangeConfig struct {
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
 	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
-	AsterUser             string `json:"asterUser"`              // Aster username (not sensitive)
-	AsterSigner           string `json:"asterSigner"`            // Aster signer (not sensitive)
+	AsterUser             string `json:"asterUser"`             // Aster username (not sensitive)
+	AsterSigner           string `json:"asterSigner"`           // Aster signer (not sensitive)
 }
 
 type UpdateModelConfigRequest struct {
@@ -584,8 +584,8 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		Name:                 req.Name,
 		AIModelID:            req.AIModelID,
 		ExchangeID:           req.ExchangeID,
-		StrategyID:           req.StrategyID,  // Associated strategy ID (new version)
-		InitialBalance:       actualBalance,   // Use actual queried balance
+		StrategyID:           req.StrategyID, // Associated strategy ID (new version)
+		InitialBalance:       actualBalance,  // Use actual queried balance
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
@@ -630,20 +630,20 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest Update trader request
 type UpdateTraderRequest struct {
-	Name                 string  `json:"name" binding:"required"`
-	AIModelID            string  `json:"ai_model_id" binding:"required"`
-	ExchangeID           string  `json:"exchange_id" binding:"required"`
-	StrategyID           string  `json:"strategy_id"`              // Strategy ID (new version)
-	InitialBalance       float64 `json:"initial_balance"`
-	ScanIntervalMinutes  int     `json:"scan_interval_minutes"`
-	IsCrossMargin        *bool   `json:"is_cross_margin"`
+	Name                string  `json:"name" binding:"required"`
+	AIModelID           string  `json:"ai_model_id" binding:"required"`
+	ExchangeID          string  `json:"exchange_id" binding:"required"`
+	StrategyID          string  `json:"strategy_id"` // Strategy ID (new version)
+	InitialBalance      float64 `json:"initial_balance"`
+	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
+	IsCrossMargin       *bool   `json:"is_cross_margin"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
-	BTCETHLeverage       int     `json:"btc_eth_leverage"`
-	AltcoinLeverage      int     `json:"altcoin_leverage"`
-	TradingSymbols       string  `json:"trading_symbols"`
-	CustomPrompt         string  `json:"custom_prompt"`
-	OverrideBasePrompt   bool    `json:"override_base_prompt"`
-	SystemPromptTemplate string  `json:"system_prompt_template"`
+	BTCETHLeverage       int    `json:"btc_eth_leverage"`
+	AltcoinLeverage      int    `json:"altcoin_leverage"`
+	TradingSymbols       string `json:"trading_symbols"`
+	CustomPrompt         string `json:"custom_prompt"`
+	OverrideBasePrompt   bool   `json:"override_base_prompt"`
+	SystemPromptTemplate string `json:"system_prompt_template"`
 }
 
 // handleUpdateTrader Update trader configuration
@@ -974,11 +974,11 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			exchangeCfg.AsterSigner,
 			exchangeCfg.AsterPrivateKey,
 		)
-		case "bybit":
-			tempTrader = trader.NewBybitTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
-			)
+	case "bybit":
+		tempTrader = trader.NewBybitTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+		)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
 		return
@@ -1270,23 +1270,6 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 		return
 	}
 	logger.Infof("✅ Found %d exchange configs", len(exchanges))
-
-	// Debug: Output config details (masked)
-	for _, ex := range exchanges {
-		apiKeyMasked := ""
-		if len(ex.APIKey) > 8 {
-			apiKeyMasked = ex.APIKey[:8] + "..."
-		}
-		secretKeyMasked := ""
-		if len(ex.SecretKey) > 8 {
-			secretKeyMasked = ex.SecretKey[:8] + "..."
-		}
-		logger.Infof("   └─ Exchange: %s, APIKey: %s, SecretKey: %s", ex.ID, apiKeyMasked, secretKeyMasked)
-	}
-
-	// Print complete JSON response for debugging
-	jsonData, _ := json.Marshal(exchanges)
-	logger.Infof("📤 Complete JSON response: %s", string(jsonData))
 
 	// Convert to safe response structure, remove sensitive information
 	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
@@ -1741,7 +1724,6 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
 
 // handleLogout Add current token to blacklist
 func (s *Server) handleLogout(c *gin.Context) {

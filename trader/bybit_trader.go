@@ -324,8 +324,14 @@ func (t *BybitTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "LONG" {
-				quantity = pos["positionAmt"].(float64)
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 	}
@@ -368,8 +374,14 @@ func (t *BybitTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "SHORT" {
-				quantity = -pos["positionAmt"].(float64) // Short position is negative
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = -posAmt // Short position is negative
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 	}

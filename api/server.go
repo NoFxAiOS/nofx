@@ -2010,43 +2010,28 @@ func (s *Server) initUserDefaultConfigs(userID string) error {
 
 // handleGetSupportedModels Get list of AI models supported by the system
 func (s *Server) handleGetSupportedModels(c *gin.Context) {
-	// Return system-supported AI models (get from default user)
-	models, err := s.store.AIModel().List("default")
-	if err != nil {
-		logger.Infof("❌ Failed to get supported AI models: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get supported AI models"})
-		return
+	// Return static list of supported AI models
+	supportedModels := []map[string]interface{}{
+		{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek"},
+		{"id": "qwen", "name": "Qwen", "provider": "qwen"},
 	}
 
-	c.JSON(http.StatusOK, models)
+	c.JSON(http.StatusOK, supportedModels)
 }
 
 // handleGetSupportedExchanges Get list of exchanges supported by the system
 func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
-	// Return system-supported exchanges (get from default user)
-	exchanges, err := s.store.Exchange().List("default")
-	if err != nil {
-		logger.Infof("❌ Failed to get supported exchanges: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get supported exchanges"})
-		return
+	// Return static list of supported exchanges
+	supportedExchanges := []SafeExchangeConfig{
+		{ID: "binance", Name: "Binance Futures", Type: "binance"},
+		{ID: "bybit", Name: "Bybit Futures", Type: "bybit"},
+		{ID: "okx", Name: "OKX Futures", Type: "okx"},
+		{ID: "hyperliquid", Name: "Hyperliquid", Type: "hyperliquid"},
+		{ID: "aster", Name: "Aster DEX", Type: "aster"},
+		{ID: "lighter", Name: "LIGHTER DEX", Type: "lighter"},
 	}
 
-	// Convert to safe response structure, remove sensitive information
-	safeExchanges := make([]SafeExchangeConfig, len(exchanges))
-	for i, exchange := range exchanges {
-		safeExchanges[i] = SafeExchangeConfig{
-			ID:                    exchange.ID,
-			Name:                  exchange.Name,
-			Type:                  exchange.Type,
-			Enabled:               exchange.Enabled,
-			Testnet:               exchange.Testnet,
-			HyperliquidWalletAddr: "", // Default config does not include wallet address
-			AsterUser:             "", // Default config does not include user info
-			AsterSigner:           "",
-		}
-	}
-
-	c.JSON(http.StatusOK, safeExchanges)
+	c.JSON(http.StatusOK, supportedExchanges)
 }
 
 // Start Start server

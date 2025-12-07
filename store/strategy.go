@@ -178,15 +178,13 @@ func (s *StrategyStore) initTables() error {
 }
 
 func (s *StrategyStore) initDefaultData() error {
-	// check if default strategy already exists
-	var count int
-	s.db.QueryRow(`SELECT COUNT(*) FROM strategies WHERE is_default = 1`).Scan(&count)
-	if count > 0 {
-		return nil
-	}
+	// No longer pre-populate strategies - create on demand when user configures
+	return nil
+}
 
-	// create system default strategy
-	defaultConfig := StrategyConfig{
+// GetDefaultStrategyConfig returns the default strategy configuration for the given language
+func GetDefaultStrategyConfig(lang string) StrategyConfig {
+	config := StrategyConfig{
 		CoinSource: CoinSourceConfig{
 			SourceType:     "coinpool",
 			UseCoinPool:    true,
@@ -214,8 +212,8 @@ func (s *StrategyStore) initDefaultData() error {
 			EMAPeriods:        []int{20, 50},
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
-			EnableQuantData:  true,
-			QuantDataAPIURL:  "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
+			EnableQuantData:   true,
+			QuantDataAPIURL:   "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:       3,
@@ -227,7 +225,30 @@ func (s *StrategyStore) initDefaultData() error {
 			MinPositionSize:    12,
 			MinConfidence:      75,
 		},
-		PromptSections: PromptSectionsConfig{
+	}
+
+	if lang == "zh" {
+		config.PromptSections = PromptSectionsConfig{
+			RoleDefinition: `# 你是一个专业的加密货币交易AI
+
+你的任务是根据提供的市场数据做出交易决策。你是一个经验丰富的量化交易员，擅长技术分析和风险管理。`,
+			TradingFrequency: `# ⏱️ 交易频率意识
+
+- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔
+- 每小时超过2笔 = 过度交易
+- 单笔持仓时间 ≥ 30-60分钟
+如果你发现自己每个周期都在交易 → 标准太低；如果持仓不到30分钟就平仓 → 太冲动。`,
+			EntryStandards: `# 🎯 入场标准（严格）
+
+只在多个信号共振时入场。自由使用任何有效的分析方法，避免单一指标、信号矛盾、横盘震荡、或平仓后立即重新开仓等低质量行为。`,
+			DecisionProcess: `# 📋 决策流程
+
+1. 检查持仓 → 是否止盈/止损
+2. 扫描候选币种 + 多时间框架 → 是否存在强信号
+3. 先写思维链，再输出结构化JSON`,
+		}
+	} else {
+		config.PromptSections = PromptSectionsConfig{
 			RoleDefinition: `# You are a professional cryptocurrency trading AI
 
 Your task is to make trading decisions based on the provided market data. You are an experienced quantitative trader skilled in technical analysis and risk management.`,
@@ -245,17 +266,10 @@ Only enter positions when multiple signals resonate. Freely use any effective an
 1. Check positions → whether to take profit/stop loss
 2. Scan candidate coins + multi-timeframe → whether strong signals exist
 3. Write chain of thought first, then output structured JSON`,
-		},
+		}
 	}
 
-	configJSON, _ := json.Marshal(defaultConfig)
-
-	_, err := s.db.Exec(`
-		INSERT INTO strategies (id, user_id, name, description, is_active, is_default, config)
-		VALUES ('default', 'system', 'Default Altcoin Strategy', 'System default altcoin trading strategy, uses AI500 coin pool, includes complete technical indicators', 0, 1, ?)
-	`, string(configJSON))
-
-	return err
+	return config
 }
 
 // Create create a strategy

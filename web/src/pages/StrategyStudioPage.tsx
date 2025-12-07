@@ -150,7 +150,7 @@ export function StrategyStudioPage() {
     if (!token) return
     try {
       const configResponse = await fetch(
-        `${API_BASE}/api/strategies/default-config`,
+        `${API_BASE}/api/strategies/default-config?lang=${language}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const defaultConfig = await configResponse.json()

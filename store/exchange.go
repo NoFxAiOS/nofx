@@ -80,26 +80,7 @@ func (s *ExchangeStore) initTables() error {
 }
 
 func (s *ExchangeStore) initDefaultData() error {
-	exchanges := []struct {
-		id, name, typ string
-	}{
-		{"binance", "Binance Futures", "binance"},
-		{"bybit", "Bybit Futures", "bybit"},
-		{"okx", "OKX Futures", "okx"},
-		{"hyperliquid", "Hyperliquid", "hyperliquid"},
-		{"aster", "Aster DEX", "aster"},
-		{"lighter", "LIGHTER DEX", "lighter"},
-	}
-
-	for _, exchange := range exchanges {
-		_, err := s.db.Exec(`
-			INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled)
-			VALUES (?, 'default', ?, ?, 0)
-		`, exchange.id, exchange.name, exchange.typ)
-		if err != nil {
-			return fmt.Errorf("failed to initialize exchange: %w", err)
-		}
-	}
+	// No longer pre-populate exchanges - create on demand when user configures
 	return nil
 }
 
@@ -117,38 +98,8 @@ func (s *ExchangeStore) decrypt(encrypted string) string {
 	return encrypted
 }
 
-// EnsureUserExchanges ensures user has records for all supported exchanges
-func (s *ExchangeStore) EnsureUserExchanges(userID string) error {
-	exchanges := []struct {
-		id, name, typ string
-	}{
-		{"binance", "Binance Futures", "binance"},
-		{"bybit", "Bybit Futures", "bybit"},
-		{"okx", "OKX Futures", "okx"},
-		{"hyperliquid", "Hyperliquid", "hyperliquid"},
-		{"aster", "Aster DEX", "aster"},
-		{"lighter", "LIGHTER DEX", "lighter"},
-	}
-
-	for _, exchange := range exchanges {
-		_, err := s.db.Exec(`
-			INSERT OR IGNORE INTO exchanges (id, user_id, name, type, enabled)
-			VALUES (?, ?, ?, ?, 0)
-		`, exchange.id, userID, exchange.name, exchange.typ)
-		if err != nil {
-			return fmt.Errorf("failed to ensure user exchanges: %w", err)
-		}
-	}
-	return nil
-}
-
 // List gets user's exchange list
 func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
-	// Ensure user has records for all supported exchanges
-	if err := s.EnsureUserExchanges(userID); err != nil {
-		logger.Debugf("Warning: failed to ensure user exchange records: %v", err)
-	}
-
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, type, enabled, api_key, secret_key,
 		       COALESCE(passphrase, '') as passphrase, testnet,

@@ -283,75 +283,14 @@ func (s *Server) handleGetActiveStrategy(c *gin.Context) {
 
 // handleGetDefaultStrategyConfig Get default strategy configuration template
 func (s *Server) handleGetDefaultStrategyConfig(c *gin.Context) {
-	// Return default configuration structure for frontend to use when creating new strategies
-	defaultConfig := store.StrategyConfig{
-		CoinSource: store.CoinSourceConfig{
-			SourceType:    "coinpool",
-			UseCoinPool:   true,
-			CoinPoolLimit: 30,
-			UseOITop:      true,
-			OITopLimit:    20,
-			StaticCoins:   []string{},
-		},
-		Indicators: store.IndicatorConfig{
-			Klines: store.KlineConfig{
-				PrimaryTimeframe:     "5m",
-				PrimaryCount:         30,
-				LongerTimeframe:      "4h",
-				LongerCount:          10,
-				EnableMultiTimeframe: true,
-				SelectedTimeframes:   []string{"5m", "15m", "1h", "4h"},
-			},
-			EnableEMA:         true,
-			EnableMACD:        true,
-			EnableRSI:         true,
-			EnableATR:         true,
-			EnableVolume:      true,
-			EnableOI:          true,
-			EnableFundingRate: true,
-			EMAPeriods:        []int{20, 50},
-			RSIPeriods:        []int{7, 14},
-			ATRPeriods:        []int{14},
-		},
-		RiskControl: store.RiskControlConfig{
-			MaxPositions:       3,
-			BTCETHMaxLeverage:  5,
-			AltcoinMaxLeverage: 5,
-			MinRiskRewardRatio: 3.0,
-			MaxMarginUsage:     0.9,
-			MaxPositionRatio:   1.5,
-			MinPositionSize:    12,
-			MinConfidence:      75,
-		},
-		PromptSections: store.PromptSectionsConfig{
-			RoleDefinition: `# You are a professional cryptocurrency trading AI
-
-You focus on technical analysis and risk management, making rational trading decisions based on market data.
-Your goal is to capture high-probability trading opportunities while controlling risk.`,
-			TradingFrequency: `# ⏱️ Trading Frequency Awareness
-
-- Excellent traders: 2-4 trades per day ≈ 0.1-0.2 trades per hour
-- >2 trades per hour = overtrading
-- Single position holding time ≥30-60 minutes
-If you find yourself trading every cycle → standards too low; if closing positions <30 minutes → too impatient.`,
-			EntryStandards: `# 🎯 Entry Standards (Strict)
-
-Only enter when multiple signals align:
-- Clear trend direction (EMA alignment, price position)
-- Momentum confirmation (MACD, RSI cooperation)
-- Moderate volatility (ATR reasonable range)
-- Volume-price coordination (volume supports direction)
-
-Avoid: single indicator, conflicting signals, sideways consolidation, reopening immediately after closing.`,
-			DecisionProcess: `# 📋 Decision Process
-
-1. Check positions → Should take profit/stop loss
-2. Scan candidate coins + multiple timeframes → Are there strong signals
-3. Evaluate risk-reward ratio → Does it meet minimum requirements
-4. Write chain of thought first, then output structured JSON`,
-		},
+	// Get language from query parameter, default to "en"
+	lang := c.Query("lang")
+	if lang != "zh" {
+		lang = "en"
 	}
 
+	// Return default configuration with i18n support
+	defaultConfig := store.GetDefaultStrategyConfig(lang)
 	c.JSON(http.StatusOK, defaultConfig)
 }
 

@@ -69,22 +69,7 @@ func (s *AIModelStore) initTables() error {
 }
 
 func (s *AIModelStore) initDefaultData() error {
-	models := []struct {
-		id, name, provider string
-	}{
-		{"deepseek", "DeepSeek", "deepseek"},
-		{"qwen", "Qwen", "qwen"},
-	}
-
-	for _, model := range models {
-		_, err := s.db.Exec(`
-			INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled)
-			VALUES (?, 'default', ?, ?, 0)
-		`, model.id, model.name, model.provider)
-		if err != nil {
-			return fmt.Errorf("failed to initialize AI model: %w", err)
-		}
-	}
+	// No longer pre-populate AI models - create on demand when user configures
 	return nil
 }
 

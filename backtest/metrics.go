@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// CalculateMetrics 读取已有日志并计算汇总指标。state 可选，用于补充尚未落盘的信息。
+// CalculateMetrics reads existing logs and calculates summary metrics. state is optional, used to supplement information not yet persisted.
 func CalculateMetrics(runID string, cfg *BacktestConfig, state *BacktestState) (*Metrics, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")

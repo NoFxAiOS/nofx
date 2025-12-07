@@ -16,56 +16,56 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// LighterTrader LIGHTER DEX交易器
-// LIGHTER是基于Ethereum L2的永续合约DEX，使用zk-rollup技术
+// LighterTrader LIGHTER DEX trader
+// LIGHTER is an Ethereum L2-based perpetual contract DEX using zk-rollup technology
 type LighterTrader struct {
 	ctx        context.Context
 	privateKey *ecdsa.PrivateKey
-	walletAddr string // Ethereum钱包地址
+	walletAddr string // Ethereum wallet address
 	client     *http.Client
 	baseURL    string
 	testnet    bool
 
-	// 账户信息缓存
-	accountIndex  int    // LIGHTER账户索引
-	apiKey        string // API密钥（从私钥派生）
-	authToken     string // 认证令牌（8小时有效期）
+	// Account information cache
+	accountIndex  int    // LIGHTER account index
+	apiKey        string // API key (derived from private key)
+	authToken     string // Authentication token (8-hour validity)
 	tokenExpiry   time.Time
 	accountMutex  sync.RWMutex
 
-	// 市场信息缓存
+	// Market information cache
 	symbolPrecision map[string]SymbolPrecision
 	precisionMutex  sync.RWMutex
 }
 
-// LighterConfig LIGHTER配置
+// LighterConfig LIGHTER configuration
 type LighterConfig struct {
 	PrivateKeyHex string
 	WalletAddr    string
 	Testnet       bool
 }
 
-// NewLighterTrader 创建LIGHTER交易器
+// NewLighterTrader Create LIGHTER trader
 func NewLighterTrader(privateKeyHex string, walletAddr string, testnet bool) (*LighterTrader, error) {
-	// 去掉私钥的 0x 前缀（如果有）
+	// Remove 0x prefix from private key (if present)
 	privateKeyHex = strings.TrimPrefix(strings.ToLower(privateKeyHex), "0x")
 
-	// 解析私钥
+	// Parse private key
 	privateKey, err := crypto.HexToECDSA(privateKeyHex)
 	if err != nil {
-		return nil, fmt.Errorf("解析私钥失败: %w", err)
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 
-	// 从私钥派生钱包地址（如果未提供）
+	// Derive wallet address from private key (if not provided)
 	if walletAddr == "" {
 		walletAddr = crypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey)).Hex()
-		logger.Infof("✓ 从私钥派生钱包地址: %s", walletAddr)
+		logger.Infof("✓ Derived wallet address from private key: %s", walletAddr)
 	}
 
-	// 选择API URL
+	// Select API URL
 	baseURL := "https://mainnet.zklighter.elliot.ai"
 	if testnet {
-		baseURL = "https://testnet.zklighter.elliot.ai" // TODO: 确认testnet URL
+		baseURL = "https://testnet.zklighter.elliot.ai" // TODO: Confirm testnet URL
 	}
 
 	trader := &LighterTrader{
@@ -78,39 +78,39 @@ func NewLighterTrader(privateKeyHex string, walletAddr string, testnet bool) (*L
 		symbolPrecision: make(map[string]SymbolPrecision),
 	}
 
-	logger.Infof("✓ LIGHTER交易器初始化成功 (testnet=%v, wallet=%s)", testnet, walletAddr)
+	logger.Infof("✓ LIGHTER trader initialized successfully (testnet=%v, wallet=%s)", testnet, walletAddr)
 
-	// 初始化账户信息（获取账户索引和API密钥）
+	// Initialize account information (get account index and API key)
 	if err := trader.initializeAccount(); err != nil {
-		return nil, fmt.Errorf("初始化账户失败: %w", err)
+		return nil, fmt.Errorf("failed to initialize account: %w", err)
 	}
 
 	return trader, nil
 }
 
-// initializeAccount 初始化账户信息
+// initializeAccount Initialize account information
 func (t *LighterTrader) initializeAccount() error {
-	// 1. 获取账户信息（通过L1地址）
+	// 1. Get account information (by L1 address)
 	accountInfo, err := t.getAccountByL1Address()
 	if err != nil {
-		return fmt.Errorf("获取账户信息失败: %w", err)
+		return fmt.Errorf("failed to get account information: %w", err)
 	}
 
 	t.accountMutex.Lock()
 	t.accountIndex = accountInfo["index"].(int)
 	t.accountMutex.Unlock()
 
-	logger.Infof("✓ LIGHTER账户索引: %d", t.accountIndex)
+	logger.Infof("✓ LIGHTER account index: %d", t.accountIndex)
 
-	// 2. 生成认证令牌（有效期8小时）
+	// 2. Generate authentication token (8-hour validity)
 	if err := t.refreshAuthToken(); err != nil {
-		return fmt.Errorf("生成认证令牌失败: %w", err)
+		return fmt.Errorf("failed to generate auth token: %w", err)
 	}
 
 	return nil
 }
 
-// getAccountByL1Address 通过Ethereum地址获取LIGHTER账户信息
+// getAccountByL1Address Get LIGHTER account information by Ethereum address
 func (t *LighterTrader) getAccountByL1Address() (map[string]interface{}, error) {
 	endpoint := fmt.Sprintf("%s/api/v1/account/by/l1/%s", t.baseURL, t.walletAddr)
 
@@ -131,50 +131,50 @@ func (t *LighterTrader) getAccountByL1Address() (map[string]interface{}, error) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API错误 (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	return result, nil
 }
 
-// refreshAuthToken 刷新认证令牌
+// refreshAuthToken Refresh authentication token
 func (t *LighterTrader) refreshAuthToken() error {
-	// TODO: 实现认证令牌生成逻辑
-	// 参考 lighter-python SDK 的实现
-	// 需要签名特定消息并提交到API
+	// TODO: Implement authentication token generation logic
+	// Reference lighter-python SDK implementation
+	// Need to sign specific message and submit to API
 
 	t.accountMutex.Lock()
 	defer t.accountMutex.Unlock()
 
-	// 临时实现：设置过期时间为8小时后
+	// Temporary implementation: set expiry time to 8 hours from now
 	t.tokenExpiry = time.Now().Add(8 * time.Hour)
-	logger.Infof("✓ 认证令牌已生成（有效期至: %s）", t.tokenExpiry.Format(time.RFC3339))
+	logger.Infof("✓ Auth token generated (valid until: %s)", t.tokenExpiry.Format(time.RFC3339))
 
 	return nil
 }
 
-// ensureAuthToken 确保认证令牌有效
+// ensureAuthToken Ensure authentication token is valid
 func (t *LighterTrader) ensureAuthToken() error {
 	t.accountMutex.RLock()
-	expired := time.Now().After(t.tokenExpiry.Add(-30 * time.Minute)) // 提前30分钟刷新
+	expired := time.Now().After(t.tokenExpiry.Add(-30 * time.Minute)) // Refresh 30 minutes early
 	t.accountMutex.RUnlock()
 
 	if expired {
-		logger.Info("🔄 认证令牌即将过期，刷新中...")
+		logger.Info("🔄 Auth token expiring soon, refreshing...")
 		return t.refreshAuthToken()
 	}
 
 	return nil
 }
 
-// signMessage 签名消息（Ethereum签名）
+// signMessage Sign message (Ethereum signature)
 func (t *LighterTrader) signMessage(message []byte) (string, error) {
-	// 使用Ethereum个人签名格式
+	// Use Ethereum personal sign format
 	prefix := fmt.Sprintf("\x19Ethereum Signed Message:\n%d", len(message))
 	prefixedMessage := append([]byte(prefix), message...)
 
@@ -184,7 +184,7 @@ func (t *LighterTrader) signMessage(message []byte) (string, error) {
 		return "", err
 	}
 
-	// 调整v值（Ethereum格式）
+	// Adjust v value (Ethereum format)
 	if signature[64] < 27 {
 		signature[64] += 27
 	}
@@ -192,24 +192,24 @@ func (t *LighterTrader) signMessage(message []byte) (string, error) {
 	return "0x" + hex.EncodeToString(signature), nil
 }
 
-// GetName 获取交易器名称
+// GetName Get trader name
 func (t *LighterTrader) GetName() string {
 	return "LIGHTER"
 }
 
-// GetExchangeType 获取交易所类型
+// GetExchangeType Get exchange type
 func (t *LighterTrader) GetExchangeType() string {
 	return "lighter"
 }
 
-// Close 关闭交易器
+// Close Close trader
 func (t *LighterTrader) Close() error {
-	logger.Info("✓ LIGHTER交易器已关闭")
+	logger.Info("✓ LIGHTER trader closed")
 	return nil
 }
 
-// Run 运行交易器（实现Trader接口）
+// Run Run trader (implements Trader interface)
 func (t *LighterTrader) Run() error {
-	logger.Info("⚠️ LIGHTER交易器的Run方法应由AutoTrader调用")
-	return fmt.Errorf("请使用AutoTrader管理交易器生命周期")
+	logger.Info("⚠️ LIGHTER trader's Run method should be called by AutoTrader")
+	return fmt.Errorf("please use AutoTrader to manage trader lifecycle")
 }

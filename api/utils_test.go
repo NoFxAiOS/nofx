@@ -11,27 +11,27 @@ func TestMaskSensitiveString(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "空字符串",
+			name:     "Empty string",
 			input:    "",
 			expected: "",
 		},
 		{
-			name:     "短字符串（小于等于8位）",
+			name:     "Short string (8 characters or less)",
 			input:    "short",
 			expected: "****",
 		},
 		{
-			name:     "正常API key",
+			name:     "Normal API key",
 			input:    "sk-1234567890abcdefghijklmnopqrstuvwxyz",
 			expected: "sk-1****wxyz",
 		},
 		{
-			name:     "正常私钥",
+			name:     "Normal private key",
 			input:    "0x1234567890abcdef1234567890abcdef12345678",
 			expected: "0x12****5678",
 		},
 		{
-			name:     "刚好9位",
+			name:     "Exactly 9 characters",
 			input:    "123456789",
 			expected: "1234****6789",
 		},
@@ -119,7 +119,7 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 
 	result := SanitizeExchangeConfigForLog(exchanges)
 
-	// 检查币安配置
+	// Check Binance configuration
 	binanceConfig, ok := result["binance"].(map[string]interface{})
 	if !ok {
 		t.Fatal("binance config not found or wrong type")
@@ -143,7 +143,7 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 		t.Errorf("expected masked secret_key='bina****cdef', got %q", maskedSecretKey)
 	}
 
-	// 检查 Hyperliquid 配置
+	// Check Hyperliquid configuration
 	hlConfig, ok := result["hyperliquid"].(map[string]interface{})
 	if !ok {
 		t.Fatal("hyperliquid config not found or wrong type")
@@ -154,7 +154,7 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 		t.Fatal("hyperliquid_wallet_addr not found or wrong type")
 	}
 
-	// 钱包地址不应该被脱敏
+	// Wallet address should not be masked
 	if walletAddr != "0x1234567890abcdef1234567890abcdef12345678" {
 		t.Errorf("wallet address should not be masked, got %q", walletAddr)
 	}
@@ -167,22 +167,22 @@ func TestMaskEmail(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "空邮箱",
+			name:     "Empty email",
 			input:    "",
 			expected: "",
 		},
 		{
-			name:     "格式错误",
+			name:     "Invalid format",
 			input:    "notanemail",
 			expected: "****",
 		},
 		{
-			name:     "正常邮箱",
+			name:     "Normal email",
 			input:    "user@example.com",
 			expected: "us****@example.com",
 		},
 		{
-			name:     "短用户名",
+			name:     "Short username",
 			input:    "a@example.com",
 			expected: "**@example.com",
 		},

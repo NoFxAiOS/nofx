@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// supportedTimeframes 定义支持的时间周期与其对应的分钟数。
+// supportedTimeframes defines supported timeframes and their corresponding durations.
 var supportedTimeframes = map[string]time.Duration{
 	"1m":  time.Minute,
 	"3m":  3 * time.Minute,
@@ -22,7 +22,7 @@ var supportedTimeframes = map[string]time.Duration{
 	"1d":  24 * time.Hour,
 }
 
-// NormalizeTimeframe 规范化传入的时间周期字符串（大小写、不带空格），并校验是否受支持。
+// NormalizeTimeframe normalizes the incoming timeframe string (case-insensitive, no spaces), and validates if it's supported.
 func NormalizeTimeframe(tf string) (string, error) {
 	trimmed := strings.TrimSpace(strings.ToLower(tf))
 	if trimmed == "" {
@@ -34,7 +34,7 @@ func NormalizeTimeframe(tf string) (string, error) {
 	return trimmed, nil
 }
 
-// TFDuration 返回给定周期对应的时间长度。
+// TFDuration returns the time duration corresponding to the given timeframe.
 func TFDuration(tf string) (time.Duration, error) {
 	norm, err := NormalizeTimeframe(tf)
 	if err != nil {
@@ -43,7 +43,7 @@ func TFDuration(tf string) (time.Duration, error) {
 	return supportedTimeframes[norm], nil
 }
 
-// MustNormalizeTimeframe 与 NormalizeTimeframe 类似，但在不受支持时 panic。
+// MustNormalizeTimeframe is similar to NormalizeTimeframe, but panics when unsupported.
 func MustNormalizeTimeframe(tf string) string {
 	norm, err := NormalizeTimeframe(tf)
 	if err != nil {
@@ -52,7 +52,7 @@ func MustNormalizeTimeframe(tf string) string {
 	return norm
 }
 
-// SupportedTimeframes 返回所有受支持的时间周期（已排序的切片）。
+// SupportedTimeframes returns all supported timeframes (sorted slice).
 func SupportedTimeframes() []string {
 	keys := make([]string, 0, len(supportedTimeframes))
 	for k := range supportedTimeframes {

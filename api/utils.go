@@ -2,20 +2,20 @@ package api
 
 import "strings"
 
-// MaskSensitiveString 脱敏敏感字符串，只显示前4位和后4位
-// 用于脱敏 API Key、Secret Key、Private Key 等敏感信息
+// MaskSensitiveString Mask sensitive strings, showing only first 4 and last 4 characters
+// Used to mask API Key, Secret Key, Private Key and other sensitive information
 func MaskSensitiveString(s string) string {
 	if s == "" {
 		return ""
 	}
 	length := len(s)
 	if length <= 8 {
-		return "****" // 字符串太短，全部隐藏
+		return "****" // String too short, hide everything
 	}
 	return s[:4] + "****" + s[length-4:]
 }
 
-// SanitizeModelConfigForLog 脱敏模型配置用于日志输出
+// SanitizeModelConfigForLog Sanitize model configuration for log output
 func SanitizeModelConfigForLog(models map[string]struct {
 	Enabled         bool   `json:"enabled"`
 	APIKey          string `json:"api_key"`
@@ -34,7 +34,7 @@ func SanitizeModelConfigForLog(models map[string]struct {
 	return safe
 }
 
-// SanitizeExchangeConfigForLog 脱敏交易所配置用于日志输出
+// SanitizeExchangeConfigForLog Sanitize exchange configuration for log output
 func SanitizeExchangeConfigForLog(exchanges map[string]struct {
 	Enabled               bool   `json:"enabled"`
 	APIKey                string `json:"api_key"`
@@ -54,7 +54,7 @@ func SanitizeExchangeConfigForLog(exchanges map[string]struct {
 			"testnet": cfg.Testnet,
 		}
 
-		// 只在有值时才添加脱敏后的敏感字段
+		// Only add masked sensitive fields when they have values
 		if cfg.APIKey != "" {
 			safeExchange["api_key"] = MaskSensitiveString(cfg.APIKey)
 		}
@@ -68,7 +68,7 @@ func SanitizeExchangeConfigForLog(exchanges map[string]struct {
 			safeExchange["lighter_private_key"] = MaskSensitiveString(cfg.LighterPrivateKey)
 		}
 
-		// 非敏感字段直接添加
+		// Add non-sensitive fields directly
 		if cfg.HyperliquidWalletAddr != "" {
 			safeExchange["hyperliquid_wallet_addr"] = cfg.HyperliquidWalletAddr
 		}
@@ -87,14 +87,14 @@ func SanitizeExchangeConfigForLog(exchanges map[string]struct {
 	return safe
 }
 
-// MaskEmail 脱敏邮箱地址，保留前2位和@后部分
+// MaskEmail Mask email address, keeping first 2 characters and domain part
 func MaskEmail(email string) string {
 	if email == "" {
 		return ""
 	}
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		return "****" // 格式不正确
+		return "****" // Incorrect format
 	}
 	username := parts[0]
 	domain := parts[1]

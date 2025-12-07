@@ -2,12 +2,12 @@ package market
 
 import "time"
 
-// Data 市场数据结构
+// Data market data structure
 type Data struct {
 	Symbol            string
 	CurrentPrice      float64
-	PriceChange1h     float64 // 1小时价格变化百分比
-	PriceChange4h     float64 // 4小时价格变化百分比
+	PriceChange1h     float64 // 1-hour price change percentage
+	PriceChange4h     float64 // 4-hour price change percentage
 	CurrentEMA20      float64
 	CurrentMACD       float64
 	CurrentRSI7       float64
@@ -15,30 +15,30 @@ type Data struct {
 	FundingRate       float64
 	IntradaySeries    *IntradayData
 	LongerTermContext *LongerTermData
-	// 多时间周期数据（新增）
+	// Multi-timeframe data (new)
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
 }
 
-// TimeframeSeriesData 单个时间周期的序列数据
+// TimeframeSeriesData series data for a single timeframe
 type TimeframeSeriesData struct {
-	Timeframe   string    `json:"timeframe"`    // 时间周期标识，如 "5m", "15m", "1h"
-	MidPrices   []float64 `json:"mid_prices"`   // 价格序列
-	EMA20Values []float64 `json:"ema20_values"` // EMA20 序列
-	EMA50Values []float64 `json:"ema50_values"` // EMA50 序列
-	MACDValues  []float64 `json:"macd_values"`  // MACD 序列
-	RSI7Values  []float64 `json:"rsi7_values"`  // RSI7 序列
-	RSI14Values []float64 `json:"rsi14_values"` // RSI14 序列
-	Volume      []float64 `json:"volume"`       // 成交量序列
+	Timeframe   string    `json:"timeframe"`    // Timeframe identifier, e.g. "5m", "15m", "1h"
+	MidPrices   []float64 `json:"mid_prices"`   // Price series
+	EMA20Values []float64 `json:"ema20_values"` // EMA20 series
+	EMA50Values []float64 `json:"ema50_values"` // EMA50 series
+	MACDValues  []float64 `json:"macd_values"`  // MACD series
+	RSI7Values  []float64 `json:"rsi7_values"`  // RSI7 series
+	RSI14Values []float64 `json:"rsi14_values"` // RSI14 series
+	Volume      []float64 `json:"volume"`       // Volume series
 	ATR14       float64   `json:"atr14"`        // ATR14
 }
 
-// OIData Open Interest数据
+// OIData Open Interest data
 type OIData struct {
 	Latest  float64
 	Average float64
 }
 
-// IntradayData 日内数据(3分钟间隔)
+// IntradayData intraday data (3-minute interval)
 type IntradayData struct {
 	MidPrices   []float64
 	EMA20Values []float64
@@ -49,7 +49,7 @@ type IntradayData struct {
 	ATR14       float64
 }
 
-// LongerTermData 长期数据(4小时时间框架)
+// LongerTermData longer-term data (4-hour timeframe)
 type LongerTermData struct {
 	EMA20         float64
 	EMA50         float64
@@ -61,7 +61,7 @@ type LongerTermData struct {
 	RSI14Values   []float64
 }
 
-// Binance API 响应结构
+// Binance API response structure
 type ExchangeInfo struct {
 	Symbols []SymbolInfo `json:"symbols"`
 }
@@ -105,7 +105,7 @@ type Ticker24hr struct {
 	QuoteVolume        string `json:"quoteVolume"`
 }
 
-// 特征数据结构
+// SymbolFeatures feature data structure
 type SymbolFeatures struct {
 	Symbol           string    `json:"symbol"`
 	Timestamp        time.Time `json:"timestamp"`
@@ -126,7 +126,7 @@ type SymbolFeatures struct {
 	PositionInRange  float64   `json:"position_in_range"`
 }
 
-// 警报数据结构
+// Alert alert data structure
 type Alert struct {
 	Type      string    `json:"type"`
 	Symbol    string    `json:"symbol"`
@@ -150,10 +150,10 @@ type AlertThresholds struct {
 	RSIOversold      float64 `json:"rsi_oversold"`
 }
 type CleanupConfig struct {
-	InactiveTimeout   time.Duration `json:"inactive_timeout"`    // 不活跃超时时间
-	MinScoreThreshold float64       `json:"min_score_threshold"` // 最低评分阈值
-	NoAlertTimeout    time.Duration `json:"no_alert_timeout"`    // 无警报超时时间
-	CheckInterval     time.Duration `json:"check_interval"`      // 检查间隔
+	InactiveTimeout   time.Duration `json:"inactive_timeout"`    // Inactive timeout duration
+	MinScoreThreshold float64       `json:"min_score_threshold"` // Minimum score threshold
+	NoAlertTimeout    time.Duration `json:"no_alert_timeout"`    // No alert timeout duration
+	CheckInterval     time.Duration `json:"check_interval"`      // Check interval
 }
 
 var config = Config{

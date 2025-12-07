@@ -6,7 +6,7 @@ import (
 )
 
 // ============================================================
-// 测试 RequestBuilder 基本功能
+// Test RequestBuilder Basic Features
 // ============================================================
 
 func TestRequestBuilder_BasicUsage(t *testing.T) {
@@ -39,13 +39,13 @@ func TestRequestBuilder_EmptyMessages(t *testing.T) {
 		t.Error("Build should error when no messages")
 	}
 
-	if err.Error() != "至少需要一条消息" {
+	if err.Error() != "at least one message is required" {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
 
 // ============================================================
-// 测试消息构建方法
+// Test Message Building Methods
 // ============================================================
 
 func TestRequestBuilder_MultipleMessages(t *testing.T) {
@@ -85,7 +85,7 @@ func TestRequestBuilder_AddConversationHistory(t *testing.T) {
 }
 
 // ============================================================
-// 测试参数控制方法
+// Test Parameter Control Methods
 // ============================================================
 
 func TestRequestBuilder_WithTemperature(t *testing.T) {
@@ -165,7 +165,7 @@ func TestRequestBuilder_WithStopSequences(t *testing.T) {
 }
 
 // ============================================================
-// 测试工具/函数调用
+// Test Tool/Function Calling
 // ============================================================
 
 func TestRequestBuilder_AddTool(t *testing.T) {
@@ -229,7 +229,7 @@ func TestRequestBuilder_AddFunction(t *testing.T) {
 }
 
 // ============================================================
-// 测试便捷方法
+// Test Convenience Methods
 // ============================================================
 
 func TestRequestBuilder_ForChat(t *testing.T) {
@@ -287,7 +287,7 @@ func TestRequestBuilder_ForCreativeWriting(t *testing.T) {
 }
 
 // ============================================================
-// 测试 CallWithRequest 集成
+// Test CallWithRequest Integration
 // ============================================================
 
 func TestClient_CallWithRequest_Success(t *testing.T) {
@@ -317,25 +317,25 @@ func TestClient_CallWithRequest_Success(t *testing.T) {
 		t.Errorf("expected 'Builder response', got '%s'", result)
 	}
 
-	// 验证请求体
+	// Verify request body
 	requests := mockHTTP.GetRequests()
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(requests))
 	}
 
-	// 解析请求体验证参数
+	// Parse request body to verify parameters
 	var body map[string]interface{}
 	decoder := json.NewDecoder(requests[0].Body)
 	if err := decoder.Decode(&body); err != nil {
 		t.Fatalf("failed to decode request body: %v", err)
 	}
 
-	// 验证 temperature
+	// Verify temperature
 	if body["temperature"] != 0.8 {
 		t.Errorf("expected temperature 0.8, got %v", body["temperature"])
 	}
 
-	// 验证 messages
+	// Verify messages
 	messages, ok := body["messages"].([]interface{})
 	if !ok || len(messages) != 2 {
 		t.Error("messages not correctly formatted")
@@ -353,7 +353,7 @@ func TestClient_CallWithRequest_MultiRound(t *testing.T) {
 		WithAPIKey("sk-test-key"),
 	)
 
-	// 构建多轮对话
+	// Build multi-round conversation
 	request := NewRequestBuilder().
 		AddSystemMessage("You are a trading advisor").
 		AddUserMessage("Analyze BTC").
@@ -372,7 +372,7 @@ func TestClient_CallWithRequest_MultiRound(t *testing.T) {
 		t.Errorf("expected 'Multi-round response', got '%s'", result)
 	}
 
-	// 验证请求体包含所有消息
+	// Verify request body contains all messages
 	requests := mockHTTP.GetRequests()
 	var body map[string]interface{}
 	json.NewDecoder(requests[0].Body).Decode(&body)
@@ -411,7 +411,7 @@ func TestClient_CallWithRequest_WithTools(t *testing.T) {
 		t.Fatalf("should not error: %v", err)
 	}
 
-	// 验证请求体包含 tools
+	// Verify request body contains tools
 	requests := mockHTTP.GetRequests()
 	var body map[string]interface{}
 	json.NewDecoder(requests[0].Body).Decode(&body)
@@ -440,7 +440,7 @@ func TestClient_CallWithRequest_NoAPIKey(t *testing.T) {
 		t.Error("should error when API key not set")
 	}
 
-	if err.Error() != "AI API密钥未设置，请先调用 SetAPIKey" {
+	if err.Error() != "AI API key not set, please call SetAPIKey first" {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
@@ -456,7 +456,7 @@ func TestClient_CallWithRequest_UsesClientModel(t *testing.T) {
 		WithAPIKey("sk-test-key"),
 	)
 
-	// Request 不设置 model，应该使用 Client 的 model
+	// Request does not set model, should use Client's model
 	request := NewRequestBuilder().
 		WithUserPrompt("Hello").
 		MustBuild()
@@ -467,7 +467,7 @@ func TestClient_CallWithRequest_UsesClientModel(t *testing.T) {
 
 	client.CallWithRequest(request)
 
-	// 验证使用了 DeepSeek 的 model
+	// Verify DeepSeek's model is used
 	requests := mockHTTP.GetRequests()
 	var body map[string]interface{}
 	json.NewDecoder(requests[0].Body).Decode(&body)

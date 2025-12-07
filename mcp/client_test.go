@@ -8,7 +8,7 @@ import (
 )
 
 // ============================================================
-// 测试 Client 创建和配置
+// Test Client Creation and Configuration
 // ============================================================
 
 func TestNewClient_Default(t *testing.T) {
@@ -72,7 +72,7 @@ func TestNewClient_WithOptions(t *testing.T) {
 }
 
 // ============================================================
-// 测试 CallWithMessages
+// Test CallWithMessages
 // ============================================================
 
 func TestClient_CallWithMessages_Success(t *testing.T) {
@@ -97,7 +97,7 @@ func TestClient_CallWithMessages_Success(t *testing.T) {
 		t.Errorf("expected 'AI response content', got '%s'", result)
 	}
 
-	// 验证请求
+	// Verify request
 	requests := mockHTTP.GetRequests()
 	if len(requests) != 1 {
 		t.Errorf("expected 1 request, got %d", len(requests))
@@ -123,7 +123,7 @@ func TestClient_CallWithMessages_NoAPIKey(t *testing.T) {
 		t.Error("should error when API key is not set")
 	}
 
-	if err.Error() != "AI API密钥未设置，请先调用 SetAPIKey" {
+	if err.Error() != "AI API key not set, please call SetAPIKey first" {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -147,14 +147,14 @@ func TestClient_CallWithMessages_HTTPError(t *testing.T) {
 }
 
 // ============================================================
-// 测试重试逻辑
+// Test Retry Logic
 // ============================================================
 
 func TestClient_Retry_Success(t *testing.T) {
 	mockHTTP := NewMockHTTPClient()
 	mockLogger := NewMockLogger()
 
-	// 模拟：第一次失败，第二次成功
+	// Simulate: first call fails, second call succeeds
 	callCount := 0
 	mockHTTP.ResponseFunc = func(req *http.Request) (*http.Response, error) {
 		callCount++
@@ -174,40 +174,40 @@ func TestClient_Retry_Success(t *testing.T) {
 		WithMaxRetries(3),
 	)
 
-	// 由于我们的 client 使用 hooks.call，需要特殊处理
-	// 这里我们测试的是 CallWithMessages 会调用 retry 逻辑
+	// Since our client uses hooks.call, need special handling
+	// Here we test that CallWithMessages will invoke retry logic
 	c := client.(*Client)
 
-	// 临时修改重试等待时间为 0 以加速测试
+	// Temporarily modify retry wait time to 0 to speed up test
 	oldRetries := MaxRetryTimes
 	MaxRetryTimes = 3
 	defer func() { MaxRetryTimes = oldRetries }()
 
 	_, err := c.CallWithMessages("system", "user")
 
-	// 第一次失败（connection reset），第二次成功，但是响应格式不对，会失败
-	// 但至少验证了重试逻辑被触发
+	// First fails (connection reset), second succeeds, but response format is wrong, will fail
+	// But at least verify retry logic was triggered
 	if callCount < 2 {
 		t.Errorf("should retry, got %d calls", callCount)
 	}
 
-	// 检查日志中是否有重试信息
+	// Check if there's retry information in logs
 	logs := mockLogger.GetLogsByLevel("WARN")
 	hasRetryLog := false
 	for _, log := range logs {
-		if log.Message == "⚠️  AI API调用失败，正在重试 (2/3)..." {
+		if log.Message == "⚠️  AI API call failed, retrying (2/3)..." {
 			hasRetryLog = true
 			break
 		}
 	}
 
 	if !hasRetryLog && callCount >= 2 {
-		// 如果确实重试了，应该有警告日志
-		// 但由于我们的测试设置，可能不会触发，所以这里只是检查
+		// If retry was indeed attempted, there should be warning logs
+		// But due to our test setup, it may not trigger, so just check here
 		t.Log("Retry was attempted")
 	}
 
-	_ = err // 忽略错误，我们主要测试重试逻辑被触发
+	_ = err // Ignore error, we mainly test retry logic was triggered
 }
 
 func TestClient_Retry_NonRetryableError(t *testing.T) {
@@ -227,7 +227,7 @@ func TestClient_Retry_NonRetryableError(t *testing.T) {
 		t.Error("should error")
 	}
 
-	// 验证没有重试（因为 400 不是可重试错误）
+	// Verify no retry (because 400 is not a retryable error)
 	requests := mockHTTP.GetRequests()
 	if len(requests) != 1 {
 		t.Errorf("should not retry for 400 error, got %d requests", len(requests))
@@ -235,7 +235,7 @@ func TestClient_Retry_NonRetryableError(t *testing.T) {
 }
 
 // ============================================================
-// 测试钩子方法
+// Test Hook Methods
 // ============================================================
 
 func TestClient_BuildMCPRequestBody(t *testing.T) {
@@ -368,7 +368,7 @@ func TestClient_IsRetryableError(t *testing.T) {
 }
 
 // ============================================================
-// 测试 SetTimeout
+// Test SetTimeout
 // ============================================================
 
 func TestClient_SetTimeout(t *testing.T) {
@@ -384,7 +384,7 @@ func TestClient_SetTimeout(t *testing.T) {
 }
 
 // ============================================================
-// 测试 String 方法
+// Test String Method
 // ============================================================
 
 func TestClient_String(t *testing.T) {
@@ -404,7 +404,7 @@ func TestClient_String(t *testing.T) {
 	}
 }
 
-// 辅助函数
+// Helper function
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
 }

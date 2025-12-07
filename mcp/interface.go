@@ -5,18 +5,18 @@ import (
 	"time"
 )
 
-// AIClient AI客户端公开接口（给外部使用）
+// AIClient public AI client interface (for external use)
 type AIClient interface {
 	SetAPIKey(apiKey string, customURL string, customModel string)
 	SetTimeout(timeout time.Duration)
 	CallWithMessages(systemPrompt, userPrompt string) (string, error)
-	CallWithRequest(req *Request) (string, error) // 构建器模式 API（支持高级功能）
+	CallWithRequest(req *Request) (string, error) // Builder pattern API (supports advanced features)
 }
 
-// clientHooks 内部钩子接口（用于子类重写特定步骤）
-// 这些方法只在包内部使用，实现动态分派
+// clientHooks internal hook interface (for subclass to override specific steps)
+// These methods are only used inside the package to implement dynamic dispatch
 type clientHooks interface {
-	// 可被子类重写的钩子方法
+	// Hook methods that can be overridden by subclass
 
 	call(systemPrompt, userPrompt string) (string, error)
 

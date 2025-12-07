@@ -83,16 +83,16 @@ func (w *WSClient) Connect() error {
 
 	conn, _, err := dialer.Dial("wss://ws-fapi.binance.com/ws-fapi/v1", nil)
 	if err != nil {
-		return fmt.Errorf("WebSocket连接失败: %v", err)
+		return fmt.Errorf("WebSocket connection failed: %v", err)
 	}
 
 	w.mu.Lock()
 	w.conn = conn
 	w.mu.Unlock()
 
-	log.Println("WebSocket连接成功")
+	log.Println("WebSocket connected successfully")
 
-	// 启动消息读取循环
+	// Start message reading loop
 	go w.readMessages()
 
 	return nil
@@ -124,7 +124,7 @@ func (w *WSClient) subscribe(stream string) error {
 	defer w.mu.RUnlock()
 
 	if w.conn == nil {
-		return fmt.Errorf("WebSocket未连接")
+		return fmt.Errorf("WebSocket not connected")
 	}
 
 	err := w.conn.WriteJSON(subscribeMsg)
@@ -132,7 +132,7 @@ func (w *WSClient) subscribe(stream string) error {
 		return err
 	}
 
-	log.Printf("订阅流: %s", stream)
+	log.Printf("Subscribing to stream: %s", stream)
 	return nil
 }
 
@@ -153,7 +153,7 @@ func (w *WSClient) readMessages() {
 
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-				log.Printf("读取WebSocket消息失败: %v", err)
+				log.Printf("Failed to read WebSocket message: %v", err)
 				w.handleReconnect()
 				return
 			}
@@ -166,7 +166,7 @@ func (w *WSClient) readMessages() {
 func (w *WSClient) handleMessage(message []byte) {
 	var wsMsg WSMessage
 	if err := json.Unmarshal(message, &wsMsg); err != nil {
-		// 可能是其他格式的消息
+		// Might be a different message format
 		return
 	}
 
@@ -178,7 +178,7 @@ func (w *WSClient) handleMessage(message []byte) {
 		select {
 		case ch <- wsMsg.Data:
 		default:
-			log.Printf("订阅者通道已满: %s", wsMsg.Stream)
+			log.Printf("Subscriber channel is full: %s", wsMsg.Stream)
 		}
 	}
 }
@@ -188,11 +188,11 @@ func (w *WSClient) handleReconnect() {
 		return
 	}
 
-	log.Println("尝试重新连接...")
+	log.Println("Attempting to reconnect...")
 	time.Sleep(3 * time.Second)
 
 	if err := w.Connect(); err != nil {
-		log.Printf("重新连接失败: %v", err)
+		log.Printf("Reconnection failed: %v", err)
 		go w.handleReconnect()
 	}
 }
@@ -223,7 +223,7 @@ func (w *WSClient) Close() {
 		w.conn = nil
 	}
 
-	// 关闭所有订阅者通道
+	// Close all subscriber channels
 	for stream, ch := range w.subscribers {
 		close(ch)
 		delete(w.subscribers, stream)

@@ -15,7 +15,7 @@ const (
 	lockStaleAfter        = 10 * time.Second
 )
 
-// RunLockInfo 表示回测运行的锁文件结构。
+// RunLockInfo represents the lock file structure for a backtest run.
 type RunLockInfo struct {
 	RunID         string    `json:"run_id"`
 	PID           int       `json:"pid"`

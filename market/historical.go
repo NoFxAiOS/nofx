@@ -13,7 +13,7 @@ const (
 	binanceMaxKlineLimit    = 1500
 )
 
-// GetKlinesRange 拉取指定时间范围内的 K 线序列（闭区间），返回按时间升序排列的数据。
+// GetKlinesRange fetches K-line series within specified time range (closed interval), returns data sorted by time in ascending order.
 func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kline, error) {
 	symbol = Normalize(symbol)
 	normTF, err := NormalizeTimeframe(timeframe)
@@ -94,7 +94,7 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 		last := batch[len(batch)-1]
 		cursor = last.CloseTime + 1
 
-		// 若返回数量少于请求上限，说明已到达末尾，可提前退出。
+		// If returned quantity is less than request limit, reached the end, can exit early.
 		if len(batch) < binanceMaxKlineLimit {
 			break
 		}

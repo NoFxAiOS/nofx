@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-// GetBalance 獲取賬戶余額（實現 Trader 接口）
+// GetBalance Get account balance (implements Trader interface)
 func (t *LighterTraderV2) GetBalance() (map[string]interface{}, error) {
 	balance, err := t.GetAccountBalance()
 	if err != nil {
@@ -23,10 +23,10 @@ func (t *LighterTraderV2) GetBalance() (map[string]interface{}, error) {
 	}, nil
 }
 
-// GetAccountBalance 獲取賬戶詳細余額信息
+// GetAccountBalance Get detailed account balance information
 func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
 	if err := t.ensureAuthToken(); err != nil {
-		return nil, fmt.Errorf("認證令牌無效: %w", err)
+		return nil, fmt.Errorf("invalid auth token: %w", err)
 	}
 
 	t.accountMutex.RLock()
@@ -41,7 +41,7 @@ func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
 		return nil, err
 	}
 
-	// 添加認證頭
+	// Add authentication header
 	req.Header.Set("Authorization", authToken)
 
 	resp, err := t.client.Do(req)
@@ -56,18 +56,18 @@ func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("獲取余額失敗 (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("failed to get balance (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var balance AccountBalance
 	if err := json.Unmarshal(body, &balance); err != nil {
-		return nil, fmt.Errorf("解析余額響應失敗: %w", err)
+		return nil, fmt.Errorf("failed to parse balance response: %w", err)
 	}
 
 	return &balance, nil
 }
 
-// GetPositions 獲取所有持倉（實現 Trader 接口）
+// GetPositions Get all positions (implements Trader interface)
 func (t *LighterTraderV2) GetPositions() ([]map[string]interface{}, error) {
 	positions, err := t.GetPositionsRaw("")
 	if err != nil {
@@ -92,10 +92,10 @@ func (t *LighterTraderV2) GetPositions() ([]map[string]interface{}, error) {
 	return result, nil
 }
 
-// GetPositionsRaw 獲取所有持倉（返回原始類型）
+// GetPositionsRaw Get all positions (returns raw type)
 func (t *LighterTraderV2) GetPositionsRaw(symbol string) ([]Position, error) {
 	if err := t.ensureAuthToken(); err != nil {
-		return nil, fmt.Errorf("認證令牌無效: %w", err)
+		return nil, fmt.Errorf("invalid auth token: %w", err)
 	}
 
 	t.accountMutex.RLock()
@@ -127,18 +127,18 @@ func (t *LighterTraderV2) GetPositionsRaw(symbol string) ([]Position, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("獲取持倉失敗 (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("failed to get positions (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var positions []Position
 	if err := json.Unmarshal(body, &positions); err != nil {
-		return nil, fmt.Errorf("解析持倉響應失敗: %w", err)
+		return nil, fmt.Errorf("failed to parse positions response: %w", err)
 	}
 
 	return positions, nil
 }
 
-// GetPosition 獲取指定幣種的持倉
+// GetPosition Get position for specified symbol
 func (t *LighterTraderV2) GetPosition(symbol string) (*Position, error) {
 	positions, err := t.GetPositionsRaw(symbol)
 	if err != nil {
@@ -151,10 +151,10 @@ func (t *LighterTraderV2) GetPosition(symbol string) (*Position, error) {
 		}
 	}
 
-	return nil, nil // 無持倉
+	return nil, nil // No position
 }
 
-// GetMarketPrice 獲取市場價格（實現 Trader 接口）
+// GetMarketPrice Get market price (implements Trader interface)
 func (t *LighterTraderV2) GetMarketPrice(symbol string) (float64, error) {
 	endpoint := fmt.Sprintf("%s/api/v1/market/ticker?symbol=%s", t.baseURL, symbol)
 
@@ -175,25 +175,25 @@ func (t *LighterTraderV2) GetMarketPrice(symbol string) (float64, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("獲取市場價格失敗 (status %d): %s", resp.StatusCode, string(body))
+		return 0, fmt.Errorf("failed to get market price (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var ticker map[string]interface{}
 	if err := json.Unmarshal(body, &ticker); err != nil {
-		return 0, fmt.Errorf("解析價格響應失敗: %w", err)
+		return 0, fmt.Errorf("failed to parse price response: %w", err)
 	}
 
 	price, err := SafeFloat64(ticker, "last_price")
 	if err != nil {
-		return 0, fmt.Errorf("無法獲取價格: %w", err)
+		return 0, fmt.Errorf("failed to get price: %w", err)
 	}
 
 	return price, nil
 }
 
-// FormatQuantity 格式化數量到正確的精度（實現 Trader 接口）
+// FormatQuantity Format quantity to correct precision (implements Trader interface)
 func (t *LighterTraderV2) FormatQuantity(symbol string, quantity float64) (string, error) {
-	// TODO: 從 API 獲取幣種精度
-	// 暫時使用默認精度
+	// TODO: Get symbol precision from API
+	// Using default precision for now
 	return fmt.Sprintf("%.4f", quantity), nil
 }

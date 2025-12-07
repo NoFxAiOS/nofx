@@ -2,7 +2,7 @@ package backtest
 
 import "time"
 
-// RunState 表示回测运行当前状态。
+// RunState represents the current state of a backtest run.
 type RunState string
 
 const (
@@ -15,7 +15,7 @@ const (
 	RunStateLiquidated RunState = "liquidated"
 )
 
-// PositionSnapshot 表示当前持仓的核心数据，用于回测状态与持久化。
+// PositionSnapshot represents core position data for backtest state and persistence.
 type PositionSnapshot struct {
 	Symbol           string  `json:"symbol"`
 	Side             string  `json:"side"`
@@ -27,7 +27,7 @@ type PositionSnapshot struct {
 	OpenTime         int64   `json:"open_time"`
 }
 
-// BacktestState 表示执行过程中的实时状态（内存态）。
+// BacktestState represents the real-time state during execution (in-memory state).
 type BacktestState struct {
 	BarIndex      int
 	BarTimestamp  int64
@@ -46,7 +46,7 @@ type BacktestState struct {
 	LiquidationNote string
 }
 
-// EquityPoint 表示资金曲线中的单个节点。
+// EquityPoint represents a single point on the equity curve.
 type EquityPoint struct {
 	Timestamp   int64   `json:"ts"`
 	Equity      float64 `json:"equity"`
@@ -57,7 +57,7 @@ type EquityPoint struct {
 	Cycle       int     `json:"cycle"`
 }
 
-// TradeEvent 记录一次交易执行结果或特殊事件（如爆仓）。
+// TradeEvent records a trade execution result or special event (such as liquidation).
 type TradeEvent struct {
 	Timestamp       int64   `json:"ts"`
 	Symbol          string  `json:"symbol"`
@@ -76,7 +76,7 @@ type TradeEvent struct {
 	Note            string  `json:"note,omitempty"`
 }
 
-// Metrics 汇总回测表现指标。
+// Metrics summarizes backtest performance metrics.
 type Metrics struct {
 	TotalReturnPct float64                  `json:"total_return_pct"`
 	MaxDrawdownPct float64                  `json:"max_drawdown_pct"`
@@ -92,7 +92,7 @@ type Metrics struct {
 	Liquidated     bool                     `json:"liquidated"`
 }
 
-// SymbolMetrics 记录单个标的的表现。
+// SymbolMetrics records performance for a single symbol.
 type SymbolMetrics struct {
 	TotalTrades   int     `json:"total_trades"`
 	WinningTrades int     `json:"winning_trades"`
@@ -102,7 +102,7 @@ type SymbolMetrics struct {
 	WinRate       float64 `json:"win_rate"`
 }
 
-// Checkpoint 表示磁盘保存的检查点信息，用于暂停、恢复与崩溃恢复。
+// Checkpoint represents checkpoint information saved to disk for pause, resume, and crash recovery.
 type Checkpoint struct {
 	BarIndex        int                       `json:"bar_index"`
 	BarTimestamp    int64                     `json:"bar_ts"`
@@ -122,7 +122,7 @@ type Checkpoint struct {
 	LiquidationNote string                    `json:"liquidation_note,omitempty"`
 }
 
-// RunMetadata 记录 run.json 所需摘要。
+// RunMetadata records the summary required for run.json.
 type RunMetadata struct {
 	RunID     string     `json:"run_id"`
 	Label     string     `json:"label,omitempty"`
@@ -135,7 +135,7 @@ type RunMetadata struct {
 	Summary   RunSummary `json:"summary"`
 }
 
-// RunSummary 为 run.json 中的 summary 字段。
+// RunSummary represents the summary field in run.json.
 type RunSummary struct {
 	SymbolCount     int     `json:"symbol_count"`
 	DecisionTF      string  `json:"decision_tf"`
@@ -147,7 +147,7 @@ type RunSummary struct {
 	LiquidationNote string  `json:"liquidation_note,omitempty"`
 }
 
-// StatusPayload 用于 /status API 的响应。
+// StatusPayload is used for /status API responses.
 type StatusPayload struct {
 	RunID          string   `json:"run_id"`
 	State          RunState `json:"state"`

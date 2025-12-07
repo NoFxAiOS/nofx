@@ -14,45 +14,45 @@ type DeepSeekClient struct {
 	*Client
 }
 
-// NewDeepSeekClient 创建 DeepSeek 客户端（向前兼容）
+// NewDeepSeekClient creates DeepSeek client (backward compatible)
 //
-// Deprecated: 推荐使用 NewDeepSeekClientWithOptions 以获得更好的灵活性
+// Deprecated: Recommend using NewDeepSeekClientWithOptions for better flexibility
 func NewDeepSeekClient() AIClient {
 	return NewDeepSeekClientWithOptions()
 }
 
-// NewDeepSeekClientWithOptions 创建 DeepSeek 客户端（支持选项模式）
+// NewDeepSeekClientWithOptions creates DeepSeek client (supports options pattern)
 //
-// 使用示例：
-//   // 基础用法
+// Usage examples:
+//   // Basic usage
 //   client := mcp.NewDeepSeekClientWithOptions()
 //
-//   // 自定义配置
+//   // Custom configuration
 //   client := mcp.NewDeepSeekClientWithOptions(
 //       mcp.WithAPIKey("sk-xxx"),
 //       mcp.WithLogger(customLogger),
 //       mcp.WithTimeout(60*time.Second),
 //   )
 func NewDeepSeekClientWithOptions(opts ...ClientOption) AIClient {
-	// 1. 创建 DeepSeek 预设选项
+	// 1. Create DeepSeek preset options
 	deepseekOpts := []ClientOption{
 		WithProvider(ProviderDeepSeek),
 		WithModel(DefaultDeepSeekModel),
 		WithBaseURL(DefaultDeepSeekBaseURL),
 	}
 
-	// 2. 合并用户选项（用户选项优先级更高）
+	// 2. Merge user options (user options have higher priority)
 	allOpts := append(deepseekOpts, opts...)
 
-	// 3. 创建基础客户端
+	// 3. Create base client
 	baseClient := NewClient(allOpts...).(*Client)
 
-	// 4. 创建 DeepSeek 客户端
+	// 4. Create DeepSeek client
 	dsClient := &DeepSeekClient{
 		Client: baseClient,
 	}
 
-	// 5. 设置 hooks 指向 DeepSeekClient（实现动态分派）
+	// 5. Set hooks to point to DeepSeekClient (implement dynamic dispatch)
 	baseClient.hooks = dsClient
 
 	return dsClient
@@ -66,15 +66,15 @@ func (dsClient *DeepSeekClient) SetAPIKey(apiKey string, customURL string, custo
 	}
 	if customURL != "" {
 		dsClient.BaseURL = customURL
-		dsClient.logger.Infof("🔧 [MCP] DeepSeek 使用自定义 BaseURL: %s", customURL)
+		dsClient.logger.Infof("🔧 [MCP] DeepSeek using custom BaseURL: %s", customURL)
 	} else {
-		dsClient.logger.Infof("🔧 [MCP] DeepSeek 使用默认 BaseURL: %s", dsClient.BaseURL)
+		dsClient.logger.Infof("🔧 [MCP] DeepSeek using default BaseURL: %s", dsClient.BaseURL)
 	}
 	if customModel != "" {
 		dsClient.Model = customModel
-		dsClient.logger.Infof("🔧 [MCP] DeepSeek 使用自定义 Model: %s", customModel)
+		dsClient.logger.Infof("🔧 [MCP] DeepSeek using custom Model: %s", customModel)
 	} else {
-		dsClient.logger.Infof("🔧 [MCP] DeepSeek 使用默认 Model: %s", dsClient.Model)
+		dsClient.logger.Infof("🔧 [MCP] DeepSeek using default Model: %s", dsClient.Model)
 	}
 }
 

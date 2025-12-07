@@ -9,36 +9,36 @@ import (
 	"nofx/logger"
 )
 
-// Config 客户端配置（集中管理所有配置）
+// Config client configuration (centralized management of all configurations)
 type Config struct {
-	// Provider 配置
+	// Provider configuration
 	Provider string
 	APIKey   string
 	BaseURL  string
 	Model    string
 
-	// 行为配置
+	// Behavior configuration
 	MaxTokens   int
 	Temperature float64
 	UseFullURL  bool
 
-	// 重试配置
+	// Retry configuration
 	MaxRetries     int
 	RetryWaitBase  time.Duration
 	RetryableErrors []string
 
-	// 超时配置
+	// Timeout configuration
 	Timeout time.Duration
 
-	// 依赖注入
+	// Dependency injection
 	Logger     Logger
 	HTTPClient *http.Client
 }
 
-// DefaultConfig 返回默认配置
+// DefaultConfig returns default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		// 默认值
+		// Default values
 		MaxTokens:      getEnvInt("AI_MAX_TOKENS", 2000),
 		Temperature:    MCPClientTemperature,
 		MaxRetries:     MaxRetryTimes,
@@ -46,13 +46,13 @@ func DefaultConfig() *Config {
 		Timeout:        DefaultTimeout,
 		RetryableErrors: retryableErrors,
 
-		// 默认依赖（使用全局 logger）
+		// Default dependencies (use global logger)
 		Logger:     logger.NewMCPLogger(),
 		HTTPClient: &http.Client{Timeout: DefaultTimeout},
 	}
 }
 
-// getEnvInt 从环境变量读取整数，失败则返回默认值
+// getEnvInt reads integer from environment variable, returns default value if failed
 func getEnvInt(key string, defaultValue int) int {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
@@ -62,7 +62,7 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// getEnvString 从环境变量读取字符串，为空则返回默认值
+// getEnvString reads string from environment variable, returns default value if empty
 func getEnvString(key string, defaultValue string) string {
 	if val := os.Getenv(key); val != "" {
 		return val

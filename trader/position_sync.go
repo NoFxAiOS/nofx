@@ -8,19 +8,19 @@ import (
 	"time"
 )
 
-// PositionSyncManager 仓位状态同步管理器
-// 负责定期同步交易所仓位，检测手动平仓等变化
+// PositionSyncManager Position status synchronization manager
+// Responsible for periodically synchronizing exchange positions, detecting manual closures and other changes
 type PositionSyncManager struct {
 	store        *store.Store
 	interval     time.Duration
 	stopCh       chan struct{}
 	wg           sync.WaitGroup
-	traderCache  map[string]Trader                    // trader_id -> Trader 实例缓存
-	configCache  map[string]*store.TraderFullConfig   // trader_id -> 配置缓存
+	traderCache  map[string]Trader                    // trader_id -> Trader instance cache
+	configCache  map[string]*store.TraderFullConfig   // trader_id -> config cache
 	cacheMutex   sync.RWMutex
 }
 
-// NewPositionSyncManager 创建仓位同步管理器
+// NewPositionSyncManager Create position synchronization manager
 func NewPositionSyncManager(st *store.Store, interval time.Duration) *PositionSyncManager {
 	if interval == 0 {
 		interval = 10 * time.Second
@@ -34,32 +34,32 @@ func NewPositionSyncManager(st *store.Store, interval time.Duration) *PositionSy
 	}
 }
 
-// Start 启动仓位同步服务
+// Start Start position synchronization service
 func (m *PositionSyncManager) Start() {
 	m.wg.Add(1)
 	go m.run()
-	logger.Info("📊 仓位同步管理器已启动")
+	logger.Info("📊 Position sync manager started")
 }
 
-// Stop 停止仓位同步服务
+// Stop Stop position synchronization service
 func (m *PositionSyncManager) Stop() {
 	close(m.stopCh)
 	m.wg.Wait()
 
-	// 清理缓存
+	// Clear cache
 	m.cacheMutex.Lock()
 	m.traderCache = make(map[string]Trader)
 	m.configCache = make(map[string]*store.TraderFullConfig)
 	m.cacheMutex.Unlock()
 
-	logger.Info("📊 仓位同步管理器已停止")
+	logger.Info("📊 Position sync manager stopped")
 }
 
-// run 主循环
+// run Main loop
 func (m *PositionSyncManager) run() {
 	defer m.wg.Done()
 
-	// 启动时立即执行一次
+	// Execute immediately on startup
 	m.syncPositions()
 
 	ticker := time.NewTicker(m.interval)
@@ -75,12 +75,12 @@ func (m *PositionSyncManager) run() {
 	}
 }
 
-// syncPositions 同步所有仓位状态
+// syncPositions Synchronize all position statuses
 func (m *PositionSyncManager) syncPositions() {
-	// 获取所有 OPEN 状态的仓位
+	// Get all OPEN status positions
 	localPositions, err := m.store.Position().GetAllOpenPositions()
 	if err != nil {
-		logger.Infof("⚠️  获取本地仓位失败: %v", err)
+		logger.Infof("⚠️  Failed to get local positions: %v", err)
 		return
 	}
 
@@ -88,35 +88,35 @@ func (m *PositionSyncManager) syncPositions() {
 		return
 	}
 
-	// 按 trader_id 分组
+	// Group by trader_id
 	positionsByTrader := make(map[string][]*store.TraderPosition)
 	for _, pos := range localPositions {
 		positionsByTrader[pos.TraderID] = append(positionsByTrader[pos.TraderID], pos)
 	}
 
-	// 逐个 trader 处理
+	// Process each trader
 	for traderID, traderPositions := range positionsByTrader {
 		m.syncTraderPositions(traderID, traderPositions)
 	}
 }
 
-// syncTraderPositions 同步单个 trader 的仓位
+// syncTraderPositions Synchronize positions for a single trader
 func (m *PositionSyncManager) syncTraderPositions(traderID string, localPositions []*store.TraderPosition) {
-	// 获取或创建 trader 实例
+	// Get or create trader instance
 	trader, err := m.getOrCreateTrader(traderID)
 	if err != nil {
-		logger.Infof("⚠️  获取 trader 实例失败 (ID: %s): %v", traderID, err)
+		logger.Infof("⚠️  Failed to get trader instance (ID: %s): %v", traderID, err)
 		return
 	}
 
-	// 获取交易所当前仓位
+	// Get current exchange positions
 	exchangePositions, err := trader.GetPositions()
 	if err != nil {
-		logger.Infof("⚠️  获取交易所仓位失败 (ID: %s): %v", traderID, err)
+		logger.Infof("⚠️  Failed to get exchange positions (ID: %s): %v", traderID, err)
 		return
 	}
 
-	// 构建交易所仓位 map: symbol_side -> position
+	// Build exchange position map: symbol_side -> position
 	exchangeMap := make(map[string]map[string]interface{})
 	for _, pos := range exchangePositions {
 		symbol, _ := pos["symbol"].(string)
@@ -128,41 +128,41 @@ func (m *PositionSyncManager) syncTraderPositions(traderID string, localPosition
 		exchangeMap[key] = pos
 	}
 
-	// 对比本地和交易所仓位
+	// Compare local and exchange positions
 	for _, localPos := range localPositions {
 		key := fmt.Sprintf("%s_%s", localPos.Symbol, localPos.Side)
 		exchangePos, exists := exchangeMap[key]
 
 		if !exists {
-			// 交易所没有这个仓位了 → 已被平仓
+			// Exchange doesn't have this position → it has been closed
 			m.closeLocalPosition(localPos, trader, "manual")
 			continue
 		}
 
-		// 检查数量是否为0或很小
+		// Check if quantity is 0 or very small
 		qty := getFloatFromMap(exchangePos, "positionAmt")
 		if qty < 0 {
-			qty = -qty // 空仓数量是负的
+			qty = -qty // Short position quantity is negative
 		}
 
 		if qty < 0.0000001 {
-			// 数量为0，仓位已平
+			// Quantity is 0, position closed
 			m.closeLocalPosition(localPos, trader, "manual")
 		}
 	}
 }
 
-// closeLocalPosition 标记本地仓位为已平仓
+// closeLocalPosition Mark local position as closed
 func (m *PositionSyncManager) closeLocalPosition(pos *store.TraderPosition, trader Trader, reason string) {
-	// 尝试获取最后成交价作为平仓价
-	exitPrice := pos.EntryPrice // 默认用开仓价
+	// Try to get last trade price as exit price
+	exitPrice := pos.EntryPrice // Default to entry price
 
-	// 尝试从交易所获取最新价格
+	// Try to get latest price from exchange
 	if price, err := trader.GetMarketPrice(pos.Symbol); err == nil && price > 0 {
 		exitPrice = price
 	}
 
-	// 计算盈亏
+	// Calculate PnL
 	var realizedPnL float64
 	if pos.Side == "LONG" {
 		realizedPnL = (exitPrice - pos.EntryPrice) * pos.Quantity
@@ -170,25 +170,25 @@ func (m *PositionSyncManager) closeLocalPosition(pos *store.TraderPosition, trad
 		realizedPnL = (pos.EntryPrice - exitPrice) * pos.Quantity
 	}
 
-	// 更新数据库
+	// Update database
 	err := m.store.Position().ClosePosition(
 		pos.ID,
 		exitPrice,
-		"", // 手动平仓没有订单ID
+		"", // Manual close has no order ID
 		realizedPnL,
-		0,      // 手动平仓无法获取手续费
+		0,      // Manual close cannot get fee
 		reason,
 	)
 
 	if err != nil {
-		logger.Infof("⚠️  更新仓位状态失败: %v", err)
+		logger.Infof("⚠️  Failed to update position status: %v", err)
 	} else {
-		logger.Infof("📊 仓位已平仓 [%s] %s %s @ %.4f → %.4f, PnL: %.2f (%s)",
+		logger.Infof("📊 Position closed [%s] %s %s @ %.4f → %.4f, PnL: %.2f (%s)",
 			pos.TraderID[:8], pos.Symbol, pos.Side, pos.EntryPrice, exitPrice, realizedPnL, reason)
 	}
 }
 
-// getOrCreateTrader 获取或创建 trader 实例
+// getOrCreateTrader Get or create trader instance
 func (m *PositionSyncManager) getOrCreateTrader(traderID string) (Trader, error) {
 	m.cacheMutex.RLock()
 	trader, exists := m.traderCache[traderID]
@@ -198,15 +198,15 @@ func (m *PositionSyncManager) getOrCreateTrader(traderID string) (Trader, error)
 		return trader, nil
 	}
 
-	// 需要创建新的 trader 实例
+	// Need to create new trader instance
 	config, err := m.getTraderConfig(traderID)
 	if err != nil {
-		return nil, fmt.Errorf("获取 trader 配置失败: %w", err)
+		return nil, fmt.Errorf("failed to get trader config: %w", err)
 	}
 
 	trader, err = m.createTrader(config)
 	if err != nil {
-		return nil, fmt.Errorf("创建 trader 实例失败: %w", err)
+		return nil, fmt.Errorf("failed to create trader instance: %w", err)
 	}
 
 	m.cacheMutex.Lock()
@@ -216,7 +216,7 @@ func (m *PositionSyncManager) getOrCreateTrader(traderID string) (Trader, error)
 	return trader, nil
 }
 
-// getTraderConfig 获取 trader 配置
+// getTraderConfig Get trader configuration
 func (m *PositionSyncManager) getTraderConfig(traderID string) (*store.TraderFullConfig, error) {
 	m.cacheMutex.RLock()
 	config, exists := m.configCache[traderID]
@@ -226,10 +226,10 @@ func (m *PositionSyncManager) getTraderConfig(traderID string) (*store.TraderFul
 		return config, nil
 	}
 
-	// 从数据库获取
+	// Get from database
 	traders, err := m.store.Trader().ListAll()
 	if err != nil {
-		return nil, fmt.Errorf("获取 trader 列表失败: %w", err)
+		return nil, fmt.Errorf("failed to get trader list: %w", err)
 	}
 
 	var userID string
@@ -241,7 +241,7 @@ func (m *PositionSyncManager) getTraderConfig(traderID string) (*store.TraderFul
 	}
 
 	if userID == "" {
-		return nil, fmt.Errorf("找不到 trader: %s", traderID)
+		return nil, fmt.Errorf("trader not found: %s", traderID)
 	}
 
 	config, err = m.store.Trader().GetFullConfig(userID, traderID)
@@ -256,11 +256,11 @@ func (m *PositionSyncManager) getTraderConfig(traderID string) (*store.TraderFul
 	return config, nil
 }
 
-// createTrader 根据配置创建 trader 实例
+// createTrader Create trader instance based on configuration
 func (m *PositionSyncManager) createTrader(config *store.TraderFullConfig) (Trader, error) {
 	exchange := config.Exchange
 
-	// 使用 exchange.ID 判断具体的交易所，而不是 exchange.Type (cex/dex)
+	// Use exchange.ID to determine specific exchange, not exchange.Type (cex/dex)
 	switch exchange.ID {
 	case "binance":
 		return NewFuturesTrader(exchange.APIKey, exchange.SecretKey, config.Trader.UserID), nil
@@ -289,11 +289,11 @@ func (m *PositionSyncManager) createTrader(config *store.TraderFullConfig) (Trad
 		return NewLighterTrader(exchange.LighterPrivateKey, exchange.LighterWalletAddr, exchange.Testnet)
 
 	default:
-		return nil, fmt.Errorf("不支持的交易所: %s", exchange.ID)
+		return nil, fmt.Errorf("unsupported exchange: %s", exchange.ID)
 	}
 }
 
-// InvalidateCache 使缓存失效
+// InvalidateCache Invalidate cache
 func (m *PositionSyncManager) InvalidateCache(traderID string) {
 	m.cacheMutex.Lock()
 	defer m.cacheMutex.Unlock()
@@ -302,7 +302,7 @@ func (m *PositionSyncManager) InvalidateCache(traderID string) {
 	delete(m.configCache, traderID)
 }
 
-// getFloatFromMap 从 map 中获取 float64 值
+// getFloatFromMap Get float64 value from map
 func getFloatFromMap(m map[string]interface{}, key string) float64 {
 	if v, ok := m[key]; ok {
 		switch val := v.(type) {

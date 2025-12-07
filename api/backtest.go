@@ -69,7 +69,7 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 		cfg.PromptTemplate = "default"
 	}
 	if _, err := decision.GetPromptTemplate(cfg.PromptTemplate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("提示词模板不存在: %s", cfg.PromptTemplate)})
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Prompt template does not exist: %s", cfg.PromptTemplate)})
 		return
 	}
 	cfg.CustomPrompt = strings.TrimSpace(cfg.CustomPrompt)
@@ -498,9 +498,9 @@ func writeBacktestAccessError(c *gin.Context, err error) bool {
 	}
 	switch {
 	case errors.Is(err, errBacktestForbidden):
-		c.JSON(http.StatusForbidden, gin.H{"error": "无权访问该回测任务"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "No permission to access this backtest task"})
 	case errors.Is(err, os.ErrNotExist), errors.Is(err, sql.ErrNoRows):
-		c.JSON(http.StatusNotFound, gin.H{"error": "回测任务不存在"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Backtest task does not exist"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -512,7 +512,7 @@ func (s *Server) resolveBacktestAIConfig(cfg *backtest.BacktestConfig, userID st
 		return fmt.Errorf("config is nil")
 	}
 	if s.store == nil {
-		return fmt.Errorf("系统数据库未就绪，无法加载AI模型配置")
+		return fmt.Errorf("System database not ready, cannot load AI model configuration")
 	}
 
 	cfg.UserID = normalizeUserID(userID)
@@ -525,7 +525,7 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 		return fmt.Errorf("config is nil")
 	}
 	if s.store == nil {
-		return fmt.Errorf("系统数据库未就绪，无法加载AI模型配置")
+		return fmt.Errorf("System database not ready, cannot load AI model configuration")
 	}
 
 	cfg.UserID = normalizeUserID(cfg.UserID)
@@ -539,23 +539,23 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 	if modelID != "" {
 		model, err = s.store.AIModel().Get(cfg.UserID, modelID)
 		if err != nil {
-			return fmt.Errorf("加载AI模型失败: %w", err)
+			return fmt.Errorf("Failed to load AI model: %w", err)
 		}
 	} else {
 		model, err = s.store.AIModel().GetDefault(cfg.UserID)
 		if err != nil {
-			return fmt.Errorf("未找到可用的AI模型: %w", err)
+			return fmt.Errorf("No available AI model found: %w", err)
 		}
 		cfg.AIModelID = model.ID
 	}
 
 	if !model.Enabled {
-		return fmt.Errorf("AI模型 %s 尚未启用", model.Name)
+		return fmt.Errorf("AI model %s is not enabled yet", model.Name)
 	}
 
 	apiKey := strings.TrimSpace(model.APIKey)
 	if apiKey == "" {
-		return fmt.Errorf("AI模型 %s 缺少API Key，请先在系统中配置", model.Name)
+		return fmt.Errorf("AI model %s is missing API Key, please configure it in the system first", model.Name)
 	}
 
 	cfg.AICfg.Provider = strings.ToLower(model.Provider)
@@ -569,10 +569,10 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 
 	if cfg.AICfg.Provider == "custom" {
 		if cfg.AICfg.BaseURL == "" {
-			return fmt.Errorf("自定义AI模型需要配置 API 地址")
+			return fmt.Errorf("Custom AI model requires API URL configuration")
 		}
 		if cfg.AICfg.Model == "" {
-			return fmt.Errorf("自定义AI模型需要配置模型名称")
+			return fmt.Errorf("Custom AI model requires model name configuration")
 		}
 	}
 

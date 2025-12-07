@@ -14,21 +14,21 @@ import (
 )
 
 // ============================================================
-// 一、BinanceFuturesTestSuite - 继承 base test suite
+// 1. BinanceFuturesTestSuite - Inherits base test suite
 // ============================================================
 
-// BinanceFuturesTestSuite 币安合约交易器测试套件
-// 继承 TraderTestSuite 并添加 Binance Futures 特定的 mock 逻辑
+// BinanceFuturesTestSuite Binance Futures trader test suite
+// Inherits TraderTestSuite and adds Binance Futures specific mock logic
 type BinanceFuturesTestSuite struct {
-	*TraderTestSuite // 嵌入基础测试套件
+	*TraderTestSuite // Embeds base test suite
 	mockServer       *httptest.Server
 }
 
-// NewBinanceFuturesTestSuite 创建币安合约测试套件
+// NewBinanceFuturesTestSuite Creates Binance Futures test suite
 func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
-	// 创建 mock HTTP 服务器
+	// Create mock HTTP server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 根据不同的 URL 路径返回不同的 mock 响应
+		// Return different mock responses based on URL path
 		path := r.URL.Path
 
 		var respBody interface{}
@@ -91,13 +91,13 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 		case path == "/fapi/v1/ticker/price" || path == "/fapi/v2/ticker/price":
 			symbol := r.URL.Query().Get("symbol")
 			if symbol == "" {
-				// 返回所有价格
+				// Return all prices
 				respBody = []map[string]interface{}{
 					{"Symbol": "BTCUSDT", "Price": "50000.00", "Time": 1234567890},
 					{"Symbol": "ETHUSDT", "Price": "3000.00", "Time": 1234567890},
 				}
 			} else if symbol == "INVALIDUSDT" {
-				// 返回错误
+				// Return error
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(map[string]interface{}{
 					"code": -1121,
@@ -105,7 +105,7 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 				})
 				return
 			} else {
-				// 返回单个价格（注意：即使有 symbol 参数，也要返回数组）
+				// Return single price (note: even with symbol parameter, return array)
 				price := "50000.00"
 				if symbol == "ETHUSDT" {
 					price = "3000.00"
@@ -221,11 +221,11 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 
 		// Mock SetLeverage - /fapi/v1/leverage
 		case path == "/fapi/v1/leverage":
-			// 将字符串转换为整数
+			// Convert string to integer
 			leverageStr := r.FormValue("leverage")
-			leverage := 10 // 默认值
+			leverage := 10 // default value
 			if leverageStr != "" {
-				// 注意：这里我们直接返回整数，而不是字符串
+				// Note: here we return an integer directly, not a string
 				fmt.Sscanf(leverageStr, "%d", &leverage)
 			}
 			respBody = map[string]interface{}{
@@ -259,23 +259,23 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 			respBody = map[string]interface{}{}
 		}
 
-		// 序列化响应
+		// Serialize response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(respBody)
 	}))
 
-	// 创建 futures.Client 并设置为使用 mock 服务器
+	// Create futures.Client and configure to use mock server
 	client := futures.NewClient("test_api_key", "test_secret_key")
 	client.BaseURL = mockServer.URL
 	client.HTTPClient = mockServer.Client()
 
-	// 创建 FuturesTrader
+	// Create FuturesTrader
 	trader := &FuturesTrader{
 		client:        client,
-		cacheDuration: 0, // 禁用缓存以便测试
+		cacheDuration: 0, // disable cache for testing
 	}
 
-	// 创建基础套件
+	// Create base suite
 	baseSuite := NewTraderTestSuite(t, trader)
 
 	return &BinanceFuturesTestSuite{
@@ -284,7 +284,7 @@ func NewBinanceFuturesTestSuite(t *testing.T) *BinanceFuturesTestSuite {
 	}
 }
 
-// Cleanup 清理资源
+// Cleanup cleans up resources
 func (s *BinanceFuturesTestSuite) Cleanup() {
 	if s.mockServer != nil {
 		s.mockServer.Close()
@@ -293,31 +293,31 @@ func (s *BinanceFuturesTestSuite) Cleanup() {
 }
 
 // ============================================================
-// 二、使用 BinanceFuturesTestSuite 运行通用测试
+// 2. Run common tests using BinanceFuturesTestSuite
 // ============================================================
 
-// TestFuturesTrader_InterfaceCompliance 测试接口兼容性
+// TestFuturesTrader_InterfaceCompliance tests interface compliance
 func TestFuturesTrader_InterfaceCompliance(t *testing.T) {
 	var _ Trader = (*FuturesTrader)(nil)
 }
 
-// TestFuturesTrader_CommonInterface 使用测试套件运行所有通用接口测试
+// TestFuturesTrader_CommonInterface runs all common interface tests using test suite
 func TestFuturesTrader_CommonInterface(t *testing.T) {
-	// 创建测试套件
+	// Create test suite
 	suite := NewBinanceFuturesTestSuite(t)
 	defer suite.Cleanup()
 
-	// 运行所有通用接口测试
+	// Run all common interface tests
 	suite.RunAllTests()
 }
 
 // ============================================================
-// 三、币安合约特定功能的单元测试
+// 3. Binance Futures specific unit tests
 // ============================================================
 
-// TestNewFuturesTrader 测试创建币安合约交易器
+// TestNewFuturesTrader tests creating Binance Futures trader
 func TestNewFuturesTrader(t *testing.T) {
-	// 创建 mock HTTP 服务器
+	// Create mock HTTP server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
@@ -342,10 +342,10 @@ func TestNewFuturesTrader(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	// 测试成功创建
+	// Test successful creation
 	trader := NewFuturesTrader("test_api_key", "test_secret_key", "test_user")
 
-	// 修改 client 使用 mock server
+	// Modify client to use mock server
 	trader.client.BaseURL = mockServer.URL
 	trader.client.HTTPClient = mockServer.Client()
 
@@ -354,7 +354,7 @@ func TestNewFuturesTrader(t *testing.T) {
 	assert.Equal(t, 15*time.Second, trader.cacheDuration)
 }
 
-// TestCalculatePositionSize 测试仓位计算
+// TestCalculatePositionSize tests position size calculation
 func TestCalculatePositionSize(t *testing.T) {
 	trader := &FuturesTrader{}
 
@@ -367,7 +367,7 @@ func TestCalculatePositionSize(t *testing.T) {
 		wantQuantity float64
 	}{
 		{
-			name:         "正常计算",
+			name:         "normal calculation",
 			balance:      10000,
 			riskPercent:  2,
 			price:        50000,
@@ -375,7 +375,7 @@ func TestCalculatePositionSize(t *testing.T) {
 			wantQuantity: 0.04, // (10000 * 0.02 * 10) / 50000 = 0.04
 		},
 		{
-			name:         "高杠杆",
+			name:         "high leverage",
 			balance:      10000,
 			riskPercent:  1,
 			price:        3000,
@@ -383,7 +383,7 @@ func TestCalculatePositionSize(t *testing.T) {
 			wantQuantity: 0.6667, // (10000 * 0.01 * 20) / 3000 = 0.6667
 		},
 		{
-			name:         "低风险",
+			name:         "low risk",
 			balance:      5000,
 			riskPercent:  0.5,
 			price:        50000,
@@ -395,26 +395,26 @@ func TestCalculatePositionSize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			quantity := trader.CalculatePositionSize(tt.balance, tt.riskPercent, tt.price, tt.leverage)
-			assert.InDelta(t, tt.wantQuantity, quantity, 0.0001, "计算的仓位数量不正确")
+			assert.InDelta(t, tt.wantQuantity, quantity, 0.0001, "calculated position size is incorrect")
 		})
 	}
 }
 
-// TestGetBrOrderID 测试订单ID生成
+// TestGetBrOrderID tests order ID generation
 func TestGetBrOrderID(t *testing.T) {
-	// 测试3次，确保每次生成的ID都不同
+	// Test 3 times to ensure each generated ID is unique
 	ids := make(map[string]bool)
 	for i := 0; i < 3; i++ {
 		id := getBrOrderID()
 
-		// 检查格式
-		assert.True(t, strings.HasPrefix(id, "x-KzrpZaP9"), "订单ID应以x-KzrpZaP9开头")
+		// Check format
+		assert.True(t, strings.HasPrefix(id, "x-KzrpZaP9"), "order ID should start with x-KzrpZaP9")
 
-		// 检查长度（应该 <= 32）
-		assert.LessOrEqual(t, len(id), 32, "订单ID长度不应超过32字符")
+		// Check length (should be <= 32)
+		assert.LessOrEqual(t, len(id), 32, "order ID length should not exceed 32 characters")
 
-		// 检查唯一性
-		assert.False(t, ids[id], "订单ID应该唯一")
+		// Check uniqueness
+		assert.False(t, ids[id], "order ID should be unique")
 		ids[id] = true
 	}
 }

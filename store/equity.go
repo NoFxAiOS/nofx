@@ -6,27 +6,27 @@ import (
 	"time"
 )
 
-// EquityStore 账户净值存储（用于绘制收益率曲线）
+// EquityStore account equity storage (for plotting return curves)
 type EquityStore struct {
 	db *sql.DB
 }
 
-// EquitySnapshot 净值快照
+// EquitySnapshot equity snapshot
 type EquitySnapshot struct {
 	ID            int64     `json:"id"`
 	TraderID      string    `json:"trader_id"`
 	Timestamp     time.Time `json:"timestamp"`
-	TotalEquity   float64   `json:"total_equity"`    // 账户净值 (余额 + 未实现盈亏)
-	Balance       float64   `json:"balance"`         // 账户余额
-	UnrealizedPnL float64   `json:"unrealized_pnl"`  // 未实现盈亏
-	PositionCount int       `json:"position_count"`  // 持仓数量
-	MarginUsedPct float64   `json:"margin_used_pct"` // 保证金使用率
+	TotalEquity   float64   `json:"total_equity"`    // Account equity (balance + unrealized PnL)
+	Balance       float64   `json:"balance"`         // Account balance
+	UnrealizedPnL float64   `json:"unrealized_pnl"`  // Unrealized profit and loss
+	PositionCount int       `json:"position_count"`  // Position count
+	MarginUsedPct float64   `json:"margin_used_pct"` // Margin usage percentage
 }
 
-// initTables 初始化净值表
+// initTables initializes equity tables
 func (s *EquityStore) initTables() error {
 	queries := []string{
-		// 净值快照表 - 专门用于收益率曲线
+		// Equity snapshot table - specifically for return curves
 		`CREATE TABLE IF NOT EXISTS trader_equity_snapshots (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			trader_id TEXT NOT NULL,
@@ -38,21 +38,21 @@ func (s *EquityStore) initTables() error {
 			margin_used_pct REAL DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		// 索引
+		// Indexes
 		`CREATE INDEX IF NOT EXISTS idx_equity_trader_time ON trader_equity_snapshots(trader_id, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_equity_timestamp ON trader_equity_snapshots(timestamp DESC)`,
 	}
 
 	for _, query := range queries {
 		if _, err := s.db.Exec(query); err != nil {
-			return fmt.Errorf("执行SQL失败: %w", err)
+			return fmt.Errorf("failed to execute SQL: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// Save 保存净值快照
+// Save saves equity snapshot
 func (s *EquityStore) Save(snapshot *EquitySnapshot) error {
 	if snapshot.Timestamp.IsZero() {
 		snapshot.Timestamp = time.Now().UTC()
@@ -75,7 +75,7 @@ func (s *EquityStore) Save(snapshot *EquitySnapshot) error {
 		snapshot.MarginUsedPct,
 	)
 	if err != nil {
-		return fmt.Errorf("保存净值快照失败: %w", err)
+		return fmt.Errorf("failed to save equity snapshot: %w", err)
 	}
 
 	id, _ := result.LastInsertId()
@@ -83,7 +83,7 @@ func (s *EquityStore) Save(snapshot *EquitySnapshot) error {
 	return nil
 }
 
-// GetLatest 获取指定交易员最近N条净值记录（按时间正序：从旧到新）
+// GetLatest gets the latest N equity records for specified trader (sorted in ascending chronological order: old to new)
 func (s *EquityStore) GetLatest(traderID string, limit int) ([]*EquitySnapshot, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, timestamp, total_equity, balance,
@@ -94,7 +94,7 @@ func (s *EquityStore) GetLatest(traderID string, limit int) ([]*EquitySnapshot, 
 		LIMIT ?
 	`, traderID, limit)
 	if err != nil {
-		return nil, fmt.Errorf("查询净值记录失败: %w", err)
+		return nil, fmt.Errorf("failed to query equity records: %w", err)
 	}
 	defer rows.Close()
 
@@ -113,7 +113,7 @@ func (s *EquityStore) GetLatest(traderID string, limit int) ([]*EquitySnapshot, 
 		snapshots = append(snapshots, snap)
 	}
 
-	// 反转数组，让时间从旧到新排列（适合绘制曲线）
+	// Reverse the array to sort time from old to new (suitable for plotting curves)
 	for i, j := 0, len(snapshots)-1; i < j; i, j = i+1, j-1 {
 		snapshots[i], snapshots[j] = snapshots[j], snapshots[i]
 	}
@@ -121,7 +121,7 @@ func (s *EquityStore) GetLatest(traderID string, limit int) ([]*EquitySnapshot, 
 	return snapshots, nil
 }
 
-// GetByTimeRange 获取指定时间范围内的净值记录
+// GetByTimeRange gets equity records within specified time range
 func (s *EquityStore) GetByTimeRange(traderID string, start, end time.Time) ([]*EquitySnapshot, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, timestamp, total_equity, balance,
@@ -131,7 +131,7 @@ func (s *EquityStore) GetByTimeRange(traderID string, start, end time.Time) ([]*
 		ORDER BY timestamp ASC
 	`, traderID, start.Format(time.RFC3339), end.Format(time.RFC3339))
 	if err != nil {
-		return nil, fmt.Errorf("查询净值记录失败: %w", err)
+		return nil, fmt.Errorf("failed to query equity records: %w", err)
 	}
 	defer rows.Close()
 
@@ -153,7 +153,7 @@ func (s *EquityStore) GetByTimeRange(traderID string, start, end time.Time) ([]*
 	return snapshots, nil
 }
 
-// GetAllTradersLatest 获取所有交易员的最新净值（用于排行榜）
+// GetAllTradersLatest gets latest equity for all traders (for leaderboards)
 func (s *EquityStore) GetAllTradersLatest() (map[string]*EquitySnapshot, error) {
 	rows, err := s.db.Query(`
 		SELECT e.id, e.trader_id, e.timestamp, e.total_equity, e.balance,
@@ -166,7 +166,7 @@ func (s *EquityStore) GetAllTradersLatest() (map[string]*EquitySnapshot, error) 
 		) latest ON e.trader_id = latest.trader_id AND e.timestamp = latest.max_ts
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("查询最新净值失败: %w", err)
+		return nil, fmt.Errorf("failed to query latest equity: %w", err)
 	}
 	defer rows.Close()
 
@@ -188,7 +188,7 @@ func (s *EquityStore) GetAllTradersLatest() (map[string]*EquitySnapshot, error) 
 	return result, nil
 }
 
-// CleanOldRecords 清理N天前的旧记录
+// CleanOldRecords cleans old records from N days ago
 func (s *EquityStore) CleanOldRecords(traderID string, days int) (int64, error) {
 	cutoffTime := time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
 
@@ -197,13 +197,13 @@ func (s *EquityStore) CleanOldRecords(traderID string, days int) (int64, error) 
 		WHERE trader_id = ? AND timestamp < ?
 	`, traderID, cutoffTime)
 	if err != nil {
-		return 0, fmt.Errorf("清理旧记录失败: %w", err)
+		return 0, fmt.Errorf("failed to clean old records: %w", err)
 	}
 
 	return result.RowsAffected()
 }
 
-// GetCount 获取指定交易员的记录数
+// GetCount gets record count for specified trader
 func (s *EquityStore) GetCount(traderID string) (int, error) {
 	var count int
 	err := s.db.QueryRow(`
@@ -212,26 +212,26 @@ func (s *EquityStore) GetCount(traderID string) (int, error) {
 	return count, err
 }
 
-// MigrateFromDecision 从旧的 decision_account_snapshots 迁移数据
+// MigrateFromDecision migrates data from old decision_account_snapshots table
 func (s *EquityStore) MigrateFromDecision() (int64, error) {
-	// 检查是否需要迁移（新表是否为空）
+	// Check if migration is needed (whether new table is empty)
 	var count int
 	s.db.QueryRow(`SELECT COUNT(*) FROM trader_equity_snapshots`).Scan(&count)
 	if count > 0 {
-		return 0, nil // 已有数据，跳过迁移
+		return 0, nil // Already has data, skip migration
 	}
 
-	// 检查旧表是否存在
+	// Check if old table exists
 	var tableName string
 	err := s.db.QueryRow(`
 		SELECT name FROM sqlite_master
 		WHERE type='table' AND name='decision_account_snapshots'
 	`).Scan(&tableName)
 	if err != nil {
-		return 0, nil // 旧表不存在，跳过
+		return 0, nil // Old table doesn't exist, skip
 	}
 
-	// 迁移数据：从 decision_records + decision_account_snapshots 联合查询
+	// Migrate data: join query from decision_records + decision_account_snapshots
 	result, err := s.db.Exec(`
 		INSERT INTO trader_equity_snapshots (
 			trader_id, timestamp, total_equity, balance,
@@ -250,7 +250,7 @@ func (s *EquityStore) MigrateFromDecision() (int64, error) {
 		ORDER BY dr.timestamp ASC
 	`)
 	if err != nil {
-		return 0, fmt.Errorf("迁移数据失败: %w", err)
+		return 0, fmt.Errorf("failed to migrate data: %w", err)
 	}
 
 	return result.RowsAffected()

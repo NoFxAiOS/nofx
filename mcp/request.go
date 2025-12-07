@@ -1,45 +1,45 @@
 package mcp
 
-// Message 表示一条对话消息
+// Message represents a conversation message
 type Message struct {
 	Role    string `json:"role"`    // "system", "user", "assistant"
-	Content string `json:"content"` // 消息内容
+	Content string `json:"content"` // Message content
 }
 
-// Tool 表示 AI 可以调用的工具/函数
+// Tool represents a tool/function that AI can call
 type Tool struct {
-	Type     string      `json:"type"`     // 通常为 "function"
-	Function FunctionDef `json:"function"` // 函数定义
+	Type     string      `json:"type"`     // Usually "function"
+	Function FunctionDef `json:"function"` // Function definition
 }
 
-// FunctionDef 函数定义
+// FunctionDef function definition
 type FunctionDef struct {
-	Name        string         `json:"name"`                  // 函数名
-	Description string         `json:"description,omitempty"` // 函数描述
-	Parameters  map[string]any `json:"parameters,omitempty"`  // 参数 schema (JSON Schema)
+	Name        string         `json:"name"`                  // Function name
+	Description string         `json:"description,omitempty"` // Function description
+	Parameters  map[string]any `json:"parameters,omitempty"`  // Parameter schema (JSON Schema)
 }
 
-// Request AI API 请求（支持高级功能）
+// Request AI API request (supports advanced features)
 type Request struct {
-	// 基础字段
-	Model    string    `json:"model"`              // 模型名称
-	Messages []Message `json:"messages"`           // 对话消息列表
-	Stream   bool      `json:"stream,omitempty"`   // 是否流式响应
+	// Basic fields
+	Model    string    `json:"model"`              // Model name
+	Messages []Message `json:"messages"`           // Conversation message list
+	Stream   bool      `json:"stream,omitempty"`   // Whether to stream response
 
-	// 可选参数（用于精细控制）
-	Temperature      *float64 `json:"temperature,omitempty"`       // 温度 (0-2)，控制随机性
-	MaxTokens        *int     `json:"max_tokens,omitempty"`        // 最大 token 数
-	TopP             *float64 `json:"top_p,omitempty"`             // 核采样参数 (0-1)
-	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` // 频率惩罚 (-2 to 2)
-	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`  // 存在惩罚 (-2 to 2)
-	Stop             []string `json:"stop,omitempty"`              // 停止序列
+	// Optional parameters (for fine-grained control)
+	Temperature      *float64 `json:"temperature,omitempty"`       // Temperature (0-2), controls randomness
+	MaxTokens        *int     `json:"max_tokens,omitempty"`        // Maximum token count
+	TopP             *float64 `json:"top_p,omitempty"`             // Nucleus sampling parameter (0-1)
+	FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` // Frequency penalty (-2 to 2)
+	PresencePenalty  *float64 `json:"presence_penalty,omitempty"`  // Presence penalty (-2 to 2)
+	Stop             []string `json:"stop,omitempty"`              // Stop sequences
 
-	// 高级功能
-	Tools      []Tool `json:"tools,omitempty"`       // 可用工具列表
-	ToolChoice string `json:"tool_choice,omitempty"` // 工具选择策略 ("auto", "none", {"type": "function", "function": {"name": "xxx"}})
+	// Advanced features
+	Tools      []Tool `json:"tools,omitempty"`       // Available tools list
+	ToolChoice string `json:"tool_choice,omitempty"` // Tool choice strategy ("auto", "none", {"type": "function", "function": {"name": "xxx"}})
 }
 
-// NewMessage 创建一条消息
+// NewMessage creates a message
 func NewMessage(role, content string) Message {
 	return Message{
 		Role:    role,
@@ -47,7 +47,7 @@ func NewMessage(role, content string) Message {
 	}
 }
 
-// NewSystemMessage 创建系统消息
+// NewSystemMessage creates a system message
 func NewSystemMessage(content string) Message {
 	return Message{
 		Role:    "system",
@@ -55,7 +55,7 @@ func NewSystemMessage(content string) Message {
 	}
 }
 
-// NewUserMessage 创建用户消息
+// NewUserMessage creates a user message
 func NewUserMessage(content string) Message {
 	return Message{
 		Role:    "user",
@@ -63,7 +63,7 @@ func NewUserMessage(content string) Message {
 	}
 }
 
-// NewAssistantMessage 创建助手消息
+// NewAssistantMessage creates an assistant message
 func NewAssistantMessage(content string) Message {
 	return Message{
 		Role:    "assistant",

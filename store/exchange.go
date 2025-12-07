@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-// ExchangeStore 交易所存储
+// ExchangeStore exchange storage
 type ExchangeStore struct {
 	db          *sql.DB
 	encryptFunc func(string) string
 	decryptFunc func(string) string
 }
 
-// Exchange 交易所配置
+// Exchange exchange configuration
 type Exchange struct {
 	ID                      string    `json:"id"`
 	UserID                  string    `json:"user_id"`
@@ -24,7 +24,7 @@ type Exchange struct {
 	Enabled                 bool      `json:"enabled"`
 	APIKey                  string    `json:"apiKey"`
 	SecretKey               string    `json:"secretKey"`
-	Passphrase              string    `json:"passphrase"` // OKX专用
+	Passphrase              string    `json:"passphrase"` // OKX-specific
 	Testnet                 bool      `json:"testnet"`
 	HyperliquidWalletAddr   string    `json:"hyperliquidWalletAddr"`
 	AsterUser               string    `json:"asterUser"`
@@ -65,10 +65,10 @@ func (s *ExchangeStore) initTables() error {
 		return err
 	}
 
-	// 迁移：添加 passphrase 列（如果不存在）
+	// Migration: add passphrase column (if not exists)
 	s.db.Exec(`ALTER TABLE exchanges ADD COLUMN passphrase TEXT DEFAULT ''`)
 
-	// 触发器
+	// Trigger
 	_, err = s.db.Exec(`
 		CREATE TRIGGER IF NOT EXISTS update_exchanges_updated_at
 		AFTER UPDATE ON exchanges
@@ -97,7 +97,7 @@ func (s *ExchangeStore) initDefaultData() error {
 			VALUES (?, 'default', ?, ?, 0)
 		`, exchange.id, exchange.name, exchange.typ)
 		if err != nil {
-			return fmt.Errorf("初始化交易所失败: %w", err)
+			return fmt.Errorf("failed to initialize exchange: %w", err)
 		}
 	}
 	return nil
@@ -117,7 +117,7 @@ func (s *ExchangeStore) decrypt(encrypted string) string {
 	return encrypted
 }
 
-// EnsureUserExchanges 确保用户有所有支持的交易所记录
+// EnsureUserExchanges ensures user has records for all supported exchanges
 func (s *ExchangeStore) EnsureUserExchanges(userID string) error {
 	exchanges := []struct {
 		id, name, typ string
@@ -136,17 +136,17 @@ func (s *ExchangeStore) EnsureUserExchanges(userID string) error {
 			VALUES (?, ?, ?, ?, 0)
 		`, exchange.id, userID, exchange.name, exchange.typ)
 		if err != nil {
-			return fmt.Errorf("确保用户交易所失败: %w", err)
+			return fmt.Errorf("failed to ensure user exchanges: %w", err)
 		}
 	}
 	return nil
 }
 
-// List 获取用户的交易所列表
+// List gets user's exchange list
 func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
-	// 确保用户有所有支持的交易所记录
+	// Ensure user has records for all supported exchanges
 	if err := s.EnsureUserExchanges(userID); err != nil {
-		logger.Debugf("⚠️ 确保用户交易所记录失败: %v", err)
+		logger.Debugf("Warning: failed to ensure user exchange records: %v", err)
 	}
 
 	rows, err := s.db.Query(`
@@ -194,7 +194,7 @@ func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
 	return exchanges, nil
 }
 
-// Update 更新交易所配置
+// Update updates exchange configuration
 func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKey, passphrase string, testnet bool,
 	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string) error {
 
@@ -246,7 +246,7 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		// 创建新记录，type 使用交易所 ID 以便后续正确识别
+		// Create new record, use exchange ID as type for correct identification
 		var name, typ string
 		switch id {
 		case "binance":
@@ -278,7 +278,7 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 	return nil
 }
 
-// Create 创建交易所配置
+// Create creates exchange configuration
 func (s *ExchangeStore) Create(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool,
 	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 	_, err := s.db.Exec(`

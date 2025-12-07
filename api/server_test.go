@@ -7,7 +7,7 @@ import (
 	"nofx/store"
 )
 
-// TestUpdateTraderRequest_SystemPromptTemplate 测试更新交易员时 SystemPromptTemplate 字段是否存在
+// TestUpdateTraderRequest_SystemPromptTemplate Test whether SystemPromptTemplate field exists when updating trader
 func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 	tests := []struct {
 		name                   string
@@ -15,7 +15,7 @@ func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 		expectedPromptTemplate string
 	}{
 		{
-			name: "更新时应该能接收 system_prompt_template=nof1",
+			name: "Should accept system_prompt_template=nof1 during update",
 			requestJSON: `{
 				"name": "Test Trader",
 				"ai_model_id": "gpt-4",
@@ -33,7 +33,7 @@ func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 			expectedPromptTemplate: "nof1",
 		},
 		{
-			name: "更新时应该能接收 system_prompt_template=default",
+			name: "Should accept system_prompt_template=default during update",
 			requestJSON: `{
 				"name": "Test Trader",
 				"ai_model_id": "gpt-4",
@@ -51,7 +51,7 @@ func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 			expectedPromptTemplate: "default",
 		},
 		{
-			name: "更新时应该能接收 system_prompt_template=custom",
+			name: "Should accept system_prompt_template=custom during update",
 			requestJSON: `{
 				"name": "Test Trader",
 				"ai_model_id": "gpt-4",
@@ -72,20 +72,20 @@ func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 测试 UpdateTraderRequest 结构体是否能正确解析 system_prompt_template 字段
+			// Test whether UpdateTraderRequest struct can correctly parse system_prompt_template field
 			var req UpdateTraderRequest
 			err := json.Unmarshal([]byte(tt.requestJSON), &req)
 			if err != nil {
 				t.Fatalf("Failed to unmarshal JSON: %v", err)
 			}
 
-			// ✅ 验证 SystemPromptTemplate 字段是否被正确读取
+			// Verify SystemPromptTemplate field is correctly read
 			if req.SystemPromptTemplate != tt.expectedPromptTemplate {
 				t.Errorf("Expected SystemPromptTemplate=%q, got %q",
 					tt.expectedPromptTemplate, req.SystemPromptTemplate)
 			}
 
-			// 验证其他字段也被正确解析
+			// Verify other fields are also correctly parsed
 			if req.Name != "Test Trader" {
 				t.Errorf("Name not parsed correctly")
 			}
@@ -96,7 +96,7 @@ func TestUpdateTraderRequest_SystemPromptTemplate(t *testing.T) {
 	}
 }
 
-// TestGetTraderConfigResponse_SystemPromptTemplate 测试获取交易员配置时返回值是否包含 system_prompt_template
+// TestGetTraderConfigResponse_SystemPromptTemplate Test whether return value contains system_prompt_template when getting trader config
 func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -104,7 +104,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 		expectedTemplate string
 	}{
 		{
-			name: "获取配置应该返回 system_prompt_template=nof1",
+			name: "Get config should return system_prompt_template=nof1",
 			traderConfig: &store.Trader{
 				ID:                   "trader-123",
 				UserID:               "user-1",
@@ -125,7 +125,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 			expectedTemplate: "nof1",
 		},
 		{
-			name: "获取配置应该返回 system_prompt_template=default",
+			name: "Get config should return system_prompt_template=default",
 			traderConfig: &store.Trader{
 				ID:                   "trader-456",
 				UserID:               "user-1",
@@ -149,7 +149,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 模拟 handleGetTraderConfig 的返回值构造逻辑（修复后的实现）
+			// Simulate handleGetTraderConfig return value construction logic (fixed implementation)
 			result := map[string]interface{}{
 				"trader_id":              tt.traderConfig.ID,
 				"trader_name":            tt.traderConfig.Name,
@@ -167,7 +167,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 				"is_running":             tt.traderConfig.IsRunning,
 			}
 
-			// ✅ 检查响应中是否包含 system_prompt_template
+			// Check if response contains system_prompt_template
 			if _, exists := result["system_prompt_template"]; !exists {
 				t.Errorf("Response is missing 'system_prompt_template' field")
 			} else {
@@ -178,7 +178,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 				}
 			}
 
-			// 验证其他字段是否正确
+			// Verify other fields are correct
 			if result["trader_id"] != tt.traderConfig.ID {
 				t.Errorf("trader_id mismatch")
 			}
@@ -189,7 +189,7 @@ func TestGetTraderConfigResponse_SystemPromptTemplate(t *testing.T) {
 	}
 }
 
-// TestUpdateTraderRequest_CompleteFields 验证 UpdateTraderRequest 结构体定义完整性
+// TestUpdateTraderRequest_CompleteFields Verify UpdateTraderRequest struct definition completeness
 func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 	jsonData := `{
 		"name": "Test Trader",
@@ -212,7 +212,7 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 		t.Fatalf("Failed to unmarshal JSON: %v", err)
 	}
 
-	// 验证基本字段是否正确解析
+	// Verify basic fields are correctly parsed
 	if req.Name != "Test Trader" {
 		t.Errorf("Name mismatch: got %q", req.Name)
 	}
@@ -220,15 +220,15 @@ func TestUpdateTraderRequest_CompleteFields(t *testing.T) {
 		t.Errorf("AIModelID mismatch: got %q", req.AIModelID)
 	}
 
-	// ✅ 验证 SystemPromptTemplate 字段已正确添加到结构体
+	// Verify SystemPromptTemplate field has been correctly added to struct
 	if req.SystemPromptTemplate != "nof1" {
 		t.Errorf("SystemPromptTemplate mismatch: expected %q, got %q", "nof1", req.SystemPromptTemplate)
 	}
 }
 
-// TestTraderListResponse_SystemPromptTemplate 测试 handleTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+// TestTraderListResponse_SystemPromptTemplate Test whether trader object returned by handleTraderList API contains system_prompt_template field
 func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
-	// 模拟 handleTraderList 中的 trader 对象构造
+	// Simulate trader object construction in handleTraderList
 	trader := &store.Trader{
 		ID:                   "trader-001",
 		UserID:               "user-1",
@@ -240,7 +240,7 @@ func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
 		IsRunning:            true,
 	}
 
-	// 构造 API 响应对象（与 api/server.go 中的逻辑一致）
+	// Construct API response object (consistent with logic in api/server.go)
 	response := map[string]interface{}{
 		"trader_id":              trader.ID,
 		"trader_name":            trader.Name,
@@ -251,20 +251,20 @@ func TestTraderListResponse_SystemPromptTemplate(t *testing.T) {
 		"system_prompt_template": trader.SystemPromptTemplate,
 	}
 
-	// ✅ 验证 system_prompt_template 字段存在
+	// Verify system_prompt_template field exists
 	if _, exists := response["system_prompt_template"]; !exists {
 		t.Errorf("Trader list response is missing 'system_prompt_template' field")
 	}
 
-	// ✅ 验证 system_prompt_template 值正确
+	// Verify system_prompt_template value is correct
 	if response["system_prompt_template"] != "nof1" {
 		t.Errorf("Expected system_prompt_template='nof1', got %v", response["system_prompt_template"])
 	}
 }
 
-// TestPublicTraderListResponse_SystemPromptTemplate 测试 handlePublicTraderList API 返回的 trader 对象是否包含 system_prompt_template 字段
+// TestPublicTraderListResponse_SystemPromptTemplate Test whether trader object returned by handlePublicTraderList API contains system_prompt_template field
 func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
-	// 模拟 getConcurrentTraderData 返回的 trader 数据
+	// Simulate trader data returned by getConcurrentTraderData
 	traderData := map[string]interface{}{
 		"trader_id":              "trader-002",
 		"trader_name":            "Public Trader",
@@ -279,7 +279,7 @@ func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
 		"system_prompt_template": "default",
 	}
 
-	// 构造 API 响应对象（与 api/server.go handlePublicTraderList 中的逻辑一致）
+	// Construct API response object (consistent with logic in api/server.go handlePublicTraderList)
 	response := map[string]interface{}{
 		"trader_id":              traderData["trader_id"],
 		"trader_name":            traderData["trader_name"],
@@ -293,12 +293,12 @@ func TestPublicTraderListResponse_SystemPromptTemplate(t *testing.T) {
 		"system_prompt_template": traderData["system_prompt_template"],
 	}
 
-	// ✅ 验证 system_prompt_template 字段存在
+	// Verify system_prompt_template field exists
 	if _, exists := response["system_prompt_template"]; !exists {
 		t.Errorf("Public trader list response is missing 'system_prompt_template' field")
 	}
 
-	// ✅ 验证 system_prompt_template 值正确
+	// Verify system_prompt_template value is correct
 	if response["system_prompt_template"] != "default" {
 		t.Errorf("Expected system_prompt_template='default', got %v", response["system_prompt_template"])
 	}

@@ -12,7 +12,7 @@ type SetHttpClientResult struct {
 
 func (r *SetHttpClientResult) Error() error {
 	if r.Err != nil {
-		log.Printf("⚠️ 执行NewAsterTraderResult时出错: %v", r.Err)
+		log.Printf("⚠️ Error executing SetHttpClientResult: %v", r.Err)
 	}
 	return r.Err
 }

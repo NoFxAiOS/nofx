@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-// UserStore 用户存储
+// UserStore user storage
 type UserStore struct {
 	db *sql.DB
 }
 
-// User 用户
+// User user
 type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
@@ -23,7 +23,7 @@ type User struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// GenerateOTPSecret 生成OTP密钥
+// GenerateOTPSecret generates OTP secret
 func GenerateOTPSecret() (string, error) {
 	secret := make([]byte, 20)
 	_, err := rand.Read(secret)
@@ -49,7 +49,7 @@ func (s *UserStore) initTables() error {
 		return err
 	}
 
-	// 触发器
+	// Trigger
 	_, err = s.db.Exec(`
 		CREATE TRIGGER IF NOT EXISTS update_users_updated_at
 		AFTER UPDATE ON users
@@ -64,7 +64,7 @@ func (s *UserStore) initTables() error {
 	return nil
 }
 
-// Create 创建用户
+// Create creates user
 func (s *UserStore) Create(user *User) error {
 	_, err := s.db.Exec(`
 		INSERT INTO users (id, email, password_hash, otp_secret, otp_verified)
@@ -73,7 +73,7 @@ func (s *UserStore) Create(user *User) error {
 	return err
 }
 
-// GetByEmail 通过邮箱获取用户
+// GetByEmail gets user by email
 func (s *UserStore) GetByEmail(email string) (*User, error) {
 	var user User
 	var createdAt, updatedAt string
@@ -92,7 +92,7 @@ func (s *UserStore) GetByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-// GetByID 通过ID获取用户
+// GetByID gets user by ID
 func (s *UserStore) GetByID(userID string) (*User, error) {
 	var user User
 	var createdAt, updatedAt string
@@ -111,7 +111,7 @@ func (s *UserStore) GetByID(userID string) (*User, error) {
 	return &user, nil
 }
 
-// GetAllIDs 获取所有用户ID
+// GetAllIDs gets all user IDs
 func (s *UserStore) GetAllIDs() ([]string, error) {
 	rows, err := s.db.Query(`SELECT id FROM users ORDER BY id`)
 	if err != nil {
@@ -130,13 +130,13 @@ func (s *UserStore) GetAllIDs() ([]string, error) {
 	return userIDs, nil
 }
 
-// UpdateOTPVerified 更新OTP验证状态
+// UpdateOTPVerified updates OTP verification status
 func (s *UserStore) UpdateOTPVerified(userID string, verified bool) error {
 	_, err := s.db.Exec(`UPDATE users SET otp_verified = ? WHERE id = ?`, verified, userID)
 	return err
 }
 
-// UpdatePassword 更新密码
+// UpdatePassword updates password
 func (s *UserStore) UpdatePassword(userID, passwordHash string) error {
 	_, err := s.db.Exec(`
 		UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
@@ -144,7 +144,7 @@ func (s *UserStore) UpdatePassword(userID, passwordHash string) error {
 	return err
 }
 
-// EnsureAdmin 确保admin用户存在
+// EnsureAdmin ensures admin user exists
 func (s *UserStore) EnsureAdmin() error {
 	var count int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM users WHERE id = 'admin'`).Scan(&count)

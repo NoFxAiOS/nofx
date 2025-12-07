@@ -89,7 +89,7 @@ func (acc *BacktestAccount) Open(symbol, side string, quantity float64, leverage
 		pos.LiquidationPrice = computeLiquidation(execPrice, leverage, side)
 	} else {
 		if leverage != pos.Leverage {
-			// 采用权重平均杠杆（近似）
+			// Use weighted average leverage (approximate)
 			weightedMargin := pos.Margin + margin
 			pos.Leverage = int(math.Round((pos.Notional + notional) / weightedMargin))
 		}
@@ -227,7 +227,7 @@ func (acc *BacktestAccount) RealizedPnL() float64 {
 	return acc.realizedPnL
 }
 
-// RestoreFromSnapshots 用于从检查点恢复账户状态。
+// RestoreFromSnapshots restores account state from checkpoint.
 func (acc *BacktestAccount) RestoreFromSnapshots(cash float64, realized float64, snaps []PositionSnapshot) {
 	acc.cash = cash
 	acc.realizedPnL = realized

@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-// BacktestStore 回测数据存储
+// BacktestStore backtest data storage
 type BacktestStore struct {
 	db *sql.DB
 }
 
-// RunState 回测状态
+// RunState backtest state
 type RunState string
 
 const (
@@ -23,7 +23,7 @@ const (
 	RunStateFailed    RunState = "failed"
 )
 
-// RunMetadata 回测元数据
+// RunMetadata backtest metadata
 type RunMetadata struct {
 	RunID     string     `json:"run_id"`
 	UserID    string     `json:"user_id"`
@@ -36,7 +36,7 @@ type RunMetadata struct {
 	UpdatedAt time.Time  `json:"updated_at"`
 }
 
-// RunSummary 回测摘要
+// RunSummary backtest summary
 type RunSummary struct {
 	SymbolCount     int     `json:"symbol_count"`
 	DecisionTF      string  `json:"decision_tf"`
@@ -48,7 +48,7 @@ type RunSummary struct {
 	LiquidationNote string  `json:"liquidation_note"`
 }
 
-// EquityPoint 权益点
+// EquityPoint equity point
 type EquityPoint struct {
 	Timestamp   int64   `json:"timestamp"`
 	Equity      float64 `json:"equity"`
@@ -59,7 +59,7 @@ type EquityPoint struct {
 	Cycle       int     `json:"cycle"`
 }
 
-// TradeEvent 交易事件
+// TradeEvent trade event
 type TradeEvent struct {
 	Timestamp       int64   `json:"timestamp"`
 	Symbol          string  `json:"symbol"`
@@ -78,7 +78,7 @@ type TradeEvent struct {
 	Note            string  `json:"note"`
 }
 
-// RunIndexEntry 回测索引条目
+// RunIndexEntry backtest index entry
 type RunIndexEntry struct {
 	RunID          string   `json:"run_id"`
 	State          string   `json:"state"`
@@ -92,10 +92,10 @@ type RunIndexEntry struct {
 	UpdatedAtISO   string   `json:"updated_at"`
 }
 
-// initTables 初始化回测相关表
+// initTables initializes backtest related tables
 func (s *BacktestStore) initTables() error {
 	queries := []string{
-		// 回测运行主表
+		// Backtest runs main table
 		`CREATE TABLE IF NOT EXISTS backtest_runs (
 			run_id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL DEFAULT '',
@@ -120,7 +120,7 @@ func (s *BacktestStore) initTables() error {
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 
-		// 回测检查点
+		// Backtest checkpoints
 		`CREATE TABLE IF NOT EXISTS backtest_checkpoints (
 			run_id TEXT PRIMARY KEY,
 			payload BLOB NOT NULL,
@@ -128,7 +128,7 @@ func (s *BacktestStore) initTables() error {
 			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
 		)`,
 
-		// 回测权益曲线
+		// Backtest equity curve
 		`CREATE TABLE IF NOT EXISTS backtest_equity (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			run_id TEXT NOT NULL,
@@ -142,7 +142,7 @@ func (s *BacktestStore) initTables() error {
 			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
 		)`,
 
-		// 回测交易记录
+		// Backtest trade records
 		`CREATE TABLE IF NOT EXISTS backtest_trades (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			run_id TEXT NOT NULL,
@@ -164,7 +164,7 @@ func (s *BacktestStore) initTables() error {
 			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
 		)`,
 
-		// 回测指标
+		// Backtest metrics
 		`CREATE TABLE IF NOT EXISTS backtest_metrics (
 			run_id TEXT PRIMARY KEY,
 			payload BLOB NOT NULL,
@@ -172,7 +172,7 @@ func (s *BacktestStore) initTables() error {
 			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
 		)`,
 
-		// 回测决策日志
+		// Backtest decision logs
 		`CREATE TABLE IF NOT EXISTS backtest_decisions (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			run_id TEXT NOT NULL,
@@ -182,7 +182,7 @@ func (s *BacktestStore) initTables() error {
 			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
 		)`,
 
-		// 索引
+		// Indexes
 		`CREATE INDEX IF NOT EXISTS idx_backtest_runs_state ON backtest_runs(state, updated_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_backtest_equity_run_ts ON backtest_equity(run_id, ts)`,
 		`CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_ts ON backtest_trades(run_id, ts)`,
@@ -191,11 +191,11 @@ func (s *BacktestStore) initTables() error {
 
 	for _, query := range queries {
 		if _, err := s.db.Exec(query); err != nil {
-			return fmt.Errorf("执行SQL失败: %w", err)
+			return fmt.Errorf("failed to execute SQL: %w", err)
 		}
 	}
 
-	// 添加可能缺失的列（向后兼容）
+	// Add potentially missing columns (backward compatibility)
 	s.addColumnIfNotExists("backtest_runs", "label", "TEXT DEFAULT ''")
 	s.addColumnIfNotExists("backtest_runs", "last_error", "TEXT DEFAULT ''")
 	s.addColumnIfNotExists("backtest_trades", "leverage", "INTEGER DEFAULT 0")
@@ -219,14 +219,14 @@ func (s *BacktestStore) addColumnIfNotExists(table, column, definition string) {
 			continue
 		}
 		if name == column {
-			return // 列已存在
+			return // Column already exists
 		}
 	}
 
 	s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
 }
 
-// SaveCheckpoint 保存检查点
+// SaveCheckpoint saves checkpoint
 func (s *BacktestStore) SaveCheckpoint(runID string, payload []byte) error {
 	_, err := s.db.Exec(`
 		INSERT INTO backtest_checkpoints (run_id, payload, updated_at)
@@ -236,14 +236,14 @@ func (s *BacktestStore) SaveCheckpoint(runID string, payload []byte) error {
 	return err
 }
 
-// LoadCheckpoint 加载检查点
+// LoadCheckpoint loads checkpoint
 func (s *BacktestStore) LoadCheckpoint(runID string) ([]byte, error) {
 	var payload []byte
 	err := s.db.QueryRow(`SELECT payload FROM backtest_checkpoints WHERE run_id = ?`, runID).Scan(&payload)
 	return payload, err
 }
 
-// SaveRunMetadata 保存运行元数据
+// SaveRunMetadata saves run metadata
 func (s *BacktestStore) SaveRunMetadata(meta *RunMetadata) error {
 	created := meta.CreatedAt.UTC().Format(time.RFC3339)
 	updated := meta.UpdatedAt.UTC().Format(time.RFC3339)
@@ -270,7 +270,7 @@ func (s *BacktestStore) SaveRunMetadata(meta *RunMetadata) error {
 	return err
 }
 
-// LoadRunMetadata 加载运行元数据
+// LoadRunMetadata loads run metadata
 func (s *BacktestStore) LoadRunMetadata(runID string) (*RunMetadata, error) {
 	var (
 		userID          string
@@ -326,7 +326,7 @@ func (s *BacktestStore) LoadRunMetadata(runID string) (*RunMetadata, error) {
 	return meta, nil
 }
 
-// ListRunIDs 列出所有运行ID
+// ListRunIDs lists all run IDs
 func (s *BacktestStore) ListRunIDs() ([]string, error) {
 	rows, err := s.db.Query(`SELECT run_id FROM backtest_runs ORDER BY datetime(updated_at) DESC`)
 	if err != nil {
@@ -345,7 +345,7 @@ func (s *BacktestStore) ListRunIDs() ([]string, error) {
 	return ids, rows.Err()
 }
 
-// AppendEquityPoint 添加权益点
+// AppendEquityPoint appends equity point
 func (s *BacktestStore) AppendEquityPoint(runID string, point EquityPoint) error {
 	_, err := s.db.Exec(`
 		INSERT INTO backtest_equity (run_id, ts, equity, available, pnl, pnl_pct, dd_pct, cycle)
@@ -355,7 +355,7 @@ func (s *BacktestStore) AppendEquityPoint(runID string, point EquityPoint) error
 	return err
 }
 
-// LoadEquityPoints 加载权益点
+// LoadEquityPoints loads equity points
 func (s *BacktestStore) LoadEquityPoints(runID string) ([]EquityPoint, error) {
 	rows, err := s.db.Query(`
 		SELECT ts, equity, available, pnl, pnl_pct, dd_pct, cycle
@@ -378,7 +378,7 @@ func (s *BacktestStore) LoadEquityPoints(runID string) ([]EquityPoint, error) {
 	return points, rows.Err()
 }
 
-// AppendTradeEvent 添加交易事件
+// AppendTradeEvent appends trade event
 func (s *BacktestStore) AppendTradeEvent(runID string, event TradeEvent) error {
 	_, err := s.db.Exec(`
 		INSERT INTO backtest_trades (run_id, ts, symbol, action, side, qty, price, fee,
@@ -391,7 +391,7 @@ func (s *BacktestStore) AppendTradeEvent(runID string, event TradeEvent) error {
 	return err
 }
 
-// LoadTradeEvents 加载交易事件
+// LoadTradeEvents loads trade events
 func (s *BacktestStore) LoadTradeEvents(runID string) ([]TradeEvent, error) {
 	rows, err := s.db.Query(`
 		SELECT ts, symbol, action, side, qty, price, fee, slippage, order_value,
@@ -417,7 +417,7 @@ func (s *BacktestStore) LoadTradeEvents(runID string) ([]TradeEvent, error) {
 	return events, rows.Err()
 }
 
-// SaveMetrics 保存指标
+// SaveMetrics saves metrics
 func (s *BacktestStore) SaveMetrics(runID string, payload []byte) error {
 	_, err := s.db.Exec(`
 		INSERT INTO backtest_metrics (run_id, payload, updated_at)
@@ -427,14 +427,14 @@ func (s *BacktestStore) SaveMetrics(runID string, payload []byte) error {
 	return err
 }
 
-// LoadMetrics 加载指标
+// LoadMetrics loads metrics
 func (s *BacktestStore) LoadMetrics(runID string) ([]byte, error) {
 	var payload []byte
 	err := s.db.QueryRow(`SELECT payload FROM backtest_metrics WHERE run_id = ?`, runID).Scan(&payload)
 	return payload, err
 }
 
-// SaveDecisionRecord 保存决策记录
+// SaveDecisionRecord saves decision record
 func (s *BacktestStore) SaveDecisionRecord(runID string, cycle int, payload []byte) error {
 	_, err := s.db.Exec(`
 		INSERT INTO backtest_decisions (run_id, cycle, payload)
@@ -443,7 +443,7 @@ func (s *BacktestStore) SaveDecisionRecord(runID string, cycle int, payload []by
 	return err
 }
 
-// LoadDecisionRecords 加载决策记录
+// LoadDecisionRecords loads decision records
 func (s *BacktestStore) LoadDecisionRecords(runID string, limit, offset int) ([]json.RawMessage, error) {
 	rows, err := s.db.Query(`
 		SELECT payload FROM backtest_decisions
@@ -467,7 +467,7 @@ func (s *BacktestStore) LoadDecisionRecords(runID string, limit, offset int) ([]
 	return records, rows.Err()
 }
 
-// LoadLatestDecision 加载最新决策
+// LoadLatestDecision loads latest decision
 func (s *BacktestStore) LoadLatestDecision(runID string, cycle int) ([]byte, error) {
 	var query string
 	var args []interface{}
@@ -485,7 +485,7 @@ func (s *BacktestStore) LoadLatestDecision(runID string, cycle int) ([]byte, err
 	return payload, err
 }
 
-// UpdateProgress 更新进度
+// UpdateProgress updates progress
 func (s *BacktestStore) UpdateProgress(runID string, progressPct, equity float64, barIndex int, liquidated bool) error {
 	_, err := s.db.Exec(`
 		UPDATE backtest_runs
@@ -495,7 +495,7 @@ func (s *BacktestStore) UpdateProgress(runID string, progressPct, equity float64
 	return err
 }
 
-// ListIndexEntries 列出索引条目
+// ListIndexEntries lists index entries
 func (s *BacktestStore) ListIndexEntries() ([]RunIndexEntry, error) {
 	rows, err := s.db.Query(`
 		SELECT run_id, state, symbol_count, decision_tf, equity_last, max_drawdown_pct,
@@ -524,7 +524,7 @@ func (s *BacktestStore) ListIndexEntries() ([]RunIndexEntry, error) {
 		entry.UpdatedAtISO = updatedISO
 		entry.Symbols = make([]string, 0, symbolCnt)
 
-		// 尝试从配置中提取更多信息
+		// Try to extract more information from config
 		if len(cfgJSON) > 0 {
 			var cfg struct {
 				Symbols []string `json:"symbols"`
@@ -543,13 +543,13 @@ func (s *BacktestStore) ListIndexEntries() ([]RunIndexEntry, error) {
 	return entries, rows.Err()
 }
 
-// DeleteRun 删除运行
+// DeleteRun deletes run
 func (s *BacktestStore) DeleteRun(runID string) error {
 	_, err := s.db.Exec(`DELETE FROM backtest_runs WHERE run_id = ?`, runID)
 	return err
 }
 
-// SaveConfig 保存配置
+// SaveConfig saves config
 func (s *BacktestStore) SaveConfig(runID, userID, template, customPrompt, provider, model string, override bool, configJSON []byte) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	if userID == "" {
@@ -575,7 +575,7 @@ func (s *BacktestStore) SaveConfig(runID, userID, template, customPrompt, provid
 	return err
 }
 
-// LoadConfig 加载配置
+// LoadConfig loads config
 func (s *BacktestStore) LoadConfig(runID string) ([]byte, error) {
 	var payload []byte
 	err := s.db.QueryRow(`SELECT config_json FROM backtest_runs WHERE run_id = ?`, runID).Scan(&payload)

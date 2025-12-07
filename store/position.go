@@ -7,40 +7,40 @@ import (
 	"time"
 )
 
-// TraderPosition 仓位记录（完整的开平仓追踪）
+// TraderPosition position record (complete open/close position tracking)
 type TraderPosition struct {
 	ID           int64      `json:"id"`
 	TraderID     string     `json:"trader_id"`
-	ExchangeID   string     `json:"exchange_id"`    // 交易所ID: binance/bybit/hyperliquid/aster/lighter
+	ExchangeID   string     `json:"exchange_id"`    // Exchange ID: binance/bybit/hyperliquid/aster/lighter
 	Symbol       string     `json:"symbol"`
 	Side         string     `json:"side"`           // LONG/SHORT
-	Quantity     float64    `json:"quantity"`       // 开仓数量
-	EntryPrice   float64    `json:"entry_price"`    // 开仓均价
-	EntryOrderID string     `json:"entry_order_id"` // 开仓订单ID
-	EntryTime    time.Time  `json:"entry_time"`     // 开仓时间
-	ExitPrice    float64    `json:"exit_price"`     // 平仓均价
-	ExitOrderID  string     `json:"exit_order_id"`  // 平仓订单ID
-	ExitTime     *time.Time `json:"exit_time"`      // 平仓时间
-	RealizedPnL  float64    `json:"realized_pnl"`   // 已实现盈亏
-	Fee          float64    `json:"fee"`            // 手续费
-	Leverage     int        `json:"leverage"`       // 杠杆倍数
+	Quantity     float64    `json:"quantity"`       // Opening quantity
+	EntryPrice   float64    `json:"entry_price"`    // Entry price
+	EntryOrderID string     `json:"entry_order_id"` // Entry order ID
+	EntryTime    time.Time  `json:"entry_time"`     // Entry time
+	ExitPrice    float64    `json:"exit_price"`     // Exit price
+	ExitOrderID  string     `json:"exit_order_id"`  // Exit order ID
+	ExitTime     *time.Time `json:"exit_time"`      // Exit time
+	RealizedPnL  float64    `json:"realized_pnl"`   // Realized profit and loss
+	Fee          float64    `json:"fee"`            // Fee
+	Leverage     int        `json:"leverage"`       // Leverage multiplier
 	Status       string     `json:"status"`         // OPEN/CLOSED
-	CloseReason  string     `json:"close_reason"`   // 平仓原因: ai_decision/manual/stop_loss/take_profit
+	CloseReason  string     `json:"close_reason"`   // Close reason: ai_decision/manual/stop_loss/take_profit
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
-// PositionStore 仓位存储
+// PositionStore position storage
 type PositionStore struct {
 	db *sql.DB
 }
 
-// NewPositionStore 创建仓位存储实例
+// NewPositionStore creates position storage instance
 func NewPositionStore(db *sql.DB) *PositionStore {
 	return &PositionStore{db: db}
 }
 
-// InitTables 初始化仓位表
+// InitTables initializes position tables
 func (s *PositionStore) InitTables() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS trader_positions (
@@ -66,14 +66,14 @@ func (s *PositionStore) InitTables() error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("创建trader_positions表失败: %w", err)
+		return fmt.Errorf("failed to create trader_positions table: %w", err)
 	}
 
-	// 迁移：为现有表添加 exchange_id 列（如果不存在）
-	// 必须在创建索引之前执行！
+	// Migration: add exchange_id column to existing table (if not exists)
+	// Must be executed before creating indexes!
 	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_id TEXT NOT NULL DEFAULT ''`)
 
-	// 创建索引（在迁移之后）
+	// Create indexes (after migration)
 	indices := []string{
 		`CREATE INDEX IF NOT EXISTS idx_positions_trader ON trader_positions(trader_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_exchange ON trader_positions(exchange_id)`,
@@ -84,14 +84,14 @@ func (s *PositionStore) InitTables() error {
 	}
 	for _, idx := range indices {
 		if _, err := s.db.Exec(idx); err != nil {
-			return fmt.Errorf("创建索引失败: %w", err)
+			return fmt.Errorf("failed to create index: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// Create 创建仓位记录（开仓时调用）
+// Create creates position record (called when opening position)
 func (s *PositionStore) Create(pos *TraderPosition) error {
 	now := time.Now()
 	pos.CreatedAt = now
@@ -109,7 +109,7 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 		pos.Status, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
-		return fmt.Errorf("创建仓位记录失败: %w", err)
+		return fmt.Errorf("failed to create position record: %w", err)
 	}
 
 	id, _ := result.LastInsertId()
@@ -117,7 +117,7 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 	return nil
 }
 
-// ClosePosition 平仓（更新仓位记录）
+// ClosePosition closes position (updates position record)
 func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID string, realizedPnL float64, fee float64, closeReason string) error {
 	now := time.Now()
 	_, err := s.db.Exec(`
@@ -131,12 +131,12 @@ func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID s
 		realizedPnL, fee, closeReason, now.Format(time.RFC3339), id,
 	)
 	if err != nil {
-		return fmt.Errorf("更新仓位记录失败: %w", err)
+		return fmt.Errorf("failed to update position record: %w", err)
 	}
 	return nil
 }
 
-// GetOpenPositions 获取所有未平仓位
+// GetOpenPositions gets all open positions
 func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
@@ -147,14 +147,14 @@ func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, er
 		ORDER BY entry_time DESC
 	`, traderID)
 	if err != nil {
-		return nil, fmt.Errorf("查询未平仓位失败: %w", err)
+		return nil, fmt.Errorf("failed to query open positions: %w", err)
 	}
 	defer rows.Close()
 
 	return s.scanPositions(rows)
 }
 
-// GetOpenPositionBySymbol 获取指定币种方向的未平仓位
+// GetOpenPositionBySymbol gets open position for specified symbol and direction
 func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (*TraderPosition, error) {
 	var pos TraderPosition
 	var entryTime, exitTime, createdAt, updatedAt sql.NullString
@@ -183,7 +183,7 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 	return &pos, nil
 }
 
-// GetClosedPositions 获取已平仓位（历史记录）
+// GetClosedPositions gets closed positions (historical records)
 func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
@@ -195,14 +195,14 @@ func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*Trade
 		LIMIT ?
 	`, traderID, limit)
 	if err != nil {
-		return nil, fmt.Errorf("查询已平仓位失败: %w", err)
+		return nil, fmt.Errorf("failed to query closed positions: %w", err)
 	}
 	defer rows.Close()
 
 	return s.scanPositions(rows)
 }
 
-// GetAllOpenPositions 获取所有trader的未平仓位（用于全局同步）
+// GetAllOpenPositions gets all traders' open positions (for global sync)
 func (s *PositionStore) GetAllOpenPositions() ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
@@ -213,18 +213,18 @@ func (s *PositionStore) GetAllOpenPositions() ([]*TraderPosition, error) {
 		ORDER BY trader_id, entry_time DESC
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("查询所有未平仓位失败: %w", err)
+		return nil, fmt.Errorf("failed to query all open positions: %w", err)
 	}
 	defer rows.Close()
 
 	return s.scanPositions(rows)
 }
 
-// GetPositionStats 获取仓位统计（简单版）
+// GetPositionStats gets position statistics (simplified version)
 func (s *PositionStore) GetPositionStats(traderID string) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	// 总交易数
+	// Total trades
 	var totalTrades, winTrades int
 	var totalPnL, totalFee float64
 
@@ -254,11 +254,11 @@ func (s *PositionStore) GetPositionStats(traderID string) (map[string]interface{
 	return stats, nil
 }
 
-// GetFullStats 获取完整的交易统计（与 TraderStats 兼容）
+// GetFullStats gets complete trading statistics (compatible with TraderStats)
 func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 	stats := &TraderStats{}
 
-	// 查询所有已平仓位
+	// Query all closed positions
 	rows, err := s.db.Query(`
 		SELECT realized_pnl, fee, exit_time
 		FROM trader_positions
@@ -266,7 +266,7 @@ func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 		ORDER BY exit_time ASC
 	`, traderID)
 	if err != nil {
-		return nil, fmt.Errorf("查询仓位统计失败: %w", err)
+		return nil, fmt.Errorf("failed to query position statistics: %w", err)
 	}
 	defer rows.Close()
 
@@ -290,21 +290,21 @@ func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 			totalWin += pnl
 		} else if pnl < 0 {
 			stats.LossTrades++
-			totalLoss += -pnl // 转为正数
+			totalLoss += -pnl // Convert to positive
 		}
 	}
 
-	// 计算胜率
+	// Calculate win rate
 	if stats.TotalTrades > 0 {
 		stats.WinRate = float64(stats.WinTrades) / float64(stats.TotalTrades) * 100
 	}
 
-	// 计算盈亏比
+	// Calculate profit factor
 	if totalLoss > 0 {
 		stats.ProfitFactor = totalWin / totalLoss
 	}
 
-	// 计算平均盈亏
+	// Calculate average profit/loss
 	if stats.WinTrades > 0 {
 		stats.AvgWin = totalWin / float64(stats.WinTrades)
 	}
@@ -312,12 +312,12 @@ func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 		stats.AvgLoss = totalLoss / float64(stats.LossTrades)
 	}
 
-	// 计算夏普比
+	// Calculate Sharpe ratio
 	if len(pnls) > 1 {
 		stats.SharpeRatio = calculateSharpeRatioFromPnls(pnls)
 	}
 
-	// 计算最大回撤
+	// Calculate maximum drawdown
 	if len(pnls) > 0 {
 		stats.MaxDrawdownPct = calculateMaxDrawdownFromPnls(pnls)
 	}
@@ -325,7 +325,7 @@ func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 	return stats, nil
 }
 
-// RecentTrade 最近的交易记录（用于AI输入）
+// RecentTrade recent trade record (for AI input)
 type RecentTrade struct {
 	Symbol      string  `json:"symbol"`
 	Side        string  `json:"side"` // long/short
@@ -336,7 +336,7 @@ type RecentTrade struct {
 	ExitTime    string  `json:"exit_time"`
 }
 
-// GetRecentTrades 获取最近的已平仓交易
+// GetRecentTrades gets recent closed trades
 func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTrade, error) {
 	rows, err := s.db.Query(`
 		SELECT symbol, side, entry_price, exit_price, realized_pnl, leverage, exit_time
@@ -346,7 +346,7 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 		LIMIT ?
 	`, traderID, limit)
 	if err != nil {
-		return nil, fmt.Errorf("查询最近交易失败: %w", err)
+		return nil, fmt.Errorf("failed to query recent trades: %w", err)
 	}
 	defer rows.Close()
 
@@ -361,14 +361,14 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 			continue
 		}
 
-		// 转换 side 格式
+		// Convert side format
 		if t.Side == "LONG" {
 			t.Side = "long"
 		} else if t.Side == "SHORT" {
 			t.Side = "short"
 		}
 
-		// 计算盈亏百分比
+		// Calculate profit/loss percentage
 		if t.EntryPrice > 0 {
 			if t.Side == "long" {
 				t.PnLPct = (t.ExitPrice - t.EntryPrice) / t.EntryPrice * 100 * float64(leverage)
@@ -377,7 +377,7 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 			}
 		}
 
-		// 格式化时间
+		// Format time
 		if exitTime.Valid {
 			if parsed, err := time.Parse(time.RFC3339, exitTime.String); err == nil {
 				t.ExitTime = parsed.Format("01-02 15:04")
@@ -390,7 +390,7 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 	return trades, nil
 }
 
-// calculateSharpeRatioFromPnls 计算夏普比
+// calculateSharpeRatioFromPnls calculates Sharpe ratio
 func calculateSharpeRatioFromPnls(pnls []float64) float64 {
 	if len(pnls) < 2 {
 		return 0
@@ -415,7 +415,7 @@ func calculateSharpeRatioFromPnls(pnls []float64) float64 {
 	return mean / stdDev
 }
 
-// calculateMaxDrawdownFromPnls 计算最大回撤
+// calculateMaxDrawdownFromPnls calculates maximum drawdown
 func calculateMaxDrawdownFromPnls(pnls []float64) float64 {
 	if len(pnls) == 0 {
 		return 0
@@ -438,7 +438,7 @@ func calculateMaxDrawdownFromPnls(pnls []float64) float64 {
 	return maxDD
 }
 
-// scanPositions 扫描仓位行到结构体
+// scanPositions scans position rows into structs
 func (s *PositionStore) scanPositions(rows *sql.Rows) ([]*TraderPosition, error) {
 	var positions []*TraderPosition
 	for rows.Next() {
@@ -462,7 +462,7 @@ func (s *PositionStore) scanPositions(rows *sql.Rows) ([]*TraderPosition, error)
 	return positions, nil
 }
 
-// parsePositionTimes 解析时间字段
+// parsePositionTimes parses time fields
 func (s *PositionStore) parsePositionTimes(pos *TraderPosition, entryTime, exitTime, createdAt, updatedAt sql.NullString) {
 	if entryTime.Valid {
 		pos.EntryTime, _ = time.Parse(time.RFC3339, entryTime.String)

@@ -5,7 +5,7 @@ import (
 	"strconv"
 )
 
-// SafeFloat64 从map中安全提取float64值
+// SafeFloat64 Safely extract float64 value from map
 func SafeFloat64(data map[string]interface{}, key string) (float64, error) {
 	value, ok := data[key]
 	if !ok {
@@ -22,7 +22,7 @@ func SafeFloat64(data map[string]interface{}, key string) (float64, error) {
 	case int64:
 		return float64(v), nil
 	case string:
-		// 尝试解析字符串为float64
+		// Try to parse string as float64
 		parsed, err := strconv.ParseFloat(v, 64)
 		if err != nil {
 			return 0, fmt.Errorf("cannot parse string '%s' as float64: %w", v, err)
@@ -33,7 +33,7 @@ func SafeFloat64(data map[string]interface{}, key string) (float64, error) {
 	}
 }
 
-// SafeString 从map中安全提取字符串值
+// SafeString Safely extract string value from map
 func SafeString(data map[string]interface{}, key string) (string, error) {
 	value, ok := data[key]
 	if !ok {
@@ -50,7 +50,7 @@ func SafeString(data map[string]interface{}, key string) (string, error) {
 	}
 }
 
-// SafeInt 从map中安全提取int值
+// SafeInt Safely extract int value from map
 func SafeInt(data map[string]interface{}, key string) (int, error) {
 	value, ok := data[key]
 	if !ok {

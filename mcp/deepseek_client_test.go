@@ -6,7 +6,7 @@ import (
 )
 
 // ============================================================
-// 测试 DeepSeekClient 创建和配置
+// Test DeepSeekClient Creation and Configuration
 // ============================================================
 
 func TestNewDeepSeekClient_Default(t *testing.T) {
@@ -16,13 +16,13 @@ func TestNewDeepSeekClient_Default(t *testing.T) {
 		t.Fatal("client should not be nil")
 	}
 
-	// 类型断言检查
+	// Type assertion check
 	dsClient, ok := client.(*DeepSeekClient)
 	if !ok {
 		t.Fatal("client should be *DeepSeekClient")
 	}
 
-	// 验证默认值
+	// Verify default values
 	if dsClient.Provider != ProviderDeepSeek {
 		t.Errorf("Provider should be '%s', got '%s'", ProviderDeepSeek, dsClient.Provider)
 	}
@@ -58,7 +58,7 @@ func TestNewDeepSeekClientWithOptions(t *testing.T) {
 
 	dsClient := client.(*DeepSeekClient)
 
-	// 验证自定义选项被应用
+	// Verify custom options are applied
 	if dsClient.logger != mockLogger {
 		t.Error("logger should be set from option")
 	}
@@ -75,7 +75,7 @@ func TestNewDeepSeekClientWithOptions(t *testing.T) {
 		t.Error("MaxTokens should be 4000")
 	}
 
-	// 验证 DeepSeek 默认值仍然保留
+	// Verify DeepSeek default values are retained
 	if dsClient.Provider != ProviderDeepSeek {
 		t.Errorf("Provider should still be '%s'", ProviderDeepSeek)
 	}
@@ -86,7 +86,7 @@ func TestNewDeepSeekClientWithOptions(t *testing.T) {
 }
 
 // ============================================================
-// 测试 SetAPIKey
+// Test SetAPIKey
 // ============================================================
 
 func TestDeepSeekClient_SetAPIKey(t *testing.T) {
@@ -97,20 +97,20 @@ func TestDeepSeekClient_SetAPIKey(t *testing.T) {
 
 	dsClient := client.(*DeepSeekClient)
 
-	// 测试设置 API Key（默认 URL 和 Model）
+	// Test setting API Key (default URL and Model)
 	dsClient.SetAPIKey("sk-test-key-12345678", "", "")
 
 	if dsClient.APIKey != "sk-test-key-12345678" {
 		t.Errorf("APIKey should be 'sk-test-key-12345678', got '%s'", dsClient.APIKey)
 	}
 
-	// 验证日志记录
+	// Verify logging
 	logs := mockLogger.GetLogsByLevel("INFO")
 	if len(logs) == 0 {
 		t.Error("should have logged API key setting")
 	}
 
-	// 验证 BaseURL 和 Model 保持默认
+	// Verify BaseURL and Model remain default
 	if dsClient.BaseURL != DefaultDeepSeekBaseURL {
 		t.Error("BaseURL should remain default")
 	}
@@ -135,11 +135,11 @@ func TestDeepSeekClient_SetAPIKey_WithCustomURL(t *testing.T) {
 		t.Errorf("BaseURL should be '%s', got '%s'", customURL, dsClient.BaseURL)
 	}
 
-	// 验证日志记录
+	// Verify logging
 	logs := mockLogger.GetLogsByLevel("INFO")
 	hasCustomURLLog := false
 	for _, log := range logs {
-		if log.Format == "🔧 [MCP] DeepSeek 使用自定义 BaseURL: %s" {
+		if log.Format == "🔧 [MCP] DeepSeek using custom BaseURL: %s" {
 			hasCustomURLLog = true
 			break
 		}
@@ -165,11 +165,11 @@ func TestDeepSeekClient_SetAPIKey_WithCustomModel(t *testing.T) {
 		t.Errorf("Model should be '%s', got '%s'", customModel, dsClient.Model)
 	}
 
-	// 验证日志记录
+	// Verify logging
 	logs := mockLogger.GetLogsByLevel("INFO")
 	hasCustomModelLog := false
 	for _, log := range logs {
-		if log.Format == "🔧 [MCP] DeepSeek 使用自定义 Model: %s" {
+		if log.Format == "🔧 [MCP] DeepSeek using custom Model: %s" {
 			hasCustomModelLog = true
 			break
 		}
@@ -181,7 +181,7 @@ func TestDeepSeekClient_SetAPIKey_WithCustomModel(t *testing.T) {
 }
 
 // ============================================================
-// 测试集成功能
+// Test Integration Features
 // ============================================================
 
 func TestDeepSeekClient_CallWithMessages_Success(t *testing.T) {
@@ -205,7 +205,7 @@ func TestDeepSeekClient_CallWithMessages_Success(t *testing.T) {
 		t.Errorf("expected 'DeepSeek AI response', got '%s'", result)
 	}
 
-	// 验证请求
+	// Verify request
 	requests := mockHTTP.GetRequests()
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(requests))
@@ -213,19 +213,19 @@ func TestDeepSeekClient_CallWithMessages_Success(t *testing.T) {
 
 	req := requests[0]
 
-	// 验证 URL
+	// Verify URL
 	expectedURL := DefaultDeepSeekBaseURL + "/chat/completions"
 	if req.URL.String() != expectedURL {
 		t.Errorf("expected URL '%s', got '%s'", expectedURL, req.URL.String())
 	}
 
-	// 验证 Authorization header
+	// Verify Authorization header
 	authHeader := req.Header.Get("Authorization")
 	if authHeader != "Bearer sk-test-key" {
 		t.Errorf("expected 'Bearer sk-test-key', got '%s'", authHeader)
 	}
 
-	// 验证 Content-Type
+	// Verify Content-Type
 	if req.Header.Get("Content-Type") != "application/json" {
 		t.Error("Content-Type should be application/json")
 	}
@@ -242,7 +242,7 @@ func TestDeepSeekClient_Timeout(t *testing.T) {
 		t.Errorf("expected timeout 30s, got %v", dsClient.httpClient.Timeout)
 	}
 
-	// 测试 SetTimeout
+	// Test SetTimeout
 	client.SetTimeout(60 * time.Second)
 
 	if dsClient.httpClient.Timeout != 60*time.Second {
@@ -251,19 +251,19 @@ func TestDeepSeekClient_Timeout(t *testing.T) {
 }
 
 // ============================================================
-// 测试 hooks 机制
+// Test hooks Mechanism
 // ============================================================
 
 func TestDeepSeekClient_HooksIntegration(t *testing.T) {
 	client := NewDeepSeekClientWithOptions()
 	dsClient := client.(*DeepSeekClient)
 
-	// 验证 hooks 指向 dsClient 自己（实现多态）
+	// Verify hooks point to dsClient itself (implements polymorphism)
 	if dsClient.hooks != dsClient {
 		t.Error("hooks should point to dsClient for polymorphism")
 	}
 
-	// 验证 buildUrl 使用 DeepSeek 配置
+	// Verify buildUrl uses DeepSeek configuration
 	url := dsClient.buildUrl()
 	expectedURL := DefaultDeepSeekBaseURL + "/chat/completions"
 	if url != expectedURL {

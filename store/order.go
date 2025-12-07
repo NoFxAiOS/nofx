@@ -7,73 +7,73 @@ import (
 	"time"
 )
 
-// TraderOrder 交易员订单记录
+// TraderOrder trader order record
 type TraderOrder struct {
 	ID            int64     `json:"id"`
-	TraderID      string    `json:"trader_id"`       // 交易员ID
-	OrderID       string    `json:"order_id"`        // 交易所订单ID
-	ClientOrderID string    `json:"client_order_id"` // 客户端订单ID
-	Symbol        string    `json:"symbol"`          // 交易对
+	TraderID      string    `json:"trader_id"`       // Trader ID
+	OrderID       string    `json:"order_id"`        // Exchange order ID
+	ClientOrderID string    `json:"client_order_id"` // Client order ID
+	Symbol        string    `json:"symbol"`          // Trading pair
 	Side          string    `json:"side"`            // BUY/SELL
 	PositionSide  string    `json:"position_side"`   // LONG/SHORT/BOTH
 	Action        string    `json:"action"`          // open_long/close_long/open_short/close_short
 	OrderType     string    `json:"order_type"`      // MARKET/LIMIT
-	Quantity      float64   `json:"quantity"`        // 订单数量
-	Price         float64   `json:"price"`           // 订单价格
-	AvgPrice      float64   `json:"avg_price"`       // 实际成交均价
-	ExecutedQty   float64   `json:"executed_qty"`    // 已成交数量
-	Leverage      int       `json:"leverage"`        // 杠杆倍数
+	Quantity      float64   `json:"quantity"`        // Order quantity
+	Price         float64   `json:"price"`           // Order price
+	AvgPrice      float64   `json:"avg_price"`       // Actual average execution price
+	ExecutedQty   float64   `json:"executed_qty"`    // Executed quantity
+	Leverage      int       `json:"leverage"`        // Leverage multiplier
 	Status        string    `json:"status"`          // NEW/FILLED/CANCELED/EXPIRED
-	Fee           float64   `json:"fee"`             // 手续费
-	FeeAsset      string    `json:"fee_asset"`       // 手续费资产
-	RealizedPnL   float64   `json:"realized_pnl"`    // 已实现盈亏（平仓时）
-	EntryPrice    float64   `json:"entry_price"`     // 开仓价（平仓时记录）
+	Fee           float64   `json:"fee"`             // Fee
+	FeeAsset      string    `json:"fee_asset"`       // Fee asset
+	RealizedPnL   float64   `json:"realized_pnl"`    // Realized PnL (when closing)
+	EntryPrice    float64   `json:"entry_price"`     // Entry price (recorded when closing)
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
-	FilledAt      time.Time `json:"filled_at"` // 成交时间
+	FilledAt      time.Time `json:"filled_at"` // Filled time
 }
 
-// TraderStats 交易统计指标
+// TraderStats trading statistics metrics
 type TraderStats struct {
-	TotalTrades    int     `json:"total_trades"`     // 总交易数（已平仓）
-	WinTrades      int     `json:"win_trades"`       // 盈利交易数
-	LossTrades     int     `json:"loss_trades"`      // 亏损交易数
-	WinRate        float64 `json:"win_rate"`         // 胜率 (%)
-	ProfitFactor   float64 `json:"profit_factor"`    // 盈亏比
-	SharpeRatio    float64 `json:"sharpe_ratio"`     // 夏普比
-	TotalPnL       float64 `json:"total_pnl"`        // 总盈亏
-	TotalFee       float64 `json:"total_fee"`        // 总手续费
-	AvgWin         float64 `json:"avg_win"`          // 平均盈利
-	AvgLoss        float64 `json:"avg_loss"`         // 平均亏损
-	MaxDrawdownPct float64 `json:"max_drawdown_pct"` // 最大回撤 (%)
+	TotalTrades    int     `json:"total_trades"`     // Total trades (closed)
+	WinTrades      int     `json:"win_trades"`       // Winning trades
+	LossTrades     int     `json:"loss_trades"`      // Losing trades
+	WinRate        float64 `json:"win_rate"`         // Win rate (%)
+	ProfitFactor   float64 `json:"profit_factor"`    // Profit factor
+	SharpeRatio    float64 `json:"sharpe_ratio"`     // Sharpe ratio
+	TotalPnL       float64 `json:"total_pnl"`        // Total PnL
+	TotalFee       float64 `json:"total_fee"`        // Total fees
+	AvgWin         float64 `json:"avg_win"`          // Average win
+	AvgLoss        float64 `json:"avg_loss"`         // Average loss
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"` // Max drawdown (%)
 }
 
-// CompletedOrder 已完成订单（用于AI输入）
+// CompletedOrder completed order (for AI input)
 type CompletedOrder struct {
-	Symbol      string    `json:"symbol"`       // 交易对
+	Symbol      string    `json:"symbol"`       // Trading pair
 	Action      string    `json:"action"`       // close_long/close_short
 	Side        string    `json:"side"`         // long/short
-	Quantity    float64   `json:"quantity"`     // 数量
-	EntryPrice  float64   `json:"entry_price"`  // 开仓价
-	ExitPrice   float64   `json:"exit_price"`   // 平仓价
-	RealizedPnL float64   `json:"realized_pnl"` // 已实现盈亏
-	PnLPct      float64   `json:"pnl_pct"`      // 盈亏百分比
-	Fee         float64   `json:"fee"`          // 手续费
-	Leverage    int       `json:"leverage"`     // 杠杆
-	FilledAt    time.Time `json:"filled_at"`    // 成交时间
+	Quantity    float64   `json:"quantity"`     // Quantity
+	EntryPrice  float64   `json:"entry_price"`  // Entry price
+	ExitPrice   float64   `json:"exit_price"`   // Exit price
+	RealizedPnL float64   `json:"realized_pnl"` // Realized PnL
+	PnLPct      float64   `json:"pnl_pct"`      // PnL percentage
+	Fee         float64   `json:"fee"`          // Fee
+	Leverage    int       `json:"leverage"`     // Leverage
+	FilledAt    time.Time `json:"filled_at"`    // Filled time
 }
 
-// OrderStore 订单存储
+// OrderStore order storage
 type OrderStore struct {
 	db *sql.DB
 }
 
-// NewOrderStore 创建订单存储实例
+// NewOrderStore creates order storage instance
 func NewOrderStore(db *sql.DB) *OrderStore {
 	return &OrderStore{db: db}
 }
 
-// InitTables 初始化订单表
+// InitTables initializes order tables
 func (s *OrderStore) InitTables() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS trader_orders (
@@ -103,10 +103,10 @@ func (s *OrderStore) InitTables() error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("创建trader_orders表失败: %w", err)
+		return fmt.Errorf("failed to create trader_orders table: %w", err)
 	}
 
-	// 创建索引
+	// Create indexes
 	indices := []string{
 		`CREATE INDEX IF NOT EXISTS idx_trader_orders_trader ON trader_orders(trader_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_trader_orders_status ON trader_orders(trader_id, status)`,
@@ -115,14 +115,14 @@ func (s *OrderStore) InitTables() error {
 	}
 	for _, idx := range indices {
 		if _, err := s.db.Exec(idx); err != nil {
-			return fmt.Errorf("创建索引失败: %w", err)
+			return fmt.Errorf("failed to create index: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// Create 创建订单记录
+// Create creates order record
 func (s *OrderStore) Create(order *TraderOrder) error {
 	now := time.Now().Format(time.RFC3339)
 	result, err := s.db.Exec(`
@@ -140,7 +140,7 @@ func (s *OrderStore) Create(order *TraderOrder) error {
 		order.RealizedPnL, order.EntryPrice, now, now,
 	)
 	if err != nil {
-		return fmt.Errorf("创建订单记录失败: %w", err)
+		return fmt.Errorf("failed to create order record: %w", err)
 	}
 
 	id, _ := result.LastInsertId()
@@ -148,7 +148,7 @@ func (s *OrderStore) Create(order *TraderOrder) error {
 	return nil
 }
 
-// Update 更新订单记录
+// Update updates order record
 func (s *OrderStore) Update(order *TraderOrder) error {
 	now := time.Now().Format(time.RFC3339)
 	filledAt := ""
@@ -167,12 +167,12 @@ func (s *OrderStore) Update(order *TraderOrder) error {
 		order.TraderID, order.OrderID,
 	)
 	if err != nil {
-		return fmt.Errorf("更新订单记录失败: %w", err)
+		return fmt.Errorf("failed to update order record: %w", err)
 	}
 	return nil
 }
 
-// GetByOrderID 根据订单ID获取订单
+// GetByOrderID gets order by order ID
 func (s *OrderStore) GetByOrderID(traderID, orderID string) (*TraderOrder, error) {
 	var order TraderOrder
 	var createdAt, updatedAt, filledAt sql.NullString
@@ -208,9 +208,9 @@ func (s *OrderStore) GetByOrderID(traderID, orderID string) (*TraderOrder, error
 	return &order, nil
 }
 
-// GetLatestOpenOrder 获取某币种最近的开仓订单（用于计算平仓盈亏）
+// GetLatestOpenOrder gets the latest open order for a symbol (for calculating close PnL)
 func (s *OrderStore) GetLatestOpenOrder(traderID, symbol, side string) (*TraderOrder, error) {
-	// side: long -> 找 open_long, short -> 找 open_short
+	// side: long -> find open_long, short -> find open_short
 	action := "open_long"
 	if side == "short" {
 		action = "open_short"
@@ -252,7 +252,7 @@ func (s *OrderStore) GetLatestOpenOrder(traderID, symbol, side string) (*TraderO
 	return &order, nil
 }
 
-// GetRecentCompletedOrders 获取最近已完成的平仓订单
+// GetRecentCompletedOrders gets recent completed close orders
 func (s *OrderStore) GetRecentCompletedOrders(traderID string, limit int) ([]CompletedOrder, error) {
 	rows, err := s.db.Query(`
 		SELECT symbol, action, side, executed_qty, entry_price, avg_price,
@@ -264,7 +264,7 @@ func (s *OrderStore) GetRecentCompletedOrders(traderID string, limit int) ([]Com
 		LIMIT ?
 	`, traderID, limit)
 	if err != nil {
-		return nil, fmt.Errorf("查询已完成订单失败: %w", err)
+		return nil, fmt.Errorf("failed to query completed orders: %w", err)
 	}
 	defer rows.Close()
 
@@ -282,7 +282,7 @@ func (s *OrderStore) GetRecentCompletedOrders(traderID string, limit int) ([]Com
 			continue
 		}
 
-		// 根据action推断side
+		// Infer side from action
 		if o.Action == "close_long" {
 			o.Side = "long"
 		} else if o.Action == "close_short" {
@@ -291,7 +291,7 @@ func (s *OrderStore) GetRecentCompletedOrders(traderID string, limit int) ([]Com
 			o.Side = side.String
 		}
 
-		// 计算盈亏百分比
+		// Calculate PnL percentage
 		if o.EntryPrice > 0 {
 			if o.Side == "long" {
 				o.PnLPct = (o.ExitPrice - o.EntryPrice) / o.EntryPrice * 100 * float64(o.Leverage)
@@ -310,11 +310,11 @@ func (s *OrderStore) GetRecentCompletedOrders(traderID string, limit int) ([]Com
 	return orders, nil
 }
 
-// GetTraderStats 获取交易统计指标
+// GetTraderStats gets trading statistics metrics
 func (s *OrderStore) GetTraderStats(traderID string) (*TraderStats, error) {
 	stats := &TraderStats{}
 
-	// 查询所有已完成的平仓订单
+	// Query all completed close orders
 	rows, err := s.db.Query(`
 		SELECT realized_pnl, fee, filled_at
 		FROM trader_orders
@@ -323,7 +323,7 @@ func (s *OrderStore) GetTraderStats(traderID string) (*TraderStats, error) {
 		ORDER BY filled_at ASC
 	`, traderID)
 	if err != nil {
-		return nil, fmt.Errorf("查询订单统计失败: %w", err)
+		return nil, fmt.Errorf("failed to query order statistics: %w", err)
 	}
 	defer rows.Close()
 
@@ -351,17 +351,17 @@ func (s *OrderStore) GetTraderStats(traderID string) (*TraderStats, error) {
 		}
 	}
 
-	// 计算胜率
+	// Calculate win rate
 	if stats.TotalTrades > 0 {
 		stats.WinRate = float64(stats.WinTrades) / float64(stats.TotalTrades) * 100
 	}
 
-	// 计算盈亏比
+	// Calculate profit factor
 	if totalLoss > 0 {
 		stats.ProfitFactor = totalWin / totalLoss
 	}
 
-	// 计算平均盈亏
+	// Calculate average win/loss
 	if stats.WinTrades > 0 {
 		stats.AvgWin = totalWin / float64(stats.WinTrades)
 	}
@@ -369,12 +369,12 @@ func (s *OrderStore) GetTraderStats(traderID string) (*TraderStats, error) {
 		stats.AvgLoss = totalLoss / float64(stats.LossTrades)
 	}
 
-	// 计算夏普比（使用盈亏序列）
+	// Calculate Sharpe ratio (using PnL sequence)
 	if len(pnls) > 1 {
 		stats.SharpeRatio = calculateSharpeRatio(pnls)
 	}
 
-	// 计算最大回撤
+	// Calculate max drawdown
 	if len(pnls) > 0 {
 		stats.MaxDrawdownPct = calculateMaxDrawdown(pnls)
 	}
@@ -382,20 +382,20 @@ func (s *OrderStore) GetTraderStats(traderID string) (*TraderStats, error) {
 	return stats, nil
 }
 
-// calculateSharpeRatio 计算夏普比
+// calculateSharpeRatio calculates Sharpe ratio
 func calculateSharpeRatio(pnls []float64) float64 {
 	if len(pnls) < 2 {
 		return 0
 	}
 
-	// 计算平均收益
+	// Calculate average return
 	var sum float64
 	for _, pnl := range pnls {
 		sum += pnl
 	}
 	mean := sum / float64(len(pnls))
 
-	// 计算标准差
+	// Calculate standard deviation
 	var variance float64
 	for _, pnl := range pnls {
 		variance += (pnl - mean) * (pnl - mean)
@@ -406,17 +406,17 @@ func calculateSharpeRatio(pnls []float64) float64 {
 		return 0
 	}
 
-	// 夏普比 = 平均收益 / 标准差
+	// Sharpe ratio = average return / standard deviation
 	return mean / stdDev
 }
 
-// calculateMaxDrawdown 计算最大回撤
+// calculateMaxDrawdown calculates max drawdown
 func calculateMaxDrawdown(pnls []float64) float64 {
 	if len(pnls) == 0 {
 		return 0
 	}
 
-	// 计算累计权益曲线
+	// Calculate cumulative equity curve
 	var cumulative float64
 	var peak float64
 	var maxDD float64
@@ -437,7 +437,7 @@ func calculateMaxDrawdown(pnls []float64) float64 {
 	return maxDD
 }
 
-// GetPendingOrders 获取未成交的订单（用于轮询）
+// GetPendingOrders gets pending orders (for polling)
 func (s *OrderStore) GetPendingOrders(traderID string) ([]*TraderOrder, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, order_id, client_order_id, symbol, side, position_side,
@@ -449,14 +449,14 @@ func (s *OrderStore) GetPendingOrders(traderID string) ([]*TraderOrder, error) {
 		ORDER BY created_at ASC
 	`, traderID)
 	if err != nil {
-		return nil, fmt.Errorf("查询未成交订单失败: %w", err)
+		return nil, fmt.Errorf("failed to query pending orders: %w", err)
 	}
 	defer rows.Close()
 
 	return s.scanOrders(rows)
 }
 
-// GetAllPendingOrders 获取所有未成交的订单（用于全局同步）
+// GetAllPendingOrders gets all pending orders (for global sync)
 func (s *OrderStore) GetAllPendingOrders() ([]*TraderOrder, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, order_id, client_order_id, symbol, side, position_side,
@@ -468,14 +468,14 @@ func (s *OrderStore) GetAllPendingOrders() ([]*TraderOrder, error) {
 		ORDER BY trader_id, created_at ASC
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("查询未成交订单失败: %w", err)
+		return nil, fmt.Errorf("failed to query pending orders: %w", err)
 	}
 	defer rows.Close()
 
 	return s.scanOrders(rows)
 }
 
-// scanOrders 扫描订单行到结构体
+// scanOrders scans order rows to structs
 func (s *OrderStore) scanOrders(rows *sql.Rows) ([]*TraderOrder, error) {
 	var orders []*TraderOrder
 	for rows.Next() {

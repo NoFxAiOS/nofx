@@ -8,21 +8,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// CryptoHandler 加密 API 處理器
+// CryptoHandler Encryption API handler
 type CryptoHandler struct {
 	cryptoService *crypto.CryptoService
 }
 
-// NewCryptoHandler 創建加密處理器
+// NewCryptoHandler Creates encryption handler
 func NewCryptoHandler(cryptoService *crypto.CryptoService) *CryptoHandler {
 	return &CryptoHandler{
 		cryptoService: cryptoService,
 	}
 }
 
-// ==================== 公鑰端點 ====================
+// ==================== Public Key Endpoint ====================
 
-// HandleGetPublicKey 獲取伺服器公鑰
+// HandleGetPublicKey Get server public key
 func (h *CryptoHandler) HandleGetPublicKey(c *gin.Context) {
 	publicKey := h.cryptoService.GetPublicKeyPEM()
 
@@ -32,9 +32,9 @@ func (h *CryptoHandler) HandleGetPublicKey(c *gin.Context) {
 	})
 }
 
-// ==================== 加密數據解密端點 ====================
+// ==================== Encrypted Data Decryption Endpoint ====================
 
-// HandleDecryptSensitiveData 解密客戶端傳送的加密数据
+// HandleDecryptSensitiveData Decrypt encrypted data sent from client
 func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
 	var payload crypto.EncryptedPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -42,10 +42,10 @@ func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
 		return
 	}
 
-	// 解密
+	// Decrypt
 	decrypted, err := h.cryptoService.DecryptSensitiveData(&payload)
 	if err != nil {
-		log.Printf("❌ 解密失敗: %v", err)
+		log.Printf("❌ Decryption failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Decryption failed"})
 		return
 	}
@@ -55,18 +55,18 @@ func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
 	})
 }
 
-// ==================== 審計日誌查詢端點 ====================
+// ==================== Audit Log Query Endpoint ====================
 
-// 删除审计日志相关功能，在当前简化的实现中不需要
+// Audit log functionality removed, not needed in current simplified implementation
 
-// ==================== 工具函數 ====================
+// ==================== Utility Functions ====================
 
-// isValidPrivateKey 驗證私鑰格式
+// isValidPrivateKey Validate private key format
 func isValidPrivateKey(key string) bool {
-	// EVM 私鑰: 64 位十六進制 (可選 0x 前綴)
+	// EVM private key: 64 hex characters (optional 0x prefix)
 	if len(key) == 64 || (len(key) == 66 && key[:2] == "0x") {
 		return true
 	}
-	// TODO: 添加其他鏈的驗證
+	// TODO: Add validation for other chains
 	return false
 }

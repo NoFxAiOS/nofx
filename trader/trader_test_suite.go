@@ -7,20 +7,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TraderTestSuite 通用的 Trader 接口测试套件（基础套件）
-// 用于黑盒测试任何实现了 Trader 接口的交易器
+// TraderTestSuite Generic Trader interface test suite (base suite)
+// Used for black-box testing any trader that implements the Trader interface
 //
-// 使用方式：
-//  1. 创建具体的测试套件结构体，嵌入 TraderTestSuite
-//  2. 实现 SetupMocks() 方法来配置 gomonkey mock
-//  3. 调用 RunAllTests() 运行所有通用测试
+// Usage:
+//  1. Create a concrete test suite struct, embedding TraderTestSuite
+//  2. Implement SetupMocks() method to configure gomonkey mocks
+//  3. Call RunAllTests() to run all generic tests
 type TraderTestSuite struct {
 	T       *testing.T
 	Trader  Trader
 	Patches *gomonkey.Patches
 }
 
-// NewTraderTestSuite 创建新的基础测试套件
+// NewTraderTestSuite Create new base test suite
 func NewTraderTestSuite(t *testing.T, trader Trader) *TraderTestSuite {
 	return &TraderTestSuite{
 		T:       t,
@@ -29,44 +29,44 @@ func NewTraderTestSuite(t *testing.T, trader Trader) *TraderTestSuite {
 	}
 }
 
-// Cleanup 清理 mock patches
+// Cleanup Clean up mock patches
 func (s *TraderTestSuite) Cleanup() {
 	if s.Patches != nil {
 		s.Patches.Reset()
 	}
 }
 
-// RunAllTests 运行所有通用接口测试
-// 注意：调用此方法前，请先通过 SetupMocks 设置好所需的 mock
+// RunAllTests Run all generic interface tests
+// Note: Before calling this method, please set up required mocks via SetupMocks
 func (s *TraderTestSuite) RunAllTests() {
-	// 基础查询方法
+	// Basic query methods
 	s.T.Run("GetBalance", func(t *testing.T) { s.TestGetBalance() })
 	s.T.Run("GetPositions", func(t *testing.T) { s.TestGetPositions() })
 	s.T.Run("GetMarketPrice", func(t *testing.T) { s.TestGetMarketPrice() })
 
-	// 配置方法
+	// Configuration methods
 	s.T.Run("SetLeverage", func(t *testing.T) { s.TestSetLeverage() })
 	s.T.Run("SetMarginMode", func(t *testing.T) { s.TestSetMarginMode() })
 	s.T.Run("FormatQuantity", func(t *testing.T) { s.TestFormatQuantity() })
 
-	// 核心交易方法
+	// Core trading methods
 	s.T.Run("OpenLong", func(t *testing.T) { s.TestOpenLong() })
 	s.T.Run("OpenShort", func(t *testing.T) { s.TestOpenShort() })
 	s.T.Run("CloseLong", func(t *testing.T) { s.TestCloseLong() })
 	s.T.Run("CloseShort", func(t *testing.T) { s.TestCloseShort() })
 
-	// 止损止盈
+	// Stop-loss and take-profit
 	s.T.Run("SetStopLoss", func(t *testing.T) { s.TestSetStopLoss() })
 	s.T.Run("SetTakeProfit", func(t *testing.T) { s.TestSetTakeProfit() })
 
-	// 订单管理
+	// Order management
 	s.T.Run("CancelAllOrders", func(t *testing.T) { s.TestCancelAllOrders() })
 	s.T.Run("CancelStopOrders", func(t *testing.T) { s.TestCancelStopOrders() })
 	s.T.Run("CancelStopLossOrders", func(t *testing.T) { s.TestCancelStopLossOrders() })
 	s.T.Run("CancelTakeProfitOrders", func(t *testing.T) { s.TestCancelTakeProfitOrders() })
 }
 
-// TestGetBalance 测试获取账户余额
+// TestGetBalance Test getting account balance
 func (s *TraderTestSuite) TestGetBalance() {
 	tests := []struct {
 		name      string
@@ -74,7 +74,7 @@ func (s *TraderTestSuite) TestGetBalance() {
 		validate  func(*testing.T, map[string]interface{})
 	}{
 		{
-			name:      "成功获取余额",
+			name:      "Successfully get balance",
 			wantError: false,
 			validate: func(t *testing.T, result map[string]interface{}) {
 				assert.NotNil(t, result)
@@ -99,7 +99,7 @@ func (s *TraderTestSuite) TestGetBalance() {
 	}
 }
 
-// TestGetPositions 测试获取持仓
+// TestGetPositions Test getting positions
 func (s *TraderTestSuite) TestGetPositions() {
 	tests := []struct {
 		name      string
@@ -107,11 +107,11 @@ func (s *TraderTestSuite) TestGetPositions() {
 		validate  func(*testing.T, []map[string]interface{})
 	}{
 		{
-			name:      "成功获取持仓列表",
+			name:      "Successfully get position list",
 			wantError: false,
 			validate: func(t *testing.T, positions []map[string]interface{}) {
 				assert.NotNil(t, positions)
-				// 持仓可以为空数组
+				// Positions can be empty array
 				for _, pos := range positions {
 					assert.Contains(t, pos, "symbol")
 					assert.Contains(t, pos, "side")
@@ -136,7 +136,7 @@ func (s *TraderTestSuite) TestGetPositions() {
 	}
 }
 
-// TestGetMarketPrice 测试获取市场价格
+// TestGetMarketPrice Test getting market price
 func (s *TraderTestSuite) TestGetMarketPrice() {
 	tests := []struct {
 		name      string
@@ -145,7 +145,7 @@ func (s *TraderTestSuite) TestGetMarketPrice() {
 		validate  func(*testing.T, float64)
 	}{
 		{
-			name:      "成功获取BTC价格",
+			name:      "Successfully get BTC price",
 			symbol:    "BTCUSDT",
 			wantError: false,
 			validate: func(t *testing.T, price float64) {
@@ -153,7 +153,7 @@ func (s *TraderTestSuite) TestGetMarketPrice() {
 			},
 		},
 		{
-			name:      "无效交易对返回错误",
+			name:      "Invalid trading pair returns error",
 			symbol:    "INVALIDUSDT",
 			wantError: true,
 			validate:  nil,
@@ -175,7 +175,7 @@ func (s *TraderTestSuite) TestGetMarketPrice() {
 	}
 }
 
-// TestSetLeverage 测试设置杠杆
+// TestSetLeverage Test setting leverage
 func (s *TraderTestSuite) TestSetLeverage() {
 	tests := []struct {
 		name      string
@@ -184,13 +184,13 @@ func (s *TraderTestSuite) TestSetLeverage() {
 		wantError bool
 	}{
 		{
-			name:      "设置10倍杠杆",
+			name:      "Set 10x leverage",
 			symbol:    "BTCUSDT",
 			leverage:  10,
 			wantError: false,
 		},
 		{
-			name:      "设置1倍杠杆",
+			name:      "Set 1x leverage",
 			symbol:    "ETHUSDT",
 			leverage:  1,
 			wantError: false,
@@ -209,7 +209,7 @@ func (s *TraderTestSuite) TestSetLeverage() {
 	}
 }
 
-// TestSetMarginMode 测试设置仓位模式
+// TestSetMarginMode Test setting margin mode
 func (s *TraderTestSuite) TestSetMarginMode() {
 	tests := []struct {
 		name          string
@@ -218,13 +218,13 @@ func (s *TraderTestSuite) TestSetMarginMode() {
 		wantError     bool
 	}{
 		{
-			name:          "设置全仓模式",
+			name:          "Set cross margin mode",
 			symbol:        "BTCUSDT",
 			isCrossMargin: true,
 			wantError:     false,
 		},
 		{
-			name:          "设置逐仓模式",
+			name:          "Set isolated margin mode",
 			symbol:        "ETHUSDT",
 			isCrossMargin: false,
 			wantError:     false,
@@ -243,7 +243,7 @@ func (s *TraderTestSuite) TestSetMarginMode() {
 	}
 }
 
-// TestFormatQuantity 测试数量格式化
+// TestFormatQuantity Test formatting quantity
 func (s *TraderTestSuite) TestFormatQuantity() {
 	tests := []struct {
 		name      string
@@ -253,7 +253,7 @@ func (s *TraderTestSuite) TestFormatQuantity() {
 		validate  func(*testing.T, string)
 	}{
 		{
-			name:      "格式化BTC数量",
+			name:      "Format BTC quantity",
 			symbol:    "BTCUSDT",
 			quantity:  1.23456789,
 			wantError: false,
@@ -262,7 +262,7 @@ func (s *TraderTestSuite) TestFormatQuantity() {
 			},
 		},
 		{
-			name:      "格式化小数量",
+			name:      "Format small quantity",
 			symbol:    "ETHUSDT",
 			quantity:  0.001,
 			wantError: false,
@@ -287,7 +287,7 @@ func (s *TraderTestSuite) TestFormatQuantity() {
 	}
 }
 
-// TestCancelAllOrders 测试取消所有订单
+// TestCancelAllOrders Test canceling all orders
 func (s *TraderTestSuite) TestCancelAllOrders() {
 	tests := []struct {
 		name      string
@@ -295,7 +295,7 @@ func (s *TraderTestSuite) TestCancelAllOrders() {
 		wantError bool
 	}{
 		{
-			name:      "取消BTC所有订单",
+			name:      "Cancel all BTC orders",
 			symbol:    "BTCUSDT",
 			wantError: false,
 		},
@@ -314,10 +314,10 @@ func (s *TraderTestSuite) TestCancelAllOrders() {
 }
 
 // ============================================================
-// 核心交易方法测试
+// Core trading method tests
 // ============================================================
 
-// TestOpenLong 测试开多仓
+// TestOpenLong Test opening long position
 func (s *TraderTestSuite) TestOpenLong() {
 	tests := []struct {
 		name      string
@@ -328,7 +328,7 @@ func (s *TraderTestSuite) TestOpenLong() {
 		validate  func(*testing.T, map[string]interface{})
 	}{
 		{
-			name:      "成功开多仓",
+			name:      "Successfully open long",
 			symbol:    "BTCUSDT",
 			quantity:  0.01,
 			leverage:  10,
@@ -340,9 +340,9 @@ func (s *TraderTestSuite) TestOpenLong() {
 			},
 		},
 		{
-			name:      "小数量开仓",
+			name:      "Small quantity long",
 			symbol:    "ETHUSDT",
-			quantity:  0.004, // 增加到 0.004 以满足 Binance Futures 的 10 USDT 最小订单金额要求 (0.004 * 3000 = 12 USDT)
+			quantity:  0.004, // Increased to 0.004 to meet Binance Futures minimum order value of 10 USDT (0.004 * 3000 = 12 USDT)
 			leverage:  5,
 			wantError: false,
 			validate: func(t *testing.T, result map[string]interface{}) {
@@ -366,7 +366,7 @@ func (s *TraderTestSuite) TestOpenLong() {
 	}
 }
 
-// TestOpenShort 测试开空仓
+// TestOpenShort Test opening short position
 func (s *TraderTestSuite) TestOpenShort() {
 	tests := []struct {
 		name      string
@@ -377,7 +377,7 @@ func (s *TraderTestSuite) TestOpenShort() {
 		validate  func(*testing.T, map[string]interface{})
 	}{
 		{
-			name:      "成功开空仓",
+			name:      "Successfully open short",
 			symbol:    "BTCUSDT",
 			quantity:  0.01,
 			leverage:  10,
@@ -389,9 +389,9 @@ func (s *TraderTestSuite) TestOpenShort() {
 			},
 		},
 		{
-			name:      "小数量开空仓",
+			name:      "Small quantity short",
 			symbol:    "ETHUSDT",
-			quantity:  0.004, // 增加到 0.004 以满足 Binance Futures 的 10 USDT 最小订单金额要求 (0.004 * 3000 = 12 USDT)
+			quantity:  0.004, // Increased to 0.004 to meet Binance Futures minimum order value of 10 USDT (0.004 * 3000 = 12 USDT)
 			leverage:  5,
 			wantError: false,
 			validate: func(t *testing.T, result map[string]interface{}) {
@@ -415,7 +415,7 @@ func (s *TraderTestSuite) TestOpenShort() {
 	}
 }
 
-// TestCloseLong 测试平多仓
+// TestCloseLong Test closing long position
 func (s *TraderTestSuite) TestCloseLong() {
 	tests := []struct {
 		name      string
@@ -425,7 +425,7 @@ func (s *TraderTestSuite) TestCloseLong() {
 		validate  func(*testing.T, map[string]interface{})
 	}{
 		{
-			name:      "平指定数量",
+			name:      "Close specified quantity",
 			symbol:    "BTCUSDT",
 			quantity:  0.01,
 			wantError: false,
@@ -435,10 +435,10 @@ func (s *TraderTestSuite) TestCloseLong() {
 			},
 		},
 		{
-			name:      "全部平仓_quantity为0_无持仓返回错误",
+			name:      "Close all with quantity=0 returns error when no position",
 			symbol:    "ETHUSDT",
 			quantity:  0,
-			wantError: true, // 当没有持仓时，quantity=0 应该返回错误
+			wantError: true, // When no position exists, quantity=0 should return error
 			validate:  nil,
 		},
 	}
@@ -458,7 +458,7 @@ func (s *TraderTestSuite) TestCloseLong() {
 	}
 }
 
-// TestCloseShort 测试平空仓
+// TestCloseShort Test closing short position
 func (s *TraderTestSuite) TestCloseShort() {
 	tests := []struct {
 		name      string
@@ -468,7 +468,7 @@ func (s *TraderTestSuite) TestCloseShort() {
 		validate  func(*testing.T, map[string]interface{})
 	}{
 		{
-			name:      "平指定数量",
+			name:      "Close specified quantity",
 			symbol:    "BTCUSDT",
 			quantity:  0.01,
 			wantError: false,
@@ -478,10 +478,10 @@ func (s *TraderTestSuite) TestCloseShort() {
 			},
 		},
 		{
-			name:      "全部平仓_quantity为0_无持仓返回错误",
+			name:      "Close all with quantity=0 returns error when no position",
 			symbol:    "ETHUSDT",
 			quantity:  0,
-			wantError: true, // 当没有持仓时，quantity=0 应该返回错误
+			wantError: true, // When no position exists, quantity=0 should return error
 			validate:  nil,
 		},
 	}
@@ -502,10 +502,10 @@ func (s *TraderTestSuite) TestCloseShort() {
 }
 
 // ============================================================
-// 止损止盈测试
+// Stop-loss and take-profit tests
 // ============================================================
 
-// TestSetStopLoss 测试设置止损
+// TestSetStopLoss Test setting stop-loss
 func (s *TraderTestSuite) TestSetStopLoss() {
 	tests := []struct {
 		name         string
@@ -516,7 +516,7 @@ func (s *TraderTestSuite) TestSetStopLoss() {
 		wantError    bool
 	}{
 		{
-			name:         "多头止损",
+			name:         "Long stop-loss",
 			symbol:       "BTCUSDT",
 			positionSide: "LONG",
 			quantity:     0.01,
@@ -524,7 +524,7 @@ func (s *TraderTestSuite) TestSetStopLoss() {
 			wantError:    false,
 		},
 		{
-			name:         "空头止损",
+			name:         "Short stop-loss",
 			symbol:       "ETHUSDT",
 			positionSide: "SHORT",
 			quantity:     0.1,
@@ -545,7 +545,7 @@ func (s *TraderTestSuite) TestSetStopLoss() {
 	}
 }
 
-// TestSetTakeProfit 测试设置止盈
+// TestSetTakeProfit Test setting take-profit
 func (s *TraderTestSuite) TestSetTakeProfit() {
 	tests := []struct {
 		name            string
@@ -556,7 +556,7 @@ func (s *TraderTestSuite) TestSetTakeProfit() {
 		wantError       bool
 	}{
 		{
-			name:            "多头止盈",
+			name:            "Long take-profit",
 			symbol:          "BTCUSDT",
 			positionSide:    "LONG",
 			quantity:        0.01,
@@ -564,7 +564,7 @@ func (s *TraderTestSuite) TestSetTakeProfit() {
 			wantError:       false,
 		},
 		{
-			name:            "空头止盈",
+			name:            "Short take-profit",
 			symbol:          "ETHUSDT",
 			positionSide:    "SHORT",
 			quantity:        0.1,
@@ -585,7 +585,7 @@ func (s *TraderTestSuite) TestSetTakeProfit() {
 	}
 }
 
-// TestCancelStopOrders 测试取消止盈止损单
+// TestCancelStopOrders Test canceling stop-loss/take-profit orders
 func (s *TraderTestSuite) TestCancelStopOrders() {
 	tests := []struct {
 		name      string
@@ -593,7 +593,7 @@ func (s *TraderTestSuite) TestCancelStopOrders() {
 		wantError bool
 	}{
 		{
-			name:      "取消BTC止盈止损单",
+			name:      "Cancel BTC stop orders",
 			symbol:    "BTCUSDT",
 			wantError: false,
 		},
@@ -611,7 +611,7 @@ func (s *TraderTestSuite) TestCancelStopOrders() {
 	}
 }
 
-// TestCancelStopLossOrders 测试取消止损单
+// TestCancelStopLossOrders Test canceling stop-loss orders
 func (s *TraderTestSuite) TestCancelStopLossOrders() {
 	tests := []struct {
 		name      string
@@ -619,7 +619,7 @@ func (s *TraderTestSuite) TestCancelStopLossOrders() {
 		wantError bool
 	}{
 		{
-			name:      "取消BTC止损单",
+			name:      "Cancel BTC stop-loss orders",
 			symbol:    "BTCUSDT",
 			wantError: false,
 		},
@@ -637,7 +637,7 @@ func (s *TraderTestSuite) TestCancelStopLossOrders() {
 	}
 }
 
-// TestCancelTakeProfitOrders 测试取消止盈单
+// TestCancelTakeProfitOrders Test canceling take-profit orders
 func (s *TraderTestSuite) TestCancelTakeProfitOrders() {
 	tests := []struct {
 		name      string
@@ -645,7 +645,7 @@ func (s *TraderTestSuite) TestCancelTakeProfitOrders() {
 		wantError bool
 	}{
 		{
-			name:      "取消BTC止盈单",
+			name:      "Cancel BTC take-profit orders",
 			symbol:    "BTCUSDT",
 			wantError: false,
 		},

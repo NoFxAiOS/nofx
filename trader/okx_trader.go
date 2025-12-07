@@ -35,59 +35,59 @@ const (
 	okxPositionModePath  = "/api/v5/account/set-position-mode"
 )
 
-// OKXTrader OKX合约交易器
+// OKXTrader OKX futures trader
 type OKXTrader struct {
 	apiKey     string
 	secretKey  string
 	passphrase string
 
-	// HTTP 客户端（禁用代理）
+	// HTTP client (proxy disabled)
 	httpClient *http.Client
 
-	// 余额缓存
+	// Balance cache
 	cachedBalance     map[string]interface{}
 	balanceCacheTime  time.Time
 	balanceCacheMutex sync.RWMutex
 
-	// 持仓缓存
+	// Positions cache
 	cachedPositions     []map[string]interface{}
 	positionsCacheTime  time.Time
 	positionsCacheMutex sync.RWMutex
 
-	// 合约信息缓存
+	// Instrument info cache
 	instrumentsCache      map[string]*OKXInstrument
 	instrumentsCacheTime  time.Time
 	instrumentsCacheMutex sync.RWMutex
 
-	// 缓存有效期
+	// Cache duration
 	cacheDuration time.Duration
 }
 
-// OKXInstrument OKX合约信息
+// OKXInstrument OKX instrument info
 type OKXInstrument struct {
-	InstID string  // 合约ID
-	CtVal  float64 // 合约面值
-	CtMult float64 // 合约乘数
-	LotSz  float64 // 最小下单数量
-	MinSz  float64 // 最小下单数量
-	TickSz float64 // 最小价格变动
-	CtType string  // 合约类型
+	InstID string  // Instrument ID
+	CtVal  float64 // Contract value
+	CtMult float64 // Contract multiplier
+	LotSz  float64 // Minimum order size
+	MinSz  float64 // Minimum order size
+	TickSz float64 // Minimum price increment
+	CtType string  // Contract type
 }
 
-// OKXResponse OKX API响应
+// OKXResponse OKX API response
 type OKXResponse struct {
 	Code string          `json:"code"`
 	Msg  string          `json:"msg"`
 	Data json.RawMessage `json:"data"`
 }
 
-// getOkxOrderID 生成OKX订单ID
+// genOkxClOrdID generates OKX order ID
 func genOkxClOrdID() string {
 	timestamp := time.Now().UnixNano() % 10000000000000
 	randomBytes := make([]byte, 4)
 	rand.Read(randomBytes)
 	randomHex := hex.EncodeToString(randomBytes)
-	// OKX clOrdId 最长32字符
+	// OKX clOrdId max 32 characters
 	orderID := fmt.Sprintf("%s%d%s", okxTag, timestamp, randomHex)
 	if len(orderID) > 32 {
 		orderID = orderID[:32]
@@ -95,10 +95,10 @@ func genOkxClOrdID() string {
 	return orderID
 }
 
-// NewOKXTrader 创建OKX交易器
+// NewOKXTrader creates OKX trader
 func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
-	// 使用 http.DefaultClient，与 Binance/Bybit SDK 保持一致
-	// DefaultClient 使用 DefaultTransport，会读取环境变量代理设置
+	// Use http.DefaultClient to stay consistent with Binance/Bybit SDK
+	// DefaultClient uses DefaultTransport, which reads proxy settings from environment variables
 	trader := &OKXTrader{
 		apiKey:           apiKey,
 		secretKey:        secretKey,
@@ -108,35 +108,35 @@ func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
 		instrumentsCache: make(map[string]*OKXInstrument),
 	}
 
-	// 设置双向持仓模式
+	// Set dual position mode
 	if err := trader.setPositionMode(); err != nil {
-		logger.Infof("⚠️ 设置OKX持仓模式失败: %v (如果已是双向模式则忽略)", err)
+		logger.Infof("⚠️ Failed to set OKX position mode: %v (ignore if already in dual mode)", err)
 	}
 
 	return trader
 }
 
-// setPositionMode 设置双向持仓模式
+// setPositionMode sets dual position mode
 func (t *OKXTrader) setPositionMode() error {
 	body := map[string]string{
-		"posMode": "long_short_mode", // 双向持仓
+		"posMode": "long_short_mode", // Dual position mode
 	}
 
 	_, err := t.doRequest("POST", okxPositionModePath, body)
 	if err != nil {
-		// 如果已经是双向模式，忽略错误
+		// Ignore error if already in dual position mode
 		if strings.Contains(err.Error(), "already") || strings.Contains(err.Error(), "Position mode is not modified") {
-			logger.Infof("  ✓ OKX账户已是双向持仓模式")
+			logger.Infof("  ✓ OKX account is already in dual position mode")
 			return nil
 		}
 		return err
 	}
 
-	logger.Infof("  ✓ OKX账户已切换为双向持仓模式")
+	logger.Infof("  ✓ OKX account switched to dual position mode")
 	return nil
 }
 
-// sign 生成OKX API签名
+// sign generates OKX API signature
 func (t *OKXTrader) sign(timestamp, method, requestPath, body string) string {
 	preHash := timestamp + method + requestPath + body
 	h := hmac.New(sha256.New, []byte(t.secretKey))
@@ -144,7 +144,7 @@ func (t *OKXTrader) sign(timestamp, method, requestPath, body string) string {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-// doRequest 执行HTTP请求
+// doRequest executes HTTP request
 func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, error) {
 	var bodyBytes []byte
 	var err error
@@ -152,7 +152,7 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 	if body != nil {
 		bodyBytes, err = json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("序列化请求体失败: %w", err)
+			return nil, fmt.Errorf("failed to serialize request body: %w", err)
 		}
 	}
 
@@ -161,7 +161,7 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 
 	req, err := http.NewRequest(method, okxBaseURL+path, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("OK-ACCESS-KEY", t.apiKey)
@@ -169,44 +169,44 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 	req.Header.Set("OK-ACCESS-TIMESTAMP", timestamp)
 	req.Header.Set("OK-ACCESS-PASSPHRASE", t.passphrase)
 	req.Header.Set("Content-Type", "application/json")
-	// 设置请求头
+	// Set request header
 	req.Header.Set("x-simulated-trading", "0")
 
 	resp, err := t.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("请求失败: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	var okxResp OKXResponse
 	if err := json.Unmarshal(respBody, &okxResp); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// code=1 表示部分成功，需要检查 data 里的具体结果
-	// code=2 表示全部失败
+	// code=1 indicates partial success, need to check specific results in data
+	// code=2 indicates complete failure
 	if okxResp.Code != "0" && okxResp.Code != "1" {
-		return nil, fmt.Errorf("OKX API错误: code=%s, msg=%s", okxResp.Code, okxResp.Msg)
+		return nil, fmt.Errorf("OKX API error: code=%s, msg=%s", okxResp.Code, okxResp.Msg)
 	}
 
 	return okxResp.Data, nil
 }
 
-// convertSymbol 将通用符号转换为OKX格式
-// 如 BTCUSDT -> BTC-USDT-SWAP
+// convertSymbol converts generic symbol to OKX format
+// e.g. BTCUSDT -> BTC-USDT-SWAP
 func (t *OKXTrader) convertSymbol(symbol string) string {
-	// 移除USDT后缀并构建OKX格式
+	// Remove USDT suffix and build OKX format
 	base := strings.TrimSuffix(symbol, "USDT")
 	return fmt.Sprintf("%s-USDT-SWAP", base)
 }
 
-// convertSymbolBack 将OKX格式转换回通用符号
-// 如 BTC-USDT-SWAP -> BTCUSDT
+// convertSymbolBack converts OKX format back to generic symbol
+// e.g. BTC-USDT-SWAP -> BTCUSDT
 func (t *OKXTrader) convertSymbolBack(instId string) string {
 	parts := strings.Split(instId, "-")
 	if len(parts) >= 2 {
@@ -215,21 +215,21 @@ func (t *OKXTrader) convertSymbolBack(instId string) string {
 	return instId
 }
 
-// GetBalance 获取账户余额
+// GetBalance gets account balance
 func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
-	// 检查缓存
+	// Check cache
 	t.balanceCacheMutex.RLock()
 	if t.cachedBalance != nil && time.Since(t.balanceCacheTime) < t.cacheDuration {
 		t.balanceCacheMutex.RUnlock()
-		logger.Infof("✓ 使用缓存的OKX账户余额")
+		logger.Infof("✓ Using cached OKX account balance")
 		return t.cachedBalance, nil
 	}
 	t.balanceCacheMutex.RUnlock()
 
-	logger.Infof("🔄 正在调用OKX API获取账户余额...")
+	logger.Infof("🔄 Calling OKX API to get account balance...")
 	data, err := t.doRequest("GET", okxAccountPath, nil)
 	if err != nil {
-		return nil, fmt.Errorf("获取账户余额失败: %w", err)
+		return nil, fmt.Errorf("failed to get account balance: %w", err)
 	}
 
 	var balances []struct {
@@ -247,16 +247,16 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	}
 
 	if err := json.Unmarshal(data, &balances); err != nil {
-		return nil, fmt.Errorf("解析余额数据失败: %w", err)
+		return nil, fmt.Errorf("failed to parse balance data: %w", err)
 	}
 
 	if len(balances) == 0 {
-		return nil, fmt.Errorf("未获取到余额数据")
+		return nil, fmt.Errorf("no balance data received")
 	}
 
 	balance := balances[0]
 
-	// 查找USDT余额
+	// Find USDT balance
 	var usdtAvail, usdtUPL float64
 	for _, detail := range balance.Details {
 		if detail.Ccy == "USDT" {
@@ -274,9 +274,9 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 		"totalUnrealizedProfit": usdtUPL,
 	}
 
-	logger.Infof("✓ OKX余额: 总权益=%.2f, 可用=%.2f, 未实现盈亏=%.2f", totalEq, usdtAvail, usdtUPL)
+	logger.Infof("✓ OKX balance: Total equity=%.2f, Available=%.2f, Unrealized PnL=%.2f", totalEq, usdtAvail, usdtUPL)
 
-	// 更新缓存
+	// Update cache
 	t.balanceCacheMutex.Lock()
 	t.cachedBalance = result
 	t.balanceCacheTime = time.Now()
@@ -285,21 +285,21 @@ func (t *OKXTrader) GetBalance() (map[string]interface{}, error) {
 	return result, nil
 }
 
-// GetPositions 获取所有持仓
+// GetPositions gets all positions
 func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
-	// 检查缓存
+	// Check cache
 	t.positionsCacheMutex.RLock()
 	if t.cachedPositions != nil && time.Since(t.positionsCacheTime) < t.cacheDuration {
 		t.positionsCacheMutex.RUnlock()
-		logger.Infof("✓ 使用缓存的OKX持仓信息")
+		logger.Infof("✓ Using cached OKX positions")
 		return t.cachedPositions, nil
 	}
 	t.positionsCacheMutex.RUnlock()
 
-	logger.Infof("🔄 正在调用OKX API获取持仓信息...")
+	logger.Infof("🔄 Calling OKX API to get positions...")
 	data, err := t.doRequest("GET", okxPositionPath+"?instType=SWAP", nil)
 	if err != nil {
-		return nil, fmt.Errorf("获取持仓失败: %w", err)
+		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
 	var positions []struct {
@@ -315,7 +315,7 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 	}
 
 	if err := json.Unmarshal(data, &positions); err != nil {
-		return nil, fmt.Errorf("解析持仓数据失败: %w", err)
+		return nil, fmt.Errorf("failed to parse position data: %w", err)
 	}
 
 	var result []map[string]interface{}
@@ -331,15 +331,15 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		leverage, _ := strconv.ParseFloat(pos.Lever, 64)
 		liqPrice, _ := strconv.ParseFloat(pos.LiqPx, 64)
 
-		// 转换symbol格式
+		// Convert symbol format
 		symbol := t.convertSymbolBack(pos.InstId)
 
-		// 确定方向，并确保 posAmt 是正数
+		// Determine direction and ensure posAmt is positive
 		side := "long"
 		if pos.PosSide == "short" {
 			side = "short"
 		}
-		// OKX 空仓的 pos 是负数，需要取绝对值
+		// OKX short position's pos is negative, need to take absolute value
 		if posAmt < 0 {
 			posAmt = -posAmt
 		}
@@ -357,7 +357,7 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		result = append(result, posMap)
 	}
 
-	// 更新缓存
+	// Update cache
 	t.positionsCacheMutex.Lock()
 	t.cachedPositions = result
 	t.positionsCacheTime = time.Now()
@@ -366,11 +366,11 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 	return result, nil
 }
 
-// getInstrument 获取合约信息
+// getInstrument gets instrument info
 func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	instId := t.convertSymbol(symbol)
 
-	// 检查缓存
+	// Check cache
 	t.instrumentsCacheMutex.RLock()
 	if inst, ok := t.instrumentsCache[instId]; ok && time.Since(t.instrumentsCacheTime) < 5*time.Minute {
 		t.instrumentsCacheMutex.RUnlock()
@@ -378,7 +378,7 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	}
 	t.instrumentsCacheMutex.RUnlock()
 
-	// 获取合约信息
+	// Get instrument info
 	path := fmt.Sprintf("%s?instType=SWAP&instId=%s", okxInstrumentsPath, instId)
 	data, err := t.doRequest("GET", path, nil)
 	if err != nil {
@@ -400,7 +400,7 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	}
 
 	if len(instruments) == 0 {
-		return nil, fmt.Errorf("未找到合约信息: %s", instId)
+		return nil, fmt.Errorf("instrument info not found: %s", instId)
 	}
 
 	inst := instruments[0]
@@ -420,7 +420,7 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 		CtType: inst.CtType,
 	}
 
-	// 更新缓存
+	// Update cache
 	t.instrumentsCacheMutex.Lock()
 	t.instrumentsCache[instId] = instrument
 	t.instrumentsCacheTime = time.Now()
@@ -429,7 +429,7 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	return instrument, nil
 }
 
-// SetMarginMode 设置仓位模式
+// SetMarginMode sets margin mode
 func (t *OKXTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	instId := t.convertSymbol(symbol)
 
@@ -445,28 +445,28 @@ func (t *OKXTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 
 	_, err := t.doRequest("POST", "/api/v5/account/set-isolated-mode", body)
 	if err != nil {
-		// 如果已经是目标模式，忽略错误
+		// Ignore error if already in target mode
 		if strings.Contains(err.Error(), "already") {
-			logger.Infof("  ✓ %s 仓位模式已是 %s", symbol, mgnMode)
+			logger.Infof("  ✓ %s margin mode is already %s", symbol, mgnMode)
 			return nil
 		}
-		// 有持仓无法更改
+		// Cannot change when there are positions
 		if strings.Contains(err.Error(), "position") {
-			logger.Infof("  ⚠️ %s 有持仓，无法更改仓位模式", symbol)
+			logger.Infof("  ⚠️ %s has positions, cannot change margin mode", symbol)
 			return nil
 		}
 		return err
 	}
 
-	logger.Infof("  ✓ %s 仓位模式已设置为 %s", symbol, mgnMode)
+	logger.Infof("  ✓ %s margin mode set to %s", symbol, mgnMode)
 	return nil
 }
 
-// SetLeverage 设置杠杆
+// SetLeverage sets leverage
 func (t *OKXTrader) SetLeverage(symbol string, leverage int) error {
 	instId := t.convertSymbol(symbol)
 
-	// 设置多头和空头的杠杆
+	// Set leverage for both long and short
 	for _, posSide := range []string{"long", "short"} {
 		body := map[string]interface{}{
 			"instId":  instId,
@@ -477,43 +477,43 @@ func (t *OKXTrader) SetLeverage(symbol string, leverage int) error {
 
 		_, err := t.doRequest("POST", okxLeveragePath, body)
 		if err != nil {
-			// 如果已经是目标杠杆，忽略
+			// Ignore if already at target leverage
 			if strings.Contains(err.Error(), "same") {
 				continue
 			}
-			logger.Infof("  ⚠️ 设置 %s %s 杠杆失败: %v", symbol, posSide, err)
+			logger.Infof("  ⚠️ Failed to set %s %s leverage: %v", symbol, posSide, err)
 		}
 	}
 
-	logger.Infof("  ✓ %s 杠杆已设置为 %dx", symbol, leverage)
+	logger.Infof("  ✓ %s leverage set to %dx", symbol, leverage)
 	return nil
 }
 
-// OpenLong 开多仓
+// OpenLong opens long position
 func (t *OKXTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	// 取消旧订单
+	// Cancel old orders
 	t.CancelAllOrders(symbol)
 
-	// 设置杠杆
+	// Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		logger.Infof("  ⚠️ 设置杠杆失败: %v", err)
+		logger.Infof("  ⚠️ Failed to set leverage: %v", err)
 	}
 
 	instId := t.convertSymbol(symbol)
 
-	// 获取合约信息并计算合约数量
+	// Get instrument info and calculate contract size
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("获取合约信息失败: %w", err)
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// OKX使用合约张数，需要根据合约面值转换
+	// OKX uses contract size, need to convert based on contract value
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("获取市价失败: %w", err)
+		return nil, fmt.Errorf("failed to get market price: %w", err)
 	}
 
-	// 计算合约张数 = 数量 * 价格 / 合约面值
+	// Calculate contract size = quantity * price / contract value
 	sz := quantity * price / inst.CtVal
 	szStr := t.formatSize(sz, inst)
 
@@ -530,7 +530,7 @@ func (t *OKXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 
 	data, err := t.doRequest("POST", okxOrderPath, body)
 	if err != nil {
-		return nil, fmt.Errorf("开多仓失败: %w", err)
+		return nil, fmt.Errorf("failed to open long position: %w", err)
 	}
 
 	var orders []struct {
@@ -541,19 +541,19 @@ func (t *OKXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 	}
 
 	if err := json.Unmarshal(data, &orders); err != nil {
-		return nil, fmt.Errorf("解析订单响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
 	if len(orders) == 0 || orders[0].SCode != "0" {
-		msg := "未知错误"
+		msg := "unknown error"
 		if len(orders) > 0 {
 			msg = orders[0].SMsg
 		}
-		return nil, fmt.Errorf("开多仓失败: %s", msg)
+		return nil, fmt.Errorf("failed to open long position: %s", msg)
 	}
 
-	logger.Infof("✓ OKX开多仓成功: %s 张数: %s", symbol, szStr)
-	logger.Infof("  订单ID: %s", orders[0].OrdId)
+	logger.Infof("✓ OKX opened long position successfully: %s size: %s", symbol, szStr)
+	logger.Infof("  Order ID: %s", orders[0].OrdId)
 
 	return map[string]interface{}{
 		"orderId": orders[0].OrdId,
@@ -562,27 +562,27 @@ func (t *OKXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 	}, nil
 }
 
-// OpenShort 开空仓
+// OpenShort opens short position
 func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	// 取消旧订单
+	// Cancel old orders
 	t.CancelAllOrders(symbol)
 
-	// 设置杠杆
+	// Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		logger.Infof("  ⚠️ 设置杠杆失败: %v", err)
+		logger.Infof("  ⚠️ Failed to set leverage: %v", err)
 	}
 
 	instId := t.convertSymbol(symbol)
 
-	// 获取合约信息并计算合约数量
+	// Get instrument info and calculate contract size
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("获取合约信息失败: %w", err)
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
 	price, err := t.GetMarketPrice(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("获取市价失败: %w", err)
+		return nil, fmt.Errorf("failed to get market price: %w", err)
 	}
 
 	sz := quantity * price / inst.CtVal
@@ -601,7 +601,7 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 
 	data, err := t.doRequest("POST", okxOrderPath, body)
 	if err != nil {
-		return nil, fmt.Errorf("开空仓失败: %w", err)
+		return nil, fmt.Errorf("failed to open short position: %w", err)
 	}
 
 	var orders []struct {
@@ -612,19 +612,19 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 	}
 
 	if err := json.Unmarshal(data, &orders); err != nil {
-		return nil, fmt.Errorf("解析订单响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
 	if len(orders) == 0 || orders[0].SCode != "0" {
-		msg := "未知错误"
+		msg := "unknown error"
 		if len(orders) > 0 {
 			msg = orders[0].SMsg
 		}
-		return nil, fmt.Errorf("开空仓失败: %s", msg)
+		return nil, fmt.Errorf("failed to open short position: %s", msg)
 	}
 
-	logger.Infof("✓ OKX开空仓成功: %s 张数: %s", symbol, szStr)
-	logger.Infof("  订单ID: %s", orders[0].OrdId)
+	logger.Infof("✓ OKX opened short position successfully: %s size: %s", symbol, szStr)
+	logger.Infof("  Order ID: %s", orders[0].OrdId)
 
 	return map[string]interface{}{
 		"orderId": orders[0].OrdId,
@@ -633,11 +633,11 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 	}, nil
 }
 
-// CloseLong 平多仓
+// CloseLong closes long position
 func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
-	// 如果数量为0，获取当前持仓（positionAmt 就是张数）
+	// If quantity is 0, get current position (positionAmt is the contract size)
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
@@ -645,25 +645,25 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64) // 这已经是张数
+				quantity = pos["positionAmt"].(float64) // This is already contract size
 				break
 			}
 		}
 		if quantity == 0 {
-			return nil, fmt.Errorf("没有找到 %s 的多仓", symbol)
+			return nil, fmt.Errorf("long position not found for %s", symbol)
 		}
 	}
 
-	// 获取合约信息用于格式化张数
+	// Get instrument info for formatting contract size
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("获取合约信息失败: %w", err)
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// quantity 已经是张数，直接格式化
+	// quantity is already contract size, format directly
 	szStr := t.formatSize(quantity, inst)
 
-	logger.Infof("🔻 OKX平多仓参数: symbol=%s, instId=%s, quantity(张数)=%f, szStr=%s",
+	logger.Infof("🔻 OKX close long parameters: symbol=%s, instId=%s, quantity(contracts)=%f, szStr=%s",
 		symbol, instId, quantity, szStr)
 
 	body := map[string]interface{}{
@@ -679,7 +679,7 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 
 	data, err := t.doRequest("POST", okxOrderPath, body)
 	if err != nil {
-		return nil, fmt.Errorf("平多仓失败: %w", err)
+		return nil, fmt.Errorf("failed to close long position: %w", err)
 	}
 
 	var orders []struct {
@@ -693,16 +693,16 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 	}
 
 	if len(orders) == 0 || orders[0].SCode != "0" {
-		msg := "未知错误"
+		msg := "unknown error"
 		if len(orders) > 0 {
 			msg = orders[0].SMsg
 		}
-		return nil, fmt.Errorf("平多仓失败: %s", msg)
+		return nil, fmt.Errorf("failed to close long position: %s", msg)
 	}
 
-	logger.Infof("✓ OKX平多仓成功: %s", symbol)
+	logger.Infof("✓ OKX closed long position successfully: %s", symbol)
 
-	// 平仓后取消挂单
+	// Cancel pending orders after closing position
 	t.CancelAllOrders(symbol)
 
 	return map[string]interface{}{
@@ -712,49 +712,49 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 	}, nil
 }
 
-// CloseShort 平空仓
+// CloseShort closes short position
 func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
-	// 如果数量为0，获取当前持仓（positionAmt 就是张数）
+	// If quantity is 0, get current position (positionAmt is the contract size)
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
 		}
-		logger.Infof("🔍 OKX CloseShort 查找持仓: symbol=%s, 当前持仓数=%d", symbol, len(positions))
+		logger.Infof("🔍 OKX CloseShort searching positions: symbol=%s, current position count=%d", symbol, len(positions))
 		for _, pos := range positions {
-			logger.Infof("🔍 OKX 持仓: symbol=%v, side=%v, positionAmt=%v",
+			logger.Infof("🔍 OKX position: symbol=%v, side=%v, positionAmt=%v",
 				pos["symbol"], pos["side"], pos["positionAmt"])
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				quantity = pos["positionAmt"].(float64)
-				logger.Infof("🔍 OKX 找到空仓: quantity=%f", quantity)
+				logger.Infof("🔍 OKX found short position: quantity=%f", quantity)
 				break
 			}
 		}
 		if quantity == 0 {
-			return nil, fmt.Errorf("没有找到 %s 的空仓", symbol)
+			return nil, fmt.Errorf("short position not found for %s", symbol)
 		}
 	}
 
-	// 确保 quantity 是正数（OKX sz 参数必须为正）
+	// Ensure quantity is positive (OKX sz parameter must be positive)
 	if quantity < 0 {
 		quantity = -quantity
 	}
 
-	// 获取合约信息用于格式化张数
+	// Get instrument info for formatting contract size
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("获取合约信息失败: %w", err)
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	logger.Infof("🔍 OKX 合约信息: instId=%s, lotSz=%f, minSz=%f, ctVal=%f",
+	logger.Infof("🔍 OKX instrument info: instId=%s, lotSz=%f, minSz=%f, ctVal=%f",
 		inst.InstID, inst.LotSz, inst.MinSz, inst.CtVal)
 
-	// quantity 已经是张数，直接格式化
+	// quantity is already contract size, format directly
 	szStr := t.formatSize(quantity, inst)
 
-	logger.Infof("🔻 OKX平空仓参数: symbol=%s, instId=%s, quantity(张数)=%f, szStr=%s",
+	logger.Infof("🔻 OKX close short parameters: symbol=%s, instId=%s, quantity(contracts)=%f, szStr=%s",
 		symbol, instId, quantity, szStr)
 
 	body := map[string]interface{}{
@@ -768,11 +768,11 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		"tag":     okxTag,
 	}
 
-	logger.Infof("🔻 OKX平空仓请求体: %+v", body)
+	logger.Infof("🔻 OKX close short request body: %+v", body)
 
 	data, err := t.doRequest("POST", okxOrderPath, body)
 	if err != nil {
-		return nil, fmt.Errorf("平空仓失败: %w", err)
+		return nil, fmt.Errorf("failed to close short position: %w", err)
 	}
 
 	var orders []struct {
@@ -786,17 +786,17 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 	}
 
 	if len(orders) == 0 || orders[0].SCode != "0" {
-		msg := "未知错误"
+		msg := "unknown error"
 		if len(orders) > 0 {
 			msg = fmt.Sprintf("sCode=%s, sMsg=%s", orders[0].SCode, orders[0].SMsg)
 		}
-		logger.Infof("❌ OKX平空仓失败: %s, 响应: %s", msg, string(data))
-		return nil, fmt.Errorf("平空仓失败: %s", msg)
+		logger.Infof("❌ OKX failed to close short position: %s, response: %s", msg, string(data))
+		return nil, fmt.Errorf("failed to close short position: %s", msg)
 	}
 
-	logger.Infof("✓ OKX平空仓成功: %s, ordId=%s", symbol, orders[0].OrdId)
+	logger.Infof("✓ OKX closed short position successfully: %s, ordId=%s", symbol, orders[0].OrdId)
 
-	// 平仓后取消挂单
+	// Cancel pending orders after closing position
 	t.CancelAllOrders(symbol)
 
 	return map[string]interface{}{
@@ -806,14 +806,14 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 	}, nil
 }
 
-// GetMarketPrice 获取市场价格
+// GetMarketPrice gets market price
 func (t *OKXTrader) GetMarketPrice(symbol string) (float64, error) {
 	instId := t.convertSymbol(symbol)
 	path := fmt.Sprintf("%s?instId=%s", okxTickerPath, instId)
 
 	data, err := t.doRequest("GET", path, nil)
 	if err != nil {
-		return 0, fmt.Errorf("获取价格失败: %w", err)
+		return 0, fmt.Errorf("failed to get price: %w", err)
 	}
 
 	var tickers []struct {
@@ -825,7 +825,7 @@ func (t *OKXTrader) GetMarketPrice(symbol string) (float64, error) {
 	}
 
 	if len(tickers) == 0 {
-		return 0, fmt.Errorf("未获取到价格数据")
+		return 0, fmt.Errorf("no price data received")
 	}
 
 	price, err := strconv.ParseFloat(tickers[0].Last, 64)
@@ -836,22 +836,22 @@ func (t *OKXTrader) GetMarketPrice(symbol string) (float64, error) {
 	return price, nil
 }
 
-// SetStopLoss 设置止损单
+// SetStopLoss sets stop loss order
 func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	instId := t.convertSymbol(symbol)
 
-	// 获取合约信息
+	// Get instrument info
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return fmt.Errorf("获取合约信息失败: %w", err)
+		return fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// 计算张数
+	// Calculate contract size
 	price, _ := t.GetMarketPrice(symbol)
 	sz := quantity * price / inst.CtVal
 	szStr := t.formatSize(sz, inst)
 
-	// 确定方向
+	// Determine direction
 	side := "sell"
 	posSide := "long"
 	if strings.ToUpper(positionSide) == "SHORT" {
@@ -867,35 +867,35 @@ func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, st
 		"ordType":     "conditional",
 		"sz":          szStr,
 		"slTriggerPx": fmt.Sprintf("%.8f", stopPrice),
-		"slOrdPx":     "-1", // 市价
+		"slOrdPx":     "-1", // Market price
 		"tag":         okxTag,
 	}
 
 	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
 	if err != nil {
-		return fmt.Errorf("设置止损失败: %w", err)
+		return fmt.Errorf("failed to set stop loss: %w", err)
 	}
 
-	logger.Infof("  止损价设置: %.4f", stopPrice)
+	logger.Infof("  Stop loss price set: %.4f", stopPrice)
 	return nil
 }
 
-// SetTakeProfit 设置止盈单
+// SetTakeProfit sets take profit order
 func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	instId := t.convertSymbol(symbol)
 
-	// 获取合约信息
+	// Get instrument info
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
-		return fmt.Errorf("获取合约信息失败: %w", err)
+		return fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// 计算张数
+	// Calculate contract size
 	price, _ := t.GetMarketPrice(symbol)
 	sz := quantity * price / inst.CtVal
 	szStr := t.formatSize(sz, inst)
 
-	// 确定方向
+	// Determine direction
 	side := "sell"
 	posSide := "long"
 	if strings.ToUpper(positionSide) == "SHORT" {
@@ -911,34 +911,34 @@ func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, 
 		"ordType":     "conditional",
 		"sz":          szStr,
 		"tpTriggerPx": fmt.Sprintf("%.8f", takeProfitPrice),
-		"tpOrdPx":     "-1", // 市价
+		"tpOrdPx":     "-1", // Market price
 		"tag":         okxTag,
 	}
 
 	_, err = t.doRequest("POST", okxAlgoOrderPath, body)
 	if err != nil {
-		return fmt.Errorf("设置止盈失败: %w", err)
+		return fmt.Errorf("failed to set take profit: %w", err)
 	}
 
-	logger.Infof("  止盈价设置: %.4f", takeProfitPrice)
+	logger.Infof("  Take profit price set: %.4f", takeProfitPrice)
 	return nil
 }
 
-// CancelStopLossOrders 取消止损单
+// CancelStopLossOrders cancels stop loss orders
 func (t *OKXTrader) CancelStopLossOrders(symbol string) error {
 	return t.cancelAlgoOrders(symbol, "sl")
 }
 
-// CancelTakeProfitOrders 取消止盈单
+// CancelTakeProfitOrders cancels take profit orders
 func (t *OKXTrader) CancelTakeProfitOrders(symbol string) error {
 	return t.cancelAlgoOrders(symbol, "tp")
 }
 
-// cancelAlgoOrders 取消策略订单
+// cancelAlgoOrders cancels algo orders
 func (t *OKXTrader) cancelAlgoOrders(symbol string, orderType string) error {
 	instId := t.convertSymbol(symbol)
 
-	// 获取待成交的策略订单
+	// Get pending algo orders
 	path := fmt.Sprintf("%s?instType=SWAP&instId=%s&ordType=conditional", okxAlgoPendingPath, instId)
 	data, err := t.doRequest("GET", path, nil)
 	if err != nil {
@@ -965,24 +965,24 @@ func (t *OKXTrader) cancelAlgoOrders(symbol string, orderType string) error {
 
 		_, err := t.doRequest("POST", okxCancelAlgoPath, body)
 		if err != nil {
-			logger.Infof("  ⚠️ 取消策略订单失败: %v", err)
+			logger.Infof("  ⚠️ Failed to cancel algo order: %v", err)
 			continue
 		}
 		canceledCount++
 	}
 
 	if canceledCount > 0 {
-		logger.Infof("  ✓ 已取消 %s 的 %d 个策略订单", symbol, canceledCount)
+		logger.Infof("  ✓ Canceled %d algo orders for %s", canceledCount, symbol)
 	}
 
 	return nil
 }
 
-// CancelAllOrders 取消所有挂单
+// CancelAllOrders cancels all pending orders
 func (t *OKXTrader) CancelAllOrders(symbol string) error {
 	instId := t.convertSymbol(symbol)
 
-	// 获取待成交订单
+	// Get pending orders
 	path := fmt.Sprintf("%s?instType=SWAP&instId=%s", okxPendingOrdersPath, instId)
 	data, err := t.doRequest("GET", path, nil)
 	if err != nil {
@@ -998,7 +998,7 @@ func (t *OKXTrader) CancelAllOrders(symbol string) error {
 		return err
 	}
 
-	// 批量取消
+	// Batch cancel
 	for _, order := range orders {
 		body := map[string]interface{}{
 			"instId": order.InstId,
@@ -1007,29 +1007,29 @@ func (t *OKXTrader) CancelAllOrders(symbol string) error {
 		t.doRequest("POST", okxCancelOrderPath, body)
 	}
 
-	// 同时取消策略订单
+	// Also cancel algo orders
 	t.cancelAlgoOrders(symbol, "")
 
 	if len(orders) > 0 {
-		logger.Infof("  ✓ 已取消 %s 的所有挂单", symbol)
+		logger.Infof("  ✓ Canceled all pending orders for %s", symbol)
 	}
 
 	return nil
 }
 
-// CancelStopOrders 取消止盈止损单
+// CancelStopOrders cancels stop loss and take profit orders
 func (t *OKXTrader) CancelStopOrders(symbol string) error {
 	return t.cancelAlgoOrders(symbol, "")
 }
 
-// FormatQuantity 格式化数量
+// FormatQuantity formats quantity
 func (t *OKXTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
 		return fmt.Sprintf("%.3f", quantity), nil
 	}
 
-	// OKX使用张数
+	// OKX uses contract size
 	price, _ := t.GetMarketPrice(symbol)
 	if price == 0 {
 		return fmt.Sprintf("%.0f", quantity), nil
@@ -1039,21 +1039,21 @@ func (t *OKXTrader) FormatQuantity(symbol string, quantity float64) (string, err
 	return t.formatSize(sz, inst), nil
 }
 
-// formatSize 格式化张数
+// formatSize formats contract size
 func (t *OKXTrader) formatSize(sz float64, inst *OKXInstrument) string {
-	// 根据lotSz确定精度
+	// Determine precision based on lotSz
 	if inst.LotSz >= 1 {
 		return fmt.Sprintf("%.0f", sz)
 	}
 
-	// 计算小数位数
+	// Calculate decimal places
 	lotSzStr := fmt.Sprintf("%f", inst.LotSz)
 	dotIndex := strings.Index(lotSzStr, ".")
 	if dotIndex == -1 {
 		return fmt.Sprintf("%.0f", sz)
 	}
 
-	// 去除尾部0
+	// Remove trailing zeros
 	lotSzStr = strings.TrimRight(lotSzStr, "0")
 	precision := len(lotSzStr) - dotIndex - 1
 
@@ -1061,14 +1061,14 @@ func (t *OKXTrader) formatSize(sz float64, inst *OKXInstrument) string {
 	return fmt.Sprintf(format, sz)
 }
 
-// GetOrderStatus 获取订单状态
+// GetOrderStatus gets order status
 func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 	path := fmt.Sprintf("/api/v5/trade/order?instId=%s&ordId=%s", instId, orderID)
 
 	data, err := t.doRequest("GET", path, nil)
 	if err != nil {
-		return nil, fmt.Errorf("获取订单状态失败: %w", err)
+		return nil, fmt.Errorf("failed to get order status: %w", err)
 	}
 
 	var orders []struct {
@@ -1088,7 +1088,7 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 	}
 
 	if len(orders) == 0 {
-		return nil, fmt.Errorf("未找到订单")
+		return nil, fmt.Errorf("order not found")
 	}
 
 	order := orders[0]
@@ -1098,7 +1098,7 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 	cTime, _ := strconv.ParseInt(order.CTime, 10, 64)
 	uTime, _ := strconv.ParseInt(order.UTime, 10, 64)
 
-	// 状态映射
+	// Status mapping
 	statusMap := map[string]string{
 		"filled":           "FILLED",
 		"live":             "NEW",
@@ -1121,11 +1121,11 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 		"type":        order.OrdType,
 		"time":        cTime,
 		"updateTime":  uTime,
-		"commission":  -fee, // OKX返回的是负数
+		"commission":  -fee, // OKX returns negative value
 	}, nil
 }
 
-// OKX 订单标签
+// OKX order tag
 var okxTag = func() string {
 	b, _ := base64.StdEncoding.DecodeString("NGMzNjNjODFlZGM1QkNERQ==")
 	return string(b)

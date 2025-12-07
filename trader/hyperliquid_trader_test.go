@@ -14,32 +14,32 @@ import (
 )
 
 // ============================================================
-// 一、HyperliquidTestSuite - 继承 base test suite
+// Part 1: HyperliquidTestSuite - Inherits base test suite
 // ============================================================
 
-// HyperliquidTestSuite Hyperliquid 交易器测试套件
-// 继承 TraderTestSuite 并添加 Hyperliquid 特定的 mock 逻辑
+// HyperliquidTestSuite Hyperliquid trader test suite
+// Inherits TraderTestSuite and adds Hyperliquid-specific mock logic
 type HyperliquidTestSuite struct {
-	*TraderTestSuite // 嵌入基础测试套件
+	*TraderTestSuite // Embeds base test suite
 	mockServer       *httptest.Server
 	privateKey       *ecdsa.PrivateKey
 }
 
-// NewHyperliquidTestSuite 创建 Hyperliquid 测试套件
+// NewHyperliquidTestSuite Create Hyperliquid test suite
 func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
-	// 创建测试用私钥
+	// Create test private key
 	privateKey, err := crypto.HexToECDSA("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	if err != nil {
-		t.Fatalf("创建测试私钥失败: %v", err)
+		t.Fatalf("Failed to create test private key: %v", err)
 	}
 
-	// 创建 mock HTTP 服务器
+	// Create mock HTTP server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 根据不同的请求路径返回不同的 mock 响应
+		// Return different mock responses based on request path
 		var respBody interface{}
 
-		// Hyperliquid API 使用 POST 请求，请求体是 JSON
-		// 我们需要根据请求体中的 "type" 字段来区分不同的请求
+		// Hyperliquid API uses POST requests with JSON body
+		// We need to distinguish different requests by the "type" field in request body
 		var reqBody map[string]interface{}
 		if r.Method == "POST" {
 			json.NewDecoder(r.Body).Decode(&reqBody)
@@ -54,7 +54,7 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 		}
 
 		switch reqType {
-		// Mock Meta - 获取市场元数据
+		// Mock Meta - Get market metadata
 		case "meta":
 			respBody = map[string]interface{}{
 				"universe": []map[string]interface{}{
@@ -78,14 +78,14 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 				"marginTables": []interface{}{},
 			}
 
-		// Mock UserState - 获取用户账户状态（用于 GetBalance 和 GetPositions）
+		// Mock UserState - Get user account state (for GetBalance and GetPositions)
 		case "clearinghouseState":
 			user, _ := reqBody["user"].(string)
 
-			// 检查是否是查询 Agent 钱包余额（用于安全检查）
+			// Check if querying Agent wallet balance (for security check)
 			agentAddr := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
 			if user == agentAddr {
-				// Agent 钱包余额应该很低
+				// Agent wallet balance should be low
 				respBody = map[string]interface{}{
 					"crossMarginSummary": map[string]interface{}{
 						"accountValue":    "5.00",
@@ -95,7 +95,7 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 					"assetPositions": []interface{}{},
 				}
 			} else {
-				// 主钱包账户状态
+				// Main wallet account state
 				respBody = map[string]interface{}{
 					"crossMarginSummary": map[string]interface{}{
 						"accountValue":    "10000.00",
@@ -121,7 +121,7 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 				}
 			}
 
-		// Mock SpotUserState - 获取现货账户状态
+		// Mock SpotUserState - Get spot account state
 		case "spotClearinghouseState":
 			respBody = map[string]interface{}{
 				"balances": []map[string]interface{}{
@@ -132,25 +132,25 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 				},
 			}
 
-		// Mock SpotMeta - 获取现货市场元数据
+		// Mock SpotMeta - Get spot market metadata
 		case "spotMeta":
 			respBody = map[string]interface{}{
 				"universe": []map[string]interface{}{},
 				"tokens":   []map[string]interface{}{},
 			}
 
-		// Mock AllMids - 获取所有市场价格
+		// Mock AllMids - Get all market prices
 		case "allMids":
 			respBody = map[string]string{
 				"BTC": "50000.00",
 				"ETH": "3000.00",
 			}
 
-		// Mock OpenOrders - 获取挂单列表
+		// Mock OpenOrders - Get open orders list
 		case "openOrders":
 			respBody = []interface{}{}
 
-		// Mock Order - 创建订单（开仓、平仓、止损、止盈）
+		// Mock Order - Create order (open, close, stop-loss, take-profit)
 		case "order":
 			respBody = map[string]interface{}{
 				"status": "ok",
@@ -169,46 +169,46 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 				},
 			}
 
-		// Mock UpdateLeverage - 设置杠杆
+		// Mock UpdateLeverage - Set leverage
 		case "updateLeverage":
 			respBody = map[string]interface{}{
 				"status": "ok",
 			}
 
-		// Mock Cancel - 取消订单
+		// Mock Cancel - Cancel order
 		case "cancel":
 			respBody = map[string]interface{}{
 				"status": "ok",
 			}
 
 		default:
-			// 默认返回成功响应
+			// Default return success response
 			respBody = map[string]interface{}{
 				"status": "ok",
 			}
 		}
 
-		// 序列化响应
+		// Serialize response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(respBody)
 	}))
 
-	// 创建 HyperliquidTrader，使用 mock 服务器 URL
+	// Create HyperliquidTrader, using mock server URL
 	walletAddr := "0x9999999999999999999999999999999999999999"
 	ctx := context.Background()
 
-	// 创建 Exchange 客户端，指向 mock 服务器
+	// Create Exchange client, pointing to mock server
 	exchange := hyperliquid.NewExchange(
 		ctx,
 		privateKey,
-		mockServer.URL, // 使用 mock 服务器 URL
+		mockServer.URL, // Use mock server URL
 		nil,
 		"",
 		walletAddr,
 		nil,
 	)
 
-	// 创建 meta（模拟获取成功）
+	// Create meta (simulate successful fetch)
 	meta := &hyperliquid.Meta{
 		Universe: []hyperliquid.AssetInfo{
 			{Name: "BTC", SzDecimals: 4},
@@ -224,7 +224,7 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 		isCrossMargin: true,
 	}
 
-	// 创建基础套件
+	// Create base suite
 	baseSuite := NewTraderTestSuite(t, trader)
 
 	return &HyperliquidTestSuite{
@@ -234,7 +234,7 @@ func NewHyperliquidTestSuite(t *testing.T) *HyperliquidTestSuite {
 	}
 }
 
-// Cleanup 清理资源
+// Cleanup Clean up resources
 func (s *HyperliquidTestSuite) Cleanup() {
 	if s.mockServer != nil {
 		s.mockServer.Close()
@@ -243,29 +243,29 @@ func (s *HyperliquidTestSuite) Cleanup() {
 }
 
 // ============================================================
-// 二、使用 HyperliquidTestSuite 运行通用测试
+// Part 2: Run common tests using HyperliquidTestSuite
 // ============================================================
 
-// TestHyperliquidTrader_InterfaceCompliance 测试接口兼容性
+// TestHyperliquidTrader_InterfaceCompliance Test interface compliance
 func TestHyperliquidTrader_InterfaceCompliance(t *testing.T) {
 	var _ Trader = (*HyperliquidTrader)(nil)
 }
 
-// TestHyperliquidTrader_CommonInterface 使用测试套件运行所有通用接口测试
+// TestHyperliquidTrader_CommonInterface Run all common interface tests using test suite
 func TestHyperliquidTrader_CommonInterface(t *testing.T) {
-	// 创建测试套件
+	// Create test suite
 	suite := NewHyperliquidTestSuite(t)
 	defer suite.Cleanup()
 
-	// 运行所有通用接口测试
+	// Run all common interface tests
 	suite.RunAllTests()
 }
 
 // ============================================================
-// 三、Hyperliquid 特定功能的单元测试
+// Part 3: Hyperliquid-specific feature unit tests
 // ============================================================
 
-// TestNewHyperliquidTrader 测试创建 Hyperliquid 交易器
+// TestNewHyperliquidTrader Test creating Hyperliquid trader
 func TestNewHyperliquidTrader(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -276,15 +276,15 @@ func TestNewHyperliquidTrader(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "无效私钥格式",
+			name:          "Invalid private key format",
 			privateKeyHex: "invalid_key",
 			walletAddr:    "0x1234567890123456789012345678901234567890",
 			testnet:       true,
 			wantError:     true,
-			errorContains: "解析私钥失败",
+			errorContains: "Failed to parse private key",
 		},
 		{
-			name:          "钱包地址为空",
+			name:          "Empty wallet address",
 			privateKeyHex: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			walletAddr:    "",
 			testnet:       true,
@@ -315,13 +315,13 @@ func TestNewHyperliquidTrader(t *testing.T) {
 	}
 }
 
-// TestNewHyperliquidTrader_Success 测试成功创建交易器（需要 mock HTTP）
+// TestNewHyperliquidTrader_Success Test successfully creating trader (requires mock HTTP)
 func TestNewHyperliquidTrader_Success(t *testing.T) {
-	// 创建测试用私钥
+	// Create test private key
 	privateKey, _ := crypto.HexToECDSA("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	agentAddr := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
 
-	// 创建 mock HTTP 服务器
+	// Create mock HTTP server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var reqBody map[string]interface{}
 		json.NewDecoder(r.Body).Decode(&reqBody)
@@ -346,7 +346,7 @@ func TestNewHyperliquidTrader_Success(t *testing.T) {
 		case "clearinghouseState":
 			user, _ := reqBody["user"].(string)
 			if user == agentAddr {
-				// Agent 钱包余额低
+				// Agent wallet low balance
 				respBody = map[string]interface{}{
 					"crossMarginSummary": map[string]interface{}{
 						"accountValue": "5.00",
@@ -354,7 +354,7 @@ func TestNewHyperliquidTrader_Success(t *testing.T) {
 					"assetPositions": []interface{}{},
 				}
 			} else {
-				// 主钱包
+				// Main wallet
 				respBody = map[string]interface{}{
 					"crossMarginSummary": map[string]interface{}{
 						"accountValue": "10000.00",
@@ -371,17 +371,17 @@ func TestNewHyperliquidTrader_Success(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	// 注意：这个测试会真正调用 NewHyperliquidTrader，但会失败
-	// 因为 hyperliquid SDK 不允许我们在构造函数中注入自定义 URL
-	// 所以这个测试仅用于验证参数处理逻辑
-	t.Skip("跳过此测试：hyperliquid SDK 在构造时会调用真实 API，无法注入 mock URL")
+	// Note: This test would actually call NewHyperliquidTrader, but will fail
+	// Because hyperliquid SDK doesn't allow us to inject custom URL in constructor
+	// So this test is only for verifying parameter handling logic
+	t.Skip("Skip this test: hyperliquid SDK calls real API during construction, cannot inject mock URL")
 }
 
 // ============================================================
-// 四、工具函数单元测试（Hyperliquid 特有）
+// Part 4: Utility function unit tests (Hyperliquid-specific)
 // ============================================================
 
-// TestConvertSymbolToHyperliquid 测试 symbol 转换函数
+// TestConvertSymbolToHyperliquid Test symbol conversion function
 func TestConvertSymbolToHyperliquid(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -389,17 +389,17 @@ func TestConvertSymbolToHyperliquid(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "BTCUSDT转换",
+			name:     "BTCUSDT conversion",
 			symbol:   "BTCUSDT",
 			expected: "BTC",
 		},
 		{
-			name:     "ETHUSDT转换",
+			name:     "ETHUSDT conversion",
 			symbol:   "ETHUSDT",
 			expected: "ETH",
 		},
 		{
-			name:     "无USDT后缀",
+			name:     "No USDT suffix",
 			symbol:   "BTC",
 			expected: "BTC",
 		},
@@ -413,7 +413,7 @@ func TestConvertSymbolToHyperliquid(t *testing.T) {
 	}
 }
 
-// TestAbsFloat 测试绝对值函数
+// TestAbsFloat Test absolute value function
 func TestAbsFloat(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -421,17 +421,17 @@ func TestAbsFloat(t *testing.T) {
 		expected float64
 	}{
 		{
-			name:     "正数",
+			name:     "Positive number",
 			input:    10.5,
 			expected: 10.5,
 		},
 		{
-			name:     "负数",
+			name:     "Negative number",
 			input:    -10.5,
 			expected: 10.5,
 		},
 		{
-			name:     "零",
+			name:     "Zero",
 			input:    0,
 			expected: 0,
 		},
@@ -445,7 +445,7 @@ func TestAbsFloat(t *testing.T) {
 	}
 }
 
-// TestHyperliquidTrader_RoundToSzDecimals 测试数量精度处理
+// TestHyperliquidTrader_RoundToSzDecimals Test quantity precision handling
 func TestHyperliquidTrader_RoundToSzDecimals(t *testing.T) {
 	trader := &HyperliquidTrader{
 		meta: &hyperliquid.Meta{
@@ -463,19 +463,19 @@ func TestHyperliquidTrader_RoundToSzDecimals(t *testing.T) {
 		expected float64
 	}{
 		{
-			name:     "BTC_四舍五入到4位",
+			name:     "BTC - round to 4 decimals",
 			coin:     "BTC",
 			quantity: 1.23456789,
 			expected: 1.2346,
 		},
 		{
-			name:     "ETH_四舍五入到3位",
+			name:     "ETH - round to 3 decimals",
 			coin:     "ETH",
 			quantity: 10.12345,
 			expected: 10.123,
 		},
 		{
-			name:     "未知币种_使用默认精度4位",
+			name:     "Unknown coin - use default 4 decimals",
 			coin:     "UNKNOWN",
 			quantity: 1.23456789,
 			expected: 1.2346,
@@ -490,7 +490,7 @@ func TestHyperliquidTrader_RoundToSzDecimals(t *testing.T) {
 	}
 }
 
-// TestHyperliquidTrader_RoundPriceToSigfigs 测试价格有效数字处理
+// TestHyperliquidTrader_RoundPriceToSigfigs Test price significant figures handling
 func TestHyperliquidTrader_RoundPriceToSigfigs(t *testing.T) {
 	trader := &HyperliquidTrader{}
 
@@ -500,17 +500,17 @@ func TestHyperliquidTrader_RoundPriceToSigfigs(t *testing.T) {
 		expected float64
 	}{
 		{
-			name:     "BTC价格_5位有效数字",
+			name:     "BTC price - 5 significant figures",
 			price:    50123.456789,
 			expected: 50123.0,
 		},
 		{
-			name:     "小数价格_5位有效数字",
+			name:     "Decimal price - 5 significant figures",
 			price:    0.0012345678,
 			expected: 0.0012346,
 		},
 		{
-			name:     "零价格",
+			name:     "Zero price",
 			price:    0,
 			expected: 0,
 		},
@@ -524,7 +524,7 @@ func TestHyperliquidTrader_RoundPriceToSigfigs(t *testing.T) {
 	}
 }
 
-// TestHyperliquidTrader_GetSzDecimals 测试获取精度
+// TestHyperliquidTrader_GetSzDecimals Test getting precision
 func TestHyperliquidTrader_GetSzDecimals(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -533,13 +533,13 @@ func TestHyperliquidTrader_GetSzDecimals(t *testing.T) {
 		expected int
 	}{
 		{
-			name:     "meta为nil_返回默认精度",
+			name:     "meta is nil - return default precision",
 			meta:     nil,
 			coin:     "BTC",
 			expected: 4,
 		},
 		{
-			name: "找到BTC_返回正确精度",
+			name: "Found BTC - return correct precision",
 			meta: &hyperliquid.Meta{
 				Universe: []hyperliquid.AssetInfo{
 					{Name: "BTC", SzDecimals: 5},
@@ -549,7 +549,7 @@ func TestHyperliquidTrader_GetSzDecimals(t *testing.T) {
 			expected: 5,
 		},
 		{
-			name: "未找到币种_返回默认精度",
+			name: "Coin not found - return default precision",
 			meta: &hyperliquid.Meta{
 				Universe: []hyperliquid.AssetInfo{
 					{Name: "ETH", SzDecimals: 3},
@@ -569,7 +569,7 @@ func TestHyperliquidTrader_GetSzDecimals(t *testing.T) {
 	}
 }
 
-// TestHyperliquidTrader_SetMarginMode 测试设置保证金模式
+// TestHyperliquidTrader_SetMarginMode Test setting margin mode
 func TestHyperliquidTrader_SetMarginMode(t *testing.T) {
 	trader := &HyperliquidTrader{
 		ctx:           context.Background(),
@@ -583,13 +583,13 @@ func TestHyperliquidTrader_SetMarginMode(t *testing.T) {
 		wantError     bool
 	}{
 		{
-			name:          "设置为全仓模式",
+			name:          "Set to cross margin mode",
 			symbol:        "BTCUSDT",
 			isCrossMargin: true,
 			wantError:     false,
 		},
 		{
-			name:          "设置为逐仓模式",
+			name:          "Set to isolated margin mode",
 			symbol:        "ETHUSDT",
 			isCrossMargin: false,
 			wantError:     false,
@@ -610,7 +610,7 @@ func TestHyperliquidTrader_SetMarginMode(t *testing.T) {
 	}
 }
 
-// TestNewHyperliquidTrader_PrivateKeyProcessing 测试私钥处理
+// TestNewHyperliquidTrader_PrivateKeyProcessing Test private key processing
 func TestNewHyperliquidTrader_PrivateKeyProcessing(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -619,13 +619,13 @@ func TestNewHyperliquidTrader_PrivateKeyProcessing(t *testing.T) {
 		expectedLength int
 	}{
 		{
-			name:           "带0x前缀的私钥",
+			name:           "Private key with 0x prefix",
 			privateKeyHex:  "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			shouldStripOx:  true,
 			expectedLength: 64,
 		},
 		{
-			name:           "无前缀的私钥",
+			name:           "Private key without prefix",
 			privateKeyHex:  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			shouldStripOx:  false,
 			expectedLength: 64,
@@ -634,7 +634,7 @@ func TestNewHyperliquidTrader_PrivateKeyProcessing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 测试私钥前缀处理逻辑（不实际创建 trader）
+			// Test private key prefix handling logic (without actually creating trader)
 			processed := tt.privateKeyHex
 			if len(processed) > 2 && (processed[:2] == "0x" || processed[:2] == "0X") {
 				processed = processed[2:]

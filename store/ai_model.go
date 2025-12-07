@@ -9,14 +9,14 @@ import (
 	"time"
 )
 
-// AIModelStore AI模型存储
+// AIModelStore AI model storage
 type AIModelStore struct {
 	db            *sql.DB
 	encryptFunc   func(string) string
 	decryptFunc   func(string) string
 }
 
-// AIModel AI模型配置
+// AIModel AI model configuration
 type AIModel struct {
 	ID              string    `json:"id"`
 	UserID          string    `json:"user_id"`
@@ -49,7 +49,7 @@ func (s *AIModelStore) initTables() error {
 		return err
 	}
 
-	// 触发器
+	// Trigger
 	_, err = s.db.Exec(`
 		CREATE TRIGGER IF NOT EXISTS update_ai_models_updated_at
 		AFTER UPDATE ON ai_models
@@ -61,7 +61,7 @@ func (s *AIModelStore) initTables() error {
 		return err
 	}
 
-	// 向后兼容：添加可能缺失的列
+	// Backward compatibility: add potentially missing columns
 	s.db.Exec(`ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`)
 	s.db.Exec(`ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`)
 
@@ -82,7 +82,7 @@ func (s *AIModelStore) initDefaultData() error {
 			VALUES (?, 'default', ?, ?, 0)
 		`, model.id, model.name, model.provider)
 		if err != nil {
-			return fmt.Errorf("初始化AI模型失败: %w", err)
+			return fmt.Errorf("failed to initialize AI model: %w", err)
 		}
 	}
 	return nil
@@ -102,7 +102,7 @@ func (s *AIModelStore) decrypt(encrypted string) string {
 	return encrypted
 }
 
-// List 获取用户的AI模型列表
+// List retrieves user's AI model list
 func (s *AIModelStore) List(userID string) ([]*AIModel, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, provider, enabled, api_key,
@@ -136,10 +136,10 @@ func (s *AIModelStore) List(userID string) ([]*AIModel, error) {
 	return models, nil
 }
 
-// Get 获取单个AI模型
+// Get retrieves a single AI model
 func (s *AIModelStore) Get(userID, modelID string) (*AIModel, error) {
 	if modelID == "" {
-		return nil, fmt.Errorf("模型ID不能为空")
+		return nil, fmt.Errorf("model ID cannot be empty")
 	}
 
 	candidates := []string{}
@@ -178,7 +178,7 @@ func (s *AIModelStore) Get(userID, modelID string) (*AIModel, error) {
 	return nil, sql.ErrNoRows
 }
 
-// GetDefault 获取默认启用的AI模型
+// GetDefault retrieves the default enabled AI model
 func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 	if userID == "" {
 		userID = "default"
@@ -193,7 +193,7 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 	if userID != "default" {
 		return s.firstEnabled("default")
 	}
-	return nil, fmt.Errorf("请先在系统中配置可用的AI模型")
+	return nil, fmt.Errorf("please configure an available AI model in the system first")
 }
 
 func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
@@ -218,9 +218,9 @@ func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
 	return &model, nil
 }
 
-// Update 更新AI模型，不存在则创建
+// Update updates AI model, creates if not exists
 func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
-	// 先尝试精确匹配ID
+	// Try exact ID match first
 	var existingID string
 	err := s.db.QueryRow(`SELECT id FROM ai_models WHERE user_id = ? AND id = ? LIMIT 1`, userID, id).Scan(&existingID)
 	if err == nil {
@@ -232,11 +232,11 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 		return err
 	}
 
-	// 尝试兼容旧逻辑：将id作为provider查找
+	// Try legacy logic compatibility: use id as provider to search
 	provider := id
 	err = s.db.QueryRow(`SELECT id FROM ai_models WHERE user_id = ? AND provider = ? LIMIT 1`, userID, provider).Scan(&existingID)
 	if err == nil {
-		logger.Warnf("⚠️ 使用旧版 provider 匹配更新模型: %s -> %s", provider, existingID)
+		logger.Warnf("⚠️ Using legacy provider matching to update model: %s -> %s", provider, existingID)
 		encryptedAPIKey := s.encrypt(apiKey)
 		_, err = s.db.Exec(`
 			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
@@ -245,7 +245,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 		return err
 	}
 
-	// 创建新记录
+	// Create new record
 	if provider == id && (provider == "deepseek" || provider == "qwen") {
 		provider = id
 	} else {
@@ -274,7 +274,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 		newModelID = fmt.Sprintf("%s_%s", userID, provider)
 	}
 
-	logger.Infof("✓ 创建新的 AI 模型配置: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
+	logger.Infof("✓ Creating new AI model configuration: ID=%s, Provider=%s, Name=%s", newModelID, provider, name)
 	encryptedAPIKey := s.encrypt(apiKey)
 	_, err = s.db.Exec(`
 		INSERT INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url, custom_model_name, created_at, updated_at)
@@ -283,7 +283,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 	return err
 }
 
-// Create 创建AI模型
+// Create creates an AI model
 func (s *AIModelStore) Create(userID, id, name, provider string, enabled bool, apiKey, customAPIURL string) error {
 	_, err := s.db.Exec(`
 		INSERT OR IGNORE INTO ai_models (id, user_id, name, provider, enabled, api_key, custom_api_url)

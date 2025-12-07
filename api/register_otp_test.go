@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// MockUser 模擬用戶結構
+// MockUser Mock user structure
 type MockUser struct {
 	ID          int
 	Email       string
@@ -12,7 +12,7 @@ type MockUser struct {
 	OTPVerified bool
 }
 
-// TestOTPRefetchLogic 測試 OTP 重新獲取邏輯
+// TestOTPRefetchLogic Test OTP refetch logic
 func TestOTPRefetchLogic(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -22,14 +22,14 @@ func TestOTPRefetchLogic(t *testing.T) {
 		expectedMessage string
 	}{
 		{
-			name:            "新用戶註冊_郵箱不存在",
+			name:            "New user registration - email does not exist",
 			existingUser:    nil,
 			userExists:      false,
 			expectedAction:  "create_new",
-			expectedMessage: "創建新用戶",
+			expectedMessage: "Create new user",
 		},
 		{
-			name: "未完成OTP驗證_允許重新獲取",
+			name: "Incomplete OTP verification - allow refetch",
 			existingUser: &MockUser{
 				ID:          1,
 				Email:       "test@example.com",
@@ -38,10 +38,10 @@ func TestOTPRefetchLogic(t *testing.T) {
 			},
 			userExists:      true,
 			expectedAction:  "allow_refetch",
-			expectedMessage: "检测到未完成的注册，请继续完成OTP设置",
+			expectedMessage: "Incomplete registration detected, please continue OTP setup",
 		},
 		{
-			name: "已完成OTP驗證_拒絕重複註冊",
+			name: "Completed OTP verification - reject duplicate registration",
 			existingUser: &MockUser{
 				ID:          2,
 				Email:       "verified@example.com",
@@ -50,45 +50,45 @@ func TestOTPRefetchLogic(t *testing.T) {
 			},
 			userExists:      true,
 			expectedAction:  "reject_duplicate",
-			expectedMessage: "邮箱已被注册",
+			expectedMessage: "Email already registered",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 模擬邏輯處理流程
+			// Simulate logic processing flow
 			var actualAction string
 			var actualMessage string
 
 			if !tt.userExists {
-				// 用戶不存在，創建新用戶
+				// User does not exist, create new user
 				actualAction = "create_new"
-				actualMessage = "創建新用戶"
+				actualMessage = "Create new user"
 			} else {
-				// 用戶已存在，檢查 OTP 驗證狀態
+				// User exists, check OTP verification status
 				if !tt.existingUser.OTPVerified {
-					// 未完成 OTP 驗證，允許重新獲取
+					// OTP verification incomplete, allow refetch
 					actualAction = "allow_refetch"
-					actualMessage = "检测到未完成的注册，请继续完成OTP设置"
+					actualMessage = "Incomplete registration detected, please continue OTP setup"
 				} else {
-					// 已完成驗證，拒絕重複註冊
+					// Verification completed, reject duplicate registration
 					actualAction = "reject_duplicate"
-					actualMessage = "邮箱已被注册"
+					actualMessage = "Email already registered"
 				}
 			}
 
-			// 驗證結果
+			// Verify results
 			if actualAction != tt.expectedAction {
-				t.Errorf("Action 不符: got %s, want %s", actualAction, tt.expectedAction)
+				t.Errorf("Action mismatch: got %s, want %s", actualAction, tt.expectedAction)
 			}
 			if actualMessage != tt.expectedMessage {
-				t.Errorf("Message 不符: got %s, want %s", actualMessage, tt.expectedMessage)
+				t.Errorf("Message mismatch: got %s, want %s", actualMessage, tt.expectedMessage)
 			}
 		})
 	}
 }
 
-// TestOTPVerificationStates 測試 OTP 驗證狀態判斷
+// TestOTPVerificationStates Test OTP verification state determination
 func TestOTPVerificationStates(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -96,12 +96,12 @@ func TestOTPVerificationStates(t *testing.T) {
 		shouldAllowRefetch bool
 	}{
 		{
-			name:               "OTP已驗證_不允許重新獲取",
+			name:               "OTP verified - disallow refetch",
 			otpVerified:        true,
 			shouldAllowRefetch: false,
 		},
 		{
-			name:               "OTP未驗證_允許重新獲取",
+			name:               "OTP not verified - allow refetch",
 			otpVerified:        false,
 			shouldAllowRefetch: true,
 		},
@@ -109,7 +109,7 @@ func TestOTPVerificationStates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 模擬驗證邏輯
+			// Simulate verification logic
 			allowRefetch := !tt.otpVerified
 
 			if allowRefetch != tt.shouldAllowRefetch {
@@ -120,72 +120,72 @@ func TestOTPVerificationStates(t *testing.T) {
 	}
 }
 
-// TestRegistrationFlow 測試完整註冊流程的邏輯分支
+// TestRegistrationFlow Test complete registration flow logic branches
 func TestRegistrationFlow(t *testing.T) {
 	tests := []struct {
 		name           string
 		scenario       string
 		userExists     bool
 		otpVerified    bool
-		expectHTTPCode int // 模擬的 HTTP 狀態碼
+		expectHTTPCode int // Simulated HTTP status code
 		expectResponse string
 	}{
 		{
-			name:           "場景1_新用戶首次註冊",
-			scenario:       "新用戶首次訪問註冊接口",
+			name:           "Scenario 1: New user first registration",
+			scenario:       "New user first accesses registration endpoint",
 			userExists:     false,
 			otpVerified:    false,
 			expectHTTPCode: 200,
-			expectResponse: "創建用戶並返回 OTP 設置信息",
+			expectResponse: "Create user and return OTP setup information",
 		},
 		{
-			name:           "場景2_用戶中斷註冊後重新訪問",
-			scenario:       "用戶之前註冊但未完成 OTP 設置，現在重新訪問",
+			name:           "Scenario 2: User re-accesses after interrupting registration",
+			scenario:       "User registered previously but did not complete OTP setup, now re-accessing",
 			userExists:     true,
 			otpVerified:    false,
 			expectHTTPCode: 200,
-			expectResponse: "返回現有用戶的 OTP 信息，允許繼續完成",
+			expectResponse: "Return existing user's OTP information, allow continuation",
 		},
 		{
-			name:           "場景3_已註冊用戶嘗試重複註冊",
-			scenario:       "用戶已完成註冊，嘗試用同一郵箱再次註冊",
+			name:           "Scenario 3: Registered user attempts duplicate registration",
+			scenario:       "User already completed registration, attempts to register again with same email",
 			userExists:     true,
 			otpVerified:    true,
 			expectHTTPCode: 409, // Conflict
-			expectResponse: "邮箱已被注册",
+			expectResponse: "Email already registered",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 模擬註冊流程邏輯
+			// Simulate registration flow logic
 			var actualHTTPCode int
 			var actualResponse string
 
 			if !tt.userExists {
-				// 新用戶，創建並返回 OTP 信息
+				// New user, create and return OTP information
 				actualHTTPCode = 200
-				actualResponse = "創建用戶並返回 OTP 設置信息"
+				actualResponse = "Create user and return OTP setup information"
 			} else {
-				// 用戶已存在
+				// User exists
 				if !tt.otpVerified {
-					// 未完成 OTP 驗證，允許重新獲取
+					// OTP verification incomplete, allow refetch
 					actualHTTPCode = 200
-					actualResponse = "返回現有用戶的 OTP 信息，允許繼續完成"
+					actualResponse = "Return existing user's OTP information, allow continuation"
 				} else {
-					// 已完成驗證，拒絕重複註冊
+					// Verification completed, reject duplicate registration
 					actualHTTPCode = 409
-					actualResponse = "邮箱已被注册"
+					actualResponse = "Email already registered"
 				}
 			}
 
-			// 驗證
+			// Verify
 			if actualHTTPCode != tt.expectHTTPCode {
-				t.Errorf("HTTP code 不符: got %d, want %d (scenario: %s)",
+				t.Errorf("HTTP code mismatch: got %d, want %d (scenario: %s)",
 					actualHTTPCode, tt.expectHTTPCode, tt.scenario)
 			}
 			if actualResponse != tt.expectResponse {
-				t.Errorf("Response 不符: got %s, want %s (scenario: %s)",
+				t.Errorf("Response mismatch: got %s, want %s (scenario: %s)",
 					actualResponse, tt.expectResponse, tt.scenario)
 			}
 
@@ -194,7 +194,7 @@ func TestRegistrationFlow(t *testing.T) {
 	}
 }
 
-// TestEdgeCases 測試邊界情況
+// TestEdgeCases Test edge cases
 func TestEdgeCases(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -203,17 +203,17 @@ func TestEdgeCases(t *testing.T) {
 		description string
 	}{
 		{
-			name: "用戶ID為0_視為新用戶",
+			name: "User ID is 0 - treated as new user",
 			user: &MockUser{
 				ID:          0,
 				Email:       "new@example.com",
 				OTPVerified: false,
 			},
 			expectAllow: true,
-			description: "ID為0通常表示用戶還未創建",
+			description: "ID of 0 usually indicates user has not been created yet",
 		},
 		{
-			name: "OTPSecret為空_仍可重新獲取",
+			name: "OTPSecret is empty - still can refetch",
 			user: &MockUser{
 				ID:          1,
 				Email:       "test@example.com",
@@ -221,10 +221,10 @@ func TestEdgeCases(t *testing.T) {
 				OTPVerified: false,
 			},
 			expectAllow: true,
-			description: "即使 OTPSecret 為空，只要未驗證就允許重新獲取",
+			description: "Even if OTPSecret is empty, as long as not verified, refetch is allowed",
 		},
 		{
-			name: "OTPSecret存在但已驗證_不允許",
+			name: "OTPSecret exists but already verified - not allowed",
 			user: &MockUser{
 				ID:          2,
 				Email:       "verified@example.com",
@@ -232,13 +232,13 @@ func TestEdgeCases(t *testing.T) {
 				OTPVerified: true,
 			},
 			expectAllow: false,
-			description: "OTP 已驗證的用戶不能重新獲取",
+			description: "Users with verified OTP cannot refetch",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 核心邏輯：只要 OTPVerified 為 false，就允許重新獲取
+			// Core logic: as long as OTPVerified is false, refetch is allowed
 			allowRefetch := !tt.user.OTPVerified
 
 			if allowRefetch != tt.expectAllow {

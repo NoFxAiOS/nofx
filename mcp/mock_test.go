@@ -13,19 +13,19 @@ import (
 // Mock Logger
 // ============================================================
 
-// MockLogger Mock 日志器（用于测试）
+// MockLogger Mock logger (for testing)
 type MockLogger struct {
 	mu      sync.Mutex
 	Logs    []LogEntry
-	Enabled bool // 是否启用日志记录
+	Enabled bool // Whether logging is enabled
 }
 
-// LogEntry 日志条目
+// LogEntry log entry
 type LogEntry struct {
 	Level   string
 	Format  string
 	Args    []any
-	Message string // 格式化后的消息
+	Message string // Formatted message
 }
 
 func NewMockLogger() *MockLogger {
@@ -68,14 +68,14 @@ func (m *MockLogger) log(level, format string, args ...any) {
 	})
 }
 
-// GetLogs 获取所有日志
+// GetLogs gets all logs
 func (m *MockLogger) GetLogs() []LogEntry {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]LogEntry{}, m.Logs...)
 }
 
-// GetLogsByLevel 获取指定级别的日志
+// GetLogsByLevel gets logs by specified level
 func (m *MockLogger) GetLogsByLevel(level string) []LogEntry {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -89,14 +89,14 @@ func (m *MockLogger) GetLogsByLevel(level string) []LogEntry {
 	return result
 }
 
-// Clear 清空日志
+// Clear clears all logs
 func (m *MockLogger) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Logs = make([]LogEntry, 0)
 }
 
-// HasLog 检查是否包含指定消息
+// HasLog checks if contains specified message
 func (m *MockLogger) HasLog(level, message string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -110,20 +110,20 @@ func (m *MockLogger) HasLog(level, message string) bool {
 }
 
 // ============================================================
-// Mock HTTP Client (实现 http.RoundTripper)
+// Mock HTTP Client (implements http.RoundTripper)
 // ============================================================
 
-// MockHTTPClient Mock HTTP 客户端（实现 http.RoundTripper）
+// MockHTTPClient Mock HTTP client (implements http.RoundTripper)
 type MockHTTPClient struct {
 	mu sync.Mutex
 
-	// 配置
+	// Configuration
 	Response     string
 	StatusCode   int
 	Error        error
-	ResponseFunc func(req *http.Request) (*http.Response, error) // 自定义响应函数
+	ResponseFunc func(req *http.Request) (*http.Response, error) // Custom response function
 
-	// 记录
+	// Recording
 	Requests []*http.Request
 }
 
@@ -134,32 +134,32 @@ func NewMockHTTPClient() *MockHTTPClient {
 	}
 }
 
-// ToHTTPClient 转换为 http.Client
+// ToHTTPClient converts to http.Client
 func (m *MockHTTPClient) ToHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: m,
 	}
 }
 
-// RoundTrip 实现 http.RoundTripper 接口
+// RoundTrip implements http.RoundTripper interface
 func (m *MockHTTPClient) RoundTrip(req *http.Request) (*http.Response, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 记录请求
+	// Record request
 	m.Requests = append(m.Requests, req)
 
-	// 如果有自定义响应函数，使用它
+	// If custom response function exists, use it
 	if m.ResponseFunc != nil {
 		return m.ResponseFunc(req)
 	}
 
-	// 如果设置了错误，返回错误
+	// If error is set, return error
 	if m.Error != nil {
 		return nil, m.Error
 	}
 
-	// 返回模拟响应
+	// Return mock response
 	resp := &http.Response{
 		StatusCode: m.StatusCode,
 		Body:       io.NopCloser(bytes.NewBufferString(m.Response)),
@@ -169,14 +169,14 @@ func (m *MockHTTPClient) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// GetRequests 获取所有请求
+// GetRequests gets all requests
 func (m *MockHTTPClient) GetRequests() []*http.Request {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]*http.Request{}, m.Requests...)
 }
 
-// GetLastRequest 获取最后一次请求
+// GetLastRequest gets last request
 func (m *MockHTTPClient) GetLastRequest() *http.Request {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -187,14 +187,14 @@ func (m *MockHTTPClient) GetLastRequest() *http.Request {
 	return m.Requests[len(m.Requests)-1]
 }
 
-// Reset 重置状态
+// Reset resets state
 func (m *MockHTTPClient) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Requests = make([]*http.Request, 0)
 }
 
-// SetSuccessResponse 设置成功响应
+// SetSuccessResponse sets success response
 func (m *MockHTTPClient) SetSuccessResponse(content string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -204,7 +204,7 @@ func (m *MockHTTPClient) SetSuccessResponse(content string) {
 	m.Error = nil
 }
 
-// SetErrorResponse 设置错误响应
+// SetErrorResponse sets error response
 func (m *MockHTTPClient) SetErrorResponse(statusCode int, message string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -214,7 +214,7 @@ func (m *MockHTTPClient) SetErrorResponse(statusCode int, message string) {
 	m.Error = nil
 }
 
-// SetNetworkError 设置网络错误
+// SetNetworkError sets network error
 func (m *MockHTTPClient) SetNetworkError(err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -223,10 +223,10 @@ func (m *MockHTTPClient) SetNetworkError(err error) {
 }
 
 // ============================================================
-// Mock Client Hooks (用于测试钩子机制)
+// Mock Client Hooks (for testing hook mechanism)
 // ============================================================
 
-// MockClientHooks Mock 客户端钩子
+// MockClientHooks Mock client hooks
 type MockClientHooks struct {
 	BuildRequestBodyCalled int
 	BuildUrlCalled         int
@@ -235,7 +235,7 @@ type MockClientHooks struct {
 	ParseResponseCalled    int
 	IsRetryableErrorCalled int
 
-	// 自定义返回值
+	// Custom return values
 	BuildUrlFunc           func() string
 	ParseResponseFunc      func([]byte) (string, error)
 	IsRetryableErrorFunc   func(error) bool

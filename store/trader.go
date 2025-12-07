@@ -5,20 +5,20 @@ import (
 	"time"
 )
 
-// TraderStore 交易员存储
+// TraderStore trader storage
 type TraderStore struct {
 	db          *sql.DB
 	decryptFunc func(string) string
 }
 
-// Trader 交易员配置
+// Trader trader configuration
 type Trader struct {
 	ID                  string    `json:"id"`
 	UserID              string    `json:"user_id"`
 	Name                string    `json:"name"`
 	AIModelID           string    `json:"ai_model_id"`
 	ExchangeID          string    `json:"exchange_id"`
-	StrategyID          string    `json:"strategy_id"`           // 关联策略ID
+	StrategyID          string    `json:"strategy_id"`           // Associated strategy ID
 	InitialBalance      float64   `json:"initial_balance"`
 	ScanIntervalMinutes int       `json:"scan_interval_minutes"`
 	IsRunning           bool      `json:"is_running"`
@@ -26,7 +26,7 @@ type Trader struct {
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 
-	// 以下字段已废弃，保留用于向后兼容，新交易员应使用 StrategyID
+	// Following fields are deprecated, kept for backward compatibility, new traders should use StrategyID
 	BTCETHLeverage       int    `json:"btc_eth_leverage,omitempty"`
 	AltcoinLeverage      int    `json:"altcoin_leverage,omitempty"`
 	TradingSymbols       string `json:"trading_symbols,omitempty"`
@@ -37,12 +37,12 @@ type Trader struct {
 	SystemPromptTemplate string `json:"system_prompt_template,omitempty"`
 }
 
-// TraderFullConfig 交易员完整配置（包含AI模型、交易所和策略）
+// TraderFullConfig trader full configuration (includes AI model, exchange and strategy)
 type TraderFullConfig struct {
 	Trader   *Trader
 	AIModel  *AIModel
 	Exchange *Exchange
-	Strategy *Strategy // 关联的策略配置
+	Strategy *Strategy // Associated strategy configuration
 }
 
 func (s *TraderStore) initTables() error {
@@ -74,7 +74,7 @@ func (s *TraderStore) initTables() error {
 		return err
 	}
 
-	// 触发器
+	// Trigger
 	_, err = s.db.Exec(`
 		CREATE TRIGGER IF NOT EXISTS update_traders_updated_at
 		AFTER UPDATE ON traders
@@ -86,7 +86,7 @@ func (s *TraderStore) initTables() error {
 		return err
 	}
 
-	// 向后兼容
+	// Backward compatibility
 	alterQueries := []string{
 		`ALTER TABLE traders ADD COLUMN custom_prompt TEXT DEFAULT ''`,
 		`ALTER TABLE traders ADD COLUMN override_base_prompt BOOLEAN DEFAULT 0`,
@@ -113,7 +113,7 @@ func (s *TraderStore) decrypt(encrypted string) string {
 	return encrypted
 }
 
-// Create 创建交易员
+// Create creates trader
 func (s *TraderStore) Create(trader *Trader) error {
 	_, err := s.db.Exec(`
 		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, strategy_id, initial_balance,
@@ -128,7 +128,7 @@ func (s *TraderStore) Create(trader *Trader) error {
 	return err
 }
 
-// List 获取用户的交易员列表
+// List gets user's trader list
 func (s *TraderStore) List(userID string) ([]*Trader, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, COALESCE(strategy_id, ''),
@@ -165,13 +165,13 @@ func (s *TraderStore) List(userID string) ([]*Trader, error) {
 	return traders, nil
 }
 
-// UpdateStatus 更新交易员运行状态
+// UpdateStatus updates trader running status
 func (s *TraderStore) UpdateStatus(userID, id string, isRunning bool) error {
 	_, err := s.db.Exec(`UPDATE traders SET is_running = ? WHERE id = ? AND user_id = ?`, isRunning, id, userID)
 	return err
 }
 
-// Update 更新交易员配置
+// Update updates trader configuration
 func (s *TraderStore) Update(trader *Trader) error {
 	_, err := s.db.Exec(`
 		UPDATE traders SET
@@ -184,26 +184,26 @@ func (s *TraderStore) Update(trader *Trader) error {
 	return err
 }
 
-// UpdateInitialBalance 更新初始余额
+// UpdateInitialBalance updates initial balance
 func (s *TraderStore) UpdateInitialBalance(userID, id string, newBalance float64) error {
 	_, err := s.db.Exec(`UPDATE traders SET initial_balance = ? WHERE id = ? AND user_id = ?`, newBalance, id, userID)
 	return err
 }
 
-// UpdateCustomPrompt 更新自定义提示词
+// UpdateCustomPrompt updates custom prompt
 func (s *TraderStore) UpdateCustomPrompt(userID, id string, customPrompt string, overrideBase bool) error {
 	_, err := s.db.Exec(`UPDATE traders SET custom_prompt = ?, override_base_prompt = ? WHERE id = ? AND user_id = ?`,
 		customPrompt, overrideBase, id, userID)
 	return err
 }
 
-// Delete 删除交易员
+// Delete deletes trader
 func (s *TraderStore) Delete(userID, id string) error {
 	_, err := s.db.Exec(`DELETE FROM traders WHERE id = ? AND user_id = ?`, id, userID)
 	return err
 }
 
-// GetFullConfig 获取交易员完整配置
+// GetFullConfig gets trader full configuration
 func (s *TraderStore) GetFullConfig(userID, traderID string) (*TraderFullConfig, error) {
 	var trader Trader
 	var aiModel AIModel
@@ -255,7 +255,7 @@ func (s *TraderStore) GetFullConfig(userID, traderID string) (*TraderFullConfig,
 	exchange.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", exchangeCreatedAt)
 	exchange.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", exchangeUpdatedAt)
 
-	// 解密
+	// Decrypt
 	aiModel.APIKey = s.decrypt(aiModel.APIKey)
 	exchange.APIKey = s.decrypt(exchange.APIKey)
 	exchange.SecretKey = s.decrypt(exchange.SecretKey)
@@ -264,12 +264,12 @@ func (s *TraderStore) GetFullConfig(userID, traderID string) (*TraderFullConfig,
 	exchange.LighterPrivateKey = s.decrypt(exchange.LighterPrivateKey)
 	exchange.LighterAPIKeyPrivateKey = s.decrypt(exchange.LighterAPIKeyPrivateKey)
 
-	// 加载关联的策略
+	// Load associated strategy
 	var strategy *Strategy
 	if trader.StrategyID != "" {
 		strategy, _ = s.getStrategyByID(userID, trader.StrategyID)
 	}
-	// 如果没有关联策略，获取用户的激活策略或默认策略
+	// If no associated strategy, get user's active strategy or default strategy
 	if strategy == nil {
 		strategy, _ = s.getActiveOrDefaultStrategy(userID)
 	}
@@ -282,7 +282,7 @@ func (s *TraderStore) GetFullConfig(userID, traderID string) (*TraderFullConfig,
 	}, nil
 }
 
-// getStrategyByID 内部方法：根据ID获取策略
+// getStrategyByID internal method: gets strategy by ID
 func (s *TraderStore) getStrategyByID(userID, strategyID string) (*Strategy, error) {
 	var strategy Strategy
 	var createdAt, updatedAt string
@@ -301,12 +301,12 @@ func (s *TraderStore) getStrategyByID(userID, strategyID string) (*Strategy, err
 	return &strategy, nil
 }
 
-// getActiveOrDefaultStrategy 内部方法：获取用户激活的策略或系统默认策略
+// getActiveOrDefaultStrategy internal method: gets user's active strategy or system default strategy
 func (s *TraderStore) getActiveOrDefaultStrategy(userID string) (*Strategy, error) {
 	var strategy Strategy
 	var createdAt, updatedAt string
 
-	// 先尝试获取用户激活的策略
+	// First try to get user's active strategy
 	err := s.db.QueryRow(`
 		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
 		FROM strategies WHERE user_id = ? AND is_active = 1
@@ -320,7 +320,7 @@ func (s *TraderStore) getActiveOrDefaultStrategy(userID string) (*Strategy, erro
 		return &strategy, nil
 	}
 
-	// 回退到系统默认策略
+	// Fallback to system default strategy
 	err = s.db.QueryRow(`
 		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
 		FROM strategies WHERE is_default = 1 LIMIT 1
@@ -336,7 +336,7 @@ func (s *TraderStore) getActiveOrDefaultStrategy(userID string) (*Strategy, erro
 	return &strategy, nil
 }
 
-// ListAll 获取所有用户的交易员列表
+// ListAll gets all users' trader list
 func (s *TraderStore) ListAll() ([]*Trader, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, COALESCE(strategy_id, ''),

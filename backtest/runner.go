@@ -29,7 +29,7 @@ const (
 	aiDecisionMaxRetries = 3
 )
 
-// Runner 封装单次回测运行的生命周期。
+// Runner encapsulates the lifecycle of a single backtest run.
 type Runner struct {
 	cfg     BacktestConfig
 	feed    *DataFeed
@@ -63,7 +63,7 @@ type Runner struct {
 	lockStop chan struct{}
 }
 
-// NewRunner 构建回测运行器。
+// NewRunner constructs a backtest runner.
 func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 	if err := ensureRunDir(cfg.RunID); err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (r *Runner) releaseLock() {
 	r.lockInfo = nil
 }
 
-// Start 启动回测循环。
+// Start launches the backtest loop.
 func (r *Runner) Start(ctx context.Context) error {
 	r.statusMu.Lock()
 	if r.status != RunStateCreated && r.status != RunStatePaused {
@@ -193,7 +193,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	return nil
 }
 
-// PersistMetadata 将当前快照写入 run.json。
+// PersistMetadata writes the current snapshot to run.json.
 func (r *Runner) PersistMetadata() {
 	r.persistMetadata()
 }
@@ -214,7 +214,7 @@ func (r *Runner) lastErrorString() string {
 	return r.lastError
 }
 
-// CurrentMetadata 返回当前内存状态对应的元数据。
+// CurrentMetadata returns the metadata corresponding to the current in-memory state.
 func (r *Runner) CurrentMetadata() *RunMetadata {
 	state := r.snapshotState()
 	meta := r.buildMetadata(state, r.Status())
@@ -292,7 +292,7 @@ func (r *Runner) stepOnce() error {
 		ctx, rec, err := r.buildDecisionContext(ts, marketData, multiTF, priceMap, callCount)
 		if err != nil {
 			rec.Success = false
-			rec.ErrorMessage = fmt.Sprintf("构建交易上下文失败: %v", err)
+			rec.ErrorMessage = fmt.Sprintf("failed to build trading context: %v", err)
 			_ = r.logDecision(rec)
 			return err
 		}
@@ -312,7 +312,7 @@ func (r *Runner) stepOnce() error {
 				} else if r.cfg.ReplayOnly {
 					decisionErr := fmt.Errorf("replay_only enabled but cache miss at %d", ts)
 					record.Success = false
-					record.ErrorMessage = fmt.Sprintf("没有找到 ts=%d 的缓存决策", ts)
+					record.ErrorMessage = fmt.Sprintf("cached decision not found for ts=%d", ts)
 					_ = r.logDecision(record)
 					return decisionErr
 				}
@@ -327,8 +327,8 @@ func (r *Runner) stepOnce() error {
 				decisionAttempted = true
 				hadError = true
 				record.Success = false
-				record.ErrorMessage = fmt.Sprintf("AI决策失败: %v", err)
-				execLog = append(execLog, fmt.Sprintf("⚠️ AI决策失败: %v", err))
+				record.ErrorMessage = fmt.Sprintf("AI decision failed: %v", err)
+				execLog = append(execLog, fmt.Sprintf("⚠️ AI decision failed: %v", err))
 				r.setLastError(err)
 			} else {
 				fullDecision = fd
@@ -392,7 +392,7 @@ func (r *Runner) stepOnce() error {
 		hadError = true
 		tradeEvents = append(tradeEvents, liquidationEvents...)
 		if record != nil {
-			execLog = append(execLog, fmt.Sprintf("⚠️ 强制平仓: %s", liquidationNote))
+			execLog = append(execLog, fmt.Sprintf("⚠️ Forced liquidation: %s", liquidationNote))
 		}
 	}
 
@@ -690,7 +690,7 @@ func (r *Runner) executeDecision(dec decision.Decision, priceMap map[string]floa
 		return actionRecord, []TradeEvent{trade}, "", nil
 
 	case "hold", "wait":
-		return actionRecord, nil, fmt.Sprintf("保持仓位: %s", dec.Action), nil
+		return actionRecord, nil, fmt.Sprintf("hold position: %s", dec.Action), nil
 	default:
 		return actionRecord, nil, "", fmt.Errorf("unsupported action %s", dec.Action)
 	}
@@ -1078,14 +1078,14 @@ func (r *Runner) Wait() error {
 	return r.err
 }
 
-// Status 返回当前运行状态。
+// Status returns the current run state.
 func (r *Runner) Status() RunState {
 	r.statusMu.RLock()
 	defer r.statusMu.RUnlock()
 	return r.status
 }
 
-// StatusPayload 构建用于 API 的状态响应。
+// StatusPayload builds the status response for the API.
 func (r *Runner) StatusPayload() StatusPayload {
 	snapshot := r.snapshotState()
 	progress := progressPercent(snapshot, r.cfg)

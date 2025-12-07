@@ -132,7 +132,7 @@ func appendJSONLine(path string, payload any) error {
 	return f.Sync()
 }
 
-// SaveCheckpoint 将检查点写入磁盘。
+// SaveCheckpoint writes the checkpoint to disk.
 func SaveCheckpoint(runID string, ckpt *Checkpoint) error {
 	if ckpt == nil {
 		return fmt.Errorf("checkpoint is nil")
@@ -143,7 +143,7 @@ func SaveCheckpoint(runID string, ckpt *Checkpoint) error {
 	return writeJSONAtomic(checkpointPath(runID), ckpt)
 }
 
-// LoadCheckpoint 读取最近一次检查点。
+// LoadCheckpoint reads the most recent checkpoint.
 func LoadCheckpoint(runID string) (*Checkpoint, error) {
 	if usingDB() {
 		return loadCheckpointDB(runID)
@@ -160,7 +160,7 @@ func LoadCheckpoint(runID string) (*Checkpoint, error) {
 	return &ckpt, nil
 }
 
-// SaveRunMetadata 写入 run.json。
+// SaveRunMetadata writes to run.json.
 func SaveRunMetadata(meta *RunMetadata) error {
 	if meta == nil {
 		return fmt.Errorf("run metadata is nil")
@@ -178,7 +178,7 @@ func SaveRunMetadata(meta *RunMetadata) error {
 	return writeJSONAtomic(runMetadataPath(meta.RunID), meta)
 }
 
-// LoadRunMetadata 读取 run.json。
+// LoadRunMetadata reads run.json.
 func LoadRunMetadata(runID string) (*RunMetadata, error) {
 	if usingDB() {
 		return loadRunMetadataDB(runID)

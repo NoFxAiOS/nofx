@@ -12,21 +12,21 @@ import (
 )
 
 // ============================================================
-// 一、BybitTraderTestSuite - 继承 base test suite
+// Part 1: BybitTraderTestSuite - Inherits base test suite
 // ============================================================
 
-// BybitTraderTestSuite Bybit交易器测试套件
-// 继承 TraderTestSuite 并添加 Bybit 特定的 mock 逻辑
+// BybitTraderTestSuite Bybit trader test suite
+// Inherits TraderTestSuite and adds Bybit-specific mock logic
 type BybitTraderTestSuite struct {
-	*TraderTestSuite // 嵌入基础测试套件
+	*TraderTestSuite // Embeds base test suite
 	mockServer       *httptest.Server
 }
 
-// NewBybitTraderTestSuite 创建 Bybit 测试套件
-// 注意：由于 Bybit SDK 封装设计，无法轻松注入 mock HTTP client
-// 因此这里的测试套件主要用于接口合规性验证，而非 API 调用测试
+// NewBybitTraderTestSuite Create Bybit test suite
+// Note: Due to Bybit SDK encapsulation design, cannot easily inject mock HTTP client
+// Therefore this test suite is mainly used for interface compliance verification, not API call testing
 func NewBybitTraderTestSuite(t *testing.T) *BybitTraderTestSuite {
-	// 创建 mock HTTP 服务器（用于验证响应格式）
+	// Create mock HTTP server (for response format verification)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		var respBody interface{}
@@ -65,10 +65,10 @@ func NewBybitTraderTestSuite(t *testing.T) *BybitTraderTestSuite {
 		json.NewEncoder(w).Encode(respBody)
 	}))
 
-	// 创建真实的 Bybit trader（用于接口合规性测试）
+	// Create real Bybit trader (for interface compliance testing)
 	trader := NewBybitTrader("test_api_key", "test_secret_key")
 
-	// 创建基础套件
+	// Create base suite
 	baseSuite := NewTraderTestSuite(t, trader)
 
 	return &BybitTraderTestSuite{
@@ -77,7 +77,7 @@ func NewBybitTraderTestSuite(t *testing.T) *BybitTraderTestSuite {
 	}
 }
 
-// Cleanup 清理资源
+// Cleanup Clean up resources
 func (s *BybitTraderTestSuite) Cleanup() {
 	if s.mockServer != nil {
 		s.mockServer.Close()
@@ -86,19 +86,19 @@ func (s *BybitTraderTestSuite) Cleanup() {
 }
 
 // ============================================================
-// 二、接口兼容性测试
+// Part 2: Interface compliance tests
 // ============================================================
 
-// TestBybitTrader_InterfaceCompliance 测试接口兼容性
+// TestBybitTrader_InterfaceCompliance Test interface compliance
 func TestBybitTrader_InterfaceCompliance(t *testing.T) {
 	var _ Trader = (*BybitTrader)(nil)
 }
 
 // ============================================================
-// 三、Bybit 特定功能的单元测试
+// Part 3: Bybit-specific feature unit tests
 // ============================================================
 
-// TestNewBybitTrader 测试创建 Bybit 交易器
+// TestNewBybitTrader Test creating Bybit trader
 func TestNewBybitTrader(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -107,19 +107,19 @@ func TestNewBybitTrader(t *testing.T) {
 		wantNil   bool
 	}{
 		{
-			name:      "成功创建",
+			name:      "Successfully create",
 			apiKey:    "test_api_key",
 			secretKey: "test_secret_key",
 			wantNil:   false,
 		},
 		{
-			name:      "空API Key仍可创建",
+			name:      "Empty API Key can still create",
 			apiKey:    "",
 			secretKey: "test_secret_key",
 			wantNil:   false,
 		},
 		{
-			name:      "空Secret Key仍可创建",
+			name:      "Empty Secret Key can still create",
 			apiKey:    "test_api_key",
 			secretKey: "",
 			wantNil:   false,
@@ -140,26 +140,26 @@ func TestNewBybitTrader(t *testing.T) {
 	}
 }
 
-// TestBybitTrader_SymbolFormat 测试符号格式
+// TestBybitTrader_SymbolFormat Test symbol format
 func TestBybitTrader_SymbolFormat(t *testing.T) {
-	// Bybit 使用大写符号格式（如 BTCUSDT）
+	// Bybit uses uppercase symbol format (e.g. BTCUSDT)
 	tests := []struct {
 		name     string
 		symbol   string
 		isValid  bool
 	}{
 		{
-			name:    "标准USDT合约",
+			name:    "Standard USDT contract",
 			symbol:  "BTCUSDT",
 			isValid: true,
 		},
 		{
-			name:    "ETH合约",
+			name:    "ETH contract",
 			symbol:  "ETHUSDT",
 			isValid: true,
 		},
 		{
-			name:    "SOL合约",
+			name:    "SOL contract",
 			symbol:  "SOLUSDT",
 			isValid: true,
 		},
@@ -167,14 +167,14 @@ func TestBybitTrader_SymbolFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 验证符号格式正确（全大写，以USDT结尾）
+			// Verify symbol format is correct (all uppercase, ends with USDT)
 			assert.True(t, tt.symbol == strings.ToUpper(tt.symbol))
 			assert.True(t, strings.HasSuffix(tt.symbol, "USDT"))
 		})
 	}
 }
 
-// TestBybitTrader_FormatQuantity 测试数量格式化
+// TestBybitTrader_FormatQuantity Test quantity formatting
 func TestBybitTrader_FormatQuantity(t *testing.T) {
 	trader := NewBybitTrader("test", "test")
 
@@ -186,21 +186,21 @@ func TestBybitTrader_FormatQuantity(t *testing.T) {
 		hasError bool
 	}{
 		{
-			name:     "BTC数量格式化",
+			name:     "BTC quantity formatting",
 			symbol:   "BTCUSDT",
 			quantity: 0.12345,
-			expected: "0.123", // Bybit 默认使用 3 位小数
+			expected: "0.123", // Bybit defaults to 3 decimal places
 			hasError: false,
 		},
 		{
-			name:     "ETH数量格式化",
+			name:     "ETH quantity formatting",
 			symbol:   "ETHUSDT",
 			quantity: 1.2345,
 			expected: "1.234",
 			hasError: false,
 		},
 		{
-			name:     "整数数量",
+			name:     "Integer quantity",
 			symbol:   "SOLUSDT",
 			quantity: 10.0,
 			expected: "10.000",
@@ -221,7 +221,7 @@ func TestBybitTrader_FormatQuantity(t *testing.T) {
 	}
 }
 
-// TestBybitTrader_ParseResponse 测试响应解析
+// TestBybitTrader_ParseResponse Test response parsing
 func TestBybitTrader_ParseResponse(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -231,20 +231,20 @@ func TestBybitTrader_ParseResponse(t *testing.T) {
 		errContain string
 	}{
 		{
-			name:      "成功响应",
+			name:      "Success response",
 			retCode:   0,
 			retMsg:    "OK",
 			expectErr: false,
 		},
 		{
-			name:       "API错误",
+			name:       "API error",
 			retCode:    10001,
 			retMsg:     "Invalid symbol",
 			expectErr:  true,
 			errContain: "Invalid symbol",
 		},
 		{
-			name:       "权限错误",
+			name:       "Permission error",
 			retCode:    10003,
 			retMsg:     "Invalid API key",
 			expectErr:  true,
@@ -267,7 +267,7 @@ func TestBybitTrader_ParseResponse(t *testing.T) {
 	}
 }
 
-// checkBybitResponse 检查 Bybit API 响应是否有错误
+// checkBybitResponse Check if Bybit API response has errors
 func checkBybitResponse(retCode int, retMsg string) error {
 	if retCode != 0 {
 		return &BybitAPIError{
@@ -278,7 +278,7 @@ func checkBybitResponse(retCode int, retMsg string) error {
 	return nil
 }
 
-// BybitAPIError Bybit API 错误类型
+// BybitAPIError Bybit API error type
 type BybitAPIError struct {
 	Code    int
 	Message string
@@ -288,7 +288,7 @@ func (e *BybitAPIError) Error() string {
 	return e.Message
 }
 
-// TestBybitTrader_PositionSideConversion 测试仓位方向转换
+// TestBybitTrader_PositionSideConversion Test position side conversion
 func TestBybitTrader_PositionSideConversion(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -296,17 +296,17 @@ func TestBybitTrader_PositionSideConversion(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "Buy转Long",
+			name:     "Buy to Long",
 			side:     "Buy",
 			expected: "long",
 		},
 		{
-			name:     "Sell转Short",
+			name:     "Sell to Short",
 			side:     "Sell",
 			expected: "short",
 		},
 		{
-			name:     "其他值保持不变",
+			name:     "Other values remain unchanged",
 			side:     "Unknown",
 			expected: "unknown",
 		},
@@ -320,7 +320,7 @@ func TestBybitTrader_PositionSideConversion(t *testing.T) {
 	}
 }
 
-// convertBybitSide 转换 Bybit 仓位方向
+// convertBybitSide Convert Bybit position side
 func convertBybitSide(side string) string {
 	switch side {
 	case "Buy":
@@ -332,29 +332,29 @@ func convertBybitSide(side string) string {
 	}
 }
 
-// TestBybitTrader_CategoryLinear 测试只使用 linear 类别
+// TestBybitTrader_CategoryLinear Test using only linear category
 func TestBybitTrader_CategoryLinear(t *testing.T) {
-	// Bybit trader 应该只使用 linear 类别（USDT永续合约）
+	// Bybit trader should only use linear category (USDT perpetual contracts)
 	trader := NewBybitTrader("test", "test")
 	assert.NotNil(t, trader)
 
-	// 验证默认配置
+	// Verify default configuration
 	assert.NotNil(t, trader.client)
 }
 
-// TestBybitTrader_CacheDuration 测试缓存持续时间
+// TestBybitTrader_CacheDuration Test cache duration
 func TestBybitTrader_CacheDuration(t *testing.T) {
 	trader := NewBybitTrader("test", "test")
 
-	// 验证默认缓存时间为15秒
+	// Verify default cache time is 15 seconds
 	assert.Equal(t, 15*time.Second, trader.cacheDuration)
 }
 
 // ============================================================
-// 四、Mock 服务器集成测试
+// Part 4: Mock server integration tests
 // ============================================================
 
-// TestBybitTrader_MockServerGetBalance 测试通过 Mock 服务器获取余额
+// TestBybitTrader_MockServerGetBalance Test getting balance through Mock server
 func TestBybitTrader_MockServerGetBalance(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v5/account/wallet-balance" {
@@ -386,12 +386,12 @@ func TestBybitTrader_MockServerGetBalance(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
-	// 由于 Bybit SDK 封装，无法直接注入 mock URL
-	// 这个测试验证 mock 服务器响应格式正确
+	// Due to Bybit SDK encapsulation, cannot directly inject mock URL
+	// This test verifies mock server response format is correct
 	assert.NotNil(t, mockServer)
 }
 
-// TestBybitTrader_MockServerGetPositions 测试通过 Mock 服务器获取持仓
+// TestBybitTrader_MockServerGetPositions Test getting positions through Mock server
 func TestBybitTrader_MockServerGetPositions(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v5/position/list" {
@@ -425,7 +425,7 @@ func TestBybitTrader_MockServerGetPositions(t *testing.T) {
 	assert.NotNil(t, mockServer)
 }
 
-// TestBybitTrader_MockServerPlaceOrder 测试通过 Mock 服务器下单
+// TestBybitTrader_MockServerPlaceOrder Test placing order through Mock server
 func TestBybitTrader_MockServerPlaceOrder(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v5/order/create" && r.Method == "POST" {
@@ -448,7 +448,7 @@ func TestBybitTrader_MockServerPlaceOrder(t *testing.T) {
 	assert.NotNil(t, mockServer)
 }
 
-// TestBybitTrader_MockServerSetLeverage 测试通过 Mock 服务器设置杠杆
+// TestBybitTrader_MockServerSetLeverage Test setting leverage through Mock server
 func TestBybitTrader_MockServerSetLeverage(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v5/position/set-leverage" && r.Method == "POST" {

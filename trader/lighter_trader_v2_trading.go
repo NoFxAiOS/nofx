@@ -12,32 +12,32 @@ import (
 	"github.com/elliottech/lighter-go/types"
 )
 
-// OpenLong 開多倉（實現 Trader 接口）
+// OpenLong Open long position (implements Trader interface)
 func (t *LighterTraderV2) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	if t.txClient == nil {
-		return nil, fmt.Errorf("TxClient 未初始化，請先設置 API Key")
+		return nil, fmt.Errorf("TxClient not initialized, please set API Key first")
 	}
 
-	logger.Infof("📈 LIGHTER 開多倉: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
+	logger.Infof("📈 LIGHTER opening long: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
 
-	// 1. 設置杠杆（如果需要）
+	// 1. Set leverage (if needed)
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		logger.Infof("⚠️  設置杠杆失敗: %v", err)
+		logger.Infof("⚠️  Failed to set leverage: %v", err)
 	}
 
-	// 2. 獲取市場價格
+	// 2. Get market price
 	marketPrice, err := t.GetMarketPrice(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("獲取市場價格失敗: %w", err)
+		return nil, fmt.Errorf("failed to get market price: %w", err)
 	}
 
-	// 3. 創建市價買入單（開多）
+	// 3. Create market buy order (open long)
 	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market")
 	if err != nil {
-		return nil, fmt.Errorf("開多倉失敗: %w", err)
+		return nil, fmt.Errorf("failed to open long: %w", err)
 	}
 
-	logger.Infof("✓ LIGHTER 開多倉成功: %s @ %.2f", symbol, marketPrice)
+	logger.Infof("✓ LIGHTER opened long successfully: %s @ %.2f", symbol, marketPrice)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -48,32 +48,32 @@ func (t *LighterTraderV2) OpenLong(symbol string, quantity float64, leverage int
 	}, nil
 }
 
-// OpenShort 開空倉（實現 Trader 接口）
+// OpenShort Open short position (implements Trader interface)
 func (t *LighterTraderV2) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	if t.txClient == nil {
-		return nil, fmt.Errorf("TxClient 未初始化，請先設置 API Key")
+		return nil, fmt.Errorf("TxClient not initialized, please set API Key first")
 	}
 
-	logger.Infof("📉 LIGHTER 開空倉: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
+	logger.Infof("📉 LIGHTER opening short: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
 
-	// 1. 設置杠杆
+	// 1. Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		logger.Infof("⚠️  設置杠杆失敗: %v", err)
+		logger.Infof("⚠️  Failed to set leverage: %v", err)
 	}
 
-	// 2. 獲取市場價格
+	// 2. Get market price
 	marketPrice, err := t.GetMarketPrice(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("獲取市場價格失敗: %w", err)
+		return nil, fmt.Errorf("failed to get market price: %w", err)
 	}
 
-	// 3. 創建市價賣出單（開空）
+	// 3. Create market sell order (open short)
 	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market")
 	if err != nil {
-		return nil, fmt.Errorf("開空倉失敗: %w", err)
+		return nil, fmt.Errorf("failed to open short: %w", err)
 	}
 
-	logger.Infof("✓ LIGHTER 開空倉成功: %s @ %.2f", symbol, marketPrice)
+	logger.Infof("✓ LIGHTER opened short successfully: %s @ %.2f", symbol, marketPrice)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -84,17 +84,17 @@ func (t *LighterTraderV2) OpenShort(symbol string, quantity float64, leverage in
 	}, nil
 }
 
-// CloseLong 平多倉（實現 Trader 接口）
+// CloseLong Close long position (implements Trader interface)
 func (t *LighterTraderV2) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
 	if t.txClient == nil {
-		return nil, fmt.Errorf("TxClient 未初始化")
+		return nil, fmt.Errorf("TxClient not initialized")
 	}
 
-	// 如果 quantity=0，獲取當前持倉數量
+	// If quantity=0, get current position quantity
 	if quantity == 0 {
 		pos, err := t.GetPosition(symbol)
 		if err != nil {
-			return nil, fmt.Errorf("獲取持倉失敗: %w", err)
+			return nil, fmt.Errorf("failed to get position: %w", err)
 		}
 		if pos == nil || pos.Size == 0 {
 			return map[string]interface{}{
@@ -105,20 +105,20 @@ func (t *LighterTraderV2) CloseLong(symbol string, quantity float64) (map[string
 		quantity = pos.Size
 	}
 
-	logger.Infof("🔻 LIGHTER 平多倉: %s, qty=%.4f", symbol, quantity)
+	logger.Infof("🔻 LIGHTER closing long: %s, qty=%.4f", symbol, quantity)
 
-	// 創建市價賣出單平倉（reduceOnly=true）
+	// Create market sell order to close (reduceOnly=true)
 	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market")
 	if err != nil {
-		return nil, fmt.Errorf("平多倉失敗: %w", err)
+		return nil, fmt.Errorf("failed to close long: %w", err)
 	}
 
-	// 平倉後取消所有掛單
+	// Cancel all open orders after closing position
 	if err := t.CancelAllOrders(symbol); err != nil {
-		logger.Infof("⚠️  取消掛單失敗: %v", err)
+		logger.Infof("⚠️  Failed to cancel orders: %v", err)
 	}
 
-	logger.Infof("✓ LIGHTER 平多倉成功: %s", symbol)
+	logger.Infof("✓ LIGHTER closed long successfully: %s", symbol)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -127,17 +127,17 @@ func (t *LighterTraderV2) CloseLong(symbol string, quantity float64) (map[string
 	}, nil
 }
 
-// CloseShort 平空倉（實現 Trader 接口）
+// CloseShort Close short position (implements Trader interface)
 func (t *LighterTraderV2) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	if t.txClient == nil {
-		return nil, fmt.Errorf("TxClient 未初始化")
+		return nil, fmt.Errorf("TxClient not initialized")
 	}
 
-	// 如果 quantity=0，獲取當前持倉數量
+	// If quantity=0, get current position quantity
 	if quantity == 0 {
 		pos, err := t.GetPosition(symbol)
 		if err != nil {
-			return nil, fmt.Errorf("獲取持倉失敗: %w", err)
+			return nil, fmt.Errorf("failed to get position: %w", err)
 		}
 		if pos == nil || pos.Size == 0 {
 			return map[string]interface{}{
@@ -148,20 +148,20 @@ func (t *LighterTraderV2) CloseShort(symbol string, quantity float64) (map[strin
 		quantity = pos.Size
 	}
 
-	logger.Infof("🔺 LIGHTER 平空倉: %s, qty=%.4f", symbol, quantity)
+	logger.Infof("🔺 LIGHTER closing short: %s, qty=%.4f", symbol, quantity)
 
-	// 創建市價買入單平倉（reduceOnly=true）
+	// Create market buy order to close (reduceOnly=true)
 	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market")
 	if err != nil {
-		return nil, fmt.Errorf("平空倉失敗: %w", err)
+		return nil, fmt.Errorf("failed to close short: %w", err)
 	}
 
-	// 平倉後取消所有掛單
+	// Cancel all open orders after closing position
 	if err := t.CancelAllOrders(symbol); err != nil {
-		logger.Infof("⚠️  取消掛單失敗: %v", err)
+		logger.Infof("⚠️  Failed to cancel orders: %v", err)
 	}
 
-	logger.Infof("✓ LIGHTER 平空倉成功: %s", symbol)
+	logger.Infof("✓ LIGHTER closed short successfully: %s", symbol)
 
 	return map[string]interface{}{
 		"orderId": orderResult["orderId"],
@@ -170,31 +170,31 @@ func (t *LighterTraderV2) CloseShort(symbol string, quantity float64) (map[strin
 	}, nil
 }
 
-// CreateOrder 創建訂單（市價或限價）- 使用官方 SDK 簽名
+// CreateOrder Create order (market or limit) - uses official SDK for signing
 func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float64, price float64, orderType string) (map[string]interface{}, error) {
 	if t.txClient == nil {
-		return nil, fmt.Errorf("TxClient 未初始化")
+		return nil, fmt.Errorf("TxClient not initialized")
 	}
 
-	// 獲取市場索引（需要從 symbol 轉換）
+	// Get market index (convert from symbol)
 	marketIndex, err := t.getMarketIndex(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("獲取市場索引失敗: %w", err)
+		return nil, fmt.Errorf("failed to get market index: %w", err)
 	}
 
-	// 構建訂單請求
-	clientOrderIndex := time.Now().UnixNano() // 使用時間戳作為客戶端訂單ID
+	// Build order request
+	clientOrderIndex := time.Now().UnixNano() // Use timestamp as client order ID
 
 	var orderTypeValue uint8 = 0 // 0=limit, 1=market
 	if orderType == "market" {
 		orderTypeValue = 1
 	}
 
-	// 將數量和價格轉換為LIGHTER格式（需要乘以精度）
-	baseAmount := int64(quantity * 1e8) // 8位小數精度
+	// Convert quantity and price to LIGHTER format (multiply by precision)
+	baseAmount := int64(quantity * 1e8) // 8 decimal precision
 	priceValue := uint32(0)
 	if orderType == "limit" {
-		priceValue = uint32(price * 1e2) // 價格精度
+		priceValue = uint32(price * 1e2) // Price precision
 	}
 
 	txReq := &types.CreateOrderTxReq{
@@ -205,60 +205,60 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 		IsAsk:            boolToUint8(isAsk),
 		Type:             orderTypeValue,
 		TimeInForce:      0, // GTC
-		ReduceOnly:       0, // 不只減倉
+		ReduceOnly:       0, // Not reduce-only
 		TriggerPrice:     0,
-		OrderExpiry:      time.Now().Add(24 * 28 * time.Hour).UnixMilli(), // 28天後過期
+		OrderExpiry:      time.Now().Add(24 * 28 * time.Hour).UnixMilli(), // Expires in 28 days
 	}
 
-	// 使用SDK簽名交易（nonce會自動獲取）
-	nonce := int64(-1) // -1表示自動獲取
+	// Sign transaction using SDK (nonce will be auto-fetched)
+	nonce := int64(-1) // -1 means auto-fetch
 	tx, err := t.txClient.GetCreateOrderTransaction(txReq, &types.TransactOpts{
 		Nonce: &nonce,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("簽名訂單失敗: %w", err)
+		return nil, fmt.Errorf("failed to sign order: %w", err)
 	}
 
-	// 序列化交易
+	// Serialize transaction
 	txBytes, err := json.Marshal(tx)
 	if err != nil {
-		return nil, fmt.Errorf("序列化交易失敗: %w", err)
+		return nil, fmt.Errorf("failed to serialize transaction: %w", err)
 	}
 
-	// 提交訂單到LIGHTER API
+	// Submit order to LIGHTER API
 	orderResp, err := t.submitOrder(txBytes)
 	if err != nil {
-		return nil, fmt.Errorf("提交訂單失敗: %w", err)
+		return nil, fmt.Errorf("failed to submit order: %w", err)
 	}
 
 	side := "buy"
 	if isAsk {
 		side = "sell"
 	}
-	logger.Infof("✓ LIGHTER訂單已創建: %s %s qty=%.4f", symbol, side, quantity)
+	logger.Infof("✓ LIGHTER order created: %s %s qty=%.4f", symbol, side, quantity)
 
 	return orderResp, nil
 }
 
-// SendTxRequest 發送交易請求
+// SendTxRequest Send transaction request
 type SendTxRequest struct {
 	TxType          int    `json:"tx_type"`
 	TxInfo          string `json:"tx_info"`
 	PriceProtection bool   `json:"price_protection,omitempty"`
 }
 
-// SendTxResponse 發送交易響應
+// SendTxResponse Send transaction response
 type SendTxResponse struct {
 	Code    int                    `json:"code"`
 	Message string                 `json:"message"`
 	Data    map[string]interface{} `json:"data"`
 }
 
-// submitOrder 提交已簽名的訂單到LIGHTER API
+// submitOrder Submit signed order to LIGHTER API
 func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, error) {
 	const TX_TYPE_CREATE_ORDER = 14
 
-	// 構建請求
+	// Build request
 	req := SendTxRequest{
 		TxType:          TX_TYPE_CREATE_ORDER,
 		TxInfo:          string(signedTx),
@@ -267,10 +267,10 @@ func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, 
 
 	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("序列化請求失敗: %w", err)
+		return nil, fmt.Errorf("failed to serialize request: %w", err)
 	}
 
-	// 發送 POST 請求到 /api/v1/sendTx
+	// Send POST request to /api/v1/sendTx
 	endpoint := fmt.Sprintf("%s/api/v1/sendTx", t.baseURL)
 	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
 	if err != nil {
@@ -290,39 +290,39 @@ func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, 
 		return nil, err
 	}
 
-	// 解析響應
+	// Parse response
 	var sendResp SendTxResponse
 	if err := json.Unmarshal(body, &sendResp); err != nil {
-		return nil, fmt.Errorf("解析響應失敗: %w, body: %s", err, string(body))
+		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(body))
 	}
 
-	// 檢查響應碼
+	// Check response code
 	if sendResp.Code != 200 {
-		return nil, fmt.Errorf("提交訂單失敗 (code %d): %s", sendResp.Code, sendResp.Message)
+		return nil, fmt.Errorf("failed to submit order (code %d): %s", sendResp.Code, sendResp.Message)
 	}
 
-	// 提取交易哈希和訂單ID
+	// Extract transaction hash and order ID
 	result := map[string]interface{}{
 		"tx_hash": sendResp.Data["tx_hash"],
 		"status":  "submitted",
 	}
 
-	// 如果有訂單ID，添加到結果中
+	// Add order ID to result if available
 	if orderID, ok := sendResp.Data["order_id"]; ok {
 		result["orderId"] = orderID
 	} else if txHash, ok := sendResp.Data["tx_hash"].(string); ok {
-		// 使用 tx_hash 作為 orderID
+		// Use tx_hash as orderID
 		result["orderId"] = txHash
 	}
 
-	logger.Infof("✓ 訂單已提交到 LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
+	logger.Infof("✓ Order submitted to LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
 
 	return result, nil
 }
 
-// getMarketIndex 獲取市場索引（從symbol轉換）- 動態從API獲取
+// getMarketIndex Get market index (convert from symbol) - dynamically fetch from API
 func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
-	// 1. 檢查緩存
+	// 1. Check cache
 	t.marketMutex.RLock()
 	if index, ok := t.marketIndexMap[symbol]; ok {
 		t.marketMutex.RUnlock()
@@ -330,62 +330,62 @@ func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
 	}
 	t.marketMutex.RUnlock()
 
-	// 2. 從 API 獲取市場列表
+	// 2. Fetch market list from API
 	markets, err := t.fetchMarketList()
 	if err != nil {
-		// 如果 API 失敗，回退到硬編碼映射
-		logger.Infof("⚠️  從 API 獲取市場列表失敗，使用硬編碼映射: %v", err)
+		// If API fails, fallback to hardcoded mapping
+		logger.Infof("⚠️  Failed to fetch market list from API, using hardcoded mapping: %v", err)
 		return t.getFallbackMarketIndex(symbol)
 	}
 
-	// 3. 更新緩存
+	// 3. Update cache
 	t.marketMutex.Lock()
 	for _, market := range markets {
 		t.marketIndexMap[market.Symbol] = market.MarketID
 	}
 	t.marketMutex.Unlock()
 
-	// 4. 從緩存中獲取
+	// 4. Get from cache
 	t.marketMutex.RLock()
 	index, ok := t.marketIndexMap[symbol]
 	t.marketMutex.RUnlock()
 
 	if !ok {
-		return 0, fmt.Errorf("未知的市場符號: %s", symbol)
+		return 0, fmt.Errorf("unknown market symbol: %s", symbol)
 	}
 
 	return index, nil
 }
 
-// MarketInfo 市場信息
+// MarketInfo Market information
 type MarketInfo struct {
 	Symbol   string `json:"symbol"`
 	MarketID uint8  `json:"market_id"`
 }
 
-// fetchMarketList 從 API 獲取市場列表
+// fetchMarketList Fetch market list from API
 func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	endpoint := fmt.Sprintf("%s/api/v1/orderBooks", t.baseURL)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("創建請求失敗: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("請求失敗: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("讀取響應失敗: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// 解析響應
+	// Parse response
 	var apiResp struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
@@ -396,14 +396,14 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("解析響應失敗: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if apiResp.Code != 200 {
-		return nil, fmt.Errorf("獲取市場列表失敗 (code %d): %s", apiResp.Code, apiResp.Message)
+		return nil, fmt.Errorf("failed to get market list (code %d): %s", apiResp.Code, apiResp.Message)
 	}
 
-	// 轉換為 MarketInfo 列表
+	// Convert to MarketInfo list
 	markets := make([]MarketInfo, len(apiResp.Data))
 	for i, market := range apiResp.Data {
 		markets[i] = MarketInfo{
@@ -412,11 +412,11 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 		}
 	}
 
-	logger.Infof("✓ 獲取到 %d 個市場", len(markets))
+	logger.Infof("✓ Retrieved %d markets", len(markets))
 	return markets, nil
 }
 
-// getFallbackMarketIndex 硬編碼的回退映射
+// getFallbackMarketIndex Hardcoded fallback mapping
 func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint8, error) {
 	fallbackMap := map[string]uint8{
 		"BTC-PERP":  0,
@@ -428,43 +428,43 @@ func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint8, error) {
 	}
 
 	if index, ok := fallbackMap[symbol]; ok {
-		logger.Infof("✓ 使用硬編碼市場索引: %s -> %d", symbol, index)
+		logger.Infof("✓ Using hardcoded market index: %s -> %d", symbol, index)
 		return index, nil
 	}
 
-	return 0, fmt.Errorf("未知的市場符號: %s", symbol)
+	return 0, fmt.Errorf("unknown market symbol: %s", symbol)
 }
 
-// SetLeverage 設置杠杆（實現 Trader 接口）
+// SetLeverage Set leverage (implements Trader interface)
 func (t *LighterTraderV2) SetLeverage(symbol string, leverage int) error {
 	if t.txClient == nil {
-		return fmt.Errorf("TxClient 未初始化")
+		return fmt.Errorf("TxClient not initialized")
 	}
 
-	// TODO: 使用SDK簽名並提交SetLeverage交易
-	logger.Infof("⚙️  設置杠杆: %s = %dx", symbol, leverage)
+	// TODO: Sign and submit SetLeverage transaction using SDK
+	logger.Infof("⚙️  Setting leverage: %s = %dx", symbol, leverage)
 
-	return nil // 暫時返回成功
+	return nil // Return success for now
 }
 
-// SetMarginMode 設置倉位模式（實現 Trader 接口）
+// SetMarginMode Set margin mode (implements Trader interface)
 func (t *LighterTraderV2) SetMarginMode(symbol string, isCrossMargin bool) error {
 	if t.txClient == nil {
-		return fmt.Errorf("TxClient 未初始化")
+		return fmt.Errorf("TxClient not initialized")
 	}
 
-	modeStr := "逐倉"
+	modeStr := "isolated"
 	if isCrossMargin {
-		modeStr = "全倉"
+		modeStr = "cross"
 	}
 
-	logger.Infof("⚙️  設置倉位模式: %s = %s", symbol, modeStr)
+	logger.Infof("⚙️  Setting margin mode: %s = %s", symbol, modeStr)
 
-	// TODO: 使用SDK簽名並提交SetMarginMode交易
+	// TODO: Sign and submit SetMarginMode transaction using SDK
 	return nil
 }
 
-// boolToUint8 將布爾值轉換為uint8
+// boolToUint8 Convert boolean to uint8
 func boolToUint8(b bool) uint8 {
 	if b {
 		return 1

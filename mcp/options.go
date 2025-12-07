@@ -5,16 +5,16 @@ import (
 	"time"
 )
 
-// ClientOption 客户端选项函数（Functional Options 模式）
+// ClientOption client option function (Functional Options pattern)
 type ClientOption func(*Config)
 
 // ============================================================
-// 依赖注入选项
+// Dependency Injection Options
 // ============================================================
 
-// WithLogger 设置自定义日志器
+// WithLogger sets custom logger
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithLogger(customLogger))
 func WithLogger(logger Logger) ClientOption {
 	return func(c *Config) {
@@ -22,9 +22,9 @@ func WithLogger(logger Logger) ClientOption {
 	}
 }
 
-// WithHTTPClient 设置自定义 HTTP 客户端
+// WithHTTPClient sets custom HTTP client
 //
-// 使用示例：
+// Usage example:
 //   httpClient := &http.Client{Timeout: 60 * time.Second}
 //   client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
 func WithHTTPClient(client *http.Client) ClientOption {
@@ -34,12 +34,12 @@ func WithHTTPClient(client *http.Client) ClientOption {
 }
 
 // ============================================================
-// 超时和重试选项
+// Timeout and Retry Options
 // ============================================================
 
-// WithTimeout 设置请求超时时间
+// WithTimeout sets request timeout duration
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithTimeout(60 * time.Second))
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *Config) {
@@ -48,9 +48,9 @@ func WithTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
-// WithMaxRetries 设置最大重试次数
+// WithMaxRetries sets maximum retry count
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithMaxRetries(5))
 func WithMaxRetries(maxRetries int) ClientOption {
 	return func(c *Config) {
@@ -58,9 +58,9 @@ func WithMaxRetries(maxRetries int) ClientOption {
 	}
 }
 
-// WithRetryWaitBase 设置重试等待基础时长
+// WithRetryWaitBase sets base retry wait duration
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithRetryWaitBase(3 * time.Second))
 func WithRetryWaitBase(waitTime time.Duration) ClientOption {
 	return func(c *Config) {
@@ -69,12 +69,12 @@ func WithRetryWaitBase(waitTime time.Duration) ClientOption {
 }
 
 // ============================================================
-// AI 参数选项
+// AI Parameter Options
 // ============================================================
 
-// WithMaxTokens 设置最大 token 数
+// WithMaxTokens sets maximum token count
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithMaxTokens(4000))
 func WithMaxTokens(maxTokens int) ClientOption {
 	return func(c *Config) {
@@ -82,9 +82,9 @@ func WithMaxTokens(maxTokens int) ClientOption {
 	}
 }
 
-// WithTemperature 设置温度参数
+// WithTemperature sets temperature parameter
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithTemperature(0.7))
 func WithTemperature(temperature float64) ClientOption {
 	return func(c *Config) {
@@ -93,38 +93,38 @@ func WithTemperature(temperature float64) ClientOption {
 }
 
 // ============================================================
-// Provider 配置选项
+// Provider Configuration Options
 // ============================================================
 
-// WithAPIKey 设置 API Key
+// WithAPIKey sets API Key
 func WithAPIKey(apiKey string) ClientOption {
 	return func(c *Config) {
 		c.APIKey = apiKey
 	}
 }
 
-// WithBaseURL 设置基础 URL
+// WithBaseURL sets base URL
 func WithBaseURL(baseURL string) ClientOption {
 	return func(c *Config) {
 		c.BaseURL = baseURL
 	}
 }
 
-// WithModel 设置模型名称
+// WithModel sets model name
 func WithModel(model string) ClientOption {
 	return func(c *Config) {
 		c.Model = model
 	}
 }
 
-// WithProvider 设置提供商
+// WithProvider sets provider
 func WithProvider(provider string) ClientOption {
 	return func(c *Config) {
 		c.Provider = provider
 	}
 }
 
-// WithUseFullURL 设置是否使用完整 URL
+// WithUseFullURL sets whether to use full URL
 func WithUseFullURL(useFullURL bool) ClientOption {
 	return func(c *Config) {
 		c.UseFullURL = useFullURL
@@ -132,12 +132,12 @@ func WithUseFullURL(useFullURL bool) ClientOption {
 }
 
 // ============================================================
-// 组合选项（便捷方法）
+// Combined Options (Convenience Methods)
 // ============================================================
 
-// WithDeepSeekConfig 设置 DeepSeek 配置
+// WithDeepSeekConfig sets DeepSeek configuration
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithDeepSeekConfig("sk-xxx"))
 func WithDeepSeekConfig(apiKey string) ClientOption {
 	return func(c *Config) {
@@ -148,9 +148,9 @@ func WithDeepSeekConfig(apiKey string) ClientOption {
 	}
 }
 
-// WithQwenConfig 设置 Qwen 配置
+// WithQwenConfig sets Qwen configuration
 //
-// 使用示例：
+// Usage example:
 //   client := mcp.NewClient(mcp.WithQwenConfig("sk-xxx"))
 func WithQwenConfig(apiKey string) ClientOption {
 	return func(c *Config) {

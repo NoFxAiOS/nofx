@@ -9,19 +9,19 @@ import (
 	"net/http"
 )
 
-// CreateOrderRequest 创建订单请求
+// CreateOrderRequest Create order request
 type CreateOrderRequest struct {
-	Symbol       string  `json:"symbol"`        // 交易对，如 "BTC-PERP"
-	Side         string  `json:"side"`          // "buy" 或 "sell"
-	OrderType    string  `json:"order_type"`    // "market" 或 "limit"
-	Quantity     float64 `json:"quantity"`      // 数量
-	Price        float64 `json:"price"`         // 价格（限价单必填）
-	ReduceOnly   bool    `json:"reduce_only"`   // 是否只减仓
+	Symbol       string  `json:"symbol"`        // Trading pair, e.g. "BTC-PERP"
+	Side         string  `json:"side"`          // "buy" or "sell"
+	OrderType    string  `json:"order_type"`    // "market" or "limit"
+	Quantity     float64 `json:"quantity"`      // Quantity
+	Price        float64 `json:"price"`         // Price (required for limit orders)
+	ReduceOnly   bool    `json:"reduce_only"`   // Reduce-only flag
 	TimeInForce  string  `json:"time_in_force"` // "GTC", "IOC", "FOK"
-	PostOnly     bool    `json:"post_only"`     // 是否只做Maker
+	PostOnly     bool    `json:"post_only"`     // Post-only (maker only)
 }
 
-// OrderResponse 订单响应
+// OrderResponse Order response
 type OrderResponse struct {
 	OrderID      string  `json:"order_id"`
 	Symbol       string  `json:"symbol"`
@@ -35,13 +35,13 @@ type OrderResponse struct {
 	CreateTime   int64   `json:"create_time"`
 }
 
-// CreateOrder 创建订单（市价或限价）
+// CreateOrder Create order (market or limit)
 func (t *LighterTrader) CreateOrder(symbol, side string, quantity, price float64, orderType string) (string, error) {
 	if err := t.ensureAuthToken(); err != nil {
-		return "", fmt.Errorf("认证令牌无效: %w", err)
+		return "", fmt.Errorf("invalid auth token: %w", err)
 	}
 
-	// 构建订单请求
+	// Build order request
 	req := CreateOrderRequest{
 		Symbol:      symbol,
 		Side:        side,
@@ -56,41 +56,41 @@ func (t *LighterTrader) CreateOrder(symbol, side string, quantity, price float64
 		req.Price = price
 	}
 
-	// 发送订单
+	// Send order
 	orderResp, err := t.sendOrder(req)
 	if err != nil {
 		return "", err
 	}
 
-	logger.Infof("✓ LIGHTER订单已创建 - ID: %s, Symbol: %s, Side: %s, Qty: %.4f",
+	logger.Infof("✓ LIGHTER order created - ID: %s, Symbol: %s, Side: %s, Qty: %.4f",
 		orderResp.OrderID, symbol, side, quantity)
 
 	return orderResp.OrderID, nil
 }
 
-// sendOrder 发送订单到LIGHTER API
+// sendOrder Send order to LIGHTER API
 func (t *LighterTrader) sendOrder(orderReq CreateOrderRequest) (*OrderResponse, error) {
 	endpoint := fmt.Sprintf("%s/api/v1/order", t.baseURL)
 
-	// 序列化请求
+	// Serialize request
 	jsonData, err := json.Marshal(orderReq)
 	if err != nil {
 		return nil, err
 	}
 
-	// 创建HTTP请求
+	// Create HTTP request
 	req, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, err
 	}
 
-	// 添加请求头
+	// Add request headers
 	req.Header.Set("Content-Type", "application/json")
 	t.accountMutex.RLock()
 	req.Header.Set("Authorization", t.authToken)
 	t.accountMutex.RUnlock()
 
-	// 发送请求
+	// Send request
 	resp, err := t.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -103,21 +103,21 @@ func (t *LighterTrader) sendOrder(orderReq CreateOrderRequest) (*OrderResponse, 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("创建订单失败 (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("failed to create order (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var orderResp OrderResponse
 	if err := json.Unmarshal(body, &orderResp); err != nil {
-		return nil, fmt.Errorf("解析订单响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
 	return &orderResp, nil
 }
 
-// CancelOrder 取消订单
+// CancelOrder Cancel order
 func (t *LighterTrader) CancelOrder(symbol, orderID string) error {
 	if err := t.ensureAuthToken(); err != nil {
-		return fmt.Errorf("认证令牌无效: %w", err)
+		return fmt.Errorf("invalid auth token: %w", err)
 	}
 
 	endpoint := fmt.Sprintf("%s/api/v1/order/%s", t.baseURL, orderID)
@@ -127,7 +127,7 @@ func (t *LighterTrader) CancelOrder(symbol, orderID string) error {
 		return err
 	}
 
-	// 添加认证头
+	// Add auth header
 	t.accountMutex.RLock()
 	req.Header.Set("Authorization", t.authToken)
 	t.accountMutex.RUnlock()
@@ -140,45 +140,45 @@ func (t *LighterTrader) CancelOrder(symbol, orderID string) error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("取消订单失败 (status %d): %s", resp.StatusCode, string(body))
+		return fmt.Errorf("failed to cancel order (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	logger.Infof("✓ LIGHTER订单已取消 - ID: %s", orderID)
+	logger.Infof("✓ LIGHTER order cancelled - ID: %s", orderID)
 	return nil
 }
 
-// CancelAllOrders 取消所有订单
+// CancelAllOrders Cancel all orders
 func (t *LighterTrader) CancelAllOrders(symbol string) error {
 	if err := t.ensureAuthToken(); err != nil {
-		return fmt.Errorf("认证令牌无效: %w", err)
+		return fmt.Errorf("invalid auth token: %w", err)
 	}
 
-	// 获取所有活跃订单
+	// Get all active orders
 	orders, err := t.GetActiveOrders(symbol)
 	if err != nil {
-		return fmt.Errorf("获取活跃订单失败: %w", err)
+		return fmt.Errorf("failed to get active orders: %w", err)
 	}
 
 	if len(orders) == 0 {
-		logger.Infof("✓ LIGHTER - 无需取消订单（无活跃订单）")
+		logger.Infof("✓ LIGHTER - no orders to cancel (no active orders)")
 		return nil
 	}
 
-	// 批量取消
+	// Cancel in batch
 	for _, order := range orders {
 		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
-			logger.Infof("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
+			logger.Infof("⚠️ Failed to cancel order (ID: %s): %v", order.OrderID, err)
 		}
 	}
 
-	logger.Infof("✓ LIGHTER - 已取消 %d 个订单", len(orders))
+	logger.Infof("✓ LIGHTER - cancelled %d orders", len(orders))
 	return nil
 }
 
-// GetActiveOrders 获取活跃订单
+// GetActiveOrders Get active orders
 func (t *LighterTrader) GetActiveOrders(symbol string) ([]OrderResponse, error) {
 	if err := t.ensureAuthToken(); err != nil {
-		return nil, fmt.Errorf("认证令牌无效: %w", err)
+		return nil, fmt.Errorf("invalid auth token: %w", err)
 	}
 
 	t.accountMutex.RLock()
@@ -195,7 +195,7 @@ func (t *LighterTrader) GetActiveOrders(symbol string) ([]OrderResponse, error) 
 		return nil, err
 	}
 
-	// 添加认证头
+	// Add auth header
 	t.accountMutex.RLock()
 	req.Header.Set("Authorization", t.authToken)
 	t.accountMutex.RUnlock()
@@ -212,21 +212,21 @@ func (t *LighterTrader) GetActiveOrders(symbol string) ([]OrderResponse, error) 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("获取活跃订单失败 (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("failed to get active orders (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var orders []OrderResponse
 	if err := json.Unmarshal(body, &orders); err != nil {
-		return nil, fmt.Errorf("解析订单列表失败: %w", err)
+		return nil, fmt.Errorf("failed to parse order list: %w", err)
 	}
 
 	return orders, nil
 }
 
-// GetOrderStatus 获取订单状态（实现 Trader 接口）
+// GetOrderStatus Get order status (implements Trader interface)
 func (t *LighterTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
 	if err := t.ensureAuthToken(); err != nil {
-		return nil, fmt.Errorf("认证令牌无效: %w", err)
+		return nil, fmt.Errorf("invalid auth token: %w", err)
 	}
 
 	endpoint := fmt.Sprintf("%s/api/v1/order/%s", t.baseURL, orderID)
@@ -236,7 +236,7 @@ func (t *LighterTrader) GetOrderStatus(symbol string, orderID string) (map[strin
 		return nil, err
 	}
 
-	// 添加认证头
+	// Add auth header
 	t.accountMutex.RLock()
 	req.Header.Set("Authorization", t.authToken)
 	t.accountMutex.RUnlock()
@@ -253,15 +253,15 @@ func (t *LighterTrader) GetOrderStatus(symbol string, orderID string) (map[strin
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("获取订单状态失败 (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("failed to get order status (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var order OrderResponse
 	if err := json.Unmarshal(body, &order); err != nil {
-		return nil, fmt.Errorf("解析订单响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
-	// 转换状态为统一格式
+	// Convert status to unified format
 	unifiedStatus := order.Status
 	switch order.Status {
 	case "filled":
@@ -281,43 +281,43 @@ func (t *LighterTrader) GetOrderStatus(symbol string, orderID string) (map[strin
 	}, nil
 }
 
-// CancelStopLossOrders 仅取消止损单（LIGHTER 暂无法区分，取消所有止盈止损单）
+// CancelStopLossOrders Cancel stop-loss orders only (LIGHTER cannot distinguish, cancels all TP/SL orders)
 func (t *LighterTrader) CancelStopLossOrders(symbol string) error {
-	// LIGHTER 暂时无法区分止损和止盈单，取消所有止盈止损单
-	logger.Infof("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
+	// LIGHTER currently cannot distinguish between stop-loss and take-profit orders, cancel all TP/SL orders
+	logger.Infof("  ⚠️ LIGHTER cannot distinguish SL/TP orders, will cancel all TP/SL orders")
 	return t.CancelStopOrders(symbol)
 }
 
-// CancelTakeProfitOrders 仅取消止盈单（LIGHTER 暂无法区分，取消所有止盈止损单）
+// CancelTakeProfitOrders Cancel take-profit orders only (LIGHTER cannot distinguish, cancels all TP/SL orders)
 func (t *LighterTrader) CancelTakeProfitOrders(symbol string) error {
-	// LIGHTER 暂时无法区分止损和止盈单，取消所有止盈止损单
-	logger.Infof("  ⚠️ LIGHTER 无法区分止损/止盈单，将取消所有止盈止损单")
+	// LIGHTER currently cannot distinguish between stop-loss and take-profit orders, cancel all TP/SL orders
+	logger.Infof("  ⚠️ LIGHTER cannot distinguish SL/TP orders, will cancel all TP/SL orders")
 	return t.CancelStopOrders(symbol)
 }
 
-// CancelStopOrders 取消该币种的止盈/止损单
+// CancelStopOrders Cancel take-profit/stop-loss orders for this symbol
 func (t *LighterTrader) CancelStopOrders(symbol string) error {
 	if err := t.ensureAuthToken(); err != nil {
-		return fmt.Errorf("认证令牌无效: %w", err)
+		return fmt.Errorf("invalid auth token: %w", err)
 	}
 
-	// 获取活跃订单
+	// Get active orders
 	orders, err := t.GetActiveOrders(symbol)
 	if err != nil {
-		return fmt.Errorf("获取活跃订单失败: %w", err)
+		return fmt.Errorf("failed to get active orders: %w", err)
 	}
 
 	canceledCount := 0
 	for _, order := range orders {
-		// TODO: 需要检查订单类型，只取消止盈止损单
-		// 暂时取消所有订单
+		// TODO: Need to check order type, only cancel TP/SL orders
+		// Currently cancelling all orders
 		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
-			logger.Infof("⚠️ 取消订单失败 (ID: %s): %v", order.OrderID, err)
+			logger.Infof("⚠️ Failed to cancel order (ID: %s): %v", order.OrderID, err)
 		} else {
 			canceledCount++
 		}
 	}
 
-	logger.Infof("✓ LIGHTER - 已取消 %d 个止盈止损单", canceledCount)
+	logger.Infof("✓ LIGHTER - cancelled %d TP/SL orders", canceledCount)
 	return nil
 }

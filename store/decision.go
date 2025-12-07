@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-// DecisionStore 决策日志存储
+// DecisionStore decision log storage
 type DecisionStore struct {
 	db *sql.DB
 }
 
-// DecisionRecord 决策记录
+// DecisionRecord decision record
 type DecisionRecord struct {
 	ID                  int64              `json:"id"`
 	TraderID            string             `json:"trader_id"`
@@ -32,7 +32,7 @@ type DecisionRecord struct {
 	Decisions           []DecisionAction   `json:"decisions"`
 }
 
-// AccountSnapshot 账户状态快照
+// AccountSnapshot account state snapshot
 type AccountSnapshot struct {
 	TotalBalance          float64 `json:"total_balance"`
 	AvailableBalance      float64 `json:"available_balance"`
@@ -42,7 +42,7 @@ type AccountSnapshot struct {
 	InitialBalance        float64 `json:"initial_balance"`
 }
 
-// PositionSnapshot 持仓快照
+// PositionSnapshot position snapshot
 type PositionSnapshot struct {
 	Symbol           string  `json:"symbol"`
 	Side             string  `json:"side"`
@@ -54,8 +54,8 @@ type PositionSnapshot struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 }
 
-// DecisionAction 决策动作
-type DecisionAction struct {
+// DecisionAction decision action
+type DecisionAction struct{
 	Action    string    `json:"action"`
 	Symbol    string    `json:"symbol"`
 	Quantity  float64   `json:"quantity"`
@@ -67,7 +67,7 @@ type DecisionAction struct {
 	Error     string    `json:"error"`
 }
 
-// Statistics 统计信息
+// Statistics statistics information
 type Statistics struct {
 	TotalCycles         int `json:"total_cycles"`
 	SuccessfulCycles    int `json:"successful_cycles"`
@@ -76,11 +76,11 @@ type Statistics struct {
 	TotalClosePositions int `json:"total_close_positions"`
 }
 
-// initTables 初始化 AI 决策日志表
-// 注意：账户净值曲线数据已迁移到 trader_equity_snapshots 表（由 EquityStore 管理）
+// initTables initializes AI decision log tables
+// Note: Account equity curve data has been migrated to trader_equity_snapshots table (managed by EquityStore)
 func (s *DecisionStore) initTables() error {
 	queries := []string{
-		// AI 决策日志表（记录 AI 的输入输出、思维链等）
+		// AI decision log table (records AI input/output, chain of thought, etc.)
 		`CREATE TABLE IF NOT EXISTS decision_records (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			trader_id TEXT NOT NULL,
@@ -97,21 +97,21 @@ func (s *DecisionStore) initTables() error {
 			ai_request_duration_ms INTEGER DEFAULT 0,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		// 索引
+		// Indexes
 		`CREATE INDEX IF NOT EXISTS idx_decision_records_trader_time ON decision_records(trader_id, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_decision_records_timestamp ON decision_records(timestamp DESC)`,
 	}
 
 	for _, query := range queries {
 		if _, err := s.db.Exec(query); err != nil {
-			return fmt.Errorf("执行SQL失败: %w", err)
+			return fmt.Errorf("failed to execute SQL: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// LogDecision 记录决策（仅保存 AI 决策日志，净值曲线已迁移到 equity 表）
+// LogDecision logs decision (only saves AI decision log, equity curve has been migrated to equity table)
 func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 	if record.Timestamp.IsZero() {
 		record.Timestamp = time.Now().UTC()
@@ -119,11 +119,11 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		record.Timestamp = record.Timestamp.UTC()
 	}
 
-	// 序列化候选币种和执行日志为 JSON
+	// Serialize candidate coins and execution log to JSON
 	candidateCoinsJSON, _ := json.Marshal(record.CandidateCoins)
 	executionLogJSON, _ := json.Marshal(record.ExecutionLog)
 
-	// 插入决策记录主表（仅保存 AI 决策相关内容）
+	// Insert decision record main table (only save AI decision related content)
 	result, err := s.db.Exec(`
 		INSERT INTO decision_records (
 			trader_id, cycle_number, timestamp, system_prompt, input_prompt,
@@ -137,19 +137,19 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		record.Success, record.ErrorMessage, record.AIRequestDurationMs,
 	)
 	if err != nil {
-		return fmt.Errorf("插入决策记录失败: %w", err)
+		return fmt.Errorf("failed to insert decision record: %w", err)
 	}
 
 	decisionID, err := result.LastInsertId()
 	if err != nil {
-		return fmt.Errorf("获取决策ID失败: %w", err)
+		return fmt.Errorf("failed to get decision ID: %w", err)
 	}
 	record.ID = decisionID
 
 	return nil
 }
 
-// GetLatestRecords 获取指定交易员最近N条记录（按时间正序：从旧到新）
+// GetLatestRecords gets the latest N records for specified trader (sorted by time in ascending order: old to new)
 func (s *DecisionStore) GetLatestRecords(traderID string, n int) ([]*DecisionRecord, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, cycle_number, timestamp, system_prompt, input_prompt,
@@ -161,7 +161,7 @@ func (s *DecisionStore) GetLatestRecords(traderID string, n int) ([]*DecisionRec
 		LIMIT ?
 	`, traderID, n)
 	if err != nil {
-		return nil, fmt.Errorf("查询决策记录失败: %w", err)
+		return nil, fmt.Errorf("failed to query decision records: %w", err)
 	}
 	defer rows.Close()
 
@@ -174,12 +174,12 @@ func (s *DecisionStore) GetLatestRecords(traderID string, n int) ([]*DecisionRec
 		records = append(records, record)
 	}
 
-	// 填充关联数据
+	// Fill associated data
 	for _, record := range records {
 		s.fillRecordDetails(record)
 	}
 
-	// 反转数组，让时间从旧到新排列
+	// Reverse array to sort time from old to new
 	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
 		records[i], records[j] = records[j], records[i]
 	}
@@ -187,7 +187,7 @@ func (s *DecisionStore) GetLatestRecords(traderID string, n int) ([]*DecisionRec
 	return records, nil
 }
 
-// GetAllLatestRecords 获取所有交易员最近N条记录
+// GetAllLatestRecords gets the latest N records for all traders
 func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, cycle_number, timestamp, system_prompt, input_prompt,
@@ -198,7 +198,7 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 		LIMIT ?
 	`, n)
 	if err != nil {
-		return nil, fmt.Errorf("查询决策记录失败: %w", err)
+		return nil, fmt.Errorf("failed to query decision records: %w", err)
 	}
 	defer rows.Close()
 
@@ -211,7 +211,7 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 		records = append(records, record)
 	}
 
-	// 反转数组
+	// Reverse array
 	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
 		records[i], records[j] = records[j], records[i]
 	}
@@ -219,7 +219,7 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 	return records, nil
 }
 
-// GetRecordsByDate 获取指定交易员指定日期的所有记录
+// GetRecordsByDate gets all records for a specified trader on a specified date
 func (s *DecisionStore) GetRecordsByDate(traderID string, date time.Time) ([]*DecisionRecord, error) {
 	dateStr := date.Format("2006-01-02")
 
@@ -232,7 +232,7 @@ func (s *DecisionStore) GetRecordsByDate(traderID string, date time.Time) ([]*De
 		ORDER BY timestamp ASC
 	`, traderID, dateStr)
 	if err != nil {
-		return nil, fmt.Errorf("查询决策记录失败: %w", err)
+		return nil, fmt.Errorf("failed to query decision records: %w", err)
 	}
 	defer rows.Close()
 
@@ -248,7 +248,7 @@ func (s *DecisionStore) GetRecordsByDate(traderID string, date time.Time) ([]*De
 	return records, nil
 }
 
-// CleanOldRecords 清理N天前的旧记录
+// CleanOldRecords cleans old records from N days ago
 func (s *DecisionStore) CleanOldRecords(traderID string, days int) (int64, error) {
 	cutoffTime := time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
 
@@ -257,13 +257,13 @@ func (s *DecisionStore) CleanOldRecords(traderID string, days int) (int64, error
 		WHERE trader_id = ? AND timestamp < ?
 	`, traderID, cutoffTime)
 	if err != nil {
-		return 0, fmt.Errorf("清理旧记录失败: %w", err)
+		return 0, fmt.Errorf("failed to clean old records: %w", err)
 	}
 
 	return result.RowsAffected()
 }
 
-// GetStatistics 获取指定交易员的统计信息
+// GetStatistics gets statistics information for specified trader
 func (s *DecisionStore) GetStatistics(traderID string) (*Statistics, error) {
 	stats := &Statistics{}
 
@@ -271,24 +271,24 @@ func (s *DecisionStore) GetStatistics(traderID string) (*Statistics, error) {
 		SELECT COUNT(*) FROM decision_records WHERE trader_id = ?
 	`, traderID).Scan(&stats.TotalCycles)
 	if err != nil {
-		return nil, fmt.Errorf("查询总周期数失败: %w", err)
+		return nil, fmt.Errorf("failed to query total cycles: %w", err)
 	}
 
 	err = s.db.QueryRow(`
 		SELECT COUNT(*) FROM decision_records WHERE trader_id = ? AND success = 1
 	`, traderID).Scan(&stats.SuccessfulCycles)
 	if err != nil {
-		return nil, fmt.Errorf("查询成功周期数失败: %w", err)
+		return nil, fmt.Errorf("failed to query successful cycles: %w", err)
 	}
 	stats.FailedCycles = stats.TotalCycles - stats.SuccessfulCycles
 
-	// 从 trader_orders 表统计开仓次数
+	// Count open positions from trader_orders table
 	s.db.QueryRow(`
 		SELECT COUNT(*) FROM trader_orders
 		WHERE trader_id = ? AND status = 'FILLED' AND action IN ('open_long', 'open_short')
 	`, traderID).Scan(&stats.TotalOpenPositions)
 
-	// 从 trader_orders 表统计平仓次数
+	// Count close positions from trader_orders table
 	s.db.QueryRow(`
 		SELECT COUNT(*) FROM trader_orders
 		WHERE trader_id = ? AND status = 'FILLED' AND action IN ('close_long', 'close_short', 'auto_close_long', 'auto_close_short')
@@ -297,7 +297,7 @@ func (s *DecisionStore) GetStatistics(traderID string) (*Statistics, error) {
 	return stats, nil
 }
 
-// GetAllStatistics 获取所有交易员的统计信息
+// GetAllStatistics gets statistics information for all traders
 func (s *DecisionStore) GetAllStatistics() (*Statistics, error) {
 	stats := &Statistics{}
 
@@ -305,7 +305,7 @@ func (s *DecisionStore) GetAllStatistics() (*Statistics, error) {
 	s.db.QueryRow(`SELECT COUNT(*) FROM decision_records WHERE success = 1`).Scan(&stats.SuccessfulCycles)
 	stats.FailedCycles = stats.TotalCycles - stats.SuccessfulCycles
 
-	// 从 trader_orders 表统计
+	// Count from trader_orders table
 	s.db.QueryRow(`
 		SELECT COUNT(*) FROM trader_orders
 		WHERE status = 'FILLED' AND action IN ('open_long', 'open_short')
@@ -319,7 +319,7 @@ func (s *DecisionStore) GetAllStatistics() (*Statistics, error) {
 	return stats, nil
 }
 
-// GetLastCycleNumber 获取指定交易员的最后周期编号
+// GetLastCycleNumber gets the last cycle number for specified trader
 func (s *DecisionStore) GetLastCycleNumber(traderID string) (int, error) {
 	var cycleNumber int
 	err := s.db.QueryRow(`
@@ -331,7 +331,7 @@ func (s *DecisionStore) GetLastCycleNumber(traderID string) (int, error) {
 	return cycleNumber, nil
 }
 
-// scanDecisionRecord 从行中扫描决策记录
+// scanDecisionRecord scans decision record from row
 func (s *DecisionStore) scanDecisionRecord(rows *sql.Rows) (*DecisionRecord, error) {
 	var record DecisionRecord
 	var timestampStr string
@@ -354,11 +354,11 @@ func (s *DecisionStore) scanDecisionRecord(rows *sql.Rows) (*DecisionRecord, err
 	return &record, nil
 }
 
-// fillRecordDetails 填充决策记录的关联数据（旧的关联表已删除，此函数保留用于兼容性）
-// 注意：账户快照、持仓快照、决策动作等数据已不再存储在 decision 相关表中
-// - 净值数据请使用 EquityStore.GetLatest()
-// - 订单数据请使用 OrderStore
+// fillRecordDetails fills associated data for decision record (old associated tables removed, this function kept for compatibility)
+// Note: Account snapshot, position snapshot, decision action data are no longer stored in decision related tables
+// - For equity data use EquityStore.GetLatest()
+// - For order data use OrderStore
 func (s *DecisionStore) fillRecordDetails(record *DecisionRecord) {
-	// 旧的关联表已删除，不再需要填充
-	// AccountState, Positions, Decisions 字段将保持为零值
+	// Old associated tables removed, no longer need to fill
+	// AccountState, Positions, Decisions fields will remain at zero values
 }

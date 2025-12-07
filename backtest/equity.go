@@ -7,7 +7,7 @@ import (
 	"nofx/market"
 )
 
-// ResampleEquity 根据时间周期重采样资金曲线。
+// ResampleEquity resamples equity curve based on timeframe.
 func ResampleEquity(points []EquityPoint, timeframe string) ([]EquityPoint, error) {
 	if timeframe == "" {
 		return points, nil
@@ -49,7 +49,7 @@ func ResampleEquity(points []EquityPoint, timeframe string) ([]EquityPoint, erro
 	return resampled, nil
 }
 
-// LimitEquityPoints 将数据点数量限制在给定范围内（均匀抽样）。
+// LimitEquityPoints limits the number of data points within a given range (uniform sampling).
 func LimitEquityPoints(points []EquityPoint, limit int) []EquityPoint {
 	if limit <= 0 || len(points) <= limit {
 		return points
@@ -68,7 +68,7 @@ func LimitEquityPoints(points []EquityPoint, limit int) []EquityPoint {
 	return result
 }
 
-// LimitTradeEvents 同样对交易事件按均匀抽样。
+// LimitTradeEvents applies uniform sampling to trade events.
 func LimitTradeEvents(events []TradeEvent, limit int) []TradeEvent {
 	if limit <= 0 || len(events) <= limit {
 		return events
@@ -86,7 +86,7 @@ func LimitTradeEvents(events []TradeEvent, limit int) []TradeEvent {
 	return result
 }
 
-// AlignEquityTimestamps 确保时间戳按升序排列。
+// AlignEquityTimestamps ensures timestamps are sorted in ascending order.
 func AlignEquityTimestamps(points []EquityPoint) []EquityPoint {
 	sort.Slice(points, func(i, j int) bool {
 		return points[i].Timestamp < points[j].Timestamp

@@ -7,205 +7,205 @@ import (
 	"testing"
 )
 
-// TestPromptReloadEndToEnd 端到端测试：验证从文件修改到决策引擎使用的完整流程
+// TestPromptReloadEndToEnd end-to-end test: verify complete flow from file modification to decision engine usage
 func TestPromptReloadEndToEnd(t *testing.T) {
-	// 保存原始的 promptsDir
+	// Save original promptsDir
 	originalDir := promptsDir
 	defer func() {
 		promptsDir = originalDir
-		// 恢复原始模板
+		// Restore original templates
 		globalPromptManager.ReloadTemplates(originalDir)
 	}()
 
-	// 创建临时目录模拟 prompts/ 目录
+	// Create temporary directory to simulate prompts/ directory
 	tempDir := t.TempDir()
 	promptsDir = tempDir
 
-	// 步骤1: 创建初始 prompt 文件
-	initialContent := "# 初始交易策略\n你是一个保守的交易AI。"
+	// Step 1: Create initial prompt file
+	initialContent := "# Initial Trading Strategy\nYou are a conservative trading AI."
 	if err := os.WriteFile(filepath.Join(tempDir, "test_strategy.txt"), []byte(initialContent), 0644); err != nil {
-		t.Fatalf("创建初始文件失败: %v", err)
+		t.Fatalf("Failed to create initial file: %v", err)
 	}
 
-	// 步骤2: 首次加载（模拟系统启动）
+	// Step 2: First load (simulate system startup)
 	if err := ReloadPromptTemplates(); err != nil {
-		t.Fatalf("首次加载失败: %v", err)
+		t.Fatalf("First load failed: %v", err)
 	}
 
-	// 步骤3: 验证初始内容
+	// Step 3: Verify initial content
 	template, err := GetPromptTemplate("test_strategy")
 	if err != nil {
-		t.Fatalf("获取初始模板失败: %v", err)
+		t.Fatalf("Failed to get initial template: %v", err)
 	}
 	if template.Content != initialContent {
-		t.Errorf("初始内容不匹配\n期望: %s\n实际: %s", initialContent, template.Content)
+		t.Errorf("Initial content mismatch\nExpected: %s\nActual: %s", initialContent, template.Content)
 	}
 
-	// 步骤4: 使用 buildSystemPrompt 验证模板被正确使用
+	// Step 4: Use buildSystemPrompt to verify template is correctly used
 	systemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy", "")
 	if !strings.Contains(systemPrompt, initialContent) {
-		t.Errorf("buildSystemPrompt 未包含模板内容\n生成的 prompt:\n%s", systemPrompt)
+		t.Errorf("buildSystemPrompt doesn't contain template content\nGenerated prompt:\n%s", systemPrompt)
 	}
 
-	// 步骤5: 模拟用户修改文件（这是用户在硬盘上修改 prompt）
-	updatedContent := "# 更新的交易策略\n你是一个激进的交易AI，追求高风险高收益。"
+	// Step 5: Simulate user modifying file (user modifies prompt on disk)
+	updatedContent := "# Updated Trading Strategy\nYou are an aggressive trading AI seeking high risk and high reward."
 	if err := os.WriteFile(filepath.Join(tempDir, "test_strategy.txt"), []byte(updatedContent), 0644); err != nil {
-		t.Fatalf("更新文件失败: %v", err)
+		t.Fatalf("Failed to update file: %v", err)
 	}
 
-	// 步骤6: 模拟交易员启动时调用 ReloadPromptTemplates()
-	t.Log("模拟交易员启动，调用 ReloadPromptTemplates()...")
+	// Step 6: Simulate trader startup calling ReloadPromptTemplates()
+	t.Log("Simulating trader startup, calling ReloadPromptTemplates()...")
 	if err := ReloadPromptTemplates(); err != nil {
-		t.Fatalf("重新加载失败: %v", err)
+		t.Fatalf("Reload failed: %v", err)
 	}
 
-	// 步骤7: 验证新内容已生效
+	// Step 7: Verify new content has taken effect
 	reloadedTemplate, err := GetPromptTemplate("test_strategy")
 	if err != nil {
-		t.Fatalf("获取重新加载的模板失败: %v", err)
+		t.Fatalf("Failed to get reloaded template: %v", err)
 	}
 	if reloadedTemplate.Content != updatedContent {
-		t.Errorf("重新加载后内容不匹配\n期望: %s\n实际: %s", updatedContent, reloadedTemplate.Content)
+		t.Errorf("Content mismatch after reload\nExpected: %s\nActual: %s", updatedContent, reloadedTemplate.Content)
 	}
 
-	// 步骤8: 验证 buildSystemPrompt 使用了新内容
+	// Step 8: Verify buildSystemPrompt uses new content
 	newSystemPrompt := buildSystemPrompt(10000.0, 10, 5, "test_strategy", "")
 	if !strings.Contains(newSystemPrompt, updatedContent) {
-		t.Errorf("buildSystemPrompt 未包含更新后的模板内容\n生成的 prompt:\n%s", newSystemPrompt)
+		t.Errorf("buildSystemPrompt doesn't contain updated template content\nGenerated prompt:\n%s", newSystemPrompt)
 	}
 
-	// 步骤9: 验证旧内容不再存在
-	if strings.Contains(newSystemPrompt, "保守的交易AI") {
-		t.Errorf("buildSystemPrompt 仍包含旧的模板内容")
+	// Step 9: Verify old content no longer exists
+	if strings.Contains(newSystemPrompt, "conservative trading AI") {
+		t.Errorf("buildSystemPrompt still contains old template content")
 	}
 
-	t.Log("✅ 端到端测试通过：文件修改 -> 重新加载 -> 决策引擎使用新内容")
+	t.Log("✅ End-to-end test passed: file modification -> reload -> decision engine uses new content")
 }
 
-// TestPromptReloadWithCustomPrompt 测试自定义 prompt 与模板重新加载的交互
+// TestPromptReloadWithCustomPrompt tests interaction between custom prompt and template reload
 func TestPromptReloadWithCustomPrompt(t *testing.T) {
-	// 保存原始的 promptsDir
+	// Save original promptsDir
 	originalDir := promptsDir
 	defer func() {
 		promptsDir = originalDir
 		globalPromptManager.ReloadTemplates(originalDir)
 	}()
 
-	// 创建临时目录
+	// Create temporary directory
 	tempDir := t.TempDir()
 	promptsDir = tempDir
 
-	// 创建基础模板
-	baseContent := "基础策略：稳健交易"
+	// Create base template
+	baseContent := "Base strategy: Stable trading"
 	if err := os.WriteFile(filepath.Join(tempDir, "base.txt"), []byte(baseContent), 0644); err != nil {
-		t.Fatalf("创建文件失败: %v", err)
+		t.Fatalf("Failed to create file: %v", err)
 	}
 
-	// 加载模板
+	// Load templates
 	if err := ReloadPromptTemplates(); err != nil {
-		t.Fatalf("加载失败: %v", err)
+		t.Fatalf("Load failed: %v", err)
 	}
 
-	// 测试1: 基础模板 + 自定义 prompt（不覆盖）
-	customPrompt := "个性化规则：只交易 BTC"
+	// Test 1: Base template + custom prompt (no override)
+	customPrompt := "Personalized rule: Only trade BTC"
 	result := buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base", "")
 	if !strings.Contains(result, baseContent) {
-		t.Errorf("未包含基础模板内容")
+		t.Errorf("Doesn't contain base template content")
 	}
 	if !strings.Contains(result, customPrompt) {
-		t.Errorf("未包含自定义 prompt")
+		t.Errorf("Doesn't contain custom prompt")
 	}
 
-	// 测试2: 覆盖基础 prompt
+	// Test 2: Override base prompt
 	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, true, "base", "")
 	if strings.Contains(result, baseContent) {
-		t.Errorf("覆盖模式下仍包含基础模板内容")
+		t.Errorf("Override mode still contains base template content")
 	}
 	if !strings.Contains(result, customPrompt) {
-		t.Errorf("覆盖模式下未包含自定义 prompt")
+		t.Errorf("Override mode doesn't contain custom prompt")
 	}
 
-	// 测试3: 重新加载后效果
-	updatedBase := "更新的基础策略：激进交易"
+	// Test 3: Effect after reload
+	updatedBase := "Updated base strategy: Aggressive trading"
 	if err := os.WriteFile(filepath.Join(tempDir, "base.txt"), []byte(updatedBase), 0644); err != nil {
-		t.Fatalf("更新文件失败: %v", err)
+		t.Fatalf("Failed to update file: %v", err)
 	}
 
 	if err := ReloadPromptTemplates(); err != nil {
-		t.Fatalf("重新加载失败: %v", err)
+		t.Fatalf("Reload failed: %v", err)
 	}
 
 	result = buildSystemPromptWithCustom(10000.0, 10, 5, customPrompt, false, "base", "")
 	if !strings.Contains(result, updatedBase) {
-		t.Errorf("重新加载后未包含更新的基础模板内容")
+		t.Errorf("After reload doesn't contain updated base template content")
 	}
 	if strings.Contains(result, baseContent) {
-		t.Errorf("重新加载后仍包含旧的基础模板内容")
+		t.Errorf("After reload still contains old base template content")
 	}
 }
 
-// TestPromptReloadFallback 测试模板不存在时的降级机制
+// TestPromptReloadFallback tests fallback mechanism when template doesn't exist
 func TestPromptReloadFallback(t *testing.T) {
-	// 保存原始的 promptsDir
+	// Save original promptsDir
 	originalDir := promptsDir
 	defer func() {
 		promptsDir = originalDir
 		globalPromptManager.ReloadTemplates(originalDir)
 	}()
 
-	// 创建临时目录
+	// Create temporary directory
 	tempDir := t.TempDir()
 	promptsDir = tempDir
 
-	// 只创建 default 模板
-	defaultContent := "默认策略"
+	// Only create default template
+	defaultContent := "Default strategy"
 	if err := os.WriteFile(filepath.Join(tempDir, "default.txt"), []byte(defaultContent), 0644); err != nil {
-		t.Fatalf("创建文件失败: %v", err)
+		t.Fatalf("Failed to create file: %v", err)
 	}
 
 	if err := ReloadPromptTemplates(); err != nil {
-		t.Fatalf("加载失败: %v", err)
+		t.Fatalf("Load failed: %v", err)
 	}
 
-	// 测试1: 请求不存在的模板，应该降级到 default
+	// Test 1: Request non-existent template, should fall back to default
 	result := buildSystemPrompt(10000.0, 10, 5, "nonexistent", "")
 	if !strings.Contains(result, defaultContent) {
-		t.Errorf("请求不存在的模板时，未降级到 default")
+		t.Errorf("When requesting non-existent template, didn't fall back to default")
 	}
 
-	// 测试2: 空模板名，应该使用 default
+	// Test 2: Empty template name, should use default
 	result = buildSystemPrompt(10000.0, 10, 5, "", "")
 	if !strings.Contains(result, defaultContent) {
-		t.Errorf("空模板名时，未使用 default")
+		t.Errorf("With empty template name, didn't use default")
 	}
 }
 
-// TestConcurrentPromptReload 测试并发场景下的 prompt 重新加载
+// TestConcurrentPromptReload tests prompt reload in concurrent scenarios
 func TestConcurrentPromptReload(t *testing.T) {
-	// 保存原始的 promptsDir
+	// Save original promptsDir
 	originalDir := promptsDir
 	defer func() {
 		promptsDir = originalDir
 		globalPromptManager.ReloadTemplates(originalDir)
 	}()
 
-	// 创建临时目录
+	// Create temporary directory
 	tempDir := t.TempDir()
 	promptsDir = tempDir
 
-	// 创建测试文件
-	if err := os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("测试内容"), 0644); err != nil {
-		t.Fatalf("创建文件失败: %v", err)
+	// Create test file
+	if err := os.WriteFile(filepath.Join(tempDir, "test.txt"), []byte("Test content"), 0644); err != nil {
+		t.Fatalf("Failed to create file: %v", err)
 	}
 
 	if err := ReloadPromptTemplates(); err != nil {
-		t.Fatalf("初始加载失败: %v", err)
+		t.Fatalf("Initial load failed: %v", err)
 	}
 
-	// 并发测试：同时读取和重新加载
+	// Concurrent test: read and reload simultaneously
 	done := make(chan bool)
 
-	// 启动多个读取 goroutine
+	// Start multiple read goroutines
 	for i := 0; i < 10; i++ {
 		go func() {
 			for j := 0; j < 100; j++ {
@@ -215,7 +215,7 @@ func TestConcurrentPromptReload(t *testing.T) {
 		}()
 	}
 
-	// 启动多个重新加载 goroutine
+	// Start multiple reload goroutines
 	for i := 0; i < 3; i++ {
 		go func() {
 			for j := 0; j < 10; j++ {
@@ -225,19 +225,19 @@ func TestConcurrentPromptReload(t *testing.T) {
 		}()
 	}
 
-	// 等待所有 goroutine 完成
+	// Wait for all goroutines to complete
 	for i := 0; i < 13; i++ {
 		<-done
 	}
 
-	// 验证最终状态正确
+	// Verify final state is correct
 	template, err := GetPromptTemplate("test")
 	if err != nil {
-		t.Errorf("并发测试后获取模板失败: %v", err)
+		t.Errorf("Failed to get template after concurrent test: %v", err)
 	}
-	if template.Content != "测试内容" {
-		t.Errorf("并发测试后模板内容错误: %s", template.Content)
+	if template.Content != "Test content" {
+		t.Errorf("Template content error after concurrent test: %s", template.Content)
 	}
 
-	t.Log("✅ 并发测试通过：多个 goroutine 同时读取和重新加载模板，无数据竞争")
+	t.Log("✅ Concurrent test passed: multiple goroutines reading and reloading templates simultaneously, no data race")
 }

@@ -1,5 +1,5 @@
-// Package store 提供统一的数据库存储层
-// 所有数据库操作都应该通过这个包进行
+// Package store provides unified database storage layer
+// All database operations should go through this package
 package store
 
 import (
@@ -11,11 +11,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Store 统一的数据存储接口
+// Store unified data storage interface
 type Store struct {
 	db *sql.DB
 
-	// 子存储（延迟初始化）
+	// Sub-stores (lazy initialization)
 	user     *UserStore
 	aiModel  *AIModelStore
 	exchange *ExchangeStore
@@ -27,80 +27,80 @@ type Store struct {
 	strategy *StrategyStore
 	equity   *EquityStore
 
-	// 加密函数
+	// Encryption functions
 	encryptFunc func(string) string
 	decryptFunc func(string) string
 
 	mu sync.RWMutex
 }
 
-// New 创建新的 Store 实例
+// New creates new Store instance
 func New(dbPath string) (*Store, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("打开数据库失败: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// SQLite 配置
+	// SQLite configuration
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
-	// 启用外键约束
+	// Enable foreign key constraints
 	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("启用外键失败: %w", err)
+		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
 	}
 
-	// 使用 DELETE 模式（传统模式）以确保 Docker bind mount 兼容性
-	// 注意：WAL 模式在 macOS Docker 下会导致数据同步问题
+	// Use DELETE mode (traditional mode) to ensure Docker bind mount compatibility
+	// Note: WAL mode causes data sync issues on macOS Docker
 	if _, err := db.Exec("PRAGMA journal_mode=DELETE"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("设置journal_mode失败: %w", err)
+		return nil, fmt.Errorf("failed to set journal_mode: %w", err)
 	}
 
-	// 设置 synchronous=FULL
+	// Set synchronous=FULL
 	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("设置synchronous失败: %w", err)
+		return nil, fmt.Errorf("failed to set synchronous: %w", err)
 	}
 
-	// 设置 busy_timeout
+	// Set busy_timeout
 	if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("设置busy_timeout失败: %w", err)
+		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
 	s := &Store{db: db}
 
-	// 初始化所有表结构
+	// Initialize all table structures
 	if err := s.initTables(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("初始化表结构失败: %w", err)
+		return nil, fmt.Errorf("failed to initialize table structure: %w", err)
 	}
 
-	// 初始化默认数据
+	// Initialize default data
 	if err := s.initDefaultData(); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("初始化默认数据失败: %w", err)
+		return nil, fmt.Errorf("failed to initialize default data: %w", err)
 	}
 
-	logger.Info("✅ 数据库已启用 DELETE 模式和 FULL 同步")
+	logger.Info("✅ Database enabled DELETE mode and FULL sync")
 	return s, nil
 }
 
-// NewFromDB 从现有数据库连接创建 Store
+// NewFromDB creates Store from existing database connection
 func NewFromDB(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-// SetCryptoFuncs 设置加密解密函数
+// SetCryptoFuncs sets encryption/decryption functions
 func (s *Store) SetCryptoFuncs(encrypt, decrypt func(string) string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.encryptFunc = encrypt
 	s.decryptFunc = decrypt
 
-	// 更新已初始化的子存储
+	// Update already initialized sub-stores
 	if s.aiModel != nil {
 		s.aiModel.encryptFunc = encrypt
 		s.aiModel.decryptFunc = decrypt
@@ -114,43 +114,43 @@ func (s *Store) SetCryptoFuncs(encrypt, decrypt func(string) string) {
 	}
 }
 
-// initTables 初始化所有数据库表
+// initTables initializes all database tables
 func (s *Store) initTables() error {
-	// 按依赖顺序初始化
+	// Initialize in dependency order
 	if err := s.User().initTables(); err != nil {
-		return fmt.Errorf("初始化用户表失败: %w", err)
+		return fmt.Errorf("failed to initialize user tables: %w", err)
 	}
 	if err := s.AIModel().initTables(); err != nil {
-		return fmt.Errorf("初始化AI模型表失败: %w", err)
+		return fmt.Errorf("failed to initialize AI model tables: %w", err)
 	}
 	if err := s.Exchange().initTables(); err != nil {
-		return fmt.Errorf("初始化交易所表失败: %w", err)
+		return fmt.Errorf("failed to initialize exchange tables: %w", err)
 	}
 	if err := s.Trader().initTables(); err != nil {
-		return fmt.Errorf("初始化交易员表失败: %w", err)
+		return fmt.Errorf("failed to initialize trader tables: %w", err)
 	}
 	if err := s.Decision().initTables(); err != nil {
-		return fmt.Errorf("初始化决策日志表失败: %w", err)
+		return fmt.Errorf("failed to initialize decision log tables: %w", err)
 	}
 	if err := s.Backtest().initTables(); err != nil {
-		return fmt.Errorf("初始化回测表失败: %w", err)
+		return fmt.Errorf("failed to initialize backtest tables: %w", err)
 	}
 	if err := s.Order().InitTables(); err != nil {
-		return fmt.Errorf("初始化订单表失败: %w", err)
+		return fmt.Errorf("failed to initialize order tables: %w", err)
 	}
 	if err := s.Position().InitTables(); err != nil {
-		return fmt.Errorf("初始化仓位表失败: %w", err)
+		return fmt.Errorf("failed to initialize position tables: %w", err)
 	}
 	if err := s.Strategy().initTables(); err != nil {
-		return fmt.Errorf("初始化策略表失败: %w", err)
+		return fmt.Errorf("failed to initialize strategy tables: %w", err)
 	}
 	if err := s.Equity().initTables(); err != nil {
-		return fmt.Errorf("初始化净值表失败: %w", err)
+		return fmt.Errorf("failed to initialize equity tables: %w", err)
 	}
 	return nil
 }
 
-// initDefaultData 初始化默认数据
+// initDefaultData initializes default data
 func (s *Store) initDefaultData() error {
 	if err := s.AIModel().initDefaultData(); err != nil {
 		return err
@@ -161,16 +161,16 @@ func (s *Store) initDefaultData() error {
 	if err := s.Strategy().initDefaultData(); err != nil {
 		return err
 	}
-	// 迁移旧的 decision_account_snapshots 数据到新的 trader_equity_snapshots 表
+	// Migrate old decision_account_snapshots data to new trader_equity_snapshots table
 	if migrated, err := s.Equity().MigrateFromDecision(); err != nil {
-		logger.Warnf("迁移净值数据失败: %v", err)
+		logger.Warnf("failed to migrate equity data: %v", err)
 	} else if migrated > 0 {
-		logger.Infof("✅ 已迁移 %d 条净值数据到新表", migrated)
+		logger.Infof("✅ Migrated %d equity records to new table", migrated)
 	}
 	return nil
 }
 
-// User 获取用户存储
+// User gets user storage
 func (s *Store) User() *UserStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -180,7 +180,7 @@ func (s *Store) User() *UserStore {
 	return s.user
 }
 
-// AIModel 获取AI模型存储
+// AIModel gets AI model storage
 func (s *Store) AIModel() *AIModelStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -194,7 +194,7 @@ func (s *Store) AIModel() *AIModelStore {
 	return s.aiModel
 }
 
-// Exchange 获取交易所存储
+// Exchange gets exchange storage
 func (s *Store) Exchange() *ExchangeStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -208,7 +208,7 @@ func (s *Store) Exchange() *ExchangeStore {
 	return s.exchange
 }
 
-// Trader 获取交易员存储
+// Trader gets trader storage
 func (s *Store) Trader() *TraderStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -221,7 +221,7 @@ func (s *Store) Trader() *TraderStore {
 	return s.trader
 }
 
-// Decision 获取决策日志存储
+// Decision gets decision log storage
 func (s *Store) Decision() *DecisionStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -231,7 +231,7 @@ func (s *Store) Decision() *DecisionStore {
 	return s.decision
 }
 
-// Backtest 获取回测数据存储
+// Backtest gets backtest data storage
 func (s *Store) Backtest() *BacktestStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -241,7 +241,7 @@ func (s *Store) Backtest() *BacktestStore {
 	return s.backtest
 }
 
-// Order 获取订单存储
+// Order gets order storage
 func (s *Store) Order() *OrderStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -251,7 +251,7 @@ func (s *Store) Order() *OrderStore {
 	return s.order
 }
 
-// Position 获取仓位存储
+// Position gets position storage
 func (s *Store) Position() *PositionStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -261,7 +261,7 @@ func (s *Store) Position() *PositionStore {
 	return s.position
 }
 
-// Strategy 获取策略存储
+// Strategy gets strategy storage
 func (s *Store) Strategy() *StrategyStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -271,7 +271,7 @@ func (s *Store) Strategy() *StrategyStore {
 	return s.strategy
 }
 
-// Equity 获取净值存储
+// Equity gets equity storage
 func (s *Store) Equity() *EquityStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -281,22 +281,22 @@ func (s *Store) Equity() *EquityStore {
 	return s.equity
 }
 
-// Close 关闭数据库连接
+// Close closes database connection
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// DB 获取底层数据库连接（仅用于兼容旧代码，逐步废弃）
-// Deprecated: 使用 Store 的方法代替
+// DB gets underlying database connection (for legacy code compatibility, gradually deprecated)
+// Deprecated: use Store methods instead
 func (s *Store) DB() *sql.DB {
 	return s.db
 }
 
-// Transaction 执行事务
+// Transaction executes transaction
 func (s *Store) Transaction(fn func(tx *sql.Tx) error) error {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("开始事务失败: %w", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	if err := fn(tx); err != nil {
@@ -305,7 +305,7 @@ func (s *Store) Transaction(fn func(tx *sql.Tx) error) error {
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 	return nil
 }

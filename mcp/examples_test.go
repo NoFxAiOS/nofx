@@ -9,21 +9,21 @@ import (
 )
 
 // ============================================================
-// 示例 1: 基础用法（向前兼容）
+// Example 1: Basic Usage (Backward Compatible)
 // ============================================================
 
 func Example_backward_compatible() {
-	// ✅ 旧代码继续工作，无需修改
+	// Old code continues to work without modification
 	client := mcp.New()
 	client.SetAPIKey("sk-xxx", "https://api.custom.com", "gpt-4")
 
-	// 使用
+	// Usage
 	result, _ := client.CallWithMessages("system prompt", "user prompt")
 	fmt.Println(result)
 }
 
 func Example_deepseek_backward_compatible() {
-	// ✅ DeepSeek 旧代码继续工作
+	// DeepSeek old code continues to work
 	client := mcp.NewDeepSeekClient()
 	client.SetAPIKey("sk-xxx", "", "")
 
@@ -32,19 +32,19 @@ func Example_deepseek_backward_compatible() {
 }
 
 // ============================================================
-// 示例 2: 新的推荐用法（选项模式）
+// Example 2: New Recommended Usage (Options Pattern)
 // ============================================================
 
 func Example_new_client_basic() {
-	// 使用默认配置
+	// Use default configuration
 	client := mcp.NewClient()
 
-	// 使用 DeepSeek
+	// Use DeepSeek
 	client = mcp.NewClient(
 		mcp.WithDeepSeekConfig("sk-xxx"),
 	)
 
-	// 使用 Qwen
+	// Use Qwen
 	client = mcp.NewClient(
 		mcp.WithQwenConfig("sk-xxx"),
 	)
@@ -53,7 +53,7 @@ func Example_new_client_basic() {
 }
 
 func Example_new_client_with_options() {
-	// 组合多个选项
+	// Combine multiple options
 	client := mcp.NewClient(
 		mcp.WithDeepSeekConfig("sk-xxx"),
 		mcp.WithTimeout(60*time.Second),
@@ -67,10 +67,10 @@ func Example_new_client_with_options() {
 }
 
 // ============================================================
-// 示例 3: 自定义日志器
+// Example 3: Custom Logger
 // ============================================================
 
-// CustomLogger 自定义日志器示例
+// CustomLogger custom logger example
 type CustomLogger struct{}
 
 func (l *CustomLogger) Debugf(format string, args ...any) {
@@ -90,7 +90,7 @@ func (l *CustomLogger) Errorf(format string, args ...any) {
 }
 
 func Example_custom_logger() {
-	// 使用自定义日志器
+	// Use custom logger
 	customLogger := &CustomLogger{}
 
 	client := mcp.NewClient(
@@ -103,7 +103,7 @@ func Example_custom_logger() {
 }
 
 func Example_no_logger_for_testing() {
-	// 测试时禁用日志
+	// Disable logging during testing
 	client := mcp.NewClient(
 		mcp.WithLogger(mcp.NewNoopLogger()),
 	)
@@ -113,16 +113,16 @@ func Example_no_logger_for_testing() {
 }
 
 // ============================================================
-// 示例 4: 自定义 HTTP 客户端
+// Example 4: Custom HTTP Client
 // ============================================================
 
 func Example_custom_http_client() {
-	// 自定义 HTTP 客户端（添加代理、TLS等）
+	// Custom HTTP client (add proxy, TLS, etc.)
 	customHTTP := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
-			// 自定义 TLS、连接池等
+			// Custom TLS, connection pool, etc.
 		},
 	}
 
@@ -136,16 +136,16 @@ func Example_custom_http_client() {
 }
 
 // ============================================================
-// 示例 5: DeepSeek 客户端（新 API）
+// Example 5: DeepSeek Client (New API)
 // ============================================================
 
 func Example_deepseek_new_api() {
-	// 基础用法
+	// Basic usage
 	client := mcp.NewDeepSeekClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 	)
 
-	// 高级用法
+	// Advanced usage
 	client = mcp.NewDeepSeekClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 		mcp.WithLogger(&CustomLogger{}),
@@ -158,16 +158,16 @@ func Example_deepseek_new_api() {
 }
 
 // ============================================================
-// 示例 6: Qwen 客户端（新 API）
+// Example 6: Qwen Client (New API)
 // ============================================================
 
 func Example_qwen_new_api() {
-	// 基础用法
+	// Basic usage
 	client := mcp.NewQwenClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 	)
 
-	// 高级用法
+	// Advanced usage
 	client = mcp.NewQwenClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 		mcp.WithLogger(&CustomLogger{}),
@@ -179,18 +179,18 @@ func Example_qwen_new_api() {
 }
 
 // ============================================================
-// 示例 7: 在 trader/auto_trader.go 中的迁移示例
+// Example 7: Migration Example in trader/auto_trader.go
 // ============================================================
 
 func Example_trader_migration() {
-	// === 旧代码（继续工作）===
+	// Old code (continues to work)
 	oldStyleClient := func(apiKey, customURL, customModel string) mcp.AIClient {
 		client := mcp.NewDeepSeekClient()
 		client.SetAPIKey(apiKey, customURL, customModel)
 		return client
 	}
 
-	// === 新代码（推荐）===
+	// New code (recommended)
 	newStyleClient := func(apiKey, customURL, customModel string) mcp.AIClient {
 		opts := []mcp.ClientOption{
 			mcp.WithAPIKey(apiKey),
@@ -207,37 +207,37 @@ func Example_trader_migration() {
 		return mcp.NewDeepSeekClientWithOptions(opts...)
 	}
 
-	// 两种方式都能工作
+	// Both approaches work
 	_ = oldStyleClient("sk-xxx", "", "")
 	_ = newStyleClient("sk-xxx", "", "")
 }
 
 // ============================================================
-// 示例 8: 测试场景
+// Example 8: Testing Scenarios
 // ============================================================
 
-// MockHTTPClient Mock HTTP 客户端
+// MockHTTPClient Mock HTTP client
 type MockHTTPClient struct {
 	Response string
 }
 
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	// 返回预设的响应
+	// Return preset response
 	return &http.Response{
 		StatusCode: 200,
-		Body:       nil, // 实际测试中需要实现
+		Body:       nil, // Need to implement in actual tests
 	}, nil
 }
 
 func Example_testing_with_mock() {
-	// 测试时使用 Mock
+	// Use Mock during testing
 	// mockHTTP := &MockHTTPClient{
 	// 	Response: `{"choices":[{"message":{"content":"test response"}}]}`,
 	// }
 
 	client := mcp.NewClient(
-		// mcp.WithHTTPClient(mockHTTP), // 实际测试中使用 mockHTTP
-		mcp.WithLogger(mcp.NewNoopLogger()), // 禁用日志
+		// mcp.WithHTTPClient(mockHTTP), // Use mockHTTP in actual tests
+		mcp.WithLogger(mcp.NewNoopLogger()), // Disable logging
 	)
 
 	result, _ := client.CallWithMessages("system", "user")
@@ -245,20 +245,20 @@ func Example_testing_with_mock() {
 }
 
 // ============================================================
-// 示例 9: 环境特定配置
+// Example 9: Environment-Specific Configuration
 // ============================================================
 
 func Example_environment_specific() {
-	// 开发环境：详细日志
+	// Development environment: detailed logging
 	devClient := mcp.NewClient(
 		mcp.WithDeepSeekConfig("sk-xxx"),
-		mcp.WithLogger(&CustomLogger{}), // 详细日志
+		mcp.WithLogger(&CustomLogger{}), // Detailed logging
 	)
 
-	// 生产环境：结构化日志 + 超时保护
+	// Production environment: structured logging + timeout protection
 	prodClient := mcp.NewClient(
 		mcp.WithDeepSeekConfig("sk-xxx"),
-		// mcp.WithLogger(&ZapLogger{}), // 生产级日志
+		// mcp.WithLogger(&ZapLogger{}), // Production-grade logging
 		mcp.WithTimeout(30*time.Second),
 		mcp.WithMaxRetries(3),
 	)
@@ -268,11 +268,11 @@ func Example_environment_specific() {
 }
 
 // ============================================================
-// 示例 10: 完整实战示例
+// Example 10: Complete Real-World Example
 // ============================================================
 
 func Example_real_world_usage() {
-	// 创建带有完整配置的客户端
+	// Create client with complete configuration
 	client := mcp.NewDeepSeekClientWithOptions(
 		mcp.WithAPIKey("sk-xxxxxxxxxx"),
 		mcp.WithTimeout(60*time.Second),
@@ -282,9 +282,9 @@ func Example_real_world_usage() {
 		mcp.WithLogger(&CustomLogger{}),
 	)
 
-	// 使用客户端
-	systemPrompt := "你是一个专业的量化交易顾问"
-	userPrompt := "分析 BTC 当前走势"
+	// Use client
+	systemPrompt := "You are a professional quantitative trading advisor"
+	userPrompt := "Analyze current BTC trend"
 
 	result, err := client.CallWithMessages(systemPrompt, userPrompt)
 	if err != nil {
@@ -292,5 +292,5 @@ func Example_real_world_usage() {
 		return
 	}
 
-	fmt.Printf("AI 响应: %s\n", result)
+	fmt.Printf("AI response: %s\n", result)
 }

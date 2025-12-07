@@ -14,45 +14,45 @@ type QwenClient struct {
 	*Client
 }
 
-// NewQwenClient 创建 Qwen 客户端（向前兼容）
+// NewQwenClient creates Qwen client (backward compatible)
 //
-// Deprecated: 推荐使用 NewQwenClientWithOptions 以获得更好的灵活性
+// Deprecated: Recommend using NewQwenClientWithOptions for better flexibility
 func NewQwenClient() AIClient {
 	return NewQwenClientWithOptions()
 }
 
-// NewQwenClientWithOptions 创建 Qwen 客户端（支持选项模式）
+// NewQwenClientWithOptions creates Qwen client (supports options pattern)
 //
-// 使用示例：
-//   // 基础用法
+// Usage examples:
+//   // Basic usage
 //   client := mcp.NewQwenClientWithOptions()
 //
-//   // 自定义配置
+//   // Custom configuration
 //   client := mcp.NewQwenClientWithOptions(
 //       mcp.WithAPIKey("sk-xxx"),
 //       mcp.WithLogger(customLogger),
 //       mcp.WithTimeout(60*time.Second),
 //   )
 func NewQwenClientWithOptions(opts ...ClientOption) AIClient {
-	// 1. 创建 Qwen 预设选项
+	// 1. Create Qwen preset options
 	qwenOpts := []ClientOption{
 		WithProvider(ProviderQwen),
 		WithModel(DefaultQwenModel),
 		WithBaseURL(DefaultQwenBaseURL),
 	}
 
-	// 2. 合并用户选项（用户选项优先级更高）
+	// 2. Merge user options (user options have higher priority)
 	allOpts := append(qwenOpts, opts...)
 
-	// 3. 创建基础客户端
+	// 3. Create base client
 	baseClient := NewClient(allOpts...).(*Client)
 
-	// 4. 创建 Qwen 客户端
+	// 4. Create Qwen client
 	qwenClient := &QwenClient{
 		Client: baseClient,
 	}
 
-	// 5. 设置 hooks 指向 QwenClient（实现动态分派）
+	// 5. Set hooks to point to QwenClient (implement dynamic dispatch)
 	baseClient.hooks = qwenClient
 
 	return qwenClient
@@ -66,15 +66,15 @@ func (qwenClient *QwenClient) SetAPIKey(apiKey string, customURL string, customM
 	}
 	if customURL != "" {
 		qwenClient.BaseURL = customURL
-		qwenClient.logger.Infof("🔧 [MCP] Qwen 使用自定义 BaseURL: %s", customURL)
+		qwenClient.logger.Infof("🔧 [MCP] Qwen using custom BaseURL: %s", customURL)
 	} else {
-		qwenClient.logger.Infof("🔧 [MCP] Qwen 使用默认 BaseURL: %s", qwenClient.BaseURL)
+		qwenClient.logger.Infof("🔧 [MCP] Qwen using default BaseURL: %s", qwenClient.BaseURL)
 	}
 	if customModel != "" {
 		qwenClient.Model = customModel
-		qwenClient.logger.Infof("🔧 [MCP] Qwen 使用自定义 Model: %s", customModel)
+		qwenClient.logger.Infof("🔧 [MCP] Qwen using custom Model: %s", customModel)
 	} else {
-		qwenClient.logger.Infof("🔧 [MCP] Qwen 使用默认 Model: %s", qwenClient.Model)
+		qwenClient.logger.Infof("🔧 [MCP] Qwen using default Model: %s", qwenClient.Model)
 	}
 }
 

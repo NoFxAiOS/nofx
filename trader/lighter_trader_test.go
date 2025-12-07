@@ -12,20 +12,20 @@ import (
 )
 
 // ============================================================
-// LIGHTER V1 测试套件
+// LIGHTER V1 Test Suite
 // ============================================================
 
-// TestLighterTrader_NewTrader 测试创建LIGHTER交易器
+// TestLighterTrader_NewTrader Test creating LIGHTER trader
 func TestLighterTrader_NewTrader(t *testing.T) {
-	t.Run("无效私钥", func(t *testing.T) {
+	t.Run("Invalid private key", func(t *testing.T) {
 		trader, err := NewLighterTrader("invalid_key", "", true)
 		assert.Error(t, err)
 		assert.Nil(t, trader)
 		t.Logf("✅ Invalid private key correctly rejected")
 	})
 
-	t.Run("有效私钥格式验证", func(t *testing.T) {
-		// 只验证私钥解析，不调用真实 API
+	t.Run("Valid private key format verification", func(t *testing.T) {
+		// Only verify private key parsing, don't call real API
 		testL1Key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 		privateKey, err := crypto.HexToECDSA(testL1Key)
 		assert.NoError(t, err)
@@ -37,7 +37,7 @@ func TestLighterTrader_NewTrader(t *testing.T) {
 	})
 }
 
-// createMockLighterServer 创建 mock LIGHTER API 服务器
+// createMockLighterServer Create mock LIGHTER API server
 func createMockLighterServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -106,7 +106,7 @@ func createMockLighterServer() *httptest.Server {
 	}))
 }
 
-// createMockLighterTrader 创建带 mock server 的 LIGHTER trader
+// createMockLighterTrader Create LIGHTER trader with mock server
 func createMockLighterTrader(t *testing.T, mockServer *httptest.Server) *LighterTrader {
 	testL1Key := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	privateKey, err := crypto.HexToECDSA(testL1Key)
@@ -125,7 +125,7 @@ func createMockLighterTrader(t *testing.T, mockServer *httptest.Server) *Lighter
 	return trader
 }
 
-// TestLighterTrader_GetBalance 测试获取余额
+// TestLighterTrader_GetBalance Test getting balance
 func TestLighterTrader_GetBalance(t *testing.T) {
 	t.Skip("Skipping Lighter tests until mock server endpoints are completed")
 	mockServer := createMockLighterServer()
@@ -140,7 +140,7 @@ func TestLighterTrader_GetBalance(t *testing.T) {
 	t.Logf("✅ GetBalance: %+v", balance)
 }
 
-// TestLighterTrader_GetPositions 测试获取持仓
+// TestLighterTrader_GetPositions Test getting positions
 func TestLighterTrader_GetPositions(t *testing.T) {
 	t.Skip("Skipping Lighter tests until mock server endpoints are completed")
 	mockServer := createMockLighterServer()
@@ -155,7 +155,7 @@ func TestLighterTrader_GetPositions(t *testing.T) {
 	t.Logf("✅ GetPositions: found %d positions", len(positions))
 }
 
-// TestLighterTrader_GetMarketPrice 测试获取市场价格
+// TestLighterTrader_GetMarketPrice Test getting market price
 func TestLighterTrader_GetMarketPrice(t *testing.T) {
 	t.Skip("Skipping Lighter tests until mock server endpoints are completed")
 	mockServer := createMockLighterServer()
@@ -170,7 +170,7 @@ func TestLighterTrader_GetMarketPrice(t *testing.T) {
 	t.Logf("✅ GetMarketPrice(BTC): %.2f", price)
 }
 
-// TestLighterTrader_FormatQuantity 测试格式化数量
+// TestLighterTrader_FormatQuantity Test formatting quantity
 func TestLighterTrader_FormatQuantity(t *testing.T) {
 	mockServer := createMockLighterServer()
 	defer mockServer.Close()
@@ -184,7 +184,7 @@ func TestLighterTrader_FormatQuantity(t *testing.T) {
 	t.Logf("✅ FormatQuantity: %s", result)
 }
 
-// TestLighterTrader_GetExchangeType 测试获取交易所类型
+// TestLighterTrader_GetExchangeType Test getting exchange type
 func TestLighterTrader_GetExchangeType(t *testing.T) {
 	mockServer := createMockLighterServer()
 	defer mockServer.Close()
@@ -197,45 +197,45 @@ func TestLighterTrader_GetExchangeType(t *testing.T) {
 	t.Logf("✅ GetExchangeType: %s", exchangeType)
 }
 
-// TestLighterTrader_InvalidQuantity 测试无效数量验证
+// TestLighterTrader_InvalidQuantity Test invalid quantity validation
 func TestLighterTrader_InvalidQuantity(t *testing.T) {
 	mockServer := createMockLighterServer()
 	defer mockServer.Close()
 
 	trader := createMockLighterTrader(t, mockServer)
 
-	// 测试零数量
+	// Test zero quantity
 	_, err := trader.OpenLong("BTC", 0, 10)
 	assert.Error(t, err)
 
-	// 测试负数量
+	// Test negative quantity
 	_, err = trader.OpenLong("BTC", -0.1, 10)
 	assert.Error(t, err)
 
 	t.Logf("✅ Invalid quantity validation working")
 }
 
-// TestLighterTrader_InvalidLeverage 测试无效杠杆验证
+// TestLighterTrader_InvalidLeverage Test invalid leverage validation
 func TestLighterTrader_InvalidLeverage(t *testing.T) {
 	mockServer := createMockLighterServer()
 	defer mockServer.Close()
 
 	trader := createMockLighterTrader(t, mockServer)
 
-	// 测试零杠杆
+	// Test zero leverage
 	_, err := trader.OpenLong("BTC", 0.1, 0)
 	assert.Error(t, err)
 
-	// 测试负杠杆
+	// Test negative leverage
 	_, err = trader.OpenLong("BTC", 0.1, -10)
 	assert.Error(t, err)
 
 	t.Logf("✅ Invalid leverage validation working")
 }
 
-// TestLighterTrader_HelperFunctions 测试辅助函数
+// TestLighterTrader_HelperFunctions Test helper functions
 func TestLighterTrader_HelperFunctions(t *testing.T) {
-	// 测试 SafeFloat64
+	// Test SafeFloat64
 	data := map[string]interface{}{
 		"float_val":  123.45,
 		"string_val": "678.90",

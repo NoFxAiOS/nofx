@@ -13,7 +13,7 @@ func (r *IpResult) Error() error {
 
 func (r *IpResult) GetResult() string {
 	if r.Err != nil {
-		log.Printf("⚠️ 执行GetIP时出错: %v", r.Err)
+		log.Printf("⚠️ Error executing GetIP: %v", r.Err)
 	}
 	return r.IP
 }

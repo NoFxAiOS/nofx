@@ -7,7 +7,7 @@ import (
 )
 
 // ============================================================
-// 测试基础选项
+// Test Basic Options
 // ============================================================
 
 func TestWithProvider(t *testing.T) {
@@ -116,7 +116,7 @@ func TestWithHTTPClient(t *testing.T) {
 }
 
 // ============================================================
-// 测试预设配置选项
+// Test Preset Configuration Options
 // ============================================================
 
 func TestWithDeepSeekConfig(t *testing.T) {
@@ -162,7 +162,7 @@ func TestWithQwenConfig(t *testing.T) {
 }
 
 // ============================================================
-// 测试选项组合
+// Test Options Combination
 // ============================================================
 
 func TestMultipleOptions(t *testing.T) {
@@ -170,7 +170,7 @@ func TestMultipleOptions(t *testing.T) {
 
 	cfg := DefaultConfig()
 
-	// 应用多个选项
+	// Apply multiple options
 	options := []ClientOption{
 		WithProvider("test-provider"),
 		WithAPIKey("sk-test-key"),
@@ -186,7 +186,7 @@ func TestMultipleOptions(t *testing.T) {
 		opt(cfg)
 	}
 
-	// 验证所有选项都被应用
+	// Verify all options are applied
 	if cfg.Provider != "test-provider" {
 		t.Error("Provider should be set")
 	}
@@ -223,14 +223,14 @@ func TestMultipleOptions(t *testing.T) {
 func TestOptionsOverride(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// 先应用 DeepSeek 配置
+	// First apply DeepSeek configuration
 	WithDeepSeekConfig("sk-deepseek-key")(cfg)
 
-	// 然后覆盖某些选项
+	// Then override some options
 	WithModel("custom-model")(cfg)
 	WithMaxTokens(5000)(cfg)
 
-	// 验证覆盖成功
+	// Verify override succeeded
 	if cfg.Model != "custom-model" {
 		t.Errorf("Model should be overridden to 'custom-model', got '%s'", cfg.Model)
 	}
@@ -239,7 +239,7 @@ func TestOptionsOverride(t *testing.T) {
 		t.Errorf("MaxTokens should be overridden to 5000, got %d", cfg.MaxTokens)
 	}
 
-	// 验证其他 DeepSeek 配置保持不变
+	// Verify other DeepSeek configurations remain unchanged
 	if cfg.Provider != ProviderDeepSeek {
 		t.Error("Provider should still be DeepSeek")
 	}
@@ -250,7 +250,7 @@ func TestOptionsOverride(t *testing.T) {
 }
 
 // ============================================================
-// 测试与客户端集成
+// Test Integration with Client
 // ============================================================
 
 func TestOptionsWithNewClient(t *testing.T) {
@@ -266,7 +266,7 @@ func TestOptionsWithNewClient(t *testing.T) {
 
 	c := client.(*Client)
 
-	// 验证选项被正确应用到客户端
+	// Verify options are correctly applied to client
 	if c.Provider != "test-provider" {
 		t.Error("Provider should be set from options")
 	}
@@ -299,7 +299,7 @@ func TestOptionsWithDeepSeekClient(t *testing.T) {
 
 	dsClient := client.(*DeepSeekClient)
 
-	// 验证 DeepSeek 默认值
+	// Verify DeepSeek default values
 	if dsClient.Provider != ProviderDeepSeek {
 		t.Error("Provider should be DeepSeek")
 	}
@@ -312,7 +312,7 @@ func TestOptionsWithDeepSeekClient(t *testing.T) {
 		t.Error("Model should be DeepSeek default")
 	}
 
-	// 验证自定义选项
+	// Verify custom options
 	if dsClient.APIKey != "sk-deepseek-key" {
 		t.Error("APIKey should be set from options")
 	}
@@ -337,7 +337,7 @@ func TestOptionsWithQwenClient(t *testing.T) {
 
 	qwenClient := client.(*QwenClient)
 
-	// 验证 Qwen 默认值
+	// Verify Qwen default values
 	if qwenClient.Provider != ProviderQwen {
 		t.Error("Provider should be Qwen")
 	}
@@ -350,7 +350,7 @@ func TestOptionsWithQwenClient(t *testing.T) {
 		t.Error("Model should be Qwen default")
 	}
 
-	// 验证自定义选项
+	// Verify custom options
 	if qwenClient.APIKey != "sk-qwen-key" {
 		t.Error("APIKey should be set from options")
 	}

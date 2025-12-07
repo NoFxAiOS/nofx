@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// generateTestKlines 生成测试用的 K线数据
+// generateTestKlines generates test K-line data
 func generateTestKlines(count int) []Kline {
 	klines := make([]Kline, count)
 	for i := 0; i < count; i++ {
-		// 生成模拟的价格数据，有一定的波动
+		// Generate simulated price data with some fluctuation
 		basePrice := 100.0
 		variance := float64(i%10) * 0.5
 		open := basePrice + variance
@@ -19,7 +19,7 @@ func generateTestKlines(count int) []Kline {
 		volume := 1000.0 + float64(i*100)
 
 		klines[i] = Kline{
-			OpenTime:  int64(i * 180000), // 3分钟间隔
+			OpenTime:  int64(i * 180000), // 3-minute interval
 			Open:      open,
 			High:      high,
 			Low:       low,
@@ -31,7 +31,7 @@ func generateTestKlines(count int) []Kline {
 	return klines
 }
 
-// TestCalculateIntradaySeries_VolumeCollection 测试 Volume 数据收集
+// TestCalculateIntradaySeries_VolumeCollection tests Volume data collection
 func TestCalculateIntradaySeries_VolumeCollection(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -39,24 +39,24 @@ func TestCalculateIntradaySeries_VolumeCollection(t *testing.T) {
 		expectedVolLen int
 	}{
 		{
-			name:           "正常情况 - 20个K线",
+			name:           "Normal case - 20 K-lines",
 			klineCount:     20,
-			expectedVolLen: 10, // 应该收集最近10个
+			expectedVolLen: 10, // Should collect latest 10
 		},
 		{
-			name:           "刚好10个K线",
+			name:           "Exactly 10 K-lines",
 			klineCount:     10,
 			expectedVolLen: 10,
 		},
 		{
-			name:           "少于10个K线",
+			name:           "Less than 10 K-lines",
 			klineCount:     5,
-			expectedVolLen: 5, // 应该返回所有5个
+			expectedVolLen: 5, // Should return all 5
 		},
 		{
-			name:           "超过10个K线",
+			name:           "More than 10 K-lines",
 			klineCount:     30,
-			expectedVolLen: 10, // 应该只返回最近10个
+			expectedVolLen: 10, // Should only return latest 10
 		},
 	}
 
@@ -73,21 +73,21 @@ func TestCalculateIntradaySeries_VolumeCollection(t *testing.T) {
 				t.Errorf("Volume length = %d, want %d", len(data.Volume), tt.expectedVolLen)
 			}
 
-			// 验证 Volume 数据正确性
+			// Verify Volume data correctness
 			if len(data.Volume) > 0 {
-				// 计算期望的起始索引
+				// Calculate expected start index
 				start := tt.klineCount - 10
 				if start < 0 {
 					start = 0
 				}
 
-				// 验证第一个 Volume 值
+				// Verify first Volume value
 				expectedFirstVolume := klines[start].Volume
 				if data.Volume[0] != expectedFirstVolume {
 					t.Errorf("First volume = %.2f, want %.2f", data.Volume[0], expectedFirstVolume)
 				}
 
-				// 验证最后一个 Volume 值
+				// Verify last Volume value
 				expectedLastVolume := klines[tt.klineCount-1].Volume
 				lastVolume := data.Volume[len(data.Volume)-1]
 				if lastVolume != expectedLastVolume {
@@ -98,7 +98,7 @@ func TestCalculateIntradaySeries_VolumeCollection(t *testing.T) {
 	}
 }
 
-// TestCalculateIntradaySeries_VolumeValues 测试 Volume 值的正确性
+// TestCalculateIntradaySeries_VolumeValues tests Volume value correctness
 func TestCalculateIntradaySeries_VolumeValues(t *testing.T) {
 	klines := []Kline{
 		{Close: 100.0, Volume: 1000.0, High: 101.0, Low: 99.0, Open: 100.0},
@@ -128,7 +128,7 @@ func TestCalculateIntradaySeries_VolumeValues(t *testing.T) {
 	}
 }
 
-// TestCalculateIntradaySeries_ATR14 测试 ATR14 计算
+// TestCalculateIntradaySeries_ATR14 tests ATR14 calculation
 func TestCalculateIntradaySeries_ATR14(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -137,27 +137,27 @@ func TestCalculateIntradaySeries_ATR14(t *testing.T) {
 		expectNonZero bool
 	}{
 		{
-			name:          "足够数据 - 20个K线",
+			name:          "Sufficient data - 20 K-lines",
 			klineCount:    20,
 			expectNonZero: true,
 		},
 		{
-			name:          "刚好15个K线（ATR14需要至少15个）",
+			name:          "Exactly 15 K-lines (ATR14 requires at least 15)",
 			klineCount:    15,
 			expectNonZero: true,
 		},
 		{
-			name:       "数据不足 - 14个K线",
+			name:       "Insufficient data - 14 K-lines",
 			klineCount: 14,
 			expectZero: true,
 		},
 		{
-			name:       "数据不足 - 10个K线",
+			name:       "Insufficient data - 10 K-lines",
 			klineCount: 10,
 			expectZero: true,
 		},
 		{
-			name:       "数据不足 - 5个K线",
+			name:       "Insufficient data - 5 K-lines",
 			klineCount: 5,
 			expectZero: true,
 		},
@@ -183,7 +183,7 @@ func TestCalculateIntradaySeries_ATR14(t *testing.T) {
 	}
 }
 
-// TestCalculateATR 测试 ATR 计算函数
+// TestCalculateATR tests ATR calculation function
 func TestCalculateATR(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -192,7 +192,7 @@ func TestCalculateATR(t *testing.T) {
 		expectZero bool
 	}{
 		{
-			name: "正常计算 - 足够数据",
+			name: "Normal calculation - sufficient data",
 			klines: []Kline{
 				{High: 102.0, Low: 100.0, Close: 101.0},
 				{High: 103.0, Low: 101.0, Close: 102.0},
@@ -214,7 +214,7 @@ func TestCalculateATR(t *testing.T) {
 			expectZero: false,
 		},
 		{
-			name: "数据不足 - 等于period",
+			name: "Insufficient data - equal to period",
 			klines: []Kline{
 				{High: 102.0, Low: 100.0, Close: 101.0},
 				{High: 103.0, Low: 101.0, Close: 102.0},
@@ -223,7 +223,7 @@ func TestCalculateATR(t *testing.T) {
 			expectZero: true,
 		},
 		{
-			name: "数据不足 - 少于period",
+			name: "Insufficient data - less than period",
 			klines: []Kline{
 				{High: 102.0, Low: 100.0, Close: 101.0},
 			},
@@ -249,9 +249,9 @@ func TestCalculateATR(t *testing.T) {
 	}
 }
 
-// TestCalculateATR_TrueRange 测试 ATR 的 True Range 计算正确性
+// TestCalculateATR_TrueRange tests ATR True Range calculation correctness
 func TestCalculateATR_TrueRange(t *testing.T) {
-	// 创建一个简单的测试用例，手动计算期望的 ATR
+	// Create a simple test case, manually calculate expected ATR
 	klines := []Kline{
 		{High: 50.0, Low: 48.0, Close: 49.0}, // TR = 2.0
 		{High: 51.0, Low: 49.0, Close: 50.0}, // TR = max(2.0, 2.0, 1.0) = 2.0
@@ -262,28 +262,28 @@ func TestCalculateATR_TrueRange(t *testing.T) {
 
 	atr := calculateATR(klines, 3)
 
-	// 期望的计算：
+	// Expected calculation:
 	// TR[1] = max(51-49, |51-49|, |49-49|) = 2.0
 	// TR[2] = max(52-50, |52-50|, |50-50|) = 2.0
 	// TR[3] = max(53-51, |53-51|, |51-51|) = 2.0
-	// 初始 ATR = (2.0 + 2.0 + 2.0) / 3 = 2.0
+	// Initial ATR = (2.0 + 2.0 + 2.0) / 3 = 2.0
 	// TR[4] = max(54-52, |54-52|, |52-52|) = 2.0
-	// 平滑 ATR = (2.0*2 + 2.0) / 3 = 2.0
+	// Smoothed ATR = (2.0*2 + 2.0) / 3 = 2.0
 
 	expectedATR := 2.0
-	tolerance := 0.01 // 允许小的浮点误差
+	tolerance := 0.01 // Allow small floating point error
 
 	if math.Abs(atr-expectedATR) > tolerance {
 		t.Errorf("calculateATR() = %.3f, want approximately %.3f", atr, expectedATR)
 	}
 }
 
-// TestCalculateIntradaySeries_ConsistencyWithOtherIndicators 测试 Volume 和其他指标的一致性
+// TestCalculateIntradaySeries_ConsistencyWithOtherIndicators tests Volume and other indicators consistency
 func TestCalculateIntradaySeries_ConsistencyWithOtherIndicators(t *testing.T) {
 	klines := generateTestKlines(30)
 	data := calculateIntradaySeries(klines)
 
-	// 所有数组应该存在
+	// All arrays should exist
 	if data.MidPrices == nil {
 		t.Error("MidPrices should not be nil")
 	}
@@ -291,13 +291,13 @@ func TestCalculateIntradaySeries_ConsistencyWithOtherIndicators(t *testing.T) {
 		t.Error("Volume should not be nil")
 	}
 
-	// MidPrices 和 Volume 应该有相同的长度（都是最近10个）
+	// MidPrices and Volume should have the same length (both latest 10)
 	if len(data.MidPrices) != len(data.Volume) {
 		t.Errorf("MidPrices length (%d) should equal Volume length (%d)",
 			len(data.MidPrices), len(data.Volume))
 	}
 
-	// 所有 Volume 值应该大于 0
+	// All Volume values should be > 0
 	for i, vol := range data.Volume {
 		if vol <= 0 {
 			t.Errorf("Volume[%d] = %.2f, should be > 0", i, vol)
@@ -305,7 +305,7 @@ func TestCalculateIntradaySeries_ConsistencyWithOtherIndicators(t *testing.T) {
 	}
 }
 
-// TestCalculateIntradaySeries_EmptyKlines 测试空 K线数据
+// TestCalculateIntradaySeries_EmptyKlines tests empty K-line data
 func TestCalculateIntradaySeries_EmptyKlines(t *testing.T) {
 	klines := []Kline{}
 	data := calculateIntradaySeries(klines)
@@ -314,7 +314,7 @@ func TestCalculateIntradaySeries_EmptyKlines(t *testing.T) {
 		t.Fatal("calculateIntradaySeries should not return nil for empty klines")
 	}
 
-	// 所有切片应该为空
+	// All slices should be empty
 	if len(data.MidPrices) != 0 {
 		t.Errorf("MidPrices length = %d, want 0", len(data.MidPrices))
 	}
@@ -322,13 +322,13 @@ func TestCalculateIntradaySeries_EmptyKlines(t *testing.T) {
 		t.Errorf("Volume length = %d, want 0", len(data.Volume))
 	}
 
-	// ATR14 应该为 0（数据不足）
+	// ATR14 should be 0 (insufficient data)
 	if data.ATR14 != 0 {
 		t.Errorf("ATR14 = %.3f, want 0", data.ATR14)
 	}
 }
 
-// TestCalculateIntradaySeries_VolumePrecision 测试 Volume 精度保持
+// TestCalculateIntradaySeries_VolumePrecision tests Volume precision preservation
 func TestCalculateIntradaySeries_VolumePrecision(t *testing.T) {
 	klines := []Kline{
 		{Close: 100.0, Volume: 1234.5678, High: 101.0, Low: 99.0},

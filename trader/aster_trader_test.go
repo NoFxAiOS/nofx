@@ -13,27 +13,27 @@ import (
 )
 
 // ============================================================
-// 一、AsterTraderTestSuite - 继承 base test suite
+// 1. AsterTraderTestSuite - inherits base test suite
 // ============================================================
 
-// AsterTraderTestSuite Aster交易器测试套件
-// 继承 TraderTestSuite 并添加 Aster 特定的 mock 逻辑
+// AsterTraderTestSuite Aster trader test suite
+// Inherits TraderTestSuite and adds Aster specific mock logic
 type AsterTraderTestSuite struct {
-	*TraderTestSuite // 嵌入基础测试套件
+	*TraderTestSuite // Embeds base test suite
 	mockServer       *httptest.Server
 }
 
-// NewAsterTraderTestSuite 创建 Aster 测试套件
+// NewAsterTraderTestSuite creates Aster test suite
 func NewAsterTraderTestSuite(t *testing.T) *AsterTraderTestSuite {
-	// 创建 mock HTTP 服务器
+	// Create mock HTTP server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 根据不同的 URL 路径返回不同的 mock 响应
+		// Return different mock responses based on URL path
 		path := r.URL.Path
 
 		var respBody interface{}
 
 		switch {
-		// Mock GetBalance - /fapi/v3/balance (返回数组)
+		// Mock GetBalance - /fapi/v3/balance (returns array)
 		case path == "/fapi/v3/balance":
 			respBody = []map[string]interface{}{
 				{
@@ -65,19 +65,19 @@ func NewAsterTraderTestSuite(t *testing.T) *AsterTraderTestSuite {
 				},
 			}
 
-		// Mock GetMarketPrice - /fapi/v3/ticker/price (返回单个对象)
+		// Mock GetMarketPrice - /fapi/v3/ticker/price (returns single object)
 		case path == "/fapi/v3/ticker/price":
-			// 从查询参数获取symbol
+			// Get symbol from query parameters
 			symbol := r.URL.Query().Get("symbol")
 			if symbol == "" {
 				symbol = "BTCUSDT"
 			}
-			// 根据symbol返回不同价格
+			// Return different price based on symbol
 			price := "50000.00"
 			if symbol == "ETHUSDT" {
 				price = "3000.00"
 			} else if symbol == "INVALIDUSDT" {
-				// 返回错误响应
+				// Return error response
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(map[string]interface{}{
 					"code": -1121,
@@ -133,7 +133,7 @@ func NewAsterTraderTestSuite(t *testing.T) *AsterTraderTestSuite {
 
 		// Mock CreateOrder - /fapi/v1/order and /fapi/v3/order
 		case (path == "/fapi/v1/order" || path == "/fapi/v3/order") && r.Method == "POST":
-			// 从请求中解析参数以确定symbol
+			// Parse parameters from request to determine symbol
 			bodyBytes, _ := io.ReadAll(r.Body)
 			var orderParams map[string]interface{}
 			json.Unmarshal(bodyBytes, &orderParams)
@@ -182,26 +182,26 @@ func NewAsterTraderTestSuite(t *testing.T) *AsterTraderTestSuite {
 			respBody = map[string]interface{}{}
 		}
 
-		// 序列化响应
+		// Serialize response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(respBody)
 	}))
 
-	// 生成一个测试用的私钥
+	// Generate a private key for testing
 	privateKey, _ := crypto.GenerateKey()
 
-	// 创建 mock trader，使用 mock server 的 URL
+	// Create mock trader using mock server's URL
 	trader := &AsterTrader{
 		ctx:             context.Background(),
 		user:            "0x1234567890123456789012345678901234567890",
 		signer:          "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 		privateKey:      privateKey,
 		client:          mockServer.Client(),
-		baseURL:         mockServer.URL, // 使用 mock server 的 URL
+		baseURL:         mockServer.URL, // Use mock server's URL
 		symbolPrecision: make(map[string]SymbolPrecision),
 	}
 
-	// 创建基础套件
+	// Create base suite
 	baseSuite := NewTraderTestSuite(t, trader)
 
 	return &AsterTraderTestSuite{
@@ -210,7 +210,7 @@ func NewAsterTraderTestSuite(t *testing.T) *AsterTraderTestSuite {
 	}
 }
 
-// Cleanup 清理资源
+// Cleanup cleans up resources
 func (s *AsterTraderTestSuite) Cleanup() {
 	if s.mockServer != nil {
 		s.mockServer.Close()
@@ -219,29 +219,29 @@ func (s *AsterTraderTestSuite) Cleanup() {
 }
 
 // ============================================================
-// 二、使用 AsterTraderTestSuite 运行通用测试
+// 2. Run common tests using AsterTraderTestSuite
 // ============================================================
 
-// TestAsterTrader_InterfaceCompliance 测试接口兼容性
+// TestAsterTrader_InterfaceCompliance tests interface compliance
 func TestAsterTrader_InterfaceCompliance(t *testing.T) {
 	var _ Trader = (*AsterTrader)(nil)
 }
 
-// TestAsterTrader_CommonInterface 使用测试套件运行所有通用接口测试
+// TestAsterTrader_CommonInterface runs all common interface tests using test suite
 func TestAsterTrader_CommonInterface(t *testing.T) {
-	// 创建测试套件
+	// Create test suite
 	suite := NewAsterTraderTestSuite(t)
 	defer suite.Cleanup()
 
-	// 运行所有通用接口测试
+	// Run all common interface tests
 	suite.RunAllTests()
 }
 
 // ============================================================
-// 三、Aster 特定功能的单元测试
+// 3. Aster specific unit tests
 // ============================================================
 
-// TestNewAsterTrader 测试创建 Aster 交易器
+// TestNewAsterTrader tests creating Aster trader
 func TestNewAsterTrader(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -252,22 +252,22 @@ func TestNewAsterTrader(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "成功创建",
+			name:          "successful creation",
 			user:          "0x1234567890123456789012345678901234567890",
 			signer:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 			privateKeyHex: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 			wantError:     false,
 		},
 		{
-			name:          "无效私钥格式",
+			name:          "invalid private key format",
 			user:          "0x1234567890123456789012345678901234567890",
 			signer:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 			privateKeyHex: "invalid_key",
 			wantError:     true,
-			errorContains: "解析私钥失败",
+			errorContains: "failed to parse private key",
 		},
 		{
-			name:          "带0x前缀的私钥",
+			name:          "private key with 0x prefix",
 			user:          "0x1234567890123456789012345678901234567890",
 			signer:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 			privateKeyHex: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

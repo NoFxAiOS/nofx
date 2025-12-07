@@ -17,7 +17,7 @@ type symbolSeries struct {
 	byTF map[string]*timeframeSeries
 }
 
-// DataFeed 管理历史K线数据，为回测提供按时间推进的快照。
+// DataFeed manages historical kline data and provides time-progressive snapshots for backtesting.
 type DataFeed struct {
 	cfg           BacktestConfig
 	symbols       []string
@@ -49,7 +49,7 @@ func (df *DataFeed) loadAll() error {
 	start := time.Unix(df.cfg.StartTS, 0)
 	end := time.Unix(df.cfg.EndTS, 0)
 
-	// longest timeframe用于辅助指标
+	// longest timeframe used for auxiliary indicators
 	var longestDur time.Duration
 	for _, tf := range df.timeframes {
 		dur, err := market.TFDuration(tf)
@@ -93,7 +93,7 @@ func (df *DataFeed) loadAll() error {
 		df.symbolSeries[symbol] = ss
 	}
 
-	// 以第一个符号的主周期生成回测进度时间轴
+	// Generate backtest progress timeline using the primary timeframe of the first symbol
 	firstSymbol := df.symbols[0]
 	primarySeries := df.symbolSeries[firstSymbol].byTF[df.primaryTF]
 	startMs := start.UnixMilli()
@@ -106,7 +106,7 @@ func (df *DataFeed) loadAll() error {
 			break
 		}
 		df.decisionTimes = append(df.decisionTimes, ts)
-		// 对齐其他符号，如果缺数据则提前报错
+		// Align other symbols; report error early if data is missing
 		for _, symbol := range df.symbols[1:] {
 			if _, ok := df.symbolSeries[symbol].byTF[df.primaryTF]; !ok {
 				return fmt.Errorf("symbol %s missing timeframe %s", symbol, df.primaryTF)

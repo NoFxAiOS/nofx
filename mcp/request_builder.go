@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-// RequestBuilder 请求构建器
+// RequestBuilder request builder
 type RequestBuilder struct {
 	model            string
 	messages         []Message
@@ -19,9 +19,9 @@ type RequestBuilder struct {
 	toolChoice       string
 }
 
-// NewRequestBuilder 创建请求构建器
+// NewRequestBuilder creates request builder
 //
-// 使用示例：
+// Usage example:
 //   request := NewRequestBuilder().
 //       WithSystemPrompt("You are helpful").
 //       WithUserPrompt("Hello").
@@ -35,26 +35,26 @@ func NewRequestBuilder() *RequestBuilder {
 }
 
 // ============================================================
-// 模型和流式配置
+// Model and Stream Configuration
 // ============================================================
 
-// WithModel 设置模型名称
+// WithModel sets model name
 func (b *RequestBuilder) WithModel(model string) *RequestBuilder {
 	b.model = model
 	return b
 }
 
-// WithStream 设置是否使用流式响应
+// WithStream sets whether to use streaming response
 func (b *RequestBuilder) WithStream(stream bool) *RequestBuilder {
 	b.stream = stream
 	return b
 }
 
 // ============================================================
-// 消息构建方法
+// Message Building Methods
 // ============================================================
 
-// WithSystemPrompt 添加系统提示词（便捷方法）
+// WithSystemPrompt adds system prompt (convenience method)
 func (b *RequestBuilder) WithSystemPrompt(prompt string) *RequestBuilder {
 	if prompt != "" {
 		b.messages = append(b.messages, NewSystemMessage(prompt))
@@ -62,7 +62,7 @@ func (b *RequestBuilder) WithSystemPrompt(prompt string) *RequestBuilder {
 	return b
 }
 
-// WithUserPrompt 添加用户提示词（便捷方法）
+// WithUserPrompt adds user prompt (convenience method)
 func (b *RequestBuilder) WithUserPrompt(prompt string) *RequestBuilder {
 	if prompt != "" {
 		b.messages = append(b.messages, NewUserMessage(prompt))
@@ -70,17 +70,17 @@ func (b *RequestBuilder) WithUserPrompt(prompt string) *RequestBuilder {
 	return b
 }
 
-// AddSystemMessage 添加系统消息
+// AddSystemMessage adds system message
 func (b *RequestBuilder) AddSystemMessage(content string) *RequestBuilder {
 	return b.WithSystemPrompt(content)
 }
 
-// AddUserMessage 添加用户消息
+// AddUserMessage adds user message
 func (b *RequestBuilder) AddUserMessage(content string) *RequestBuilder {
 	return b.WithUserPrompt(content)
 }
 
-// AddAssistantMessage 添加助手消息（用于多轮对话上下文）
+// AddAssistantMessage adds assistant message (for multi-turn conversation context)
 func (b *RequestBuilder) AddAssistantMessage(content string) *RequestBuilder {
 	if content != "" {
 		b.messages = append(b.messages, NewAssistantMessage(content))
@@ -88,7 +88,7 @@ func (b *RequestBuilder) AddAssistantMessage(content string) *RequestBuilder {
 	return b
 }
 
-// AddMessage 添加自定义角色的消息
+// AddMessage adds message with custom role
 func (b *RequestBuilder) AddMessage(role, content string) *RequestBuilder {
 	if content != "" {
 		b.messages = append(b.messages, NewMessage(role, content))
@@ -96,33 +96,33 @@ func (b *RequestBuilder) AddMessage(role, content string) *RequestBuilder {
 	return b
 }
 
-// AddMessages 批量添加消息
+// AddMessages adds messages in batch
 func (b *RequestBuilder) AddMessages(messages ...Message) *RequestBuilder {
 	b.messages = append(b.messages, messages...)
 	return b
 }
 
-// AddConversationHistory 添加对话历史
+// AddConversationHistory adds conversation history
 func (b *RequestBuilder) AddConversationHistory(history []Message) *RequestBuilder {
 	b.messages = append(b.messages, history...)
 	return b
 }
 
-// ClearMessages 清空所有消息
+// ClearMessages clears all messages
 func (b *RequestBuilder) ClearMessages() *RequestBuilder {
 	b.messages = make([]Message, 0)
 	return b
 }
 
 // ============================================================
-// 参数控制方法
+// Parameter Control Methods
 // ============================================================
 
-// WithTemperature 设置温度参数 (0-2)
-// 较高的温度（如 1.2）会使输出更随机，较低的温度（如 0.2）会使输出更确定
+// WithTemperature sets temperature parameter (0-2)
+// Higher temperature (e.g. 1.2) makes output more random, lower temperature (e.g. 0.2) makes output more deterministic
 func (b *RequestBuilder) WithTemperature(t float64) *RequestBuilder {
 	if t < 0 || t > 2 {
-		// 可以选择 panic 或者静默忽略，这里选择限制范围
+		// Can choose to panic or silently ignore, here we choose to limit the range
 		if t < 0 {
 			t = 0
 		}
@@ -134,7 +134,7 @@ func (b *RequestBuilder) WithTemperature(t float64) *RequestBuilder {
 	return b
 }
 
-// WithMaxTokens 设置最大 token 数
+// WithMaxTokens sets maximum token count
 func (b *RequestBuilder) WithMaxTokens(tokens int) *RequestBuilder {
 	if tokens > 0 {
 		b.maxTokens = &tokens
@@ -142,8 +142,8 @@ func (b *RequestBuilder) WithMaxTokens(tokens int) *RequestBuilder {
 	return b
 }
 
-// WithTopP 设置 top-p 核采样参数 (0-1)
-// 控制考虑的 token 范围，较小的值（如 0.1）使输出更聚焦
+// WithTopP sets top-p nucleus sampling parameter (0-1)
+// Controls the range of tokens considered, smaller values (e.g. 0.1) make output more focused
 func (b *RequestBuilder) WithTopP(p float64) *RequestBuilder {
 	if p >= 0 && p <= 1 {
 		b.topP = &p
@@ -151,8 +151,8 @@ func (b *RequestBuilder) WithTopP(p float64) *RequestBuilder {
 	return b
 }
 
-// WithFrequencyPenalty 设置频率惩罚 (-2 to 2)
-// 正值会根据 token 在文本中出现的频率惩罚它们，减少重复
+// WithFrequencyPenalty sets frequency penalty (-2 to 2)
+// Positive values penalize tokens based on their frequency in the text, reducing repetition
 func (b *RequestBuilder) WithFrequencyPenalty(penalty float64) *RequestBuilder {
 	if penalty >= -2 && penalty <= 2 {
 		b.frequencyPenalty = &penalty
@@ -160,8 +160,8 @@ func (b *RequestBuilder) WithFrequencyPenalty(penalty float64) *RequestBuilder {
 	return b
 }
 
-// WithPresencePenalty 设置存在惩罚 (-2 to 2)
-// 正值会根据 token 是否出现在文本中惩罚它们，增加话题多样性
+// WithPresencePenalty sets presence penalty (-2 to 2)
+// Positive values penalize tokens based on whether they appear in the text, increasing topic diversity
 func (b *RequestBuilder) WithPresencePenalty(penalty float64) *RequestBuilder {
 	if penalty >= -2 && penalty <= 2 {
 		b.presencePenalty = &penalty
@@ -169,14 +169,14 @@ func (b *RequestBuilder) WithPresencePenalty(penalty float64) *RequestBuilder {
 	return b
 }
 
-// WithStopSequences 设置停止序列
-// 当模型生成这些序列之一时，将停止生成
+// WithStopSequences sets stop sequences
+// Model will stop generating when it generates one of these sequences
 func (b *RequestBuilder) WithStopSequences(sequences []string) *RequestBuilder {
 	b.stop = sequences
 	return b
 }
 
-// AddStopSequence 添加单个停止序列
+// AddStopSequence adds a single stop sequence
 func (b *RequestBuilder) AddStopSequence(sequence string) *RequestBuilder {
 	if sequence != "" {
 		b.stop = append(b.stop, sequence)
@@ -185,16 +185,16 @@ func (b *RequestBuilder) AddStopSequence(sequence string) *RequestBuilder {
 }
 
 // ============================================================
-// 工具/函数调用相关
+// Tool/Function Calling Related
 // ============================================================
 
-// AddTool 添加工具
+// AddTool adds a tool
 func (b *RequestBuilder) AddTool(tool Tool) *RequestBuilder {
 	b.tools = append(b.tools, tool)
 	return b
 }
 
-// AddFunction 添加函数（便捷方法）
+// AddFunction adds a function (convenience method)
 func (b *RequestBuilder) AddFunction(name, description string, parameters map[string]any) *RequestBuilder {
 	tool := Tool{
 		Type: "function",
@@ -208,27 +208,27 @@ func (b *RequestBuilder) AddFunction(name, description string, parameters map[st
 	return b
 }
 
-// WithToolChoice 设置工具选择策略
-// - "auto": 自动选择是否调用工具
-// - "none": 不调用工具
-// - 也可以指定特定工具: `{"type": "function", "function": {"name": "my_function"}}`
+// WithToolChoice sets tool choice strategy
+// - "auto": automatically choose whether to call tools
+// - "none": don't call tools
+// - Can also specify a specific tool: `{"type": "function", "function": {"name": "my_function"}}`
 func (b *RequestBuilder) WithToolChoice(choice string) *RequestBuilder {
 	b.toolChoice = choice
 	return b
 }
 
 // ============================================================
-// 构建方法
+// Build Methods
 // ============================================================
 
-// Build 构建请求对象
+// Build builds request object
 func (b *RequestBuilder) Build() (*Request, error) {
-	// 验证：至少需要一条消息
+	// Validation: at least one message is required
 	if len(b.messages) == 0 {
-		return nil, errors.New("至少需要一条消息")
+		return nil, errors.New("at least one message is required")
 	}
 
-	// 创建请求
+	// Create request
 	req := &Request{
 		Model:      b.model,
 		Messages:   b.messages,
@@ -238,7 +238,7 @@ func (b *RequestBuilder) Build() (*Request, error) {
 		ToolChoice: b.toolChoice,
 	}
 
-	// 只设置非 nil 的可选参数（避免发送 0 值覆盖服务端默认值）
+	// Only set non-nil optional parameters (avoid sending 0 values that override server defaults)
 	if b.temperature != nil {
 		req.Temperature = b.temperature
 	}
@@ -258,8 +258,8 @@ func (b *RequestBuilder) Build() (*Request, error) {
 	return req, nil
 }
 
-// MustBuild 构建请求对象，如果失败则 panic
-// 适用于构建过程中确定不会出错的场景
+// MustBuild builds request object, panics if failed
+// Suitable for scenarios where build is guaranteed not to fail
 func (b *RequestBuilder) MustBuild() *Request {
 	req, err := b.Build()
 	if err != nil {
@@ -269,10 +269,10 @@ func (b *RequestBuilder) MustBuild() *Request {
 }
 
 // ============================================================
-// 便捷方法：预设场景
+// Convenience Methods: Preset Scenarios
 // ============================================================
 
-// ForChat 创建用于聊天的构建器（预设合理的参数）
+// ForChat creates builder for chat (preset with reasonable parameters)
 func ForChat() *RequestBuilder {
 	temp := 0.7
 	tokens := 2000
@@ -284,7 +284,7 @@ func ForChat() *RequestBuilder {
 	}
 }
 
-// ForCodeGeneration 创建用于代码生成的构建器（低温度，更确定）
+// ForCodeGeneration creates builder for code generation (low temperature, more deterministic)
 func ForCodeGeneration() *RequestBuilder {
 	temp := 0.2
 	tokens := 2000
@@ -298,7 +298,7 @@ func ForCodeGeneration() *RequestBuilder {
 	}
 }
 
-// ForCreativeWriting 创建用于创意写作的构建器（高温度，更随机）
+// ForCreativeWriting creates builder for creative writing (high temperature, more random)
 func ForCreativeWriting() *RequestBuilder {
 	temp := 1.2
 	tokens := 4000

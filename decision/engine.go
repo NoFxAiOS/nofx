@@ -13,22 +13,22 @@ import (
 	"time"
 )
 
-// 预编译正则表达式（性能优化：避免每次调用时重新编译）
+// Pre-compiled regular expressions (performance optimization: avoid recompiling on each call)
 var (
-	// ✅ 安全的正則：精確匹配 ```json 代碼塊
-	// 使用反引號 + 拼接避免轉義問題
+	// Safe regex: precisely match ```json code blocks
+	// Use backtick + concatenation to avoid escape issues
 	reJSONFence      = regexp.MustCompile(`(?is)` + "```json\\s*(\\[\\s*\\{.*?\\}\\s*\\])\\s*```")
 	reJSONArray      = regexp.MustCompile(`(?is)\[\s*\{.*?\}\s*\]`)
 	reArrayHead      = regexp.MustCompile(`^\[\s*\{`)
 	reArrayOpenSpace = regexp.MustCompile(`^\[\s+\{`)
 	reInvisibleRunes = regexp.MustCompile("[\u200B\u200C\u200D\uFEFF]")
 
-	// 新增：XML标签提取（支持思维链中包含任何字符）
+	// XML tag extraction (supports any characters in reasoning chain)
 	reReasoningTag = regexp.MustCompile(`(?s)<reasoning>(.*?)</reasoning>`)
 	reDecisionTag  = regexp.MustCompile(`(?s)<decision>(.*?)</decision>`)
 )
 
-// PositionInfo 持仓信息
+// PositionInfo position information
 type PositionInfo struct {
 	Symbol           string  `json:"symbol"`
 	Side             string  `json:"side"` // "long" or "short"
@@ -38,64 +38,64 @@ type PositionInfo struct {
 	Leverage         int     `json:"leverage"`
 	UnrealizedPnL    float64 `json:"unrealized_pnl"`
 	UnrealizedPnLPct float64 `json:"unrealized_pnl_pct"`
-	PeakPnLPct       float64 `json:"peak_pnl_pct"` // 历史最高收益率（百分比）
+	PeakPnLPct       float64 `json:"peak_pnl_pct"` // Historical peak profit percentage
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
-	UpdateTime       int64   `json:"update_time"` // 持仓更新时间戳（毫秒）
+	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
 }
 
-// AccountInfo 账户信息
+// AccountInfo account information
 type AccountInfo struct {
-	TotalEquity      float64 `json:"total_equity"`      // 账户净值
-	AvailableBalance float64 `json:"available_balance"` // 可用余额
-	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // 未实现盈亏
-	TotalPnL         float64 `json:"total_pnl"`         // 总盈亏
-	TotalPnLPct      float64 `json:"total_pnl_pct"`     // 总盈亏百分比
-	MarginUsed       float64 `json:"margin_used"`       // 已用保证金
-	MarginUsedPct    float64 `json:"margin_used_pct"`   // 保证金使用率
-	PositionCount    int     `json:"position_count"`    // 持仓数量
+	TotalEquity      float64 `json:"total_equity"`      // Account equity
+	AvailableBalance float64 `json:"available_balance"` // Available balance
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // Unrealized profit/loss
+	TotalPnL         float64 `json:"total_pnl"`         // Total profit/loss
+	TotalPnLPct      float64 `json:"total_pnl_pct"`     // Total profit/loss percentage
+	MarginUsed       float64 `json:"margin_used"`       // Used margin
+	MarginUsedPct    float64 `json:"margin_used_pct"`   // Margin usage rate
+	PositionCount    int     `json:"position_count"`    // Number of positions
 }
 
-// CandidateCoin 候选币种（来自币种池）
+// CandidateCoin candidate coin (from coin pool)
 type CandidateCoin struct {
 	Symbol  string   `json:"symbol"`
-	Sources []string `json:"sources"` // 来源: "ai500" 和/或 "oi_top"
+	Sources []string `json:"sources"` // Sources: "ai500" and/or "oi_top"
 }
 
-// OITopData 持仓量增长Top数据（用于AI决策参考）
+// OITopData open interest growth top data (for AI decision reference)
 type OITopData struct {
-	Rank              int     // OI Top排名
-	OIDeltaPercent    float64 // 持仓量变化百分比（1小时）
-	OIDeltaValue      float64 // 持仓量变化价值
-	PriceDeltaPercent float64 // 价格变化百分比
-	NetLong           float64 // 净多仓
-	NetShort          float64 // 净空仓
+	Rank              int     // OI Top ranking
+	OIDeltaPercent    float64 // Open interest change percentage (1 hour)
+	OIDeltaValue      float64 // Open interest change value
+	PriceDeltaPercent float64 // Price change percentage
+	NetLong           float64 // Net long positions
+	NetShort          float64 // Net short positions
 }
 
-// TradingStats 交易统计（用于AI输入）
+// TradingStats trading statistics (for AI input)
 type TradingStats struct {
-	TotalTrades    int     `json:"total_trades"`     // 总交易数（已平仓）
-	WinRate        float64 `json:"win_rate"`         // 胜率 (%)
-	ProfitFactor   float64 `json:"profit_factor"`    // 盈亏比
-	SharpeRatio    float64 `json:"sharpe_ratio"`     // 夏普比
-	TotalPnL       float64 `json:"total_pnl"`        // 总盈亏
-	AvgWin         float64 `json:"avg_win"`          // 平均盈利
-	AvgLoss        float64 `json:"avg_loss"`         // 平均亏损
-	MaxDrawdownPct float64 `json:"max_drawdown_pct"` // 最大回撤 (%)
+	TotalTrades    int     `json:"total_trades"`     // Total number of trades (closed)
+	WinRate        float64 `json:"win_rate"`         // Win rate (%)
+	ProfitFactor   float64 `json:"profit_factor"`    // Profit factor
+	SharpeRatio    float64 `json:"sharpe_ratio"`     // Sharpe ratio
+	TotalPnL       float64 `json:"total_pnl"`        // Total profit/loss
+	AvgWin         float64 `json:"avg_win"`          // Average win
+	AvgLoss        float64 `json:"avg_loss"`         // Average loss
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"` // Maximum drawdown (%)
 }
 
-// RecentOrder 最近完成的订单（用于AI输入）
+// RecentOrder recently completed order (for AI input)
 type RecentOrder struct {
-	Symbol      string  `json:"symbol"`       // 交易对
+	Symbol      string  `json:"symbol"`       // Trading pair
 	Side        string  `json:"side"`         // long/short
-	EntryPrice  float64 `json:"entry_price"`  // 开仓价
-	ExitPrice   float64 `json:"exit_price"`   // 平仓价
-	RealizedPnL float64 `json:"realized_pnl"` // 已实现盈亏
-	PnLPct      float64 `json:"pnl_pct"`      // 盈亏百分比
-	FilledAt    string  `json:"filled_at"`    // 成交时间
+	EntryPrice  float64 `json:"entry_price"`  // Entry price
+	ExitPrice   float64 `json:"exit_price"`   // Exit price
+	RealizedPnL float64 `json:"realized_pnl"` // Realized profit/loss
+	PnLPct      float64 `json:"pnl_pct"`      // Profit/loss percentage
+	FilledAt    string  `json:"filled_at"`    // Fill time
 }
 
-// Context 交易上下文（传递给AI的完整信息）
+// Context trading context (complete information passed to AI)
 type Context struct {
 	CurrentTime     string                             `json:"current_time"`
 	RuntimeMinutes  int                                `json:"runtime_minutes"`
@@ -104,71 +104,71 @@ type Context struct {
 	Positions       []PositionInfo                     `json:"positions"`
 	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
 	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`  // 交易统计指标
-	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`  // 最近完成的订单（10条）
-	MarketDataMap   map[string]*market.Data            `json:"-"`                        // 不序列化，但内部使用
+	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`  // Trading statistics
+	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`  // Recently completed orders (10)
+	MarketDataMap   map[string]*market.Data            `json:"-"`                        // Not serialized, but used internally
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
-	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top数据映射
-	QuantDataMap    map[string]*QuantData              `json:"-"` // 量化数据映射（资金流向、持仓变化）
-	BTCETHLeverage  int                                `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
-	AltcoinLeverage int                                `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top data mapping
+	QuantDataMap    map[string]*QuantData              `json:"-"` // Quantitative data mapping (fund flow, position changes)
+	BTCETHLeverage  int                                `json:"-"` // BTC/ETH leverage multiplier (read from config)
+	AltcoinLeverage int                                `json:"-"` // Altcoin leverage multiplier (read from config)
 }
 
-// Decision AI的交易决策
+// Decision AI trading decision
 type Decision struct {
 	Symbol string `json:"symbol"`
 	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
 
-	// 开仓参数
+	// Opening position parameters
 	Leverage        int     `json:"leverage,omitempty"`
 	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
 	StopLoss        float64 `json:"stop_loss,omitempty"`
 	TakeProfit      float64 `json:"take_profit,omitempty"`
 
-	// 通用参数
-	Confidence int     `json:"confidence,omitempty"` // 信心度 (0-100)
-	RiskUSD    float64 `json:"risk_usd,omitempty"`   // 最大美元风险
+	// Common parameters
+	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
+	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
 	Reasoning  string  `json:"reasoning"`
 }
 
-// FullDecision AI的完整决策（包含思维链）
+// FullDecision AI's complete decision (including chain of thought)
 type FullDecision struct {
-	SystemPrompt string     `json:"system_prompt"` // 系统提示词（发送给AI的系统prompt）
-	UserPrompt   string     `json:"user_prompt"`   // 发送给AI的输入prompt
-	CoTTrace     string     `json:"cot_trace"`     // 思维链分析（AI输出）
-	Decisions    []Decision `json:"decisions"`     // 具体决策列表
+	SystemPrompt string     `json:"system_prompt"` // System prompt (system prompt sent to AI)
+	UserPrompt   string     `json:"user_prompt"`   // Input prompt sent to AI
+	CoTTrace     string     `json:"cot_trace"`     // Chain of thought analysis (AI output)
+	Decisions    []Decision `json:"decisions"`     // Specific decision list
 	Timestamp    time.Time  `json:"timestamp"`
-	// AIRequestDurationMs 记录 AI API 调用耗时（毫秒）方便排查延迟问题
+	// AIRequestDurationMs records AI API call duration (milliseconds) for troubleshooting latency issues
 	AIRequestDurationMs int64 `json:"ai_request_duration_ms,omitempty"`
 }
 
-// GetFullDecision 获取AI的完整交易决策（批量分析所有币种和持仓）
+// GetFullDecision gets AI's complete trading decision (batch analysis of all coins and positions)
 func GetFullDecision(ctx *Context, mcpClient mcp.AIClient) (*FullDecision, error) {
 	return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
 }
 
-// GetFullDecisionWithStrategy 使用 StrategyEngine 获取AI决策（新版：策略驱动）
-// 关键：使用策略配置的时间周期来获取市场数据，与 api/strategy.go 的测试运行逻辑保持一致
+// GetFullDecisionWithStrategy uses StrategyEngine to get AI decision (new version: strategy-driven)
+// Key: uses strategy-configured timeframes to fetch market data, consistent with api/strategy.go test run logic
 func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *StrategyEngine, variant string) (*FullDecision, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context is nil")
 	}
 	if engine == nil {
-		// 如果没有策略引擎，回退到默认行为
+		// If no strategy engine, fallback to default behavior
 		return GetFullDecisionWithCustomPrompt(ctx, mcpClient, "", false, "")
 	}
 
-	// 1. 使用策略配置获取市场数据（关键：使用多时间周期）
+	// 1. Fetch market data using strategy config (key: use multiple timeframes)
 	if len(ctx.MarketDataMap) == 0 {
 		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {
-			return nil, fmt.Errorf("获取市场数据失败: %w", err)
+			return nil, fmt.Errorf("failed to fetch market data: %w", err)
 		}
 	}
 
-	// 确保 OITopDataMap 已初始化
+	// Ensure OITopDataMap is initialized
 	if ctx.OITopDataMap == nil {
 		ctx.OITopDataMap = make(map[string]*OITopData)
-		// 加载 OI Top 数据
+		// Load OI Top data
 		oiPositions, err := pool.GetOITopPositions()
 		if err == nil {
 			for _, pos := range oiPositions {
@@ -184,22 +184,22 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		}
 	}
 
-	// 2. 使用策略引擎构建 System Prompt
+	// 2. Build System Prompt using strategy engine
 	riskConfig := engine.GetRiskControlConfig()
 	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant)
 
-	// 3. 使用策略引擎构建 User Prompt（包含多周期数据）
+	// 3. Build User Prompt using strategy engine (including multi-timeframe data)
 	userPrompt := engine.BuildUserPrompt(ctx)
 
-	// 4. 调用AI API
+	// 4. Call AI API
 	aiCallStart := time.Now()
 	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	aiCallDuration := time.Since(aiCallStart)
 	if err != nil {
-		return nil, fmt.Errorf("调用AI API失败: %w", err)
+		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
 
-	// 5. 解析AI响应
+	// 5. Parse AI response
 	decision, err := parseFullDecisionResponse(
 		aiResponse,
 		ctx.Account.TotalEquity,
@@ -215,24 +215,24 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 
 	if err != nil {
-		return decision, fmt.Errorf("解析AI响应失败: %w", err)
+		return decision, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
 	return decision, nil
 }
 
-// fetchMarketDataWithStrategy 使用策略配置获取市场数据（多时间周期）
-// 完全按照 api/strategy.go handleStrategyTestRun 的逻辑实现
+// fetchMarketDataWithStrategy fetches market data using strategy config (multiple timeframes)
+// Fully implemented according to api/strategy.go handleStrategyTestRun logic
 func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	config := engine.GetConfig()
 	ctx.MarketDataMap = make(map[string]*market.Data)
 
-	// 获取时间周期配置（与 api/strategy.go 逻辑完全一致）
+	// Get timeframe configuration (fully consistent with api/strategy.go logic)
 	timeframes := config.Indicators.Klines.SelectedTimeframes
 	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
 	klineCount := config.Indicators.Klines.PrimaryCount
 
-	// 兼容旧配置
+	// Compatible with old configuration
 	if len(timeframes) == 0 {
 		if primaryTimeframe != "" {
 			timeframes = append(timeframes, primaryTimeframe)
@@ -250,49 +250,49 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		klineCount = 30
 	}
 
-	logger.Infof("📊 策略时间周期: %v, 主周期: %s, K线数量: %d", timeframes, primaryTimeframe, klineCount)
+	logger.Infof("📊 Strategy timeframes: %v, Primary: %s, Kline count: %d", timeframes, primaryTimeframe, klineCount)
 
-	// 1. 先获取持仓币种的数据（必须获取）
+	// 1. First fetch data for position coins (must fetch)
 	for _, pos := range ctx.Positions {
 		data, err := market.GetWithTimeframes(pos.Symbol, timeframes, primaryTimeframe, klineCount)
 		if err != nil {
-			logger.Infof("⚠️  获取持仓 %s 市场数据失败: %v", pos.Symbol, err)
+			logger.Infof("⚠️  Failed to fetch market data for position %s: %v", pos.Symbol, err)
 			continue
 		}
 		ctx.MarketDataMap[pos.Symbol] = data
 	}
 
-	// 2. 获取所有候选币种的数据（与 api/strategy.go 完全一致，不做数量限制）
-	// 持仓币种集合（用于判断是否跳过OI检查）
+	// 2. Fetch data for all candidate coins (fully consistent with api/strategy.go, no quantity limit)
+	// Position coin set (used to determine whether to skip OI check)
 	positionSymbols := make(map[string]bool)
 	for _, pos := range ctx.Positions {
 		positionSymbols[pos.Symbol] = true
 	}
 
-	// OI 流动性过滤阈值（百万美元）
-	const minOIThresholdMillions = 15.0 // 15M USD 最小持仓价值
+	// OI liquidity filter threshold (million USD)
+	const minOIThresholdMillions = 15.0 // 15M USD minimum open interest value
 
 	for _, coin := range ctx.CandidateCoins {
-		// 跳过已获取的持仓币种
+		// Skip already fetched position coins
 		if _, exists := ctx.MarketDataMap[coin.Symbol]; exists {
 			continue
 		}
 
 		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
 		if err != nil {
-			logger.Infof("⚠️  获取 %s 市场数据失败: %v", coin.Symbol, err)
+			logger.Infof("⚠️  Failed to fetch market data for %s: %v", coin.Symbol, err)
 			continue
 		}
 
-		// ⚠️ 流动性过滤：持仓价值低于阈值的币种不做（多空都不做）
-		// 但现有持仓必须保留（需要决策是否平仓）
+		// Liquidity filter: skip coins with OI value below threshold (both long and short)
+		// But existing positions must be retained (need to decide whether to close)
 		isExistingPosition := positionSymbols[coin.Symbol]
 		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
-			// 计算持仓价值（USD）= 持仓量 × 当前价格
+			// Calculate OI value (USD) = OI quantity × current price
 			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000 // 转换为百万美元单位
+			oiValueInMillions := oiValue / 1_000_000 // Convert to million USD
 			if oiValueInMillions < minOIThresholdMillions {
-				logger.Infof("⚠️  %s 持仓价值过低(%.2fM USD < %.1fM)，跳过此币种 [持仓量:%.0f × 价格:%.4f]",
+				logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin [OI:%.0f × Price:%.4f]",
 					coin.Symbol, oiValueInMillions, minOIThresholdMillions, data.OpenInterest.Latest, data.CurrentPrice)
 				continue
 			}
@@ -301,27 +301,27 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		ctx.MarketDataMap[coin.Symbol] = data
 	}
 
-	logger.Infof("📊 成功获取 %d 个币种的多时间周期市场数据（已过滤低流动性币种）", len(ctx.MarketDataMap))
+	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins (low liquidity coins filtered)", len(ctx.MarketDataMap))
 	return nil
 }
 
-// GetFullDecisionWithCustomPrompt 获取AI的完整交易决策（支持自定义prompt和模板选择）
+// GetFullDecisionWithCustomPrompt gets AI's complete trading decision (supports custom prompt and template selection)
 func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, customPrompt string, overrideBase bool, templateName string) (*FullDecision, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context is nil")
 	}
 
-	// 1. 为所有币种获取市场数据（若上层已提供，则无需重复拉取）
+	// 1. Fetch market data for all coins (if already provided by upper layer, no need to re-fetch)
 	if len(ctx.MarketDataMap) == 0 {
 		if err := fetchMarketDataForContext(ctx); err != nil {
-			return nil, fmt.Errorf("获取市场数据失败: %w", err)
+			return nil, fmt.Errorf("failed to fetch market data: %w", err)
 		}
 	} else if ctx.OITopDataMap == nil {
-		// 确保 OI 数据映射已初始化，避免后续访问空指针
+		// Ensure OI data mapping is initialized to avoid null pointer access later
 		ctx.OITopDataMap = make(map[string]*OITopData)
 	}
 
-	// 2. 构建 System Prompt（固定规则）和 User Prompt（动态数据）
+	// 2. Build System Prompt (fixed rules) and User Prompt (dynamic data)
 	systemPrompt := buildSystemPromptWithCustom(
 		ctx.Account.TotalEquity,
 		ctx.BTCETHLeverage,
@@ -333,49 +333,49 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, custo
 	)
 	userPrompt := buildUserPrompt(ctx)
 
-	// 3. 调用AI API（使用 system + user prompt）
+	// 3. Call AI API (using system + user prompt)
 	aiCallStart := time.Now()
 	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	aiCallDuration := time.Since(aiCallStart)
 	if err != nil {
-		return nil, fmt.Errorf("调用AI API失败: %w", err)
+		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
 
-	// 4. 解析AI响应
+	// 4. Parse AI response
 	decision, err := parseFullDecisionResponse(aiResponse, ctx.Account.TotalEquity, ctx.BTCETHLeverage, ctx.AltcoinLeverage)
 
-	// 无论是否有错误，都要保存 SystemPrompt 和 UserPrompt（用于调试和决策未执行后的问题定位）
+	// Save SystemPrompt and UserPrompt regardless of error (for debugging and troubleshooting unexecuted decisions)
 	if decision != nil {
 		decision.Timestamp = time.Now()
-		decision.SystemPrompt = systemPrompt // 保存系统prompt
-		decision.UserPrompt = userPrompt     // 保存输入prompt
+		decision.SystemPrompt = systemPrompt // Save system prompt
+		decision.UserPrompt = userPrompt     // Save input prompt
 		decision.AIRequestDurationMs = aiCallDuration.Milliseconds()
 	}
 
 	if err != nil {
-		return decision, fmt.Errorf("解析AI响应失败: %w", err)
+		return decision, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
 	decision.Timestamp = time.Now()
-	decision.SystemPrompt = systemPrompt // 保存系统prompt
-	decision.UserPrompt = userPrompt     // 保存输入prompt
+	decision.SystemPrompt = systemPrompt // Save system prompt
+	decision.UserPrompt = userPrompt     // Save input prompt
 	return decision, nil
 }
 
-// fetchMarketDataForContext 为上下文中的所有币种获取市场数据和OI数据
+// fetchMarketDataForContext fetches market data and OI data for all coins in context
 func fetchMarketDataForContext(ctx *Context) error {
 	ctx.MarketDataMap = make(map[string]*market.Data)
 	ctx.OITopDataMap = make(map[string]*OITopData)
 
-	// 收集所有需要获取数据的币种
+	// Collect all symbols that need data
 	symbolSet := make(map[string]bool)
 
-	// 1. 优先获取持仓币种的数据（这是必须的）
+	// 1. Prioritize fetching position coin data (this is required)
 	for _, pos := range ctx.Positions {
 		symbolSet[pos.Symbol] = true
 	}
 
-	// 2. 候选币种数量根据账户状态动态调整
+	// 2. Candidate coin count dynamically adjusted based on account status
 	maxCandidates := calculateMaxCandidates(ctx)
 	for i, coin := range ctx.CandidateCoins {
 		if i >= maxCandidates {
@@ -384,8 +384,8 @@ func fetchMarketDataForContext(ctx *Context) error {
 		symbolSet[coin.Symbol] = true
 	}
 
-	// 并发获取市场数据
-	// 持仓币种集合（用于判断是否跳过OI检查）
+	// Fetch market data concurrently
+	// Position coin set (used to determine whether to skip OI check)
 	positionSymbols := make(map[string]bool)
 	for _, pos := range ctx.Positions {
 		positionSymbols[pos.Symbol] = true
@@ -394,23 +394,23 @@ func fetchMarketDataForContext(ctx *Context) error {
 	for symbol := range symbolSet {
 		data, err := market.Get(symbol)
 		if err != nil {
-			// 单个币种失败不影响整体，只记录错误
+			// Single coin failure doesn't affect overall, just log error
 			continue
 		}
 
-		// ⚠️ 流动性过滤：持仓价值低于阈值的币种不做（多空都不做）
-		// 持仓价值 = 持仓量 × 当前价格
-		// 但现有持仓必须保留（需要决策是否平仓）
-		// 💡 OI 門檻配置：用戶可根據風險偏好調整
-		const minOIThresholdMillions = 15.0 // 可調整：15M(保守) / 10M(平衡) / 8M(寬鬆) / 5M(激進)
+		// Liquidity filter: skip coins with OI value below threshold (both long and short)
+		// OI value = OI quantity × current price
+		// But existing positions must be retained (need to decide whether to close)
+		// OI threshold configuration: users can adjust based on risk preference
+		const minOIThresholdMillions = 15.0 // Adjustable: 15M(conservative) / 10M(balanced) / 8M(loose) / 5M(aggressive)
 
 		isExistingPosition := positionSymbols[symbol]
 		if !isExistingPosition && data.OpenInterest != nil && data.CurrentPrice > 0 {
-			// 计算持仓价值（USD）= 持仓量 × 当前价格
+			// Calculate OI value (USD) = OI quantity × current price
 			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000 // 转换为百万美元单位
+			oiValueInMillions := oiValue / 1_000_000 // Convert to million USD
 			if oiValueInMillions < minOIThresholdMillions {
-				logger.Infof("⚠️  %s 持仓价值过低(%.2fM USD < %.1fM)，跳过此币种 [持仓量:%.0f × 价格:%.4f]",
+				logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin [OI:%.0f × Price:%.4f]",
 					symbol, oiValueInMillions, minOIThresholdMillions, data.OpenInterest.Latest, data.CurrentPrice)
 				continue
 			}
@@ -419,11 +419,11 @@ func fetchMarketDataForContext(ctx *Context) error {
 		ctx.MarketDataMap[symbol] = data
 	}
 
-	// 加载OI Top数据（不影响主流程）
+	// Load OI Top data (doesn't affect main flow)
 	oiPositions, err := pool.GetOITopPositions()
 	if err == nil {
 		for _, pos := range oiPositions {
-			// 标准化符号匹配
+			// Normalize symbol matching
 			symbol := pos.Symbol
 			ctx.OITopDataMap[symbol] = &OITopData{
 				Rank:              pos.Rank,
@@ -439,15 +439,15 @@ func fetchMarketDataForContext(ctx *Context) error {
 	return nil
 }
 
-// calculateMaxCandidates 根据账户状态计算需要分析的候选币种数量
+// calculateMaxCandidates calculates the number of candidate coins to analyze based on account status
 func calculateMaxCandidates(ctx *Context) int {
-	// ⚠️ 重要：限制候选币种数量，避免 Prompt 过大
-	// 根据持仓数量动态调整：持仓越少，可以分析更多候选币
+	// Important: limit candidate coin count to avoid prompt being too large
+	// Dynamically adjust based on position count: fewer positions allow analyzing more candidates
 	const (
-		maxCandidatesWhenEmpty    = 30 // 无持仓时最多分析30个候选币
-		maxCandidatesWhenHolding1 = 25 // 持仓1个时最多分析25个候选币
-		maxCandidatesWhenHolding2 = 20 // 持仓2个时最多分析20个候选币
-		maxCandidatesWhenHolding3 = 15 // 持仓3个时最多分析15个候选币（避免 Prompt 过大）
+		maxCandidatesWhenEmpty    = 30 // Max 30 candidates when no positions
+		maxCandidatesWhenHolding1 = 25 // Max 25 candidates when holding 1 position
+		maxCandidatesWhenHolding2 = 20 // Max 20 candidates when holding 2 positions
+		maxCandidatesWhenHolding3 = 15 // Max 15 candidates when holding 3 positions (avoid prompt being too large)
 	)
 
 	positionCount := len(ctx.Positions)
@@ -460,59 +460,59 @@ func calculateMaxCandidates(ctx *Context) int {
 		maxCandidates = maxCandidatesWhenHolding1
 	case 2:
 		maxCandidates = maxCandidatesWhenHolding2
-	default: // 3+ 持仓
+	default: // 3+ positions
 		maxCandidates = maxCandidatesWhenHolding3
 	}
 
-	// 返回实际候选币数量和上限中的较小值
+	// Return the smaller value between actual candidate count and max limit
 	return min(len(ctx.CandidateCoins), maxCandidates)
 }
 
-// buildSystemPromptWithCustom 构建包含自定义内容的 System Prompt
+// buildSystemPromptWithCustom builds System Prompt with custom content
 func buildSystemPromptWithCustom(accountEquity float64, btcEthLeverage, altcoinLeverage int, customPrompt string, overrideBase bool, templateName string, variant string) string {
-	// 如果覆盖基础prompt且有自定义prompt，只使用自定义prompt
+	// If override base prompt and has custom prompt, only use custom prompt
 	if overrideBase && customPrompt != "" {
 		return customPrompt
 	}
 
-	// 获取基础prompt（使用指定的模板）
+	// Get base prompt (using specified template)
 	basePrompt := buildSystemPrompt(accountEquity, btcEthLeverage, altcoinLeverage, templateName, variant)
 
-	// 如果没有自定义prompt，直接返回基础prompt
+	// If no custom prompt, directly return base prompt
 	if customPrompt == "" {
 		return basePrompt
 	}
 
-	// 添加自定义prompt部分到基础prompt
+	// Add custom prompt section to base prompt
 	var sb strings.Builder
 	sb.WriteString(basePrompt)
 	sb.WriteString("\n\n")
-	sb.WriteString("# 📌 个性化交易策略\n\n")
+	sb.WriteString("# 📌 Personalized Trading Strategy\n\n")
 	sb.WriteString(customPrompt)
 	sb.WriteString("\n\n")
-	sb.WriteString("注意: 以上个性化策略是对基础规则的补充，不能违背基础风险控制原则。\n")
+	sb.WriteString("Note: The above personalized strategy is a supplement to basic rules and cannot violate basic risk control principles.\n")
 
 	return sb.String()
 }
 
-// buildSystemPrompt 构建 System Prompt（使用模板+动态部分）
+// buildSystemPrompt builds System Prompt (using template + dynamic parts)
 func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage int, templateName string, variant string) string {
 	var sb strings.Builder
 
-	// 1. 加载提示词模板（核心交易策略部分）
+	// 1. Load prompt template (core trading strategy part)
 	if templateName == "" {
-		templateName = "default" // 默认使用 default 模板
+		templateName = "default" // Default to using default template
 	}
 
 	template, err := GetPromptTemplate(templateName)
 	if err != nil {
-		// 如果模板不存在，记录错误并使用 default
-		logger.Infof("⚠️  提示词模板 '%s' 不存在，使用 default: %v", templateName, err)
+		// If template doesn't exist, log error and use default
+		logger.Infof("⚠️  Prompt template '%s' doesn't exist, using default: %v", templateName, err)
 		template, err = GetPromptTemplate("default")
 		if err != nil {
-			// 如果连 default 都不存在，使用内置的简化版本
-			logger.Infof("❌ 无法加载任何提示词模板，使用内置简化版本")
-			sb.WriteString("你是专业的加密货币交易AI。请根据市场数据做出交易决策。\n\n")
+			// If even default doesn't exist, use built-in simplified version
+			logger.Infof("❌ Cannot load any prompt template, using built-in simplified version")
+			sb.WriteString("You are a professional cryptocurrency trading AI. Please make trading decisions based on market data.\n\n")
 		} else {
 			sb.WriteString(template.Content)
 			sb.WriteString("\n\n")
@@ -522,87 +522,87 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		sb.WriteString("\n\n")
 	}
 
-	// 2. 交易模式变体
+	// 2. Trading mode variants
 	switch strings.ToLower(strings.TrimSpace(variant)) {
 	case "aggressive":
-		sb.WriteString("## 模式：Aggressive（进攻型）\n- 优先捕捉趋势突破，可在信心度≥70时分批建仓\n- 允许更高仓位，但须严格设置止损并说明盈亏比\n\n")
+		sb.WriteString("## Mode: Aggressive\n- Prioritize capturing trend breakouts, can build positions in batches when confidence ≥70\n- Allow higher positions, but must strictly set stop loss and explain profit/loss ratio\n\n")
 	case "conservative":
-		sb.WriteString("## 模式：Conservative（稳健型）\n- 仅在多重信号共振时开仓\n- 优先保留现金，连续亏损必须暂停多个周期\n\n")
+		sb.WriteString("## Mode: Conservative\n- Only open positions when multiple signals resonate\n- Prioritize holding cash, must pause for multiple periods after consecutive losses\n\n")
 	case "scalping":
-		sb.WriteString("## 模式：Scalping（剥头皮）\n- 聚焦短周期动量，目标收益较小但要求迅速\n- 若价格两根bar内未按预期运行，立即减仓或止损\n\n")
+		sb.WriteString("## Mode: Scalping\n- Focus on short-term momentum, target smaller profits but require swift action\n- If price doesn't move as expected within two bars, immediately reduce position or stop loss\n\n")
 	}
 
-	// 3. 硬约束（风险控制）
-	sb.WriteString("# 硬约束（风险控制）\n\n")
-	sb.WriteString("1. 风险回报比: 必须 ≥ 1:3（冒1%风险，赚3%+收益）\n")
-	sb.WriteString("2. 最多持仓: 3个币种（质量>数量）\n")
-	sb.WriteString(fmt.Sprintf("3. 单币仓位: 山寨%.0f-%.0f U | BTC/ETH %.0f-%.0f U\n",
+	// 3. Hard constraints (risk control)
+	sb.WriteString("# Hard Constraints (Risk Control)\n\n")
+	sb.WriteString("1. Risk/reward ratio: Must be ≥ 1:3 (risk 1% to earn 3%+ profit)\n")
+	sb.WriteString("2. Max positions: 3 coins (quality > quantity)\n")
+	sb.WriteString(fmt.Sprintf("3. Single coin position: Altcoins %.0f-%.0f U | BTC/ETH %.0f-%.0f U\n",
 		accountEquity*0.8, accountEquity*1.5, accountEquity*5, accountEquity*10))
-	sb.WriteString(fmt.Sprintf("4. 杠杆限制: **山寨币最大%dx杠杆** | **BTC/ETH最大%dx杠杆**\n", altcoinLeverage, btcEthLeverage))
-	sb.WriteString("5. 保证金使用率 ≤ 90%\n")
-	sb.WriteString("6. 开仓金额: 建议 ≥12 USDT（交易所最小名义价值10 USDT + 安全边际）\n\n")
+	sb.WriteString(fmt.Sprintf("4. Leverage limit: **Altcoins max %dx leverage** | **BTC/ETH max %dx leverage**\n", altcoinLeverage, btcEthLeverage))
+	sb.WriteString("5. Margin usage rate ≤ 90%%\n")
+	sb.WriteString("6. Opening amount: Recommended ≥12 USDT (exchange minimum notional value 10 USDT + safety margin)\n\n")
 
-	// 4. 交易频率与信号质量
-	sb.WriteString("# ⏱️ 交易频率认知\n\n")
-	sb.WriteString("- 优秀交易员：每天2-4笔 ≈ 每小时0.1-0.2笔\n")
-	sb.WriteString("- 每小时>2笔 = 过度交易\n")
-	sb.WriteString("- 单笔持仓时间≥30-60分钟\n")
-	sb.WriteString("如果你发现自己每个周期都在交易 → 标准过低；若持仓<30分钟就平仓 → 过于急躁。\n\n")
+	// 4. Trading frequency and signal quality
+	sb.WriteString("# ⏱️ Trading Frequency Awareness\n\n")
+	sb.WriteString("- Excellent traders: 2-4 trades/day ≈ 0.1-0.2 trades/hour\n")
+	sb.WriteString("- >2 trades/hour = overtrading\n")
+	sb.WriteString("- Single position holding time ≥30-60 minutes\n")
+	sb.WriteString("If you find yourself trading every period → standards too low; if closing position <30 minutes → too impatient.\n\n")
 
-	sb.WriteString("# 🎯 开仓标准（严格）\n\n")
-	sb.WriteString("只在多重信号共振时开仓。你拥有：\n")
-	sb.WriteString("- 3分钟价格序列 + 4小时K线序列\n")
-	sb.WriteString("- EMA20 / MACD / RSI7 / RSI14 等指标序列\n")
-	sb.WriteString("- 成交量、持仓量(OI)、资金费率等资金面序列\n")
-	sb.WriteString("- AI500 / OI_Top 筛选标签（若有）\n\n")
-	sb.WriteString("自由运用任何有效的分析方法，但**信心度 ≥75** 才能开仓；避免单一指标、信号矛盾、横盘震荡、刚平仓即重启等低质量行为。\n\n")
+	sb.WriteString("# 🎯 Opening Standards (Strict)\n\n")
+	sb.WriteString("Only open positions when multiple signals resonate. You have:\n")
+	sb.WriteString("- 3-minute price series + 4-hour K-line series\n")
+	sb.WriteString("- EMA20 / MACD / RSI7 / RSI14 indicator series\n")
+	sb.WriteString("- Volume, open interest (OI), funding rate and other fund flow series\n")
+	sb.WriteString("- AI500 / OI_Top screening tags (if any)\n\n")
+	sb.WriteString("Freely use any effective analysis method, but **confidence ≥75** required to open positions; avoid low-quality behaviors such as single indicators, contradictory signals, sideways consolidation, reopening immediately after closing, etc.\n\n")
 
-	// 5. 决策流程提示
-	sb.WriteString("# 📋 决策流程\n\n")
-	sb.WriteString("1. 检查持仓 → 是否该止盈/止损\n")
-	sb.WriteString("2. 扫描候选币 + 多时间框 → 是否存在强信号\n")
-	sb.WriteString("3. 先写思维链，再输出结构化JSON\n\n")
+	// 5. Decision process tips
+	sb.WriteString("# 📋 Decision Process\n\n")
+	sb.WriteString("1. Check positions → Should take profit/stop loss?\n")
+	sb.WriteString("2. Scan candidate coins + multi-timeframe → Any strong signals?\n")
+	sb.WriteString("3. Write reasoning chain first, then output structured JSON\n\n")
 
-	// 7. 输出格式 - 动态生成
-	sb.WriteString("# 输出格式 (严格遵守)\n\n")
-	sb.WriteString("**必须使用XML标签 <reasoning> 和 <decision> 标签分隔思维链和决策JSON，避免解析错误**\n\n")
-	sb.WriteString("## 格式要求\n\n")
+	// 7. Output format - dynamically generated
+	sb.WriteString("# Output Format (Strictly Follow)\n\n")
+	sb.WriteString("**Must use XML tags <reasoning> and <decision> to separate reasoning chain and decision JSON, avoid parsing errors**\n\n")
+	sb.WriteString("## Format Requirements\n\n")
 	sb.WriteString("<reasoning>\n")
-	sb.WriteString("你的思维链分析...\n")
-	sb.WriteString("- 简洁分析你的思考过程 \n")
+	sb.WriteString("Your reasoning chain analysis...\n")
+	sb.WriteString("- Concisely analyze your thought process \n")
 	sb.WriteString("</reasoning>\n\n")
 	sb.WriteString("<decision>\n")
-	sb.WriteString("第二步: JSON决策数组\n\n")
+	sb.WriteString("Step 2: JSON decision array\n\n")
 	sb.WriteString("```json\n[\n")
 	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n", btcEthLeverage, accountEquity*5))
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
-	sb.WriteString("## 字段说明\n\n")
+	sb.WriteString("## Field Descriptions\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
-	sb.WriteString("- `confidence`: 0-100（开仓建议≥75）\n")
-	sb.WriteString("- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n\n")
+	sb.WriteString("- `confidence`: 0-100 (opening recommended ≥75)\n")
+	sb.WriteString("- Required for opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n\n")
 
 	return sb.String()
 }
 
-// buildUserPrompt 构建 User Prompt（动态数据）
+// buildUserPrompt builds User Prompt (dynamic data)
 func buildUserPrompt(ctx *Context) string {
 	var sb strings.Builder
 
-	// 系统状态
-	sb.WriteString(fmt.Sprintf("时间: %s | 周期: #%d | 运行: %d分钟\n\n",
+	// System status
+	sb.WriteString(fmt.Sprintf("Time: %s | Period: #%d | Runtime: %d minutes\n\n",
 		ctx.CurrentTime, ctx.CallCount, ctx.RuntimeMinutes))
 
-	// BTC 市场
+	// BTC market
 	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
 		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
 			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
 			btcData.CurrentMACD, btcData.CurrentRSI7))
 	}
 
-	// 账户
-	sb.WriteString(fmt.Sprintf("账户: 净值%.2f | 余额%.2f (%.1f%%) | 盈亏%+.2f%% | 保证金%.1f%% | 持仓%d个\n\n",
+	// Account
+	sb.WriteString(fmt.Sprintf("Account: Equity %.2f | Balance %.2f (%.1f%%) | PnL %+.2f%% | Margin %.1f%% | Positions %d\n\n",
 		ctx.Account.TotalEquity,
 		ctx.Account.AvailableBalance,
 		(ctx.Account.AvailableBalance/ctx.Account.TotalEquity)*100,
@@ -610,66 +610,66 @@ func buildUserPrompt(ctx *Context) string {
 		ctx.Account.MarginUsedPct,
 		ctx.Account.PositionCount))
 
-	// 持仓（完整市场数据）
+	// Positions (complete market data)
 	if len(ctx.Positions) > 0 {
-		sb.WriteString("## 当前持仓\n")
+		sb.WriteString("## Current Positions\n")
 		for i, pos := range ctx.Positions {
-			// 计算持仓时长
+			// Calculate holding duration
 			holdingDuration := ""
 			if pos.UpdateTime > 0 {
 				durationMs := time.Now().UnixMilli() - pos.UpdateTime
-				durationMin := durationMs / (1000 * 60) // 转换为分钟
+				durationMin := durationMs / (1000 * 60) // Convert to minutes
 				if durationMin < 60 {
-					holdingDuration = fmt.Sprintf(" | 持仓时长%d分钟", durationMin)
+					holdingDuration = fmt.Sprintf(" | Holding %d mins", durationMin)
 				} else {
 					durationHour := durationMin / 60
 					durationMinRemainder := durationMin % 60
-					holdingDuration = fmt.Sprintf(" | 持仓时长%d小时%d分钟", durationHour, durationMinRemainder)
+					holdingDuration = fmt.Sprintf(" | Holding %dh %dm", durationHour, durationMinRemainder)
 				}
 			}
 
-			// 计算仓位价值
+			// Calculate position value
 			positionValue := math.Abs(pos.Quantity) * pos.MarkPrice
 
-			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场价%.4f 当前价%.4f | 数量%.4f | 仓位价值%.2f USDT | 盈亏%+.2f%% | 盈亏金额%+.2f USDT | 最高收益率%.2f%% | 杠杆%dx | 保证金%.0f | 强平价%.4f%s\n\n",
+			sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Value %.2f USDT | PnL %+.2f%% | PnL Amount %+.2f USDT | Peak PnL %.2f%% | Leverage %dx | Margin %.0f | Liq %.4f%s\n\n",
 				i+1, pos.Symbol, strings.ToUpper(pos.Side),
 				pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
 				pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
 
-			// 使用FormatMarketData输出完整市场数据
+			// Use FormatMarketData to output complete market data
 			if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 				sb.WriteString(market.Format(marketData))
 				sb.WriteString("\n")
 			}
 		}
 	} else {
-		sb.WriteString("当前持仓: 无\n\n")
+		sb.WriteString("Current Positions: None\n\n")
 	}
 
-	// 交易统计（如果有）
+	// Trading statistics (if any)
 	if ctx.TradingStats != nil && ctx.TradingStats.TotalTrades > 0 {
-		sb.WriteString("## 历史交易统计\n")
-		sb.WriteString(fmt.Sprintf("总交易数: %d | 胜率: %.1f%% | 盈亏比: %.2f | 夏普比: %.2f\n",
+		sb.WriteString("## Historical Trading Statistics\n")
+		sb.WriteString(fmt.Sprintf("Total Trades: %d | Win Rate: %.1f%% | Profit Factor: %.2f | Sharpe Ratio: %.2f\n",
 			ctx.TradingStats.TotalTrades,
 			ctx.TradingStats.WinRate,
 			ctx.TradingStats.ProfitFactor,
 			ctx.TradingStats.SharpeRatio))
-		sb.WriteString(fmt.Sprintf("总盈亏: %.2f USDT | 平均盈利: %.2f | 平均亏损: %.2f | 最大回撤: %.1f%%\n\n",
+		sb.WriteString(fmt.Sprintf("Total PnL: %.2f USDT | Avg Win: %.2f | Avg Loss: %.2f | Max Drawdown: %.1f%%\n\n",
 			ctx.TradingStats.TotalPnL,
 			ctx.TradingStats.AvgWin,
 			ctx.TradingStats.AvgLoss,
 			ctx.TradingStats.MaxDrawdownPct))
 	}
 
-	// 最近完成的订单（如果有）
+	// Recently completed orders (if any)
 	if len(ctx.RecentOrders) > 0 {
-		sb.WriteString("## 最近完成的交易\n")
+		sb.WriteString("## Recently Completed Trades\n")
 		for i, order := range ctx.RecentOrders {
-			resultStr := "盈利"
+			resultStr := "Profit"
 			if order.RealizedPnL < 0 {
-				resultStr = "亏损"
+				resultStr = "Loss"
 			}
-			sb.WriteString(fmt.Sprintf("%d. %s %s | 入场%.4f 出场%.4f | %s: %+.2f USDT (%+.2f%%) | %s\n",
+			sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Exit %.4f | %s: %+.2f USDT (%+.2f%%) | %s\n",
 				i+1, order.Symbol, order.Side,
 				order.EntryPrice, order.ExitPrice,
 				resultStr, order.RealizedPnL, order.PnLPct,
@@ -678,8 +678,8 @@ func buildUserPrompt(ctx *Context) string {
 		sb.WriteString("\n")
 	}
 
-	// 候选币种（完整市场数据）
-	sb.WriteString(fmt.Sprintf("## 候选币种 (%d个)\n\n", len(ctx.MarketDataMap)))
+	// Candidate coins (complete market data)
+	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.MarketDataMap)))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
 		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
@@ -690,12 +690,12 @@ func buildUserPrompt(ctx *Context) string {
 
 		sourceTags := ""
 		if len(coin.Sources) > 1 {
-			sourceTags = " (AI500+OI_Top双重信号)"
+			sourceTags = " (AI500+OI_Top dual signal)"
 		} else if len(coin.Sources) == 1 && coin.Sources[0] == "oi_top" {
-			sourceTags = " (OI_Top持仓增长)"
+			sourceTags = " (OI_Top growing)"
 		}
 
-		// 使用FormatMarketData输出完整市场数据
+		// Use FormatMarketData to output complete market data
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
 		sb.WriteString(market.Format(marketData))
 		sb.WriteString("\n")
@@ -703,31 +703,31 @@ func buildUserPrompt(ctx *Context) string {
 	sb.WriteString("\n")
 
 	sb.WriteString("---\n\n")
-	sb.WriteString("现在请分析并输出决策（思维链 + JSON）\n")
+	sb.WriteString("Now please analyze and output decision (reasoning chain + JSON)\n")
 
 	return sb.String()
 }
 
-// parseFullDecisionResponse 解析AI的完整决策响应
+// parseFullDecisionResponse parses AI's complete decision response
 func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int) (*FullDecision, error) {
-	// 1. 提取思维链
+	// 1. Extract chain of thought
 	cotTrace := extractCoTTrace(aiResponse)
 
-	// 2. 提取JSON决策列表
+	// 2. Extract JSON decision list
 	decisions, err := extractDecisions(aiResponse)
 	if err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: []Decision{},
-		}, fmt.Errorf("提取决策失败: %w", err)
+		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	// 3. 验证决策
+	// 3. Validate decisions
 	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
-		}, fmt.Errorf("决策验证失败: %w", err)
+		}, fmt.Errorf("decision validation failed: %w", err)
 	}
 
 	return &FullDecision{
@@ -736,174 +736,174 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 	}, nil
 }
 
-// extractCoTTrace 提取思维链分析
+// extractCoTTrace extracts chain of thought analysis
 func extractCoTTrace(response string) string {
-	// 方法1: 优先尝试提取 <reasoning> 标签内容
+	// Method 1: Prioritize extracting <reasoning> tag content
 	if match := reReasoningTag.FindStringSubmatch(response); match != nil && len(match) > 1 {
-		logger.Infof("✓ 使用 <reasoning> 标签提取思维链")
+		logger.Infof("✓ Extracted reasoning chain using <reasoning> tag")
 		return strings.TrimSpace(match[1])
 	}
 
-	// 方法2: 如果没有 <reasoning> 标签，但有 <decision> 标签，提取 <decision> 之前的内容
+	// Method 2: If no <reasoning> tag but has <decision> tag, extract content before <decision>
 	if decisionIdx := strings.Index(response, "<decision>"); decisionIdx > 0 {
-		logger.Infof("✓ 提取 <decision> 标签之前的内容作为思维链")
+		logger.Infof("✓ Extracted content before <decision> tag as reasoning chain")
 		return strings.TrimSpace(response[:decisionIdx])
 	}
 
-	// 方法3: 后备方案 - 查找JSON数组的开始位置
+	// Method 3: Fallback - find start position of JSON array
 	jsonStart := strings.Index(response, "[")
 	if jsonStart > 0 {
-		logger.Infof("⚠️  使用旧版格式（[ 字符分离）提取思维链")
+		logger.Infof("⚠️  Extracted reasoning chain using old format ([ character separator)")
 		return strings.TrimSpace(response[:jsonStart])
 	}
 
-	// 如果找不到任何标记，整个响应都是思维链
+	// If no markers found, entire response is reasoning chain
 	return strings.TrimSpace(response)
 }
 
-// extractDecisions 提取JSON决策列表
+// extractDecisions extracts JSON decision list
 func extractDecisions(response string) ([]Decision, error) {
-	// 预清洗：去零宽/BOM
+	// Pre-clean: remove zero-width/BOM
 	s := removeInvisibleRunes(response)
 	s = strings.TrimSpace(s)
 
-	// 🔧 关键修复 (Critical Fix)：在正则匹配之前就先修复全角字符！
-	// 否则正则表达式 \[ 无法匹配全角的 ［
+	// Critical Fix: fix full-width characters before regex matching!
+	// Otherwise regex \[ cannot match full-width ［
 	s = fixMissingQuotes(s)
 
-	// 方法1: 优先尝试从 <decision> 标签中提取
+	// Method 1: Prioritize extracting from <decision> tag
 	var jsonPart string
 	if match := reDecisionTag.FindStringSubmatch(s); match != nil && len(match) > 1 {
 		jsonPart = strings.TrimSpace(match[1])
-		logger.Infof("✓ 使用 <decision> 标签提取JSON")
+		logger.Infof("✓ Extracted JSON using <decision> tag")
 	} else {
-		// 后备方案：使用整个响应
+		// Fallback: use entire response
 		jsonPart = s
-		logger.Infof("⚠️  未找到 <decision> 标签，使用全文搜索JSON")
+		logger.Infof("⚠️  <decision> tag not found, searching JSON in full text")
 	}
 
-	// 修复 jsonPart 中的全角字符
+	// Fix full-width characters in jsonPart
 	jsonPart = fixMissingQuotes(jsonPart)
 
-	// 1) 优先从 ```json 代码块中提取
+	// 1) Prioritize extracting from ```json code block
 	if m := reJSONFence.FindStringSubmatch(jsonPart); m != nil && len(m) > 1 {
 		jsonContent := strings.TrimSpace(m[1])
-		jsonContent = compactArrayOpen(jsonContent) // 把 "[ {" 规整为 "[{"
-		jsonContent = fixMissingQuotes(jsonContent) // 二次修复（防止 regex 提取后还有残留全角）
+		jsonContent = compactArrayOpen(jsonContent) // Normalize "[ {" to "[{"
+		jsonContent = fixMissingQuotes(jsonContent) // Second fix (prevent residual full-width after regex extraction)
 		if err := validateJSONFormat(jsonContent); err != nil {
-			return nil, fmt.Errorf("JSON格式验证失败: %w\nJSON内容: %s\n完整响应:\n%s", err, jsonContent, response)
+			return nil, fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
 		}
 		var decisions []Decision
 		if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-			return nil, fmt.Errorf("JSON解析失败: %w\nJSON内容: %s", err, jsonContent)
+			return nil, fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
 		}
 		return decisions, nil
 	}
 
-	// 2) 退而求其次 (Fallback)：全文寻找首个对象数组
-	// 注意：此时 jsonPart 已经过 fixMissingQuotes()，全角字符已转换为半角
+	// 2) Fallback: search for first object array in full text
+	// Note: at this point jsonPart has already been processed by fixMissingQuotes(), full-width converted to half-width
 	jsonContent := strings.TrimSpace(reJSONArray.FindString(jsonPart))
 	if jsonContent == "" {
-		// 🔧 安全回退 (Safe Fallback)：当AI只输出思维链没有JSON时，生成保底决策（避免系统崩溃）
-		logger.Infof("⚠️  [SafeFallback] AI未输出JSON决策，进入安全等待模式 (AI response without JSON, entering safe wait mode)")
+		// Safe Fallback: when AI only outputs reasoning without JSON, generate fallback decision (avoid system crash)
+		logger.Infof("⚠️  [SafeFallback] AI didn't output JSON decision, entering safe wait mode")
 
-		// 提取思维链摘要（最多 240 字符）
+		// Extract reasoning summary (max 240 characters)
 		cotSummary := jsonPart
 		if len(cotSummary) > 240 {
 			cotSummary = cotSummary[:240] + "..."
 		}
 
-		// 生成保底决策：所有币种进入 wait 状态
+		// Generate fallback decision: all coins enter wait state
 		fallbackDecision := Decision{
 			Symbol:    "ALL",
 			Action:    "wait",
-			Reasoning: fmt.Sprintf("模型未输出结构化JSON决策，进入安全等待；摘要：%s", cotSummary),
+			Reasoning: fmt.Sprintf("Model didn't output structured JSON decision, entering safe wait; summary: %s", cotSummary),
 		}
 
 		return []Decision{fallbackDecision}, nil
 	}
 
-	// 🔧 规整格式（此时全角字符已在前面修复过）
+	// Normalize format (full-width characters already fixed earlier)
 	jsonContent = compactArrayOpen(jsonContent)
-	jsonContent = fixMissingQuotes(jsonContent) // 二次修复（防止 regex 提取后还有残留全角）
+	jsonContent = fixMissingQuotes(jsonContent) // Second fix (prevent residual full-width after regex extraction)
 
-	// 🔧 验证 JSON 格式（检测常见错误）
+	// Validate JSON format (detect common errors)
 	if err := validateJSONFormat(jsonContent); err != nil {
-		return nil, fmt.Errorf("JSON格式验证失败: %w\nJSON内容: %s\n完整响应:\n%s", err, jsonContent, response)
+		return nil, fmt.Errorf("JSON format validation failed: %w\nJSON content: %s\nFull response:\n%s", err, jsonContent, response)
 	}
 
-	// 解析JSON
+	// Parse JSON
 	var decisions []Decision
 	if err := json.Unmarshal([]byte(jsonContent), &decisions); err != nil {
-		return nil, fmt.Errorf("JSON解析失败: %w\nJSON内容: %s", err, jsonContent)
+		return nil, fmt.Errorf("JSON parsing failed: %w\nJSON content: %s", err, jsonContent)
 	}
 
 	return decisions, nil
 }
 
-// fixMissingQuotes 替换中文引号和全角字符为英文引号和半角字符（避免AI输出全角JSON字符导致解析失败）
+// fixMissingQuotes replaces Chinese quotes and full-width characters with English quotes and half-width characters (avoid parsing failure due to AI outputting full-width JSON characters)
 func fixMissingQuotes(jsonStr string) string {
-	// 替换中文引号
+	// Replace Chinese quotes
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201c", "\"") // "
 	jsonStr = strings.ReplaceAll(jsonStr, "\u201d", "\"") // "
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2018", "'")  // '
 	jsonStr = strings.ReplaceAll(jsonStr, "\u2019", "'")  // '
 
-	// ⚠️ 替换全角括号、冒号、逗号（防止AI输出全角JSON字符）
-	jsonStr = strings.ReplaceAll(jsonStr, "［", "[") // U+FF3B 全角左方括号
-	jsonStr = strings.ReplaceAll(jsonStr, "］", "]") // U+FF3D 全角右方括号
-	jsonStr = strings.ReplaceAll(jsonStr, "｛", "{") // U+FF5B 全角左花括号
-	jsonStr = strings.ReplaceAll(jsonStr, "｝", "}") // U+FF5D 全角右花括号
-	jsonStr = strings.ReplaceAll(jsonStr, "：", ":") // U+FF1A 全角冒号
-	jsonStr = strings.ReplaceAll(jsonStr, "，", ",") // U+FF0C 全角逗号
+	// Replace full-width brackets, colons, commas (prevent AI outputting full-width JSON characters)
+	jsonStr = strings.ReplaceAll(jsonStr, "［", "[") // U+FF3B full-width left square bracket
+	jsonStr = strings.ReplaceAll(jsonStr, "］", "]") // U+FF3D full-width right square bracket
+	jsonStr = strings.ReplaceAll(jsonStr, "｛", "{") // U+FF5B full-width left curly bracket
+	jsonStr = strings.ReplaceAll(jsonStr, "｝", "}") // U+FF5D full-width right curly bracket
+	jsonStr = strings.ReplaceAll(jsonStr, "：", ":") // U+FF1A full-width colon
+	jsonStr = strings.ReplaceAll(jsonStr, "，", ",") // U+FF0C full-width comma
 
-	// ⚠️ 替换CJK标点符号（AI在中文上下文中也可能输出这些）
-	jsonStr = strings.ReplaceAll(jsonStr, "【", "[") // CJK左方头括号 U+3010
-	jsonStr = strings.ReplaceAll(jsonStr, "】", "]") // CJK右方头括号 U+3011
-	jsonStr = strings.ReplaceAll(jsonStr, "〔", "[") // CJK左龟壳括号 U+3014
-	jsonStr = strings.ReplaceAll(jsonStr, "〕", "]") // CJK右龟壳括号 U+3015
-	jsonStr = strings.ReplaceAll(jsonStr, "、", ",") // CJK顿号 U+3001
+	// Replace CJK punctuation (AI may also output these in Chinese context)
+	jsonStr = strings.ReplaceAll(jsonStr, "【", "[") // CJK left corner bracket U+3010
+	jsonStr = strings.ReplaceAll(jsonStr, "】", "]") // CJK right corner bracket U+3011
+	jsonStr = strings.ReplaceAll(jsonStr, "〔", "[") // CJK left tortoise shell bracket U+3014
+	jsonStr = strings.ReplaceAll(jsonStr, "〕", "]") // CJK right tortoise shell bracket U+3015
+	jsonStr = strings.ReplaceAll(jsonStr, "、", ",") // CJK ideographic comma U+3001
 
-	// ⚠️ 替换全角空格为半角空格（JSON中不应该有全角空格）
-	jsonStr = strings.ReplaceAll(jsonStr, "　", " ") // U+3000 全角空格
+	// Replace full-width space with half-width space (JSON shouldn't have full-width spaces)
+	jsonStr = strings.ReplaceAll(jsonStr, "　", " ") // U+3000 full-width space
 
 	return jsonStr
 }
 
-// validateJSONFormat 验证 JSON 格式，检测常见错误
+// validateJSONFormat validates JSON format, detecting common errors
 func validateJSONFormat(jsonStr string) error {
 	trimmed := strings.TrimSpace(jsonStr)
 
-	// 允许 [ 和 { 之间存在任意空白（含零宽）
+	// Allow any whitespace (including zero-width) between [ and {
 	if !reArrayHead.MatchString(trimmed) {
-		// 检查是否是纯数字/范围数组（常见错误）
+		// Check if it's a pure number/range array (common error)
 		if strings.HasPrefix(trimmed, "[") && !strings.Contains(trimmed[:min(20, len(trimmed))], "{") {
-			return fmt.Errorf("不是有效的决策数组（必须包含对象 {}），实际内容: %s", trimmed[:min(50, len(trimmed))])
+			return fmt.Errorf("not a valid decision array (must contain objects {}), actual content: %s", trimmed[:min(50, len(trimmed))])
 		}
-		return fmt.Errorf("JSON 必须以 [{ 开头（允许空白），实际: %s", trimmed[:min(20, len(trimmed))])
+		return fmt.Errorf("JSON must start with [{ (whitespace allowed), actual: %s", trimmed[:min(20, len(trimmed))])
 	}
 
-	// 检查是否包含范围符号 ~（LLM 常见错误）
+	// Check if contains range symbol ~ (common LLM error)
 	if strings.Contains(jsonStr, "~") {
-		return fmt.Errorf("JSON 中不可包含范围符号 ~，所有数字必须是精确的单一值")
+		return fmt.Errorf("JSON cannot contain range symbol ~, all numbers must be precise single values")
 	}
 
-	// 检查是否包含千位分隔符（如 98,000）
-	// 使用简单的模式匹配：数字+逗号+3位数字
+	// Check if contains thousand separators (like 98,000)
+	// Use simple pattern matching: digit + comma + 3 digits
 	for i := 0; i < len(jsonStr)-4; i++ {
 		if jsonStr[i] >= '0' && jsonStr[i] <= '9' &&
 			jsonStr[i+1] == ',' &&
 			jsonStr[i+2] >= '0' && jsonStr[i+2] <= '9' &&
 			jsonStr[i+3] >= '0' && jsonStr[i+3] <= '9' &&
 			jsonStr[i+4] >= '0' && jsonStr[i+4] <= '9' {
-			return fmt.Errorf("JSON 数字不可包含千位分隔符逗号，发现: %s", jsonStr[i:min(i+10, len(jsonStr))])
+			return fmt.Errorf("JSON numbers cannot contain thousand separator comma, found: %s", jsonStr[i:min(i+10, len(jsonStr))])
 		}
 	}
 
 	return nil
 }
 
-// min 返回两个整数中的较小值
+// min returns the smaller of two integers
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -911,27 +911,27 @@ func min(a, b int) int {
 	return b
 }
 
-// removeInvisibleRunes 去除零宽字符和 BOM，避免肉眼看不见的前缀破坏校验
+// removeInvisibleRunes removes zero-width characters and BOM, avoiding invisible prefixes breaking validation
 func removeInvisibleRunes(s string) string {
 	return reInvisibleRunes.ReplaceAllString(s, "")
 }
 
-// compactArrayOpen 规整开头的 "[ {" → "[{"
+// compactArrayOpen normalizes opening "[ {" → "[{"
 func compactArrayOpen(s string) string {
 	return reArrayOpenSpace.ReplaceAllString(strings.TrimSpace(s), "[{")
 }
 
-// validateDecisions 验证所有决策（需要账户信息和杠杆配置）
+// validateDecisions validates all decisions (requires account information and leverage configuration)
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
 	for i, decision := range decisions {
 		if err := validateDecision(&decision, accountEquity, btcEthLeverage, altcoinLeverage); err != nil {
-			return fmt.Errorf("决策 #%d 验证失败: %w", i+1, err)
+			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
 		}
 	}
 	return nil
 }
 
-// findMatchingBracket 查找匹配的右括号
+// findMatchingBracket finds matching right bracket
 func findMatchingBracket(s string, start int) int {
 	if start >= len(s) || s[start] != '[' {
 		return -1
@@ -953,9 +953,9 @@ func findMatchingBracket(s string, start int) int {
 	return -1
 }
 
-// validateDecision 验证单个决策的有效性
+// validateDecision validates the validity of a single decision
 func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int) error {
-	// 验证action
+	// Validate action
 	validActions := map[string]bool{
 		"open_long":   true,
 		"open_short":  true,
@@ -966,80 +966,80 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	}
 
 	if !validActions[d.Action] {
-		return fmt.Errorf("无效的action: %s", d.Action)
+		return fmt.Errorf("invalid action: %s", d.Action)
 	}
 
-	// 开仓操作必须提供完整参数
+	// Opening operations must provide complete parameters
 	if d.Action == "open_long" || d.Action == "open_short" {
-		// 根据币种使用配置的杠杆上限
-		maxLeverage := altcoinLeverage          // 山寨币使用配置的杠杆
-		maxPositionValue := accountEquity * 1.5 // 山寨币最多1.5倍账户净值
+		// Use configured leverage limit based on coin type
+		maxLeverage := altcoinLeverage          // Altcoins use configured leverage
+		maxPositionValue := accountEquity * 1.5 // Altcoins max 1.5x account equity
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			maxLeverage = btcEthLeverage          // BTC和ETH使用配置的杠杆
-			maxPositionValue = accountEquity * 10 // BTC/ETH最多10倍账户净值
+			maxLeverage = btcEthLeverage          // BTC and ETH use configured leverage
+			maxPositionValue = accountEquity * 10 // BTC/ETH max 10x account equity
 		}
 
-		// ✅ Fallback 机制：杠杆超限时自动修正为上限值（而不是直接拒绝决策）
+		// Fallback mechanism: auto-correct leverage to limit when exceeded (instead of directly rejecting decision)
 		if d.Leverage <= 0 {
-			return fmt.Errorf("杠杆必须大于0: %d", d.Leverage)
+			return fmt.Errorf("leverage must be greater than 0: %d", d.Leverage)
 		}
 		if d.Leverage > maxLeverage {
-			logger.Infof("⚠️  [Leverage Fallback] %s 杠杆超限 (%dx > %dx)，自动调整为上限值 %dx",
+			logger.Infof("⚠️  [Leverage Fallback] %s leverage exceeded (%dx > %dx), auto-adjusting to limit %dx",
 				d.Symbol, d.Leverage, maxLeverage, maxLeverage)
-			d.Leverage = maxLeverage // 自动修正为上限值
+			d.Leverage = maxLeverage // Auto-correct to limit value
 		}
 		if d.PositionSizeUSD <= 0 {
-			return fmt.Errorf("仓位大小必须大于0: %.2f", d.PositionSizeUSD)
+			return fmt.Errorf("position size must be greater than 0: %.2f", d.PositionSizeUSD)
 		}
 
-		// ✅ 验证最小开仓金额（防止数量格式化为 0 的错误）
-		// Binance 最小名义价值 10 USDT + 安全边际
-		const minPositionSizeGeneral = 12.0 // 10 + 20% 安全边际
-		const minPositionSizeBTCETH = 60.0  // BTC/ETH 因价格高和精度限制需要更大金额（更灵活）
+		// Validate minimum opening amount (prevent quantity rounding to 0 error)
+		// Binance minimum notional value 10 USDT + safety margin
+		const minPositionSizeGeneral = 12.0 // 10 + 20% safety margin
+		const minPositionSizeBTCETH = 60.0  // BTC/ETH requires larger amount due to high price and precision limits (more flexible)
 
 		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
 			if d.PositionSizeUSD < minPositionSizeBTCETH {
-				return fmt.Errorf("%s 开仓金额过小(%.2f USDT)，必须≥%.2f USDT（因价格高且精度限制，避免数量四舍五入为0）", d.Symbol, d.PositionSizeUSD, minPositionSizeBTCETH)
+				return fmt.Errorf("%s opening amount too small (%.2f USDT), must be ≥%.2f USDT (due to high price and precision limits, avoid quantity rounding to 0)", d.Symbol, d.PositionSizeUSD, minPositionSizeBTCETH)
 			}
 		} else {
 			if d.PositionSizeUSD < minPositionSizeGeneral {
-				return fmt.Errorf("开仓金额过小(%.2f USDT)，必须≥%.2f USDT（Binance 最小名义价值要求）", d.PositionSizeUSD, minPositionSizeGeneral)
+				return fmt.Errorf("opening amount too small (%.2f USDT), must be ≥%.2f USDT (Binance minimum notional value requirement)", d.PositionSizeUSD, minPositionSizeGeneral)
 			}
 		}
 
-		// 验证仓位价值上限（加1%容差以避免浮点数精度问题）
-		tolerance := maxPositionValue * 0.01 // 1%容差
+		// Validate position value limit (add 1% tolerance to avoid floating point precision issues)
+		tolerance := maxPositionValue * 0.01 // 1% tolerance
 		if d.PositionSizeUSD > maxPositionValue+tolerance {
 			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH单币种仓位价值不能超过%.0f USDT（10倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (10x account equity), actual: %.0f", maxPositionValue, d.PositionSizeUSD)
 			} else {
-				return fmt.Errorf("山寨币单币种仓位价值不能超过%.0f USDT（1.5倍账户净值），实际: %.0f", maxPositionValue, d.PositionSizeUSD)
+				return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (1.5x account equity), actual: %.0f", maxPositionValue, d.PositionSizeUSD)
 			}
 		}
 		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
-			return fmt.Errorf("止损和止盈必须大于0")
+			return fmt.Errorf("stop loss and take profit must be greater than 0")
 		}
 
-		// 验证止损止盈的合理性
+		// Validate rationality of stop loss and take profit
 		if d.Action == "open_long" {
 			if d.StopLoss >= d.TakeProfit {
-				return fmt.Errorf("做多时止损价必须小于止盈价")
+				return fmt.Errorf("for long positions, stop loss price must be less than take profit price")
 			}
 		} else {
 			if d.StopLoss <= d.TakeProfit {
-				return fmt.Errorf("做空时止损价必须大于止盈价")
+				return fmt.Errorf("for short positions, stop loss price must be greater than take profit price")
 			}
 		}
 
-		// 验证风险回报比（必须≥1:3）
-		// 计算入场价（假设当前市价）
+		// Validate risk/reward ratio (must be ≥1:3)
+		// Calculate entry price (assume current market price)
 		var entryPrice float64
 		if d.Action == "open_long" {
-			// 做多：入场价在止损和止盈之间
-			entryPrice = d.StopLoss + (d.TakeProfit-d.StopLoss)*0.2 // 假设在20%位置入场
+			// Long: entry price between stop loss and take profit
+			entryPrice = d.StopLoss + (d.TakeProfit-d.StopLoss)*0.2 // Assume entry at 20% position
 		} else {
-			// 做空：入场价在止损和止盈之间
-			entryPrice = d.StopLoss - (d.StopLoss-d.TakeProfit)*0.2 // 假设在20%位置入场
+			// Short: entry price between stop loss and take profit
+			entryPrice = d.StopLoss - (d.StopLoss-d.TakeProfit)*0.2 // Assume entry at 20% position
 		}
 
 		var riskPercent, rewardPercent, riskRewardRatio float64
@@ -1057,9 +1057,9 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			}
 		}
 
-		// 硬约束：风险回报比必须≥3.0
+		// Hard constraint: risk/reward ratio must be ≥3.0
 		if riskRewardRatio < 3.0 {
-			return fmt.Errorf("风险回报比过低(%.2f:1)，必须≥3.0:1 [风险:%.2f%% 收益:%.2f%%] [止损:%.2f 止盈:%.2f]",
+			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥3.0:1 [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
 				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
 		}
 	}

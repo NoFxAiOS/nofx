@@ -13,33 +13,33 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// JWTSecret JWT密钥，将从配置中动态设置
+// JWTSecret is the JWT secret key, will be dynamically set from config
 var JWTSecret []byte
 
-// tokenBlacklist 用于登出后的token黑名单（仅内存，按过期时间清理）
+// tokenBlacklist for logged out tokens (memory only, cleaned by expiration time)
 var tokenBlacklist = struct {
 	sync.RWMutex
 	items map[string]time.Time
 }{items: make(map[string]time.Time)}
 
-// maxBlacklistEntries 黑名单最大容量阈值
+// maxBlacklistEntries is the maximum capacity threshold for blacklist
 const maxBlacklistEntries = 100_000
 
-// OTPIssuer OTP发行者名称
+// OTPIssuer is the OTP issuer name
 const OTPIssuer = "nofxAI"
 
-// SetJWTSecret 设置JWT密钥
+// SetJWTSecret sets the JWT secret key
 func SetJWTSecret(secret string) {
 	JWTSecret = []byte(secret)
 }
 
-// BlacklistToken 将token加入黑名单直到过期
+// BlacklistToken adds token to blacklist until expiration
 func BlacklistToken(token string, exp time.Time) {
 	tokenBlacklist.Lock()
 	defer tokenBlacklist.Unlock()
 	tokenBlacklist.items[token] = exp
 
-	// 如果超过容量阈值，则进行一次过期清理；若仍超限，记录警告日志
+	// If exceeds capacity threshold, perform expired cleanup; if still over limit, log warning
 	if len(tokenBlacklist.items) > maxBlacklistEntries {
 		now := time.Now()
 		for t, e := range tokenBlacklist.items {
@@ -54,7 +54,7 @@ func BlacklistToken(token string, exp time.Time) {
 	}
 }
 
-// IsTokenBlacklisted 检查token是否在黑名单中（过期自动清理）
+// IsTokenBlacklisted checks if token is in blacklist (auto cleanup on expiration)
 func IsTokenBlacklisted(token string) bool {
 	tokenBlacklist.Lock()
 	defer tokenBlacklist.Unlock()
@@ -68,26 +68,26 @@ func IsTokenBlacklisted(token string) bool {
 	return false
 }
 
-// Claims JWT声明
+// Claims represents JWT claims
 type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	jwt.RegisteredClaims
 }
 
-// HashPassword 哈希密码
+// HashPassword hashes the password
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	return string(bytes), err
 }
 
-// CheckPassword 验证密码
+// CheckPassword verifies the password
 func CheckPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
-// GenerateOTPSecret 生成OTP密钥
+// GenerateOTPSecret generates OTP secret
 func GenerateOTPSecret() (string, error) {
 	secret := make([]byte, 20)
 	_, err := rand.Read(secret)
@@ -106,18 +106,18 @@ func GenerateOTPSecret() (string, error) {
 	return key.Secret(), nil
 }
 
-// VerifyOTP 验证OTP码
+// VerifyOTP verifies OTP code
 func VerifyOTP(secret, code string) bool {
 	return totp.Validate(code, secret)
 }
 
-// GenerateJWT 生成JWT token
+// GenerateJWT generates JWT token
 func GenerateJWT(userID, email string) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // 24小时过期
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // Expires in 24 hours
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),
 			Issuer:    "nofxAI",
@@ -128,11 +128,11 @@ func GenerateJWT(userID, email string) (string, error) {
 	return token.SignedString(JWTSecret)
 }
 
-// ValidateJWT 验证JWT token
+// ValidateJWT validates JWT token
 func ValidateJWT(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("意外的签名方法: %v", token.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 		return JWTSecret, nil
 	})
@@ -145,10 +145,10 @@ func ValidateJWT(tokenString string) (*Claims, error) {
 		return claims, nil
 	}
 
-	return nil, fmt.Errorf("无效的token")
+	return nil, fmt.Errorf("invalid token")
 }
 
-// GetOTPQRCodeURL 获取OTP二维码URL
+// GetOTPQRCodeURL gets OTP QR code URL
 func GetOTPQRCodeURL(secret, email string) string {
 	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", OTPIssuer, email, secret, OTPIssuer)
 }

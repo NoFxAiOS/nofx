@@ -20,7 +20,7 @@ type cachedDecision struct {
 	Decision      *decision.FullDecision `json:"decision"`
 }
 
-// AICache 持久化 AI 决策，便于重复回测或重放。
+// AICache persists AI decisions for repeated backtesting or replay.
 type AICache struct {
 	mu      sync.RWMutex
 	path    string

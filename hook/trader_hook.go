@@ -14,7 +14,7 @@ type NewBinanceTraderResult struct {
 
 func (r *NewBinanceTraderResult) Error() error {
 	if r.Err != nil {
-		log.Printf("⚠️ 执行NewBinanceTraderResult时出错: %v", r.Err)
+		log.Printf("⚠️ Error executing NewBinanceTraderResult: %v", r.Err)
 	}
 	return r.Err
 }
@@ -31,7 +31,7 @@ type NewAsterTraderResult struct {
 
 func (r *NewAsterTraderResult) Error() error {
 	if r.Err != nil {
-		log.Printf("⚠️ 执行NewAsterTraderResult时出错: %v", r.Err)
+		log.Printf("⚠️ Error executing NewAsterTraderResult: %v", r.Err)
 	}
 	return r.Err
 }

@@ -438,7 +438,7 @@ func (m *Manager) resolveAIConfig(cfg *BacktestConfig) error {
 	m.mu.RUnlock()
 	if resolver == nil {
 		if apiKey == "" {
-			return fmt.Errorf("AI配置缺少密钥且未配置解析器")
+			return fmt.Errorf("AI configuration missing key and no resolver configured")
 		}
 		return nil
 	}
@@ -453,7 +453,7 @@ func (m *Manager) ExportRun(runID string) (string, error) {
 	return CreateRunExport(runID)
 }
 
-// RestoreRunsFromDisk 扫描 backtests 目录并恢复现有 run 的元数据（服务重启场景）。
+// RestoreRuns scans the backtests directory and restores metadata for existing runs (service restart scenario).
 func (m *Manager) RestoreRuns() error {
 	runIDs, err := LoadRunIDs()
 	if err != nil {
@@ -487,7 +487,7 @@ func (m *Manager) RestoreRuns() error {
 	return nil
 }
 
-// RestoreRunsFromDisk 保留旧方法名，兼容历史调用。
+// RestoreRunsFromDisk retains the old method name for backward compatibility.
 func (m *Manager) RestoreRunsFromDisk() error {
 	return m.RestoreRuns()
 }

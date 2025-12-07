@@ -7,8 +7,8 @@ import (
 	"nofx/mcp"
 )
 
-// configureMCPClient 根据配置创建/克隆 MCP 客户端（返回 mcp.AIClient 接口）。
-// 说明：mcp.New() 返回接口类型，这里统一转为具体实现再做拷贝，避免并发共享状态。
+// configureMCPClient creates/clones an MCP client based on configuration (returns mcp.AIClient interface).
+// Note: mcp.New() returns an interface type; here we convert to concrete implementation before copying to avoid concurrent shared state.
 func configureMCPClient(cfg BacktestConfig, base mcp.AIClient) (mcp.AIClient, error) {
 	provider := strings.ToLower(strings.TrimSpace(cfg.AICfg.Provider))
 
@@ -48,9 +48,9 @@ func configureMCPClient(cfg BacktestConfig, base mcp.AIClient) (mcp.AIClient, er
 	}
 }
 
-// cloneBaseClient 复制基础客户端以避免共享可变状态。
+// cloneBaseClient copies the base client to avoid shared mutable state.
 func cloneBaseClient(base mcp.AIClient) *mcp.Client {
-	// 优先尝试复用传入的基础客户端（深拷贝）
+	// Prefer to reuse the passed-in base client (deep copy)
 	switch c := base.(type) {
 	case *mcp.Client:
 		cp := *c
@@ -66,6 +66,6 @@ func cloneBaseClient(base mcp.AIClient) *mcp.Client {
 			return &cp
 		}
 	}
-	// 回退到新的默认客户端
+	// Fall back to a new default client
 	return mcp.NewClient().(*mcp.Client)
 }

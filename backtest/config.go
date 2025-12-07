@@ -8,7 +8,7 @@ import (
 	"nofx/market"
 )
 
-// AIConfig 定义回测中使用的 AI 客户端配置。
+// AIConfig defines the AI client configuration used in backtesting.
 type AIConfig struct {
 	Provider    string  `json:"provider"`
 	Model       string  `json:"model"`
@@ -23,7 +23,7 @@ type LeverageConfig struct {
 	AltcoinLeverage int `json:"altcoin_leverage"`
 }
 
-// BacktestConfig 描述一次回测运行的输入配置。
+// BacktestConfig describes the input configuration for a backtest run.
 type BacktestConfig struct {
 	RunID                string   `json:"run_id"`
 	UserID               string   `json:"user_id,omitempty"`
@@ -54,7 +54,7 @@ type BacktestConfig struct {
 	ReplayDecisionDir         string `json:"replay_decision_dir,omitempty"`
 }
 
-// Validate 对配置进行合法性检查并填充默认值。
+// Validate performs validity checks on the configuration and fills in default values.
 func (cfg *BacktestConfig) Validate() error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
@@ -151,7 +151,7 @@ func (cfg *BacktestConfig) Validate() error {
 	return nil
 }
 
-// Duration 返回回测区间时长。
+// Duration returns the backtest interval duration.
 func (cfg *BacktestConfig) Duration() time.Duration {
 	if cfg == nil {
 		return 0
@@ -160,11 +160,11 @@ func (cfg *BacktestConfig) Duration() time.Duration {
 }
 
 const (
-	// FillPolicyNextOpen 使用下一根 K 线的开盘价成交。
+	// FillPolicyNextOpen uses the open price of the next bar for execution.
 	FillPolicyNextOpen = "next_open"
-	// FillPolicyBarVWAP 采用当前 K 线的近似 VWAP 成交。
+	// FillPolicyBarVWAP uses the approximate VWAP of the current bar for execution.
 	FillPolicyBarVWAP = "bar_vwap"
-	// FillPolicyMidPrice 采用 (high+low)/2 的中间价成交。
+	// FillPolicyMidPrice uses the mid-price (high+low)/2 for execution.
 	FillPolicyMidPrice = "mid"
 )
 

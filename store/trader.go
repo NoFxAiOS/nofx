@@ -18,7 +18,7 @@ type Trader struct {
 	Name                string    `json:"name"`
 	AIModelID           string    `json:"ai_model_id"`
 	ExchangeID          string    `json:"exchange_id"`
-	StrategyID          string    `json:"strategy_id"`           // Associated strategy ID
+	StrategyID          string    `json:"strategy_id"` // Associated strategy ID
 	InitialBalance      float64   `json:"initial_balance"`
 	ScanIntervalMinutes int       `json:"scan_interval_minutes"`
 	IsRunning           bool      `json:"is_running"`

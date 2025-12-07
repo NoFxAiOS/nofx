@@ -11,7 +11,7 @@ import (
 type TraderPosition struct {
 	ID           int64      `json:"id"`
 	TraderID     string     `json:"trader_id"`
-	ExchangeID   string     `json:"exchange_id"`    // Exchange ID: binance/bybit/hyperliquid/aster/lighter
+	ExchangeID   string     `json:"exchange_id"` // Exchange ID: binance/bybit/hyperliquid/aster/lighter
 	Symbol       string     `json:"symbol"`
 	Side         string     `json:"side"`           // LONG/SHORT
 	Quantity     float64    `json:"quantity"`       // Opening quantity

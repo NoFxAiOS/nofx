@@ -3,8 +3,8 @@ package decision
 import (
 	"encoding/json"
 	"fmt"
-	"nofx/logger"
 	"math"
+	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/pool"
@@ -104,9 +104,9 @@ type Context struct {
 	Positions       []PositionInfo                     `json:"positions"`
 	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
 	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`  // Trading statistics
-	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`  // Recently completed orders (10)
-	MarketDataMap   map[string]*market.Data            `json:"-"`                        // Not serialized, but used internally
+	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"` // Trading statistics
+	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"` // Recently completed orders (10)
+	MarketDataMap   map[string]*market.Data            `json:"-"`                       // Not serialized, but used internally
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"` // OI Top data mapping
 	QuantDataMap    map[string]*QuantData              `json:"-"` // Quantitative data mapping (fund flow, position changes)

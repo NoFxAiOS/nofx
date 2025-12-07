@@ -2,7 +2,10 @@ package trader
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"math"
 	"nofx/logger"
 	"net/http"
 	"strconv"
@@ -26,6 +29,10 @@ type BybitTrader struct {
 	cachedPositions     []map[string]interface{}
 	positionsCacheTime  time.Time
 	positionsCacheMutex sync.RWMutex
+
+	// 交易对精度缓存 (symbol -> qtyStep)
+	qtyStepCache      map[string]float64
+	qtyStepCacheMutex sync.RWMutex
 
 	// 缓存有效期（15秒）
 	cacheDuration time.Duration
@@ -53,6 +60,7 @@ func NewBybitTrader(apiKey, secretKey string) *BybitTrader {
 	trader := &BybitTrader{
 		client:        client,
 		cacheDuration: 15 * time.Second,
+		qtyStepCache:  make(map[string]float64),
 	}
 
 	logger.Infof("🔵 [Bybit] 交易器已初始化")
@@ -104,7 +112,7 @@ func (t *BybitTrader) GetBalance() (map[string]interface{}, error) {
 
 	list, _ := resultData["list"].([]interface{})
 
-	var totalEquity, availableBalance float64 = 0, 0
+	var totalEquity, availableBalance, totalWalletBalance, totalPerpUPL float64 = 0, 0, 0, 0
 
 	if len(list) > 0 {
 		account, _ := list[0].(map[string]interface{})
@@ -114,12 +122,27 @@ func (t *BybitTrader) GetBalance() (map[string]interface{}, error) {
 		if availStr, ok := account["totalAvailableBalance"].(string); ok {
 			availableBalance, _ = strconv.ParseFloat(availStr, 64)
 		}
+		// Bybit UNIFIED 账户的钱包余额字段
+		if walletStr, ok := account["totalWalletBalance"].(string); ok {
+			totalWalletBalance, _ = strconv.ParseFloat(walletStr, 64)
+		}
+		// Bybit 永续合约未实现盈亏
+		if uplStr, ok := account["totalPerpUPL"].(string); ok {
+			totalPerpUPL, _ = strconv.ParseFloat(uplStr, 64)
+		}
+	}
+
+	// 如果没有 totalWalletBalance，使用 totalEquity
+	if totalWalletBalance == 0 {
+		totalWalletBalance = totalEquity
 	}
 
 	balance := map[string]interface{}{
-		"totalEquity":      totalEquity,
-		"availableBalance": availableBalance,
-		"balance":          totalEquity, // 兼容其他交易所格式
+		"totalEquity":           totalEquity,
+		"totalWalletBalance":    totalWalletBalance,
+		"availableBalance":      availableBalance,
+		"totalUnrealizedProfit": totalPerpUPL,
+		"balance":               totalEquity, // 兼容其他交易所格式
 	}
 
 	// 更新缓存
@@ -189,6 +212,14 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 		leverageStr, _ := pos["leverage"].(string)
 		leverage, _ := strconv.ParseFloat(leverageStr, 64)
 
+		// 标记价格
+		markPriceStr, _ := pos["markPrice"].(string)
+		markPrice, _ := strconv.ParseFloat(markPriceStr, 64)
+
+		// 强平价格
+		liqPriceStr, _ := pos["liqPrice"].(string)
+		liqPrice, _ := strconv.ParseFloat(liqPriceStr, 64)
+
 		positionSide, _ := pos["side"].(string) // Buy = LONG, Sell = SHORT
 
 		// 转换为统一格式
@@ -200,12 +231,15 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 		}
 
 		position := map[string]interface{}{
-			"symbol":        pos["symbol"],
-			"side":          side,
-			"positionAmt":   positionAmt,
-			"entryPrice":    entryPrice,
-			"unrealizedPnL": unrealisedPnl,
-			"leverage":      int(leverage),
+			"symbol":           pos["symbol"],
+			"side":             side,
+			"positionAmt":      positionAmt,
+			"entryPrice":       entryPrice,
+			"markPrice":        markPrice,
+			"unRealizedProfit": unrealisedPnl,
+			"unrealizedPnL":    unrealisedPnl,
+			"liquidationPrice": liqPrice,
+			"leverage":         leverage,
 		}
 
 		positions = append(positions, position)
@@ -227,12 +261,15 @@ func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 		logger.Infof("⚠️ [Bybit] 设置杠杆失败: %v", err)
 	}
 
+	// 使用 FormatQuantity 格式化数量
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+
 	params := map[string]interface{}{
 		"category":    "linear",
 		"symbol":      symbol,
 		"side":        "Buy",
 		"orderType":   "Market",
-		"qty":         fmt.Sprintf("%v", quantity),
+		"qty":         qtyStr,
 		"positionIdx": 0, // 单向持仓模式
 	}
 
@@ -254,12 +291,15 @@ func (t *BybitTrader) OpenShort(symbol string, quantity float64, leverage int) (
 		logger.Infof("⚠️ [Bybit] 设置杠杆失败: %v", err)
 	}
 
+	// 使用 FormatQuantity 格式化数量
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+
 	params := map[string]interface{}{
 		"category":    "linear",
 		"symbol":      symbol,
 		"side":        "Sell",
 		"orderType":   "Market",
-		"qty":         fmt.Sprintf("%v", quantity),
+		"qty":         qtyStr,
 		"positionIdx": 0, // 单向持仓模式
 	}
 
@@ -294,12 +334,15 @@ func (t *BybitTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		return nil, fmt.Errorf("没有多仓可平")
 	}
 
+	// 使用 FormatQuantity 格式化数量
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+
 	params := map[string]interface{}{
 		"category":    "linear",
 		"symbol":      symbol,
 		"side":        "Sell", // 平多用 Sell
 		"orderType":   "Market",
-		"qty":         fmt.Sprintf("%v", quantity),
+		"qty":         qtyStr,
 		"positionIdx": 0,
 		"reduceOnly":  true,
 	}
@@ -335,12 +378,15 @@ func (t *BybitTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		return nil, fmt.Errorf("没有空仓可平")
 	}
 
+	// 使用 FormatQuantity 格式化数量
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+
 	params := map[string]interface{}{
 		"category":    "linear",
 		"symbol":      symbol,
 		"side":        "Buy", // 平空用 Buy
 		"orderType":   "Market",
-		"qty":         fmt.Sprintf("%v", quantity),
+		"qty":         qtyStr,
 		"positionIdx": 0,
 		"reduceOnly":  true,
 	}
@@ -464,12 +510,15 @@ func (t *BybitTrader) SetStopLoss(symbol string, positionSide string, quantity, 
 		triggerDirection = 1 // 价格上涨触发（空单止损）
 	}
 
+	// 使用 FormatQuantity 格式化数量
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+
 	params := map[string]interface{}{
 		"category":         "linear",
 		"symbol":           symbol,
 		"side":             side,
 		"orderType":        "Market",
-		"qty":              fmt.Sprintf("%v", quantity),
+		"qty":              qtyStr,
 		"triggerPrice":     fmt.Sprintf("%v", stopPrice),
 		"triggerDirection": triggerDirection,
 		"triggerBy":        "LastPrice",
@@ -507,12 +556,15 @@ func (t *BybitTrader) SetTakeProfit(symbol string, positionSide string, quantity
 		triggerDirection = 2 // 价格下跌触发（空单止盈）
 	}
 
+	// 使用 FormatQuantity 格式化数量
+	qtyStr, _ := t.FormatQuantity(symbol, quantity)
+
 	params := map[string]interface{}{
 		"category":         "linear",
 		"symbol":           symbol,
 		"side":             side,
 		"orderType":        "Market",
-		"qty":              fmt.Sprintf("%v", quantity),
+		"qty":              qtyStr,
 		"triggerPrice":     fmt.Sprintf("%v", takeProfitPrice),
 		"triggerDirection": triggerDirection,
 		"triggerBy":        "LastPrice",
@@ -568,10 +620,86 @@ func (t *BybitTrader) CancelStopOrders(symbol string) error {
 	return nil
 }
 
+// getQtyStep 获取交易对的数量步长
+func (t *BybitTrader) getQtyStep(symbol string) float64 {
+	// 先检查缓存
+	t.qtyStepCacheMutex.RLock()
+	if step, ok := t.qtyStepCache[symbol]; ok {
+		t.qtyStepCacheMutex.RUnlock()
+		return step
+	}
+	t.qtyStepCacheMutex.RUnlock()
+
+	// 直接调用公开 API 获取合约信息
+	url := fmt.Sprintf("https://api.bybit.com/v5/market/instruments-info?category=linear&symbol=%s", symbol)
+	resp, err := http.Get(url)
+	if err != nil {
+		logger.Infof("⚠️ [Bybit] 获取 %s 精度信息失败: %v", symbol, err)
+		return 1 // 默认整数
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 1
+	}
+
+	var result struct {
+		RetCode int `json:"retCode"`
+		Result  struct {
+			List []struct {
+				LotSizeFilter struct {
+					QtyStep string `json:"qtyStep"`
+				} `json:"lotSizeFilter"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 1
+	}
+
+	if result.RetCode != 0 || len(result.Result.List) == 0 {
+		return 1
+	}
+
+	qtyStep, _ := strconv.ParseFloat(result.Result.List[0].LotSizeFilter.QtyStep, 64)
+	if qtyStep <= 0 {
+		qtyStep = 1
+	}
+
+	// 缓存结果
+	t.qtyStepCacheMutex.Lock()
+	t.qtyStepCache[symbol] = qtyStep
+	t.qtyStepCacheMutex.Unlock()
+
+	logger.Infof("🔵 [Bybit] %s qtyStep: %v", symbol, qtyStep)
+
+	return qtyStep
+}
+
 // FormatQuantity 格式化数量
 func (t *BybitTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
-	// Bybit 通常使用 3 位小数
-	return fmt.Sprintf("%.3f", quantity), nil
+	// 获取该币种的 qtyStep
+	qtyStep := t.getQtyStep(symbol)
+
+	// 根据 qtyStep 对齐数量（向下取整到最近的 step）
+	alignedQty := math.Floor(quantity/qtyStep) * qtyStep
+
+	// 计算需要的小数位数
+	decimals := 0
+	if qtyStep < 1 {
+		stepStr := strconv.FormatFloat(qtyStep, 'f', -1, 64)
+		if idx := strings.Index(stepStr, "."); idx >= 0 {
+			decimals = len(stepStr) - idx - 1
+		}
+	}
+
+	// 格式化
+	format := fmt.Sprintf("%%.%df", decimals)
+	formatted := fmt.Sprintf(format, alignedQty)
+
+	return formatted, nil
 }
 
 // 辅助方法

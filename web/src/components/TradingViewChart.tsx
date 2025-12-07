@@ -69,10 +69,21 @@ function TradingViewChartComponent({
   // 当外部传入的 defaultSymbol 变化时，更新内部 symbol
   useEffect(() => {
     if (defaultSymbol && defaultSymbol !== symbol) {
-      console.log('[TradingViewChart] 更新币种:', defaultSymbol)
+      // console.log('[TradingViewChart] 更新币种:', defaultSymbol)
       setSymbol(defaultSymbol)
     }
   }, [defaultSymbol])
+
+  // 当外部传入的 defaultExchange 变化时，更新内部 exchange
+  useEffect(() => {
+    if (defaultExchange && defaultExchange !== exchange) {
+      const normalizedExchange = defaultExchange.toUpperCase()
+      // console.log('[TradingViewChart] 更新交易所:', normalizedExchange)
+      if (EXCHANGES.some(e => e.id === normalizedExchange)) {
+        setExchange(normalizedExchange)
+      }
+    }
+  }, [defaultExchange])
 
   // 获取完整的交易对符号 (合约格式: BINANCE:BTCUSDT.P)
   const getFullSymbol = () => {
@@ -154,11 +165,10 @@ function TradingViewChartComponent({
 
   return (
     <div
-      className={`${embedded ? '' : 'binance-card'} overflow-hidden ${embedded ? '' : 'animate-fade-in'} ${
-        isFullscreen
+      className={`${embedded ? '' : 'binance-card'} overflow-hidden ${embedded ? '' : 'animate-fade-in'} ${isFullscreen
           ? 'fixed inset-0 z-50 rounded-none flex flex-col'
           : ''
-      }`}
+        }`}
       style={isFullscreen ? { background: '#0B0E11' } : undefined}
     >
       {/* Header */}

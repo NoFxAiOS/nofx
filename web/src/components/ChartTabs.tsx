@@ -4,16 +4,18 @@ import { TradingViewChart } from './TradingViewChart'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { BarChart3, CandlestickChart } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ChartTabsProps {
   traderId: string
   selectedSymbol?: string // 从外部选择的币种
   updateKey?: number // 强制更新的 key
+  exchangeId?: string // 交易所ID
 }
 
 type ChartTab = 'equity' | 'kline'
 
-export function ChartTabs({ traderId, selectedSymbol, updateKey }: ChartTabsProps) {
+export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
   const [chartSymbol, setChartSymbol] = useState<string>('BTCUSDT')
@@ -44,20 +46,10 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey }: ChartTabsProp
             console.log('[ChartTabs] switching to equity')
             setActiveTab('equity')
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-          style={
-            activeTab === 'equity'
-              ? {
-                  background: 'rgba(240, 185, 11, 0.15)',
-                  color: '#F0B90B',
-                  border: '1px solid rgba(240, 185, 11, 0.3)',
-                }
-              : {
-                  background: 'transparent',
-                  color: '#848E9C',
-                  border: '1px solid transparent',
-                }
-          }
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'equity'
+            ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 shadow-[0_0_10px_rgba(252,213,53,0.15)]'
+            : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
         >
           <BarChart3 className="w-4 h-4" />
           {t('accountEquityCurve', language)}
@@ -68,20 +60,10 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey }: ChartTabsProp
             console.log('[ChartTabs] switching to kline')
             setActiveTab('kline')
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold"
-          style={
-            activeTab === 'kline'
-              ? {
-                  background: 'rgba(240, 185, 11, 0.15)',
-                  color: '#F0B90B',
-                  border: '1px solid rgba(240, 185, 11, 0.3)',
-                }
-              : {
-                  background: 'transparent',
-                  color: '#848E9C',
-                  border: '1px solid transparent',
-                }
-          }
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'kline'
+            ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 shadow-[0_0_10px_rgba(252,213,53,0.15)]'
+            : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
+            }`}
         >
           <CandlestickChart className="w-4 h-4" />
           {t('marketChart', language)}
@@ -89,17 +71,38 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey }: ChartTabsProp
       </div>
 
       {/* Tab Content */}
-      <div>
-        {activeTab === 'equity' ? (
-          <EquityChart traderId={traderId} embedded />
-        ) : (
-          <TradingViewChart
-            height={400}
-            embedded
-            defaultSymbol={chartSymbol}
-            key={chartSymbol} // 强制重新渲染当币种变化时
-          />
-        )}
+      <div className="relative overflow-hidden min-h-[400px]">
+        <AnimatePresence mode="wait">
+          {activeTab === 'equity' ? (
+            <motion.div
+              key="equity"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              <EquityChart traderId={traderId} embedded />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={`kline-${chartSymbol}-${exchangeId}`}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              <TradingViewChart
+                height={400}
+                embedded
+                defaultSymbol={chartSymbol}
+                defaultExchange={exchangeId}
+                key={`${chartSymbol}-${exchangeId}-${updateKey || ''}`}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

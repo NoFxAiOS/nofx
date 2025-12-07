@@ -97,7 +97,13 @@ func (t *LighterTrader) initializeAccount() error {
 	}
 
 	t.accountMutex.Lock()
-	t.accountIndex = accountInfo["index"].(int)
+	// Safe type assertion to prevent panic
+	if index, ok := accountInfo["index"].(int); ok {
+		t.accountIndex = index
+	} else {
+		t.accountMutex.Unlock()
+		return fmt.Errorf("invalid account index type: %v", accountInfo["index"])
+	}
 	t.accountMutex.Unlock()
 
 	logger.Infof("✓ LIGHTER account index: %d", t.accountIndex)

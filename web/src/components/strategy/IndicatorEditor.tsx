@@ -1,6 +1,9 @@
 import { Clock, Activity, Database } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 
+// Default API URL for quant data (must contain {symbol} placeholder)
+const DEFAULT_QUANT_DATA_API_URL = 'http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c'
+
 interface IndicatorEditorProps {
   config: IndicatorConfig
   onChange: (config: IndicatorConfig) => void
@@ -54,6 +57,7 @@ export function IndicatorEditor({
       quantData: { zh: '量化数据', en: 'Quant Data' },
       quantDataDesc: { zh: '资金流向、持仓变化、价格变化（按币种查询）', en: 'Netflow, OI delta, price change (per coin)' },
       quantDataUrl: { zh: '量化数据 API', en: 'Quant Data API' },
+      fillDefault: { zh: '填入默认', en: 'Fill Default' },
     }
     return translations[key]?.[language] || key
   }
@@ -293,9 +297,21 @@ export function IndicatorEditor({
           {/* API URL */}
           {config.enable_quant_data && (
             <div>
-              <label className="text-[10px] mb-1 block" style={{ color: '#848E9C' }}>
-                {t('quantDataUrl')} <span style={{ color: '#5E6673' }}>({'{symbol}'} = 币种)</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px]" style={{ color: '#848E9C' }}>
+                  {t('quantDataUrl')} <span style={{ color: '#5E6673' }}>({'{symbol}'} = 币种)</span>
+                </label>
+                {!disabled && !config.quant_data_api_url && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...config, quant_data_api_url: DEFAULT_QUANT_DATA_API_URL })}
+                    className="text-[10px] px-2 py-0.5 rounded"
+                    style={{ background: '#22c55e20', color: '#22c55e' }}
+                  >
+                    {t('fillDefault')}
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 value={config.quant_data_api_url || ''}

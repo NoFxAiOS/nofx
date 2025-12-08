@@ -191,7 +191,8 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			CoinPoolLimit:  30,
 			CoinPoolAPIURL: "http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c",
 			UseOITop:       false,
-			OITopLimit:     0,
+			OITopLimit:     20,
+			OITopAPIURL:    "http://nofxaios.com:30006/api/oi/top-ranking?limit=20&duration=1h&auth=cm_568c67eae410d912c54c",
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{

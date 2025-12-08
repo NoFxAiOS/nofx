@@ -204,16 +204,25 @@ func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
 }
 
 // Update updates AI model, creates if not exists
+// IMPORTANT: If apiKey is empty string, the existing API key will be preserved (not overwritten)
 func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {
 	// Try exact ID match first
 	var existingID string
 	err := s.db.QueryRow(`SELECT id FROM ai_models WHERE user_id = ? AND id = ? LIMIT 1`, userID, id).Scan(&existingID)
 	if err == nil {
-		encryptedAPIKey := s.encrypt(apiKey)
-		_, err = s.db.Exec(`
-			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
-			WHERE id = ? AND user_id = ?
-		`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
+		// If apiKey is empty, preserve the existing API key
+		if apiKey == "" {
+			_, err = s.db.Exec(`
+				UPDATE ai_models SET enabled = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
+				WHERE id = ? AND user_id = ?
+			`, enabled, customAPIURL, customModelName, existingID, userID)
+		} else {
+			encryptedAPIKey := s.encrypt(apiKey)
+			_, err = s.db.Exec(`
+				UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
+				WHERE id = ? AND user_id = ?
+			`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
+		}
 		return err
 	}
 
@@ -222,11 +231,19 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 	err = s.db.QueryRow(`SELECT id FROM ai_models WHERE user_id = ? AND provider = ? LIMIT 1`, userID, provider).Scan(&existingID)
 	if err == nil {
 		logger.Warnf("⚠️ Using legacy provider matching to update model: %s -> %s", provider, existingID)
-		encryptedAPIKey := s.encrypt(apiKey)
-		_, err = s.db.Exec(`
-			UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
-			WHERE id = ? AND user_id = ?
-		`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
+		// If apiKey is empty, preserve the existing API key
+		if apiKey == "" {
+			_, err = s.db.Exec(`
+				UPDATE ai_models SET enabled = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
+				WHERE id = ? AND user_id = ?
+			`, enabled, customAPIURL, customModelName, existingID, userID)
+		} else {
+			encryptedAPIKey := s.encrypt(apiKey)
+			_, err = s.db.Exec(`
+				UPDATE ai_models SET enabled = ?, api_key = ?, custom_api_url = ?, custom_model_name = ?, updated_at = datetime('now')
+				WHERE id = ? AND user_id = ?
+			`, enabled, encryptedAPIKey, customAPIURL, customModelName, existingID, userID)
+		}
 		return err
 	}
 

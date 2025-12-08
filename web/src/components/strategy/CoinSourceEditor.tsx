@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Plus, X, Database, TrendingUp, List, Link, AlertCircle } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 
+// Default API URLs for data sources
+const DEFAULT_COIN_POOL_API_URL = 'http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c'
+const DEFAULT_OI_TOP_API_URL = 'http://nofxaios.com:30006/api/oi/top-ranking?limit=20&duration=1h&auth=cm_568c67eae410d912c54c'
+
 interface CoinSourceEditorProps {
   config: CoinSourceConfig
   onChange: (config: CoinSourceConfig) => void
@@ -49,6 +53,7 @@ export function CoinSourceEditor({
       },
       apiUrlRequired: { zh: '需要填写 API URL 才能获取数据', en: 'API URL required to fetch data' },
       dataSourceConfig: { zh: '数据源配置', en: 'Data Source Configuration' },
+      fillDefault: { zh: '填入默认', en: 'Fill Default' },
     }
     return translations[key]?.[language] || key
   }
@@ -228,9 +233,21 @@ export function CoinSourceEditor({
 
           {config.use_coin_pool && (
             <div>
-              <label className="block text-sm mb-2" style={{ color: '#848E9C' }}>
-                {t('coinPoolApiUrl')}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('coinPoolApiUrl')}
+                </label>
+                {!disabled && !config.coin_pool_api_url && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...config, coin_pool_api_url: DEFAULT_COIN_POOL_API_URL })}
+                    className="text-xs px-2 py-1 rounded"
+                    style={{ background: '#F0B90B20', color: '#F0B90B' }}
+                  >
+                    {t('fillDefault')}
+                  </button>
+                )}
+              </div>
               <input
                 type="url"
                 value={config.coin_pool_api_url || ''}
@@ -312,9 +329,21 @@ export function CoinSourceEditor({
 
           {config.use_oi_top && (
             <div>
-              <label className="block text-sm mb-2" style={{ color: '#848E9C' }}>
-                {t('oiTopApiUrl')}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('oiTopApiUrl')}
+                </label>
+                {!disabled && !config.oi_top_api_url && (
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...config, oi_top_api_url: DEFAULT_OI_TOP_API_URL })}
+                    className="text-xs px-2 py-1 rounded"
+                    style={{ background: '#0ECB8120', color: '#0ECB81' }}
+                  >
+                    {t('fillDefault')}
+                  </button>
+                )}
+              </div>
               <input
                 type="url"
                 value={config.oi_top_api_url || ''}

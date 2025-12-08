@@ -408,22 +408,39 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
 
             <Legend
               wrapperStyle={{ paddingTop: '16px' }}
-              iconType="circle"
-              iconSize={8}
-              formatter={(value) => {
-                const trader = traders.find((t) => t.trader_name === value)
-                const pnl = trader ? lastPoint?.[`${trader.trader_id}_pnl_pct`] || 0 : 0
+              content={({ payload }) => {
+                // Filter out Area entries (they use raw dataKey containing _pnl_pct)
+                const filteredPayload = payload?.filter(
+                  (entry: any) => entry.value && !entry.value.includes('_pnl_pct')
+                ) || []
+
                 return (
-                  <span style={{ color: '#EAECEF', fontSize: '12px', fontWeight: 500 }}>
-                    {value}
-                    <span style={{
-                      color: pnl >= 0 ? '#0ECB81' : '#F6465D',
-                      marginLeft: '6px',
-                      fontFamily: 'monospace'
-                    }}>
-                      ({pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%)
-                    </span>
-                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
+                    {filteredPayload.map((entry: any, index: number) => {
+                      const trader = traders.find((t) => t.trader_name === entry.value)
+                      const pnl = trader ? lastPoint?.[`${trader.trader_id}_pnl_pct`] || 0 : 0
+                      return (
+                        <div key={`legend-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: entry.color
+                          }} />
+                          <span style={{ color: '#EAECEF', fontSize: '12px', fontWeight: 500 }}>
+                            {entry.value}
+                            <span style={{
+                              color: pnl >= 0 ? '#0ECB81' : '#F6465D',
+                              marginLeft: '6px',
+                              fontFamily: 'monospace'
+                            }}>
+                              ({pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%)
+                            </span>
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 )
               }}
             />

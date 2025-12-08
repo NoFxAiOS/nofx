@@ -5,20 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"nofx/logger"
 	"net/http"
+	"nofx/logger"
 )
 
 // CreateOrderRequest Create order request
 type CreateOrderRequest struct {
-	Symbol       string  `json:"symbol"`        // Trading pair, e.g. "BTC-PERP"
-	Side         string  `json:"side"`          // "buy" or "sell"
-	OrderType    string  `json:"order_type"`    // "market" or "limit"
-	Quantity     float64 `json:"quantity"`      // Quantity
-	Price        float64 `json:"price"`         // Price (required for limit orders)
-	ReduceOnly   bool    `json:"reduce_only"`   // Reduce-only flag
-	TimeInForce  string  `json:"time_in_force"` // "GTC", "IOC", "FOK"
-	PostOnly     bool    `json:"post_only"`     // Post-only (maker only)
+	Symbol      string  `json:"symbol"`        // Trading pair, e.g. "BTC-PERP"
+	Side        string  `json:"side"`          // "buy" or "sell"
+	OrderType   string  `json:"order_type"`    // "market" or "limit"
+	Quantity    float64 `json:"quantity"`      // Quantity
+	Price       float64 `json:"price"`         // Price (required for limit orders)
+	ReduceOnly  bool    `json:"reduce_only"`   // Reduce-only flag
+	TimeInForce string  `json:"time_in_force"` // "GTC", "IOC", "FOK"
+	PostOnly    bool    `json:"post_only"`     // Post-only (maker only)
 }
 
 // OrderResponse Order response

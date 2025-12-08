@@ -33,8 +33,8 @@ type AutoTraderConfig struct {
 	BybitSecretKey string
 
 	// OKX API configuration
-	OKXAPIKey    string
-	OKXSecretKey string
+	OKXAPIKey     string
+	OKXSecretKey  string
 	OKXPassphrase string
 
 	// Hyperliquid configuration
@@ -1552,10 +1552,10 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		// Update position record
 		err = at.store.Position().ClosePosition(
 			openPos.ID,
-			price,       // exitPrice
-			orderID,     // exitOrderID
+			price,   // exitPrice
+			orderID, // exitOrderID
 			realizedPnL,
-			0,           // fee (not calculated yet)
+			0, // fee (not calculated yet)
 			"ai_decision",
 		)
 		if err != nil {
@@ -1566,4 +1566,3 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		}
 	}
 }
-

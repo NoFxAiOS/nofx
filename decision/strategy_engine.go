@@ -179,11 +179,11 @@ func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 
 // QuantData quantitative data structure (fund flow, position changes, price changes)
 type QuantData struct {
-	Symbol      string                 `json:"symbol"`
-	Price       float64                `json:"price"`
-	Netflow     *NetflowData           `json:"netflow,omitempty"`
-	OI          map[string]*OIData     `json:"oi,omitempty"`
-	PriceChange map[string]float64     `json:"price_change,omitempty"`
+	Symbol      string             `json:"symbol"`
+	Price       float64            `json:"price"`
+	Netflow     *NetflowData       `json:"netflow,omitempty"`
+	OI          map[string]*OIData `json:"oi,omitempty"`
+	PriceChange map[string]float64 `json:"price_change,omitempty"`
 }
 
 type NetflowData struct {
@@ -197,9 +197,9 @@ type FlowTypeData struct {
 }
 
 type OIData struct {
-	CurrentOI float64                `json:"current_oi"`
-	NetLong   float64                `json:"net_long"`
-	NetShort  float64                `json:"net_short"`
+	CurrentOI float64                 `json:"current_oi"`
+	NetLong   float64                 `json:"net_long"`
+	NetShort  float64                 `json:"net_short"`
 	Delta     map[string]*OIDeltaData `json:"delta,omitempty"`
 }
 
@@ -236,7 +236,7 @@ func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 
 	// Parse response
 	var apiResp struct {
-		Code int       `json:"code"`
+		Code int        `json:"code"`
 		Data *QuantData `json:"data"`
 	}
 

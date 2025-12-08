@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"nofx/logger"
 	"math"
 	"math/big"
 	"net/http"
 	"net/url"
 	"nofx/hook"
+	"nofx/logger"
 	"sort"
 	"strconv"
 	"strings"
@@ -1250,14 +1250,14 @@ func (t *AsterTrader) GetOrderStatus(symbol string, orderID string) (map[string]
 
 	// Standardize return fields
 	response := map[string]interface{}{
-		"orderId":     result["orderId"],
-		"symbol":      result["symbol"],
-		"status":      result["status"],
-		"side":        result["side"],
-		"type":        result["type"],
-		"time":        result["time"],
-		"updateTime":  result["updateTime"],
-		"commission":  0.0, // Aster may require separate query
+		"orderId":    result["orderId"],
+		"symbol":     result["symbol"],
+		"status":     result["status"],
+		"side":       result["side"],
+		"type":       result["type"],
+		"time":       result["time"],
+		"updateTime": result["updateTime"],
+		"commission": 0.0, // Aster may require separate query
 	}
 
 	// Parse numeric fields

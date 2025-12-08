@@ -15,7 +15,8 @@ type ClientOption func(*Config)
 // WithLogger sets custom logger
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithLogger(customLogger))
+//
+//	client := mcp.NewClient(mcp.WithLogger(customLogger))
 func WithLogger(logger Logger) ClientOption {
 	return func(c *Config) {
 		c.Logger = logger
@@ -25,8 +26,9 @@ func WithLogger(logger Logger) ClientOption {
 // WithHTTPClient sets custom HTTP client
 //
 // Usage example:
-//   httpClient := &http.Client{Timeout: 60 * time.Second}
-//   client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
+//
+//	httpClient := &http.Client{Timeout: 60 * time.Second}
+//	client := mcp.NewClient(mcp.WithHTTPClient(httpClient))
 func WithHTTPClient(client *http.Client) ClientOption {
 	return func(c *Config) {
 		c.HTTPClient = client
@@ -40,7 +42,8 @@ func WithHTTPClient(client *http.Client) ClientOption {
 // WithTimeout sets request timeout duration
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithTimeout(60 * time.Second))
+//
+//	client := mcp.NewClient(mcp.WithTimeout(60 * time.Second))
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *Config) {
 		c.Timeout = timeout
@@ -51,7 +54,8 @@ func WithTimeout(timeout time.Duration) ClientOption {
 // WithMaxRetries sets maximum retry count
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithMaxRetries(5))
+//
+//	client := mcp.NewClient(mcp.WithMaxRetries(5))
 func WithMaxRetries(maxRetries int) ClientOption {
 	return func(c *Config) {
 		c.MaxRetries = maxRetries
@@ -61,7 +65,8 @@ func WithMaxRetries(maxRetries int) ClientOption {
 // WithRetryWaitBase sets base retry wait duration
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithRetryWaitBase(3 * time.Second))
+//
+//	client := mcp.NewClient(mcp.WithRetryWaitBase(3 * time.Second))
 func WithRetryWaitBase(waitTime time.Duration) ClientOption {
 	return func(c *Config) {
 		c.RetryWaitBase = waitTime
@@ -75,7 +80,8 @@ func WithRetryWaitBase(waitTime time.Duration) ClientOption {
 // WithMaxTokens sets maximum token count
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithMaxTokens(4000))
+//
+//	client := mcp.NewClient(mcp.WithMaxTokens(4000))
 func WithMaxTokens(maxTokens int) ClientOption {
 	return func(c *Config) {
 		c.MaxTokens = maxTokens
@@ -85,7 +91,8 @@ func WithMaxTokens(maxTokens int) ClientOption {
 // WithTemperature sets temperature parameter
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithTemperature(0.7))
+//
+//	client := mcp.NewClient(mcp.WithTemperature(0.7))
 func WithTemperature(temperature float64) ClientOption {
 	return func(c *Config) {
 		c.Temperature = temperature
@@ -138,7 +145,8 @@ func WithUseFullURL(useFullURL bool) ClientOption {
 // WithDeepSeekConfig sets DeepSeek configuration
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithDeepSeekConfig("sk-xxx"))
+//
+//	client := mcp.NewClient(mcp.WithDeepSeekConfig("sk-xxx"))
 func WithDeepSeekConfig(apiKey string) ClientOption {
 	return func(c *Config) {
 		c.Provider = ProviderDeepSeek
@@ -151,7 +159,8 @@ func WithDeepSeekConfig(apiKey string) ClientOption {
 // WithQwenConfig sets Qwen configuration
 //
 // Usage example:
-//   client := mcp.NewClient(mcp.WithQwenConfig("sk-xxx"))
+//
+//	client := mcp.NewClient(mcp.WithQwenConfig("sk-xxx"))
 func WithQwenConfig(apiKey string) ClientOption {
 	return func(c *Config) {
 		c.Provider = ProviderQwen

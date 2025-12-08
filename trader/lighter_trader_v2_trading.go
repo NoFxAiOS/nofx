@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"nofx/logger"
 	"net/http"
+	"nofx/logger"
 	"time"
 
 	"github.com/elliottech/lighter-go/types"

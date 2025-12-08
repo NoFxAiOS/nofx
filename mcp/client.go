@@ -43,7 +43,7 @@ type Client struct {
 	MaxTokens  int  // Maximum tokens for AI response
 
 	httpClient *http.Client
-	logger     Logger // Logger (replaceable)
+	logger     Logger  // Logger (replaceable)
 	config     *Config // Config object (stores all configurations)
 
 	// hooks are used to implement dynamic dispatch (polymorphism)
@@ -62,21 +62,22 @@ func New() AIClient {
 // NewClient creates client (supports options pattern)
 //
 // Usage examples:
-//   // Basic usage (backward compatible)
-//   client := mcp.NewClient()
 //
-//   // Custom logger
-//   client := mcp.NewClient(mcp.WithLogger(customLogger))
+//	// Basic usage (backward compatible)
+//	client := mcp.NewClient()
 //
-//   // Custom timeout
-//   client := mcp.NewClient(mcp.WithTimeout(60*time.Second))
+//	// Custom logger
+//	client := mcp.NewClient(mcp.WithLogger(customLogger))
 //
-//   // Combine multiple options
-//   client := mcp.NewClient(
-//       mcp.WithDeepSeekConfig("sk-xxx"),
-//       mcp.WithLogger(customLogger),
-//       mcp.WithTimeout(60*time.Second),
-//   )
+//	// Custom timeout
+//	client := mcp.NewClient(mcp.WithTimeout(60*time.Second))
+//
+//	// Combine multiple options
+//	client := mcp.NewClient(
+//	    mcp.WithDeepSeekConfig("sk-xxx"),
+//	    mcp.WithLogger(customLogger),
+//	    mcp.WithTimeout(60*time.Second),
+//	)
 func NewClient(opts ...ClientOption) AIClient {
 	// 1. Create default config
 	cfg := DefaultConfig()
@@ -341,12 +342,13 @@ func (client *Client) isRetryableError(err error) bool {
 // - Streaming response (future support)
 //
 // Usage example:
-//   request := NewRequestBuilder().
-//       WithSystemPrompt("You are helpful").
-//       WithUserPrompt("Hello").
-//       WithTemperature(0.8).
-//       Build()
-//   result, err := client.CallWithRequest(request)
+//
+//	request := NewRequestBuilder().
+//	    WithSystemPrompt("You are helpful").
+//	    WithUserPrompt("Hello").
+//	    WithTemperature(0.8).
+//	    Build()
+//	result, err := client.CallWithRequest(request)
 func (client *Client) CallWithRequest(req *Request) (string, error) {
 	if client.APIKey == "" {
 		return "", fmt.Errorf("AI API key not set, please call SetAPIKey first")

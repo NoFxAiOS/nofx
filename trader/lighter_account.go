@@ -9,24 +9,24 @@ import (
 
 // AccountBalance Account balance information
 type AccountBalance struct {
-	TotalEquity       float64 `json:"total_equity"`        // Total equity
-	AvailableBalance  float64 `json:"available_balance"`   // Available balance
-	MarginUsed        float64 `json:"margin_used"`         // Used margin
-	UnrealizedPnL     float64 `json:"unrealized_pnl"`      // Unrealized PnL
-	MaintenanceMargin float64 `json:"maintenance_margin"`  // Maintenance margin
+	TotalEquity       float64 `json:"total_equity"`       // Total equity
+	AvailableBalance  float64 `json:"available_balance"`  // Available balance
+	MarginUsed        float64 `json:"margin_used"`        // Used margin
+	UnrealizedPnL     float64 `json:"unrealized_pnl"`     // Unrealized PnL
+	MaintenanceMargin float64 `json:"maintenance_margin"` // Maintenance margin
 }
 
 // Position Position information
 type Position struct {
-	Symbol           string  `json:"symbol"`             // Trading pair
-	Side             string  `json:"side"`               // "long" or "short"
-	Size             float64 `json:"size"`               // Position size
-	EntryPrice       float64 `json:"entry_price"`        // Average entry price
-	MarkPrice        float64 `json:"mark_price"`         // Mark price
-	LiquidationPrice float64 `json:"liquidation_price"`  // Liquidation price
-	UnrealizedPnL    float64 `json:"unrealized_pnl"`     // Unrealized PnL
-	Leverage         float64 `json:"leverage"`           // Leverage multiplier
-	MarginUsed       float64 `json:"margin_used"`        // Used margin
+	Symbol           string  `json:"symbol"`            // Trading pair
+	Side             string  `json:"side"`              // "long" or "short"
+	Size             float64 `json:"size"`              // Position size
+	EntryPrice       float64 `json:"entry_price"`       // Average entry price
+	MarkPrice        float64 `json:"mark_price"`        // Mark price
+	LiquidationPrice float64 `json:"liquidation_price"` // Liquidation price
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`    // Unrealized PnL
+	Leverage         float64 `json:"leverage"`          // Leverage multiplier
+	MarginUsed       float64 `json:"margin_used"`       // Used margin
 }
 
 // GetBalance Get account balance (implements Trader interface)
@@ -148,15 +148,15 @@ func (t *LighterTrader) GetPositions() ([]map[string]interface{}, error) {
 	result := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
 		result = append(result, map[string]interface{}{
-			"symbol":             pos.Symbol,
-			"side":               pos.Side,
-			"size":               pos.Size,
-			"entry_price":        pos.EntryPrice,
-			"mark_price":         pos.MarkPrice,
-			"liquidation_price":  pos.LiquidationPrice,
-			"unrealized_pnl":     pos.UnrealizedPnL,
-			"leverage":           pos.Leverage,
-			"margin_used":        pos.MarginUsed,
+			"symbol":            pos.Symbol,
+			"side":              pos.Side,
+			"size":              pos.Size,
+			"entry_price":       pos.EntryPrice,
+			"mark_price":        pos.MarkPrice,
+			"liquidation_price": pos.LiquidationPrice,
+			"unrealized_pnl":    pos.UnrealizedPnL,
+			"leverage":          pos.Leverage,
+			"margin_used":       pos.MarginUsed,
 		})
 	}
 

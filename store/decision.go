@@ -56,7 +56,7 @@ type PositionSnapshot struct {
 }
 
 // DecisionAction decision action
-type DecisionAction struct{
+type DecisionAction struct {
 	Action    string    `json:"action"`
 	Symbol    string    `json:"symbol"`
 	Quantity  float64   `json:"quantity"`

@@ -18,9 +18,9 @@ type Strategy struct {
 	UserID      string    `json:"user_id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
-	IsActive    bool      `json:"is_active"`    // whether it is active (a user can only have one active strategy)
-	IsDefault   bool      `json:"is_default"`   // whether it is a system default strategy
-	Config      string    `json:"config"`       // strategy configuration in JSON format
+	IsActive    bool      `json:"is_active"`  // whether it is active (a user can only have one active strategy)
+	IsDefault   bool      `json:"is_default"` // whether it is a system default strategy
+	Config      string    `json:"config"`     // strategy configuration in JSON format
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -81,7 +81,7 @@ type IndicatorConfig struct {
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
 	EnableVolume      bool `json:"enable_volume"`
-	EnableOI          bool `json:"enable_oi"`          // open interest
+	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
 	// EMA period configuration
 	EMAPeriods []int `json:"ema_periods,omitempty"` // default [20, 50]
@@ -92,8 +92,8 @@ type IndicatorConfig struct {
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
 	// quantitative data sources (capital flow, position changes, price changes)
-	EnableQuantData  bool   `json:"enable_quant_data"`            // whether to enable quantitative data
-	QuantDataAPIURL  string `json:"quant_data_api_url,omitempty"` // quantitative data API address
+	EnableQuantData bool   `json:"enable_quant_data"`            // whether to enable quantitative data
+	QuantDataAPIURL string `json:"quant_data_api_url,omitempty"` // quantitative data API address
 }
 
 // KlineConfig K-line configuration
@@ -114,10 +114,10 @@ type KlineConfig struct {
 
 // ExternalDataSource external data source configuration
 type ExternalDataSource struct {
-	Name        string            `json:"name"`         // data source name
-	Type        string            `json:"type"`         // type: "api" | "webhook"
-	URL         string            `json:"url"`          // API URL
-	Method      string            `json:"method"`       // HTTP method
+	Name        string            `json:"name"`   // data source name
+	Type        string            `json:"type"`   // type: "api" | "webhook"
+	URL         string            `json:"url"`    // API URL
+	Method      string            `json:"method"` // HTTP method
 	Headers     map[string]string `json:"headers,omitempty"`
 	DataPath    string            `json:"data_path,omitempty"`    // JSON data path
 	RefreshSecs int               `json:"refresh_secs,omitempty"` // refresh interval (seconds)

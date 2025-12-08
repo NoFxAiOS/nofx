@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// TraderStats trading statistics metrics
+type TraderStats struct {
+	TotalTrades    int     `json:"total_trades"`     // Total trades (closed)
+	WinTrades      int     `json:"win_trades"`       // Winning trades
+	LossTrades     int     `json:"loss_trades"`      // Losing trades
+	WinRate        float64 `json:"win_rate"`         // Win rate (%)
+	ProfitFactor   float64 `json:"profit_factor"`    // Profit factor
+	SharpeRatio    float64 `json:"sharpe_ratio"`     // Sharpe ratio
+	TotalPnL       float64 `json:"total_pnl"`        // Total PnL
+	TotalFee       float64 `json:"total_fee"`        // Total fees
+	AvgWin         float64 `json:"avg_win"`          // Average win
+	AvgLoss        float64 `json:"avg_loss"`         // Average loss
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"` // Max drawdown (%)
+}
+
 // TraderPosition position record (complete open/close position tracking)
 type TraderPosition struct {
 	ID           int64      `json:"id"`

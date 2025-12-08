@@ -312,6 +312,8 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		Lever   string `json:"lever"`
 		LiqPx   string `json:"liqPx"`
 		Margin  string `json:"margin"`
+		CTime   string `json:"cTime"` // Position created time (ms)
+		UTime   string `json:"uTime"` // Position last update time (ms)
 	}
 
 	if err := json.Unmarshal(data, &positions); err != nil {
@@ -344,6 +346,10 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 			posAmt = -posAmt
 		}
 
+		// Parse timestamps
+		cTime, _ := strconv.ParseInt(pos.CTime, 10, 64)
+		uTime, _ := strconv.ParseInt(pos.UTime, 10, 64)
+
 		posMap := map[string]interface{}{
 			"symbol":           symbol,
 			"positionAmt":      posAmt,
@@ -353,6 +359,8 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 			"leverage":         leverage,
 			"liquidationPrice": liqPrice,
 			"side":             side,
+			"createdTime":      cTime, // Position open time (ms)
+			"updatedTime":      uTime, // Position last update time (ms)
 		}
 		result = append(result, posMap)
 	}

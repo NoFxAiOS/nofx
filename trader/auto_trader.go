@@ -572,14 +572,32 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		// Calculate P&L percentage (based on margin, considering leverage)
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
-		// Track position first seen time
+		// Get position open time from exchange (preferred) or fallback to local tracking
 		posKey := symbol + "_" + side
 		currentPositionKeys[posKey] = true
-		if _, exists := at.positionFirstSeenTime[posKey]; !exists {
-			// New position, record current time
-			at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
+
+		var updateTime int64
+		// Priority 1: Get from database (trader_positions table) - most accurate
+		if at.store != nil {
+			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side); err == nil && dbPos != nil {
+				if !dbPos.EntryTime.IsZero() {
+					updateTime = dbPos.EntryTime.UnixMilli()
+				}
+			}
 		}
-		updateTime := at.positionFirstSeenTime[posKey]
+		// Priority 2: Get from exchange API (Bybit: createdTime, OKX: createdTime)
+		if updateTime == 0 {
+			if createdTime, ok := pos["createdTime"].(int64); ok && createdTime > 0 {
+				updateTime = createdTime
+			}
+		}
+		// Priority 3: Fallback to local tracking
+		if updateTime == 0 {
+			if _, exists := at.positionFirstSeenTime[posKey]; !exists {
+				at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
+			}
+			updateTime = at.positionFirstSeenTime[posKey]
+		}
 
 		// Get peak profit rate for this position
 		at.peakPnLCacheMutex.RLock()
@@ -910,13 +928,21 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	}
 	actionRecord.Price = marketData.CurrentPrice
 
-	// Get entry price (for P&L calculation)
+	// Get entry price and quantity from exchange API (most accurate)
 	var entryPrice float64
 	var quantity float64
-	if at.store != nil {
-		if openOrder, err := at.store.Order().GetLatestOpenOrder(at.id, decision.Symbol, "long"); err == nil {
-			entryPrice = openOrder.AvgPrice
-			quantity = openOrder.ExecutedQty
+	positions, err := at.trader.GetPositions()
+	if err == nil {
+		for _, pos := range positions {
+			if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
+				if ep, ok := pos["entryPrice"].(float64); ok {
+					entryPrice = ep
+				}
+				if amt, ok := pos["positionAmt"].(float64); ok && amt > 0 {
+					quantity = amt
+				}
+				break
+			}
 		}
 	}
 
@@ -949,13 +975,21 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	}
 	actionRecord.Price = marketData.CurrentPrice
 
-	// Get entry price (for P&L calculation)
+	// Get entry price and quantity from exchange API (most accurate)
 	var entryPrice float64
 	var quantity float64
-	if at.store != nil {
-		if openOrder, err := at.store.Order().GetLatestOpenOrder(at.id, decision.Symbol, "short"); err == nil {
-			entryPrice = openOrder.AvgPrice
-			quantity = openOrder.ExecutedQty
+	positions, err := at.trader.GetPositions()
+	if err == nil {
+		for _, pos := range positions {
+			if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
+				if ep, ok := pos["entryPrice"].(float64); ok {
+					entryPrice = ep
+				}
+				if amt, ok := pos["positionAmt"].(float64); ok {
+					quantity = -amt // positionAmt is negative for short
+				}
+				break
+			}
 		}
 	}
 
@@ -1435,7 +1469,7 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 	delete(at.peakPnLCache, posKey)
 }
 
-// recordAndConfirmOrder records order and polls for confirmation status
+// recordAndConfirmOrder polls order status for actual fill data and records position
 // action: open_long, open_short, close_long, close_short
 // entryPrice: entry price when closing (0 when opening)
 func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, symbol, action string, quantity float64, price float64, leverage int, entryPrice float64) {
@@ -1461,53 +1495,58 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 		return
 	}
 
-	// Determine side and positionSide
-	var side, positionSide string
+	// Determine positionSide
+	var positionSide string
 	switch action {
-	case "open_long":
-		side = "BUY"
+	case "open_long", "close_long":
 		positionSide = "LONG"
-	case "close_long":
-		side = "SELL"
-		positionSide = "LONG"
-	case "open_short":
-		side = "SELL"
-		positionSide = "SHORT"
-	case "close_short":
-		side = "BUY"
+	case "open_short", "close_short":
 		positionSide = "SHORT"
 	}
 
-	// Create order record
-	order := &store.TraderOrder{
-		TraderID:     at.id,
-		OrderID:      orderID,
-		Symbol:       symbol,
-		Side:         side,
-		PositionSide: positionSide,
-		Action:       action,
-		OrderType:    "MARKET",
-		Quantity:     quantity,
-		Price:        price,
-		Leverage:     leverage,
-		Status:       "NEW",
-		EntryPrice:   entryPrice,
+	// Poll order status to get actual fill price, quantity and fee
+	var actualPrice = price       // fallback to market price
+	var actualQty = quantity      // fallback to requested quantity
+	var fee float64
+
+	// Wait for order to be filled and get actual fill data
+	time.Sleep(500 * time.Millisecond)
+	for i := 0; i < 5; i++ {
+		status, err := at.trader.GetOrderStatus(symbol, orderID)
+		if err == nil {
+			statusStr, _ := status["status"].(string)
+			if statusStr == "FILLED" {
+				// Get actual fill price
+				if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
+					actualPrice = avgPrice
+				}
+				// Get actual executed quantity
+				if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
+					actualQty = execQty
+				}
+				// Get commission/fee
+				if commission, ok := status["commission"].(float64); ok {
+					fee = commission
+				}
+				logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
+				break
+			} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
+				logger.Infof("  ⚠️ Order %s, skipping position record", statusStr)
+				return
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	// Save to database
-	if err := at.store.Order().Create(order); err != nil {
-		logger.Infof("  ⚠️ Failed to record order: %v", err)
-		return
-	}
+	logger.Infof("  📝 Recording position (ID: %s, action: %s, price: %.6f, qty: %.6f, fee: %.4f)",
+		orderID, action, actualPrice, actualQty, fee)
 
-	logger.Infof("  📝 Order recorded (ID: %s, action: %s)", orderID, action)
-
-	// Record position change
-	at.recordPositionChange(orderID, symbol, positionSide, action, quantity, price, leverage, entryPrice)
+	// Record position change with actual fill data
+	at.recordPositionChange(orderID, symbol, positionSide, action, actualQty, actualPrice, leverage, entryPrice, fee)
 }
 
 // recordPositionChange records position change (create record on open, update record on close)
-func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string, quantity, price float64, leverage int, entryPrice float64) {
+func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string, quantity, price float64, leverage int, entryPrice float64, fee float64) {
 	if at.store == nil {
 		return
 	}
@@ -1555,14 +1594,14 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 			price,       // exitPrice
 			orderID,     // exitOrderID
 			realizedPnL,
-			0,           // fee (not calculated yet)
+			fee,         // fee from exchange API
 			"ai_decision",
 		)
 		if err != nil {
 			logger.Infof("  ⚠️ Failed to update position: %v", err)
 		} else {
-			logger.Infof("  📊 Position closed [%s] %s %s @ %.4f → %.4f, P&L: %.2f",
-				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL)
+			logger.Infof("  📊 Position closed [%s] %s %s @ %.4f → %.4f, P&L: %.2f, Fee: %.4f",
+				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL, fee)
 		}
 	}
 }

@@ -287,16 +287,15 @@ func (s *DecisionStore) GetStatistics(traderID string) (*Statistics, error) {
 	}
 	stats.FailedCycles = stats.TotalCycles - stats.SuccessfulCycles
 
-	// Count open positions from trader_orders table
+	// Count from trader_positions table
 	s.db.QueryRow(`
-		SELECT COUNT(*) FROM trader_orders
-		WHERE trader_id = ? AND status = 'FILLED' AND action IN ('open_long', 'open_short')
+		SELECT COUNT(*) FROM trader_positions
+		WHERE trader_id = ?
 	`, traderID).Scan(&stats.TotalOpenPositions)
 
-	// Count close positions from trader_orders table
 	s.db.QueryRow(`
-		SELECT COUNT(*) FROM trader_orders
-		WHERE trader_id = ? AND status = 'FILLED' AND action IN ('close_long', 'close_short', 'auto_close_long', 'auto_close_short')
+		SELECT COUNT(*) FROM trader_positions
+		WHERE trader_id = ? AND status = 'CLOSED'
 	`, traderID).Scan(&stats.TotalClosePositions)
 
 	return stats, nil
@@ -310,15 +309,14 @@ func (s *DecisionStore) GetAllStatistics() (*Statistics, error) {
 	s.db.QueryRow(`SELECT COUNT(*) FROM decision_records WHERE success = 1`).Scan(&stats.SuccessfulCycles)
 	stats.FailedCycles = stats.TotalCycles - stats.SuccessfulCycles
 
-	// Count from trader_orders table
+	// Count from trader_positions table
 	s.db.QueryRow(`
-		SELECT COUNT(*) FROM trader_orders
-		WHERE status = 'FILLED' AND action IN ('open_long', 'open_short')
+		SELECT COUNT(*) FROM trader_positions
 	`).Scan(&stats.TotalOpenPositions)
 
 	s.db.QueryRow(`
-		SELECT COUNT(*) FROM trader_orders
-		WHERE status = 'FILLED' AND action IN ('close_long', 'close_short', 'auto_close_long', 'auto_close_short')
+		SELECT COUNT(*) FROM trader_positions
+		WHERE status = 'CLOSED'
 	`).Scan(&stats.TotalClosePositions)
 
 	return stats, nil

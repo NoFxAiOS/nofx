@@ -195,6 +195,7 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["unRealizedProfit"], _ = strconv.ParseFloat(pos.UnRealizedProfit, 64)
 		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
+		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
 
 		// Determine direction
 		if posAmt > 0 {

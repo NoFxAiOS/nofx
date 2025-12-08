@@ -22,7 +22,6 @@ type Store struct {
 	trader   *TraderStore
 	decision *DecisionStore
 	backtest *BacktestStore
-	order    *OrderStore
 	position *PositionStore
 	strategy *StrategyStore
 	equity   *EquityStore
@@ -135,9 +134,6 @@ func (s *Store) initTables() error {
 	if err := s.Backtest().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize backtest tables: %w", err)
 	}
-	if err := s.Order().InitTables(); err != nil {
-		return fmt.Errorf("failed to initialize order tables: %w", err)
-	}
 	if err := s.Position().InitTables(); err != nil {
 		return fmt.Errorf("failed to initialize position tables: %w", err)
 	}
@@ -239,16 +235,6 @@ func (s *Store) Backtest() *BacktestStore {
 		s.backtest = &BacktestStore{db: s.db}
 	}
 	return s.backtest
-}
-
-// Order gets order storage
-func (s *Store) Order() *OrderStore {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.order == nil {
-		s.order = NewOrderStore(s.db)
-	}
-	return s.order
 }
 
 // Position gets position storage

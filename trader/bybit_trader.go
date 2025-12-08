@@ -220,6 +220,12 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 		liqPriceStr, _ := pos["liqPrice"].(string)
 		liqPrice, _ := strconv.ParseFloat(liqPriceStr, 64)
 
+		// Position created/updated time (milliseconds timestamp)
+		createdTimeStr, _ := pos["createdTime"].(string)
+		createdTime, _ := strconv.ParseInt(createdTimeStr, 10, 64)
+		updatedTimeStr, _ := pos["updatedTime"].(string)
+		updatedTime, _ := strconv.ParseInt(updatedTimeStr, 10, 64)
+
 		positionSide, _ := pos["side"].(string) // Buy = LONG, Sell = SHORT
 
 		// Convert to unified format
@@ -240,6 +246,8 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 			"unrealizedPnL":    unrealisedPnl,
 			"liquidationPrice": liqPrice,
 			"leverage":         leverage,
+			"createdTime":      createdTime, // Position open time (ms)
+			"updatedTime":      updatedTime, // Position last update time (ms)
 		}
 
 		positions = append(positions, position)

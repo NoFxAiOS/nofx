@@ -84,6 +84,9 @@ export function ExchangeConfigModal({
     null | 'hyperliquid' | 'aster' | 'lighter'
   >(null)
 
+  // 保存中状态
+  const [isSaving, setIsSaving] = useState(false)
+
   // 获取当前编辑的交易所信息
   const selectedExchange = allExchanges?.find(
     (e) => e.id === selectedExchangeId
@@ -218,59 +221,64 @@ export function ExchangeConfigModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedExchangeId) return
+    if (!selectedExchangeId || isSaving) return
 
-    // 根据交易所类型验证不同字段
-    if (selectedExchange?.id === 'binance') {
-      if (!apiKey.trim() || !secretKey.trim()) return
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), '', testnet)
-    } else if (selectedExchange?.id === 'okx') {
-      if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
-    } else if (selectedExchange?.id === 'hyperliquid') {
-      if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return // 验证私钥和钱包地址
-      await onSave(
-        selectedExchangeId,
-        apiKey.trim(),
-        '',
-        '',
-        testnet,
-        hyperliquidWalletAddr.trim()
-      )
-    } else if (selectedExchange?.id === 'aster') {
-      if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())
-        return
-      await onSave(
-        selectedExchangeId,
-        '',
-        '',
-        '',
-        testnet,
-        undefined,
-        asterUser.trim(),
-        asterSigner.trim(),
-        asterPrivateKey.trim()
-      )
-    } else if (selectedExchange?.id === 'lighter') {
-      if (!lighterWalletAddr.trim() || !lighterPrivateKey.trim()) return
-      await onSave(
-        selectedExchangeId,
-        lighterPrivateKey.trim(),
-        '',
-        '',
-        testnet,
-        lighterWalletAddr.trim(),
-        undefined,
-        undefined,
-        undefined,
-        lighterWalletAddr.trim(),
-        lighterPrivateKey.trim(),
-        lighterApiKeyPrivateKey.trim()
-      )
-    } else {
-      // 默认情况（其他CEX交易所）
-      if (!apiKey.trim() || !secretKey.trim()) return
-      await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), '', testnet)
+    setIsSaving(true)
+    try {
+      // 根据交易所类型验证不同字段
+      if (selectedExchange?.id === 'binance') {
+        if (!apiKey.trim() || !secretKey.trim()) return
+        await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), '', testnet)
+      } else if (selectedExchange?.id === 'okx') {
+        if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
+        await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
+      } else if (selectedExchange?.id === 'hyperliquid') {
+        if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return // 验证私钥和钱包地址
+        await onSave(
+          selectedExchangeId,
+          apiKey.trim(),
+          '',
+          '',
+          testnet,
+          hyperliquidWalletAddr.trim()
+        )
+      } else if (selectedExchange?.id === 'aster') {
+        if (!asterUser.trim() || !asterSigner.trim() || !asterPrivateKey.trim())
+          return
+        await onSave(
+          selectedExchangeId,
+          '',
+          '',
+          '',
+          testnet,
+          undefined,
+          asterUser.trim(),
+          asterSigner.trim(),
+          asterPrivateKey.trim()
+        )
+      } else if (selectedExchange?.id === 'lighter') {
+        if (!lighterWalletAddr.trim() || !lighterPrivateKey.trim()) return
+        await onSave(
+          selectedExchangeId,
+          lighterPrivateKey.trim(),
+          '',
+          '',
+          testnet,
+          lighterWalletAddr.trim(),
+          undefined,
+          undefined,
+          undefined,
+          lighterWalletAddr.trim(),
+          lighterPrivateKey.trim(),
+          lighterApiKeyPrivateKey.trim()
+        )
+      } else {
+        // 默认情况（其他CEX交易所）
+        if (!apiKey.trim() || !secretKey.trim()) return
+        await onSave(selectedExchangeId, apiKey.trim(), secretKey.trim(), '', testnet)
+      }
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -1000,6 +1008,7 @@ export function ExchangeConfigModal({
             <button
               type="submit"
               disabled={
+                isSaving ||
                 !selectedExchange ||
                 (selectedExchange.id === 'binance' &&
                   (!apiKey.trim() || !secretKey.trim())) ||
@@ -1029,7 +1038,7 @@ export function ExchangeConfigModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               style={{ background: '#F0B90B', color: '#000' }}
             >
-              {t('saveConfig', language)}
+              {isSaving ? t('saving', language) || '保存中...' : t('saveConfig', language)}
             </button>
           </div>
         </form>

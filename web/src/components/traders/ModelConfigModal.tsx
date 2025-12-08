@@ -14,8 +14,8 @@ interface ModelConfigModalProps {
     apiKey: string,
     baseUrl?: string,
     modelName?: string
-  ) => void
-  onDelete: (modelId: string) => void
+  ) => Promise<void>
+  onDelete: (modelId: string) => Promise<void>
   onClose: () => void
   language: Language
 }
@@ -48,16 +48,23 @@ export function ModelConfigModal({
     }
   }, [editingModelId, selectedModel])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedModelId || !apiKey.trim()) return
+  const [isSaving, setIsSaving] = useState(false)
 
-    onSave(
-      selectedModelId,
-      apiKey.trim(),
-      baseUrl.trim() || undefined,
-      modelName.trim() || undefined
-    )
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedModelId || !apiKey.trim() || isSaving) return
+
+    setIsSaving(true)
+    try {
+      await onSave(
+        selectedModelId,
+        apiKey.trim(),
+        baseUrl.trim() || undefined,
+        modelName.trim() || undefined
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // 可选择的模型列表(所有支持的模型)
@@ -277,11 +284,11 @@ export function ModelConfigModal({
             </button>
             <button
               type="submit"
-              disabled={!selectedModel || !apiKey.trim()}
+              disabled={!selectedModel || !apiKey.trim() || isSaving}
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               style={{ background: '#F0B90B', color: '#000' }}
             >
-              {t('saveConfig', language)}
+              {isSaving ? t('saving', language) || '保存中...' : t('saveConfig', language)}
             </button>
           </div>
         </form>

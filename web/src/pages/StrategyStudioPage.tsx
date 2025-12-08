@@ -168,7 +168,25 @@ export function StrategyStudioPage() {
         }),
       })
       if (!response.ok) throw new Error('Failed to create strategy')
+      const result = await response.json()
       await fetchStrategies()
+      // Auto-select the newly created strategy
+      if (result.id) {
+        const now = new Date().toISOString()
+        const newStrategy = {
+          id: result.id,
+          name: language === 'zh' ? '新策略' : 'New Strategy',
+          description: '',
+          is_active: false,
+          is_default: false,
+          config: defaultConfig,
+          created_at: now,
+          updated_at: now,
+        }
+        setSelectedStrategy(newStrategy)
+        setEditingConfig(defaultConfig)
+        setHasChanges(false)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     }
@@ -195,6 +213,12 @@ export function StrategyStudioPage() {
       })
       if (!response.ok) throw new Error('Failed to delete strategy')
       notify.success(language === 'zh' ? '策略已删除' : 'Strategy deleted')
+      // Clear selection if deleted strategy was selected
+      if (selectedStrategy?.id === id) {
+        setSelectedStrategy(null)
+        setEditingConfig(null)
+        setHasChanges(false)
+      }
       await fetchStrategies()
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error'

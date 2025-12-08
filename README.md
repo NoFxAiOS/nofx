@@ -81,15 +81,31 @@ Join our Telegram developer community to discuss, share ideas, and get support:
 
 ### 🏆 Competition Mode - Real-time AI Battle
 ![Competition Page](screenshots/competition-page.png)
-*Multi-AI leaderboard with real-time performance comparison charts showing Qwen vs DeepSeek live trading battle*
+*Multi-AI leaderboard with real-time performance comparison charts, live PnL tracking, and trader rankings*
 
-### 📊 Trader Details - Complete Trading Dashboard
-![Details Page](screenshots/details-page.png)
-*Professional trading interface with equity curves, live positions, and AI decision logs with expandable input prompts & chain-of-thought reasoning*
+### 📊 Dashboard - Market Chart View
+![Dashboard Market Chart](screenshots/dashboard-market-chart.png)
+*Professional trading dashboard with TradingView-style candlestick charts, account equity stats, and AI decision logs with expandable chain-of-thought reasoning*
 
-### 🎛️ Strategy Studio - Custom Strategy Builder
+### 📈 Dashboard - Positions & Decisions
+![Dashboard Positions](screenshots/dashboard-positions.png)
+*Real-time position management with entry/mark prices, unrealized P&L, leverage info, and complete AI trading cycle history*
+
+### 📉 Dashboard - Full Overview
+![Dashboard Page](screenshots/dashboard-page.png)
+*Complete trading interface combining market charts, multiple active positions, and detailed AI decision logs with success indicators*
+
+### 🎛️ Strategy Studio - Coin Sources & AI Test
 ![Strategy Studio](screenshots/strategy-studio.png)
-*Three-column strategy editor with multi-timeframe selection (5m/15m/1h/4h), technical indicators configuration, risk control settings, and real-time AI test run with live market data*
+*Strategy configuration with multiple data sources (Static List, AI500 Coin Pool, OI Top), timeframe selection, and real-time AI test with prompt preview*
+
+### ⚙️ Strategy Studio - Technical Indicators
+![Strategy Indicators](screenshots/strategy-indicators.png)
+*Advanced indicator configuration: Technical Indicators (EMA, MACD, RSI, ATR), Market Sentiment (Volume, Open Interest, Funding Rate), and Quant Data integration*
+
+### 🎯 Legacy Competition Details
+![Details Page](screenshots/details-page.png)
+*Classic competition view with equity curve tracking, position management, and AI decision history (legacy interface)*
 
 ---
 

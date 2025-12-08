@@ -702,39 +702,56 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 
 // formatTimeframeSeriesData formats series data for a single timeframe
 func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *market.TimeframeSeriesData, indicators store.IndicatorConfig) {
-	if len(data.MidPrices) > 0 {
+	// Use OHLCV table format if kline data is available
+	if len(data.Klines) > 0 {
+		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume\n")
+		for i, k := range data.Klines {
+			t := time.Unix(k.Time/1000, 0).UTC()
+			timeStr := t.Format("01-02 15:04")
+			marker := ""
+			if i == len(data.Klines)-1 {
+				marker = "  <- current"
+			}
+			sb.WriteString(fmt.Sprintf("%-14s %-9.4f %-9.4f %-9.4f %-9.4f %-12.2f%s\n",
+				timeStr, k.Open, k.High, k.Low, k.Close, k.Volume, marker))
+		}
+		sb.WriteString("\n")
+	} else if len(data.MidPrices) > 0 {
+		// Fallback to old format for backward compatibility
 		sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidPrices)))
+		if indicators.EnableVolume && len(data.Volume) > 0 {
+			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+		}
 	}
 
+	// Technical indicators (only show if enabled and data available)
 	if indicators.EnableEMA {
 		if len(data.EMA20Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA indicators (20-period): %s\n\n", formatFloatSlice(data.EMA20Values)))
+			sb.WriteString(fmt.Sprintf("EMA20: %s\n", formatFloatSlice(data.EMA20Values)))
 		}
 		if len(data.EMA50Values) > 0 {
-			sb.WriteString(fmt.Sprintf("EMA indicators (50-period): %s\n\n", formatFloatSlice(data.EMA50Values)))
+			sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatFloatSlice(data.EMA50Values)))
 		}
 	}
 
 	if indicators.EnableMACD && len(data.MACDValues) > 0 {
-		sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.MACDValues)))
+		sb.WriteString(fmt.Sprintf("MACD: %s\n", formatFloatSlice(data.MACDValues)))
 	}
 
 	if indicators.EnableRSI {
 		if len(data.RSI7Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (7-Period): %s\n\n", formatFloatSlice(data.RSI7Values)))
+			sb.WriteString(fmt.Sprintf("RSI7: %s\n", formatFloatSlice(data.RSI7Values)))
 		}
 		if len(data.RSI14Values) > 0 {
-			sb.WriteString(fmt.Sprintf("RSI indicators (14-Period): %s\n\n", formatFloatSlice(data.RSI14Values)))
+			sb.WriteString(fmt.Sprintf("RSI14: %s\n", formatFloatSlice(data.RSI14Values)))
 		}
 	}
 
-	if indicators.EnableVolume && len(data.Volume) > 0 {
-		sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+	if indicators.EnableATR && data.ATR14 > 0 {
+		sb.WriteString(fmt.Sprintf("ATR14: %.4f\n", data.ATR14))
 	}
 
-	if indicators.EnableATR {
-		sb.WriteString(fmt.Sprintf("ATR (14-period): %.3f\n\n", data.ATR14))
-	}
+	sb.WriteString("\n")
 }
 
 // formatFloatSlice formats float slice

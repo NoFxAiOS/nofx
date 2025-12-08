@@ -19,17 +19,28 @@ type Data struct {
 	TimeframeData map[string]*TimeframeSeriesData `json:"timeframe_data,omitempty"`
 }
 
+// KlineBar single kline bar with OHLCV data
+type KlineBar struct {
+	Time   int64   `json:"time"`   // Unix timestamp in milliseconds
+	Open   float64 `json:"open"`   // Open price
+	High   float64 `json:"high"`   // High price
+	Low    float64 `json:"low"`    // Low price
+	Close  float64 `json:"close"`  // Close price
+	Volume float64 `json:"volume"` // Volume
+}
+
 // TimeframeSeriesData series data for a single timeframe
 type TimeframeSeriesData struct {
-	Timeframe   string    `json:"timeframe"`    // Timeframe identifier, e.g. "5m", "15m", "1h"
-	MidPrices   []float64 `json:"mid_prices"`   // Price series
-	EMA20Values []float64 `json:"ema20_values"` // EMA20 series
-	EMA50Values []float64 `json:"ema50_values"` // EMA50 series
-	MACDValues  []float64 `json:"macd_values"`  // MACD series
-	RSI7Values  []float64 `json:"rsi7_values"`  // RSI7 series
-	RSI14Values []float64 `json:"rsi14_values"` // RSI14 series
-	Volume      []float64 `json:"volume"`       // Volume series
-	ATR14       float64   `json:"atr14"`        // ATR14
+	Timeframe   string     `json:"timeframe"`    // Timeframe identifier, e.g. "5m", "15m", "1h"
+	Klines      []KlineBar `json:"klines"`       // Full OHLCV kline data
+	MidPrices   []float64  `json:"mid_prices"`   // Price series (deprecated, kept for compatibility)
+	EMA20Values []float64  `json:"ema20_values"` // EMA20 series
+	EMA50Values []float64  `json:"ema50_values"` // EMA50 series
+	MACDValues  []float64  `json:"macd_values"`  // MACD series
+	RSI7Values  []float64  `json:"rsi7_values"`  // RSI7 series
+	RSI14Values []float64  `json:"rsi14_values"` // RSI14 series
+	Volume      []float64  `json:"volume"`       // Volume series (deprecated, use Klines)
+	ATR14       float64    `json:"atr14"`        // ATR14
 }
 
 // OIData Open Interest data

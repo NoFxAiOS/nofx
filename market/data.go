@@ -162,8 +162,8 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 			primaryKlines = klines
 		}
 
-		// Calculate series data for this timeframe
-		seriesData := calculateTimeframeSeries(klines, tf)
+		// Calculate series data for this timeframe (use count from config)
+		seriesData := calculateTimeframeSeries(klines, tf, count)
 		timeframeData[tf] = seriesData
 	}
 
@@ -212,25 +212,41 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 }
 
 // calculateTimeframeSeries calculates series data for a single timeframe
-func calculateTimeframeSeries(klines []Kline, timeframe string) *TimeframeSeriesData {
-	data := &TimeframeSeriesData{
-		Timeframe:   timeframe,
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		EMA50Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
-		Volume:      make([]float64, 0, 10),
+func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *TimeframeSeriesData {
+	if count <= 0 {
+		count = 10 // default
 	}
 
-	// Get latest 10 data points
-	start := len(klines) - 10
+	data := &TimeframeSeriesData{
+		Timeframe:   timeframe,
+		Klines:      make([]KlineBar, 0, count),
+		MidPrices:   make([]float64, 0, count),
+		EMA20Values: make([]float64, 0, count),
+		EMA50Values: make([]float64, 0, count),
+		MACDValues:  make([]float64, 0, count),
+		RSI7Values:  make([]float64, 0, count),
+		RSI14Values: make([]float64, 0, count),
+		Volume:      make([]float64, 0, count),
+	}
+
+	// Get latest N data points based on count from config
+	start := len(klines) - count
 	if start < 0 {
 		start = 0
 	}
 
 	for i := start; i < len(klines); i++ {
+		// Store full OHLCV kline data
+		data.Klines = append(data.Klines, KlineBar{
+			Time:   klines[i].OpenTime,
+			Open:   klines[i].Open,
+			High:   klines[i].High,
+			Low:    klines[i].Low,
+			Close:  klines[i].Close,
+			Volume: klines[i].Volume,
+		})
+
+		// Keep MidPrices and Volume for backward compatibility
 		data.MidPrices = append(data.MidPrices, klines[i].Close)
 		data.Volume = append(data.Volume, klines[i].Volume)
 
@@ -722,35 +738,54 @@ func Format(data *Data) string {
 
 // formatTimeframeData formats data for a single timeframe
 func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
-	if len(data.MidPrices) > 0 {
+	// Use OHLCV table format if kline data is available
+	if len(data.Klines) > 0 {
+		sb.WriteString("Time(UTC)      Open      High      Low       Close     Volume\n")
+		for i, k := range data.Klines {
+			t := time.Unix(k.Time/1000, 0).UTC()
+			timeStr := t.Format("01-02 15:04")
+			marker := ""
+			if i == len(data.Klines)-1 {
+				marker = "  <- current"
+			}
+			sb.WriteString(fmt.Sprintf("%-14s %-9.4f %-9.4f %-9.4f %-9.4f %-12.2f%s\n",
+				timeStr, k.Open, k.High, k.Low, k.Close, k.Volume, marker))
+		}
+		sb.WriteString("\n")
+	} else if len(data.MidPrices) > 0 {
+		// Fallback to old format for backward compatibility
 		sb.WriteString(fmt.Sprintf("Mid prices: %s\n\n", formatFloatSlice(data.MidPrices)))
+		if len(data.Volume) > 0 {
+			sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+		}
 	}
 
+	// Technical indicators
 	if len(data.EMA20Values) > 0 {
-		sb.WriteString(fmt.Sprintf("EMA indicators (20‑period): %s\n\n", formatFloatSlice(data.EMA20Values)))
+		sb.WriteString(fmt.Sprintf("EMA20: %s\n", formatFloatSlice(data.EMA20Values)))
 	}
 
 	if len(data.EMA50Values) > 0 {
-		sb.WriteString(fmt.Sprintf("EMA indicators (50‑period): %s\n\n", formatFloatSlice(data.EMA50Values)))
+		sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatFloatSlice(data.EMA50Values)))
 	}
 
 	if len(data.MACDValues) > 0 {
-		sb.WriteString(fmt.Sprintf("MACD indicators: %s\n\n", formatFloatSlice(data.MACDValues)))
+		sb.WriteString(fmt.Sprintf("MACD: %s\n", formatFloatSlice(data.MACDValues)))
 	}
 
 	if len(data.RSI7Values) > 0 {
-		sb.WriteString(fmt.Sprintf("RSI indicators (7‑Period): %s\n\n", formatFloatSlice(data.RSI7Values)))
+		sb.WriteString(fmt.Sprintf("RSI7: %s\n", formatFloatSlice(data.RSI7Values)))
 	}
 
 	if len(data.RSI14Values) > 0 {
-		sb.WriteString(fmt.Sprintf("RSI indicators (14‑Period): %s\n\n", formatFloatSlice(data.RSI14Values)))
+		sb.WriteString(fmt.Sprintf("RSI14: %s\n", formatFloatSlice(data.RSI14Values)))
 	}
 
-	if len(data.Volume) > 0 {
-		sb.WriteString(fmt.Sprintf("Volume: %s\n\n", formatFloatSlice(data.Volume)))
+	if data.ATR14 > 0 {
+		sb.WriteString(fmt.Sprintf("ATR14: %.4f\n", data.ATR14))
 	}
 
-	sb.WriteString(fmt.Sprintf("ATR (14‑period): %.3f\n\n", data.ATR14))
+	sb.WriteString("\n")
 }
 
 // formatPriceWithDynamicPrecision dynamically selects precision based on price range

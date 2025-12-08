@@ -215,8 +215,14 @@ func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 		return nil, nil
 	}
 
+	// Check if URL contains {symbol} placeholder
+	apiURL := e.config.Indicators.QuantDataAPIURL
+	if !strings.Contains(apiURL, "{symbol}") {
+		logger.Infof("⚠️  Quant data URL does not contain {symbol} placeholder, data may be incorrect for %s", symbol)
+	}
+
 	// Replace {symbol} placeholder
-	url := strings.Replace(e.config.Indicators.QuantDataAPIURL, "{symbol}", symbol, -1)
+	url := strings.Replace(apiURL, "{symbol}", symbol, -1)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(url)

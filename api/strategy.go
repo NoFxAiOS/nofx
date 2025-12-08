@@ -8,11 +8,26 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// validateStrategyConfig validates strategy configuration and returns warnings
+func validateStrategyConfig(config *store.StrategyConfig) []string {
+	var warnings []string
+
+	// Validate quant data URL if enabled
+	if config.Indicators.EnableQuantData && config.Indicators.QuantDataAPIURL != "" {
+		if !strings.Contains(config.Indicators.QuantDataAPIURL, "{symbol}") {
+			warnings = append(warnings, "Quant data URL does not contain {symbol} placeholder. The same data will be used for all coins, which may not be correct.")
+		}
+	}
+
+	return warnings
+}
 
 // handleGetStrategies Get strategy list
 func (s *Server) handleGetStrategies(c *gin.Context) {
@@ -123,10 +138,18 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	// Validate configuration and collect warnings
+	warnings := validateStrategyConfig(&req.Config)
+
+	response := gin.H{
 		"id":      strategy.ID,
 		"message": "Strategy created successfully",
-	})
+	}
+	if len(warnings) > 0 {
+		response["warnings"] = warnings
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // handleUpdateStrategy Update strategy
@@ -181,7 +204,15 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Strategy updated successfully"})
+	// Validate configuration and collect warnings
+	warnings := validateStrategyConfig(&req.Config)
+
+	response := gin.H{"message": "Strategy updated successfully"}
+	if len(warnings) > 0 {
+		response["warnings"] = warnings
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // handleDeleteStrategy Delete strategy

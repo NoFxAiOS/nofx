@@ -392,12 +392,15 @@ type OIPosition struct {
 
 // OITopAPIResponse data structure returned by OI Top API
 type OITopAPIResponse struct {
-	Success bool `json:"success"`
-	Data    struct {
-		Positions []OIPosition `json:"positions"`
-		Count     int          `json:"count"`
-		Exchange  string       `json:"exchange"`
-		TimeRange string       `json:"time_range"`
+	Code int `json:"code"` // 0 = success
+	Data struct {
+		Positions      []OIPosition `json:"positions"`
+		Count          int          `json:"count"`
+		Exchange       string       `json:"exchange"`
+		TimeRange      string       `json:"time_range"`
+		TimeRangeParam string       `json:"time_range_param"`
+		RankType       string       `json:"rank_type"`
+		Limit          int          `json:"limit"`
 	} `json:"data"`
 }
 
@@ -494,16 +497,16 @@ func fetchOITop() ([]OIPosition, error) {
 		return nil, fmt.Errorf("OI Top JSON parsing failed: %w", err)
 	}
 
-	if !response.Success {
-		return nil, fmt.Errorf("OI Top API returned failure status")
+	if response.Code != 0 {
+		return nil, fmt.Errorf("OI Top API returned error code: %d", response.Code)
 	}
 
 	if len(response.Data.Positions) == 0 {
 		return nil, fmt.Errorf("OI Top position list is empty")
 	}
 
-	log.Printf("✓ Successfully fetched %d OI Top coins (time range: %s)",
-		len(response.Data.Positions), response.Data.TimeRange)
+	log.Printf("✓ Successfully fetched %d OI Top coins (time range: %s, type: %s)",
+		len(response.Data.Positions), response.Data.TimeRange, response.Data.RankType)
 	return response.Data.Positions, nil
 }
 

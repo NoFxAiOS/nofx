@@ -75,13 +75,15 @@ type CoinSourceConfig struct {
 type IndicatorConfig struct {
 	// K-line configuration
 	Klines KlineConfig `json:"klines"`
+	// raw kline data (OHLCV) - always enabled, required for AI analysis
+	EnableRawKlines bool `json:"enable_raw_klines"`
 	// technical indicator switches
 	EnableEMA         bool `json:"enable_ema"`
 	EnableMACD        bool `json:"enable_macd"`
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
 	EnableVolume      bool `json:"enable_volume"`
-	EnableOI          bool `json:"enable_oi"`          // open interest
+	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
 	// EMA period configuration
 	EMAPeriods []int `json:"ema_periods,omitempty"` // default [20, 50]
@@ -92,8 +94,8 @@ type IndicatorConfig struct {
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
 	// quantitative data sources (capital flow, position changes, price changes)
-	EnableQuantData  bool   `json:"enable_quant_data"`            // whether to enable quantitative data
-	QuantDataAPIURL  string `json:"quant_data_api_url,omitempty"` // quantitative data API address
+	EnableQuantData bool   `json:"enable_quant_data"`            // whether to enable quantitative data
+	QuantDataAPIURL string `json:"quant_data_api_url,omitempty"` // quantitative data API address
 }
 
 // KlineConfig K-line configuration
@@ -203,10 +205,11 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 				EnableMultiTimeframe: true,
 				SelectedTimeframes:   []string{"5m", "15m", "1h", "4h"},
 			},
-			EnableEMA:         true,
-			EnableMACD:        true,
-			EnableRSI:         true,
-			EnableATR:         true,
+			EnableRawKlines:   true, // Required - raw OHLCV data for AI analysis
+			EnableEMA:         false,
+			EnableMACD:        false,
+			EnableRSI:         false,
+			EnableATR:         false,
 			EnableVolume:      true,
 			EnableOI:          true,
 			EnableFundingRate: true,

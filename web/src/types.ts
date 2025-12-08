@@ -394,6 +394,9 @@ export interface CoinSourceConfig {
 
 export interface IndicatorConfig {
   klines: KlineConfig;
+  // Raw OHLCV kline data - required for AI analysis
+  enable_raw_klines: boolean;
+  // Technical indicators (optional)
   enable_ema: boolean;
   enable_macd: boolean;
   enable_rsi: boolean;

@@ -22,6 +22,7 @@ type DecisionRecord struct {
 	InputPrompt         string             `json:"input_prompt"`
 	CoTTrace            string             `json:"cot_trace"`
 	DecisionJSON        string             `json:"decision_json"`
+	RawResponse         string             `json:"raw_response"` // Raw AI response for debugging
 	CandidateCoins      []string           `json:"candidate_coins"`
 	ExecutionLog        []string           `json:"execution_log"`
 	Success             bool               `json:"success"`
@@ -90,6 +91,7 @@ func (s *DecisionStore) initTables() error {
 			input_prompt TEXT DEFAULT '',
 			cot_trace TEXT DEFAULT '',
 			decision_json TEXT DEFAULT '',
+			raw_response TEXT DEFAULT '',
 			candidate_coins TEXT DEFAULT '',
 			execution_log TEXT DEFAULT '',
 			success BOOLEAN DEFAULT 0,
@@ -107,6 +109,9 @@ func (s *DecisionStore) initTables() error {
 			return fmt.Errorf("failed to execute SQL: %w", err)
 		}
 	}
+
+	// Migration: add raw_response column if not exists
+	s.db.Exec(`ALTER TABLE decision_records ADD COLUMN raw_response TEXT DEFAULT ''`)
 
 	return nil
 }
@@ -127,13 +132,13 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 	result, err := s.db.Exec(`
 		INSERT INTO decision_records (
 			trader_id, cycle_number, timestamp, system_prompt, input_prompt,
-			cot_trace, decision_json, candidate_coins, execution_log,
+			cot_trace, decision_json, raw_response, candidate_coins, execution_log,
 			success, error_message, ai_request_duration_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		record.TraderID, record.CycleNumber, record.Timestamp.Format(time.RFC3339),
 		record.SystemPrompt, record.InputPrompt, record.CoTTrace, record.DecisionJSON,
-		string(candidateCoinsJSON), string(executionLogJSON),
+		record.RawResponse, string(candidateCoinsJSON), string(executionLogJSON),
 		record.Success, record.ErrorMessage, record.AIRequestDurationMs,
 	)
 	if err != nil {

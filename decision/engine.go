@@ -137,6 +137,7 @@ type FullDecision struct {
 	UserPrompt   string     `json:"user_prompt"`   // Input prompt sent to AI
 	CoTTrace     string     `json:"cot_trace"`     // Chain of thought analysis (AI output)
 	Decisions    []Decision `json:"decisions"`     // Specific decision list
+	RawResponse  string     `json:"raw_response"`  // Raw AI response (for debugging when parsing fails)
 	Timestamp    time.Time  `json:"timestamp"`
 	// AIRequestDurationMs records AI API call duration (milliseconds) for troubleshooting latency issues
 	AIRequestDurationMs int64 `json:"ai_request_duration_ms,omitempty"`
@@ -212,6 +213,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		decision.SystemPrompt = systemPrompt
 		decision.UserPrompt = userPrompt
 		decision.AIRequestDurationMs = aiCallDuration.Milliseconds()
+		decision.RawResponse = aiResponse // Save raw response for debugging
 	}
 
 	if err != nil {
@@ -350,15 +352,13 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient mcp.AIClient, custo
 		decision.SystemPrompt = systemPrompt // Save system prompt
 		decision.UserPrompt = userPrompt     // Save input prompt
 		decision.AIRequestDurationMs = aiCallDuration.Milliseconds()
+		decision.RawResponse = aiResponse // Save raw response for debugging
 	}
 
 	if err != nil {
 		return decision, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	decision.Timestamp = time.Now()
-	decision.SystemPrompt = systemPrompt // Save system prompt
-	decision.UserPrompt = userPrompt     // Save input prompt
 	return decision, nil
 }
 
@@ -581,7 +581,8 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("## Field Descriptions\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 	sb.WriteString("- `confidence`: 0-100 (opening recommended ≥75)\n")
-	sb.WriteString("- Required for opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n\n")
+	sb.WriteString("- Required for opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	return sb.String()
 }

@@ -195,10 +195,15 @@ func (t *OKXTrader) parsePositions(resp map[string]interface{}) []map[string]int
                                 liqPx := parseFloat("liqPx")
                                 leverage := parseFloat("lever")
 
+                                // 将OKX格式的symbol (如 BTC-USDT-SWAP) 转换为内部格式 (如 BTCUSDT)
+                                // 这是关键修复：确保返回的symbol格式与market.Get()期望的格式一致
+                                okxInstId, _ := pos["instId"].(string)
+                                internalSymbol := convertFromOKXSymbol(okxInstId)
+
                                 // 标准化持仓数据格式 (适配 AutoTrader 要求)
                                 standardizedPos := map[string]interface{}{
                                         // 核心字段 (AutoTrader 必需)
-                                        "symbol":           pos["instId"],
+                                        "symbol":           internalSymbol,     // 使用内部格式 (BTCUSDT) 而非OKX格式 (BTC-USDT-SWAP)
                                         "side":             pos["posSide"],     // AutoTrader期望 key="side"
                                         "markPrice":        markPrice,          // AutoTrader期望 key="markPrice" (float64)
                                         "entryPrice":       entryPrice,         // AutoTrader期望 key="entryPrice" (float64)
@@ -211,6 +216,7 @@ func (t *OKXTrader) parsePositions(resp map[string]interface{}) []map[string]int
                                         "posSide":          pos["posSide"],
                                         "marginMode":       pos["mgnMode"],
                                         "uplRatio":         pos["uplRatio"],
+                                        "okxInstId":        okxInstId,          // 保留原始OKX格式供调试用
                                 }
                                 positions = append(positions, standardizedPos)
                         }

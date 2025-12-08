@@ -7,8 +7,11 @@ Monnaire Trading Agent OS is an AI-powered cryptocurrency trading system with su
 - ✅ **Fixed /api/models returning wrong user's configs** - Root cause: authMiddleware fallback to admin user on invalid JWT + Neon PostgreSQL prepared statement errors
 - ✅ **Fixed authMiddleware JWT validation** - Returns 401 error when JWT is provided but invalid (even in admin_mode)
 - ✅ **Added binary_parameters=yes to PostgreSQL connection** - Prevents prepared statement caching issues with Neon's connection pooling
+- ✅ **Fixed OKX symbol format mismatch causing 4h K-line fetch failure** - Root cause: GetPositions() returned OKX format (BTC-USDT-SWAP) but market data expected internal format (BTCUSDT)
+- ✅ **OKXTrader.GetPositions() now converts symbols to internal format** - Uses convertFromOKXSymbol() for consistent symbol handling
+- ✅ **market.Normalize() handles OKX -USDT-SWAP format** - Fallback safety for any OKX-format symbols
 - ✅ **Recompiled nofx-backend binary** - All fixes incorporated
-- 📋 **Bug proposal documented**: BUG_PROPOSAL_MODELS_API_401.md
+- 📋 **Bug proposals documented**: BUG_PROPOSAL_MODELS_API_401.md, BUG_PROPOSAL_OKX_SYMBOL_FORMAT.md
 
 ## Previous Changes (December 5, 2025)
 - ✅ **Fixed GetTraders SQL placeholder error** - Root cause: PostgreSQL pq driver "bind message has 19 result formats but query has 1 columns" error

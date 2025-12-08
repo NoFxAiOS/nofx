@@ -453,6 +453,15 @@ func formatFloatSlice(values []float64) string {
 // Normalize 标准化symbol,确保是USDT交易对
 func Normalize(symbol string) string {
         symbol = strings.ToUpper(symbol)
+
+        // 只处理OKX USDT永续合约格式 (如 BTC-USDT-SWAP -> BTCUSDT)
+        // 不处理其他格式如 BTC-USDC 以避免错误转换
+        if strings.HasSuffix(symbol, "-USDT-SWAP") {
+                // 移除 -USDT-SWAP 后缀并重新添加 USDT
+                symbol = strings.TrimSuffix(symbol, "-USDT-SWAP")
+                return symbol + "USDT"
+        }
+
         if strings.HasSuffix(symbol, "USDT") {
                 return symbol
         }

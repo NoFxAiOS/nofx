@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { TraderConfigData } from '../types'
+import { PunkAvatar, getTraderAvatar } from './PunkAvatar'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
@@ -91,9 +92,11 @@ export function TraderConfigViewModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-[#2B3139] bg-gradient-to-r from-[#1E2329] to-[#252B35]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#F0B90B] to-[#E1A706] flex items-center justify-center">
-              <span className="text-lg">👁️</span>
-            </div>
+            <PunkAvatar
+              seed={getTraderAvatar(traderData.trader_id || '', traderData.trader_name)}
+              size={48}
+              className="rounded-lg"
+            />
             <div>
               <h2 className="text-xl font-bold text-[#EAECEF]">交易员配置</h2>
               <p className="text-sm text-[#848E9C] mt-1">

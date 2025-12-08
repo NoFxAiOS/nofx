@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trophy, Medal } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type { CompetitionData } from '../types'
@@ -8,6 +8,7 @@ import { TraderConfigViewModal } from './TraderConfigViewModal'
 import { getTraderColor } from '../utils/traderColors'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { PunkAvatar, getTraderAvatar } from './PunkAvatar'
 
 export function CompetitionPage() {
   const { language } = useLanguage()
@@ -259,21 +260,30 @@ export function CompetitionPage() {
                   }}
                 >
                   <div className="flex items-center justify-between">
-                    {/* Rank & Name */}
+                    {/* Rank & Avatar & Name */}
                     <div className="flex items-center gap-3">
-                      <div className="w-6 flex items-center justify-center">
-                        <Medal
-                          className="w-5 h-5"
-                          style={{
-                            color:
-                              index === 0
-                                ? '#F0B90B'
-                                : index === 1
-                                  ? '#C0C0C0'
-                                  : '#CD7F32',
-                          }}
-                        />
+                      {/* Rank Badge */}
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{
+                          background: index === 0
+                            ? 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)'
+                            : index === 1
+                              ? 'linear-gradient(135deg, #C0C0C0 0%, #E8E8E8 100%)'
+                              : index === 2
+                                ? 'linear-gradient(135deg, #CD7F32 0%, #E8A64C 100%)'
+                                : '#2B3139',
+                          color: index < 3 ? '#000' : '#848E9C',
+                        }}
+                      >
+                        {index + 1}
                       </div>
+                      {/* Punk Avatar */}
+                      <PunkAvatar
+                        seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
+                        size={36}
+                        className="rounded-lg"
+                      />
                       <div>
                         <div
                           className="font-bold text-sm"
@@ -424,6 +434,14 @@ export function CompetitionPage() {
                   }
                 >
                   <div className="text-center">
+                    {/* Avatar */}
+                    <div className="flex justify-center mb-3">
+                      <PunkAvatar
+                        seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
+                        size={56}
+                        className="rounded-xl"
+                      />
+                    </div>
                     <div
                       className="text-sm md:text-base font-bold mb-2"
                       style={{

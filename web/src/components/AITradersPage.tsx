@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { getExchangeIcon } from './ExchangeIcons'
 import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
+import { PunkAvatar, getTraderAvatar } from './PunkAvatar'
 import {
   TwoStageKeyModal,
   type TwoStageKeyModalResult,
@@ -980,16 +981,17 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                 style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
               >
                 <div className="flex items-center gap-3 md:gap-4">
-                  <div
-                    className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{
-                      background: trader.ai_model.includes('deepseek')
-                        ? '#60a5fa'
-                        : '#c084fc',
-                      color: '#fff',
-                    }}
-                  >
-                    <Bot className="w-5 h-5 md:w-6 md:h-6" />
+                  <div className="flex-shrink-0">
+                    <PunkAvatar
+                      seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
+                      size={48}
+                      className="rounded-lg hidden md:block"
+                    />
+                    <PunkAvatar
+                      seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
+                      size={40}
+                      className="rounded-lg md:hidden"
+                    />
                   </div>
                   <div className="min-w-0">
                     <div

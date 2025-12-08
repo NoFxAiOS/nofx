@@ -8,7 +8,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { t, type Language } from '../i18n/translations'
 import {
   AlertTriangle,
-  Bot,
   Brain,
   RefreshCw,
   TrendingUp,
@@ -21,6 +20,7 @@ import {
   LogOut,
   Loader2,
 } from 'lucide-react'
+import { PunkAvatar, getTraderAvatar } from '../components/PunkAvatar'
 import { stripLeadingIcons } from '../lib/text'
 import { confirmToast, notify } from '../lib/notify'
 import type {
@@ -346,17 +346,14 @@ export default function TraderDashboard() {
       >
         <div className="flex items-start justify-between mb-3">
           <h2
-            className="text-2xl font-bold flex items-center gap-2"
+            className="text-2xl font-bold flex items-center gap-3"
             style={{ color: '#EAECEF' }}
           >
-            <span
-              className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
-              }}
-            >
-              <Bot className="w-5 h-5" style={{ color: '#0B0E11' }} />
-            </span>
+            <PunkAvatar
+              seed={getTraderAvatar(selectedTrader.trader_id, selectedTrader.trader_name)}
+              size={48}
+              className="rounded-lg"
+            />
             {selectedTrader.trader_name}
           </h2>
 

@@ -672,5 +672,21 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 
 	tm.traders[traderCfg.ID] = at
 	logger.Infof("✓ Trader '%s' (%s + %s) loaded to memory", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID)
+
+	// Auto-start if trader was running before shutdown
+	if traderCfg.IsRunning {
+		logger.Infof("🔄 Auto-starting trader '%s' (was running before shutdown)...", traderCfg.Name)
+		go func(trader *trader.AutoTrader, traderName, traderID, userID string) {
+			if err := trader.Run(); err != nil {
+				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", traderName, err)
+				// Update database to reflect stopped state
+				if st != nil {
+					_ = st.Trader().UpdateStatus(userID, traderID, false)
+				}
+			}
+		}(at, traderCfg.Name, traderCfg.ID, traderCfg.UserID)
+		logger.Infof("✅ Trader '%s' auto-started successfully", traderCfg.Name)
+	}
+
 	return nil
 }

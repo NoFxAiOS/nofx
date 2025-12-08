@@ -2248,6 +2248,19 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 	histories := make(map[string]interface{})
 	errors := make(map[string]string)
 
+	// Pre-fetch initial balances for all traders
+	initialBalances := make(map[string]float64)
+	for _, traderID := range traderIDs {
+		if traderID == "" {
+			continue
+		}
+		// Get trader's initial balance from database (use GetByID which doesn't require userID)
+		trader, err := s.store.Trader().GetByID(traderID)
+		if err == nil && trader != nil && trader.InitialBalance > 0 {
+			initialBalances[traderID] = trader.InitialBalance
+		}
+	}
+
 	for _, traderID := range traderIDs {
 		if traderID == "" {
 			continue
@@ -2266,14 +2279,28 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 			continue
 		}
 
-		// Build return rate historical data
+		// Get initial balance for calculating PnL percentage
+		initialBalance := initialBalances[traderID]
+		if initialBalance <= 0 {
+			// If no initial balance configured, use the first snapshot's equity as baseline
+			initialBalance = snapshots[0].TotalEquity
+		}
+
+		// Build return rate historical data with PnL percentage
 		history := make([]map[string]interface{}, 0, len(snapshots))
 		for _, snap := range snapshots {
+			// Calculate PnL percentage: (current_equity - initial_balance) / initial_balance * 100
+			pnlPct := 0.0
+			if initialBalance > 0 {
+				pnlPct = (snap.TotalEquity - initialBalance) / initialBalance * 100
+			}
+
 			history = append(history, map[string]interface{}{
-				"timestamp":    snap.Timestamp,
-				"total_equity": snap.TotalEquity,
-				"total_pnl":    snap.UnrealizedPnL,
-				"balance":      snap.Balance,
+				"timestamp":     snap.Timestamp,
+				"total_equity":  snap.TotalEquity,
+				"total_pnl":     snap.UnrealizedPnL,
+				"total_pnl_pct": pnlPct,
+				"balance":       snap.Balance,
 			})
 		}
 

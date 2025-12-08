@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -9,6 +8,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Legend,
+  Area,
+  ComposedChart,
 } from 'recharts'
 import useSWR from 'swr'
 import { api } from '../lib/api'
@@ -16,7 +17,7 @@ import type { CompetitionTraderData } from '../types'
 import { getTraderColor } from '../utils/traderColors'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, TrendingUp, TrendingDown, Zap } from 'lucide-react'
 
 interface ComparisonChartProps {
   traders: CompetitionTraderData[]
@@ -24,8 +25,8 @@ interface ComparisonChartProps {
 
 export function ComparisonChart({ traders }: ComparisonChartProps) {
   const { language } = useLanguage()
-  // 获取所有trader的历史数据 - 使用单个useSWR并发请求所有trader数据
-  // 生成唯一的key，当traders变化时会触发重新请求
+
+  // Generate unique key for SWR
   const tradersKey = traders
     .map((t) => t.trader_id)
     .sort()
@@ -34,23 +35,19 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
   const { data: allTraderHistories, isLoading } = useSWR(
     traders.length > 0 ? `all-equity-histories-${tradersKey}` : null,
     async () => {
-      // 使用批量API一次性获取所有trader的历史数据
       const traderIds = traders.map((trader) => trader.trader_id)
       const batchData = await api.getEquityHistoryBatch(traderIds)
-
-      // 转换为原格式，保持与原有代码兼容
       return traders.map((trader) => {
         return batchData.histories[trader.trader_id] || []
       })
     },
     {
-      refreshInterval: 30000, // 30秒刷新（对比图表数据更新频率较低）
+      refreshInterval: 30000,
       revalidateOnFocus: false,
       dedupingInterval: 20000,
     }
   )
 
-  // 将数据转换为与原格式兼容的结构
   const traderHistories = useMemo(() => {
     if (!allTraderHistories) {
       return traders.map(() => ({ data: undefined }))
@@ -58,16 +55,10 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     return allTraderHistories.map((data) => ({ data }))
   }, [allTraderHistories, traders.length])
 
-  // 使用useMemo自动处理数据合并，直接使用data对象作为依赖
   const combinedData = useMemo(() => {
-    // 等待所有数据加载完成
     const allLoaded = traderHistories.every((h) => h.data)
     if (!allLoaded) return []
 
-    console.log(`[${new Date().toISOString()}] Recalculating chart data...`)
-
-    // 新方案：按时间戳分组，不再依赖 cycle_number（因为后端会重置）
-    // 收集所有时间戳
     const timestampMap = new Map<
       string,
       {
@@ -80,10 +71,6 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     traderHistories.forEach((history, index) => {
       const trader = traders[index]
       if (!history.data) return
-
-      console.log(
-        `Trader ${trader.trader_id}: ${history.data.length} data points`
-      )
 
       history.data.forEach((point: any) => {
         const ts = point.timestamp
@@ -100,7 +87,6 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
           })
         }
 
-        // 直接使用后端返回的盈亏百分比，不要在前端重新计算
         timestampMap.get(ts)!.traders.set(trader.trader_id, {
           pnl_pct: point.total_pnl_pct || 0,
           equity: point.total_equity,
@@ -108,12 +94,11 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
       })
     })
 
-    // 按时间戳排序，转换为数组
     const combined = Array.from(timestampMap.entries())
       .sort(([tsA], [tsB]) => new Date(tsA).getTime() - new Date(tsB).getTime())
       .map(([ts, data], index) => {
         const entry: any = {
-          index: index + 1, // 使用序号代替cycle
+          index: index + 1,
           time: data.time,
           timestamp: ts,
         }
@@ -129,340 +114,345 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
         return entry
       })
 
-    if (combined.length > 0) {
-      const lastPoint = combined[combined.length - 1]
-      console.log(
-        `Chart: ${combined.length} data points, last time: ${lastPoint.time}, timestamp: ${lastPoint.timestamp}`
-      )
-    }
-
     return combined
   }, [allTraderHistories, traders])
 
+  // Get trader color
+  const traderColor = (traderId: string) => getTraderColor(traders, traderId)
+
   if (isLoading) {
     return (
-      <div className="text-center py-16" style={{ color: '#848E9C' }}>
-        <div className="spinner mx-auto mb-4"></div>
-        <div className="text-sm font-semibold">Loading comparison data...</div>
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-t-transparent rounded-full animate-spin"
+               style={{ borderColor: '#F0B90B', borderTopColor: 'transparent' }} />
+          <TrendingUp className="w-6 h-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                      style={{ color: '#F0B90B' }} />
+        </div>
+        <div className="text-sm mt-4 font-medium" style={{ color: '#848E9C' }}>
+          {t('loadingChartData', language) || 'Loading chart data...'}
+        </div>
       </div>
     )
   }
 
   if (combinedData.length === 0) {
     return (
-      <div className="text-center py-16" style={{ color: '#848E9C' }}>
-        <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-60" />
-        <div className="text-lg font-semibold mb-2">
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4"
+             style={{ background: 'rgba(240, 185, 11, 0.1)' }}>
+          <BarChart3 className="w-10 h-10" style={{ color: '#F0B90B', opacity: 0.6 }} />
+        </div>
+        <div className="text-lg font-bold mb-2" style={{ color: '#EAECEF' }}>
           {t('noHistoricalData', language)}
         </div>
-        <div className="text-sm">{t('dataWillAppear', language)}</div>
+        <div className="text-sm text-center max-w-xs" style={{ color: '#848E9C' }}>
+          {t('dataWillAppear', language)}
+        </div>
       </div>
     )
   }
 
-  // 限制显示数据点
-  const MAX_DISPLAY_POINTS = 2000
+  const MAX_DISPLAY_POINTS = 500
   const displayData =
     combinedData.length > MAX_DISPLAY_POINTS
       ? combinedData.slice(-MAX_DISPLAY_POINTS)
       : combinedData
 
-  // 计算Y轴范围
+  // Calculate Y axis domain with better padding
   const calculateYDomain = () => {
     const allValues: number[] = []
     displayData.forEach((point) => {
       traders.forEach((trader) => {
         const value = point[`${trader.trader_id}_pnl_pct`]
-        if (value !== undefined) {
+        if (value !== undefined && !isNaN(value)) {
           allValues.push(value)
         }
       })
     })
 
-    if (allValues.length === 0) return [-5, 5]
+    if (allValues.length === 0) return [-2, 2]
 
     const minVal = Math.min(...allValues)
     const maxVal = Math.max(...allValues)
-    const range = Math.max(Math.abs(maxVal), Math.abs(minVal))
-    const padding = Math.max(range * 0.2, 1) // 至少留1%余量
 
-    return [Math.floor(minVal - padding), Math.ceil(maxVal + padding)]
+    // Ensure zero is visible and add symmetric padding
+    const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal), 0.5)
+    const padding = absMax * 0.3
+
+    return [
+      Math.floor((Math.min(minVal, 0) - padding) * 10) / 10,
+      Math.ceil((Math.max(maxVal, 0) + padding) * 10) / 10
+    ]
   }
 
-  // 使用统一的颜色分配逻辑（与Leaderboard保持一致）
-  const traderColor = (traderId: string) => getTraderColor(traders, traderId)
-
-  // 自定义Tooltip - Binance Style
+  // Custom Tooltip
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
+      const date = new Date(data.timestamp)
+      const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+
       return (
         <div
-          className="rounded p-3 shadow-xl"
-          style={{ background: '#1E2329', border: '1px solid #2B3139' }}
+          className="rounded-xl p-4 shadow-2xl backdrop-blur-sm"
+          style={{
+            background: 'rgba(30, 35, 41, 0.95)',
+            border: '1px solid rgba(240, 185, 11, 0.2)',
+            minWidth: '200px'
+          }}
         >
-          <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
-            {data.time} - #{data.index}
+          <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: '1px solid #2B3139' }}>
+            <Zap className="w-3.5 h-3.5" style={{ color: '#F0B90B' }} />
+            <span className="text-xs font-medium" style={{ color: '#F0B90B' }}>
+              {dateStr} {data.time}
+            </span>
           </div>
-          {traders.map((trader) => {
-            const pnlPct = data[`${trader.trader_id}_pnl_pct`]
-            const equity = data[`${trader.trader_id}_equity`]
-            if (pnlPct === undefined) return null
+          <div className="space-y-2.5">
+            {traders.map((trader) => {
+              const pnlPct = data[`${trader.trader_id}_pnl_pct`]
+              const equity = data[`${trader.trader_id}_equity`]
+              if (pnlPct === undefined) return null
+              const isPositive = pnlPct >= 0
 
-            return (
-              <div key={trader.trader_id} className="mb-1.5 last:mb-0">
-                <div
-                  className="text-xs font-semibold mb-0.5"
-                  style={{ color: traderColor(trader.trader_id) }}
-                >
-                  {trader.trader_name}
+              return (
+                <div key={trader.trader_id} className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full"
+                         style={{ background: traderColor(trader.trader_id) }} />
+                    <span className="text-xs font-medium truncate max-w-[100px]"
+                          style={{ color: '#EAECEF' }}>
+                      {trader.trader_name}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold mono flex items-center gap-1"
+                         style={{ color: isPositive ? '#0ECB81' : '#F6465D' }}>
+                      {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {isPositive ? '+' : ''}{pnlPct.toFixed(2)}%
+                    </div>
+                    <div className="text-[10px] mono" style={{ color: '#5E6673' }}>
+                      ${equity?.toFixed(2)}
+                    </div>
+                  </div>
                 </div>
-                <div
-                  className="text-sm mono font-bold"
-                  style={{ color: pnlPct >= 0 ? '#0ECB81' : '#F6465D' }}
-                >
-                  {pnlPct >= 0 ? '+' : ''}
-                  {pnlPct.toFixed(2)}%
-                  <span
-                    className="text-xs ml-2 font-normal"
-                    style={{ color: '#848E9C' }}
-                  >
-                    ({equity?.toFixed(2)} USDT)
-                  </span>
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       )
     }
     return null
   }
 
-  // 计算当前差距
-  const currentGap =
-    displayData.length > 0
-      ? (() => {
-          const lastPoint = displayData[displayData.length - 1]
-          const values = traders.map(
-            (t) => lastPoint[`${t.trader_id}_pnl_pct`] || 0
-          )
-          return Math.abs(values[0] - values[1])
-        })()
-      : 0
+  // Calculate stats
+  const lastPoint = displayData[displayData.length - 1]
+  const traderStats = traders.map(trader => {
+    const currentPnl = lastPoint?.[`${trader.trader_id}_pnl_pct`] || 0
+    const currentEquity = lastPoint?.[`${trader.trader_id}_equity`] || 0
+    return { ...trader, currentPnl, currentEquity }
+  }).sort((a, b) => b.currentPnl - a.currentPnl)
+
+  const leader = traderStats[0]
+  const gap = traderStats.length > 1
+    ? Math.abs(traderStats[0].currentPnl - traderStats[1].currentPnl).toFixed(2)
+    : '0.00'
 
   return (
-    <div>
-      <div
-        style={{
-          borderRadius: '8px',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        {/* NOFX Watermark */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            color: 'rgba(240, 185, 11, 0.15)',
-            zIndex: 10,
-            pointerEvents: 'none',
-            fontFamily: 'monospace',
-          }}
-        >
+    <div className="space-y-4">
+      {/* Mini Stats Bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {traderStats.slice(0, 5).map((trader, idx) => (
+          <div key={trader.trader_id}
+               className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:scale-105"
+               style={{
+                 background: idx === 0 ? 'rgba(240, 185, 11, 0.15)' : 'rgba(43, 49, 57, 0.5)',
+                 border: `1px solid ${idx === 0 ? 'rgba(240, 185, 11, 0.3)' : '#2B3139'}`
+               }}>
+            <div className="w-2 h-2 rounded-full"
+                 style={{ background: traderColor(trader.trader_id) }} />
+            <span className="text-xs font-medium truncate max-w-[80px]"
+                  style={{ color: '#EAECEF' }}>
+              {trader.trader_name}
+            </span>
+            <span className="text-xs font-bold mono"
+                  style={{ color: trader.currentPnl >= 0 ? '#0ECB81' : '#F6465D' }}>
+              {trader.currentPnl >= 0 ? '+' : ''}{trader.currentPnl.toFixed(2)}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart */}
+      <div className="relative rounded-xl overflow-hidden"
+           style={{ background: 'linear-gradient(180deg, rgba(11, 14, 17, 0.8) 0%, rgba(11, 14, 17, 1) 100%)' }}>
+        {/* Watermark */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: '80px',
+          fontWeight: 'bold',
+          color: 'rgba(240, 185, 11, 0.03)',
+          zIndex: 1,
+          pointerEvents: 'none',
+          fontFamily: 'monospace',
+          letterSpacing: '0.1em',
+        }}>
           NOFX
         </div>
-        <ResponsiveContainer width="100%" height={520}>
-          <LineChart
+
+        <ResponsiveContainer width="100%" height={420}>
+          <ComposedChart
             data={displayData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 40 }}
+            margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
           >
             <defs>
               {traders.map((trader) => (
                 <linearGradient
-                  key={`gradient-${trader.trader_id}`}
-                  id={`gradient-${trader.trader_id}`}
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
+                  key={`area-gradient-${trader.trader_id}`}
+                  id={`area-gradient-${trader.trader_id}`}
+                  x1="0" y1="0" x2="0" y2="1"
                 >
-                  <stop
-                    offset="5%"
-                    stopColor={traderColor(trader.trader_id)}
-                    stopOpacity={0.9}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor={traderColor(trader.trader_id)}
-                    stopOpacity={0.2}
-                  />
+                  <stop offset="0%" stopColor={traderColor(trader.trader_id)} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={traderColor(trader.trader_id)} stopOpacity={0} />
                 </linearGradient>
               ))}
+              {/* Glow filter */}
+              <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
             </defs>
 
-            <CartesianGrid strokeDasharray="3 3" stroke="#2B3139" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#1E2329" vertical={false} />
 
             <XAxis
               dataKey="time"
-              stroke="#5E6673"
-              tick={{ fill: '#848E9C', fontSize: 11 }}
-              tickLine={{ stroke: '#2B3139' }}
-              interval={Math.floor(displayData.length / 12)}
-              angle={-15}
-              textAnchor="end"
-              height={60}
+              stroke="#2B3139"
+              tick={{ fill: '#5E6673', fontSize: 10 }}
+              tickLine={false}
+              axisLine={{ stroke: '#2B3139' }}
+              interval={Math.max(Math.floor(displayData.length / 8), 1)}
             />
 
             <YAxis
-              stroke="#5E6673"
-              tick={{ fill: '#848E9C', fontSize: 12 }}
-              tickLine={{ stroke: '#2B3139' }}
+              stroke="#2B3139"
+              tick={{ fill: '#5E6673', fontSize: 10 }}
+              tickLine={false}
+              axisLine={false}
               domain={calculateYDomain()}
               tickFormatter={(value) => `${value.toFixed(1)}%`}
-              width={60}
+              width={50}
             />
 
             <Tooltip content={<CustomTooltip />} />
 
+            {/* Zero reference line */}
             <ReferenceLine
               y={0}
               stroke="#474D57"
-              strokeDasharray="5 5"
-              strokeWidth={1.5}
-              label={{
-                value: 'Break Even',
-                fill: '#848E9C',
-                fontSize: 11,
-                position: 'right',
-              }}
+              strokeDasharray="8 4"
+              strokeWidth={1}
             />
 
-            {traders.map((trader) => (
+            {/* Area fills for top 2 traders */}
+            {traders.slice(0, 2).map((trader) => (
+              <Area
+                key={`area-${trader.trader_id}`}
+                type="monotone"
+                dataKey={`${trader.trader_id}_pnl_pct`}
+                fill={`url(#area-gradient-${trader.trader_id})`}
+                stroke="none"
+                connectNulls
+              />
+            ))}
+
+            {/* Lines for all traders */}
+            {traders.map((trader, idx) => (
               <Line
                 key={trader.trader_id}
                 type="monotone"
                 dataKey={`${trader.trader_id}_pnl_pct`}
                 stroke={traderColor(trader.trader_id)}
-                strokeWidth={3}
-                dot={
-                  displayData.length < 50
-                    ? { fill: traderColor(trader.trader_id), r: 3 }
-                    : false
-                }
+                strokeWidth={idx === 0 ? 3 : 2}
+                dot={false}
                 activeDot={{
                   r: 6,
                   fill: traderColor(trader.trader_id),
-                  stroke: '#fff',
+                  stroke: '#0B0E11',
                   strokeWidth: 2,
+                  filter: 'url(#glow)',
                 }}
                 name={trader.trader_name}
                 connectNulls
+                style={{ filter: idx === 0 ? 'url(#glow)' : undefined }}
               />
             ))}
 
             <Legend
-              wrapperStyle={{ paddingTop: '20px' }}
-              iconType="line"
-              formatter={(value, entry: any) => {
-                const traderId = traders.find(
-                  (t) => value === t.trader_name
-                )?.trader_id
-                const trader = traders.find((t) => t.trader_id === traderId)
+              wrapperStyle={{ paddingTop: '16px' }}
+              iconType="circle"
+              iconSize={8}
+              formatter={(value) => {
+                const trader = traders.find((t) => t.trader_name === value)
+                const pnl = trader ? lastPoint?.[`${trader.trader_id}_pnl_pct`] || 0 : 0
                 return (
-                  <span
-                    style={{
-                      color: entry.color,
-                      fontWeight: 600,
-                      fontSize: '14px',
-                    }}
-                  >
-                    {trader?.trader_name} ({trader?.ai_model.toUpperCase()})
+                  <span style={{ color: '#EAECEF', fontSize: '12px', fontWeight: 500 }}>
+                    {value}
+                    <span style={{
+                      color: pnl >= 0 ? '#0ECB81' : '#F6465D',
+                      marginLeft: '6px',
+                      fontFamily: 'monospace'
+                    }}>
+                      ({pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}%)
+                    </span>
                   </span>
                 )
               }}
             />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Stats */}
-      <div
-        className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 pt-5"
-        style={{ borderTop: '1px solid #2B3139' }}
-      >
-        <div
-          className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50"
-          style={{ background: 'rgba(240, 185, 11, 0.05)' }}
-        >
-          <div
-            className="text-xs mb-1 uppercase tracking-wider"
-            style={{ color: '#848E9C' }}
-          >
-            {t('comparisonMode', language)}
+      {/* Bottom Stats */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="p-3 rounded-lg text-center"
+             style={{ background: 'rgba(240, 185, 11, 0.05)', border: '1px solid rgba(240, 185, 11, 0.1)' }}>
+          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#848E9C' }}>
+            {t('leader', language)}
           </div>
-          <div
-            className="text-sm md:text-base font-bold"
-            style={{ color: '#EAECEF' }}
-          >
-            PnL %
+          <div className="text-sm font-bold truncate" style={{ color: '#F0B90B' }}>
+            {leader?.trader_name || '-'}
           </div>
         </div>
-        <div
-          className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50"
-          style={{ background: 'rgba(240, 185, 11, 0.05)' }}
-        >
-          <div
-            className="text-xs mb-1 uppercase tracking-wider"
-            style={{ color: '#848E9C' }}
-          >
-            {t('dataPoints', language)}
+        <div className="p-3 rounded-lg text-center" style={{ background: 'rgba(14, 203, 129, 0.05)' }}>
+          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#848E9C' }}>
+            {t('leadPnL', language) || 'Lead PnL'}
           </div>
-          <div
-            className="text-sm md:text-base font-bold mono"
-            style={{ color: '#EAECEF' }}
-          >
-            {t('count', language, { count: combinedData.length })}
+          <div className="text-sm font-bold mono"
+               style={{ color: (leader?.currentPnl || 0) >= 0 ? '#0ECB81' : '#F6465D' }}>
+            {(leader?.currentPnl || 0) >= 0 ? '+' : ''}{(leader?.currentPnl || 0).toFixed(2)}%
           </div>
         </div>
-        <div
-          className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50"
-          style={{ background: 'rgba(240, 185, 11, 0.05)' }}
-        >
-          <div
-            className="text-xs mb-1 uppercase tracking-wider"
-            style={{ color: '#848E9C' }}
-          >
+        <div className="p-3 rounded-lg text-center" style={{ background: 'rgba(96, 165, 250, 0.05)' }}>
+          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#848E9C' }}>
             {t('currentGap', language)}
           </div>
-          <div
-            className="text-sm md:text-base font-bold mono"
-            style={{ color: currentGap > 1 ? '#F0B90B' : '#EAECEF' }}
-          >
-            {currentGap.toFixed(2)}%
+          <div className="text-sm font-bold mono" style={{ color: '#60a5fa' }}>
+            {gap}%
           </div>
         </div>
-        <div
-          className="p-2 md:p-3 rounded transition-all hover:bg-opacity-50"
-          style={{ background: 'rgba(240, 185, 11, 0.05)' }}
-        >
-          <div
-            className="text-xs mb-1 uppercase tracking-wider"
-            style={{ color: '#848E9C' }}
-          >
-            {t('displayRange', language)}
+        <div className="p-3 rounded-lg text-center" style={{ background: 'rgba(139, 92, 246, 0.05)' }}>
+          <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: '#848E9C' }}>
+            {t('dataPoints', language)}
           </div>
-          <div
-            className="text-sm md:text-base font-bold mono"
-            style={{ color: '#EAECEF' }}
-          >
-            {combinedData.length > MAX_DISPLAY_POINTS
-              ? `${t('recent', language)} ${MAX_DISPLAY_POINTS}`
-              : t('allData', language)}
+          <div className="text-sm font-bold mono" style={{ color: '#8b5cf6' }}>
+            {displayData.length}
           </div>
         </div>
       </div>

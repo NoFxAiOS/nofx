@@ -337,6 +337,33 @@ func (s *TraderStore) getActiveOrDefaultStrategy(userID string) (*Strategy, erro
 }
 
 // ListAll gets all users' trader list
+// GetByID gets a trader by ID without requiring userID (for public APIs)
+func (s *TraderStore) GetByID(traderID string) (*Trader, error) {
+	var t Trader
+	var createdAt, updatedAt string
+	err := s.db.QueryRow(`
+		SELECT id, user_id, name, ai_model_id, exchange_id, COALESCE(strategy_id, ''),
+		       initial_balance, scan_interval_minutes, is_running, COALESCE(is_cross_margin, 1),
+		       COALESCE(btc_eth_leverage, 5), COALESCE(altcoin_leverage, 5), COALESCE(trading_symbols, ''),
+		       COALESCE(use_coin_pool, 0), COALESCE(use_oi_top, 0), COALESCE(custom_prompt, ''),
+		       COALESCE(override_base_prompt, 0), COALESCE(system_prompt_template, 'default'),
+		       created_at, updated_at
+		FROM traders WHERE id = ?
+	`, traderID).Scan(
+		&t.ID, &t.UserID, &t.Name, &t.AIModelID, &t.ExchangeID, &t.StrategyID,
+		&t.InitialBalance, &t.ScanIntervalMinutes, &t.IsRunning, &t.IsCrossMargin,
+		&t.BTCETHLeverage, &t.AltcoinLeverage, &t.TradingSymbols,
+		&t.UseCoinPool, &t.UseOITop, &t.CustomPrompt, &t.OverrideBasePrompt,
+		&t.SystemPromptTemplate, &createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+	return &t, nil
+}
+
 func (s *TraderStore) ListAll() ([]*Trader, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, COALESCE(strategy_id, ''),

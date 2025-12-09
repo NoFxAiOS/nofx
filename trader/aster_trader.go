@@ -489,12 +489,20 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	realUnrealizedPnl := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// Safe type assertions to prevent panic
+		markPrice, ok1 := pos["markPrice"].(float64)
+		quantity, ok2 := pos["positionAmt"].(float64)
+		unrealizedPnl, ok3 := pos["unRealizedProfit"].(float64)
+
+		if !ok1 || !ok2 || !ok3 {
+			logger.Warnf("Invalid position data types: markPrice=%v, positionAmt=%v, unRealizedProfit=%v",
+				pos["markPrice"], pos["positionAmt"], pos["unRealizedProfit"])
+			continue
+		}
+
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		realUnrealizedPnl += unrealizedPnl
 
 		leverage := 10
@@ -718,8 +726,14 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 
@@ -801,8 +815,14 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				// Aster's GetPositions has already converted short position quantity to positive, use directly
-				quantity = pos["positionAmt"].(float64)
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 

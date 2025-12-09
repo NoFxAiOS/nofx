@@ -653,8 +653,14 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64) // This is already contract size
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt // This is already contract size
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 		if quantity == 0 {
@@ -735,9 +741,15 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 			logger.Infof("🔍 OKX position: symbol=%v, side=%v, positionAmt=%v",
 				pos["symbol"], pos["side"], pos["positionAmt"])
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64)
-				logger.Infof("🔍 OKX found short position: quantity=%f", quantity)
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt
+					logger.Infof("🔍 OKX found short position: quantity=%f", quantity)
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 		if quantity == 0 {

@@ -544,11 +544,20 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	currentPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// Safe type assertions to prevent panic
+		symbol, ok1 := pos["symbol"].(string)
+		side, ok2 := pos["side"].(string)
+		entryPrice, ok3 := pos["entryPrice"].(float64)
+		markPrice, ok4 := pos["markPrice"].(float64)
+		quantity, ok5 := pos["positionAmt"].(float64)
+		unrealizedPnl, ok6 := pos["unRealizedProfit"].(float64)
+		liquidationPrice, ok7 := pos["liquidationPrice"].(float64)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || !ok7 {
+			logger.Warnf("Invalid position data types, skipping position: %v", pos)
+			continue
+		}
+
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}
@@ -557,9 +566,6 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		if quantity == 0 {
 			continue
 		}
-
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
 
 		// Calculate margin used (estimated)
 		leverage := 10 // Default value, should actually be fetched from position info
@@ -1159,12 +1165,19 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	totalUnrealizedPnLCalculated := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// Safe type assertions to prevent panic
+		markPrice, ok1 := pos["markPrice"].(float64)
+		quantity, ok2 := pos["positionAmt"].(float64)
+		unrealizedPnl, ok3 := pos["unRealizedProfit"].(float64)
+
+		if !ok1 || !ok2 || !ok3 {
+			logger.Warnf("Invalid position data types, skipping position: %v", pos)
+			continue
+		}
+
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
 		totalUnrealizedPnLCalculated += unrealizedPnl
 
 		leverage := 10
@@ -1224,16 +1237,23 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// Safe type assertions to prevent panic
+		symbol, ok1 := pos["symbol"].(string)
+		side, ok2 := pos["side"].(string)
+		entryPrice, ok3 := pos["entryPrice"].(float64)
+		markPrice, ok4 := pos["markPrice"].(float64)
+		quantity, ok5 := pos["positionAmt"].(float64)
+		unrealizedPnl, ok6 := pos["unRealizedProfit"].(float64)
+		liquidationPrice, ok7 := pos["liquidationPrice"].(float64)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || !ok7 {
+			logger.Warnf("Invalid position data types, skipping position: %v", pos)
+			continue
+		}
+
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
 
 		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {
@@ -1342,11 +1362,18 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	}
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// Safe type assertions to prevent panic
+		symbol, ok1 := pos["symbol"].(string)
+		side, ok2 := pos["side"].(string)
+		entryPrice, ok3 := pos["entryPrice"].(float64)
+		markPrice, ok4 := pos["markPrice"].(float64)
+		quantity, ok5 := pos["positionAmt"].(float64)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
+			logger.Warnf("Invalid position data types, skipping position: %v", pos)
+			continue
+		}
+
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}

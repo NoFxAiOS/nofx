@@ -434,8 +434,14 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 
@@ -489,8 +495,14 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = -pos["positionAmt"].(float64) // Short position quantity is negative, take absolute value
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = -posAmt // Short position quantity is negative, take absolute value
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 

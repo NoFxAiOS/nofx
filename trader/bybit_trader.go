@@ -110,12 +110,21 @@ func (t *BybitTrader) GetBalance() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("Bybit balance return format error")
 	}
 
-	list, _ := resultData["list"].([]interface{})
+	// Safe type assertion for list
+	list, ok := resultData["list"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Bybit balance list format error")
+	}
 
 	var totalEquity, availableBalance, totalWalletBalance, totalPerpUPL float64 = 0, 0, 0, 0
 
 	if len(list) > 0 {
-		account, _ := list[0].(map[string]interface{})
+		// Safe type assertion for account
+		account, ok := list[0].(map[string]interface{})
+		if !ok {
+			logger.Warnf("Invalid account data type in list[0]")
+			return nil, fmt.Errorf("invalid account data format")
+		}
 		if equityStr, ok := account["totalEquity"].(string); ok {
 			totalEquity, _ = strconv.ParseFloat(equityStr, 64)
 		}
@@ -185,7 +194,11 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("Bybit positions return format error")
 	}
 
-	list, _ := resultData["list"].([]interface{})
+	// Safe type assertion for list
+	list, ok := resultData["list"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Bybit positions list format error")
+	}
 
 	var positions []map[string]interface{}
 
@@ -332,8 +345,14 @@ func (t *BybitTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "LONG" {
-				quantity = pos["positionAmt"].(float64)
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = posAmt
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 	}
@@ -376,8 +395,14 @@ func (t *BybitTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "SHORT" {
-				quantity = -pos["positionAmt"].(float64) // Short position is negative
-				break
+				// Safe type assertion to prevent panic
+				if posAmt, ok := pos["positionAmt"].(float64); ok {
+					quantity = -posAmt // Short position is negative
+					break
+				} else {
+					logger.Warnf("Invalid positionAmt type for position: %v", pos)
+					// Continue searching for other valid positions
+				}
 			}
 		}
 	}
@@ -484,14 +509,26 @@ func (t *BybitTrader) GetMarketPrice(symbol string) (float64, error) {
 		return 0, fmt.Errorf("return format error")
 	}
 
-	list, _ := resultData["list"].([]interface{})
+	// Safe type assertion for list
+	list, ok := resultData["list"].([]interface{})
+	if !ok {
+		return 0, fmt.Errorf("price list format error")
+	}
 
 	if len(list) == 0 {
 		return 0, fmt.Errorf("price data not found for %s", symbol)
 	}
 
-	ticker, _ := list[0].(map[string]interface{})
-	lastPriceStr, _ := ticker["lastPrice"].(string)
+	// Safe type assertion for ticker
+	ticker, ok := list[0].(map[string]interface{})
+	if !ok {
+		return 0, fmt.Errorf("ticker data format error")
+	}
+
+	lastPriceStr, ok := ticker["lastPrice"].(string)
+	if !ok {
+		return 0, fmt.Errorf("lastPrice format error")
+	}
 	lastPrice, err := strconv.ParseFloat(lastPriceStr, 64)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse price: %w", err)
@@ -762,18 +799,39 @@ func (t *BybitTrader) GetOrderStatus(symbol string, orderID string) (map[string]
 		return nil, fmt.Errorf("return format error")
 	}
 
-	list, _ := resultData["list"].([]interface{})
+	// Safe type assertion for list
+	list, ok := resultData["list"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("order list format error")
+	}
+
 	if len(list) == 0 {
 		return nil, fmt.Errorf("order %s not found", orderID)
 	}
 
-	order, _ := list[0].(map[string]interface{})
+	// Safe type assertion for order
+	order, ok := list[0].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("order data format error")
+	}
 
-	// Parse order data
-	status, _ := order["orderStatus"].(string)
-	avgPriceStr, _ := order["avgPrice"].(string)
-	cumExecQtyStr, _ := order["cumExecQty"].(string)
-	cumExecFeeStr, _ := order["cumExecFee"].(string)
+	// Parse order data with safe type assertions
+	status, ok := order["orderStatus"].(string)
+	if !ok {
+		status = ""
+	}
+	avgPriceStr, ok := order["avgPrice"].(string)
+	if !ok {
+		avgPriceStr = "0"
+	}
+	cumExecQtyStr, ok := order["cumExecQty"].(string)
+	if !ok {
+		cumExecQtyStr = "0"
+	}
+	cumExecFeeStr, ok := order["cumExecFee"].(string)
+	if !ok {
+		cumExecFeeStr = "0"
+	}
 
 	avgPrice, _ := strconv.ParseFloat(avgPriceStr, 64)
 	executedQty, _ := strconv.ParseFloat(cumExecQtyStr, 64)
@@ -823,7 +881,11 @@ func (t *BybitTrader) cancelConditionalOrders(symbol string, orderType string) e
 		return nil
 	}
 
-	list, _ := resultData["list"].([]interface{})
+	// Safe type assertion for list
+	list, ok := resultData["list"].([]interface{})
+	if !ok {
+		return nil
+	}
 
 	// Cancel matching orders
 	for _, item := range list {
@@ -832,8 +894,15 @@ func (t *BybitTrader) cancelConditionalOrders(symbol string, orderType string) e
 			continue
 		}
 
-		orderId, _ := order["orderId"].(string)
-		stopOrderType, _ := order["stopOrderType"].(string)
+		// Safe type assertions for order fields
+		orderId, ok := order["orderId"].(string)
+		if !ok {
+			continue
+		}
+		stopOrderType, ok := order["stopOrderType"].(string)
+		if !ok {
+			stopOrderType = ""
+		}
 
 		// Filter by type
 		shouldCancel := false

@@ -271,9 +271,9 @@ docker compose up -d --build
 ```
 
 **📖 详细的Docker部署教程、故障排查和高级配置：**
-- **中文**: 查看 [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md)
-- **English**: See [DOCKER_DEPLOY.en.md](DOCKER_DEPLOY.en.md)
-- **日本語**: [DOCKER_DEPLOY.ja.md](DOCKER_DEPLOY.ja.md)を参照
+- **中文**: 查看 [docker-deploy.zh-CN.md](../../getting-started/docker-deploy.zh-CN.md)
+- **English**: See [docker-deploy.en.md](../../getting-started/docker-deploy.en.md)
+- **日本語**: [docker-deploy.md](../ja/docker-deploy.md)を参照
 
 ---
 

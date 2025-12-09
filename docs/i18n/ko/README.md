@@ -267,8 +267,8 @@ docker compose up -d --build
 
 **📖 자세한 Docker 배포 가이드, 문제 해결 및 고급 구성:**
 - **한국어**: Docker 문서 참조 (곧 제공 예정)
-- **English**: See [DOCKER_DEPLOY.en.md](../../getting-started/docker-deploy.en.md)
-- **中文**: 查看 [DOCKER_DEPLOY.md](../../getting-started/docker-deploy.zh-CN.md)
+- **English**: See [docker-deploy.en.md](../../getting-started/docker-deploy.en.md)
+- **中文**: 查看 [docker-deploy.zh-CN.md](../../getting-started/docker-deploy.zh-CN.md)
 
 ---
 

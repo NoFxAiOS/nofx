@@ -3,6 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
+	"nofx/config"
 	"nofx/crypto"
 
 	"github.com/gin-gonic/gin"
@@ -20,15 +21,35 @@ func NewCryptoHandler(cryptoService *crypto.CryptoService) *CryptoHandler {
 	}
 }
 
+// ==================== Crypto Config Endpoint ====================
+
+// HandleGetCryptoConfig Get crypto configuration
+func (h *CryptoHandler) HandleGetCryptoConfig(c *gin.Context) {
+	cfg := config.Get()
+	c.JSON(http.StatusOK, gin.H{
+		"transport_encryption": cfg.TransportEncryption,
+	})
+}
+
 // ==================== Public Key Endpoint ====================
 
 // HandleGetPublicKey Get server public key
 func (h *CryptoHandler) HandleGetPublicKey(c *gin.Context) {
-	publicKey := h.cryptoService.GetPublicKeyPEM()
+	cfg := config.Get()
+	if !cfg.TransportEncryption {
+		c.JSON(http.StatusOK, gin.H{
+			"public_key":           "",
+			"algorithm":            "",
+			"transport_encryption": false,
+		})
+		return
+	}
 
-	c.JSON(http.StatusOK, map[string]string{
-		"public_key": publicKey,
-		"algorithm":  "RSA-OAEP-2048",
+	publicKey := h.cryptoService.GetPublicKeyPEM()
+	c.JSON(http.StatusOK, gin.H{
+		"public_key":           publicKey,
+		"algorithm":            "RSA-OAEP-2048",
+		"transport_encryption": true,
 	})
 }
 

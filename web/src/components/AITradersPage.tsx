@@ -1844,7 +1844,10 @@ function ExchangeConfigModal({
                       color: '#EAECEF',
                     }}
                     aria-label={t('selectExchange', language)}
-                    disabled={webCryptoStatus !== 'secure'}
+                    disabled={
+                      webCryptoStatus !== 'secure' &&
+                      webCryptoStatus !== 'disabled'
+                    }
                     required
                   >
                     <option value="">

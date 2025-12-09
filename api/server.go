@@ -95,6 +95,7 @@ func (s *Server) setupRoutes() {
 		api.GET("/config", s.handleGetSystemConfig)
 
 		// Crypto related endpoints (no authentication required)
+		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
 		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
 		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
 

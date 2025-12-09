@@ -7,6 +7,10 @@ export interface EncryptedPayload {
   ts?: number // 可选：unix 秒，用于重放保护
 }
 
+export interface CryptoConfig {
+  transport_encryption: boolean
+}
+
 export interface WebCryptoEnvironmentInfo {
   isBrowser: boolean
   isSecureContext: boolean
@@ -20,6 +24,11 @@ export interface WebCryptoEnvironmentInfo {
 export class CryptoService {
   private static publicKey: CryptoKey | null = null
   private static publicKeyPEM: string | null = null
+  private static _transportEncryption: boolean | null = null
+
+  static get transportEncryption(): boolean {
+    return this._transportEncryption === true
+  }
 
   static async initialize(publicKeyPEM: string) {
     if (this.publicKey && this.publicKeyPEM === publicKeyPEM) {
@@ -27,6 +36,16 @@ export class CryptoService {
     }
     this.publicKeyPEM = publicKeyPEM
     this.publicKey = await this.importPublicKey(publicKeyPEM)
+  }
+
+  static async fetchCryptoConfig(): Promise<CryptoConfig> {
+    const response = await fetch('/api/crypto/config')
+    if (!response.ok) {
+      throw new Error(`Failed to fetch crypto config: ${response.statusText}`)
+    }
+    const data = await response.json()
+    this._transportEncryption = data.transport_encryption
+    return data
   }
 
   private static async importPublicKey(pem: string): Promise<CryptoKey> {
@@ -153,7 +172,11 @@ export class CryptoService {
       throw new Error(`Failed to fetch public key: ${response.statusText}`)
     }
     const data = await response.json()
-    return data.public_key
+    // Update transport encryption flag from server response
+    if (typeof data.transport_encryption === 'boolean') {
+      this._transportEncryption = data.transport_encryption
+    }
+    return data.public_key || ''
   }
 
   static async decryptSensitiveData(

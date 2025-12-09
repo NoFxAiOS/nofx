@@ -167,6 +167,61 @@ npm run dev
 
 ---
 
+## 服务器部署
+
+### 快速部署 (HTTP/IP 访问)
+
+默认情况下，传输加密已**禁用**，可直接通过 IP 地址访问 NOFX：
+
+```bash
+# 部署到你的服务器
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+通过 `http://你的服务器IP:3000` 访问 - 立即可用。
+
+### 增强安全 (HTTPS)
+
+如需增强安全性，在 `.env` 中启用传输加密：
+
+```bash
+TRANSPORT_ENCRYPTION=true
+```
+
+启用后，浏览器会使用 Web Crypto API 在传输前加密 API 密钥。此功能需要：
+- `https://` - 任何有 SSL 证书的域名
+- `http://localhost` - 本地开发
+
+### Cloudflare 快速配置 HTTPS
+
+1. **添加域名到 Cloudflare** (免费计划即可)
+   - 访问 [dash.cloudflare.com](https://dash.cloudflare.com)
+   - 添加域名并更新 DNS 服务器
+
+2. **创建 DNS 记录**
+   - 类型: `A`
+   - 名称: `nofx` (或你的子域名)
+   - 内容: 你的服务器 IP
+   - 代理状态: **已代理** (橙色云朵)
+
+3. **配置 SSL/TLS**
+   - 进入 SSL/TLS 设置
+   - 加密模式选择 **灵活**
+
+   ```
+   用户 ──[HTTPS]──→ Cloudflare ──[HTTP]──→ 你的服务器:3000
+   ```
+
+4. **启用传输加密**
+   ```bash
+   # 编辑 .env 并设置
+   TRANSPORT_ENCRYPTION=true
+   ```
+
+5. **完成！** 通过 `https://nofx.你的域名.com` 访问
+
+---
+
 ## 初始配置 (Web 界面)
 
 启动系统后，通过 Web 界面进行配置:

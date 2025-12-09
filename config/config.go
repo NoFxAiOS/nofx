@@ -16,6 +16,11 @@ type Config struct {
 	APIServerPort       int
 	JWTSecret           string
 	RegistrationEnabled bool
+
+	// Security configuration
+	// TransportEncryption enables browser-side encryption for API keys
+	// Requires HTTPS or localhost. Set to false for HTTP access via IP.
+	TransportEncryption bool
 }
 
 // Init initializes global configuration (from .env)
@@ -41,6 +46,12 @@ func Init() {
 		if port, err := strconv.Atoi(v); err == nil && port > 0 {
 			cfg.APIServerPort = port
 		}
+	}
+
+	// Transport encryption: default false for easier deployment
+	// Set TRANSPORT_ENCRYPTION=true to enable (requires HTTPS or localhost)
+	if v := os.Getenv("TRANSPORT_ENCRYPTION"); v != "" {
+		cfg.TransportEncryption = strings.ToLower(v) == "true"
 	}
 
 	global = cfg

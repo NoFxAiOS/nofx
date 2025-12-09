@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Loader2, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { diagnoseWebCryptoEnvironment } from '../lib/crypto'
+import { Loader2, ShieldAlert, ShieldCheck, ShieldMinus } from 'lucide-react'
+import { CryptoService, diagnoseWebCryptoEnvironment } from '../lib/crypto'
 import { t, type Language } from '../i18n/translations'
 
 export type WebCryptoCheckStatus =
@@ -9,6 +9,7 @@ export type WebCryptoCheckStatus =
   | 'secure'
   | 'insecure'
   | 'unsupported'
+  | 'disabled' // Transport encryption disabled
 
 interface WebCryptoEnvironmentCheckProps {
   language: Language
@@ -28,11 +29,19 @@ export function WebCryptoEnvironmentCheck({
     onStatusChange?.(status)
   }, [onStatusChange, status])
 
-  const runCheck = useCallback(() => {
+  const runCheck = useCallback(async () => {
     setStatus('checking')
     setSummary(null)
 
-    setTimeout(() => {
+    try {
+      // First check if transport encryption is enabled on the server
+      const config = await CryptoService.fetchCryptoConfig()
+
+      if (!config.transport_encryption) {
+        setStatus('disabled')
+        return
+      }
+
       const result = diagnoseWebCryptoEnvironment()
       setSummary(
         t('environmentCheck.summary', language, {
@@ -52,8 +61,11 @@ export function WebCryptoEnvironmentCheck({
       }
 
       setStatus('secure')
-    }, 0)
-  }, [language, t])
+    } catch {
+      // If we can't fetch config, assume encryption is disabled
+      setStatus('disabled')
+    }
+  }, [language])
 
   useEffect(() => {
     runCheck()
@@ -107,6 +119,17 @@ export function WebCryptoEnvironmentCheck({
           </div>
         </div>
         <div>{t('environmentCheck.unsupportedDesc', language)}</div>
+      </div>
+    ),
+    disabled: () => (
+      <div className="flex items-start gap-2 text-gray-400 text-xs">
+        <ShieldMinus className="w-4 h-4 flex-shrink-0" />
+        <div>
+          <div className="font-semibold">
+            {t('environmentCheck.disabledTitle', language)}
+          </div>
+          <div>{t('environmentCheck.disabledDesc', language)}</div>
+        </div>
       </div>
     ),
     checking: () => (

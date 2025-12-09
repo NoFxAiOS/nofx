@@ -167,6 +167,61 @@ Access Web Interface: **http://localhost:3000**
 
 ---
 
+## Server Deployment
+
+### Quick Deploy (HTTP via IP)
+
+By default, transport encryption is **disabled**, allowing you to access NOFX via IP address without HTTPS:
+
+```bash
+# Deploy to your server
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+Access via `http://YOUR_SERVER_IP:3000` - works immediately.
+
+### Enhanced Security (HTTPS)
+
+For enhanced security, enable transport encryption in `.env`:
+
+```bash
+TRANSPORT_ENCRYPTION=true
+```
+
+When enabled, browser uses Web Crypto API to encrypt API keys before transmission. This requires:
+- `https://` - Any domain with SSL
+- `http://localhost` - Local development
+
+### Quick HTTPS Setup with Cloudflare
+
+1. **Add your domain to Cloudflare** (free plan works)
+   - Go to [dash.cloudflare.com](https://dash.cloudflare.com)
+   - Add your domain and update nameservers
+
+2. **Create DNS record**
+   - Type: `A`
+   - Name: `nofx` (or your subdomain)
+   - Content: Your server IP
+   - Proxy status: **Proxied** (orange cloud)
+
+3. **Configure SSL/TLS**
+   - Go to SSL/TLS settings
+   - Set encryption mode to **Flexible**
+
+   ```
+   User ──[HTTPS]──→ Cloudflare ──[HTTP]──→ Your Server:3000
+   ```
+
+4. **Enable transport encryption**
+   ```bash
+   # Edit .env and set
+   TRANSPORT_ENCRYPTION=true
+   ```
+
+5. **Done!** Access via `https://nofx.yourdomain.com`
+
+---
+
 ## Initial Setup (Web Interface)
 
 After starting the system, configure through the web interface:

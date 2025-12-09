@@ -2,10 +2,12 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -13,6 +15,8 @@ import (
 var (
 	// Log is the global logger instance
 	Log *logrus.Logger
+	// logFile holds the current log file handle
+	logFile *os.File
 )
 
 // compactFormatter is a custom formatter for cleaner log output
@@ -78,7 +82,23 @@ func Init(cfg *Config) error {
 
 	// Set compact formatter
 	Log.SetFormatter(&compactFormatter{})
-	Log.SetOutput(os.Stdout)
+
+	// Setup log file output (write to both stdout and file)
+	logDir := "data"
+	if err := os.MkdirAll(logDir, 0755); err == nil {
+		logFileName := filepath.Join(logDir, fmt.Sprintf("nofx_%s.log", time.Now().Format("2006-01-02")))
+		f, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err == nil {
+			logFile = f
+			// Write to both stdout and file
+			Log.SetOutput(io.MultiWriter(os.Stdout, f))
+		} else {
+			Log.SetOutput(os.Stdout)
+		}
+	} else {
+		Log.SetOutput(os.Stdout)
+	}
+
 	Log.SetReportCaller(true)
 
 	return nil
@@ -92,7 +112,10 @@ func InitWithSimpleConfig(level string) error {
 
 // Shutdown gracefully shuts down the logger
 func Shutdown() {
-	// Reserved for future extensions
+	if logFile != nil {
+		logFile.Close()
+		logFile = nil
+	}
 }
 
 // ============================================================================

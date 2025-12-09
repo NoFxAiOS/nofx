@@ -17,9 +17,8 @@ services:
     ports:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
     volumes:
-      # Data directory for database (new images use data/data.db)
+      # Data directory for database and logs
       - ./data:/app/data
-      - ./decision_logs:/app/decision_logs
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env

@@ -26,6 +26,8 @@ import {
   Terminal,
   Code,
   Send,
+  Download,
+  Upload,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
@@ -260,6 +262,67 @@ export function StrategyStudioPage() {
       await fetchStrategies()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
+    }
+  }
+
+  // Export strategy as JSON file
+  const handleExportStrategy = (strategy: Strategy) => {
+    const exportData = {
+      name: strategy.name,
+      description: strategy.description,
+      config: strategy.config,
+      exported_at: new Date().toISOString(),
+      version: '1.0',
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `strategy_${strategy.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    notify.success(language === 'zh' ? '策略已导出' : 'Strategy exported')
+  }
+
+  // Import strategy from JSON file
+  const handleImportStrategy = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !token) return
+
+    try {
+      const text = await file.text()
+      const importData = JSON.parse(text)
+
+      // Validate imported data
+      if (!importData.config || !importData.name) {
+        throw new Error(language === 'zh' ? '无效的策略文件' : 'Invalid strategy file')
+      }
+
+      // Create new strategy with imported config
+      const response = await fetch(`${API_BASE}/api/strategies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: `${importData.name} (${language === 'zh' ? '导入' : 'Imported'})`,
+          description: importData.description || '',
+          config: importData.config,
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to import strategy')
+
+      notify.success(language === 'zh' ? '策略已导入' : 'Strategy imported')
+      await fetchStrategies()
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error'
+      notify.error(errorMsg)
+    } finally {
+      // Reset file input
+      event.target.value = ''
     }
   }
 
@@ -526,13 +589,26 @@ export function StrategyStudioPage() {
           <div className="p-2">
             <div className="flex items-center justify-between mb-2 px-2">
               <span className="text-xs font-medium" style={{ color: '#848E9C' }}>{t('strategies')}</span>
-              <button
-                onClick={handleCreateStrategy}
-                className="p-1 rounded hover:bg-white/10 transition-colors"
-                style={{ color: '#F0B90B' }}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                {/* Import button with hidden file input */}
+                <label className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer" style={{ color: '#848E9C' }} title={language === 'zh' ? '导入策略' : 'Import Strategy'}>
+                  <Upload className="w-4 h-4" />
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportStrategy}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={handleCreateStrategy}
+                  className="p-1 rounded hover:bg-white/10 transition-colors"
+                  style={{ color: '#F0B90B' }}
+                  title={language === 'zh' ? '新建策略' : 'New Strategy'}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="space-y-1">
               {strategies.map((strategy) => (
@@ -554,22 +630,33 @@ export function StrategyStudioPage() {
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-sm truncate" style={{ color: '#EAECEF' }}>{strategy.name}</span>
-                    {!strategy.is_default && (
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDuplicateStrategy(strategy.id) }}
-                          className="p-1 rounded hover:bg-white/10"
-                        >
-                          <Copy className="w-3 h-3" style={{ color: '#848E9C' }} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteStrategy(strategy.id) }}
-                          className="p-1 rounded hover:bg-red-500/20"
-                        >
-                          <Trash2 className="w-3 h-3" style={{ color: '#F6465D' }} />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleExportStrategy(strategy) }}
+                        className="p-1 rounded hover:bg-white/10"
+                        title={language === 'zh' ? '导出' : 'Export'}
+                      >
+                        <Download className="w-3 h-3" style={{ color: '#848E9C' }} />
+                      </button>
+                      {!strategy.is_default && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDuplicateStrategy(strategy.id) }}
+                            className="p-1 rounded hover:bg-white/10"
+                            title={language === 'zh' ? '复制' : 'Duplicate'}
+                          >
+                            <Copy className="w-3 h-3" style={{ color: '#848E9C' }} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteStrategy(strategy.id) }}
+                            className="p-1 rounded hover:bg-red-500/20"
+                            title={language === 'zh' ? '删除' : 'Delete'}
+                          >
+                            <Trash2 className="w-3 h-3" style={{ color: '#F6465D' }} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 mt-1">
                     {strategy.is_active && (

@@ -428,6 +428,30 @@ export function IndicatorEditor({
                 style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
               />
               <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('symbolPlaceholder')}</p>
+
+              {/* OI and Netflow toggles */}
+              <div className="flex gap-4 mt-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.enable_quant_oi !== false}
+                    onChange={(e) => !disabled && onChange({ ...config, enable_quant_oi: e.target.checked })}
+                    disabled={disabled}
+                    className="w-3.5 h-3.5 rounded accent-blue-500"
+                  />
+                  <span className="text-xs" style={{ color: '#EAECEF' }}>OI</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.enable_quant_netflow !== false}
+                    onChange={(e) => !disabled && onChange({ ...config, enable_quant_netflow: e.target.checked })}
+                    disabled={disabled}
+                    className="w-3.5 h-3.5 rounded accent-blue-500"
+                  />
+                  <span className="text-xs" style={{ color: '#EAECEF' }}>Netflow</span>
+                </label>
+              </div>
             </div>
           )}
         </div>

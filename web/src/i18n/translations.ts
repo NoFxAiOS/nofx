@@ -1339,8 +1339,7 @@ export const translations = {
       '使用代理钱包安全交易：代理钱包用于签名（餘額~0），主钱包持有资金（永不暴露私钥）',
     hyperliquidAgentPrivateKey: '代理私钥',
     enterHyperliquidAgentPrivateKey: '输入代理钱包私钥',
-    hyperliquidAgentPrivateKeyDesc:
-      '代理钱包私钥，用于签名交易（为了安全应保持余额接近0）',
+    hyperliquidAgentPrivateKeyDesc: '代理钱包仅有交易权限，无法提现',
     hyperliquidMainWalletAddress: '主钱包地址',
     enterHyperliquidMainWalletAddress: '输入主钱包地址',
     hyperliquidMainWalletAddressDesc:

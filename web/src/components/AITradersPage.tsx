@@ -16,10 +16,6 @@ import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
 import { PunkAvatar, getTraderAvatar } from './PunkAvatar'
 import {
-  TwoStageKeyModal,
-  type TwoStageKeyModalResult,
-} from './TwoStageKeyModal'
-import {
   WebCryptoEnvironmentCheck,
   type WebCryptoCheckStatus,
 } from './WebCryptoEnvironmentCheck'
@@ -1603,11 +1599,6 @@ function ExchangeConfigModal({
   const [lighterPrivateKey, setLighterPrivateKey] = useState('')
   const [lighterApiKeyPrivateKey, setLighterApiKeyPrivateKey] = useState('')
 
-  // 安全输入状态
-  const [secureInputTarget, setSecureInputTarget] = useState<
-    null | 'hyperliquid' | 'aster' | 'lighter'
-  >(null)
-
   // 获取当前编辑的交易所信息
   const selectedExchange = allExchanges?.find(
     (e) => e.id === selectedExchangeId
@@ -1703,44 +1694,6 @@ function ExchangeConfigModal({
         t('copyIPFailed', language) || `复制失败: ${ip}\n请手动复制此IP地址`
       )
     }
-  }
-
-  // 安全输入处理函数
-  const secureInputContextLabel =
-    secureInputTarget === 'aster'
-      ? t('asterExchangeName', language)
-      : secureInputTarget === 'hyperliquid'
-        ? t('hyperliquidExchangeName', language)
-        : undefined
-
-  const handleSecureInputCancel = () => {
-    setSecureInputTarget(null)
-  }
-
-  const handleSecureInputComplete = ({
-    value,
-    obfuscationLog,
-  }: TwoStageKeyModalResult) => {
-    const trimmed = value.trim()
-    if (secureInputTarget === 'hyperliquid') {
-      setApiKey(trimmed)
-    }
-    if (secureInputTarget === 'aster') {
-      setAsterPrivateKey(trimmed)
-    }
-    console.log('Secure input obfuscation log:', obfuscationLog)
-    setSecureInputTarget(null)
-  }
-
-  // 掩盖敏感数据显示
-  const maskSecret = (secret: string) => {
-    if (!secret || secret.length === 0) return ''
-    if (secret.length <= 8) return '*'.repeat(secret.length)
-    return (
-      secret.slice(0, 4) +
-      '*'.repeat(Math.max(secret.length - 8, 4)) +
-      secret.slice(-4)
-    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2328,58 +2281,22 @@ function ExchangeConfigModal({
                       >
                         {t('hyperliquidAgentPrivateKey', language)}
                       </label>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={maskSecret(apiKey)}
-                            readOnly
-                            placeholder={t(
-                              'enterHyperliquidAgentPrivateKey',
-                              language
-                            )}
-                            className="w-full px-3 py-2 rounded"
-                            style={{
-                              background: '#0B0E11',
-                              border: '1px solid #2B3139',
-                              color: '#EAECEF',
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setSecureInputTarget('hyperliquid')}
-                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                            style={{
-                              background: '#F0B90B',
-                              color: '#000',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {apiKey
-                              ? t('secureInputReenter', language)
-                              : t('secureInputButton', language)}
-                          </button>
-                          {apiKey && (
-                            <button
-                              type="button"
-                              onClick={() => setApiKey('')}
-                              className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                              style={{
-                                background: '#1B1F2B',
-                                color: '#848E9C',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {t('secureInputClear', language)}
-                            </button>
-                          )}
-                        </div>
-                        {apiKey && (
-                          <div className="text-xs" style={{ color: '#848E9C' }}>
-                            {t('secureInputHint', language)}
-                          </div>
+                      <input
+                        type="password"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        placeholder={t(
+                          'enterHyperliquidAgentPrivateKey',
+                          language
                         )}
-                      </div>
+                        className="w-full px-3 py-2 rounded"
+                        style={{
+                          background: '#0B0E11',
+                          border: '1px solid #2B3139',
+                          color: '#EAECEF',
+                        }}
+                        required
+                      />
                       <div
                         className="text-xs mt-1"
                         style={{ color: '#848E9C' }}
@@ -2605,15 +2522,6 @@ function ExchangeConfigModal({
         </div>
       )}
 
-      {/* Two Stage Key Modal */}
-      <TwoStageKeyModal
-        isOpen={secureInputTarget !== null}
-        language={language}
-        contextLabel={secureInputContextLabel}
-        expectedLength={64}
-        onCancel={handleSecureInputCancel}
-        onComplete={handleSecureInputComplete}
-      />
     </div>
   )
 }

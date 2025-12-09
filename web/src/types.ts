@@ -205,20 +205,21 @@ export interface TraderConfigData {
   trader_name: string
   ai_model: string
   exchange_id: string
-  strategy_id?: string  // 策略ID（新版）
+  strategy_id?: string  // 策略ID
+  strategy_name?: string  // 策略名称
   is_cross_margin: boolean
   scan_interval_minutes: number
   initial_balance: number
   is_running: boolean
   // 以下为旧版字段（向后兼容）
-  btc_eth_leverage: number
-  altcoin_leverage: number
-  trading_symbols: string
-  custom_prompt: string
-  override_base_prompt: boolean
-  system_prompt_template: string
-  use_coin_pool: boolean
-  use_oi_top: boolean
+  btc_eth_leverage?: number
+  altcoin_leverage?: number
+  trading_symbols?: string
+  custom_prompt?: string
+  override_base_prompt?: boolean
+  system_prompt_template?: string
+  use_coin_pool?: boolean
+  use_oi_top?: boolean
 }
 
 // Backtest types
@@ -411,6 +412,8 @@ export interface IndicatorConfig {
   // 量化数据源（资金流向、持仓变化、价格变化）
   enable_quant_data?: boolean;
   quant_data_api_url?: string;
+  enable_quant_oi?: boolean;
+  enable_quant_netflow?: boolean;
 }
 
 export interface KlineConfig {

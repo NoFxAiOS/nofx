@@ -94,8 +94,10 @@ type IndicatorConfig struct {
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
 	// quantitative data sources (capital flow, position changes, price changes)
-	EnableQuantData bool   `json:"enable_quant_data"`            // whether to enable quantitative data
-	QuantDataAPIURL string `json:"quant_data_api_url,omitempty"` // quantitative data API address
+	EnableQuantData    bool   `json:"enable_quant_data"`              // whether to enable quantitative data
+	QuantDataAPIURL    string `json:"quant_data_api_url,omitempty"`   // quantitative data API address
+	EnableQuantOI      bool   `json:"enable_quant_oi"`                // whether to show OI data
+	EnableQuantNetflow bool   `json:"enable_quant_netflow"`           // whether to show Netflow data
 }
 
 // KlineConfig K-line configuration
@@ -216,8 +218,10 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EMAPeriods:        []int{20, 50},
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
-			EnableQuantData:   true,
-			QuantDataAPIURL:   "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
+			EnableQuantData:    true,
+			QuantDataAPIURL:    "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
+			EnableQuantOI:      true,
+			EnableQuantNetflow: true,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:       3,

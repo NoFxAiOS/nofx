@@ -777,6 +777,9 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 		}
 	}
 
+	// Remove trader from memory
+	s.traderManager.RemoveTrader(traderID)
+
 	logger.Infof("✓ Trader deleted: %s", traderID)
 	c.JSON(http.StatusOK, gin.H{"message": "Trader deleted"})
 }

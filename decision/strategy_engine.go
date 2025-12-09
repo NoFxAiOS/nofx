@@ -179,11 +179,11 @@ func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 
 // QuantData quantitative data structure (fund flow, position changes, price changes)
 type QuantData struct {
-	Symbol      string                 `json:"symbol"`
-	Price       float64                `json:"price"`
-	Netflow     *NetflowData           `json:"netflow,omitempty"`
-	OI          map[string]*OIData     `json:"oi,omitempty"`
-	PriceChange map[string]float64     `json:"price_change,omitempty"`
+	Symbol      string             `json:"symbol"`
+	Price       float64            `json:"price"`
+	Netflow     *NetflowData       `json:"netflow,omitempty"`
+	OI          map[string]*OIData `json:"oi,omitempty"`
+	PriceChange map[string]float64 `json:"price_change,omitempty"`
 }
 
 type NetflowData struct {
@@ -197,9 +197,9 @@ type FlowTypeData struct {
 }
 
 type OIData struct {
-	CurrentOI float64                `json:"current_oi"`
-	NetLong   float64                `json:"net_long"`
-	NetShort  float64                `json:"net_short"`
+	CurrentOI float64                 `json:"current_oi"`
+	NetLong   float64                 `json:"net_long"`
+	NetShort  float64                 `json:"net_short"`
 	Delta     map[string]*OIDeltaData `json:"delta,omitempty"`
 }
 
@@ -242,7 +242,7 @@ func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 
 	// Parse response
 	var apiResp struct {
-		Code int       `json:"code"`
+		Code int        `json:"code"`
 		Data *QuantData `json:"data"`
 	}
 
@@ -285,84 +285,85 @@ func (e *StrategyEngine) formatQuantData(data *QuantData) string {
 		return ""
 	}
 
+	indicators := e.config.Indicators
+	// If both OI and Netflow are disabled, return empty
+	if !indicators.EnableQuantOI && !indicators.EnableQuantNetflow {
+		return ""
+	}
+
 	var sb strings.Builder
 	sb.WriteString("📊 Quantitative Data:\n")
 
-	// Price changes
+	// Price changes (API returns decimals, multiply by 100 for percentage)
 	if len(data.PriceChange) > 0 {
 		sb.WriteString("Price Change: ")
-		timeframes := []string{"5m", "15m", "1h", "4h", "24h"}
+		timeframes := []string{"5m", "15m", "1h", "4h", "12h", "24h"}
 		parts := []string{}
 		for _, tf := range timeframes {
 			if v, ok := data.PriceChange[tf]; ok {
-				parts = append(parts, fmt.Sprintf("%s: %+.2f%%", tf, v))
+				parts = append(parts, fmt.Sprintf("%s: %+.4f%%", tf, v*100))
 			}
 		}
 		sb.WriteString(strings.Join(parts, " | "))
 		sb.WriteString("\n")
 	}
 
-	// Fund flow
-	if data.Netflow != nil {
-		sb.WriteString("Fund Flow (USDT):\n")
+	// Fund flow (Netflow) - only show if enabled
+	if indicators.EnableQuantNetflow && data.Netflow != nil {
+		sb.WriteString("Fund Flow (Netflow):\n")
+		timeframes := []string{"5m", "15m", "1h", "4h", "12h", "24h"}
 
 		// Institutional funds
 		if data.Netflow.Institution != nil {
-			if data.Netflow.Institution.Future != nil {
-				sb.WriteString("  Institutional Futures: ")
-				parts := []string{}
-				for _, tf := range []string{"1h", "4h", "24h"} {
+			if data.Netflow.Institution.Future != nil && len(data.Netflow.Institution.Future) > 0 {
+				sb.WriteString("  Institutional Futures:\n")
+				for _, tf := range timeframes {
 					if v, ok := data.Netflow.Institution.Future[tf]; ok {
-						parts = append(parts, fmt.Sprintf("%s: %+.0f", tf, v))
+						sb.WriteString(fmt.Sprintf("    %s: %s\n", tf, formatFlowValue(v)))
 					}
 				}
-				sb.WriteString(strings.Join(parts, " | "))
-				sb.WriteString("\n")
 			}
-			if data.Netflow.Institution.Spot != nil {
-				sb.WriteString("  Institutional Spot: ")
-				parts := []string{}
-				for _, tf := range []string{"1h", "4h", "24h"} {
+			if data.Netflow.Institution.Spot != nil && len(data.Netflow.Institution.Spot) > 0 {
+				sb.WriteString("  Institutional Spot:\n")
+				for _, tf := range timeframes {
 					if v, ok := data.Netflow.Institution.Spot[tf]; ok {
-						parts = append(parts, fmt.Sprintf("%s: %+.0f", tf, v))
+						sb.WriteString(fmt.Sprintf("    %s: %s\n", tf, formatFlowValue(v)))
 					}
 				}
-				sb.WriteString(strings.Join(parts, " | "))
-				sb.WriteString("\n")
 			}
 		}
 
 		// Retail funds
 		if data.Netflow.Personal != nil {
-			if data.Netflow.Personal.Future != nil {
-				sb.WriteString("  Retail Futures: ")
-				parts := []string{}
-				for _, tf := range []string{"1h", "4h", "24h"} {
+			if data.Netflow.Personal.Future != nil && len(data.Netflow.Personal.Future) > 0 {
+				sb.WriteString("  Retail Futures:\n")
+				for _, tf := range timeframes {
 					if v, ok := data.Netflow.Personal.Future[tf]; ok {
-						parts = append(parts, fmt.Sprintf("%s: %+.0f", tf, v))
+						sb.WriteString(fmt.Sprintf("    %s: %s\n", tf, formatFlowValue(v)))
 					}
 				}
-				sb.WriteString(strings.Join(parts, " | "))
-				sb.WriteString("\n")
+			}
+			if data.Netflow.Personal.Spot != nil && len(data.Netflow.Personal.Spot) > 0 {
+				sb.WriteString("  Retail Spot:\n")
+				for _, tf := range timeframes {
+					if v, ok := data.Netflow.Personal.Spot[tf]; ok {
+						sb.WriteString(fmt.Sprintf("    %s: %s\n", tf, formatFlowValue(v)))
+					}
+				}
 			}
 		}
 	}
 
-	// Position data
-	if len(data.OI) > 0 {
+	// Open Interest (OI) - only show if enabled
+	if indicators.EnableQuantOI && len(data.OI) > 0 {
 		for exchange, oiData := range data.OI {
-			sb.WriteString(fmt.Sprintf("Open Interest (%s): Current %.2f | Long %.2f Short %.2f\n",
-				exchange, oiData.CurrentOI, oiData.NetLong, oiData.NetShort))
 			if len(oiData.Delta) > 0 {
-				sb.WriteString("  OI Change: ")
-				parts := []string{}
-				for _, tf := range []string{"1h", "4h", "24h"} {
+				sb.WriteString(fmt.Sprintf("Open Interest (%s):\n", exchange))
+				for _, tf := range []string{"5m", "15m", "1h", "4h", "12h", "24h"} {
 					if d, ok := oiData.Delta[tf]; ok {
-						parts = append(parts, fmt.Sprintf("%s: %+.2f%%", tf, d.OIDeltaPercent))
+						sb.WriteString(fmt.Sprintf("    %s: %+.4f%% (%s)\n", tf, d.OIDeltaPercent, formatFlowValue(d.OIDeltaValue)))
 					}
 				}
-				sb.WriteString(strings.Join(parts, " | "))
-				sb.WriteString("\n")
 			}
 		}
 	}
@@ -758,6 +759,26 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 	}
 
 	sb.WriteString("\n")
+}
+
+// formatFlowValue formats flow value with M/K units
+func formatFlowValue(v float64) string {
+	sign := ""
+	if v >= 0 {
+		sign = "+"
+	}
+	absV := v
+	if absV < 0 {
+		absV = -absV
+	}
+	if absV >= 1e9 {
+		return fmt.Sprintf("%s%.2fB", sign, v/1e9)
+	} else if absV >= 1e6 {
+		return fmt.Sprintf("%s%.2fM", sign, v/1e6)
+	} else if absV >= 1e3 {
+		return fmt.Sprintf("%s%.2fK", sign, v/1e3)
+	}
+	return fmt.Sprintf("%s%.2f", sign, v)
 }
 
 // formatFloatSlice formats float slice

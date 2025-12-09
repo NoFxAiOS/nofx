@@ -11,7 +11,7 @@
 | 代码 · Bug修复 · Issue → 空投奖励 |
 | [了解更多](#贡献者空投计划) |
 
-**语言:** [English](../../../README.md) | [中文](README.md)
+**语言:** [English](../../../README.md) | [中文](README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md) | [Русский](../ru/README.md) | [Українська](../uk/README.md) | [Tiếng Việt](../vi/README.md)
 
 ---
 
@@ -95,29 +95,34 @@
 
 ## 快速开始
 
-### 方式一: Docker 部署 (推荐)
+### 一键安装 (推荐)
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+完成！打开浏览器访问 **http://localhost:3000**
+
+### Docker Compose (手动)
 
 ```bash
-# 克隆仓库
-git clone https://github.com/NoFxAiOS/nofx.git
-cd nofx
-
-# 使用 Docker 启动
-chmod +x ./start.sh
-./start.sh start --build
+# 下载并启动
+curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 访问 Web 界面: **http://localhost:3000**
 
 ```bash
 # 管理命令
-./start.sh logs      # 查看日志
-./start.sh status    # 检查状态
-./start.sh stop      # 停止服务
-./start.sh restart   # 重启服务
+docker compose -f docker-compose.prod.yml logs -f    # 查看日志
+docker compose -f docker-compose.prod.yml restart    # 重启
+docker compose -f docker-compose.prod.yml down       # 停止
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d  # 更新
 ```
 
-### 方式二: 手动安装
+### 手动安装 (开发者)
 
 #### 前置条件
 
@@ -194,49 +199,6 @@ npm run dev
 - 技术指标 (EMA, MACD, RSI, ATR, 成交量, OI, 资金费率)
 - 风控设置 (杠杆、仓位限制、保证金使用率)
 - AI 测试与实时提示词预览
-
----
-
-## API 接口
-
-### 交易员管理
-```
-GET    /api/traders           # 列出所有交易员
-POST   /api/traders           # 创建新交易员
-DELETE /api/traders/:id       # 删除交易员
-POST   /api/traders/:id/start # 启动交易员
-POST   /api/traders/:id/stop  # 停止交易员
-```
-
-### 策略管理
-```
-GET    /api/strategies        # 列出所有策略
-POST   /api/strategies        # 创建新策略
-PUT    /api/strategies/:id    # 更新策略
-DELETE /api/strategies/:id    # 删除策略
-```
-
-### 交易数据
-```
-GET /api/status?trader_id=xxx         # 系统状态
-GET /api/account?trader_id=xxx        # 账户信息
-GET /api/positions?trader_id=xxx      # 持仓列表
-GET /api/decisions/latest?trader_id=xxx # 最新决策
-```
-
----
-
-## 风险提示
-
-1. **加密货币市场波动剧烈** - AI 决策不保证盈利
-2. **期货交易使用杠杆** - 亏损可能超过本金
-3. **极端行情** 可能导致爆仓风险
-
-**建议:**
-- 仅使用可承受损失的资金
-- 从小额开始 (100-500 USDT)
-- 定期监控系统运行状态
-- 不要长时间无人值守运行
 
 ---
 

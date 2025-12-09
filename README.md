@@ -11,7 +11,7 @@
 | Code · Bug Fixes · Issues → Airdrop |
 | [Learn More](#contributor-airdrop-program) |
 
-**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md)
+**Languages:** [English](README.md) | [中文](docs/i18n/zh-CN/README.md) | [日本語](docs/i18n/ja/README.md) | [한국어](docs/i18n/ko/README.md) | [Русский](docs/i18n/ru/README.md) | [Українська](docs/i18n/uk/README.md) | [Tiếng Việt](docs/i18n/vi/README.md)
 
 ---
 
@@ -95,29 +95,34 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 
 ## Quick Start
 
-### Option 1: Docker Deployment (Recommended)
+### One-Click Install (Recommended)
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+That's it! Open **http://localhost:3000** in your browser.
+
+### Docker Compose (Manual)
 
 ```bash
-# Clone the repository
-git clone https://github.com/NoFxAiOS/nofx.git
-cd nofx
-
-# Start with Docker
-chmod +x ./start.sh
-./start.sh start --build
+# Download and start
+curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Access Web Interface: **http://localhost:3000**
 
 ```bash
 # Management commands
-./start.sh logs      # View logs
-./start.sh status    # Check status
-./start.sh stop      # Stop services
-./start.sh restart   # Restart services
+docker compose -f docker-compose.prod.yml logs -f    # View logs
+docker compose -f docker-compose.prod.yml restart    # Restart
+docker compose -f docker-compose.prod.yml down       # Stop
+docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d  # Update
 ```
 
-### Option 2: Manual Installation
+### Manual Installation (For Developers)
 
 #### Prerequisites
 
@@ -194,49 +199,6 @@ All configuration is done through the web interface - no JSON file editing requi
 - Technical indicators (EMA, MACD, RSI, ATR, Volume, OI, Funding Rate)
 - Risk control settings (leverage, position limits, margin usage)
 - AI test with real-time prompt preview
-
----
-
-## API Endpoints
-
-### Trader Management
-```
-GET    /api/traders           # List all traders
-POST   /api/traders           # Create new trader
-DELETE /api/traders/:id       # Delete trader
-POST   /api/traders/:id/start # Start trader
-POST   /api/traders/:id/stop  # Stop trader
-```
-
-### Strategy Management
-```
-GET    /api/strategies        # List all strategies
-POST   /api/strategies        # Create new strategy
-PUT    /api/strategies/:id    # Update strategy
-DELETE /api/strategies/:id    # Delete strategy
-```
-
-### Trading Data
-```
-GET /api/status?trader_id=xxx         # System status
-GET /api/account?trader_id=xxx        # Account info
-GET /api/positions?trader_id=xxx      # Position list
-GET /api/decisions/latest?trader_id=xxx # Latest decisions
-```
-
----
-
-## Risk Warnings
-
-1. **Cryptocurrency markets are extremely volatile** - AI decisions don't guarantee profit
-2. **Futures trading uses leverage** - losses may exceed principal
-3. **Extreme market conditions** may lead to liquidation risk
-
-**Recommendations:**
-- Use only funds you can afford to lose
-- Start with small amounts (100-500 USDT)
-- Regularly monitor system operation
-- Don't run unsupervised for long periods
 
 ---
 

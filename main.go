@@ -13,6 +13,7 @@ import (
 	"nofx/store"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -35,9 +36,16 @@ func main() {
 	logger.Info("✅ Configuration loaded")
 
 	// Initialize database
-	dbPath := "data.db"
+	// Default path is data/data.db to work with Docker volume mount (/app/data)
+	dbPath := "data/data.db"
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
+	}
+	// Ensure data directory exists
+	if dir := filepath.Dir(dbPath); dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			logger.Errorf("Failed to create data directory: %v", err)
+		}
 	}
 
 	logger.Infof("📋 Initializing database: %s", dbPath)

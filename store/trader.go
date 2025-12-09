@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -66,8 +67,7 @@ func (s *TraderStore) initTables() error {
 			system_prompt_template TEXT DEFAULT 'default',
 			is_cross_margin BOOLEAN DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
 	if err != nil {
@@ -103,7 +103,86 @@ func (s *TraderStore) initTables() error {
 		s.db.Exec(q)
 	}
 
+	// Migration: Remove FOREIGN KEY constraint from existing traders table
+	// SQLite doesn't support ALTER TABLE DROP CONSTRAINT, so we need to recreate the table
+	if err := s.migrateTradersRemoveFK(); err != nil {
+		// Log but don't fail - this is a best-effort migration
+		// The constraint may not exist in older databases
+	}
+
 	return nil
+}
+
+// migrateTradersRemoveFK removes FOREIGN KEY constraint from traders table if it exists
+func (s *TraderStore) migrateTradersRemoveFK() error {
+	// Check if the table has a foreign key constraint by examining the schema
+	var sql string
+	err := s.db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='traders'`).Scan(&sql)
+	if err != nil {
+		return err
+	}
+
+	// If no FOREIGN KEY in schema, no migration needed
+	if !strings.Contains(sql, "FOREIGN KEY") {
+		return nil
+	}
+
+	// Recreate table without FOREIGN KEY constraint
+	_, err = s.db.Exec(`
+		-- Create new table without FOREIGN KEY
+		CREATE TABLE IF NOT EXISTS traders_new (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL DEFAULT 'default',
+			name TEXT NOT NULL,
+			ai_model_id TEXT NOT NULL,
+			exchange_id TEXT NOT NULL,
+			initial_balance REAL NOT NULL,
+			scan_interval_minutes INTEGER DEFAULT 3,
+			is_running BOOLEAN DEFAULT 0,
+			btc_eth_leverage INTEGER DEFAULT 5,
+			altcoin_leverage INTEGER DEFAULT 5,
+			trading_symbols TEXT DEFAULT '',
+			use_coin_pool BOOLEAN DEFAULT 0,
+			use_oi_top BOOLEAN DEFAULT 0,
+			custom_prompt TEXT DEFAULT '',
+			override_base_prompt BOOLEAN DEFAULT 0,
+			system_prompt_template TEXT DEFAULT 'default',
+			is_cross_margin BOOLEAN DEFAULT 1,
+			strategy_id TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+
+		-- Copy data from old table
+		INSERT OR IGNORE INTO traders_new
+		SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance,
+		       scan_interval_minutes, is_running, btc_eth_leverage, altcoin_leverage,
+		       trading_symbols, use_coin_pool, use_oi_top, custom_prompt,
+		       override_base_prompt, system_prompt_template, is_cross_margin,
+		       COALESCE(strategy_id, ''), created_at, updated_at
+		FROM traders;
+
+		-- Drop old table
+		DROP TABLE traders;
+
+		-- Rename new table
+		ALTER TABLE traders_new RENAME TO traders;
+	`)
+
+	if err != nil {
+		return err
+	}
+
+	// Recreate trigger
+	_, err = s.db.Exec(`
+		CREATE TRIGGER IF NOT EXISTS update_traders_updated_at
+		AFTER UPDATE ON traders
+		BEGIN
+			UPDATE traders SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+		END
+	`)
+
+	return err
 }
 
 func (s *TraderStore) decrypt(encrypted string) string {

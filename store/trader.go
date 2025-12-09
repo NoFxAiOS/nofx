@@ -197,8 +197,12 @@ func (s *TraderStore) UpdateCustomPrompt(userID, id string, customPrompt string,
 	return err
 }
 
-// Delete deletes trader
+// Delete deletes trader and associated data
 func (s *TraderStore) Delete(userID, id string) error {
+	// Delete associated equity snapshots first
+	_, _ = s.db.Exec(`DELETE FROM trader_equity_snapshots WHERE trader_id = ?`, id)
+
+	// Delete the trader
 	_, err := s.db.Exec(`DELETE FROM traders WHERE id = ? AND user_id = ?`, id, userID)
 	return err
 }

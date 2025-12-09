@@ -5,6 +5,7 @@ import { Menu, X, ChevronDown } from 'lucide-react'
 import { t, type Language } from '../i18n/translations'
 import { Container } from './Container'
 import { useSystemConfig } from '../hooks/useSystemConfig'
+import { OFFICIAL_LINKS } from '../constants/branding'
 
 type Page =
   | 'competition'
@@ -430,45 +431,77 @@ export default function HeaderBar({
             )}
           </div>
 
-          {/* Right Side - Original Navigation Items and Login */}
-          <div className="flex items-center gap-6">
-            {/* Only show original navigation items on home page */}
-            {isHomePage &&
-              [
-                { key: 'features', label: t('features', language) },
-                { key: 'howItWorks', label: t('howItWorks', language) },
-                { key: 'GitHub', label: 'GitHub' },
-                { key: 'community', label: t('community', language) },
-              ].map((item) => (
-                <a
-                  key={item.key}
-                  href={
-                    item.key === 'GitHub'
-                      ? 'https://github.com/tinkle-community/nofx'
-                      : item.key === 'community'
-                        ? 'https://t.me/nofx_dev_community'
-                        : `#${item.key === 'features' ? 'features' : 'how-it-works'}`
-                  }
-                  target={
-                    item.key === 'GitHub' || item.key === 'community'
-                      ? '_blank'
-                      : undefined
-                  }
-                  rel={
-                    item.key === 'GitHub' || item.key === 'community'
-                      ? 'noopener noreferrer'
-                      : undefined
-                  }
-                  className="text-sm transition-colors relative group"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {item.label}
-                  <span
-                    className="absolute -bottom-1 left-0 w-0 h-0.5 group-hover:w-full transition-all duration-300"
-                    style={{ background: 'var(--brand-yellow)' }}
-                  />
-                </a>
-              ))}
+          {/* Right Side - Social Links and User Actions */}
+          <div className="flex items-center gap-4">
+            {/* Social Links - Always visible */}
+            <div className="flex items-center gap-1">
+              {/* GitHub */}
+              <a
+                href={OFFICIAL_LINKS.github}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg transition-all hover:scale-110"
+                style={{ color: '#848E9C' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#EAECEF'
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#848E9C'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                title="GitHub"
+              >
+                <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                </svg>
+              </a>
+              {/* Twitter/X */}
+              <a
+                href={OFFICIAL_LINKS.twitter}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg transition-all hover:scale-110"
+                style={{ color: '#848E9C' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#1DA1F2'
+                  e.currentTarget.style.background = 'rgba(29, 161, 242, 0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#848E9C'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                title="Twitter"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </a>
+              {/* Telegram */}
+              <a
+                href={OFFICIAL_LINKS.telegram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg transition-all hover:scale-110"
+                style={{ color: '#848E9C' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#0088cc'
+                  e.currentTarget.style.background = 'rgba(0, 136, 204, 0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#848E9C'
+                  e.currentTarget.style.background = 'transparent'
+                }}
+                title="Telegram"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+                </svg>
+              </a>
+            </div>
+
+            {/* Divider */}
+            <div className="h-5 w-px" style={{ background: '#2B3139' }} />
 
             {/* User Info and Actions */}
             {isLoggedIn && user ? (
@@ -932,34 +965,53 @@ export default function HeaderBar({
             [
               { key: 'features', label: t('features', language) },
               { key: 'howItWorks', label: t('howItWorks', language) },
-              { key: 'GitHub', label: 'GitHub' },
-              { key: 'community', label: t('community', language) },
             ].map((item) => (
               <a
                 key={item.key}
-                href={
-                  item.key === 'GitHub'
-                    ? 'https://github.com/tinkle-community/nofx'
-                    : item.key === 'community'
-                      ? 'https://t.me/nofx_dev_community'
-                      : `#${item.key === 'features' ? 'features' : 'how-it-works'}`
-                }
-                target={
-                  item.key === 'GitHub' || item.key === 'community'
-                    ? '_blank'
-                    : undefined
-                }
-                rel={
-                  item.key === 'GitHub' || item.key === 'community'
-                    ? 'noopener noreferrer'
-                    : undefined
-                }
+                href={`#${item.key === 'features' ? 'features' : 'how-it-works'}`}
                 className="block text-sm py-2"
                 style={{ color: 'var(--brand-light-gray)' }}
               >
                 {item.label}
               </a>
             ))}
+
+          {/* Social Links - Mobile */}
+          <div className="py-3 flex items-center gap-3" style={{ borderTop: '1px solid #2B3139' }}>
+            <a
+              href={OFFICIAL_LINKS.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg"
+              style={{ color: '#848E9C', background: 'rgba(255, 255, 255, 0.05)' }}
+            >
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+              </svg>
+            </a>
+            <a
+              href={OFFICIAL_LINKS.twitter}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg"
+              style={{ color: '#848E9C', background: 'rgba(255, 255, 255, 0.05)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
+            </a>
+            <a
+              href={OFFICIAL_LINKS.telegram}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg"
+              style={{ color: '#848E9C', background: 'rgba(255, 255, 255, 0.05)' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+              </svg>
+            </a>
+          </div>
 
           {/* Language Toggle */}
           <div className="py-2">

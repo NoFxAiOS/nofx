@@ -11,7 +11,7 @@ import {
   WebCryptoEnvironmentCheck,
   type WebCryptoCheckStatus,
 } from '../WebCryptoEnvironmentCheck'
-import { BookOpen, Trash2, HelpCircle } from 'lucide-react'
+import { BookOpen, Trash2, HelpCircle, ExternalLink, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Tooltip } from './Tooltip'
 import { getShortName } from './utils'
@@ -91,6 +91,16 @@ export function ExchangeConfigModal({
   const selectedExchange = allExchanges?.find(
     (e) => e.id === selectedExchangeId
   )
+
+  // 交易所注册链接配置
+  const exchangeRegistrationLinks: Record<string, { url: string; hasReferral?: boolean }> = {
+    binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
+    okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
+    bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
+    hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
+    aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
+    lighter: { url: 'https://lighter.xyz', hasReferral: false },
+  }
 
   // 如果是编辑现有交易所，初始化表单数据
   useEffect(() => {
@@ -411,6 +421,34 @@ export function ExchangeConfigModal({
                     </div>
                   </div>
                 </div>
+
+                {/* 注册链接 */}
+                <a
+                  href={exchangeRegistrationLinks[selectedExchange.id]?.url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between p-3 rounded-lg mt-3 transition-all hover:scale-[1.02]"
+                  style={{
+                    background: 'rgba(240, 185, 11, 0.08)',
+                    border: '1px solid rgba(240, 185, 11, 0.2)',
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                    <span className="text-sm" style={{ color: '#EAECEF' }}>
+                      {language === 'zh' ? '还没有交易所账号？点击注册' : "No exchange account? Register here"}
+                    </span>
+                    {exchangeRegistrationLinks[selectedExchange.id]?.hasReferral && (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded"
+                        style={{ background: 'rgba(14, 203, 129, 0.2)', color: '#0ECB81' }}
+                      >
+                        {language === 'zh' ? '折扣优惠' : 'Discount'}
+                      </span>
+                    )}
+                  </div>
+                  <ExternalLink className="w-4 h-4" style={{ color: '#848E9C' }} />
+                </a>
               </div>
             )}
 

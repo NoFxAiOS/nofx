@@ -3,13 +3,23 @@ import type { AIModel, Exchange, CreateTraderRequest, Strategy } from '../types'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { toast } from 'sonner'
-import { Pencil, Plus, X as IconX, Sparkles } from 'lucide-react'
+import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../lib/httpClient'
 
 // 提取下划线后面的名称部分
 function getShortName(fullName: string): string {
   const parts = fullName.split('_')
   return parts.length > 1 ? parts[parts.length - 1] : fullName
+}
+
+// 交易所注册链接配置
+const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: boolean }> = {
+  binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
+  okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
+  bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
+  hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
+  aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
+  lighter: { url: 'https://lighter.xyz', hasReferral: false },
 }
 
 import type { TraderConfigData } from '../types'
@@ -272,6 +282,30 @@ export function TraderConfigModal({
                       </option>
                     ))}
                   </select>
+                  {/* Exchange Registration Link */}
+                  {formData.exchange_id && (() => {
+                    // Exchange ID is the exchange type (e.g., "binance", "okx", "aster")
+                    const exchangeType = formData.exchange_id.toLowerCase()
+                    const regLink = EXCHANGE_REGISTRATION_LINKS[exchangeType]
+                    if (!regLink) return null
+                    return (
+                      <a
+                        href={regLink.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#848E9C] hover:text-[#F0B90B] transition-colors"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>还没有交易所账号？点击注册</span>
+                        {regLink.hasReferral && (
+                          <span className="px-1.5 py-0.5 bg-[#F0B90B]/10 text-[#F0B90B] rounded text-[10px]">
+                            折扣优惠
+                          </span>
+                        )}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )
+                  })()}
                 </div>
               </div>
             </div>

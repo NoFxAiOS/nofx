@@ -1,214 +1,252 @@
-import { motion, useScroll, useTransform, useAnimation } from 'framer-motion'
-import { Sparkles } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ArrowRight, Play, Github, Zap } from 'lucide-react'
 import { t, Language } from '../../i18n/translations'
 import { useGitHubStats } from '../../hooks/useGitHubStats'
 import { useCounterAnimation } from '../../hooks/useCounterAnimation'
+import { OFFICIAL_LINKS } from '../../constants/branding'
 
 interface HeroSectionProps {
   language: Language
 }
 
 export default function HeroSection({ language }: HeroSectionProps) {
-  const { scrollYProgress } = useScroll()
-  const opacity = useTransform(scrollYProgress, [0, 0.2], [1, 0])
-  const scale = useTransform(scrollYProgress, [0, 0.2], [1, 0.8])
-  const handControls = useAnimation()
   const { stars, daysOld, isLoading } = useGitHubStats('NoFxAiOS', 'nofx')
-
-  // 动画数字 - 仅对 stars 添加动画
   const animatedStars = useCounterAnimation({
     start: 0,
     end: stars,
     duration: 2000,
   })
 
-  const fadeInUp = {
-    initial: { opacity: 0, y: 60 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6, ease: [0.6, -0.05, 0.01, 0.99] },
-  }
-  const staggerContainer = {
-    animate: { transition: { staggerChildren: 0.1 } },
-  }
-
   return (
-    <section className="relative pt-32 pb-20 px-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <motion.div
-            className="space-y-6 relative z-10"
-            style={{ opacity, scale }}
-            initial="initial"
-            animate="animate"
-            variants={staggerContainer}
-          >
-            <motion.div variants={fadeInUp}>
-              <motion.div
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
-                style={{
-                  background: 'rgba(240, 185, 11, 0.1)',
-                  border: '1px solid rgba(240, 185, 11, 0.2)',
-                }}
-                whileHover={{
-                  scale: 1.05,
-                  boxShadow: '0 0 20px rgba(240, 185, 11, 0.2)',
-                }}
-              >
-                <Sparkles
-                  className="w-4 h-4"
-                  style={{ color: 'var(--brand-yellow)' }}
-                />
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: 'var(--brand-yellow)' }}
-                >
-                  {isLoading ? (
-                    t('githubStarsInDays', language)
-                  ) : language === 'zh' ? (
-                    <>
-                      {daysOld} 天内{' '}
-                      <span className="inline-block tabular-nums">
-                        {(animatedStars / 1000).toFixed(1)}
-                      </span>
-                      K+ GitHub Stars
-                    </>
-                  ) : (
-                    <>
-                      <span className="inline-block tabular-nums">
-                        {(animatedStars / 1000).toFixed(1)}
-                      </span>
-                      K+ GitHub Stars in {daysOld} days
-                    </>
-                  )}
-                </span>
-              </motion.div>
-            </motion.div>
-
-            <h1
-              className="text-5xl lg:text-7xl font-bold leading-tight"
-              style={{ color: 'var(--brand-light-gray)' }}
-            >
-              {t('heroTitle1', language)}
-              <br />
-              <span style={{ color: 'var(--brand-yellow)' }}>
-                {t('heroTitle2', language)}
-              </span>
-            </h1>
-
-            <motion.p
-              className="text-xl leading-relaxed"
-              style={{ color: 'var(--text-secondary)' }}
-              variants={fadeInUp}
-            >
-              {t('heroDescription', language)}
-            </motion.p>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              <motion.a
-                href="https://github.com/tinkle-community/nofx"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: 'spring', stiffness: 400 }}
-              >
-                <img
-                  src="https://img.shields.io/github/stars/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=0A0A0A"
-                  alt="GitHub Stars"
-                  className="h-7"
-                />
-              </motion.a>
-              <motion.a
-                href="https://github.com/tinkle-community/nofx/network/members"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: 'spring', stiffness: 400 }}
-              >
-                <img
-                  src="https://img.shields.io/github/forks/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=0A0A0A"
-                  alt="GitHub Forks"
-                  className="h-7"
-                />
-              </motion.a>
-              <motion.a
-                href="https://github.com/tinkle-community/nofx/graphs/contributors"
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.05 }}
-                transition={{ type: 'spring', stiffness: 400 }}
-              >
-                <img
-                  src="https://img.shields.io/github/contributors/tinkle-community/nofx?style=for-the-badge&logo=github&logoColor=white&color=F0B90B&labelColor=0A0A0A"
-                  alt="GitHub Contributors"
-                  className="h-7"
-                />
-              </motion.a>
-            </div>
-
-            <motion.p
-              className="text-xs pt-4"
-              style={{ color: 'var(--text-tertiary)' }}
-              variants={fadeInUp}
-            >
-              {t('poweredBy', language)}
-            </motion.p>
-          </motion.div>
-
-          {/* Right Visual - Interactive Robot */}
-          <div
-            className="relative w-full cursor-pointer"
-            onMouseEnter={() => {
-              handControls.start({
-                y: [-8, 8, -8],
-                rotate: [-3, 3, -3],
-                x: [-2, 2, -2],
-                transition: {
-                  duration: 2.5,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                  times: [0, 0.5, 1],
-                },
-              })
-            }}
-            onMouseLeave={() => {
-              handControls.start({
-                y: 0,
-                rotate: 0,
-                x: 0,
-                transition: {
-                  duration: 0.6,
-                  ease: 'easeOut',
-                },
-              })
-            }}
-          >
-            {/* Background Layer */}
-            <motion.img
-              src="/images/hand-bg.png"
-              alt="NOFX Platform Background"
-              className="w-full opacity-90"
-              style={{ opacity, scale }}
-              whileHover={{ scale: 1.02 }}
-              transition={{ type: 'spring', stiffness: 300 }}
-            />
-
-            {/* Hand Layer - Animated */}
-            <motion.img
-              src="/images/hand.png"
-              alt="Robot Hand"
-              className="absolute top-0 left-0 w-full"
-              style={{ opacity }}
-              animate={handControls}
-              initial={{ y: 0, rotate: 0, x: 0 }}
-              whileHover={{
-                scale: 1.05,
-                transition: { type: 'spring', stiffness: 400 },
-              }}
-            />
-          </div>
-        </div>
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+      {/* Animated Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Grid Pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `linear-gradient(#F0B90B 1px, transparent 1px), linear-gradient(90deg, #F0B90B 1px, transparent 1px)`,
+            backgroundSize: '60px 60px',
+          }}
+        />
+        {/* Radial Gradient */}
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
+          style={{
+            background: 'radial-gradient(circle, rgba(240, 185, 11, 0.08) 0%, transparent 70%)',
+          }}
+        />
+        {/* Floating Orbs */}
+        <motion.div
+          className="absolute top-20 right-20 w-32 h-32 rounded-full blur-3xl"
+          style={{ background: 'rgba(240, 185, 11, 0.15)' }}
+          animate={{
+            y: [0, 30, 0],
+            scale: [1, 1.1, 1],
+          }}
+          transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-40 left-20 w-48 h-48 rounded-full blur-3xl"
+          style={{ background: 'rgba(240, 185, 11, 0.1)' }}
+          animate={{
+            y: [0, -40, 0],
+            scale: [1, 1.2, 1],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
       </div>
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4 text-center">
+        {/* Badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
+          style={{
+            background: 'rgba(240, 185, 11, 0.1)',
+            border: '1px solid rgba(240, 185, 11, 0.3)',
+          }}
+        >
+          <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
+          <span className="text-sm font-medium" style={{ color: '#F0B90B' }}>
+            {isLoading ? (
+              t('githubStarsInDays', language)
+            ) : language === 'zh' ? (
+              <>
+                {daysOld} 天内获得{' '}
+                <span className="font-bold tabular-nums">
+                  {(animatedStars / 1000).toFixed(1)}K+
+                </span>{' '}
+                GitHub Stars
+              </>
+            ) : (
+              <>
+                <span className="font-bold tabular-nums">
+                  {(animatedStars / 1000).toFixed(1)}K+
+                </span>{' '}
+                GitHub Stars in {daysOld} days
+              </>
+            )}
+          </span>
+        </motion.div>
+
+        {/* Main Title */}
+        <motion.h1
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.1 }}
+          className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight"
+        >
+          <span style={{ color: '#EAECEF' }}>{t('heroTitle1', language)}</span>
+          <br />
+          <span
+            className="relative inline-block"
+            style={{
+              background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            {t('heroTitle2', language)}
+            <motion.span
+              className="absolute -bottom-2 left-0 h-1 rounded-full"
+              style={{ background: 'linear-gradient(90deg, #F0B90B, #FCD535)' }}
+              initial={{ width: 0 }}
+              animate={{ width: '100%' }}
+              transition={{ duration: 0.8, delay: 0.8 }}
+            />
+          </span>
+        </motion.h1>
+
+        {/* Description */}
+        <motion.p
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="text-lg sm:text-xl max-w-3xl mx-auto mb-10 leading-relaxed"
+          style={{ color: '#848E9C' }}
+        >
+          {t('heroDescription', language)}
+        </motion.p>
+
+        {/* CTA Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
+        >
+          <motion.a
+            href="/competition"
+            className="group flex items-center gap-3 px-8 py-4 rounded-xl font-bold text-lg transition-all"
+            style={{
+              background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+              color: '#0B0E11',
+              boxShadow: '0 4px 24px rgba(240, 185, 11, 0.3)',
+            }}
+            whileHover={{
+              scale: 1.02,
+              boxShadow: '0 8px 32px rgba(240, 185, 11, 0.4)',
+            }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Play className="w-5 h-5" />
+            {t('liveCompetition', language) || 'Live Competition'}
+            <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+          </motion.a>
+
+          <motion.a
+            href={OFFICIAL_LINKS.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-3 px-8 py-4 rounded-xl font-bold text-lg transition-all"
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#EAECEF',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+            }}
+            whileHover={{
+              scale: 1.02,
+              background: 'rgba(255, 255, 255, 0.08)',
+              borderColor: 'rgba(240, 185, 11, 0.3)',
+            }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <Github className="w-5 h-5" />
+            {t('viewSourceCode', language)}
+          </motion.a>
+        </motion.div>
+
+        {/* Stats Row */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="flex flex-wrap items-center justify-center gap-8 sm:gap-12"
+        >
+          {[
+            { label: 'GitHub Stars', value: `${(stars / 1000).toFixed(1)}K+` },
+            { label: language === 'zh' ? '支持交易所' : 'Exchanges', value: '5+' },
+            { label: language === 'zh' ? 'AI 模型' : 'AI Models', value: '10+' },
+            { label: language === 'zh' ? '开源免费' : 'Open Source', value: '100%' },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              className="text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 + index * 0.1 }}
+            >
+              <div
+                className="text-3xl sm:text-4xl font-bold mb-1"
+                style={{
+                  background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                {stat.value}
+              </div>
+              <div className="text-sm" style={{ color: '#5E6673' }}>
+                {stat.label}
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* Powered By */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.8 }}
+          className="mt-16 text-xs"
+          style={{ color: '#5E6673' }}
+        >
+          {t('poweredBy', language)}
+        </motion.p>
+      </div>
+
+      {/* Scroll Indicator */}
+      <motion.div
+        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1 }}
+      >
+        <motion.div
+          className="w-6 h-10 rounded-full flex justify-center pt-2"
+          style={{ border: '2px solid rgba(240, 185, 11, 0.3)' }}
+          animate={{ y: [0, 8, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          <motion.div
+            className="w-1.5 h-3 rounded-full"
+            style={{ background: '#F0B90B' }}
+          />
+        </motion.div>
+      </motion.div>
     </section>
   )
 }

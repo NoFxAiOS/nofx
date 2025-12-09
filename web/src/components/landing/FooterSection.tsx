@@ -1,180 +1,169 @@
+import { Github, Send, ExternalLink } from 'lucide-react'
 import { t, Language } from '../../i18n/translations'
+import { OFFICIAL_LINKS } from '../../constants/branding'
 
 interface FooterSectionProps {
   language: Language
 }
 
 export default function FooterSection({ language }: FooterSectionProps) {
+  const links = {
+    social: [
+      { name: 'GitHub', href: OFFICIAL_LINKS.github, icon: Github },
+      {
+        name: 'X (Twitter)',
+        href: OFFICIAL_LINKS.twitter,
+        icon: () => (
+          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+        ),
+      },
+      { name: 'Telegram', href: OFFICIAL_LINKS.telegram, icon: Send },
+    ],
+    resources: [
+      {
+        name: language === 'zh' ? '文档' : 'Documentation',
+        href: 'https://github.com/NoFxAiOS/nofx/blob/main/README.md',
+      },
+      { name: 'Issues', href: 'https://github.com/NoFxAiOS/nofx/issues' },
+      { name: 'Pull Requests', href: 'https://github.com/NoFxAiOS/nofx/pulls' },
+    ],
+    supporters: [
+      { name: 'Aster DEX', href: 'https://www.asterdex.com/en/referral/fdfc0e' },
+      { name: 'Binance', href: 'https://www.maxweb.red/join?ref=NOFXAI' },
+      { name: 'Hyperliquid', href: 'https://hyperliquid.xyz/' },
+      {
+        name: 'Amber.ac',
+        href: 'https://amber.ac/',
+        badge: language === 'zh' ? '战略投资' : 'Strategic',
+      },
+    ],
+  }
+
   return (
-    <footer
-      style={{
-        borderTop: '1px solid var(--panel-border)',
-        background: 'var(--brand-dark-gray)',
-      }}
-    >
-      <div className="max-w-[1200px] mx-auto px-6 py-10">
-        {/* Brand */}
-        <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
-          <div>
-            <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
-              NOFX
+    <footer style={{ background: '#0B0E11', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+      <div className="max-w-6xl mx-auto px-4 py-12">
+        {/* Top Section */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
+          {/* Brand */}
+          <div className="md:col-span-1">
+            <div className="flex items-center gap-3 mb-4">
+              <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
+              <span className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+                NOFX
+              </span>
             </div>
-            <div className="text-xs" style={{ color: '#848E9C' }}>
+            <p className="text-sm mb-6" style={{ color: '#5E6673' }}>
               {t('futureStandardAI', language)}
+            </p>
+            {/* Social Icons */}
+            <div className="flex items-center gap-3">
+              {links.social.map((link) => (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: '#848E9C',
+                  }}
+                  title={link.name}
+                >
+                  <link.icon className="w-4 h-4" />
+                </a>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Multi-link columns */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-8">
+          {/* Links */}
           <div>
-            <h3
-              className="text-sm font-semibold mb-3"
-              style={{ color: '#EAECEF' }}
-            >
+            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
               {t('links', language)}
-            </h3>
-            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  GitHub
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://t.me/nofx_dev_community"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Telegram
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://x.com/nofx_official"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  X (Twitter)
-                </a>
-              </li>
+            </h4>
+            <ul className="space-y-3">
+              {links.social.map((link) => (
+                <li key={link.name}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm transition-colors hover:text-[#F0B90B]"
+                    style={{ color: '#5E6673' }}
+                  >
+                    {link.name}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
+          {/* Resources */}
           <div>
-            <h3
-              className="text-sm font-semibold mb-3"
-              style={{ color: '#EAECEF' }}
-            >
+            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
               {t('resources', language)}
-            </h3>
-            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/blob/main/README.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t('documentation', language)}
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Issues
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://github.com/tinkle-community/nofx/pulls"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Pull Requests
-                </a>
-              </li>
+            </h4>
+            <ul className="space-y-3">
+              {links.resources.map((link) => (
+                <li key={link.name}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm transition-colors hover:text-[#F0B90B] inline-flex items-center gap-1"
+                    style={{ color: '#5E6673' }}
+                  >
+                    {link.name}
+                    <ExternalLink className="w-3 h-3 opacity-50" />
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
 
+          {/* Supporters */}
           <div>
-            <h3
-              className="text-sm font-semibold mb-3"
-              style={{ color: '#EAECEF' }}
-            >
+            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
               {t('supporters', language)}
-            </h3>
-            <ul className="space-y-2 text-sm" style={{ color: '#848E9C' }}>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://www.asterdex.com/en/referral/fdfc0e"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Aster DEX
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://www.maxweb.red/join?ref=NOFXAI"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Binance
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://hyperliquid.xyz/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Hyperliquid
-                </a>
-              </li>
-              <li>
-                <a
-                  className="hover:text-[#F0B90B]"
-                  href="https://amber.ac/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Amber.ac{' '}
-                  <span className="opacity-70">
-                    {t('strategicInvestment', language)}
-                  </span>
-                </a>
-              </li>
+            </h4>
+            <ul className="space-y-3">
+              {links.supporters.map((link) => (
+                <li key={link.name}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm transition-colors hover:text-[#F0B90B] inline-flex items-center gap-2"
+                    style={{ color: '#5E6673' }}
+                  >
+                    {link.name}
+                    {link.badge && (
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded"
+                        style={{
+                          background: 'rgba(240, 185, 11, 0.1)',
+                          color: '#F0B90B',
+                        }}
+                      >
+                        {link.badge}
+                      </span>
+                    )}
+                  </a>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
 
-        {/* Bottom note (kept subtle) */}
+        {/* Bottom Section */}
         <div
-          className="pt-6 mt-8 text-center text-xs"
-          style={{
-            color: 'var(--text-tertiary)',
-            borderTop: '1px solid var(--panel-border)',
-          }}
+          className="pt-6 text-center text-xs"
+          style={{ color: '#5E6673', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
         >
-          <p>{t('footerTitle', language)}</p>
-          <p className="mt-1">{t('footerWarning', language)}</p>
+          <p className="mb-2">{t('footerTitle', language)}</p>
+          <p style={{ color: '#3C4249' }}>{t('footerWarning', language)}</p>
         </div>
       </div>
     </footer>

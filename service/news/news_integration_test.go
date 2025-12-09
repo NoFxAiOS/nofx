@@ -40,10 +40,11 @@ func TestNewsService_Integration(t *testing.T) {
     }
     
     svc := &Service{
-        store: store,
-        fetcher: fetcher,
-        notifier: notifier,
-        enabled: true,
+        store:          store,
+        fetcher:        fetcher,
+        notifier:       notifier,
+        enabled:        true,
+        sentArticleIDs: make(map[int64]bool),
     }
     
     // 3. Execute

@@ -198,3 +198,68 @@ func TestFormatMessage(t *testing.T) {
 func contains(s, substr string) bool {
         return len(s) >= len(substr) && s[0:len(substr)] == substr || len(s) > len(substr) && contains(s[1:], substr)
 }
+
+// TestService_CrossCategoryDeduplication 测试跨分类去重功能
+// 验证修复：同一条新闻在不同分类出现时，只发送一次
+func TestService_CrossCategoryDeduplication(t *testing.T) {
+        // Setup - 模拟同一条新闻在crypto和general两个分类中都出现
+        mockStore := &MockStateStore{
+                LastID:        0,
+                LastTimestamp: 0,
+                Configs:       map[string]string{"telegram_news_enabled": "true"},
+        }
+
+        // 这条新闻(ID=100)在两个分类中都会被fetcher返回
+        sameArticle := Article{
+                ID:       100,
+                Headline: "Bitcoin News",
+                Summary:  "Shared across categories",
+                Datetime: time.Now().Unix(),
+                Category: "crypto",
+                Source:   "Reuters",
+        }
+
+        // 模拟fetcher：两个分类都返回相同的文章ID
+        fetcherCallCount := 0
+        mockFetcher := &MockFetcher{
+                Err: nil,
+        }
+
+        originalFetch := mockFetcher.FetchNews
+        mockFetcher.FetchNews = func(category string) ([]Article, error) {
+                // 两个分类都返回ID=100的新闻
+                return []Article{sameArticle}, nil
+        }
+
+        mockNotifier := &MockNotifier{}
+
+        service := NewService(mockStore)
+        service.fetcher = mockFetcher
+        service.notifier = mockNotifier
+        service.enabled = true
+
+        // Execute - 处理两个分类
+        t.Logf("Processing crypto category...")
+        err := service.ProcessCategory("crypto")
+        if err != nil {
+                t.Fatalf("ProcessCategory(crypto) failed: %v", err)
+        }
+
+        t.Logf("Processing general category...")
+        err = service.ProcessCategory("general")
+        if err != nil {
+                t.Fatalf("ProcessCategory(general) failed: %v", err)
+        }
+
+        // Verify - 应该只发送一次消息（来自第一个分类）
+        if len(mockNotifier.SentMessages) != 1 {
+                t.Errorf("Expected 1 message sent (deduplication), got %d", len(mockNotifier.SentMessages))
+                for i, msg := range mockNotifier.SentMessages {
+                        t.Logf("Message %d: %s", i, msg)
+                }
+        } else {
+                t.Logf("✓ Cross-category deduplication works: only 1 message sent despite appearing in 2 categories")
+        }
+
+        _ = originalFetch
+}

@@ -11,11 +11,12 @@ import (
 )
 // Service 新闻服务
 type Service struct {
-        store       StateStore
-        fetcher     Fetcher
-        notifier    Notifier
-        aiProcessor AIProcessor
-        enabled     bool
+        store         StateStore
+        fetcher       Fetcher
+        notifier      Notifier
+        aiProcessor   AIProcessor
+        enabled       bool
+        sentArticleIDs map[int64]bool // 全局消息ID去重集合：防止同一条新闻在不同分类重复发送
 }
 
 // NewService 创建新闻服务
@@ -24,7 +25,8 @@ func NewService(store StateStore) *Service {
         // 注意：这里假设配置已经加载到数据库中。在实际运行时，Start() 会被调用。
         // 更好的做法是在 Start 内部获取配置，支持动态更新。
         return &Service{
-                store: store,
+                store:          store,
+                sentArticleIDs: make(map[int64]bool),
         }
 }
 
@@ -105,6 +107,10 @@ func (s *Service) loadConfig() error {
 }
 
 func (s *Service) processAllCategories() {
+        // 每个周期开始时，清空上个周期的已发送消息ID记录
+        // 这样可以允许隔离的消息跨周期重新发送，但在同一周期内防止重复
+        s.sentArticleIDs = make(map[int64]bool)
+
         categories := []string{"crypto", "general"}
         for _, cat := range categories {
                 if err := s.ProcessCategory(cat); err != nil {
@@ -133,10 +139,17 @@ func (s *Service) ProcessCategory(category string) error {
 
         // 3. 过滤和排序
         var newArticles []Article
-        
+
         for _, a := range articles {
-                // 基础去重
+                // 基础去重：按分类时间戳
                 if int64(a.ID) <= lastID || a.Datetime <= lastTime {
+                        continue
+                }
+
+                // 新增：全局消息ID去重 - 防止同一条新闻在不同分类重复发送
+                // 在同一周期内，如果这条新闻已经在其他分类发送过，就跳过
+                if s.sentArticleIDs[int64(a.ID)] {
+                        log.Printf("ℹ️ 消息ID %d 已在其他分类发送，跳过重复: %s", a.ID, a.Headline)
                         continue
                 }
 
@@ -152,7 +165,7 @@ func (s *Service) ProcessCategory(category string) error {
         for i := range newArticles {
                 // 使用指针以便修改内容
                 a := &newArticles[i]
-                
+
                 // AI 处理 (Fail-Open: 如果失败，仅记录日志，继续发送原始新闻)
                 if s.aiProcessor != nil {
                         log.Printf("🤖 AI 正在处理新闻: %s", a.Headline)
@@ -163,7 +176,7 @@ func (s *Service) ProcessCategory(category string) error {
                 }
 
                 msg := formatMessage(*a)
-                
+
                 // 从配置中读取 message_thread_id
                 threadIDStr, _ := s.store.GetSystemConfig("telegram_message_thread_id")
                 threadID, err := strconv.Atoi(threadIDStr)
@@ -176,6 +189,9 @@ func (s *Service) ProcessCategory(category string) error {
                         log.Printf("❌ 发送Telegram消息失败: %v", err)
                         continue // 继续尝试下一条
                 }
+
+                // 记录已发送的消息ID，防止在其他分类重复发送
+                s.sentArticleIDs[int64(a.ID)] = true
 
                 // 立即更新状态
                 if err := s.store.UpdateNewsState(category, int64(a.ID), a.Datetime); err != nil {

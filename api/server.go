@@ -1178,6 +1178,22 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get AI model configs: %v", err)})
 		return
 	}
+
+	// If no models in database, return default models
+	if len(models) == 0 {
+		logger.Infof("⚠️ No AI models in database, returning defaults")
+		defaultModels := []SafeModelConfig{
+			{ID: "deepseek", Name: "DeepSeek AI", Provider: "deepseek", Enabled: false},
+			{ID: "qwen", Name: "Qwen AI", Provider: "qwen", Enabled: false},
+			{ID: "openai", Name: "OpenAI", Provider: "openai", Enabled: false},
+			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false},
+			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false},
+			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false},
+		}
+		c.JSON(http.StatusOK, defaultModels)
+		return
+	}
+
 	logger.Infof("✅ Found %d AI model configs", len(models))
 
 	// Convert to safe response structure, remove sensitive information
@@ -1286,6 +1302,22 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get exchange configs: %v", err)})
 		return
 	}
+
+	// If no exchanges in database, return default exchanges
+	if len(exchanges) == 0 {
+		logger.Infof("⚠️ No exchanges in database, returning defaults")
+		defaultExchanges := []SafeExchangeConfig{
+			{ID: "binance", Name: "Binance", Type: "cex", Enabled: false},
+			{ID: "bybit", Name: "Bybit", Type: "cex", Enabled: false},
+			{ID: "okx", Name: "OKX", Type: "cex", Enabled: false},
+			{ID: "hyperliquid", Name: "Hyperliquid", Type: "dex", Enabled: false},
+			{ID: "aster", Name: "Aster", Type: "dex", Enabled: false},
+			{ID: "lighter", Name: "LIGHTER", Type: "dex", Enabled: false},
+		}
+		c.JSON(http.StatusOK, defaultExchanges)
+		return
+	}
+
 	logger.Infof("✅ Found %d exchange configs", len(exchanges))
 
 	// Convert to safe response structure, remove sensitive information

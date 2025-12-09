@@ -169,6 +169,16 @@ export const api = {
   },
 
   async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
+    // 检查是否启用了传输加密
+    const config = await CryptoService.fetchCryptoConfig()
+
+    if (!config.transport_encryption) {
+      // 传输加密禁用时，直接发送明文
+      const result = await httpClient.put(`${API_BASE}/models`, request)
+      if (!result.success) throw new Error('更新模型配置失败')
+      return
+    }
+
     // 获取RSA公钥
     const publicKey = await CryptoService.fetchPublicKey()
 
@@ -214,10 +224,20 @@ export const api = {
     if (!result.success) throw new Error('更新交易所配置失败')
   },
 
-  // 使用加密传输更新交易所配置
+  // 使用加密传输更新交易所配置（自动检测是否启用加密）
   async updateExchangeConfigsEncrypted(
     request: UpdateExchangeConfigRequest
   ): Promise<void> {
+    // 检查是否启用了传输加密
+    const config = await CryptoService.fetchCryptoConfig()
+
+    if (!config.transport_encryption) {
+      // 传输加密禁用时，直接发送明文
+      const result = await httpClient.put(`${API_BASE}/exchanges`, request)
+      if (!result.success) throw new Error('更新交易所配置失败')
+      return
+    }
+
     // 获取RSA公钥
     const publicKey = await CryptoService.fetchPublicKey()
 

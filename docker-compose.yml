@@ -11,9 +11,8 @@ services:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
     volumes:
       - ./config.json:/app/config.json:ro
-      - ./data.db:/app/data.db
+      - ./data:/app/data
       - ./beta_codes.txt:/app/beta_codes.txt:ro
-      - ./decision_logs:/app/decision_logs
       - ./prompts:/app/prompts
       - /etc/localtime:/etc/localtime:ro  # Sync host time
     environment:

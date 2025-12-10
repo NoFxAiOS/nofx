@@ -163,11 +163,12 @@ jobs:
             "${GHCR_IMAGE}:${REF_NAME}-amd64" \
             "${GHCR_IMAGE}:${REF_NAME}-arm64"
 
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]] || [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+          # Only main branch gets the 'latest' tag (not dev)
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             docker buildx imagetools create -t "${GHCR_IMAGE}:latest" \
               "${GHCR_IMAGE}:${REF_NAME}-amd64" \
               "${GHCR_IMAGE}:${REF_NAME}-arm64"
-            echo "✅ Created latest tag"
+            echo "✅ Created latest tag (main branch only)"
           fi
 
           if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]]; then

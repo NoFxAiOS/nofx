@@ -854,17 +854,7 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		ctx.Account.MarginUsedPct,
 		ctx.Account.PositionCount))
 
-	// Position information
-	if len(ctx.Positions) > 0 {
-		sb.WriteString("## Current Positions\n")
-		for i, pos := range ctx.Positions {
-			sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
-		}
-	} else {
-		sb.WriteString("Current Positions: None\n\n")
-	}
-
-	// Recently completed orders
+	// Recently completed orders (placed before positions to ensure visibility)
 	if len(ctx.RecentOrders) > 0 {
 		sb.WriteString("## Recent Completed Trades\n")
 		for i, order := range ctx.RecentOrders {
@@ -879,6 +869,16 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 				order.EntryTime, order.ExitTime, order.HoldDuration))
 		}
 		sb.WriteString("\n")
+	}
+
+	// Position information
+	if len(ctx.Positions) > 0 {
+		sb.WriteString("## Current Positions\n")
+		for i, pos := range ctx.Positions {
+			sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
+		}
+	} else {
+		sb.WriteString("Current Positions: None\n\n")
 	}
 
 	// Candidate coins

@@ -9,6 +9,7 @@ import type {
   AIModel,
   Exchange,
   CreateTraderRequest,
+  CreateExchangeRequest,
   UpdateModelConfigRequest,
   UpdateExchangeConfigRequest,
   CompetitionData,
@@ -222,6 +223,57 @@ export const api = {
   ): Promise<void> {
     const result = await httpClient.put(`${API_BASE}/exchanges`, request)
     if (!result.success) throw new Error('更新交易所配置失败')
+  },
+
+  // 创建新的交易所账户
+  async createExchange(request: CreateExchangeRequest): Promise<{ id: string }> {
+    const result = await httpClient.post<{ id: string }>(`${API_BASE}/exchanges`, request)
+    if (!result.success) throw new Error('创建交易所账户失败')
+    return result.data!
+  },
+
+  // 创建新的交易所账户（加密传输）
+  async createExchangeEncrypted(request: CreateExchangeRequest): Promise<{ id: string }> {
+    // 检查是否启用了传输加密
+    const config = await CryptoService.fetchCryptoConfig()
+
+    if (!config.transport_encryption) {
+      // 传输加密禁用时，直接发送明文
+      const result = await httpClient.post<{ id: string }>(`${API_BASE}/exchanges`, request)
+      if (!result.success) throw new Error('创建交易所账户失败')
+      return result.data!
+    }
+
+    // 获取RSA公钥
+    const publicKey = await CryptoService.fetchPublicKey()
+
+    // 初始化加密服务
+    await CryptoService.initialize(publicKey)
+
+    // 获取用户信息
+    const userId = localStorage.getItem('user_id') || ''
+    const sessionId = sessionStorage.getItem('session_id') || ''
+
+    // 加密敏感数据
+    const encryptedPayload = await CryptoService.encryptSensitiveData(
+      JSON.stringify(request),
+      userId,
+      sessionId
+    )
+
+    // 发送加密数据
+    const result = await httpClient.post<{ id: string }>(
+      `${API_BASE}/exchanges`,
+      encryptedPayload
+    )
+    if (!result.success) throw new Error('创建交易所账户失败')
+    return result.data!
+  },
+
+  // 删除交易所账户
+  async deleteExchange(exchangeId: string): Promise<void> {
+    const result = await httpClient.delete(`${API_BASE}/exchanges/${exchangeId}`)
+    if (!result.success) throw new Error('删除交易所账户失败')
   },
 
   // 使用加密传输更新交易所配置（自动检测是否启用加密）

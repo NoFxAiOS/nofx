@@ -29,6 +29,7 @@ import type {
   DecisionRecord,
   Statistics,
   TraderInfo,
+  Exchange,
 } from './types'
 
 type Page =
@@ -53,6 +54,23 @@ function getModelDisplayName(modelId: string): string {
     default:
       return modelId.toUpperCase()
   }
+}
+
+// Helper function to get exchange display name from exchange ID (UUID)
+function getExchangeDisplayNameFromList(exchangeId: string | undefined, exchanges: Exchange[] | undefined): string {
+  if (!exchangeId) return 'Unknown'
+  const exchange = exchanges?.find(e => e.id === exchangeId)
+  if (!exchange) return exchangeId.substring(0, 8).toUpperCase() + '...'
+  const typeName = exchange.exchange_type?.toUpperCase() || exchange.name
+  return exchange.account_name ? `${typeName} - ${exchange.account_name}` : typeName
+}
+
+// Helper function to get exchange type from exchange ID (UUID) - for TradingView charts
+function getExchangeTypeFromList(exchangeId: string | undefined, exchanges: Exchange[] | undefined): string {
+  if (!exchangeId) return 'BINANCE'
+  const exchange = exchanges?.find(e => e.id === exchangeId)
+  if (!exchange) return 'BINANCE' // Default to BINANCE for charts
+  return exchange.exchange_type?.toUpperCase() || 'BINANCE'
 }
 
 function App() {
@@ -127,6 +145,16 @@ function App() {
     {
       refreshInterval: 10000,
       shouldRetryOnError: false, // 避免在后端未运行时无限重试
+    }
+  )
+
+  // 获取exchanges列表（用于显示交易所名称）
+  const { data: exchanges } = useSWR<Exchange[]>(
+    user && token ? 'exchanges' : null,
+    api.getExchangeConfigs,
+    {
+      refreshInterval: 60000, // 1分钟刷新一次
+      shouldRetryOnError: false,
     }
   )
 
@@ -445,6 +473,7 @@ function App() {
               setRoute('/traders')
               setCurrentPage('traders')
             }}
+            exchanges={exchanges}
           />
         )}
       </main>
@@ -563,6 +592,7 @@ function TraderDetailsPage({
   selectedTraderId,
   onTraderSelect,
   onNavigateToTraders,
+  exchanges,
 }: {
   selectedTrader?: TraderInfo
   traders?: TraderInfo[]
@@ -577,6 +607,7 @@ function TraderDetailsPage({
   stats?: Statistics
   lastUpdate: string
   language: Language
+  exchanges?: Exchange[]
 }) {
   const [closingPosition, setClosingPosition] = useState<string | null>(null)
   const [selectedChartSymbol, setSelectedChartSymbol] = useState<string | undefined>(undefined)
@@ -830,7 +861,7 @@ function TraderDetailsPage({
           <span>
             Exchange:{' '}
             <span className="font-semibold" style={{ color: '#EAECEF' }}>
-              {selectedTrader.exchange_id?.toUpperCase() || 'N/A'}
+              {getExchangeDisplayNameFromList(selectedTrader.exchange_id, exchanges)}
             </span>
           </span>
           <span>•</span>
@@ -907,7 +938,7 @@ function TraderDetailsPage({
               traderId={selectedTrader.trader_id}
               selectedSymbol={selectedChartSymbol}
               updateKey={chartUpdateKey}
-              exchangeId={selectedTrader.exchange_id}
+              exchangeId={getExchangeTypeFromList(selectedTrader.exchange_id, exchanges)}
             />
           </div>
 

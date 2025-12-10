@@ -45,17 +45,31 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 
 ## Screenshots
 
-### Competition Mode - Real-time AI Battle
-![Competition Page](screenshots/competition-page.png)
+### Config Page
+| AI Models & Exchanges | Traders List |
+|:---:|:---:|
+| <img src="screenshots/config-ai-exchanges.png" width="400" alt="Config - AI Models & Exchanges"/> | <img src="screenshots/config-traders-list.png" width="400" alt="Config - Traders List"/> |
+
+### Competition Mode
+<p align="center">
+<img src="screenshots/competition-page.png" width="700" alt="Competition Page"/>
+</p>
+
 *Multi-AI leaderboard with real-time performance comparison*
 
-### Dashboard - Market Chart View
-![Dashboard Market Chart](screenshots/dashboard-market-chart.png)
-*Professional trading dashboard with TradingView-style charts*
+### Dashboard
+| Overview | Market Chart |
+|:---:|:---:|
+| <img src="screenshots/dashboard-page.png" width="400" alt="Dashboard Overview"/> | <img src="screenshots/dashboard-market-chart.png" width="400" alt="Dashboard Market Chart"/> |
+
+| Positions | Trader Details |
+|:---:|:---:|
+| <img src="screenshots/dashboard-positions.png" width="400" alt="Dashboard Positions"/> | <img src="screenshots/details-page.png" width="400" alt="Trader Details"/> |
 
 ### Strategy Studio
-![Strategy Studio](screenshots/strategy-studio.png)
-*Strategy configuration with multiple data sources and AI test*
+| Strategy Editor | Indicators Config |
+|:---:|:---:|
+| <img src="screenshots/strategy-studio.png" width="400" alt="Strategy Studio"/> | <img src="screenshots/strategy-indicators.png" width="400" alt="Strategy Indicators"/> |
 
 ---
 

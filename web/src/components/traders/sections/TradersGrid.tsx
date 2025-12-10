@@ -1,12 +1,13 @@
 import { Bot, BarChart3, Trash2, Pencil } from 'lucide-react'
 import { t, type Language } from '../../../i18n/translations'
 import { getModelDisplayName } from '../index'
-import type { TraderInfo } from '../../../types'
+import type { TraderInfo, Exchange } from '../../../types'
 import { PunkAvatar, getTraderAvatar } from '../../PunkAvatar'
 
 interface TradersGridProps {
   language: Language
   traders: TraderInfo[] | undefined
+  exchanges?: Exchange[]
   onTraderSelect: (traderId: string) => void
   onEditTrader: (traderId: string) => void
   onDeleteTrader: (traderId: string) => void
@@ -16,11 +17,20 @@ interface TradersGridProps {
 export function TradersGrid({
   language,
   traders,
+  exchanges = [],
   onTraderSelect,
   onEditTrader,
   onDeleteTrader,
   onToggleTrader,
 }: TradersGridProps) {
+  // Helper function to get exchange display name
+  const getExchangeDisplayName = (exchangeId: string | undefined) => {
+    if (!exchangeId) return 'Unknown'
+    const exchange = exchanges.find(e => e.id === exchangeId)
+    if (!exchange) return exchangeId.toUpperCase()
+    const typeName = exchange.exchange_type?.toUpperCase() || exchange.name
+    return exchange.account_name ? `${typeName} - ${exchange.account_name}` : typeName
+  }
   if (!traders || traders.length === 0) {
     return (
       <div className="text-center py-12 md:py-16" style={{ color: '#848E9C' }}>
@@ -74,7 +84,7 @@ export function TradersGrid({
                 {getModelDisplayName(
                   trader.ai_model.split('_').pop() || trader.ai_model
                 )}{' '}
-                Model • {trader.exchange_id?.toUpperCase()}
+                Model • {getExchangeDisplayName(trader.exchange_id)}
                 <span style={{ color: '#F0B90B' }}> • {trader.strategy_name || 'No Strategy'}</span>
               </div>
             </div>

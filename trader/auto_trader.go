@@ -22,7 +22,8 @@ type AutoTraderConfig struct {
 	AIModel string // AI model: "qwen" or "deepseek"
 
 	// Trading platform selection
-	Exchange string // "binance", "bybit", "okx", "hyperliquid", "aster" or "lighter"
+	Exchange   string // Exchange type: "binance", "bybit", "okx", "hyperliquid", "aster" or "lighter"
+	ExchangeID string // Exchange account UUID (for multi-account support)
 
 	// Binance API configuration
 	BinanceAPIKey    string
@@ -86,7 +87,8 @@ type AutoTrader struct {
 	id                    string // Trader unique identifier
 	name                  string // Trader display name
 	aiModel               string // AI model name
-	exchange              string // Trading platform name
+	exchange              string // Trading platform type (binance/bybit/etc)
+	exchangeID            string // Exchange account UUID
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
@@ -272,6 +274,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		name:                  config.Name,
 		aiModel:               config.AIModel,
 		exchange:              config.Exchange,
+		exchangeID:            config.ExchangeID,
 		config:                config,
 		trader:                trader,
 		mcpClient:             mcpClient,
@@ -687,7 +690,11 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	// 7. Add recent closed trades (if store is available)
 	if at.store != nil {
 		// Get recent 10 closed trades for AI context
-		if recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10); err == nil {
+		recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10)
+		if err != nil {
+			logger.Infof("⚠️ [%s] Failed to get recent trades: %v", at.name, err)
+		} else {
+			logger.Infof("📊 [%s] Found %d recent closed trades for AI context", at.name, len(recentTrades))
 			for _, trade := range recentTrades {
 				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
 					Symbol:       trade.Symbol,
@@ -702,6 +709,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 				})
 			}
 		}
+	} else {
+		logger.Infof("⚠️ [%s] Store is nil, cannot get recent trades", at.name)
 	}
 
 	// 8. Get quantitative data (if enabled in strategy config)
@@ -814,13 +823,16 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
 	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
 
-	// Fee estimation (Taker fee rate 0.04%)
-	estimatedFee := decision.PositionSizeUSD * 0.0004
-	totalRequired := requiredMargin + estimatedFee
+	// Fee estimation: use 0.1% (safety buffer over typical 0.04% taker fee)
+	// This accounts for: taker fee, slippage, funding rate, and exchange-specific variations (OKX needs more buffer)
+	estimatedFee := decision.PositionSizeUSD * 0.001
+	// Add 1% safety buffer for price fluctuation and rounding
+	safetyBuffer := requiredMargin * 0.01
+	totalRequired := requiredMargin + estimatedFee + safetyBuffer
 
 	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f), available %.2f USDT",
-			totalRequired, requiredMargin, estimatedFee, availableBalance)
+		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f + buffer %.2f), available %.2f USDT",
+			totalRequired, requiredMargin, estimatedFee, safetyBuffer, availableBalance)
 	}
 
 	// Set margin mode
@@ -927,13 +939,16 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
 	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
 
-	// Fee estimation (Taker fee rate 0.04%)
-	estimatedFee := decision.PositionSizeUSD * 0.0004
-	totalRequired := requiredMargin + estimatedFee
+	// Fee estimation: use 0.1% (safety buffer over typical 0.04% taker fee)
+	// This accounts for: taker fee, slippage, funding rate, and exchange-specific variations (OKX needs more buffer)
+	estimatedFee := decision.PositionSizeUSD * 0.001
+	// Add 1% safety buffer for price fluctuation and rounding
+	safetyBuffer := requiredMargin * 0.01
+	totalRequired := requiredMargin + estimatedFee + safetyBuffer
 
 	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f), available %.2f USDT",
-			totalRequired, requiredMargin, estimatedFee, availableBalance)
+		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f + buffer %.2f), available %.2f USDT",
+			totalRequired, requiredMargin, estimatedFee, safetyBuffer, availableBalance)
 	}
 
 	// Set margin mode
@@ -1612,7 +1627,8 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		// Open position: create new position record
 		pos := &store.TraderPosition{
 			TraderID:     at.id,
-			ExchangeID:   at.exchange, // Record specific exchange ID
+			ExchangeID:   at.exchangeID, // Exchange account UUID
+			ExchangeType: at.exchange,   // Exchange type: binance/bybit/okx/etc
 			Symbol:       symbol,
 			Side:         side, // LONG or SHORT
 			Quantity:     quantity,

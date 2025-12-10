@@ -45,17 +45,20 @@ export function ExchangesSection({
             >
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center flex-shrink-0">
-                  {getExchangeIcon(exchange.id, { width: 28, height: 28 })}
+                  {getExchangeIcon(exchange.exchange_type, { width: 28, height: 28 })}
                 </div>
                 <div className="min-w-0">
                   <div
                     className="font-semibold text-sm md:text-base truncate"
                     style={{ color: '#EAECEF' }}
                   >
-                    {getShortName(exchange.name)}
+                    {exchange.exchange_type?.toUpperCase() || getShortName(exchange.name)}
+                    <span className="text-xs font-normal ml-1.5" style={{ color: '#F0B90B' }}>
+                      - {exchange.account_name || 'Default'}
+                    </span>
                   </div>
                   <div className="text-xs" style={{ color: '#848E9C' }}>
-                    {exchange.type.toUpperCase()} •{' '}
+                    {exchange.type?.toUpperCase() || 'CEX'} •{' '}
                     {inUse
                       ? t('inUse', language)
                       : exchange.enabled

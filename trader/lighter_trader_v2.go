@@ -281,8 +281,129 @@ func (t *LighterTraderV2) Cleanup() error {
 // GetClosedPnL gets closed position PnL records from exchange
 // LIGHTER does not have a direct closed PnL API, returns empty slice
 func (t *LighterTraderV2) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
-	// LIGHTER does not provide a closed PnL history API
-	// Position closure data needs to be tracked locally via position sync
-	logger.Infof("⚠️  LIGHTER GetClosedPnL not supported, returning empty")
-	return []ClosedPnLRecord{}, nil
+	trades, err := t.GetTrades(startTime, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter only closing trades (realizedPnl != 0)
+	var records []ClosedPnLRecord
+	for _, trade := range trades {
+		if trade.RealizedPnL == 0 {
+			continue
+		}
+
+		side := "long"
+		if trade.Side == "SELL" || trade.Side == "Sell" {
+			side = "long"
+		} else {
+			side = "short"
+		}
+
+		var entryPrice float64
+		if trade.Quantity > 0 {
+			if side == "long" {
+				entryPrice = trade.Price - trade.RealizedPnL/trade.Quantity
+			} else {
+				entryPrice = trade.Price + trade.RealizedPnL/trade.Quantity
+			}
+		}
+
+		records = append(records, ClosedPnLRecord{
+			Symbol:      trade.Symbol,
+			Side:        side,
+			EntryPrice:  entryPrice,
+			ExitPrice:   trade.Price,
+			Quantity:    trade.Quantity,
+			RealizedPnL: trade.RealizedPnL,
+			Fee:         trade.Fee,
+			ExitTime:    trade.Time,
+			EntryTime:   trade.Time,
+			OrderID:     trade.TradeID,
+			ExchangeID:  trade.TradeID,
+			CloseType:   "unknown",
+		})
+	}
+
+	return records, nil
+}
+
+// GetTrades retrieves trade history from Lighter
+func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeRecord, error) {
+	// Ensure we have account index
+	if t.accountIndex == 0 {
+		if err := t.initializeAccount(); err != nil {
+			return nil, fmt.Errorf("failed to get account index: %w", err)
+		}
+	}
+
+	// Build request URL
+	startTimeMs := startTime.UnixMilli()
+	endpoint := fmt.Sprintf("%s/api/v1/trades?account_index=%d&start_time=%d",
+		t.baseURL, t.accountIndex, startTimeMs)
+	if limit > 0 {
+		endpoint = fmt.Sprintf("%s&limit=%d", endpoint, limit)
+	}
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trades: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Infof("⚠️  Lighter trades API returned %d: %s", resp.StatusCode, string(body))
+		return []TradeRecord{}, nil
+	}
+
+	var response LighterTradeResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		var trades []LighterTrade
+		if err := json.Unmarshal(body, &trades); err != nil {
+			logger.Infof("⚠️  Failed to parse Lighter trades response: %v", err)
+			return []TradeRecord{}, nil
+		}
+		response.Trades = trades
+	}
+
+	// Convert to unified TradeRecord format
+	var result []TradeRecord
+	for _, lt := range response.Trades {
+		price, _ := parseFloat(lt.Price)
+		qty, _ := parseFloat(lt.Size)
+		fee, _ := parseFloat(lt.Fee)
+		pnl, _ := parseFloat(lt.RealizedPnl)
+
+		var side string
+		if strings.ToLower(lt.Side) == "buy" {
+			side = "BUY"
+		} else {
+			side = "SELL"
+		}
+
+		trade := TradeRecord{
+			TradeID:      lt.TradeID,
+			Symbol:       lt.Symbol,
+			Side:         side,
+			PositionSide: "BOTH",
+			Price:        price,
+			Quantity:     qty,
+			RealizedPnL:  pnl,
+			Fee:          fee,
+			Time:         time.UnixMilli(lt.Timestamp),
+		}
+		result = append(result, trade)
+	}
+
+	return result, nil
 }

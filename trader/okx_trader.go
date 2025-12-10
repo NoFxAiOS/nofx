@@ -65,13 +65,14 @@ type OKXTrader struct {
 
 // OKXInstrument OKX instrument info
 type OKXInstrument struct {
-	InstID string  // Instrument ID
-	CtVal  float64 // Contract value
-	CtMult float64 // Contract multiplier
-	LotSz  float64 // Minimum order size
-	MinSz  float64 // Minimum order size
-	TickSz float64 // Minimum price increment
-	CtType string  // Contract type
+	InstID   string  // Instrument ID
+	CtVal    float64 // Contract value
+	CtMult   float64 // Contract multiplier
+	LotSz    float64 // Minimum order size
+	MinSz    float64 // Minimum order size
+	MaxMktSz float64 // Maximum market order size
+	TickSz   float64 // Minimum price increment
+	CtType   string  // Contract type
 }
 
 // OKXResponse OKX API response
@@ -97,13 +98,18 @@ func genOkxClOrdID() string {
 
 // NewOKXTrader creates OKX trader
 func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
-	// Use http.DefaultClient to stay consistent with Binance/Bybit SDK
-	// DefaultClient uses DefaultTransport, which reads proxy settings from environment variables
+	// Use default transport which respects system proxy settings
+	// OKX requires proxy in China due to DNS pollution
+	httpClient := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: http.DefaultTransport,
+	}
+
 	trader := &OKXTrader{
 		apiKey:           apiKey,
 		secretKey:        secretKey,
 		passphrase:       passphrase,
-		httpClient:       http.DefaultClient,
+		httpClient:       httpClient,
 		cacheDuration:    15 * time.Second,
 		instrumentsCache: make(map[string]*OKXInstrument),
 	}
@@ -394,13 +400,14 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	}
 
 	var instruments []struct {
-		InstId string `json:"instId"`
-		CtVal  string `json:"ctVal"`
-		CtMult string `json:"ctMult"`
-		LotSz  string `json:"lotSz"`
-		MinSz  string `json:"minSz"`
-		TickSz string `json:"tickSz"`
-		CtType string `json:"ctType"`
+		InstId   string `json:"instId"`
+		CtVal    string `json:"ctVal"`
+		CtMult   string `json:"ctMult"`
+		LotSz    string `json:"lotSz"`
+		MinSz    string `json:"minSz"`
+		MaxMktSz string `json:"maxMktSz"` // Maximum market order size
+		TickSz   string `json:"tickSz"`
+		CtType   string `json:"ctType"`
 	}
 
 	if err := json.Unmarshal(data, &instruments); err != nil {
@@ -416,16 +423,18 @@ func (t *OKXTrader) getInstrument(symbol string) (*OKXInstrument, error) {
 	ctMult, _ := strconv.ParseFloat(inst.CtMult, 64)
 	lotSz, _ := strconv.ParseFloat(inst.LotSz, 64)
 	minSz, _ := strconv.ParseFloat(inst.MinSz, 64)
+	maxMktSz, _ := strconv.ParseFloat(inst.MaxMktSz, 64)
 	tickSz, _ := strconv.ParseFloat(inst.TickSz, 64)
 
 	instrument := &OKXInstrument{
-		InstID: inst.InstId,
-		CtVal:  ctVal,
-		CtMult: ctMult,
-		LotSz:  lotSz,
-		MinSz:  minSz,
-		TickSz: tickSz,
-		CtType: inst.CtType,
+		InstID:   inst.InstId,
+		CtVal:    ctVal,
+		CtMult:   ctMult,
+		LotSz:    lotSz,
+		MinSz:    minSz,
+		MaxMktSz: maxMktSz,
+		TickSz:   tickSz,
+		CtType:   inst.CtType,
 	}
 
 	// Update cache
@@ -525,6 +534,13 @@ func (t *OKXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 	sz := quantity * price / inst.CtVal
 	szStr := t.formatSize(sz, inst)
 
+	// Check max market order size limit
+	if inst.MaxMktSz > 0 && sz > inst.MaxMktSz {
+		logger.Infof("  ⚠️ OKX market order size %.2f exceeds max %.2f, reducing to max", sz, inst.MaxMktSz)
+		sz = inst.MaxMktSz
+		szStr = t.formatSize(sz, inst)
+	}
+
 	body := map[string]interface{}{
 		"instId":  instId,
 		"tdMode":  "cross",
@@ -595,6 +611,13 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 
 	sz := quantity * price / inst.CtVal
 	szStr := t.formatSize(sz, inst)
+
+	// Check max market order size limit
+	if inst.MaxMktSz > 0 && sz > inst.MaxMktSz {
+		logger.Infof("  ⚠️ OKX market order size %.2f exceeds max %.2f, reducing to max", sz, inst.MaxMktSz)
+		sz = inst.MaxMktSz
+		szStr = t.formatSize(sz, inst)
+	}
 
 	body := map[string]interface{}{
 		"instId":  instId,

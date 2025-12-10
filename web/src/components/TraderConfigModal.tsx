@@ -276,16 +276,16 @@ export function TraderConfigModal({
                   >
                     {availableExchanges.map((exchange) => (
                       <option key={exchange.id} value={exchange.id}>
-                        {getShortName(
-                          exchange.name || exchange.id
-                        ).toUpperCase()}
+                        {getShortName(exchange.name || exchange.exchange_type || exchange.id).toUpperCase()}
+                        {exchange.account_name ? ` - ${exchange.account_name}` : ''}
                       </option>
                     ))}
                   </select>
                   {/* Exchange Registration Link */}
                   {formData.exchange_id && (() => {
-                    // Exchange ID is the exchange type (e.g., "binance", "okx", "aster")
-                    const exchangeType = formData.exchange_id.toLowerCase()
+                    // Find the selected exchange to get its type
+                    const selectedExchange = availableExchanges.find(e => e.id === formData.exchange_id)
+                    const exchangeType = selectedExchange?.exchange_type?.toLowerCase() || ''
                     const regLink = EXCHANGE_REGISTRATION_LINKS[exchangeType]
                     if (!regLink) return null
                     return (

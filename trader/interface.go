@@ -19,6 +19,20 @@ type ClosedPnLRecord struct {
 	ExchangeID   string    // Exchange-specific position ID
 }
 
+// TradeRecord represents a single trade/fill from exchange
+// Used for reconstructing position history with unified algorithm
+type TradeRecord struct {
+	TradeID      string    // Unique trade ID from exchange
+	Symbol       string    // Trading pair (e.g., "BTCUSDT")
+	Side         string    // "BUY" or "SELL"
+	PositionSide string    // "LONG", "SHORT", or "BOTH" (for one-way mode)
+	Price        float64   // Execution price
+	Quantity     float64   // Executed quantity
+	RealizedPnL  float64   // Realized PnL (non-zero for closing trades)
+	Fee          float64   // Trading fee/commission
+	Time         time.Time // Trade execution time
+}
+
 // Trader Unified trader interface
 // Supports multiple trading platforms (Binance, Hyperliquid, etc.)
 type Trader interface {

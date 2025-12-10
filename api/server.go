@@ -132,6 +132,7 @@ func (s *Server) setupRoutes() {
 			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
 			protected.POST("/traders/:id/sync-balance", s.handleSyncBalance)
 			protected.POST("/traders/:id/close-position", s.handleClosePosition)
+			protected.PUT("/traders/:id/competition", s.handleToggleCompetition)
 
 			// AI model configuration
 			protected.GET("/models", s.handleGetModelConfigs)
@@ -351,7 +352,8 @@ type CreateTraderRequest struct {
 	StrategyID          string  `json:"strategy_id"` // Strategy ID (new version)
 	InitialBalance      float64 `json:"initial_balance"`
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"` // Pointer type, nil means use default value true
+	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
+	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -394,17 +396,17 @@ type ExchangeConfig struct {
 
 // SafeExchangeConfig Safe exchange configuration structure (does not contain sensitive information)
 type SafeExchangeConfig struct {
-	ID                    string `json:"id"`                      // UUID
-	ExchangeType          string `json:"exchange_type"`           // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
-	AccountName           string `json:"account_name"`            // User-defined account name
-	Name                  string `json:"name"`                    // Display name
-	Type                  string `json:"type"`                    // "cex" or "dex"
+	ID                    string `json:"id"`            // UUID
+	ExchangeType          string `json:"exchange_type"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+	AccountName           string `json:"account_name"`  // User-defined account name
+	Name                  string `json:"name"`          // Display name
+	Type                  string `json:"type"`          // "cex" or "dex"
 	Enabled               bool   `json:"enabled"`
 	Testnet               bool   `json:"testnet,omitempty"`
-	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"`   // Hyperliquid wallet address (not sensitive)
-	AsterUser             string `json:"asterUser"`               // Aster username (not sensitive)
-	AsterSigner           string `json:"asterSigner"`             // Aster signer (not sensitive)
-	LighterWalletAddr     string `json:"lighterWalletAddr"`       // LIGHTER wallet address (not sensitive)
+	HyperliquidWalletAddr string `json:"hyperliquidWalletAddr"` // Hyperliquid wallet address (not sensitive)
+	AsterUser             string `json:"asterUser"`             // Aster username (not sensitive)
+	AsterSigner           string `json:"asterSigner"`           // Aster signer (not sensitive)
+	LighterWalletAddr     string `json:"lighterWalletAddr"`     // LIGHTER wallet address (not sensitive)
 }
 
 type UpdateModelConfigRequest struct {
@@ -475,6 +477,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	isCrossMargin := true // Default to cross margin mode
 	if req.IsCrossMargin != nil {
 		isCrossMargin = *req.IsCrossMargin
+	}
+
+	showInCompetition := true // Default to show in competition
+	if req.ShowInCompetition != nil {
+		showInCompetition = *req.ShowInCompetition
 	}
 
 	// Set leverage default values
@@ -615,6 +622,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		OverrideBasePrompt:   req.OverrideBasePrompt,
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
+		ShowInCompetition:    showInCompetition,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            false,
 	}
@@ -657,6 +665,7 @@ type UpdateTraderRequest struct {
 	InitialBalance      float64 `json:"initial_balance"`
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 	IsCrossMargin       *bool   `json:"is_cross_margin"`
+	ShowInCompetition   *bool   `json:"show_in_competition"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -701,6 +710,11 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	isCrossMargin := existingTrader.IsCrossMargin // Keep original value
 	if req.IsCrossMargin != nil {
 		isCrossMargin = *req.IsCrossMargin
+	}
+
+	showInCompetition := existingTrader.ShowInCompetition // Keep original value
+	if req.ShowInCompetition != nil {
+		showInCompetition = *req.ShowInCompetition
 	}
 
 	// Set leverage default values
@@ -749,6 +763,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		OverrideBasePrompt:   req.OverrideBasePrompt,
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
+		ShowInCompetition:    showInCompetition,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            existingTrader.IsRunning, // Keep original value
 	}
@@ -954,6 +969,43 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Custom prompt updated"})
+}
+
+// handleToggleCompetition Toggle trader competition visibility
+func (s *Server) handleToggleCompetition(c *gin.Context) {
+	traderID := c.Param("id")
+	userID := c.GetString("user_id")
+
+	var req struct {
+		ShowInCompetition bool `json:"show_in_competition"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Update database
+	err := s.store.Trader().UpdateShowInCompetition(userID, traderID, req.ShowInCompetition)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update competition visibility: %v", err)})
+		return
+	}
+
+	// Update in-memory trader if it exists
+	if trader, err := s.traderManager.GetTrader(traderID); err == nil {
+		trader.SetShowInCompetition(req.ShowInCompetition)
+	}
+
+	status := "shown"
+	if !req.ShowInCompetition {
+		status = "hidden"
+	}
+	logger.Infof("✓ Trader %s competition visibility updated: %s", traderID, status)
+	c.JSON(http.StatusOK, gin.H{
+		"message":             "Competition visibility updated",
+		"show_in_competition": req.ShowInCompetition,
+	})
 }
 
 // handleSyncBalance Sync exchange balance to initial_balance (Option B: Manual Sync + Option C: Smart Detection)
@@ -1554,8 +1606,8 @@ func (s *Server) handleDeleteExchange(c *gin.Context) {
 	for _, trader := range traders {
 		if trader.ExchangeID == exchangeID {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":     "Cannot delete exchange account that is in use by traders",
-				"trader_id": trader.ID,
+				"error":       "Cannot delete exchange account that is in use by traders",
+				"trader_id":   trader.ID,
 				"trader_name": trader.Name,
 			})
 			return
@@ -1605,14 +1657,15 @@ func (s *Server) handleTraderList(c *gin.Context) {
 		// Return complete AIModelID (e.g. "admin_deepseek"), don't truncate
 		// Frontend needs complete ID to verify model exists (consistent with handleGetTraderConfig)
 		result = append(result, map[string]interface{}{
-			"trader_id":       trader.ID,
-			"trader_name":     trader.Name,
-			"ai_model":        trader.AIModelID, // Use complete ID
-			"exchange_id":     trader.ExchangeID,
-			"is_running":      isRunning,
-			"initial_balance": trader.InitialBalance,
-			"strategy_id":     trader.StrategyID,
-			"strategy_name":   strategyName,
+			"trader_id":           trader.ID,
+			"trader_name":         trader.Name,
+			"ai_model":            trader.AIModelID, // Use complete ID
+			"exchange_id":         trader.ExchangeID,
+			"is_running":          isRunning,
+			"show_in_competition": trader.ShowInCompetition,
+			"initial_balance":     trader.InitialBalance,
+			"strategy_id":         trader.StrategyID,
+			"strategy_name":       strategyName,
 		})
 	}
 
@@ -1987,6 +2040,20 @@ func (s *Server) handleRegister(c *gin.Context) {
 	if !config.Get().RegistrationEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
 		return
+	}
+
+	// Check max users limit
+	maxUsers := config.Get().MaxUsers
+	if maxUsers > 0 {
+		userCount, err := s.store.User().Count()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user count"})
+			return
+		}
+		if userCount >= maxUsers {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Not on whitelist"})
+			return
+		}
 	}
 
 	var req struct {

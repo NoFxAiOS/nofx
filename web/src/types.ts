@@ -91,6 +91,7 @@ export interface TraderInfo {
   ai_model: string
   exchange_id?: string
   is_running?: boolean
+  show_in_competition?: boolean
   strategy_id?: string
   strategy_name?: string
   custom_prompt?: string
@@ -157,6 +158,7 @@ export interface CreateTraderRequest {
   initial_balance?: number // 可选：创建时由后端自动获取，编辑时可手动更新
   scan_interval_minutes?: number
   is_cross_margin?: boolean
+  show_in_competition?: boolean // 是否在竞技场显示
   // 以下字段为向后兼容保留，新版使用策略配置
   btc_eth_leverage?: number
   altcoin_leverage?: number
@@ -229,6 +231,7 @@ export interface TraderConfigData {
   strategy_id?: string  // 策略ID
   strategy_name?: string  // 策略名称
   is_cross_margin: boolean
+  show_in_competition: boolean  // 是否在竞技场显示
   scan_interval_minutes: number
   initial_balance: number
   is_running: boolean

@@ -196,11 +196,15 @@ func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 
 	tm.mu.RLock()
 
-	// Get all trader list
+	// Get all trader list (only those with ShowInCompetition = true)
 	allTraders := make([]*trader.AutoTrader, 0, len(tm.traders))
 	for id, t := range tm.traders {
-		allTraders = append(allTraders, t)
-		logger.Infof("📋 Competition data includes trader: %s (%s)", t.GetName(), id)
+		if t.GetShowInCompetition() {
+			allTraders = append(allTraders, t)
+			logger.Infof("📋 Competition data includes trader: %s (%s)", t.GetName(), id)
+		} else {
+			logger.Infof("📋 Competition data excludes trader (hidden): %s (%s)", t.GetName(), id)
+		}
 	}
 	tm.mu.RUnlock()
 
@@ -616,10 +620,11 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		QwenKey:               "",
 		CustomAPIURL:          aiModelCfg.CustomAPIURL,
 		CustomModelName:       aiModelCfg.CustomModelName,
-		ScanInterval:    time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		InitialBalance:  traderCfg.InitialBalance,
-		IsCrossMargin:   traderCfg.IsCrossMargin,
-		StrategyConfig:        strategyConfig,
+		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
+		InitialBalance:       traderCfg.InitialBalance,
+		IsCrossMargin:        traderCfg.IsCrossMargin,
+		ShowInCompetition:    traderCfg.ShowInCompetition,
+		StrategyConfig:       strategyConfig,
 	}
 
 	// Set API keys based on exchange type

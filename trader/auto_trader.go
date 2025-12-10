@@ -78,6 +78,9 @@ type AutoTraderConfig struct {
 	// Position mode
 	IsCrossMargin bool // true=cross margin mode, false=isolated margin mode
 
+	// Competition visibility
+	ShowInCompetition bool // Whether to show in competition page
+
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
 }
@@ -89,6 +92,7 @@ type AutoTrader struct {
 	aiModel               string // AI model name
 	exchange              string // Trading platform type (binance/bybit/etc)
 	exchangeID            string // Exchange account UUID
+	showInCompetition     bool   // Whether to show in competition page
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
@@ -275,6 +279,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		aiModel:               config.AIModel,
 		exchange:              config.Exchange,
 		exchangeID:            config.ExchangeID,
+		showInCompetition:     config.ShowInCompetition,
 		config:                config,
 		trader:                trader,
 		mcpClient:             mcpClient,
@@ -810,30 +815,31 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
+	// ⚠️ Auto-adjust position size if insufficient margin
+	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
+	//        = positionSize * (1.01/leverage + 0.001)
+	marginFactor := 1.01/float64(decision.Leverage) + 0.001
+	maxAffordablePositionSize := availableBalance / marginFactor
+
+	actualPositionSize := decision.PositionSizeUSD
+	if actualPositionSize > maxAffordablePositionSize {
+		// Use 98% of max to leave buffer for price fluctuation
+		adjustedSize := maxAffordablePositionSize * 0.98
+		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
+			actualPositionSize, maxAffordablePositionSize, adjustedSize)
+		actualPositionSize = adjustedSize
+		decision.PositionSizeUSD = actualPositionSize
+	}
+
 	// [CODE ENFORCED] Minimum position size check
 	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
 		return err
 	}
 
-	// Calculate quantity
-	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+	// Calculate quantity with adjusted position size
+	quantity := actualPositionSize / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
-
-	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
-	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
-
-	// Fee estimation: use 0.1% (safety buffer over typical 0.04% taker fee)
-	// This accounts for: taker fee, slippage, funding rate, and exchange-specific variations (OKX needs more buffer)
-	estimatedFee := decision.PositionSizeUSD * 0.001
-	// Add 1% safety buffer for price fluctuation and rounding
-	safetyBuffer := requiredMargin * 0.01
-	totalRequired := requiredMargin + estimatedFee + safetyBuffer
-
-	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f + buffer %.2f), available %.2f USDT",
-			totalRequired, requiredMargin, estimatedFee, safetyBuffer, availableBalance)
-	}
 
 	// Set margin mode
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
@@ -926,30 +932,31 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
+	// ⚠️ Auto-adjust position size if insufficient margin
+	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
+	//        = positionSize * (1.01/leverage + 0.001)
+	marginFactor := 1.01/float64(decision.Leverage) + 0.001
+	maxAffordablePositionSize := availableBalance / marginFactor
+
+	actualPositionSize := decision.PositionSizeUSD
+	if actualPositionSize > maxAffordablePositionSize {
+		// Use 98% of max to leave buffer for price fluctuation
+		adjustedSize := maxAffordablePositionSize * 0.98
+		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
+			actualPositionSize, maxAffordablePositionSize, adjustedSize)
+		actualPositionSize = adjustedSize
+		decision.PositionSizeUSD = actualPositionSize
+	}
+
 	// [CODE ENFORCED] Minimum position size check
 	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
 		return err
 	}
 
-	// Calculate quantity
-	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+	// Calculate quantity with adjusted position size
+	quantity := actualPositionSize / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
-
-	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
-	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
-
-	// Fee estimation: use 0.1% (safety buffer over typical 0.04% taker fee)
-	// This accounts for: taker fee, slippage, funding rate, and exchange-specific variations (OKX needs more buffer)
-	estimatedFee := decision.PositionSizeUSD * 0.001
-	// Add 1% safety buffer for price fluctuation and rounding
-	safetyBuffer := requiredMargin * 0.01
-	totalRequired := requiredMargin + estimatedFee + safetyBuffer
-
-	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f + buffer %.2f), available %.2f USDT",
-			totalRequired, requiredMargin, estimatedFee, safetyBuffer, availableBalance)
-	}
 
 	// Set margin mode
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
@@ -1100,6 +1107,16 @@ func (at *AutoTrader) GetAIModel() string {
 // GetExchange gets exchange
 func (at *AutoTrader) GetExchange() string {
 	return at.exchange
+}
+
+// GetShowInCompetition returns whether trader should be shown in competition
+func (at *AutoTrader) GetShowInCompetition() bool {
+	return at.showInCompetition
+}
+
+// SetShowInCompetition sets whether trader should be shown in competition
+func (at *AutoTrader) SetShowInCompetition(show bool) {
+	at.showInCompetition = show
 }
 
 // SetCustomPrompt sets custom trading strategy prompt

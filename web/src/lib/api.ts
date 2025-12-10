@@ -103,6 +103,14 @@ export const api = {
     if (!result.success) throw new Error('停止交易员失败')
   },
 
+  async toggleCompetition(traderId: string, showInCompetition: boolean): Promise<void> {
+    const result = await httpClient.put(
+      `${API_BASE}/traders/${traderId}/competition`,
+      { show_in_competition: showInCompetition }
+    )
+    if (!result.success) throw new Error('更新竞技场显示设置失败')
+  },
+
   async closePosition(traderId: string, symbol: string, side: string): Promise<{ message: string }> {
     const result = await httpClient.post<{ message: string }>(
       `${API_BASE}/traders/${traderId}/close-position`,

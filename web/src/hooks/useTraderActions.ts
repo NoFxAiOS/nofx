@@ -242,6 +242,23 @@ export function useTraderActions({
     }
   }
 
+  const handleToggleCompetition = async (traderId: string, currentShowInCompetition: boolean) => {
+    try {
+      const newValue = !currentShowInCompetition
+      await toast.promise(api.toggleCompetition(traderId, newValue), {
+        loading: '正在更新…',
+        success: newValue ? '已在竞技场显示' : '已在竞技场隐藏',
+        error: '更新失败',
+      })
+
+      // Immediately refresh traders list to update status
+      await mutateTraders()
+    } catch (error) {
+      console.error('Failed to toggle competition visibility:', error)
+      toast.error(t('operationFailed', language))
+    }
+  }
+
   const handleModelClick = (modelId: string) => {
     if (!isModelInUse(modelId)) {
       setEditingModel(modelId)
@@ -619,6 +636,7 @@ export function useTraderActions({
     handleSaveEditTrader,
     handleDeleteTrader,
     handleToggleTrader,
+    handleToggleCompetition,
     handleAddModel,
     handleAddExchange,
     handleModelClick,

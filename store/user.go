@@ -111,6 +111,13 @@ func (s *UserStore) GetByID(userID string) (*User, error) {
 	return &user, nil
 }
 
+// Count returns the total number of users
+func (s *UserStore) Count() (int, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&count)
+	return count, err
+}
+
 // GetAllIDs gets all user IDs
 func (s *UserStore) GetAllIDs() ([]string, error) {
 	rows, err := s.db.Query(`SELECT id FROM users ORDER BY id`)

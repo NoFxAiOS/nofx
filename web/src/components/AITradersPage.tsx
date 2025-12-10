@@ -25,6 +25,8 @@ import {
   Plus,
   Users,
   Pencil,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { confirmToast } from '../lib/notify'
 import { toast } from 'sonner'
@@ -333,6 +335,23 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       await mutateTraders()
     } catch (error) {
       console.error('Failed to toggle trader:', error)
+      toast.error(t('operationFailed', language))
+    }
+  }
+
+  const handleToggleCompetition = async (traderId: string, currentShowInCompetition: boolean) => {
+    try {
+      const newValue = !currentShowInCompetition
+      await toast.promise(api.toggleCompetition(traderId, newValue), {
+        loading: '正在更新…',
+        success: newValue ? '已在竞技场显示' : '已在竞技场隐藏',
+        error: '更新失败',
+      })
+
+      // Immediately refresh traders list to update status
+      await mutateTraders()
+    } catch (error) {
+      console.error('Failed to toggle competition visibility:', error)
       toast.error(t('operationFailed', language))
     }
   }
@@ -1067,6 +1086,29 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                       {trader.is_running
                         ? t('stop', language)
                         : t('start', language)}
+                    </button>
+
+                    <button
+                      onClick={() => handleToggleCompetition(trader.trader_id, trader.show_in_competition ?? true)}
+                      className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 whitespace-nowrap flex items-center gap-1"
+                      style={
+                        trader.show_in_competition !== false
+                          ? {
+                              background: 'rgba(14, 203, 129, 0.1)',
+                              color: '#0ECB81',
+                            }
+                          : {
+                              background: 'rgba(132, 142, 156, 0.1)',
+                              color: '#848E9C',
+                            }
+                      }
+                      title={trader.show_in_competition !== false ? '在竞技场显示' : '在竞技场隐藏'}
+                    >
+                      {trader.show_in_competition !== false ? (
+                        <Eye className="w-3 h-3 md:w-4 md:h-4" />
+                      ) : (
+                        <EyeOff className="w-3 h-3 md:w-4 md:h-4" />
+                      )}
                     </button>
 
                     <button

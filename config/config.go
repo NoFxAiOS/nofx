@@ -16,6 +16,7 @@ type Config struct {
 	APIServerPort       int
 	JWTSecret           string
 	RegistrationEnabled bool
+	MaxUsers            int // Maximum number of users allowed (0 = unlimited, default = 1)
 
 	// Security configuration
 	// TransportEncryption enables browser-side encryption for API keys
@@ -28,6 +29,7 @@ func Init() {
 	cfg := &Config{
 		APIServerPort:       8080,
 		RegistrationEnabled: true,
+		MaxUsers:            1, // Default: only 1 user allowed
 	}
 
 	// Load from environment variables
@@ -40,6 +42,12 @@ func Init() {
 
 	if v := os.Getenv("REGISTRATION_ENABLED"); v != "" {
 		cfg.RegistrationEnabled = strings.ToLower(v) == "true"
+	}
+
+	if v := os.Getenv("MAX_USERS"); v != "" {
+		if maxUsers, err := strconv.Atoi(v); err == nil && maxUsers >= 0 {
+			cfg.MaxUsers = maxUsers
+		}
 	}
 
 	if v := os.Getenv("API_SERVER_PORT"); v != "" {

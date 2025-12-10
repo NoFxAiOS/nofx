@@ -52,7 +52,7 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 
 ### Competition Mode
 <p align="center">
-<img src="screenshots/competition-page.png" width="700" alt="Competition Page"/>
+<img src="screenshots/competition-page.png" width="500" alt="Competition Page"/>
 </p>
 
 *Multi-AI leaderboard with real-time performance comparison*

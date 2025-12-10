@@ -277,3 +277,12 @@ func (t *LighterTraderV2) Cleanup() error {
 	logger.Info("⏹  LIGHTER trader cleanup completed")
 	return nil
 }
+
+// GetClosedPnL gets closed position PnL records from exchange
+// LIGHTER does not have a direct closed PnL API, returns empty slice
+func (t *LighterTraderV2) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
+	// LIGHTER does not provide a closed PnL history API
+	// Position closure data needs to be tracked locally via position sync
+	logger.Infof("⚠️  LIGHTER GetClosedPnL not supported, returning empty")
+	return []ClosedPnLRecord{}, nil
+}

@@ -240,6 +240,14 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		if foundBalance > 0 {
 			config.InitialBalance = foundBalance
 			logger.Infof("✓ [%s] Auto-fetched initial balance: %.2f USDT", config.Name, foundBalance)
+			// Save to database so it persists across restarts
+			if st != nil {
+				if err := st.Trader().UpdateInitialBalance(userID, config.ID, foundBalance); err != nil {
+					logger.Infof("⚠️  [%s] Failed to save initial balance to database: %v", config.Name, err)
+				} else {
+					logger.Infof("✓ [%s] Initial balance saved to database", config.Name)
+				}
+			}
 		} else {
 			return nil, fmt.Errorf("initial balance must be greater than 0, please set InitialBalance in config or ensure exchange account has balance")
 		}
@@ -657,7 +665,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 
 	// 6. Build context
 	ctx := &decision.Context{
-		CurrentTime:     time.Now().Format("2006-01-02 15:04:05"),
+		CurrentTime:     time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
 		CallCount:       at.callCount,
 		BTCETHLeverage:  btcEthLeverage,
@@ -676,33 +684,21 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		CandidateCoins: candidateCoins,
 	}
 
-	// 7. Add trading statistics and historical orders (if store is available)
+	// 7. Add recent closed trades (if store is available)
 	if at.store != nil {
-		// Get trading statistics (using new positions table)
-		if stats, err := at.store.Position().GetFullStats(at.id); err == nil {
-			ctx.TradingStats = &decision.TradingStats{
-				TotalTrades:    stats.TotalTrades,
-				WinRate:        stats.WinRate,
-				ProfitFactor:   stats.ProfitFactor,
-				SharpeRatio:    stats.SharpeRatio,
-				TotalPnL:       stats.TotalPnL,
-				AvgWin:         stats.AvgWin,
-				AvgLoss:        stats.AvgLoss,
-				MaxDrawdownPct: stats.MaxDrawdownPct,
-			}
-		}
-
-		// Get recent 10 closed trades (using new positions table)
+		// Get recent 10 closed trades for AI context
 		if recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10); err == nil {
 			for _, trade := range recentTrades {
 				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
-					Symbol:      trade.Symbol,
-					Side:        trade.Side,
-					EntryPrice:  trade.EntryPrice,
-					ExitPrice:   trade.ExitPrice,
-					RealizedPnL: trade.RealizedPnL,
-					PnLPct:      trade.PnLPct,
-					FilledAt:    trade.ExitTime,
+					Symbol:       trade.Symbol,
+					Side:         trade.Side,
+					EntryPrice:   trade.EntryPrice,
+					ExitPrice:    trade.ExitPrice,
+					RealizedPnL:  trade.RealizedPnL,
+					PnLPct:       trade.PnLPct,
+					EntryTime:    trade.EntryTime,
+					ExitTime:     trade.ExitTime,
+					HoldDuration: trade.HoldDuration,
 				})
 			}
 		}
@@ -755,19 +751,58 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, act
 func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📈 Open long: %s", decision.Symbol)
 
-	// ⚠️ Critical: Check if there's already a position in the same symbol and direction, reject if exists (prevent position stacking overflow)
+	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
-	if err == nil {
-		for _, pos := range positions {
-			if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
-				return fmt.Errorf("❌ %s already has long position, rejecting to prevent position stacking overflow. If changing position, please give close_long decision first", decision.Symbol)
-			}
+	if err != nil {
+		return fmt.Errorf("failed to get positions: %w", err)
+	}
+
+	// [CODE ENFORCED] Check max positions limit
+	if err := at.enforceMaxPositions(len(positions)); err != nil {
+		return err
+	}
+
+	// Check if there's already a position in the same symbol and direction
+	for _, pos := range positions {
+		if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
+			return fmt.Errorf("❌ %s already has long position, close it first", decision.Symbol)
 		}
 	}
 
 	// Get current price
 	marketData, err := market.Get(decision.Symbol)
 	if err != nil {
+		return err
+	}
+
+	// Get balance (needed for multiple checks)
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		return fmt.Errorf("failed to get account balance: %w", err)
+	}
+	availableBalance := 0.0
+	if avail, ok := balance["availableBalance"].(float64); ok {
+		availableBalance = avail
+	}
+
+	// Get equity for position value ratio check
+	equity := 0.0
+	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
+		equity = eq
+	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
+		equity = eq
+	} else {
+		equity = availableBalance // Fallback to available balance
+	}
+
+	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
+	adjustedPositionSize, wasCapped := at.enforcePositionValueRatio(decision.PositionSizeUSD, equity, decision.Symbol)
+	if wasCapped {
+		decision.PositionSizeUSD = adjustedPositionSize
+	}
+
+	// [CODE ENFORCED] Minimum position size check
+	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
 		return err
 	}
 
@@ -778,15 +813,6 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 
 	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
 	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
-
-	balance, err := at.trader.GetBalance()
-	if err != nil {
-		return fmt.Errorf("failed to get account balance: %w", err)
-	}
-	availableBalance := 0.0
-	if avail, ok := balance["availableBalance"].(float64); ok {
-		availableBalance = avail
-	}
 
 	// Fee estimation (Taker fee rate 0.04%)
 	estimatedFee := decision.PositionSizeUSD * 0.0004
@@ -838,19 +864,58 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📉 Open short: %s", decision.Symbol)
 
-	// ⚠️ Critical: Check if there's already a position in the same symbol and direction, reject if exists (prevent position stacking overflow)
+	// ⚠️ Get current positions for multiple checks
 	positions, err := at.trader.GetPositions()
-	if err == nil {
-		for _, pos := range positions {
-			if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
-				return fmt.Errorf("❌ %s already has short position, rejecting to prevent position stacking overflow. If changing position, please give close_short decision first", decision.Symbol)
-			}
+	if err != nil {
+		return fmt.Errorf("failed to get positions: %w", err)
+	}
+
+	// [CODE ENFORCED] Check max positions limit
+	if err := at.enforceMaxPositions(len(positions)); err != nil {
+		return err
+	}
+
+	// Check if there's already a position in the same symbol and direction
+	for _, pos := range positions {
+		if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
+			return fmt.Errorf("❌ %s already has short position, close it first", decision.Symbol)
 		}
 	}
 
 	// Get current price
 	marketData, err := market.Get(decision.Symbol)
 	if err != nil {
+		return err
+	}
+
+	// Get balance (needed for multiple checks)
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		return fmt.Errorf("failed to get account balance: %w", err)
+	}
+	availableBalance := 0.0
+	if avail, ok := balance["availableBalance"].(float64); ok {
+		availableBalance = avail
+	}
+
+	// Get equity for position value ratio check
+	equity := 0.0
+	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
+		equity = eq
+	} else if eq, ok := balance["totalWalletBalance"].(float64); ok && eq > 0 {
+		equity = eq
+	} else {
+		equity = availableBalance // Fallback to available balance
+	}
+
+	// [CODE ENFORCED] Position Value Ratio Check: position_value <= equity × ratio
+	adjustedPositionSize, wasCapped := at.enforcePositionValueRatio(decision.PositionSizeUSD, equity, decision.Symbol)
+	if wasCapped {
+		decision.PositionSizeUSD = adjustedPositionSize
+	}
+
+	// [CODE ENFORCED] Minimum position size check
+	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
 		return err
 	}
 
@@ -861,15 +926,6 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 
 	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
 	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
-
-	balance, err := at.trader.GetBalance()
-	if err != nil {
-		return fmt.Errorf("failed to get account balance: %w", err)
-	}
-	availableBalance := 0.0
-	if avail, ok := balance["availableBalance"].(float64); ok {
-		availableBalance = avail
-	}
 
 	// Fee estimation (Taker fee rate 0.04%)
 	estimatedFee := decision.PositionSizeUSD * 0.0004
@@ -1604,5 +1660,88 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL, fee)
 		}
 	}
+}
+
+// ============================================================================
+// Risk Control Helpers
+// ============================================================================
+
+// isBTCETH checks if a symbol is BTC or ETH
+func isBTCETH(symbol string) bool {
+	symbol = strings.ToUpper(symbol)
+	return strings.HasPrefix(symbol, "BTC") || strings.HasPrefix(symbol, "ETH")
+}
+
+// enforcePositionValueRatio checks and enforces position value ratio limits (CODE ENFORCED)
+// Returns the adjusted position size (capped if necessary) and whether the position was capped
+// positionSizeUSD: the original position size in USD
+// equity: the account equity
+// symbol: the trading symbol
+func (at *AutoTrader) enforcePositionValueRatio(positionSizeUSD float64, equity float64, symbol string) (float64, bool) {
+	if at.config.StrategyConfig == nil {
+		return positionSizeUSD, false
+	}
+
+	riskControl := at.config.StrategyConfig.RiskControl
+
+	// Get the appropriate position value ratio limit
+	var maxPositionValueRatio float64
+	if isBTCETH(symbol) {
+		maxPositionValueRatio = riskControl.BTCETHMaxPositionValueRatio
+		if maxPositionValueRatio <= 0 {
+			maxPositionValueRatio = 5.0 // Default: 5x for BTC/ETH
+		}
+	} else {
+		maxPositionValueRatio = riskControl.AltcoinMaxPositionValueRatio
+		if maxPositionValueRatio <= 0 {
+			maxPositionValueRatio = 1.0 // Default: 1x for altcoins
+		}
+	}
+
+	// Calculate max allowed position value = equity × ratio
+	maxPositionValue := equity * maxPositionValueRatio
+
+	// Check if position size exceeds limit
+	if positionSizeUSD > maxPositionValue {
+		logger.Infof("  ⚠️ [RISK CONTROL] Position %.2f USDT exceeds limit (equity %.2f × %.1fx = %.2f USDT max for %s), capping",
+			positionSizeUSD, equity, maxPositionValueRatio, maxPositionValue, symbol)
+		return maxPositionValue, true
+	}
+
+	return positionSizeUSD, false
+}
+
+// enforceMinPositionSize checks minimum position size (CODE ENFORCED)
+func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
+	if at.config.StrategyConfig == nil {
+		return nil
+	}
+
+	minSize := at.config.StrategyConfig.RiskControl.MinPositionSize
+	if minSize <= 0 {
+		minSize = 12 // Default: 12 USDT
+	}
+
+	if positionSizeUSD < minSize {
+		return fmt.Errorf("❌ [RISK CONTROL] Position %.2f USDT below minimum (%.2f USDT)", positionSizeUSD, minSize)
+	}
+	return nil
+}
+
+// enforceMaxPositions checks maximum positions count (CODE ENFORCED)
+func (at *AutoTrader) enforceMaxPositions(currentPositionCount int) error {
+	if at.config.StrategyConfig == nil {
+		return nil
+	}
+
+	maxPositions := at.config.StrategyConfig.RiskControl.MaxPositions
+	if maxPositions <= 0 {
+		maxPositions = 3 // Default: 3 positions
+	}
+
+	if currentPositionCount >= maxPositions {
+		return fmt.Errorf("❌ [RISK CONTROL] Already at max positions (%d/%d)", currentPositionCount, maxPositions)
+	}
+	return nil
 }
 

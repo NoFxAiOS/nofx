@@ -75,6 +75,7 @@ export function TradersGrid({
                   trader.ai_model.split('_').pop() || trader.ai_model
                 )}{' '}
                 Model • {trader.exchange_id?.toUpperCase()}
+                <span style={{ color: '#F0B90B' }}> • {trader.strategy_name || 'No Strategy'}</span>
               </div>
             </div>
           </div>

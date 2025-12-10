@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"nofx/market"
+	"nofx/store"
 )
 
 // AIConfig defines the AI client configuration used in backtesting.
@@ -174,5 +175,63 @@ func validateFillPolicy(policy string) error {
 		return nil
 	default:
 		return fmt.Errorf("unsupported fill_policy '%s'", policy)
+	}
+}
+
+// ToStrategyConfig converts BacktestConfig to StrategyConfig for unified prompt generation.
+// This ensures backtest uses the same StrategyEngine logic as live trading.
+func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
+	// Determine primary and longer timeframe from the timeframes list
+	primaryTF := "5m"
+	longerTF := "4h"
+	if len(cfg.Timeframes) > 0 {
+		primaryTF = cfg.Timeframes[0]
+	}
+	if len(cfg.Timeframes) > 1 {
+		longerTF = cfg.Timeframes[len(cfg.Timeframes)-1]
+	}
+
+	return &store.StrategyConfig{
+		CoinSource: store.CoinSourceConfig{
+			SourceType:    "static",
+			StaticCoins:   cfg.Symbols,
+			UseCoinPool:   false,
+			CoinPoolLimit: len(cfg.Symbols),
+			UseOITop:      false,
+			OITopLimit:    0,
+		},
+		Indicators: store.IndicatorConfig{
+			Klines: store.KlineConfig{
+				PrimaryTimeframe:     primaryTF,
+				PrimaryCount:         30,
+				LongerTimeframe:      longerTF,
+				LongerCount:          10,
+				EnableMultiTimeframe: len(cfg.Timeframes) > 1,
+				SelectedTimeframes:   cfg.Timeframes,
+			},
+			EnableRawKlines:   true,
+			EnableEMA:         true,
+			EnableMACD:        true,
+			EnableRSI:         true,
+			EnableATR:         true,
+			EnableVolume:      true,
+			EnableOI:          true,
+			EnableFundingRate: true,
+			EMAPeriods:        []int{20, 50},
+			RSIPeriods:        []int{7, 14},
+			ATRPeriods:        []int{14},
+		},
+		CustomPrompt: cfg.CustomPrompt,
+		RiskControl: store.RiskControlConfig{
+			MaxPositions:                 3,
+			BTCETHMaxLeverage:            cfg.Leverage.BTCETHLeverage,
+			AltcoinMaxLeverage:           cfg.Leverage.AltcoinLeverage,
+			BTCETHMaxPositionValueRatio:  5.0,
+			AltcoinMaxPositionValueRatio: 1.0,
+			MaxMarginUsage:               0.9,
+			MinPositionSize:              12,
+			MinRiskRewardRatio:           3.0,
+			MinConfidence:                75,
+		},
 	}
 }

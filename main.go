@@ -11,10 +11,12 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
+	"nofx/trader"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -94,6 +96,13 @@ func main() {
 	auth.SetJWTSecret(cfg.JWTSecret)
 	logger.Info("🔑 JWT secret configured")
 
+	// Start WebSocket market monitor FIRST (before loading traders that may need market data)
+	// This ensures WSMonitorCli is initialized before any trader tries to access it
+	go market.NewWSMonitor(150).Start(nil)
+	logger.Info("📊 WebSocket market monitor started")
+	// Give WebSocket monitor time to initialize
+	time.Sleep(500 * time.Millisecond)
+
 	// Create TraderManager and BacktestManager
 	traderManager := manager.NewTraderManager()
 	mcpClient := newSharedMCPClient()
@@ -102,7 +111,12 @@ func main() {
 		logger.Warnf("⚠️ Failed to restore backtest history: %v", err)
 	}
 
-	// Load all traders from database to memory
+	// Start position sync manager (detects manual closures, TP/SL triggers)
+	positionSyncManager := trader.NewPositionSyncManager(st, 0) // 0 = use default 10s interval
+	positionSyncManager.Start()
+	defer positionSyncManager.Stop()
+
+	// Load all traders from database to memory (may auto-start traders with IsRunning=true)
 	if err := traderManager.LoadTradersFromStore(st); err != nil {
 		logger.Fatalf("❌ Failed to load traders: %v", err)
 	}
@@ -126,10 +140,6 @@ func main() {
 				t.Name, t.ID[:8], status, t.AIModelID, t.ExchangeID)
 		}
 	}
-
-	// Start WebSocket market monitor (get market data for all USDT perpetual contracts)
-	go market.NewWSMonitor(150).Start(nil)
-	logger.Info("📊 WebSocket market monitor started")
 
 	// Start API server
 	server := api.NewServer(traderManager, st, cryptoService, backtestManager, cfg.APIServerPort)

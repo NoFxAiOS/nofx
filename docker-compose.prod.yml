@@ -24,7 +24,7 @@ services:
       - .env
     environment:
       - TZ=${TZ:-Asia/Shanghai}
-      - AI_MAX_TOKENS=4000
+      - AI_MAX_TOKENS=8000
     networks:
       - nofx-network
     healthcheck:

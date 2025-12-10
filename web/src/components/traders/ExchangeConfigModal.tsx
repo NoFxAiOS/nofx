@@ -692,12 +692,42 @@ export function ExchangeConfigModal({
                 {/* Aster 交易所的字段 */}
                 {selectedExchange.id === 'aster' && (
                   <>
+                    {/* API Pro 代理钱包说明 banner */}
+                    <div
+                      className="p-3 rounded mb-4"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.1)',
+                        border: '1px solid rgba(240, 185, 11, 0.3)',
+                      }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span style={{ color: '#F0B90B', fontSize: '16px' }}>
+                          🔐
+                        </span>
+                        <div className="flex-1">
+                          <div
+                            className="text-sm font-semibold mb-1"
+                            style={{ color: '#F0B90B' }}
+                          >
+                            {t('asterApiProTitle', language)}
+                          </div>
+                          <div
+                            className="text-xs"
+                            style={{ color: '#848E9C', lineHeight: '1.5' }}
+                          >
+                            {t('asterApiProDesc', language)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 主钱包地址 */}
                     <div>
                       <label
                         className="block text-sm font-semibold mb-2 flex items-center gap-2"
                         style={{ color: '#EAECEF' }}
                       >
-                        {t('user', language)}
+                        {t('asterUserLabel', language)}
                         <Tooltip content={t('asterUserDesc', language)}>
                           <HelpCircle
                             className="w-4 h-4 cursor-help"
@@ -709,7 +739,7 @@ export function ExchangeConfigModal({
                         type="text"
                         value={asterUser}
                         onChange={(e) => setAsterUser(e.target.value)}
-                        placeholder={t('enterUser', language)}
+                        placeholder={t('enterAsterUser', language)}
                         className="w-full px-3 py-2 rounded"
                         style={{
                           background: '#0B0E11',
@@ -718,14 +748,21 @@ export function ExchangeConfigModal({
                         }}
                         required
                       />
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('asterUserDesc', language)}
+                      </div>
                     </div>
 
+                    {/* API Pro 代理钱包地址 */}
                     <div>
                       <label
                         className="block text-sm font-semibold mb-2 flex items-center gap-2"
                         style={{ color: '#EAECEF' }}
                       >
-                        {t('signer', language)}
+                        {t('asterSignerLabel', language)}
                         <Tooltip content={t('asterSignerDesc', language)}>
                           <HelpCircle
                             className="w-4 h-4 cursor-help"
@@ -737,7 +774,7 @@ export function ExchangeConfigModal({
                         type="text"
                         value={asterSigner}
                         onChange={(e) => setAsterSigner(e.target.value)}
-                        placeholder={t('enterSigner', language)}
+                        placeholder={t('enterAsterSigner', language)}
                         className="w-full px-3 py-2 rounded"
                         style={{
                           background: '#0B0E11',
@@ -746,14 +783,21 @@ export function ExchangeConfigModal({
                         }}
                         required
                       />
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('asterSignerDesc', language)}
+                      </div>
                     </div>
 
+                    {/* API Pro 代理钱包私钥 */}
                     <div>
                       <label
                         className="block text-sm font-semibold mb-2 flex items-center gap-2"
                         style={{ color: '#EAECEF' }}
                       >
-                        {t('privateKey', language)}
+                        {t('asterPrivateKeyLabel', language)}
                         <Tooltip content={t('asterPrivateKeyDesc', language)}>
                           <HelpCircle
                             className="w-4 h-4 cursor-help"
@@ -765,7 +809,7 @@ export function ExchangeConfigModal({
                         type="password"
                         value={asterPrivateKey}
                         onChange={(e) => setAsterPrivateKey(e.target.value)}
-                        placeholder={t('enterPrivateKey', language)}
+                        placeholder={t('enterAsterPrivateKey', language)}
                         className="w-full px-3 py-2 rounded"
                         style={{
                           background: '#0B0E11',
@@ -774,6 +818,12 @@ export function ExchangeConfigModal({
                         }}
                         required
                       />
+                      <div
+                        className="text-xs mt-1"
+                        style={{ color: '#848E9C' }}
+                      >
+                        {t('asterPrivateKeyDesc', language)}
+                      </div>
                     </div>
                   </>
                 )}

@@ -31,9 +31,10 @@ const (
 
 // Runner encapsulates the lifecycle of a single backtest run.
 type Runner struct {
-	cfg     BacktestConfig
-	feed    *DataFeed
-	account *BacktestAccount
+	cfg            BacktestConfig
+	feed           *DataFeed
+	account        *BacktestAccount
+	strategyEngine *decision.StrategyEngine
 
 	decisionLogDir string
 	mcpClient      mcp.AIClient
@@ -115,10 +116,15 @@ func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 		aiCache = cache
 	}
 
+	// Create strategy engine from backtest config for unified prompt generation
+	strategyConfig := cfg.ToStrategyConfig()
+	strategyEngine := decision.NewStrategyEngine(strategyConfig)
+
 	r := &Runner{
 		cfg:            cfg,
 		feed:           feed,
 		account:        account,
+		strategyEngine: strategyEngine,
 		decisionLogDir: dLogDir,
 		mcpClient:      client,
 		status:         RunStateCreated,
@@ -492,7 +498,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 
 	runtime := int((ts - int64(r.cfg.StartTS*1000)) / 60000)
 	ctx := &decision.Context{
-		CurrentTime:     time.UnixMilli(ts).UTC().Format(time.RFC3339),
+		CurrentTime:     time.UnixMilli(ts).UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes:  runtime,
 		CallCount:       callCount,
 		Account:         accountInfo,
@@ -503,6 +509,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 		MultiTFMarket:   multiTF,
 		BTCETHLeverage:  r.cfg.Leverage.BTCETHLeverage,
 		AltcoinLeverage: r.cfg.Leverage.AltcoinLeverage,
+		Timeframes:      r.cfg.Timeframes,
 	}
 
 	record := &store.DecisionRecord{
@@ -537,12 +544,13 @@ func (r *Runner) fillDecisionRecord(record *store.DecisionRecord, full *decision
 func (r *Runner) invokeAIWithRetry(ctx *decision.Context) (*decision.FullDecision, error) {
 	var lastErr error
 	for attempt := 0; attempt < aiDecisionMaxRetries; attempt++ {
-		fd, err := decision.GetFullDecisionWithCustomPrompt(
+		// Use GetFullDecisionWithStrategy with the pre-configured strategy engine
+		// This ensures backtest uses the same unified prompt generation as live trading
+		fd, err := decision.GetFullDecisionWithStrategy(
 			ctx,
 			r.mcpClient,
-			r.cfg.CustomPrompt,
-			r.cfg.OverrideBasePrompt,
-			r.cfg.PromptTemplate,
+			r.strategyEngine,
+			r.cfg.PromptVariant,
 		)
 		if err == nil {
 			return fd, nil

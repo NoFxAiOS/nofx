@@ -580,9 +580,15 @@ func (t *AsterTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 		logger.Infof("  ⚠ Failed to cancel pending orders (continuing to open position): %v", err)
 	}
 
-	// Set leverage first
+	// Set leverage first (non-fatal if position already exists)
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		return nil, fmt.Errorf("failed to set leverage: %w", err)
+		// Error -2030: Cannot adjust leverage when position exists
+		// This is expected when adding to an existing position, continue with current leverage
+		if strings.Contains(err.Error(), "-2030") {
+			logger.Infof("  ⚠ Cannot change leverage (position exists), using current leverage: %v", err)
+		} else {
+			return nil, fmt.Errorf("failed to set leverage: %w", err)
+		}
 	}
 
 	// Get current price
@@ -647,9 +653,15 @@ func (t *AsterTrader) OpenShort(symbol string, quantity float64, leverage int) (
 		logger.Infof("  ⚠ Failed to cancel pending orders (continuing to open position): %v", err)
 	}
 
-	// Set leverage first
+	// Set leverage first (non-fatal if position already exists)
 	if err := t.SetLeverage(symbol, leverage); err != nil {
-		return nil, fmt.Errorf("failed to set leverage: %w", err)
+		// Error -2030: Cannot adjust leverage when position exists
+		// This is expected when adding to an existing position, continue with current leverage
+		if strings.Contains(err.Error(), "-2030") {
+			logger.Infof("  ⚠ Cannot change leverage (position exists), using current leverage: %v", err)
+		} else {
+			return nil, fmt.Errorf("failed to set leverage: %w", err)
+		}
 	}
 
 	// Get current price
@@ -1278,4 +1290,13 @@ func (t *AsterTrader) GetOrderStatus(symbol string, orderID string) (map[string]
 	}
 
 	return response, nil
+}
+
+// GetClosedPnL gets closed position PnL records from exchange
+// Aster does not have a direct closed PnL API, returns empty slice
+func (t *AsterTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
+	// Aster does not provide a closed PnL history API
+	// Position closure data needs to be tracked locally via position sync
+	logger.Infof("⚠️  Aster GetClosedPnL not supported, returning empty")
+	return []ClosedPnLRecord{}, nil
 }

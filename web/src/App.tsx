@@ -807,7 +807,7 @@ function TraderDetailsPage({
           )}
         </div>
         <div
-          className="flex items-center gap-4 text-sm"
+          className="flex items-center gap-4 text-sm flex-wrap"
           style={{ color: '#848E9C' }}
         >
           <span>
@@ -824,6 +824,20 @@ function TraderDetailsPage({
                 selectedTrader.ai_model.split('_').pop() ||
                 selectedTrader.ai_model
               )}
+            </span>
+          </span>
+          <span>•</span>
+          <span>
+            Exchange:{' '}
+            <span className="font-semibold" style={{ color: '#EAECEF' }}>
+              {selectedTrader.exchange_id?.toUpperCase() || 'N/A'}
+            </span>
+          </span>
+          <span>•</span>
+          <span>
+            Strategy:{' '}
+            <span className="font-semibold" style={{ color: '#F0B90B' }}>
+              {selectedTrader.strategy_name || 'No Strategy'}
             </span>
           </span>
           {status && (

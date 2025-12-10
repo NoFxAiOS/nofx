@@ -361,13 +361,9 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 		req.PromptVariant,
 	)
 
-	// Get list of available prompt templates
-	templateNames := decision.GetAllPromptTemplateNames()
-
 	c.JSON(http.StatusOK, gin.H{
-		"system_prompt":       systemPrompt,
-		"prompt_variant":      req.PromptVariant,
-		"available_templates": templateNames,
+		"system_prompt":  systemPrompt,
+		"prompt_variant": req.PromptVariant,
 		"config_summary": gin.H{
 			"coin_source":      req.Config.CoinSource.SourceType,
 			"primary_tf":       req.Config.Indicators.Klines.PrimaryTimeframe,
@@ -455,7 +451,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 
 	// Build real context (for generating User Prompt)
 	testContext := &decision.Context{
-		CurrentTime:    time.Now().Format("2006-01-02 15:04:05"),
+		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes: 0,
 		CallCount:      1,
 		Account: decision.AccountInfo{

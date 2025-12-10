@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"nofx/backtest"
-	"nofx/decision"
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
@@ -63,14 +62,6 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 	cfg := req.Config
 	if cfg.RunID == "" {
 		cfg.RunID = "bt_" + time.Now().UTC().Format("20060102_150405")
-	}
-	cfg.PromptTemplate = strings.TrimSpace(cfg.PromptTemplate)
-	if cfg.PromptTemplate == "" {
-		cfg.PromptTemplate = "default"
-	}
-	if _, err := decision.GetPromptTemplate(cfg.PromptTemplate); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Prompt template does not exist: %s", cfg.PromptTemplate)})
-		return
 	}
 	cfg.CustomPrompt = strings.TrimSpace(cfg.CustomPrompt)
 	cfg.UserID = normalizeUserID(c.GetString("user_id"))

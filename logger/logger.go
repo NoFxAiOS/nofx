@@ -26,6 +26,7 @@ type compactFormatter struct {
 
 func (f *compactFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	level := strings.ToUpper(entry.Level.String())[0:4]
+	timestamp := entry.Time.Format("01-02 15:04:05")
 
 	// Skip frames to find actual caller (skip logrus + our wrapper functions)
 	caller := ""
@@ -44,7 +45,7 @@ func (f *compactFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	msg := fmt.Sprintf("[%s] %s %s\n", level, caller, entry.Message)
+	msg := fmt.Sprintf("%s [%s] %s %s\n", timestamp, level, caller, entry.Message)
 	return []byte(msg), nil
 }
 

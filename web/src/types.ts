@@ -91,6 +91,8 @@ export interface TraderInfo {
   ai_model: string
   exchange_id?: string
   is_running?: boolean
+  strategy_id?: string
+  strategy_name?: string
   custom_prompt?: string
   use_coin_pool?: boolean
   use_oi_top?: boolean
@@ -437,12 +439,21 @@ export interface ExternalDataSource {
 }
 
 export interface RiskControlConfig {
+  // Max number of coins held simultaneously (CODE ENFORCED)
   max_positions: number;
-  btc_eth_max_leverage: number;
-  altcoin_max_leverage: number;
-  min_risk_reward_ratio: number;
-  max_margin_usage: number;
-  max_position_ratio: number;
-  min_position_size: number;
-  min_confidence: number;
+
+  // Trading Leverage - exchange leverage for opening positions (AI guided)
+  btc_eth_max_leverage: number;    // BTC/ETH max exchange leverage
+  altcoin_max_leverage: number;    // Altcoin max exchange leverage
+
+  // Position Value Ratio - single position notional value / account equity (CODE ENFORCED)
+  // Max position value = equity × this ratio
+  btc_eth_max_position_value_ratio?: number;     // default: 5 (BTC/ETH max position = 5x equity)
+  altcoin_max_position_value_ratio?: number;     // default: 1 (Altcoin max position = 1x equity)
+
+  // Risk Parameters
+  max_margin_usage: number;        // Max margin utilization, e.g. 0.9 = 90% (CODE ENFORCED)
+  min_position_size: number;       // Min position size in USDT (CODE ENFORCED)
+  min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
+  min_confidence: number;          // Min AI confidence to open position (AI guided)
 }

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sonirico/go-hyperliquid"
@@ -948,4 +949,13 @@ func absFloat(x float64) float64 {
 		return -x
 	}
 	return x
+}
+
+// GetClosedPnL gets closed position PnL records from exchange
+// Hyperliquid does not have a direct closed PnL API, returns empty slice
+func (t *HyperliquidTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
+	// Hyperliquid does not provide a closed PnL history API
+	// Position closure data needs to be tracked locally via position sync
+	logger.Infof("⚠️  Hyperliquid GetClosedPnL not supported, returning empty")
+	return []ClosedPnLRecord{}, nil
 }

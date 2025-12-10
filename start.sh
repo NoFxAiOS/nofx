@@ -175,18 +175,6 @@ check_encryption() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Configuration File (config.json) - BASIC SETTINGS ONLY
-# ------------------------------------------------------------------------
-check_config() {
-    if [ ! -f "config.json" ]; then
-        print_warning "config.json 不存在，从模板复制..."
-        cp config.json.example config.json
-        print_info "已使用默认配置创建 config.json"
-    fi
-    print_success "配置文件存在"
-}
-
-# ------------------------------------------------------------------------
 # Utility: Read Environment Variables
 # ------------------------------------------------------------------------
 read_env_vars() {
@@ -206,20 +194,16 @@ read_env_vars() {
 }
 
 # ------------------------------------------------------------------------
-# Validation: Database File (data.db)
+# Validation: Database Directory (data/)
 # ------------------------------------------------------------------------
 check_database() {
-    if [ -d "data.db" ]; then
-        print_warning "data.db 是目录而非文件，正在删除目录..."
-        rm -rf data.db
-        install -m 600 /dev/null data.db
-        print_success "已创建空数据库文件"
-    elif [ ! -f "data.db" ]; then
-        print_warning "数据库文件不存在，创建空数据库文件..."
-        install -m 600 /dev/null data.db
-        print_info "已创建空数据库文件，系统将在启动时初始化"
+    # Ensure data directory exists
+    if [ ! -d "data" ]; then
+        print_warning "数据目录不存在，创建 data/ 目录..."
+        install -m 700 -d data
+        print_success "已创建 data/ 目录"
     else
-        print_success "数据库文件存在"
+        print_success "数据目录存在"
     fi
 }
 
@@ -231,13 +215,9 @@ start() {
 
     read_env_vars
 
-    if [ ! -f "data.db" ]; then
-        print_info "创建数据库文件..."
-        install -m 600 /dev/null data.db
-    fi
-    if [ ! -d "decision_logs" ]; then
-        print_info "创建日志目录..."
-        install -m 700 -d decision_logs
+    if [ ! -d "data" ]; then
+        print_info "创建数据目录..."
+        install -m 700 -d data
     fi
 
     if [ "$1" == "--build" ]; then
@@ -400,7 +380,6 @@ main() {
         start)
             check_env
             check_encryption
-            check_config
             check_database
             start "$2"
             ;;

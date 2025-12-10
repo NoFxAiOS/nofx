@@ -10,7 +10,6 @@ import (
 	"nofx/backtest"
 	"nofx/config"
 	"nofx/crypto"
-	"nofx/decision"
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/store"
@@ -99,10 +98,6 @@ func (s *Server) setupRoutes() {
 		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
 		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
 
-		// System prompt template management (no authentication required)
-		api.GET("/prompt-templates", s.handleGetPromptTemplates)
-		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
-
 		// Public competition data (no authentication required)
 		api.GET("/traders", s.handlePublicTraderList)
 		api.GET("/competition", s.handlePublicCompetition)
@@ -150,7 +145,6 @@ func (s *Server) setupRoutes() {
 			protected.GET("/strategies", s.handleGetStrategies)
 			protected.GET("/strategies/active", s.handleGetActiveStrategy)
 			protected.GET("/strategies/default-config", s.handleGetDefaultStrategyConfig)
-			protected.GET("/strategies/templates", s.handleGetPromptTemplates)
 			protected.POST("/strategies/preview-prompt", s.handlePreviewPrompt)
 			protected.POST("/strategies/test-run", s.handleStrategyTestRun)
 			protected.GET("/strategies/:id", s.handleGetStrategy)
@@ -553,25 +547,19 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			if balanceErr != nil {
 				logger.Infof("⚠️ Failed to query exchange balance, using user input for initial balance: %v", balanceErr)
 			} else {
-				// Extract available balance - supports multiple field name formats
-				if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
-					// Binance format: availableBalance (camelCase)
-					actualBalance = availableBalance
-					logger.Infof("✓ Queried exchange actual balance: %.2f USDT (user input: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-					// Other format: available_balance (snake_case)
-					actualBalance = availableBalance
-					logger.Infof("✓ Queried exchange actual balance: %.2f USDT (user input: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else if totalBalance, ok := balanceInfo["totalWalletBalance"].(float64); ok && totalBalance > 0 {
-					// Binance format: totalWalletBalance (camelCase)
-					actualBalance = totalBalance
-					logger.Infof("✓ Queried exchange total balance: %.2f USDT (user input: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-					// Other format: balance
-					actualBalance = totalBalance
-					logger.Infof("✓ Queried exchange actual balance: %.2f USDT (user input: %.2f USDT)", actualBalance, req.InitialBalance)
-				} else {
-					logger.Infof("⚠️ Unable to extract available balance from balance info, balanceInfo=%v, using user input for initial balance", balanceInfo)
+				// Extract total equity (account total value = wallet balance + unrealized PnL)
+				// Priority: total_equity > totalWalletBalance > wallet_balance > totalEq > balance
+				// Note: Must use total_equity (not availableBalance) for accurate P&L calculation
+				balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
+				for _, key := range balanceKeys {
+					if balance, ok := balanceInfo[key].(float64); ok && balance > 0 {
+						actualBalance = balance
+						logger.Infof("✓ Queried exchange total equity (%s): %.2f USDT (user input: %.2f USDT)", key, actualBalance, req.InitialBalance)
+						break
+					}
+				}
+				if actualBalance <= 0 {
+					logger.Infof("⚠️ Unable to extract total equity from balance info, balanceInfo=%v, using user input for initial balance", balanceInfo)
 				}
 			}
 		}
@@ -1002,16 +990,18 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		return
 	}
 
-	// Extract available balance
+	// Extract total equity (for P&L calculation, we need total account value, not available balance)
 	var actualBalance float64
-	if availableBalance, ok := balanceInfo["available_balance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if availableBalance, ok := balanceInfo["availableBalance"].(float64); ok && availableBalance > 0 {
-		actualBalance = availableBalance
-	} else if totalBalance, ok := balanceInfo["balance"].(float64); ok && totalBalance > 0 {
-		actualBalance = totalBalance
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to get available balance"})
+	// Priority: total_equity > totalWalletBalance > wallet_balance > totalEq > balance
+	balanceKeys := []string{"total_equity", "totalWalletBalance", "wallet_balance", "totalEq", "balance"}
+	for _, key := range balanceKeys {
+		if balance, ok := balanceInfo[key].(float64); ok && balance > 0 {
+			actualBalance = balance
+			break
+		}
+	}
+	if actualBalance <= 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to get total equity"})
 		return
 	}
 
@@ -1438,6 +1428,14 @@ func (s *Server) handleTraderList(c *gin.Context) {
 			}
 		}
 
+		// Get strategy name if strategy_id is set
+		var strategyName string
+		if trader.StrategyID != "" {
+			if strategy, err := s.store.Strategy().Get(userID, trader.StrategyID); err == nil {
+				strategyName = strategy.Name
+			}
+		}
+
 		// Return complete AIModelID (e.g. "admin_deepseek"), don't truncate
 		// Frontend needs complete ID to verify model exists (consistent with handleGetTraderConfig)
 		result = append(result, map[string]interface{}{
@@ -1447,6 +1445,8 @@ func (s *Server) handleTraderList(c *gin.Context) {
 			"exchange_id":     trader.ExchangeID,
 			"is_running":      isRunning,
 			"initial_balance": trader.InitialBalance,
+			"strategy_id":     trader.StrategyID,
+			"strategy_name":   strategyName,
 		})
 	}
 
@@ -2140,40 +2140,6 @@ func (s *Server) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return s.httpServer.Shutdown(ctx)
-}
-
-// handleGetPromptTemplates Get all system prompt template list
-func (s *Server) handleGetPromptTemplates(c *gin.Context) {
-	// Import decision package
-	templates := decision.GetAllPromptTemplates()
-
-	// Convert to response format
-	response := make([]map[string]interface{}, 0, len(templates))
-	for _, tmpl := range templates {
-		response = append(response, map[string]interface{}{
-			"name": tmpl.Name,
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"templates": response,
-	})
-}
-
-// handleGetPromptTemplate Get prompt template content by specified name
-func (s *Server) handleGetPromptTemplate(c *gin.Context) {
-	templateName := c.Param("name")
-
-	template, err := decision.GetPromptTemplate(templateName)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Template does not exist: %s", templateName)})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"name":    template.Name,
-		"content": template.Content,
-	})
 }
 
 // handlePublicTraderList Get public trader list (no authentication required)

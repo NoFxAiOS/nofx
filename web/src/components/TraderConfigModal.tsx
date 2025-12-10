@@ -368,7 +368,7 @@ export function TraderConfigModal({
                         selectedStrategy.config.coin_source.source_type === 'oi_top' ? 'OI Top' : '混合'}
                     </div>
                     <div>
-                      风控等级: {((selectedStrategy.config.risk_control?.max_position_ratio || 0.3) * 100).toFixed(0)}% 仓位
+                      保证金上限: {((selectedStrategy.config.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%
                     </div>
                   </div>
                 </div>

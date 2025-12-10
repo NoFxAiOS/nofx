@@ -128,22 +128,46 @@ type ExternalDataSource struct {
 }
 
 // RiskControlConfig risk control configuration
+// All parameters are clearly defined without ambiguity:
+//
+// Position Limits:
+//   - MaxPositions: max number of coins held simultaneously (CODE ENFORCED)
+//
+// Trading Leverage (exchange leverage for opening positions):
+//   - BTCETHMaxLeverage: BTC/ETH max exchange leverage (AI guided)
+//   - AltcoinMaxLeverage: Altcoin max exchange leverage (AI guided)
+//
+// Position Value Limits (single position notional value / account equity):
+//   - BTCETHMaxPositionValueRatio: BTC/ETH max = equity × ratio (CODE ENFORCED)
+//   - AltcoinMaxPositionValueRatio: Altcoin max = equity × ratio (CODE ENFORCED)
+//
+// Risk Controls:
+//   - MaxMarginUsage: max margin utilization percentage (CODE ENFORCED)
+//   - MinPositionSize: minimum position size in USDT (CODE ENFORCED)
+//   - MinRiskRewardRatio: min take_profit / stop_loss ratio (AI guided)
+//   - MinConfidence: min AI confidence to open position (AI guided)
 type RiskControlConfig struct {
-	// maximum number of positions
+	// Max number of coins held simultaneously (CODE ENFORCED)
 	MaxPositions int `json:"max_positions"`
-	// BTC/ETH maximum leverage
+
+	// BTC/ETH exchange leverage for opening positions (AI guided)
 	BTCETHMaxLeverage int `json:"btc_eth_max_leverage"`
-	// altcoin maximum leverage
+	// Altcoin exchange leverage for opening positions (AI guided)
 	AltcoinMaxLeverage int `json:"altcoin_max_leverage"`
-	// minimum risk-reward ratio
-	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
-	// maximum margin usage
+
+	// BTC/ETH single position max value = equity × this ratio (CODE ENFORCED, default: 5)
+	BTCETHMaxPositionValueRatio float64 `json:"btc_eth_max_position_value_ratio"`
+	// Altcoin single position max value = equity × this ratio (CODE ENFORCED, default: 1)
+	AltcoinMaxPositionValueRatio float64 `json:"altcoin_max_position_value_ratio"`
+
+	// Max margin utilization (e.g. 0.9 = 90%) (CODE ENFORCED)
 	MaxMarginUsage float64 `json:"max_margin_usage"`
-	// maximum position ratio per coin (relative to account equity)
-	MaxPositionRatio float64 `json:"max_position_ratio"`
-	// minimum position size (USDT)
+	// Min position size in USDT (CODE ENFORCED)
 	MinPositionSize float64 `json:"min_position_size"`
-	// minimum confidence level
+
+	// Min take_profit / stop_loss ratio (AI guided)
+	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
+	// Min AI confidence to open position (AI guided)
 	MinConfidence int `json:"min_confidence"`
 }
 
@@ -192,7 +216,7 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 		CoinSource: CoinSourceConfig{
 			SourceType:     "coinpool",
 			UseCoinPool:    true,
-			CoinPoolLimit:  30,
+			CoinPoolLimit:  10,
 			CoinPoolAPIURL: "http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c",
 			UseOITop:       false,
 			OITopLimit:     20,
@@ -224,14 +248,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnableQuantNetflow: true,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:       3,
-			BTCETHMaxLeverage:  5,
-			AltcoinMaxLeverage: 5,
-			MinRiskRewardRatio: 3.0,
-			MaxMarginUsage:     0.9,
-			MaxPositionRatio:   1.5,
-			MinPositionSize:    12,
-			MinConfidence:      75,
+			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
+			BTCETHMaxLeverage:               5,   // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:              5,   // Altcoin exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:     5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
+			AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
+			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
+			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                   75,  // Min 75% confidence (AI guided)
 		},
 	}
 

@@ -211,10 +211,10 @@ export function CoinSourceEditor({
                   </span>
                   <input
                     type="number"
-                    value={config.coin_pool_limit || 30}
+                    value={config.coin_pool_limit || 10}
                     onChange={(e) =>
                       !disabled &&
-                      onChange({ ...config, coin_pool_limit: parseInt(e.target.value) || 30 })
+                      onChange({ ...config, coin_pool_limit: parseInt(e.target.value) || 10 })
                     }
                     disabled={disabled}
                     min={1}

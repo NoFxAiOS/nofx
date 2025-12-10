@@ -352,14 +352,24 @@ export const translations = {
     enterHyperliquidMainWalletAddress: 'Enter Main wallet address',
     hyperliquidMainWalletAddressDesc:
       'Main wallet address that holds your trading funds (never expose its private key)',
+    // Aster API Pro Configuration
+    asterApiProTitle: 'Aster API Pro Wallet Configuration',
+    asterApiProDesc:
+      'Use API Pro wallet for secure trading: API wallet signs transactions, main wallet holds funds (never expose main wallet private key)',
     asterUserDesc:
-      'Main wallet address - The EVM wallet address you use to log in to Aster (Note: Only EVM wallets are supported, Solana wallets are not supported)',
+      'Main wallet address - The EVM wallet address you use to log in to Aster (Note: Only EVM wallets are supported)',
     asterSignerDesc:
-      'API wallet address - Generate from https://www.asterdex.com/en/api-wallet',
+      'API Pro wallet address (0x...) - Generate from https://www.asterdex.com/en/api-wallet',
     asterPrivateKeyDesc:
-      'API wallet private key - Get from https://www.asterdex.com/en/api-wallet (only used locally for signing, never transmitted)',
+      'API Pro wallet private key - Get from https://www.asterdex.com/en/api-wallet (only used locally for signing, never transmitted)',
     asterUsdtWarning:
       'Important: Aster only tracks USDT balance. Please ensure you use USDT as margin currency to avoid P&L calculation errors caused by price fluctuations of other assets (BNB, ETH, etc.)',
+    asterUserLabel: 'Main Wallet Address',
+    asterSignerLabel: 'API Pro Wallet Address',
+    asterPrivateKeyLabel: 'API Pro Wallet Private Key',
+    enterAsterUser: 'Enter main wallet address (0x...)',
+    enterAsterSigner: 'Enter API Pro wallet address (0x...)',
+    enterAsterPrivateKey: 'Enter API Pro wallet private key',
 
     // LIGHTER Configuration
     lighterWalletAddress: 'L1 Wallet Address',
@@ -1347,14 +1357,24 @@ export const translations = {
     enterHyperliquidMainWalletAddress: '输入主钱包地址',
     hyperliquidMainWalletAddressDesc:
       '持有交易资金的主钱包地址（永不暴露其私钥）',
+    // Aster API Pro 配置
+    asterApiProTitle: 'Aster API Pro 代理钱包配置',
+    asterApiProDesc:
+      '使用 API Pro 代理钱包安全交易：代理钱包用于签名交易，主钱包持有资金（永不暴露主钱包私钥）',
     asterUserDesc:
-      '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址（注意：仅支持 EVM 钱包，不支持 Solana 钱包）',
+      '主钱包地址 - 您用于登录 Aster 的 EVM 钱包地址（仅支持 EVM 钱包）',
     asterSignerDesc:
-      'API 钱包地址 - 从 https://www.asterdex.com/zh-CN/api-wallet 生成',
+      'API Pro 代理钱包地址 (0x...) - 从 https://www.asterdex.com/zh-CN/api-wallet 生成',
     asterPrivateKeyDesc:
-      'API 钱包私钥 - 从 https://www.asterdex.com/zh-CN/api-wallet 获取（仅在本地用于签名，不会被传输）',
+      'API Pro 代理钱包私钥 - 从 https://www.asterdex.com/zh-CN/api-wallet 获取（仅在本地用于签名，不会被传输）',
     asterUsdtWarning:
       '重要提示：Aster 仅统计 USDT 余额。请确保您使用 USDT 作为保证金币种，避免其他资产（BNB、ETH等）的价格波动导致盈亏统计错误',
+    asterUserLabel: '主钱包地址',
+    asterSignerLabel: 'API Pro 代理钱包地址',
+    asterPrivateKeyLabel: 'API Pro 代理钱包私钥',
+    enterAsterUser: '输入主钱包地址 (0x...)',
+    enterAsterSigner: '输入 API Pro 代理钱包地址 (0x...)',
+    enterAsterPrivateKey: '输入 API Pro 代理钱包私钥',
 
     // LIGHTER 配置
     lighterWalletAddress: 'L1 錢包地址',

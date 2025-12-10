@@ -213,3 +213,12 @@ func (t *LighterTrader) Run() error {
 	logger.Info("⚠️ LIGHTER trader's Run method should be called by AutoTrader")
 	return fmt.Errorf("please use AutoTrader to manage trader lifecycle")
 }
+
+// GetClosedPnL gets closed position PnL records from exchange
+// LIGHTER does not have a direct closed PnL API, returns empty slice
+func (t *LighterTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
+	// LIGHTER does not provide a closed PnL history API
+	// Position closure data needs to be tracked locally via position sync
+	logger.Infof("⚠️  LIGHTER GetClosedPnL not supported, returning empty")
+	return []ClosedPnLRecord{}, nil
+}

@@ -1,5 +1,24 @@
 package trader
 
+import "time"
+
+// ClosedPnLRecord represents a single closed position record from exchange
+type ClosedPnLRecord struct {
+	Symbol       string    // Trading pair (e.g., "BTCUSDT")
+	Side         string    // "long" or "short"
+	EntryPrice   float64   // Entry price
+	ExitPrice    float64   // Exit/close price
+	Quantity     float64   // Position size
+	RealizedPnL  float64   // Realized profit/loss
+	Fee          float64   // Trading fee/commission
+	Leverage     int       // Leverage used
+	EntryTime    time.Time // Position open time
+	ExitTime     time.Time // Position close time
+	OrderID      string    // Close order ID
+	CloseType    string    // "manual", "stop_loss", "take_profit", "liquidation", "unknown"
+	ExchangeID   string    // Exchange-specific position ID
+}
+
 // Trader Unified trader interface
 // Supports multiple trading platforms (Binance, Hyperliquid, etc.)
 type Trader interface {
@@ -54,4 +73,10 @@ type Trader interface {
 	// GetOrderStatus Get order status
 	// Returns: status(FILLED/NEW/CANCELED), avgPrice, executedQty, commission
 	GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error)
+
+	// GetClosedPnL Get closed position PnL records from exchange
+	// startTime: start time for query (usually last sync time)
+	// limit: max number of records to return
+	// Returns accurate exit price, fees, and close reason for positions closed externally
+	GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error)
 }

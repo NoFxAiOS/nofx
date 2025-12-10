@@ -147,6 +147,49 @@ Tất cả cấu hình được thực hiện qua giao diện web - không cần
 
 ---
 
+## Tính Năng Giao Diện Web
+
+### Trang Thi Đấu
+- Bảng xếp hạng ROI theo thời gian thực
+- Biểu đồ so sánh hiệu suất đa AI
+- Theo dõi P/L trực tiếp và xếp hạng
+
+### Dashboard
+- Biểu đồ nến kiểu TradingView
+- Quản lý vị thế theo thời gian thực
+- Nhật ký quyết định AI với lý luận Chuỗi Suy Nghĩ
+- Theo dõi đường cong vốn
+
+### Strategy Studio
+- Cấu hình nguồn coin (Danh sách tĩnh, nhóm AI500, OI Top)
+- Chỉ báo kỹ thuật (EMA, MACD, RSI, ATR, Khối lượng, OI, Tỷ lệ Funding)
+- Cài đặt kiểm soát rủi ro (đòn bẩy, giới hạn vị thế, sử dụng ký quỹ)
+- Kiểm tra AI với xem trước prompt theo thời gian thực
+
+---
+
+## Vấn Đề Thường Gặp
+
+### Không tìm thấy TA-Lib
+```bash
+# macOS
+brew install ta-lib
+
+# Ubuntu
+sudo apt-get install libta-lib0-dev
+```
+
+### AI API timeout
+- Kiểm tra API key có đúng không
+- Kiểm tra kết nối mạng
+- Thời gian chờ hệ thống là 120 giây
+
+### Frontend không kết nối được backend
+- Đảm bảo backend đang chạy trên http://localhost:8080
+- Kiểm tra cổng có bị chiếm không
+
+---
+
 ## Cảnh Báo Rủi Ro
 
 1. Thị trường crypto biến động cực kỳ mạnh - Quyết định AI không đảm bảo lợi nhuận

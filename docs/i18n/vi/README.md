@@ -213,7 +213,30 @@ Chúng tôi hoan nghênh các đóng góp! Xem:
 
 ---
 
+## Chương Trình Airdrop Cho Người Đóng Góp
+
+Tất cả đóng góp được theo dõi trên GitHub. Khi NOFX tạo ra doanh thu, người đóng góp sẽ nhận được airdrop dựa trên mức đóng góp của họ.
+
+**PR giải quyết [Issue Được Ghim](https://github.com/NoFxAiOS/nofx/issues) nhận phần thưởng CAO NHẤT!**
+
+| Loại Đóng Góp | Trọng Số |
+|------------------|:------:|
+| **PR Issue Được Ghim** | ⭐⭐⭐⭐⭐⭐ |
+| **Commit Code** (PR đã merge) | ⭐⭐⭐⭐⭐ |
+| **Sửa Lỗi** | ⭐⭐⭐⭐ |
+| **Đề Xuất Tính Năng** | ⭐⭐⭐ |
+| **Báo Lỗi** | ⭐⭐ |
+| **Tài Liệu** | ⭐⭐ |
+
+---
+
 ## Liên Hệ
 
 - **GitHub Issues**: [Gửi Issue](https://github.com/NoFxAiOS/nofx/issues)
 - **Cộng đồng Nhà phát triển**: [Nhóm Telegram](https://t.me/nofx_dev_community)
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)

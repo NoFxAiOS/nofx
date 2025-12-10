@@ -86,13 +86,165 @@ cd web && npm run dev
 
 ---
 
-## ライセンス
+## サーバー展開
 
-**GNU Affero General Public License v3.0 (AGPL-3.0)**
+### クイックデプロイ (HTTP経由のIP)
+
+デフォルトでは、トランスポート暗号化は**無効**になっており、HTTPSなしでIPアドレス経由でNOFXにアクセスできます:
+
+```bash
+# サーバーにデプロイ
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+`http://YOUR_SERVER_IP:3000` 経由でアクセス - すぐに動作します。
+
+### セキュリティ強化 (HTTPS)
+
+セキュリティを強化するには、`.env`でトランスポート暗号化を有効にします:
+
+```bash
+TRANSPORT_ENCRYPTION=true
+```
+
+有効にすると、ブラウザはWeb Crypto APIを使用して転送前にAPIキーを暗号化します。これには以下が必要です:
+- `https://` - SSLを備えた任意のドメイン
+- `http://localhost` - ローカル開発
+
+### Cloudflareを使用した簡単なHTTPSセットアップ
+
+1. **ドメインをCloudflareに追加** (無料プランでOK)
+   - [dash.cloudflare.com](https://dash.cloudflare.com) にアクセス
+   - ドメインを追加してネームサーバーを更新
+
+2. **DNSレコードを作成**
+   - タイプ: `A`
+   - 名前: `nofx` (またはサブドメイン)
+   - コンテンツ: サーバーのIP
+   - プロキシ状態: **Proxied** (オレンジ色の雲)
+
+3. **SSL/TLSを設定**
+   - SSL/TLS設定に移動
+   - 暗号化モードを **Flexible** に設定
+
+   ```
+   User ──[HTTPS]──→ Cloudflare ──[HTTP]──→ Your Server:3000
+   ```
+
+4. **トランスポート暗号化を有効化**
+   ```bash
+   # .envを編集して設定
+   TRANSPORT_ENCRYPTION=true
+   ```
+
+5. **完了!** `https://nofx.yourdomain.com` 経由でアクセス
 
 ---
+
+## 初期設定 (Webインターフェース)
+
+システムを起動した後、Webインターフェースを通じて設定します:
+
+1. **AIモデルの設定** - AI APIキーを追加 (DeepSeek、OpenAI など)
+2. **取引所の設定** - 取引所API認証情報を設定
+3. **戦略の作成** - ストラテジースタジオで取引戦略を設定
+4. **トレーダーの作成** - AIモデル + 取引所 + 戦略を組み合わせ
+5. **取引開始** - 設定したトレーダーを起動
+
+すべての設定はWebインターフェースで完了 - JSONファイルの編集は不要です。
+
+---
+
+## Webインターフェース機能
+
+### 競争ページ
+- リアルタイムROIリーダーボード
+- マルチAIパフォーマンス比較チャート
+- ライブ損益追跡とランキング
+
+### ダッシュボード
+- TradingViewスタイルのローソク足チャート
+- リアルタイムポジション管理
+- Chain of Thought推論付きAI決定ログ
+- エクイティカーブ追跡
+
+### ストラテジースタジオ
+- コインソース設定 (静的リスト、AI500プール、OI Top)
+- テクニカル指標 (EMA、MACD、RSI、ATR、出来高、OI、資金調達率)
+- リスク管理設定 (レバレッジ、ポジション制限、証拠金使用率)
+- リアルタイムプロンプトプレビュー付きAIテスト
+
+---
+
+## よくある問題
+
+### TA-Libが見つからない
+```bash
+# macOS
+brew install ta-lib
+
+# Ubuntu
+sudo apt-get install libta-lib0-dev
+```
+
+### AI APIタイムアウト
+- APIキーが正しいか確認
+- ネットワーク接続を確認
+- システムタイムアウトは120秒
+
+### フロントエンドがバックエンドに接続できない
+- バックエンドが http://localhost:8080 で実行されているか確認
+- ポートが占有されていないか確認
+
+---
+
+## ライセンス
+
+このプロジェクトは **GNU Affero General Public License v3.0 (AGPL-3.0)** の下でライセンスされています - [LICENSE](LICENSE) ファイルを参照してください。
+
+---
+
+## 貢献
+
+貢献を歓迎します！以下を参照してください:
+- **[貢献ガイド](CONTRIBUTING.md)** - 開発ワークフローとPRプロセス
+- **[行動規範](CODE_OF_CONDUCT.md)** - コミュニティガイドライン
+- **[セキュリティポリシー](SECURITY.md)** - 脆弱性の報告
+
+---
+
+## 貢献者エアドロッププログラム
+
+すべての貢献はGitHubで追跡されます。NOFXが収益を生み出すと、貢献者は貢献に基づいてエアドロップを受け取ります。
+
+**[ピン留めされたIssue](https://github.com/NoFxAiOS/nofx/issues)を解決するPRは最高報酬を受け取ります！**
+
+| 貢献タイプ | 重み |
+|------------------|:------:|
+| **ピン留めIssue PR** | ⭐⭐⭐⭐⭐⭐ |
+| **コードコミット** (マージされたPR) | ⭐⭐⭐⭐⭐ |
+| **バグ修正** | ⭐⭐⭐⭐ |
+| **機能提案** | ⭐⭐⭐ |
+| **バグ報告** | ⭐⭐ |
+| **ドキュメント** | ⭐⭐ |
+
+---
+
+## リスク警告
+
+1. 暗号通貨市場は非常に変動が激しい - AIの決定は利益を保証しない
+2. 先物取引はレバレッジを使用 - 損失は元本を超える可能性がある
+3. 極端な市場状況では清算リスクがある
+
+
 
 ## コンタクト
 
 - **GitHub Issues**: [Issue を提出](https://github.com/NoFxAiOS/nofx/issues)
 - **開発者コミュニティ**: [Telegram グループ](https://t.me/nofx_dev_community)
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)

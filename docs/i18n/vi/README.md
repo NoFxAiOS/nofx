@@ -200,7 +200,16 @@ sudo apt-get install libta-lib0-dev
 
 ## Giấy Phép
 
-**GNU Affero General Public License v3.0 (AGPL-3.0)**
+Dự án này được cấp phép theo **GNU Affero General Public License v3.0 (AGPL-3.0)** - Xem file [LICENSE](LICENSE).
+
+---
+
+## Đóng Góp
+
+Chúng tôi hoan nghênh các đóng góp! Xem:
+- **[Hướng Dẫn Đóng Góp](CONTRIBUTING.md)** - Quy trình làm việc và PR
+- **[Quy Tắc Ứng Xử](CODE_OF_CONDUCT.md)** - Hướng dẫn cộng đồng  
+- **[Chính Sách Bảo Mật](SECURITY.md)** - Báo cáo lỗ hổng
 
 ---
 

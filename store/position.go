@@ -929,6 +929,21 @@ func (s *PositionStore) CreateFromClosedPnL(traderID, exchangeID string, record 
 
 	now := time.Now()
 	exitTime := record.ExitTime
+	entryTime := record.EntryTime
+
+	// Handle zero entry time - use exit time or current time as fallback
+	if entryTime.IsZero() || entryTime.Year() < 2000 {
+		if !exitTime.IsZero() && exitTime.Year() >= 2000 {
+			entryTime = exitTime // Use exit time as approximation
+		} else {
+			entryTime = now // Last resort: use current time
+		}
+	}
+
+	// Handle zero exit time
+	if exitTime.IsZero() || exitTime.Year() < 2000 {
+		exitTime = now
+	}
 
 	_, err = s.db.Exec(`
 		INSERT INTO trader_positions (
@@ -940,7 +955,7 @@ func (s *PositionStore) CreateFromClosedPnL(traderID, exchangeID string, record 
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLOSED', ?, 'sync', ?, ?)
 	`,
 		traderID, exchangeID, exchangePositionID, record.Symbol, side, record.Quantity,
-		record.EntryPrice, "", record.EntryTime.Format(time.RFC3339),
+		record.EntryPrice, "", entryTime.Format(time.RFC3339),
 		record.ExitPrice, record.OrderID, exitTime.Format(time.RFC3339),
 		record.RealizedPnL, record.Fee, record.Leverage, record.CloseType,
 		now.Format(time.RFC3339), now.Format(time.RFC3339),

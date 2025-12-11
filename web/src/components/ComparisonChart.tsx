@@ -257,11 +257,19 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     return null
   }
 
-  // Calculate stats
-  const lastPoint = displayData[displayData.length - 1]
+  // Calculate stats - find each trader's last available data point
   const traderStats = traders.map(trader => {
-    const currentPnl = lastPoint?.[`${trader.trader_id}_pnl_pct`] || 0
-    const currentEquity = lastPoint?.[`${trader.trader_id}_equity`] || 0
+    // Find the last data point that has data for this trader
+    let currentPnl = 0
+    let currentEquity = 0
+    for (let i = displayData.length - 1; i >= 0; i--) {
+      const pnl = displayData[i]?.[`${trader.trader_id}_pnl_pct`]
+      if (pnl !== undefined) {
+        currentPnl = pnl
+        currentEquity = displayData[i]?.[`${trader.trader_id}_equity`] || 0
+        break
+      }
+    }
     return { ...trader, currentPnl, currentEquity }
   }).sort((a, b) => b.currentPnl - a.currentPnl)
 
@@ -274,7 +282,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     <div className="space-y-4">
       {/* Mini Stats Bar */}
       <div className="flex items-center gap-3 flex-wrap">
-        {traderStats.slice(0, 5).map((trader, idx) => (
+        {traderStats.map((trader, idx) => (
           <div key={trader.trader_id}
                className="flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:scale-105"
                style={{
@@ -418,7 +426,9 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
                     {filteredPayload.map((entry: any, index: number) => {
                       const trader = traders.find((t) => t.trader_name === entry.value)
-                      const pnl = trader ? lastPoint?.[`${trader.trader_id}_pnl_pct`] || 0 : 0
+                      // Find this trader's last available PnL from traderStats
+                      const traderStat = traderStats.find((t) => t.trader_id === trader?.trader_id)
+                      const pnl = traderStat?.currentPnl || 0
                       return (
                         <div key={`legend-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <div style={{

@@ -2505,10 +2505,14 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 
 // getEquityHistoryForTraders Get historical data for multiple traders
 // Query directly from database, not dependent on trader in memory (so historical data can be retrieved after restart)
+// Also appends current real-time data point to ensure chart matches leaderboard
 func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]interface{} {
 	result := make(map[string]interface{})
 	histories := make(map[string]interface{})
 	errors := make(map[string]string)
+
+	// Use a single consistent timestamp for all real-time data points
+	now := time.Now()
 
 	// Pre-fetch initial balances for all traders
 	initialBalances := make(map[string]float64)
@@ -2535,21 +2539,16 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 			continue
 		}
 
-		if len(snapshots) == 0 {
-			// No historical records, return empty array
-			histories[traderID] = []map[string]interface{}{}
-			continue
-		}
-
 		// Get initial balance for calculating PnL percentage
 		initialBalance := initialBalances[traderID]
-		if initialBalance <= 0 {
+		if initialBalance <= 0 && len(snapshots) > 0 {
 			// If no initial balance configured, use the first snapshot's equity as baseline
 			initialBalance = snapshots[0].TotalEquity
 		}
 
 		// Build return rate historical data with PnL percentage
-		history := make([]map[string]interface{}, 0, len(snapshots))
+		history := make([]map[string]interface{}, 0, len(snapshots)+1)
+		var lastSnapshotTime time.Time
 		for _, snap := range snapshots {
 			// Calculate PnL percentage: (current_equity - initial_balance) / initial_balance * 100
 			pnlPct := 0.0
@@ -2564,6 +2563,43 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 				"total_pnl_pct": pnlPct,
 				"balance":       snap.Balance,
 			})
+			if snap.Timestamp.After(lastSnapshotTime) {
+				lastSnapshotTime = snap.Timestamp
+			}
+		}
+
+		// Append current real-time data point to ensure chart matches leaderboard
+		// This ensures the latest point is always current, not from a potentially stale snapshot
+		if trader, err := s.traderManager.GetTrader(traderID); err == nil {
+			if accountInfo, err := trader.GetAccountInfo(); err == nil {
+				// Only append if it's been more than 30 seconds since last snapshot
+				if now.Sub(lastSnapshotTime) > 30*time.Second {
+					totalEquity := 0.0
+					if v, ok := accountInfo["total_equity"].(float64); ok {
+						totalEquity = v
+					}
+					totalPnL := 0.0
+					if v, ok := accountInfo["total_pnl"].(float64); ok {
+						totalPnL = v
+					}
+					walletBalance := 0.0
+					if v, ok := accountInfo["wallet_balance"].(float64); ok {
+						walletBalance = v
+					}
+					pnlPct := 0.0
+					if initialBalance > 0 {
+						pnlPct = (totalEquity - initialBalance) / initialBalance * 100
+					}
+
+					history = append(history, map[string]interface{}{
+						"timestamp":     now,
+						"total_equity":  totalEquity,
+						"total_pnl":     totalPnL,
+						"total_pnl_pct": pnlPct,
+						"balance":       walletBalance,
+					})
+				}
+			}
 		}
 
 		histories[traderID] = history

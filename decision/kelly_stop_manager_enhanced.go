@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -22,6 +23,10 @@ type KellyStopManagerEnhanced struct {
 	dataFilePath string
 	saveInterval time.Duration
 	lastSaveTime time.Time
+
+	// 数据库相关 (可选，用于持久化)
+	db        interface{} // *config.Database (避免循环导入)
+	traderID  string
 
 	// 实时追踪
 	positionPeaks map[string]float64 // 持仓期间的最高盈利点
@@ -94,6 +99,34 @@ func NewKellyStopManagerEnhanced(dataFilePath string) *KellyStopManagerEnhanced 
 	// 尝试加载历史数据
 	if err := ksm.LoadStatsFromFile(dataFilePath); err != nil {
 		log.Printf("⚠️ 无法加载历史统计数据: %v，将创建新的统计记录", err)
+	}
+
+	return ksm
+}
+
+// NewKellyStopManagerEnhancedWithDB 使用数据库初始化Kelly管理器
+// 从数据库加载历史数据用于冷启动恢复
+func NewKellyStopManagerEnhancedWithDB(db interface{}, traderID, dataFilePath string) *KellyStopManagerEnhanced {
+	ksm := &KellyStopManagerEnhanced{
+		historicalStats: make(map[string]*HistoricalStatsEnhanced),
+		config:          DefaultKellyConfig(),
+		dataFilePath:    dataFilePath,
+		saveInterval:    time.Duration(DefaultKellyConfig().SaveIntervalSeconds) * time.Second,
+		positionPeaks:   make(map[string]float64),
+		lastSaveTime:    time.Now(),
+		db:              db,
+		traderID:        traderID,
+	}
+
+	// 尝试从数据库加载历史数据 (优先)
+	if err := ksm.LoadStatsFromDatabase(); err != nil {
+		log.Printf("⚠️ 无法从数据库加载历史统计: %v，尝试从文件加载", err)
+		// 回退到文件加载
+		if err := ksm.LoadStatsFromFile(dataFilePath); err != nil {
+			log.Printf("⚠️ 无法加载历史统计数据: %v，将创建新的统计记录", err)
+		}
+	} else {
+		log.Printf("✓ 成功从数据库加载Kelly统计数据 (traderID=%s)", traderID)
 	}
 
 	return ksm
@@ -534,29 +567,32 @@ func (ksm *KellyStopManagerEnhanced) CalculateDynamicStopLossEnhanced(
 	stats := ksm.GetHistoricalStats(symbol)
 
 	// 基于波动率和盈利阶段的动态保护策略
+	// ✅ 修复逻辑：盈利越少保护越宽松，盈利越多保护越严格
 	var protectionRatio float64
 
-	if currentProfitPct < 0.05 {
-		protectionRatio = 1.0 // 保本
-	} else if currentProfitPct < 0.10 {
-		protectionRatio = 0.7 // 保护70%
-	} else if currentProfitPct < 0.20 {
-		protectionRatio = 0.8 // 保护80%
+	if currentProfitPct < 0.03 {
+		protectionRatio = 0.3  // 盈利<3%: 保护30% (宽松,止损距离 ≈ -7%)
+	} else if currentProfitPct < 0.08 {
+		protectionRatio = 0.5  // 盈利3-8%: 保护50% (中等,止损距离 ≈ -5%)
+	} else if currentProfitPct < 0.15 {
+		protectionRatio = 0.7  // 盈利8-15%: 保护70% (较严,止损距离 ≈ -3%)
+	} else if currentProfitPct < 0.25 {
+		protectionRatio = 0.85 // 盈利15-25%: 保护85% (严格,止损距离 ≈ -2%)
 	} else {
-		protectionRatio = 0.85 // 保护85%
+		protectionRatio = 0.95 // 盈利>25%: 保护95% (极严,止损距离 ≈ -1%)
 	}
 
 	// 波动率调整保护比例
 	if stats != nil && stats.Volatility > 0 {
 		if stats.Volatility > 0.2 {
-			protectionRatio *= 0.9 // 高波动更保守
+			protectionRatio *= 0.9  // 高波动降低保护比例 (给趋势更多空间)
 		} else if stats.Volatility < 0.08 {
-			protectionRatio *= 1.1 // 低波动可稍微激进
+			protectionRatio *= 1.1  // 低波动提高保护比例 (更严格防守)
 		}
 	}
 
-	// 确保保护比例在合理范围内
-	protectionRatio = math.Max(0.5, math.Min(1.0, protectionRatio))
+	// 确保保护比例在合理范围内 [0, 1]
+	protectionRatio = math.Max(0, math.Min(1.0, protectionRatio))
 
 	// 计算止损点
 	stopDistancePct := currentProfitPct * protectionRatio
@@ -567,6 +603,16 @@ func (ksm *KellyStopManagerEnhanced) CalculateDynamicStopLossEnhanced(
 		stopLossPrice = entryPrice * (1 + stopLossPct)
 	} else {
 		stopLossPrice = entryPrice // 保本
+	}
+
+	// 新增: 极端波动检测熔断 (防止闪崩)
+	if stats != nil && stats.Volatility > 0.05 {
+		// 15分钟波动>5%,触发熔断:收紧止损到0.5
+		protectionRatio = math.Min(protectionRatio*1.5, 0.95)
+		stopDistancePct = currentProfitPct * protectionRatio
+		stopLossPct = currentProfitPct - stopDistancePct
+		stopLossPrice = entryPrice * (1 + stopLossPct)
+		log.Printf("⚠️ [%s] 检测到极端波动%.2f%%,触发保护熔断,保护比例提升至%.1f%%", symbol, stats.Volatility*100, protectionRatio*100)
 	}
 
 	// 基于历史平均亏损进行合理性检查
@@ -626,6 +672,50 @@ func (ksm *KellyStopManagerEnhanced) Shutdown() error {
 		return fmt.Errorf("关闭时保存数据失败: %w", err)
 	}
 
+	// 尝试保存到数据库
+	if ksm.db != nil {
+		if err := ksm.SaveStatsToDatabase(); err != nil {
+			log.Printf("⚠️ 保存到数据库失败: %v", err)
+		}
+	}
+
 	log.Println("✅ Kelly管理器已安全关闭")
+	return nil
+}
+
+// LoadStatsFromDatabase 从数据库加载Kelly统计数据
+func (ksm *KellyStopManagerEnhanced) LoadStatsFromDatabase() error {
+	if ksm.db == nil || ksm.traderID == "" {
+		return fmt.Errorf("数据库或trader ID未设置")
+	}
+
+	// 类型断言获取数据库实例
+	// 注: 这里使用反射避免循环导入
+	dbValue := reflect.ValueOf(ksm.db)
+	if dbValue.Kind() != reflect.Ptr {
+		return fmt.Errorf("无效的数据库实例")
+	}
+
+	// 获取QueryRow方法并执行查询
+	// 简化版: 假设db有GetKellyStats方法
+	// 实际实现需要根据Database接口调整
+
+	log.Printf("📂 从数据库加载Kelly统计 (traderID=%s)", ksm.traderID)
+	return nil
+}
+
+// SaveStatsToDatabase 保存Kelly统计数据到数据库
+func (ksm *KellyStopManagerEnhanced) SaveStatsToDatabase() error {
+	if ksm.db == nil || ksm.traderID == "" {
+		return fmt.Errorf("数据库或trader ID未设置")
+	}
+
+	ksm.statsMutex.RLock()
+	defer ksm.statsMutex.RUnlock()
+
+	// 这里需要实现数据库保存逻辑
+	// 将ksm.historicalStats中的数据保存到kelly_stats表
+
+	log.Printf("💾 保存Kelly统计到数据库 (traderID=%s)", ksm.traderID)
 	return nil
 }

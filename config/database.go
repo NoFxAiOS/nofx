@@ -388,6 +388,38 @@ func (d *Database) createTablesPostgres() error {
                         last_timestamp BIGINT DEFAULT 0,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )`,
+
+                // 交易记录表 (用于Kelly公式学习和统计)
+                `CREATE TABLE IF NOT EXISTS trade_records (
+                        id BIGSERIAL PRIMARY KEY,
+                        trader_id TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        entry_price DECIMAL(18,8) NOT NULL,
+                        exit_price DECIMAL(18,8) NOT NULL,
+                        profit_pct DECIMAL(10,6) NOT NULL,
+                        leverage INT DEFAULT 1,
+                        holding_time_seconds BIGINT DEFAULT 0,
+                        margin_mode TEXT DEFAULT 'cross',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )`,
+
+                // Kelly统计数据表 (缓存计算结果,加速启动)
+                `CREATE TABLE IF NOT EXISTS kelly_stats (
+                        id BIGSERIAL PRIMARY KEY,
+                        trader_id TEXT NOT NULL,
+                        symbol TEXT NOT NULL,
+                        total_trades INT DEFAULT 0,
+                        profitable_trades INT DEFAULT 0,
+                        win_rate DECIMAL(10,6) DEFAULT 0,
+                        avg_win_pct DECIMAL(10,6) DEFAULT 0,
+                        avg_loss_pct DECIMAL(10,6) DEFAULT 0,
+                        max_profit_pct DECIMAL(10,6) DEFAULT 0,
+                        max_drawdown_pct DECIMAL(10,6) DEFAULT 0,
+                        volatility DECIMAL(10,6) DEFAULT 0,
+                        weighted_win_rate DECIMAL(10,6) DEFAULT 0,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(trader_id, symbol)
+                )`,
         }
 
         for _, query := range queries {
@@ -442,6 +474,10 @@ func (d *Database) alterTables() error {
                 // 添加ai_models表字段
                 `ALTER TABLE ai_models ADD COLUMN custom_api_url TEXT DEFAULT ''`,              // 自定义API地址
                 `ALTER TABLE ai_models ADD COLUMN custom_model_name TEXT DEFAULT ''`,           // 自定义模型名称
+
+                // 为新的交易记录表创建索引
+                `CREATE INDEX IF NOT EXISTS idx_trade_records_trader_time ON trade_records(trader_id, created_at DESC)`,
+                `CREATE INDEX IF NOT EXISTS idx_trade_records_symbol ON trade_records(symbol)`,
         }
 
         for _, query := range alterQueries {

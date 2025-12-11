@@ -135,31 +135,65 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		}
 	}
 
-	mcpClient := mcp.New()
+	// Initialize AI client based on provider
+	var mcpClient mcp.AIClient
+	aiModel := config.AIModel
+	if config.UseQwen && aiModel == "" {
+		aiModel = "qwen"
+	}
 
-	// Initialize AI
-	if config.AIModel == "custom" {
-		// Use custom API
+	switch aiModel {
+	case "claude":
+		mcpClient = mcp.NewClaudeClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Claude AI", config.Name)
+
+	case "kimi":
+		mcpClient = mcp.NewKimiClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Kimi (Moonshot) AI", config.Name)
+
+	case "gemini":
+		mcpClient = mcp.NewGeminiClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
+
+	case "grok":
+		mcpClient = mcp.NewGrokClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using xAI Grok AI", config.Name)
+
+	case "openai":
+		mcpClient = mcp.NewOpenAIClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using OpenAI", config.Name)
+
+	case "qwen":
+		mcpClient = mcp.NewQwenClient()
+		apiKey := config.QwenKey
+		if apiKey == "" {
+			apiKey = config.CustomAPIKey
+		}
+		mcpClient.SetAPIKey(apiKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI", config.Name)
+
+	case "custom":
+		mcpClient = mcp.New()
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using custom AI API: %s (model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-	} else if config.UseQwen || config.AIModel == "qwen" {
-		// Use Qwen (supports custom URL and Model)
-		mcpClient = mcp.NewQwenClient()
-		mcpClient.SetAPIKey(config.QwenKey, config.CustomAPIURL, config.CustomModelName)
-		if config.CustomAPIURL != "" || config.CustomModelName != "" {
-			logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI (custom URL: %s, model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-		} else {
-			logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI", config.Name)
-		}
-	} else {
-		// Default to DeepSeek (supports custom URL and Model)
+
+	default: // deepseek or empty
 		mcpClient = mcp.NewDeepSeekClient()
-		mcpClient.SetAPIKey(config.DeepSeekKey, config.CustomAPIURL, config.CustomModelName)
-		if config.CustomAPIURL != "" || config.CustomModelName != "" {
-			logger.Infof("🤖 [%s] Using DeepSeek AI (custom URL: %s, model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-		} else {
-			logger.Infof("🤖 [%s] Using DeepSeek AI", config.Name)
+		apiKey := config.DeepSeekKey
+		if apiKey == "" {
+			apiKey = config.CustomAPIKey
 		}
+		mcpClient.SetAPIKey(apiKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using DeepSeek AI", config.Name)
+	}
+
+	if config.CustomAPIURL != "" || config.CustomModelName != "" {
+		logger.Infof("🔧 [%s] Custom config - URL: %s, Model: %s", config.Name, config.CustomAPIURL, config.CustomModelName)
 	}
 
 	// Set default trading platform

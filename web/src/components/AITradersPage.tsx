@@ -27,6 +27,7 @@ import {
   Pencil,
   Eye,
   EyeOff,
+  ExternalLink,
 } from 'lucide-react'
 import { confirmToast } from '../lib/notify'
 import { toast } from 'sonner'
@@ -49,6 +50,49 @@ function getModelDisplayName(modelId: string): string {
 function getShortName(fullName: string): string {
   const parts = fullName.split('_')
   return parts.length > 1 ? parts[parts.length - 1] : fullName
+}
+
+// AI Provider configuration - default models and API links
+const AI_PROVIDER_CONFIG: Record<string, {
+  defaultModel: string
+  apiUrl: string
+  apiName: string
+}> = {
+  deepseek: {
+    defaultModel: 'deepseek-chat',
+    apiUrl: 'https://platform.deepseek.com/api_keys',
+    apiName: 'DeepSeek',
+  },
+  qwen: {
+    defaultModel: 'qwen3-max',
+    apiUrl: 'https://dashscope.console.aliyun.com/apiKey',
+    apiName: 'Alibaba Cloud',
+  },
+  openai: {
+    defaultModel: 'gpt-5.1',
+    apiUrl: 'https://platform.openai.com/api-keys',
+    apiName: 'OpenAI',
+  },
+  claude: {
+    defaultModel: 'claude-opus-4-5-20251101',
+    apiUrl: 'https://console.anthropic.com/settings/keys',
+    apiName: 'Anthropic',
+  },
+  gemini: {
+    defaultModel: 'gemini-3-pro-preview',
+    apiUrl: 'https://aistudio.google.com/app/apikey',
+    apiName: 'Google AI Studio',
+  },
+  grok: {
+    defaultModel: 'grok-3-latest',
+    apiUrl: 'https://console.x.ai/',
+    apiName: 'xAI',
+  },
+  kimi: {
+    defaultModel: 'moonshot-v1-auto',
+    apiUrl: 'https://platform.moonshot.ai/console/api-keys',
+    apiName: 'Moonshot',
+  },
 }
 
 interface AITradersPageProps {
@@ -815,6 +859,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                       >
                         {getShortName(model.name)}
                       </div>
+                      <div className="text-xs" style={{ color: '#F0B90B' }}>
+                        {model.customModelName || AI_PROVIDER_CONFIG[model.provider]?.defaultModel || ''}
+                      </div>
                       <div className="text-xs" style={{ color: '#848E9C' }}>
                         {inUse
                           ? t('inUse', language)
@@ -1362,7 +1409,7 @@ function ModelConfigModal({
                       </div>
                     )}
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <div className="font-semibold" style={{ color: '#EAECEF' }}>
                       {getShortName(selectedModel.name)}
                     </div>
@@ -1371,6 +1418,29 @@ function ModelConfigModal({
                     </div>
                   </div>
                 </div>
+                {/* Default model info and API link */}
+                {AI_PROVIDER_CONFIG[selectedModel.provider] && (
+                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
+                    <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                      {t('defaultModel', language)}: <span style={{ color: '#F0B90B' }}>{AI_PROVIDER_CONFIG[selectedModel.provider].defaultModel}</span>
+                    </div>
+                    <a
+                      href={AI_PROVIDER_CONFIG[selectedModel.provider].apiUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs hover:underline"
+                      style={{ color: '#F0B90B' }}
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      {t('applyApiKey', language)} → {AI_PROVIDER_CONFIG[selectedModel.provider].apiName}
+                    </a>
+                    {selectedModel.provider === 'kimi' && (
+                      <div className="mt-2 text-xs p-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
+                        ⚠️ {t('kimiApiNote', language)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1427,13 +1497,13 @@ function ModelConfigModal({
                     className="block text-sm font-semibold mb-2"
                     style={{ color: '#EAECEF' }}
                   >
-                    Model Name (可选)
+                    {t('customModelName', language)}
                   </label>
                   <input
                     type="text"
                     value={modelName}
                     onChange={(e) => setModelName(e.target.value)}
-                    placeholder="例如: deepseek-chat, qwen3-max, gpt-5"
+                    placeholder={t('customModelNamePlaceholder', language)}
                     className="w-full px-3 py-2 rounded"
                     style={{
                       background: '#0B0E11',
@@ -1442,7 +1512,7 @@ function ModelConfigModal({
                     }}
                   />
                   <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                    留空使用默认模型名称
+                    {t('leaveBlankForDefaultModel', language)}
                   </div>
                 </div>
 

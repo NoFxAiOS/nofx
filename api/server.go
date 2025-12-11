@@ -1263,6 +1263,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			{ID: "claude", Name: "Claude AI", Provider: "claude", Enabled: false},
 			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false},
 			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false},
+			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -2305,10 +2306,15 @@ func (s *Server) initUserDefaultConfigs(userID string) error {
 
 // handleGetSupportedModels Get list of AI models supported by the system
 func (s *Server) handleGetSupportedModels(c *gin.Context) {
-	// Return static list of supported AI models
+	// Return static list of supported AI models with default versions
 	supportedModels := []map[string]interface{}{
-		{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek"},
-		{"id": "qwen", "name": "Qwen", "provider": "qwen"},
+		{"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "defaultModel": "deepseek-chat"},
+		{"id": "qwen", "name": "Qwen", "provider": "qwen", "defaultModel": "qwen3-max"},
+		{"id": "openai", "name": "OpenAI", "provider": "openai", "defaultModel": "gpt-5.1"},
+		{"id": "claude", "name": "Claude", "provider": "claude", "defaultModel": "claude-opus-4-5-20251101"},
+		{"id": "gemini", "name": "Google Gemini", "provider": "gemini", "defaultModel": "gemini-3-pro-preview"},
+		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
+		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)

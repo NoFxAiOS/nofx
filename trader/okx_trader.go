@@ -41,6 +41,9 @@ type OKXTrader struct {
 	secretKey  string
 	passphrase string
 
+	// Margin mode setting
+	isCrossMargin bool
+
 	// HTTP client (proxy disabled)
 	httpClient *http.Client
 
@@ -328,8 +331,8 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	for _, pos := range positions {
-		posAmt, _ := strconv.ParseFloat(pos.Pos, 64)
-		if posAmt == 0 {
+		contractCount, _ := strconv.ParseFloat(pos.Pos, 64)
+		if contractCount == 0 {
 			continue
 		}
 
@@ -342,14 +345,23 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		// Convert symbol format
 		symbol := t.convertSymbolBack(pos.InstId)
 
-		// Determine direction and ensure posAmt is positive
+		// Determine direction and ensure contractCount is positive
 		side := "long"
 		if pos.PosSide == "short" {
 			side = "short"
 		}
 		// OKX short position's pos is negative, need to take absolute value
-		if posAmt < 0 {
-			posAmt = -posAmt
+		if contractCount < 0 {
+			contractCount = -contractCount
+		}
+
+		// Convert contract count to actual position amount (in base asset)
+		// positionAmt = contractCount * ctVal
+		inst, err := t.getInstrument(symbol)
+		posAmt := contractCount
+		if err == nil && inst.CtVal > 0 {
+			posAmt = contractCount * inst.CtVal
+			logger.Debugf("  📊 OKX position %s: contracts=%.4f, ctVal=%.6f, posAmt=%.6f", symbol, contractCount, inst.CtVal, posAmt)
 		}
 
 		// Parse timestamps
@@ -524,15 +536,12 @@ func (t *OKXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// OKX uses contract size, need to convert based on contract value
-	price, err := t.GetMarketPrice(symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get market price: %w", err)
-	}
-
-	// Calculate contract size = quantity * price / contract value
-	sz := quantity * price / inst.CtVal
+	// OKX uses contract count, need to convert quantity (in base asset) to contract count
+	// sz = quantity / ctVal (number of contracts = asset amount / asset per contract)
+	sz := quantity / inst.CtVal
 	szStr := t.formatSize(sz, inst)
+
+	logger.Infof("  📊 OKX OpenLong: quantity=%.6f, ctVal=%.6f, contracts=%.2f", quantity, inst.CtVal, sz)
 
 	// Check max market order size limit
 	if inst.MaxMktSz > 0 && sz > inst.MaxMktSz {
@@ -604,13 +613,12 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	price, err := t.GetMarketPrice(symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get market price: %w", err)
-	}
-
-	sz := quantity * price / inst.CtVal
+	// OKX uses contract count, need to convert quantity (in base asset) to contract count
+	// sz = quantity / ctVal (number of contracts = asset amount / asset per contract)
+	sz := quantity / inst.CtVal
 	szStr := t.formatSize(sz, inst)
+
+	logger.Infof("  📊 OKX OpenShort: quantity=%.6f, ctVal=%.6f, contracts=%.2f", quantity, inst.CtVal, sz)
 
 	// Check max market order size limit
 	if inst.MaxMktSz > 0 && sz > inst.MaxMktSz {
@@ -668,7 +676,13 @@ func (t *OKXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
-	// If quantity is 0, get current position (positionAmt is the contract size)
+	// Get instrument info for contract conversion
+	inst, err := t.getInstrument(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
+	}
+
+	// If quantity is 0, get current position (positionAmt is in base asset, e.g. BTC)
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
@@ -676,7 +690,7 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64) // This is already contract size
+				quantity = pos["positionAmt"].(float64) // This is in base asset (BTC)
 				break
 			}
 		}
@@ -685,17 +699,13 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		}
 	}
 
-	// Get instrument info for formatting contract size
-	inst, err := t.getInstrument(symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get instrument info: %w", err)
-	}
+	// Convert quantity (base asset) to contract count
+	// contracts = quantity / ctVal
+	contracts := quantity / inst.CtVal
+	szStr := t.formatSize(contracts, inst)
 
-	// quantity is already contract size, format directly
-	szStr := t.formatSize(quantity, inst)
-
-	logger.Infof("🔻 OKX close long parameters: symbol=%s, instId=%s, quantity(contracts)=%f, szStr=%s",
-		symbol, instId, quantity, szStr)
+	logger.Infof("🔻 OKX close long: symbol=%s, quantity=%.6f, ctVal=%.6f, contracts=%.2f, szStr=%s",
+		symbol, quantity, inst.CtVal, contracts, szStr)
 
 	body := map[string]interface{}{
 		"instId":  instId,
@@ -747,7 +757,13 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	instId := t.convertSymbol(symbol)
 
-	// If quantity is 0, get current position (positionAmt is the contract size)
+	// Get instrument info for contract conversion
+	inst, err := t.getInstrument(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
+	}
+
+	// If quantity is 0, get current position (positionAmt is in base asset, e.g. BTC)
 	if quantity == 0 {
 		positions, err := t.GetPositions()
 		if err != nil {
@@ -758,8 +774,8 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 			logger.Infof("🔍 OKX position: symbol=%v, side=%v, positionAmt=%v",
 				pos["symbol"], pos["side"], pos["positionAmt"])
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64)
-				logger.Infof("🔍 OKX found short position: quantity=%f", quantity)
+				quantity = pos["positionAmt"].(float64) // This is in base asset (BTC)
+				logger.Infof("🔍 OKX found short position: quantity=%f (base asset)", quantity)
 				break
 			}
 		}
@@ -773,20 +789,13 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		quantity = -quantity
 	}
 
-	// Get instrument info for formatting contract size
-	inst, err := t.getInstrument(symbol)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get instrument info: %w", err)
-	}
+	// Convert quantity (base asset) to contract count
+	// contracts = quantity / ctVal
+	contracts := quantity / inst.CtVal
+	szStr := t.formatSize(contracts, inst)
 
-	logger.Infof("🔍 OKX instrument info: instId=%s, lotSz=%f, minSz=%f, ctVal=%f",
-		inst.InstID, inst.LotSz, inst.MinSz, inst.CtVal)
-
-	// quantity is already contract size, format directly
-	szStr := t.formatSize(quantity, inst)
-
-	logger.Infof("🔻 OKX close short parameters: symbol=%s, instId=%s, quantity(contracts)=%f, szStr=%s",
-		symbol, instId, quantity, szStr)
+	logger.Infof("🔻 OKX close short: symbol=%s, quantity=%.6f, ctVal=%.6f, contracts=%.2f, szStr=%s",
+		symbol, quantity, inst.CtVal, contracts, szStr)
 
 	body := map[string]interface{}{
 		"instId":  instId,
@@ -877,9 +886,8 @@ func (t *OKXTrader) SetStopLoss(symbol string, positionSide string, quantity, st
 		return fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// Calculate contract size
-	price, _ := t.GetMarketPrice(symbol)
-	sz := quantity * price / inst.CtVal
+	// Calculate contract size: quantity (in base asset) / ctVal (asset per contract)
+	sz := quantity / inst.CtVal
 	szStr := t.formatSize(sz, inst)
 
 	// Determine direction
@@ -921,9 +929,8 @@ func (t *OKXTrader) SetTakeProfit(symbol string, positionSide string, quantity, 
 		return fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// Calculate contract size
-	price, _ := t.GetMarketPrice(symbol)
-	sz := quantity * price / inst.CtVal
+	// Calculate contract size: quantity (in base asset) / ctVal (asset per contract)
+	sz := quantity / inst.CtVal
 	szStr := t.formatSize(sz, inst)
 
 	// Determine direction
@@ -1053,20 +1060,15 @@ func (t *OKXTrader) CancelStopOrders(symbol string) error {
 	return t.cancelAlgoOrders(symbol, "")
 }
 
-// FormatQuantity formats quantity
+// FormatQuantity formats quantity (converts base asset quantity to contract count)
 func (t *OKXTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
 	inst, err := t.getInstrument(symbol)
 	if err != nil {
 		return fmt.Sprintf("%.3f", quantity), nil
 	}
 
-	// OKX uses contract size
-	price, _ := t.GetMarketPrice(symbol)
-	if price == 0 {
-		return fmt.Sprintf("%.0f", quantity), nil
-	}
-
-	sz := quantity * price / inst.CtVal
+	// OKX uses contract count: quantity (in base asset) / ctVal (asset per contract)
+	sz := quantity / inst.CtVal
 	return t.formatSize(sz, inst), nil
 }
 
@@ -1124,10 +1126,19 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 
 	order := orders[0]
 	avgPrice, _ := strconv.ParseFloat(order.AvgPx, 64)
-	fillSz, _ := strconv.ParseFloat(order.AccFillSz, 64)
+	fillSz, _ := strconv.ParseFloat(order.AccFillSz, 64) // This is in contracts
 	fee, _ := strconv.ParseFloat(order.Fee, 64)
 	cTime, _ := strconv.ParseInt(order.CTime, 10, 64)
 	uTime, _ := strconv.ParseInt(order.UTime, 10, 64)
+
+	// Convert contract count to base asset quantity
+	// executedQty = contracts * ctVal
+	executedQty := fillSz
+	inst, err := t.getInstrument(symbol)
+	if err == nil && inst.CtVal > 0 {
+		executedQty = fillSz * inst.CtVal
+		logger.Debugf("  📊 OKX order %s: fillSz(contracts)=%.4f, ctVal=%.6f, executedQty=%.6f", orderID, fillSz, inst.CtVal, executedQty)
+	}
 
 	// Status mapping
 	statusMap := map[string]string{
@@ -1147,7 +1158,7 @@ func (t *OKXTrader) GetOrderStatus(symbol string, orderID string) (map[string]in
 		"symbol":      symbol,
 		"status":      status,
 		"avgPrice":    avgPrice,
-		"executedQty": fillSz,
+		"executedQty": executedQty,
 		"side":        order.Side,
 		"type":        order.OrdType,
 		"time":        cTime,

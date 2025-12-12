@@ -22,7 +22,7 @@
 ### Core Features
 
 - **Multi-AI Support**: Run DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi - switch models anytime
-- **Multi-Exchange**: Trade on Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter from one platform
+- **Multi-Exchange**: Trade on Binance, Bybit, OKX, Bitget, Hyperliquid, Aster DEX, Lighter from one platform
 - **Strategy Studio**: Visual strategy builder with coin sources, indicators, and risk controls
 - **AI Debate Arena**: Multiple AI models debate trading decisions with different roles (Bull, Bear, Analyst)
 - **AI Competition Mode**: Multiple AI traders compete in real-time, track performance side by side
@@ -90,6 +90,7 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 | **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) |
 | **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) |
+| **Bitget** | ✅ Supported | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 
 ### Perp-DEX (Decentralized Perpetual Exchanges)
 

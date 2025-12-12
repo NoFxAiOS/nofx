@@ -336,7 +336,7 @@ export const translations = {
     enterUser: 'Enter User',
     enterSigner: 'Enter Signer Address',
     enterSecretKey: 'Enter Secret Key',
-    enterPassphrase: 'Enter Passphrase (Required for OKX)',
+    enterPassphrase: 'Enter Passphrase',
     hyperliquidPrivateKeyDesc:
       'Hyperliquid uses private key for trading authentication',
     hyperliquidWalletAddressDesc:
@@ -1420,7 +1420,7 @@ export const translations = {
     enterWalletAddress: '输入钱包地址',
     enterUser: '输入用户名',
     enterSigner: '输入签名者地址',
-    enterPassphrase: '输入Passphrase (OKX必填)',
+    enterPassphrase: '输入Passphrase',
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
     // Hyperliquid 代理钱包 (新安全模型)

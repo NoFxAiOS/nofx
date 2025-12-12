@@ -581,6 +581,12 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 				exchangeCfg.SecretKey,
 				exchangeCfg.Passphrase,
 			)
+		case "bitget":
+			tempTrader = trader.NewBitgetTrader(
+				exchangeCfg.APIKey,
+				exchangeCfg.SecretKey,
+				exchangeCfg.Passphrase,
+			)
 		case "lighter":
 			if exchangeCfg.LighterAPIKeyPrivateKey != "" {
 				tempTrader, createErr = trader.NewLighterTraderV2(
@@ -1086,6 +1092,33 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			exchangeCfg.APIKey,
 			exchangeCfg.SecretKey,
 		)
+	case "okx":
+		tempTrader = trader.NewOKXTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+			exchangeCfg.Passphrase,
+		)
+	case "bitget":
+		tempTrader = trader.NewBitgetTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+			exchangeCfg.Passphrase,
+		)
+	case "lighter":
+		if exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			tempTrader, createErr = trader.NewLighterTraderV2(
+				exchangeCfg.LighterPrivateKey,
+				exchangeCfg.LighterWalletAddr,
+				exchangeCfg.LighterAPIKeyPrivateKey,
+				exchangeCfg.Testnet,
+			)
+		} else {
+			tempTrader, createErr = trader.NewLighterTrader(
+				exchangeCfg.LighterPrivateKey,
+				exchangeCfg.LighterWalletAddr,
+				exchangeCfg.Testnet,
+			)
+		}
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
 		return
@@ -1215,6 +1248,12 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		)
 	case "okx":
 		tempTrader = trader.NewOKXTrader(
+			exchangeCfg.APIKey,
+			exchangeCfg.SecretKey,
+			exchangeCfg.Passphrase,
+		)
+	case "bitget":
+		tempTrader = trader.NewBitgetTrader(
 			exchangeCfg.APIKey,
 			exchangeCfg.SecretKey,
 			exchangeCfg.Passphrase,
@@ -1590,7 +1629,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 
 	// Validate exchange type
 	validTypes := map[string]bool{
-		"binance": true, "bybit": true, "okx": true,
+		"binance": true, "bybit": true, "okx": true, "bitget": true,
 		"hyperliquid": true, "aster": true, "lighter": true,
 	}
 	if !validTypes[req.ExchangeType] {

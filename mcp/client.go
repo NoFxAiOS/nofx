@@ -200,7 +200,12 @@ func (client *Client) buildMCPRequestBody(systemPrompt, userPrompt string) map[s
 		"model":       client.Model,
 		"messages":    messages,
 		"temperature": client.config.Temperature, // Use configured temperature
-		"max_tokens":  client.MaxTokens,
+	}
+	// OpenAI newer models use max_completion_tokens instead of max_tokens
+	if client.Provider == ProviderOpenAI {
+		requestBody["max_completion_tokens"] = client.MaxTokens
+	} else {
+		requestBody["max_tokens"] = client.MaxTokens
 	}
 	return requestBody
 }
@@ -469,11 +474,16 @@ func (client *Client) buildRequestBodyFromRequest(req *Request) map[string]any {
 		requestBody["temperature"] = client.config.Temperature
 	}
 
+	// OpenAI newer models use max_completion_tokens instead of max_tokens
+	tokenKey := "max_tokens"
+	if client.Provider == ProviderOpenAI {
+		tokenKey = "max_completion_tokens"
+	}
 	if req.MaxTokens != nil {
-		requestBody["max_tokens"] = *req.MaxTokens
+		requestBody[tokenKey] = *req.MaxTokens
 	} else {
 		// If not set in Request, use Client's MaxTokens
-		requestBody["max_tokens"] = client.MaxTokens
+		requestBody[tokenKey] = client.MaxTokens
 	}
 
 	if req.TopP != nil {

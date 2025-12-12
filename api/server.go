@@ -28,6 +28,7 @@ type Server struct {
 	store           *store.Store
 	cryptoHandler   *CryptoHandler
 	backtestManager *backtest.Manager
+	debateHandler   *DebateHandler
 	httpServer      *http.Server
 	port            int
 }
@@ -45,12 +46,21 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	// Create crypto handler
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
+	// Create debate store and handler
+	debateStore := store.NewDebateStore(st.DB())
+	if err := debateStore.InitSchema(); err != nil {
+		logger.Errorf("Failed to initialize debate schema: %v", err)
+	}
+	debateHandler := NewDebateHandler(debateStore, st.Strategy(), st.AIModel())
+	debateHandler.SetTraderManager(traderManager)
+
 	s := &Server{
 		router:          router,
 		traderManager:   traderManager,
 		store:           st,
 		cryptoHandler:   cryptoHandler,
 		backtestManager: backtestManager,
+		debateHandler:   debateHandler,
 		port:            port,
 	}
 
@@ -156,6 +166,19 @@ func (s *Server) setupRoutes() {
 			protected.DELETE("/strategies/:id", s.handleDeleteStrategy)
 			protected.POST("/strategies/:id/activate", s.handleActivateStrategy)
 			protected.POST("/strategies/:id/duplicate", s.handleDuplicateStrategy)
+
+			// Debate Arena
+			protected.GET("/debates", s.debateHandler.HandleListDebates)
+			protected.GET("/debates/personalities", s.debateHandler.HandleGetPersonalities)
+			protected.GET("/debates/:id", s.debateHandler.HandleGetDebate)
+			protected.POST("/debates", s.debateHandler.HandleCreateDebate)
+			protected.POST("/debates/:id/start", s.debateHandler.HandleStartDebate)
+			protected.POST("/debates/:id/cancel", s.debateHandler.HandleCancelDebate)
+			protected.POST("/debates/:id/execute", s.debateHandler.HandleExecuteDebate)
+			protected.DELETE("/debates/:id", s.debateHandler.HandleDeleteDebate)
+			protected.GET("/debates/:id/messages", s.debateHandler.HandleGetMessages)
+			protected.GET("/debates/:id/votes", s.debateHandler.HandleGetVotes)
+			protected.GET("/debates/:id/stream", s.debateHandler.HandleDebateStream)
 
 			// Data for specified trader (using query parameter ?trader_id=xxx)
 			protected.GET("/status", s.handleStatus)

@@ -479,3 +479,116 @@ export interface RiskControlConfig {
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
 }
+
+// Debate Arena Types
+export type DebateStatus = 'pending' | 'running' | 'voting' | 'completed' | 'cancelled';
+export type DebatePersonality = 'bull' | 'bear' | 'analyst' | 'contrarian' | 'risk_manager';
+
+export interface DebateDecision {
+  action: string;
+  symbol: string;
+  confidence: number;
+  leverage?: number;
+  position_pct?: number;
+  position_size_usd?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  reasoning: string;
+  // Execution tracking
+  executed?: boolean;
+  executed_at?: string;
+  order_id?: string;
+  error?: string;
+}
+
+export interface DebateSession {
+  id: string;
+  user_id: string;
+  name: string;
+  strategy_id: string;
+  status: DebateStatus;
+  symbol: string;
+  interval_minutes: number;
+  prompt_variant: string;
+  trader_id?: string;
+  max_rounds: number;
+  current_round: number;
+  final_decision?: DebateDecision;
+  final_decisions?: DebateDecision[];  // Multi-coin decisions
+  auto_execute: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DebateParticipant {
+  id: string;
+  session_id: string;
+  ai_model_id: string;
+  ai_model_name: string;
+  provider: string;
+  personality: DebatePersonality;
+  color: string;
+  speak_order: number;
+  created_at: string;
+}
+
+export interface DebateMessage {
+  id: string;
+  session_id: string;
+  round: number;
+  ai_model_id: string;
+  ai_model_name: string;
+  provider: string;
+  personality: DebatePersonality;
+  message_type: string;
+  content: string;
+  decision?: DebateDecision;
+  decisions?: DebateDecision[];  // Multi-coin decisions
+  confidence: number;
+  created_at: string;
+}
+
+export interface DebateVote {
+  id: string;
+  session_id: string;
+  ai_model_id: string;
+  ai_model_name: string;
+  action: string;
+  symbol: string;
+  confidence: number;
+  leverage?: number;
+  position_pct?: number;
+  stop_loss_pct?: number;
+  take_profit_pct?: number;
+  reasoning: string;
+  created_at: string;
+}
+
+export interface DebateSessionWithDetails extends DebateSession {
+  participants: DebateParticipant[];
+  messages: DebateMessage[];
+  votes: DebateVote[];
+}
+
+export interface CreateDebateRequest {
+  name: string;
+  strategy_id: string;
+  symbol: string;
+  max_rounds?: number;
+  interval_minutes?: number;  // 5, 15, 30, 60 minutes
+  prompt_variant?: string;    // balanced, aggressive, conservative, scalping
+  auto_execute?: boolean;
+  trader_id?: string;         // Trader to use for auto-execute
+  participants: {
+    ai_model_id: string;
+    personality: DebatePersonality;
+  }[];
+}
+
+export interface DebatePersonalityInfo {
+  id: DebatePersonality;
+  name: string;
+  emoji: string;
+  color: string;
+  description: string;
+}

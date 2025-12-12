@@ -10,6 +10,7 @@ import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
+import { DebateArenaPage } from './pages/DebateArenaPage'
 import HeaderBar from './components/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -38,6 +39,7 @@ type Page =
   | 'trader'
   | 'backtest'
   | 'strategy'
+  | 'debate'
   | 'faq'
   | 'login'
   | 'register'
@@ -87,6 +89,7 @@ function App() {
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/backtest' || hash === 'backtest') return 'backtest'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
+    if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -108,6 +111,8 @@ function App() {
         setCurrentPage('backtest')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
+      } else if (path === '/debate' || hash === 'debate') {
+        setCurrentPage('debate')
       } else if (
         path === '/dashboard' ||
         hash === 'trader' ||
@@ -333,6 +338,11 @@ function App() {
               window.history.pushState({}, '', '/strategy')
               setRoute('/strategy')
               setCurrentPage('strategy')
+            } else if (page === 'debate') {
+              console.log('Navigating to debate')
+              window.history.pushState({}, '', '/debate')
+              setRoute('/debate')
+              setCurrentPage('debate')
             }
 
             console.log(
@@ -433,12 +443,16 @@ function App() {
           } else if (page === 'faq') {
             window.history.pushState({}, '', '/faq')
             setRoute('/faq')
+          } else if (page === 'debate') {
+            window.history.pushState({}, '', '/debate')
+            setRoute('/debate')
+            setCurrentPage('debate')
           }
         }}
       />
 
       {/* Main Content */}
-      <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+      <main className={currentPage === 'debate' ? 'h-[calc(100vh-64px)] mt-16' : 'max-w-[1920px] mx-auto px-6 py-6 pt-24'}>
         {currentPage === 'competition' ? (
           <CompetitionPage />
         ) : currentPage === 'traders' ? (
@@ -454,6 +468,8 @@ function App() {
           <BacktestPage />
         ) : currentPage === 'strategy' ? (
           <StrategyStudioPage />
+        ) : currentPage === 'debate' ? (
+          <DebateArenaPage />
         ) : (
           <TraderDetailsPage
             selectedTrader={selectedTrader}
@@ -478,8 +494,8 @@ function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer
+      {/* Footer - Hidden on debate page */}
+      {currentPage !== 'debate' && <footer
         className="mt-16"
         style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
       >
@@ -573,7 +589,7 @@ function App() {
             </a>
           </div>
         </div>
-      </footer>
+      </footer>}
     </div>
   )
 }

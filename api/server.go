@@ -1790,10 +1790,17 @@ func (s *Server) handleLogin(c *gin.Context) {
         }
 
         log.Printf("✓ [LOGIN_CHECK] 用户存在: email=%s, passwordHashExists=%t", user.Email, user.PasswordHash != "")
+        log.Printf("   用户数据: ID=%s, Email=%s, PasswordHashLen=%d", user.ID, user.Email, len(user.PasswordHash))
 
         // 验证密码
-        if !auth.CheckPassword(req.Password, user.PasswordHash) {
+        passwordMatch := auth.CheckPassword(req.Password, user.PasswordHash)
+        log.Printf("🔍 [LOGIN_DEBUG] 密码验证详情: email=%s, passwordLen=%d, hashLen=%d, match=%t",
+                req.Email, len(req.Password), len(user.PasswordHash), passwordMatch)
+
+        if !passwordMatch {
                 log.Printf("🔴 [LOGIN_FAILED] 密码验证失败: email=%s", user.Email)
+                log.Printf("   密码长度: %d, 哈希长度: %d", len(req.Password), len(user.PasswordHash))
+                log.Printf("   提示: 检查密码是否被正确编码或哈希是否正确存储")
                 c.JSON(http.StatusUnauthorized, gin.H{"error": "邮箱或密码错误"})
                 return
         }
@@ -1841,15 +1848,15 @@ func (s *Server) handleLogin(c *gin.Context) {
                 return
         }
 
-        	// 返回成功信息
-        	c.JSON(http.StatusOK, gin.H{
-        		"token":       token,
-        		"user_id":     user.ID,
-        		"email":       user.Email,
-        		"invite_code": user.InviteCode,
-        		"message":     "登录成功",
-        	})
-        }
+        // 返回成功信息
+        c.JSON(http.StatusOK, gin.H{
+                "token":       token,
+                "user_id":     user.ID,
+                "email":       user.Email,
+                "invite_code": user.InviteCode,
+                "message":     "登录成功",
+        })
+}
 // handleVerifyOTP 验证OTP并完成登录
 func (s *Server) handleVerifyOTP(c *gin.Context) {
         var req struct {

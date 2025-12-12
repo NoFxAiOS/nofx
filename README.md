@@ -24,6 +24,7 @@
 - **Multi-AI Support**: Run DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi - switch models anytime
 - **Multi-Exchange**: Trade on Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter from one platform
 - **Strategy Studio**: Visual strategy builder with coin sources, indicators, and risk controls
+- **AI Debate Arena**: Multiple AI models debate trading decisions with different roles (Bull, Bear, Analyst)
 - **AI Competition Mode**: Multiple AI traders compete in real-time, track performance side by side
 - **Web-Based Config**: No JSON editing - configure everything through the web interface
 - **Real-Time Dashboard**: Live positions, P/L tracking, AI decision logs with Chain of Thought
@@ -70,6 +71,13 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 | Strategy Editor | Indicators Config |
 |:---:|:---:|
 | <img src="screenshots/strategy-studio.png" width="400" alt="Strategy Studio"/> | <img src="screenshots/strategy-indicators.png" width="400" alt="Strategy Indicators"/> |
+
+### Debate Arena
+| AI Debate Session | Create Debate |
+|:---:|:---:|
+| <img src="screenshots/debate-arena.png" width="400" alt="Debate Arena"/> | <img src="screenshots/debate-create.png" width="400" alt="Create Debate"/> |
+
+*Multiple AI models debate trading decisions with different roles (Bull, Bear, Analyst, Contrarian, Risk Manager)*
 
 ---
 
@@ -268,6 +276,12 @@ All configuration is done through the web interface - no JSON file editing requi
 - Technical indicators (EMA, MACD, RSI, ATR, Volume, OI, Funding Rate)
 - Risk control settings (leverage, position limits, margin usage)
 - AI test with real-time prompt preview
+
+### Debate Arena
+- Multi-AI debate sessions for trading decisions
+- Configurable AI roles (Bull, Bear, Analyst, Contrarian, Risk Manager)
+- Multiple rounds of debate with consensus voting
+- Auto-execute consensus trades
 
 ---
 

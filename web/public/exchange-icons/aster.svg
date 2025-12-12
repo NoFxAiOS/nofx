@@ -1,0 +1,12 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="aster_grad" x1="18.94" y1="0" x2="12.64" y2="32.05" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4D5B1"/>
+      <stop offset="1" stop-color="#FFD29F"/>
+    </linearGradient>
+  </defs>
+  <path d="M9.13 30.44L9.88 26.99C10.72 23.14 7.78 19.5 3.82 19.5H0.39C1.47 24.34 4.75 28.35 9.13 30.44Z" fill="url(#aster_grad)"/>
+  <path d="M10.64 31.07C12.33 31.67 14.16 32 16.06 32C23.72 32 30.13 26.65 31.73 19.5H21.25C16.52 19.5 12.44 22.78 11.44 27.38L10.64 31.07Z" fill="url(#aster_grad)"/>
+  <path d="M32 17.9C32.08 17.28 32.12 16.64 32.12 16C32.12 7.6 25.63 0.72 17.38 0.05L15.13 10.41C14.29 14.26 17.24 17.9 21.19 17.9H32Z" fill="url(#aster_grad)"/>
+  <path d="M15.75 0C7.02 0.17 0 7.27 0 16C0 16.64 0.04 17.28 0.11 17.9H3.76C8.49 17.9 12.57 14.62 13.57 10.01L15.75 0Z" fill="url(#aster_grad)"/>
+</svg>

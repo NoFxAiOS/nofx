@@ -69,7 +69,7 @@ const AI_PROVIDER_CONFIG: Record<string, {
     apiName: 'Alibaba Cloud',
   },
   openai: {
-    defaultModel: 'gpt-5.1',
+    defaultModel: 'gpt-5.2',
     apiUrl: 'https://platform.openai.com/api-keys',
     apiName: 'OpenAI',
   },

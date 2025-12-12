@@ -290,6 +290,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   }
 
   const handleSaveEditTrader = async (data: CreateTraderRequest) => {
+    console.log('🔥🔥🔥 handleSaveEditTrader CALLED with data:', data)
     if (!editingTrader) return
 
     try {
@@ -310,18 +311,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         name: data.name,
         ai_model_id: data.ai_model_id,
         exchange_id: data.exchange_id,
+        strategy_id: data.strategy_id,
         initial_balance: data.initial_balance,
         scan_interval_minutes: data.scan_interval_minutes,
-        btc_eth_leverage: data.btc_eth_leverage,
-        altcoin_leverage: data.altcoin_leverage,
-        trading_symbols: data.trading_symbols,
-        custom_prompt: data.custom_prompt,
-        override_base_prompt: data.override_base_prompt,
-        system_prompt_template: data.system_prompt_template,
         is_cross_margin: data.is_cross_margin,
-        use_coin_pool: data.use_coin_pool,
-        use_oi_top: data.use_oi_top,
+        show_in_competition: data.show_in_competition,
       }
+
+      console.log('🔥 handleSaveEditTrader - data:', data)
+      console.log('🔥 handleSaveEditTrader - data.strategy_id:', data.strategy_id)
+      console.log('🔥 handleSaveEditTrader - request:', request)
 
       await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
         loading: '正在保存…',

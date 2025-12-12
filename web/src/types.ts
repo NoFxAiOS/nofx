@@ -438,6 +438,11 @@ export interface IndicatorConfig {
   quant_data_api_url?: string;
   enable_quant_oi?: boolean;
   enable_quant_netflow?: boolean;
+  // OI 排行数据（市场持仓量增减排行）
+  enable_oi_ranking?: boolean;
+  oi_ranking_api_url?: string;
+  oi_ranking_duration?: string;  // "1h", "4h", "24h"
+  oi_ranking_limit?: number;
 }
 
 export interface KlineConfig {
@@ -579,6 +584,10 @@ export interface CreateDebateRequest {
   prompt_variant?: string;    // balanced, aggressive, conservative, scalping
   auto_execute?: boolean;
   trader_id?: string;         // Trader to use for auto-execute
+  // OI Ranking data options
+  enable_oi_ranking?: boolean;  // Whether to include OI ranking data
+  oi_ranking_limit?: number;    // Number of OI ranking entries (default 10)
+  oi_duration?: string;         // Duration for OI data (1h, 4h, 24h, etc.)
   participants: {
     ai_model_id: string;
     personality: DebatePersonality;

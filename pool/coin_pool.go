@@ -590,6 +590,169 @@ type MergedCoinPool struct {
 	SymbolSources map[string][]string // Source of each coin ("ai500"/"oi_top")
 }
 
+// OIRankingData OI ranking data for debate (includes both top and low)
+type OIRankingData struct {
+	TimeRange    string       `json:"time_range"`     // e.g., "1小时"
+	Duration     string       `json:"duration"`       // e.g., "1h"
+	TopPositions []OIPosition `json:"top_positions"`  // 持仓增加排行
+	LowPositions []OIPosition `json:"low_positions"`  // 持仓减少排行
+	FetchedAt    time.Time    `json:"fetched_at"`
+}
+
+// GetOIRankingData retrieves OI ranking data (both top increase and low decrease)
+// duration: "1h", "4h", "24h" etc. limit: number of results
+func GetOIRankingData(baseURL, authKey string, duration string, limit int) (*OIRankingData, error) {
+	if baseURL == "" || authKey == "" {
+		return nil, fmt.Errorf("OI API URL or auth key not configured")
+	}
+
+	if duration == "" {
+		duration = "1h"
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	result := &OIRankingData{
+		Duration:  duration,
+		FetchedAt: time.Now(),
+	}
+
+	// Fetch top ranking (持仓增加)
+	topURL := fmt.Sprintf("%s/api/oi/top-ranking?limit=%d&duration=%s&auth=%s", baseURL, limit, duration, authKey)
+	topPositions, timeRange, err := fetchOIRanking(topURL)
+	if err != nil {
+		log.Printf("⚠️  Failed to fetch OI top ranking: %v", err)
+	} else {
+		result.TopPositions = topPositions
+		result.TimeRange = timeRange
+	}
+
+	// Fetch low ranking (持仓减少)
+	lowURL := fmt.Sprintf("%s/api/oi/low-ranking?limit=%d&duration=%s&auth=%s", baseURL, limit, duration, authKey)
+	lowPositions, _, err := fetchOIRanking(lowURL)
+	if err != nil {
+		log.Printf("⚠️  Failed to fetch OI low ranking: %v", err)
+	} else {
+		result.LowPositions = lowPositions
+	}
+
+	log.Printf("✓ Fetched OI ranking data: %d top, %d low (duration: %s)",
+		len(result.TopPositions), len(result.LowPositions), duration)
+
+	return result, nil
+}
+
+// fetchOIRanking fetches OI ranking from a single endpoint
+func fetchOIRanking(url string) ([]OIPosition, string, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var response OITopAPIResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, "", fmt.Errorf("JSON parsing failed: %w", err)
+	}
+
+	if response.Code != 0 {
+		return nil, "", fmt.Errorf("API returned error code: %d", response.Code)
+	}
+
+	return response.Data.Positions, response.Data.TimeRange, nil
+}
+
+// FormatOIRankingForAI formats OI ranking data for AI consumption
+func FormatOIRankingForAI(data *OIRankingData) string {
+	if data == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("## 📊 市场持仓量变化数据 (Open Interest Changes in %s / %s)\n\n", data.TimeRange, data.Duration))
+
+	// Top rankings (持仓增加)
+	if len(data.TopPositions) > 0 {
+		sb.WriteString("### 🔺 持仓量增加排行 (OI Increase Ranking)\n")
+		sb.WriteString("市场资金正在流入以下币种，可能表示趋势延续或新仓位建立:\n\n")
+		sb.WriteString("| 排名 | 币种 | 持仓变化值(USDT) | 变化幅度 | 价格变化 | 多头 | 空头 |\n")
+		sb.WriteString("|------|------|------------------|----------|----------|------|------|\n")
+		for _, pos := range data.TopPositions {
+			sb.WriteString(fmt.Sprintf("| #%d | %s | %s | %+.2f%% | %+.2f%% | %.0f | %.0f |\n",
+				pos.Rank,
+				pos.Symbol,
+				formatOIValue(pos.OIDeltaValue),
+				pos.OIDeltaPercent,
+				pos.PriceDeltaPercent,
+				pos.NetLong,
+				pos.NetShort,
+			))
+		}
+		sb.WriteString("\n")
+
+		// Market interpretation
+		sb.WriteString("**解读**: 持仓增加 + 价格上涨 = 多头主导; 持仓增加 + 价格下跌 = 空头主导\n\n")
+	}
+
+	// Low rankings (持仓减少)
+	if len(data.LowPositions) > 0 {
+		sb.WriteString("### 🔻 持仓量减少排行 (OI Decrease Ranking)\n")
+		sb.WriteString("市场资金正在流出以下币种，可能表示趋势反转或仓位平仓:\n\n")
+		sb.WriteString("| 排名 | 币种 | 持仓变化值(USDT) | 变化幅度 | 价格变化 | 多头 | 空头 |\n")
+		sb.WriteString("|------|------|------------------|----------|----------|------|------|\n")
+		for _, pos := range data.LowPositions {
+			sb.WriteString(fmt.Sprintf("| #%d | %s | %s | %+.2f%% | %+.2f%% | %.0f | %.0f |\n",
+				pos.Rank,
+				pos.Symbol,
+				formatOIValue(pos.OIDeltaValue),
+				pos.OIDeltaPercent,
+				pos.PriceDeltaPercent,
+				pos.NetLong,
+				pos.NetShort,
+			))
+		}
+		sb.WriteString("\n")
+
+		// Market interpretation
+		sb.WriteString("**解读**: 持仓减少 + 价格上涨 = 空头平仓(反弹); 持仓减少 + 价格下跌 = 多头平仓(回调)\n\n")
+	}
+
+	return sb.String()
+}
+
+// formatOIValue formats OI value for display
+func formatOIValue(v float64) string {
+	sign := ""
+	if v >= 0 {
+		sign = "+"
+	}
+	absV := v
+	if absV < 0 {
+		absV = -absV
+	}
+	if absV >= 1e9 {
+		return fmt.Sprintf("%s%.2fB", sign, v/1e9)
+	} else if absV >= 1e6 {
+		return fmt.Sprintf("%s%.2fM", sign, v/1e6)
+	} else if absV >= 1e3 {
+		return fmt.Sprintf("%s%.2fK", sign, v/1e3)
+	}
+	return fmt.Sprintf("%s%.2f", sign, v)
+}
+
 // GetMergedCoinPool retrieves merged coin pool (AI500 + OI Top, deduplicated)
 func GetMergedCoinPool(ai500Limit int) (*MergedCoinPool, error) {
 	// 1. Get AI500 data

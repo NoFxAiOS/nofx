@@ -676,10 +676,14 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	}
 
 	// Set API keys based on AI model
-	if aiModelCfg.Provider == "qwen" {
+	switch aiModelCfg.Provider {
+	case "qwen":
 		traderConfig.QwenKey = aiModelCfg.APIKey
-	} else if aiModelCfg.Provider == "deepseek" {
+	case "deepseek":
 		traderConfig.DeepSeekKey = aiModelCfg.APIKey
+	default:
+		// For other providers (grok, openai, claude, gemini, kimi, etc.), use CustomAPIKey
+		traderConfig.CustomAPIKey = aiModelCfg.APIKey
 	}
 
 	// Create trader instance

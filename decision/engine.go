@@ -120,6 +120,7 @@ type Context struct {
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"`
 	QuantDataMap    map[string]*QuantData              `json:"-"`
+	OIRankingData   *pool.OIRankingData                `json:"-"` // Market-wide OI ranking data
 	BTCETHLeverage  int                                `json:"-"`
 	AltcoinLeverage int                                `json:"-"`
 	Timeframes      []string                           `json:"-"`
@@ -642,6 +643,53 @@ func (e *StrategyEngine) FetchQuantDataBatch(symbols []string) map[string]*Quant
 	return result
 }
 
+// FetchOIRankingData fetches market-wide OI ranking data
+func (e *StrategyEngine) FetchOIRankingData() *pool.OIRankingData {
+	indicators := e.config.Indicators
+	if !indicators.EnableOIRanking {
+		return nil
+	}
+
+	baseURL := indicators.OIRankingAPIURL
+	if baseURL == "" {
+		baseURL = "http://nofxaios.com:30006"
+	}
+
+	// Get auth key from existing API URL or use default
+	authKey := "cm_568c67eae410d912c54c"
+	if indicators.QuantDataAPIURL != "" {
+		if idx := strings.Index(indicators.QuantDataAPIURL, "auth="); idx != -1 {
+			authKey = indicators.QuantDataAPIURL[idx+5:]
+			if ampIdx := strings.Index(authKey, "&"); ampIdx != -1 {
+				authKey = authKey[:ampIdx]
+			}
+		}
+	}
+
+	duration := indicators.OIRankingDuration
+	if duration == "" {
+		duration = "1h"
+	}
+
+	limit := indicators.OIRankingLimit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	logger.Infof("📊 Fetching OI ranking data (duration: %s, limit: %d)", duration, limit)
+
+	data, err := pool.GetOIRankingData(baseURL, authKey, duration, limit)
+	if err != nil {
+		logger.Warnf("⚠️  Failed to fetch OI ranking data: %v", err)
+		return nil
+	}
+
+	logger.Infof("✓ OI ranking data ready: %d top, %d low positions",
+		len(data.TopPositions), len(data.LowPositions))
+
+	return data
+}
+
 // ============================================================================
 // Prompt Building - System Prompt
 // ============================================================================
@@ -903,6 +951,11 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString("\n")
 	}
 	sb.WriteString("\n")
+
+	// OI Ranking data (market-wide open interest changes)
+	if ctx.OIRankingData != nil {
+		sb.WriteString(pool.FormatOIRankingForAI(ctx.OIRankingData))
+	}
 
 	sb.WriteString("---\n\n")
 	sb.WriteString("Now please analyze and output your decision (Chain of Thought + JSON)\n")

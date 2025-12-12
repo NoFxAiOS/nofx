@@ -98,6 +98,11 @@ type IndicatorConfig struct {
 	QuantDataAPIURL    string `json:"quant_data_api_url,omitempty"`   // quantitative data API address
 	EnableQuantOI      bool   `json:"enable_quant_oi"`                // whether to show OI data
 	EnableQuantNetflow bool   `json:"enable_quant_netflow"`           // whether to show Netflow data
+	// OI ranking data (market-wide open interest increase/decrease rankings)
+	EnableOIRanking   bool   `json:"enable_oi_ranking"`             // whether to enable OI ranking data
+	OIRankingAPIURL   string `json:"oi_ranking_api_url,omitempty"`  // OI ranking API base URL
+	OIRankingDuration string `json:"oi_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
+	OIRankingLimit    int    `json:"oi_ranking_limit,omitempty"`    // number of entries (default 10)
 }
 
 // KlineConfig K-line configuration
@@ -246,6 +251,11 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			QuantDataAPIURL:    "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
 			EnableQuantOI:      true,
 			EnableQuantNetflow: true,
+			// OI ranking data - market-wide OI increase/decrease rankings
+			EnableOIRanking:   true,
+			OIRankingAPIURL:   "http://nofxaios.com:30006",
+			OIRankingDuration: "1h",
+			OIRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)

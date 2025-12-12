@@ -66,6 +66,10 @@ type CreateDebateRequest struct {
 	AutoExecute     bool                `json:"auto_execute"`
 	TraderID        string              `json:"trader_id"`
 	Participants    []ParticipantConfig `json:"participants" binding:"required,min=2"`
+	// OI Ranking data options
+	EnableOIRanking bool   `json:"enable_oi_ranking"` // Whether to include OI ranking data
+	OIRankingLimit  int    `json:"oi_ranking_limit"`  // Number of OI ranking entries (default 10)
+	OIDuration      string `json:"oi_duration"`       // Duration for OI data (1h, 4h, 24h, etc.)
 }
 
 // ParticipantConfig represents a participant configuration
@@ -215,6 +219,9 @@ func (h *DebateHandler) HandleCreateDebate(c *gin.Context) {
 		PromptVariant:   req.PromptVariant,
 		AutoExecute:     req.AutoExecute,
 		TraderID:        req.TraderID,
+		EnableOIRanking: req.EnableOIRanking,
+		OIRankingLimit:  req.OIRankingLimit,
+		OIDuration:      req.OIDuration,
 	}
 
 	if err := h.debateStore.CreateSession(session); err != nil {

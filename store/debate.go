@@ -65,6 +65,10 @@ type DebateSession struct {
 	FinalDecisions  []*DebateDecision `json:"final_decisions,omitempty"`  // Multi-coin decisions
 	AutoExecute     bool              `json:"auto_execute"`
 	TraderID        string            `json:"trader_id,omitempty"` // Trader to use for auto-execute
+	// OI Ranking data options
+	EnableOIRanking bool   `json:"enable_oi_ranking"` // Whether to include OI ranking data
+	OIRankingLimit  int    `json:"oi_ranking_limit"`  // Number of OI ranking entries (default 10)
+	OIDuration      string `json:"oi_duration"`       // Duration for OI data (1h, 4h, 24h, etc.)
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
@@ -239,6 +243,9 @@ func (s *DebateStore) InitSchema() error {
 		`ALTER TABLE debate_sessions ADD COLUMN interval_minutes INTEGER DEFAULT 5`,
 		`ALTER TABLE debate_sessions ADD COLUMN prompt_variant TEXT DEFAULT 'balanced'`,
 		`ALTER TABLE debate_sessions ADD COLUMN trader_id TEXT`,
+		`ALTER TABLE debate_sessions ADD COLUMN enable_oi_ranking BOOLEAN DEFAULT 0`,
+		`ALTER TABLE debate_sessions ADD COLUMN oi_ranking_limit INTEGER DEFAULT 10`,
+		`ALTER TABLE debate_sessions ADD COLUMN oi_duration TEXT DEFAULT '1h'`,
 		`ALTER TABLE debate_votes ADD COLUMN leverage INTEGER DEFAULT 5`,
 		`ALTER TABLE debate_votes ADD COLUMN position_pct REAL DEFAULT 0.2`,
 		`ALTER TABLE debate_votes ADD COLUMN stop_loss_pct REAL DEFAULT 0.03`,
@@ -266,15 +273,22 @@ func (s *DebateStore) CreateSession(session *DebateSession) error {
 	if session.PromptVariant == "" {
 		session.PromptVariant = "balanced"
 	}
+	if session.OIRankingLimit == 0 {
+		session.OIRankingLimit = 10
+	}
+	if session.OIDuration == "" {
+		session.OIDuration = "1h"
+	}
 	session.CreatedAt = time.Now()
 	session.UpdatedAt = time.Now()
 
 	_, err := s.db.Exec(`
-		INSERT INTO debate_sessions (id, user_id, name, strategy_id, status, symbol, max_rounds, current_round, interval_minutes, prompt_variant, auto_execute, trader_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO debate_sessions (id, user_id, name, strategy_id, status, symbol, max_rounds, current_round, interval_minutes, prompt_variant, auto_execute, trader_id, enable_oi_ranking, oi_ranking_limit, oi_duration, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		session.ID, session.UserID, session.Name, session.StrategyID, session.Status,
 		session.Symbol, session.MaxRounds, session.CurrentRound, session.IntervalMinutes, session.PromptVariant,
-		session.AutoExecute, session.TraderID, session.CreatedAt, session.UpdatedAt,
+		session.AutoExecute, session.TraderID, session.EnableOIRanking, session.OIRankingLimit, session.OIDuration,
+		session.CreatedAt, session.UpdatedAt,
 	)
 	return err
 }
@@ -286,17 +300,22 @@ func (s *DebateStore) GetSession(id string) (*DebateSession, error) {
 	var traderID sql.NullString
 	var intervalMinutes sql.NullInt64
 	var promptVariant sql.NullString
+	var enableOIRanking sql.NullBool
+	var oiRankingLimit sql.NullInt64
+	var oiDuration sql.NullString
 
 	// Try new schema first
 	err := s.db.QueryRow(`
 		SELECT id, user_id, name, strategy_id, status, symbol, max_rounds, current_round,
-		       interval_minutes, prompt_variant, final_decision, auto_execute, trader_id, created_at, updated_at
+		       interval_minutes, prompt_variant, final_decision, auto_execute, trader_id,
+		       enable_oi_ranking, oi_ranking_limit, oi_duration, created_at, updated_at
 		FROM debate_sessions WHERE id = ?`, id,
 	).Scan(
 		&session.ID, &session.UserID, &session.Name, &session.StrategyID,
 		&session.Status, &session.Symbol, &session.MaxRounds, &session.CurrentRound,
 		&intervalMinutes, &promptVariant,
-		&finalDecisionJSON, &session.AutoExecute, &traderID, &session.CreatedAt, &session.UpdatedAt,
+		&finalDecisionJSON, &session.AutoExecute, &traderID,
+		&enableOIRanking, &oiRankingLimit, &oiDuration, &session.CreatedAt, &session.UpdatedAt,
 	)
 
 	// Fallback to basic schema if new columns don't exist
@@ -316,6 +335,8 @@ func (s *DebateStore) GetSession(id string) (*DebateSession, error) {
 		// Set defaults for new fields
 		session.IntervalMinutes = 5
 		session.PromptVariant = "balanced"
+		session.OIRankingLimit = 10
+		session.OIDuration = "1h"
 	} else {
 		// Set defaults for nullable fields
 		session.IntervalMinutes = 5
@@ -328,6 +349,17 @@ func (s *DebateStore) GetSession(id string) (*DebateSession, error) {
 		}
 		if traderID.Valid {
 			session.TraderID = traderID.String
+		}
+		if enableOIRanking.Valid {
+			session.EnableOIRanking = enableOIRanking.Bool
+		}
+		session.OIRankingLimit = 10
+		if oiRankingLimit.Valid {
+			session.OIRankingLimit = int(oiRankingLimit.Int64)
+		}
+		session.OIDuration = "1h"
+		if oiDuration.Valid {
+			session.OIDuration = oiDuration.String
 		}
 	}
 

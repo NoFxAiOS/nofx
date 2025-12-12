@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -262,14 +263,25 @@ func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetiti
 
 // Update updates trader configuration
 func (s *TraderStore) Update(trader *Trader) error {
+	fmt.Printf("📝 TraderStore.Update: ID=%s, Name=%s, AIModelID=%s, StrategyID=%s\n",
+		trader.ID, trader.Name, trader.AIModelID, trader.StrategyID)
 	_, err := s.db.Exec(`
 		UPDATE traders SET
-			name = ?, ai_model_id = ?, exchange_id = ?, strategy_id = ?,
-			scan_interval_minutes = ?, is_cross_margin = ?, show_in_competition = ?,
+			name = ?,
+			ai_model_id = ?,
+			exchange_id = ?,
+			strategy_id = ?,
+			initial_balance = CASE WHEN ? > 0 THEN ? ELSE initial_balance END,
+			scan_interval_minutes = CASE WHEN ? > 0 THEN ? ELSE scan_interval_minutes END,
+			is_cross_margin = ?,
+			show_in_competition = ?,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = ? AND user_id = ?
 	`, trader.Name, trader.AIModelID, trader.ExchangeID, trader.StrategyID,
-		trader.ScanIntervalMinutes, trader.IsCrossMargin, trader.ShowInCompetition, trader.ID, trader.UserID)
+		trader.InitialBalance, trader.InitialBalance,
+		trader.ScanIntervalMinutes, trader.ScanIntervalMinutes,
+		trader.IsCrossMargin, trader.ShowInCompetition,
+		trader.ID, trader.UserID)
 	return err
 }
 

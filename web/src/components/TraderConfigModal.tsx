@@ -163,7 +163,7 @@ export function TraderConfigModal({
         name: formData.trader_name,
         ai_model_id: formData.ai_model,
         exchange_id: formData.exchange_id,
-        strategy_id: formData.strategy_id || undefined,
+        strategy_id: formData.strategy_id,
         is_cross_margin: formData.is_cross_margin,
         show_in_competition: formData.show_in_competition,
         scan_interval_minutes: formData.scan_interval_minutes,

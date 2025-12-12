@@ -208,6 +208,7 @@ func (s *Server) setupRoutes() {
         {
                 // 健康检查
                 api.Any("/health", s.handleHealth)
+                api.GET("/health/email", s.handleEmailHealthCheck)
 
                 // 认证相关路由（无需认证）
                 api.POST("/register", s.handleRegister)
@@ -320,6 +321,47 @@ func (s *Server) handleHealth(c *gin.Context) {
                 "status": "ok",
                 "time":   c.Request.Context().Value("time"),
         })
+}
+
+// handleEmailHealthCheck 邮件服务健康检查
+func (s *Server) handleEmailHealthCheck(c *gin.Context) {
+	// 检查API Key配置
+	hasAPIKey := s.emailClient.HasAPIKey()
+	fromEmail := s.emailClient.GetFromEmail()
+
+	if !hasAPIKey {
+		log.Printf("🔴 [EMAIL_HEALTH_CHECK] API Key未配置")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":     "unhealthy",
+			"service":    "email",
+			"provider":   "resend",
+			"reason":     "RESEND_API_KEY未配置",
+			"timestamp":  time.Now(),
+			"from_email": fromEmail,
+		})
+		return
+	}
+
+	if fromEmail == "" {
+		log.Printf("🔴 [EMAIL_HEALTH_CHECK] 发件人邮箱未配置")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":    "unhealthy",
+			"service":   "email",
+			"provider":  "resend",
+			"reason":    "发件人邮箱未配置",
+			"timestamp": time.Now(),
+		})
+		return
+	}
+
+	log.Printf("✅ [EMAIL_HEALTH_CHECK] 邮件服务正常")
+	c.JSON(http.StatusOK, gin.H{
+		"status":     "healthy",
+		"service":    "email",
+		"provider":   "resend",
+		"from_email": fromEmail,
+		"timestamp":  time.Now(),
+	})
 }
 
 // handleGetMe 获取当前登录用户信息（用于刷新前端状态）
@@ -2221,14 +2263,37 @@ func (s *Server) handleRequestPasswordReset(c *gin.Context) {
                 frontendURL = "https://web-pink-omega-40.vercel.app" // 默认前端URL
         }
 
-        // 发送密码重置邮件
-        err = s.emailClient.SendPasswordResetEmail(req.Email, token, frontendURL)
+        // 发送密码重置邮件（带重试）
+        err = s.emailClient.SendPasswordResetEmailWithRetry(req.Email, token, frontendURL)
         if err != nil {
-                log.Printf("❌ 发送密码重置邮件失败: %v", err)
+                // ✅ 改进: 详细的诊断日志，便于快速定位问题
+                log.Printf("🔴 [PASSWORD_RESET_FAILED] 邮件发送失败（已重试）")
+                log.Printf("   收件人: %s", req.Email)
+                log.Printf("   错误信息: %v", err)
+                log.Printf("   诊断检查清单:")
+                log.Printf("     □ API Key配置: %s", func() string {
+                        if os.Getenv("RESEND_API_KEY") != "" {
+                                return "✅ 已配置"
+                        }
+                        return "❌ 未配置"
+                }())
+                log.Printf("     □ 发件人邮箱: %s", func() string {
+                        fromEmail := os.Getenv("RESEND_FROM_EMAIL")
+                        if fromEmail == "" {
+                                return "❌ 未配置，使用默认值"
+                        }
+                        return "✅ " + fromEmail
+                }())
+                log.Printf("     □ 前端URL: %s", frontendURL)
+                log.Printf("   故障排查提示:")
+                log.Printf("     1. 检查环境变量: echo $RESEND_API_KEY")
+                log.Printf("     2. 检查发件人在Resend中是否被验证")
+                log.Printf("     3. 检查API配额是否已用尽")
+                log.Printf("     4. 检查网络连接是否正常")
                 // 即使邮件发送失败，也返回成功消息（防止邮箱枚举）
                 // 但记录错误日志供管理员查看
         } else {
-                log.Printf("✅ 密码重置邮件已发送 - 收件人: %s", req.Email)
+                log.Printf("✅ [PASSWORD_RESET_SUCCESS] 邮件已发送（重试成功）- 收件人: %s", req.Email)
         }
 
         c.JSON(http.StatusOK, gin.H{

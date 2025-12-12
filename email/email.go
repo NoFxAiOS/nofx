@@ -65,6 +65,16 @@ func NewResendClient() *ResendClient {
 	}
 }
 
+// HasAPIKey 检查是否配置了API Key
+func (c *ResendClient) HasAPIKey() bool {
+	return c.apiKey != ""
+}
+
+// GetFromEmail 获取发件人邮箱
+func (c *ResendClient) GetFromEmail() string {
+	return c.fromEmail
+}
+
 // SendEmail 发送邮件
 func (c *ResendClient) SendEmail(to, subject, htmlContent, textContent string) error {
 	if c.apiKey == "" {
@@ -356,4 +366,66 @@ func (c *ResendClient) SendWelcomeEmail(to, userName string) error {
 
 	subject := "欢迎加入 Monnaire Trading Agent OS"
 	return c.SendEmail(to, subject, htmlContent, textContent)
+}
+
+// SendEmailWithRetry 带重试机制的邮件发送
+func (c *ResendClient) SendEmailWithRetry(to, subject, htmlContent, textContent string) error {
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err := c.SendEmail(to, subject, htmlContent, textContent)
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		log.Printf("⚠️  [EMAIL_RETRY] 邮件发送失败 (尝试 %d/%d)", attempt, maxRetries)
+		log.Printf("   收件人: %s", to)
+		log.Printf("   错误: %v", err)
+
+		if attempt < maxRetries {
+			// 指数退避: 1s, 2s, 4s
+			delay := time.Duration(1<<uint(attempt-1)) * time.Second
+			log.Printf("   等待 %v 后重试...", delay)
+			time.Sleep(delay)
+		}
+	}
+
+	log.Printf("🔴 [EMAIL_FAILED] 邮件发送失败，已重试%d次", maxRetries)
+	return fmt.Errorf("邮件发送失败（已重试%d次）: %w", maxRetries, lastErr)
+}
+
+// SendPasswordResetEmailWithRetry 带重试的密码重置邮件发送
+func (c *ResendClient) SendPasswordResetEmailWithRetry(to, resetToken, frontendURL string) error {
+	// 构建重置链接
+	resetLink := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken)
+
+	// 生成HTML内容
+	htmlContent, err := generatePasswordResetHTML(resetLink)
+	if err != nil {
+		return fmt.Errorf("生成邮件HTML失败: %w", err)
+	}
+
+	// 生成纯文本内容（作为备用）
+	textContent := fmt.Sprintf(`
+密码重置请求
+
+您好，
+
+我们收到了您的密码重置请求。请点击以下链接重置您的密码：
+
+%s
+
+此链接将在1小时后过期。
+
+如果您没有请求重置密码，请忽略此邮件。
+
+---
+Monnaire Trading Agent OS
+`, resetLink)
+
+	// 发送邮件（带重试）
+	subject := "密码重置 - Monnaire Trading Agent OS"
+	return c.SendEmailWithRetry(to, subject, htmlContent, textContent)
 }

@@ -196,11 +196,15 @@ func (tm *TraderManager) GetCompetitionData() (map[string]interface{}, error) {
 
 	tm.mu.RLock()
 
-	// Get all trader list
+	// Get all trader list (only those with ShowInCompetition = true)
 	allTraders := make([]*trader.AutoTrader, 0, len(tm.traders))
 	for id, t := range tm.traders {
-		allTraders = append(allTraders, t)
-		logger.Infof("📋 Competition data includes trader: %s (%s)", t.GetName(), id)
+		if t.GetShowInCompetition() {
+			allTraders = append(allTraders, t)
+			logger.Infof("📋 Competition data includes trader: %s (%s)", t.GetName(), id)
+		} else {
+			logger.Infof("📋 Competition data excludes trader (hidden): %s (%s)", t.GetName(), id)
+		}
 	}
 	tm.mu.RUnlock()
 
@@ -465,7 +469,7 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 		}
 
 		// Use existing method to load trader
-		logger.Infof("📦 Loading trader %s (AI Model: %s, Exchange: %s, Strategy ID: %s)", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID, traderCfg.StrategyID)
+		logger.Infof("📦 Loading trader %s (AI Model: %s, Exchange: %s/%s, Strategy ID: %s)", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ExchangeType, exchangeCfg.AccountName, traderCfg.StrategyID)
 		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
 			logger.Infof("❌ Failed to load trader %s: %v", traderCfg.Name, err)
@@ -605,7 +609,8 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		ID:                    traderCfg.ID,
 		Name:                  traderCfg.Name,
 		AIModel:               aiModelCfg.Provider,
-		Exchange:              exchangeCfg.ID,
+		Exchange:              exchangeCfg.ExchangeType, // Exchange type: binance/bybit/okx/etc
+		ExchangeID:            exchangeCfg.ID,           // Exchange account UUID (for multi-account)
 		BinanceAPIKey:         "",
 		BinanceSecretKey:      "",
 		HyperliquidPrivateKey: "",
@@ -615,14 +620,15 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		QwenKey:               "",
 		CustomAPIURL:          aiModelCfg.CustomAPIURL,
 		CustomModelName:       aiModelCfg.CustomModelName,
-		ScanInterval:    time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		InitialBalance:  traderCfg.InitialBalance,
-		IsCrossMargin:   traderCfg.IsCrossMargin,
-		StrategyConfig:        strategyConfig,
+		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
+		InitialBalance:       traderCfg.InitialBalance,
+		IsCrossMargin:        traderCfg.IsCrossMargin,
+		ShowInCompetition:    traderCfg.ShowInCompetition,
+		StrategyConfig:       strategyConfig,
 	}
 
 	// Set API keys based on exchange type
-	switch exchangeCfg.ID {
+	switch exchangeCfg.ExchangeType {
 	case "binance":
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
@@ -671,7 +677,7 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	}
 
 	tm.traders[traderCfg.ID] = at
-	logger.Infof("✓ Trader '%s' (%s + %s) loaded to memory", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID)
+	logger.Infof("✓ Trader '%s' (%s + %s/%s) loaded to memory", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ExchangeType, exchangeCfg.AccountName)
 
 	// Auto-start if trader was running before shutdown
 	if traderCfg.IsRunning {

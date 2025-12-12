@@ -951,11 +951,97 @@ func absFloat(x float64) float64 {
 	return x
 }
 
-// GetClosedPnL gets closed position PnL records from exchange
-// Hyperliquid does not have a direct closed PnL API, returns empty slice
+// GetClosedPnL gets recent closing trades from Hyperliquid
+// Note: Hyperliquid does NOT have a position history API, only fill history.
+// This returns individual closing trades for real-time position closure detection.
 func (t *HyperliquidTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
-	// Hyperliquid does not provide a closed PnL history API
-	// Position closure data needs to be tracked locally via position sync
-	logger.Infof("⚠️  Hyperliquid GetClosedPnL not supported, returning empty")
-	return []ClosedPnLRecord{}, nil
+	trades, err := t.GetTrades(startTime, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter only closing trades (realizedPnl != 0)
+	var records []ClosedPnLRecord
+	for _, trade := range trades {
+		if trade.RealizedPnL == 0 {
+			continue
+		}
+
+		// Determine side (Hyperliquid uses one-way mode)
+		side := "long"
+		if trade.Side == "SELL" || trade.Side == "Sell" {
+			side = "long" // Selling closes long
+		} else {
+			side = "short" // Buying closes short
+		}
+
+		// Calculate entry price from PnL
+		var entryPrice float64
+		if trade.Quantity > 0 {
+			if side == "long" {
+				entryPrice = trade.Price - trade.RealizedPnL/trade.Quantity
+			} else {
+				entryPrice = trade.Price + trade.RealizedPnL/trade.Quantity
+			}
+		}
+
+		records = append(records, ClosedPnLRecord{
+			Symbol:      trade.Symbol,
+			Side:        side,
+			EntryPrice:  entryPrice,
+			ExitPrice:   trade.Price,
+			Quantity:    trade.Quantity,
+			RealizedPnL: trade.RealizedPnL,
+			Fee:         trade.Fee,
+			ExitTime:    trade.Time,
+			EntryTime:   trade.Time,
+			OrderID:     trade.TradeID,
+			ExchangeID:  trade.TradeID,
+			CloseType:   "unknown",
+		})
+	}
+
+	return records, nil
+}
+
+// GetTrades retrieves trade history from Hyperliquid
+func (t *HyperliquidTrader) GetTrades(startTime time.Time, limit int) ([]TradeRecord, error) {
+	// Use UserFillsByTime API
+	startTimeMs := startTime.UnixMilli()
+	fills, err := t.exchange.Info().UserFillsByTime(t.ctx, t.walletAddr, startTimeMs, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user fills: %w", err)
+	}
+
+	var trades []TradeRecord
+	for _, fill := range fills {
+		price, _ := strconv.ParseFloat(fill.Price, 64)
+		qty, _ := strconv.ParseFloat(fill.Size, 64)
+		fee, _ := strconv.ParseFloat(fill.Fee, 64)
+		pnl, _ := strconv.ParseFloat(fill.ClosedPnl, 64)
+
+		// Determine side: "B" = Buy, "S" = Sell (or "A" = Ask, "B" = Bid)
+		var side string
+		if fill.Side == "B" || fill.Side == "Buy" || fill.Side == "bid" {
+			side = "BUY"
+		} else {
+			side = "SELL"
+		}
+
+		// Hyperliquid uses one-way mode, so PositionSide is "BOTH"
+		trade := TradeRecord{
+			TradeID:      strconv.FormatInt(fill.Tid, 10),
+			Symbol:       fill.Coin,
+			Side:         side,
+			PositionSide: "BOTH", // Hyperliquid doesn't have hedge mode
+			Price:        price,
+			Quantity:     qty,
+			RealizedPnL:  pnl,
+			Fee:          fee,
+			Time:         time.UnixMilli(fill.Time),
+		}
+		trades = append(trades, trade)
+	}
+
+	return trades, nil
 }

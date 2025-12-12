@@ -1292,11 +1292,125 @@ func (t *AsterTrader) GetOrderStatus(symbol string, orderID string) (map[string]
 	return response, nil
 }
 
-// GetClosedPnL gets closed position PnL records from exchange
-// Aster does not have a direct closed PnL API, returns empty slice
+// GetClosedPnL gets recent closing trades from Aster
+// Note: Aster does NOT have a position history API, only trade history.
+// This returns individual closing trades for real-time position closure detection.
 func (t *AsterTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
-	// Aster does not provide a closed PnL history API
-	// Position closure data needs to be tracked locally via position sync
-	logger.Infof("⚠️  Aster GetClosedPnL not supported, returning empty")
-	return []ClosedPnLRecord{}, nil
+	trades, err := t.GetTrades(startTime, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter only closing trades (realizedPnl != 0)
+	var records []ClosedPnLRecord
+	for _, trade := range trades {
+		if trade.RealizedPnL == 0 {
+			continue
+		}
+
+		// Determine side from PositionSide or trade direction
+		side := "long"
+		if trade.PositionSide == "SHORT" || trade.PositionSide == "short" {
+			side = "short"
+		} else if trade.PositionSide == "BOTH" || trade.PositionSide == "" {
+			if trade.Side == "SELL" || trade.Side == "Sell" {
+				side = "long"
+			} else {
+				side = "short"
+			}
+		}
+
+		// Calculate entry price from PnL
+		var entryPrice float64
+		if trade.Quantity > 0 {
+			if side == "long" {
+				entryPrice = trade.Price - trade.RealizedPnL/trade.Quantity
+			} else {
+				entryPrice = trade.Price + trade.RealizedPnL/trade.Quantity
+			}
+		}
+
+		records = append(records, ClosedPnLRecord{
+			Symbol:      trade.Symbol,
+			Side:        side,
+			EntryPrice:  entryPrice,
+			ExitPrice:   trade.Price,
+			Quantity:    trade.Quantity,
+			RealizedPnL: trade.RealizedPnL,
+			Fee:         trade.Fee,
+			ExitTime:    trade.Time,
+			EntryTime:   trade.Time,
+			OrderID:     trade.TradeID,
+			ExchangeID:  trade.TradeID,
+			CloseType:   "unknown",
+		})
+	}
+
+	return records, nil
+}
+
+// AsterTradeRecord represents a trade from Aster API
+type AsterTradeRecord struct {
+	ID           int64  `json:"id"`
+	Symbol       string `json:"symbol"`
+	OrderID      int64  `json:"orderId"`
+	Side         string `json:"side"`         // BUY or SELL
+	PositionSide string `json:"positionSide"` // LONG or SHORT
+	Price        string `json:"price"`
+	Qty          string `json:"qty"`
+	RealizedPnl  string `json:"realizedPnl"`
+	Commission   string `json:"commission"`
+	Time         int64  `json:"time"`
+	Buyer        bool   `json:"buyer"`
+	Maker        bool   `json:"maker"`
+}
+
+// GetTrades retrieves trade history from Aster
+func (t *AsterTrader) GetTrades(startTime time.Time, limit int) ([]TradeRecord, error) {
+	if limit <= 0 {
+		limit = 500
+	}
+
+	// Build request params
+	params := map[string]interface{}{
+		"startTime": startTime.UnixMilli(),
+		"limit":     limit,
+	}
+
+	// Use existing request method with signing
+	body, err := t.request("GET", "/fapi/v3/userTrades", params)
+	if err != nil {
+		logger.Infof("⚠️  Aster userTrades API error: %v", err)
+		return []TradeRecord{}, nil
+	}
+
+	var asterTrades []AsterTradeRecord
+	if err := json.Unmarshal(body, &asterTrades); err != nil {
+		logger.Infof("⚠️  Failed to parse Aster trades response: %v", err)
+		return []TradeRecord{}, nil
+	}
+
+	// Convert to unified TradeRecord format
+	var result []TradeRecord
+	for _, at := range asterTrades {
+		price, _ := strconv.ParseFloat(at.Price, 64)
+		qty, _ := strconv.ParseFloat(at.Qty, 64)
+		fee, _ := strconv.ParseFloat(at.Commission, 64)
+		pnl, _ := strconv.ParseFloat(at.RealizedPnl, 64)
+
+		trade := TradeRecord{
+			TradeID:      strconv.FormatInt(at.ID, 10),
+			Symbol:       at.Symbol,
+			Side:         at.Side,
+			PositionSide: at.PositionSide,
+			Price:        price,
+			Quantity:     qty,
+			RealizedPnL:  pnl,
+			Fee:          fee,
+			Time:         time.UnixMilli(at.Time),
+		}
+		result = append(result, trade)
+	}
+
+	return result, nil
 }

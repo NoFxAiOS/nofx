@@ -544,6 +544,21 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	case "deepseek":
 		aiClient = mcp.NewDeepSeekClient()
 		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+	case "claude":
+		aiClient = mcp.NewClaudeClient()
+		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+	case "kimi":
+		aiClient = mcp.NewKimiClient()
+		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+	case "gemini":
+		aiClient = mcp.NewGeminiClient()
+		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+	case "grok":
+		aiClient = mcp.NewGrokClient()
+		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+	case "openai":
+		aiClient = mcp.NewOpenAIClient()
+		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
 	default:
 		// Use generic client
 		aiClient = mcp.NewClient()

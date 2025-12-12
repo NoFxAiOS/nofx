@@ -27,7 +27,8 @@ type TraderStats struct {
 type TraderPosition struct {
 	ID                 int64      `json:"id"`
 	TraderID           string     `json:"trader_id"`
-	ExchangeID         string     `json:"exchange_id"`          // Exchange ID: binance/bybit/hyperliquid/aster/lighter
+	ExchangeID         string     `json:"exchange_id"`          // Exchange account UUID (for multi-account support)
+	ExchangeType       string     `json:"exchange_type"`        // Exchange type: binance/bybit/okx/hyperliquid/aster/lighter
 	ExchangePositionID string     `json:"exchange_position_id"` // Exchange-specific unique position ID for deduplication
 	Symbol             string     `json:"symbol"`
 	Side               string     `json:"side"`           // LONG/SHORT
@@ -92,6 +93,8 @@ func (s *PositionStore) InitTables() error {
 	// Migration: add exchange_id column to existing table (if not exists)
 	// Must be executed before creating indexes!
 	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_id TEXT NOT NULL DEFAULT ''`)
+	// Migration: add exchange_type column (binance/bybit/okx/etc)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_type TEXT NOT NULL DEFAULT ''`)
 	// Migration: add exchange_position_id for deduplication
 	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_position_id TEXT NOT NULL DEFAULT ''`)
 	// Migration: add source field (system/manual/sync)
@@ -105,7 +108,9 @@ func (s *PositionStore) InitTables() error {
 		`CREATE INDEX IF NOT EXISTS idx_positions_symbol ON trader_positions(trader_id, symbol, side, status)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_entry ON trader_positions(trader_id, entry_time DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_positions_exit ON trader_positions(trader_id, exit_time DESC)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_positions_exchange_unique ON trader_positions(trader_id, exchange_position_id) WHERE exchange_position_id != ''`,
+		// Unique index based on exchange_id (account UUID), not trader_id
+		// This ensures the same position from an exchange account is not duplicated across different traders
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_positions_exchange_pos_unique ON trader_positions(exchange_id, exchange_position_id) WHERE exchange_position_id != ''`,
 	}
 	for _, idx := range indices {
 		if _, err := s.db.Exec(idx); err != nil {
@@ -128,11 +133,11 @@ func (s *PositionStore) Create(pos *TraderPosition) error {
 
 	result, err := s.db.Exec(`
 		INSERT INTO trader_positions (
-			trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
+			trader_id, exchange_id, exchange_type, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, leverage, status, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		pos.TraderID, pos.ExchangeID, pos.Symbol, pos.Side, pos.Quantity, pos.EntryPrice,
+		pos.TraderID, pos.ExchangeID, pos.ExchangeType, pos.Symbol, pos.Side, pos.Quantity, pos.EntryPrice,
 		pos.EntryOrderID, pos.EntryTime.Format(time.RFC3339), pos.Leverage,
 		pos.Status, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
@@ -167,7 +172,7 @@ func (s *PositionStore) ClosePosition(id int64, exitPrice float64, exitOrderID s
 // GetOpenPositions gets all open positions
 func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
@@ -188,14 +193,14 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 	var entryTime, exitTime, createdAt, updatedAt sql.NullString
 
 	err := s.db.QueryRow(`
-		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
 		WHERE trader_id = ? AND symbol = ? AND side = ? AND status = 'OPEN'
 		ORDER BY entry_time DESC LIMIT 1
 	`, traderID, symbol, side).Scan(
-		&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.Symbol, &pos.Side, &pos.Quantity,
+		&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.ExchangeType, &pos.Symbol, &pos.Side, &pos.Quantity,
 		&pos.EntryPrice, &pos.EntryOrderID, &entryTime, &pos.ExitPrice,
 		&pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
 		&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,
@@ -214,7 +219,7 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 // GetClosedPositions gets closed positions (historical records)
 func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
@@ -233,7 +238,7 @@ func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*Trade
 // GetAllOpenPositions gets all traders' open positions (for global sync)
 func (s *PositionStore) GetAllOpenPositions() ([]*TraderPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, exchange_id, symbol, side, quantity, entry_price, entry_order_id,
+		SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
 			leverage, status, close_reason, created_at, updated_at
 		FROM trader_positions
@@ -515,7 +520,7 @@ func (s *PositionStore) scanPositions(rows *sql.Rows) ([]*TraderPosition, error)
 		var entryTime, exitTime, createdAt, updatedAt sql.NullString
 
 		err := rows.Scan(
-			&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.Symbol, &pos.Side, &pos.Quantity,
+			&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.ExchangeType, &pos.Symbol, &pos.Side, &pos.Quantity,
 			&pos.EntryPrice, &pos.EntryOrderID, &entryTime, &pos.ExitPrice,
 			&pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
 			&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,
@@ -883,7 +888,9 @@ func (s *PositionStore) calculateStreaks(traderID string, summary *HistorySummar
 // =============================================================================
 
 // ExistsWithExchangePositionID checks if a position with the given exchange position ID already exists
-func (s *PositionStore) ExistsWithExchangePositionID(traderID, exchangePositionID string) (bool, error) {
+// Note: Uses exchange_id (account UUID) for deduplication, not trader_id
+// This ensures that the same position from an exchange account is not duplicated across different traders
+func (s *PositionStore) ExistsWithExchangePositionID(exchangeID, exchangePositionID string) (bool, error) {
 	if exchangePositionID == "" {
 		return false, nil
 	}
@@ -891,8 +898,8 @@ func (s *PositionStore) ExistsWithExchangePositionID(traderID, exchangePositionI
 	var count int
 	err := s.db.QueryRow(`
 		SELECT COUNT(*) FROM trader_positions
-		WHERE trader_id = ? AND exchange_position_id = ?
-	`, traderID, exchangePositionID).Scan(&count)
+		WHERE exchange_id = ? AND exchange_position_id = ?
+	`, exchangeID, exchangePositionID).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("failed to check position existence: %w", err)
 	}
@@ -901,17 +908,52 @@ func (s *PositionStore) ExistsWithExchangePositionID(traderID, exchangePositionI
 
 // CreateFromClosedPnL creates a closed position record from exchange closed PnL data
 // This is used for syncing historical positions from exchange
-// Returns true if created, false if already exists (deduped)
-func (s *PositionStore) CreateFromClosedPnL(traderID, exchangeID string, record *ClosedPnLRecord) (bool, error) {
-	// Generate unique exchange position ID from record data
-	exchangePositionID := record.ExchangeID
-	if exchangePositionID == "" {
-		// Fallback: generate from order ID + exit time
-		exchangePositionID = fmt.Sprintf("%s_%d", record.OrderID, record.ExitTime.UnixMilli())
+// Returns true if created, false if already exists (deduped) or invalid data
+func (s *PositionStore) CreateFromClosedPnL(traderID, exchangeID, exchangeType string, record *ClosedPnLRecord) (bool, error) {
+	// ==========================================================================
+	// Step 1: Validate required fields
+	// ==========================================================================
+	if record.Symbol == "" {
+		return false, nil // Skip: no symbol
 	}
 
-	// Check if already exists
-	exists, err := s.ExistsWithExchangePositionID(traderID, exchangePositionID)
+	// Normalize and validate side
+	side := strings.ToUpper(record.Side)
+	if side == "LONG" || side == "BUY" {
+		side = "LONG"
+	} else if side == "SHORT" || side == "SELL" {
+		side = "SHORT"
+	} else {
+		return false, nil // Skip: invalid side
+	}
+
+	// Validate quantity
+	if record.Quantity <= 0 {
+		return false, nil // Skip: invalid quantity
+	}
+
+	// Validate prices (entry price can be calculated, but should be positive)
+	if record.ExitPrice <= 0 {
+		return false, nil // Skip: invalid exit price
+	}
+	if record.EntryPrice <= 0 {
+		return false, nil // Skip: invalid entry price
+	}
+
+	// ==========================================================================
+	// Step 2: Generate unique exchange position ID for deduplication
+	// ==========================================================================
+	exchangePositionID := record.ExchangeID
+	if exchangePositionID == "" {
+		// Fallback: generate from symbol + side + exit time + pnl (to ensure uniqueness)
+		exchangePositionID = fmt.Sprintf("%s_%s_%d_%.8f",
+			record.Symbol, side, record.ExitTime.UnixMilli(), record.RealizedPnL)
+	}
+
+	// ==========================================================================
+	// Step 3: Check for duplicates based on (exchange_id, exchange_position_id)
+	// ==========================================================================
+	exists, err := s.ExistsWithExchangePositionID(exchangeID, exchangePositionID)
 	if err != nil {
 		return false, err
 	}
@@ -919,49 +961,48 @@ func (s *PositionStore) CreateFromClosedPnL(traderID, exchangeID string, record 
 		return false, nil // Already exists, skip
 	}
 
-	// Normalize side
-	side := strings.ToUpper(record.Side)
-	if side == "LONG" || side == "BUY" {
-		side = "LONG"
-	} else {
-		side = "SHORT"
-	}
-
+	// ==========================================================================
+	// Step 4: Handle timestamps
+	// ==========================================================================
 	now := time.Now()
 	exitTime := record.ExitTime
 	entryTime := record.EntryTime
 
-	// Handle zero entry time - use exit time or current time as fallback
-	if entryTime.IsZero() || entryTime.Year() < 2000 {
-		if !exitTime.IsZero() && exitTime.Year() >= 2000 {
-			entryTime = exitTime // Use exit time as approximation
-		} else {
-			entryTime = now // Last resort: use current time
-		}
-	}
-
-	// Handle zero exit time
+	// Validate exit time
 	if exitTime.IsZero() || exitTime.Year() < 2000 {
-		exitTime = now
+		return false, nil // Skip: invalid exit time
 	}
 
+	// Handle zero entry time - use exit time as approximation
+	if entryTime.IsZero() || entryTime.Year() < 2000 {
+		entryTime = exitTime
+	}
+
+	// Entry time should not be after exit time
+	if entryTime.After(exitTime) {
+		entryTime = exitTime
+	}
+
+	// ==========================================================================
+	// Step 5: Insert into database
+	// ==========================================================================
 	_, err = s.db.Exec(`
 		INSERT INTO trader_positions (
-			trader_id, exchange_id, exchange_position_id, symbol, side, quantity,
+			trader_id, exchange_id, exchange_type, exchange_position_id, symbol, side, quantity,
 			entry_price, entry_order_id, entry_time,
 			exit_price, exit_order_id, exit_time,
 			realized_pnl, fee, leverage, status, close_reason, source,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLOSED', ?, 'sync', ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CLOSED', ?, 'sync', ?, ?)
 	`,
-		traderID, exchangeID, exchangePositionID, record.Symbol, side, record.Quantity,
+		traderID, exchangeID, exchangeType, exchangePositionID, record.Symbol, side, record.Quantity,
 		record.EntryPrice, "", entryTime.Format(time.RFC3339),
 		record.ExitPrice, record.OrderID, exitTime.Format(time.RFC3339),
 		record.RealizedPnL, record.Fee, record.Leverage, record.CloseType,
 		now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
-		// Could be duplicate key error, treat as already exists
+		// Duplicate key error, treat as already exists
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return false, nil
 		}
@@ -1012,9 +1053,9 @@ func (s *PositionStore) GetLastClosedPositionTime(traderID string) (time.Time, e
 
 // CreateOpenPosition creates an open position record with exchange position ID
 func (s *PositionStore) CreateOpenPosition(pos *TraderPosition) error {
-	// Check if already exists by exchange position ID
-	if pos.ExchangePositionID != "" {
-		exists, err := s.ExistsWithExchangePositionID(pos.TraderID, pos.ExchangePositionID)
+	// Check if already exists by exchange position ID (based on exchange_id, not trader_id)
+	if pos.ExchangePositionID != "" && pos.ExchangeID != "" {
+		exists, err := s.ExistsWithExchangePositionID(pos.ExchangeID, pos.ExchangePositionID)
 		if err != nil {
 			return err
 		}
@@ -1033,12 +1074,12 @@ func (s *PositionStore) CreateOpenPosition(pos *TraderPosition) error {
 
 	result, err := s.db.Exec(`
 		INSERT INTO trader_positions (
-			trader_id, exchange_id, exchange_position_id, symbol, side, quantity,
+			trader_id, exchange_id, exchange_type, exchange_position_id, symbol, side, quantity,
 			entry_price, entry_order_id, entry_time, leverage, status, source,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		pos.TraderID, pos.ExchangeID, pos.ExchangePositionID, pos.Symbol, pos.Side, pos.Quantity,
+		pos.TraderID, pos.ExchangeID, pos.ExchangeType, pos.ExchangePositionID, pos.Symbol, pos.Side, pos.Quantity,
 		pos.EntryPrice, pos.EntryOrderID, pos.EntryTime.Format(time.RFC3339), pos.Leverage,
 		pos.Status, pos.Source, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
@@ -1075,11 +1116,11 @@ func (s *PositionStore) ClosePositionWithAccurateData(id int64, exitPrice float6
 
 // SyncClosedPositions syncs closed positions from exchange to local database
 // Returns (created count, skipped count, error)
-func (s *PositionStore) SyncClosedPositions(traderID, exchangeID string, records []ClosedPnLRecord) (int, int, error) {
+func (s *PositionStore) SyncClosedPositions(traderID, exchangeID, exchangeType string, records []ClosedPnLRecord) (int, int, error) {
 	created, skipped := 0, 0
 	for _, record := range records {
 		rec := record // Create local copy to avoid closure issues
-		wasCreated, err := s.CreateFromClosedPnL(traderID, exchangeID, &rec)
+		wasCreated, err := s.CreateFromClosedPnL(traderID, exchangeID, exchangeType, &rec)
 		if err != nil {
 			return created, skipped, fmt.Errorf("failed to sync position: %w", err)
 		}

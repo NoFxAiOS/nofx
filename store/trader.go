@@ -24,6 +24,7 @@ type Trader struct {
 	ScanIntervalMinutes int       `json:"scan_interval_minutes"`
 	IsRunning           bool      `json:"is_running"`
 	IsCrossMargin       bool      `json:"is_cross_margin"`
+	ShowInCompetition   bool      `json:"show_in_competition"`   // Whether to show in competition page
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 
@@ -98,6 +99,7 @@ func (s *TraderStore) initTables() error {
 		`ALTER TABLE traders ADD COLUMN use_oi_top BOOLEAN DEFAULT 0`,
 		`ALTER TABLE traders ADD COLUMN system_prompt_template TEXT DEFAULT 'default'`,
 		`ALTER TABLE traders ADD COLUMN strategy_id TEXT DEFAULT ''`,
+		`ALTER TABLE traders ADD COLUMN show_in_competition BOOLEAN DEFAULT 1`,
 	}
 	for _, q := range alterQueries {
 		s.db.Exec(q)
@@ -196,12 +198,12 @@ func (s *TraderStore) decrypt(encrypted string) string {
 func (s *TraderStore) Create(trader *Trader) error {
 	_, err := s.db.Exec(`
 		INSERT INTO traders (id, user_id, name, ai_model_id, exchange_id, strategy_id, initial_balance,
-		                     scan_interval_minutes, is_running, is_cross_margin,
+		                     scan_interval_minutes, is_running, is_cross_margin, show_in_competition,
 		                     btc_eth_leverage, altcoin_leverage, trading_symbols, use_coin_pool,
 		                     use_oi_top, custom_prompt, override_base_prompt, system_prompt_template)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, trader.ID, trader.UserID, trader.Name, trader.AIModelID, trader.ExchangeID, trader.StrategyID,
-		trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.IsCrossMargin,
+		trader.InitialBalance, trader.ScanIntervalMinutes, trader.IsRunning, trader.IsCrossMargin, trader.ShowInCompetition,
 		trader.BTCETHLeverage, trader.AltcoinLeverage, trader.TradingSymbols, trader.UseCoinPool,
 		trader.UseOITop, trader.CustomPrompt, trader.OverrideBasePrompt, trader.SystemPromptTemplate)
 	return err
@@ -212,6 +214,7 @@ func (s *TraderStore) List(userID string) ([]*Trader, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, COALESCE(strategy_id, ''),
 		       initial_balance, scan_interval_minutes, is_running, COALESCE(is_cross_margin, 1),
+		       COALESCE(show_in_competition, 1),
 		       COALESCE(btc_eth_leverage, 5), COALESCE(altcoin_leverage, 5), COALESCE(trading_symbols, ''),
 		       COALESCE(use_coin_pool, 0), COALESCE(use_oi_top, 0), COALESCE(custom_prompt, ''),
 		       COALESCE(override_base_prompt, 0), COALESCE(system_prompt_template, 'default'),
@@ -230,6 +233,7 @@ func (s *TraderStore) List(userID string) ([]*Trader, error) {
 		err := rows.Scan(
 			&t.ID, &t.UserID, &t.Name, &t.AIModelID, &t.ExchangeID, &t.StrategyID,
 			&t.InitialBalance, &t.ScanIntervalMinutes, &t.IsRunning, &t.IsCrossMargin,
+			&t.ShowInCompetition,
 			&t.BTCETHLeverage, &t.AltcoinLeverage, &t.TradingSymbols,
 			&t.UseCoinPool, &t.UseOITop, &t.CustomPrompt, &t.OverrideBasePrompt,
 			&t.SystemPromptTemplate, &createdAt, &updatedAt,
@@ -250,16 +254,22 @@ func (s *TraderStore) UpdateStatus(userID, id string, isRunning bool) error {
 	return err
 }
 
+// UpdateShowInCompetition updates trader competition visibility
+func (s *TraderStore) UpdateShowInCompetition(userID, id string, showInCompetition bool) error {
+	_, err := s.db.Exec(`UPDATE traders SET show_in_competition = ? WHERE id = ? AND user_id = ?`, showInCompetition, id, userID)
+	return err
+}
+
 // Update updates trader configuration
 func (s *TraderStore) Update(trader *Trader) error {
 	_, err := s.db.Exec(`
 		UPDATE traders SET
 			name = ?, ai_model_id = ?, exchange_id = ?, strategy_id = ?,
-			scan_interval_minutes = ?, is_cross_margin = ?,
+			scan_interval_minutes = ?, is_cross_margin = ?, show_in_competition = ?,
 			updated_at = CURRENT_TIMESTAMP
 		WHERE id = ? AND user_id = ?
 	`, trader.Name, trader.AIModelID, trader.ExchangeID, trader.StrategyID,
-		trader.ScanIntervalMinutes, trader.IsCrossMargin, trader.ID, trader.UserID)
+		trader.ScanIntervalMinutes, trader.IsCrossMargin, trader.ShowInCompetition, trader.ID, trader.UserID)
 	return err
 }
 
@@ -305,7 +315,8 @@ func (s *TraderStore) GetFullConfig(userID, traderID string) (*TraderFullConfig,
 			t.created_at, t.updated_at,
 			a.id, a.user_id, a.name, a.provider, a.enabled, a.api_key,
 			COALESCE(a.custom_api_url, ''), COALESCE(a.custom_model_name, ''), a.created_at, a.updated_at,
-			e.id, e.user_id, e.name, e.type, e.enabled, e.api_key, e.secret_key, COALESCE(e.passphrase, ''), e.testnet,
+			e.id, COALESCE(e.exchange_type, '') as exchange_type, COALESCE(e.account_name, '') as account_name,
+			e.user_id, e.name, e.type, e.enabled, e.api_key, e.secret_key, COALESCE(e.passphrase, ''), e.testnet,
 			COALESCE(e.hyperliquid_wallet_addr, ''), COALESCE(e.aster_user, ''), COALESCE(e.aster_signer, ''),
 			COALESCE(e.aster_private_key, ''), COALESCE(e.lighter_wallet_addr, ''), COALESCE(e.lighter_private_key, ''),
 			COALESCE(e.lighter_api_key_private_key, ''), e.created_at, e.updated_at
@@ -321,7 +332,8 @@ func (s *TraderStore) GetFullConfig(userID, traderID string) (*TraderFullConfig,
 		&trader.SystemPromptTemplate, &traderCreatedAt, &traderUpdatedAt,
 		&aiModel.ID, &aiModel.UserID, &aiModel.Name, &aiModel.Provider, &aiModel.Enabled, &aiModel.APIKey,
 		&aiModel.CustomAPIURL, &aiModel.CustomModelName, &aiModelCreatedAt, &aiModelUpdatedAt,
-		&exchange.ID, &exchange.UserID, &exchange.Name, &exchange.Type, &exchange.Enabled,
+		&exchange.ID, &exchange.ExchangeType, &exchange.AccountName,
+		&exchange.UserID, &exchange.Name, &exchange.Type, &exchange.Enabled,
 		&exchange.APIKey, &exchange.SecretKey, &exchange.Passphrase, &exchange.Testnet, &exchange.HyperliquidWalletAddr,
 		&exchange.AsterUser, &exchange.AsterSigner, &exchange.AsterPrivateKey,
 		&exchange.LighterWalletAddr, &exchange.LighterPrivateKey, &exchange.LighterAPIKeyPrivateKey,
@@ -451,6 +463,7 @@ func (s *TraderStore) ListAll() ([]*Trader, error) {
 	rows, err := s.db.Query(`
 		SELECT id, user_id, name, ai_model_id, exchange_id, COALESCE(strategy_id, ''),
 		       initial_balance, scan_interval_minutes, is_running, COALESCE(is_cross_margin, 1),
+		       COALESCE(show_in_competition, 1),
 		       COALESCE(btc_eth_leverage, 5), COALESCE(altcoin_leverage, 5), COALESCE(trading_symbols, ''),
 		       COALESCE(use_coin_pool, 0), COALESCE(use_oi_top, 0), COALESCE(custom_prompt, ''),
 		       COALESCE(override_base_prompt, 0), COALESCE(system_prompt_template, 'default'),
@@ -469,6 +482,7 @@ func (s *TraderStore) ListAll() ([]*Trader, error) {
 		err := rows.Scan(
 			&t.ID, &t.UserID, &t.Name, &t.AIModelID, &t.ExchangeID, &t.StrategyID,
 			&t.InitialBalance, &t.ScanIntervalMinutes, &t.IsRunning, &t.IsCrossMargin,
+			&t.ShowInCompetition,
 			&t.BTCETHLeverage, &t.AltcoinLeverage, &t.TradingSymbols,
 			&t.UseCoinPool, &t.UseOITop, &t.CustomPrompt, &t.OverrideBasePrompt,
 			&t.SystemPromptTemplate, &createdAt, &updatedAt,

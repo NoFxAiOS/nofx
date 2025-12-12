@@ -22,7 +22,8 @@ type AutoTraderConfig struct {
 	AIModel string // AI model: "qwen" or "deepseek"
 
 	// Trading platform selection
-	Exchange string // "binance", "bybit", "okx", "hyperliquid", "aster" or "lighter"
+	Exchange   string // Exchange type: "binance", "bybit", "okx", "hyperliquid", "aster" or "lighter"
+	ExchangeID string // Exchange account UUID (for multi-account support)
 
 	// Binance API configuration
 	BinanceAPIKey    string
@@ -77,6 +78,9 @@ type AutoTraderConfig struct {
 	// Position mode
 	IsCrossMargin bool // true=cross margin mode, false=isolated margin mode
 
+	// Competition visibility
+	ShowInCompetition bool // Whether to show in competition page
+
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
 }
@@ -86,7 +90,9 @@ type AutoTrader struct {
 	id                    string // Trader unique identifier
 	name                  string // Trader display name
 	aiModel               string // AI model name
-	exchange              string // Trading platform name
+	exchange              string // Trading platform type (binance/bybit/etc)
+	exchangeID            string // Exchange account UUID
+	showInCompetition     bool   // Whether to show in competition page
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
@@ -129,31 +135,65 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		}
 	}
 
-	mcpClient := mcp.New()
+	// Initialize AI client based on provider
+	var mcpClient mcp.AIClient
+	aiModel := config.AIModel
+	if config.UseQwen && aiModel == "" {
+		aiModel = "qwen"
+	}
 
-	// Initialize AI
-	if config.AIModel == "custom" {
-		// Use custom API
+	switch aiModel {
+	case "claude":
+		mcpClient = mcp.NewClaudeClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Claude AI", config.Name)
+
+	case "kimi":
+		mcpClient = mcp.NewKimiClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Kimi (Moonshot) AI", config.Name)
+
+	case "gemini":
+		mcpClient = mcp.NewGeminiClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
+
+	case "grok":
+		mcpClient = mcp.NewGrokClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using xAI Grok AI", config.Name)
+
+	case "openai":
+		mcpClient = mcp.NewOpenAIClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using OpenAI", config.Name)
+
+	case "qwen":
+		mcpClient = mcp.NewQwenClient()
+		apiKey := config.QwenKey
+		if apiKey == "" {
+			apiKey = config.CustomAPIKey
+		}
+		mcpClient.SetAPIKey(apiKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI", config.Name)
+
+	case "custom":
+		mcpClient = mcp.New()
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using custom AI API: %s (model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-	} else if config.UseQwen || config.AIModel == "qwen" {
-		// Use Qwen (supports custom URL and Model)
-		mcpClient = mcp.NewQwenClient()
-		mcpClient.SetAPIKey(config.QwenKey, config.CustomAPIURL, config.CustomModelName)
-		if config.CustomAPIURL != "" || config.CustomModelName != "" {
-			logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI (custom URL: %s, model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-		} else {
-			logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI", config.Name)
-		}
-	} else {
-		// Default to DeepSeek (supports custom URL and Model)
+
+	default: // deepseek or empty
 		mcpClient = mcp.NewDeepSeekClient()
-		mcpClient.SetAPIKey(config.DeepSeekKey, config.CustomAPIURL, config.CustomModelName)
-		if config.CustomAPIURL != "" || config.CustomModelName != "" {
-			logger.Infof("🤖 [%s] Using DeepSeek AI (custom URL: %s, model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
-		} else {
-			logger.Infof("🤖 [%s] Using DeepSeek AI", config.Name)
+		apiKey := config.DeepSeekKey
+		if apiKey == "" {
+			apiKey = config.CustomAPIKey
 		}
+		mcpClient.SetAPIKey(apiKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using DeepSeek AI", config.Name)
+	}
+
+	if config.CustomAPIURL != "" || config.CustomModelName != "" {
+		logger.Infof("🔧 [%s] Custom config - URL: %s, Model: %s", config.Name, config.CustomAPIURL, config.CustomModelName)
 	}
 
 	// Set default trading platform
@@ -272,6 +312,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		name:                  config.Name,
 		aiModel:               config.AIModel,
 		exchange:              config.Exchange,
+		exchangeID:            config.ExchangeID,
+		showInCompetition:     config.ShowInCompetition,
 		config:                config,
 		trader:                trader,
 		mcpClient:             mcpClient,
@@ -687,7 +729,11 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	// 7. Add recent closed trades (if store is available)
 	if at.store != nil {
 		// Get recent 10 closed trades for AI context
-		if recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10); err == nil {
+		recentTrades, err := at.store.Position().GetRecentTrades(at.id, 10)
+		if err != nil {
+			logger.Infof("⚠️ [%s] Failed to get recent trades: %v", at.name, err)
+		} else {
+			logger.Infof("📊 [%s] Found %d recent closed trades for AI context", at.name, len(recentTrades))
 			for _, trade := range recentTrades {
 				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
 					Symbol:       trade.Symbol,
@@ -702,6 +748,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 				})
 			}
 		}
+	} else {
+		logger.Infof("⚠️ [%s] Store is nil, cannot get recent trades", at.name)
 	}
 
 	// 8. Get quantitative data (if enabled in strategy config)
@@ -801,27 +849,31 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
+	// ⚠️ Auto-adjust position size if insufficient margin
+	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
+	//        = positionSize * (1.01/leverage + 0.001)
+	marginFactor := 1.01/float64(decision.Leverage) + 0.001
+	maxAffordablePositionSize := availableBalance / marginFactor
+
+	actualPositionSize := decision.PositionSizeUSD
+	if actualPositionSize > maxAffordablePositionSize {
+		// Use 98% of max to leave buffer for price fluctuation
+		adjustedSize := maxAffordablePositionSize * 0.98
+		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
+			actualPositionSize, maxAffordablePositionSize, adjustedSize)
+		actualPositionSize = adjustedSize
+		decision.PositionSizeUSD = actualPositionSize
+	}
+
 	// [CODE ENFORCED] Minimum position size check
 	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
 		return err
 	}
 
-	// Calculate quantity
-	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+	// Calculate quantity with adjusted position size
+	quantity := actualPositionSize / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
-
-	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
-	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
-
-	// Fee estimation (Taker fee rate 0.04%)
-	estimatedFee := decision.PositionSizeUSD * 0.0004
-	totalRequired := requiredMargin + estimatedFee
-
-	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f), available %.2f USDT",
-			totalRequired, requiredMargin, estimatedFee, availableBalance)
-	}
 
 	// Set margin mode
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
@@ -914,27 +966,31 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 		decision.PositionSizeUSD = adjustedPositionSize
 	}
 
+	// ⚠️ Auto-adjust position size if insufficient margin
+	// Formula: totalRequired = positionSize/leverage + positionSize*0.001 + positionSize/leverage*0.01
+	//        = positionSize * (1.01/leverage + 0.001)
+	marginFactor := 1.01/float64(decision.Leverage) + 0.001
+	maxAffordablePositionSize := availableBalance / marginFactor
+
+	actualPositionSize := decision.PositionSizeUSD
+	if actualPositionSize > maxAffordablePositionSize {
+		// Use 98% of max to leave buffer for price fluctuation
+		adjustedSize := maxAffordablePositionSize * 0.98
+		logger.Infof("  ⚠️ Position size %.2f exceeds max affordable %.2f, auto-reducing to %.2f",
+			actualPositionSize, maxAffordablePositionSize, adjustedSize)
+		actualPositionSize = adjustedSize
+		decision.PositionSizeUSD = actualPositionSize
+	}
+
 	// [CODE ENFORCED] Minimum position size check
 	if err := at.enforceMinPositionSize(decision.PositionSizeUSD); err != nil {
 		return err
 	}
 
-	// Calculate quantity
-	quantity := decision.PositionSizeUSD / marketData.CurrentPrice
+	// Calculate quantity with adjusted position size
+	quantity := actualPositionSize / marketData.CurrentPrice
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
-
-	// ⚠️ Margin validation: prevent insufficient margin error (code=-2019)
-	requiredMargin := decision.PositionSizeUSD / float64(decision.Leverage)
-
-	// Fee estimation (Taker fee rate 0.04%)
-	estimatedFee := decision.PositionSizeUSD * 0.0004
-	totalRequired := requiredMargin + estimatedFee
-
-	if totalRequired > availableBalance {
-		return fmt.Errorf("❌ Insufficient margin: required %.2f USDT (margin %.2f + fee %.2f), available %.2f USDT",
-			totalRequired, requiredMargin, estimatedFee, availableBalance)
-	}
 
 	// Set margin mode
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
@@ -1085,6 +1141,16 @@ func (at *AutoTrader) GetAIModel() string {
 // GetExchange gets exchange
 func (at *AutoTrader) GetExchange() string {
 	return at.exchange
+}
+
+// GetShowInCompetition returns whether trader should be shown in competition
+func (at *AutoTrader) GetShowInCompetition() bool {
+	return at.showInCompetition
+}
+
+// SetShowInCompetition sets whether trader should be shown in competition
+func (at *AutoTrader) SetShowInCompetition(show bool) {
+	at.showInCompetition = show
 }
 
 // SetCustomPrompt sets custom trading strategy prompt
@@ -1612,7 +1678,8 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		// Open position: create new position record
 		pos := &store.TraderPosition{
 			TraderID:     at.id,
-			ExchangeID:   at.exchange, // Record specific exchange ID
+			ExchangeID:   at.exchangeID, // Exchange account UUID
+			ExchangeType: at.exchange,   // Exchange type: binance/bybit/okx/etc
 			Symbol:       symbol,
 			Side:         side, // LONG or SHORT
 			Quantity:     quantity,

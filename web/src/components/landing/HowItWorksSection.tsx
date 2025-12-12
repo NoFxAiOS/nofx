@@ -11,20 +11,20 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
     {
       icon: Download,
       number: '01',
-      title: language === 'zh' ? '克隆项目' : 'Clone Project',
+      title: language === 'zh' ? '一键部署' : 'One-Click Deploy',
       desc: language === 'zh'
-        ? 'git clone 项目到本地'
-        : 'git clone the project locally',
-      code: 'git clone https://github.com/NoFxAiOS/nofx.git',
+        ? '在你的服务器上运行一条命令即可完成部署'
+        : 'Run a single command on your server to deploy',
+      code: 'curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash',
     },
     {
       icon: Rocket,
       number: '02',
-      title: language === 'zh' ? '启动服务' : 'Start Service',
+      title: language === 'zh' ? '访问面板' : 'Access Dashboard',
       desc: language === 'zh'
-        ? 'Docker 一键启动所有服务'
-        : 'Docker one-click start all services',
-      code: './start.sh start --build',
+        ? '通过浏览器访问你的服务器'
+        : 'Access your server via browser',
+      code: 'http://YOUR_SERVER_IP:3000',
     },
     {
       icon: TrendingUp,
@@ -33,7 +33,7 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
       desc: language === 'zh'
         ? '创建交易员，让 AI 开始工作'
         : 'Create trader, let AI do the work',
-      code: 'http://localhost:3000',
+      code: language === 'zh' ? '配置模型 → 配置交易所 → 创建交易员' : 'Configure Model → Exchange → Create Trader',
     },
   ]
 

@@ -210,7 +210,7 @@ export function CompetitionPage() {
               {t('realTimePnL', language)}
             </div>
           </div>
-          <ComparisonChart traders={sortedTraders.slice(0, 5)} />
+          <ComparisonChart traders={sortedTraders.slice(0, 10)} />
         </div>
 
         {/* Right: Leaderboard */}

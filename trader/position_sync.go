@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"nofx/logger"
 	"nofx/store"
+	"strings"
 	"sync"
 	"time"
 )
@@ -117,16 +118,18 @@ func (m *PositionSyncManager) syncTraderPositions(traderID string, localPosition
 		return
 	}
 
-	// Get exchange ID for history sync
+	// Get exchange info for history sync
 	config, _ := m.getTraderConfig(traderID)
 	exchangeID := ""
+	exchangeType := ""
 	if config != nil {
-		exchangeID = config.Exchange.ID
+		exchangeID = config.Exchange.ID           // UUID for database association
+		exchangeType = config.Exchange.ExchangeType // "binance", "bybit" etc for trader creation
 	}
 
 	// Maybe run periodic history sync
-	if exchangeID != "" {
-		m.maybeRunHistorySync(traderID, exchangeID, trader)
+	if exchangeID != "" && exchangeType != "" {
+		m.maybeRunHistorySync(traderID, exchangeID, exchangeType, trader)
 	}
 
 	// Get current exchange positions
@@ -137,14 +140,17 @@ func (m *PositionSyncManager) syncTraderPositions(traderID string, localPosition
 	}
 
 	// Build exchange position map: symbol_side -> position
+	// Note: Exchange returns side as "long"/"short" (lowercase), database stores "LONG"/"SHORT" (uppercase)
 	exchangeMap := make(map[string]map[string]interface{})
 	for _, pos := range exchangePositions {
 		symbol, _ := pos["symbol"].(string)
-		side, _ := pos["positionSide"].(string)
+		side, _ := pos["side"].(string) // Note: use "side" not "positionSide"
 		if symbol == "" || side == "" {
 			continue
 		}
-		key := fmt.Sprintf("%s_%s", symbol, side)
+		// Normalize side to uppercase for matching with database
+		normalizedSide := strings.ToUpper(side)
+		key := fmt.Sprintf("%s_%s", symbol, normalizedSide)
 		exchangeMap[key] = pos
 	}
 
@@ -226,31 +232,125 @@ func (m *PositionSyncManager) closeLocalPosition(pos *store.TraderPosition, trad
 }
 
 // findClosedPnLRecord Try to find matching ClosedPnL record from exchange
+// For Binance, directly query trades for the specific symbol (more reliable than Income API)
 func (m *PositionSyncManager) findClosedPnLRecord(trader Trader, pos *store.TraderPosition) *ClosedPnLRecord {
-	// Get closed PnL records from the last 24 hours (to cover recent closures)
+	// Try to get trades directly for this symbol (Binance-specific, more reliable)
+	if binanceTrader, ok := trader.(*FuturesTrader); ok {
+		return m.findClosedPnLFromBinanceTrades(binanceTrader, pos)
+	}
+
+	// Fallback: use GetClosedPnL for other exchanges
 	startTime := time.Now().Add(-24 * time.Hour)
-	records, err := trader.GetClosedPnL(startTime, 50)
+	records, err := trader.GetClosedPnL(startTime, 100)
 	if err != nil {
 		logger.Infof("⚠️  Failed to get closed PnL records: %v", err)
 		return nil
 	}
 
+	return m.aggregateClosedRecords(records, pos)
+}
+
+// findClosedPnLFromBinanceTrades queries Binance directly for trades of a specific symbol
+func (m *PositionSyncManager) findClosedPnLFromBinanceTrades(trader *FuturesTrader, pos *store.TraderPosition) *ClosedPnLRecord {
+	// Query trades for this specific symbol from the last hour
+	startTime := time.Now().Add(-1 * time.Hour)
+	trades, err := trader.GetTradesForSymbol(pos.Symbol, startTime, 100)
+	if err != nil {
+		logger.Infof("⚠️  Failed to get trades for %s: %v", pos.Symbol, err)
+		return nil
+	}
+
+	if len(trades) == 0 {
+		logger.Infof("⚠️  No trades found for %s in the last hour", pos.Symbol)
+		return nil
+	}
+
+	// Find all closing trades (realizedPnl != 0) that match this position
+	var totalQty, totalPnL, totalFee float64
+	var weightedExitPrice float64
+	var latestExitTime time.Time
+	var latestTradeID string
+	matchCount := 0
+
+	posSide := strings.ToLower(pos.Side)
+
+	for _, trade := range trades {
+		// Skip opening trades
+		if trade.RealizedPnL == 0 {
+			continue
+		}
+
+		// Determine if this trade closes our position
+		// For LONG position: SELL closes it
+		// For SHORT position: BUY closes it
+		isClosingTrade := false
+		tradeSide := strings.ToUpper(trade.Side)
+		positionSide := strings.ToUpper(trade.PositionSide)
+
+		if positionSide == "LONG" && posSide == "long" {
+			isClosingTrade = true
+		} else if positionSide == "SHORT" && posSide == "short" {
+			isClosingTrade = true
+		} else if positionSide == "BOTH" || positionSide == "" {
+			// One-way mode
+			if tradeSide == "SELL" && posSide == "long" {
+				isClosingTrade = true
+			} else if tradeSide == "BUY" && posSide == "short" {
+				isClosingTrade = true
+			}
+		}
+
+		if !isClosingTrade {
+			continue
+		}
+
+		// Aggregate this trade
+		totalQty += trade.Quantity
+		totalPnL += trade.RealizedPnL
+		totalFee += trade.Fee
+		weightedExitPrice += trade.Price * trade.Quantity
+		matchCount++
+
+		if trade.Time.After(latestExitTime) {
+			latestExitTime = trade.Time
+			latestTradeID = trade.TradeID
+		}
+	}
+
+	if matchCount == 0 {
+		logger.Infof("⚠️  No closing trades found for %s %s", pos.Symbol, pos.Side)
+		return nil
+	}
+
+	avgExitPrice := weightedExitPrice / totalQty
+
+	logger.Infof("📊 Found %d closing trades for %s %s: qty=%.4f, exitPrice=%.6f, pnl=%.4f, fee=%.4f",
+		matchCount, pos.Symbol, pos.Side, totalQty, avgExitPrice, totalPnL, totalFee)
+
+	return &ClosedPnLRecord{
+		Symbol:      pos.Symbol,
+		Side:        posSide,
+		EntryPrice:  pos.EntryPrice,
+		ExitPrice:   avgExitPrice,
+		Quantity:    totalQty,
+		RealizedPnL: totalPnL,
+		Fee:         totalFee,
+		ExitTime:    latestExitTime,
+		EntryTime:   pos.EntryTime,
+		OrderID:     latestTradeID,
+		ExchangeID:  latestTradeID,
+		CloseType:   "unknown",
+	}
+}
+
+// aggregateClosedRecords aggregates closed PnL records for a position
+func (m *PositionSyncManager) aggregateClosedRecords(records []ClosedPnLRecord, pos *store.TraderPosition) *ClosedPnLRecord {
 	if len(records) == 0 {
 		return nil
 	}
 
-	// Normalize position side for comparison
-	posSide := pos.Side
-	if posSide == "LONG" {
-		posSide = "long"
-	} else if posSide == "SHORT" {
-		posSide = "short"
-	}
-
-	// Find matching record by symbol and side
-	// Priority: exact match on symbol and side, closest entry price
-	var bestMatch *ClosedPnLRecord
-	var bestPriceDiff float64 = -1
+	posSide := strings.ToLower(pos.Side)
+	var matchingRecords []ClosedPnLRecord
 
 	for i := range records {
 		record := &records[i]
@@ -258,39 +358,55 @@ func (m *PositionSyncManager) findClosedPnLRecord(trader Trader, pos *store.Trad
 			continue
 		}
 
-		// Match side (case-insensitive)
-		recordSide := record.Side
-		if recordSide == "LONG" {
-			recordSide = "long"
-		} else if recordSide == "SHORT" {
-			recordSide = "short"
-		}
-
+		recordSide := strings.ToLower(record.Side)
 		if recordSide != posSide {
 			continue
 		}
 
-		// Check if entry price is close (within 2% to account for slippage)
-		if record.EntryPrice > 0 {
-			priceDiff := abs((record.EntryPrice - pos.EntryPrice) / pos.EntryPrice)
-			if priceDiff > 0.02 {
-				continue // Entry price too different, probably not the same position
-			}
+		matchingRecords = append(matchingRecords, *record)
+	}
 
-			// Prefer closest entry price match
-			if bestMatch == nil || priceDiff < bestPriceDiff {
-				bestMatch = record
-				bestPriceDiff = priceDiff
-			}
-		} else {
-			// No entry price in record, accept if symbol and side match
-			if bestMatch == nil {
-				bestMatch = record
-			}
+	if len(matchingRecords) == 0 {
+		return nil
+	}
+
+	var totalQty, totalPnL, totalFee float64
+	var weightedExitPrice float64
+	var latestExitTime time.Time
+	var latestOrderID, latestExchangeID string
+
+	for _, rec := range matchingRecords {
+		totalQty += rec.Quantity
+		totalPnL += rec.RealizedPnL
+		totalFee += rec.Fee
+		weightedExitPrice += rec.ExitPrice * rec.Quantity
+
+		if rec.ExitTime.After(latestExitTime) {
+			latestExitTime = rec.ExitTime
+			latestOrderID = rec.OrderID
+			latestExchangeID = rec.ExchangeID
 		}
 	}
 
-	return bestMatch
+	avgExitPrice := weightedExitPrice / totalQty
+
+	logger.Infof("📊 Aggregated %d closing trades for %s %s: qty=%.4f, pnl=%.4f, fee=%.4f",
+		len(matchingRecords), pos.Symbol, pos.Side, totalQty, totalPnL, totalFee)
+
+	return &ClosedPnLRecord{
+		Symbol:      pos.Symbol,
+		Side:        posSide,
+		EntryPrice:  pos.EntryPrice,
+		ExitPrice:   avgExitPrice,
+		Quantity:    totalQty,
+		RealizedPnL: totalPnL,
+		Fee:         totalFee,
+		ExitTime:    latestExitTime,
+		EntryTime:   pos.EntryTime,
+		OrderID:     latestOrderID,
+		ExchangeID:  latestExchangeID,
+		CloseType:   "unknown",
+	}
 }
 
 // abs returns absolute value of float64
@@ -373,8 +489,8 @@ func (m *PositionSyncManager) getTraderConfig(traderID string) (*store.TraderFul
 func (m *PositionSyncManager) createTrader(config *store.TraderFullConfig) (Trader, error) {
 	exchange := config.Exchange
 
-	// Use exchange.ID to determine specific exchange, not exchange.Type (cex/dex)
-	switch exchange.ID {
+	// Use exchange.ExchangeType to determine specific exchange, not exchange.ID (UUID) or exchange.Type (cex/dex)
+	switch exchange.ExchangeType {
 	case "binance":
 		return NewFuturesTrader(exchange.APIKey, exchange.SecretKey, config.Trader.UserID), nil
 
@@ -402,7 +518,7 @@ func (m *PositionSyncManager) createTrader(config *store.TraderFullConfig) (Trad
 		return NewLighterTrader(exchange.LighterPrivateKey, exchange.LighterWalletAddr, exchange.Testnet)
 
 	default:
-		return nil, fmt.Errorf("unsupported exchange: %s", exchange.ID)
+		return nil, fmt.Errorf("unsupported exchange type: %s", exchange.ExchangeType)
 	}
 }
 
@@ -461,19 +577,20 @@ func (m *PositionSyncManager) startupSync() {
 			continue
 		}
 
-		// Get exchange ID
+		// Get exchange info
 		config, err := m.getTraderConfig(traderID)
 		if err != nil {
 			logger.Infof("⚠️  Failed to get trader config for startup sync (ID: %s): %v", traderID, err)
 			continue
 		}
-		exchangeID := config.Exchange.ID
+		exchangeID := config.Exchange.ID               // UUID
+		exchangeType := config.Exchange.ExchangeType  // "binance", "bybit" etc
 
 		// 1. Sync current open positions from exchange
-		m.syncExternalPositions(traderID, exchangeID, trader)
+		m.syncExternalPositions(traderID, exchangeID, exchangeType, trader)
 
 		// 2. Sync closed positions history from exchange
-		m.syncClosedPositionsHistory(traderID, exchangeID, trader)
+		m.syncClosedPositionsHistory(traderID, exchangeID, exchangeType, trader)
 	}
 
 	logger.Info("📊 Startup sync completed")
@@ -481,7 +598,7 @@ func (m *PositionSyncManager) startupSync() {
 
 // syncExternalPositions syncs positions that exist on exchange but not locally
 // These could be positions opened manually or from other systems
-func (m *PositionSyncManager) syncExternalPositions(traderID, exchangeID string, trader Trader) {
+func (m *PositionSyncManager) syncExternalPositions(traderID, exchangeID, exchangeType string, trader Trader) {
 	// Get current positions from exchange
 	exchangePositions, err := trader.GetPositions()
 	if err != nil {
@@ -556,6 +673,7 @@ func (m *PositionSyncManager) syncExternalPositions(traderID, exchangeID string,
 		newPos := &store.TraderPosition{
 			TraderID:           traderID,
 			ExchangeID:         exchangeID,
+			ExchangeType:       exchangeType,
 			ExchangePositionID: exchangePositionID,
 			Symbol:             symbol,
 			Side:               normalizedSide,
@@ -576,57 +694,97 @@ func (m *PositionSyncManager) syncExternalPositions(traderID, exchangeID string,
 }
 
 // syncClosedPositionsHistory syncs closed positions from exchange history
-func (m *PositionSyncManager) syncClosedPositionsHistory(traderID, exchangeID string, trader Trader) {
-	// Get last sync time
+// IMPORTANT: Only exchanges with position-level history API should sync history:
+// - Bybit: /v5/position/closed-pnl (accurate position records)
+// - OKX: /api/v5/account/positions-history (accurate position records)
+// Other exchanges (Binance, Hyperliquid, Lighter, Aster) only have trade-level data,
+// which cannot accurately reconstruct positions. They should NOT sync historical positions.
+func (m *PositionSyncManager) syncClosedPositionsHistory(traderID, exchangeID, exchangeType string, trader Trader) {
+	// Only sync history for exchanges with position-level API
+	// Binance/Hyperliquid/Lighter/Aster only have trade-level data, skip history sync
+	switch exchangeType {
+	case "bybit", "okx":
+		// These exchanges have position-level history API, proceed with sync
+	default:
+		// Other exchanges don't have accurate position history API
+		// Their GetClosedPnL only returns recent trades for closure detection, not for history sync
+		return
+	}
+
+	// Get last sync time from database
 	lastSyncTime, err := m.store.Position().GetLastClosedPositionTime(traderID)
 	if err != nil {
 		logger.Infof("⚠️  Failed to get last closed position time (ID: %s): %v", traderID, err)
-		lastSyncTime = time.Now().Add(-30 * 24 * time.Hour) // Default to 30 days ago
+		// First sync: go back 90 days to get more history
+		lastSyncTime = time.Now().Add(-90 * 24 * time.Hour)
 	}
 
 	// Subtract a small buffer to avoid missing positions at the boundary
 	startTime := lastSyncTime.Add(-1 * time.Minute)
 
-	// Get closed positions from exchange
-	closedRecords, err := trader.GetClosedPnL(startTime, 200) // Get up to 200 records
-	if err != nil {
-		logger.Infof("⚠️  Failed to get closed PnL records (ID: %s): %v", traderID, err)
-		return
-	}
+	// Pagination loop to get all records
+	const batchSize = 500
+	totalCreated := 0
+	totalSkipped := 0
 
-	if len(closedRecords) == 0 {
-		return
-	}
-
-	// Convert to store.ClosedPnLRecord and sync
-	storeRecords := make([]store.ClosedPnLRecord, len(closedRecords))
-	for i, rec := range closedRecords {
-		storeRecords[i] = store.ClosedPnLRecord{
-			Symbol:      rec.Symbol,
-			Side:        rec.Side,
-			EntryPrice:  rec.EntryPrice,
-			ExitPrice:   rec.ExitPrice,
-			Quantity:    rec.Quantity,
-			RealizedPnL: rec.RealizedPnL,
-			Fee:         rec.Fee,
-			Leverage:    rec.Leverage,
-			EntryTime:   rec.EntryTime,
-			ExitTime:    rec.ExitTime,
-			OrderID:     rec.OrderID,
-			CloseType:   rec.CloseType,
-			ExchangeID:  rec.ExchangeID,
+	for {
+		// Get closed positions from exchange
+		closedRecords, err := trader.GetClosedPnL(startTime, batchSize)
+		if err != nil {
+			logger.Infof("⚠️  Failed to get closed PnL records (ID: %s): %v", traderID, err)
+			break
 		}
+
+		if len(closedRecords) == 0 {
+			break
+		}
+
+		// Convert to store.ClosedPnLRecord and sync
+		storeRecords := make([]store.ClosedPnLRecord, len(closedRecords))
+		var latestExitTime time.Time
+		for i, rec := range closedRecords {
+			storeRecords[i] = store.ClosedPnLRecord{
+				Symbol:      rec.Symbol,
+				Side:        rec.Side,
+				EntryPrice:  rec.EntryPrice,
+				ExitPrice:   rec.ExitPrice,
+				Quantity:    rec.Quantity,
+				RealizedPnL: rec.RealizedPnL,
+				Fee:         rec.Fee,
+				Leverage:    rec.Leverage,
+				EntryTime:   rec.EntryTime,
+				ExitTime:    rec.ExitTime,
+				OrderID:     rec.OrderID,
+				CloseType:   rec.CloseType,
+				ExchangeID:  rec.ExchangeID,
+			}
+			// Track latest exit time for pagination
+			if rec.ExitTime.After(latestExitTime) {
+				latestExitTime = rec.ExitTime
+			}
+		}
+
+		created, skipped, err := m.store.Position().SyncClosedPositions(traderID, exchangeID, exchangeType, storeRecords)
+		if err != nil {
+			logger.Infof("⚠️  Failed to sync closed positions (ID: %s): %v", traderID, err)
+			break
+		}
+
+		totalCreated += created
+		totalSkipped += skipped
+
+		// If we got fewer records than batch size, we've reached the end
+		if len(closedRecords) < batchSize {
+			break
+		}
+
+		// Move start time forward for next batch (add 1ms to avoid duplicate)
+		startTime = latestExitTime.Add(time.Millisecond)
 	}
 
-	created, skipped, err := m.store.Position().SyncClosedPositions(traderID, exchangeID, storeRecords)
-	if err != nil {
-		logger.Infof("⚠️  Failed to sync closed positions (ID: %s): %v", traderID, err)
-		return
-	}
-
-	if created > 0 {
+	if totalCreated > 0 {
 		logger.Infof("📊 Synced %d new closed positions for trader %s (skipped %d duplicates)",
-			created, traderID[:8], skipped)
+			totalCreated, traderID[:8], totalSkipped)
 	}
 
 	// Update last history sync time
@@ -636,12 +794,12 @@ func (m *PositionSyncManager) syncClosedPositionsHistory(traderID, exchangeID st
 }
 
 // maybeRunHistorySync checks if it's time to run history sync for a trader
-func (m *PositionSyncManager) maybeRunHistorySync(traderID, exchangeID string, trader Trader) {
+func (m *PositionSyncManager) maybeRunHistorySync(traderID, exchangeID, exchangeType string, trader Trader) {
 	m.lastHistorySyncMutex.RLock()
 	lastSync, exists := m.lastHistorySync[traderID]
 	m.lastHistorySyncMutex.RUnlock()
 
 	if !exists || time.Since(lastSync) >= m.historySyncInterval {
-		m.syncClosedPositionsHistory(traderID, exchangeID, trader)
+		m.syncClosedPositionsHistory(traderID, exchangeID, exchangeType, trader)
 	}
 }

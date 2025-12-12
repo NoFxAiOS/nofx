@@ -958,9 +958,68 @@ func (t *FuturesTrader) GetOrderStatus(symbol string, orderID string) (map[strin
 	return result, nil
 }
 
-// GetClosedPnL retrieves closed position PnL records from Binance Futures
-// Binance API: /fapi/v1/income with incomeType=REALIZED_PNL
+// GetClosedPnL retrieves recent closing trades from Binance Futures
+// Note: Binance does NOT have a position history API, only trade history.
+// This returns individual closing trades (realizedPnl != 0) for real-time position closure detection.
+// NOT suitable for historical position reconstruction - use only for matching recent closures.
 func (t *FuturesTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
+	trades, err := t.GetTrades(startTime, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter only closing trades (realizedPnl != 0) and convert to ClosedPnLRecord
+	var records []ClosedPnLRecord
+	for _, trade := range trades {
+		if trade.RealizedPnL == 0 {
+			continue // Skip opening trades
+		}
+
+		// Determine side from trade
+		side := "long"
+		if trade.PositionSide == "SHORT" || trade.PositionSide == "short" {
+			side = "short"
+		} else if trade.PositionSide == "BOTH" || trade.PositionSide == "" {
+			// One-way mode: selling closes long, buying closes short
+			if trade.Side == "SELL" || trade.Side == "Sell" {
+				side = "long"
+			} else {
+				side = "short"
+			}
+		}
+
+		// Calculate entry price from PnL (mathematically accurate for this trade)
+		var entryPrice float64
+		if trade.Quantity > 0 {
+			if side == "long" {
+				entryPrice = trade.Price - trade.RealizedPnL/trade.Quantity
+			} else {
+				entryPrice = trade.Price + trade.RealizedPnL/trade.Quantity
+			}
+		}
+
+		records = append(records, ClosedPnLRecord{
+			Symbol:      trade.Symbol,
+			Side:        side,
+			EntryPrice:  entryPrice,
+			ExitPrice:   trade.Price,
+			Quantity:    trade.Quantity,
+			RealizedPnL: trade.RealizedPnL,
+			Fee:         trade.Fee,
+			ExitTime:    trade.Time,
+			EntryTime:   trade.Time, // Approximate
+			OrderID:     trade.TradeID,
+			ExchangeID:  trade.TradeID,
+			CloseType:   "unknown",
+		})
+	}
+
+	return records, nil
+}
+
+// GetTrades retrieves trade history from Binance Futures using Income API
+// Note: Income API has delays (~minutes), for real-time use GetTradesForSymbol instead
+func (t *FuturesTrader) GetTrades(startTime time.Time, limit int) ([]TradeRecord, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -968,7 +1027,7 @@ func (t *FuturesTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPn
 		limit = 1000
 	}
 
-	// Use income history API to get realized PnL
+	// Use Income API to get REALIZED_PNL records (all symbols)
 	incomes, err := t.client.NewGetIncomeHistoryService().
 		IncomeType("REALIZED_PNL").
 		StartTime(startTime.UnixMilli()).
@@ -978,95 +1037,68 @@ func (t *FuturesTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPn
 		return nil, fmt.Errorf("failed to get income history: %w", err)
 	}
 
-	records := make([]ClosedPnLRecord, 0, len(incomes))
-
+	var trades []TradeRecord
 	for _, income := range incomes {
-		record := ClosedPnLRecord{
-			Symbol:     income.Symbol,
-			ExchangeID: fmt.Sprintf("%d", income.TranID),
+		pnl, _ := strconv.ParseFloat(income.Income, 64)
+		if pnl == 0 {
+			continue // Skip zero PnL records
 		}
 
-		// Parse realized PnL
-		record.RealizedPnL, _ = strconv.ParseFloat(income.Income, 64)
-
-		// Parse time
-		record.ExitTime = time.UnixMilli(income.Time)
-
-		// Income API doesn't provide entry/exit price directly
-		// We need to get these from trade history if needed
-		// For now, leave them as 0 (will be matched with local DB records)
-
-		// Determine side from PnL sign (approximate)
-		// Note: This is not 100% accurate; actual side comes from position tracking
-		record.Side = "unknown"
-		record.CloseType = "unknown"
-
-		records = append(records, record)
+		// Income API doesn't provide full trade details, create a minimal record
+		// This is mainly used for detecting recent closures, not historical reconstruction
+		trade := TradeRecord{
+			TradeID:     strconv.FormatInt(income.TranID, 10),
+			Symbol:      income.Symbol,
+			RealizedPnL: pnl,
+			Time:        time.UnixMilli(income.Time),
+			// Note: Income API doesn't provide price, quantity, side, fee
+			// For accurate data, use GetTradesForSymbol with specific symbol
+		}
+		trades = append(trades, trade)
 	}
 
-	// Enrich with trade history for more details (if needed)
-	// This requires additional API calls per symbol, so we do it only for important records
-	if len(records) > 0 {
-		t.enrichClosedPnLWithTrades(records, startTime)
-	}
-
-	return records, nil
+	return trades, nil
 }
 
-// enrichClosedPnLWithTrades adds entry/exit price details from trade history
-func (t *FuturesTrader) enrichClosedPnLWithTrades(records []ClosedPnLRecord, startTime time.Time) {
-	// Group by symbol
-	symbolSet := make(map[string]bool)
-	for _, r := range records {
-		symbolSet[r.Symbol] = true
+// GetTradesForSymbol retrieves trade history for a specific symbol
+// This is more reliable than using Income API which may have delays
+func (t *FuturesTrader) GetTradesForSymbol(symbol string, startTime time.Time, limit int) ([]TradeRecord, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
 	}
 
-	// Get trade history for each symbol
-	for symbol := range symbolSet {
-		trades, err := t.client.NewListAccountTradeService().
-			Symbol(symbol).
-			StartTime(startTime.UnixMilli()).
-			Limit(100).
-			Do(context.Background())
-		if err != nil {
-			continue
-		}
-
-		// Build a map of trades by time for quick lookup
-		for i := range records {
-			if records[i].Symbol != symbol {
-				continue
-			}
-
-			// Find matching trade(s) near the income time
-			for _, trade := range trades {
-				tradeTime := time.UnixMilli(trade.Time)
-				// Match if within 1 second of the PnL record
-				if tradeTime.Sub(records[i].ExitTime).Abs() < time.Second {
-					// Found matching trade
-					records[i].ExitPrice, _ = strconv.ParseFloat(trade.Price, 64)
-					records[i].Quantity, _ = strconv.ParseFloat(trade.Quantity, 64)
-					commission, _ := strconv.ParseFloat(trade.Commission, 64)
-					records[i].Fee += commission
-
-					// Determine side
-					if trade.PositionSide == futures.PositionSideTypeLong {
-						records[i].Side = "long"
-					} else if trade.PositionSide == futures.PositionSideTypeShort {
-						records[i].Side = "short"
-					}
-
-					// Determine close type from order type (approximate)
-					if trade.Buyer && records[i].Side == "short" ||
-						!trade.Buyer && records[i].Side == "long" {
-						// This is a close trade
-						records[i].CloseType = "unknown" // Can't determine SL/TP from trade data
-					}
-
-					records[i].OrderID = strconv.FormatInt(trade.OrderID, 10)
-					break
-				}
-			}
-		}
+	accountTrades, err := t.client.NewListAccountTradeService().
+		Symbol(symbol).
+		StartTime(startTime.UnixMilli()).
+		Limit(limit).
+		Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get trade history for %s: %w", symbol, err)
 	}
+
+	var trades []TradeRecord
+	for _, at := range accountTrades {
+		price, _ := strconv.ParseFloat(at.Price, 64)
+		qty, _ := strconv.ParseFloat(at.Quantity, 64)
+		fee, _ := strconv.ParseFloat(at.Commission, 64)
+		pnl, _ := strconv.ParseFloat(at.RealizedPnl, 64)
+
+		trade := TradeRecord{
+			TradeID:      strconv.FormatInt(at.ID, 10),
+			Symbol:       at.Symbol,
+			Side:         string(at.Side),
+			PositionSide: string(at.PositionSide),
+			Price:        price,
+			Quantity:     qty,
+			RealizedPnL:  pnl,
+			Fee:          fee,
+			Time:         time.UnixMilli(at.Time),
+		}
+		trades = append(trades, trade)
+	}
+
+	return trades, nil
 }

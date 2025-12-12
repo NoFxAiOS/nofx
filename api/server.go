@@ -280,6 +280,7 @@ func (s *Server) setupRoutes() {
 
                         // 用户管理
                         protected.GET("/users", s.handleGetUsers)
+                        protected.GET("/user/me", s.handleGetMe)
 
                         // 积分系统 - 用户接口（需要认证，有用户级别的频率限制）
                         creditUser := protected.Group("/user/")
@@ -318,6 +319,24 @@ func (s *Server) handleHealth(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{
                 "status": "ok",
                 "time":   c.Request.Context().Value("time"),
+        })
+}
+
+// handleGetMe 获取当前登录用户信息（用于刷新前端状态）
+func (s *Server) handleGetMe(c *gin.Context) {
+        userID := c.GetString("user_id")
+        user, err := s.database.GetUserByID(userID)
+        if err != nil {
+                c.JSON(http.StatusNotFound, gin.H{"error": "用户不存在"})
+                return
+        }
+
+        c.JSON(http.StatusOK, gin.H{
+                "id":          user.ID,
+                "email":       user.Email,
+                "invite_code": user.InviteCode,
+                "is_admin":    user.IsAdmin,
+                "created_at":  user.CreatedAt,
         })
 }
 

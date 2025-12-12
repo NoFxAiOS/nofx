@@ -30,6 +30,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const logout = () => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+  };
+
+  const fetchCurrentUser = async (currentToken: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/user/me`, {
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Update user state and local storage with latest data
+        const userInfo: User = { 
+          id: data.id, 
+          email: data.email, 
+          invite_code: data.invite_code 
+        };
+        setUser(userInfo);
+        localStorage.setItem('auth_user', JSON.stringify(userInfo));
+      } else if (response.status === 401) {
+        // Token expired or invalid
+        logout();
+      }
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
+    }
+  };
+
   useEffect(() => {
     // 检查本地存储中是否有有效的认证信息
     const savedToken = localStorage.getItem('auth_token');
@@ -41,17 +76,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isValidToken(savedToken)) {
           setToken(savedToken);
           setUser(JSON.parse(savedUser));
+          // Refresh user profile from backend to get latest fields (e.g. invite_code)
+          fetchCurrentUser(savedToken);
         } else {
           console.warn('Stored token is invalid or expired');
           // 清除无效数据
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('auth_user');
+          logout();
         }
       } catch (error) {
         console.error('Failed to parse saved user data:', error);
         // 清除无效数据
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        logout();
       }
     }
     setIsLoading(false);
@@ -283,13 +318,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       return { success: false, message: '密码重置失败，请重试' };
     }
-  };
-
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
   };
 
   return (

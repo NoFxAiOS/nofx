@@ -45,3 +45,6 @@ web/.vite/
 web/yarn.lock
 .vercel
 .env.local
+
+# 用户密码重置脚本 (敏感信息，不提交到远程仓库)
+resetUserPwd/

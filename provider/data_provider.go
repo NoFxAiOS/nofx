@@ -1,4 +1,4 @@
-package pool
+package provider
 
 import (
 	"encoding/json"
@@ -6,48 +6,23 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
 
-// defaultMainstreamCoins default mainstream coin pool (read from config file)
-var defaultMainstreamCoins = []string{
-	"BTCUSDT",
-	"ETHUSDT",
-	"SOLUSDT",
-	"BNBUSDT",
-	"XRPUSDT",
-	"DOGEUSDT",
-	"ADAUSDT",
-	"HYPEUSDT",
+// AI500Config AI500 data provider configuration
+type AI500Config struct {
+	APIURL  string
+	Timeout time.Duration
 }
 
-// CoinPoolConfig coin pool configuration
-type CoinPoolConfig struct {
-	APIURL          string
-	Timeout         time.Duration
-	CacheDir        string
-	UseDefaultCoins bool // Whether to use default mainstream coins
+var ai500Config = AI500Config{
+	APIURL:  "",
+	Timeout: 30 * time.Second,
 }
 
-var coinPoolConfig = CoinPoolConfig{
-	APIURL:          "",
-	Timeout:         30 * time.Second, // Increased to 30 seconds
-	CacheDir:        "coin_pool_cache",
-	UseDefaultCoins: false, // Default is not to use
-}
-
-// CoinPoolCache coin pool cache
-type CoinPoolCache struct {
-	Coins      []CoinInfo `json:"coins"`
-	FetchedAt  time.Time  `json:"fetched_at"`
-	SourceType string     `json:"source_type"` // "api" or "cache"
-}
-
-// CoinInfo coin information
-type CoinInfo struct {
+// CoinData coin information
+type CoinData struct {
 	Pair            string  `json:"pair"`             // Trading pair symbol (e.g.: BTCUSDT)
 	Score           float64 `json:"score"`            // Current score
 	StartTime       int64   `json:"start_time"`       // Start time (Unix timestamp)
@@ -59,18 +34,18 @@ type CoinInfo struct {
 	IsAvailable     bool    `json:"-"`                // Whether tradable (internal use)
 }
 
-// CoinPoolAPIResponse raw data structure returned by API
-type CoinPoolAPIResponse struct {
+// AI500APIResponse raw data structure returned by AI500 API
+type AI500APIResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
-		Coins []CoinInfo `json:"coins"`
+		Coins []CoinData `json:"coins"`
 		Count int        `json:"count"`
 	} `json:"data"`
 }
 
-// SetCoinPoolAPI sets coin pool API
-func SetCoinPoolAPI(apiURL string) {
-	coinPoolConfig.APIURL = apiURL
+// SetAI500API sets AI500 data provider API
+func SetAI500API(apiURL string) {
+	ai500Config.APIURL = apiURL
 }
 
 // SetOITopAPI sets OI Top API
@@ -78,31 +53,12 @@ func SetOITopAPI(apiURL string) {
 	oiTopConfig.APIURL = apiURL
 }
 
-// SetUseDefaultCoins sets whether to use default mainstream coins
-func SetUseDefaultCoins(useDefault bool) {
-	coinPoolConfig.UseDefaultCoins = useDefault
-}
 
-// SetDefaultCoins sets default mainstream coin list
-func SetDefaultCoins(coins []string) {
-	if len(coins) > 0 {
-		defaultMainstreamCoins = coins
-		log.Printf("✓ Default coin pool set (%d coins): %v", len(coins), coins)
-	}
-}
-
-// GetCoinPool retrieves coin pool list (with retry and cache mechanism)
-func GetCoinPool() ([]CoinInfo, error) {
-	// First check if default coin list is enabled
-	if coinPoolConfig.UseDefaultCoins {
-		log.Printf("✓ Default mainstream coin list enabled")
-		return convertSymbolsToCoins(defaultMainstreamCoins), nil
-	}
-
+// GetAI500Data retrieves AI500 coin list (with retry mechanism)
+func GetAI500Data() ([]CoinData, error) {
 	// Check if API URL is configured
-	if strings.TrimSpace(coinPoolConfig.APIURL) == "" {
-		log.Printf("⚠️  Coin pool API URL not configured, using default mainstream coin list")
-		return convertSymbolsToCoins(defaultMainstreamCoins), nil
+	if strings.TrimSpace(ai500Config.APIURL) == "" {
+		return nil, fmt.Errorf("AI500 API URL not configured")
 	}
 
 	maxRetries := 3
@@ -111,18 +67,14 @@ func GetCoinPool() ([]CoinInfo, error) {
 	// Try to fetch from API
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
-			log.Printf("⚠️  Retry attempt %d of %d to fetch coin pool...", attempt, maxRetries)
-			time.Sleep(2 * time.Second) // Wait 2 seconds before retry
+			log.Printf("⚠️  Retry attempt %d of %d to fetch AI500 data...", attempt, maxRetries)
+			time.Sleep(2 * time.Second)
 		}
 
-		coins, err := fetchCoinPool()
+		coins, err := fetchAI500()
 		if err == nil {
 			if attempt > 1 {
 				log.Printf("✓ Retry attempt %d succeeded", attempt)
-			}
-			// Save to cache after successful fetch
-			if err := saveCoinPoolCache(coins); err != nil {
-				log.Printf("⚠️  Failed to save coin pool cache: %v", err)
 			}
 			return coins, nil
 		}
@@ -131,30 +83,20 @@ func GetCoinPool() ([]CoinInfo, error) {
 		log.Printf("❌ Request attempt %d failed: %v", attempt, err)
 	}
 
-	// API fetch failed, try to use cache
-	log.Printf("⚠️  All API requests failed, trying to use historical cache data...")
-	cachedCoins, err := loadCoinPoolCache()
-	if err == nil {
-		log.Printf("✓ Using historical cache data (%d coins)", len(cachedCoins))
-		return cachedCoins, nil
-	}
-
-	// Cache also failed, use default mainstream coins
-	log.Printf("⚠️  Unable to load cache data (last error: %v), using default mainstream coin list", lastErr)
-	return convertSymbolsToCoins(defaultMainstreamCoins), nil
+	return nil, fmt.Errorf("all API requests failed: %w", lastErr)
 }
 
-// fetchCoinPool actually executes coin pool request
-func fetchCoinPool() ([]CoinInfo, error) {
-	log.Printf("🔄 Requesting AI500 coin pool...")
+// fetchAI500 actually executes AI500 request
+func fetchAI500() ([]CoinData, error) {
+	log.Printf("🔄 Requesting AI500 data...")
 
 	client := &http.Client{
-		Timeout: coinPoolConfig.Timeout,
+		Timeout: ai500Config.Timeout,
 	}
 
-	resp, err := client.Get(coinPoolConfig.APIURL)
+	resp, err := client.Get(ai500Config.APIURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to request coin pool API: %w", err)
+		return nil, fmt.Errorf("failed to request AI500 API: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -168,7 +110,7 @@ func fetchCoinPool() ([]CoinInfo, error) {
 	}
 
 	// Parse API response
-	var response CoinPoolAPIResponse
+	var response AI500APIResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("JSON parsing failed: %w", err)
 	}
@@ -191,68 +133,9 @@ func fetchCoinPool() ([]CoinInfo, error) {
 	return coins, nil
 }
 
-// saveCoinPoolCache saves coin pool to cache file
-func saveCoinPoolCache(coins []CoinInfo) error {
-	// Ensure cache directory exists
-	if err := os.MkdirAll(coinPoolConfig.CacheDir, 0755); err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	cache := CoinPoolCache{
-		Coins:      coins,
-		FetchedAt:  time.Now(),
-		SourceType: "api",
-	}
-
-	data, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to serialize cache data: %w", err)
-	}
-
-	cachePath := filepath.Join(coinPoolConfig.CacheDir, "latest.json")
-	if err := ioutil.WriteFile(cachePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write cache file: %w", err)
-	}
-
-	log.Printf("💾 Coin pool cache saved (%d coins)", len(coins))
-	return nil
-}
-
-// loadCoinPoolCache loads coin pool from cache file
-func loadCoinPoolCache() ([]CoinInfo, error) {
-	cachePath := filepath.Join(coinPoolConfig.CacheDir, "latest.json")
-
-	// Check if file exists
-	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("cache file does not exist")
-	}
-
-	data, err := ioutil.ReadFile(cachePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read cache file: %w", err)
-	}
-
-	var cache CoinPoolCache
-	if err := json.Unmarshal(data, &cache); err != nil {
-		return nil, fmt.Errorf("failed to parse cache data: %w", err)
-	}
-
-	// Check cache age
-	cacheAge := time.Since(cache.FetchedAt)
-	if cacheAge > 24*time.Hour {
-		log.Printf("⚠️  Cache data is old (%.1f hours ago), but still usable", cacheAge.Hours())
-	} else {
-		log.Printf("📂 Cache data timestamp: %s (%.1f minutes ago)",
-			cache.FetchedAt.Format("2006-01-02 15:04:05"),
-			cacheAge.Minutes())
-	}
-
-	return cache.Coins, nil
-}
-
 // GetAvailableCoins retrieves available coin list (filters out unavailable ones)
 func GetAvailableCoins() ([]string, error) {
-	coins, err := GetCoinPool()
+	coins, err := GetAI500Data()
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +143,6 @@ func GetAvailableCoins() ([]string, error) {
 	var symbols []string
 	for _, coin := range coins {
 		if coin.IsAvailable {
-			// Ensure symbol format is correct (convert to uppercase USDT pair)
 			symbol := normalizeSymbol(coin.Pair)
 			symbols = append(symbols, symbol)
 		}
@@ -275,13 +157,13 @@ func GetAvailableCoins() ([]string, error) {
 
 // GetTopRatedCoins retrieves top N coins by score (sorted by score descending)
 func GetTopRatedCoins(limit int) ([]string, error) {
-	coins, err := GetCoinPool()
+	coins, err := GetAI500Data()
 	if err != nil {
 		return nil, err
 	}
 
 	// Filter available coins
-	var availableCoins []CoinInfo
+	var availableCoins []CoinData
 	for _, coin := range coins {
 		if coin.IsAvailable {
 			availableCoins = append(availableCoins, coin)
@@ -318,17 +200,11 @@ func GetTopRatedCoins(limit int) ([]string, error) {
 
 // normalizeSymbol normalizes coin symbol
 func normalizeSymbol(symbol string) string {
-	// Remove spaces
 	symbol = trimSpaces(symbol)
-
-	// Convert to uppercase
 	symbol = toUpper(symbol)
-
-	// Ensure ends with USDT
 	if !endsWith(symbol, "USDT") {
 		symbol = symbol + "USDT"
 	}
-
 	return symbol
 }
 
@@ -362,18 +238,6 @@ func endsWith(s, suffix string) bool {
 	return s[len(s)-len(suffix):] == suffix
 }
 
-// convertSymbolsToCoins converts symbol list to CoinInfo list
-func convertSymbolsToCoins(symbols []string) []CoinInfo {
-	coins := make([]CoinInfo, 0, len(symbols))
-	for _, symbol := range symbols {
-		coins = append(coins, CoinInfo{
-			Pair:        symbol,
-			Score:       0,
-			IsAvailable: true,
-		})
-	}
-	return coins
-}
 
 // ========== OI Top (Open Interest Growth Top 20) Data ==========
 
@@ -381,18 +245,18 @@ func convertSymbolsToCoins(symbols []string) []CoinInfo {
 type OIPosition struct {
 	Symbol            string  `json:"symbol"`
 	Rank              int     `json:"rank"`
-	CurrentOI         float64 `json:"current_oi"`          // Current open interest
-	OIDelta           float64 `json:"oi_delta"`            // Open interest change
-	OIDeltaPercent    float64 `json:"oi_delta_percent"`    // Open interest change percentage
-	OIDeltaValue      float64 `json:"oi_delta_value"`      // Open interest change value
-	PriceDeltaPercent float64 `json:"price_delta_percent"` // Price change percentage
-	NetLong           float64 `json:"net_long"`            // Net long position
-	NetShort          float64 `json:"net_short"`           // Net short position
+	CurrentOI         float64 `json:"current_oi"`
+	OIDelta           float64 `json:"oi_delta"`
+	OIDeltaPercent    float64 `json:"oi_delta_percent"`
+	OIDeltaValue      float64 `json:"oi_delta_value"`
+	PriceDeltaPercent float64 `json:"price_delta_percent"`
+	NetLong           float64 `json:"net_long"`
+	NetShort          float64 `json:"net_short"`
 }
 
 // OITopAPIResponse data structure returned by OI Top API
 type OITopAPIResponse struct {
-	Code int `json:"code"` // 0 = success
+	Code int `json:"code"`
 	Data struct {
 		Positions      []OIPosition `json:"positions"`
 		Count          int          `json:"count"`
@@ -404,35 +268,24 @@ type OITopAPIResponse struct {
 	} `json:"data"`
 }
 
-// OITopCache OI Top cache
-type OITopCache struct {
-	Positions  []OIPosition `json:"positions"`
-	FetchedAt  time.Time    `json:"fetched_at"`
-	SourceType string       `json:"source_type"`
-}
-
 var oiTopConfig = struct {
-	APIURL   string
-	Timeout  time.Duration
-	CacheDir string
+	APIURL  string
+	Timeout time.Duration
 }{
-	APIURL:   "",
-	Timeout:  30 * time.Second,
-	CacheDir: "coin_pool_cache",
+	APIURL:  "",
+	Timeout: 30 * time.Second,
 }
 
-// GetOITopPositions retrieves OI Top 20 data (with retry and cache)
+// GetOITopPositions retrieves OI Top 20 data (with retry)
 func GetOITopPositions() ([]OIPosition, error) {
-	// Check if API URL is configured
 	if strings.TrimSpace(oiTopConfig.APIURL) == "" {
 		log.Printf("⚠️  OI Top API URL not configured, skipping OI Top data fetch")
-		return []OIPosition{}, nil // Return empty list, not an error
+		return []OIPosition{}, nil
 	}
 
 	maxRetries := 3
 	var lastErr error
 
-	// Try to fetch from API
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
 			log.Printf("⚠️  Retry attempt %d of %d to fetch OI Top data...", attempt, maxRetries)
@@ -444,10 +297,6 @@ func GetOITopPositions() ([]OIPosition, error) {
 			if attempt > 1 {
 				log.Printf("✓ Retry attempt %d succeeded", attempt)
 			}
-			// Save to cache after successful fetch
-			if err := saveOITopCache(positions); err != nil {
-				log.Printf("⚠️  Failed to save OI Top cache: %v", err)
-			}
 			return positions, nil
 		}
 
@@ -455,16 +304,7 @@ func GetOITopPositions() ([]OIPosition, error) {
 		log.Printf("❌ OI Top request attempt %d failed: %v", attempt, err)
 	}
 
-	// API fetch failed, try to use cache
-	log.Printf("⚠️  All OI Top API requests failed, trying to use historical cache data...")
-	cachedPositions, err := loadOITopCache()
-	if err == nil {
-		log.Printf("✓ Using historical OI Top cache data (%d coins)", len(cachedPositions))
-		return cachedPositions, nil
-	}
-
-	// Cache also failed, return empty list (OI Top is optional)
-	log.Printf("⚠️  Unable to load OI Top cache data (last error: %v), skipping OI Top data", lastErr)
+	log.Printf("⚠️  All OI Top API requests failed (last error: %v), skipping OI Top data", lastErr)
 	return []OIPosition{}, nil
 }
 
@@ -491,7 +331,6 @@ func fetchOITop() ([]OIPosition, error) {
 		return nil, fmt.Errorf("OI Top API returned error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// Parse API response
 	var response OITopAPIResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("OI Top JSON parsing failed: %w", err)
@@ -510,62 +349,6 @@ func fetchOITop() ([]OIPosition, error) {
 	return response.Data.Positions, nil
 }
 
-// saveOITopCache saves OI Top data to cache
-func saveOITopCache(positions []OIPosition) error {
-	if err := os.MkdirAll(oiTopConfig.CacheDir, 0755); err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
-	}
-
-	cache := OITopCache{
-		Positions:  positions,
-		FetchedAt:  time.Now(),
-		SourceType: "api",
-	}
-
-	data, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to serialize OI Top cache data: %w", err)
-	}
-
-	cachePath := filepath.Join(oiTopConfig.CacheDir, "oi_top_latest.json")
-	if err := ioutil.WriteFile(cachePath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write OI Top cache file: %w", err)
-	}
-
-	log.Printf("💾 OI Top cache saved (%d coins)", len(positions))
-	return nil
-}
-
-// loadOITopCache loads OI Top data from cache
-func loadOITopCache() ([]OIPosition, error) {
-	cachePath := filepath.Join(oiTopConfig.CacheDir, "oi_top_latest.json")
-
-	if _, err := os.Stat(cachePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("OI Top cache file does not exist")
-	}
-
-	data, err := ioutil.ReadFile(cachePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read OI Top cache file: %w", err)
-	}
-
-	var cache OITopCache
-	if err := json.Unmarshal(data, &cache); err != nil {
-		return nil, fmt.Errorf("failed to parse OI Top cache data: %w", err)
-	}
-
-	cacheAge := time.Since(cache.FetchedAt)
-	if cacheAge > 24*time.Hour {
-		log.Printf("⚠️  OI Top cache data is old (%.1f hours ago), but still usable", cacheAge.Hours())
-	} else {
-		log.Printf("📂 OI Top cache data timestamp: %s (%.1f minutes ago)",
-			cache.FetchedAt.Format("2006-01-02 15:04:05"),
-			cacheAge.Minutes())
-	}
-
-	return cache.Positions, nil
-}
-
 // GetOITopSymbols retrieves OI Top coin symbol list
 func GetOITopSymbols() ([]string, error) {
 	positions, err := GetOITopPositions()
@@ -582,25 +365,24 @@ func GetOITopSymbols() ([]string, error) {
 	return symbols, nil
 }
 
-// MergedCoinPool merged coin pool (AI500 + OI Top)
-type MergedCoinPool struct {
-	AI500Coins    []CoinInfo          // AI500 score coins
-	OITopCoins    []OIPosition        // Open interest growth Top 20
-	AllSymbols    []string            // All unique coin symbols
-	SymbolSources map[string][]string // Source of each coin ("ai500"/"oi_top")
+// MergedData merged data (AI500 + OI Top)
+type MergedData struct {
+	AI500Coins    []CoinData
+	OITopCoins    []OIPosition
+	AllSymbols    []string
+	SymbolSources map[string][]string
 }
 
 // OIRankingData OI ranking data for debate (includes both top and low)
 type OIRankingData struct {
-	TimeRange    string       `json:"time_range"`     // e.g., "1小时"
-	Duration     string       `json:"duration"`       // e.g., "1h"
-	TopPositions []OIPosition `json:"top_positions"`  // 持仓增加排行
-	LowPositions []OIPosition `json:"low_positions"`  // 持仓减少排行
+	TimeRange    string       `json:"time_range"`
+	Duration     string       `json:"duration"`
+	TopPositions []OIPosition `json:"top_positions"`
+	LowPositions []OIPosition `json:"low_positions"`
 	FetchedAt    time.Time    `json:"fetched_at"`
 }
 
 // GetOIRankingData retrieves OI ranking data (both top increase and low decrease)
-// duration: "1h", "4h", "24h" etc. limit: number of results
 func GetOIRankingData(baseURL, authKey string, duration string, limit int) (*OIRankingData, error) {
 	if baseURL == "" || authKey == "" {
 		return nil, fmt.Errorf("OI API URL or auth key not configured")
@@ -618,7 +400,7 @@ func GetOIRankingData(baseURL, authKey string, duration string, limit int) (*OIR
 		FetchedAt: time.Now(),
 	}
 
-	// Fetch top ranking (持仓增加)
+	// Fetch top ranking
 	topURL := fmt.Sprintf("%s/api/oi/top-ranking?limit=%d&duration=%s&auth=%s", baseURL, limit, duration, authKey)
 	topPositions, timeRange, err := fetchOIRanking(topURL)
 	if err != nil {
@@ -628,7 +410,7 @@ func GetOIRankingData(baseURL, authKey string, duration string, limit int) (*OIR
 		result.TimeRange = timeRange
 	}
 
-	// Fetch low ranking (持仓减少)
+	// Fetch low ranking
 	lowURL := fmt.Sprintf("%s/api/oi/low-ranking?limit=%d&duration=%s&auth=%s", baseURL, limit, duration, authKey)
 	lowPositions, _, err := fetchOIRanking(lowURL)
 	if err != nil {
@@ -684,49 +466,39 @@ func FormatOIRankingForAI(data *OIRankingData) string {
 
 	sb.WriteString(fmt.Sprintf("## 📊 市场持仓量变化数据 (Open Interest Changes in %s / %s)\n\n", data.TimeRange, data.Duration))
 
-	// Top rankings (持仓增加)
 	if len(data.TopPositions) > 0 {
 		sb.WriteString("### 🔺 持仓量增加排行 (OI Increase Ranking)\n")
 		sb.WriteString("市场资金正在流入以下币种，可能表示趋势延续或新仓位建立:\n\n")
-		sb.WriteString("| 排名 | 币种 | 持仓变化值(USDT) | 变化幅度 | 价格变化 | 多头 | 空头 |\n")
-		sb.WriteString("|------|------|------------------|----------|----------|------|------|\n")
+		sb.WriteString("| 排名 | 币种 | 持仓变化值(USDT) | 变化幅度 | 价格变化 |\n")
+		sb.WriteString("|------|------|------------------|----------|----------|\n")
 		for _, pos := range data.TopPositions {
-			sb.WriteString(fmt.Sprintf("| #%d | %s | %s | %+.2f%% | %+.2f%% | %.0f | %.0f |\n",
+			sb.WriteString(fmt.Sprintf("| #%d | %s | %s | %+.2f%% | %+.2f%% |\n",
 				pos.Rank,
 				pos.Symbol,
 				formatOIValue(pos.OIDeltaValue),
 				pos.OIDeltaPercent,
 				pos.PriceDeltaPercent,
-				pos.NetLong,
-				pos.NetShort,
 			))
 		}
 		sb.WriteString("\n")
-
-		// Market interpretation
 		sb.WriteString("**解读**: 持仓增加 + 价格上涨 = 多头主导; 持仓增加 + 价格下跌 = 空头主导\n\n")
 	}
 
-	// Low rankings (持仓减少)
 	if len(data.LowPositions) > 0 {
 		sb.WriteString("### 🔻 持仓量减少排行 (OI Decrease Ranking)\n")
 		sb.WriteString("市场资金正在流出以下币种，可能表示趋势反转或仓位平仓:\n\n")
-		sb.WriteString("| 排名 | 币种 | 持仓变化值(USDT) | 变化幅度 | 价格变化 | 多头 | 空头 |\n")
-		sb.WriteString("|------|------|------------------|----------|----------|------|------|\n")
+		sb.WriteString("| 排名 | 币种 | 持仓变化值(USDT) | 变化幅度 | 价格变化 |\n")
+		sb.WriteString("|------|------|------------------|----------|----------|\n")
 		for _, pos := range data.LowPositions {
-			sb.WriteString(fmt.Sprintf("| #%d | %s | %s | %+.2f%% | %+.2f%% | %.0f | %.0f |\n",
+			sb.WriteString(fmt.Sprintf("| #%d | %s | %s | %+.2f%% | %+.2f%% |\n",
 				pos.Rank,
 				pos.Symbol,
 				formatOIValue(pos.OIDeltaValue),
 				pos.OIDeltaPercent,
 				pos.PriceDeltaPercent,
-				pos.NetLong,
-				pos.NetShort,
 			))
 		}
 		sb.WriteString("\n")
-
-		// Market interpretation
 		sb.WriteString("**解读**: 持仓减少 + 价格上涨 = 空头平仓(反弹); 持仓减少 + 价格下跌 = 多头平仓(回调)\n\n")
 	}
 
@@ -753,33 +525,28 @@ func formatOIValue(v float64) string {
 	return fmt.Sprintf("%s%.2f", sign, v)
 }
 
-// GetMergedCoinPool retrieves merged coin pool (AI500 + OI Top, deduplicated)
-func GetMergedCoinPool(ai500Limit int) (*MergedCoinPool, error) {
-	// 1. Get AI500 data
+// GetMergedData retrieves merged data (AI500 + OI Top, deduplicated)
+func GetMergedData(ai500Limit int) (*MergedData, error) {
 	ai500TopSymbols, err := GetTopRatedCoins(ai500Limit)
 	if err != nil {
 		log.Printf("⚠️  Failed to get AI500 data: %v", err)
-		ai500TopSymbols = []string{} // Use empty list on failure
+		ai500TopSymbols = []string{}
 	}
 
-	// 2. Get OI Top data
 	oiTopSymbols, err := GetOITopSymbols()
 	if err != nil {
 		log.Printf("⚠️  Failed to get OI Top data: %v", err)
-		oiTopSymbols = []string{} // Use empty list on failure
+		oiTopSymbols = []string{}
 	}
 
-	// 3. Merge and deduplicate
 	symbolSet := make(map[string]bool)
 	symbolSources := make(map[string][]string)
 
-	// Add AI500 coins
 	for _, symbol := range ai500TopSymbols {
 		symbolSet[symbol] = true
 		symbolSources[symbol] = append(symbolSources[symbol], "ai500")
 	}
 
-	// Add OI Top coins
 	for _, symbol := range oiTopSymbols {
 		if !symbolSet[symbol] {
 			symbolSet[symbol] = true
@@ -787,25 +554,46 @@ func GetMergedCoinPool(ai500Limit int) (*MergedCoinPool, error) {
 		symbolSources[symbol] = append(symbolSources[symbol], "oi_top")
 	}
 
-	// Convert to array
 	var allSymbols []string
 	for symbol := range symbolSet {
 		allSymbols = append(allSymbols, symbol)
 	}
 
-	// Get complete data
-	ai500Coins, _ := GetCoinPool()
+	ai500Coins, _ := GetAI500Data()
 	oiTopPositions, _ := GetOITopPositions()
 
-	merged := &MergedCoinPool{
+	merged := &MergedData{
 		AI500Coins:    ai500Coins,
 		OITopCoins:    oiTopPositions,
 		AllSymbols:    allSymbols,
 		SymbolSources: symbolSources,
 	}
 
-	log.Printf("📊 Coin pool merge complete: AI500=%d, OI_Top=%d, Total(deduplicated)=%d",
+	log.Printf("📊 Data merge complete: AI500=%d, OI_Top=%d, Total(deduplicated)=%d",
 		len(ai500TopSymbols), len(oiTopSymbols), len(allSymbols))
 
 	return merged, nil
 }
+
+// ========== Backward Compatibility Aliases ==========
+
+// Deprecated: Use SetAI500API instead
+func SetCoinPoolAPI(apiURL string) {
+	SetAI500API(apiURL)
+}
+
+// Deprecated: Use GetAI500Data instead
+func GetCoinPool() ([]CoinData, error) {
+	return GetAI500Data()
+}
+
+// Deprecated: Use MergedData instead
+type MergedCoinPool = MergedData
+
+// Deprecated: Use GetMergedData instead
+func GetMergedCoinPool(ai500Limit int) (*MergedData, error) {
+	return GetMergedData(ai500Limit)
+}
+
+// Deprecated: Use CoinData instead
+type CoinInfo = CoinData

@@ -205,8 +205,8 @@ nofx/
 ├── market/                         # マーケットデータ取得
 │   └── data.go                     # マーケットデータ＆テクニカル指標（K線、RSI、MACD）
 │
-├── pool/                           # コインプール管理
-│   └── coin_pool.go                # AI500 + OI Topマージプール
+├── provider/                       # データプロバイダー管理
+│   └── data_provider.go            # AI500 + OI Top データプロバイダー
 │
 ├── logger/                         # ロギングシステム
 │   └── decision_logger.go          # 判断記録 + パフォーマンス分析

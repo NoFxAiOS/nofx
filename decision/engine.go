@@ -8,7 +8,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
-	"nofx/pool"
+	"nofx/provider"
 	"nofx/store"
 	"regexp"
 	"strings"
@@ -76,8 +76,6 @@ type OITopData struct {
 	OIDeltaPercent    float64 // Open interest change percentage (1 hour)
 	OIDeltaValue      float64 // Open interest change value
 	PriceDeltaPercent float64 // Price change percentage
-	NetLong           float64 // Net long positions
-	NetShort          float64 // Net short positions
 }
 
 // TradingStats trading statistics (for AI input)
@@ -120,7 +118,7 @@ type Context struct {
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"`
 	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData   *pool.OIRankingData                `json:"-"` // Market-wide OI ranking data
+	OIRankingData   *provider.OIRankingData                `json:"-"` // Market-wide OI ranking data
 	BTCETHLeverage  int                                `json:"-"`
 	AltcoinLeverage int                                `json:"-"`
 	Timeframes      []string                           `json:"-"`
@@ -175,8 +173,6 @@ type FlowTypeData struct {
 
 type OIData struct {
 	CurrentOI float64                 `json:"current_oi"`
-	NetLong   float64                 `json:"net_long"`
-	NetShort  float64                 `json:"net_short"`
 	Delta     map[string]*OIDeltaData `json:"delta,omitempty"`
 }
 
@@ -242,7 +238,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	// Ensure OITopDataMap is initialized
 	if ctx.OITopDataMap == nil {
 		ctx.OITopDataMap = make(map[string]*OITopData)
-		oiPositions, err := pool.GetOITopPositions()
+		oiPositions, err := provider.GetOITopPositions()
 		if err == nil {
 			for _, pos := range oiPositions {
 				ctx.OITopDataMap[pos.Symbol] = &OITopData{
@@ -250,8 +246,6 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 					OIDeltaPercent:    pos.OIDeltaPercent,
 					OIDeltaValue:      pos.OIDeltaValue,
 					PriceDeltaPercent: pos.PriceDeltaPercent,
-					NetLong:           pos.NetLong,
-					NetShort:          pos.NetShort,
 				}
 			}
 		}
@@ -390,10 +384,10 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 	coinSource := e.config.CoinSource
 
 	if coinSource.CoinPoolAPIURL != "" {
-		pool.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
+		provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
 	}
 	if coinSource.OITopAPIURL != "" {
-		pool.SetOITopAPI(coinSource.OITopAPIURL)
+		provider.SetOITopAPI(coinSource.OITopAPIURL)
 	}
 
 	switch coinSource.SourceType {
@@ -463,7 +457,7 @@ func (e *StrategyEngine) getCoinPoolCoins(limit int) ([]CandidateCoin, error) {
 		limit = 30
 	}
 
-	symbols, err := pool.GetTopRatedCoins(limit)
+	symbols, err := provider.GetTopRatedCoins(limit)
 	if err != nil {
 		return nil, err
 	}
@@ -483,7 +477,7 @@ func (e *StrategyEngine) getOITopCoins(limit int) ([]CandidateCoin, error) {
 		limit = 20
 	}
 
-	positions, err := pool.GetOITopPositions()
+	positions, err := provider.GetOITopPositions()
 	if err != nil {
 		return nil, err
 	}
@@ -646,7 +640,7 @@ func (e *StrategyEngine) FetchQuantDataBatch(symbols []string) map[string]*Quant
 }
 
 // FetchOIRankingData fetches market-wide OI ranking data
-func (e *StrategyEngine) FetchOIRankingData() *pool.OIRankingData {
+func (e *StrategyEngine) FetchOIRankingData() *provider.OIRankingData {
 	indicators := e.config.Indicators
 	if !indicators.EnableOIRanking {
 		return nil
@@ -680,7 +674,7 @@ func (e *StrategyEngine) FetchOIRankingData() *pool.OIRankingData {
 
 	logger.Infof("📊 Fetching OI ranking data (duration: %s, limit: %d)", duration, limit)
 
-	data, err := pool.GetOIRankingData(baseURL, authKey, duration, limit)
+	data, err := provider.GetOIRankingData(baseURL, authKey, duration, limit)
 	if err != nil {
 		logger.Warnf("⚠️  Failed to fetch OI ranking data: %v", err)
 		return nil
@@ -956,7 +950,7 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 
 	// OI Ranking data (market-wide open interest changes)
 	if ctx.OIRankingData != nil {
-		sb.WriteString(pool.FormatOIRankingForAI(ctx.OIRankingData))
+		sb.WriteString(provider.FormatOIRankingForAI(ctx.OIRankingData))
 	}
 
 	sb.WriteString("---\n\n")

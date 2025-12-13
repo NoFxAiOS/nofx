@@ -493,7 +493,7 @@ export const translations = {
     signalSource: 'Signal Source',
     signalSourceConfig: 'Signal Source Configuration',
     coinPoolDescription:
-      'API endpoint for coin pool data, leave blank to disable this signal source',
+      'API endpoint for AI500 data provider, leave blank to disable this signal source',
     oiTopDescription:
       'API endpoint for open interest rankings, leave blank to disable this signal source',
     information: 'Information',
@@ -773,18 +773,18 @@ export const translations = {
     candidateCoinsZeroWarning: 'Candidate Coins Count is 0',
     possibleReasons: 'Possible Reasons:',
     coinPoolApiNotConfigured:
-      'Coin pool API not configured or inaccessible (check signal source settings)',
+      'AI500 data provider API not configured or inaccessible (check signal source settings)',
     apiConnectionTimeout: 'API connection timeout or returned empty data',
     noCustomCoinsAndApiFailed:
       'No custom coins configured and API fetch failed',
     solutions: 'Solutions:',
     setCustomCoinsInConfig: 'Set custom coin list in trader configuration',
-    orConfigureCorrectApiUrl: 'Or configure correct coin pool API address',
+    orConfigureCorrectApiUrl: 'Or configure correct data provider API address',
     orDisableCoinPoolOptions:
-      'Or disable "Use Coin Pool" and "Use OI Top" options',
+      'Or disable "Use AI500 Data Provider" and "Use OI Top" options',
     signalSourceNotConfigured: 'Signal Source Not Configured',
     signalSourceWarningMessage:
-      'You have traders that enabled "Use Coin Pool" or "Use OI Top", but signal source API address is not configured yet. This will cause candidate coins count to be 0, and traders cannot work properly.',
+      'You have traders that enabled "Use AI500 Data Provider" or "Use OI Top", but signal source API address is not configured yet. This will cause candidate coins count to be 0, and traders cannot work properly.',
     configureSignalSourceNow: 'Configure Signal Source Now',
 
     // FAQ Page
@@ -1565,7 +1565,7 @@ export const translations = {
     noExchangesConfigured: '暂无已配置的交易所',
     signalSource: '信号源',
     signalSourceConfig: '信号源配置',
-    coinPoolDescription: '用于获取币种池数据的API地址，留空则不使用此信号源',
+    coinPoolDescription: '用于获取 AI500 数据源的 API 地址，留空则不使用此数据源',
     oiTopDescription: '用于获取持仓量排行数据的API地址，留空则不使用此信号源',
     information: '说明',
     signalSourceInfo1:
@@ -1809,16 +1809,16 @@ export const translations = {
     candidateCoins: '候选币种',
     candidateCoinsZeroWarning: '候选币种数量为 0',
     possibleReasons: '可能原因：',
-    coinPoolApiNotConfigured: '币种池API未配置或无法访问（请检查信号源设置）',
+    coinPoolApiNotConfigured: 'AI500 数据源 API 未配置或无法访问（请检查信号源设置）',
     apiConnectionTimeout: 'API连接超时或返回数据为空',
     noCustomCoinsAndApiFailed: '未配置自定义币种且API获取失败',
     solutions: '解决方案：',
     setCustomCoinsInConfig: '在交易员配置中设置自定义币种列表',
-    orConfigureCorrectApiUrl: '或者配置正确的币种池API地址',
-    orDisableCoinPoolOptions: '或者禁用"使用币种池"和"使用OI Top"选项',
+    orConfigureCorrectApiUrl: '或者配置正确的数据源 API 地址',
+    orDisableCoinPoolOptions: '或者禁用"使用 AI500 数据源"和"使用 OI Top"选项',
     signalSourceNotConfigured: '信号源未配置',
     signalSourceWarningMessage:
-      '您有交易员启用了"使用币种池"或"使用OI Top"，但尚未配置信号源API地址。这将导致候选币种数量为0，交易员无法正常工作。',
+      '您有交易员启用了"使用 AI500 数据源"或"使用 OI Top"，但尚未配置信号源 API 地址。这将导致候选币种数量为 0，交易员无法正常工作。',
     configureSignalSourceNow: '立即配置信号源',
 
     // FAQ Page

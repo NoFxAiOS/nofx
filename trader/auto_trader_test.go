@@ -9,7 +9,7 @@ import (
 
 	"nofx/decision"
 	"nofx/market"
-	"nofx/pool"
+	"nofx/provider"
 	"nofx/store"
 
 	"github.com/agiledragon/gomonkey/v2"
@@ -354,9 +354,9 @@ func (s *AutoTraderTestSuite) TestGetCandidateCoins() {
 		s.autoTrader.defaultCoins = []string{} // Empty default coins
 		s.autoTrader.tradingCoins = []string{} // Empty custom coins
 
-		// Mock pool.GetMergedCoinPool
-		s.patches.ApplyFunc(pool.GetMergedCoinPool, func(ai500Limit int) (*pool.MergedCoinPool, error) {
-			return &pool.MergedCoinPool{
+		// Mock provider.GetMergedCoinPool
+		s.patches.ApplyFunc(provider.GetMergedCoinPool, func(ai500Limit int) (*provider.MergedCoinPool, error) {
+			return &provider.MergedCoinPool{
 				AllSymbols: []string{"BTCUSDT", "ETHUSDT"},
 				SymbolSources: map[string][]string{
 					"BTCUSDT": {"ai500", "oi_top"},

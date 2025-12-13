@@ -34,7 +34,6 @@ docs/
 
 # Runtime data
 decision_logs/
-coin_pool_cache/
 *.log
 
 # Config files (should be mounted)

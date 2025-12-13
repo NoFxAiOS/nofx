@@ -8,7 +8,7 @@ import (
 
 	"nofx/debate"
 	"nofx/logger"
-	"nofx/pool"
+	"nofx/provider"
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
@@ -161,32 +161,32 @@ func (h *DebateHandler) HandleCreateDebate(c *gin.Context) {
 			case "coinpool":
 				// Fetch from coin pool API
 				if coinSource.CoinPoolAPIURL != "" {
-					pool.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
+					provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
 				}
-				if coins, err := pool.GetTopRatedCoins(1); err == nil && len(coins) > 0 {
+				if coins, err := provider.GetTopRatedCoins(1); err == nil && len(coins) > 0 {
 					req.Symbol = coins[0]
 					logger.Infof("Fetched coin from pool API: %s", req.Symbol)
 				}
 			case "oi_top":
 				// Fetch from OI top API
 				if coinSource.OITopAPIURL != "" {
-					pool.SetOITopAPI(coinSource.OITopAPIURL)
+					provider.SetOITopAPI(coinSource.OITopAPIURL)
 				}
-				if coins, err := pool.GetOITopSymbols(); err == nil && len(coins) > 0 {
+				if coins, err := provider.GetOITopSymbols(); err == nil && len(coins) > 0 {
 					req.Symbol = coins[0]
 					logger.Infof("Fetched coin from OI Top API: %s", req.Symbol)
 				}
 			case "mixed":
 				// Try coin pool first, then OI top
 				if coinSource.UseCoinPool && coinSource.CoinPoolAPIURL != "" {
-					pool.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
-					if coins, err := pool.GetTopRatedCoins(1); err == nil && len(coins) > 0 {
+					provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
+					if coins, err := provider.GetTopRatedCoins(1); err == nil && len(coins) > 0 {
 						req.Symbol = coins[0]
 						logger.Infof("Fetched coin from pool API (mixed): %s", req.Symbol)
 					}
 				} else if coinSource.UseOITop && coinSource.OITopAPIURL != "" {
-					pool.SetOITopAPI(coinSource.OITopAPIURL)
-					if coins, err := pool.GetOITopSymbols(); err == nil && len(coins) > 0 {
+					provider.SetOITopAPI(coinSource.OITopAPIURL)
+					if coins, err := provider.GetOITopSymbols(); err == nil && len(coins) > 0 {
 						req.Symbol = coins[0]
 						logger.Infof("Fetched coin from OI Top API (mixed): %s", req.Symbol)
 					}

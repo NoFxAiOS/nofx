@@ -46,10 +46,6 @@ externalPort = 8080
 localPort = 9999
 externalPort = 3001
 
-[[ports]]
-localPort = 40169
-externalPort = 3002
-
 [deployment]
 deploymentTarget = "vm"
 run = ["./nofx-backend"]

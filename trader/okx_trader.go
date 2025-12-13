@@ -282,6 +282,15 @@ func (t *OKXTrader) getContractSpec(instId string) (*ContractSpec, error) {
         return getDefaultContractSpec(instId)
 }
 
+// getContractValue 获取合约面值（简化版，用于保证金计算）
+func (t *OKXTrader) getContractValue(instId string) float64 {
+        spec, err := t.getContractSpec(instId)
+        if err != nil {
+                return 1.0 // 默认值
+        }
+        return spec.CtVal
+}
+
 // getDefaultContractSpec 返回默认的合约规格
 // 数据来源: OKX API /api/v5/public/instruments (2025-11-27更新)
 func getDefaultContractSpec(instId string) (*ContractSpec, error) {
@@ -534,6 +543,63 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 
 // placeOrder 下单统一方法
 func (t *OKXTrader) placeOrder(order map[string]string) (map[string]interface{}, error) {
+        // ========== 保证金预检查 ==========
+        // 只对开仓订单进行保证金检查（side=buy/sell 且 ordType=market）
+        // 平仓订单不需要额外保证金
+        ordType := order["ordType"]
+        posSide := order["posSide"]
+        
+        // 判断是否是开仓订单（开多: side=buy+posSide=long, 开空: side=sell+posSide=short）
+        isOpenPosition := (order["side"] == "buy" && posSide == "long") || 
+                          (order["side"] == "sell" && posSide == "short")
+        
+        if isOpenPosition && (ordType == "market" || ordType == "limit") {
+                // 获取可用保证金
+                balance, err := t.GetBalance()
+                if err != nil {
+                        log.Printf("⚠️ 获取余额失败，跳过保证金检查: %v", err)
+                } else {
+                        availableMargin, _ := balance["free"].(float64)
+                        
+                        // 获取订单参数
+                        instId := order["instId"]
+                        szStr := order["sz"]
+                        sz, _ := strconv.ParseFloat(szStr, 64)
+                        
+                        // 获取当前市场价格
+                        price, priceErr := t.GetMarketPrice(instId)
+                        if priceErr != nil {
+                                log.Printf("⚠️ 获取市场价格失败，跳过保证金检查: %v", priceErr)
+                        } else {
+                                // 获取合约规格（ctVal）来计算实际名义价值
+                                ctVal := t.getContractValue(instId)
+                                
+                                // 计算订单名义价值 = 合约数量 * 合约面值 * 价格
+                                notionalValue := sz * ctVal * price
+                                
+                                // 假设使用5倍杠杆计算所需保证金（保守估计）
+                                defaultLeverage := 5.0
+                                requiredMargin := notionalValue / defaultLeverage
+                                
+                                // 添加10%安全边际
+                                requiredMarginWithBuffer := requiredMargin * 1.1
+                                
+                                log.Printf("💰 保证金检查: 可用=%.2f USDT, 所需=%.2f USDT (名义价值=%.2f, 杠杆=%.0fx)",
+                                        availableMargin, requiredMarginWithBuffer, notionalValue, defaultLeverage)
+                                
+                                if availableMargin < requiredMarginWithBuffer {
+                                        errMsg := fmt.Sprintf("INSUFFICIENT_MARGIN: 保证金不足，无法下单。可用保证金: %.2f USDT, 所需保证金: %.2f USDT (交易对: %s, 数量: %s, 价格: %.2f, 名义价值: %.2f USDT)。请减少下单数量或增加账户资金。",
+                                                availableMargin, requiredMarginWithBuffer, instId, szStr, price, notionalValue)
+                                        log.Printf("❌ %s", errMsg)
+                                        return nil, fmt.Errorf(errMsg)
+                                }
+                                
+                                log.Printf("✅ 保证金充足，继续下单...")
+                        }
+                }
+        }
+        // ========== 保证金预检查结束 ==========
+
         // OKX API: POST /api/v5/trade/order
         endpoint := "/api/v5/trade/order"
 

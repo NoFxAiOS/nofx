@@ -21,6 +21,25 @@ D. Age Requirement
 
 You must be at least 18 years old, or have reached the age of majority in your jurisdiction, to use the Website and Software.
 
+E. Geographic Restrictions
+
+The Software and Website are not available to users in the following regions:
+- The People's Republic of China (including Hong Kong Special Administrative Region, Macau Special Administrative Region, and Taiwan)
+- The United States of America and its territories
+- Democratic People's Republic of Korea (North Korea)
+- Islamic Republic of Iran
+- Syrian Arab Republic
+- Republic of Cuba
+- Crimea Region
+- Russian Federation
+- Republic of the Union of Myanmar
+
+If you are located in any of the restricted regions listed above, do not download, install, or use this Software, and do not access this Website. By accessing the Website or using the Software, you represent and warrant that you are not located in any of the restricted regions listed above and are not subject to the laws of such regions.
+
+F. Usage Restrictions
+
+This Software is provided solely for educational and research purposes, intended to help users learn and research the principles and technologies of AI trading systems. This Software does not constitute any form of investment advice, financial advice, or trading advice. Users shall not use this Software for actual financial trading or investment activities.
+
 2. Software License and Service Model
 
 

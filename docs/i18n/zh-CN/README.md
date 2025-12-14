@@ -169,6 +169,87 @@ npm run dev
 
 ---
 
+## Windows 安装
+
+### 方法一：Docker Desktop（推荐）
+
+1. **安装 Docker Desktop**
+   - 从 [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) 下载
+   - 运行安装程序并重启电脑
+   - 启动 Docker Desktop 并等待就绪
+
+2. **运行 NOFX**
+   ```powershell
+   # 打开 PowerShell 运行：
+   curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+3. **访问**：在浏览器打开 **http://localhost:3000**
+
+### 方法二：WSL2（适合开发）
+
+1. **安装 WSL2**
+   ```powershell
+   # 以管理员身份打开 PowerShell
+   wsl --install
+   ```
+   安装完成后重启电脑。
+
+2. **从 Microsoft Store 安装 Ubuntu**
+   - 打开 Microsoft Store
+   - 搜索 "Ubuntu 22.04" 并安装
+   - 启动 Ubuntu 并设置用户名/密码
+
+3. **在 WSL2 中安装依赖**
+   ```bash
+   # 更新系统
+   sudo apt update && sudo apt upgrade -y
+
+   # 安装 Go
+   wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+   sudo tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
+   echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+   source ~/.bashrc
+
+   # 安装 Node.js
+   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+
+   # 安装 TA-Lib
+   sudo apt-get install -y libta-lib0-dev
+
+   # 安装 Git
+   sudo apt-get install -y git
+   ```
+
+4. **克隆并运行 NOFX**
+   ```bash
+   git clone https://github.com/NoFxAiOS/nofx.git
+   cd nofx
+
+   # 构建并运行后端
+   go build -o nofx && ./nofx
+
+   # 在另一个终端运行前端
+   cd web && npm install && npm run dev
+   ```
+
+5. **访问**：在 Windows 浏览器打开 **http://localhost:3000**
+
+### 方法三：WSL2 + Docker（两全其美）
+
+1. **安装 Docker Desktop 并启用 WSL2 后端**
+   - Docker Desktop 安装时勾选 "Use WSL 2 based engine"
+   - 在 Docker Desktop 设置 → Resources → WSL Integration 中启用你的 Linux 发行版
+
+2. **在 WSL2 终端运行**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+   ```
+
+---
+
 ## 服务器部署
 
 ### 快速部署 (HTTP/IP 访问)

@@ -186,6 +186,87 @@ Access Web Interface: **http://localhost:3000**
 
 ---
 
+## Windows Installation
+
+### Method 1: Docker Desktop (Recommended)
+
+1. **Install Docker Desktop**
+   - Download from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/)
+   - Run the installer and restart your computer
+   - Start Docker Desktop and wait for it to be ready
+
+2. **Run NOFX**
+   ```powershell
+   # Open PowerShell and run:
+   curl -o docker-compose.prod.yml https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod.yml
+   docker compose -f docker-compose.prod.yml up -d
+   ```
+
+3. **Access**: Open **http://localhost:3000** in your browser
+
+### Method 2: WSL2 (For Development)
+
+1. **Install WSL2**
+   ```powershell
+   # Open PowerShell as Administrator
+   wsl --install
+   ```
+   Restart your computer after installation.
+
+2. **Install Ubuntu from Microsoft Store**
+   - Open Microsoft Store
+   - Search "Ubuntu 22.04" and install
+   - Launch Ubuntu and set up username/password
+
+3. **Install Dependencies in WSL2**
+   ```bash
+   # Update system
+   sudo apt update && sudo apt upgrade -y
+
+   # Install Go
+   wget https://go.dev/dl/go1.21.5.linux-amd64.tar.gz
+   sudo tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
+   echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+   source ~/.bashrc
+
+   # Install Node.js
+   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+
+   # Install TA-Lib
+   sudo apt-get install -y libta-lib0-dev
+
+   # Install Git
+   sudo apt-get install -y git
+   ```
+
+4. **Clone and Run NOFX**
+   ```bash
+   git clone https://github.com/NoFxAiOS/nofx.git
+   cd nofx
+
+   # Build and run backend
+   go build -o nofx && ./nofx
+
+   # In another terminal, run frontend
+   cd web && npm install && npm run dev
+   ```
+
+5. **Access**: Open **http://localhost:3000** in Windows browser
+
+### Method 3: Docker in WSL2 (Best of Both Worlds)
+
+1. **Install Docker Desktop with WSL2 backend**
+   - During Docker Desktop installation, enable "Use WSL 2 based engine"
+   - In Docker Desktop Settings → Resources → WSL Integration, enable your Linux distro
+
+2. **Run from WSL2 terminal**
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+   ```
+
+---
+
 ## Server Deployment
 
 ### Quick Deploy (HTTP via IP)

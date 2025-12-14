@@ -96,7 +96,8 @@ export const translations = {
     // Backtest Page
     backtestPage: {
       title: 'Backtest Lab',
-      subtitle: 'Pick a model + time range to replay the full AI decision loop.',
+      subtitle:
+        'Pick a model + time range to replay the full AI decision loop.',
       start: 'Start Backtest',
       starting: 'Starting...',
       quickRanges: {
@@ -134,13 +135,13 @@ export const translations = {
         customTfPlaceholder: 'Custom TFs (comma separated, e.g. 2h,6h)',
         initialBalanceLabel: 'Initial balance (USDT)',
         feeLabel: 'Fee (bps)',
-      slippageLabel: 'Slippage (bps)',
-      btcEthLeverageLabel: 'BTC/ETH leverage (x)',
-      altcoinLeverageLabel: 'Altcoin leverage (x)',
-      fillPolicies: {
-        nextOpen: 'Next open',
-        barVwap: 'Bar VWAP',
-        midPrice: 'Mid price',
+        slippageLabel: 'Slippage (bps)',
+        btcEthLeverageLabel: 'BTC/ETH leverage (x)',
+        altcoinLeverageLabel: 'Altcoin leverage (x)',
+        fillPolicies: {
+          nextOpen: 'Next open',
+          barVwap: 'Bar VWAP',
+          midPrice: 'Mid price',
         },
         promptPresets: {
           baseline: 'Baseline',
@@ -215,7 +216,8 @@ export const translations = {
         title: 'AI Decision Trail',
         subtitle: 'Showing last {count} cycles',
         empty: 'No records yet',
-        emptyHint: 'The AI thought & execution log will appear once the run starts.',
+        emptyHint:
+          'The AI thought & execution log will appear once the run starts.',
       },
       charts: {
         equityTitle: 'Equity Curve',
@@ -378,13 +380,20 @@ export const translations = {
     lighterApiKeyPrivateKey: 'API Key Private Key',
     enterLighterWalletAddress: 'Enter Ethereum wallet address (0x...)',
     enterLighterPrivateKey: 'Enter L1 private key (32 bytes)',
-    enterLighterApiKeyPrivateKey: 'Enter API Key private key (40 bytes, optional)',
-    lighterWalletAddressDesc: 'Your Ethereum wallet address for account identification',
-    lighterPrivateKeyDesc: 'L1 private key for account identification (32-byte ECDSA key)',
-    lighterApiKeyPrivateKeyDesc: 'API Key private key for transaction signing (40-byte Poseidon2 key)',
-    lighterApiKeyOptionalNote: 'Without API Key, system will use limited V1 mode',
-    lighterV1Description: 'Basic Mode - Limited functionality, testing framework only',
-    lighterV2Description: 'Full Mode - Supports Poseidon2 signing and real trading',
+    enterLighterApiKeyPrivateKey:
+      'Enter API Key private key (40 bytes, optional)',
+    lighterWalletAddressDesc:
+      'Your Ethereum wallet address for account identification',
+    lighterPrivateKeyDesc:
+      'L1 private key for account identification (32-byte ECDSA key)',
+    lighterApiKeyPrivateKeyDesc:
+      'API Key private key for transaction signing (40-byte Poseidon2 key)',
+    lighterApiKeyOptionalNote:
+      'Without API Key, system will use limited V1 mode',
+    lighterV1Description:
+      'Basic Mode - Limited functionality, testing framework only',
+    lighterV2Description:
+      'Full Mode - Supports Poseidon2 signing and real trading',
     lighterPrivateKeyImported: 'LIGHTER private key imported',
 
     // Exchange names
@@ -520,12 +529,13 @@ export const translations = {
     leaveBlankForDefault: 'Leave blank to use default API address',
     modelConfigInfo1:
       '• For official API, only API Key is required, leave other fields blank',
-    modelConfigInfo2: '• Custom Base URL and Model Name only needed for third-party proxies',
-    modelConfigInfo3:
-      '• API Key is encrypted and stored securely',
+    modelConfigInfo2:
+      '• Custom Base URL and Model Name only needed for third-party proxies',
+    modelConfigInfo3: '• API Key is encrypted and stored securely',
     defaultModel: 'Default model',
     applyApiKey: 'Apply API Key',
-    kimiApiNote: 'Kimi requires API Key from international site (moonshot.ai), China region keys are not compatible',
+    kimiApiNote:
+      'Kimi requires API Key from international site (moonshot.ai), China region keys are not compatible',
     leaveBlankForDefaultModel: 'Leave blank to use default model',
     customModelName: 'Model Name (Optional)',
     customModelNamePlaceholder: 'e.g.: deepseek-chat, qwen3-max, gpt-4o',
@@ -794,168 +804,228 @@ export const translations = {
     faqContactUs: 'Join our community or check our GitHub for more help',
 
     // FAQ Categories
-    faqCategoryBasics: 'General Questions',
-    faqCategoryContributing: 'Contributing & Tasks',
-    faqCategorySetup: 'Setup & Configuration',
-    faqCategoryTrading: 'Trading Questions',
-    faqCategoryTechnical: 'Technical Issues',
-    faqCategoryAI: 'AI & Model Questions',
-    faqCategoryData: 'Data & Privacy',
+    faqCategoryGettingStarted: 'Getting Started',
+    faqCategoryInstallation: 'Installation',
+    faqCategoryConfiguration: 'Configuration',
+    faqCategoryTrading: 'Trading',
+    faqCategoryTechnicalIssues: 'Technical Issues',
+    faqCategorySecurity: 'Security',
+    faqCategoryFeatures: 'Features',
+    faqCategoryAIModels: 'AI Models',
+    faqCategoryContributing: 'Contributing',
 
-    // FAQ Questions & Answers - General
+    // ===== GETTING STARTED =====
     faqWhatIsNOFX: 'What is NOFX?',
     faqWhatIsNOFXAnswer:
-      'NOFX is an AI-powered cryptocurrency trading bot that uses large language models (LLMs) to make trading decisions on futures markets.',
+      'NOFX is an open-source AI-powered trading operating system for cryptocurrency and US stock markets. It uses large language models (LLMs) like DeepSeek, GPT, Claude, Gemini to analyze market data and make autonomous trading decisions. Key features include: multi-AI model support, multi-exchange trading, visual strategy builder, backtesting, and AI debate arena for consensus decisions.',
 
-    faqSupportedExchanges: 'Which exchanges are supported?',
-    faqSupportedExchangesAnswer:
-      'Binance Futures, Hyperliquid, and Aster DEX are supported. More exchanges coming soon.',
+    faqHowDoesItWork: 'How does NOFX work?',
+    faqHowDoesItWorkAnswer:
+      'NOFX works in 5 steps: 1) Configure AI models and exchange API credentials; 2) Create a trading strategy (coin selection, indicators, risk controls); 3) Create a "Trader" combining AI model + Exchange + Strategy; 4) Start the trader - it will analyze market data at regular intervals and make buy/sell/hold decisions; 5) Monitor performance on the dashboard. The AI uses Chain of Thought reasoning to explain each decision.',
 
     faqIsProfitable: 'Is NOFX profitable?',
     faqIsProfitableAnswer:
-      'AI trading is experimental and not guaranteed to be profitable. Always start with small amounts and never invest more than you can afford to lose.',
+      'AI trading is experimental and NOT guaranteed to be profitable. Cryptocurrency futures are highly volatile and risky. NOFX is designed for educational and research purposes. We strongly recommend: starting with small amounts (10-50 USDT), never investing more than you can afford to lose, thoroughly testing with backtests before live trading, and understanding that past performance does not guarantee future results.',
 
-    faqMultipleTraders: 'Can I run multiple traders simultaneously?',
-    faqMultipleTradersAnswer:
-      'Yes! NOFX supports running multiple traders with different configurations, AI models, and trading strategies.',
+    faqSupportedExchanges: 'Which exchanges are supported?',
+    faqSupportedExchangesAnswer:
+      'CEX (Centralized): Binance Futures, Bybit, OKX, Bitget. DEX (Decentralized): Hyperliquid, Aster DEX, Lighter. Each exchange has different features - Binance has the most liquidity, Hyperliquid is fully on-chain with no KYC required. Check the documentation for setup guides for each exchange.',
 
-    // Contributing & Community
-    faqGithubProjectsTasks: 'How to use GitHub Projects and pick up tasks?',
-    faqGithubProjectsTasksAnswer:
-      'Roadmap: https://github.com/orgs/NoFxAiOS/projects/3  • Task Dashboard: https://github.com/orgs/NoFxAiOS/projects/5  • Steps: Open links → filter by labels (good first issue / help wanted / frontend / backend) → read Description & Acceptance Criteria → comment "assign me" or self-assign → Fork the repo → sync your fork\'s dev with upstream/dev → create a feature branch from your fork\'s dev → push to your fork → open PR (base: NoFxAiOS/nofx:dev ← compare: your-username/nofx:feat/your-topic) → reference Issue (Closes #123) and use the proper template.',
+    faqSupportedAIModels: 'Which AI models are supported?',
+    faqSupportedAIModelsAnswer:
+      'NOFX supports 7+ AI models: DeepSeek (recommended for cost/performance), Alibaba Qwen, OpenAI (GPT-5.2), Anthropic Claude, Google Gemini, xAI Grok, and Kimi (Moonshot). You can also use any OpenAI-compatible API endpoint. Each model has different strengths - DeepSeek is cost-effective, OpenAI models are powerful but expensive, Claude excels at reasoning.',
 
-    faqContributePR: 'How to properly submit PRs and contribute?',
-    faqContributePRAnswer:
-      "Guidelines: • Fork first; branch from your fork's dev (avoid direct commits to upstream main) • Branch naming: feat/..., fix/..., docs/...; Conventional Commits • Run checks before PR: npm --prefix web run lint && npm --prefix web run build • For UI changes, attach screenshots or a short video • Choose the proper PR template (frontend/backend/docs/general) • Open PR from your fork to NoFxAiOS/nofx:dev and link Issue (Closes #123) • Keep rebasing onto upstream/dev; ensure CI passes; prefer small, focused PRs • Read CONTRIBUTING.md and .github/PR_TITLE_GUIDE.md",
-
-    // Setup & Configuration
     faqSystemRequirements: 'What are the system requirements?',
     faqSystemRequirementsAnswer:
-      'OS: Linux, macOS, or Windows (Docker recommended); RAM: 2GB minimum, 4GB recommended; Disk: 1GB for application + logs; Network: Stable internet connection.',
+      'Minimum: 2 CPU cores, 2GB RAM, 1GB disk space, stable internet. Recommended: 4GB RAM for running multiple traders. Supported OS: Linux, macOS, or Windows (via Docker or WSL2). Docker is the easiest installation method. For manual installation, you need Go 1.21+, Node.js 18+, and TA-Lib library.',
 
-    faqNeedCoding: 'Do I need coding experience?',
-    faqNeedCodingAnswer:
-      'No! NOFX has a web UI for all configuration. However, basic command line knowledge helps with setup and troubleshooting.',
+    // ===== INSTALLATION =====
+    faqHowToInstall: 'How do I install NOFX?',
+    faqHowToInstallAnswer:
+      'Easiest method (Linux/macOS): Run "curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash" - this installs Docker containers automatically. Then open http://127.0.0.1:3000 in your browser. For manual installation or development, clone the repository and follow the README instructions.',
 
-    faqGetApiKeys: 'How do I get API keys?',
-    faqGetApiKeysAnswer:
-      'For Binance: Account → API Management → Create API → Enable Futures. For Hyperliquid: Visit Hyperliquid App → API Settings. For Aster DEX: Configure main wallet address (User), API wallet address (Signer), and private key (Private Key).',
-
-    faqUseSubaccount: 'Should I use a subaccount?',
-    faqUseSubaccountAnswer:
-      'Recommended: Yes, use a subaccount dedicated to NOFX for better risk isolation. However, note that some subaccounts have restrictions (e.g., 5x max leverage on Binance).',
+    faqWindowsInstallation: 'How do I install on Windows?',
+    faqWindowsInstallationAnswer:
+      'Three options: 1) Docker Desktop (Recommended) - Install Docker Desktop, then run "docker compose -f docker-compose.prod.yml up -d" in PowerShell; 2) WSL2 - Install Windows Subsystem for Linux, then follow Linux installation; 3) Docker in WSL2 - Best of both worlds, run the install script in WSL2 terminal. Access via http://127.0.0.1:3000',
 
     faqDockerDeployment: 'Docker deployment keeps failing',
     faqDockerDeploymentAnswer:
-      'Common issues: Network connection problems, dependency installation failures, insufficient memory (needs at least 2C2G). If stuck at "go build", try: docker compose down && docker compose build --no-cache && docker compose up -d',
+      'Common solutions: 1) Check Docker is running: "docker info"; 2) Ensure sufficient memory (2GB minimum); 3) If stuck on "go build", try: "docker compose down && docker compose build --no-cache && docker compose up -d"; 4) Check logs: "docker compose logs -f"; 5) For slow pulls, configure a Docker mirror in daemon.json.',
 
-    faqBalanceZero: 'Account balance shows 0',
-    faqBalanceZeroAnswer:
-      'Funds are likely in spot account instead of futures account, or locked in savings products. You need to manually transfer funds to futures account in Binance.',
+    faqManualInstallation: 'How do I install manually for development?',
+    faqManualInstallationAnswer:
+      'Prerequisites: Go 1.21+, Node.js 18+, TA-Lib. Steps: 1) Clone repo: "git clone https://github.com/NoFxAiOS/nofx.git"; 2) Install backend deps: "go mod download"; 3) Install frontend deps: "cd web && npm install"; 4) Build backend: "go build -o nofx"; 5) Run backend: "./nofx"; 6) Run frontend (new terminal): "cd web && npm run dev". Access at http://127.0.0.1:3000',
 
-    faqTestnet: 'Can I use testnet for testing?',
-    faqTestnetAnswer:
-      'Testnet is not supported at the moment. We recommend using real trading with small amounts (10-50 USDT) for testing.',
+    faqServerDeployment: 'How do I deploy to a remote server?',
+    faqServerDeploymentAnswer:
+      'Run the install script on your server - it auto-detects the server IP. Access via http://YOUR_SERVER_IP:3000. For HTTPS: 1) Use Cloudflare (free) - add domain, create A record pointing to server IP, set SSL to "Flexible"; 2) Enable TRANSPORT_ENCRYPTION=true in .env for browser-side encryption; 3) Access via https://your-domain.com',
 
-    // Trading Questions
-    faqNoTrades: "Why isn't my trader making any trades?",
-    faqNoTradesAnswer:
-      'Common reasons: AI decided to "wait" due to market conditions; Insufficient balance or margin; Position limits reached (default: max 3 positions); Check troubleshooting guide for detailed diagnostics.',
+    faqUpdateNOFX: 'How do I update NOFX?',
+    faqUpdateNOFXAnswer:
+      'For Docker: Run "docker compose pull && docker compose up -d" to pull latest images and restart. For manual installation: "git pull && go build -o nofx" for backend, "cd web && npm install && npm run build" for frontend. Your configurations in data.db are preserved during updates.',
+
+    // ===== CONFIGURATION =====
+    faqConfigureAIModels: 'How do I configure AI models?',
+    faqConfigureAIModelsAnswer:
+      'Go to Config page → AI Models section. For each model: 1) Get API key from the provider (links provided in UI); 2) Enter API key; 3) Optionally customize base URL and model name; 4) Save. API keys are encrypted before storage. Test the connection after saving to verify it works.',
+
+    faqConfigureExchanges: 'How do I configure exchange connections?',
+    faqConfigureExchangesAnswer:
+      'Go to Config page → Exchanges section. Click "Add Exchange", select exchange type, and enter credentials. For CEX (Binance/Bybit/OKX): Need API Key + Secret Key (+ Passphrase for OKX). For DEX (Hyperliquid/Aster/Lighter): Need wallet address and private key. Always enable only necessary permissions (Futures Trading) and consider IP whitelisting.',
+
+    faqBinanceAPISetup: 'How do I set up Binance API correctly?',
+    faqBinanceAPISetupAnswer:
+      'Important steps: 1) Create API key in Binance → API Management; 2) Enable ONLY "Enable Futures" permission; 3) Consider adding IP whitelist for security; 4) CRITICAL: Switch to Hedge Mode (双向持仓) in Futures settings → Preferences → Position Mode; 5) Ensure funds are in Futures wallet (not Spot). Common error -4061 means you need Hedge Mode.',
+
+    faqHyperliquidSetup: 'How do I set up Hyperliquid?',
+    faqHyperliquidSetupAnswer:
+      'Hyperliquid is a decentralized exchange requiring wallet authentication. Steps: 1) Go to app.hyperliquid.xyz; 2) Connect your wallet; 3) Generate an API wallet (recommended) or use your main wallet; 4) Copy the wallet address and private key; 5) In NOFX, add Hyperliquid exchange with these credentials. No KYC required, fully on-chain.',
+
+    faqCreateStrategy: 'How do I create a trading strategy?',
+    faqCreateStrategyAnswer:
+      'Go to Strategy Studio: 1) Coin Source - select which coins to trade (static list, AI500 pool, or OI Top ranking); 2) Indicators - enable technical indicators (EMA, MACD, RSI, ATR, Volume, OI, Funding Rate); 3) Risk Controls - set leverage limits, max positions, margin usage cap, position size limits; 4) Custom Prompt (optional) - add specific instructions for the AI. Save and assign to a trader.',
+
+    faqCreateTrader: 'How do I create and start a trader?',
+    faqCreateTraderAnswer:
+      'Go to Traders page: 1) Click "Create Trader"; 2) Select AI Model (must be configured first); 3) Select Exchange (must be configured first); 4) Select Strategy (or use default); 5) Set decision interval (e.g., 5 minutes); 6) Save, then click "Start" to begin trading. Monitor performance on Dashboard page.',
+
+    // ===== TRADING =====
+    faqHowAIDecides: 'How does the AI make trading decisions?',
+    faqHowAIDecidesAnswer:
+      'The AI uses Chain of Thought (CoT) reasoning in 4 steps: 1) Position Analysis - reviews current holdings and P/L; 2) Risk Assessment - checks account margin, available balance; 3) Opportunity Evaluation - analyzes market data, indicators, candidate coins; 4) Final Decision - outputs specific action (buy/sell/hold) with reasoning. You can view the full reasoning in decision logs.',
 
     faqDecisionFrequency: 'How often does the AI make decisions?',
     faqDecisionFrequencyAnswer:
-      'Configurable! Default is every 3-5 minutes. Too frequent = overtrading, too slow = missed opportunities.',
+      'Configurable per trader, default is 3-5 minutes. Considerations: Too frequent (1-2 min) = overtrading, high fees; Too slow (30+ min) = missed opportunities. Recommended: 5 minutes for active trading, 15-30 minutes for swing trading. The AI may decide to "hold" (no action) in many cycles.',
 
-    faqCustomStrategy: 'Can I customize the trading strategy?',
-    faqCustomStrategyAnswer:
-      'Yes! You can adjust leverage settings, modify coin selection pool, change decision intervals, and customize system prompts (advanced).',
+    faqNoTradesExecuting: "Why isn't my trader executing any trades?",
+    faqNoTradesExecutingAnswer:
+      'Common causes: 1) AI decided to wait (check decision logs for reasoning); 2) Insufficient balance in futures account; 3) Max positions limit reached (default: 3); 4) Exchange API issues (check error messages); 5) Strategy constraints too restrictive. Check Dashboard → Decision Logs for detailed AI reasoning each cycle.',
 
-    faqMaxPositions: "What's the maximum number of concurrent positions?",
-    faqMaxPositionsAnswer:
-      'Default: 3 positions. This is a soft limit defined in the AI prompt, not hard-coded.',
+    faqOnlyShortPositions: 'Why is the AI only opening short positions?',
+    faqOnlyShortPositionsAnswer:
+      'This is usually due to Binance Position Mode. Solution: Switch to Hedge Mode (双向持仓) in Binance Futures → Preferences → Position Mode. You must close all positions first. After switching, the AI can open both long and short positions independently.',
 
-    faqMarginInsufficient: 'Margin is insufficient error (code=-2019)',
-    faqMarginInsufficientAnswer:
-      'Common causes: Funds not transferred to futures account; Leverage set too high (default 20-50x); Existing positions using margin; Need to transfer USDT from spot to futures account first.',
+    faqLeverageSettings: 'How do leverage settings work?',
+    faqLeverageSettingsAnswer:
+      'Leverage is set in Strategy → Risk Controls: BTC/ETH leverage (typically 5-20x) and Altcoin leverage (typically 3-10x). Higher leverage = higher risk and potential returns. Subaccounts may have restrictions (e.g., Binance subaccounts limited to 5x). The AI respects these limits when placing orders.',
 
-    faqHighFees: 'Trading fees are too high',
-    faqHighFeesAnswer:
-      'NOFX default 3-minute scan interval can cause frequent trading. Solutions: Increase decision interval to 5-10 minutes; Optimize system prompt to reduce overtrading; Adjust leverage to reduce position sizes.',
+    faqStopLossTakeProfit: 'Does NOFX support stop-loss and take-profit?',
+    faqStopLossTakeProfitAnswer:
+      'The AI can suggest stop-loss/take-profit levels in its decisions, but these are guidance-based rather than hard-coded exchange orders. The AI monitors positions each cycle and may decide to close based on P/L. For guaranteed stop-loss, you can set exchange-level orders manually or adjust the strategy prompt to be more conservative.',
 
-    faqNoTakeProfit: "AI doesn't close profitable positions",
-    faqNoTakeProfitAnswer:
-      'AI may believe the trend will continue. The system lacks trailing stop-loss feature currently. You can manually close positions or adjust the system prompt to be more conservative with profit-taking.',
+    faqMultipleTraders: 'Can I run multiple traders?',
+    faqMultipleTradersAnswer:
+      'Yes! NOFX supports running 20+ concurrent traders. Each trader can have different: AI model, exchange account, strategy, decision interval. Use this to A/B test strategies, compare AI models, or diversify across exchanges. Monitor all traders on the Competition page.',
 
-    // Technical Issues
-    faqBinanceApiFailed: 'Binance API call failed (code=-2015)',
-    faqBinanceApiFailedAnswer:
-      'Error: "Invalid API-key, IP, or permissions for action". Solutions: Add server IP to Binance API whitelist; Check API permissions (needs Read + Futures Trading); Ensure using futures API not unified account API; VPN IP might be unstable.',
+    faqAICosts: 'How much do AI API calls cost?',
+    faqAICostsAnswer:
+      'Approximate daily costs per trader (5-min intervals): DeepSeek: $0.10-0.50; Qwen: $0.20-0.80; OpenAI: $2-5; Claude: $1-3. Costs depend on prompt length and response tokens. DeepSeek offers the best cost/performance ratio. Longer decision intervals reduce costs.',
 
-    faqBinancePositionMode: 'Binance Position Mode Error (code=-4061)',
-    faqBinancePositionModeAnswer:
-      'Error: "Order\'s position side does not match user\'s setting". Solution: Switch to Hedge Mode (双向持仓) in Binance Futures settings. You must close all positions first before switching.',
-
-    faqPortInUse: "Backend won't start / Port already in use",
+    // ===== TECHNICAL ISSUES =====
+    faqPortInUse: 'Port 8080 or 3000 already in use',
     faqPortInUseAnswer:
-      'Check what\'s using port 8080 with "lsof -i :8080" and change the port in your .env file with NOFX_BACKEND_PORT=8081.',
+      'Check what\'s using the port: "lsof -i :8080" (macOS/Linux) or "netstat -ano | findstr 8080" (Windows). Kill the process or change ports in .env: NOFX_BACKEND_PORT=8081, NOFX_FRONTEND_PORT=3001. Restart with "docker compose down && docker compose up -d".',
 
-    faqFrontendLoading: 'Frontend shows "Loading..." forever',
-    faqFrontendLoadingAnswer:
-      'Check if backend is running with "curl http://localhost:8080/api/health". Should return {"status":"ok"}. If not, check the troubleshooting guide.',
+    faqFrontendNotLoading: 'Frontend shows "Loading..." forever',
+    faqFrontendNotLoadingAnswer:
+      'Backend may not be running or reachable. Check: 1) "curl http://127.0.0.1:8080/api/health" should return {"status":"ok"}; 2) "docker compose ps" to verify containers are running; 3) Check backend logs: "docker compose logs nofx-backend"; 4) Ensure firewall allows port 8080.',
 
     faqDatabaseLocked: 'Database locked error',
     faqDatabaseLockedAnswer:
-      'Stop all NOFX processes with "docker compose down" or "pkill nofx", then restart with "docker compose up -d".',
+      'Multiple processes accessing SQLite simultaneously. Solution: 1) Stop all processes: "docker compose down" or "pkill nofx"; 2) Remove lock files if present: "rm -f data/data.db-wal data/data.db-shm"; 3) Restart: "docker compose up -d". Only one backend instance should access the database.',
 
-    faqAiLearningFailed: 'AI learning data failed to load',
-    faqAiLearningFailedAnswer:
-      'Causes: TA-Lib library not properly installed; Insufficient historical data (need completed trades); Environment configuration issues. Install TA-Lib: pip install TA-Lib or check system dependencies.',
+    faqTALibNotFound: 'TA-Lib not found during build',
+    faqTALibNotFoundAnswer:
+      'TA-Lib is required for technical indicators. Install: macOS: "brew install ta-lib"; Ubuntu/Debian: "sudo apt-get install libta-lib0-dev"; CentOS: "yum install ta-lib-devel". After installing, rebuild: "go build -o nofx". Docker images include TA-Lib pre-installed.',
 
-    faqConfigNotEffective: 'Configuration changes not taking effect',
-    faqConfigNotEffectiveAnswer:
-      'For Docker: Need to rebuild with "docker compose down && docker compose up -d --build". For PM2: Restart with "pm2 restart all". Check configuration file format and path are correct.',
+    faqAIAPITimeout: 'AI API timeout or connection refused',
+    faqAIAPITimeoutAnswer:
+      'Check: 1) API key is valid (test with curl); 2) Network can reach API endpoint (ping/curl); 3) API provider is not down (check status page); 4) VPN/firewall not blocking; 5) Rate limits not exceeded. Default timeout is 120 seconds.',
 
-    // AI & Model Questions
-    faqWhichModels: 'Which AI models are supported?',
-    faqWhichModelsAnswer:
-      'DeepSeek (recommended for cost/performance), Qwen (Alibaba Cloud), and Custom OpenAI-compatible APIs (can be used for OpenAI, Claude via proxy, or other providers).',
+    faqBinancePositionMode: 'Binance error code -4061 (Position Mode)',
+    faqBinancePositionModeAnswer:
+      'Error: "Order\'s position side does not match user\'s setting". You\'re in One-way Mode but NOFX requires Hedge Mode. Fix: 1) Close ALL positions first; 2) Binance Futures → Settings (gear icon) → Preferences → Position Mode → Switch to "Hedge Mode" (双向持仓); 3) Restart your trader.',
 
-    faqApiCosts: 'How much do API calls cost?',
-    faqApiCostsAnswer:
-      'Depends on your model and decision frequency: DeepSeek: ~$0.10-0.50 per day (1 trader, 5min intervals); Qwen: ~$0.20-0.80 per day; Custom API (e.g., OpenAI GPT-4): ~$2-5 per day. Estimates based on typical usage.',
+    faqBalanceShowsZero: 'Account balance shows 0',
+    faqBalanceShowsZeroAnswer:
+      'Funds are likely in Spot wallet, not Futures wallet. Solution: 1) In Binance, go to Wallet → Futures → Transfer; 2) Transfer USDT from Spot to Futures; 3) Refresh NOFX dashboard. Also check: funds not locked in savings/staking products.',
 
-    faqMultipleModels: 'Can I use multiple AI models?',
-    faqMultipleModelsAnswer:
-      'Yes! Each trader can use a different AI model. You can even A/B test different models.',
+    faqDockerPullFailed: 'Docker image pull failed or slow',
+    faqDockerPullFailedAnswer:
+      'Docker Hub can be slow in some regions. Solutions: 1) Configure a Docker mirror in /etc/docker/daemon.json: {"registry-mirrors": ["https://mirror.gcr.io"]}; 2) Restart Docker; 3) Retry pull. Alternatively, use GitHub Container Registry (ghcr.io) which may have better connectivity in your region.',
 
-    faqAiLearning: 'Does the AI learn from its mistakes?',
-    faqAiLearningAnswer:
-      'Yes, to some extent. NOFX provides historical performance feedback in each decision prompt, allowing the AI to adjust its strategy.',
+    // ===== SECURITY =====
+    faqAPIKeyStorage: 'How are API keys stored?',
+    faqAPIKeyStorageAnswer:
+      'API keys are encrypted using AES-256-GCM before storage in the local SQLite database. The encryption key (DATA_ENCRYPTION_KEY) is stored in your .env file. Keys are decrypted only in memory when needed for API calls. Never share your data.db or .env files.',
 
-    faqOnlyShort: 'AI only opens short positions, no long positions',
-    faqOnlyShortAnswer:
-      'The default system prompt contains "Don\'t have a long bias! Shorting is one of your core tools" which may cause this. Also affected by 4-hour timeframe data and model training bias. You can modify the system prompt to be more balanced.',
+    faqEncryptionDetails: 'What encryption does NOFX use?',
+    faqEncryptionDetailsAnswer:
+      'NOFX uses multiple encryption layers: 1) AES-256-GCM for database storage (API keys, secrets); 2) RSA-2048 for optional transport encryption (browser to server); 3) JWT for authentication tokens. Keys are generated during installation. Enable TRANSPORT_ENCRYPTION=true for HTTPS environments.',
 
-    faqModelSelection: 'Which DeepSeek version should I use?',
-    faqModelSelectionAnswer:
-      "DeepSeek V3 is recommended for best performance. Alternatives: DeepSeek R1 (reasoning model, slower but better logic), SiliconFlow's DeepSeek (alternative API provider). Most users report good results with V3.",
+    faqSecurityBestPractices: 'What are security best practices?',
+    faqSecurityBestPracticesAnswer:
+      'Recommended: 1) Use exchange API keys with IP whitelist and minimal permissions (Futures Trading only); 2) Use dedicated subaccount for NOFX; 3) Enable TRANSPORT_ENCRYPTION for remote deployments; 4) Never share .env or data.db files; 5) Use HTTPS with valid certificates; 6) Regularly rotate API keys; 7) Monitor account activity.',
 
-    // Data & Privacy
-    faqDataStorage: 'Where is my data stored?',
-    faqDataStorageAnswer:
-      'All data is stored locally on your machine in SQLite databases: data.db (all configurations and trade history), and decision_logs/ (AI decision records).',
+    faqCanNOFXStealFunds: 'Can NOFX steal my funds?',
+    faqCanNOFXStealFundsAnswer:
+      'NOFX is open-source (AGPL-3.0 license) - you can audit all code on GitHub. API keys are stored locally on YOUR machine, never sent to external servers. NOFX only has the permissions you grant via API keys. For maximum safety: use API keys with trading-only permissions (no withdrawal), enable IP whitelist, use a dedicated subaccount.',
 
-    faqApiKeySecurity: 'Is my API key secure?',
-    faqApiKeySecurityAnswer:
-      'API keys are stored in local databases. Never share your databases or .env files. We recommend using API keys with IP whitelist restrictions.',
+    // ===== FEATURES =====
+    faqStrategyStudio: 'What is Strategy Studio?',
+    faqStrategyStudioAnswer:
+      'Strategy Studio is a visual strategy builder where you configure: 1) Coin Sources - which cryptocurrencies to trade (static list, AI500 top coins, OI ranking); 2) Technical Indicators - EMA, MACD, RSI, ATR, Volume, Open Interest, Funding Rate; 3) Risk Controls - leverage limits, position sizing, margin caps; 4) Custom Prompts - specific instructions for AI. No coding required.',
 
-    faqExportHistory: 'Can I export my trading history?',
-    faqExportHistoryAnswer:
-      'Yes! Trading data is in SQLite format. You can query it directly with: sqlite3 trading.db "SELECT * FROM trades;"',
+    faqBacktestLab: 'What is Backtest Lab?',
+    faqBacktestLabAnswer:
+      'Backtest Lab tests your strategy against historical data without risking real funds. Features: 1) Configure AI model, date range, initial balance; 2) Watch real-time progress with equity curve; 3) View metrics: Return %, Max Drawdown, Sharpe Ratio, Win Rate; 4) Analyze individual trades and AI reasoning. Essential for validating strategies before live trading.',
 
-    faqGetHelp: 'Where can I get help?',
-    faqGetHelpAnswer:
-      'Check GitHub Discussions, join our Telegram Community, or open an issue on GitHub.',
+    faqDebateArena: 'What is Debate Arena?',
+    faqDebateArenaAnswer:
+      'Debate Arena lets multiple AI models debate trading decisions before execution. Setup: 1) Choose 2-5 AI models; 2) Assign personalities (Bull, Bear, Analyst, Contrarian, Risk Manager); 3) Watch them debate in rounds; 4) Final decision based on consensus voting. Useful for high-conviction trades where you want multiple perspectives.',
+
+    faqCompetitionMode: 'What is Competition Mode?',
+    faqCompetitionModeAnswer:
+      'Competition page shows a real-time leaderboard of all your traders. Compare: ROI, P&L, Sharpe ratio, win rate, number of trades. Use this to A/B test different AI models, strategies, or configurations. Traders can be marked as "Show in Competition" to appear on the leaderboard.',
+
+    faqChainOfThought: 'What is Chain of Thought (CoT)?',
+    faqChainOfThoughtAnswer:
+      "Chain of Thought is the AI's reasoning process, visible in decision logs. The AI explains its thinking in 4 steps: 1) Current position analysis; 2) Account risk assessment; 3) Market opportunity evaluation; 4) Final decision rationale. This transparency helps you understand WHY the AI made each decision, useful for improving strategies.",
+
+    // ===== AI MODELS =====
+    faqWhichAIModelBest: 'Which AI model should I use?',
+    faqWhichAIModelBestAnswer:
+      'Recommended: DeepSeek for best cost/performance ratio ($0.10-0.50/day). Alternatives: OpenAI for best reasoning but expensive ($2-5/day); Claude for nuanced analysis; Qwen for competitive pricing. You can run multiple traders with different models to compare. Check the Competition page to see which performs best for your strategy.',
+
+    faqCustomAIAPI: 'Can I use a custom AI API?',
+    faqCustomAIAPIAnswer:
+      'Yes! NOFX supports any OpenAI-compatible API. In Config → AI Models → Custom API: 1) Enter your API endpoint URL (e.g., https://your-api.com/v1); 2) Enter API key; 3) Specify model name. This works with self-hosted models, alternative providers, or Claude via third-party proxies.',
+
+    faqAIHallucinations: 'What about AI hallucinations?',
+    faqAIHallucinationsAnswer:
+      'AI models can sometimes produce incorrect or fabricated information ("hallucinations"). NOFX mitigates this by: 1) Providing structured prompts with real market data; 2) Enforcing JSON output format for decisions; 3) Validating orders before execution. However, AI trading is experimental - always monitor decisions and don\'t rely solely on AI judgment.',
+
+    faqCompareAIModels: 'How do I compare different AI models?',
+    faqCompareAIModelsAnswer:
+      'Create multiple traders with different AI models but same strategy/exchange. Run them simultaneously and compare on Competition page. Metrics to watch: ROI, win rate, Sharpe ratio, max drawdown. Alternatively, use Backtest Lab to test models against same historical data. The Debate Arena also shows how different models reason about the same situation.',
+
+    // ===== CONTRIBUTING =====
+    faqHowToContribute: 'How can I contribute to NOFX?',
+    faqHowToContributeAnswer:
+      'NOFX is open-source and welcomes contributions! Ways to contribute: 1) Code - fix bugs, add features (check GitHub Issues); 2) Documentation - improve guides, translate; 3) Bug Reports - report issues with details; 4) Feature Ideas - suggest improvements. Start with issues labeled "good first issue". All contributors may receive airdrop rewards.',
+
+    faqPRGuidelines: 'What are the PR guidelines?',
+    faqPRGuidelinesAnswer:
+      'PR Process: 1) Fork repo to your account; 2) Create feature branch from dev: "git checkout -b feat/your-feature"; 3) Make changes, run lint: "npm --prefix web run lint"; 4) Commit with Conventional Commits format; 5) Push and create PR to NoFxAiOS/nofx:dev; 6) Reference related issue (Closes #123); 7) Wait for review. Keep PRs small and focused.',
+
+    faqBountyProgram: 'Is there a bounty program?',
+    faqBountyProgramAnswer:
+      'Yes! Contributors receive airdrop rewards based on contributions: Code commits (highest weight), bug fixes, feature suggestions, documentation. Issues with "bounty" label have cash rewards. After completing work, submit a Bounty Claim. Check CONTRIBUTING.md for details on the reward structure.',
+
+    faqReportBugs: 'How do I report bugs?',
+    faqReportBugsAnswer:
+      'For bugs: Open a GitHub Issue with: 1) Clear description of the problem; 2) Steps to reproduce; 3) Expected vs actual behavior; 4) System info (OS, Docker version, browser); 5) Relevant logs. For SECURITY vulnerabilities: Do NOT open public issues - DM @Web3Tinkle on Twitter instead.',
 
     // Web Crypto Environment Check
     environmentCheck: {
@@ -1220,13 +1290,13 @@ export const translations = {
         customTfPlaceholder: '自定义周期（逗号分隔，例如 2h,6h）',
         initialBalanceLabel: '初始资金 (USDT)',
         feeLabel: '手续费 (bps)',
-      slippageLabel: '滑点 (bps)',
-      btcEthLeverageLabel: 'BTC/ETH 杠杆 (倍)',
-      altcoinLeverageLabel: '山寨币杠杆 (倍)',
-      fillPolicies: {
-        nextOpen: '下一根开盘价',
-        barVwap: 'K线 VWAP',
-        midPrice: '中间价',
+        slippageLabel: '滑点 (bps)',
+        btcEthLeverageLabel: 'BTC/ETH 杠杆 (倍)',
+        altcoinLeverageLabel: '山寨币杠杆 (倍)',
+        fillPolicies: {
+          nextOpen: '下一根开盘价',
+          barVwap: 'K线 VWAP',
+          midPrice: '中间价',
         },
         promptPresets: {
           baseline: '基础版',
@@ -1462,8 +1532,10 @@ export const translations = {
     enterLighterApiKeyPrivateKey: '請輸入 API Key 私鑰（40 字節，可選）',
     lighterWalletAddressDesc: '您的以太坊錢包地址，用於識別賬戶',
     lighterPrivateKeyDesc: 'L1 私鑰用於賬戶識別（32 字節 ECDSA 私鑰）',
-    lighterApiKeyPrivateKeyDesc: 'API Key 私鑰用於簽名交易（40 字節 Poseidon2 私鑰）',
-    lighterApiKeyOptionalNote: '如果不提供 API Key，系統將使用功能受限的 V1 模式',
+    lighterApiKeyPrivateKeyDesc:
+      'API Key 私鑰用於簽名交易（40 字節 Poseidon2 私鑰）',
+    lighterApiKeyOptionalNote:
+      '如果不提供 API Key，系統將使用功能受限的 V1 模式',
     lighterV1Description: '基本模式 - 功能受限，僅用於測試框架',
     lighterV2Description: '完整模式 - 支持 Poseidon2 簽名和真實交易',
     lighterPrivateKeyImported: 'LIGHTER 私鑰已導入',
@@ -1565,7 +1637,8 @@ export const translations = {
     noExchangesConfigured: '暂无已配置的交易所',
     signalSource: '信号源',
     signalSourceConfig: '信号源配置',
-    coinPoolDescription: '用于获取 AI500 数据源的 API 地址，留空则不使用此数据源',
+    coinPoolDescription:
+      '用于获取 AI500 数据源的 API 地址，留空则不使用此数据源',
     oiTopDescription: '用于获取持仓量排行数据的API地址，留空则不使用此信号源',
     information: '说明',
     signalSourceInfo1:
@@ -1584,11 +1657,13 @@ export const translations = {
     customBaseURLPlaceholder: '自定义API基础URL，如: https://api.openai.com/v1',
     leaveBlankForDefault: '留空则使用默认API地址',
     modelConfigInfo1: '• 使用官方 API 时，只需填写 API Key，其他字段留空即可',
-    modelConfigInfo2: '• 自定义 Base URL 和 Model Name 仅在使用第三方代理时需要填写',
+    modelConfigInfo2:
+      '• 自定义 Base URL 和 Model Name 仅在使用第三方代理时需要填写',
     modelConfigInfo3: '• API Key 加密存储，不会明文展示',
     defaultModel: '默认模型',
     applyApiKey: '申请 API Key',
-    kimiApiNote: 'Kimi 需要从国际站申请 API Key (moonshot.ai)，中国区 Key 不通用',
+    kimiApiNote:
+      'Kimi 需要从国际站申请 API Key (moonshot.ai)，中国区 Key 不通用',
     leaveBlankForDefaultModel: '留空使用默认模型名称',
     customModelName: 'Model Name (可选)',
     customModelNamePlaceholder: '例如: deepseek-chat, qwen3-max, gpt-4o',
@@ -1715,7 +1790,8 @@ export const translations = {
     signIn: '登录',
     signUp: '注册',
     registrationClosed: '注册已关闭',
-    registrationClosedMessage: '平台当前不开放新用户注册，如需访问请联系管理员获取账号。',
+    registrationClosedMessage:
+      '平台当前不开放新用户注册，如需访问请联系管理员获取账号。',
 
     // Hero Section
     githubStarsInDays: '3 天内 2.5K+ GitHub Stars',
@@ -1809,7 +1885,8 @@ export const translations = {
     candidateCoins: '候选币种',
     candidateCoinsZeroWarning: '候选币种数量为 0',
     possibleReasons: '可能原因：',
-    coinPoolApiNotConfigured: 'AI500 数据源 API 未配置或无法访问（请检查信号源设置）',
+    coinPoolApiNotConfigured:
+      'AI500 数据源 API 未配置或无法访问（请检查信号源设置）',
     apiConnectionTimeout: 'API连接超时或返回数据为空',
     noCustomCoinsAndApiFailed: '未配置自定义币种且API获取失败',
     solutions: '解决方案：',
@@ -1828,168 +1905,228 @@ export const translations = {
     faqContactUs: '加入我们的社区或查看 GitHub 获取更多帮助',
 
     // FAQ Categories
-    faqCategoryBasics: '基础问题',
-    faqCategoryContributing: '贡献与任务',
-    faqCategorySetup: '安装与配置',
-    faqCategoryTrading: '交易问题',
-    faqCategoryTechnical: '技术问题',
-    faqCategoryAI: 'AI与模型问题',
-    faqCategoryData: '数据与隐私',
+    faqCategoryGettingStarted: '入门指南',
+    faqCategoryInstallation: '安装部署',
+    faqCategoryConfiguration: '配置设置',
+    faqCategoryTrading: '交易相关',
+    faqCategoryTechnicalIssues: '技术问题',
+    faqCategorySecurity: '安全相关',
+    faqCategoryFeatures: '功能介绍',
+    faqCategoryAIModels: 'AI 模型',
+    faqCategoryContributing: '参与贡献',
 
-    // FAQ Questions & Answers - General
+    // ===== 入门指南 =====
     faqWhatIsNOFX: 'NOFX 是什么？',
     faqWhatIsNOFXAnswer:
-      'NOFX 是一个 AI 驱动的加密货币交易机器人，使用大语言模型（LLM）在期货市场进行交易决策。',
+      'NOFX 是一个开源的 AI 驱动交易操作系统，支持加密货币和美股市场。它使用大语言模型（LLM）如 DeepSeek、GPT、Claude、Gemini 来分析市场数据，进行自主交易决策。核心功能包括：多 AI 模型支持、多交易所交易、可视化策略构建器、回测系统、以及用于共识决策的 AI 辩论竞技场。',
 
-    faqSupportedExchanges: '支持哪些交易所？',
-    faqSupportedExchangesAnswer:
-      '支持币安合约（Binance Futures）、Hyperliquid 和 Aster DEX。更多交易所开发中。',
+    faqHowDoesItWork: 'NOFX 是如何工作的？',
+    faqHowDoesItWorkAnswer:
+      'NOFX 分 5 步工作：1）配置 AI 模型和交易所 API 凭证；2）创建交易策略（币种选择、指标、风控）；3）创建"交易员"，组合 AI 模型 + 交易所 + 策略；4）启动交易员 - 它会定期分析市场数据并做出买入/卖出/持有决策；5）在仪表板上监控表现。AI 使用思维链（Chain of Thought）推理来解释每个决策。',
 
     faqIsProfitable: 'NOFX 能盈利吗？',
     faqIsProfitableAnswer:
-      'AI 交易是实验性的，不保证盈利。请始终用小额资金测试，不要投入超过您承受能力的资金。',
+      'AI 交易是实验性的，不保证盈利。加密货币期货波动性大、风险高。NOFX 仅用于教育和研究目的。我们强烈建议：从小额开始（10-50 USDT），不要投入超过承受能力的资金，在实盘交易前充分回测，并理解过去的表现不代表未来的结果。',
 
-    faqMultipleTraders: '可以同时运行多个交易员吗？',
-    faqMultipleTradersAnswer:
-      '可以！NOFX 支持运行多个交易员，每个可配置不同的 AI 模型和交易策略。',
+    faqSupportedExchanges: '支持哪些交易所？',
+    faqSupportedExchangesAnswer:
+      'CEX（中心化）：币安合约、Bybit、OKX、Bitget。DEX（去中心化）：Hyperliquid、Aster DEX、Lighter。每个交易所有不同特点 - 币安流动性最好，Hyperliquid 完全链上无需 KYC。查看文档获取各交易所的设置指南。',
 
-    // Contributing & Community
-    faqGithubProjectsTasks: '如何在 GitHub Projects 中领取任务？',
-    faqGithubProjectsTasksAnswer:
-      '路线图：https://github.com/orgs/NoFxAiOS/projects/3 ｜ 任务看板：https://github.com/orgs/NoFxAiOS/projects/5 ｜ 步骤：打开链接 → 按标签筛选（good first issue / help wanted / frontend / backend）→ 阅读描述与验收标准 → 评论“assign me”或自助分配 → Fork 仓库 → 同步你 fork 的 dev 与 upstream/dev → 从你 fork 的 dev 创建特性分支 → 推送到你的 fork → 打开 PR（base：NoFxAiOS/nofx:dev ← compare：你的用户名/nofx:feat/your-topic）→ 关联 Issue（Closes #123）并选择正确模板。',
+    faqSupportedAIModels: '支持哪些 AI 模型？',
+    faqSupportedAIModelsAnswer:
+      'NOFX 支持 7+ 种 AI 模型：DeepSeek（推荐性价比）、阿里云通义千问、OpenAI（GPT-5.2）、Anthropic Claude、Google Gemini、xAI Grok、Kimi（月之暗面）。您也可以使用任何 OpenAI 兼容的 API 端点。每个模型各有优势 - DeepSeek 性价比高，OpenAI 能力强但贵，Claude 擅长推理。',
 
-    faqContributePR: '如何规范地提交 PR 并参与贡献？',
-    faqContributePRAnswer:
-      '规范：• 先 Fork；在你的 fork 的 dev 分支上创建特性分支（避免直接向上游 main 提交）• 分支命名：feat/...、fix/...、docs/...；提交信息遵循 Conventional Commits • PR 前运行检查：npm --prefix web run lint && npm --prefix web run build • 涉及 UI 变更请附截图/短视频 • 选择正确 PR 模板（frontend/backend/docs/general）• 从你的 fork 发起到 NoFxAiOS/nofx:dev，并在 PR 中关联 Issue（Closes #123）• 持续 rebase 到 upstream/dev，确保 CI 通过；尽量保持 PR 小而聚焦 • 参考 CONTRIBUTING.md 与 .github/PR_TITLE_GUIDE.md',
-
-    // Setup & Configuration
     faqSystemRequirements: '系统要求是什么？',
     faqSystemRequirementsAnswer:
-      '操作系统：Linux、macOS 或 Windows（推荐 Docker）；内存：最低 2GB，推荐 4GB；硬盘：应用 + 日志需要 1GB；网络：稳定的互联网连接。',
+      '最低配置：2 核 CPU，2GB 内存，1GB 硬盘，稳定网络。推荐：4GB 内存用于运行多个交易员。支持系统：Linux、macOS 或 Windows（通过 Docker 或 WSL2）。Docker 是最简单的安装方式。手动安装需要 Go 1.21+、Node.js 18+ 和 TA-Lib 库。',
 
-    faqNeedCoding: '需要编程经验吗？',
-    faqNeedCodingAnswer:
-      '不需要！NOFX 有 Web 界面进行所有配置。但基础的命令行知识有助于安装和故障排查。',
+    // ===== 安装部署 =====
+    faqHowToInstall: '如何安装 NOFX？',
+    faqHowToInstallAnswer:
+      '最简单的方法（Linux/macOS）：运行 "curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash" - 这会自动安装 Docker 容器。然后在浏览器中打开 http://127.0.0.1:3000。手动安装或开发请克隆仓库并按照 README 说明操作。',
 
-    faqGetApiKeys: '如何获取 API 密钥？',
-    faqGetApiKeysAnswer:
-      '币安：账户 → API 管理 → 创建 API → 启用合约。Hyperliquid：访问 Hyperliquid App → API 设置。Aster DEX：配置主钱包地址（User）、API 钱包地址（Signer）和私钥（Private Key）。',
-
-    faqUseSubaccount: '应该使用子账户吗？',
-    faqUseSubaccountAnswer:
-      '推荐：是的，使用专门的子账户运行 NOFX 可以更好地隔离风险。但请注意，某些子账户有限制（例如币安子账户最高 5 倍杠杆）。',
+    faqWindowsInstallation: 'Windows 如何安装？',
+    faqWindowsInstallationAnswer:
+      '三种方式：1）Docker Desktop（推荐）- 安装 Docker Desktop，然后在 PowerShell 中运行 "docker compose -f docker-compose.prod.yml up -d"；2）WSL2 - 安装 Windows 子系统 Linux，然后按 Linux 方式安装；3）WSL2 + Docker - 两全其美，在 WSL2 终端运行安装脚本。通过 http://127.0.0.1:3000 访问。',
 
     faqDockerDeployment: 'Docker 部署一直失败',
     faqDockerDeploymentAnswer:
-      '常见问题：网络连接问题、依赖安装失败、内存不足（需要至少 2C2G）。如果卡在 "go build" 不动，尝试：docker compose down && docker compose build --no-cache && docker compose up -d',
+      '常见解决方案：1）检查 Docker 是否运行："docker info"；2）确保足够内存（最少 2GB）；3）如果卡在 "go build"，尝试："docker compose down && docker compose build --no-cache && docker compose up -d"；4）查看日志："docker compose logs -f"；5）拉取较慢时，在 daemon.json 配置 Docker 镜像。',
 
-    faqBalanceZero: '账户余额显示为 0',
-    faqBalanceZeroAnswer:
-      '资金可能在现货账户而非合约账户，或被理财功能锁定。您需要在币安手动将资金划转到合约账户。',
+    faqManualInstallation: '如何手动安装用于开发？',
+    faqManualInstallationAnswer:
+      '前置条件：Go 1.21+、Node.js 18+、TA-Lib。步骤：1）克隆仓库："git clone https://github.com/NoFxAiOS/nofx.git"；2）安装后端依赖："go mod download"；3）安装前端依赖："cd web && npm install"；4）构建后端："go build -o nofx"；5）运行后端："./nofx"；6）运行前端（新终端）："cd web && npm run dev"。访问 http://127.0.0.1:3000',
 
-    faqTestnet: '可以使用测试网测试吗？',
-    faqTestnetAnswer:
-      '暂时不支持测试网。我们建议使用真实交易但小额资金（10-50 USDT）进行测试。',
+    faqServerDeployment: '如何部署到远程服务器？',
+    faqServerDeploymentAnswer:
+      '在服务器上运行安装脚本 - 它会自动检测服务器 IP。通过 http://服务器IP:3000 访问。配置 HTTPS：1）使用 Cloudflare（免费）- 添加域名，创建 A 记录指向服务器 IP，SSL 设为"灵活"；2）在 .env 中启用 TRANSPORT_ENCRYPTION=true 进行浏览器端加密；3）通过 https://你的域名.com 访问。',
 
-    // Trading Questions
-    faqNoTrades: '为什么我的交易员不开仓？',
-    faqNoTradesAnswer:
-      '常见原因：AI 根据市场情况决定"等待"；余额或保证金不足；达到持仓上限（默认最多 3 个仓位）；查看故障排查指南了解详细诊断。',
+    faqUpdateNOFX: '如何更新 NOFX？',
+    faqUpdateNOFXAnswer:
+      'Docker 方式：运行 "docker compose pull && docker compose up -d" 拉取最新镜像并重启。手动安装：后端 "git pull && go build -o nofx"，前端 "cd web && npm install && npm run build"。data.db 中的配置在更新时会保留。',
+
+    // ===== 配置设置 =====
+    faqConfigureAIModels: '如何配置 AI 模型？',
+    faqConfigureAIModelsAnswer:
+      '进入配置页面 → AI 模型部分。对于每个模型：1）从提供商获取 API 密钥（界面提供链接）；2）输入 API 密钥；3）可选自定义基础 URL 和模型名称；4）保存。API 密钥在存储前会加密。保存后测试连接以验证。',
+
+    faqConfigureExchanges: '如何配置交易所连接？',
+    faqConfigureExchangesAnswer:
+      '进入配置页面 → 交易所部分。点击"添加交易所"，选择类型并输入凭证。CEX（币安/Bybit/OKX）：需要 API Key + Secret Key（OKX 还需要 Passphrase）。DEX（Hyperliquid/Aster/Lighter）：需要钱包地址和私钥。务必只启用必要权限（合约交易）并考虑 IP 白名单。',
+
+    faqBinanceAPISetup: '如何正确设置币安 API？',
+    faqBinanceAPISetupAnswer:
+      '重要步骤：1）在币安 → API 管理中创建 API 密钥；2）仅启用"启用合约"权限；3）考虑添加 IP 白名单增强安全；4）关键：在合约设置 → 偏好设置 → 持仓模式中切换为双向持仓模式；5）确保资金在合约钱包（不是现货）。-4061 错误表示需要双向持仓模式。',
+
+    faqHyperliquidSetup: '如何设置 Hyperliquid？',
+    faqHyperliquidSetupAnswer:
+      'Hyperliquid 是去中心化交易所，需要钱包认证。步骤：1）访问 app.hyperliquid.xyz；2）连接钱包；3）生成 API 钱包（推荐）或使用主钱包；4）复制钱包地址和私钥；5）在 NOFX 中添加 Hyperliquid 交易所并填入凭证。无需 KYC，完全链上。',
+
+    faqCreateStrategy: '如何创建交易策略？',
+    faqCreateStrategyAnswer:
+      '进入策略工作室：1）币种来源 - 选择交易哪些币（静态列表、AI500 池或 OI 排行）；2）指标 - 启用技术指标（EMA、MACD、RSI、ATR、成交量、OI、资金费率）；3）风控 - 设置杠杆限制、最大持仓数、保证金使用上限、仓位大小限制；4）自定义提示词（可选）- 为 AI 添加特定指令。保存后分配给交易员。',
+
+    faqCreateTrader: '如何创建并启动交易员？',
+    faqCreateTraderAnswer:
+      '进入交易员页面：1）点击"创建交易员"；2）选择 AI 模型（需先配置）；3）选择交易所（需先配置）；4）选择策略（或使用默认）；5）设置决策间隔（如 5 分钟）；6）保存，然后点击"启动"开始交易。在仪表板页面监控表现。',
+
+    // ===== 交易相关 =====
+    faqHowAIDecides: 'AI 如何做出交易决策？',
+    faqHowAIDecidesAnswer:
+      'AI 使用思维链（CoT）推理分 4 步：1）持仓分析 - 审查当前持仓和盈亏；2）风险评估 - 检查账户保证金、可用余额；3）机会评估 - 分析市场数据、指标、候选币种；4）最终决策 - 输出具体操作（买入/卖出/持有）及理由。您可以在决策日志中查看完整推理过程。',
 
     faqDecisionFrequency: 'AI 多久做一次决策？',
     faqDecisionFrequencyAnswer:
-      '可配置！默认是每 3-5 分钟。太频繁 = 过度交易，太慢 = 错过机会。',
+      '每个交易员可单独配置，默认 3-5 分钟。考虑因素：太频繁（1-2 分钟）= 过度交易、手续费高；太慢（30+ 分钟）= 错过机会。建议：活跃交易 5 分钟，波段交易 15-30 分钟。AI 在很多周期可能决定"持有"（不操作）。',
 
-    faqCustomStrategy: '可以自定义交易策略吗？',
-    faqCustomStrategyAnswer:
-      '可以！您可以调整杠杆设置、修改币种选择池、更改决策间隔、自定义系统提示词（高级）。',
+    faqNoTradesExecuting: '为什么交易员不执行任何交易？',
+    faqNoTradesExecutingAnswer:
+      '常见原因：1）AI 决定等待（查看决策日志了解原因）；2）合约账户余额不足；3）达到最大持仓数限制（默认：3）；4）交易所 API 问题（检查错误信息）；5）策略约束太严格。查看仪表板 → 决策日志了解每个周期的 AI 推理详情。',
 
-    faqMaxPositions: '最多可以同时持有多少个仓位？',
-    faqMaxPositionsAnswer:
-      '默认：3 个仓位。这是 AI 提示词中的软限制，不是硬编码。',
+    faqOnlyShortPositions: '为什么 AI 只开空单？',
+    faqOnlyShortPositionsAnswer:
+      '通常是因为币安持仓模式问题。解决方案：在币安合约 → 偏好设置 → 持仓模式中切换为双向持仓。必须先平掉所有持仓。切换后，AI 可以独立开多单和空单。',
 
-    faqMarginInsufficient: '保证金不足错误 (code=-2019)',
-    faqMarginInsufficientAnswer:
-      '常见原因：资金未划转到合约账户；杠杆倍数设置过高（默认 20-50 倍）；已有持仓占用保证金；需要先从现货账户划转 USDT 到合约账户。',
+    faqLeverageSettings: '杠杆设置如何工作？',
+    faqLeverageSettingsAnswer:
+      '杠杆在策略 → 风控中设置：BTC/ETH 杠杆（通常 5-20 倍）和山寨币杠杆（通常 3-10 倍）。更高杠杆 = 更高风险和潜在收益。子账户可能有限制（如币安子账户限制 5 倍）。AI 下单时会遵守这些限制。',
 
-    faqHighFees: '交易手续费太高',
-    faqHighFeesAnswer:
-      'NOFX 默认 3 分钟扫描间隔会导致频繁交易。解决方案：将决策间隔增加到 5-10 分钟；优化系统提示词减少过度交易；调整杠杆降低仓位大小。',
+    faqStopLossTakeProfit: 'NOFX 支持止损止盈吗？',
+    faqStopLossTakeProfitAnswer:
+      'AI 可以在决策中建议止损/止盈价位，但这是基于指导而非交易所硬编码订单。AI 每个周期监控持仓，可能根据盈亏决定平仓。如需保证止损，可以手动在交易所设置订单，或调整策略提示词使其更保守。',
 
-    faqNoTakeProfit: 'AI 不平掉盈利的仓位',
-    faqNoTakeProfitAnswer:
-      'AI 可能认为趋势会继续。系统目前缺少移动止盈功能。您可以手动平仓或调整系统提示词使其在获利时更保守。',
+    faqMultipleTraders: '可以运行多个交易员吗？',
+    faqMultipleTradersAnswer:
+      '可以！NOFX 支持运行 20+ 个并发交易员。每个交易员可以有不同的：AI 模型、交易所账户、策略、决策间隔。用于 A/B 测试策略、比较 AI 模型或跨交易所分散风险。在竞赛页面监控所有交易员。',
 
-    // Technical Issues
-    faqBinanceApiFailed: '币安 API 调用失败 (code=-2015)',
-    faqBinanceApiFailedAnswer:
-      '错误："Invalid API-key, IP, or permissions for action"。解决方案：将服务器 IP 添加到币安 API 白名单；检查 API 权限（需要读取 + 合约交易）；确保使用合约 API 而非统一账户 API；VPN IP 可能不稳定。',
+    faqAICosts: 'AI API 调用费用是多少？',
+    faqAICostsAnswer:
+      '每个交易员每天大约费用（5 分钟间隔）：DeepSeek：$0.10-0.50；Qwen：$0.20-0.80；OpenAI：$2-5；Claude：$1-3。费用取决于提示词长度和响应 token 数。DeepSeek 性价比最高。更长的决策间隔可降低费用。',
 
-    faqBinancePositionMode: '币安持仓模式错误 (code=-4061)',
-    faqBinancePositionModeAnswer:
-      '错误信息："Order\'s position side does not match user\'s setting"。解决方法：切换为双向持仓模式。登录币安合约 → 点击右上角偏好设置 → 选择持仓模式 → 双向持仓。注意：先平掉所有持仓。',
-
-    faqPortInUse: '后端无法启动 / 端口被占用',
+    // ===== 技术问题 =====
+    faqPortInUse: '端口 8080 或 3000 被占用',
     faqPortInUseAnswer:
-      '使用 "lsof -i :8080" 查看占用端口的进程，在 .env 中修改端口：NOFX_BACKEND_PORT=8081。',
+      '查看占用端口的进程：macOS/Linux 用 "lsof -i :8080"，Windows 用 "netstat -ano | findstr 8080"。终止进程或在 .env 中修改端口：NOFX_BACKEND_PORT=8081、NOFX_FRONTEND_PORT=3001。然后 "docker compose down && docker compose up -d" 重启。',
 
-    faqFrontendLoading: '前端一直显示"加载中..."',
-    faqFrontendLoadingAnswer:
-      '使用 "curl http://localhost:8080/api/health" 检查后端是否运行。应该返回 {"status":"ok"}。如果不是，查看故障排查指南。',
+    faqFrontendNotLoading: '前端一直显示"加载中..."',
+    faqFrontendNotLoadingAnswer:
+      '后端可能未运行或无法访问。检查：1）"curl http://127.0.0.1:8080/api/health" 应返回 {"status":"ok"}；2）"docker compose ps" 验证容器运行中；3）查看后端日志："docker compose logs nofx-backend"；4）确保防火墙允许 8080 端口。',
 
     faqDatabaseLocked: '数据库锁定错误',
     faqDatabaseLockedAnswer:
-      '使用 "docker compose down" 或 "pkill nofx" 停止所有 NOFX 进程，然后使用 "docker compose up -d" 重启。',
+      '多个进程同时访问 SQLite 导致。解决方案：1）停止所有进程："docker compose down" 或 "pkill nofx"；2）如有锁文件删除："rm -f data/data.db-wal data/data.db-shm"；3）重启："docker compose up -d"。只能有一个后端实例访问数据库。',
 
-    faqAiLearningFailed: 'AI 学习数据加载失败',
-    faqAiLearningFailedAnswer:
-      '原因：TA-Lib 库未正确安装；历史数据不足（需要完成交易）；环境配置问题。安装 TA-Lib：pip install TA-Lib 或检查系统依赖。',
+    faqTALibNotFound: '构建时找不到 TA-Lib',
+    faqTALibNotFoundAnswer:
+      'TA-Lib 是技术指标所需。安装：macOS："brew install ta-lib"；Ubuntu/Debian："sudo apt-get install libta-lib0-dev"；CentOS："yum install ta-lib-devel"。安装后重新构建："go build -o nofx"。Docker 镜像已预装 TA-Lib。',
 
-    faqConfigNotEffective: '配置文件修改不生效',
-    faqConfigNotEffectiveAnswer:
-      'Docker 需要重新构建："docker compose down && docker compose up -d --build"。PM2 需要重启："pm2 restart all"。检查配置文件格式和路径是否正确。',
+    faqAIAPITimeout: 'AI API 超时或连接被拒绝',
+    faqAIAPITimeoutAnswer:
+      '检查：1）API 密钥有效（用 curl 测试）；2）网络能访问 API 端点（ping/curl）；3）API 提供商未宕机（查看状态页）；4）VPN/防火墙未阻止；5）未超过速率限制。默认超时 120 秒。',
 
-    // AI & Model Questions
-    faqWhichModels: '支持哪些 AI 模型？',
-    faqWhichModelsAnswer:
-      'DeepSeek（推荐性价比）、Qwen（阿里云通义千问）、自定义 OpenAI 兼容 API（可用于 OpenAI、通过代理的 Claude 或其他提供商）。',
+    faqBinancePositionMode: '币安错误代码 -4061（持仓模式）',
+    faqBinancePositionModeAnswer:
+      '错误："Order\'s position side does not match user\'s setting"。您处于单向持仓模式，但 NOFX 需要双向持仓模式。修复：1）先平掉所有持仓；2）币安合约 → 设置（齿轮图标）→ 偏好设置 → 持仓模式 → 切换为"双向持仓"；3）重启交易员。',
 
-    faqApiCosts: 'API 调用成本是多少？',
-    faqApiCostsAnswer:
-      '取决于您的模型和决策频率：DeepSeek：每天约 $0.10-0.50（1 个交易员，5 分钟间隔）；Qwen：每天约 $0.20-0.80；自定义 API（例如 OpenAI GPT-4）：每天约 $2-5。基于典型使用的估算。',
+    faqBalanceShowsZero: '账户余额显示 0',
+    faqBalanceShowsZeroAnswer:
+      '资金可能在现货钱包而非合约钱包。解决方案：1）在币安进入钱包 → 合约 → 划转；2）将 USDT 从现货划转到合约；3）刷新 NOFX 仪表板。也检查：资金未被理财/质押产品锁定。',
 
-    faqMultipleModels: '可以使用多个 AI 模型吗？',
-    faqMultipleModelsAnswer:
-      '可以！每个交易员可以使用不同的 AI 模型。您甚至可以 A/B 测试不同模型。',
+    faqDockerPullFailed: 'Docker 镜像拉取失败或缓慢',
+    faqDockerPullFailedAnswer:
+      'Docker Hub 在某些地区可能较慢。解决方案：1）在 /etc/docker/daemon.json 配置 Docker 镜像：{"registry-mirrors": ["https://mirror.gcr.io"]}；2）重启 Docker；3）重试拉取。或使用 GitHub Container Registry（ghcr.io）在您的地区可能连接更好。',
 
-    faqAiLearning: 'AI 会从错误中学习吗？',
-    faqAiLearningAnswer:
-      '会的，在一定程度上。NOFX 在每次决策提示中提供历史表现反馈，允许 AI 调整策略。',
+    // ===== 安全相关 =====
+    faqAPIKeyStorage: 'API 密钥如何存储？',
+    faqAPIKeyStorageAnswer:
+      'API 密钥使用 AES-256-GCM 加密后存储在本地 SQLite 数据库中。加密密钥（DATA_ENCRYPTION_KEY）存储在您的 .env 文件中。密钥仅在 API 调用需要时在内存中解密。切勿分享您的 data.db 或 .env 文件。',
 
-    faqOnlyShort: 'AI 只开空单，不开多单',
-    faqOnlyShortAnswer:
-      '默认系统提示词包含"不要有做多偏见！做空是你的核心工具之一"，可能导致此问题。还受 4 小时周期数据和模型训练偏向性影响。您可以修改系统提示词使其更平衡。',
+    faqEncryptionDetails: 'NOFX 使用什么加密？',
+    faqEncryptionDetailsAnswer:
+      'NOFX 使用多层加密：1）AES-256-GCM 用于数据库存储（API 密钥、密钥）；2）RSA-2048 用于可选的传输加密（浏览器到服务器）；3）JWT 用于认证令牌。密钥在安装时生成。HTTPS 环境启用 TRANSPORT_ENCRYPTION=true。',
 
-    faqModelSelection: '应该使用哪个 DeepSeek 版本？',
-    faqModelSelectionAnswer:
-      '推荐使用 DeepSeek V3 以获得最佳性能。备选：DeepSeek R1（推理模型，较慢但逻辑更好）、SiliconFlow 的 DeepSeek（备用 API 提供商）。大多数用户反馈 V3 效果良好。',
+    faqSecurityBestPractices: '安全最佳实践是什么？',
+    faqSecurityBestPracticesAnswer:
+      '建议：1）使用带 IP 白名单和最小权限（仅合约交易）的交易所 API 密钥；2）为 NOFX 使用专用子账户；3）远程部署启用 TRANSPORT_ENCRYPTION；4）切勿分享 .env 或 data.db 文件；5）使用有效证书的 HTTPS；6）定期轮换 API 密钥；7）监控账户活动。',
 
-    // Data & Privacy
-    faqDataStorage: '我的数据存储在哪里？',
-    faqDataStorageAnswer:
-      '所有数据都本地存储在您的机器上，使用 SQLite 数据库：data.db（所有配置和交易历史）、decision_logs/（AI 决策记录）。',
+    faqCanNOFXStealFunds: 'NOFX 会盗取我的资金吗？',
+    faqCanNOFXStealFundsAnswer:
+      'NOFX 是开源的（AGPL-3.0 许可）- 您可以在 GitHub 审计所有代码。API 密钥存储在您的机器本地，从不发送到外部服务器。NOFX 只有您通过 API 密钥授予的权限。为最大安全：使用仅交易权限（无提现）的 API 密钥，启用 IP 白名单，使用专用子账户。',
 
-    faqApiKeySecurity: 'API 密钥安全吗？',
-    faqApiKeySecurityAnswer:
-      'API 密钥存储在本地数据库中。永远不要分享您的数据库或 .env 文件。我们建议使用带 IP 白名单限制的 API 密钥。',
+    // ===== 功能介绍 =====
+    faqStrategyStudio: '什么是策略工作室？',
+    faqStrategyStudioAnswer:
+      '策略工作室是可视化策略构建器，您可以配置：1）币种来源 - 交易哪些加密货币（静态列表、AI500 热门币、OI 排行）；2）技术指标 - EMA、MACD、RSI、ATR、成交量、持仓量、资金费率；3）风控 - 杠杆限制、仓位大小、保证金上限；4）自定义提示词 - AI 的特定指令。无需编程。',
 
-    faqExportHistory: '可以导出交易历史吗？',
-    faqExportHistoryAnswer:
-      '可以！交易数据是 SQLite 格式。您可以直接查询：sqlite3 trading.db "SELECT * FROM trades;"',
+    faqBacktestLab: '什么是回测实验室？',
+    faqBacktestLabAnswer:
+      '回测实验室用历史数据测试您的策略，无需冒真金风险。功能：1）配置 AI 模型、日期范围、初始余额；2）实时观看进度和权益曲线；3）查看指标：收益率、最大回撤、夏普比率、胜率；4）分析单笔交易和 AI 推理。实盘交易前验证策略的必备工具。',
 
-    faqGetHelp: '在哪里可以获得帮助？',
-    faqGetHelpAnswer:
-      '查看 GitHub Discussions、加入 Telegram 社区或在 GitHub 上提出 issue。',
+    faqDebateArena: '什么是辩论竞技场？',
+    faqDebateArenaAnswer:
+      '辩论竞技场让多个 AI 模型在执行前辩论交易决策。设置：1）选择 2-5 个 AI 模型；2）分配角色（多头、空头、分析师、逆向者、风险经理）；3）观看他们多轮辩论；4）基于共识投票做最终决策。适用于需要多角度考虑的高确信度交易。',
+
+    faqCompetitionMode: '什么是竞赛模式？',
+    faqCompetitionModeAnswer:
+      '竞赛页面显示所有交易员的实时排行榜。比较：ROI、盈亏、夏普比率、胜率、交易次数。用于 A/B 测试不同 AI 模型、策略或配置。交易员可标记为"在竞赛中显示"以出现在排行榜上。',
+
+    faqChainOfThought: '什么是思维链（CoT）？',
+    faqChainOfThoughtAnswer:
+      '思维链是 AI 的推理过程，可在决策日志中查看。AI 分 4 步解释思考：1）当前持仓分析；2）账户风险评估；3）市场机会评估；4）最终决策理由。这种透明度帮助您理解 AI 为什么做出每个决策，有助于改进策略。',
+
+    // ===== AI 模型 =====
+    faqWhichAIModelBest: '应该使用哪个 AI 模型？',
+    faqWhichAIModelBestAnswer:
+      '推荐：DeepSeek 性价比最高（每天 $0.10-0.50）。备选：OpenAI 推理能力最强但贵（每天 $2-5）；Claude 适合细致分析；Qwen 价格有竞争力。您可以运行多个交易员使用不同模型进行比较。查看竞赛页面看哪个对您的策略表现最好。',
+
+    faqCustomAIAPI: '可以使用自定义 AI API 吗？',
+    faqCustomAIAPIAnswer:
+      '可以！NOFX 支持任何 OpenAI 兼容的 API。在配置 → AI 模型 → 自定义 API 中：1）输入 API 端点 URL（如 https://your-api.com/v1）；2）输入 API 密钥；3）指定模型名称。适用于自托管模型、替代提供商或通过第三方代理的 Claude。',
+
+    faqAIHallucinations: 'AI 幻觉问题怎么办？',
+    faqAIHallucinationsAnswer:
+      'AI 模型有时会产生不正确或虚构的信息（"幻觉"）。NOFX 通过以下方式缓解：1）提供带真实市场数据的结构化提示词；2）强制 JSON 输出格式；3）执行前验证订单。但 AI 交易是实验性的 - 始终监控决策，不要完全依赖 AI 判断。',
+
+    faqCompareAIModels: '如何比较不同 AI 模型？',
+    faqCompareAIModelsAnswer:
+      '创建多个交易员，使用不同 AI 模型但相同策略/交易所。同时运行并在竞赛页面比较。关注指标：ROI、胜率、夏普比率、最大回撤。或者使用回测实验室用相同历史数据测试模型。辩论竞技场也展示不同模型对同一情况的推理方式。',
+
+    // ===== 参与贡献 =====
+    faqHowToContribute: '如何为 NOFX 做贡献？',
+    faqHowToContributeAnswer:
+      'NOFX 是开源项目，欢迎贡献！贡献方式：1）代码 - 修复 bug、添加功能（查看 GitHub Issues）；2）文档 - 改进指南、翻译；3）Bug 报告 - 详细报告问题；4）功能建议 - 提出改进意见。从标记为"good first issue"的问题开始。所有贡献者可能获得空投奖励。',
+
+    faqPRGuidelines: 'PR 指南是什么？',
+    faqPRGuidelinesAnswer:
+      'PR 流程：1）Fork 仓库到您的账户；2）从 dev 创建功能分支："git checkout -b feat/your-feature"；3）修改代码，运行 lint："npm --prefix web run lint"；4）使用 Conventional Commits 格式提交；5）推送并创建 PR 到 NoFxAiOS/nofx:dev；6）关联相关 issue（Closes #123）；7）等待审核。保持 PR 小而聚焦。',
+
+    faqBountyProgram: '有赏金计划吗？',
+    faqBountyProgramAnswer:
+      '有！贡献者根据贡献获得空投奖励：代码提交（权重最高）、bug 修复、功能建议、文档。带"bounty"标签的 issue 有现金奖励。完成工作后提交 Bounty Claim。查看 CONTRIBUTING.md 了解奖励结构详情。',
+
+    faqReportBugs: '如何报告 bug？',
+    faqReportBugsAnswer:
+      'Bug 报告：在 GitHub 开 Issue，包含：1）问题清晰描述；2）复现步骤；3）预期 vs 实际行为；4）系统信息（OS、Docker 版本、浏览器）；5）相关日志。安全漏洞：不要开公开 issue - 请在 Twitter 私信 @Web3Tinkle。',
 
     // Web Crypto Environment Check
     environmentCheck: {

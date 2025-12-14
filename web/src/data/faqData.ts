@@ -4,7 +4,9 @@ import {
   TrendingUp,
   Wrench,
   Bot,
-  Database,
+  Shield,
+  Monitor,
+  Zap,
   GitBranch,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -23,17 +25,24 @@ export interface FAQCategory {
 }
 
 /**
- * FAQ 数据配置
- * - titleKey: 分类标题的翻译键
- * - questionKey: 问题的翻译键
- * - answerKey: 答案的翻译键
+ * FAQ Data Configuration
+ * Comprehensive FAQ covering all aspects of NOFX
  *
- * 所有文本内容都通过翻译键从 i18n/translations.ts 获取
+ * Categories:
+ * 1. Getting Started - Basic concepts and overview
+ * 2. Installation - Setup methods and requirements
+ * 3. Configuration - AI models, exchanges, strategies
+ * 4. Trading - How trading works, common issues
+ * 5. Technical Issues - Troubleshooting common problems
+ * 6. Security - API keys, encryption, best practices
+ * 7. Features - Strategy Studio, Backtest, Debate Arena
+ * 8. Contributing - How to contribute to the project
  */
 export const faqCategories: FAQCategory[] = [
+  // ===== 1. GETTING STARTED =====
   {
-    id: 'basics',
-    titleKey: 'faqCategoryBasics',
+    id: 'getting-started',
+    titleKey: 'faqCategoryGettingStarted',
     icon: BookOpen,
     items: [
       {
@@ -42,63 +51,48 @@ export const faqCategories: FAQCategory[] = [
         answerKey: 'faqWhatIsNOFXAnswer',
       },
       {
+        id: 'how-does-it-work',
+        questionKey: 'faqHowDoesItWork',
+        answerKey: 'faqHowDoesItWorkAnswer',
+      },
+      {
+        id: 'is-it-profitable',
+        questionKey: 'faqIsProfitable',
+        answerKey: 'faqIsProfitableAnswer',
+      },
+      {
         id: 'supported-exchanges',
         questionKey: 'faqSupportedExchanges',
         answerKey: 'faqSupportedExchangesAnswer',
       },
       {
-        id: 'is-profitable',
-        questionKey: 'faqIsProfitable',
-        answerKey: 'faqIsProfitableAnswer',
+        id: 'supported-ai-models',
+        questionKey: 'faqSupportedAIModels',
+        answerKey: 'faqSupportedAIModelsAnswer',
       },
-      {
-        id: 'multiple-traders',
-        questionKey: 'faqMultipleTraders',
-        answerKey: 'faqMultipleTradersAnswer',
-      },
-    ],
-  },
-  {
-    id: 'contributing',
-    titleKey: 'faqCategoryContributing',
-    icon: GitBranch,
-    items: [
-      {
-        id: 'github-projects-tasks',
-        questionKey: 'faqGithubProjectsTasks',
-        answerKey: 'faqGithubProjectsTasksAnswer',
-      },
-      {
-        id: 'contribute-pr-guidelines',
-        questionKey: 'faqContributePR',
-        answerKey: 'faqContributePRAnswer',
-      },
-    ],
-  },
-  {
-    id: 'setup',
-    titleKey: 'faqCategorySetup',
-    icon: Settings,
-    items: [
       {
         id: 'system-requirements',
         questionKey: 'faqSystemRequirements',
         answerKey: 'faqSystemRequirementsAnswer',
       },
+    ],
+  },
+
+  // ===== 2. INSTALLATION =====
+  {
+    id: 'installation',
+    titleKey: 'faqCategoryInstallation',
+    icon: Settings,
+    items: [
       {
-        id: 'need-coding',
-        questionKey: 'faqNeedCoding',
-        answerKey: 'faqNeedCodingAnswer',
+        id: 'how-to-install',
+        questionKey: 'faqHowToInstall',
+        answerKey: 'faqHowToInstallAnswer',
       },
       {
-        id: 'get-api-keys',
-        questionKey: 'faqGetApiKeys',
-        answerKey: 'faqGetApiKeysAnswer',
-      },
-      {
-        id: 'use-subaccount',
-        questionKey: 'faqUseSubaccount',
-        answerKey: 'faqUseSubaccountAnswer',
+        id: 'windows-installation',
+        questionKey: 'faqWindowsInstallation',
+        answerKey: 'faqWindowsInstallationAnswer',
       },
       {
         id: 'docker-deployment',
@@ -106,26 +100,72 @@ export const faqCategories: FAQCategory[] = [
         answerKey: 'faqDockerDeploymentAnswer',
       },
       {
-        id: 'balance-shows-zero',
-        questionKey: 'faqBalanceZero',
-        answerKey: 'faqBalanceZeroAnswer',
+        id: 'manual-installation',
+        questionKey: 'faqManualInstallation',
+        answerKey: 'faqManualInstallationAnswer',
       },
       {
-        id: 'testnet-issues',
-        questionKey: 'faqTestnet',
-        answerKey: 'faqTestnetAnswer',
+        id: 'server-deployment',
+        questionKey: 'faqServerDeployment',
+        answerKey: 'faqServerDeploymentAnswer',
+      },
+      {
+        id: 'update-nofx',
+        questionKey: 'faqUpdateNOFX',
+        answerKey: 'faqUpdateNOFXAnswer',
       },
     ],
   },
+
+  // ===== 3. CONFIGURATION =====
+  {
+    id: 'configuration',
+    titleKey: 'faqCategoryConfiguration',
+    icon: Zap,
+    items: [
+      {
+        id: 'configure-ai-models',
+        questionKey: 'faqConfigureAIModels',
+        answerKey: 'faqConfigureAIModelsAnswer',
+      },
+      {
+        id: 'configure-exchanges',
+        questionKey: 'faqConfigureExchanges',
+        answerKey: 'faqConfigureExchangesAnswer',
+      },
+      {
+        id: 'binance-api-setup',
+        questionKey: 'faqBinanceAPISetup',
+        answerKey: 'faqBinanceAPISetupAnswer',
+      },
+      {
+        id: 'hyperliquid-setup',
+        questionKey: 'faqHyperliquidSetup',
+        answerKey: 'faqHyperliquidSetupAnswer',
+      },
+      {
+        id: 'create-strategy',
+        questionKey: 'faqCreateStrategy',
+        answerKey: 'faqCreateStrategyAnswer',
+      },
+      {
+        id: 'create-trader',
+        questionKey: 'faqCreateTrader',
+        answerKey: 'faqCreateTraderAnswer',
+      },
+    ],
+  },
+
+  // ===== 4. TRADING =====
   {
     id: 'trading',
     titleKey: 'faqCategoryTrading',
     icon: TrendingUp,
     items: [
       {
-        id: 'no-trades',
-        questionKey: 'faqNoTrades',
-        answerKey: 'faqNoTradesAnswer',
+        id: 'how-ai-decides',
+        questionKey: 'faqHowAIDecides',
+        answerKey: 'faqHowAIDecidesAnswer',
       },
       {
         id: 'decision-frequency',
@@ -133,56 +173,53 @@ export const faqCategories: FAQCategory[] = [
         answerKey: 'faqDecisionFrequencyAnswer',
       },
       {
-        id: 'custom-strategy',
-        questionKey: 'faqCustomStrategy',
-        answerKey: 'faqCustomStrategyAnswer',
+        id: 'no-trades-executing',
+        questionKey: 'faqNoTradesExecuting',
+        answerKey: 'faqNoTradesExecutingAnswer',
       },
       {
-        id: 'max-positions',
-        questionKey: 'faqMaxPositions',
-        answerKey: 'faqMaxPositionsAnswer',
+        id: 'only-short-positions',
+        questionKey: 'faqOnlyShortPositions',
+        answerKey: 'faqOnlyShortPositionsAnswer',
       },
       {
-        id: 'margin-insufficient',
-        questionKey: 'faqMarginInsufficient',
-        answerKey: 'faqMarginInsufficientAnswer',
+        id: 'leverage-settings',
+        questionKey: 'faqLeverageSettings',
+        answerKey: 'faqLeverageSettingsAnswer',
       },
       {
-        id: 'high-fees',
-        questionKey: 'faqHighFees',
-        answerKey: 'faqHighFeesAnswer',
+        id: 'stop-loss-take-profit',
+        questionKey: 'faqStopLossTakeProfit',
+        answerKey: 'faqStopLossTakeProfitAnswer',
       },
       {
-        id: 'no-take-profit',
-        questionKey: 'faqNoTakeProfit',
-        answerKey: 'faqNoTakeProfitAnswer',
+        id: 'multiple-traders',
+        questionKey: 'faqMultipleTraders',
+        answerKey: 'faqMultipleTradersAnswer',
+      },
+      {
+        id: 'ai-costs',
+        questionKey: 'faqAICosts',
+        answerKey: 'faqAICostsAnswer',
       },
     ],
   },
+
+  // ===== 5. TECHNICAL ISSUES =====
   {
-    id: 'technical',
-    titleKey: 'faqCategoryTechnical',
+    id: 'technical-issues',
+    titleKey: 'faqCategoryTechnicalIssues',
     icon: Wrench,
     items: [
-      {
-        id: 'binance-api-failed',
-        questionKey: 'faqBinanceApiFailed',
-        answerKey: 'faqBinanceApiFailedAnswer',
-      },
-      {
-        id: 'binance-position-mode',
-        questionKey: 'faqBinancePositionMode',
-        answerKey: 'faqBinancePositionModeAnswer',
-      },
       {
         id: 'port-in-use',
         questionKey: 'faqPortInUse',
         answerKey: 'faqPortInUseAnswer',
       },
       {
-        id: 'frontend-loading',
-        questionKey: 'faqFrontendLoading',
-        answerKey: 'faqFrontendLoadingAnswer',
+        id: 'frontend-not-loading',
+        questionKey: 'faqFrontendNotLoading',
+        answerKey: 'faqFrontendNotLoadingAnswer',
       },
       {
         id: 'database-locked',
@@ -190,78 +227,150 @@ export const faqCategories: FAQCategory[] = [
         answerKey: 'faqDatabaseLockedAnswer',
       },
       {
-        id: 'ai-learning-failed',
-        questionKey: 'faqAiLearningFailed',
-        answerKey: 'faqAiLearningFailedAnswer',
+        id: 'talib-not-found',
+        questionKey: 'faqTALibNotFound',
+        answerKey: 'faqTALibNotFoundAnswer',
       },
       {
-        id: 'config-not-effective',
-        questionKey: 'faqConfigNotEffective',
-        answerKey: 'faqConfigNotEffectiveAnswer',
+        id: 'ai-api-timeout',
+        questionKey: 'faqAIAPITimeout',
+        answerKey: 'faqAIAPITimeoutAnswer',
+      },
+      {
+        id: 'binance-position-mode',
+        questionKey: 'faqBinancePositionMode',
+        answerKey: 'faqBinancePositionModeAnswer',
+      },
+      {
+        id: 'balance-shows-zero',
+        questionKey: 'faqBalanceShowsZero',
+        answerKey: 'faqBalanceShowsZeroAnswer',
+      },
+      {
+        id: 'docker-pull-failed',
+        questionKey: 'faqDockerPullFailed',
+        answerKey: 'faqDockerPullFailedAnswer',
       },
     ],
   },
+
+  // ===== 6. SECURITY =====
   {
-    id: 'ai',
-    titleKey: 'faqCategoryAI',
+    id: 'security',
+    titleKey: 'faqCategorySecurity',
+    icon: Shield,
+    items: [
+      {
+        id: 'api-key-storage',
+        questionKey: 'faqAPIKeyStorage',
+        answerKey: 'faqAPIKeyStorageAnswer',
+      },
+      {
+        id: 'encryption-details',
+        questionKey: 'faqEncryptionDetails',
+        answerKey: 'faqEncryptionDetailsAnswer',
+      },
+      {
+        id: 'security-best-practices',
+        questionKey: 'faqSecurityBestPractices',
+        answerKey: 'faqSecurityBestPracticesAnswer',
+      },
+      {
+        id: 'can-nofx-steal-funds',
+        questionKey: 'faqCanNOFXStealFunds',
+        answerKey: 'faqCanNOFXStealFundsAnswer',
+      },
+    ],
+  },
+
+  // ===== 7. FEATURES =====
+  {
+    id: 'features',
+    titleKey: 'faqCategoryFeatures',
+    icon: Monitor,
+    items: [
+      {
+        id: 'strategy-studio',
+        questionKey: 'faqStrategyStudio',
+        answerKey: 'faqStrategyStudioAnswer',
+      },
+      {
+        id: 'backtest-lab',
+        questionKey: 'faqBacktestLab',
+        answerKey: 'faqBacktestLabAnswer',
+      },
+      {
+        id: 'debate-arena',
+        questionKey: 'faqDebateArena',
+        answerKey: 'faqDebateArenaAnswer',
+      },
+      {
+        id: 'competition-mode',
+        questionKey: 'faqCompetitionMode',
+        answerKey: 'faqCompetitionModeAnswer',
+      },
+      {
+        id: 'chain-of-thought',
+        questionKey: 'faqChainOfThought',
+        answerKey: 'faqChainOfThoughtAnswer',
+      },
+    ],
+  },
+
+  // ===== 8. AI MODELS =====
+  {
+    id: 'ai-models',
+    titleKey: 'faqCategoryAIModels',
     icon: Bot,
     items: [
       {
-        id: 'which-models',
-        questionKey: 'faqWhichModels',
-        answerKey: 'faqWhichModelsAnswer',
+        id: 'which-ai-model-best',
+        questionKey: 'faqWhichAIModelBest',
+        answerKey: 'faqWhichAIModelBestAnswer',
       },
       {
-        id: 'api-costs',
-        questionKey: 'faqApiCosts',
-        answerKey: 'faqApiCostsAnswer',
+        id: 'custom-ai-api',
+        questionKey: 'faqCustomAIAPI',
+        answerKey: 'faqCustomAIAPIAnswer',
       },
       {
-        id: 'multiple-models',
-        questionKey: 'faqMultipleModels',
-        answerKey: 'faqMultipleModelsAnswer',
+        id: 'ai-hallucinations',
+        questionKey: 'faqAIHallucinations',
+        answerKey: 'faqAIHallucinationsAnswer',
       },
       {
-        id: 'ai-learning',
-        questionKey: 'faqAiLearning',
-        answerKey: 'faqAiLearningAnswer',
-      },
-      {
-        id: 'only-short-positions',
-        questionKey: 'faqOnlyShort',
-        answerKey: 'faqOnlyShortAnswer',
-      },
-      {
-        id: 'model-selection',
-        questionKey: 'faqModelSelection',
-        answerKey: 'faqModelSelectionAnswer',
+        id: 'compare-ai-models',
+        questionKey: 'faqCompareAIModels',
+        answerKey: 'faqCompareAIModelsAnswer',
       },
     ],
   },
+
+  // ===== 9. CONTRIBUTING =====
   {
-    id: 'data',
-    titleKey: 'faqCategoryData',
-    icon: Database,
+    id: 'contributing',
+    titleKey: 'faqCategoryContributing',
+    icon: GitBranch,
     items: [
       {
-        id: 'data-storage',
-        questionKey: 'faqDataStorage',
-        answerKey: 'faqDataStorageAnswer',
+        id: 'how-to-contribute',
+        questionKey: 'faqHowToContribute',
+        answerKey: 'faqHowToContributeAnswer',
       },
       {
-        id: 'api-key-security',
-        questionKey: 'faqApiKeySecurity',
-        answerKey: 'faqApiKeySecurityAnswer',
+        id: 'pr-guidelines',
+        questionKey: 'faqPRGuidelines',
+        answerKey: 'faqPRGuidelinesAnswer',
       },
       {
-        id: 'export-history',
-        questionKey: 'faqExportHistory',
-        answerKey: 'faqExportHistoryAnswer',
+        id: 'bounty-program',
+        questionKey: 'faqBountyProgram',
+        answerKey: 'faqBountyProgramAnswer',
       },
       {
-        id: 'get-help',
-        questionKey: 'faqGetHelp',
-        answerKey: 'faqGetHelpAnswer',
+        id: 'report-bugs',
+        questionKey: 'faqReportBugs',
+        answerKey: 'faqReportBugsAnswer',
       },
     ],
   },

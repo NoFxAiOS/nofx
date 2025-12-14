@@ -121,7 +121,7 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
 ```
 
-That's it! Open **http://localhost:3000** in your browser.
+That's it! Open **http://127.0.0.1:3000** in your browser.
 
 ### Docker Compose (Manual)
 
@@ -131,7 +131,7 @@ curl -O https://raw.githubusercontent.com/NoFxAiOS/nofx/main/docker-compose.prod
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Access Web Interface: **http://localhost:3000**
+Access Web Interface: **http://127.0.0.1:3000**
 
 ```bash
 # Management commands
@@ -182,7 +182,7 @@ cd web
 npm run dev
 ```
 
-Access Web Interface: **http://localhost:3000**
+Access Web Interface: **http://127.0.0.1:3000**
 
 ---
 
@@ -202,7 +202,7 @@ Access Web Interface: **http://localhost:3000**
    docker compose -f docker-compose.prod.yml up -d
    ```
 
-3. **Access**: Open **http://localhost:3000** in your browser
+3. **Access**: Open **http://127.0.0.1:3000** in your browser
 
 ### Method 2: WSL2 (For Development)
 
@@ -252,7 +252,7 @@ Access Web Interface: **http://localhost:3000**
    cd web && npm install && npm run dev
    ```
 
-5. **Access**: Open **http://localhost:3000** in Windows browser
+5. **Access**: Open **http://127.0.0.1:3000** in Windows browser
 
 ### Method 3: Docker in WSL2 (Best of Both Worlds)
 

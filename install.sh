@@ -157,15 +157,34 @@ wait_for_services() {
     fi
 }
 
+# Get server IP for display
+get_server_ip() {
+    # Try to get public IP first
+    local public_ip=$(curl -s --max-time 3 ifconfig.me 2>/dev/null || curl -s --max-time 3 icanhazip.com 2>/dev/null || echo "")
+
+    # If no public IP, try local IP
+    if [ -z "$public_ip" ]; then
+        if command -v ip &> /dev/null; then
+            public_ip=$(ip route get 1 2>/dev/null | awk '{print $7}' | head -1)
+        elif command -v hostname &> /dev/null; then
+            public_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        fi
+    fi
+
+    echo "${public_ip:-127.0.0.1}"
+}
+
 # Print success message
 print_success() {
+    local SERVER_IP=$(get_server_ip)
+
     echo ""
     echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗"
     echo -e "║              🎉 Installation Complete! 🎉                   ║"
     echo -e "╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo -e "  ${BLUE}Web Interface:${NC}  http://localhost:3000"
-    echo -e "  ${BLUE}API Endpoint:${NC}   http://localhost:8080"
+    echo -e "  ${BLUE}Web Interface:${NC}  http://${SERVER_IP}:3000"
+    echo -e "  ${BLUE}API Endpoint:${NC}   http://${SERVER_IP}:8080"
     echo -e "  ${BLUE}Install Dir:${NC}    $INSTALL_DIR"
     echo ""
     echo -e "${YELLOW}Quick Commands:${NC}"
@@ -176,11 +195,13 @@ print_success() {
     echo "  $COMPOSE_CMD pull && $COMPOSE_CMD up -d  # Update to latest"
     echo ""
     echo -e "${YELLOW}Next Steps:${NC}"
-    echo "  1. Open http://localhost:3000 in your browser"
+    echo "  1. Open http://${SERVER_IP}:3000 in your browser"
     echo "  2. Configure AI Models (DeepSeek, OpenAI, etc.)"
     echo "  3. Configure Exchanges (Binance, Hyperliquid, etc.)"
     echo "  4. Create a Strategy in Strategy Studio"
     echo "  5. Create a Trader and start trading!"
+    echo ""
+    echo -e "${YELLOW}Note:${NC} If accessing from local machine, use http://127.0.0.1:3000"
     echo ""
     echo -e "${RED}⚠️  Risk Warning: AI trading carries significant risks.${NC}"
     echo -e "${RED}   Only use funds you can afford to lose!${NC}"

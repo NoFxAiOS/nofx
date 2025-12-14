@@ -730,7 +730,7 @@ export const translations = {
     fullControlDesc: 'Complete control over AI prompts and funds',
     startupMessages1: 'Starting automated trading system...',
     startupMessages2: 'API server started on port 8080',
-    startupMessages3: 'Web console http://localhost:3000',
+    startupMessages3: 'Web console http://127.0.0.1:3000',
 
     // How It Works Section
     howToStart: 'How to Get Started with NOFX',
@@ -1770,7 +1770,7 @@ export const translations = {
     fullControlDesc: '完全掌控 AI 提示词和资金',
     startupMessages1: '启动自动交易系统...',
     startupMessages2: 'API服务器启动在端口 8080',
-    startupMessages3: 'Web 控制台 http://localhost:3000',
+    startupMessages3: 'Web 控制台 http://127.0.0.1:3000',
 
     // How It Works Section
     howToStart: '如何开始使用 NOFX',

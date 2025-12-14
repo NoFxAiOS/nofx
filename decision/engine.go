@@ -9,6 +9,7 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/provider"
+	"nofx/security"
 	"nofx/store"
 	"regexp"
 	"strings"
@@ -522,12 +523,18 @@ func (e *StrategyEngine) FetchExternalData() (map[string]interface{}, error) {
 }
 
 func (e *StrategyEngine) fetchSingleExternalSource(source store.ExternalDataSource) (interface{}, error) {
-	client := &http.Client{
-		Timeout: time.Duration(source.RefreshSecs) * time.Second,
+	// SSRF Protection: Validate URL before making request
+	if err := security.ValidateURL(source.URL); err != nil {
+		return nil, fmt.Errorf("external source URL validation failed: %w", err)
 	}
-	if client.Timeout == 0 {
-		client.Timeout = 30 * time.Second
+
+	timeout := time.Duration(source.RefreshSecs) * time.Second
+	if timeout == 0 {
+		timeout = 30 * time.Second
 	}
+
+	// Use SSRF-safe HTTP client
+	client := security.SafeHTTPClient(timeout)
 
 	req, err := http.NewRequest(source.Method, source.URL, nil)
 	if err != nil {
@@ -585,8 +592,8 @@ func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 	apiURL := e.config.Indicators.QuantDataAPIURL
 	url := strings.Replace(apiURL, "{symbol}", symbol, -1)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	// SSRF Protection: Validate URL before making request
+	resp, err := security.SafeGet(url, 10*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}

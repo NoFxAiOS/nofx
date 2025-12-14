@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"nofx/security"
 	"strings"
 	"time"
 )
@@ -90,11 +91,8 @@ func GetAI500Data() ([]CoinData, error) {
 func fetchAI500() ([]CoinData, error) {
 	log.Printf("🔄 Requesting AI500 data...")
 
-	client := &http.Client{
-		Timeout: ai500Config.Timeout,
-	}
-
-	resp, err := client.Get(ai500Config.APIURL)
+	// SSRF Protection: Validate URL before making request
+	resp, err := security.SafeGet(ai500Config.APIURL, ai500Config.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to request AI500 API: %w", err)
 	}
@@ -312,11 +310,8 @@ func GetOITopPositions() ([]OIPosition, error) {
 func fetchOITop() ([]OIPosition, error) {
 	log.Printf("🔄 Requesting OI Top data...")
 
-	client := &http.Client{
-		Timeout: oiTopConfig.Timeout,
-	}
-
-	resp, err := client.Get(oiTopConfig.APIURL)
+	// SSRF Protection: Validate URL before making request
+	resp, err := security.SafeGet(oiTopConfig.APIURL, oiTopConfig.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to request OI Top API: %w", err)
 	}
@@ -427,9 +422,8 @@ func GetOIRankingData(baseURL, authKey string, duration string, limit int) (*OIR
 
 // fetchOIRanking fetches OI ranking from a single endpoint
 func fetchOIRanking(url string) ([]OIPosition, string, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-
-	resp, err := client.Get(url)
+	// SSRF Protection: Validate URL before making request
+	resp, err := security.SafeGet(url, 30*time.Second)
 	if err != nil {
 		return nil, "", fmt.Errorf("request failed: %w", err)
 	}

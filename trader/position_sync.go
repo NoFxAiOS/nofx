@@ -500,6 +500,9 @@ func (m *PositionSyncManager) createTrader(config *store.TraderFullConfig) (Trad
 	case "okx":
 		return NewOKXTrader(exchange.APIKey, exchange.SecretKey, exchange.Passphrase), nil
 
+	case "bitget":
+		return NewBitgetTrader(exchange.APIKey, exchange.SecretKey, exchange.Passphrase), nil
+
 	case "hyperliquid":
 		return NewHyperliquidTrader(exchange.SecretKey, exchange.HyperliquidWalletAddr, exchange.Testnet)
 

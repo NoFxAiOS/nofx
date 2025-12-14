@@ -233,15 +233,22 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 		updatedTimeStr, _ := pos["updatedTime"].(string)
 		updatedTime, _ := strconv.ParseInt(updatedTimeStr, 10, 64)
 
-		positionSide, _ := pos["side"].(string) // Buy = LONG, Sell = SHORT
+		positionSide, _ := pos["side"].(string) // Buy = long, Sell = short
 
-		// Convert to unified format
-		side := "LONG"
+		// Log raw position data for debugging
+		logger.Infof("[Bybit] GetPositions raw: symbol=%v, side=%s, size=%v", pos["symbol"], positionSide, sizeStr)
+
+		// Convert to unified format (use lowercase for consistency with other exchanges)
+		// Bybit returns "Buy" for long, "Sell" for short
+		side := "long"
 		positionAmt := size
-		if positionSide == "Sell" {
-			side = "SHORT"
+		positionSideLower := strings.ToLower(positionSide)
+		if positionSideLower == "sell" {
+			side = "short"
 			positionAmt = -size
 		}
+
+		logger.Infof("[Bybit] GetPositions converted: symbol=%v, rawSide=%s -> side=%s", pos["symbol"], positionSide, side)
 
 		position := map[string]interface{}{
 			"symbol":           pos["symbol"],
@@ -271,6 +278,8 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 
 // OpenLong opens a long position
 func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	logger.Infof("[Bybit] ===== OpenLong called: symbol=%s, qty=%.6f, leverage=%d =====", symbol, quantity, leverage)
+
 	// Set leverage first
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		logger.Infof("⚠️ [Bybit] Failed to set leverage: %v", err)
@@ -288,6 +297,8 @@ func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 		"positionIdx": 0, // One-way position mode
 	}
 
+	logger.Infof("[Bybit] OpenLong placing order: %+v", params)
+
 	result, err := t.client.NewUtaBybitServiceWithParams(params).PlaceOrder(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("Bybit open long failed: %w", err)
@@ -301,6 +312,8 @@ func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 
 // OpenShort opens a short position
 func (t *BybitTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	logger.Infof("[Bybit] ===== OpenShort called: symbol=%s, qty=%.6f, leverage=%d =====", symbol, quantity, leverage)
+
 	// Set leverage first
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		logger.Infof("⚠️ [Bybit] Failed to set leverage: %v", err)
@@ -317,6 +330,8 @@ func (t *BybitTrader) OpenShort(symbol string, quantity float64, leverage int) (
 		"qty":         qtyStr,
 		"positionIdx": 0, // One-way position mode
 	}
+
+	logger.Infof("[Bybit] OpenShort placing order: %+v", params)
 
 	result, err := t.client.NewUtaBybitServiceWithParams(params).PlaceOrder(context.Background())
 	if err != nil {
@@ -338,7 +353,8 @@ func (t *BybitTrader) CloseLong(symbol string, quantity float64) (map[string]int
 			return nil, err
 		}
 		for _, pos := range positions {
-			if pos["symbol"] == symbol && pos["side"] == "LONG" {
+			side, _ := pos["side"].(string)
+			if pos["symbol"] == symbol && strings.ToLower(side) == "long" {
 				quantity = pos["positionAmt"].(float64)
 				break
 			}
@@ -382,7 +398,8 @@ func (t *BybitTrader) CloseShort(symbol string, quantity float64) (map[string]in
 			return nil, err
 		}
 		for _, pos := range positions {
-			if pos["symbol"] == symbol && pos["side"] == "SHORT" {
+			side, _ := pos["side"].(string)
+			if pos["symbol"] == symbol && strings.ToLower(side) == "short" {
 				quantity = -pos["positionAmt"].(float64) // Short position is negative
 				break
 			}

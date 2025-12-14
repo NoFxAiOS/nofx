@@ -57,8 +57,8 @@ nofx/
 │   └── monitor.go                  # 行情数据缓存
 │   └── types.go                    # market结构体
 │
-├── pool/                           # 币种池管理
-│   └── coin_pool.go                # AI500 + OI Top 合并池
+├── provider/                       # 数据源管理
+│   └── data_provider.go            # AI500 + OI Top 数据源
 │
 ├── logger/                         # 日志系统
 │   └── decision_logger.go          # 决策记录 + 性能分析

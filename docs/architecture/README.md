@@ -57,8 +57,8 @@ nofx/
 │   └── monitor.go                  # Market data cache
 │   └── types.go                    # market structure
 
-├── pool/                           # Coin pool management
-│   └── coin_pool.go                # AI500 + OI Top merged pool
+├── provider/                       # Data provider management
+│   └── data_provider.go            # AI500 + OI Top data provider
 │
 ├── logger/                         # Logging system
 │   └── decision_logger.go          # Decision recording + performance analysis

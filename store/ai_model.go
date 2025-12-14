@@ -163,6 +163,32 @@ func (s *AIModelStore) Get(userID, modelID string) (*AIModel, error) {
 	return nil, sql.ErrNoRows
 }
 
+// GetByID retrieves an AI model by ID only (for debate engine)
+func (s *AIModelStore) GetByID(modelID string) (*AIModel, error) {
+	if modelID == "" {
+		return nil, fmt.Errorf("model ID cannot be empty")
+	}
+
+	var model AIModel
+	var createdAt, updatedAt string
+	err := s.db.QueryRow(`
+		SELECT id, user_id, name, provider, enabled, api_key,
+		       COALESCE(custom_api_url, ''), COALESCE(custom_model_name, ''), created_at, updated_at
+		FROM ai_models WHERE id = ? LIMIT 1
+	`, modelID).Scan(
+		&model.ID, &model.UserID, &model.Name, &model.Provider,
+		&model.Enabled, &model.APIKey, &model.CustomAPIURL, &model.CustomModelName,
+		&createdAt, &updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	model.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
+	model.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
+	model.APIKey = s.decrypt(model.APIKey)
+	return &model, nil
+}
+
 // GetDefault retrieves the default enabled AI model
 func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 	if userID == "" {

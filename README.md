@@ -22,8 +22,9 @@
 ### Core Features
 
 - **Multi-AI Support**: Run DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi - switch models anytime
-- **Multi-Exchange**: Trade on Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter from one platform
+- **Multi-Exchange**: Trade on Binance, Bybit, OKX, Bitget, Hyperliquid, Aster DEX, Lighter from one platform
 - **Strategy Studio**: Visual strategy builder with coin sources, indicators, and risk controls
+- **AI Debate Arena**: Multiple AI models debate trading decisions with different roles (Bull, Bear, Analyst)
 - **AI Competition Mode**: Multiple AI traders compete in real-time, track performance side by side
 - **Web-Based Config**: No JSON editing - configure everything through the web interface
 - **Real-Time Dashboard**: Live positions, P/L tracking, AI decision logs with Chain of Thought
@@ -50,12 +51,10 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 |:---:|:---:|
 | <img src="screenshots/config-ai-exchanges.png" width="400" alt="Config - AI Models & Exchanges"/> | <img src="screenshots/config-traders-list.png" width="400" alt="Config - Traders List"/> |
 
-### Competition Mode
-<p align="center">
-<img src="screenshots/competition-page.png" width="400" alt="Competition Page"/>
-</p>
-
-*Multi-AI leaderboard with real-time performance comparison*
+### Competition & Backtest
+| Competition Mode | Backtest Lab |
+|:---:|:---:|
+| <img src="screenshots/competition-page.png" width="400" alt="Competition Page"/> | <img src="screenshots/backtest-lab.png" width="400" alt="Backtest Lab"/> |
 
 ### Dashboard
 | Overview | Market Chart |
@@ -71,6 +70,11 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 |:---:|:---:|
 | <img src="screenshots/strategy-studio.png" width="400" alt="Strategy Studio"/> | <img src="screenshots/strategy-indicators.png" width="400" alt="Strategy Indicators"/> |
 
+### Debate Arena
+| AI Debate Session | Create Debate |
+|:---:|:---:|
+| <img src="screenshots/debate-arena.png" width="400" alt="Debate Arena"/> | <img src="screenshots/debate-create.png" width="400" alt="Create Debate"/> |
+
 ---
 
 ## Supported Exchanges
@@ -82,6 +86,7 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 | **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) |
 | **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) |
+| **Bitget** | ✅ Supported | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 
 ### Perp-DEX (Decentralized Perpetual Exchanges)
 
@@ -268,6 +273,20 @@ All configuration is done through the web interface - no JSON file editing requi
 - Technical indicators (EMA, MACD, RSI, ATR, Volume, OI, Funding Rate)
 - Risk control settings (leverage, position limits, margin usage)
 - AI test with real-time prompt preview
+
+### Debate Arena
+- Multi-AI debate sessions for trading decisions
+- Configurable AI roles (Bull, Bear, Analyst, Contrarian, Risk Manager)
+- Multiple rounds of debate with consensus voting
+- Auto-execute consensus trades
+
+### Backtest Lab
+- 3-step wizard configuration (Model → Parameters → Confirm)
+- Real-time progress visualization with animated ring
+- Equity curve chart with trade markers
+- Trade timeline with card-style display
+- Performance metrics (Return, Max DD, Sharpe, Win Rate)
+- AI decision trail with Chain of Thought
 
 ---
 

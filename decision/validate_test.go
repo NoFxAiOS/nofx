@@ -83,7 +83,8 @@ func TestLeverageFallback(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateDecision(&tt.decision, tt.accountEquity, tt.btcEthLeverage, tt.altcoinLeverage)
+			// Use default position value ratios for testing (10x for BTC/ETH, 1.5x for altcoins)
+			err := validateDecision(&tt.decision, tt.accountEquity, tt.btcEthLeverage, tt.altcoinLeverage, 10.0, 1.5)
 
 			// Check error status
 			if (err != nil) != tt.wantError {

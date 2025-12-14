@@ -22,7 +22,7 @@ type AutoTraderConfig struct {
 	AIModel string // AI model: "qwen" or "deepseek"
 
 	// Trading platform selection
-	Exchange   string // Exchange type: "binance", "bybit", "okx", "hyperliquid", "aster" or "lighter"
+	Exchange   string // Exchange type: "binance", "bybit", "okx", "bitget", "hyperliquid", "aster" or "lighter"
 	ExchangeID string // Exchange account UUID (for multi-account support)
 
 	// Binance API configuration
@@ -37,6 +37,11 @@ type AutoTraderConfig struct {
 	OKXAPIKey    string
 	OKXSecretKey string
 	OKXPassphrase string
+
+	// Bitget API configuration
+	BitgetAPIKey    string
+	BitgetSecretKey string
+	BitgetPassphrase string
 
 	// Hyperliquid configuration
 	HyperliquidPrivateKey string
@@ -222,6 +227,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	case "okx":
 		logger.Infof("🏦 [%s] Using OKX Futures trading", config.Name)
 		trader = NewOKXTrader(config.OKXAPIKey, config.OKXSecretKey, config.OKXPassphrase)
+	case "bitget":
+		logger.Infof("🏦 [%s] Using Bitget Futures trading", config.Name)
+		trader = NewBitgetTrader(config.BitgetAPIKey, config.BitgetSecretKey, config.BitgetPassphrase)
 	case "hyperliquid":
 		logger.Infof("🏦 [%s] Using Hyperliquid trading", config.Name)
 		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
@@ -773,6 +781,16 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		logger.Infof("📊 [%s] Successfully fetched quantitative data for %d symbols", at.name, len(ctx.QuantDataMap))
 	}
 
+	// 9. Get OI ranking data (market-wide position changes)
+	if strategyConfig.Indicators.EnableOIRanking {
+		logger.Infof("📊 [%s] Fetching OI ranking data...", at.name)
+		ctx.OIRankingData = at.strategyEngine.FetchOIRankingData()
+		if ctx.OIRankingData != nil {
+			logger.Infof("📊 [%s] OI ranking data ready: %d top, %d low positions",
+				at.name, len(ctx.OIRankingData.TopPositions), len(ctx.OIRankingData.LowPositions))
+		}
+	}
+
 	return ctx, nil
 }
 
@@ -793,6 +811,29 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, act
 	default:
 		return fmt.Errorf("unknown action: %s", decision.Action)
 	}
+}
+
+// ExecuteDecision executes a trading decision from external sources (e.g., debate consensus)
+// This is a public method that can be called by other modules
+func (at *AutoTrader) ExecuteDecision(d *decision.Decision) error {
+	logger.Infof("[%s] Executing external decision: %s %s", at.name, d.Action, d.Symbol)
+
+	// Create a minimal action record for tracking
+	actionRecord := &store.DecisionAction{
+		Symbol:   d.Symbol,
+		Action:   d.Action,
+		Leverage: d.Leverage,
+	}
+
+	// Execute the decision
+	err := at.executeDecisionWithRecord(d, actionRecord)
+	if err != nil {
+		logger.Errorf("[%s] External decision execution failed: %v", at.name, err)
+		return err
+	}
+
+	logger.Infof("[%s] External decision executed successfully: %s %s", at.name, d.Action, d.Symbol)
+	return nil
 }
 
 // executeOpenLongWithRecord executes open long position and records detailed information

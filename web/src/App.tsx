@@ -10,6 +10,7 @@ import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
+import { DebateArenaPage } from './pages/DebateArenaPage'
 import HeaderBar from './components/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -38,6 +39,7 @@ type Page =
   | 'trader'
   | 'backtest'
   | 'strategy'
+  | 'debate'
   | 'faq'
   | 'login'
   | 'register'
@@ -87,6 +89,7 @@ function App() {
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/backtest' || hash === 'backtest') return 'backtest'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
+    if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -95,6 +98,7 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage())
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>()
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
+  const [decisionsLimit, setDecisionsLimit] = useState<number>(5)
 
   // 监听URL变化，同步页面状态
   useEffect(() => {
@@ -108,6 +112,8 @@ function App() {
         setCurrentPage('backtest')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
+      } else if (path === '/debate' || hash === 'debate') {
+        setCurrentPage('debate')
       } else if (
         path === '/dashboard' ||
         hash === 'trader' ||
@@ -204,9 +210,9 @@ function App() {
 
   const { data: decisions } = useSWR<DecisionRecord[]>(
     currentPage === 'trader' && selectedTraderId
-      ? `decisions/latest-${selectedTraderId}`
+      ? `decisions/latest-${selectedTraderId}-${decisionsLimit}`
       : null,
-    () => api.getLatestDecisions(selectedTraderId),
+    () => api.getLatestDecisions(selectedTraderId, decisionsLimit),
     {
       refreshInterval: 30000, // 30秒刷新（决策更新频率较低）
       revalidateOnFocus: false,
@@ -333,6 +339,11 @@ function App() {
               window.history.pushState({}, '', '/strategy')
               setRoute('/strategy')
               setCurrentPage('strategy')
+            } else if (page === 'debate') {
+              console.log('Navigating to debate')
+              window.history.pushState({}, '', '/debate')
+              setRoute('/debate')
+              setCurrentPage('debate')
             }
 
             console.log(
@@ -433,12 +444,16 @@ function App() {
           } else if (page === 'faq') {
             window.history.pushState({}, '', '/faq')
             setRoute('/faq')
+          } else if (page === 'debate') {
+            window.history.pushState({}, '', '/debate')
+            setRoute('/debate')
+            setCurrentPage('debate')
           }
         }}
       />
 
       {/* Main Content */}
-      <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
+      <main className={currentPage === 'debate' ? 'h-[calc(100vh-64px)] mt-16' : 'max-w-[1920px] mx-auto px-6 py-6 pt-24'}>
         {currentPage === 'competition' ? (
           <CompetitionPage />
         ) : currentPage === 'traders' ? (
@@ -454,6 +469,8 @@ function App() {
           <BacktestPage />
         ) : currentPage === 'strategy' ? (
           <StrategyStudioPage />
+        ) : currentPage === 'debate' ? (
+          <DebateArenaPage />
         ) : (
           <TraderDetailsPage
             selectedTrader={selectedTrader}
@@ -461,6 +478,8 @@ function App() {
             account={account}
             positions={positions}
             decisions={decisions}
+            decisionsLimit={decisionsLimit}
+            onDecisionsLimitChange={setDecisionsLimit}
             stats={stats}
             lastUpdate={lastUpdate}
             language={language}
@@ -478,8 +497,8 @@ function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer
+      {/* Footer - Hidden on debate page */}
+      {currentPage !== 'debate' && <footer
         className="mt-16"
         style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
       >
@@ -573,7 +592,7 @@ function App() {
             </a>
           </div>
         </div>
-      </footer>
+      </footer>}
     </div>
   )
 }
@@ -585,6 +604,8 @@ function TraderDetailsPage({
   account,
   positions,
   decisions,
+  decisionsLimit,
+  onDecisionsLimitChange,
   lastUpdate,
   language,
   traders,
@@ -604,6 +625,8 @@ function TraderDetailsPage({
   account?: AccountInfo
   positions?: Position[]
   decisions?: DecisionRecord[]
+  decisionsLimit: number
+  onDecisionsLimitChange: (limit: number) => void
   stats?: Statistics
   lastUpdate: string
   language: Language
@@ -1148,7 +1171,7 @@ function TraderDetailsPage({
             >
               🧠
             </div>
-            <div>
+            <div className="flex-1">
               <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
                 {t('recentDecisions', language)}
               </h2>
@@ -1158,6 +1181,23 @@ function TraderDetailsPage({
                 </div>
               )}
             </div>
+            {/* 数量选择器 */}
+            <select
+              value={decisionsLimit}
+              onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all"
+              style={{
+                background: '#2B3139',
+                color: '#EAECEF',
+                border: '1px solid #3C4043',
+              }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
           </div>
 
           {/* 决策列表 - 可滚动 */}

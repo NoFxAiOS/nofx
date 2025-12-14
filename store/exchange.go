@@ -102,7 +102,7 @@ func (s *ExchangeStore) migrateToMultiAccount() error {
 	var count int
 	err := s.db.QueryRow(`
 		SELECT COUNT(*) FROM exchanges
-		WHERE exchange_type = '' AND id IN ('binance', 'bybit', 'okx', 'hyperliquid', 'aster', 'lighter')
+		WHERE exchange_type = '' AND id IN ('binance', 'bybit', 'okx', 'bitget', 'hyperliquid', 'aster', 'lighter')
 	`).Scan(&count)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func (s *ExchangeStore) migrateToMultiAccount() error {
 		       COALESCE(lighter_private_key, '') as lighter_private_key,
 		       COALESCE(lighter_api_key_private_key, '') as lighter_api_key_private_key
 		FROM exchanges
-		WHERE exchange_type = '' AND id IN ('binance', 'bybit', 'okx', 'hyperliquid', 'aster', 'lighter')
+		WHERE exchange_type = '' AND id IN ('binance', 'bybit', 'okx', 'bitget', 'hyperliquid', 'aster', 'lighter')
 	`)
 	if err != nil {
 		return err
@@ -314,6 +314,8 @@ func getExchangeNameAndType(exchangeType string) (name string, typ string) {
 		return "Bybit Futures", "cex"
 	case "okx":
 		return "OKX Futures", "cex"
+	case "bitget":
+		return "Bitget Futures", "cex"
 	case "hyperliquid":
 		return "Hyperliquid", "dex"
 	case "aster":
@@ -451,7 +453,7 @@ func (s *ExchangeStore) CreateLegacy(userID, id, name, typ string, enabled bool,
 	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
 
 	// Check if this is an old-style ID (exchange type as ID)
-	if id == "binance" || id == "bybit" || id == "okx" || id == "hyperliquid" || id == "aster" || id == "lighter" {
+	if id == "binance" || id == "bybit" || id == "okx" || id == "bitget" || id == "hyperliquid" || id == "aster" || id == "lighter" {
 		// Use new Create method with exchange type
 		_, err := s.Create(userID, id, "Default", enabled, apiKey, secretKey, "", testnet,
 			hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, "", "", "")

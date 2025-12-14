@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { t, type Language } from '../i18n/translations'
-import { Container } from './Container'
 import { useSystemConfig } from '../hooks/useSystemConfig'
 import { OFFICIAL_LINKS } from '../constants/branding'
 
@@ -13,6 +12,7 @@ type Page =
   | 'trader'
   | 'backtest'
   | 'strategy'
+  | 'debate'
   | 'faq'
   | 'login'
   | 'register'
@@ -73,26 +73,22 @@ export default function HeaderBar({
 
   return (
     <nav className="fixed top-0 w-full z-50 header-bar">
-      <Container className="flex items-center justify-between h-16">
-        {/* Logo */}
-        <Link
-          to="/"
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+      <div className="flex items-center justify-between h-16 px-4 sm:px-6 max-w-[1920px] mx-auto">
+        {/* Logo - Always go to home page */}
+        <div
+          onClick={() => {
+            window.location.href = '/'
+          }}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
-          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
+          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-7 h-7" />
           <span
-            className="text-xl font-bold"
+            className="text-lg font-bold"
             style={{ color: 'var(--brand-yellow)' }}
           >
             NOFX
           </span>
-          <span
-            className="text-sm hidden sm:block"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            Agentic Trading OS
-          </span>
-        </Link>
+        </div>
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center justify-between flex-1 ml-8">
@@ -266,6 +262,47 @@ export default function HeaderBar({
                   )}
 
                   {t('strategyNav', language)}
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (onPageChange) {
+                      onPageChange('debate')
+                    }
+                    navigate('/debate')
+                  }}
+                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  style={{
+                    color:
+                      currentPage === 'debate'
+                        ? 'var(--brand-yellow)'
+                        : 'var(--brand-light-gray)',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (currentPage !== 'debate') {
+                      e.currentTarget.style.color = 'var(--brand-yellow)'
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (currentPage !== 'debate') {
+                      e.currentTarget.style.color = 'var(--brand-light-gray)'
+                    }
+                  }}
+                >
+                  {currentPage === 'debate' && (
+                    <span
+                      className="absolute inset-0 rounded-lg"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.15)',
+                        zIndex: -1,
+                      }}
+                    />
+                  )}
+
+                  {t('debateNav', language)}
                 </button>
 
                 <button
@@ -701,7 +738,7 @@ export default function HeaderBar({
             <Menu className="w-6 h-6" />
           )}
         </motion.button>
-      </Container>
+      </div>
 
       {/* Mobile Menu */}
       <motion.div
@@ -888,6 +925,40 @@ export default function HeaderBar({
                 )}
 
                 {t('strategyNav', language)}
+              </button>
+              <button
+                onClick={() => {
+                  if (onPageChange) {
+                    onPageChange('debate')
+                  }
+                  navigate('/debate')
+                  setMobileMenuOpen(false)
+                }}
+                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
+                style={{
+                  color:
+                    currentPage === 'debate'
+                      ? 'var(--brand-yellow)'
+                      : 'var(--brand-light-gray)',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  position: 'relative',
+                  width: '100%',
+                  textAlign: 'left',
+                }}
+              >
+                {/* Background for selected state */}
+                {currentPage === 'debate' && (
+                  <span
+                    className="absolute inset-0 rounded-lg"
+                    style={{
+                      background: 'rgba(240, 185, 11, 0.15)',
+                      zIndex: -1,
+                    }}
+                  />
+                )}
+
+                {t('debateNav', language)}
               </button>
               <button
                 onClick={() => {

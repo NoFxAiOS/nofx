@@ -623,6 +623,12 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 			return fmt.Errorf("failed to parse strategy config for trader %s: %w", traderCfg.Name, err)
 		}
 		logger.Infof("✓ Trader %s loaded strategy config: %s", traderCfg.Name, strategy.Name)
+		logger.Infof("📊 [%s] Klines config: PrimaryTimeframe=%s, LongerTimeframe=%s, EnableMultiTimeframe=%v, SelectedTimeframes=%v",
+			traderCfg.Name,
+			strategyConfig.Indicators.Klines.PrimaryTimeframe,
+			strategyConfig.Indicators.Klines.LongerTimeframe,
+			strategyConfig.Indicators.Klines.EnableMultiTimeframe,
+			strategyConfig.Indicators.Klines.SelectedTimeframes)
 	} else {
 		return fmt.Errorf("trader %s has no strategy configured", traderCfg.Name)
 	}

@@ -180,6 +180,24 @@ func (c *CombinedStreamsClient) handleReconnect() {
 	if err := c.Connect(); err != nil {
 		log.Printf("Combined stream reconnection failed: %v", err)
 		go c.handleReconnect()
+		return
+	}
+
+	// Resubscribe to all streams after reconnection
+	c.mu.RLock()
+	streams := make([]string, 0, len(c.subscribers))
+	for stream := range c.subscribers {
+		streams = append(streams, stream)
+	}
+	c.mu.RUnlock()
+
+	if len(streams) > 0 {
+		log.Printf("Resubscribing to %d streams after reconnection...", len(streams))
+		if err := c.subscribeStreams(streams); err != nil {
+			log.Printf("Failed to resubscribe after reconnection: %v", err)
+		} else {
+			log.Printf("Successfully resubscribed to %d streams", len(streams))
+		}
 	}
 }
 

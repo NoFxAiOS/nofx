@@ -17,6 +17,7 @@ type WSMonitor struct {
 	alertsChan     chan Alert
 	klineDataMap3m sync.Map // Store K-line historical data for each trading pair
 	klineDataMap4h sync.Map // Store K-line historical data for each trading pair
+	klineDataMaps  sync.Map // Generic map for all timeframes: key=timeframe, value=*sync.Map
 	tickerDataMap  sync.Map // Store ticker data for each trading pair
 	batchSize      int
 	filterSymbols  sync.Map // Use sync.Map to store monitored coins and their status
@@ -179,17 +180,33 @@ func (m *WSMonitor) handleKlineData(symbol string, ch <-chan []byte, _time strin
 }
 
 func (m *WSMonitor) getKlineDataMap(_time string) *sync.Map {
-	var klineDataMap *sync.Map
+	// For backward compatibility, keep 3m and 4h using dedicated maps
 	if _time == "3m" {
-		klineDataMap = &m.klineDataMap3m
+		return &m.klineDataMap3m
 	} else if _time == "4h" {
-		klineDataMap = &m.klineDataMap4h
-	} else {
-		klineDataMap = &sync.Map{}
+		return &m.klineDataMap4h
 	}
-	return klineDataMap
+
+	// For other timeframes, use generic klineDataMaps
+	value, exists := m.klineDataMaps.Load(_time)
+	if exists {
+		return value.(*sync.Map)
+	}
+
+	// Create new map for this timeframe
+	newMap := &sync.Map{}
+	actual, _ := m.klineDataMaps.LoadOrStore(_time, newMap)
+	return actual.(*sync.Map)
 }
 func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time string) {
+	// Normalize symbol to uppercase for consistent key storage
+	symbol = strings.ToUpper(symbol)
+
+	// Debug log: confirm WebSocket data is being received
+	log.Printf("📊 [WS UPDATE] %s %s: Close=%.4f, Time=%d", symbol, _time,
+		func() float64 { v, _ := parseFloat(wsData.Kline.ClosePrice); return v }(),
+		wsData.Kline.StartTime)
+
 	// Convert WebSocket data to Kline structure
 	kline := Kline{
 		OpenTime:  wsData.Kline.StartTime,
@@ -233,8 +250,23 @@ func (m *WSMonitor) processKlineUpdate(symbol string, wsData KlineWSData, _time 
 }
 
 func (m *WSMonitor) GetCurrentKlines(symbol string, duration string) ([]Kline, error) {
+	// Normalize symbol to uppercase for consistent key lookup
+	symbol = strings.ToUpper(symbol)
+
 	// Check if each incoming symbol exists internally, if not subscribe to it
 	value, exists := m.getKlineDataMap(duration).Load(symbol)
+
+	// Debug log
+	if exists {
+		klines := value.([]Kline)
+		if len(klines) > 0 {
+			lastKline := klines[len(klines)-1]
+			log.Printf("📊 [GET KLINES] %s %s: exists=true, count=%d, lastTime=%d, lastClose=%.4f",
+				symbol, duration, len(klines), lastKline.OpenTime, lastKline.Close)
+		}
+	} else {
+		log.Printf("📊 [GET KLINES] %s %s: exists=false, will fetch from API", symbol, duration)
+	}
 	if !exists {
 		// If WS data is not initialized, use API separately - compatibility code (prevents trader from running when not initialized)
 		apiClient := NewAPIClient()

@@ -94,7 +94,7 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 |----------|--------|-------------------------|
 | **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) |
 | **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) |
-| **Lighter** | ✅ Supported | [Register](https://lighter.xyz) |
+| **Lighter** | ✅ Supported | [Register](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 

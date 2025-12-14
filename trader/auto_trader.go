@@ -57,6 +57,7 @@ type AutoTraderConfig struct {
 	LighterWalletAddr       string // LIGHTER wallet address (L1 wallet)
 	LighterPrivateKey       string // LIGHTER L1 private key (for account identification)
 	LighterAPIKeyPrivateKey string // LIGHTER API Key private key (40 bytes, for transaction signing)
+	LighterAPIKeyIndex      int    // LIGHTER API Key index (0-255)
 	LighterTestnet          bool   // Whether to use testnet
 
 	// AI configuration
@@ -245,26 +246,21 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	case "lighter":
 		logger.Infof("🏦 [%s] Using LIGHTER trading", config.Name)
 
-		// Prefer V2 (requires API Key)
-		if config.LighterAPIKeyPrivateKey != "" {
-			logger.Infof("✓ Using LIGHTER SDK (V2) - Full signature support")
-			trader, err = NewLighterTraderV2(
-				config.LighterPrivateKey,
-				config.LighterWalletAddr,
-				config.LighterAPIKeyPrivateKey,
-				config.LighterTestnet,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("failed to initialize LIGHTER trader (V2): %w", err)
-			}
-		} else {
-			// Fallback to V1 (basic HTTP implementation)
-			logger.Infof("⚠️  Using LIGHTER basic implementation (V1) - Limited functionality, please configure API Key")
-			trader, err = NewLighterTrader(config.LighterPrivateKey, config.LighterWalletAddr, config.LighterTestnet)
-			if err != nil {
-				return nil, fmt.Errorf("failed to initialize LIGHTER trader (V1): %w", err)
-			}
+		if config.LighterWalletAddr == "" || config.LighterAPIKeyPrivateKey == "" {
+			return nil, fmt.Errorf("Lighter requires wallet address and API Key private key")
 		}
+
+		// Lighter only supports mainnet (testnet disabled)
+		trader, err = NewLighterTraderV2(
+			config.LighterWalletAddr,
+			config.LighterAPIKeyPrivateKey,
+			config.LighterAPIKeyIndex,
+			false, // Always use mainnet for Lighter
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize LIGHTER trader: %w", err)
+		}
+		logger.Infof("✓ LIGHTER trader initialized successfully")
 	default:
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}

@@ -5,44 +5,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"nofx/logger"
+	"strconv"
+	"strings"
 )
 
-// GetBalance Get account balance (implements Trader interface)
-func (t *LighterTraderV2) GetBalance() (map[string]interface{}, error) {
-	balance, err := t.GetAccountBalance()
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"total_equity":       balance.TotalEquity,
-		"available_balance":  balance.AvailableBalance,
-		"margin_used":        balance.MarginUsed,
-		"unrealized_pnl":     balance.UnrealizedPnL,
-		"maintenance_margin": balance.MaintenanceMargin,
-	}, nil
-}
-
-// GetAccountBalance Get detailed account balance information
-func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
-	if err := t.ensureAuthToken(); err != nil {
-		return nil, fmt.Errorf("invalid auth token: %w", err)
-	}
-
-	t.accountMutex.RLock()
-	accountIndex := t.accountIndex
-	authToken := t.authToken
-	t.accountMutex.RUnlock()
-
-	endpoint := fmt.Sprintf("%s/api/v1/account/%d/balance", t.baseURL, accountIndex)
+// getFullAccountInfo Fetch full account info from Lighter API (includes balance and positions)
+func (t *LighterTraderV2) getFullAccountInfo() (*AccountInfo, error) {
+	endpoint := fmt.Sprintf("%s/api/v1/account?by=l1_address&value=%s", t.baseURL, t.walletAddr)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-
-	// Add authentication header
-	req.Header.Set("Authorization", authToken)
 
 	resp, err := t.client.Do(req)
 	if err != nil {
@@ -56,15 +31,101 @@ func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get balance (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("failed to get account (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var balance AccountBalance
-	if err := json.Unmarshal(body, &balance); err != nil {
-		return nil, fmt.Errorf("failed to parse balance response: %w", err)
+	// Parse response - Lighter returns {"accounts": [...]}
+	var accountResp AccountResponse
+	if err := json.Unmarshal(body, &accountResp); err != nil {
+		return nil, fmt.Errorf("failed to parse account response: %w", err)
 	}
 
-	return &balance, nil
+	if len(accountResp.Accounts) == 0 {
+		return nil, fmt.Errorf("no account found for wallet address: %s", t.walletAddr)
+	}
+
+	account := &accountResp.Accounts[0]
+	// Use index field if account_index is 0
+	if account.AccountIndex == 0 && account.Index != 0 {
+		account.AccountIndex = account.Index
+	}
+
+	return account, nil
+}
+
+// GetBalance Get account balance (implements Trader interface)
+func (t *LighterTraderV2) GetBalance() (map[string]interface{}, error) {
+	balance, err := t.GetAccountBalance()
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate wallet balance (total equity - unrealized PnL)
+	walletBalance := balance.TotalEquity - balance.UnrealizedPnL
+
+	// Return in standard format compatible with auto_trader.go
+	// (totalEquity = totalWalletBalance + totalUnrealizedProfit)
+	return map[string]interface{}{
+		"totalWalletBalance":    walletBalance,           // Wallet balance (excluding unrealized PnL)
+		"totalUnrealizedProfit": balance.UnrealizedPnL,   // Unrealized PnL
+		"availableBalance":      balance.AvailableBalance, // Available balance
+		// Keep additional fields for reference
+		"total_equity":       balance.TotalEquity,
+		"margin_used":        balance.MarginUsed,
+		"maintenance_margin": balance.MaintenanceMargin,
+	}, nil
+}
+
+// GetAccountBalance Get detailed account balance information
+func (t *LighterTraderV2) GetAccountBalance() (*AccountBalance, error) {
+	// Get full account info from Lighter API
+	accountInfo, err := t.getFullAccountInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account info: %w", err)
+	}
+
+	// Parse string values to float64
+	availableBalance, _ := strconv.ParseFloat(accountInfo.AvailableBalance, 64)
+	collateral, _ := strconv.ParseFloat(accountInfo.Collateral, 64)
+	crossAssetValue, _ := strconv.ParseFloat(accountInfo.CrossAssetValue, 64)
+	totalEquity, _ := strconv.ParseFloat(accountInfo.TotalEquity, 64)
+	unrealizedPnl, _ := strconv.ParseFloat(accountInfo.UnrealizedPnl, 64)
+
+	// Use collateral as total equity if total_equity is 0
+	if totalEquity == 0 {
+		totalEquity = collateral
+	}
+
+	// Calculate margin used (collateral - available)
+	marginUsed := collateral - availableBalance
+	if marginUsed < 0 {
+		marginUsed = 0
+	}
+
+	// Calculate maintenance margin from positions
+	// Lighter API doesn't return maintenance_margin directly, estimate from initial_margin_fraction
+	var maintenanceMargin float64
+	for _, pos := range accountInfo.Positions {
+		posValue, _ := strconv.ParseFloat(pos.PositionValue, 64)
+		imf, _ := strconv.ParseFloat(pos.InitialMarginFraction, 64)
+		// Maintenance margin is typically ~half of initial margin
+		if imf > 0 {
+			maintenanceMargin += posValue * (imf / 100.0) * 0.5
+		}
+	}
+
+	balance := &AccountBalance{
+		TotalEquity:       totalEquity,
+		AvailableBalance:  availableBalance,
+		MarginUsed:        marginUsed,
+		UnrealizedPnL:     unrealizedPnl,
+		MaintenanceMargin: maintenanceMargin,
+	}
+
+	logger.Infof("✓ Lighter balance: equity=%.2f, available=%.2f, crossValue=%.2f",
+		totalEquity, availableBalance, crossAssetValue)
+
+	return balance, nil
 }
 
 // GetPositions Get all positions (implements Trader interface)
@@ -76,16 +137,17 @@ func (t *LighterTraderV2) GetPositions() ([]map[string]interface{}, error) {
 
 	result := make([]map[string]interface{}, 0, len(positions))
 	for _, pos := range positions {
+		// Return in standard format compatible with auto_trader.go
 		result = append(result, map[string]interface{}{
-			"symbol":             pos.Symbol,
-			"side":               pos.Side,
-			"size":               pos.Size,
-			"entry_price":        pos.EntryPrice,
-			"mark_price":         pos.MarkPrice,
-			"liquidation_price":  pos.LiquidationPrice,
-			"unrealized_pnl":     pos.UnrealizedPnL,
-			"leverage":           pos.Leverage,
-			"margin_used":        pos.MarginUsed,
+			"symbol":           pos.Symbol,
+			"side":             pos.Side,
+			"positionAmt":      pos.Size,             // Standard field name
+			"entryPrice":       pos.EntryPrice,       // Standard field name
+			"markPrice":        pos.MarkPrice,        // Standard field name
+			"liquidationPrice": pos.LiquidationPrice, // Standard field name
+			"unRealizedProfit": pos.UnrealizedPnL,    // Standard field name
+			"leverage":         pos.Leverage,
+			"marginUsed":       pos.MarginUsed,
 		})
 	}
 
@@ -94,47 +156,82 @@ func (t *LighterTraderV2) GetPositions() ([]map[string]interface{}, error) {
 
 // GetPositionsRaw Get all positions (returns raw type)
 func (t *LighterTraderV2) GetPositionsRaw(symbol string) ([]Position, error) {
-	if err := t.ensureAuthToken(); err != nil {
-		return nil, fmt.Errorf("invalid auth token: %w", err)
+	// Get full account info from Lighter API
+	accountInfo, err := t.getFullAccountInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account info: %w", err)
 	}
 
-	t.accountMutex.RLock()
-	accountIndex := t.accountIndex
-	authToken := t.authToken
-	t.accountMutex.RUnlock()
-
-	endpoint := fmt.Sprintf("%s/api/v1/account/%d/positions", t.baseURL, accountIndex)
+	// Normalize symbol for filtering
+	normalizedSymbol := ""
 	if symbol != "" {
-		endpoint += fmt.Sprintf("?symbol=%s", symbol)
+		normalizedSymbol = normalizeSymbol(symbol)
 	}
 
-	req, err := http.NewRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Authorization", authToken)
-
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get positions (status %d): %s", resp.StatusCode, string(body))
-	}
-
+	// Convert Lighter positions to our Position type
 	var positions []Position
-	if err := json.Unmarshal(body, &positions); err != nil {
-		return nil, fmt.Errorf("failed to parse positions response: %w", err)
+	for _, lPos := range accountInfo.Positions {
+		// Filter by symbol if specified
+		if normalizedSymbol != "" && !strings.EqualFold(lPos.Symbol, normalizedSymbol) {
+			continue
+		}
+
+		// Parse fields from Lighter API response
+		size, _ := strconv.ParseFloat(lPos.Position, 64)        // API returns "position" not "size"
+		entryPrice, _ := strconv.ParseFloat(lPos.AvgEntryPrice, 64) // API returns "avg_entry_price"
+		positionValue, _ := strconv.ParseFloat(lPos.PositionValue, 64)
+		liqPrice, _ := strconv.ParseFloat(lPos.LiquidationPrice, 64)
+		pnl, _ := strconv.ParseFloat(lPos.UnrealizedPnl, 64)
+		initialMarginFraction, _ := strconv.ParseFloat(lPos.InitialMarginFraction, 64)
+		allocatedMargin, _ := strconv.ParseFloat(lPos.AllocatedMargin, 64)
+
+		// Skip empty positions
+		if size == 0 {
+			continue
+		}
+
+		// Calculate mark price from position value: mark_price = position_value / position
+		markPrice := 0.0
+		if size != 0 {
+			markPrice = positionValue / size
+		}
+
+		// Calculate leverage from initial margin fraction: leverage = 100 / margin_fraction
+		leverage := 1.0
+		if initialMarginFraction > 0 {
+			leverage = 100.0 / initialMarginFraction
+		}
+
+		// Calculate margin used (for cross margin, use position_value / leverage)
+		marginUsed := allocatedMargin
+		if marginUsed == 0 && leverage > 0 {
+			marginUsed = positionValue / leverage
+		}
+
+		// Determine side based on sign field (1 = long, -1 = short)
+		side := "long"
+		if lPos.Sign < 0 {
+			side = "short"
+		}
+
+		pos := Position{
+			Symbol:           lPos.Symbol,
+			Side:             side,
+			Size:             size,
+			EntryPrice:       entryPrice,
+			MarkPrice:        markPrice,
+			LiquidationPrice: liqPrice,
+			UnrealizedPnL:    pnl,
+			Leverage:         leverage,
+			MarginUsed:       marginUsed,
+		}
+		positions = append(positions, pos)
+
+		logger.Infof("✓ Lighter position: %s %s size=%.4f entry=%.2f mark=%.2f lev=%.1fx pnl=%.4f",
+			lPos.Symbol, side, size, entryPrice, markPrice, leverage, pnl)
 	}
 
+	logger.Infof("✓ Lighter positions: found %d positions", len(positions))
 	return positions, nil
 }
 
@@ -145,8 +242,9 @@ func (t *LighterTraderV2) GetPosition(symbol string) (*Position, error) {
 		return nil, err
 	}
 
+	normalizedSymbol := normalizeSymbol(symbol)
 	for _, pos := range positions {
-		if pos.Symbol == symbol && pos.Size > 0 {
+		if strings.EqualFold(pos.Symbol, normalizedSymbol) && pos.Size > 0 {
 			return &pos, nil
 		}
 	}
@@ -156,7 +254,17 @@ func (t *LighterTraderV2) GetPosition(symbol string) (*Position, error) {
 
 // GetMarketPrice Get market price (implements Trader interface)
 func (t *LighterTraderV2) GetMarketPrice(symbol string) (float64, error) {
-	endpoint := fmt.Sprintf("%s/api/v1/market/ticker?symbol=%s", t.baseURL, symbol)
+	// Normalize symbol to Lighter format
+	normalizedSymbol := normalizeSymbol(symbol)
+
+	// Get market_id first
+	marketID, err := t.getMarketIndex(symbol)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get market ID: %w", err)
+	}
+
+	// Use orderBookDetails endpoint which contains price info
+	endpoint := fmt.Sprintf("%s/api/v1/orderBookDetails?market_id=%d", t.baseURL, marketID)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -178,17 +286,39 @@ func (t *LighterTraderV2) GetMarketPrice(symbol string) (float64, error) {
 		return 0, fmt.Errorf("failed to get market price (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var ticker map[string]interface{}
-	if err := json.Unmarshal(body, &ticker); err != nil {
-		return 0, fmt.Errorf("failed to parse price response: %w", err)
+	// Parse response
+	var apiResp struct {
+		Code             int `json:"code"`
+		OrderBookDetails []struct {
+			Symbol         string  `json:"symbol"`
+			LastTradePrice float64 `json:"last_trade_price"`
+			DailyPriceLow  float64 `json:"daily_price_low"`
+			DailyPriceHigh float64 `json:"daily_price_high"`
+		} `json:"order_book_details"`
 	}
 
-	price, err := SafeFloat64(ticker, "last_price")
-	if err != nil {
-		return 0, fmt.Errorf("failed to get price: %w", err)
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return 0, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return price, nil
+	if apiResp.Code != 200 {
+		return 0, fmt.Errorf("API error code: %d", apiResp.Code)
+	}
+
+	// Find the market
+	for _, ob := range apiResp.OrderBookDetails {
+		if strings.EqualFold(ob.Symbol, normalizedSymbol) {
+			price := ob.LastTradePrice
+			if price <= 0 {
+				return 0, fmt.Errorf("invalid price for %s: %.2f", normalizedSymbol, price)
+			}
+
+			logger.Infof("✓ Lighter %s price: %.2f", normalizedSymbol, price)
+			return price, nil
+		}
+	}
+
+	return 0, fmt.Errorf("market not found: %s", normalizedSymbol)
 }
 
 // FormatQuantity Format quantity to correct precision (implements Trader interface)

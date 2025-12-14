@@ -131,6 +131,7 @@ export interface Exchange {
   lighterWalletAddr?: string
   lighterPrivateKey?: string
   lighterApiKeyPrivateKey?: string
+  lighterApiKeyIndex?: number
 }
 
 export interface CreateExchangeRequest {
@@ -148,6 +149,7 @@ export interface CreateExchangeRequest {
   lighter_wallet_addr?: string
   lighter_private_key?: string
   lighter_api_key_private_key?: string
+  lighter_api_key_index?: number
 }
 
 export interface CreateTraderRequest {
@@ -199,6 +201,7 @@ export interface UpdateExchangeConfigRequest {
       lighter_wallet_addr?: string
       lighter_private_key?: string
       lighter_api_key_private_key?: string
+      lighter_api_key_index?: number
     }
   }
 }

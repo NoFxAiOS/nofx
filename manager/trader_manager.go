@@ -44,6 +44,7 @@ type CompetitionCache struct {
 // TraderManager manages multiple trader instances
 type TraderManager struct {
 	traders          map[string]*trader.AutoTrader // key: trader ID
+	loadErrors       map[string]error              // key: trader ID, stores last load error
 	competitionCache *CompetitionCache
 	mu               sync.RWMutex
 }
@@ -51,11 +52,19 @@ type TraderManager struct {
 // NewTraderManager creates a trader manager
 func NewTraderManager() *TraderManager {
 	return &TraderManager{
-		traders: make(map[string]*trader.AutoTrader),
+		traders:    make(map[string]*trader.AutoTrader),
+		loadErrors: make(map[string]error),
 		competitionCache: &CompetitionCache{
 			data: make(map[string]interface{}),
 		},
 	}
+}
+
+// GetLoadError returns the last load error for a trader
+func (tm *TraderManager) GetLoadError(traderID string) error {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	return tm.loadErrors[traderID]
 }
 
 // GetTrader retrieves a trader by ID
@@ -496,6 +505,11 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
 			logger.Infof("❌ Failed to load trader %s: %v", traderCfg.Name, err)
+			// Save error for later retrieval
+			tm.loadErrors[traderCfg.ID] = err
+		} else {
+			// Clear any previous error on success
+			delete(tm.loadErrors, traderCfg.ID)
 		}
 	}
 
@@ -676,6 +690,8 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	case "lighter":
 		traderConfig.LighterPrivateKey = exchangeCfg.LighterPrivateKey
 		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
+		traderConfig.LighterAPIKeyPrivateKey = exchangeCfg.LighterAPIKeyPrivateKey
+		traderConfig.LighterAPIKeyIndex = exchangeCfg.LighterAPIKeyIndex
 		traderConfig.LighterTestnet = exchangeCfg.Testnet
 	}
 

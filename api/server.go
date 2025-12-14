@@ -459,6 +459,7 @@ type UpdateExchangeConfigRequest struct {
 		LighterWalletAddr       string `json:"lighter_wallet_addr"`
 		LighterPrivateKey       string `json:"lighter_private_key"`
 		LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
+		LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
 	} `json:"exchanges"`
 }
 
@@ -592,19 +593,16 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 				exchangeCfg.Passphrase,
 			)
 		case "lighter":
-			if exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+				// Lighter only supports mainnet
 				tempTrader, createErr = trader.NewLighterTraderV2(
-					exchangeCfg.LighterPrivateKey,
 					exchangeCfg.LighterWalletAddr,
 					exchangeCfg.LighterAPIKeyPrivateKey,
-					exchangeCfg.Testnet,
+					exchangeCfg.LighterAPIKeyIndex,
+					false, // Always use mainnet for Lighter
 				)
 			} else {
-				tempTrader, createErr = trader.NewLighterTrader(
-					exchangeCfg.LighterPrivateKey,
-					exchangeCfg.LighterWalletAddr,
-					exchangeCfg.Testnet,
-				)
+				createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
 			}
 		default:
 			logger.Infof("⚠️ Unsupported exchange type: %s, using user input for initial balance", exchangeCfg.ExchangeType)
@@ -919,6 +917,11 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 				return
 			}
 		}
+		// Check if there's a specific load error
+		if loadErr := s.traderManager.GetLoadError(traderID); loadErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader: " + loadErr.Error()})
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to load trader, please check AI model, exchange and strategy configuration"})
 		return
 	}
@@ -1109,19 +1112,16 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			exchangeCfg.Passphrase,
 		)
 	case "lighter":
-		if exchangeCfg.LighterAPIKeyPrivateKey != "" {
+		if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			// Lighter only supports mainnet
 			tempTrader, createErr = trader.NewLighterTraderV2(
-				exchangeCfg.LighterPrivateKey,
 				exchangeCfg.LighterWalletAddr,
 				exchangeCfg.LighterAPIKeyPrivateKey,
-				exchangeCfg.Testnet,
+				exchangeCfg.LighterAPIKeyIndex,
+				false, // Always use mainnet for Lighter
 			)
 		} else {
-			tempTrader, createErr = trader.NewLighterTrader(
-				exchangeCfg.LighterPrivateKey,
-				exchangeCfg.LighterWalletAddr,
-				exchangeCfg.Testnet,
-			)
+			createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
 		}
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
@@ -1263,19 +1263,16 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 			exchangeCfg.Passphrase,
 		)
 	case "lighter":
-		if exchangeCfg.LighterAPIKeyPrivateKey != "" {
+		if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			// Lighter only supports mainnet
 			tempTrader, createErr = trader.NewLighterTraderV2(
-				exchangeCfg.LighterPrivateKey,
 				exchangeCfg.LighterWalletAddr,
 				exchangeCfg.LighterAPIKeyPrivateKey,
-				exchangeCfg.Testnet,
+				exchangeCfg.LighterAPIKeyIndex,
+				false, // Always use mainnet for Lighter
 			)
 		} else {
-			tempTrader, createErr = trader.NewLighterTrader(
-				exchangeCfg.LighterPrivateKey,
-				exchangeCfg.LighterWalletAddr,
-				exchangeCfg.Testnet,
-			)
+			createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
 		}
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
@@ -1544,7 +1541,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 	// Update each exchange's configuration
 	for exchangeID, exchangeData := range req.Exchanges {
-		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey)
+		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update exchange %s: %v", exchangeID, err)})
 			return
@@ -1578,6 +1575,7 @@ type CreateExchangeRequest struct {
 	LighterWalletAddr       string `json:"lighter_wallet_addr"`
 	LighterPrivateKey       string `json:"lighter_private_key"`
 	LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
+	LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
 }
 
 // handleCreateExchange Create a new exchange account
@@ -1646,7 +1644,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 		userID, req.ExchangeType, req.AccountName, req.Enabled,
 		req.APIKey, req.SecretKey, req.Passphrase, req.Testnet,
 		req.HyperliquidWalletAddr, req.AsterUser, req.AsterSigner, req.AsterPrivateKey,
-		req.LighterWalletAddr, req.LighterPrivateKey, req.LighterAPIKeyPrivateKey,
+		req.LighterWalletAddr, req.LighterPrivateKey, req.LighterAPIKeyPrivateKey, req.LighterAPIKeyIndex,
 	)
 	if err != nil {
 		logger.Infof("❌ Failed to create exchange account: %v", err)

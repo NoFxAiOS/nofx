@@ -19,7 +19,7 @@ const EXCHANGE_REGISTRATION_LINKS: Record<string, { url: string; hasReferral?: b
   bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
   hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
   aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
-  lighter: { url: 'https://lighter.xyz', hasReferral: false },
+  lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
 }
 
 import type { TraderConfigData } from '../types'

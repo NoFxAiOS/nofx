@@ -5,8 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"nofx/logger"
+	"mime/multipart"
 	"net/http"
+	"nofx/logger"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/elliottech/lighter-go/types"
@@ -177,24 +180,67 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	}
 
 	// Get market index (convert from symbol)
-	marketIndex, err := t.getMarketIndex(symbol)
+	marketIndexU16, err := t.getMarketIndex(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get market index: %w", err)
 	}
+	marketIndex := uint8(marketIndexU16) // SDK expects uint8
 
 	// Build order request
-	clientOrderIndex := time.Now().UnixNano() // Use timestamp as client order ID
+	// ClientOrderIndex must be <= 281474976710655 (48-bit max)
+	clientOrderIndex := time.Now().UnixMilli() % 281474976710655
 
 	var orderTypeValue uint8 = 0 // 0=limit, 1=market
 	if orderType == "market" {
 		orderTypeValue = 1
 	}
 
-	// Convert quantity and price to LIGHTER format (multiply by precision)
-	baseAmount := int64(quantity * 1e8) // 8 decimal precision
+	// Convert quantity to LIGHTER base_amount format
+	// Different markets have different size_decimals:
+	// - ETH: supported_size_decimals=4, min=0.0050
+	// - BTC: supported_size_decimals=5, min=0.00020
+	// - SOL: supported_size_decimals=3, min=0.050
+	sizeDecimals := 4 // Default for ETH
+	normalizedSymbol := normalizeSymbol(symbol)
+	switch normalizedSymbol {
+	case "BTC":
+		sizeDecimals = 5
+	case "SOL":
+		sizeDecimals = 3
+	case "ETH":
+		sizeDecimals = 4
+	}
+	baseAmount := int64(quantity * float64(pow10(sizeDecimals)))
+
+	// For market orders, we need to set a price protection value
+	// Buy orders: set high price (current * 1.05), Sell orders: set low price (current * 0.95)
 	priceValue := uint32(0)
 	if orderType == "limit" {
-		priceValue = uint32(price * 1e2) // Price precision
+		priceValue = uint32(price * 1e2) // Price precision (2 decimals)
+	} else {
+		// Market order - get current price for protection
+		marketPrice, err := t.GetMarketPrice(symbol)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get market price for protection: %w", err)
+		}
+		if isAsk {
+			// Sell order - set minimum price (95% of current)
+			priceValue = uint32(marketPrice * 0.95 * 1e2)
+		} else {
+			// Buy order - set maximum price (105% of current)
+			priceValue = uint32(marketPrice * 1.05 * 1e2)
+		}
+	}
+
+	// For market orders: TimeInForce must be ImmediateOrCancel (0), OrderExpiry must be 0
+	// For limit orders: OrderExpiry must be between 5 minutes and 30 days from now (in milliseconds)
+	var orderExpiry int64 = 0
+	var timeInForce uint8 = 0 // ImmediateOrCancel for market orders
+
+	if orderType == "limit" {
+		// Limit orders need expiry and can use GTC (1)
+		timeInForce = 1 // GoodTillTime
+		orderExpiry = time.Now().Add(7 * 24 * time.Hour).UnixMilli()
 	}
 
 	txReq := &types.CreateOrderTxReq{
@@ -204,10 +250,10 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 		Price:            priceValue,
 		IsAsk:            boolToUint8(isAsk),
 		Type:             orderTypeValue,
-		TimeInForce:      0, // GTC
+		TimeInForce:      timeInForce,
 		ReduceOnly:       0, // Not reduce-only
 		TriggerPrice:     0,
-		OrderExpiry:      time.Now().Add(24 * 28 * time.Hour).UnixMilli(), // Expires in 28 days
+		OrderExpiry:      orderExpiry,
 	}
 
 	// Sign transaction using SDK (nonce will be auto-fetched)
@@ -219,14 +265,17 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 		return nil, fmt.Errorf("failed to sign order: %w", err)
 	}
 
-	// Serialize transaction
-	txBytes, err := json.Marshal(tx)
+	// Get tx_info from SDK (uses json.Marshal which produces base64 for []byte)
+	txInfo, err := tx.GetTxInfo()
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize transaction: %w", err)
+		return nil, fmt.Errorf("failed to get tx info: %w", err)
 	}
 
+	// Debug: Log the tx_info content
+	logger.Infof("DEBUG tx_type: %d, tx_info: %s", tx.GetTxType(), txInfo)
+
 	// Submit order to LIGHTER API
-	orderResp, err := t.submitOrder(txBytes)
+	orderResp, err := t.submitOrder(int(tx.GetTxType()), txInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit order: %w", err)
 	}
@@ -240,44 +289,68 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	return orderResp, nil
 }
 
-// SendTxRequest Send transaction request
-type SendTxRequest struct {
-	TxType          int    `json:"tx_type"`
-	TxInfo          string `json:"tx_info"`
-	PriceProtection bool   `json:"price_protection,omitempty"`
-}
-
 // SendTxResponse Send transaction response
 type SendTxResponse struct {
-	Code    int                    `json:"code"`
-	Message string                 `json:"message"`
-	Data    map[string]interface{} `json:"data"`
+	Code                    int                    `json:"code"`
+	Message                 string                 `json:"message"`
+	TxHash                  string                 `json:"tx_hash"`
+	PredictedExecutionTime  int64                  `json:"predicted_execution_time_ms"`
+	Data                    map[string]interface{} `json:"data"`
 }
 
-// submitOrder Submit signed order to LIGHTER API
-func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, error) {
-	const TX_TYPE_CREATE_ORDER = 14
+// CreateOrderTxInfoAPI Order transaction info with CamelCase JSON tags (matching SDK) + hex signature
+type CreateOrderTxInfoAPI struct {
+	AccountIndex     int64  `json:"AccountIndex"`
+	ApiKeyIndex      uint8  `json:"ApiKeyIndex"`
+	MarketIndex      uint8  `json:"MarketIndex"`
+	ClientOrderIndex int64  `json:"ClientOrderIndex"`
+	BaseAmount       int64  `json:"BaseAmount"`
+	Price            uint32 `json:"Price"`
+	IsAsk            uint8  `json:"IsAsk"`
+	Type             uint8  `json:"Type"`
+	TimeInForce      uint8  `json:"TimeInForce"`
+	ReduceOnly       uint8  `json:"ReduceOnly"`
+	TriggerPrice     uint32 `json:"TriggerPrice"`
+	OrderExpiry      int64  `json:"OrderExpiry"`
+	ExpiredAt        int64  `json:"ExpiredAt"`
+	Nonce            int64  `json:"Nonce"`
+	Sig              string `json:"Sig"` // Hex-encoded signature (string)
+}
 
-	// Build request
-	req := SendTxRequest{
-		TxType:          TX_TYPE_CREATE_ORDER,
-		TxInfo:          string(signedTx),
-		PriceProtection: true,
+// submitOrder Submit signed order to LIGHTER API using multipart/form-data
+func (t *LighterTraderV2) submitOrder(txType int, txInfo string) (map[string]interface{}, error) {
+	// Build multipart form data (Lighter API requires form-data, not JSON)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	// Add tx_type field
+	if err := writer.WriteField("tx_type", strconv.Itoa(txType)); err != nil {
+		return nil, fmt.Errorf("failed to write tx_type: %w", err)
 	}
 
-	reqBody, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize request: %w", err)
+	// Add tx_info field
+	if err := writer.WriteField("tx_info", txInfo); err != nil {
+		return nil, fmt.Errorf("failed to write tx_info: %w", err)
+	}
+
+	// Add price_protection field
+	if err := writer.WriteField("price_protection", "true"); err != nil {
+		return nil, fmt.Errorf("failed to write price_protection: %w", err)
+	}
+
+	// Close multipart writer
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close multipart writer: %w", err)
 	}
 
 	// Send POST request to /api/v1/sendTx
 	endpoint := fmt.Sprintf("%s/api/v1/sendTx", t.baseURL)
-	httpReq, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(reqBody))
+	httpReq, err := http.NewRequest("POST", endpoint, &body)
 	if err != nil {
 		return nil, err
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := t.client.Do(httpReq)
 	if err != nil {
@@ -285,16 +358,19 @@ func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, 
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	// Parse response
 	var sendResp SendTxResponse
-	if err := json.Unmarshal(body, &sendResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(body))
+	if err := json.Unmarshal(respBody, &sendResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(respBody))
 	}
+
+	// Log full response for debugging
+	logger.Infof("DEBUG API response: %s", string(respBody))
 
 	// Check response code
 	if sendResp.Code != 200 {
@@ -302,29 +378,46 @@ func (t *LighterTraderV2) submitOrder(signedTx []byte) (map[string]interface{}, 
 	}
 
 	// Extract transaction hash and order ID
+	// tx_hash is at top level in response, not in data
+	txHash := sendResp.TxHash
+	if txHash == "" {
+		// Fallback to data.tx_hash if present
+		if th, ok := sendResp.Data["tx_hash"].(string); ok {
+			txHash = th
+		}
+	}
+
 	result := map[string]interface{}{
-		"tx_hash": sendResp.Data["tx_hash"],
+		"tx_hash": txHash,
 		"status":  "submitted",
+		"orderId": txHash, // Use tx_hash as orderId
 	}
 
-	// Add order ID to result if available
-	if orderID, ok := sendResp.Data["order_id"]; ok {
-		result["orderId"] = orderID
-	} else if txHash, ok := sendResp.Data["tx_hash"].(string); ok {
-		// Use tx_hash as orderID
-		result["orderId"] = txHash
-	}
-
-	logger.Infof("✓ Order submitted to LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
+	logger.Infof("✓ Order submitted to LIGHTER - tx_hash: %s", txHash)
 
 	return result, nil
 }
 
+// normalizeSymbol Convert NOFX symbol format to Lighter format
+// NOFX uses "BTC-PERP", "BTCUSDT", etc. Lighter uses "BTC", "ETH", etc.
+func normalizeSymbol(symbol string) string {
+	// Remove common suffixes
+	s := strings.TrimSuffix(symbol, "-PERP")
+	s = strings.TrimSuffix(s, "USDT")
+	s = strings.TrimSuffix(s, "USDC")
+	s = strings.TrimSuffix(s, "/USDT")
+	s = strings.TrimSuffix(s, "/USDC")
+	return strings.ToUpper(s)
+}
+
 // getMarketIndex Get market index (convert from symbol) - dynamically fetch from API
-func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
+func (t *LighterTraderV2) getMarketIndex(symbol string) (uint16, error) {
+	// Normalize symbol to Lighter format
+	normalizedSymbol := normalizeSymbol(symbol)
+
 	// 1. Check cache
 	t.marketMutex.RLock()
-	if index, ok := t.marketIndexMap[symbol]; ok {
+	if index, ok := t.marketIndexMap[normalizedSymbol]; ok {
 		t.marketMutex.RUnlock()
 		return index, nil
 	}
@@ -335,7 +428,7 @@ func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
 	if err != nil {
 		// If API fails, fallback to hardcoded mapping
 		logger.Infof("⚠️  Failed to fetch market list from API, using hardcoded mapping: %v", err)
-		return t.getFallbackMarketIndex(symbol)
+		return t.getFallbackMarketIndex(normalizedSymbol)
 	}
 
 	// 3. Update cache
@@ -347,11 +440,11 @@ func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
 
 	// 4. Get from cache
 	t.marketMutex.RLock()
-	index, ok := t.marketIndexMap[symbol]
+	index, ok := t.marketIndexMap[normalizedSymbol]
 	t.marketMutex.RUnlock()
 
 	if !ok {
-		return 0, fmt.Errorf("unknown market symbol: %s", symbol)
+		return 0, fmt.Errorf("unknown market symbol: %s (normalized: %s)", symbol, normalizedSymbol)
 	}
 
 	return index, nil
@@ -360,7 +453,7 @@ func (t *LighterTraderV2) getMarketIndex(symbol string) (uint8, error) {
 // MarketInfo Market information
 type MarketInfo struct {
 	Symbol   string `json:"symbol"`
-	MarketID uint8  `json:"market_id"`
+	MarketID uint16 `json:"market_id"`
 }
 
 // fetchMarketList Fetch market list from API
@@ -385,14 +478,14 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Parse response
+	// Parse response - Lighter API returns { code: 200, order_books: [...] }
 	var apiResp struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-		Data    []struct {
-			Symbol      string `json:"symbol"`
-			MarketIndex uint8  `json:"market_index"`
-		} `json:"data"`
+		Code       int `json:"code"`
+		OrderBooks []struct {
+			Symbol   string `json:"symbol"`
+			MarketID uint16 `json:"market_id"`
+			Status   string `json:"status"`
+		} `json:"order_books"`
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {
@@ -400,31 +493,37 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	}
 
 	if apiResp.Code != 200 {
-		return nil, fmt.Errorf("failed to get market list (code %d): %s", apiResp.Code, apiResp.Message)
+		return nil, fmt.Errorf("failed to get market list (code %d)", apiResp.Code)
 	}
 
-	// Convert to MarketInfo list
-	markets := make([]MarketInfo, len(apiResp.Data))
-	for i, market := range apiResp.Data {
-		markets[i] = MarketInfo{
-			Symbol:   market.Symbol,
-			MarketID: market.MarketIndex,
+	// Convert to MarketInfo list (only active markets)
+	markets := make([]MarketInfo, 0, len(apiResp.OrderBooks))
+	for _, market := range apiResp.OrderBooks {
+		if market.Status == "active" {
+			markets = append(markets, MarketInfo{
+				Symbol:   market.Symbol,
+				MarketID: market.MarketID,
+			})
 		}
 	}
 
-	logger.Infof("✓ Retrieved %d markets", len(markets))
+	logger.Infof("✓ Retrieved %d active markets from Lighter", len(markets))
 	return markets, nil
 }
 
-// getFallbackMarketIndex Hardcoded fallback mapping
-func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint8, error) {
-	fallbackMap := map[string]uint8{
-		"BTC-PERP":  0,
-		"ETH-PERP":  1,
-		"SOL-PERP":  2,
-		"DOGE-PERP": 3,
-		"AVAX-PERP": 4,
-		"XRP-PERP":  5,
+// getFallbackMarketIndex Hardcoded fallback mapping (using Lighter symbol format)
+func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint16, error) {
+	// Lighter uses simple symbols like "BTC", "ETH" with market_id
+	fallbackMap := map[string]uint16{
+		"ETH":  0,
+		"BTC":  1,
+		"SOL":  2,
+		"DOGE": 3,
+		"AVAX": 9,
+		"XRP":  7,
+		"LINK": 8,
+		"SUI":  16,
+		"BNB":  25,
 	}
 
 	if index, ok := fallbackMap[symbol]; ok {
@@ -432,7 +531,7 @@ func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint8, error) {
 		return index, nil
 	}
 
-	return 0, fmt.Errorf("unknown market symbol: %s", symbol)
+	return 0, fmt.Errorf("unknown market symbol: %s (try fetching market list)", symbol)
 }
 
 // SetLeverage Set leverage (implements Trader interface)
@@ -470,4 +569,13 @@ func boolToUint8(b bool) uint8 {
 		return 1
 	}
 	return 0
+}
+
+// pow10 returns 10^n as int64
+func pow10(n int) int64 {
+	result := int64(1)
+	for i := 0; i < n; i++ {
+		result *= 10
+	}
+	return result
 }

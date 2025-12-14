@@ -510,15 +510,16 @@ func (m *PositionSyncManager) createTrader(config *store.TraderFullConfig) (Trad
 		return NewAsterTrader(exchange.AsterUser, exchange.AsterSigner, exchange.AsterPrivateKey)
 
 	case "lighter":
-		if exchange.LighterAPIKeyPrivateKey != "" {
-			return NewLighterTraderV2(
-				exchange.LighterPrivateKey,
-				exchange.LighterWalletAddr,
-				exchange.LighterAPIKeyPrivateKey,
-				exchange.Testnet,
-			)
+		if exchange.LighterWalletAddr == "" || exchange.LighterAPIKeyPrivateKey == "" {
+			return nil, fmt.Errorf("Lighter requires wallet address and API Key private key")
 		}
-		return NewLighterTrader(exchange.LighterPrivateKey, exchange.LighterWalletAddr, exchange.Testnet)
+		// Lighter only supports mainnet
+		return NewLighterTraderV2(
+			exchange.LighterWalletAddr,
+			exchange.LighterAPIKeyPrivateKey,
+			exchange.LighterAPIKeyIndex,
+			false, // Always use mainnet for Lighter
+		)
 
 	default:
 		return nil, fmt.Errorf("unsupported exchange type: %s", exchange.ExchangeType)

@@ -75,7 +75,7 @@
 |----------|--------|-------------------------|
 | **Hyperliquid** | ✅ 已支持 | [注册](https://app.hyperliquid.xyz/join/AITRADING) |
 | **Aster DEX** | ✅ 已支持 | [注册](https://www.asterdex.com/en/referral/fdfc0e) |
-| **Lighter** | ✅ 已支持 | [注册](https://lighter.xyz) |
+| **Lighter** | ✅ 已支持 | [注册](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 

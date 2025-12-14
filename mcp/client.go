@@ -265,6 +265,12 @@ func (client *Client) call(systemPrompt, userPrompt string) (string, error) {
 		client.logger.Debugf("[%s]   API Key: %s...%s", client.String(), client.APIKey[:4], client.APIKey[len(client.APIKey)-4:])
 	}
 
+	// Log full AI input (for debugging)
+	client.logger.Infof("━━━━━━━━━━ AI INPUT START ━━━━━━━━━━")
+	client.logger.Infof("[SYSTEM PROMPT] (%d chars):\n%s", len(systemPrompt), systemPrompt)
+	client.logger.Infof("[USER PROMPT] (%d chars):\n%s", len(userPrompt), userPrompt)
+	client.logger.Infof("━━━━━━━━━━ AI INPUT END ━━━━━━━━━━")
+
 	// Step 1: Build request body (via hooks for dynamic dispatch)
 	requestBody := client.hooks.buildMCPRequestBody(systemPrompt, userPrompt)
 
@@ -397,6 +403,13 @@ func (client *Client) callWithRequest(req *Request) (string, error) {
 	// Print current AI configuration
 	client.logger.Infof("📡 [%s] Request AI Server with Builder: BaseURL: %s", client.String(), client.BaseURL)
 	client.logger.Debugf("[%s] Messages count: %d", client.String(), len(req.Messages))
+
+	// Log full AI input (for debugging)
+	client.logger.Infof("━━━━━━━━━━ AI INPUT (Request) START ━━━━━━━━━━")
+	for i, msg := range req.Messages {
+		client.logger.Infof("[MESSAGE %d] Role: %s, Content (%d chars):\n%s", i, msg.Role, len(msg.Content), msg.Content)
+	}
+	client.logger.Infof("━━━━━━━━━━ AI INPUT (Request) END ━━━━━━━━━━")
 
 	// Build request body (from Request object)
 	requestBody := client.buildRequestBodyFromRequest(req)

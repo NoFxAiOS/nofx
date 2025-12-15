@@ -748,6 +748,16 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
 	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
 
+	// Position sizing guidance
+	sb.WriteString("## Position Sizing Guidance\n")
+	sb.WriteString("Calculate `position_size_usd` based on your confidence and the Position Value Limits above:\n")
+	sb.WriteString("- High confidence (≥85): Use 80-100%% of max position value limit\n")
+	sb.WriteString("- Medium confidence (70-84): Use 50-80%% of max position value limit\n")
+	sb.WriteString("- Low confidence (60-69): Use 30-50%% of max position value limit\n")
+	sb.WriteString(fmt.Sprintf("- Example: With equity %.0f and BTC/ETH ratio %.1fx, max is %.0f USDT\n",
+		accountEquity, btcEthPosValueRatio, accountEquity*btcEthPosValueRatio))
+	sb.WriteString("- **DO NOT** just use available_balance as position_size_usd. Use the Position Value Limits!\n\n")
+
 	// 4. Trading frequency (editable)
 	if promptSections.TradingFrequency != "" {
 		sb.WriteString(promptSections.TradingFrequency)
@@ -795,8 +805,10 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("<decision>\n")
 	sb.WriteString("Step 2: JSON decision array\n\n")
 	sb.WriteString("```json\n[\n")
+	// Use the actual configured position value ratio for BTC/ETH in the example
+	examplePositionSize := accountEquity * btcEthPosValueRatio
 	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
-		riskControl.BTCETHMaxLeverage, accountEquity*5))
+		riskControl.BTCETHMaxLeverage, examplePositionSize))
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")

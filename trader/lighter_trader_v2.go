@@ -46,9 +46,12 @@ type LighterPositionInfo struct {
 }
 
 // AccountResponse LIGHTER account API response
+// API may return accounts in "accounts" or "sub_accounts" field
 type AccountResponse struct {
-	Code     int           `json:"code"`
-	Accounts []AccountInfo `json:"accounts"`
+	Code        int           `json:"code"`
+	Message     string        `json:"message"`
+	Accounts    []AccountInfo `json:"accounts"`
+	SubAccounts []AccountInfo `json:"sub_accounts"` // Sub-accounts field
 }
 
 // LighterTraderV2 New implementation using official lighter-go SDK
@@ -175,6 +178,7 @@ func (t *LighterTraderV2) initializeAccount() error {
 }
 
 // getAccountByL1Address Get LIGHTER account info by L1 wallet address
+// Supports both main accounts and sub-accounts
 func (t *LighterTraderV2) getAccountByL1Address() (*AccountInfo, error) {
 	endpoint := fmt.Sprintf("%s/api/v1/account?by=l1_address&value=%s", t.baseURL, t.walletAddr)
 
@@ -194,21 +198,40 @@ func (t *LighterTraderV2) getAccountByL1Address() (*AccountInfo, error) {
 		return nil, err
 	}
 
+	// Log raw response for debugging
+	logger.Infof("LIGHTER account API response: %s", string(body))
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get account (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response - Lighter returns {"accounts": [...]}
+	// Parse response - Lighter may return accounts in "accounts" or "sub_accounts"
 	var accountResp AccountResponse
 	if err := json.Unmarshal(body, &accountResp); err != nil {
 		return nil, fmt.Errorf("failed to parse account response: %w", err)
 	}
 
-	if len(accountResp.Accounts) == 0 {
-		return nil, fmt.Errorf("no account found for wallet address: %s", t.walletAddr)
+	// Check for API error
+	if accountResp.Code != 0 && accountResp.Code != 200 {
+		return nil, fmt.Errorf("Lighter API error (code %d): %s", accountResp.Code, accountResp.Message)
 	}
 
-	account := &accountResp.Accounts[0]
+	// Try accounts first, then sub_accounts
+	var allAccounts []AccountInfo
+	allAccounts = append(allAccounts, accountResp.Accounts...)
+	allAccounts = append(allAccounts, accountResp.SubAccounts...)
+
+	if len(allAccounts) == 0 {
+		return nil, fmt.Errorf("no account found for wallet address: %s (try depositing funds first at app.lighter.xyz)", t.walletAddr)
+	}
+
+	// Log all found accounts
+	logger.Infof("Found %d accounts (main: %d, sub: %d)", len(allAccounts), len(accountResp.Accounts), len(accountResp.SubAccounts))
+	for i, acc := range allAccounts {
+		logger.Infof("  Account[%d]: index=%d, collateral=%s", i, acc.AccountIndex, acc.Collateral)
+	}
+
+	account := &allAccounts[0]
 	// Use index field if account_index is 0
 	if account.AccountIndex == 0 && account.Index != 0 {
 		account.AccountIndex = account.Index

@@ -1,5 +1,7 @@
 # Debate Arena Module - Technical Documentation
 
+**Language:** [English](DEBATE_MODULE.md) | [中文](DEBATE_MODULE.zh-CN.md)
+
 ## Overview
 
 The Debate Arena is a collaborative AI decision-making system where multiple AI models with different personalities debate market conditions and reach consensus on trading decisions. The system supports multi-round debates, real-time streaming, voting mechanisms, and automatic trade execution.

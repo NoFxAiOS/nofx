@@ -1,82 +1,84 @@
-# NOFX 策略模块技术文档
+# NOFX Strategy Module - Technical Documentation
 
-## 概述
+**Language:** [English](STRATEGY_MODULE.md) | [中文](STRATEGY_MODULE.zh-CN.md)
 
-本文档详细描述 NOFX 策略模块的完整数据流程，包括币种选择、数据组装、提示词构建、AI 请求、响应解析和决策执行。
+## Overview
+
+This document describes the complete data flow of the NOFX strategy module, including coin selection, data assembly, prompt construction, AI request, response parsing, and decision execution.
 
 ---
 
-## 完整数据流程图
+## Complete Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    交易周期 (每 N 分钟)                          │
+│                    Trading Cycle (Every N Minutes)              │
 └─────────────────────────────────────────────────────────────────┘
 
-1. 币种选择 (GetCandidateCoins)
-   ├─ Static (静态列表)
-   ├─ AI500 Pool (AI评分池)
-   ├─ OI Top (持仓增长榜)
-   └─ Mixed (混合模式)
+1. Coin Selection (GetCandidateCoins)
+   ├─ Static (Static list)
+   ├─ AI500 Pool (AI rating pool)
+   ├─ OI Top (Position growth ranking)
+   └─ Mixed (Mixed mode)
         ↓
-2. 数据组装 (buildTradingContext)
-   ├─ 账户余额 → equity, available, unrealizedPnL
-   ├─ 当前持仓 → symbol, side, entry, mark, qty, leverage
-   ├─ K线数据 → OHLCV (5m, 15m, 1h, 4h)
-   ├─ 技术指标 → EMA, MACD, RSI, ATR, Volume
-   ├─ 链上数据 → OI, Funding Rate
-   ├─ 量化数据 → 资金流向, OI变化 (可选)
-   └─ 最近交易 → 最近10笔已平仓
+2. Data Assembly (buildTradingContext)
+   ├─ Account balance → equity, available, unrealizedPnL
+   ├─ Current positions → symbol, side, entry, mark, qty, leverage
+   ├─ K-line data → OHLCV (5m, 15m, 1h, 4h)
+   ├─ Technical indicators → EMA, MACD, RSI, ATR, Volume
+   ├─ On-chain data → OI, Funding Rate
+   ├─ Quant data → Capital flow, OI changes (optional)
+   └─ Recent trades → Last 10 closed trades
         ↓
-3. 系统提示词 (BuildSystemPrompt)
-   ├─ 角色定义
-   ├─ 交易模式 (aggressive/conservative/scalping)
-   ├─ 硬性约束 (代码强制执行)
-   ├─ AI引导 (建议值)
-   ├─ 交易频率
-   ├─ 入场标准
-   ├─ 决策流程
-   └─ 输出格式 (XML + JSON)
+3. System Prompt (BuildSystemPrompt)
+   ├─ Role definition
+   ├─ Trading mode (aggressive/conservative/scalping)
+   ├─ Hard constraints (code enforced)
+   ├─ AI guidance (suggested values)
+   ├─ Trading frequency
+   ├─ Entry standards
+   ├─ Decision process
+   └─ Output format (XML + JSON)
         ↓
-4. 用户提示词 (BuildUserPrompt)
-   ├─ 系统状态 (时间, 周期号)
-   ├─ BTC市场概览
-   ├─ 账户信息
-   ├─ 当前持仓 (含技术指标)
-   ├─ 候选币种 (完整市场数据)
-   └─ "请分析并输出决策..."
+4. User Prompt (BuildUserPrompt)
+   ├─ System status (time, cycle number)
+   ├─ BTC market overview
+   ├─ Account information
+   ├─ Current positions (with indicators)
+   ├─ Candidate coins (full market data)
+   └─ "Please analyze and output decisions..."
         ↓
-5. AI请求 (CallWithMessages)
-   ├─ 选择AI模型
+5. AI Request (CallWithMessages)
+   ├─ Select AI model
    ├─ POST: system_prompt + user_prompt
-   ├─ 超时: 120秒, 重试: 3次
-   └─ 返回原始响应
+   ├─ Timeout: 120s, Retries: 3
+   └─ Return raw response
         ↓
-6. AI解析 (parseFullDecisionResponse)
-   ├─ 提取思维链 <reasoning>
-   ├─ 提取JSON决策 <decision>
-   ├─ 修复字符编码
-   ├─ 验证JSON格式
-   ├─ 解析决策数组
-   └─ 验证风控参数
+6. AI Parsing (parseFullDecisionResponse)
+   ├─ Extract Chain of Thought <reasoning>
+   ├─ Extract JSON decision <decision>
+   ├─ Fix character encoding
+   ├─ Validate JSON format
+   ├─ Parse decision array
+   └─ Validate risk parameters
         ↓
-7. 决策执行
-   ├─ 排序: 平仓优先 → 开仓 → hold/wait
-   ├─ 风控强制执行
-   ├─ 提交订单
-   ├─ 确认成交
-   └─ 记录到数据库
+7. Decision Execution
+   ├─ Sort: Close first → Open → hold/wait
+   ├─ Risk control enforcement
+   ├─ Submit orders
+   ├─ Confirm fills
+   └─ Record to database
 ```
 
 ---
 
-## 1. 币种选择 (Coin Selection)
+## 1. Coin Selection
 
-**核心文件:** `decision/engine.go:380-454`
+**Core File:** `decision/engine.go:380-454`
 
-**入口方法:** `StrategyEngine.GetCandidateCoins()`
+**Entry Method:** `StrategyEngine.GetCandidateCoins()`
 
-### 1.1 静态币种列表 (Static)
+### 1.1 Static Coin List
 
 ```go
 // decision/engine.go:395-403
@@ -90,11 +92,11 @@ if config.CoinSource.SourceType == "static" {
 }
 ```
 
-- **配置:** `StrategyConfig.CoinSource.StaticCoins`
-- **用途:** 手动指定交易币种
-- **标签:** `["static"]`
+- **Config:** `StrategyConfig.CoinSource.StaticCoins`
+- **Usage:** Manually specify trading coins
+- **Tag:** `["static"]`
 
-### 1.2 AI500 币种池 (CoinPool)
+### 1.2 AI500 Coin Pool
 
 ```go
 // decision/engine.go:405-406, 456-474
@@ -110,11 +112,11 @@ func (e *StrategyEngine) getCoinPoolCoins(limit int) []CandidateCoin {
 }
 ```
 
-- **API:** `config.CoinSource.CoinPoolAPIURL` (默认: `http://nofxaios.com:30006/api/ai500/list`)
-- **用途:** 获取 AI 评分最高的 N 个币种
-- **标签:** `["ai500"]`
+- **API:** `config.CoinSource.CoinPoolAPIURL`
+- **Usage:** Get top N coins by AI rating
+- **Tag:** `["ai500"]`
 
-### 1.3 OI Top 币种 (持仓增长榜)
+### 1.3 OI Top Coins (Position Growth Ranking)
 
 ```go
 // decision/engine.go:408-409, 476-498
@@ -131,39 +133,39 @@ func (e *StrategyEngine) getOITopCoins() []CandidateCoin {
 ```
 
 - **API:** `config.CoinSource.OITopAPIURL`
-- **用途:** 获取持仓量增长最快的币种
-- **标签:** `["oi_top"]`
+- **Usage:** Get coins with fastest OI growth
+- **Tag:** `["oi_top"]`
 
-### 1.4 混合模式 (Mixed)
+### 1.4 Mixed Mode
 
 ```go
 // decision/engine.go:411-449
 if config.CoinSource.SourceType == "mixed" {
     if config.CoinSource.UseCoinPool {
-        // 添加 AI500 币种
+        // Add AI500 coins
     }
     if config.CoinSource.UseOITop {
-        // 添加 OI Top 币种
+        // Add OI Top coins
     }
     if len(config.CoinSource.StaticCoins) > 0 {
-        // 添加静态币种
+        // Add static coins
     }
-    // 去重合并，保留多来源标签
+    // Deduplicate and merge, keep multi-source tags
 }
 ```
 
-- **特点:** 同时使用多个数据源
-- **标签示例:** `["ai500", "oi_top"]` (双信号币种)
+- **Feature:** Use multiple data sources simultaneously
+- **Tag Example:** `["ai500", "oi_top"]` (dual signal coin)
 
 ---
 
-## 2. 数据组装 (Data Assembly)
+## 2. Data Assembly
 
-**核心文件:** `trader/auto_trader.go:562-791`, `decision/engine.go:299-374`
+**Core File:** `trader/auto_trader.go:562-791`, `decision/engine.go:299-374`
 
-**入口方法:** `AutoTrader.buildTradingContext()`
+**Entry Method:** `AutoTrader.buildTradingContext()`
 
-### 2.1 账户数据
+### 2.1 Account Data
 
 ```go
 // trader/auto_trader.go:565-583
@@ -173,12 +175,12 @@ available := balance["available_balance"].(float64)
 unrealizedPnL := balance["total_pnl"].(float64)
 ```
 
-**提取字段:**
-- `total_equity` - 账户总权益
-- `available_balance` - 可用余额
-- `total_pnl` - 未实现盈亏
+**Extracted Fields:**
+- `total_equity` - Total account equity
+- `available_balance` - Available balance
+- `total_pnl` - Unrealized PnL
 
-### 2.2 持仓数据
+### 2.2 Position Data
 
 ```go
 // trader/auto_trader.go:588-682
@@ -197,7 +199,7 @@ for _, pos := range positions {
 }
 ```
 
-### 2.3 市场数据获取
+### 2.3 Market Data Fetching
 
 ```go
 // decision/engine.go:299-374
@@ -213,69 +215,69 @@ func (e *StrategyEngine) fetchMarketDataWithStrategy(symbols []string) map[strin
 }
 ```
 
-### 2.4 技术指标计算
+### 2.4 Technical Indicator Calculation
 
-**文件:** `market/data.go:59-98`
+**File:** `market/data.go:59-98`
 
-| 指标 | 配置 | 计算方法 |
-|------|------|----------|
+| Indicator | Config | Calculation |
+|-----------|--------|-------------|
 | **EMA** | `EnableEMA`, `EMAPeriods` | `calculateEMA(klines, period)` |
 | **MACD** | `EnableMACD` | `calculateMACD(klines)` - 12/26/9 |
 | **RSI** | `EnableRSI`, `RSIPeriods` | `calculateRSI(klines, period)` |
 | **ATR** | `EnableATR`, `ATRPeriods` | `calculateATR(klines, period)` |
-| **Volume** | `EnableVolume` | 原始成交量数据 |
-| **OI** | `EnableOI` | 持仓量数据 |
-| **Funding Rate** | `EnableFundingRate` | 资金费率 |
+| **Volume** | `EnableVolume` | Raw volume data |
+| **OI** | `EnableOI` | Open interest data |
+| **Funding Rate** | `EnableFundingRate` | Funding rate |
 
-### 2.5 量化数据 (可选)
+### 2.5 Quant Data (Optional)
 
 ```go
 // trader/auto_trader.go:759-778
 if config.Indicators.EnableQuantData {
     quantData := provider.GetQuantData(symbol)
-    // 包含: 资金流向、OI变化、价格变化
+    // Contains: Capital flow, OI changes, Price changes
 }
 ```
 
-**数据结构:**
+**Data Structure:**
 ```go
 QuantData {
     Netflow {
-        Institution: {Future, Spot},  // 机构资金流
-        Personal: {Future, Spot}      // 散户资金流
+        Institution: {Future, Spot},  // Institutional flow
+        Personal: {Future, Spot}      // Retail flow
     },
     OI {
         CurrentOI: float64,
-        Delta: {1h, 4h, 24h}          // OI变化
+        Delta: {1h, 4h, 24h}          // OI changes
     },
     PriceChange {
-        "1h", "4h", "24h": float64    // 价格变化百分比
+        "1h", "4h", "24h": float64    // Price change %
     }
 }
 ```
 
 ---
 
-## 3. 系统提示词 (System Prompt)
+## 3. System Prompt
 
-**核心文件:** `decision/engine.go:700-818`
+**Core File:** `decision/engine.go:700-818`
 
-**入口方法:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
+**Entry Method:** `StrategyEngine.BuildSystemPrompt(accountEquity, variant)`
 
-### 3.1 提示词结构 (8个部分)
+### 3.1 Prompt Structure (8 Sections)
 
 ```
-1. 角色定义          [可编辑]
-2. 交易模式变体      [运行时确定]
-3. 硬性约束          [代码强制 + AI引导]
-4. 交易频率          [可编辑]
-5. 入场标准          [可编辑]
-6. 决策流程          [可编辑]
-7. 输出格式          [固定XML + JSON结构]
-8. 自定义提示词      [可选]
+1. Role Definition          [Editable]
+2. Trading Mode Variant     [Runtime determined]
+3. Hard Constraints         [Code enforced + AI guided]
+4. Trading Frequency        [Editable]
+5. Entry Standards          [Editable]
+6. Decision Process         [Editable]
+7. Output Format            [Fixed XML + JSON structure]
+8. Custom Prompt            [Optional]
 ```
 
-### 3.2 角色定义
+### 3.2 Role Definition
 
 ```go
 // decision/engine.go:706-713
@@ -285,41 +287,41 @@ if roleDefinition == "" {
 }
 ```
 
-### 3.3 交易模式变体
+### 3.3 Trading Mode Variants
 
-| 模式 | 特点 |
-|------|------|
-| `aggressive` | 趋势突破，较高仓位容忍度 |
-| `conservative` | 多信号确认，保守资金管理 |
-| `scalping` | 短线动量，紧止盈 |
+| Mode | Characteristics |
+|------|-----------------|
+| `aggressive` | Trend breakout, higher position tolerance |
+| `conservative` | Multi-signal confirmation, conservative money management |
+| `scalping` | Short-term momentum, tight take-profit |
 
-### 3.4 硬性约束
+### 3.4 Hard Constraints
 
-**代码强制执行 (CODE ENFORCED):**
+**Code Enforced:**
 
 ```go
 // decision/engine.go:725-749
-maxPositions := config.RiskControl.MaxPositions           // 默认: 3
-altcoinMaxRatio := config.RiskControl.AltcoinMaxPositionValueRatio  // 默认: 1.0
-btcethMaxRatio := config.RiskControl.BTCETHMaxPositionValueRatio    // 默认: 5.0
-maxMarginUsage := config.RiskControl.MaxMarginUsage       // 默认: 90%
-minPositionSize := config.RiskControl.MinPositionSize     // 默认: 12 USDT
+maxPositions := config.RiskControl.MaxPositions           // Default: 3
+altcoinMaxRatio := config.RiskControl.AltcoinMaxPositionValueRatio  // Default: 1.0
+btcethMaxRatio := config.RiskControl.BTCETHMaxPositionValueRatio    // Default: 5.0
+maxMarginUsage := config.RiskControl.MaxMarginUsage       // Default: 90%
+minPositionSize := config.RiskControl.MinPositionSize     // Default: 12 USDT
 ```
 
-**AI引导 (建议值):**
+**AI Guided (Suggested Values):**
 
 ```go
-altcoinMaxLeverage := config.RiskControl.AltcoinMaxLeverage  // 默认: 5x
-btcethMaxLeverage := config.RiskControl.BTCETHMaxLeverage    // 默认: 5x
-minRiskRewardRatio := config.RiskControl.MinRiskRewardRatio  // 默认: 1:3
-minConfidence := config.RiskControl.MinConfidence            // 默认: 75
+altcoinMaxLeverage := config.RiskControl.AltcoinMaxLeverage  // Default: 5x
+btcethMaxLeverage := config.RiskControl.BTCETHMaxLeverage    // Default: 5x
+minRiskRewardRatio := config.RiskControl.MinRiskRewardRatio  // Default: 1:3
+minConfidence := config.RiskControl.MinConfidence            // Default: 75
 ```
 
-### 3.5 输出格式要求
+### 3.5 Output Format Requirements
 
 ```xml
 <reasoning>
-[思维链分析过程]
+[Chain of Thought analysis process]
 </reasoning>
 
 <decision>
@@ -343,32 +345,32 @@ minConfidence := config.RiskControl.MinConfidence            // 默认: 75
 
 ---
 
-## 4. 用户提示词 (User Prompt)
+## 4. User Prompt
 
-**核心文件:** `decision/engine.go:884-1007`
+**Core File:** `decision/engine.go:884-1007`
 
-**入口方法:** `StrategyEngine.BuildUserPrompt(ctx)`
+**Entry Method:** `StrategyEngine.BuildUserPrompt(ctx)`
 
-### 4.1 提示词内容结构
+### 4.1 Prompt Content Structure
 
 ```
-1. 系统状态          [时间, 周期号, 运行时长]
-2. BTC市场概览      [价格, 涨跌幅, MACD, RSI]
-3. 账户信息          [权益, 余额%, 盈亏%, 保证金%, 持仓数]
-4. 最近成交          [最近10笔已平仓交易]
-5. 当前持仓          [详细持仓数据 + 技术指标]
-6. 候选币种          [完整市场数据]
-7. 量化数据          [资金流向, OI数据] (可选)
-8. OI排行数据        [市场OI变化排行] (可选)
+1. System Status           [Time, cycle number, runtime]
+2. BTC Market Overview     [Price, change%, MACD, RSI]
+3. Account Info            [Equity, balance%, PnL%, margin%, positions]
+4. Recent Trades           [Last 10 closed trades]
+5. Current Positions       [Detailed position data + indicators]
+6. Candidate Coins         [Full market data]
+7. Quant Data              [Capital flow, OI data] (optional)
+8. OI Ranking Data         [Market OI change ranking] (optional)
 ```
 
-### 4.2 账户信息格式
+### 4.2 Account Info Format
 
 ```
 Account: Equity 1000.00 | Balance 800.00 (80.0%) | PnL +5.5% | Margin 20.0% | Positions 2
 ```
 
-### 4.3 持仓信息格式
+### 4.3 Position Info Format
 
 ```
 1. BTCUSDT LONG | Entry 68000.0000 Current 69500.0000
@@ -383,7 +385,7 @@ Account: Equity 1000.00 | Balance 800.00 (80.0%) | PnL +5.5% | Margin 20.0% | Po
    Funding Rate: 0.0100%
 ```
 
-### 4.4 候选币种格式
+### 4.4 Candidate Coin Format
 
 ```
 ### 1. ETHUSDT (AI500+OI_Top dual signal)
@@ -406,11 +408,11 @@ RSI7: [55.0, 56.2, 57.1, 57.8, 58.0]
 
 ---
 
-## 5. AI请求 (AI Request)
+## 5. AI Request
 
-**核心文件:** `decision/engine.go:222-293`, `mcp/client.go:136-150`
+**Core File:** `decision/engine.go:222-293`, `mcp/client.go:136-150`
 
-### 5.1 请求流程
+### 5.1 Request Flow
 
 ```go
 // decision/engine.go:263-268
@@ -419,10 +421,10 @@ aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 aiCallDuration := time.Since(aiCallStart)
 ```
 
-### 5.2 支持的AI模型
+### 5.2 Supported AI Models
 
-| 模型 | 客户端文件 | 默认模型 |
-|------|-----------|----------|
+| Model | Client File | Default Model |
+|-------|-------------|---------------|
 | **DeepSeek** | `mcp/deepseek_client.go` | deepseek-chat |
 | **Qwen** | `mcp/qwen_client.go` | qwen-max |
 | **Claude** | `mcp/claude_client.go` | claude-3-5-sonnet |
@@ -431,7 +433,7 @@ aiCallDuration := time.Since(aiCallStart)
 | **OpenAI** | `mcp/openai_client.go` | gpt-5.2 |
 | **Kimi** | `mcp/kimi_client.go` | moonshot-v1-8k |
 
-### 5.3 请求参数
+### 5.3 Request Parameters
 
 ```go
 // mcp/client.go
@@ -442,164 +444,164 @@ RetryDelay: 2 seconds (exponential backoff)
 
 ---
 
-## 6. AI响应解析 (Response Parsing)
+## 6. AI Response Parsing
 
-**核心文件:** `decision/engine.go:1303-1604`
+**Core File:** `decision/engine.go:1303-1604`
 
-**入口方法:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
+**Entry Method:** `parseFullDecisionResponse(response, accountEquity, leverage, ratio)`
 
-### 6.1 解析流程
+### 6.1 Parsing Flow
 
 ```
-原始AI响应 (文本)
+Raw AI Response (text)
     ↓
-1. 提取思维链  [extractCoTTrace()]
+1. Extract Chain of Thought  [extractCoTTrace()]
     ↓
-2. 提取JSON决策  [extractDecisions()]
+2. Extract JSON Decision     [extractDecisions()]
     ↓
-3. 验证JSON格式  [validateJSONFormat()]
+3. Validate JSON Format      [validateJSONFormat()]
     ↓
-4. 解析JSON  [json.Unmarshal()]
+4. Parse JSON                [json.Unmarshal()]
     ↓
-5. 验证决策  [validateDecisions()]
+5. Validate Decisions        [validateDecisions()]
     ↓
-6. 构建FullDecision  [返回结构化结果]
+6. Build FullDecision        [Return structured result]
 ```
 
-### 6.2 思维链提取
+### 6.2 Chain of Thought Extraction
 
 ```go
 // decision/engine.go:1327-1345
 func extractCoTTrace(response string) string {
-    // 优先级1: <reasoning> XML标签
+    // Priority 1: <reasoning> XML tag
     if match := reReasoningTag.FindStringSubmatch(response); len(match) > 1 {
         return strings.TrimSpace(match[1])
     }
-    // 优先级2: <decision>标签之前的文本
-    // 优先级3: JSON [ 之前的文本
-    // 优先级4: 完整响应
+    // Priority 2: Text before <decision> tag
+    // Priority 3: Text before JSON [
+    // Priority 4: Full response
 }
 ```
 
-### 6.3 JSON决策提取
+### 6.3 JSON Decision Extraction
 
 ```go
 // decision/engine.go:1347-1408
 func extractDecisions(response string) (string, error) {
-    // 1. 移除不可见字符
+    // 1. Remove invisible characters
     response = removeInvisibleRunes(response)
 
-    // 2. 修复字符编码
+    // 2. Fix character encoding
     response = fixMissingQuotes(response)
 
-    // 3. 提取JSON (优先级)
-    //    - <decision> XML标签 + ```json
-    //    - 独立 ```json 代码块
-    //    - 裸JSON数组
+    // 3. Extract JSON (priority)
+    //    - <decision> XML tag + ```json
+    //    - Standalone ```json code block
+    //    - Bare JSON array
 }
 ```
 
-### 6.4 字符编码修复
+### 6.4 Character Encoding Fix
 
 ```go
 // decision/engine.go:1410-1432
 func fixMissingQuotes(s string) string {
-    // 中文引号 → ASCII
+    // Chinese quotes → ASCII
     s = strings.ReplaceAll(s, """, "\"")
     s = strings.ReplaceAll(s, """, "\"")
 
-    // 中文括号 → ASCII
+    // Chinese brackets → ASCII
     s = strings.ReplaceAll(s, "［", "[")
     s = strings.ReplaceAll(s, "］", "]")
     s = strings.ReplaceAll(s, "｛", "{")
     s = strings.ReplaceAll(s, "｝", "}")
 
-    // 中文标点 → ASCII
+    // Chinese punctuation → ASCII
     s = strings.ReplaceAll(s, "：", ":")
     s = strings.ReplaceAll(s, "，", ",")
 }
 ```
 
-### 6.5 决策验证
+### 6.5 Decision Validation
 
 ```go
 // decision/engine.go:1480-1602
 func validateDecisions(decisions []Decision, equity, leverage, ratio float64) error {
     for _, d := range decisions {
-        // 1. 验证action类型
+        // 1. Validate action type
         validActions := []string{"open_long", "open_short", "close_long", "close_short", "hold", "wait"}
 
-        // 2. 开仓验证
+        // 2. Open position validation
         if isOpenAction(d.Action) {
-            // 杠杆范围检查
-            // 仓位大小检查
-            // 止损止盈检查
-            // 风险回报比检查
-            // 置信度检查
+            // Leverage range check
+            // Position size check
+            // Stop loss/take profit check
+            // Risk/reward ratio check
+            // Confidence check
         }
 
-        // 3. 平仓验证
+        // 3. Close position validation
         if isCloseAction(d.Action) {
-            // Symbol必须存在
+            // Symbol must exist
         }
     }
 }
 ```
 
-### 6.6 Decision结构体
+### 6.6 Decision Structure
 
 ```go
 // decision/engine.go:128-143
 type Decision struct {
-    Symbol          string   // 交易对: "BTCUSDT"
+    Symbol          string   // Trading pair: "BTCUSDT"
     Action          string   // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-    Leverage        int      // 杠杆倍数
-    PositionSizeUSD float64  // 仓位价值 (USDT)
-    StopLoss        float64  // 止损价格
-    TakeProfit      float64  // 止盈价格
-    Confidence      int      // 置信度 0-100
-    RiskUSD         float64  // 最大风险 (USDT)
-    Reasoning       string   // 决策理由
+    Leverage        int      // Leverage multiplier
+    PositionSizeUSD float64  // Position value (USDT)
+    StopLoss        float64  // Stop loss price
+    TakeProfit      float64  // Take profit price
+    Confidence      int      // Confidence 0-100
+    RiskUSD         float64  // Max risk (USDT)
+    Reasoning       string   // Decision reasoning
 }
 ```
 
 ---
 
-## 7. 决策执行 (Execution)
+## 7. Decision Execution
 
-**核心文件:** `trader/auto_trader.go:392-560`
+**Core File:** `trader/auto_trader.go:392-560`
 
-### 7.1 决策排序
+### 7.1 Decision Sorting
 
 ```go
 // trader/auto_trader.go:519-526
 sort.SliceStable(decisions, func(i, j int) bool {
     priority := map[string]int{
-        "close_long": 1, "close_short": 1,  // 最高优先级
-        "open_long": 2, "open_short": 2,    // 次优先级
-        "hold": 3, "wait": 3,               // 最低优先级
+        "close_long": 1, "close_short": 1,  // Highest priority
+        "open_long": 2, "open_short": 2,    // Second priority
+        "hold": 3, "wait": 3,               // Lowest priority
     }
     return priority[decisions[i].Action] < priority[decisions[j].Action]
 })
 ```
 
-### 7.2 风控强制执行
+### 7.2 Risk Control Enforcement
 
-**文件:** `trader/auto_trader.go:1769-1851`
+**File:** `trader/auto_trader.go:1769-1851`
 
-| 检查项 | 方法 | 动作 |
-|--------|------|------|
-| 最大持仓数 | `enforceMaxPositions()` | 拒绝新开仓 |
-| 仓位价值上限 | `enforcePositionValueRatio()` | 自动缩减仓位 |
-| 最小仓位 | `enforceMinPositionSize()` | 拒绝过小订单 |
-| 保证金调整 | 自动计算 | 根据可用余额调整 |
+| Check | Method | Action |
+|-------|--------|--------|
+| Max positions | `enforceMaxPositions()` | Reject new opens |
+| Position value cap | `enforcePositionValueRatio()` | Auto reduce size |
+| Min position | `enforceMinPositionSize()` | Reject small orders |
+| Margin adjustment | Auto calculate | Adjust by available balance |
 
-### 7.3 订单执行
+### 7.3 Order Execution
 
 ```go
 // trader/auto_trader.go:1631-1767
 func (at *AutoTrader) recordAndConfirmOrder(orderID, symbol, side, action string) {
-    // 1. 轮询订单状态 (5次重试, 500ms间隔)
+    // 1. Poll order status (5 retries, 500ms interval)
     for i := 0; i < 5; i++ {
         status := at.trader.GetOrderStatus(orderID)
         if status.Status == "FILLED" {
@@ -608,17 +610,17 @@ func (at *AutoTrader) recordAndConfirmOrder(orderID, symbol, side, action string
         time.Sleep(500 * time.Millisecond)
     }
 
-    // 2. 提取成交信息
+    // 2. Extract fill info
     filledPrice := status.AvgPrice
     filledQty := status.FilledQty
     fee := status.Fee
 
-    // 3. 记录到数据库
+    // 3. Record to database
     at.store.Position().SaveOrder(...)
 }
 ```
 
-### 7.4 决策日志保存
+### 7.4 Decision Log Saving
 
 ```go
 // trader/auto_trader.go:1235-1256
@@ -626,62 +628,62 @@ record := &store.DecisionRecord{
     CycleNumber:    cycleNumber,
     TraderID:       traderID,
     Timestamp:      time.Now(),
-    SystemPrompt:   systemPrompt,     // 完整系统提示词
-    InputPrompt:    userPrompt,       // 完整用户提示词
-    CoTTrace:       cotTrace,         // AI思维链
-    DecisionJSON:   decisionsJSON,    // 解析后的决策
-    RawResponse:    rawResponse,      // 原始AI响应
-    ExecutionLog:   executionResults, // 执行结果
-    CandidateCoins: candidateCoins,   // 候选币种
-    Success:        success,          // 执行状态
+    SystemPrompt:   systemPrompt,     // Full system prompt
+    InputPrompt:    userPrompt,       // Full user prompt
+    CoTTrace:       cotTrace,         // AI chain of thought
+    DecisionJSON:   decisionsJSON,    // Parsed decisions
+    RawResponse:    rawResponse,      // Raw AI response
+    ExecutionLog:   executionResults, // Execution results
+    CandidateCoins: candidateCoins,   // Candidate coins
+    Success:        success,          // Execution status
 }
 at.store.Decision().LogDecision(record)
 ```
 
 ---
 
-## 核心文件索引
+## Core File Index
 
-| 模块 | 文件 | 关键方法 |
-|------|------|----------|
-| **主循环** | `trader/auto_trader.go` | `Run()`, `runCycle()`, `buildTradingContext()` |
-| **币种选择** | `decision/engine.go:380-454` | `GetCandidateCoins()` |
-| **数据获取** | `market/data.go` | `Get()`, `GetWithTimeframes()` |
-| **指标计算** | `market/data.go:59-98` | `calculateEMA()`, `calculateMACD()`, `calculateRSI()` |
-| **系统提示词** | `decision/engine.go:700-818` | `BuildSystemPrompt()` |
-| **用户提示词** | `decision/engine.go:884-1007` | `BuildUserPrompt()` |
-| **市场数据格式化** | `decision/engine.go:1029-1099` | `formatMarketData()` |
-| **AI请求** | `decision/engine.go:222-293` | `GetFullDecisionWithStrategy()` |
-| **MCP客户端** | `mcp/client.go:136-150` | `CallWithMessages()` |
-| **响应解析** | `decision/engine.go:1303-1604` | `parseFullDecisionResponse()` |
-| **思维链提取** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
-| **JSON提取** | `decision/engine.go:1347-1408` | `extractDecisions()` |
-| **决策验证** | `decision/engine.go:1480-1602` | `validateDecisions()` |
-| **风控执行** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
-| **策略配置** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
-| **数据提供者** | `provider/data_provider.go` | `GetAI500Data()`, `GetOITopPositions()` |
+| Module | File | Key Methods |
+|--------|------|-------------|
+| **Main Loop** | `trader/auto_trader.go` | `Run()`, `runCycle()`, `buildTradingContext()` |
+| **Coin Selection** | `decision/engine.go:380-454` | `GetCandidateCoins()` |
+| **Data Fetching** | `market/data.go` | `Get()`, `GetWithTimeframes()` |
+| **Indicator Calc** | `market/data.go:59-98` | `calculateEMA()`, `calculateMACD()`, `calculateRSI()` |
+| **System Prompt** | `decision/engine.go:700-818` | `BuildSystemPrompt()` |
+| **User Prompt** | `decision/engine.go:884-1007` | `BuildUserPrompt()` |
+| **Market Format** | `decision/engine.go:1029-1099` | `formatMarketData()` |
+| **AI Request** | `decision/engine.go:222-293` | `GetFullDecisionWithStrategy()` |
+| **MCP Client** | `mcp/client.go:136-150` | `CallWithMessages()` |
+| **Response Parse** | `decision/engine.go:1303-1604` | `parseFullDecisionResponse()` |
+| **CoT Extract** | `decision/engine.go:1327-1345` | `extractCoTTrace()` |
+| **JSON Extract** | `decision/engine.go:1347-1408` | `extractDecisions()` |
+| **Decision Valid** | `decision/engine.go:1480-1602` | `validateDecisions()` |
+| **Risk Enforce** | `trader/auto_trader.go:1769-1851` | `enforceMaxPositions()`, `enforcePositionValueRatio()` |
+| **Strategy Config** | `store/strategy.go` | `StrategyConfig`, `RiskControlConfig` |
+| **Data Provider** | `provider/data_provider.go` | `GetAI500Data()`, `GetOITopPositions()` |
 
 ---
 
-## 配置参考
+## Configuration Reference
 
-### 策略配置结构
+### Strategy Config Structure
 
 ```go
 // store/strategy.go
 type StrategyConfig struct {
-    // 币种来源
+    // Coin Source
     CoinSource struct {
         SourceType     string   // "static", "coinpool", "oi_top", "mixed"
-        StaticCoins    []string // 静态币种列表
-        UseCoinPool    bool     // 是否使用AI500
-        UseOITop       bool     // 是否使用OI排行
-        CoinPoolLimit  int      // AI500获取数量
-        CoinPoolAPIURL string   // AI500 API地址
-        OITopAPIURL    string   // OI排行 API地址
+        StaticCoins    []string // Static coin list
+        UseCoinPool    bool     // Use AI500
+        UseOITop       bool     // Use OI ranking
+        CoinPoolLimit  int      // AI500 fetch limit
+        CoinPoolAPIURL string   // AI500 API URL
+        OITopAPIURL    string   // OI ranking API URL
     }
 
-    // 技术指标
+    // Technical Indicators
     Indicators struct {
         EnableEMA         bool
         EMAPeriods        []int   // [20, 50]
@@ -703,20 +705,20 @@ type StrategyConfig struct {
         }
     }
 
-    // 风控配置
+    // Risk Control
     RiskControl struct {
-        MaxPositions               int     // 最大持仓数
-        BTCETHMaxLeverage          int     // BTC/ETH最大杠杆
-        AltcoinMaxLeverage         int     // 山寨币最大杠杆
-        BTCETHMaxPositionValueRatio float64 // BTC/ETH仓位比例上限
-        AltcoinMaxPositionValueRatio float64 // 山寨币仓位比例上限
-        MaxMarginUsage             float64 // 最大保证金使用率
-        MinPositionSize            float64 // 最小仓位
-        MinRiskRewardRatio         float64 // 最小风险回报比
-        MinConfidence              int     // 最小置信度
+        MaxPositions               int     // Max positions
+        BTCETHMaxLeverage          int     // BTC/ETH max leverage
+        AltcoinMaxLeverage         int     // Altcoin max leverage
+        BTCETHMaxPositionValueRatio float64 // BTC/ETH position ratio cap
+        AltcoinMaxPositionValueRatio float64 // Altcoin position ratio cap
+        MaxMarginUsage             float64 // Max margin usage
+        MinPositionSize            float64 // Min position size
+        MinRiskRewardRatio         float64 // Min risk/reward ratio
+        MinConfidence              int     // Min confidence
     }
 
-    // 提示词部分
+    // Prompt Sections
     PromptSections struct {
         RoleDefinition   string
         TradingFrequency string
@@ -724,12 +726,12 @@ type StrategyConfig struct {
         DecisionProcess  string
     }
 
-    // 自定义提示词
+    // Custom Prompt
     CustomPrompt string
 }
 ```
 
 ---
 
-**文档版本:** 1.0.0
-**最后更新:** 2025-01-15
+**Document Version:** 1.0.0
+**Last Updated:** 2025-01-15

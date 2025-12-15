@@ -393,6 +393,19 @@ sudo apt-get install libta-lib0-dev
 
 ---
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[Architecture Overview](docs/architecture/README.md)** | System design and module index |
+| **[Strategy Module](docs/architecture/STRATEGY_MODULE.md)** | Coin selection, data assembly, AI prompts, execution |
+| **[Backtest Module](docs/architecture/BACKTEST_MODULE.md)** | Historical simulation, metrics, checkpoint/resume |
+| **[Debate Module](docs/architecture/DEBATE_MODULE.md)** | Multi-AI debate, voting consensus, auto-execution |
+| **[FAQ](docs/faq/README.md)** | Frequently asked questions |
+| **[Getting Started](docs/getting-started/README.md)** | Deployment guide |
+
+---
+
 ## License
 
 This project is licensed under **GNU Affero General Public License v3.0 (AGPL-3.0)** - See [LICENSE](LICENSE) file.

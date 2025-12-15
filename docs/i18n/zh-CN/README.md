@@ -362,6 +362,19 @@ sudo apt-get install libta-lib0-dev
 
 ---
 
+## 文档
+
+| 文档 | 描述 |
+|------|------|
+| **[架构概览](../../architecture/README.zh-CN.md)** | 系统设计和模块索引 |
+| **[策略模块](../../architecture/STRATEGY_MODULE.md)** | 币种选择、数据组装、AI 提示词、执行 |
+| **[回测模块](../../architecture/BACKTEST_MODULE.md)** | 历史模拟、指标计算、断点续测 |
+| **[辩论模块](../../architecture/DEBATE_MODULE.md)** | 多 AI 辩论、投票共识、自动执行 |
+| **[常见问题](../../faq/README.md)** | FAQ |
+| **[快速开始](../../getting-started/README.zh-CN.md)** | 部署指南 |
+
+---
+
 ## 许可证
 
 本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0)** 许可 - 详见 [LICENSE](../../../LICENSE) 文件。

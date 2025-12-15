@@ -17,6 +17,11 @@ func TestMlionFetcher_FetchNews(t *testing.T) {
 			return
 		}
 
+		// Verify Query Param (New)
+		if r.URL.Query().Get("is_hot") != "Y" {
+			t.Errorf("Expected query param is_hot=Y, got %s", r.URL.Query().Get("is_hot"))
+		}
+
 		// Return Mock JSON
 		response := `{
 			"code": 200,

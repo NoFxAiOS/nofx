@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -48,11 +49,15 @@ func (m *MlionFetcher) Name() string {
 
 // FetchNews 从 Mlion 获取新闻
 func (m *MlionFetcher) FetchNews(category string) ([]Article, error) {
-	// Mlion API doesn't filter by category in this endpoint, 
-	// but we can pass it if we want to filter locally.
-	// For now, we fetch all and tag them.
-	
-	req, err := http.NewRequest("GET", m.baseURL, nil)
+	// 动态添加 is_hot=Y 参数
+	url := m.baseURL
+	if strings.Contains(url, "?") {
+		url += "&is_hot=Y"
+	} else {
+		url += "?is_hot=Y"
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -93,8 +98,6 @@ func (m *MlionFetcher) FetchNews(category string) ([]Article, error) {
 			// Try adding simple recovery or skip
 			continue
 		}
-        // Adjust if it turns out to be a specific timezone. 
-        // For now, we treat the string as UTC representation.
 
 		article := Article{
 			ID:       item.NewsID,

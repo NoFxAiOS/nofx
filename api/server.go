@@ -14,6 +14,7 @@ import (
 	"nofx/manager"
 	"nofx/store"
 	"nofx/trader"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1898,7 +1899,7 @@ func (s *Server) handleDecisions(c *gin.Context) {
 	c.JSON(http.StatusOK, records)
 }
 
-// handleLatestDecisions Latest decision logs (most recent 5, newest first)
+// handleLatestDecisions Latest decision logs (newest first, supports limit parameter)
 func (s *Server) handleLatestDecisions(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
@@ -1912,7 +1913,18 @@ func (s *Server) handleLatestDecisions(c *gin.Context) {
 		return
 	}
 
-	records, err := trader.GetStore().Decision().GetLatestRecords(trader.GetID(), 5)
+	// Get limit from query parameter, default to 5
+	limit := 5
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+			if limit > 100 {
+				limit = 100 // Max 100 to prevent abuse
+			}
+		}
+	}
+
+	records, err := trader.GetStore().Decision().GetLatestRecords(trader.GetID(), limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": fmt.Sprintf("Failed to get decision log: %v", err),

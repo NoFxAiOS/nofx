@@ -2,6 +2,8 @@ github.com/StackExchange/wmi v1.2.1 h1:VIkavFPXSjcnS+O8yTq7NI32k0R5Aj+v39y29VYDO
 github.com/StackExchange/wmi v1.2.1/go.mod h1:rcmrprowKIVzvc+NUiLncP2uuArMWLCbu9SBzvHz7e8=
 github.com/adshao/go-binance/v2 v2.8.7 h1:n7jkhwIHMdtd/9ZU2gTqFV15XVSbUCjyFlOUAtTd8uU=
 github.com/adshao/go-binance/v2 v2.8.7/go.mod h1:XkkuecSyJKPolaCGf/q4ovJYB3t0P+7RUYTbGr+LMGM=
+github.com/adshao/go-binance/v2 v2.8.9 h1:NX+4u/LgEmrjTS7OMWU+9ZgfHKFM61RPhnr9/SqWPhc=
+github.com/adshao/go-binance/v2 v2.8.9/go.mod h1:XkkuecSyJKPolaCGf/q4ovJYB3t0P+7RUYTbGr+LMGM=
 github.com/agiledragon/gomonkey/v2 v2.13.0 h1:B24Jg6wBI1iB8EFR1c+/aoTg7QN/Cum7YffG8KMIyYo=
 github.com/agiledragon/gomonkey/v2 v2.13.0/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
 github.com/armon/go-radix v1.0.0 h1:F4z6KzEeeQIMeLFa97iZU6vupzoecKdU5TX24SNppXI=

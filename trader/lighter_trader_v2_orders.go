@@ -14,44 +14,46 @@ import (
 )
 
 // SetStopLoss Set stop-loss order (implements Trader interface)
+// IMPORTANT: Uses StopLossOrder type (type=2) with TriggerPrice, NOT regular limit order
 func (t *LighterTraderV2) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	if t.txClient == nil {
 		return fmt.Errorf("TxClient not initialized")
 	}
 
-	logger.Infof("🛑 LIGHTER Setting stop-loss: %s %s qty=%.4f, stop=%.2f", symbol, positionSide, quantity, stopPrice)
+	logger.Infof("🛑 LIGHTER Setting stop-loss: %s %s qty=%.4f, trigger=%.2f", symbol, positionSide, quantity, stopPrice)
 
-	// Determine order direction (short position uses buy order, long position uses sell order)
+	// Determine order direction (long position uses sell order, short position uses buy order)
 	isAsk := (positionSide == "LONG" || positionSide == "long")
 
-	// Create limit stop-loss order
-	_, err := t.CreateOrder(symbol, isAsk, quantity, stopPrice, "limit")
+	// Create stop-loss order with TriggerPrice (type=2: StopLossOrder)
+	_, err := t.CreateStopOrder(symbol, isAsk, quantity, stopPrice, "stop_loss")
 	if err != nil {
 		return fmt.Errorf("failed to set stop-loss: %w", err)
 	}
 
-	logger.Infof("✓ LIGHTER stop-loss set: %.2f", stopPrice)
+	logger.Infof("✓ LIGHTER stop-loss set: trigger=%.2f", stopPrice)
 	return nil
 }
 
 // SetTakeProfit Set take-profit order (implements Trader interface)
+// IMPORTANT: Uses TakeProfitOrder type (type=4) with TriggerPrice, NOT regular limit order
 func (t *LighterTraderV2) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	if t.txClient == nil {
 		return fmt.Errorf("TxClient not initialized")
 	}
 
-	logger.Infof("🎯 LIGHTER Setting take-profit: %s %s qty=%.4f, tp=%.2f", symbol, positionSide, quantity, takeProfitPrice)
+	logger.Infof("🎯 LIGHTER Setting take-profit: %s %s qty=%.4f, trigger=%.2f", symbol, positionSide, quantity, takeProfitPrice)
 
-	// Determine order direction (short position uses buy order, long position uses sell order)
+	// Determine order direction (long position uses sell order, short position uses buy order)
 	isAsk := (positionSide == "LONG" || positionSide == "long")
 
-	// Create limit take-profit order
-	_, err := t.CreateOrder(symbol, isAsk, quantity, takeProfitPrice, "limit")
+	// Create take-profit order with TriggerPrice (type=4: TakeProfitOrder)
+	_, err := t.CreateStopOrder(symbol, isAsk, quantity, takeProfitPrice, "take_profit")
 	if err != nil {
 		return fmt.Errorf("failed to set take-profit: %w", err)
 	}
 
-	logger.Infof("✓ LIGHTER take-profit set: %.2f", takeProfitPrice)
+	logger.Infof("✓ LIGHTER take-profit set: trigger=%.2f", takeProfitPrice)
 	return nil
 }
 

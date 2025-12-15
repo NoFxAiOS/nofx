@@ -23,18 +23,23 @@ func (t *LighterTraderV2) OpenLong(symbol string, quantity float64, leverage int
 
 	logger.Infof("📈 LIGHTER opening long: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
 
-	// 1. Set leverage (if needed)
+	// 1. First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("⚠️  Failed to cancel old pending orders: %v", err)
+	}
+
+	// 2. Set leverage (if needed)
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		logger.Infof("⚠️  Failed to set leverage: %v", err)
 	}
 
-	// 2. Get market price
+	// 3. Get market price
 	marketPrice, err := t.GetMarketPrice(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get market price: %w", err)
 	}
 
-	// 3. Create market buy order (open long)
+	// 4. Create market buy order (open long)
 	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open long: %w", err)
@@ -59,18 +64,23 @@ func (t *LighterTraderV2) OpenShort(symbol string, quantity float64, leverage in
 
 	logger.Infof("📉 LIGHTER opening short: %s, qty=%.4f, leverage=%dx", symbol, quantity, leverage)
 
-	// 1. Set leverage
+	// 1. First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("⚠️  Failed to cancel old pending orders: %v", err)
+	}
+
+	// 2. Set leverage
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		logger.Infof("⚠️  Failed to set leverage: %v", err)
 	}
 
-	// 2. Get market price
+	// 3. Get market price
 	marketPrice, err := t.GetMarketPrice(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get market price: %w", err)
 	}
 
-	// 3. Create market sell order (open short)
+	// 4. Create market sell order (open short)
 	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open short: %w", err)
@@ -561,6 +571,107 @@ func (t *LighterTraderV2) SetMarginMode(symbol string, isCrossMargin bool) error
 
 	// TODO: Sign and submit SetMarginMode transaction using SDK
 	return nil
+}
+
+// CreateStopOrder Create stop-loss or take-profit order with TriggerPrice
+// Order types: "stop_loss" (type=2), "take_profit" (type=4)
+func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity float64, triggerPrice float64, orderType string) (map[string]interface{}, error) {
+	if t.txClient == nil {
+		return nil, fmt.Errorf("TxClient not initialized")
+	}
+
+	// Get market index
+	marketIndexU16, err := t.getMarketIndex(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get market index: %w", err)
+	}
+	marketIndex := uint8(marketIndexU16)
+
+	// Build order request
+	clientOrderIndex := time.Now().UnixMilli() % 281474976710655
+
+	// Order type: StopLossOrder=2, TakeProfitOrder=4
+	var orderTypeValue uint8 = 2 // Default: StopLossOrder
+	if orderType == "take_profit" {
+		orderTypeValue = 4 // TakeProfitOrder
+	}
+
+	// Convert quantity to base amount
+	sizeDecimals := 4
+	normalizedSymbol := normalizeSymbol(symbol)
+	switch normalizedSymbol {
+	case "BTC":
+		sizeDecimals = 5
+	case "SOL":
+		sizeDecimals = 3
+	case "ETH":
+		sizeDecimals = 4
+	}
+	baseAmount := int64(quantity * float64(pow10(sizeDecimals)))
+
+	// TriggerPrice: price precision is 2 decimals (multiply by 100)
+	triggerPriceValue := uint32(triggerPrice * 1e2)
+
+	// For stop orders, Price should be set to a reasonable execution price
+	// Stop-loss sell: price slightly below trigger (95% of trigger)
+	// Take-profit sell: price slightly below trigger (95% of trigger)
+	// Stop-loss buy: price slightly above trigger (105% of trigger)
+	// Take-profit buy: price slightly above trigger (105% of trigger)
+	var priceValue uint32
+	if isAsk {
+		// Sell order - set price at 95% of trigger to ensure execution
+		priceValue = uint32(triggerPrice * 0.95 * 1e2)
+	} else {
+		// Buy order - set price at 105% of trigger to ensure execution
+		priceValue = uint32(triggerPrice * 1.05 * 1e2)
+	}
+
+	// Stop orders use GoodTillTime with expiry
+	orderExpiry := time.Now().Add(30 * 24 * time.Hour).UnixMilli() // 30 days
+
+	txReq := &types.CreateOrderTxReq{
+		MarketIndex:      marketIndex,
+		ClientOrderIndex: clientOrderIndex,
+		BaseAmount:       baseAmount,
+		Price:            priceValue,
+		IsAsk:            boolToUint8(isAsk),
+		Type:             orderTypeValue,
+		TimeInForce:      1, // GoodTillTime
+		ReduceOnly:       1, // Stop orders should be reduce-only
+		TriggerPrice:     triggerPriceValue,
+		OrderExpiry:      orderExpiry,
+	}
+
+	// Sign transaction
+	nonce := int64(-1)
+	tx, err := t.txClient.GetCreateOrderTransaction(txReq, &types.TransactOpts{
+		Nonce: &nonce,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign stop order: %w", err)
+	}
+
+	// Get tx_info
+	txInfo, err := tx.GetTxInfo()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tx info: %w", err)
+	}
+
+	logger.Infof("DEBUG stop order - type: %d, trigger: %.2f, price: %.2f, isAsk: %v", orderTypeValue, triggerPrice, float64(priceValue)/100, isAsk)
+
+	// Submit order
+	orderResp, err := t.submitOrder(int(tx.GetTxType()), txInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to submit stop order: %w", err)
+	}
+
+	side := "buy"
+	if isAsk {
+		side = "sell"
+	}
+	logger.Infof("✓ LIGHTER %s order created: %s %s qty=%.4f trigger=%.2f", orderType, symbol, side, quantity, triggerPrice)
+
+	return orderResp, nil
 }
 
 // boolToUint8 Convert boolean to uint8

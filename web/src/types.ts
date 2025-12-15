@@ -46,11 +46,14 @@ export interface DecisionAction {
   quantity: number
   leverage: number
   price: number
+  stop_loss?: number      // Stop loss price
+  take_profit?: number    // Take profit price
+  confidence?: number     // AI confidence (0-100)
+  reasoning?: string      // Brief reasoning
   order_id: number
   timestamp: string
   success: boolean
   error?: string
-  reasoning?: string
 }
 
 export interface AccountSnapshot {

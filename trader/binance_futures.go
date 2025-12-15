@@ -534,38 +534,64 @@ func (t *FuturesTrader) CloseShort(symbol string, quantity float64) (map[string]
 }
 
 // CancelStopLossOrders cancels only stop-loss orders (doesn't affect take-profit orders)
+// Now uses both legacy API and new Algo Order API
 func (t *FuturesTrader) CancelStopLossOrders(symbol string) error {
-	// Get all open orders for this symbol
+	canceledCount := 0
+	var cancelErrors []error
+
+	// 1. Cancel legacy stop-loss orders
 	orders, err := t.client.NewListOpenOrdersService().
 		Symbol(symbol).
 		Do(context.Background())
 
-	if err != nil {
-		return fmt.Errorf("failed to get open orders: %w", err)
+	if err == nil {
+		for _, order := range orders {
+			orderType := string(order.Type)
+
+			// Only cancel stop-loss orders (don't cancel take-profit orders)
+			// Use string comparison since OrderType constants were removed in v2.8.9
+			if orderType == "STOP_MARKET" || orderType == "STOP" {
+				_, err := t.client.NewCancelOrderService().
+					Symbol(symbol).
+					OrderID(order.OrderID).
+					Do(context.Background())
+
+				if err != nil {
+					errMsg := fmt.Sprintf("Order ID %d: %v", order.OrderID, err)
+					cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
+					logger.Infof("  ⚠ Failed to cancel legacy stop-loss order: %s", errMsg)
+					continue
+				}
+
+				canceledCount++
+				logger.Infof("  ✓ Canceled legacy stop-loss order (Order ID: %d, Type: %s, Side: %s)", order.OrderID, orderType, order.PositionSide)
+			}
+		}
 	}
 
-	// Filter out stop-loss orders and cancel them (cancel all directions including LONG and SHORT)
-	canceledCount := 0
-	var cancelErrors []error
-	for _, order := range orders {
-		orderType := order.Type
+	// 2. Cancel Algo stop-loss orders
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
 
-		// Only cancel stop-loss orders (don't cancel take-profit orders)
-		if orderType == futures.OrderTypeStopMarket || orderType == futures.OrderTypeStop {
-			_, err := t.client.NewCancelOrderService().
-				Symbol(symbol).
-				OrderID(order.OrderID).
-				Do(context.Background())
+	if err == nil {
+		for _, algoOrder := range algoOrders {
+			// Only cancel stop-loss orders
+			if algoOrder.OrderType == futures.AlgoOrderTypeStopMarket || algoOrder.OrderType == futures.AlgoOrderTypeStop {
+				_, err := t.client.NewCancelAlgoOrderService().
+					AlgoID(algoOrder.AlgoId).
+					Do(context.Background())
 
-			if err != nil {
-				errMsg := fmt.Sprintf("Order ID %d: %v", order.OrderID, err)
-				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
-				logger.Infof("  ⚠ Failed to cancel stop-loss order: %s", errMsg)
-				continue
+				if err != nil {
+					errMsg := fmt.Sprintf("Algo ID %d: %v", algoOrder.AlgoId, err)
+					cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
+					logger.Infof("  ⚠ Failed to cancel Algo stop-loss order: %s", errMsg)
+					continue
+				}
+
+				canceledCount++
+				logger.Infof("  ✓ Canceled Algo stop-loss order (Algo ID: %d, Type: %s)", algoOrder.AlgoId, algoOrder.OrderType)
 			}
-
-			canceledCount++
-			logger.Infof("  ✓ Canceled stop-loss order (Order ID: %d, Type: %s, Side: %s)", order.OrderID, orderType, order.PositionSide)
 		}
 	}
 
@@ -584,38 +610,64 @@ func (t *FuturesTrader) CancelStopLossOrders(symbol string) error {
 }
 
 // CancelTakeProfitOrders cancels only take-profit orders (doesn't affect stop-loss orders)
+// Now uses both legacy API and new Algo Order API
 func (t *FuturesTrader) CancelTakeProfitOrders(symbol string) error {
-	// Get all open orders for this symbol
+	canceledCount := 0
+	var cancelErrors []error
+
+	// 1. Cancel legacy take-profit orders
 	orders, err := t.client.NewListOpenOrdersService().
 		Symbol(symbol).
 		Do(context.Background())
 
-	if err != nil {
-		return fmt.Errorf("failed to get open orders: %w", err)
+	if err == nil {
+		for _, order := range orders {
+			orderType := string(order.Type)
+
+			// Only cancel take-profit orders (don't cancel stop-loss orders)
+			// Use string comparison since OrderType constants were removed in v2.8.9
+			if orderType == "TAKE_PROFIT_MARKET" || orderType == "TAKE_PROFIT" {
+				_, err := t.client.NewCancelOrderService().
+					Symbol(symbol).
+					OrderID(order.OrderID).
+					Do(context.Background())
+
+				if err != nil {
+					errMsg := fmt.Sprintf("Order ID %d: %v", order.OrderID, err)
+					cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
+					logger.Infof("  ⚠ Failed to cancel legacy take-profit order: %s", errMsg)
+					continue
+				}
+
+				canceledCount++
+				logger.Infof("  ✓ Canceled legacy take-profit order (Order ID: %d, Type: %s, Side: %s)", order.OrderID, orderType, order.PositionSide)
+			}
+		}
 	}
 
-	// Filter out take-profit orders and cancel them (cancel all directions including LONG and SHORT)
-	canceledCount := 0
-	var cancelErrors []error
-	for _, order := range orders {
-		orderType := order.Type
+	// 2. Cancel Algo take-profit orders
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
 
-		// Only cancel take-profit orders (don't cancel stop-loss orders)
-		if orderType == futures.OrderTypeTakeProfitMarket || orderType == futures.OrderTypeTakeProfit {
-			_, err := t.client.NewCancelOrderService().
-				Symbol(symbol).
-				OrderID(order.OrderID).
-				Do(context.Background())
+	if err == nil {
+		for _, algoOrder := range algoOrders {
+			// Only cancel take-profit orders
+			if algoOrder.OrderType == futures.AlgoOrderTypeTakeProfitMarket || algoOrder.OrderType == futures.AlgoOrderTypeTakeProfit {
+				_, err := t.client.NewCancelAlgoOrderService().
+					AlgoID(algoOrder.AlgoId).
+					Do(context.Background())
 
-			if err != nil {
-				errMsg := fmt.Sprintf("Order ID %d: %v", order.OrderID, err)
-				cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
-				logger.Infof("  ⚠ Failed to cancel take-profit order: %s", errMsg)
-				continue
+				if err != nil {
+					errMsg := fmt.Sprintf("Algo ID %d: %v", algoOrder.AlgoId, err)
+					cancelErrors = append(cancelErrors, fmt.Errorf("%s", errMsg))
+					logger.Infof("  ⚠ Failed to cancel Algo take-profit order: %s", errMsg)
+					continue
+				}
+
+				canceledCount++
+				logger.Infof("  ✓ Canceled Algo take-profit order (Algo ID: %d, Type: %s)", algoOrder.AlgoId, algoOrder.OrderType)
 			}
-
-			canceledCount++
-			logger.Infof("  ✓ Canceled take-profit order (Order ID: %d, Type: %s, Side: %s)", order.OrderID, orderType, order.PositionSide)
 		}
 	}
 
@@ -634,61 +686,91 @@ func (t *FuturesTrader) CancelTakeProfitOrders(symbol string) error {
 }
 
 // CancelAllOrders cancels all pending orders for this symbol
+// Now uses both legacy API and new Algo Order API
 func (t *FuturesTrader) CancelAllOrders(symbol string) error {
+	// 1. Cancel all legacy orders
 	err := t.client.NewCancelAllOpenOrdersService().
 		Symbol(symbol).
 		Do(context.Background())
 
 	if err != nil {
-		return fmt.Errorf("failed to cancel pending orders: %w", err)
+		logger.Infof("  ⚠ Failed to cancel legacy orders: %v", err)
+	} else {
+		logger.Infof("  ✓ Canceled all legacy pending orders for %s", symbol)
 	}
 
-	logger.Infof("  ✓ Canceled all pending orders for %s", symbol)
-	return nil
-}
-
-// CancelStopOrders cancels take-profit/stop-loss orders for this symbol (used to adjust TP/SL positions)
-func (t *FuturesTrader) CancelStopOrders(symbol string) error {
-	// Get all open orders for this symbol
-	orders, err := t.client.NewListOpenOrdersService().
+	// 2. Cancel all Algo orders
+	err = t.client.NewCancelAllAlgoOpenOrdersService().
 		Symbol(symbol).
 		Do(context.Background())
 
 	if err != nil {
-		return fmt.Errorf("failed to get open orders: %w", err)
+		// Ignore "no algo orders" error
+		if !contains(err.Error(), "no algo") && !contains(err.Error(), "No algo") {
+			logger.Infof("  ⚠ Failed to cancel Algo orders: %v", err)
+		}
+	} else {
+		logger.Infof("  ✓ Canceled all Algo orders for %s", symbol)
 	}
 
-	// Filter out take-profit and stop-loss orders and cancel them
+	return nil
+}
+
+// CancelStopOrders cancels take-profit/stop-loss orders for this symbol (used to adjust TP/SL positions)
+// Now uses both legacy API and new Algo Order API (Binance migrated stop orders to Algo system)
+func (t *FuturesTrader) CancelStopOrders(symbol string) error {
 	canceledCount := 0
-	for _, order := range orders {
-		orderType := order.Type
 
-		// Only cancel stop-loss and take-profit orders
-		if orderType == futures.OrderTypeStopMarket ||
-			orderType == futures.OrderTypeTakeProfitMarket ||
-			orderType == futures.OrderTypeStop ||
-			orderType == futures.OrderTypeTakeProfit {
+	// 1. Cancel legacy stop orders (for backward compatibility)
+	orders, err := t.client.NewListOpenOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
 
-			_, err := t.client.NewCancelOrderService().
-				Symbol(symbol).
-				OrderID(order.OrderID).
-				Do(context.Background())
+	if err == nil {
+		for _, order := range orders {
+			orderType := string(order.Type)
 
-			if err != nil {
-				logger.Infof("  ⚠ Failed to cancel order %d: %v", order.OrderID, err)
-				continue
+			// Only cancel stop-loss and take-profit orders
+			// Use string comparison since OrderType constants were removed in v2.8.9
+			if orderType == "STOP_MARKET" ||
+				orderType == "TAKE_PROFIT_MARKET" ||
+				orderType == "STOP" ||
+				orderType == "TAKE_PROFIT" {
+
+				_, err := t.client.NewCancelOrderService().
+					Symbol(symbol).
+					OrderID(order.OrderID).
+					Do(context.Background())
+
+				if err != nil {
+					logger.Infof("  ⚠ Failed to cancel legacy order %d: %v", order.OrderID, err)
+					continue
+				}
+
+				canceledCount++
+				logger.Infof("  ✓ Canceled legacy stop order for %s (Order ID: %d, Type: %s)",
+					symbol, order.OrderID, orderType)
 			}
-
-			canceledCount++
-			logger.Infof("  ✓ Canceled take-profit/stop-loss order for %s (Order ID: %d, Type: %s)",
-				symbol, order.OrderID, orderType)
 		}
+	}
+
+	// 2. Cancel Algo orders (new API)
+	err = t.client.NewCancelAllAlgoOpenOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err != nil {
+		// Ignore "no algo orders" error
+		if !contains(err.Error(), "no algo") && !contains(err.Error(), "No algo") {
+			logger.Infof("  ⚠ Failed to cancel Algo orders: %v", err)
+		}
+	} else {
+		logger.Infof("  ✓ Canceled all Algo orders for %s", symbol)
+		canceledCount++
 	}
 
 	if canceledCount == 0 {
 		logger.Infof("  ℹ %s has no take-profit/stop-loss orders to cancel", symbol)
-	} else {
-		logger.Infof("  ✓ Canceled %d take-profit/stop-loss order(s) for %s", canceledCount, symbol)
 	}
 
 	return nil
@@ -721,7 +803,8 @@ func (t *FuturesTrader) CalculatePositionSize(balance, riskPercent, price float6
 	return quantity
 }
 
-// SetStopLoss sets stop-loss order
+// SetStopLoss sets stop-loss order using new Algo Order API
+// Binance has migrated stop orders to Algo Order system (error -4120 STOP_ORDER_SWITCH_ALGO)
 func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
@@ -734,33 +817,28 @@ func (t *FuturesTrader) SetStopLoss(symbol string, positionSide string, quantity
 		posSide = futures.PositionSideTypeShort
 	}
 
-	// Format quantity
-	quantityStr, err := t.FormatQuantity(symbol, quantity)
-	if err != nil {
-		return err
-	}
-
-	_, err = t.client.NewCreateOrderService().
+	// Use new Algo Order API
+	_, err := t.client.NewCreateAlgoOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(posSide).
-		Type(futures.OrderTypeStopMarket).
-		StopPrice(fmt.Sprintf("%.8f", stopPrice)).
-		Quantity(quantityStr).
+		Type(futures.AlgoOrderTypeStopMarket).
+		TriggerPrice(fmt.Sprintf("%.8f", stopPrice)).
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
-		NewClientOrderID(getBrOrderID()).
+		ClientAlgoId(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
 		return fmt.Errorf("failed to set stop-loss: %w", err)
 	}
 
-	logger.Infof("  Stop-loss price set: %.4f", stopPrice)
+	logger.Infof("  Stop-loss price set (Algo Order): %.4f", stopPrice)
 	return nil
 }
 
-// SetTakeProfit sets take-profit order
+// SetTakeProfit sets take-profit order using new Algo Order API
+// Binance has migrated stop orders to Algo Order system (error -4120 STOP_ORDER_SWITCH_ALGO)
 func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	var side futures.SideType
 	var posSide futures.PositionSideType
@@ -773,29 +851,23 @@ func (t *FuturesTrader) SetTakeProfit(symbol string, positionSide string, quanti
 		posSide = futures.PositionSideTypeShort
 	}
 
-	// Format quantity
-	quantityStr, err := t.FormatQuantity(symbol, quantity)
-	if err != nil {
-		return err
-	}
-
-	_, err = t.client.NewCreateOrderService().
+	// Use new Algo Order API
+	_, err := t.client.NewCreateAlgoOrderService().
 		Symbol(symbol).
 		Side(side).
 		PositionSide(posSide).
-		Type(futures.OrderTypeTakeProfitMarket).
-		StopPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
-		Quantity(quantityStr).
+		Type(futures.AlgoOrderTypeTakeProfitMarket).
+		TriggerPrice(fmt.Sprintf("%.8f", takeProfitPrice)).
 		WorkingType(futures.WorkingTypeContractPrice).
 		ClosePosition(true).
-		NewClientOrderID(getBrOrderID()).
+		ClientAlgoId(getBrOrderID()).
 		Do(context.Background())
 
 	if err != nil {
 		return fmt.Errorf("failed to set take-profit: %w", err)
 	}
 
-	logger.Infof("  Take-profit price set: %.4f", takeProfitPrice)
+	logger.Infof("  Take-profit price set (Algo Order): %.4f", takeProfitPrice)
 	return nil
 }
 

@@ -56,16 +56,20 @@ type PositionSnapshot struct {
 }
 
 // DecisionAction decision action
-type DecisionAction struct{
-	Action    string    `json:"action"`
-	Symbol    string    `json:"symbol"`
-	Quantity  float64   `json:"quantity"`
-	Leverage  int       `json:"leverage"`
-	Price     float64   `json:"price"`
-	OrderID   int64     `json:"order_id"`
-	Timestamp time.Time `json:"timestamp"`
-	Success   bool      `json:"success"`
-	Error     string    `json:"error"`
+type DecisionAction struct {
+	Action     string    `json:"action"`
+	Symbol     string    `json:"symbol"`
+	Quantity   float64   `json:"quantity"`
+	Leverage   int       `json:"leverage"`
+	Price      float64   `json:"price"`
+	StopLoss   float64   `json:"stop_loss,omitempty"`   // Stop loss price
+	TakeProfit float64   `json:"take_profit,omitempty"` // Take profit price
+	Confidence int       `json:"confidence,omitempty"`  // AI confidence (0-100)
+	Reasoning  string    `json:"reasoning,omitempty"`   // Brief reasoning
+	OrderID    int64     `json:"order_id"`
+	Timestamp  time.Time `json:"timestamp"`
+	Success    bool      `json:"success"`
+	Error      string    `json:"error"`
 }
 
 // Statistics statistics information
@@ -113,6 +117,9 @@ func (s *DecisionStore) initTables() error {
 	// Migration: add raw_response column if not exists
 	s.db.Exec(`ALTER TABLE decision_records ADD COLUMN raw_response TEXT DEFAULT ''`)
 
+	// Migration: add decisions column if not exists
+	s.db.Exec(`ALTER TABLE decision_records ADD COLUMN decisions TEXT DEFAULT '[]'`)
+
 	return nil
 }
 
@@ -124,22 +131,23 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		record.Timestamp = record.Timestamp.UTC()
 	}
 
-	// Serialize candidate coins and execution log to JSON
+	// Serialize candidate coins, execution log and decisions to JSON
 	candidateCoinsJSON, _ := json.Marshal(record.CandidateCoins)
 	executionLogJSON, _ := json.Marshal(record.ExecutionLog)
+	decisionsJSON, _ := json.Marshal(record.Decisions)
 
 	// Insert decision record main table (only save AI decision related content)
 	result, err := s.db.Exec(`
 		INSERT INTO decision_records (
 			trader_id, cycle_number, timestamp, system_prompt, input_prompt,
 			cot_trace, decision_json, raw_response, candidate_coins, execution_log,
-			success, error_message, ai_request_duration_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			decisions, success, error_message, ai_request_duration_ms
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		record.TraderID, record.CycleNumber, record.Timestamp.Format(time.RFC3339),
 		record.SystemPrompt, record.InputPrompt, record.CoTTrace, record.DecisionJSON,
 		record.RawResponse, string(candidateCoinsJSON), string(executionLogJSON),
-		record.Success, record.ErrorMessage, record.AIRequestDurationMs,
+		string(decisionsJSON), record.Success, record.ErrorMessage, record.AIRequestDurationMs,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert decision record: %w", err)
@@ -159,7 +167,7 @@ func (s *DecisionStore) GetLatestRecords(traderID string, n int) ([]*DecisionRec
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, cycle_number, timestamp, system_prompt, input_prompt,
 			   cot_trace, decision_json, candidate_coins, execution_log,
-			   success, error_message, ai_request_duration_ms
+			   COALESCE(decisions, '[]'), success, error_message, ai_request_duration_ms
 		FROM decision_records
 		WHERE trader_id = ?
 		ORDER BY timestamp DESC
@@ -197,7 +205,7 @@ func (s *DecisionStore) GetAllLatestRecords(n int) ([]*DecisionRecord, error) {
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, cycle_number, timestamp, system_prompt, input_prompt,
 			   cot_trace, decision_json, candidate_coins, execution_log,
-			   success, error_message, ai_request_duration_ms
+			   COALESCE(decisions, '[]'), success, error_message, ai_request_duration_ms
 		FROM decision_records
 		ORDER BY timestamp DESC
 		LIMIT ?
@@ -231,7 +239,7 @@ func (s *DecisionStore) GetRecordsByDate(traderID string, date time.Time) ([]*De
 	rows, err := s.db.Query(`
 		SELECT id, trader_id, cycle_number, timestamp, system_prompt, input_prompt,
 			   cot_trace, decision_json, candidate_coins, execution_log,
-			   success, error_message, ai_request_duration_ms
+			   COALESCE(decisions, '[]'), success, error_message, ai_request_duration_ms
 		FROM decision_records
 		WHERE trader_id = ? AND DATE(timestamp) = ?
 		ORDER BY timestamp ASC
@@ -338,13 +346,13 @@ func (s *DecisionStore) GetLastCycleNumber(traderID string) (int, error) {
 func (s *DecisionStore) scanDecisionRecord(rows *sql.Rows) (*DecisionRecord, error) {
 	var record DecisionRecord
 	var timestampStr string
-	var candidateCoinsJSON, executionLogJSON string
+	var candidateCoinsJSON, executionLogJSON, decisionsJSON string
 
 	err := rows.Scan(
 		&record.ID, &record.TraderID, &record.CycleNumber, &timestampStr,
 		&record.SystemPrompt, &record.InputPrompt, &record.CoTTrace,
 		&record.DecisionJSON, &candidateCoinsJSON, &executionLogJSON,
-		&record.Success, &record.ErrorMessage, &record.AIRequestDurationMs,
+		&decisionsJSON, &record.Success, &record.ErrorMessage, &record.AIRequestDurationMs,
 	)
 	if err != nil {
 		return nil, err
@@ -353,6 +361,7 @@ func (s *DecisionStore) scanDecisionRecord(rows *sql.Rows) (*DecisionRecord, err
 	record.Timestamp, _ = time.Parse(time.RFC3339, timestampStr)
 	json.Unmarshal([]byte(candidateCoinsJSON), &record.CandidateCoins)
 	json.Unmarshal([]byte(executionLogJSON), &record.ExecutionLog)
+	json.Unmarshal([]byte(decisionsJSON), &record.Decisions)
 
 	return &record, nil
 }

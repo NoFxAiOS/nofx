@@ -280,6 +280,15 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	logger.Infof("[Bybit] ===== OpenLong called: symbol=%s, qty=%.6f, leverage=%d =====", symbol, quantity, leverage)
 
+	// First cancel all pending orders for this symbol (clean up old orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("⚠️ [Bybit] Failed to cancel old pending orders: %v", err)
+	}
+	// Also cancel conditional orders (stop-loss/take-profit) - Bybit keeps them separate
+	if err := t.CancelStopOrders(symbol); err != nil {
+		logger.Infof("⚠️ [Bybit] Failed to cancel old stop orders: %v", err)
+	}
+
 	// Set leverage first
 	if err := t.SetLeverage(symbol, leverage); err != nil {
 		logger.Infof("⚠️ [Bybit] Failed to set leverage: %v", err)
@@ -313,6 +322,15 @@ func (t *BybitTrader) OpenLong(symbol string, quantity float64, leverage int) (m
 // OpenShort opens a short position
 func (t *BybitTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	logger.Infof("[Bybit] ===== OpenShort called: symbol=%s, qty=%.6f, leverage=%d =====", symbol, quantity, leverage)
+
+	// First cancel all pending orders for this symbol (clean up old orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("⚠️ [Bybit] Failed to cancel old pending orders: %v", err)
+	}
+	// Also cancel conditional orders (stop-loss/take-profit) - Bybit keeps them separate
+	if err := t.CancelStopOrders(symbol); err != nil {
+		logger.Infof("⚠️ [Bybit] Failed to cancel old stop orders: %v", err)
+	}
 
 	// Set leverage first
 	if err := t.SetLeverage(symbol, leverage); err != nil {

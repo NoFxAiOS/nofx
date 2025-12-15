@@ -3,7 +3,7 @@ module nofx
 go 1.25.0
 
 require (
-	github.com/adshao/go-binance/v2 v2.8.7
+	github.com/adshao/go-binance/v2 v2.8.9
 	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/ethereum/go-ethereum v1.16.5
 	github.com/gin-gonic/gin v1.11.0

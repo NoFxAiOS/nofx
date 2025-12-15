@@ -528,13 +528,17 @@ func (at *AutoTrader) runCycle() error {
 	// Execute decisions and record results
 	for _, d := range sortedDecisions {
 		actionRecord := store.DecisionAction{
-			Action:    d.Action,
-			Symbol:    d.Symbol,
-			Quantity:  0,
-			Leverage:  d.Leverage,
-			Price:     0,
-			Timestamp: time.Now(),
-			Success:   false,
+			Action:     d.Action,
+			Symbol:     d.Symbol,
+			Quantity:   0,
+			Leverage:   d.Leverage,
+			Price:      0,
+			StopLoss:   d.StopLoss,
+			TakeProfit: d.TakeProfit,
+			Confidence: d.Confidence,
+			Reasoning:  d.Reasoning,
+			Timestamp:  time.Now(),
+			Success:    false,
 		}
 
 		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
@@ -816,9 +820,13 @@ func (at *AutoTrader) ExecuteDecision(d *decision.Decision) error {
 
 	// Create a minimal action record for tracking
 	actionRecord := &store.DecisionAction{
-		Symbol:   d.Symbol,
-		Action:   d.Action,
-		Leverage: d.Leverage,
+		Symbol:     d.Symbol,
+		Action:     d.Action,
+		Leverage:   d.Leverage,
+		StopLoss:   d.StopLoss,
+		TakeProfit: d.TakeProfit,
+		Confidence: d.Confidence,
+		Reasoning:  d.Reasoning,
 	}
 
 	// Execute the decision

@@ -76,55 +76,84 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
       {
         timestamp: string
         time: string
-        traders: Map<string, { pnl_pct: number; equity: number }>
+        traders: Map<string, { pnl_pct: number; equity: number; originalTs?: string }>
       }
     >()
+
+    // Helper function to normalize timestamp to nearest minute
+    const normalizeTimestamp = (ts: string): string => {
+      const date = new Date(ts)
+      date.setSeconds(0, 0) // Round to minute
+      return date.toISOString()
+    }
 
     traderHistories.forEach((history, index) => {
       const trader = traders[index]
       if (!history.data) return
 
       history.data.forEach((point: any) => {
-        const ts = point.timestamp
+        // Normalize timestamp to nearest minute so different traders' data aligns
+        const normalizedTs = normalizeTimestamp(point.timestamp)
 
-        if (!timestampMap.has(ts)) {
-          const time = new Date(ts).toLocaleTimeString('zh-CN', {
+        if (!timestampMap.has(normalizedTs)) {
+          const time = new Date(normalizedTs).toLocaleTimeString('zh-CN', {
             hour: '2-digit',
             minute: '2-digit',
           })
-          timestampMap.set(ts, {
-            timestamp: ts,
+          timestampMap.set(normalizedTs, {
+            timestamp: normalizedTs,
             time,
             traders: new Map(),
           })
         }
 
-        timestampMap.get(ts)!.traders.set(trader.trader_id, {
-          pnl_pct: point.total_pnl_pct || 0,
-          equity: point.total_equity,
-        })
+        // Use latest value if multiple points fall in same minute
+        const existing = timestampMap.get(normalizedTs)!.traders.get(trader.trader_id)
+        if (!existing || new Date(point.timestamp) > new Date(existing.originalTs || '')) {
+          timestampMap.get(normalizedTs)!.traders.set(trader.trader_id, {
+            pnl_pct: point.total_pnl_pct || 0,
+            equity: point.total_equity,
+            originalTs: point.timestamp,
+          })
+        }
       })
     })
 
-    const combined = Array.from(timestampMap.entries())
+    const sortedEntries = Array.from(timestampMap.entries())
       .sort(([tsA], [tsB]) => new Date(tsA).getTime() - new Date(tsB).getTime())
-      .map(([ts, data], index) => {
-        const entry: any = {
-          index: index + 1,
-          time: data.time,
-          timestamp: ts,
-        }
 
-        traders.forEach((trader) => {
-          const traderData = data.traders.get(trader.trader_id)
-          if (traderData) {
-            entry[`${trader.trader_id}_pnl_pct`] = traderData.pnl_pct
-            entry[`${trader.trader_id}_equity`] = traderData.equity
+    // Track last known values for each trader to fill gaps
+    const lastKnown: Map<string, { pnl_pct: number; equity: number }> = new Map()
+
+    const combined = sortedEntries.map(([ts, data], index) => {
+      const entry: any = {
+        index: index + 1,
+        time: data.time,
+        timestamp: ts,
+      }
+
+      traders.forEach((trader) => {
+        const traderData = data.traders.get(trader.trader_id)
+        if (traderData) {
+          // Update last known value
+          lastKnown.set(trader.trader_id, {
+            pnl_pct: traderData.pnl_pct,
+            equity: traderData.equity,
+          })
+          entry[`${trader.trader_id}_pnl_pct`] = traderData.pnl_pct
+          entry[`${trader.trader_id}_equity`] = traderData.equity
+        } else {
+          // Use last known value to fill gap
+          const last = lastKnown.get(trader.trader_id)
+          if (last) {
+            entry[`${trader.trader_id}_pnl_pct`] = last.pnl_pct
+            entry[`${trader.trader_id}_equity`] = last.equity
           }
-        })
-
-        return entry
+        }
       })
+
+      return entry
+    })
 
     return combined
   }, [allTraderHistories, traders])
@@ -187,14 +216,15 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
 
     const minVal = Math.min(...allValues)
     const maxVal = Math.max(...allValues)
+    const range = maxVal - minVal
 
-    // Ensure zero is visible and add symmetric padding
-    const absMax = Math.max(Math.abs(maxVal), Math.abs(minVal), 0.5)
-    const padding = absMax * 0.3
+    // Use actual data range with 20% padding on each side
+    // This ensures both lines are clearly visible
+    const padding = Math.max(range * 0.2, 2) // At least 2% padding
 
     return [
-      Math.floor((Math.min(minVal, 0) - padding) * 10) / 10,
-      Math.ceil((Math.max(maxVal, 0) + padding) * 10) / 10
+      Math.floor((minVal - padding) * 10) / 10,
+      Math.ceil((maxVal + padding) * 10) / 10
     ]
   }
 

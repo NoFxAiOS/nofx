@@ -626,7 +626,8 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 		priceValue = uint32(triggerPrice * 1.05 * 1e2)
 	}
 
-	// Stop orders use GoodTillTime with expiry
+	// Stop orders MUST use ImmediateOrCancel (0) with expiry set
+	// Lighter SDK validates: StopLossOrder/TakeProfitOrder require TimeInForce=0 (ImmediateOrCancel)
 	orderExpiry := time.Now().Add(30 * 24 * time.Hour).UnixMilli() // 30 days
 
 	txReq := &types.CreateOrderTxReq{
@@ -636,7 +637,7 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 		Price:            priceValue,
 		IsAsk:            boolToUint8(isAsk),
 		Type:             orderTypeValue,
-		TimeInForce:      1, // GoodTillTime
+		TimeInForce:      0, // ImmediateOrCancel - REQUIRED for stop/take-profit orders!
 		ReduceOnly:       1, // Stop orders should be reduce-only
 		TriggerPrice:     triggerPriceValue,
 		OrderExpiry:      orderExpiry,

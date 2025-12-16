@@ -21,6 +21,19 @@ interface TradeOutcome {
   was_stop_loss: boolean;
 }
 
+interface Reflection {
+  id: string;
+  reflection_type: string;
+  severity: string;
+  problem_title: string;
+  problem_description: string;
+  root_cause: string;
+  recommended_action: string;
+  priority: number;
+  is_applied: boolean;
+  created_at: string;
+}
+
 interface SymbolPerformance {
   symbol: string;
   total_trades: number;
@@ -60,6 +73,12 @@ export default function AILearning({ traderId }: AILearningProps) {
       revalidateOnFocus: false,
       dedupingInterval: 20000,
     }
+  );
+
+  const { data: reflectionsData } = useSWR(
+    traderId ? `reflections-${traderId}` : null,
+    () => api.getReflections(traderId),
+    { refreshInterval: 30000 }
   );
 
   if (error) {
@@ -654,6 +673,41 @@ export default function AILearning({ traderId }: AILearningProps) {
           </div>
         </div>
       </div>
+
+      {/* AI 反思日志 */}
+      {reflectionsData?.reflections && reflectionsData.reflections.length > 0 && (
+        <div className="rounded-2xl p-6 backdrop-blur-sm" style={{
+          background: 'rgba(30, 35, 41, 0.4)',
+          border: '1px solid rgba(139, 92, 246, 0.2)'
+        }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Lightbulb className="w-6 h-6" style={{ color: '#A78BFA' }} />
+            <h3 className="font-bold text-lg" style={{ color: '#E0E7FF' }}>AI 学习反思日志</h3>
+          </div>
+          <div className="space-y-4">
+            {reflectionsData.reflections.map((ref: Reflection) => (
+              <div key={ref.id} className="p-4 rounded-xl border" style={{
+                borderColor: ref.severity === 'critical' ? 'rgba(248, 113, 113, 0.5)' : 'rgba(139, 92, 246, 0.3)',
+                background: 'rgba(0,0,0,0.2)'
+              }}>
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="font-bold text-base" style={{ color: '#E0E7FF' }}>{ref.problem_title}</h4>
+                  <span className="text-xs px-2 py-1 rounded" style={{
+                    background: ref.is_applied ? 'rgba(16, 185, 129, 0.2)' : 'rgba(240, 185, 11, 0.2)',
+                    color: ref.is_applied ? '#10B981' : '#FCD34D'
+                  }}>
+                    {ref.is_applied ? '已自动应用' : '待处理'}
+                  </span>
+                </div>
+                <p className="text-sm mb-2" style={{ color: '#94A3B8' }}>{ref.problem_description}</p>
+                <div className="text-sm p-2 rounded" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#A78BFA' }}>
+                  <strong>💡 改进建议:</strong> {ref.recommended_action}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI学习说明 - 现代化设计 */}
       <div className="rounded-2xl p-6 backdrop-blur-sm" style={{

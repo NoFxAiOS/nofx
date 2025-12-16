@@ -13,10 +13,10 @@ import (
         "strings"
         "time"
 
-        "github.com/google/uuid"
-        _ "github.com/lib/pq"
-)
-
+        	"github.com/google/uuid"
+        	_ "github.com/lib/pq"
+        	"nofx/database"
+        )
 // Database 配置数据库
 type Database struct {
         db *sql.DB
@@ -871,6 +871,19 @@ type UserSignalSource struct {
         UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// ParameterChangeRecord represents an entry in the parameter_change_history table.
+type ParameterChangeRecord struct {
+	ID            string
+	TraderID      string
+	ReflectionID  string
+	ParameterName string
+	OldValue      string
+	NewValue      string
+	ChangeReason  string
+	CreatedAt     time.Time
+}
+
+
 // GenerateOTPSecret 生成OTP密钥
 func GenerateOTPSecret() (string, error) {
         secret := make([]byte, 20)
@@ -1628,9 +1641,11 @@ func (d *Database) GetTraders(userID string) ([]*TraderRecord, error) {
 }
 
 // UpdateTraderStatus 更新交易员状态
-func (d *Database) UpdateTraderStatus(userID, id string, isRunning bool) error {
-        _, err := d.exec(`UPDATE traders SET is_running = ? WHERE id = ? AND user_id = ?`, isRunning, id, userID)
-        return err
+func (d *Database) UpdateTraderStatus(traderID string, isRunning bool) error {
+	_, err := d.exec(`
+		UPDATE traders SET is_running = $2 WHERE id = $1
+	`, traderID, isRunning)
+	return err
 }
 
 // UpdateTrader 更新交易员配置
@@ -2112,8 +2127,317 @@ func (d *Database) GetUserBetaCode(userID string) (string, error) {
         if err != nil {
                 return "", err
         }
-        if !betaCode.Valid {
-                return "", nil
-        }
-        return betaCode.String, nil
-}
+        	if !betaCode.Valid {
+        		return "", nil
+        	}
+        		return betaCode.String, nil
+        	}
+        	
+        	// GetTraderByID 获取指定ID的交易员
+        	func (d *Database) GetTraderByID(traderID string) (*TraderRecord, error) {
+        		var trader TraderRecord
+        		err := d.queryRow(`
+        			SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance,
+        			       btc_eth_leverage, altcoin_leverage, trading_symbols,
+        			       custom_prompt, override_base_prompt, system_prompt_template,
+        			       is_cross_margin, scan_interval_minutes, is_running
+        			FROM traders WHERE id = $1
+        		`, traderID).Scan(
+        			&trader.ID, &trader.UserID, &trader.Name, &trader.AIModelID, &trader.ExchangeID, &trader.InitialBalance,
+        			&trader.BTCETHLeverage, &trader.AltcoinLeverage, &trader.TradingSymbols,
+        			&trader.CustomPrompt, &trader.OverrideBasePrompt, &trader.SystemPromptTemplate,
+        			&trader.IsCrossMargin, &trader.ScanIntervalMinutes, &trader.IsRunning,
+        		)
+        		if err == sql.ErrNoRows {
+        			return nil, fmt.Errorf("trader %s not found", traderID)
+        		}
+        		if err != nil {
+        			return nil, fmt.Errorf("failed to get trader %s: %w", traderID, err)
+        		}
+        		return &trader, nil
+        	}
+        	
+        	// SaveParameterChange 保存参数变更记录
+        	
+        	func (d *Database) SaveParameterChange(change *ParameterChangeRecord) error {
+        	
+        		query := `
+        	
+        			INSERT INTO parameter_change_history 
+        	
+        			(id, trader_id, reflection_id, parameter_name, old_value, new_value, change_reason, created_at)
+        	
+        			VALUES (        	
+        	, $2, $3, $4, $5, $6, $7, $8)
+        	
+        		`
+        	
+        		_, err := d.exec(
+        	
+        			query,
+        	
+        			change.ID, change.TraderID, change.ReflectionID, change.ParameterName,
+        	
+        			change.OldValue, change.NewValue, change.ChangeReason, time.Now(),
+        	
+        		)
+        	
+        		if err != nil {
+        	
+        			return fmt.Errorf("failed to save parameter change: %w", err)
+        	
+        		}
+        	
+        		return nil
+        	
+        	}
+        	
+        	
+        	
+        	// UpdateReflectionAppliedStatus 更新反思记录的应用状态
+        	
+        	func (d *Database) UpdateReflectionAppliedStatus(reflectionID string, isApplied bool) error {
+        	
+        		_, err := d.exec(`
+        	
+        			UPDATE learning_reflections SET is_applied = $2, applied_at = $3 WHERE id =         	
+        	
+        	
+        		`, reflectionID, isApplied, time.Now())
+        	
+        		if err != nil {
+        	
+        			return fmt.Errorf("failed to update reflection status: %w", err)
+        	
+        		}
+        	
+        		return nil
+        	
+        	}
+        	
+        	
+        	
+        	// GetTradesInPeriod 获取指定时间段内的交易记录
+        	
+        	func (d *Database) GetTradesInPeriod(traderID string, startDate, endDate time.Time) ([]database.TradeRecord, error) {
+        	
+        		// 使用 database.NewTradeRepository 来复用查询逻辑
+        	
+        			repo := database.NewTradeRepository(d.db)
+        	
+        			return repo.GetTradesInPeriod(traderID, startDate, endDate)
+        	
+        		}
+        	
+        		
+        	
+        		// SaveReflection 保存反思记录
+        	
+        		
+        	
+        		func (d *Database) SaveReflection(r *ReflectionRecord) error {
+        	
+        		
+        	
+        			query := `
+        	
+        		
+        	
+        				INSERT INTO learning_reflections
+        	
+        		
+        	
+        				(id, trader_id, reflection_type, severity, problem_title, problem_description,
+        	
+        		
+        	
+        				 root_cause, recommended_action, priority, is_applied, created_at)
+        	
+        		
+        	
+        				VALUES (        	
+        		
+        	
+        		, $2, $3, $4, $5, $6, $7, $8, $9, false,         	
+        		
+        	
+        		0)
+        	
+        		
+        	
+        			`
+        	
+        		
+        	
+        			_, err := d.exec(query, r.ID, r.TraderID, r.ReflectionType, r.Severity, r.ProblemTitle,
+        	
+        		
+        	
+        				r.ProblemDescription, r.RootCause, r.RecommendedAction, r.Priority, time.Now())
+        	
+        		
+        	
+        			if err != nil {
+        	
+        		
+        	
+        				return fmt.Errorf("failed to save reflection: %w", err)
+        	
+        		
+        	
+        			}
+        	
+        		
+        	
+        			return nil
+        	
+        		
+        	
+        		}
+        	
+        		
+        	
+        		// GetActiveTraders 获取所有正在运行的交易员
+        	
+        		func (d *Database) GetActiveTraders() ([]*TraderRecord, error) {
+        	
+        			query := `
+        	
+        				SELECT id, user_id, name, ai_model_id, exchange_id, initial_balance,
+        	
+        				       btc_eth_leverage, altcoin_leverage, trading_symbols,
+        	
+        				       custom_prompt, override_base_prompt, system_prompt_template,
+        	
+        				       is_cross_margin, scan_interval_minutes, is_running
+        	
+        				FROM traders WHERE is_running = true
+        	
+        			`
+        	
+        			rows, err := d.db.Query(query)
+        	
+        			if err != nil {
+        	
+        				return nil, fmt.Errorf("failed to get active traders: %w", err)
+        	
+        			}
+        	
+        			defer rows.Close()
+        	
+        		
+        	
+        			var traders []*TraderRecord
+        	
+        			for rows.Next() {
+        	
+        				var t TraderRecord
+        	
+        				err := rows.Scan(
+        	
+        					&t.ID, &t.UserID, &t.Name, &t.AIModelID, &t.ExchangeID, &t.InitialBalance,
+        	
+        					&t.BTCETHLeverage, &t.AltcoinLeverage, &t.TradingSymbols,
+        	
+        					&t.CustomPrompt, &t.OverrideBasePrompt, &t.SystemPromptTemplate,
+        	
+        					&t.IsCrossMargin, &t.ScanIntervalMinutes, &t.IsRunning,
+        	
+        				)
+        	
+        				if err != nil {
+        	
+        					return nil, err
+        	
+        				}
+        	
+        				traders = append(traders, &t)
+        	
+        			}
+        	
+        			return traders, nil
+        	
+        		}
+        	
+        		
+        	
+        		// GetReflections 获取反思记录
+        	
+        		type ReflectionRecord struct {
+        	
+        			ID                  string    `json:"id"`
+        	
+        			TraderID            string    `json:"trader_id"`
+        	
+        			ReflectionType      string    `json:"reflection_type"`
+        	
+        			Severity            string    `json:"severity"`
+        	
+        			ProblemTitle        string    `json:"problem_title"`
+        	
+        			ProblemDescription  string    `json:"problem_description"`
+        	
+        			RootCause           string    `json:"root_cause"`
+        	
+        			RecommendedAction   string    `json:"recommended_action"`
+        	
+        			Priority            int       `json:"priority"`
+        	
+        			IsApplied           bool      `json:"is_applied"`
+        	
+        			CreatedAt           time.Time `json:"created_at"`
+        	
+        		}
+        	
+        		
+        	
+        		func (d *Database) GetReflections(traderID string) ([]ReflectionRecord, error) {
+        	
+        			query := `
+        	
+        				SELECT id, trader_id, reflection_type, severity, problem_title, problem_description,
+        	
+        				       root_cause, recommended_action, priority, is_applied, created_at
+        	
+		FROM learning_reflections
+		WHERE trader_id = $1
+		ORDER BY created_at DESC
+	`
+        	
+        			rows, err := d.db.Query(query, traderID)
+        	
+        			if err != nil {
+        	
+        				return nil, err
+        	
+        			}
+        	
+        			defer rows.Close()
+        	
+        		
+        	
+        			var results []ReflectionRecord
+        	
+        			for rows.Next() {
+        	
+        				var r ReflectionRecord
+        	
+        				if err := rows.Scan(
+        	
+        					&r.ID, &r.TraderID, &r.ReflectionType, &r.Severity, &r.ProblemTitle, &r.ProblemDescription,
+        	
+        					&r.RootCause, &r.RecommendedAction, &r.Priority, &r.IsApplied, &r.CreatedAt,
+        	
+        				); err != nil {
+        	
+        					return nil, err
+        	
+        				}
+        	
+        				results = append(results, r)
+        	
+        			}
+        	
+        			return results, nil
+        	
+        		}

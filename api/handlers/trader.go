@@ -380,7 +380,7 @@ func (h *BaseHandler) HandleStartTrader(c *gin.Context) {
 	}()
 
 	// 更新数据库中的运行状态
-	err = h.Database.UpdateTraderStatus(userID, traderID, true)
+	err = h.Database.UpdateTraderStatus(traderID, true)
 	if err != nil {
 		log.Printf("⚠️  更新交易员状态失败: %v", err)
 	}
@@ -447,7 +447,7 @@ func (h *BaseHandler) HandleStopTrader(c *gin.Context) {
 	trader.Stop()
 
 	// 更新数据库中的运行状态
-	err = h.Database.UpdateTraderStatus(userID, traderID, false)
+	err = h.Database.UpdateTraderStatus(traderID, false)
 	if err != nil {
 		log.Printf("⚠️  更新交易员状态失败: %v", err)
 	}

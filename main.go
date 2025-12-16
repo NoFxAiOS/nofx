@@ -8,6 +8,10 @@ import (
         "nofx/api"
         "nofx/auth"
         "nofx/config"
+        "nofx/decision"
+        "nofx/decision/learning"
+        "nofx/decision/reflection"
+        "nofx/email"
         "nofx/manager"
         "nofx/market"
         "nofx/pool"
@@ -321,13 +325,23 @@ func main() {
         // 启动新闻推送服务
         go func() {
                 store := news.NewDBStateStore(database)
-                newsService := news.NewService(store)
-                newsService.Start(context.Background())
-        }()
-        
-        // 设置优雅退出
-        sigChan := make(chan os.Signal, 1)
-        signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+                		newsService := news.NewService(store)
+                		newsService.Start(context.Background())
+                	}()
+                
+                	// 启动AI学习与反思协调器
+                	go func() {
+                		deepSeekKey, _ := database.GetSystemConfig("deepseek_api_key")
+                		deepSeekURL, _ := database.GetSystemConfig("deepseek_api_url")
+                		aiClient := reflection.NewDeepSeekClient(deepSeekKey, deepSeekURL)
+                
+                		coordinator := learning.NewLearningCoordinator(database, traderManager, aiClient)
+                		coordinator.StartScheduler()
+                		log.Println("🧠 AI学习与反思系统已启动")
+                	}()
+                
+                	// 设置优雅退出
+                	sigChan := make(chan os.Signal, 1)        signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
         // TODO: 启动数据库中配置为运行状态的交易员
         // traderManager.StartAll()

@@ -4,12 +4,12 @@ import (
         "database/sql"
         "encoding/json"
         "fmt"
-        "log"
-        "net/http"
-        "nofx/api/credits"
-        "nofx/auth"
-        "nofx/config"
-        "nofx/decision"
+        	"log"
+        	"net/http"
+        	"nofx/api/credits"
+        	"nofx/api/handlers"
+        	"nofx/auth"
+        	"nofx/config"        "nofx/decision"
         "nofx/email"
         "nofx/manager"
         "nofx/middleware"
@@ -28,12 +28,12 @@ type Server struct {
         router        *gin.Engine
         traderManager *manager.TraderManager
         database      *config.Database
-        emailClient   *email.ResendClient
-        creditService creditsService.Service
-        creditHandler *credits.Handler
-        port          int
-}
-
+        	emailClient   *email.ResendClient
+        	creditService creditsService.Service
+        	creditHandler *credits.Handler
+        	learningHandler *handlers.LearningHandler
+        	port          int
+        }
 // NewServer 创建API服务器
 func NewServer(traderManager *manager.TraderManager, database *config.Database, port int) *Server {
         // 设置为Release模式（减少日志输出）
@@ -57,20 +57,21 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
         // 添加自定义Recovery中间件，确保panic时也返回带CORS头的响应
         router.Use(corsRecoveryMiddleware())
 
-        // 创建积分服务
-        creditService := creditsService.NewCreditService(database)
-        creditHandler := credits.NewHandler(creditService)
-
-        s := &Server{
-                router:        router,
-                traderManager: traderManager,
-                database:      database,
-                emailClient:   email.NewResendClient(),
-                creditService: creditService,
-                creditHandler: creditHandler,
-                port:          port,
-        }
-
+        	// 创建积分服务
+        	creditService := creditsService.NewCreditService(database)
+        	creditHandler := credits.NewHandler(creditService)
+        	learningHandler := handlers.NewLearningHandler(database)
+        
+        	s := &Server{
+        		router:        router,
+        		traderManager: traderManager,
+        		database:      database,
+        		emailClient:   email.NewResendClient(),
+        		creditService: creditService,
+        		creditHandler: creditHandler,
+        		learningHandler: learningHandler,
+        		port:          port,
+        	}
         // 设置路由
         s.setupRoutes()
 
@@ -255,12 +256,15 @@ func (s *Server) setupRoutes() {
                         protected.PUT("/traders/:id", s.handleUpdateTrader)
                         protected.DELETE("/traders/:id", s.handleDeleteTrader)
                         protected.POST("/traders/:id/start", s.handleStartTrader)
-                        protected.POST("/traders/:id/stop", s.handleStopTrader)
-                        protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
-
-                        // AI模型配置
-                        protected.GET("/models", s.handleGetModelConfigs)
-                        protected.PUT("/models", s.handleUpdateModelConfigs)
+                        			protected.POST("/traders/:id/stop", s.handleStopTrader)
+                        			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
+                        
+                        			// AI学习与反思 (Phase 1)
+                        			protected.GET("/traders/:id/analysis", s.learningHandler.HandleGetAnalysis)
+                        			protected.GET("/traders/:id/reflections", s.learningHandler.HandleGetReflections)
+                        
+                        			// AI模型配置
+                        			protected.GET("/models", s.handleGetModelConfigs)                        protected.PUT("/models", s.handleUpdateModelConfigs)
 
                         // 交易所配置
                         protected.GET("/exchanges", s.handleGetExchangeConfigs)
@@ -829,9 +833,8 @@ func (s *Server) handleStartTrader(c *gin.Context) {
                 }
         }()
 
-        // 更新数据库中的运行状态
-        err = s.database.UpdateTraderStatus(userID, traderID, true)
-        if err != nil {
+        		// 更新数据库中的运行状态
+        		err = s.database.UpdateTraderStatus(traderID, true)        if err != nil {
                 log.Printf("⚠️  更新交易员状态失败: %v", err)
         }
 
@@ -896,9 +899,8 @@ func (s *Server) handleStopTrader(c *gin.Context) {
         // 停止交易员
         trader.Stop()
 
-        // 更新数据库中的运行状态
-        err = s.database.UpdateTraderStatus(userID, traderID, false)
-        if err != nil {
+        		// 更新数据库中的运行状态
+        		err = s.database.UpdateTraderStatus(traderID, false)        if err != nil {
                 log.Printf("⚠️  更新交易员状态失败: %v", err)
         }
 

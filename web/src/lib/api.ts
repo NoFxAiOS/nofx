@@ -376,6 +376,24 @@ export const api = {
     return res.json();
   },
 
+  // AI学习与反思 - 获取交易分析
+  async getAnalysis(traderId: string, period: string = '7d'): Promise<any> {
+    const res = await fetch(`${API_BASE}/traders/${traderId}/analysis?period=${period}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('获取交易分析失败');
+    return res.json();
+  },
+
+  // AI学习与反思 - 获取反思记录
+  async getReflections(traderId: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/traders/${traderId}/reflections`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('获取反思记录失败');
+    return res.json();
+  },
+
   // 用户信号源配置接口
   async getUserSignalSource(): Promise<{coin_pool_url: string, oi_top_url: string}> {
     const res = await fetch(`${API_BASE}/user/signal-sources`, {

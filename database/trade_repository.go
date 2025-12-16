@@ -152,6 +152,37 @@ func (tr *TradeRepository) DeleteOldTradeRecords(daysOld int) error {
 	return nil
 }
 
+// GetTradesInPeriod 获取指定时间段内的交易记录
+func (tr *TradeRepository) GetTradesInPeriod(traderID string, startDate, endDate time.Time) ([]TradeRecord, error) {
+	query := `
+		SELECT id, trader_id, symbol, entry_price, exit_price, profit_pct, leverage, holding_time_seconds, margin_mode, created_at
+		FROM trade_records
+		WHERE trader_id = $1 AND created_at >= $2 AND created_at <= $3
+		ORDER BY created_at ASC
+	`
+
+	rows, err := tr.db.Query(query, traderID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("查询时间段内交易记录失败: %w", err)
+	}
+	defer rows.Close()
+
+	var records []TradeRecord
+	for rows.Next() {
+		var r TradeRecord
+		err := rows.Scan(
+			&r.ID, &r.TraderID, &r.Symbol, &r.EntryPrice, &r.ExitPrice,
+			&r.ProfitPct, &r.Leverage, &r.HoldingTimeSeconds, &r.MarginMode, &r.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描交易记录失败: %w", err)
+		}
+		records = append(records, r)
+	}
+
+	return records, nil
+}
+
 // KellyStats Kelly统计数据
 type KellyStats struct {
 	ID              int64

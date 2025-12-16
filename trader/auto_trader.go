@@ -1055,6 +1055,13 @@ func (at *AutoTrader) SetSystemPromptTemplate(templateName string) {
         at.systemPromptTemplate = templateName
 }
 
+// SetLeverage 设置杠杆倍数
+func (at *AutoTrader) SetLeverage(btcEth, altcoin int) {
+	at.config.BTCETHLeverage = btcEth
+	at.config.AltcoinLeverage = altcoin
+	log.Printf("✓ Trader %s: 杠杆已更新为 BTC/ETH=%dx, 山寨币=%dx", at.name, btcEth, altcoin)
+}
+
 // GetSystemPromptTemplate 获取当前系统提示词模板名称
 func (at *AutoTrader) GetSystemPromptTemplate() string {
         return at.systemPromptTemplate

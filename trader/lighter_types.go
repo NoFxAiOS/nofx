@@ -1,6 +1,11 @@
 package trader
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	"golang.org/x/crypto/sha3"
+)
 
 // AccountBalance Account balance information (Lighter)
 type AccountBalance struct {
@@ -78,4 +83,44 @@ func parseFloat(s string) (float64, error) {
 	var f float64
 	_, err := fmt.Sscanf(s, "%f", &f)
 	return f, err
+}
+
+// ToChecksumAddress converts an Ethereum address to EIP-55 checksum format
+// This is required for Lighter API which is case-sensitive for addresses
+func ToChecksumAddress(address string) string {
+	// Remove 0x prefix and convert to lowercase
+	addr := strings.ToLower(strings.TrimPrefix(address, "0x"))
+	if len(addr) != 40 {
+		return address // Return original if invalid length
+	}
+
+	// Compute Keccak-256 hash of the lowercase address
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write([]byte(addr))
+	hash := hasher.Sum(nil)
+
+	// Build checksum address
+	var result strings.Builder
+	result.WriteString("0x")
+
+	for i, c := range addr {
+		// Get the corresponding nibble from the hash
+		// Each byte in hash contains 2 nibbles (4 bits each)
+		hashByte := hash[i/2]
+		var nibble byte
+		if i%2 == 0 {
+			nibble = hashByte >> 4 // High nibble
+		} else {
+			nibble = hashByte & 0x0F // Low nibble
+		}
+
+		// If nibble >= 8, uppercase the character (if it's a letter)
+		if nibble >= 8 && c >= 'a' && c <= 'f' {
+			result.WriteByte(byte(c) - 32) // Convert to uppercase
+		} else {
+			result.WriteByte(byte(c))
+		}
+	}
+
+	return result.String()
 }

@@ -99,6 +99,10 @@ func NewLighterTraderV2(walletAddr, apiKeyPrivateKeyHex string, apiKeyIndex int,
 		return nil, fmt.Errorf("wallet address is required")
 	}
 
+	// Convert to checksum address (Lighter API is case-sensitive)
+	walletAddr = ToChecksumAddress(walletAddr)
+	logger.Infof("Using checksum address: %s", walletAddr)
+
 	// 2. Validate API Key
 	if apiKeyPrivateKeyHex == "" {
 		return nil, fmt.Errorf("API Key private key is required")

@@ -350,6 +350,11 @@ export const api = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) {
+      // 处理401错误 - token过期或无效
+      if (res.status === 401) {
+        console.error('Token无效或已过期，请重新登录');
+        throw new Error('登录已过期，请重新登录');
+      }
       let errorMsg = '获取AI学习数据失败';
       try {
         const errorData = await res.json();

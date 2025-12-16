@@ -29,7 +29,7 @@ func NewLearningCoordinator(db *config.Database, tm *manager.TraderManager, aiCl
 	// Optimizer needs RealTraderManager adapter
 	traderManagerAdapter := optimizer.NewRealTraderManager(tm)
 	opt := optimizer.NewParameterOptimizer(db, traderManagerAdapter)
-	
+
 	executor := reflection.NewReflectionExecutor(db, opt)
 
 	return &LearningCoordinator{

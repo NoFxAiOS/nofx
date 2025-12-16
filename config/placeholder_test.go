@@ -22,7 +22,7 @@ func TestConvertPlaceholders(t *testing.T) {
 	// and the method doesn't actually use the db field, we can use a zero-value struct if the method is pure.
 	// However, checking the code, `convertPlaceholders` IS a method on `*Database`.
 	// Let's check if it uses `d` fields. It does NOT. It's a pure function attached to the struct.
-	
+
 	db := &Database{}
 
 	tests := []struct {
@@ -80,7 +80,7 @@ func BenchmarkConvertPlaceholders_Old(b *testing.B) {
 		for strings.Contains(result, "?") {
 			// We use simple string concat to simulate the fmt.Sprintf overhead slightly or just replace
 			// The original used fmt.Sprintf("$%d", index)
-			// We can't import fmt inside the loop for efficiency in the "old" code if it wasn't there, 
+			// We can't import fmt inside the loop for efficiency in the "old" code if it wasn't there,
 			// but we want to match the original logic.
 			// Original: result = strings.Replace(result, "?", fmt.Sprintf("$%d", index), 1)
 			replacement := string(rune('0' + index)) // Simplified for dependency, roughly equivalent work

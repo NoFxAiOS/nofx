@@ -11,42 +11,42 @@ import (
 type LearningStage int
 
 const (
-	StageInfant  LearningStage = 1  // 婴儿期: 1-5笔交易
-	StageChild   LearningStage = 2  // 学童期: 5-20笔交易
-	StageMature  LearningStage = 3  // 成熟期: 20+笔交易
+	StageInfant LearningStage = 1 // 婴儿期: 1-5笔交易
+	StageChild  LearningStage = 2 // 学童期: 5-20笔交易
+	StageMature LearningStage = 3 // 成熟期: 20+笔交易
 )
 
 // Constraints 约束条件结构体
 type Constraints struct {
 	Stage               LearningStage
-	MaxLeverage         int       // 最大杠杆
-	MaxDailyLoss        float64   // 最大日亏损
-	MaxSingleLoss       float64   // 单笔最大亏损
-	MinHoldingMinutes   int       // 最小持仓时间(分钟)
-	MaxConcurrentPos    int       // 最大并发仓位数
-	AllowExceptionForAI bool      // 是否允许AI例外放权
+	MaxLeverage         int     // 最大杠杆
+	MaxDailyLoss        float64 // 最大日亏损
+	MaxSingleLoss       float64 // 单笔最大亏损
+	MinHoldingMinutes   int     // 最小持仓时间(分钟)
+	MaxConcurrentPos    int     // 最大并发仓位数
+	AllowExceptionForAI bool    // 是否允许AI例外放权
 }
 
 // ConstraintsManager AI决策约束管理器
 type ConstraintsManager struct {
-	mu                   sync.RWMutex
-	currentStage         LearningStage
-	totalTrades          int
-	consecutiveLosses    int
-	dailyTrades          []TradeResult
-	dailyResetTime       time.Time
-	dailyLossAmount      float64
-	currentPositions     int
-	decisionRejections   int
-	lastDecisionTime     time.Time
+	mu                 sync.RWMutex
+	currentStage       LearningStage
+	totalTrades        int
+	consecutiveLosses  int
+	dailyTrades        []TradeResult
+	dailyResetTime     time.Time
+	dailyLossAmount    float64
+	currentPositions   int
+	decisionRejections int
+	lastDecisionTime   time.Time
 }
 
 // TradeResult 交易结果记录 (用于统计)
 type TradeResult struct {
-	Timestamp    time.Time
-	IsWin        bool
-	PnL          float64
-	PnLPct       float64
+	Timestamp time.Time
+	IsWin     bool
+	PnL       float64
+	PnLPct    float64
 }
 
 // NewConstraintsManager 创建约束管理器
@@ -67,33 +67,33 @@ func (cm *ConstraintsManager) GetCurrentConstraints() Constraints {
 	switch cm.currentStage {
 	case StageInfant:
 		return Constraints{
-			Stage:             StageInfant,
-			MaxLeverage:       1,
-			MaxDailyLoss:      0.05,    // 日亏损最多5%
-			MaxSingleLoss:     0.03,    // 单笔最多3%
-			MinHoldingMinutes: 30,      // 最少持30分钟
-			MaxConcurrentPos:  1,       // 最多1个仓位
-			AllowExceptionForAI: false,  // 不允许例外
+			Stage:               StageInfant,
+			MaxLeverage:         1,
+			MaxDailyLoss:        0.05,  // 日亏损最多5%
+			MaxSingleLoss:       0.03,  // 单笔最多3%
+			MinHoldingMinutes:   30,    // 最少持30分钟
+			MaxConcurrentPos:    1,     // 最多1个仓位
+			AllowExceptionForAI: false, // 不允许例外
 		}
 	case StageChild:
 		return Constraints{
-			Stage:             StageChild,
-			MaxLeverage:       2,
-			MaxDailyLoss:      0.08,    // 日亏损最多8%
-			MaxSingleLoss:     0.04,    // 单笔最多4%
-			MinHoldingMinutes: 15,      // 最少持15分钟
-			MaxConcurrentPos:  2,       // 最多2个仓位
+			Stage:               StageChild,
+			MaxLeverage:         2,
+			MaxDailyLoss:        0.08, // 日亏损最多8%
+			MaxSingleLoss:       0.04, // 单笔最多4%
+			MinHoldingMinutes:   15,   // 最少持15分钟
+			MaxConcurrentPos:    2,    // 最多2个仓位
 			AllowExceptionForAI: false,
 		}
 	case StageMature:
 		return Constraints{
-			Stage:             StageMature,
-			MaxLeverage:       5,
-			MaxDailyLoss:      0.12,    // 日亏损最多12%
-			MaxSingleLoss:     0.06,    // 单笔最多6%
-			MinHoldingMinutes: 0,       // 无最小持仓时间限制
-			MaxConcurrentPos:  3,       // 最多3个仓位
-			AllowExceptionForAI: true,   // 允许AI例外放权
+			Stage:               StageMature,
+			MaxLeverage:         5,
+			MaxDailyLoss:        0.12, // 日亏损最多12%
+			MaxSingleLoss:       0.06, // 单笔最多6%
+			MinHoldingMinutes:   0,    // 无最小持仓时间限制
+			MaxConcurrentPos:    3,    // 最多3个仓位
+			AllowExceptionForAI: true, // 允许AI例外放权
 		}
 	default:
 		return cm.GetCurrentConstraints()
@@ -271,12 +271,12 @@ type PositionTracker struct {
 
 // Position 持仓信息
 type Position struct {
-	Symbol          string
-	OpenPrice       float64
-	OpenTime        time.Time
-	Leverage        int
-	PositionSize    float64
-	UnrealizedPnL   float64
+	Symbol        string
+	OpenPrice     float64
+	OpenTime      time.Time
+	Leverage      int
+	PositionSize  float64
+	UnrealizedPnL float64
 }
 
 // NewPositionTracker 创建持仓跟踪器

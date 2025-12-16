@@ -309,8 +309,8 @@ func TestOKXRateLimiting(t *testing.T) {
 // TestOKXMarginCalculation tests margin calculation
 func TestOKXMarginCalculation(t *testing.T) {
 	testCases := []struct {
-		notional      float64
-		leverage      float64
+		notional       float64
+		leverage       float64
 		expectedMargin float64
 	}{
 		{4600.0, 10.0, 460.0},
@@ -430,9 +430,9 @@ func TestOKXNetworkErrorHandling(t *testing.T) {
 // isNetworkErrorString checks if a string contains network error indicators
 func isNetworkErrorString(errStr string) bool {
 	return strings.Contains(errStr, "connection") ||
-		   strings.Contains(errStr, "timeout") ||
-		   strings.Contains(errStr, "network") ||
-		   strings.Contains(errStr, "reset")
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "network") ||
+		strings.Contains(errStr, "reset")
 }
 
 // TestOKXComprehensiveIntegration tests comprehensive integration
@@ -561,7 +561,7 @@ func TestOKXMemoryUsage(t *testing.T) {
 			secretKey:  "test-secret-key",
 			passphrase: "test-passphrase",
 			// Removed testnet field as it doesn't exist in OKXTrader struct
-			baseURL:    "https://www.okx.com",
+			baseURL: "https://www.okx.com",
 		}
 	}
 
@@ -612,11 +612,11 @@ func TestOKXThreadSafety(t *testing.T) {
 func TestOKXErrorPropagation(t *testing.T) {
 	// Test that validation errors are properly propagated
 	testCases := []struct {
-		name      string
-		apiKey    string
-		secretKey string
+		name       string
+		apiKey     string
+		secretKey  string
 		passphrase string
-		expectErr bool
+		expectErr  bool
 	}{
 		{"Valid Credentials", "test-api-key", "test-secret-key", "test-passphrase", false},
 		{"Empty API Key", "", "test-secret-key", "test-passphrase", true},
@@ -798,8 +798,8 @@ func testEdgeCasesAndBoundaries(t *testing.T) {
 
 func testErrorConditions(t *testing.T) {
 	// Test error conditions
-	_ = getOKXError("")        // Empty error code
-	_ = getOKXError("invalid") // Invalid error code
+	_ = getOKXError("")         // Empty error code
+	_ = getOKXError("invalid")  // Invalid error code
 	_ = isRetryableOKXError("") // Empty error code
 }
 

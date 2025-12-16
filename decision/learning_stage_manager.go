@@ -9,21 +9,21 @@ import (
 // LearningStageManager Kelly分阶段学习管理器
 // 根据交易数量自动调整Kelly参数,实现从保守到积极的渐进式优化
 type LearningStageManager struct {
-	mu                sync.RWMutex
-	currentStage      TrainingStage
-	totalTrades       int
-	profitableTrades  int
-	recentWinRate     float64
-	stageParameters   map[TrainingStage]*StageKellyParams
+	mu               sync.RWMutex
+	currentStage     TrainingStage
+	totalTrades      int
+	profitableTrades int
+	recentWinRate    float64
+	stageParameters  map[TrainingStage]*StageKellyParams
 }
 
 // TrainingStage 训练阶段
 type TrainingStage int
 
 const (
-	StageInfant  TrainingStage = 1  // 婴儿期: 1-5笔交易
-	StageChild   TrainingStage = 2  // 学童期: 5-20笔交易
-	StageMature  TrainingStage = 3  // 成熟期: 20+笔交易
+	StageInfant TrainingStage = 1 // 婴儿期: 1-5笔交易
+	StageChild  TrainingStage = 2 // 学童期: 5-20笔交易
+	StageMature TrainingStage = 3 // 成熟期: 20+笔交易
 )
 
 func (ts TrainingStage) String() string {
@@ -59,17 +59,17 @@ type StageKellyParams struct {
 func DefaultStageParams() map[TrainingStage]*StageKellyParams {
 	return map[TrainingStage]*StageKellyParams{
 		StageInfant: {
-			Stage:                   StageInfant,
-			MaxLeverage:             1,
-			MinTradesForKelly:       2, // 2笔就可以用Kelly
-			KellyRatioAdjustment:    0.2, // 超保守
-			MaxTakeProfitMultiplier: 1.5, // 目标倍数低
-			TargetTakeProfitPct:     0.08, // 8%止盈
-			DefaultStopLossPct:      0.12, // 12%止损
-			ProtectionRatioMin:      0.2, // 保护比例最小20%
-			FundingFeeAvoidance:     true, // 避开资金费率
+			Stage:                     StageInfant,
+			MaxLeverage:               1,
+			MinTradesForKelly:         2,     // 2笔就可以用Kelly
+			KellyRatioAdjustment:      0.2,   // 超保守
+			MaxTakeProfitMultiplier:   1.5,   // 目标倍数低
+			TargetTakeProfitPct:       0.08,  // 8%止盈
+			DefaultStopLossPct:        0.12,  // 12%止损
+			ProtectionRatioMin:        0.2,   // 保护比例最小20%
+			FundingFeeAvoidance:       true,  // 避开资金费率
 			AllowVolatilityAdjustment: false, // 不做波动率调整
-			AllowAIException:        false, // 不允许AI例外
+			AllowAIException:          false, // 不允许AI例外
 			Description: "💤 保守学习期\n" +
 				"- 杠杆: 1x (无杠杆)\n" +
 				"- 目标: 积累数据,验证策略\n" +
@@ -77,17 +77,17 @@ func DefaultStageParams() map[TrainingStage]*StageKellyParams {
 				"- 重点: 确保本金安全",
 		},
 		StageChild: {
-			Stage:                   StageChild,
-			MaxLeverage:             2,
-			MinTradesForKelly:       5, // 5笔就可以用Kelly
-			KellyRatioAdjustment:    0.4, // 保守
-			MaxTakeProfitMultiplier: 2.0,
-			TargetTakeProfitPct:     0.10, // 10%止盈
-			DefaultStopLossPct:      0.10, // 10%止损
-			ProtectionRatioMin:      0.3, // 保护比例最小30%
-			FundingFeeAvoidance:     true, // 避开资金费率
-			AllowVolatilityAdjustment: true, // 允许波动率调整
-			AllowAIException:        false, // 不允许AI例外
+			Stage:                     StageChild,
+			MaxLeverage:               2,
+			MinTradesForKelly:         5,   // 5笔就可以用Kelly
+			KellyRatioAdjustment:      0.4, // 保守
+			MaxTakeProfitMultiplier:   2.0,
+			TargetTakeProfitPct:       0.10,  // 10%止盈
+			DefaultStopLossPct:        0.10,  // 10%止损
+			ProtectionRatioMin:        0.3,   // 保护比例最小30%
+			FundingFeeAvoidance:       true,  // 避开资金费率
+			AllowVolatilityAdjustment: true,  // 允许波动率调整
+			AllowAIException:          false, // 不允许AI例外
 			Description: "👦 逐步学习期\n" +
 				"- 杠杆: 2x (低倍)\n" +
 				"- 目标: 验证胜率,调整参数\n" +
@@ -95,17 +95,17 @@ func DefaultStageParams() map[TrainingStage]*StageKellyParams {
 				"- 重点: 基于胜率动态调整",
 		},
 		StageMature: {
-			Stage:                   StageMature,
-			MaxLeverage:             5,
-			MinTradesForKelly:       10, // 10笔可用Kelly
-			KellyRatioAdjustment:    0.6, // 中等
-			MaxTakeProfitMultiplier: 3.5,
-			TargetTakeProfitPct:     0.15, // 15%止盈
-			DefaultStopLossPct:      0.08, // 8%止损
-			ProtectionRatioMin:      0.4, // 保护比例最小40%
-			FundingFeeAvoidance:     false, // 允许跨资金费率
-			AllowVolatilityAdjustment: true, // 允许波动率调整
-			AllowAIException:        true, // 允许AI例外放权
+			Stage:                     StageMature,
+			MaxLeverage:               5,
+			MinTradesForKelly:         10,  // 10笔可用Kelly
+			KellyRatioAdjustment:      0.6, // 中等
+			MaxTakeProfitMultiplier:   3.5,
+			TargetTakeProfitPct:       0.15,  // 15%止盈
+			DefaultStopLossPct:        0.08,  // 8%止损
+			ProtectionRatioMin:        0.4,   // 保护比例最小40%
+			FundingFeeAvoidance:       false, // 允许跨资金费率
+			AllowVolatilityAdjustment: true,  // 允许波动率调整
+			AllowAIException:          true,  // 允许AI例外放权
 			Description: "🦁 成熟交易期\n" +
 				"- 杠杆: 5x (标准)\n" +
 				"- 目标: 最优化Kelly,追求增长\n" +
@@ -266,7 +266,7 @@ func (lsm *LearningStageManager) calculateConfidence() float64 {
 
 	// 胜率越稳定,置信度越高
 	// (简化版: 胜率接近50%时最不确定)
-	winRateVariance := 0.5 - (lsm.recentWinRate - 0.5) * (lsm.recentWinRate - 0.5)
+	winRateVariance := 0.5 - (lsm.recentWinRate-0.5)*(lsm.recentWinRate-0.5)
 	if lsm.recentWinRate < 0.2 || lsm.recentWinRate > 0.8 {
 		winRateVariance = 1.0 // 极端胜率时确定性高
 	}
@@ -318,14 +318,14 @@ func (lsm *LearningStageManager) PrintStageReport() {
 
 // KellyRecommendation Kelly推荐参数
 type KellyRecommendation struct {
-	Stage                TrainingStage
-	KellyAdjustment      float64
-	MaxLeverage          int
-	TargetTakeProfitPct  float64
-	DefaultStopLossPct   float64
-	ProtectionRatioMin   float64
-	RecentWinRate        float64
-	TotalTrades          int
-	Confidence           float64 // 0-100
+	Stage                  TrainingStage
+	KellyAdjustment        float64
+	MaxLeverage            int
+	TargetTakeProfitPct    float64
+	DefaultStopLossPct     float64
+	ProtectionRatioMin     float64
+	RecentWinRate          float64
+	TotalTrades            int
+	Confidence             float64 // 0-100
 	IsStageReadyForUpgrade bool
 }

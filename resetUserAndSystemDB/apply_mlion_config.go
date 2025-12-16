@@ -41,7 +41,7 @@ func main() {
 	} else {
 		log.Printf("⚠️  Migration ran but verification returned '%s' instead of 'true'.", val)
 	}
-    
-    // Explicit exit code for success
-    os.Exit(0)
+
+	// Explicit exit code for success
+	os.Exit(0)
 }

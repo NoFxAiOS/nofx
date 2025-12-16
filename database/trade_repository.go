@@ -185,19 +185,19 @@ func (tr *TradeRepository) GetTradesInPeriod(traderID string, startDate, endDate
 
 // KellyStats Kelly统计数据
 type KellyStats struct {
-	ID              int64
-	TraderID        string
-	Symbol          string
-	TotalTrades     int
+	ID               int64
+	TraderID         string
+	Symbol           string
+	TotalTrades      int
 	ProfitableTrades int
-	WinRate         float64
-	AvgWinPct       float64
-	AvgLossPct      float64
-	MaxProfitPct    float64
-	MaxDrawdownPct  float64
-	Volatility      float64
-	WeightedWinRate float64
-	UpdatedAt       time.Time
+	WinRate          float64
+	AvgWinPct        float64
+	AvgLossPct       float64
+	MaxProfitPct     float64
+	MaxDrawdownPct   float64
+	Volatility       float64
+	WeightedWinRate  float64
+	UpdatedAt        time.Time
 }
 
 // KellyStatsRepository Kelly统计数据库操作

@@ -170,10 +170,10 @@ func NewOKXAPIError(code, message string, data interface{}) *OKXAPIError {
 
 // RetryStrategy 重试策略
 type RetryStrategy struct {
-	MaxRetries     int
-	InitialDelay   time.Duration
-	MaxDelay       time.Duration
-	BackoffFactor  float64
+	MaxRetries    int
+	InitialDelay  time.Duration
+	MaxDelay      time.Duration
+	BackoffFactor float64
 }
 
 // DefaultRetryStrategy 默认重试策略
@@ -291,8 +291,8 @@ func ValidateCredentials(apiKey, secretKey, passphrase string) error {
 
 // RateLimiter OKX速率限制器
 type RateLimiter struct {
-	rate       int           // 每秒允许的请求数
-	burst      int           // 突发请求数
+	rate       int // 每秒允许的请求数
+	burst      int // 突发请求数
 	tokens     chan struct{}
 	lastRefill time.Time
 	mu         sync.Mutex
@@ -352,13 +352,13 @@ func (rl *RateLimiter) Refill() {
 
 // OKXRateLimits OKX默认速率限制
 var OKXRateLimits = struct {
-	PublicAPI   RateLimiter
-	PrivateAPI  RateLimiter
-	TradingAPI  RateLimiter
+	PublicAPI  RateLimiter
+	PrivateAPI RateLimiter
+	TradingAPI RateLimiter
 }{
-	PublicAPI:  RateLimiter{rate: 10, burst: 20},   // 10 req/s, burst 20
-	PrivateAPI: RateLimiter{rate: 5, burst: 10},    // 5 req/s, burst 10
-	TradingAPI: RateLimiter{rate: 2, burst: 5},     // 2 req/s, burst 5 (保守设置)
+	PublicAPI:  RateLimiter{rate: 10, burst: 20}, // 10 req/s, burst 20
+	PrivateAPI: RateLimiter{rate: 5, burst: 10},  // 5 req/s, burst 10
+	TradingAPI: RateLimiter{rate: 2, burst: 5},   // 2 req/s, burst 5 (保守设置)
 }
 
 // OKXRateLimitRequestsPerSecond OKX速率限制每秒请求数

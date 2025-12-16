@@ -10,24 +10,24 @@ import (
 
 // Wallet 钱包地址结构
 type Wallet struct {
-	ID          string    `json:"id"`
-	WalletAddr  string    `json:"wallet_addr"`
-	ChainID     int64     `json:"chain_id"`
-	WalletType  string    `json:"wallet_type"`
-	Label       string    `json:"label"`
-	IsActive    bool      `json:"is_active"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	WalletAddr string    `json:"wallet_addr"`
+	ChainID    int64     `json:"chain_id"`
+	WalletType string    `json:"wallet_type"`
+	Label      string    `json:"label"`
+	IsActive   bool      `json:"is_active"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // UserWallet 用户钱包关联
 type UserWallet struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	WalletAddr  string    `json:"wallet_addr"`
-	IsPrimary   bool      `json:"is_primary"`
-	BoundAt     time.Time `json:"bound_at"`
-	LastUsedAt  time.Time `json:"last_used_at"`
+	ID         string    `json:"id"`
+	UserID     string    `json:"user_id"`
+	WalletAddr string    `json:"wallet_addr"`
+	IsPrimary  bool      `json:"is_primary"`
+	BoundAt    time.Time `json:"bound_at"`
+	LastUsedAt time.Time `json:"last_used_at"`
 }
 
 // Repository 钱包数据仓库接口

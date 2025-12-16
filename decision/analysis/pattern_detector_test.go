@@ -54,7 +54,7 @@ func TestPatternDetector_DetectFailurePatterns(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			patterns := detector.DetectFailurePatterns(tt.analysis)
-			
+
 			if tt.wantType == "" {
 				if len(patterns) > 0 {
 					t.Errorf("Expected no patterns, got %d", len(patterns))

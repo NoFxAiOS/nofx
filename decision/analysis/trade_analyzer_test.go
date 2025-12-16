@@ -16,7 +16,7 @@ func (m *MockTradeProvider) GetTradesInPeriod(traderID string, start, end time.T
 
 func TestTradeAnalyzer_Analyze(t *testing.T) {
 	now := time.Now()
-	
+
 	tests := []struct {
 		name     string
 		trades   []database.TradeRecord

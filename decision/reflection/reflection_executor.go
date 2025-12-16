@@ -47,7 +47,7 @@ func (re *ReflectionExecutor) ApplyReflection(reflection LearningReflection) err
 		// Regex to extract number before "倍" or "x"
 		reg := regexp.MustCompile(`(\d+)(倍|x)`)
 		matches := reg.FindStringSubmatch(action)
-		
+
 		if len(matches) > 1 {
 			if val, convErr := strconv.Atoi(matches[1]); convErr == nil {
 				if strings.Contains(action, "btc") || strings.Contains(action, "eth") {
@@ -113,14 +113,14 @@ func (re *ReflectionExecutor) recordParameterChange(traderID, reflectionID, para
 	}
 
 	change := &config.ParameterChangeRecord{
-		ID:           uuid.New().String(),
-		TraderID:     traderID,
-		ReflectionID: reflectionID,
+		ID:            uuid.New().String(),
+		TraderID:      traderID,
+		ReflectionID:  reflectionID,
 		ParameterName: paramName,
-		OldValue:     oldValue,
-		NewValue:     newValue,
-		ChangeReason: reason,
-		CreatedAt:    time.Now(),
+		OldValue:      oldValue,
+		NewValue:      newValue,
+		ChangeReason:  reason,
+		CreatedAt:     time.Now(),
 	}
 
 	if err := re.db.SaveParameterChange(change); err != nil {

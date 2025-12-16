@@ -263,7 +263,7 @@ func BenchmarkKellyCalculation(b *testing.B) {
 	// 模拟Kelly计算性能
 	for i := 0; i < b.N; i++ {
 		// 模拟Kelly公式计算
-		p := 0.6  // win rate
+		p := 0.6 // win rate
 		b := 2.0 // odds ratio
 		q := 1 - p
 

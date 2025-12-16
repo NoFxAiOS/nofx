@@ -11,19 +11,19 @@ import (
 
 // CompensationService 补偿服务
 type CompensationService struct {
-	db            *config.Database
+	db             *config.Database
 	creditsService credits.Service
-	retryInterval time.Duration
-	stopChan      chan bool
+	retryInterval  time.Duration
+	stopChan       chan bool
 }
 
 // NewCompensationService 创建补偿服务
 func NewCompensationService(db *config.Database, creditsService credits.Service) *CompensationService {
 	return &CompensationService{
-		db:            db,
+		db:             db,
 		creditsService: creditsService,
 		retryInterval:  5 * time.Second, // 默认5秒重试间隔
-		stopChan:      make(chan bool),
+		stopChan:       make(chan bool),
 	}
 }
 
@@ -134,12 +134,12 @@ func (cs *CompensationService) processCompensation(task *config.CompensationTask
 // CreateCompensationTask 创建补偿任务
 func (cs *CompensationService) CreateCompensationTask(tradeID, userID, symbol, action, traderID string) error {
 	task := &config.CompensationTask{
-		ID:        config.GenerateUUID(),
-		TradeID:   tradeID,
-		UserID:    userID,
-		Symbol:    symbol,
-		Action:    action,
-		TraderID:  traderID,
+		ID:         config.GenerateUUID(),
+		TradeID:    tradeID,
+		UserID:     userID,
+		Symbol:     symbol,
+		Action:     action,
+		TraderID:   traderID,
 		RetryCount: 0,
 		MaxRetries: 3, // 默认最大重试3次
 	}

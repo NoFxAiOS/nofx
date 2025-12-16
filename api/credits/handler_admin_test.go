@@ -125,24 +125,24 @@ func setupAdminTestHandler2(t *testing.T) (*Handler, *MockAdminService, *gin.Eng
 // TestAdminCreateCreditPackage 管理员创建积分套餐
 func TestAdminCreateCreditPackage(t *testing.T) {
 	tests := []struct {
-		name           string
-		request        CreditPackageRequest
-		setupMock      func(m *MockAdminService)
-		expectedCode   int
-		checkResponse  func(t *testing.T, w *httptest.ResponseRecorder)
+		name          string
+		request       CreditPackageRequest
+		setupMock     func(m *MockAdminService)
+		expectedCode  int
+		checkResponse func(t *testing.T, w *httptest.ResponseRecorder)
 	}{
 		{
 			name: "成功创建套餐",
 			request: CreditPackageRequest{
-				Name:        "Premium Package",
-				NameEN:      "Premium",
-				Description: "高级套餐",
-				PriceUSDT:   99.99,
-				Credits:     10000,
-				BonusCredits: 1000,
-				IsActive:    true,
+				Name:          "Premium Package",
+				NameEN:        "Premium",
+				Description:   "高级套餐",
+				PriceUSDT:     99.99,
+				Credits:       10000,
+				BonusCredits:  1000,
+				IsActive:      true,
 				IsRecommended: true,
-				SortOrder:   1,
+				SortOrder:     1,
 			},
 			setupMock: func(m *MockAdminService) {
 				m.On("CreatePackage", mock.Anything, mock.AnythingOfType("*config.CreditPackage")).Return(nil)
@@ -158,9 +158,9 @@ func TestAdminCreateCreditPackage(t *testing.T) {
 		{
 			name: "验证失败 - 名称为空",
 			request: CreditPackageRequest{
-				Name:        "",
-				PriceUSDT:   99.99,
-				Credits:     10000,
+				Name:      "",
+				PriceUSDT: 99.99,
+				Credits:   10000,
 			},
 			setupMock: func(m *MockAdminService) {
 				// 验证失败，不会调用service
@@ -530,10 +530,10 @@ func TestAdminAdjustUserCredits(t *testing.T) {
 // TestAdminPermissions 管理员权限测试
 func TestAdminPermissions(t *testing.T) {
 	tests := []struct {
-		name           string
-		isAdmin        bool
-		expectedCode   int
-		description    string
+		name         string
+		isAdmin      bool
+		expectedCode int
+		description  string
 	}{
 		{
 			name:         "普通用户访问管理接口",
@@ -613,10 +613,10 @@ func TestAdminAuditTrail(t *testing.T) {
 		// 验证服务层调用时包含了正确的管理员ID和IP地址
 		mockService.On("AdjustUserCredits",
 			mock.Anything,
-			"admin_user_123", // 管理员ID
-			"user_456",        // 用户ID
-			1000,              // 调整数量
-			"活动奖励",        // 原因
+			"admin_user_123",              // 管理员ID
+			"user_456",                    // 用户ID
+			1000,                          // 调整数量
+			"活动奖励",                        // 原因
 			mock.AnythingOfType("string"), // IP地址
 		).Return(nil).Run(func(args mock.Arguments) {
 			// 验证IP地址不为空
@@ -682,11 +682,11 @@ func TestAdminConcurrentOperations(t *testing.T) {
 // TestAdminEdgeCases 管理员边界情况测试
 func TestAdminEdgeCases(t *testing.T) {
 	tests := []struct {
-		name          string
-		setupTest     func() (*httptest.ResponseRecorder, *http.Request)
-		setupMock     func(m *MockAdminService)
-		expectedCode  int
-		description   string
+		name         string
+		setupTest    func() (*httptest.ResponseRecorder, *http.Request)
+		setupMock    func(m *MockAdminService)
+		expectedCode int
+		description  string
 	}{
 		{
 			name: "空请求体",
@@ -699,8 +699,8 @@ func TestAdminEdgeCases(t *testing.T) {
 			setupMock: func(m *MockAdminService) {
 				// 不会调用service，因为JSON解析会失败
 			},
-			expectedCode:  http.StatusBadRequest,
-			description:   "空请求体应该返回400错误",
+			expectedCode: http.StatusBadRequest,
+			description:  "空请求体应该返回400错误",
 		},
 		{
 			name: "超大请求体",
@@ -728,8 +728,8 @@ func TestAdminEdgeCases(t *testing.T) {
 				m.On("CreatePackage", mock.Anything, mock.AnythingOfType("*config.CreditPackage")).Return(nil)
 			},
 			// 修改预期为201，因为当前实现没有限制大小，测试应该反映当前行为
-			expectedCode:  http.StatusCreated,
-			description:   "超大请求体目前被接受 (如果有限制应为413)",
+			expectedCode: http.StatusCreated,
+			description:  "超大请求体目前被接受 (如果有限制应为413)",
 		},
 		{
 			name: "特殊字符注入",
@@ -750,8 +750,8 @@ func TestAdminEdgeCases(t *testing.T) {
 			setupMock: func(m *MockAdminService) {
 				m.On("CreatePackage", mock.Anything, mock.AnythingOfType("*config.CreditPackage")).Return(nil)
 			},
-			expectedCode:  http.StatusCreated,
-			description:   "应该正确处理特殊字符，防止注入攻击",
+			expectedCode: http.StatusCreated,
+			description:  "应该正确处理特殊字符，防止注入攻击",
 		},
 	}
 

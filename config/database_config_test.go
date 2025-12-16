@@ -174,7 +174,7 @@ func TestUpdateExchangeOKX(t *testing.T) {
 	exchanges, err := tdb.db.GetExchanges("test_user_okx")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(exchanges), "Should have 1 exchange")
-	
+
 	okx := exchanges[0]
 	assert.Equal(t, "okx", okx.ID)
 	assert.Equal(t, "cex", okx.Type, "OKX type should be 'cex'")
@@ -206,7 +206,7 @@ func TestUpdateExchangeHyperliquid(t *testing.T) {
 	exchanges, err := tdb.db.GetExchanges("test_user_hl")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(exchanges), "Should have 1 exchange")
-	
+
 	hl := exchanges[0]
 	assert.Equal(t, "hyperliquid", hl.ID)
 	assert.Equal(t, "dex", hl.Type, "Hyperliquid type should be 'dex'")

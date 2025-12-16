@@ -185,7 +185,7 @@ func (m *RateLimitMiddleware) Middleware(rule string) gin.HandlerFunc {
 		// 检查是否超过限制
 		if !limiter.Allow(key) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "请求过于频繁",
+				"error":   "请求过于频繁",
 				"message": fmt.Sprintf("请在 %v 后重试", limiter.window),
 			})
 			c.Abort()

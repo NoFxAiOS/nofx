@@ -533,7 +533,7 @@ func TestPackageOperations(t *testing.T) {
 
 		// 价格为0
 		pkg = &config.CreditPackage{
-			Name:    "测试套餐",
+			Name:      "测试套餐",
 			PriceUSDT: 0,
 			Credits:   500,
 		}
@@ -544,7 +544,7 @@ func TestPackageOperations(t *testing.T) {
 
 		// 价格为负数
 		pkg = &config.CreditPackage{
-			Name:    "测试套餐",
+			Name:      "测试套餐",
 			PriceUSDT: -10.0,
 			Credits:   500,
 		}
@@ -555,7 +555,7 @@ func TestPackageOperations(t *testing.T) {
 
 		// 积分数量为0
 		pkg = &config.CreditPackage{
-			Name:    "测试套餐",
+			Name:      "测试套餐",
 			PriceUSDT: 10.0,
 			Credits:   0,
 		}
@@ -566,9 +566,9 @@ func TestPackageOperations(t *testing.T) {
 
 		// 赠送积分为负数
 		pkg = &config.CreditPackage{
-			Name:    "测试套餐",
-			PriceUSDT: 10.0,
-			Credits:   500,
+			Name:         "测试套餐",
+			PriceUSDT:    10.0,
+			Credits:      500,
 			BonusCredits: -100,
 		}
 		err = service.CreatePackage(ctx, pkg)
@@ -658,4 +658,3 @@ func cleanupUserCredits(db interface{}, userID string) {
 	// 在实际测试中，可以使用事务回滚或测试数据库
 	log.Printf("清理用户 %s 的测试数据", userID)
 }
-

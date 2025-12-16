@@ -6,15 +6,15 @@ import (
 	"log"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // DBConfig 数据库配置
 type DBConfig struct {
-	UseNeon      bool   // 是否使用Neon PostgreSQL
-	NeonDSN      string // Neon连接字符串
-	SQLitePath   string // SQLite数据库路径
+	UseNeon    bool   // 是否使用Neon PostgreSQL
+	NeonDSN    string // Neon连接字符串
+	SQLitePath string // SQLite数据库路径
 }
 
 // Database 数据库接口
@@ -36,16 +36,16 @@ type User struct {
 
 // DatabaseImpl 双数据库实现
 type DatabaseImpl struct {
-	neonDB     *sql.DB  // Neon PostgreSQL连接
-	sqliteDB    *sql.DB  // SQLite连接
-	currentDB   *sql.DB  // 当前使用的数据库
-	usingNeon   bool     // 当前是否使用Neon
+	neonDB    *sql.DB // Neon PostgreSQL连接
+	sqliteDB  *sql.DB // SQLite连接
+	currentDB *sql.DB // 当前使用的数据库
+	usingNeon bool    // 当前是否使用Neon
 }
 
 // NewDatabase 创建数据库实例
 func NewDatabase(config DBConfig) (*DatabaseImpl, error) {
 	dbImpl := &DatabaseImpl{}
-	
+
 	// 尝试连接Neon
 	if config.UseNeon {
 		neonDB, err := sql.Open("pgx", config.NeonDSN)
@@ -63,7 +63,7 @@ func NewDatabase(config DBConfig) (*DatabaseImpl, error) {
 			}
 		}
 	}
-	
+
 	// 如果Neon连接失败，连接SQLite
 	if dbImpl.currentDB == nil {
 		sqliteDB, err := sql.Open("sqlite3", config.SQLitePath)
@@ -75,7 +75,7 @@ func NewDatabase(config DBConfig) (*DatabaseImpl, error) {
 		dbImpl.usingNeon = false
 		log.Println("✅ 成功连接SQLite")
 	}
-	
+
 	return dbImpl, nil
 }
 
@@ -102,9 +102,9 @@ func (db *DatabaseImpl) GetUserByEmail(email string) (*User, error) {
 	if !db.usingNeon {
 		query = strings.ReplaceAll(query, "$1", "?")
 	}
-	
+
 	row := db.currentDB.QueryRow(query, email)
-	
+
 	user := &User{}
 	if err := row.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.IsAdmin); err != nil {
 		if err == sql.ErrNoRows {
@@ -112,7 +112,7 @@ func (db *DatabaseImpl) GetUserByEmail(email string) (*User, error) {
 		}
 		return nil, err
 	}
-	
+
 	return user, nil
 }
 

@@ -56,7 +56,7 @@ func TestTopTraderCreditConsumption(t *testing.T) {
 		Database:       db,
 		ScanInterval:   1 * time.Second,
 	}
-	
+
 	// 使用EnhancedAutoTrader，因为它暴露了RunCycle
 	trader, err := NewEnhancedAutoTrader(cfg)
 	if err != nil {
@@ -97,14 +97,14 @@ func TestTopTraderCreditConsumption(t *testing.T) {
 	}
 
 	t.Logf("✅ 积分消耗测试通过: 初始 %d, 消耗 %d, 剩余 %d", initialCredits, cost, userCredits.AvailableCredits)
-	
+
 	// 8. 测试积分不足的情况
 	// 消耗完剩余积分
 	err = creditService.DeductCredits(context.Background(), userID, userCredits.AvailableCredits, "consume", "Drain", "drain_ref")
 	if err != nil {
 		t.Fatalf("消耗剩余积分失败: %v", err)
 	}
-	
+
 	// 再次运行周期，应该失败并报错"积分不足"
 	err = trader.RunCycle()
 	if err == nil {

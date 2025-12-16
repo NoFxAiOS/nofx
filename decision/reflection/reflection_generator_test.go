@@ -33,7 +33,7 @@ func TestReflectionGenerator_GenerateReflections(t *testing.T) {
 	generator := NewReflectionGenerator(client)
 
 	stats := &analysis.TradeAnalysisResult{
-		WinRate: 40.0,
+		WinRate:      40.0,
 		ProfitFactor: 0.8,
 	}
 	patterns := []analysis.FailurePattern{

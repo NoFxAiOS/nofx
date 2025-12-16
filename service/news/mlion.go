@@ -77,7 +77,7 @@ func (m *MlionFetcher) FetchNews(category string) ([]Article, error) {
 	}
 
 	var articles []Article
-	
+
 	// Mlion API uses Beijing Time (UTC+8)
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {

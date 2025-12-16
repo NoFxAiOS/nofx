@@ -159,7 +159,7 @@ func (s *Service) ProcessFetcher(f Fetcher, category string) error {
 	// MITIGATION: Use "Mlion-crypto" as DB key for Mlion?
 	// The `UpdateNewsState` and `GetNewsState` use `category` string key.
 	// Let's modify the DB key used here, but keep article.Category as "crypto" for display.
-	
+
 	dbCategoryKey := category
 	if f.Name() == "Mlion" {
 		dbCategoryKey = "mlion_" + category
@@ -238,12 +238,12 @@ func formatMessage(a Article) string {
 	} else {
 		icon = "📰"
 	}
-    
-    // Check source specific formatting if needed, but generic is fine
-    sourceTag := ""
-    if a.Source != "" {
-        sourceTag = fmt.Sprintf(" | %s", a.Source)
-    }
+
+	// Check source specific formatting if needed, but generic is fine
+	sourceTag := ""
+	if a.Source != "" {
+		sourceTag = fmt.Sprintf(" | %s", a.Source)
+	}
 
 	// 原 AI 处理逻辑分支已移除，只保留原生格式
 	headline := strings.ReplaceAll(a.Headline, "<", "&lt;")

@@ -16,10 +16,10 @@ func TestMockServiceOnly(t *testing.T) {
 
 	// 添加测试套餐
 	pkg := &config.CreditPackage{
-		ID: "test_pkg",
-		Name: "测试套餐",
+		ID:        "test_pkg",
+		Name:      "测试套餐",
 		PriceUSDT: 99.99,
-		Credits: 1000,
+		Credits:   1000,
 	}
 	err := service.CreatePackage(ctx, pkg)
 	assert.NoError(t, err)
@@ -118,10 +118,10 @@ func TestMockServiceErrorCases(t *testing.T) {
 	assert.Contains(t, err.Error(), "套餐ID不能为空")
 
 	invalidPkg2 := &config.CreditPackage{
-		ID: "pkg2",
-		Name: "测试套餐",
+		ID:        "pkg2",
+		Name:      "测试套餐",
 		PriceUSDT: -10,
-		Credits: 100,
+		Credits:   100,
 	}
 	err = service.CreatePackage(ctx, invalidPkg2)
 	assert.Error(t, err)
@@ -129,7 +129,7 @@ func TestMockServiceErrorCases(t *testing.T) {
 
 	// 测试更新不存在的套餐
 	notExistPkg := &config.CreditPackage{
-		ID: "not_exist",
+		ID:   "not_exist",
 		Name: "不存在的套餐",
 	}
 	err = service.UpdatePackage(ctx, notExistPkg)

@@ -307,8 +307,8 @@ func TestHashSignature(t *testing.T) {
 // TestSanitizeAddress 清理地址测试
 func TestSanitizeAddress(t *testing.T) {
 	tests := []struct {
-		address    string
-		sanitized  string
+		address   string
+		sanitized string
 	}{
 		{"0x742d35Cc6634C0532925a3b8D4d9F4Bf1e68E9E0", "0x742d...E9E0"},
 		{"0x1111", "0x1111"},

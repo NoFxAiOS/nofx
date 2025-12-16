@@ -48,12 +48,13 @@ type MockConfigDB struct {
 }
 
 func (m *MockConfigDB) SaveReflection(r *config.ReflectionRecord) error { return m.SaveErr }
+
 // Stub other methods
-func (m *MockConfigDB) GetTraderByID(id string) (*config.TraderRecord, error) { return nil, nil }
-func (m *MockConfigDB) UpdateTrader(t *config.TraderRecord) error { return nil }
+func (m *MockConfigDB) GetTraderByID(id string) (*config.TraderRecord, error)     { return nil, nil }
+func (m *MockConfigDB) UpdateTrader(t *config.TraderRecord) error                 { return nil }
 func (m *MockConfigDB) UpdateTraderCustomPrompt(uid, tid, p string, o bool) error { return nil }
-func (m *MockConfigDB) UpdateTraderStatus(tid string, r bool) error { return nil }
-func (m *MockConfigDB) GetActiveTraders() ([]*config.TraderRecord, error) { return nil, nil }
+func (m *MockConfigDB) UpdateTraderStatus(tid string, r bool) error               { return nil }
+func (m *MockConfigDB) GetActiveTraders() ([]*config.TraderRecord, error)         { return nil, nil }
 
 func TestRunLearningCycle_Robustness(t *testing.T) {
 	// Scenario 1: Analyzer Failure
@@ -75,17 +76,17 @@ func TestRunLearningCycle_Robustness(t *testing.T) {
 	}
 
 	// Scenario 3: Save DB Failure (Should NOT panic, log error and continue)
-    // Wait, RunLearningCycle logic:
-    /*
-    for _, r := range reflections {
-        if err := lc.db.SaveReflection(&r); err != nil {
-            log.Printf...
-            continue
-        }
-    }
-    */
-    // It continues. It returns nil at end.
-    
+	// Wait, RunLearningCycle logic:
+	/*
+	   for _, r := range reflections {
+	       if err := lc.db.SaveReflection(&r); err != nil {
+	           log.Printf...
+	           continue
+	       }
+	   }
+	*/
+	// It continues. It returns nil at end.
+
 	coord = &LearningCoordinator{
 		analyzer:  &MockAnalyzer{},
 		detector:  &MockDetector{},

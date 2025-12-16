@@ -51,21 +51,21 @@ func (m *MockConfigDatabase) UpdateTraderStatus(traderID string, isRunning bool)
 
 // MockAutoTrader implements TraderController interface for testing.
 type MockAutoTrader struct {
-	NameVal string
-	LeverageBTCETH int
-	LeverageAltcoin int
-	CustomPromptVal string
+	NameVal               string
+	LeverageBTCETH        int
+	LeverageAltcoin       int
+	CustomPromptVal       string
 	OverrideBasePromptVal bool
-	Stopped bool
+	Stopped               bool
 }
 
-func (m *MockAutoTrader) SetLeverage(btcEth, altcoin int) { 
+func (m *MockAutoTrader) SetLeverage(btcEth, altcoin int) {
 	m.LeverageBTCETH = btcEth
 	m.LeverageAltcoin = altcoin
 }
-func (m *MockAutoTrader) SetCustomPrompt(prompt string) { m.CustomPromptVal = prompt }
+func (m *MockAutoTrader) SetCustomPrompt(prompt string)       { m.CustomPromptVal = prompt }
 func (m *MockAutoTrader) SetOverrideBasePrompt(override bool) { m.OverrideBasePromptVal = override }
-func (m *MockAutoTrader) Stop() { m.Stopped = true }
+func (m *MockAutoTrader) Stop()                               { m.Stopped = true }
 
 // MockTraderManager implements TraderManager interface for testing.
 type MockTraderManager struct {
@@ -153,6 +153,6 @@ func TestParameterOptimizer_StopTrading(t *testing.T) {
 
 	err := optimizer.StopTrading(traderID)
 	assert.NoError(t, err)
-	assert.False(t, mockDB.UpdatedStatus) // Check DB updated (to false)
+	assert.False(t, mockDB.UpdatedStatus)  // Check DB updated (to false)
 	assert.True(t, mockAutoTrader.Stopped) // Check in-memory stopped
 }

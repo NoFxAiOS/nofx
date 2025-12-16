@@ -11,13 +11,13 @@ import (
 
 // OKXBalance OKX账户余额信息
 type OKXBalance struct {
-	TotalEquity string                 `json:"totalEq"` // 总资产
-	IsoEquity   string                 `json:"isoEq"`   // 已用资产
-	AdjEquity   string                 `json:"adjEq"`   // 可用资产
-	OrdFrozen   string                 `json:"ordFroz"` // 挂单冻结
-	MgnRatio    string                 `json:"mgnRatio"` // 保证金率
-	UTime       string                 `json:"uTime"`   // 更新时间
-	Details     []OKXBalanceDetail     `json:"details"` // 各币种详情
+	TotalEquity string             `json:"totalEq"`  // 总资产
+	IsoEquity   string             `json:"isoEq"`    // 已用资产
+	AdjEquity   string             `json:"adjEq"`    // 可用资产
+	OrdFrozen   string             `json:"ordFroz"`  // 挂单冻结
+	MgnRatio    string             `json:"mgnRatio"` // 保证金率
+	UTime       string             `json:"uTime"`    // 更新时间
+	Details     []OKXBalanceDetail `json:"details"`  // 各币种详情
 }
 
 // OKXBalanceDetail 各币种余额详情
@@ -33,88 +33,88 @@ type OKXBalanceDetail struct {
 
 // OKXPosition OKX持仓信息
 type OKXPosition struct {
-	InstID     string `json:"instId"`     // 产品ID
-	Pos        string `json:"pos"`        // 持仓数量
-	PosSide    string `json:"posSide"`    // 持仓方向
-	AvgPx      string `json:"avgPx"`      // 开仓均价
-	MgnMode    string `json:"mgnMode"`    // 保证金模式
-	MgnRatio   string `json:"mgnRatio"`   // 保证金率
-	Lever      string `json:"lever"`      // 杠杆倍数
-	LiqPx      string `json:"liqPx"`      // 强平价格
-	UPnL       string `json:"upl"`        // 未实现盈亏
-	UPnLRatio  string `json:"uplRatio"`   // 未实现盈亏率
-	Last       string `json:"last"`       // 最新成交价
-	Notional   string `json:"notional"`   // 持仓名义价值
-	Ccy        string `json:"ccy"`        // 保证金币种
-	UTime      string `json:"uTime"`      // 更新时间
-	IMR        string `json:"imr"`        // 初始保证金要求
-	MMR        string `json:"mmr"`        // 维持保证金要求
+	InstID    string `json:"instId"`   // 产品ID
+	Pos       string `json:"pos"`      // 持仓数量
+	PosSide   string `json:"posSide"`  // 持仓方向
+	AvgPx     string `json:"avgPx"`    // 开仓均价
+	MgnMode   string `json:"mgnMode"`  // 保证金模式
+	MgnRatio  string `json:"mgnRatio"` // 保证金率
+	Lever     string `json:"lever"`    // 杠杆倍数
+	LiqPx     string `json:"liqPx"`    // 强平价格
+	UPnL      string `json:"upl"`      // 未实现盈亏
+	UPnLRatio string `json:"uplRatio"` // 未实现盈亏率
+	Last      string `json:"last"`     // 最新成交价
+	Notional  string `json:"notional"` // 持仓名义价值
+	Ccy       string `json:"ccy"`      // 保证金币种
+	UTime     string `json:"uTime"`    // 更新时间
+	IMR       string `json:"imr"`      // 初始保证金要求
+	MMR       string `json:"mmr"`      // 维持保证金要求
 }
 
 // OKXOrder OKX订单信息
 type OKXOrder struct {
-	InstID     string `json:"instId"`     // 产品ID
-	OrdID      string `json:"ordId"`      // 订单ID
-	ClOrdID    string `json:"clOrdId"`    // 客户自定义订单ID
-	Tag        string `json:"tag"`        // 订单标签
-	Px         string `json:"px"`         // 委托价格
-	Sz         string `json:"sz"`         // 委托数量
-	PxUsd      string `json:"pxUsd"`      // 委托价格(USD)
-	PxVol      string `json:"pxVol"`      // 委托价格(波动率)
-	OrdType    string `json:"ordType"`    // 订单类型
-	Side       string `json:"side"`       // 订单方向
-	PosSide    string `json:"posSide"`    // 持仓方向
-	TdMode     string `json:"tdMode"`     // 交易模式
-	AccFillSz  string `json:"accFillSz"`  // 累计成交数量
-	FillPx     string `json:"fillPx"`     // 最新成交价格
-	TradeID    string `json:"tradeId"`    // 最新成交ID
-	FillSz     string `json:"fillSz"`     // 最新成交数量
-	FillPxVol  string `json:"fillPxVol"`  // 最新成交价格(波动率)
-	FillTime   string `json:"fillTime"`   // 最新成交时间
-	FillPnl    string `json:"fillPnl"`    // 成交收益
-	State      string `json:"state"`      // 订单状态
-	AvgPx      string `json:"avgPx"`      // 成交均价
-	Lever      string `json:"lever"`      // 杠杆倍数
+	InstID      string `json:"instId"`      // 产品ID
+	OrdID       string `json:"ordId"`       // 订单ID
+	ClOrdID     string `json:"clOrdId"`     // 客户自定义订单ID
+	Tag         string `json:"tag"`         // 订单标签
+	Px          string `json:"px"`          // 委托价格
+	Sz          string `json:"sz"`          // 委托数量
+	PxUsd       string `json:"pxUsd"`       // 委托价格(USD)
+	PxVol       string `json:"pxVol"`       // 委托价格(波动率)
+	OrdType     string `json:"ordType"`     // 订单类型
+	Side        string `json:"side"`        // 订单方向
+	PosSide     string `json:"posSide"`     // 持仓方向
+	TdMode      string `json:"tdMode"`      // 交易模式
+	AccFillSz   string `json:"accFillSz"`   // 累计成交数量
+	FillPx      string `json:"fillPx"`      // 最新成交价格
+	TradeID     string `json:"tradeId"`     // 最新成交ID
+	FillSz      string `json:"fillSz"`      // 最新成交数量
+	FillPxVol   string `json:"fillPxVol"`   // 最新成交价格(波动率)
+	FillTime    string `json:"fillTime"`    // 最新成交时间
+	FillPnl     string `json:"fillPnl"`     // 成交收益
+	State       string `json:"state"`       // 订单状态
+	AvgPx       string `json:"avgPx"`       // 成交均价
+	Lever       string `json:"lever"`       // 杠杆倍数
 	TPTriggerPx string `json:"tpTriggerPx"` // 止盈触发价格
-	TPOrdPx    string `json:"tpOrdPx"`    // 止盈委托价格
+	TPOrdPx     string `json:"tpOrdPx"`     // 止盈委托价格
 	SLTriggerPx string `json:"slTriggerPx"` // 止损触发价格
-	SLOrdPx    string `json:"slOrdPx"`    // 止损委托价格
-	CTime      string `json:"cTime"`      // 创建时间
-	UTime      string `json:"uTime"`      // 更新时间
-	Fee        string `json:"fee"`        // 手续费
-	Rebate     string `json:"rebate"`     // 返佣
-	Pnl        string `json:"pnl"`        // 收益
-	Category   string `json:"category"`   // 订单种类
+	SLOrdPx     string `json:"slOrdPx"`     // 止损委托价格
+	CTime       string `json:"cTime"`       // 创建时间
+	UTime       string `json:"uTime"`       // 更新时间
+	Fee         string `json:"fee"`         // 手续费
+	Rebate      string `json:"rebate"`      // 返佣
+	Pnl         string `json:"pnl"`         // 收益
+	Category    string `json:"category"`    // 订单种类
 }
 
 // OKXTicker OKX行情数据
 type OKXTicker struct {
-	InstID  string `json:"instId"`  // 产品ID
-	Last    string `json:"last"`    // 最新成交价
-	LastSz  string `json:"lastSz"`  // 最新成交数量
-	AskPx   string `json:"askPx"`   // 卖一价
-	AskSz   string `json:"askSz"`   // 卖一量
-	BidPx   string `json:"bidPx"`   // 买一价
-	BidSz   string `json:"bidSz"`   // 买一量
-	Open24h string `json:"open24h"` // 24小时开盘价
-	High24h string `json:"high24h"` // 24小时最高价
-	Low24h  string `json:"low24h"`  // 24小时最低价
-	Vol24h  string `json:"vol24h"`  // 24小时成交量
+	InstID    string `json:"instId"`    // 产品ID
+	Last      string `json:"last"`      // 最新成交价
+	LastSz    string `json:"lastSz"`    // 最新成交数量
+	AskPx     string `json:"askPx"`     // 卖一价
+	AskSz     string `json:"askSz"`     // 卖一量
+	BidPx     string `json:"bidPx"`     // 买一价
+	BidSz     string `json:"bidSz"`     // 买一量
+	Open24h   string `json:"open24h"`   // 24小时开盘价
+	High24h   string `json:"high24h"`   // 24小时最高价
+	Low24h    string `json:"low24h"`    // 24小时最低价
+	Vol24h    string `json:"vol24h"`    // 24小时成交量
 	VolCcy24h string `json:"volCcy24h"` // 24小时成交额
-	Ts      string `json:"ts"`      // 时间戳
-	SodUtc0 string `json:"sodUtc0"` // UTC 0点开盘价
-	SodUtc8 string `json:"sodUtc8"` // UTC 8点开盘价
+	Ts        string `json:"ts"`        // 时间戳
+	SodUtc0   string `json:"sodUtc0"`   // UTC 0点开盘价
+	SodUtc8   string `json:"sodUtc8"`   // UTC 8点开盘价
 }
 
 // OKXOrderRequest OKX下单请求
 type OKXOrderRequest struct {
-	InstID      string `json:"instId"`      // 产品ID
-	TdMode      string `json:"tdMode"`      // 交易模式
-	Side        string `json:"side"`        // 订单方向
-	PosSide     string `json:"posSide,omitempty"` // 持仓方向
-	OrdType     string `json:"ordType"`     // 订单类型
-	Sz          string `json:"sz"`          // 委托数量
-	Px          string `json:"px,omitempty"`      // 委托价格
+	InstID      string `json:"instId"`                // 产品ID
+	TdMode      string `json:"tdMode"`                // 交易模式
+	Side        string `json:"side"`                  // 订单方向
+	PosSide     string `json:"posSide,omitempty"`     // 持仓方向
+	OrdType     string `json:"ordType"`               // 订单类型
+	Sz          string `json:"sz"`                    // 委托数量
+	Px          string `json:"px,omitempty"`          // 委托价格
 	SlTriggerPx string `json:"slTriggerPx,omitempty"` // 止损触发价格
 	SlOrdPx     string `json:"slOrdPx,omitempty"`     // 止损委托价格
 	TpTriggerPx string `json:"tpTriggerPx,omitempty"` // 止盈触发价格
@@ -143,10 +143,10 @@ type OKXAPIResponse struct {
 
 // OKXLeverageRequest OKX杠杆设置请求
 type OKXLeverageRequest struct {
-	InstID  string `json:"instId"`  // 产品ID
-	Ccy     string `json:"ccy,omitempty"` // 保证金币种
-	Lever   string `json:"lever"`   // 杠杆倍数
-	MgnMode string `json:"mgnMode"` // 保证金模式
+	InstID  string `json:"instId"`            // 产品ID
+	Ccy     string `json:"ccy,omitempty"`     // 保证金币种
+	Lever   string `json:"lever"`             // 杠杆倍数
+	MgnMode string `json:"mgnMode"`           // 保证金模式
 	PosSide string `json:"posSide,omitempty"` // 持仓方向
 }
 
@@ -158,7 +158,7 @@ type OKXMarginModeRequest struct {
 
 // OKXCancelAllRequest OKX取消所有订单请求
 type OKXCancelAllRequest struct {
-	InstID string `json:"instId,omitempty"` // 产品ID
+	InstID  string `json:"instId,omitempty"`  // 产品ID
 	OrdType string `json:"ordType,omitempty"` // 订单类型
 }
 
@@ -169,28 +169,28 @@ type OKXPublicRequest struct {
 
 // OKXAuthHeaders OKX认证头信息
 type OKXAuthHeaders struct {
-	APIKey     string `json:"OK-ACCESS-KEY"`      // API密钥
-	Signature  string `json:"OK-ACCESS-SIGN"`     // 签名
-	Timestamp  string `json:"OK-ACCESS-TIMESTAMP"` // 时间戳
+	APIKey     string `json:"OK-ACCESS-KEY"`        // API密钥
+	Signature  string `json:"OK-ACCESS-SIGN"`       // 签名
+	Timestamp  string `json:"OK-ACCESS-TIMESTAMP"`  // 时间戳
 	Passphrase string `json:"OK-ACCESS-PASSPHRASE"` // 密码短语
 }
 
 // OKXCredentials OKX凭证信息
 type OKXCredentials struct {
-	APIKey     string `json:"api_key"`     // API密钥
-	SecretKey  string `json:"secret_key"`  // 密钥
-	Passphrase string `json:"passphrase"`  // 密码短语
-	Testnet    bool   `json:"testnet"`     // 是否使用测试网络
+	APIKey     string `json:"api_key"`    // API密钥
+	SecretKey  string `json:"secret_key"` // 密钥
+	Passphrase string `json:"passphrase"` // 密码短语
+	Testnet    bool   `json:"testnet"`    // 是否使用测试网络
 }
 
 // OKXConfig OKX配置信息
 type OKXConfig struct {
-	BaseURL            string        `json:"base_url"`            // 基础URL
-	Timeout            time.Duration `json:"timeout"`             // 超时时间
-	CacheDuration      time.Duration `json:"cache_duration"`      // 缓存时间
-	MaxRetries         int           `json:"max_retries"`         // 最大重试次数
+	BaseURL            string        `json:"base_url"`              // 基础URL
+	Timeout            time.Duration `json:"timeout"`               // 超时时间
+	CacheDuration      time.Duration `json:"cache_duration"`        // 缓存时间
+	MaxRetries         int           `json:"max_retries"`           // 最大重试次数
 	RateLimitPerSecond int           `json:"rate_limit_per_second"` // 每秒请求限制
-	EnableTestnet      bool          `json:"enable_testnet"`      // 启用测试网络
+	EnableTestnet      bool          `json:"enable_testnet"`        // 启用测试网络
 }
 
 // DefaultOKXConfig 默认OKX配置
@@ -241,21 +241,21 @@ type OKXPositionMode struct {
 
 // OKXTradeFee OKX交易手续费
 type OKXTradeFee struct {
-	InstType  string `json:"instType"`  // 产品类型
-	InstID    string `json:"instId"`    // 产品ID
-	Taker     string `json:"taker"`     // 吃单手续费率
-	Maker     string `json:"maker"`     // 挂单手续费率
-	TakerUA   string `json:"takerUa"`   // 吃单手续费率(UA)
-	MakerUA   string `json:"makerUa"`   // 挂单手续费率(UA)
-	Delivery  string `json:"delivery"`  // 交割手续费率
-	Exercise  string `json:"exercise"`  // 行权手续费率
-	Ts        string `json:"ts"`        // 时间戳
+	InstType string `json:"instType"` // 产品类型
+	InstID   string `json:"instId"`   // 产品ID
+	Taker    string `json:"taker"`    // 吃单手续费率
+	Maker    string `json:"maker"`    // 挂单手续费率
+	TakerUA  string `json:"takerUa"`  // 吃单手续费率(UA)
+	MakerUA  string `json:"makerUa"`  // 挂单手续费率(UA)
+	Delivery string `json:"delivery"` // 交割手续费率
+	Exercise string `json:"exercise"` // 行权手续费率
+	Ts       string `json:"ts"`       // 时间戳
 }
 
 // OKXWebSocketMessage OKX WebSocket消息
 type OKXWebSocketMessage struct {
-	Op   string      `json:"op"`   // 操作类型
-	Args []OKXArg    `json:"args"` // 参数列表
+	Op   string   `json:"op"`   // 操作类型
+	Args []OKXArg `json:"args"` // 参数列表
 }
 
 // OKXArg OKX WebSocket参数
@@ -266,11 +266,11 @@ type OKXArg struct {
 
 // OKXWebSocketResponse OKX WebSocket响应
 type OKXWebSocketResponse struct {
-	Event string          `json:"event"` // 事件类型
-	Code  string          `json:"code"`  // 错误码
-	Msg   string          `json:"msg"`   // 错误消息
-	Arg   *OKXArg         `json:"arg"`   // 参数
-	Data  interface{}     `json:"data"`  // 数据
+	Event string      `json:"event"` // 事件类型
+	Code  string      `json:"code"`  // 错误码
+	Msg   string      `json:"msg"`   // 错误消息
+	Arg   *OKXArg     `json:"arg"`   // 参数
+	Data  interface{} `json:"data"`  // 数据
 }
 
 // OKXConstants OKX常量定义
@@ -288,12 +288,12 @@ type OKXConstants struct {
 
 // DefaultOKXConstants 默认OKX常量
 var DefaultOKXConstants = OKXConstants{
-	MaxLeverage:    125,
-	MinLeverage:    1,
-	MaxOrderSize:   1000000,
-	MinOrderSize:   0.001,
-	MaxPrice:       10000000,
-	MinPrice:       0.000001,
+	MaxLeverage:  125,
+	MinLeverage:  1,
+	MaxOrderSize: 1000000,
+	MinOrderSize: 0.001,
+	MaxPrice:     10000000,
+	MinPrice:     0.000001,
 	SupportedPairs: []string{
 		"BTC-USDT-SWAP",
 		"ETH-USDT-SWAP",
@@ -314,9 +314,9 @@ var DefaultOKXConstants = OKXConstants{
 type OKXOrderState string
 
 const (
-	OKXOrderStateLive   OKXOrderState = "live"   // 待成交
-	OKXOrderStateFilled OKXOrderState = "filled" // 完全成交
-	OKXOrderStateCanceled OKXOrderState = "canceled" // 已撤销
+	OKXOrderStateLive            OKXOrderState = "live"             // 待成交
+	OKXOrderStateFilled          OKXOrderState = "filled"           // 完全成交
+	OKXOrderStateCanceled        OKXOrderState = "canceled"         // 已撤销
 	OKXOrderStatePartiallyFilled OKXOrderState = "partially_filled" // 部分成交
 )
 
@@ -341,11 +341,11 @@ const (
 type OKXOrderType string
 
 const (
-	OKXOrderTypeMarket     OKXOrderType = "market"     // 市价
-	OKXOrderTypeLimit      OKXOrderType = "limit"      // 限价
-	OKXOrderTypePostOnly   OKXOrderType = "post_only"  // 只做maker
-	OKXOrderTypeIOC        OKXOrderType = "ioc"        // 立即成交或取消
-	OKXOrderTypeFOK        OKXOrderType = "fok"        // 全部成交或取消
+	OKXOrderTypeMarket      OKXOrderType = "market"      // 市价
+	OKXOrderTypeLimit       OKXOrderType = "limit"       // 限价
+	OKXOrderTypePostOnly    OKXOrderType = "post_only"   // 只做maker
+	OKXOrderTypeIOC         OKXOrderType = "ioc"         // 立即成交或取消
+	OKXOrderTypeFOK         OKXOrderType = "fok"         // 全部成交或取消
 	OKXOrderTypeConditional OKXOrderType = "conditional" // 条件单
 )
 
@@ -371,26 +371,26 @@ const (
 type OKXPublicChannel string
 
 const (
-	OKXPublicChannelTickers   OKXPublicChannel = "tickers"   // 行情频道
-	OKXPublicChannelCandle1m  OKXPublicChannel = "candle1m"  // 1分钟K线
-	OKXPublicChannelCandle5m  OKXPublicChannel = "candle5m"  // 5分钟K线
-	OKXPublicChannelCandle1H  OKXPublicChannel = "candle1H"  // 1小时K线
-	OKXPublicChannelCandle1D  OKXPublicChannel = "candle1D"  // 1日K线
-	OKXPublicChannelTrades    OKXPublicChannel = "trades"    // 交易频道
-	OKXPublicChannelBooks      OKXPublicChannel = "books"     // 深度频道
-	OKXPublicChannelBooks5     OKXPublicChannel = "books5"    // 5档深度
-	OKXPublicChannelBooks50    OKXPublicChannel = "books50"   // 50档深度
+	OKXPublicChannelTickers  OKXPublicChannel = "tickers"  // 行情频道
+	OKXPublicChannelCandle1m OKXPublicChannel = "candle1m" // 1分钟K线
+	OKXPublicChannelCandle5m OKXPublicChannel = "candle5m" // 5分钟K线
+	OKXPublicChannelCandle1H OKXPublicChannel = "candle1H" // 1小时K线
+	OKXPublicChannelCandle1D OKXPublicChannel = "candle1D" // 1日K线
+	OKXPublicChannelTrades   OKXPublicChannel = "trades"   // 交易频道
+	OKXPublicChannelBooks    OKXPublicChannel = "books"    // 深度频道
+	OKXPublicChannelBooks5   OKXPublicChannel = "books5"   // 5档深度
+	OKXPublicChannelBooks50  OKXPublicChannel = "books50"  // 50档深度
 )
 
 // OKXPrivateChannel OKX私有频道
 type OKXPrivateChannel string
 
 const (
-	OKXPrivateChannelAccount      OKXPrivateChannel = "account"       // 账户频道
-	OKXPrivateChannelPositions    OKXPrivateChannel = "positions"     // 持仓频道
-	OKXPrivateChannelBalance      OKXPrivateChannel = "balance"       // 余额频道
-	OKXPrivateChannelOrders       OKXPrivateChannel = "orders"        // 订单频道
-	OKXPrivateChannelOrdersAlgo   OKXPrivateChannel = "orders-algo"   // 策略订单频道
+	OKXPrivateChannelAccount    OKXPrivateChannel = "account"     // 账户频道
+	OKXPrivateChannelPositions  OKXPrivateChannel = "positions"   // 持仓频道
+	OKXPrivateChannelBalance    OKXPrivateChannel = "balance"     // 余额频道
+	OKXPrivateChannelOrders     OKXPrivateChannel = "orders"      // 订单频道
+	OKXPrivateChannelOrdersAlgo OKXPrivateChannel = "orders-algo" // 策略订单频道
 )
 
 // OKXRateLimitType OKX速率限制类型
@@ -414,18 +414,18 @@ const (
 type OKXResponseCode string
 
 const (
-	OKXResponseCodeSuccess      OKXResponseCode = "0" // 成功
-	OKXResponseCodeFailure      OKXResponseCode = "1" // 失败
+	OKXResponseCodeSuccess        OKXResponseCode = "0" // 成功
+	OKXResponseCodeFailure        OKXResponseCode = "1" // 失败
 	OKXResponseCodePartialSuccess OKXResponseCode = "2" // 部分成功
 )
 
 // GetOrderStateDescription 获取订单状态描述
 func GetOrderStateDescription(state OKXOrderState) string {
 	descriptions := map[OKXOrderState]string{
-		OKXOrderStateLive:             "待成交",
-		OKXOrderStateFilled:           "完全成交",
-		OKXOrderStateCanceled:         "已撤销",
-		OKXOrderStatePartiallyFilled:  "部分成交",
+		OKXOrderStateLive:            "待成交",
+		OKXOrderStateFilled:          "完全成交",
+		OKXOrderStateCanceled:        "已撤销",
+		OKXOrderStatePartiallyFilled: "部分成交",
 	}
 
 	if desc, exists := descriptions[state]; exists {
@@ -464,11 +464,11 @@ func GetMarginModeDescription(mode OKXMarginMode) string {
 // GetOrderTypeDescription 获取订单类型描述
 func GetOrderTypeDescription(orderType OKXOrderType) string {
 	descriptions := map[OKXOrderType]string{
-		OKXOrderTypeMarket:     "市价",
-		OKXOrderTypeLimit:      "限价",
-		OKXOrderTypePostOnly:   "只做maker",
-		OKXOrderTypeIOC:        "立即成交或取消",
-		OKXOrderTypeFOK:        "全部成交或取消",
+		OKXOrderTypeMarket:      "市价",
+		OKXOrderTypeLimit:       "限价",
+		OKXOrderTypePostOnly:    "只做maker",
+		OKXOrderTypeIOC:         "立即成交或取消",
+		OKXOrderTypeFOK:         "全部成交或取消",
 		OKXOrderTypeConditional: "条件单",
 	}
 
@@ -509,20 +509,20 @@ func GetInstrumentTypeDescription(instType OKXInstrumentType) string {
 // ConvertToStandardPosition 转换为标准持仓格式
 func ConvertToStandardPosition(okxPos OKXPosition) map[string]interface{} {
 	return map[string]interface{}{
-		"symbol":     okxPos.InstID,
-		"position":   okxPos.Pos,
-		"posSide":    okxPos.PosSide,
-		"avgPrice":   okxPos.AvgPx,
-		"leverage":   okxPos.Lever,
-		"marginMode": okxPos.MgnMode,
-		"liquidationPrice": okxPos.LiqPx,
-		"unrealizedPnl":    okxPos.UPnL,
-		"unrealizedPnlRatio": okxPos.UPnLRatio,
-		"lastPrice":        okxPos.Last,
-		"notionalValue":    okxPos.Notional,
-		"marginCurrency":   okxPos.Ccy,
-		"updateTime":       okxPos.UTime,
-		"initialMarginRequired": okxPos.IMR,
+		"symbol":                    okxPos.InstID,
+		"position":                  okxPos.Pos,
+		"posSide":                   okxPos.PosSide,
+		"avgPrice":                  okxPos.AvgPx,
+		"leverage":                  okxPos.Lever,
+		"marginMode":                okxPos.MgnMode,
+		"liquidationPrice":          okxPos.LiqPx,
+		"unrealizedPnl":             okxPos.UPnL,
+		"unrealizedPnlRatio":        okxPos.UPnLRatio,
+		"lastPrice":                 okxPos.Last,
+		"notionalValue":             okxPos.Notional,
+		"marginCurrency":            okxPos.Ccy,
+		"updateTime":                okxPos.UTime,
+		"initialMarginRequired":     okxPos.IMR,
 		"maintenanceMarginRequired": okxPos.MMR,
 	}
 }
@@ -530,33 +530,33 @@ func ConvertToStandardPosition(okxPos OKXPosition) map[string]interface{} {
 // ConvertToStandardBalance 转换为标准余额格式
 func ConvertToStandardBalance(okxBalance OKXBalance) map[string]interface{} {
 	return map[string]interface{}{
-		"total": okxBalance.TotalEquity,
-		"used":  okxBalance.IsoEquity,
-		"free":  okxBalance.AdjEquity,
+		"total":      okxBalance.TotalEquity,
+		"used":       okxBalance.IsoEquity,
+		"free":       okxBalance.AdjEquity,
 		"updateTime": okxBalance.UTime,
-		"details": okxBalance.Details,
+		"details":    okxBalance.Details,
 	}
 }
 
 // ConvertToStandardOrder 转换为标准订单格式
 func ConvertToStandardOrder(okxOrder OKXOrder) map[string]interface{} {
 	return map[string]interface{}{
-		"orderId":     okxOrder.OrdID,
-		"clientOrderId": okxOrder.ClOrdID,
-		"symbol":      okxOrder.InstID,
-		"price":       okxOrder.Px,
-		"quantity":    okxOrder.Sz,
-		"orderType":   okxOrder.OrdType,
-		"side":        okxOrder.Side,
-		"positionSide": okxOrder.PosSide,
-		"state":       okxOrder.State,
+		"orderId":        okxOrder.OrdID,
+		"clientOrderId":  okxOrder.ClOrdID,
+		"symbol":         okxOrder.InstID,
+		"price":          okxOrder.Px,
+		"quantity":       okxOrder.Sz,
+		"orderType":      okxOrder.OrdType,
+		"side":           okxOrder.Side,
+		"positionSide":   okxOrder.PosSide,
+		"state":          okxOrder.State,
 		"filledQuantity": okxOrder.AccFillSz,
-		"averagePrice": okxOrder.AvgPx,
-		"leverage":    okxOrder.Lever,
-		"createTime":  okxOrder.CTime,
-		"updateTime":  okxOrder.UTime,
-		"fee":         okxOrder.Fee,
-		"profitLoss":  okxOrder.Pnl,
+		"averagePrice":   okxOrder.AvgPx,
+		"leverage":       okxOrder.Lever,
+		"createTime":     okxOrder.CTime,
+		"updateTime":     okxOrder.UTime,
+		"fee":            okxOrder.Fee,
+		"profitLoss":     okxOrder.Pnl,
 	}
 }
 
@@ -893,20 +893,20 @@ func (c *OKXConverter) ConvertPositions(data interface{}) ([]map[string]interfac
 		}
 
 		position := map[string]interface{}{
-			"symbol":    getStringValue(pos, "instId"),
-			"position":  getStringValue(pos, "pos"),
-			"posSide":   getStringValue(pos, "posSide"),
-			"avgPrice":  getStringValue(pos, "avgPx"),
-			"leverage":  getStringValue(pos, "lever"),
-			"marginMode": getStringValue(pos, "mgnMode"),
-			"liquidationPrice": getStringValue(pos, "liqPx"),
-			"unrealizedPnl":    getStringValue(pos, "upl"),
-			"unrealizedPnlRatio": getStringValue(pos, "uplRatio"),
-			"lastPrice":        getStringValue(pos, "last"),
-			"notionalValue":    getStringValue(pos, "notional"),
-			"marginCurrency":   getStringValue(pos, "ccy"),
-			"updateTime":       getStringValue(pos, "uTime"),
-			"initialMarginRequired": getStringValue(pos, "imr"),
+			"symbol":                    getStringValue(pos, "instId"),
+			"position":                  getStringValue(pos, "pos"),
+			"posSide":                   getStringValue(pos, "posSide"),
+			"avgPrice":                  getStringValue(pos, "avgPx"),
+			"leverage":                  getStringValue(pos, "lever"),
+			"marginMode":                getStringValue(pos, "mgnMode"),
+			"liquidationPrice":          getStringValue(pos, "liqPx"),
+			"unrealizedPnl":             getStringValue(pos, "upl"),
+			"unrealizedPnlRatio":        getStringValue(pos, "uplRatio"),
+			"lastPrice":                 getStringValue(pos, "last"),
+			"notionalValue":             getStringValue(pos, "notional"),
+			"marginCurrency":            getStringValue(pos, "ccy"),
+			"updateTime":                getStringValue(pos, "uTime"),
+			"initialMarginRequired":     getStringValue(pos, "imr"),
 			"maintenanceMarginRequired": getStringValue(pos, "mmr"),
 		}
 
@@ -1000,11 +1000,11 @@ func (c *OKXConverter) ConvertOrderResponse(data interface{}) (map[string]interf
 	}
 
 	result := map[string]interface{}{
-		"orderId":     getStringValue(order, "ordId"),
+		"orderId":       getStringValue(order, "ordId"),
 		"clientOrderId": getStringValue(order, "clOrdId"),
-		"tag":         getStringValue(order, "tag"),
-		"successCode": getStringValue(order, "sCode"),
-		"successMsg":  getStringValue(order, "sMsg"),
+		"tag":           getStringValue(order, "tag"),
+		"successCode":   getStringValue(order, "sCode"),
+		"successMsg":    getStringValue(order, "sMsg"),
 	}
 
 	return result, nil
@@ -1052,7 +1052,7 @@ func (c *OKXConverter) ConvertCancelAllResponse(data interface{}) error {
 
 // OKXWebSocketSubscribeRequest OKX WebSocket订阅请求
 type OKXWebSocketSubscribeRequest struct {
-	Op   string        `json:"op"`   // 操作类型: subscribe/unsubscribe
+	Op   string         `json:"op"`   // 操作类型: subscribe/unsubscribe
 	Args []WebSocketArg `json:"args"` // 参数列表
 }
 
@@ -1064,45 +1064,45 @@ type WebSocketArg struct {
 
 // OKXWebSocketEvent OKX WebSocket事件
 type OKXWebSocketEvent struct {
-	Event string      `json:"event"` // 事件类型: subscribe/unsubscribe/error
-	Code  string      `json:"code"`  // 错误码
-	Msg   string      `json:"msg"`   // 错误消息
+	Event string        `json:"event"` // 事件类型: subscribe/unsubscribe/error
+	Code  string        `json:"code"`  // 错误码
+	Msg   string        `json:"msg"`   // 错误消息
 	Arg   *WebSocketArg `json:"arg"`   // 参数
 }
 
 // OKXWebSocketTickerData OKX WebSocket行情数据
 type OKXWebSocketTickerData struct {
-	InstID  string `json:"instId"`  // 产品ID
-	Last    string `json:"last"`    // 最新成交价
-	LastSz  string `json:"lastSz"`  // 最新成交数量
-	AskPx   string `json:"askPx"`   // 卖一价
-	AskSz   string `json:"askSz"`   // 卖一量
-	BidPx   string `json:"bidPx"`   // 买一价
-	BidSz   string `json:"bidSz"`   // 买一量
-	Open24h string `json:"open24h"` // 24小时开盘价
-	High24h string `json:"high24h"` // 24小时最高价
-	Low24h  string `json:"low24h"`  // 24小时最低价
-	Vol24h  string `json:"vol24h"`  // 24小时成交量
+	InstID    string `json:"instId"`    // 产品ID
+	Last      string `json:"last"`      // 最新成交价
+	LastSz    string `json:"lastSz"`    // 最新成交数量
+	AskPx     string `json:"askPx"`     // 卖一价
+	AskSz     string `json:"askSz"`     // 卖一量
+	BidPx     string `json:"bidPx"`     // 买一价
+	BidSz     string `json:"bidSz"`     // 买一量
+	Open24h   string `json:"open24h"`   // 24小时开盘价
+	High24h   string `json:"high24h"`   // 24小时最高价
+	Low24h    string `json:"low24h"`    // 24小时最低价
+	Vol24h    string `json:"vol24h"`    // 24小时成交量
 	VolCcy24h string `json:"volCcy24h"` // 24小时成交额
-	Ts      string `json:"ts"`      // 时间戳
+	Ts        string `json:"ts"`        // 时间戳
 }
 
 // OKXWebSocketPositionData OKX WebSocket持仓数据
 type OKXWebSocketPositionData struct {
-	InstID    string `json:"instId"`    // 产品ID
-	Pos       string `json:"pos"`       // 持仓数量
-	PosSide   string `json:"posSide"`   // 持仓方向
-	AvgPx     string `json:"avgPx"`     // 开仓均价
-	MgnMode   string `json:"mgnMode"`   // 保证金模式
-	MgnRatio  string `json:"mgnRatio"`  // 保证金率
-	Lever     string `json:"lever"`     // 杠杆倍数
-	LiqPx     string `json:"liqPx"`     // 强平价格
-	UPnL      string `json:"upl"`       // 未实现盈亏
-	UPnLRatio string `json:"uplRatio"`  // 未实现盈亏率
-	Last      string `json:"last"`      // 最新成交价
-	Notional  string `json:"notional"`  // 持仓名义价值
-	Ccy       string `json:"ccy"`       // 保证金币种
-	Ts        string `json:"ts"`        // 时间戳
+	InstID    string `json:"instId"`   // 产品ID
+	Pos       string `json:"pos"`      // 持仓数量
+	PosSide   string `json:"posSide"`  // 持仓方向
+	AvgPx     string `json:"avgPx"`    // 开仓均价
+	MgnMode   string `json:"mgnMode"`  // 保证金模式
+	MgnRatio  string `json:"mgnRatio"` // 保证金率
+	Lever     string `json:"lever"`    // 杠杆倍数
+	LiqPx     string `json:"liqPx"`    // 强平价格
+	UPnL      string `json:"upl"`      // 未实现盈亏
+	UPnLRatio string `json:"uplRatio"` // 未实现盈亏率
+	Last      string `json:"last"`     // 最新成交价
+	Notional  string `json:"notional"` // 持仓名义价值
+	Ccy       string `json:"ccy"`      // 保证金币种
+	Ts        string `json:"ts"`       // 时间戳
 }
 
 // OKXWebSocketOrderData OKX WebSocket订单数据
@@ -1278,15 +1278,15 @@ func (v *OKXConfigValidator) ValidateLeverage(leverage int) error {
 
 // OKXTradingLimits OKX交易限制
 type OKXTradingLimits struct {
-	MaxOpenOrders     int     `json:"max_open_orders"`     // 最大开仓订单数
-	MaxAlgoOrders     int     `json:"max_algo_orders"`     // 最大策略订单数
-	MaxPositionSize   float64 `json:"max_position_size"`   // 最大持仓数量
-	MinOrderSize      float64 `json:"min_order_size"`      // 最小订单数量
-	MaxOrderSize      float64 `json:"max_order_size"`      // 最大订单数量
-	MaxLeverage       int     `json:"max_leverage"`        // 最大杠杆倍数
-	MinLeverage       int     `json:"min_leverage"`        // 最小杠杆倍数
-	MaxNotionalValue  float64 `json:"max_notional_value"`  // 最大名义价值
-	MinNotionalValue  float64 `json:"min_notional_value"`  // 最小名义价值
+	MaxOpenOrders    int     `json:"max_open_orders"`    // 最大开仓订单数
+	MaxAlgoOrders    int     `json:"max_algo_orders"`    // 最大策略订单数
+	MaxPositionSize  float64 `json:"max_position_size"`  // 最大持仓数量
+	MinOrderSize     float64 `json:"min_order_size"`     // 最小订单数量
+	MaxOrderSize     float64 `json:"max_order_size"`     // 最大订单数量
+	MaxLeverage      int     `json:"max_leverage"`       // 最大杠杆倍数
+	MinLeverage      int     `json:"min_leverage"`       // 最小杠杆倍数
+	MaxNotionalValue float64 `json:"max_notional_value"` // 最大名义价值
+	MinNotionalValue float64 `json:"min_notional_value"` // 最小名义价值
 }
 
 // DefaultOKXTradingLimits 默认OKX交易限制
@@ -1342,35 +1342,35 @@ func ValidateTradingLimits(limits OKXTradingLimits) error {
 
 // OKXMarketData OKX市场数据
 type OKXMarketData struct {
-	Symbol      string  `json:"symbol"`       // 交易对
-	LastPrice   float64 `json:"last_price"`   // 最新价格
-	BidPrice    float64 `json:"bid_price"`    // 买一价
-	AskPrice    float64 `json:"ask_price"`    // 卖一价
-	BidSize     float64 `json:"bid_size"`     // 买一量
-	AskSize     float64 `json:"ask_size"`     // 卖一量
-	Volume24h   float64 `json:"volume_24h"`   // 24小时成交量
-	Value24h    float64 `json:"value_24h"`    // 24小时成交额
-	High24h     float64 `json:"high_24h"`     // 24小时最高价
-	Low24h      float64 `json:"low_24h"`      // 24小时最低价
-	Open24h     float64 `json:"open_24h"`     // 24小时开盘价
-	Timestamp   int64   `json:"timestamp"`    // 时间戳
+	Symbol    string  `json:"symbol"`     // 交易对
+	LastPrice float64 `json:"last_price"` // 最新价格
+	BidPrice  float64 `json:"bid_price"`  // 买一价
+	AskPrice  float64 `json:"ask_price"`  // 卖一价
+	BidSize   float64 `json:"bid_size"`   // 买一量
+	AskSize   float64 `json:"ask_size"`   // 卖一量
+	Volume24h float64 `json:"volume_24h"` // 24小时成交量
+	Value24h  float64 `json:"value_24h"`  // 24小时成交额
+	High24h   float64 `json:"high_24h"`   // 24小时最高价
+	Low24h    float64 `json:"low_24h"`    // 24小时最低价
+	Open24h   float64 `json:"open_24h"`   // 24小时开盘价
+	Timestamp int64   `json:"timestamp"`  // 时间戳
 }
 
 // OKXAccountSettings OKX账户设置信息
 type OKXAccountSettings struct {
-	UserID      string  `json:"user_id"`       // 用户ID
+	UserID       string `json:"user_id"`       // 用户ID
 	AccountLevel string `json:"account_level"` // 账户等级
 	PositionMode string `json:"position_mode"` // 持仓模式
-	AutoLoan    bool    `json:"auto_loan"`     // 自动借币
-	GreedyMode  bool    `json:"greedy_mode"`   // 贪婪模式
+	AutoLoan     bool   `json:"auto_loan"`     // 自动借币
+	GreedyMode   bool   `json:"greedy_mode"`   // 贪婪模式
 }
 
 // OKXOrderBook OKX订单簿
 type OKXOrderBook struct {
-	Symbol    string              `json:"symbol"`     // 交易对
-	Bids      []OKXOrderBookItem  `json:"bids"`       // 买单
-	Asks      []OKXOrderBookItem  `json:"asks"`       // 卖单
-	Timestamp int64               `json:"timestamp"`  // 时间戳
+	Symbol    string             `json:"symbol"`    // 交易对
+	Bids      []OKXOrderBookItem `json:"bids"`      // 买单
+	Asks      []OKXOrderBookItem `json:"asks"`      // 卖单
+	Timestamp int64              `json:"timestamp"` // 时间戳
 }
 
 // OKXOrderBookItem OKX订单簿项
@@ -1382,18 +1382,18 @@ type OKXOrderBookItem struct {
 
 // OKXRecentTrades OKX最近成交
 type OKXRecentTrades struct {
-	Symbol    string  `json:"symbol"`     // 交易对
-	Trades    []OKXTrade `json:"trades"`  // 成交记录
-	Timestamp int64   `json:"timestamp"`  // 时间戳
+	Symbol    string     `json:"symbol"`    // 交易对
+	Trades    []OKXTrade `json:"trades"`    // 成交记录
+	Timestamp int64      `json:"timestamp"` // 时间戳
 }
 
 // OKXTrade OKX成交记录
 type OKXTrade struct {
-	TradeID   string  `json:"trade_id"`   // 成交ID
-	Price     float64 `json:"price"`      // 成交价格
-	Size      float64 `json:"size"`       // 成交数量
-	Side      string  `json:"side"`       // 成交方向
-	Timestamp int64   `json:"timestamp"`  // 成交时间
+	TradeID   string  `json:"trade_id"`  // 成交ID
+	Price     float64 `json:"price"`     // 成交价格
+	Size      float64 `json:"size"`      // 成交数量
+	Side      string  `json:"side"`      // 成交方向
+	Timestamp int64   `json:"timestamp"` // 成交时间
 }
 
 // OKXKlineData OKX K线数据
@@ -1412,10 +1412,10 @@ type OKXKlineData struct {
 
 // OKXFundingRate OKX资金费率
 type OKXFundingRate struct {
-	Symbol       string  `json:"symbol"`        // 交易对
-	FundingRate  float64 `json:"funding_rate"`  // 资金费率
-	FundingTime  int64   `json:"funding_time"`  // 资金费率时间
-	NextFundingTime int64 `json:"next_funding_time"` // 下次资金费率时间
+	Symbol          string  `json:"symbol"`            // 交易对
+	FundingRate     float64 `json:"funding_rate"`      // 资金费率
+	FundingTime     int64   `json:"funding_time"`      // 资金费率时间
+	NextFundingTime int64   `json:"next_funding_time"` // 下次资金费率时间
 }
 
 // OKXOpenInterest OKX持仓量
@@ -1427,18 +1427,18 @@ type OKXOpenInterest struct {
 
 // OKXInsuranceFund OKX保险基金
 type OKXInsuranceFund struct {
-	Symbol      string  `json:"symbol"`       // 交易对
+	Symbol        string  `json:"symbol"`         // 交易对
 	InsuranceFund float64 `json:"insurance_fund"` // 保险基金余额
-	Timestamp   int64   `json:"timestamp"`    // 时间戳
+	Timestamp     int64   `json:"timestamp"`      // 时间戳
 }
 
 // OKXDeliveryExerciseHistory OKX交割行权历史
 type OKXDeliveryExerciseHistory struct {
-	Symbol      string  `json:"symbol"`       // 交易对
-	Type        string  `json:"type"`         // 类型: delivery/exercise
-	Timestamp   int64   `json:"timestamp"`    // 时间戳
-	Price       float64 `json:"price"`        // 交割/行权价格
-	Volume      float64 `json:"volume"`       // 交割/行权数量
+	Symbol    string  `json:"symbol"`    // 交易对
+	Type      string  `json:"type"`      // 类型: delivery/exercise
+	Timestamp int64   `json:"timestamp"` // 时间戳
+	Price     float64 `json:"price"`     // 交割/行权价格
+	Volume    float64 `json:"volume"`    // 交割/行权数量
 }
 
 // OKXAPIResponseWrapper OKX API响应包装器

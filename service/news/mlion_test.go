@@ -75,7 +75,6 @@ func TestMlionFetcher_FetchNews(t *testing.T) {
 	u.RawQuery = q.Encode()
 	fetcher.baseURL = u.String()
 
-
 	// Test Fetch
 	articles, err := fetcher.FetchNews("crypto")
 	if err != nil {
@@ -90,7 +89,7 @@ func TestMlionFetcher_FetchNews(t *testing.T) {
 	if a.ID != 12345 {
 		t.Errorf("Expected ID 12345, got %d", a.ID)
 	}
-	
+
 	// Verify Time Parsing
 	loc, _ := time.LoadLocation("Asia/Shanghai")
 	expectedTime, _ := time.ParseInLocation("2006-01-02 15:04:05", "2025-12-15 12:00:00", loc)
@@ -101,14 +100,14 @@ func TestMlionFetcher_FetchNews(t *testing.T) {
 
 func TestMlionFetcher_Constant(t *testing.T) {
 	f := NewMlionFetcher("key")
-	
+
 	expectedParams := map[string]string{
-		"language":   "cn",
-		"time_zone":  "Asia/Shanghai",
-		"num":        "100",
-		"page":       "1",
-		"client":     "mlion",
-		"is_hot":     "Y",
+		"language":  "cn",
+		"time_zone": "Asia/Shanghai",
+		"num":       "100",
+		"page":      "1",
+		"client":    "mlion",
+		"is_hot":    "Y",
 	}
 
 	u, err := url.Parse(f.baseURL)

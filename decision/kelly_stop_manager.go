@@ -12,22 +12,22 @@ import (
 // 基于凯利公式动态计算最优止盈止损点
 type KellyStopManager struct {
 	historicalStats map[string]*HistoricalStats
-	statsMutex     sync.RWMutex
+	statsMutex      sync.RWMutex
 }
 
 // HistoricalStats 历史交易统计
 type HistoricalStats struct {
-	Symbol           string                 `json:"symbol"`           // 交易对
-	TotalTrades      int                    `json:"total_trades"`     // 总交易次数
-	ProfitableTrades int                    `json:"profitable_trades"`// 盈利交易次数
-	TotalProfitPct   float64                `json:"total_profit_pct"` // 总盈利百分比
-	TotalLossPct     float64                `json:"total_loss_pct"`   // 总亏损百分比
-	WinRate          float64                `json:"win_rate"`         // 胜率
-	AvgWinPct        float64                `json:"avg_win_pct"`      // 平均盈利百分比
-	AvgLossPct       float64                `json:"avg_loss_pct"`     // 平均亏损百分比
-	MaxProfitPct     float64                `json:"max_profit_pct"`   // 最大单次盈利百分比
-	MaxDrawdownPct   float64                `json:"max_drawdown_pct"` // 最大回撤百分比
-	UpdatedAt        int64                  `json:"updated_at"`       // 更新时间戳
+	Symbol           string  `json:"symbol"`            // 交易对
+	TotalTrades      int     `json:"total_trades"`      // 总交易次数
+	ProfitableTrades int     `json:"profitable_trades"` // 盈利交易次数
+	TotalProfitPct   float64 `json:"total_profit_pct"`  // 总盈利百分比
+	TotalLossPct     float64 `json:"total_loss_pct"`    // 总亏损百分比
+	WinRate          float64 `json:"win_rate"`          // 胜率
+	AvgWinPct        float64 `json:"avg_win_pct"`       // 平均盈利百分比
+	AvgLossPct       float64 `json:"avg_loss_pct"`      // 平均亏损百分比
+	MaxProfitPct     float64 `json:"max_profit_pct"`    // 最大单次盈利百分比
+	MaxDrawdownPct   float64 `json:"max_drawdown_pct"`  // 最大回撤百分比
+	UpdatedAt        int64   `json:"updated_at"`        // 更新时间戳
 }
 
 // NewKellyStopManager 创建凯利公式管理器
@@ -161,7 +161,7 @@ func (ksm *KellyStopManager) CalculateOptimalTakeProfit(
 
 	// 凯利公式：f* = (bp - q) / b
 	// 其中：b=赔率, p=胜率, q=败率
-	b := avgWinPct / avgLossPct  // 赔率
+	b := avgWinPct / avgLossPct // 赔率
 	q := 1 - winRate            // 败率
 
 	// 最优下注比例（调整后，避免过度风险）
@@ -313,7 +313,7 @@ func (ksm *KellyStopManager) CalculateDynamicStopLoss(
 	if stats != nil && stats.TotalTrades >= 5 {
 		// 如果止损点距离当前价格太远（>平均亏损的1.5倍），适当收紧
 		maxAllowedLossPct := stats.AvgLossPct * 1.5
-		if (currentPrice - stopLossPrice) / entryPrice > maxAllowedLossPct {
+		if (currentPrice-stopLossPrice)/entryPrice > maxAllowedLossPct {
 			stopLossPrice = currentPrice * (1 - maxAllowedLossPct)
 			log.Printf("⚠️ [%s] 止损点过于宽松，调整为平均亏损的1.5倍: %.2f%%", symbol, maxAllowedLossPct*100)
 		}

@@ -31,10 +31,10 @@ func TestKellyStopManagerEnhancedBasic(t *testing.T) {
 	symbol := "BTCUSDT"
 
 	// 添加一些交易记录
-	ksm.UpdateHistoricalStatsEnhanced(symbol, true, 0.15, 3600)  // 盈利15%，持仓1小时
+	ksm.UpdateHistoricalStatsEnhanced(symbol, true, 0.15, 3600)   // 盈利15%，持仓1小时
 	ksm.UpdateHistoricalStatsEnhanced(symbol, false, -0.08, 1800) // 亏损8%，持仓30分钟
-	ksm.UpdateHistoricalStatsEnhanced(symbol, true, 0.22, 7200)  // 盈利22%，持仓2小时
-	ksm.UpdateHistoricalStatsEnhanced(symbol, true, 0.18, 5400)  // 盈利18%，持仓1.5小时
+	ksm.UpdateHistoricalStatsEnhanced(symbol, true, 0.22, 7200)   // 盈利22%，持仓2小时
+	ksm.UpdateHistoricalStatsEnhanced(symbol, true, 0.18, 5400)   // 盈利18%，持仓1.5小时
 	ksm.UpdateHistoricalStatsEnhanced(symbol, false, -0.12, 2700) // 亏损12%，持仓45分钟
 
 	// 验证统计数据
@@ -83,7 +83,7 @@ func TestPositionPeakTracking(t *testing.T) {
 	symbol := "ETHUSDT"
 
 	// 测试峰值更新
-	ksm.UpdatePositionPeak(symbol, 0.05)  // 盈利5%
+	ksm.UpdatePositionPeak(symbol, 0.05) // 盈利5%
 	peak1 := ksm.GetPositionPeak(symbol)
 	if peak1 != 0.05 {
 		t.Errorf("期望峰值为0.05，实际为%f", peak1)
@@ -279,27 +279,27 @@ func TestEnhancedStopLossCalculation(t *testing.T) {
 
 	// 测试不同盈利阶段的止损计算
 	testCases := []struct {
-		name              string
-		entryPrice        float64
-		currentPrice      float64
+		name               string
+		entryPrice         float64
+		currentPrice       float64
 		expectedProtection float64 // 期望的保护比例范围
 	}{
 		{
-			name:              "盈利初期(3%)",
-			entryPrice:        100.0,
-			currentPrice:      103.0,
+			name:               "盈利初期(3%)",
+			entryPrice:         100.0,
+			currentPrice:       103.0,
 			expectedProtection: 0.9, // 应该保护大部分利润
 		},
 		{
-			name:              "盈利中期(10%)",
-			entryPrice:        100.0,
-			currentPrice:      110.0,
+			name:               "盈利中期(10%)",
+			entryPrice:         100.0,
+			currentPrice:       110.0,
 			expectedProtection: 0.8, // 保护80%左右
 		},
 		{
-			name:              "盈利后期(20%)",
-			entryPrice:        100.0,
-			currentPrice:      120.0,
+			name:               "盈利后期(20%)",
+			entryPrice:         100.0,
+			currentPrice:       120.0,
 			expectedProtection: 0.85, // 保护85%左右
 		},
 	}
@@ -435,7 +435,7 @@ func TestVolatilityBasedAdjustment(t *testing.T) {
 	// 添加高波动率的交易历史
 	for i := 0; i < 15; i++ {
 		profit := 0.25 // 25%盈利
-		if i%3 == 0 {   // 每3个交易有一个大亏损
+		if i%3 == 0 {  // 每3个交易有一个大亏损
 			profit = -0.20
 		}
 		ksm.UpdateHistoricalStatsEnhanced(symbol, profit > 0, profit, 3600)
@@ -499,7 +499,7 @@ func TestEdgeCases(t *testing.T) {
 
 	// 测试4: 极端配置值
 	config := ksm.GetConfig()
-	config.KellyRatioAdjustment = 0.0 // 零凯利系数
+	config.KellyRatioAdjustment = 0.0      // 零凯利系数
 	config.MaxTakeProfitMultiplier = 100.0 // 极大止盈倍数
 	ksm.UpdateConfig(config)
 
@@ -746,7 +746,7 @@ func ExampleKellyStopManagerEnhanced() {
 	// 更新交易结果（平仓时调用）
 	symbol := "BTCUSDT"
 	isWin := true
-	profitPct := 0.15  // 15%盈利
+	profitPct := 0.15          // 15%盈利
 	holdingTime := int64(3600) // 1小时持仓
 
 	ksm.UpdateHistoricalStatsEnhanced(symbol, isWin, profitPct, holdingTime)

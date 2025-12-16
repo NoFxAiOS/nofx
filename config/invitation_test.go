@@ -21,7 +21,7 @@ func setupInvitationTestDB(t *testing.T) *Database {
 	// Connect using the existing NewDatabase which handles migration
 	// Note: NewDatabase expects DATABASE_URL env var, but we pass empty string?
 	// No, NewDatabase reads os.Getenv("DATABASE_URL").
-	
+
 	originalURL := os.Getenv("DATABASE_URL")
 	os.Setenv("DATABASE_URL", testDBURL)
 	defer os.Setenv("DATABASE_URL", originalURL)
@@ -61,7 +61,7 @@ func TestInvitationIntegration(t *testing.T) {
 	// CreateInviter using CreateUserWithInvitation to ensure they get a code
 	err := db.CreateUserWithInvitation(inviter)
 	require.NoError(t, err)
-	
+
 	// Refresh to get code
 	savedInviter, err := db.GetUserByID(inviter.ID)
 	require.NoError(t, err)
@@ -74,10 +74,10 @@ func TestInvitationIntegration(t *testing.T) {
 		ID:              "invitee_" + GenerateUUID(),
 		Email:           inviteeEmail,
 		InvitedByUserID: inviter.ID,
-        InvitationLevel: savedInviter.InvitationLevel + 1,
+		InvitationLevel: savedInviter.InvitationLevel + 1,
 		IsActive:        true,
 	}
-	
+
 	// Note: In real app, API looks up user by code to get ID. Here we simulate that look up passed.
 	// Verify GetUserByInviteCode works
 	lookupInviter, err := db.GetUserByInviteCode(inviterCode)
@@ -99,7 +99,7 @@ func TestInvitationIntegration(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, credits)
 	assert.Equal(t, 10, credits.AvailableCredits)
-	
+
 	// Verify Transaction Log
 	txs, total, err := db.GetUserTransactions(inviter.ID, 1, 10)
 	require.NoError(t, err)

@@ -70,7 +70,7 @@ func (ta *TradeAnalyzer) Analyze(trades []database.TradeRecord) *TradeAnalysisRe
 			res.WinningTrades++
 			totalWinPct += t.ProfitPct
 			grossWinPct += t.ProfitPct
-			
+
 			pairStat.WinRate++ // Accumulated count for now
 			hourStat.WinRate++ // Accumulated count for now
 
@@ -84,7 +84,7 @@ func (ta *TradeAnalyzer) Analyze(trades []database.TradeRecord) *TradeAnalysisRe
 			res.LosingTrades++
 			totalLossPct += t.ProfitPct // Negative value
 			grossLossPct += math.Abs(t.ProfitPct)
-			
+
 			currentLoseStreak++
 			if currentLoseStreak > res.LoseStreak {
 				res.LoseStreak = currentLoseStreak
@@ -121,14 +121,14 @@ func (ta *TradeAnalyzer) Analyze(trades []database.TradeRecord) *TradeAnalysisRe
 
 	// Finalize Map Stats & Find Best/Worst
 	var bestPairVal, worstPairVal float64 = -999999, 999999
-	
+
 	for _, ps := range res.TradeByPairStats {
 		if ps.TotalTrades > 0 {
 			ps.AvgProfit = ps.TotalProfit / float64(ps.TotalTrades)
 			// Convert accumulated count to percentage
 			ps.WinRate = (ps.WinRate / float64(ps.TotalTrades)) * 100
 		}
-		
+
 		if ps.AvgProfit > bestPairVal {
 			bestPairVal = ps.AvgProfit
 			res.BestPerformingPair = ps.Symbol
@@ -148,7 +148,7 @@ func (ta *TradeAnalyzer) Analyze(trades []database.TradeRecord) *TradeAnalysisRe
 			// Convert accumulated count to percentage
 			hs.WinRate = (hs.WinRate / float64(hs.TotalTrades)) * 100
 		}
-		
+
 		if hs.AvgProfit > bestHourVal {
 			bestHourVal = hs.AvgProfit
 			res.BestTradingHour = hs.Hour

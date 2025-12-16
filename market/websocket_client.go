@@ -11,12 +11,12 @@ import (
 )
 
 type WSClient struct {
-	conn             *websocket.Conn
-	mu               sync.RWMutex
-	subscribers      map[string]chan []byte
+	conn              *websocket.Conn
+	mu                sync.RWMutex
+	subscribers       map[string]chan []byte
 	subscribedStreams []string // 已订阅的流列表，用于重连恢复
-	reconnect        bool
-	done             chan struct{}
+	reconnect         bool
+	done              chan struct{}
 }
 
 type WSMessage struct {

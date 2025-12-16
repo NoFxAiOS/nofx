@@ -23,36 +23,36 @@ type LoadTestConfig struct {
 
 // LoadTestResult 负载测试结果
 type LoadTestResult struct {
-	TotalRequests     int64         // 总请求数
-	SuccessfulRequests int64        // 成功请求数
-	FailedRequests    int64         // 失败请求数
-	RetriedRequests   int64         // 重试请求数
-	TotalTime         time.Duration // 总耗时
-	AverageLatency    time.Duration // 平均延迟
-	P95Latency        time.Duration // 95%分位延迟
-	P99Latency        time.Duration // 99%分位延迟
-	MaxLatency        time.Duration // 最大延迟
-	MinLatency        time.Duration // 最小延迟
-	Errors            []error       // 错误列表
-	mu                sync.Mutex    // 保护Errors字段
+	TotalRequests      int64         // 总请求数
+	SuccessfulRequests int64         // 成功请求数
+	FailedRequests     int64         // 失败请求数
+	RetriedRequests    int64         // 重试请求数
+	TotalTime          time.Duration // 总耗时
+	AverageLatency     time.Duration // 平均延迟
+	P95Latency         time.Duration // 95%分位延迟
+	P99Latency         time.Duration // 99%分位延迟
+	MaxLatency         time.Duration // 最大延迟
+	MinLatency         time.Duration // 最小延迟
+	Errors             []error       // 错误列表
+	mu                 sync.Mutex    // 保护Errors字段
 }
 
 // CreditConsumerLoadTest 积分消费者负载测试
 type CreditConsumerLoadTest struct {
-	consumer *TradeCreditConsumer
-	db       *config.Database
-	config   LoadTestConfig
-	result   *LoadTestResult
+	consumer  *TradeCreditConsumer
+	db        *config.Database
+	config    LoadTestConfig
+	result    *LoadTestResult
 	latencies []time.Duration // 延迟记录
 }
 
 // NewCreditConsumerLoadTest 创建负载测试
 func NewCreditConsumerLoadTest(db *config.Database, config LoadTestConfig) *CreditConsumerLoadTest {
 	return &CreditConsumerLoadTest{
-		consumer: NewTradeCreditConsumer(db),
-		db:       db,
-		config:   config,
-		result:   &LoadTestResult{},
+		consumer:  NewTradeCreditConsumer(db),
+		db:        db,
+		config:    config,
+		result:    &LoadTestResult{},
 		latencies: make([]time.Duration, 0, config.TotalRequests),
 	}
 }
@@ -95,7 +95,6 @@ func (lt *CreditConsumerLoadTest) RunLoadTest(ctx context.Context) *LoadTestResu
 
 	// 等待所有请求完成
 	wg.Wait()
-
 
 done:
 	close(resultChan)

@@ -12,25 +12,25 @@ type CompensationStatus string
 
 const (
 	CompensationStatusPending   CompensationStatus = "pending"   // 待处理
-	CompensationStatusCompleted CompensationStatus = "completed"  // 已完成
+	CompensationStatusCompleted CompensationStatus = "completed" // 已完成
 	CompensationStatusFailed    CompensationStatus = "failed"    // 失败
 )
 
 // CompensationTask 补偿任务
 type CompensationTask struct {
-	ID              string              `json:"id"`
-	TradeID         string              `json:"trade_id"`
-	UserID          string              `json:"user_id"`
-	Symbol          string              `json:"symbol"`
-	Action          string              `json:"action"`
-	TraderID        string              `json:"trader_id"`
-	RetryCount      int                 `json:"retry_count"`
-	MaxRetries      int                 `json:"max_retries"`
-	Status          CompensationStatus   `json:"status"`
-	ErrorMessage    string              `json:"error_message"`
-	CreatedAt       time.Time           `json:"created_at"`
-	UpdatedAt       time.Time           `json:"updated_at"`
-	LastAttemptAt   *time.Time          `json:"last_attempt_at,omitempty"`
+	ID            string             `json:"id"`
+	TradeID       string             `json:"trade_id"`
+	UserID        string             `json:"user_id"`
+	Symbol        string             `json:"symbol"`
+	Action        string             `json:"action"`
+	TraderID      string             `json:"trader_id"`
+	RetryCount    int                `json:"retry_count"`
+	MaxRetries    int                `json:"max_retries"`
+	Status        CompensationStatus `json:"status"`
+	ErrorMessage  string             `json:"error_message"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+	LastAttemptAt *time.Time         `json:"last_attempt_at,omitempty"`
 }
 
 // CreateCompensationTask 创建补偿任务

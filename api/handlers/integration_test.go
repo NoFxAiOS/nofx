@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
-	
-	"nofx/config"
+
 	_ "github.com/mattn/go-sqlite3"
+	"nofx/config"
 )
 
 func setupTestHandler(t *testing.T) (*BaseHandler, *gin.Engine) {
@@ -59,7 +59,7 @@ func setupTestHandler(t *testing.T) (*BaseHandler, *gin.Engine) {
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	
+
 	return h, r
 }
 
@@ -68,7 +68,7 @@ func TestHandleRegister_InvalidInput(t *testing.T) {
 	r.POST("/register", h.HandleRegister)
 
 	payload := map[string]string{
-		"email": "bad-email",
+		"email":    "bad-email",
 		"password": "short",
 	}
 	jsonValue, _ := json.Marshal(payload)
@@ -92,7 +92,7 @@ func TestHandleGetSystemConfig(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.Nil(t, err)

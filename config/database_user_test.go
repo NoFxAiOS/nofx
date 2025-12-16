@@ -198,12 +198,12 @@ func TestUpdateUserOTPVerified(t *testing.T) {
 	// 创建测试用户
 	now := time.Now()
 	user := &User{
-		ID:          "test_user_otp",
-		Email:       "testotp@example.com",
+		ID:           "test_user_otp",
+		Email:        "testotp@example.com",
 		PasswordHash: "hash",
-		OTPVerified: false,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		OTPVerified:  false,
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	}
 	err := tdb.db.CreateUser(user)
 	require.NoError(t, err)

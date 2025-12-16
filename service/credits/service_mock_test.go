@@ -11,11 +11,11 @@ import (
 
 // MockService 是一个模拟的积分服务实现，用于测试
 type MockService struct {
-	packages        []*config.CreditPackage
-	userCredits     map[string]*config.UserCredits
-	transactions    map[string][]*config.CreditTransaction
-	shouldFail      bool
-	failError       error
+	packages     []*config.CreditPackage
+	userCredits  map[string]*config.UserCredits
+	transactions map[string][]*config.CreditTransaction
+	shouldFail   bool
+	failError    error
 }
 
 // NewMockService 创建模拟服务
@@ -277,10 +277,10 @@ func TestMockService(t *testing.T) {
 
 	// 添加测试套餐
 	pkg := &config.CreditPackage{
-		ID: "test_pkg",
-		Name: "测试套餐",
+		ID:        "test_pkg",
+		Name:      "测试套餐",
 		PriceUSDT: 99.99,
-		Credits: 1000,
+		Credits:   1000,
 	}
 	err := service.CreatePackage(ctx, pkg)
 	assert.NoError(t, err)

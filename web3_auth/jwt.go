@@ -23,10 +23,10 @@ const (
 
 // Claims Web3钱包认证的JWT声明
 type Claims struct {
-	UserID    string   `json:"user_id"`
-	WalletAddr string  `json:"wallet_addr"`
-	TokenType string   `json:"token_type"` // "access" or "refresh"
-	Wallets   []string `json:"wallets"`    // 用户绑定的所有钱包地址
+	UserID     string   `json:"user_id"`
+	WalletAddr string   `json:"wallet_addr"`
+	TokenType  string   `json:"token_type"` // "access" or "refresh"
+	Wallets    []string `json:"wallets"`    // 用户绑定的所有钱包地址
 	jwt.RegisteredClaims
 }
 
@@ -44,10 +44,10 @@ func GenerateWeb3JWT(userID, walletAddr string, walletList []string, isRefresh b
 	}
 
 	claims := Claims{
-		UserID:    userID,
+		UserID:     userID,
 		WalletAddr: walletAddr,
-		TokenType: tokenType,
-		Wallets:   walletList,
+		TokenType:  tokenType,
+		Wallets:    walletList,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expiryTime.Add(-ClockSkewLeeway)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

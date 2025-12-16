@@ -9,8 +9,8 @@ import (
 // --- Mocks ---
 
 type MockFetcher struct {
-	News []Article
-	Err  error
+	News     []Article
+	Err      error
 	MockName string
 }
 
@@ -18,11 +18,11 @@ func (m *MockFetcher) FetchNews(category string) ([]Article, error) {
 	return m.News, m.Err
 }
 
-func (m *MockFetcher) Name() string { 
+func (m *MockFetcher) Name() string {
 	if m.MockName != "" {
 		return m.MockName
 	}
-	return "MockFetcher" 
+	return "MockFetcher"
 }
 
 type MockNotifier struct {
@@ -147,7 +147,7 @@ func TestService_ProcessFetcher_PassThrough(t *testing.T) {
 func TestService_ProcessFetcher_StateUpdates(t *testing.T) {
 	// Setup
 	mockStore := &MockStateStore{
-		LastID: 0,
+		LastID:  0,
 		Configs: map[string]string{"telegram_news_enabled": "true"},
 	}
 	mockFetcher := &MockFetcher{
@@ -240,9 +240,9 @@ func TestService_CrossCategoryDeduplication(t *testing.T) {
 	// Execute - 处理两个分类
 	// ProcessFetcher is called per category manually here for the test logic,
 	// emulating loop in processAllCategories
-	
+
 	t.Logf("Processing crypto category...")
-	
+
 	err := service.ProcessFetcher(mockFetcher, "crypto")
 	if err != nil {
 		t.Fatalf("ProcessFetcher(crypto) failed: %v", err)

@@ -38,10 +38,10 @@ func (m *MockParameterOptimizer) StopTrading(traderID string) error {
 
 // MockConfigDatabase for testing ReflectionExecutor
 type MockConfigDatabase struct {
-	SaveParameterChangeCalled bool
+	SaveParameterChangeCalled    bool
 	UpdateReflectionStatusCalled bool
-	ReflectionID             string
-	IsApplied                bool
+	ReflectionID                 string
+	IsApplied                    bool
 }
 
 func (m *MockConfigDatabase) SaveParameterChange(change *config.ParameterChangeRecord) error {
@@ -56,12 +56,14 @@ func (m *MockConfigDatabase) UpdateReflectionAppliedStatus(reflectionID string, 
 	return nil
 }
 
-func (m *MockConfigDatabase) GetTraderByID(traderID string) (*config.TraderRecord, error) { return nil, nil }
+func (m *MockConfigDatabase) GetTraderByID(traderID string) (*config.TraderRecord, error) {
+	return nil, nil
+}
 
 func TestReflectionExecutor_ApplyReflection(t *testing.T) {
 	traderID := "test_trader"
 	reflectionID := "reflection_1"
-	
+
 	tests := []struct {
 		name              string
 		reflection        LearningReflection

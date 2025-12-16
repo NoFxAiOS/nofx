@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
-	"nofx/config"
 	_ "github.com/mattn/go-sqlite3"
+	"nofx/config"
 )
 
 // SetupTestDB creates a temporary SQLite database for testing
@@ -24,7 +24,7 @@ func SetupTestDB(t *testing.T) *config.Database {
 	tmpfile.Close()
 
 	// Initialize config.Database with SQLite
-	// We need to hack this a bit because NewDatabase expects Postgres URL usually, 
+	// We need to hack this a bit because NewDatabase expects Postgres URL usually,
 	// but we can manually construct the struct since we are in the same module/package tests usually,
 	// but here we are in `handlers` package, `config` is external.
 	// Wait, `config.NewDatabase` logic is specific.
@@ -32,21 +32,21 @@ func SetupTestDB(t *testing.T) *config.Database {
 	// And it opens "postgres".
 	// BUT, the `Database` struct just holds `*sql.DB`.
 	// So we can manually create a Database struct if the field `db` was exported, but it is not (`db *sql.DB`).
-	// We might need to rely on a test helper in `config` package or use reflection, 
-	// OR better: Since `NewDatabase` strictly tries to connect to Postgres, we might need to mock the DB entirely 
+	// We might need to rely on a test helper in `config` package or use reflection,
+	// OR better: Since `NewDatabase` strictly tries to connect to Postgres, we might need to mock the DB entirely
 	// or use a real Postgres if available.
 	//
 	// HOWEVER, looking at the `config` package code I read earlier:
 	// The `Database` struct wraps `*sql.DB`.
 	// The `NewDatabase` function requires `DATABASE_URL`.
 	//
-	// Strategy: Since we can't easily inject a SQLite DB into `config.Database` from outside `config` package 
+	// Strategy: Since we can't easily inject a SQLite DB into `config.Database` from outside `config` package
 	// (unless we add a constructor for testing), checking `api/handlers` tests might be hard without a real DB.
 	//
-	// ALTERNATIVE: We can add a `NewTestDatabase` in `config` package that accepts a *sql.DB, 
+	// ALTERNATIVE: We can add a `NewTestDatabase` in `config` package that accepts a *sql.DB,
 	// but I don't want to modify `config` code just for this if I can avoid it.
 	//
-	// Actually, `api/handlers` imports `nofx/config`. 
+	// Actually, `api/handlers` imports `nofx/config`.
 	// I will write a test in `config` package that exports a helper, OR
 	// I will assume for this test I can't easily integration test with DB without a running Postgres.
 	//
@@ -60,13 +60,13 @@ func SetupTestDB(t *testing.T) *config.Database {
 	// But I am testing `handlers`.
 	//
 	// Let's look at `config/database.go` again.
-	// It has `func NewDatabase(dbPath string)`. Wait, the code I read said `NewDatabase(dbPath string)` 
+	// It has `func NewDatabase(dbPath string)`. Wait, the code I read said `NewDatabase(dbPath string)`
 	// but inside it checks `os.Getenv("DATABASE_URL")`. The arg `dbPath` seems unused or I misread.
 	// Re-reading `config/database.go` content...
 	// `func NewDatabase(dbPath string) (*Database, error)`
 	// It ignores `dbPath` and uses `os.Getenv("DATABASE_URL")`.
 	//
-	// OK, I will create a "Mock" test that focuses on the Logic that DOES NOT require DB, 
+	// OK, I will create a "Mock" test that focuses on the Logic that DOES NOT require DB,
 	// OR I will modify `config/database.go` slightly to allow injecting a DB for testing?
 	// No, I should stick to the plan of testing what I can.
 	//
@@ -76,8 +76,8 @@ func SetupTestDB(t *testing.T) *config.Database {
 	// Let's try to use `sqlite` by tricking `NewDatabase`?
 	// No, it explicitly uses `sql.Open("postgres", ...)`.
 	//
-	// OK, I'll skip full DB integration tests for handlers in this turn 
-	// and focus on Unit Tests for the "Logic" parts if any, or 
+	// OK, I'll skip full DB integration tests for handlers in this turn
+	// and focus on Unit Tests for the "Logic" parts if any, or
 	// I will simply test the wiring of the router in `api/server_test.go`?
 	//
 	// Let's create a `config/export_test.go` (in `config` package) that allows creating a DB from an existing `*sql.DB`.
@@ -88,7 +88,7 @@ func SetupTestDB(t *testing.T) *config.Database {
 func TestHealthCheck(t *testing.T) {
 	// We can create a nil BaseHandler because HandleHealth doesn't use dependencies
 	h := &BaseHandler{}
-	
+
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.GET("/health", h.HandleHealth)

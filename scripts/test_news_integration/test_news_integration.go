@@ -31,13 +31,13 @@ func main() {
 		fmt.Printf("✅ 成功获取 %d 条新闻!\n", len(articles))
 		fmt.Printf("📰 最新一条: %s (%s)\n", articles[0].Headline, articles[0].URL)
 	}
-	
+
 	fmt.Println("--------------------------------------------------")
-	
+
 	fmt.Println("🧪 开始 Telegram 发送测试...")
 	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	chatID := os.Getenv("TELEGRAM_CHAT_ID")
-	
+
 	if botToken == "" {
 		botToken = "8291537816:AAEQTE7Jd5AGQ9dkq7NMPewlSr8Kun2qXao"
 		fmt.Println("⚠️  使用默认测试 Bot Token")
@@ -46,15 +46,15 @@ func main() {
 		chatID = "-1002678075016"
 		fmt.Println("⚠️  使用默认测试 Chat ID")
 	}
-	
+
 	notifier := news.NewTelegramNotifier(botToken, chatID)
-	
+
 	msg := "<b>🧪 集成测试消息</b>\n\n这是来自 CI/CD 流程的自动测试消息，验证系统连通性。\n\n✅ System Check: OK"
 	// 使用 2 作为 Thread ID (指定话题)
 	err = notifier.Send(msg, 2)
 	if err != nil {
 		log.Fatalf("❌ 发送失败: %v", err)
 	}
-	
+
 	fmt.Println("✅ Telegram 消息发送成功!")
 }

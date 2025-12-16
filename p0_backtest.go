@@ -28,11 +28,11 @@ type BacktestResult struct {
 
 // SimulatedTrade 模拟交易数据
 type SimulatedTrade struct {
-	Symbol     string
-	IsWin      bool
-	PnLPct     float64
-	Timestamp  time.Time
-	Leverage   int
+	Symbol        string
+	IsWin         bool
+	PnLPct        float64
+	Timestamp     time.Time
+	Leverage      int
 	EstimatedLoss float64
 }
 
@@ -102,12 +102,12 @@ func RunBacktestP0() {
 		})
 
 		// 7. 每10笔交易输出一次进度
-		if (i + 1) % 10 == 0 {
+		if (i+1)%10 == 0 {
 			currentStage, _, _, _ := lsm.GetCurrentStats()
 			stageStr := map[decision.TrainingStage]string{
-				decision.StageInfant:  "婴儿期",
-				decision.StageChild:   "学童期",
-				decision.StageMature:  "成熟期",
+				decision.StageInfant: "婴儿期",
+				decision.StageChild:  "学童期",
+				decision.StageMature: "成熟期",
 			}[currentStage]
 
 			_, _, _, currentWinRate := lsm.GetCurrentStats()
@@ -132,7 +132,7 @@ func RunBacktestP0() {
 
 	// 计算关键指标
 	totalPnLPct := (accountValue - 100.0) / 100.0 * 100
-	avgWinPct := 2.0  // 假设
+	avgWinPct := 2.0   // 假设
 	avgLossPct := -5.0 // 假设
 	sharpeRatio := CalculateSharpeRatio(totalPnL, float64(totalTrades))
 
@@ -277,7 +277,7 @@ func CalculateSharpeRatio(totalPnL float64, numTrades float64) float64 {
 
 	// 简化版: 基于总收益和交易数的粗略估计
 	avgReturn := totalPnL / numTrades
-	riskFreeRate := 0.02 / 252.0 // 年2%，转日收益率
+	riskFreeRate := 0.02 / 252.0                           // 年2%，转日收益率
 	sharpe := (avgReturn - riskFreeRate) / math.Sqrt(0.02) // 假设日波动率2%
 
 	return sharpe

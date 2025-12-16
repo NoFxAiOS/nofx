@@ -25,8 +25,8 @@ type KellyStopManagerEnhanced struct {
 	lastSaveTime time.Time
 
 	// 数据库相关 (可选，用于持久化)
-	db        interface{} // *config.Database (避免循环导入)
-	traderID  string
+	db       interface{} // *config.Database (避免循环导入)
+	traderID string
 
 	// 实时追踪
 	positionPeaks map[string]float64 // 持仓期间的最高盈利点
@@ -35,23 +35,23 @@ type KellyStopManagerEnhanced struct {
 
 // HistoricalStatsEnhanced 增强版历史交易统计
 type HistoricalStatsEnhanced struct {
-	Symbol           string                     `json:"symbol"`            // 交易对
-	TotalTrades      int                        `json:"total_trades"`      // 总交易次数
-	ProfitableTrades int                        `json:"profitable_trades"` // 盈利交易次数
-	TotalProfitPct   float64                    `json:"total_profit_pct"`  // 总盈利百分比
-	TotalLossPct     float64                    `json:"total_loss_pct"`    // 总亏损百分比
-	WinRate          float64                    `json:"win_rate"`          // 胜率
-	AvgWinPct        float64                    `json:"avg_win_pct"`       // 平均盈利百分比
-	AvgLossPct       float64                    `json:"avg_loss_pct"`      // 平均亏损百分比
-	MaxProfitPct     float64                    `json:"max_profit_pct"`    // 最大单次盈利百分比
-	MaxDrawdownPct   float64                    `json:"max_drawdown_pct"`  // 最大回撤百分比
-	UpdatedAt        int64                      `json:"updated_at"`        // 更新时间戳
+	Symbol           string  `json:"symbol"`            // 交易对
+	TotalTrades      int     `json:"total_trades"`      // 总交易次数
+	ProfitableTrades int     `json:"profitable_trades"` // 盈利交易次数
+	TotalProfitPct   float64 `json:"total_profit_pct"`  // 总盈利百分比
+	TotalLossPct     float64 `json:"total_loss_pct"`    // 总亏损百分比
+	WinRate          float64 `json:"win_rate"`          // 胜率
+	AvgWinPct        float64 `json:"avg_win_pct"`       // 平均盈利百分比
+	AvgLossPct       float64 `json:"avg_loss_pct"`      // 平均亏损百分比
+	MaxProfitPct     float64 `json:"max_profit_pct"`    // 最大单次盈利百分比
+	MaxDrawdownPct   float64 `json:"max_drawdown_pct"`  // 最大回撤百分比
+	UpdatedAt        int64   `json:"updated_at"`        // 更新时间戳
 
 	// 增强字段
-	TradeHistory     []TradeRecord              `json:"trade_history"`     // 详细交易历史
-	WeightedWinRate  float64                    `json:"weighted_win_rate"` // 时间加权胜率
-	Volatility       float64                    `json:"volatility"`        // 波动率估算
-	TimeDecayFactor  float64                    `json:"time_decay_factor"` // 时间衰减因子
+	TradeHistory    []TradeRecord `json:"trade_history"`     // 详细交易历史
+	WeightedWinRate float64       `json:"weighted_win_rate"` // 时间加权胜率
+	Volatility      float64       `json:"volatility"`        // 波动率估算
+	TimeDecayFactor float64       `json:"time_decay_factor"` // 时间衰减因子
 }
 
 // TradeRecord 单个交易记录
@@ -65,12 +65,12 @@ type TradeRecord struct {
 
 // KellyConfig 凯利公式配置参数
 type KellyConfig struct {
-	KellyRatioAdjustment float64 `json:"kelly_ratio_adjustment"` // 凯利比例调整系数（默认0.5）
+	KellyRatioAdjustment    float64 `json:"kelly_ratio_adjustment"`     // 凯利比例调整系数（默认0.5）
 	MaxTakeProfitMultiplier float64 `json:"max_take_profit_multiplier"` // 最大止盈倍数（默认3.0）
-	TimeDecayLambda      float64 `json:"time_decay_lambda"`      // 时间衰减参数（默认0.01）
-	MinTradesForKelly    int     `json:"min_trades_for_kelly"`   // Kelly公式最小交易数（默认5）
-	VolatilityWindow     int     `json:"volatility_window"`      // 波动率计算窗口（默认20）
-	SaveIntervalSeconds  int     `json:"save_interval_seconds"`  // 自动保存间隔（默认300秒）
+	TimeDecayLambda         float64 `json:"time_decay_lambda"`          // 时间衰减参数（默认0.01）
+	MinTradesForKelly       int     `json:"min_trades_for_kelly"`       // Kelly公式最小交易数（默认5）
+	VolatilityWindow        int     `json:"volatility_window"`          // 波动率计算窗口（默认20）
+	SaveIntervalSeconds     int     `json:"save_interval_seconds"`      // 自动保存间隔（默认300秒）
 }
 
 // DefaultKellyConfig 默认配置
@@ -419,7 +419,7 @@ func (ksm *KellyStopManagerEnhanced) CalculateOptimalTakeProfitEnhanced(
 
 	// 凯利公式：f* = (bp - q) / b
 	b := avgWinPct / avgLossPct // 赔率
-	q := 1 - winRate           // 败率
+	q := 1 - winRate            // 败率
 	kellyRatio := (b*winRate - q) / b
 
 	// 多重安全调整
@@ -571,11 +571,11 @@ func (ksm *KellyStopManagerEnhanced) CalculateDynamicStopLossEnhanced(
 	var protectionRatio float64
 
 	if currentProfitPct < 0.03 {
-		protectionRatio = 0.3  // 盈利<3%: 保护30% (宽松,止损距离 ≈ -7%)
+		protectionRatio = 0.3 // 盈利<3%: 保护30% (宽松,止损距离 ≈ -7%)
 	} else if currentProfitPct < 0.08 {
-		protectionRatio = 0.5  // 盈利3-8%: 保护50% (中等,止损距离 ≈ -5%)
+		protectionRatio = 0.5 // 盈利3-8%: 保护50% (中等,止损距离 ≈ -5%)
 	} else if currentProfitPct < 0.15 {
-		protectionRatio = 0.7  // 盈利8-15%: 保护70% (较严,止损距离 ≈ -3%)
+		protectionRatio = 0.7 // 盈利8-15%: 保护70% (较严,止损距离 ≈ -3%)
 	} else if currentProfitPct < 0.25 {
 		protectionRatio = 0.85 // 盈利15-25%: 保护85% (严格,止损距离 ≈ -2%)
 	} else {
@@ -585,9 +585,9 @@ func (ksm *KellyStopManagerEnhanced) CalculateDynamicStopLossEnhanced(
 	// 波动率调整保护比例
 	if stats != nil && stats.Volatility > 0 {
 		if stats.Volatility > 0.2 {
-			protectionRatio *= 0.9  // 高波动降低保护比例 (给趋势更多空间)
+			protectionRatio *= 0.9 // 高波动降低保护比例 (给趋势更多空间)
 		} else if stats.Volatility < 0.08 {
-			protectionRatio *= 1.1  // 低波动提高保护比例 (更严格防守)
+			protectionRatio *= 1.1 // 低波动提高保护比例 (更严格防守)
 		}
 	}
 
@@ -628,7 +628,12 @@ func (ksm *KellyStopManagerEnhanced) CalculateDynamicStopLossEnhanced(
 
 	log.Printf("🛡️ [%s] 增强动态止损: 当前盈利=%.2f%%, 保护比例=%.1f%%, 止损价格=%.6f, 波动率=%.2f%%",
 		symbol, currentProfitPct*100, protectionRatio*100, stopLossPrice,
-		func() float64 { if stats != nil { return stats.Volatility * 100 }; return 0 }())
+		func() float64 {
+			if stats != nil {
+				return stats.Volatility * 100
+			}
+			return 0
+		}())
 
 	return stopLossPrice, nil
 }

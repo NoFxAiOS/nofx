@@ -169,11 +169,11 @@ func TestHandleGetCreditPackages(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		packages := []*config.CreditPackage{
 			{
-				ID: "pkg_test",
-				Name: "测试套餐",
+				ID:        "pkg_test",
+				Name:      "测试套餐",
 				PriceUSDT: 10.0,
-				Credits: 500,
-				IsActive: true,
+				Credits:   500,
+				IsActive:  true,
 			},
 		}
 
@@ -218,10 +218,10 @@ func TestHandleGetCreditPackage(t *testing.T) {
 	// 模拟成功场景
 	t.Run("Success", func(t *testing.T) {
 		pkg := &config.CreditPackage{
-			ID: "pkg_test",
-			Name: "测试套餐",
+			ID:        "pkg_test",
+			Name:      "测试套餐",
 			PriceUSDT: 10.0,
-			Credits: 500,
+			Credits:   500,
 		}
 
 		mockService.On("GetPackageByID", mock.Anything, "pkg_test").Return(pkg, nil)
@@ -278,10 +278,10 @@ func TestHandleGetUserCredits(t *testing.T) {
 	// 模拟成功场景
 	t.Run("Success", func(t *testing.T) {
 		credits := &config.UserCredits{
-			UserID: "test_user",
+			UserID:           "test_user",
 			AvailableCredits: 1000,
-			TotalCredits: 1500,
-			UsedCredits: 500,
+			TotalCredits:     1500,
+			UsedCredits:      500,
 		}
 
 		mockService.On("GetUserCredits", mock.Anything, "test_user").Return(credits, nil)
@@ -312,13 +312,13 @@ func TestHandleGetUserTransactions(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		transactions := []*config.CreditTransaction{
 			{
-				ID: "txn_1",
-				UserID: "test_user",
-				Type: "credit",
-				Amount: 500,
+				ID:            "txn_1",
+				UserID:        "test_user",
+				Type:          "credit",
+				Amount:        500,
 				BalanceBefore: 0,
-				BalanceAfter: 500,
-				Category: "purchase",
+				BalanceAfter:  500,
+				Category:      "purchase",
 			},
 		}
 
@@ -360,13 +360,13 @@ func TestHandleCreateCreditPackage(t *testing.T) {
 	// 模拟成功场景
 	t.Run("Success", func(t *testing.T) {
 		reqBody := CreditPackageRequest{
-			Name: "测试套餐",
-			PriceUSDT: 19.99,
-			Credits: 1000,
-			BonusCredits: 100,
-			IsActive: true,
+			Name:          "测试套餐",
+			PriceUSDT:     19.99,
+			Credits:       1000,
+			BonusCredits:  100,
+			IsActive:      true,
 			IsRecommended: false,
-			SortOrder: 999,
+			SortOrder:     999,
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -392,7 +392,7 @@ func TestHandleCreateCreditPackage(t *testing.T) {
 		// 空名称
 		reqBody := CreditPackageRequest{
 			PriceUSDT: 10.0,
-			Credits: 500,
+			Credits:   500,
 		}
 
 		jsonBody, _ := json.Marshal(reqBody)
@@ -458,9 +458,9 @@ func TestValidateCreditPackageRequest(t *testing.T) {
 	// 有效请求
 	t.Run("Valid", func(t *testing.T) {
 		req := &CreditPackageRequest{
-			Name: "测试套餐",
-			PriceUSDT: 10.0,
-			Credits: 500,
+			Name:         "测试套餐",
+			PriceUSDT:    10.0,
+			Credits:      500,
 			BonusCredits: 0,
 		}
 
@@ -472,7 +472,7 @@ func TestValidateCreditPackageRequest(t *testing.T) {
 	t.Run("EmptyName", func(t *testing.T) {
 		req := &CreditPackageRequest{
 			PriceUSDT: 10.0,
-			Credits: 500,
+			Credits:   500,
 		}
 
 		err := validateCreditPackageRequest(req)
@@ -483,9 +483,9 @@ func TestValidateCreditPackageRequest(t *testing.T) {
 	// 无效请求 - 价格为0
 	t.Run("ZeroPrice", func(t *testing.T) {
 		req := &CreditPackageRequest{
-			Name: "测试套餐",
+			Name:      "测试套餐",
 			PriceUSDT: 0,
-			Credits: 500,
+			Credits:   500,
 		}
 
 		err := validateCreditPackageRequest(req)
@@ -496,9 +496,9 @@ func TestValidateCreditPackageRequest(t *testing.T) {
 	// 无效请求 - 负赠送积分
 	t.Run("NegativeBonus", func(t *testing.T) {
 		req := &CreditPackageRequest{
-			Name: "测试套餐",
-			PriceUSDT: 10.0,
-			Credits: 500,
+			Name:         "测试套餐",
+			PriceUSDT:    10.0,
+			Credits:      500,
 			BonusCredits: -100,
 		}
 
@@ -628,17 +628,17 @@ func TestErrorHandling(t *testing.T) {
 func TestRequestValidation(t *testing.T) {
 	// 测试各种边界情况
 	testCases := []struct {
-		name string
-		req interface{}
-		expectError bool
+		name          string
+		req           interface{}
+		expectError   bool
 		errorContains string
 	}{
 		{
 			name: "ValidCreditPackageRequest",
 			req: &CreditPackageRequest{
-				Name: "有效套餐",
-				PriceUSDT: 10.0,
-				Credits: 500,
+				Name:         "有效套餐",
+				PriceUSDT:    10.0,
+				Credits:      500,
 				BonusCredits: 0,
 			},
 			expectError: false,
@@ -646,11 +646,11 @@ func TestRequestValidation(t *testing.T) {
 		{
 			name: "InvalidCreditPackageRequest_NegativePrice",
 			req: &CreditPackageRequest{
-				Name: "无效套餐",
+				Name:      "无效套餐",
 				PriceUSDT: -10.0,
-				Credits: 500,
+				Credits:   500,
 			},
-			expectError: true,
+			expectError:   true,
 			errorContains: "价格必须大于0",
 		},
 		{
@@ -667,7 +667,7 @@ func TestRequestValidation(t *testing.T) {
 				Amount: 0,
 				Reason: "无效原因",
 			},
-			expectError: true,
+			expectError:   true,
 			errorContains: "调整积分数量不能为0",
 		},
 	}
@@ -701,11 +701,11 @@ func TestConcurrentRequests(t *testing.T) {
 	t.Run("ConcurrentGetPackages", func(t *testing.T) {
 		packages := []*config.CreditPackage{
 			{
-				ID: "pkg_1",
-				Name: "套餐1",
+				ID:        "pkg_1",
+				Name:      "套餐1",
 				PriceUSDT: 10.0,
-				Credits: 500,
-				IsActive: true,
+				Credits:   500,
+				IsActive:  true,
 			},
 		}
 
@@ -739,10 +739,10 @@ func TestResponseFormat(t *testing.T) {
 	// 测试统一的响应格式
 	t.Run("UnifiedResponseFormat", func(t *testing.T) {
 		credits := &config.UserCredits{
-			UserID: "test_user",
+			UserID:           "test_user",
 			AvailableCredits: 1000,
-			TotalCredits: 1500,
-			UsedCredits: 500,
+			TotalCredits:     1500,
+			UsedCredits:      500,
 		}
 
 		mockService.On("GetUserCredits", mock.Anything, "test_user").Return(credits, nil)
@@ -793,10 +793,10 @@ func TestPerformance(t *testing.T) {
 		packages := []*config.CreditPackage{}
 		for i := 0; i < 100; i++ {
 			packages = append(packages, &config.CreditPackage{
-				ID: fmt.Sprintf("pkg_%d", i),
-				Name: fmt.Sprintf("套餐%d", i),
+				ID:        fmt.Sprintf("pkg_%d", i),
+				Name:      fmt.Sprintf("套餐%d", i),
 				PriceUSDT: float64(i * 10),
-				Credits: i * 100,
+				Credits:   i * 100,
 			})
 		}
 
@@ -844,10 +844,10 @@ func TestEdgeCases(t *testing.T) {
 		packages := make([]*config.CreditPackage, 1000)
 		for i := 0; i < 1000; i++ {
 			packages[i] = &config.CreditPackage{
-				ID: fmt.Sprintf("pkg_%d", i),
-				Name: fmt.Sprintf("套餐%d", i),
+				ID:        fmt.Sprintf("pkg_%d", i),
+				Name:      fmt.Sprintf("套餐%d", i),
 				PriceUSDT: float64(i * 10),
-				Credits: i * 100,
+				Credits:   i * 100,
 			}
 		}
 
@@ -906,10 +906,10 @@ func BenchmarkHandleGetCreditPackages(b *testing.B) {
 
 	packages := []*config.CreditPackage{
 		{
-			ID: "pkg_benchmark",
-			Name: "基准测试套餐",
+			ID:        "pkg_benchmark",
+			Name:      "基准测试套餐",
 			PriceUSDT: 10.0,
-			Credits: 500,
+			Credits:   500,
 		},
 	}
 
@@ -942,10 +942,10 @@ func BenchmarkHandleGetUserCredits(b *testing.B) {
 	handler.RegisterRoutes(api)
 
 	credits := &config.UserCredits{
-		UserID: "benchmark_user",
+		UserID:           "benchmark_user",
 		AvailableCredits: 1000,
-		TotalCredits: 1500,
-		UsedCredits: 500,
+		TotalCredits:     1500,
+		UsedCredits:      500,
 	}
 
 	mockService.On("GetUserCredits", mock.Anything, "benchmark_user").Return(credits, nil)

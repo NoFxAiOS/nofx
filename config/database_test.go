@@ -21,7 +21,7 @@ func setupTestDB(t *testing.T) *TestDatabase {
 	// 使用内存SQLite数据库进行测试
 	// 注意：由于当前代码只支持PostgreSQL，我们需要使用测试PostgreSQL
 	// 或者修改NewDatabase以支持测试模式
-	
+
 	// 检查是否有TEST_DATABASE_URL环境变量
 	testDBURL := os.Getenv("TEST_DATABASE_URL")
 	if testDBURL == "" {

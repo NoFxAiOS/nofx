@@ -2540,9 +2540,11 @@ func (s *Server) handleTopTraders(c *gin.Context) {
 }
 
 // handleEquityHistoryBatch Batch get return rate historical data for multiple traders (no authentication required, for performance comparison)
+// Supports optional 'hours' parameter to filter data by time range (e.g., hours=24 for last 24 hours)
 func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 	var requestBody struct {
 		TraderIDs []string `json:"trader_ids"`
+		Hours     int      `json:"hours"` // Optional: filter by last N hours (0 = all data)
 	}
 
 	// Try to parse POST request JSON body
@@ -2573,7 +2575,14 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 				}
 			}
 
-			result := s.getEquityHistoryForTraders(traderIDs)
+			// Parse hours parameter from query
+			hoursParam := c.Query("hours")
+			hours := 0
+			if hoursParam != "" {
+				fmt.Sscanf(hoursParam, "%d", &hours)
+			}
+
+			result := s.getEquityHistoryForTraders(traderIDs, hours)
 			c.JSON(http.StatusOK, result)
 			return
 		}
@@ -2583,6 +2592,12 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 		for i := range requestBody.TraderIDs {
 			requestBody.TraderIDs[i] = strings.TrimSpace(requestBody.TraderIDs[i])
 		}
+
+		// Parse hours parameter from query
+		hoursParam := c.Query("hours")
+		if hoursParam != "" {
+			fmt.Sscanf(hoursParam, "%d", &requestBody.Hours)
+		}
 	}
 
 	// Limit to maximum 20 traders to prevent oversized requests
@@ -2590,14 +2605,15 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 		requestBody.TraderIDs = requestBody.TraderIDs[:20]
 	}
 
-	result := s.getEquityHistoryForTraders(requestBody.TraderIDs)
+	result := s.getEquityHistoryForTraders(requestBody.TraderIDs, requestBody.Hours)
 	c.JSON(http.StatusOK, result)
 }
 
 // getEquityHistoryForTraders Get historical data for multiple traders
 // Query directly from database, not dependent on trader in memory (so historical data can be retrieved after restart)
 // Also appends current real-time data point to ensure chart matches leaderboard
-func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]interface{} {
+// hours: filter by last N hours (0 = use default limit of 500 records)
+func (s *Server) getEquityHistoryForTraders(traderIDs []string, hours int) map[string]interface{} {
 	result := make(map[string]interface{})
 	histories := make(map[string]interface{})
 	errors := make(map[string]string)
@@ -2624,7 +2640,17 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string) map[string]inter
 		}
 
 		// Get equity historical data from new equity table
-		snapshots, err := s.store.Equity().GetLatest(traderID, 500)
+		var snapshots []*store.EquitySnapshot
+		var err error
+
+		if hours > 0 {
+			// Filter by time range
+			startTime := now.Add(-time.Duration(hours) * time.Hour)
+			snapshots, err = s.store.Equity().GetByTimeRange(traderID, startTime, now)
+		} else {
+			// Default: get latest 500 records
+			snapshots, err = s.store.Equity().GetLatest(traderID, 500)
+		}
 		if err != nil {
 			errors[traderID] = fmt.Sprintf("Failed to get historical data: %v", err)
 			continue

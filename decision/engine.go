@@ -593,16 +593,92 @@ func buildUserPrompt(ctx *Context) string {
 	}
 	sb.WriteString("\n")
 
-	// 夏普比率（直接传值，不要复杂格式化）
+	// 性能指标注入（实时反馈给AI）
 	if ctx.Performance != nil {
-		// 直接从interface{}中提取SharpeRatio
 		type PerformanceData struct {
-			SharpeRatio float64 `json:"sharpe_ratio"`
+			TotalTrades          int     `json:"total_trades"`
+			WinRate              float64 `json:"win_rate"`
+			SharpeRatio          float64 `json:"sharpe_ratio"`
+			MaxDrawdownPercent   float64 `json:"max_drawdown_percent"`
+			ConsecutiveLosses    int     `json:"consecutive_losses"`
+			MaxConsecutiveLoss   int     `json:"max_consecutive_loss"`
+			Volatility           float64 `json:"volatility"`
+			WeightedWinRate      float64 `json:"weighted_win_rate"`
+			ProfitFactor         float64 `json:"profit_factor"`
+			AverageProfitPerWin  float64 `json:"average_profit_per_win"`
+			AverageLossPerLoss   float64 `json:"average_loss_per_loss"`
+			RiskRewardRatio      float64 `json:"risk_reward_ratio"`
+			BestPerformingPair   string  `json:"best_performing_pair"`
+			WorstPerformingPair  string  `json:"worst_performing_pair"`
+			BestTradingHour      int     `json:"best_trading_hour"`
 		}
+
 		var perfData PerformanceData
 		if jsonData, err := json.Marshal(ctx.Performance); err == nil {
 			if err := json.Unmarshal(jsonData, &perfData); err == nil {
-				sb.WriteString(fmt.Sprintf("## 📊 夏普比率: %.2f\n\n", perfData.SharpeRatio))
+				sb.WriteString("## 📊 历史表现分析 (AI决策参考)\n\n")
+
+				// 核心性能指标
+				if perfData.TotalTrades > 0 {
+					sb.WriteString(fmt.Sprintf("**交易统计**: 总共 %d 笔交易\n", perfData.TotalTrades))
+					sb.WriteString(fmt.Sprintf("**胜率**: %.1f%% | ", perfData.WinRate))
+					sb.WriteString(fmt.Sprintf("**风险回报比**: %.2f:1\n\n", perfData.RiskRewardRatio))
+
+					// 收益指标
+					sb.WriteString(fmt.Sprintf("💰 **平均收益**: 每笔赢 %.2f%% | 每笔亏 %.2f%%\n",
+						perfData.AverageProfitPerWin, perfData.AverageLossPerLoss))
+
+					// 风险指标
+					sb.WriteString(fmt.Sprintf("📉 **风险控制**: 最大回撤 %.2f%% | 波动率 %.2f%% | 连续亏损 %d 笔 (最多 %d 笔)\n\n",
+						perfData.MaxDrawdownPercent, perfData.Volatility,
+						perfData.ConsecutiveLosses, perfData.MaxConsecutiveLoss))
+
+					// 风险调整指标
+					sb.WriteString(fmt.Sprintf("⚡ **夏普比率**: %.2f (风险调整收益) | ", perfData.SharpeRatio))
+					sb.WriteString(fmt.Sprintf("**利润因子**: %.2f (总盈/总亏)\n\n",
+						perfData.ProfitFactor))
+
+					// 最佳交易时段和币种
+					if perfData.BestTradingHour >= 0 && perfData.BestTradingHour < 24 {
+						sb.WriteString(fmt.Sprintf("🕐 **最佳交易时段**: 北京时间 %02d:00 - %02d:00\n",
+							perfData.BestTradingHour, (perfData.BestTradingHour+1)%24))
+					}
+
+					if perfData.BestPerformingPair != "" {
+						sb.WriteString(fmt.Sprintf("🏆 **表现最好的币种**: %s | ", perfData.BestPerformingPair))
+					}
+					if perfData.WorstPerformingPair != "" {
+						sb.WriteString(fmt.Sprintf("**表现最差的币种**: %s\n\n", perfData.WorstPerformingPair))
+					}
+
+					// 加权胜率提示
+					if perfData.WeightedWinRate > 0 {
+						sb.WriteString(fmt.Sprintf("⭐ **加权胜率** (近期重权): %.1f%% - AI应关注最近的交易表现\n\n",
+							perfData.WeightedWinRate))
+					}
+
+					// 智能建议
+					sb.WriteString("### 💡 AI决策建议:\n")
+					if perfData.SharpeRatio > 1.0 {
+						sb.WriteString("✅ 历史表现良好(Sharpe>1)，可以提升杠杆或仓位\n")
+					} else if perfData.SharpeRatio < 0 {
+						sb.WriteString("⚠️ 历史表现不佳(Sharpe<0)，建议降低杠杆并专注高概率操作\n")
+					}
+
+					if perfData.MaxDrawdownPercent > 20 {
+						sb.WriteString("⚠️ 最大回撤超过20%，需要增强风险控制\n")
+					}
+
+					if perfData.ConsecutiveLosses >= 3 {
+						sb.WriteString("⚠️ 连续亏损检测：最近有连续亏损，建议暂停或切换策略\n")
+					}
+
+					if perfData.RiskRewardRatio >= 3.0 {
+						sb.WriteString("✅ 风险回报比优秀(≥3:1)，继续保持当前策略\n")
+					}
+
+					sb.WriteString("\n")
+				}
 			}
 		}
 	}

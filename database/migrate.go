@@ -67,6 +67,77 @@ func MigrateData(sqlitePath, neonDSN string) error {
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 		)`,
+
+		// 性能快照表 (每日快照)
+		`CREATE TABLE IF NOT EXISTS performance_snapshots (
+			id SERIAL PRIMARY KEY,
+			user_id INT NOT NULL,
+			trader_id VARCHAR(64) NOT NULL,
+			snapshot_date DATE NOT NULL,
+			total_trades INT,
+			winning_trades INT,
+			losing_trades INT,
+			win_rate DECIMAL(5,2),
+			sharpe_ratio DECIMAL(8,4),
+			max_drawdown_pct DECIMAL(8,4),
+			consecutive_losses INT,
+			max_consecutive_loss INT,
+			volatility DECIMAL(8,4),
+			weighted_win_rate DECIMAL(5,2),
+			profit_factor DECIMAL(8,4),
+			avg_profit_per_win DECIMAL(12,4),
+			avg_loss_per_loss DECIMAL(12,4),
+			best_performing_pair VARCHAR(32),
+			worst_performing_pair VARCHAR(32),
+			best_trading_hour INT,
+			total_pnl DECIMAL(15,4),
+			total_pnl_pct DECIMAL(8,4),
+			equity DECIMAL(15,4),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			UNIQUE(trader_id, snapshot_date)
+		)`,
+
+		// 币种性能统计表 (逐个币种详细统计)
+		`CREATE TABLE IF NOT EXISTS symbol_performance (
+			id SERIAL PRIMARY KEY,
+			user_id INT NOT NULL,
+			trader_id VARCHAR(64) NOT NULL,
+			symbol VARCHAR(32) NOT NULL,
+			snapshot_date DATE NOT NULL,
+			trades_count INT,
+			win_rate DECIMAL(5,2),
+			avg_profit_pct DECIMAL(8,4),
+			avg_loss_pct DECIMAL(8,4),
+			best_trade_pct DECIMAL(8,4),
+			worst_trade_pct DECIMAL(8,4),
+			volatility DECIMAL(8,4),
+			max_drawdown_pct DECIMAL(8,4),
+			profit_factor DECIMAL(8,4),
+			total_profit DECIMAL(15,4),
+			total_loss DECIMAL(15,4),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+			UNIQUE(trader_id, symbol, snapshot_date)
+		)`,
+
+		// 亏损事件表 (记录触发断路器的事件)
+		`CREATE TABLE IF NOT EXISTS loss_events (
+			id SERIAL PRIMARY KEY,
+			user_id INT NOT NULL,
+			trader_id VARCHAR(64) NOT NULL,
+			event_type VARCHAR(32) NOT NULL,
+			event_reason VARCHAR(256) NOT NULL,
+			consecutive_losses INT,
+			daily_loss_pct DECIMAL(8,4),
+			weekly_loss_pct DECIMAL(8,4),
+			max_drawdown_pct DECIMAL(8,4),
+			account_equity DECIMAL(15,4),
+			breach_triggered BOOLEAN DEFAULT false,
+			recovery_attempt INT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
 	}
 
 	for _, tableSQL := range tables {

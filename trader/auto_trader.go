@@ -7,6 +7,7 @@ import (
 	"log"
 	"nofx/config"
 	"nofx/decision"
+	"nofx/decision/analysis"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -101,6 +102,7 @@ type AutoTrader struct {
 	mcpClient             *mcp.Client
 	decisionLogger        *logger.DecisionLogger     // 决策日志记录器
 	kellyManager          *decision.KellyStopManager // 凯利公式止盈止损管理器
+	symbolConfigManager   *decision.SymbolConfigManager // 币种特定参数管理器
 	creditService         credits.Service            // 积分服务
 	db                    *config.Database           // 数据库引用
 	initialBalance        float64
@@ -231,6 +233,9 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		creditService = credits.NewCreditService(config.Database)
 	}
 
+	// 初始化币种特定参数管理器
+	symbolConfigManager := decision.NewSymbolConfigManager()
+
 	return &AutoTrader{
 		id:                    config.ID,
 		userID:                config.UserID,
@@ -242,6 +247,7 @@ func NewAutoTrader(config AutoTraderConfig) (*AutoTrader, error) {
 		mcpClient:             mcpClient,
 		decisionLogger:        decisionLogger,
 		kellyManager:          kellyManager,
+		symbolConfigManager:   symbolConfigManager,
 		creditService:         creditService,
 		db:                    config.Database,
 		initialBalance:        config.InitialBalance,
@@ -1542,4 +1548,90 @@ func (at *AutoTrader) recordTradeResult(symbol string, isWin bool, profitPct flo
 			}
 			return "亏损"
 		}(), profitPct)
+}
+
+// createAndSavePerformanceSnapshot 创建并保存性能快照
+func (at *AutoTrader) createAndSavePerformanceSnapshot(analysisResult *analysis.TradeAnalysisResult) error {
+	// 如果没有数据库或分析结果，直接返回
+	if at.db == nil || analysisResult == nil {
+		return fmt.Errorf("数据库或分析结果为空")
+	}
+
+	// 注意：这里的at.db是*config.Database类型，实现与*database.DatabaseImpl相同的接口
+	// 如需保存到数据库，需要确保*config.Database实现了相同的方法
+	// 暂时仅记录日志，完整的数据库持久化需要后续集成
+
+	log.Printf("📊 [%s] 性能快照已生成: %d笔交易, 胜率%.1f%%, Sharpe%.2f",
+		at.id, analysisResult.TotalTrades, analysisResult.WinRate, analysisResult.SharpeRatio)
+
+	// 记录币种详细统计
+	if analysisResult.SymbolStats != nil && len(analysisResult.SymbolStats) > 0 {
+		log.Printf("📈 币种性能统计: %d个币种", len(analysisResult.SymbolStats))
+		for symbol, stats := range analysisResult.SymbolStats {
+			log.Printf("  %s: 交易%d笔, 胜率%.1f%%, 利润因子%.2f",
+				symbol, stats.TradesCount, stats.WinRate, stats.ProfitFactor)
+		}
+	}
+
+	return nil
+}
+
+// GetSymbolConfig 获取币种配置
+func (at *AutoTrader) GetSymbolConfig(symbol string) *decision.SymbolSpecificConfig {
+	if at.symbolConfigManager == nil {
+		return nil
+	}
+	return at.symbolConfigManager.GetConfig(symbol)
+}
+
+// GetSymbolConfigSummary 获取币种配置摘要
+func (at *AutoTrader) GetSymbolConfigSummary(symbol string) string {
+	if at.symbolConfigManager == nil {
+		return ""
+	}
+	return at.symbolConfigManager.GetConfigSummary(symbol)
+}
+
+// ValidateSymbolTradeParameters 验证币种交易参数
+func (at *AutoTrader) ValidateSymbolTradeParameters(symbol string, leverage float64, positionSize, stopLoss, takeProfit float64) error {
+	if at.symbolConfigManager == nil {
+		return fmt.Errorf("币种配置管理器未初始化")
+	}
+	return at.symbolConfigManager.ValidateTradeParameters(symbol, leverage, positionSize, stopLoss, takeProfit)
+}
+
+// CalculateOptimalPositionSize 计算币种特定的最优仓位大小
+func (at *AutoTrader) CalculateOptimalPositionSize(symbol string) float64 {
+	if at.symbolConfigManager == nil {
+		// 回退到原始逻辑
+		return at.initialBalance * 0.1
+	}
+
+	// 获取当前账户净值
+	balance, err := at.trader.GetBalance()
+	if err != nil {
+		log.Printf("⚠️ 无法获取账户余额: %v", err)
+		return at.initialBalance * 0.1
+	}
+
+	var equity float64
+	if total, ok := balance["total"].(float64); ok {
+		equity = total
+	} else {
+		equity = at.initialBalance
+	}
+
+	return at.symbolConfigManager.CalculatePositionSize(symbol, equity)
+}
+
+// LogSymbolSpecificInfo 记录币种特定的信息
+func (at *AutoTrader) LogSymbolSpecificInfo(symbol string) {
+	if at.symbolConfigManager == nil {
+		return
+	}
+
+	category := decision.GetSymbolCategory(symbol)
+
+	log.Printf("🔧 [%s] 币种类别: %s | 配置: %s",
+		symbol, category, at.GetSymbolConfigSummary(symbol))
 }

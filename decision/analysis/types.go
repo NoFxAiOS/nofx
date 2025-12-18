@@ -23,9 +23,18 @@ type TradeAnalysisResult struct {
 	WorstPerformingPair string
 	BestTradingHour     int
 
+	// Risk-adjusted metrics (NEW)
+	SharpeRatio         float64 // Risk-adjusted return (年化)
+	MaxDrawdownPercent  float64 // Maximum peak-to-trough drawdown
+	ConsecutiveLosses   int     // Current consecutive losses
+	MaxConsecutiveLoss  int     // Maximum consecutive losses sequence
+	Volatility          float64 // Standard deviation of returns
+	WeightedWinRate     float64 // Win rate with time decay weighting
+
 	// Detailed breakdown
 	TradeByPairStats map[string]*PairStats
 	TradeByHourStats map[int]*HourStats
+	SymbolStats      map[string]*SymbolStats // NEW: Per-symbol detailed stats
 }
 
 // PairStats holds statistics for a specific trading pair.
@@ -35,6 +44,20 @@ type PairStats struct {
 	WinRate     float64
 	AvgProfit   float64
 	TotalProfit float64
+}
+
+// SymbolStats holds detailed per-symbol performance metrics (NEW)
+type SymbolStats struct {
+	Symbol         string  // Coin symbol
+	TradesCount    int     // Total trades
+	WinRate        float64 // Win rate percentage
+	AvgProfitPct   float64 // Average profit per winning trade
+	AvgLossPct     float64 // Average loss per losing trade
+	BestTradePct   float64 // Best single trade
+	WorstTradePct  float64 // Worst single trade
+	Volatility     float64 // Standard deviation of returns
+	MaxDrawdownPct float64 // Max drawdown for this symbol
+	ProfitFactor   float64 // Gross wins / Gross losses
 }
 
 // HourStats holds statistics for a specific hour of the day (0-23).

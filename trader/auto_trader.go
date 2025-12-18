@@ -683,9 +683,11 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 			MarginUsedPct:    marginUsedPct,
 			PositionCount:    len(positionInfos),
 		},
-		Positions:      positionInfos,
-		CandidateCoins: candidateCoins,
-		Performance:    performance, // 添加历史表现分析
+		Positions:       positionInfos,
+		CandidateCoins:  candidateCoins,
+		Performance:     performance, // 添加历史表现分析
+		LastCloseTime:   at.positionFirstSeenTime, // 平仓记录，用于冷却期检查
+		CooldownMinutes: 15, // 默认15分钟冷却期
 	}
 
 	return ctx, nil
@@ -963,6 +965,11 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	}
 
 	log.Printf("  ✓ 平多仓成功")
+
+	// 记录平仓时间（用于冷却期检查）
+	closeKey := decision.Symbol + "|close_long"
+	at.positionFirstSeenTime[closeKey] = time.Now().UnixMilli()
+
 	return nil
 }
 
@@ -1017,6 +1024,11 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	}
 
 	log.Printf("  ✓ 平空仓成功")
+
+	// 记录平仓时间（用于冷却期检查）
+	closeKey := decision.Symbol + "|close_short"
+	at.positionFirstSeenTime[closeKey] = time.Now().UnixMilli()
+
 	return nil
 }
 

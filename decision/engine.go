@@ -55,17 +55,19 @@ type OITopData struct {
 
 // Context 交易上下文（传递给AI的完整信息）
 type Context struct {
-	CurrentTime     string                  `json:"current_time"`
-	RuntimeMinutes  int                     `json:"runtime_minutes"`
-	CallCount       int                     `json:"call_count"`
-	Account         AccountInfo             `json:"account"`
-	Positions       []PositionInfo          `json:"positions"`
-	CandidateCoins  []CandidateCoin         `json:"candidate_coins"`
-	MarketDataMap   map[string]*market.Data `json:"-"` // 不序列化，但内部使用
-	OITopDataMap    map[string]*OITopData   `json:"-"` // OI Top数据映射
-	Performance     interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
-	BTCETHLeverage  int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
-	AltcoinLeverage int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	CurrentTime      string                  `json:"current_time"`
+	RuntimeMinutes   int                     `json:"runtime_minutes"`
+	CallCount        int                     `json:"call_count"`
+	Account          AccountInfo             `json:"account"`
+	Positions        []PositionInfo          `json:"positions"`
+	CandidateCoins   []CandidateCoin         `json:"candidate_coins"`
+	MarketDataMap    map[string]*market.Data `json:"-"` // 不序列化，但内部使用
+	OITopDataMap     map[string]*OITopData   `json:"-"` // OI Top数据映射
+	Performance      interface{}             `json:"-"` // 历史表现分析（logger.PerformanceAnalysis）
+	BTCETHLeverage   int                     `json:"-"` // BTC/ETH杠杆倍数（从配置读取）
+	AltcoinLeverage  int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
+	LastCloseTime    map[string]int64        `json:"-"` // symbol_action -> unix timestamp (milliseconds) - 用于冷却期检查
+	CooldownMinutes  int                     `json:"-"` // 平仓后的冷却期（分钟）
 }
 
 // Decision AI的交易决策
@@ -134,6 +136,29 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 	decision.Timestamp = time.Now()
 	decision.SystemPrompt = systemPrompt // 保存系统prompt
 	decision.UserPrompt = userPrompt     // 保存输入prompt
+
+	// 5. 验证和去重决策（防止同币种重复开仓、位置冲突等）
+	if len(decision.Decisions) > 0 {
+		cooldownMin := ctx.CooldownMinutes
+		if cooldownMin == 0 {
+			cooldownMin = 15 // 默认冷却期15分钟
+		}
+
+		validDecisions, filteredCount := ValidateAndDeduplicateDecisions(
+			decision.Decisions,
+			ctx.Positions,
+			ctx.LastCloseTime,
+			cooldownMin,
+		)
+
+		if filteredCount > 0 {
+			log.Printf("📋 决策验证完成: %d个决策 -> %d个有效决策 (过滤%d个)",
+				len(decision.Decisions), len(validDecisions), filteredCount)
+		}
+
+		decision.Decisions = validDecisions
+	}
+
 	return decision, nil
 }
 
@@ -281,6 +306,21 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 		accountEquity*0.8, accountEquity*1.5, altcoinLeverage, accountEquity*5, accountEquity*10, btcEthLeverage))
 	sb.WriteString("4. 保证金: 总使用率 ≤ 90%\n\n")
 
+	// 2.1 仓位冲突预防（关键）
+	sb.WriteString("## 仓位冲突预防 (Critical - 必须遵守)\n\n")
+	sb.WriteString("⛔️ 禁止重复开仓:\n")
+	sb.WriteString("- 同一币种已有多仓(long)，禁止再open_long\n")
+	sb.WriteString("- 同一币种已有空仓(short)，禁止再open_short\n")
+	sb.WriteString("- 如需换仓(多转空 或 空转多)，必须先close，后续周期再open\n\n")
+	sb.WriteString("⏱️ 禁止频繁交易:\n")
+	sb.WriteString("- 刚平仓的币种需冷静期: 平仓后15分钟内禁止重新开仓该币种\n")
+	sb.WriteString("- 建议每个币种持仓时长: 30-60分钟以上\n")
+	sb.WriteString("- 检查自己的决策: 如果同个币种在3个周期内改变方向，说明标准太松散\n\n")
+	sb.WriteString("🔍 决策去重:\n")
+	sb.WriteString("- 检查你的JSON输出，不应该出现同一币种多次\n")
+	sb.WriteString("- 如果不得已要修改，只保留信心度最高的那个\n")
+	sb.WriteString("- 同币种冲突的操作(open_long + close_long): 优先执行close\n\n")
+
 	// 3. 输出格式 - 动态生成
 	sb.WriteString("#输出格式\n\n")
 	sb.WriteString("第一步: 思维链（纯文本）\n")
@@ -296,6 +336,153 @@ func buildSystemPrompt(accountEquity float64, btcEthLeverage, altcoinLeverage in
 	sb.WriteString("- 开仓时必填: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, reasoning\n\n")
 
 	return sb.String()
+}
+
+// ValidateAndDeduplicateDecisions 验证决策并进行去重
+// 规则:
+// 1. 同币种同动作去重，保留信心度最高的
+// 2. 禁止在已持仓币种上开相同方向仓位
+// 3. 禁止在冷却期内重新进入已平仓的币种
+// 4. 同币种冲突动作时，优先保留close操作
+func ValidateAndDeduplicateDecisions(
+	decisions []Decision,
+	positions []PositionInfo,
+	lastCloseTime map[string]int64, // symbol_action -> unix timestamp (milliseconds)
+	cooldownMinutes int,
+) ([]Decision, int) {
+	if len(decisions) == 0 {
+		return decisions, 0
+	}
+
+	filteredCount := 0
+
+	// Step 1: 构建已持仓币种映射 (symbol -> side)
+	heldPositions := make(map[string]string)
+	for _, pos := range positions {
+		heldPositions[pos.Symbol] = pos.Side
+	}
+
+	// Step 2: 按(symbol, action)去重，保留信心度最高的
+	symbolActionMap := make(map[string]*Decision)
+	for i := range decisions {
+		key := decisions[i].Symbol + "|" + decisions[i].Action
+		if existing, exists := symbolActionMap[key]; exists {
+			// 保留信心度更高的决策
+			if decisions[i].Confidence > existing.Confidence {
+				symbolActionMap[key] = &decisions[i]
+			}
+			filteredCount++
+		} else {
+			symbolActionMap[key] = &decisions[i]
+		}
+	}
+
+	// Step 3: 冲突消解 - 同币种的conflicting actions
+	// 如果同一币种同时有open和close，优先保留close
+	symbolActionsMap := make(map[string][]string)
+	for key := range symbolActionMap {
+		parts := strings.Split(key, "|")
+		if len(parts) == 2 {
+			symbol, action := parts[0], parts[1]
+			symbolActionsMap[symbol] = append(symbolActionsMap[symbol], action)
+		}
+	}
+
+	// 检查同币种冲突
+	for symbol, actions := range symbolActionsMap {
+		hasOpen := false
+		hasClose := false
+		for _, action := range actions {
+			if action == "open_long" || action == "open_short" {
+				hasOpen = true
+			}
+			if action == "close_long" || action == "close_short" {
+				hasClose = true
+			}
+		}
+
+		// 如果同币种既有open又有close，删除open（保留close）
+		if hasOpen && hasClose {
+			openKey := ""
+			if strings.Contains(strings.Join(actions, ","), "open_long") {
+				openKey = symbol + "|open_long"
+			} else if strings.Contains(strings.Join(actions, ","), "open_short") {
+				openKey = symbol + "|open_short"
+			}
+
+			if openKey != "" && symbolActionMap[openKey] != nil {
+				delete(symbolActionMap, openKey)
+				filteredCount++
+				log.Printf("  ⚠️ 决策冲突消解: %s - 优先close而非open", symbol)
+			}
+		}
+	}
+
+	// Step 4: 检查仓位冲突和冷却期
+	now := time.Now().UnixMilli()
+	cooldownMs := int64(cooldownMinutes) * 60 * 1000
+
+	var validDecisions []Decision
+	for _, decision := range symbolActionMap {
+		valid := true
+		reason := ""
+
+		switch decision.Action {
+		case "open_long":
+			// 检查是否已有同币种仓位
+			if held, exists := heldPositions[decision.Symbol]; exists {
+				valid = false
+				reason = fmt.Sprintf("已持%s仓，禁止open_long", held)
+			}
+			// 检查冷却期
+			if valid {
+				lastCloseKey := decision.Symbol + "|close_long"
+				if lastTime, exists := lastCloseTime[lastCloseKey]; exists {
+					timeSinceClose := now - lastTime
+					if timeSinceClose < cooldownMs {
+						valid = false
+						minutesAgo := timeSinceClose / (1000 * 60)
+						reason = fmt.Sprintf("冷却期: %d分钟前平仓，需等%d分钟", minutesAgo, cooldownMinutes)
+					}
+				}
+			}
+
+		case "open_short":
+			// 检查是否已有同币种仓位
+			if held, exists := heldPositions[decision.Symbol]; exists {
+				valid = false
+				reason = fmt.Sprintf("已持%s仓，禁止open_short", held)
+			}
+			// 检查冷却期
+			if valid {
+				lastCloseKey := decision.Symbol + "|close_short"
+				if lastTime, exists := lastCloseTime[lastCloseKey]; exists {
+					timeSinceClose := now - lastTime
+					if timeSinceClose < cooldownMs {
+						valid = false
+						minutesAgo := timeSinceClose / (1000 * 60)
+						reason = fmt.Sprintf("冷却期: %d分钟前平仓，需等%d分钟", minutesAgo, cooldownMinutes)
+					}
+				}
+			}
+
+		case "close_long", "close_short":
+			// 检查是否持有该币种仓位
+			if _, exists := heldPositions[decision.Symbol]; !exists {
+				valid = false
+				reason = fmt.Sprintf("未持有仓位，不能平仓")
+			}
+		}
+
+		if valid {
+			validDecisions = append(validDecisions, *decision)
+		} else {
+			filteredCount++
+			log.Printf("  ⚠️ 决策过滤: %s %s - 原因: %s", decision.Symbol, decision.Action, reason)
+		}
+	}
+
+	return validDecisions, filteredCount
 }
 
 // buildUserPrompt 构建 User Prompt（动态数据）
@@ -353,6 +540,33 @@ func buildUserPrompt(ctx *Context) string {
 		}
 	} else {
 		sb.WriteString("当前持仓: 无\n\n")
+	}
+
+	// 冷却期币种（最近平仓，禁止立即重新开仓）
+	if len(ctx.LastCloseTime) > 0 {
+		now := time.Now().UnixMilli()
+		cooldownMs := int64(ctx.CooldownMinutes) * 60 * 1000
+		lockedCoins := make(map[string]string) // symbol -> reason
+
+		for key, closeTime := range ctx.LastCloseTime {
+			timeSinceClose := now - closeTime
+			if timeSinceClose < cooldownMs && strings.Contains(key, "|close_") {
+				parts := strings.Split(key, "|")
+				if len(parts) == 2 {
+					symbol := parts[0]
+					minutesRemaining := (cooldownMs - timeSinceClose) / (1000 * 60)
+					lockedCoins[symbol] = fmt.Sprintf("%d分钟", minutesRemaining)
+				}
+			}
+		}
+
+		if len(lockedCoins) > 0 {
+			sb.WriteString("## ⏱️ 冷却期币种（禁止立即重新开仓）\n\n")
+			for symbol, reason := range lockedCoins {
+				sb.WriteString(fmt.Sprintf("- %s: 冷却中(%s)\n", symbol, reason))
+			}
+			sb.WriteString("\n")
+		}
 	}
 
 	// 候选币种（完整市场数据）

@@ -342,8 +342,8 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	// TODO: 启动数据库中配置为运行状态的交易员
-	// traderManager.StartAll()
+	// 启动数据库中配置为运行状态的交易员
+	traderManager.StartAll()
 
 	// 启动API服务器（阻塞主线程，确保服务器立即可用）
 	go func() {

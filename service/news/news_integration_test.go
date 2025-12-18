@@ -40,7 +40,7 @@ func TestNewsService_Integration(t *testing.T) {
 		topicRouter:    map[string]int{"Finnhub": 100}, // Topic 100
 		notifier:       notifier,
 		enabled:        true,
-		sentArticleIDs: make(map[int64]bool),
+		sentArticleIDs: make(map[string]bool),
 	}
 
 	// 3. Execute
@@ -78,7 +78,7 @@ func TestMlion_Integration(t *testing.T) {
 		topicRouter:    map[string]int{"Mlion": 17758},
 		notifier:       notifier,
 		enabled:        true,
-		sentArticleIDs: make(map[int64]bool),
+		sentArticleIDs: make(map[string]bool),
 	}
 
 	err := svc.ProcessFetcher(fetcher, "crypto")

@@ -17,7 +17,7 @@ type Service struct {
 	topicRouter    map[string]int // 路由表: Source Name -> Telegram Topic ID
 	notifier       Notifier
 	enabled        bool
-	sentArticleIDs map[int64]bool // 全局消息ID去重集合
+	sentArticleIDs map[string]bool // 全局消息ID去重集合 (Source-ID)
 }
 
 // NewService 创建新闻服务
@@ -26,7 +26,7 @@ func NewService(store StateStore) *Service {
 		store:          store,
 		fetchers:       []Fetcher{},
 		topicRouter:    make(map[string]int),
-		sentArticleIDs: make(map[int64]bool),
+		sentArticleIDs: make(map[string]bool),
 	}
 }
 
@@ -119,7 +119,7 @@ func (s *Service) loadConfig() error {
 
 func (s *Service) processAllCategories() {
 	// 每个周期开始时，清空上个周期的已发送消息ID记录
-	s.sentArticleIDs = make(map[int64]bool)
+	s.sentArticleIDs = make(map[string]bool)
 
 	for _, fetcher := range s.fetchers {
 		if fetcher.Name() == "Finnhub" {
@@ -181,7 +181,8 @@ func (s *Service) ProcessFetcher(f Fetcher, category string) error {
 		}
 
 		// 全局消息ID去重 (Current Cycle)
-		if s.sentArticleIDs[int64(a.ID)] {
+		dedupKey := fmt.Sprintf("%s-%d", f.Name(), a.ID)
+		if s.sentArticleIDs[dedupKey] {
 			continue
 		}
 
@@ -209,7 +210,8 @@ func (s *Service) ProcessFetcher(f Fetcher, category string) error {
 			continue
 		}
 
-		s.sentArticleIDs[int64(a.ID)] = true
+		dedupKey := fmt.Sprintf("%s-%d", f.Name(), a.ID)
+		s.sentArticleIDs[dedupKey] = true
 
 		// 更新状态 using the prefixed key
 		if err := s.store.UpdateNewsState(dbCategoryKey, int64(a.ID), a.Datetime); err != nil {

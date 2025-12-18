@@ -62,6 +62,32 @@ C. Note on Local Encryption
 
 We are aware that the "Software" provides functionality to encrypt user-entered API keys and private keys. We clarify here that this encryption process is performed and managed entirely on your own device (locally). This data is never transmitted to us or any third party after encryption. This encryption feature is designed to protect your data from unauthorized access to your local device, not to share it with us.
 
+D. Experience Improvement Program (Optional)
+
+To help us improve the product experience, the "Software" sends **anonymous usage statistics** by default. This feature is completely optional and you can disable it at any time.
+
+**Data Types Collected:**
+- Exchange type (e.g., Binance, Bybit, etc., excluding your account information)
+- Trade type (open/close position)
+- Trade amount (USD value)
+- Trading pair (e.g., BTCUSDT)
+- Anonymous identifiers (used for counting active numbers, not linked to personal identity):
+  - Installation ID: Identifies each independently deployed software instance
+  - User ID: Identifies user accounts within the software (only for counting active users)
+  - Trader ID: Identifies trading strategies created by users (only for counting active strategies)
+
+**We explicitly do NOT collect:**
+- Your API keys, private keys, or any credentials
+- Your account addresses, usernames, or identity information
+- Specific trade prices, times, or order details
+- Any information that could reverse-identify personal identity through the above anonymous IDs
+
+**How to Disable:**
+Set `EXPERIENCE_IMPROVEMENT=false` in your environment variables to completely disable this feature.
+
+**Purpose of Data:**
+These anonymous statistics are only used to understand overall product usage and help us optimize features and improve user experience.
+
 IV. Data Sharing, Retention, and Security (Website Data)
 
 

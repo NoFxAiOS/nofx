@@ -111,3 +111,16 @@
 *   **操作**: 连接生产环境 PostgreSQL 数据库，直接查询 `system_config` 表。
 *   **SQL**: `SELECT value FROM system_config WHERE key = 'mlion_api_key'`
 *   **结果**: ✅ 验证通过。数据库中存储的值与预期的 Key (`c559b9a8-80c2-4c17-8c31-bb7659b12b52`) 完全一致。
+
+---
+
+## 9. Telegram 消息路由实网验证 (2025-12-18)
+*   **测试目标**: 验证消息能否实际发送到 Telegram 频道 `monnaire_capital_research` 的 Topic `17758`。
+*   **方法**: 使用临时脚本连接生产数据库，读取真实配置 (`bot_token`, `chat_id`, `mlion_target_topic_id`)，并调用 `news.TelegramNotifier` 发送测试消息。
+*   **配置确认**:
+    *   Chat ID: `-1002678075016`
+    *   Target Topic ID: `17758`
+*   **执行结果**:
+    *   API 调用: HTTP 200 OK
+    *   Telegram 响应: 成功 (`{"ok":true, ...}`)
+    *   结论: ✅ 验证通过。系统具备向指定 Topic 发送消息的完整能力。

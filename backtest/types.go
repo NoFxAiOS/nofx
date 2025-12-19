@@ -25,6 +25,7 @@ type PositionSnapshot struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	OpenTime         int64   `json:"open_time"`
+	AccumulatedFee   float64 `json:"accumulated_fee,omitempty"` // Opening fees accumulated
 }
 
 // BacktestState represents the real-time state during execution (in-memory state).
@@ -149,16 +150,30 @@ type RunSummary struct {
 
 // StatusPayload is used for /status API responses.
 type StatusPayload struct {
-	RunID          string   `json:"run_id"`
-	State          RunState `json:"state"`
-	ProgressPct    float64  `json:"progress_pct"`
-	ProcessedBars  int      `json:"processed_bars"`
-	CurrentTime    int64    `json:"current_time"`
-	DecisionCycle  int      `json:"decision_cycle"`
-	Equity         float64  `json:"equity"`
-	UnrealizedPnL  float64  `json:"unrealized_pnl"`
-	RealizedPnL    float64  `json:"realized_pnl"`
-	Note           string   `json:"note,omitempty"`
-	LastError      string   `json:"last_error,omitempty"`
-	LastUpdatedIso string   `json:"last_updated_iso"`
+	RunID          string            `json:"run_id"`
+	State          RunState          `json:"state"`
+	ProgressPct    float64           `json:"progress_pct"`
+	ProcessedBars  int               `json:"processed_bars"`
+	CurrentTime    int64             `json:"current_time"`
+	DecisionCycle  int               `json:"decision_cycle"`
+	Equity         float64           `json:"equity"`
+	UnrealizedPnL  float64           `json:"unrealized_pnl"`
+	RealizedPnL    float64           `json:"realized_pnl"`
+	Positions      []PositionStatus  `json:"positions,omitempty"`
+	Note           string            `json:"note,omitempty"`
+	LastError      string            `json:"last_error,omitempty"`
+	LastUpdatedIso string            `json:"last_updated_iso"`
+}
+
+// PositionStatus represents a position with unrealized P&L for status display.
+type PositionStatus struct {
+	Symbol           string  `json:"symbol"`
+	Side             string  `json:"side"`
+	Quantity         float64 `json:"quantity"`
+	EntryPrice       float64 `json:"entry_price"`
+	MarkPrice        float64 `json:"mark_price"`
+	Leverage         int     `json:"leverage"`
+	UnrealizedPnL    float64 `json:"unrealized_pnl"`
+	UnrealizedPnLPct float64 `json:"unrealized_pnl_pct"`
+	MarginUsed       float64 `json:"margin_used"`
 }

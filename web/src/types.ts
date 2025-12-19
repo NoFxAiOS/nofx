@@ -281,6 +281,19 @@ export interface BacktestRunsResponse {
   items: BacktestRunMetadata[];
 }
 
+// Position status for real-time display during backtest
+export interface BacktestPositionStatus {
+  symbol: string;
+  side: string;
+  quantity: number;
+  entry_price: number;
+  mark_price: number;
+  leverage: number;
+  unrealized_pnl: number;
+  unrealized_pnl_pct: number;
+  margin_used: number;
+}
+
 export interface BacktestStatusPayload {
   run_id: string;
   state: string;
@@ -291,6 +304,7 @@ export interface BacktestStatusPayload {
   equity: number;
   unrealized_pnl: number;
   realized_pnl: number;
+  positions?: BacktestPositionStatus[];
   note?: string;
   last_error?: string;
   last_updated_iso: string;
@@ -352,6 +366,7 @@ export interface BacktestMetrics {
 export interface BacktestStartConfig {
   run_id?: string;
   ai_model_id?: string;
+  strategy_id?: string; // Optional: use saved strategy from Strategy Studio
   symbols: string[];
   timeframes: string[];
   decision_timeframe: string;
@@ -383,6 +398,26 @@ export interface BacktestStartConfig {
     btc_eth_leverage?: number;
     altcoin_leverage?: number;
   };
+}
+
+// Kline data for backtest chart
+export interface BacktestKline {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface BacktestKlinesResponse {
+  symbol: string;
+  timeframe: string;
+  start_ts: number;
+  end_ts: number;
+  count: number;
+  klines: BacktestKline[];
+  run_id: string;
 }
 
 // Strategy Studio Types

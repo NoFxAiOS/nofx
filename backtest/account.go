@@ -18,6 +18,7 @@ type position struct {
 	Notional         float64
 	LiquidationPrice float64
 	OpenTime         int64
+	AccumulatedFee   float64 // Total fees paid (opening + any additions)
 }
 
 type BacktestAccount struct {
@@ -87,6 +88,7 @@ func (acc *BacktestAccount) Open(symbol, side string, quantity float64, leverage
 		pos.Notional = notional
 		pos.OpenTime = ts
 		pos.LiquidationPrice = computeLiquidation(execPrice, leverage, side)
+		pos.AccumulatedFee = fee // Track opening fee
 	} else {
 		if leverage != pos.Leverage {
 			// Use weighted average leverage (approximate)
@@ -98,6 +100,7 @@ func (acc *BacktestAccount) Open(symbol, side string, quantity float64, leverage
 		pos.EntryPrice = ((pos.EntryPrice * pos.Quantity) + execPrice*quantity) / (pos.Quantity + quantity)
 		pos.Quantity += quantity
 		pos.LiquidationPrice = computeLiquidation(pos.EntryPrice, pos.Leverage, side)
+		pos.AccumulatedFee += fee // Add to accumulated fee for position additions
 	}
 
 	return pos, fee, execPrice, nil
@@ -120,23 +123,32 @@ func (acc *BacktestAccount) Close(symbol, side string, quantity float64, price f
 
 	execPrice := applySlippage(price, acc.slippageRate, side, false)
 	notional := execPrice * quantity
-	fee := notional * acc.feeRate
+	closingFee := notional * acc.feeRate
+
+	// Calculate proportional opening fee for the quantity being closed
+	closePortion := quantity / pos.Quantity
+	openingFeePortion := pos.AccumulatedFee * closePortion
+	totalFee := closingFee + openingFeePortion
 
 	realized := realizedPnL(pos, quantity, execPrice)
 
-	marginPortion := pos.Margin * (quantity / pos.Quantity)
-	acc.cash += marginPortion + realized - fee
-	acc.realizedPnL += realized - fee
+	marginPortion := pos.Margin * closePortion
+	// Note: Opening fee was already deducted from cash when opening, so we only deduct closing fee here
+	acc.cash += marginPortion + realized - closingFee
+	// But for realized P&L tracking, we include both fees
+	acc.realizedPnL += realized - totalFee
 
 	pos.Quantity -= quantity
 	pos.Notional -= notional
 	pos.Margin -= marginPortion
+	pos.AccumulatedFee -= openingFeePortion // Reduce tracked opening fee
 
 	if pos.Quantity <= epsilon {
 		acc.removePosition(pos)
 	}
 
-	return realized, fee, execPrice, nil
+	// Return total fee (opening + closing) so caller can calculate accurate P&L
+	return realized, totalFee, execPrice, nil
 }
 
 func (acc *BacktestAccount) TotalEquity(priceMap map[string]float64) (float64, float64, map[string]float64) {
@@ -243,6 +255,7 @@ func (acc *BacktestAccount) RestoreFromSnapshots(cash float64, realized float64,
 			Notional:         snap.Quantity * snap.AvgPrice,
 			LiquidationPrice: snap.LiquidationPrice,
 			OpenTime:         snap.OpenTime,
+			AccumulatedFee:   snap.AccumulatedFee,
 		}
 		key := positionKey(pos.Symbol, pos.Side)
 		acc.positions[key] = pos

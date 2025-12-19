@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, useCallback, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef, type FormEvent } from 'react'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
+import { createChart, ColorType, CrosshairMode, CandlestickSeries, createSeriesMarkers, type IChartApi, type ISeriesApi, type CandlestickData, type UTCTimestamp, type SeriesMarker } from 'lightweight-charts'
 import {
   Play,
   Pause,
@@ -25,6 +26,7 @@ import {
   Eye,
   ArrowUpRight,
   ArrowDownRight,
+  CandlestickChart as CandlestickIcon,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -43,11 +45,14 @@ import { confirmToast } from '../lib/notify'
 import { DecisionCard } from './DecisionCard'
 import type {
   BacktestStatusPayload,
+  BacktestPositionStatus,
   BacktestEquityPoint,
   BacktestTradeEvent,
   BacktestMetrics,
+  BacktestKlinesResponse,
   DecisionRecord,
   AIModel,
+  Strategy,
 } from '../types'
 
 // ============ Types ============
@@ -261,6 +266,270 @@ function BacktestChart({
   )
 }
 
+// Candlestick Chart Component with trade markers
+function CandlestickChartComponent({
+  runId,
+  trades,
+  language,
+}: {
+  runId: string
+  trades: BacktestTradeEvent[]
+  language: string
+}) {
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
+
+  // Get unique symbols from trades
+  const symbols = useMemo(() => {
+    const symbolSet = new Set(trades.map((t) => t.symbol))
+    return Array.from(symbolSet).sort()
+  }, [trades])
+
+  const [selectedSymbol, setSelectedSymbol] = useState<string>(symbols[0] || '')
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('15m')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const CHART_TIMEFRAMES = ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d']
+
+  // Update selected symbol when symbols change
+  useEffect(() => {
+    if (symbols.length > 0 && !symbols.includes(selectedSymbol)) {
+      setSelectedSymbol(symbols[0])
+    }
+  }, [symbols, selectedSymbol])
+
+  // Filter trades for selected symbol
+  const symbolTrades = useMemo(() => {
+    return trades.filter((t) => t.symbol === selectedSymbol)
+  }, [trades, selectedSymbol])
+
+  // Fetch klines and render chart
+  useEffect(() => {
+    if (!chartContainerRef.current || !selectedSymbol || !runId) return
+
+    const container = chartContainerRef.current
+
+    // Create chart
+    const chart = createChart(container, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#0B0E11' },
+        textColor: '#848E9C',
+      },
+      grid: {
+        vertLines: { color: 'rgba(43, 49, 57, 0.5)' },
+        horzLines: { color: 'rgba(43, 49, 57, 0.5)' },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+      },
+      rightPriceScale: {
+        borderColor: '#2B3139',
+      },
+      timeScale: {
+        borderColor: '#2B3139',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      width: container.clientWidth,
+      height: 400,
+    })
+
+    chartRef.current = chart
+
+    // Add candlestick series
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#0ECB81',
+      downColor: '#F6465D',
+      borderUpColor: '#0ECB81',
+      borderDownColor: '#F6465D',
+      wickUpColor: '#0ECB81',
+      wickDownColor: '#F6465D',
+    })
+    candleSeriesRef.current = candleSeries
+
+    // Fetch klines
+    setIsLoading(true)
+    setError(null)
+
+    api
+      .getBacktestKlines(runId, selectedSymbol, selectedTimeframe)
+      .then((data: BacktestKlinesResponse) => {
+        const klineData: CandlestickData<UTCTimestamp>[] = data.klines.map((k) => ({
+          time: k.time as UTCTimestamp,
+          open: k.open,
+          high: k.high,
+          low: k.low,
+          close: k.close,
+        }))
+        candleSeries.setData(klineData)
+
+        // Add trade markers with improved styling
+        const markers: SeriesMarker<UTCTimestamp>[] = symbolTrades
+          .map((trade) => {
+            const tradeTime = Math.floor(trade.ts / 1000)
+            // Find closest kline time
+            const closestKline = data.klines.reduce((prev, curr) =>
+              Math.abs(curr.time - tradeTime) < Math.abs(prev.time - tradeTime) ? curr : prev
+            )
+            const isOpen = trade.action.includes('open')
+            const isLong = trade.side === 'long' || trade.action.includes('long')
+            const pnl = trade.realized_pnl
+
+            // Format display text
+            let text = ''
+            let color = '#0ECB81' // Default green
+
+            if (isOpen) {
+              // Opening position: show direction and price
+              if (isLong) {
+                text = `▲ Long @${trade.price.toFixed(2)}`
+                color = '#0ECB81' // Green for long open
+              } else {
+                text = `▼ Short @${trade.price.toFixed(2)}`
+                color = '#F6465D' // Red for short open
+              }
+            } else {
+              // Closing position: show PnL
+              const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`
+              text = `✕ ${pnlStr}`
+              color = pnl >= 0 ? '#0ECB81' : '#F6465D' // Green for profit, red for loss
+            }
+
+            return {
+              time: closestKline.time as UTCTimestamp,
+              position: isOpen
+                ? (isLong ? 'belowBar' as const : 'aboveBar' as const) // Long below, short above
+                : (isLong ? 'aboveBar' as const : 'belowBar' as const), // Close opposite
+              color,
+              shape: 'circle' as const,
+              size: 2,
+              text,
+            }
+          })
+          .sort((a, b) => (a.time as number) - (b.time as number))
+
+        createSeriesMarkers(candleSeries, markers)
+        chart.timeScale().fitContent()
+        setIsLoading(false)
+      })
+      .catch((err) => {
+        setError(err.message || 'Failed to load klines')
+        setIsLoading(false)
+      })
+
+    // Handle resize
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth })
+      }
+    }
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+      chart.remove()
+      chartRef.current = null
+      candleSeriesRef.current = null
+    }
+  }, [runId, selectedSymbol, selectedTimeframe, symbolTrades])
+
+  if (symbols.length === 0) {
+    return (
+      <div className="py-12 text-center" style={{ color: '#5E6673' }}>
+        {language === 'zh' ? '没有交易记录' : 'No trades to display'}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Symbol and Timeframe selectors */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <CandlestickIcon size={16} style={{ color: '#F0B90B' }} />
+          <span className="text-sm" style={{ color: '#848E9C' }}>
+            {language === 'zh' ? '币种' : 'Symbol'}
+          </span>
+          <select
+            value={selectedSymbol}
+            onChange={(e) => setSelectedSymbol(e.target.value)}
+            className="px-3 py-1.5 rounded text-sm"
+            style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+          >
+            {symbols.map((sym) => (
+              <option key={sym} value={sym}>
+                {sym}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Clock size={14} style={{ color: '#848E9C' }} />
+          <span className="text-sm" style={{ color: '#848E9C' }}>
+            {language === 'zh' ? '周期' : 'Interval'}
+          </span>
+          <div className="flex rounded overflow-hidden" style={{ border: '1px solid #2B3139' }}>
+            {CHART_TIMEFRAMES.map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setSelectedTimeframe(tf)}
+                className="px-2.5 py-1 text-xs font-medium transition-colors"
+                style={{
+                  background: selectedTimeframe === tf ? '#F0B90B' : '#1E2329',
+                  color: selectedTimeframe === tf ? '#0B0E11' : '#848E9C',
+                }}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <span className="text-xs" style={{ color: '#5E6673' }}>
+          ({symbolTrades.length} {language === 'zh' ? '笔交易' : 'trades'})
+        </span>
+      </div>
+
+      {/* Chart container */}
+      <div
+        ref={chartContainerRef}
+        className="w-full rounded-lg overflow-hidden"
+        style={{ background: '#0B0E11', minHeight: 400 }}
+      >
+        {isLoading && (
+          <div className="flex items-center justify-center h-[400px]" style={{ color: '#848E9C' }}>
+            <RefreshCw className="animate-spin mr-2" size={16} />
+            {language === 'zh' ? '加载K线数据...' : 'Loading kline data...'}
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-center h-[400px]" style={{ color: '#F6465D' }}>
+            <AlertTriangle className="mr-2" size={16} />
+            {error}
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs" style={{ color: '#848E9C' }}>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#0ECB81' }} />
+          <span>{language === 'zh' ? '开仓/盈利' : 'Open/Profit'}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#F6465D' }} />
+          <span>{language === 'zh' ? '亏损平仓' : 'Loss Close'}</span>
+        </div>
+        <span style={{ color: '#5E6673' }}>|</span>
+        <span>▲ Long · ▼ Short · ✕ {language === 'zh' ? '平仓' : 'Close'}</span>
+      </div>
+    </div>
+  )
+}
+
 // Trade Timeline Component
 function TradeTimeline({ trades }: { trades: BacktestTradeEvent[] }) {
   const recentTrades = useMemo(() => [...trades].slice(-20).reverse(), [trades])
@@ -341,6 +610,128 @@ function TradeTimeline({ trades }: { trades: BacktestTradeEvent[] }) {
   )
 }
 
+// Real-time Positions Display Component
+function PositionsDisplay({
+  positions,
+  language,
+}: {
+  positions: BacktestPositionStatus[]
+  language: string
+}) {
+  if (!positions || positions.length === 0) {
+    return null
+  }
+
+  const totalUnrealizedPnL = positions.reduce((sum, p) => sum + p.unrealized_pnl, 0)
+  const totalMargin = positions.reduce((sum, p) => sum + p.margin_used, 0)
+
+  return (
+    <div
+      className="mt-3 p-3 rounded-lg"
+      style={{ background: 'rgba(30, 35, 41, 0.8)', border: '1px solid #2B3139' }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Activity className="w-4 h-4" style={{ color: '#F0B90B' }} />
+          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+            {language === 'zh' ? '当前持仓' : 'Active Positions'}
+          </span>
+          <span
+            className="px-1.5 py-0.5 rounded text-xs"
+            style={{ background: '#F0B90B20', color: '#F0B90B' }}
+          >
+            {positions.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          <span style={{ color: '#848E9C' }}>
+            {language === 'zh' ? '保证金' : 'Margin'}: ${totalMargin.toFixed(2)}
+          </span>
+          <span
+            className="font-medium"
+            style={{ color: totalUnrealizedPnL >= 0 ? '#0ECB81' : '#F6465D' }}
+          >
+            {language === 'zh' ? '浮盈' : 'Unrealized'}: {totalUnrealizedPnL >= 0 ? '+' : ''}
+            ${totalUnrealizedPnL.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {positions.map((pos) => {
+          const isLong = pos.side === 'long'
+          const pnlColor = pos.unrealized_pnl >= 0 ? '#0ECB81' : '#F6465D'
+
+          return (
+            <motion.div
+              key={`${pos.symbol}-${pos.side}`}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center justify-between p-2 rounded"
+              style={{ background: '#1E2329' }}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-6 h-6 rounded flex items-center justify-center"
+                  style={{ background: isLong ? '#0ECB8120' : '#F6465D20' }}
+                >
+                  {isLong ? (
+                    <TrendingUp className="w-3.5 h-3.5" style={{ color: '#0ECB81' }} />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5" style={{ color: '#F6465D' }} />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono font-bold text-sm" style={{ color: '#EAECEF' }}>
+                      {pos.symbol.replace('USDT', '')}
+                    </span>
+                    <span
+                      className="px-1 py-0.5 rounded text-[10px] font-medium"
+                      style={{
+                        background: isLong ? '#0ECB8120' : '#F6465D20',
+                        color: isLong ? '#0ECB81' : '#F6465D',
+                      }}
+                    >
+                      {isLong ? 'LONG' : 'SHORT'} {pos.leverage}x
+                    </span>
+                  </div>
+                  <div className="text-[10px]" style={{ color: '#5E6673' }}>
+                    {language === 'zh' ? '数量' : 'Qty'}: {pos.quantity.toFixed(4)} ·{' '}
+                    {language === 'zh' ? '保证金' : 'Margin'}: ${pos.margin_used.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <div className="flex items-center gap-2 text-xs">
+                  <span style={{ color: '#848E9C' }}>
+                    {language === 'zh' ? '开仓' : 'Entry'}: ${pos.entry_price.toFixed(2)}
+                  </span>
+                  <span style={{ color: '#EAECEF' }}>
+                    {language === 'zh' ? '现价' : 'Mark'}: ${pos.mark_price.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                  <span className="font-mono font-bold" style={{ color: pnlColor }}>
+                    {pos.unrealized_pnl >= 0 ? '+' : ''}${pos.unrealized_pnl.toFixed(2)}
+                  </span>
+                  <span
+                    className="px-1 py-0.5 rounded text-[10px] font-medium"
+                    style={{ background: `${pnlColor}20`, color: pnlColor }}
+                  >
+                    {pos.unrealized_pnl_pct >= 0 ? '+' : ''}{pos.unrealized_pnl_pct.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ============ Main Component ============
 export function BacktestPage() {
   const { language } = useLanguage()
@@ -380,6 +771,7 @@ export function BacktestPage() {
     cacheAI: true,
     replayOnly: false,
     aiModelId: '',
+    strategyId: '', // Optional: use saved strategy from Strategy Studio
   })
 
   // Data fetching
@@ -389,6 +781,7 @@ export function BacktestPage() {
   const runs = runsResp?.items ?? []
 
   const { data: aiModels } = useSWR<AIModel[]>('ai-models', api.getModelConfigs, { refreshInterval: 30000 })
+  const { data: strategies } = useSWR<Strategy[]>('strategies', api.getStrategies, { refreshInterval: 30000 })
 
   const { data: status } = useSWR<BacktestStatusPayload>(
     selectedRunId ? ['bt-status', selectedRunId] : null,
@@ -422,6 +815,69 @@ export function BacktestPage() {
 
   const selectedRun = runs.find((r) => r.run_id === selectedRunId)
   const selectedModel = aiModels?.find((m) => m.id === formState.aiModelId)
+  const selectedStrategy = strategies?.find((s) => s.id === formState.strategyId)
+
+  // Check if selected strategy has dynamic coin source
+  const strategyHasDynamicCoins = useMemo(() => {
+    if (!selectedStrategy) return false
+    const coinSource = selectedStrategy.config?.coin_source
+    if (!coinSource) return false
+
+    // Check explicit source_type
+    if (coinSource.source_type === 'coinpool' || coinSource.source_type === 'oi_top') {
+      return true
+    }
+    if (coinSource.source_type === 'mixed' && (coinSource.use_coin_pool || coinSource.use_oi_top)) {
+      return true
+    }
+
+    // Also check flags for backward compatibility (when source_type is empty or not set)
+    const srcType = coinSource.source_type as string
+    if (!srcType) {
+      if (coinSource.use_coin_pool || coinSource.use_oi_top) {
+        return true
+      }
+    }
+
+    return false
+  }, [selectedStrategy])
+
+  // Get coin source description
+  const coinSourceDescription = useMemo(() => {
+    if (!selectedStrategy?.config?.coin_source) return null
+    const cs = selectedStrategy.config.coin_source
+
+    // Infer source_type from flags if empty (backward compatibility)
+    let sourceType = cs.source_type as string
+    if (!sourceType) {
+      if (cs.use_coin_pool && cs.use_oi_top) {
+        sourceType = 'mixed'
+      } else if (cs.use_coin_pool) {
+        sourceType = 'coinpool'
+      } else if (cs.use_oi_top) {
+        sourceType = 'oi_top'
+      } else if (cs.static_coins?.length) {
+        sourceType = 'static'
+      }
+    }
+
+    switch (sourceType) {
+      case 'coinpool':
+        return { type: 'AI500', limit: cs.coin_pool_limit || 30 }
+      case 'oi_top':
+        return { type: 'OI Top', limit: cs.oi_top_limit || 30 }
+      case 'mixed':
+        const sources = []
+        if (cs.use_coin_pool) sources.push(`AI500(${cs.coin_pool_limit || 30})`)
+        if (cs.use_oi_top) sources.push(`OI Top(${cs.oi_top_limit || 30})`)
+        if (cs.static_coins?.length) sources.push(`Static(${cs.static_coins.length})`)
+        return { type: 'Mixed', desc: sources.join(' + ') }
+      case 'static':
+        return { type: 'Static', coins: cs.static_coins || [] }
+      default:
+        return null
+    }
+  }, [selectedStrategy])
 
   // Auto-select first model
   useEffect(() => {
@@ -456,9 +912,16 @@ export function BacktestPage() {
       const end = new Date(formState.end).getTime()
       if (end <= start) throw new Error(tr('toasts.invalidRange'))
 
+      // Parse user symbols - if using dynamic coin strategy, allow empty
+      const userSymbols = formState.symbols.split(',').map((s) => s.trim()).filter(Boolean)
+
+      // Only send empty symbols if user deliberately cleared them and strategy has dynamic coin source
+      const symbolsToSend = (userSymbols.length === 0 && strategyHasDynamicCoins) ? [] : userSymbols
+
       const payload = await api.startBacktest({
         run_id: formState.runId.trim() || undefined,
-        symbols: formState.symbols.split(',').map((s) => s.trim()).filter(Boolean),
+        strategy_id: formState.strategyId || undefined, // Use saved strategy from Strategy Studio
+        symbols: symbolsToSend,
         timeframes: formState.timeframes,
         decision_timeframe: formState.decisionTf,
         decision_cadence_nbars: formState.cadence,
@@ -727,43 +1190,111 @@ export function BacktestPage() {
                       )}
                     </div>
 
+                    {/* Strategy Selection (Optional) */}
+                    <div>
+                      <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
+                        {language === 'zh' ? '策略配置（可选）' : 'Strategy (Optional)'}
+                      </label>
+                      <select
+                        className="w-full p-3 rounded-lg text-sm"
+                        style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                        value={formState.strategyId}
+                        onChange={(e) => handleFormChange('strategyId', e.target.value)}
+                      >
+                        <option value="">{language === 'zh' ? '不使用保存的策略' : 'No saved strategy'}</option>
+                        {strategies?.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} {s.is_active && '✓'} {s.is_default && '⭐'}
+                          </option>
+                        ))}
+                      </select>
+                      {formState.strategyId && coinSourceDescription && (
+                        <div className="mt-2 p-2 rounded" style={{ background: 'rgba(240,185,11,0.1)', border: '1px solid rgba(240,185,11,0.2)' }}>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span style={{ color: '#F0B90B' }}>
+                              {language === 'zh' ? '币种来源:' : 'Coin Source:'}
+                            </span>
+                            <span className="font-medium" style={{ color: '#EAECEF' }}>
+                              {coinSourceDescription.type}
+                              {coinSourceDescription.limit && ` (${coinSourceDescription.limit})`}
+                              {coinSourceDescription.desc && ` - ${coinSourceDescription.desc}`}
+                            </span>
+                          </div>
+                          {strategyHasDynamicCoins && (
+                            <div className="text-xs mt-1" style={{ color: '#F0B90B' }}>
+                              {language === 'zh'
+                                ? '⚡ 清空下方币种输入框即可使用策略的动态币种'
+                                : '⚡ Clear the symbols field below to use strategy\'s dynamic coins'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div>
                       <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
                         {tr('form.symbolsLabel')}
+                        {strategyHasDynamicCoins && (
+                          <span className="ml-2" style={{ color: '#5E6673' }}>
+                            ({language === 'zh' ? '可选 - 策略已配置币种来源' : 'Optional - strategy has coin source'})
+                          </span>
+                        )}
                       </label>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {POPULAR_SYMBOLS.map((sym) => {
-                          const isSelected = formState.symbols.includes(sym)
-                          return (
-                            <button
-                              key={sym}
-                              type="button"
-                              onClick={() => {
-                                const current = formState.symbols.split(',').map((s) => s.trim()).filter(Boolean)
-                                const updated = isSelected
-                                  ? current.filter((s) => s !== sym)
-                                  : [...current, sym]
-                                handleFormChange('symbols', updated.join(','))
-                              }}
-                              className="px-2 py-1 rounded text-xs transition-all"
-                              style={{
-                                background: isSelected ? 'rgba(240,185,11,0.15)' : '#1E2329',
-                                border: `1px solid ${isSelected ? '#F0B90B' : '#2B3139'}`,
-                                color: isSelected ? '#F0B90B' : '#848E9C',
-                              }}
-                            >
-                              {sym.replace('USDT', '')}
-                            </button>
-                          )
-                        })}
+                      {!strategyHasDynamicCoins && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {POPULAR_SYMBOLS.map((sym) => {
+                            const isSelected = formState.symbols.includes(sym)
+                            return (
+                              <button
+                                key={sym}
+                                type="button"
+                                onClick={() => {
+                                  const current = formState.symbols.split(',').map((s) => s.trim()).filter(Boolean)
+                                  const updated = isSelected
+                                    ? current.filter((s) => s !== sym)
+                                    : [...current, sym]
+                                  handleFormChange('symbols', updated.join(','))
+                                }}
+                                className="px-2 py-1 rounded text-xs transition-all"
+                                style={{
+                                  background: isSelected ? 'rgba(240,185,11,0.15)' : '#1E2329',
+                                  border: `1px solid ${isSelected ? '#F0B90B' : '#2B3139'}`,
+                                  color: isSelected ? '#F0B90B' : '#848E9C',
+                                }}
+                              >
+                                {sym.replace('USDT', '')}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                      <div className="relative">
+                        <textarea
+                          className="w-full p-2 rounded-lg text-xs font-mono"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                          value={formState.symbols}
+                          onChange={(e) => handleFormChange('symbols', e.target.value)}
+                          rows={2}
+                          placeholder={strategyHasDynamicCoins
+                            ? (language === 'zh' ? '留空将使用策略配置的币种来源' : 'Leave empty to use strategy coin source')
+                            : ''
+                          }
+                        />
+                        {strategyHasDynamicCoins && formState.symbols && (
+                          <button
+                            type="button"
+                            onClick={() => handleFormChange('symbols', '')}
+                            className="absolute top-2 right-2 px-2 py-1 rounded text-xs"
+                            style={{ background: '#F0B90B', color: '#0B0E11' }}
+                          >
+                            {language === 'zh' ? '清空使用策略币种' : 'Clear to use strategy'}
+                          </button>
+                        )}
                       </div>
-                      <textarea
-                        className="w-full p-2 rounded-lg text-xs font-mono"
-                        style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                        value={formState.symbols}
-                        onChange={(e) => handleFormChange('symbols', e.target.value)}
-                        rows={2}
-                      />
                     </div>
 
                     <button
@@ -1234,6 +1765,11 @@ export function BacktestPage() {
                     {status?.note || status?.last_error}
                   </div>
                 )}
+
+                {/* Real-time Positions Display */}
+                {status?.positions && status.positions.length > 0 && (
+                  <PositionsDisplay positions={status.positions} language={language} />
+                )}
               </div>
 
               {/* Stats Grid */}
@@ -1362,12 +1898,33 @@ export function BacktestPage() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        className="space-y-6"
                       >
-                        {equity && equity.length > 0 ? (
-                          <BacktestChart equity={equity} trades={trades ?? []} />
-                        ) : (
-                          <div className="py-12 text-center" style={{ color: '#5E6673' }}>
-                            {tr('charts.equityEmpty')}
+                        {/* Equity Chart */}
+                        <div>
+                          <h4 className="text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
+                            {language === 'zh' ? '资金曲线' : 'Equity Curve'}
+                          </h4>
+                          {equity && equity.length > 0 ? (
+                            <BacktestChart equity={equity} trades={trades ?? []} />
+                          ) : (
+                            <div className="py-12 text-center" style={{ color: '#5E6673' }}>
+                              {tr('charts.equityEmpty')}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Candlestick Chart with Trade Markers */}
+                        {selectedRunId && trades && trades.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
+                              {language === 'zh' ? 'K线图 & 交易标记' : 'Candlestick & Trade Markers'}
+                            </h4>
+                            <CandlestickChartComponent
+                              runId={selectedRunId}
+                              trades={trades}
+                              language={language}
+                            />
                           </div>
                         )}
                       </motion.div>

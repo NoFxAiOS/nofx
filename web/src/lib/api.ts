@@ -20,6 +20,7 @@ import type {
   BacktestTradeEvent,
   BacktestMetrics,
   BacktestRunMetadata,
+  BacktestKlinesResponse,
   Strategy,
   StrategyConfig,
   DebateSession,
@@ -578,6 +579,19 @@ export const api = {
       headers: getAuthHeaders(),
     })
     return handleJSONResponse<BacktestMetrics>(res)
+  },
+
+  async getBacktestKlines(
+    runId: string,
+    symbol: string,
+    timeframe?: string
+  ): Promise<BacktestKlinesResponse> {
+    const query = new URLSearchParams({ run_id: runId, symbol })
+    if (timeframe) query.set('timeframe', timeframe)
+    const res = await fetch(`${API_BASE}/backtest/klines?${query}`, {
+      headers: getAuthHeaders(),
+    })
+    return handleJSONResponse<BacktestKlinesResponse>(res)
   },
 
   async getBacktestTrace(

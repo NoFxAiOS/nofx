@@ -35,7 +35,7 @@ func Init() {
 	cfg := &Config{
 		APIServerPort:         8080,
 		RegistrationEnabled:   true,
-		MaxUsers:              1,    // Default: only 1 user allowed
+		MaxUsers:              5,    // Default: only 1 user allowed
 		ExperienceImprovement: true, // Default: enabled to help improve the product
 	}
 

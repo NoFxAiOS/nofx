@@ -22,7 +22,7 @@ import { DecisionCard } from './components/DecisionCard'
 import { PunkAvatar, getTraderAvatar } from './components/PunkAvatar'
 import { OFFICIAL_LINKS } from './constants/branding'
 import { BacktestPage } from './components/BacktestPage'
-import { LogOut, Loader2 } from 'lucide-react'
+import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import type {
   SystemStatus,
   AccountInfo,
@@ -83,6 +83,35 @@ function getExchangeTypeFromList(
   return exchange.exchange_type?.toUpperCase() || 'BINANCE'
 }
 
+// Helper function to check if exchange is a perp-dex type (wallet-based)
+function isPerpDexExchange(exchangeType: string | undefined): boolean {
+  if (!exchangeType) return false
+  const perpDexTypes = ['hyperliquid', 'lighter', 'aster']
+  return perpDexTypes.includes(exchangeType.toLowerCase())
+}
+
+// Helper function to get wallet address for perp-dex exchanges
+function getWalletAddress(exchange: Exchange | undefined): string | undefined {
+  if (!exchange) return undefined
+  const type = exchange.exchange_type?.toLowerCase()
+  switch (type) {
+    case 'hyperliquid':
+      return exchange.hyperliquidWalletAddr
+    case 'lighter':
+      return exchange.lighterWalletAddr
+    case 'aster':
+      return exchange.asterSigner
+    default:
+      return undefined
+  }
+}
+
+// Helper function to truncate wallet address for display
+function truncateAddress(address: string, startLen = 6, endLen = 4): string {
+  if (address.length <= startLen + endLen + 3) return address
+  return `${address.slice(0, startLen)}...${address.slice(-endLen)}`
+}
+
 function App() {
   const { language, setLanguage } = useLanguage()
   const { user, token, logout, isLoading } = useAuth()
@@ -104,7 +133,33 @@ function App() {
   }
 
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage())
+  // 从 URL 参数读取初始 trader 标识（格式: name-id前4位）
+  const [selectedTraderSlug, setSelectedTraderSlug] = useState<string | undefined>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('trader') || undefined
+  })
   const [selectedTraderId, setSelectedTraderId] = useState<string | undefined>()
+
+  // 生成 trader URL slug（name + ID 前 4 位）
+  const getTraderSlug = (trader: TraderInfo) => {
+    const idPrefix = trader.trader_id.slice(0, 4)
+    return `${trader.trader_name}-${idPrefix}`
+  }
+
+  // 从 slug 解析并匹配 trader
+  const findTraderBySlug = (slug: string, traderList: TraderInfo[]) => {
+    // slug 格式: name-xxxx (xxxx 是 ID 前 4 位)
+    const lastDashIndex = slug.lastIndexOf('-')
+    if (lastDashIndex === -1) {
+      // 没有 dash，直接按 name 匹配
+      return traderList.find(t => t.trader_name === slug)
+    }
+    const name = slug.slice(0, lastDashIndex)
+    const idPrefix = slug.slice(lastDashIndex + 1)
+    return traderList.find(t =>
+      t.trader_name === name && t.trader_id.startsWith(idPrefix)
+    )
+  }
   const [lastUpdate, setLastUpdate] = useState<string>('--:--:--')
   const [decisionsLimit, setDecisionsLimit] = useState<number>(5)
 
@@ -113,6 +168,8 @@ function App() {
     const handleRouteChange = () => {
       const path = window.location.pathname
       const hash = window.location.hash.slice(1)
+      const params = new URLSearchParams(window.location.search)
+      const traderParam = params.get('trader')
 
       if (path === '/traders' || hash === 'traders') {
         setCurrentPage('traders')
@@ -128,6 +185,10 @@ function App() {
         hash === 'details'
       ) {
         setCurrentPage('trader')
+        // 如果 URL 中有 trader 参数（slug 格式），更新选中的 trader
+        if (traderParam) {
+          setSelectedTraderSlug(traderParam)
+        }
       } else if (
         path === '/competition' ||
         hash === 'competition' ||
@@ -172,12 +233,23 @@ function App() {
     }
   )
 
-  // 当获取到traders后，设置默认选中第一个
+  // 当获取到traders后，根据 URL 中的 trader slug 设置选中的 trader，或默认选中第一个
   useEffect(() => {
     if (traders && traders.length > 0 && !selectedTraderId) {
-      setSelectedTraderId(traders[0].trader_id)
+      if (selectedTraderSlug) {
+        // 通过 slug 找到对应的 trader
+        const trader = findTraderBySlug(selectedTraderSlug, traders)
+        if (trader) {
+          setSelectedTraderId(trader.trader_id)
+        } else {
+          // 如果找不到，选中第一个
+          setSelectedTraderId(traders[0].trader_id)
+        }
+      } else {
+        setSelectedTraderId(traders[0].trader_id)
+      }
     }
-  }, [traders, selectedTraderId])
+  }, [traders, selectedTraderId, selectedTraderSlug])
 
   // 如果在trader页面，获取该trader的数据
   const { data: status } = useSWR<SystemStatus>(
@@ -545,7 +617,16 @@ function App() {
             traders={traders}
             tradersError={tradersError}
             selectedTraderId={selectedTraderId}
-            onTraderSelect={setSelectedTraderId}
+            onTraderSelect={(traderId) => {
+              setSelectedTraderId(traderId)
+              // 更新 URL 参数（使用 slug: name-id前4位）
+              const trader = traders?.find(t => t.trader_id === traderId)
+              if (trader) {
+                const url = new URL(window.location.href)
+                url.searchParams.set('trader', getTraderSlug(trader))
+                window.history.replaceState({}, '', url.toString())
+              }
+            }}
             onNavigateToTraders={() => {
               window.history.pushState({}, '', '/traders')
               setRoute('/traders')
@@ -714,6 +795,27 @@ function TraderDetailsPage({
   >(undefined)
   const [chartUpdateKey, setChartUpdateKey] = useState<number>(0)
   const chartSectionRef = useRef<HTMLDivElement>(null)
+  const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
+  const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+
+  // Get current exchange info for perp-dex wallet display
+  const currentExchange = exchanges?.find(
+    (e) => e.id === selectedTrader?.exchange_id
+  )
+  const walletAddress = getWalletAddress(currentExchange)
+  const isPerpDex = isPerpDexExchange(currentExchange?.exchange_type)
+
+  // Copy wallet address to clipboard
+  const handleCopyAddress = async () => {
+    if (!walletAddress) return
+    try {
+      await navigator.clipboard.writeText(walletAddress)
+      setCopiedAddress(true)
+      setTimeout(() => setCopiedAddress(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy address:', err)
+    }
+  }
 
   // 平仓操作
   const handleClosePosition = async (symbol: string, side: string) => {
@@ -924,30 +1026,81 @@ function TraderDetailsPage({
             {selectedTrader.trader_name}
           </h2>
 
-          {/* Trader Selector */}
-          {traders && traders.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm" style={{ color: '#848E9C' }}>
-                {t('switchTrader', language)}:
-              </span>
-              <select
-                value={selectedTraderId}
-                onChange={(e) => onTraderSelect(e.target.value)}
-                className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
+          <div className="flex items-center gap-4">
+            {/* Trader Selector */}
+            {traders && traders.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('switchTrader', language)}:
+                </span>
+                <select
+                  value={selectedTraderId}
+                  onChange={(e) => onTraderSelect(e.target.value)}
+                  className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
+                  style={{
+                    background: '#1E2329',
+                    border: '1px solid #2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  {traders.map((trader) => (
+                    <option key={trader.trader_id} value={trader.trader_id}>
+                      {trader.trader_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Wallet Address Display for Perp-DEX */}
+            {exchanges && isPerpDex && (
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded"
                 style={{
-                  background: '#1E2329',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
+                  background: 'rgba(240, 185, 11, 0.1)',
+                  border: '1px solid rgba(240, 185, 11, 0.3)',
                 }}
               >
-                {traders.map((trader) => (
-                  <option key={trader.trader_id} value={trader.trader_id}>
-                    {trader.trader_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+                {walletAddress ? (
+                  <>
+                    <span className="text-xs font-mono" style={{ color: '#F0B90B' }}>
+                      {showWalletAddress
+                        ? walletAddress
+                        : truncateAddress(walletAddress)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowWalletAddress(!showWalletAddress)}
+                      className="p-1 rounded hover:bg-gray-700 transition-colors"
+                      title={showWalletAddress ? (language === 'zh' ? '隐藏地址' : 'Hide address') : (language === 'zh' ? '显示完整地址' : 'Show full address')}
+                    >
+                      {showWalletAddress ? (
+                        <EyeOff className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyAddress}
+                      className="p-1 rounded hover:bg-gray-700 transition-colors"
+                      title={language === 'zh' ? '复制地址' : 'Copy address'}
+                    >
+                      {copiedAddress ? (
+                        <Check className="w-3.5 h-3.5" style={{ color: '#0ECB81' }} />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs" style={{ color: '#848E9C' }}>
+                    {language === 'zh' ? '未配置地址' : 'No address configured'}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div
           className="flex items-center gap-4 text-sm flex-wrap"

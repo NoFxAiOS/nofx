@@ -28,6 +28,8 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { confirmToast } from '../lib/notify'
 import { toast } from 'sonner'
@@ -108,6 +110,35 @@ function getExchangeDisplayName(exchangeId: string | undefined, exchanges: Excha
   return exchange.account_name ? `${typeName} - ${exchange.account_name}` : typeName
 }
 
+// Helper function to check if exchange is a perp-dex type (wallet-based)
+function isPerpDexExchange(exchangeType: string | undefined): boolean {
+  if (!exchangeType) return false
+  const perpDexTypes = ['hyperliquid', 'lighter', 'aster']
+  return perpDexTypes.includes(exchangeType.toLowerCase())
+}
+
+// Helper function to get wallet address for perp-dex exchanges
+function getWalletAddress(exchange: Exchange | undefined): string | undefined {
+  if (!exchange) return undefined
+  const type = exchange.exchange_type?.toLowerCase()
+  switch (type) {
+    case 'hyperliquid':
+      return exchange.hyperliquidWalletAddr
+    case 'lighter':
+      return exchange.lighterWalletAddr
+    case 'aster':
+      return exchange.asterSigner
+    default:
+      return undefined
+  }
+}
+
+// Helper function to truncate wallet address for display
+function truncateAddress(address: string, startLen = 6, endLen = 4): string {
+  if (address.length <= startLen + endLen + 3) return address
+  return `${address.slice(0, startLen)}...${address.slice(-endLen)}`
+}
+
 export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
@@ -123,6 +154,32 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [allExchanges, setAllExchanges] = useState<Exchange[]>([])
   const [supportedModels, setSupportedModels] = useState<AIModel[]>([])
   const [supportedExchanges, setSupportedExchanges] = useState<Exchange[]>([])
+  const [visibleAddresses, setVisibleAddresses] = useState<Set<string>>(new Set())
+  const [copiedAddressId, setCopiedAddressId] = useState<string | null>(null)
+
+  // Toggle wallet address visibility for a trader
+  const toggleAddressVisibility = (traderId: string) => {
+    setVisibleAddresses(prev => {
+      const next = new Set(prev)
+      if (next.has(traderId)) {
+        next.delete(traderId)
+      } else {
+        next.add(traderId)
+      }
+      return next
+    })
+  }
+
+  // Copy wallet address to clipboard
+  const handleCopyAddress = async (traderId: string, address: string) => {
+    try {
+      await navigator.clipboard.writeText(address)
+      setCopiedAddressId(traderId)
+      setTimeout(() => setCopiedAddressId(null), 2000)
+    } catch (err) {
+      console.error('Failed to copy address:', err)
+    }
+  }
 
   const { data: traders, mutate: mutateTraders, isLoading: isTradersLoading } = useSWR<TraderInfo[]>(
     user && token ? 'traders' : null,
@@ -1047,6 +1104,69 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                   </div>
                 </div>
 
+                {/* Wallet Address for Perp-DEX */}
+                {(() => {
+                  const exchange = allExchanges.find(e => e.id === trader.exchange_id)
+                  const walletAddr = getWalletAddress(exchange)
+                  const isPerpDex = isPerpDexExchange(exchange?.exchange_type)
+                  if (!isPerpDex) return null
+
+                  const isVisible = visibleAddresses.has(trader.trader_id)
+                  const isCopied = copiedAddressId === trader.trader_id
+
+                  return (
+                    <div
+                      className="flex items-center gap-2 px-3 py-1.5 rounded flex-shrink-0"
+                      style={{
+                        background: 'rgba(240, 185, 11, 0.1)',
+                        border: '1px solid rgba(240, 185, 11, 0.3)',
+                      }}
+                    >
+                      {walletAddr ? (
+                        <>
+                          <span className="text-xs font-mono" style={{ color: '#F0B90B' }}>
+                            {isVisible ? walletAddr : truncateAddress(walletAddr)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleAddressVisibility(trader.trader_id)
+                            }}
+                            className="p-1 rounded hover:bg-gray-700 transition-colors"
+                            title={isVisible ? (language === 'zh' ? '隐藏地址' : 'Hide address') : (language === 'zh' ? '显示完整地址' : 'Show full address')}
+                          >
+                            {isVisible ? (
+                              <EyeOff className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleCopyAddress(trader.trader_id, walletAddr)
+                            }}
+                            className="p-1 rounded hover:bg-gray-700 transition-colors"
+                            title={language === 'zh' ? '复制地址' : 'Copy address'}
+                          >
+                            {isCopied ? (
+                              <Check className="w-3.5 h-3.5" style={{ color: '#0ECB81' }} />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-xs" style={{ color: '#848E9C' }}>
+                          {language === 'zh' ? '未配置地址' : 'No address'}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 <div className="flex items-center gap-3 md:gap-4 flex-wrap md:flex-nowrap">
                   {/* Status */}
                   <div className="text-center">
@@ -1084,7 +1204,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                         if (onTraderSelect) {
                           onTraderSelect(trader.trader_id)
                         } else {
-                          navigate(`/dashboard?trader=${trader.trader_id}`)
+                          // 使用 slug 格式: name-id前4位
+                          const slug = `${trader.trader_name}-${trader.trader_id.slice(0, 4)}`
+                          navigate(`/dashboard?trader=${encodeURIComponent(slug)}`)
                         }
                       }}
                       className="px-2 md:px-3 py-1.5 md:py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 whitespace-nowrap"

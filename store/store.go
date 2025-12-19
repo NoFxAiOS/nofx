@@ -115,6 +115,16 @@ func (s *Store) SetCryptoFuncs(encrypt, decrypt func(string) string) {
 
 // initTables initializes all database tables
 func (s *Store) initTables() error {
+	// Initialize system config table first
+	if _, err := s.db.Exec(`
+		CREATE TABLE IF NOT EXISTS system_config (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
+		)
+	`); err != nil {
+		return fmt.Errorf("failed to create system_config table: %w", err)
+	}
+
 	// Initialize in dependency order
 	if err := s.User().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize user tables: %w", err)
@@ -276,6 +286,25 @@ func (s *Store) Close() error {
 // Deprecated: use Store methods instead
 func (s *Store) DB() *sql.DB {
 	return s.db
+}
+
+// GetSystemConfig gets a system configuration value by key
+func (s *Store) GetSystemConfig(key string) (string, error) {
+	var value string
+	err := s.db.QueryRow(`SELECT value FROM system_config WHERE key = ?`, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// SetSystemConfig sets a system configuration value
+func (s *Store) SetSystemConfig(key, value string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO system_config (key, value) VALUES (?, ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`, key, value)
+	return err
 }
 
 // Transaction executes transaction

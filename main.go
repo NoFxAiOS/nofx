@@ -6,6 +6,7 @@ import (
 	"nofx/backtest"
 	"nofx/config"
 	"nofx/crypto"
+	"nofx/experience"
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/market"
@@ -18,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -57,6 +59,9 @@ func main() {
 	}
 	defer st.Close()
 	backtest.UseDatabase(st.DB())
+
+	// Initialize installation ID for experience improvement (anonymous statistics)
+	initInstallationID(st)
 
 	// Initialize encryption service
 	logger.Info("🔐 Initializing encryption service...")
@@ -172,4 +177,28 @@ func newSharedMCPClient() mcp.AIClient {
 		return nil
 	}
 	return mcp.NewDeepSeekClient()
+}
+
+// initInstallationID initializes the anonymous installation ID for experience improvement
+// This ID is persisted in database and used for anonymous usage statistics
+func initInstallationID(st *store.Store) {
+	const key = "installation_id"
+
+	// Try to load from database
+	installationID, err := st.GetSystemConfig(key)
+	if err != nil {
+		logger.Warnf("⚠️ Failed to load installation ID: %v", err)
+	}
+
+	// Generate new ID if not exists
+	if installationID == "" {
+		installationID = uuid.New().String()
+		if err := st.SetSystemConfig(key, installationID); err != nil {
+			logger.Warnf("⚠️ Failed to save installation ID: %v", err)
+		}
+		logger.Infof("📊 Generated new installation ID: %s", installationID[:8]+"...")
+	}
+
+	// Set installation ID in experience module
+	experience.SetInstallationID(installationID)
 }

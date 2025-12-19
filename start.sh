@@ -40,10 +40,10 @@ print_error() {
 # Detection: Docker Compose Command (Backward Compatible)
 # ------------------------------------------------------------------------
 detect_compose_cmd() {
-    if command -v docker compose &> /dev/null; then
-        COMPOSE_CMD="docker compose"
-    elif command -v docker-compose &> /dev/null; then
+    if  command -v docker-compose &> /dev/null; then
         COMPOSE_CMD="docker-compose"
+    elif command -v docker compose &> /dev/null; then
+        COMPOSE_CMD="docker compose"
     else
         print_error "Docker Compose 未安装！请先安装 Docker Compose"
         exit 1

@@ -33,6 +33,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+        labels: "production"
 
   nofx-frontend:
     image: ghcr.io/nofxaios/nofx/nofx-frontend:latest
@@ -50,6 +57,13 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+        labels: "production"
 
 networks:
   nofx-network:

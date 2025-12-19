@@ -1,6 +1,7 @@
 package config
 
 import (
+	"nofx/experience"
 	"os"
 	"strconv"
 	"strings"
@@ -22,14 +23,20 @@ type Config struct {
 	// TransportEncryption enables browser-side encryption for API keys
 	// Requires HTTPS or localhost. Set to false for HTTP access via IP.
 	TransportEncryption bool
+
+	// Experience improvement (anonymous usage statistics)
+	// Helps us understand product usage and improve the experience
+	// Set EXPERIENCE_IMPROVEMENT=false to disable
+	ExperienceImprovement bool
 }
 
 // Init initializes global configuration (from .env)
 func Init() {
 	cfg := &Config{
-		APIServerPort:       8080,
-		RegistrationEnabled: true,
-		MaxUsers:            1, // Default: only 1 user allowed
+		APIServerPort:         8080,
+		RegistrationEnabled:   true,
+		MaxUsers:              1,    // Default: only 1 user allowed
+		ExperienceImprovement: true, // Default: enabled to help improve the product
 	}
 
 	// Load from environment variables
@@ -62,7 +69,16 @@ func Init() {
 		cfg.TransportEncryption = strings.ToLower(v) == "true"
 	}
 
+	// Experience improvement: anonymous usage statistics
+	// Default enabled, set EXPERIENCE_IMPROVEMENT=false to disable
+	if v := os.Getenv("EXPERIENCE_IMPROVEMENT"); v != "" {
+		cfg.ExperienceImprovement = strings.ToLower(v) != "false"
+	}
+
 	global = cfg
+
+	// Initialize experience improvement (installation ID will be set after database init)
+	experience.Init(cfg.ExperienceImprovement, "")
 }
 
 // Get returns the global configuration

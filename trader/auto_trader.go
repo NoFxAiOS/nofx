@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"nofx/decision"
+	"nofx/experience"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -1710,6 +1711,18 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 
 	// Record position change with actual fill data
 	at.recordPositionChange(orderID, symbol, positionSide, action, actualQty, actualPrice, leverage, entryPrice, fee)
+
+	// Send anonymous trade statistics for experience improvement (async, non-blocking)
+	// This helps us understand overall product usage across all deployments
+	experience.TrackTrade(experience.TradeEvent{
+		Exchange:  at.exchange,
+		TradeType: action,
+		Symbol:    symbol,
+		AmountUSD: actualPrice * actualQty,
+		Leverage:  leverage,
+		UserID:    at.userID,
+		TraderID:  at.id,
+	})
 }
 
 // recordPositionChange records position change (create record on open, update record on close)

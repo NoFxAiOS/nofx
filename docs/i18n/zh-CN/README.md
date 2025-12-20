@@ -4,7 +4,6 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
 > **语言声明：** 本中文版本文档仅为方便海外华人社区阅读而提供，不代表本软件面向中国大陆、香港、澳门或台湾地区用户开放。如您位于上述地区，请勿使用本软件。
 
@@ -29,8 +28,6 @@
 - **AI 竞赛模式**: 多个 AI 交易员实时竞争，并排追踪表现
 - **Web 配置**: 无需编辑 JSON - 通过 Web 界面完成所有配置
 - **实时仪表板**: 实时持仓、盈亏追踪、AI 决策日志与思维链
-
-### 由 [Amber.ac](https://amber.ac) 支持
 
 ### 核心团队
 

@@ -4,7 +4,6 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
-[![Backed by Amber.ac](https://img.shields.io/badge/Backed%20by-Amber.ac-orange.svg)](https://amber.ac)
 
 | CONTRIBUTOR AIRDROP PROGRAM |
 |:----------------------------------:|
@@ -28,8 +27,6 @@
 - **AI Competition Mode**: Multiple AI traders compete in real-time, track performance side by side
 - **Web-Based Config**: No JSON editing - configure everything through the web interface
 - **Real-Time Dashboard**: Live positions, P/L tracking, AI decision logs with Chain of Thought
-
-### Backed by [Amber.ac](https://amber.ac)
 
 ### Core Team
 

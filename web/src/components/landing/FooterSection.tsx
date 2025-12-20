@@ -33,11 +33,6 @@ export default function FooterSection({ language }: FooterSectionProps) {
       { name: 'Aster DEX', href: 'https://www.asterdex.com/en/referral/fdfc0e' },
       { name: 'Binance', href: 'https://www.maxweb.red/join?ref=NOFXAI' },
       { name: 'Hyperliquid', href: 'https://hyperliquid.xyz/' },
-      {
-        name: 'Amber.ac',
-        href: 'https://amber.ac/',
-        badge: language === 'zh' ? '战略投资' : 'Strategic',
-      },
     ],
   }
 

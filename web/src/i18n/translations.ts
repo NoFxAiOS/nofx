@@ -687,8 +687,7 @@ export const translations = {
     heroTitle2: 'Write the Trade.',
     heroDescription:
       'NOFX is the future standard for AI trading — an open, community-driven agentic trading OS. Supporting Binance, Aster DEX and other exchanges, self-hosted, multi-agent competition, let AI automatically make decisions, execute and optimize trades for you.',
-    poweredBy:
-      'Powered by Aster DEX and Binance, strategically invested by Amber.ac.',
+    poweredBy: 'Powered by Aster DEX and Binance.',
 
     // Landing Page CTA
     readyToDefine: 'Ready to define the future of AI trading?',
@@ -1805,7 +1804,7 @@ export const translations = {
     heroTitle2: 'Write the Trade.',
     heroDescription:
       'NOFX 是 AI 交易的未来标准——一个开放、社区驱动的代理式交易操作系统。支持 Binance、Aster DEX 等交易所，自托管、多代理竞争，让 AI 为你自动决策、执行和优化交易。',
-    poweredBy: '由 Aster DEX 和 Binance 提供支持，Amber.ac 战略投资。',
+    poweredBy: '由 Aster DEX 和 Binance 提供支持。',
 
     // Landing Page CTA
     readyToDefine: '准备好定义 AI 交易的未来吗？',

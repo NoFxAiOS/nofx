@@ -266,8 +266,13 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
    - **Injunctive Relief**: Immediately cease using NOFX's AGPL-protected code
    - **Public Acknowledgment**: Publicly disclose on ChainOpera's official channels that they used NOFX code
    - **Compensatory Damages**: Compensation for actual losses or disgorgement of profits obtained through infringement
+   - **Statutory Damages**: Statutory damages under applicable jurisdiction
    - **Legal Costs**: Including but not limited to notarization fees, attorney fees, and litigation costs
-   - **Statutory/Punitive Damages**: For willful infringement, statutory damages up to $150,000 per work (17 U.S.C. § 504) or punitive damages where applicable
+
+   **Applicable International Legal Framework**:
+   - Berne Convention - Computer programs protected as "literary works"
+   - TRIPS Agreement Article 10 (WTO) - Computer programs, whether in source or object code, shall be protected as literary works
+   - WIPO Copyright Treaty (WCT) Article 4 - Computer programs protected as literary works under Berne Convention
 
 ---
 

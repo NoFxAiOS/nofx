@@ -227,6 +227,9 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		RSI7Values:  make([]float64, 0, count),
 		RSI14Values: make([]float64, 0, count),
 		Volume:      make([]float64, 0, count),
+		BOLLUpper:   make([]float64, 0, count),
+		BOLLMiddle:  make([]float64, 0, count),
+		BOLLLower:   make([]float64, 0, count),
 	}
 
 	// Get latest N data points based on count from config
@@ -276,6 +279,14 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		if i >= 14 {
 			rsi14 := calculateRSI(klines[:i+1], 14)
 			data.RSI14Values = append(data.RSI14Values, rsi14)
+		}
+
+		// Calculate Bollinger Bands (period 20, std dev multiplier 2)
+		if i >= 19 {
+			upper, middle, lower := calculateBOLL(klines[:i+1], 20, 2.0)
+			data.BOLLUpper = append(data.BOLLUpper, upper)
+			data.BOLLMiddle = append(data.BOLLMiddle, middle)
+			data.BOLLLower = append(data.BOLLLower, lower)
 		}
 	}
 
@@ -464,6 +475,36 @@ func calculateATR(klines []Kline, period int) float64 {
 	}
 
 	return atr
+}
+
+// calculateBOLL calculates Bollinger Bands (upper, middle, lower)
+// period: typically 20, multiplier: typically 2
+func calculateBOLL(klines []Kline, period int, multiplier float64) (upper, middle, lower float64) {
+	if len(klines) < period {
+		return 0, 0, 0
+	}
+
+	// Calculate SMA (middle band)
+	sum := 0.0
+	for i := len(klines) - period; i < len(klines); i++ {
+		sum += klines[i].Close
+	}
+	sma := sum / float64(period)
+
+	// Calculate standard deviation
+	variance := 0.0
+	for i := len(klines) - period; i < len(klines); i++ {
+		diff := klines[i].Close - sma
+		variance += diff * diff
+	}
+	stdDev := math.Sqrt(variance / float64(period))
+
+	// Calculate bands
+	middle = sma
+	upper = sma + multiplier*stdDev
+	lower = sma - multiplier*stdDev
+
+	return upper, middle, lower
 }
 
 // calculateIntradaySeries calculates intraday series data

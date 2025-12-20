@@ -82,6 +82,7 @@ type IndicatorConfig struct {
 	EnableMACD        bool `json:"enable_macd"`
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
+	EnableBOLL        bool `json:"enable_boll"`         // Bollinger Bands
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
@@ -91,6 +92,8 @@ type IndicatorConfig struct {
 	RSIPeriods []int `json:"rsi_periods,omitempty"` // default [7, 14]
 	// ATR period configuration
 	ATRPeriods []int `json:"atr_periods,omitempty"` // default [14]
+	// BOLL period configuration (period, standard deviation multiplier is fixed at 2)
+	BOLLPeriods []int `json:"boll_periods,omitempty"` // default [20] - can select multiple timeframes
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
 	// quantitative data sources (capital flow, position changes, price changes)
@@ -241,12 +244,14 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnableMACD:        false,
 			EnableRSI:         false,
 			EnableATR:         false,
+			EnableBOLL:        false,
 			EnableVolume:      true,
 			EnableOI:          true,
 			EnableFundingRate: true,
 			EMAPeriods:        []int{20, 50},
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
+			BOLLPeriods:       []int{20},
 			EnableQuantData:    true,
 			QuantDataAPIURL:    "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
 			EnableQuantOI:      true,

@@ -868,6 +868,14 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 		sb.WriteString("\n")
 	}
 
+	if indicators.EnableBOLL {
+		sb.WriteString("- Bollinger Bands (BOLL) - Upper/Middle/Lower bands")
+		if len(indicators.BOLLPeriods) > 0 {
+			sb.WriteString(fmt.Sprintf(" (periods: %v)", indicators.BOLLPeriods))
+		}
+		sb.WriteString("\n")
+	}
+
 	if indicators.EnableVolume {
 		sb.WriteString("- Volume data\n")
 	}
@@ -1191,6 +1199,12 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 
 	if indicators.EnableATR && data.ATR14 > 0 {
 		sb.WriteString(fmt.Sprintf("ATR14: %.4f\n", data.ATR14))
+	}
+
+	if indicators.EnableBOLL && len(data.BOLLUpper) > 0 {
+		sb.WriteString(fmt.Sprintf("BOLL Upper: %s\n", formatFloatSlice(data.BOLLUpper)))
+		sb.WriteString(fmt.Sprintf("BOLL Middle: %s\n", formatFloatSlice(data.BOLLMiddle)))
+		sb.WriteString(fmt.Sprintf("BOLL Lower: %s\n", formatFloatSlice(data.BOLLLower)))
 	}
 
 	sb.WriteString("\n")

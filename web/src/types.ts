@@ -467,12 +467,14 @@ export interface IndicatorConfig {
   enable_macd: boolean;
   enable_rsi: boolean;
   enable_atr: boolean;
+  enable_boll: boolean;
   enable_volume: boolean;
   enable_oi: boolean;
   enable_funding_rate: boolean;
   ema_periods?: number[];
   rsi_periods?: number[];
   atr_periods?: number[];
+  boll_periods?: number[];
   external_data_sources?: ExternalDataSource[];
   // 量化数据源（资金流向、持仓变化、价格变化）
   enable_quant_data?: boolean;

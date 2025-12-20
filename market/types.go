@@ -41,6 +41,10 @@ type TimeframeSeriesData struct {
 	RSI14Values []float64  `json:"rsi14_values"` // RSI14 series
 	Volume      []float64  `json:"volume"`       // Volume series (deprecated, use Klines)
 	ATR14       float64    `json:"atr14"`        // ATR14
+	// Bollinger Bands (period 20, std dev multiplier 2)
+	BOLLUpper  []float64 `json:"boll_upper"`  // Upper band
+	BOLLMiddle []float64 `json:"boll_middle"` // Middle band (SMA)
+	BOLLLower  []float64 `json:"boll_lower"`  // Lower band
 }
 
 // OIData Open Interest data

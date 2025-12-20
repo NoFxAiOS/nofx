@@ -262,6 +262,13 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
    - Release their complete source code in compliance with AGPL-3.0; OR
    - Cease using the related functionality and take down the service
 
+5. **Based on the infringement that has already occurred, the NOFX community reserves the right to pursue the following legal remedies**:
+   - **Injunctive Relief**: Immediately cease using NOFX's AGPL-protected code
+   - **Public Acknowledgment**: Publicly disclose on ChainOpera's official channels that they used NOFX code
+   - **Compensatory Damages**: Compensation for actual losses or disgorgement of profits obtained through infringement
+   - **Legal Costs**: Including but not limited to notarization fees, attorney fees, and litigation costs
+   - **Statutory/Punitive Damages**: For willful infringement, statutory damages up to $150,000 per work (17 U.S.C. § 504) or punitive damages where applicable
+
 ---
 
 ## 10. Contact Information

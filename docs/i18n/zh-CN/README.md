@@ -124,6 +124,16 @@ docker compose -f docker-compose.prod.yml down       # 停止
 docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d  # 更新
 ```
 
+### 保持更新
+
+> **💡 更新频繁。** 每天运行以下命令以获取最新功能和修复：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+此命令会拉取最新官方镜像并自动重启服务。
+
 ### 手动安装 (开发者)
 
 #### 前置条件

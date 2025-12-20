@@ -45,6 +45,16 @@ chmod +x ./start.sh
 
 Web インターフェースにアクセス: **http://localhost:3000**
 
+### 最新版への更新
+
+> **💡 更新は頻繁です。** 最新の機能と修正を取得するために、毎日このコマンドを実行してください：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+このコマンドは最新の公式イメージを取得し、サービスを自動的に再起動します。
+
 ### オプション 2: 手動インストール
 
 ```bash

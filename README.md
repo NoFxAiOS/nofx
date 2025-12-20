@@ -141,6 +141,16 @@ docker compose -f docker-compose.prod.yml down       # Stop
 docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d  # Update
 ```
 
+### Keeping Updated
+
+> **💡 Updates are frequent.** Run this command daily to stay current with the latest features and fixes:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+This one-liner pulls the latest official images and restarts services automatically.
+
 ### Manual Installation (For Developers)
 
 #### Prerequisites

@@ -45,6 +45,16 @@ chmod +x ./start.sh
 
 Truy cập giao diện Web: **http://localhost:3000**
 
+### Cập Nhật Phiên Bản Mới
+
+> **💡 Cập nhật thường xuyên.** Chạy lệnh này hàng ngày để nhận các tính năng và bản sửa lỗi mới nhất:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+Lệnh này tải về image chính thức mới nhất và tự động khởi động lại dịch vụ.
+
 ### Tùy chọn 2: Cài đặt Thủ công
 
 ```bash

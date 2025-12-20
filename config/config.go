@@ -17,7 +17,7 @@ type Config struct {
 	APIServerPort       int
 	JWTSecret           string
 	RegistrationEnabled bool
-	MaxUsers            int // Maximum number of users allowed (0 = unlimited, default = 1)
+	MaxUsers            int // Maximum number of users allowed (0 = unlimited, default = 10)
 
 	// Security configuration
 	// TransportEncryption enables browser-side encryption for API keys
@@ -35,7 +35,7 @@ func Init() {
 	cfg := &Config{
 		APIServerPort:         8080,
 		RegistrationEnabled:   true,
-		MaxUsers:              5,    // Default: only 1 user allowed
+		MaxUsers:              10,   // Default: 10 users allowed
 		ExperienceImprovement: true, // Default: enabled to help improve the product
 	}
 

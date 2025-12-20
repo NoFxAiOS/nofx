@@ -267,7 +267,7 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 For any questions, please contact:
 
 - **GitHub Issues**: https://github.com/NoFxAiOS/nofx/issues
-- **Email**: [Project maintainer email]
+- **Email**: contact@vergex.trade
 
 ---
 

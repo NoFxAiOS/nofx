@@ -276,7 +276,7 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 如有任何问题，请联系：
 
 - **GitHub Issues**: https://github.com/NoFxAiOS/nofx/issues
-- **Email**: [项目维护者邮箱]
+- **Email**: contact@vergex.trade
 
 ---
 

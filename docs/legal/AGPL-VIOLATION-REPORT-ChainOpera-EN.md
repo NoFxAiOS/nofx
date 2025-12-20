@@ -74,6 +74,8 @@ if len(errors) > 0 {
 
 **ChainOpera Actual Response** (from network request screenshot):
 
+![ChainOpera API Evidence Screenshot](./chainopera-evidence-screenshot.png)
+
 ```json
 {
   "histories": {...},

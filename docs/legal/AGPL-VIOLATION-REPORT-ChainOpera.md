@@ -73,6 +73,8 @@ if len(errors) > 0 {
 
 **ChainOpera 实际返回**（网络请求截图）：
 
+![ChainOpera API 证据截图](./chainopera-evidence-screenshot.png)
+
 ```json
 {
   "histories": {...},

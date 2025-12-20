@@ -184,7 +184,7 @@ We follow a **coordinated disclosure** approach:
 
 For security concerns, reach out via:
 
-- **Email**: Contact maintainers (see [GitHub profile](https://github.com/tinkle-community/nofx))
+- **Email**: Contact maintainers (see [GitHub profile](https://github.com/NoFxAiOS/nofx))
 - **Twitter**: [@nofx_official](https://x.com/nofx_official) (DM open)
 - **Telegram**: [NOFX Developer Community](https://t.me/nofx_dev_community)
 - **GitHub**: Private security advisory (preferred for verified issues)

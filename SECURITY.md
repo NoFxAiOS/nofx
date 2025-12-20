@@ -188,7 +188,7 @@ git pull origin main
 go build -o nofx
 
 # Subscribe to security advisories
-# Watch GitHub releases: https://github.com/tinkle-community/nofx/releases
+# Watch GitHub releases: https://github.com/NoFxAiOS/nofx/releases
 ```
 
 ---
@@ -428,7 +428,7 @@ git pull origin main
 go build -o nofx
 
 # 订阅安全公告
-# 关注 GitHub 发布：https://github.com/tinkle-community/nofx/releases
+# 关注 GitHub 发布：https://github.com/NoFxAiOS/nofx/releases
 ```
 
 ---

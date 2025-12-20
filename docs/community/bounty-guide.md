@@ -6,7 +6,7 @@
 
 1. **访问项目 Issues 页面**
    ```
-   https://github.com/tinkle-community/nofx/issues
+   https://github.com/NoFxAiOS/nofx/issues
    ```
 
 2. **点击 "New Issue" 按钮**
@@ -215,7 +215,7 @@ Details: [详情链接]
 
 ## 📞 需要帮助？
 
-- **GitHub Issues**: https://github.com/tinkle-community/nofx/issues
+- **GitHub Issues**: https://github.com/NoFxAiOS/nofx/issues
 - **Telegram**: https://t.me/nofx_dev_community
 - **Twitter/X**: [@Web3Tinkle](https://x.com/Web3Tinkle)
 

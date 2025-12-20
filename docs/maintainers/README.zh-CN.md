@@ -42,7 +42,7 @@
 
 ## 📞 问题？
 
-- **公开问题：** 使用 [GitHub Discussions](https://github.com/tinkle-community/nofx/discussions)
+- **公开问题：** 使用 [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
 - **维护者问题：** 使用维护者频道
 - **迁移问题：** 查看[迁移公告](../community/MIGRATION_ANNOUNCEMENT.zh-CN.md)
 

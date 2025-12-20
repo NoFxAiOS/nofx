@@ -226,7 +226,7 @@ docker info | grep -A 10 "Registry Mirrors"
 # 应该显示你配置的镜像源
 ```
 
-**相关 Issue:** [#168](https://github.com/tinkle-community/nofx/issues/168)
+**相关 Issue:** [#168](https://github.com/NoFxAiOS/nofx/issues/168)
 
 ---
 
@@ -340,7 +340,7 @@ environment:
 - 减少交易员数量
 - 增加决策间隔时间（例如从 1 分钟改为 3-5 分钟）
 
-**相关 Issue:** [#60](https://github.com/tinkle-community/nofx/issues/60)
+**相关 Issue:** [#60](https://github.com/NoFxAiOS/nofx/issues/60)
 
 ---
 
@@ -559,7 +559,7 @@ docker compose exec postgres \
 
 3. **加入社区:**
    - [Telegram 开发者社区](https://t.me/nofx_dev_community)
-   - [GitHub Discussions](https://github.com/tinkle-community/nofx/discussions)
+   - [GitHub Discussions](https://github.com/NoFxAiOS/nofx/discussions)
 
 ---
 

@@ -104,7 +104,7 @@ log_info "Step 1: Verifying upstream sync..."
 # Check if upstream remote exists
 if ! git remote | grep -q "^upstream$"; then
     log_warning "Upstream remote not found. Adding it..."
-    git remote add upstream https://github.com/tinkle-community/nofx.git
+    git remote add upstream https://github.com/NoFxAiOS/nofx.git
     git fetch upstream
     log_success "Added upstream remote"
 fi

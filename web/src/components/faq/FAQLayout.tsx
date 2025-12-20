@@ -151,7 +151,7 @@ export function FAQLayout({ language }: FAQLayoutProps) {
         </p>
         <div className="flex items-center justify-center gap-4">
           <a
-            href="https://github.com/tinkle-community/nofx"
+            href="https://github.com/NoFxAiOS/nofx"
             target="_blank"
             rel="noopener noreferrer"
             className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105"

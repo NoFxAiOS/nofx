@@ -86,8 +86,8 @@ jobs:
             comment += '- ⚠️ Point out issues\n';
             comment += '- 💡 Give specific suggestions on how to fix\n\n';
             comment += '**Learn more:**\n';
-            comment += '- [Migration Guide](https://github.com/tinkle-community/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n';
-            comment += '- [Contributing Guidelines](https://github.com/tinkle-community/nofx/blob/dev/CONTRIBUTING.md)\n\n';
+            comment += '- [Migration Guide](https://github.com/NoFxAiOS/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n';
+            comment += '- [Contributing Guidelines](https://github.com/NoFxAiOS/nofx/blob/dev/CONTRIBUTING.md)\n\n';
             comment += '**Questions?** Just ask in the comments! We\'re here to help. 🙏\n\n';
             comment += '---\n\n';
             comment += '*This is an automated message. It won\'t affect your PR being merged.*';

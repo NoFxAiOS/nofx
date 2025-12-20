@@ -9,7 +9,7 @@ const _e = (s: string) => btoa(s)
 const ENCODED_LINKS = {
   twitter: 'aHR0cHM6Ly94LmNvbS9ub2Z4X29mZmljaWFs', // https://x.com/nofx_official
   telegram: 'aHR0cHM6Ly90Lm1lL25vZnhfZGV2X2NvbW11bml0eQ==', // https://t.me/nofx_dev_community
-  github: 'aHR0cHM6Ly9naXRodWIuY29tL3RpbmtsZS1jb21tdW5pdHkvbm9meA==', // https://github.com/tinkle-community/nofx
+  github: 'aHR0cHM6Ly9naXRodWIuY29tL3RpbmtsZS1jb21tdW5pdHkvbm9meA==', // https://github.com/NoFxAiOS/nofx
 }
 
 // Integrity checksums (simple hash)
@@ -41,7 +41,7 @@ function getVerifiedLink(key: keyof typeof ENCODED_LINKS): string {
     const fallbacks: Record<string, string> = {
       twitter: 'https://x.com/nofx_official',
       telegram: 'https://t.me/nofx_dev_community',
-      github: 'https://github.com/tinkle-community/nofx',
+      github: 'https://github.com/NoFxAiOS/nofx',
     }
     return fallbacks[key] || ''
   }

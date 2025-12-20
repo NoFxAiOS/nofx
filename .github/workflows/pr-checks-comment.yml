@@ -256,11 +256,11 @@ jobs:
 
             comment += '\n---\n\n';
             comment += '### 📖 Resources\n\n';
-            comment += '- [Contributing Guidelines](https://github.com/tinkle-community/nofx/blob/dev/CONTRIBUTING.md)\n';
-            comment += '- [Migration Guide](https://github.com/tinkle-community/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n\n';
+            comment += '- [Contributing Guidelines](https://github.com/NoFxAiOS/nofx/blob/dev/CONTRIBUTING.md)\n';
+            comment += '- [Migration Guide](https://github.com/NoFxAiOS/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md)\n\n';
             comment += '**Questions?** Feel free to ask in the comments! 🙏\n\n';
             comment += '---\n\n';
-            comment += '*These checks are advisory and won\'t block your PR from being merged. This comment is automatically generated from [pr-checks-run.yml](https://github.com/tinkle-community/nofx/blob/dev/.github/workflows/pr-checks-run.yml).*';
+            comment += '*These checks are advisory and won\'t block your PR from being merged. This comment is automatically generated from [pr-checks-run.yml](https://github.com/NoFxAiOS/nofx/blob/dev/.github/workflows/pr-checks-run.yml).*';
 
             // Post comment
             await github.rest.issues.createComment({

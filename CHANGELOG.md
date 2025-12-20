@@ -196,7 +196,7 @@ When releasing a new version, move [Unreleased] items to a new version section w
 - [Documentation](docs/README.md)
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
-- [GitHub Repository](https://github.com/tinkle-community/nofx)
+- [GitHub Repository](https://github.com/NoFxAiOS/nofx)
 
 ---
 

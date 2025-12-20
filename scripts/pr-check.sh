@@ -81,7 +81,7 @@ fi
 if ! git remote | grep -q "^upstream$"; then
     log_warning "Upstream remote not found"
     log_suggestion "Add upstream remote:"
-    log_command "git remote add upstream https://github.com/tinkle-community/nofx.git"
+    log_command "git remote add upstream https://github.com/NoFxAiOS/nofx.git"
     echo ""
 fi
 
@@ -347,7 +347,7 @@ echo "  ✅ UI/UX improvements"
 echo "  ✅ Performance optimizations"
 echo "  ✅ Bug fixes"
 echo ""
-log_suggestion "Check roadmap: https://github.com/tinkle-community/nofx/blob/dev/docs/roadmap/README.md"
+log_suggestion "Check roadmap: https://github.com/NoFxAiOS/nofx/blob/dev/docs/roadmap/README.md"
 echo ""
 
 # ═══════════════════════════════════════════
@@ -402,8 +402,8 @@ fi
 
 echo ""
 echo "📚 Resources:"
-echo "  - Contributing Guide: https://github.com/tinkle-community/nofx/blob/dev/CONTRIBUTING.md"
-echo "  - Migration Guide: https://github.com/tinkle-community/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md"
+echo "  - Contributing Guide: https://github.com/NoFxAiOS/nofx/blob/dev/CONTRIBUTING.md"
+echo "  - Migration Guide: https://github.com/NoFxAiOS/nofx/blob/dev/docs/community/MIGRATION_ANNOUNCEMENT.md"
 echo ""
 
 # Cleanup temp files

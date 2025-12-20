@@ -235,19 +235,47 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 
 ---
 
-## 8. Evidence List
+## 8. Additional Evidence: Brand and Slogan Plagiarism
+
+### 8.1 Google Search Results Evidence
+
+![ChainOpera Google Search Evidence](./chainopera-evidence-google-search.png)
+
+**Screenshot Time**: December 19, 2025 07:58:29 (Time.is third-party timestamp)
+
+### 8.2 Key Findings
+
+| Evidence Item | Content | Analysis |
+|---------------|---------|----------|
+| **Website Description** | "The future standard for AI Trading - an open community-driven agentic trading OS" | Highly consistent with NOFX's slogan |
+| **Login Page** | Displays "NoFx Logo" | Direct use of NOFX brand assets |
+| **Binance Post** | "NOFX Addresses Code Usage Concerns with ChainOpera" | Publicly acknowledges code usage dispute exists |
+
+### 8.3 Brand Infringement Evidence
+
+ChainOpera's website `trading-test.chainopera.ai` Login page HTML contains **"NoFx Logo"** text, proving:
+
+1. ChainOpera directly used NOFX's frontend code
+2. They didn't even modify brand-related text identifiers
+3. This is not "independent development" or "Python rewrite" - it's direct copying
+
+---
+
+## 9. Evidence List
 
 | # | Evidence Type | Description | Preservation Method |
 |---|---------------|-------------|---------------------|
 | 1 | Git Commit | AGPL license effective record | SHA-1: `e88f8421...` |
 | 2 | Git Commit | equity-history-batch creation record | SHA-1: `5af5c0b5...` |
 | 3 | Source Code | api/server.go lines 2542-2732 | Git repository |
-| 4 | Website Screenshot | ChainOpera API response | Blockchain timestamping recommended |
+| 4 | Website Screenshot | ChainOpera API response | Blockchain timestamping |
 | 5 | Network Request | trading-test.chainopera.ai request logs | Notarization recommended |
+| 6 | Google Search | "NoFx Logo" brand infringement evidence | Screenshot + Time.is timestamp |
+| 7 | Binance Post | Public acknowledgment of code dispute | Public record |
 
 ---
 
-## 9. Conclusions
+## 10. Conclusions
 
 1. **Timeline evidence is conclusive**: The `equity-history-batch` interface was created 24 minutes after AGPL took effect; it has been protected since inception.
 
@@ -276,7 +304,7 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 
 ---
 
-## 10. Contact Information
+## 11. Contact Information
 
 For any questions, please contact:
 

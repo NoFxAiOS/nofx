@@ -244,19 +244,47 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 
 ---
 
-## 八、证据清单
+## 八、额外证据：品牌与宣传语抄袭
+
+### 8.1 Google 搜索结果证据
+
+![ChainOpera Google 搜索证据](./chainopera-evidence-google-search.png)
+
+**截图时间**：2025年12月19日 07:58:29 (Time.is 第三方时间戳)
+
+### 8.2 关键发现
+
+| 证据项 | 内容 | 分析 |
+|--------|------|------|
+| **网站描述** | "The future standard for AI Trading - an open community-driven agentic trading OS" | 与 NOFX 宣传语高度一致 |
+| **Login 页面** | 显示 "NoFx Logo" | 直接使用 NOFX 品牌资产 |
+| **Binance 帖子** | "NOFX Addresses Code Usage Concerns with ChainOpera" | 公开承认存在代码使用争议 |
+
+### 8.3 品牌侵权证据
+
+ChainOpera 网站 `trading-test.chainopera.ai` 的 Login 页面 HTML 中包含 **"NoFx Logo"** 字样，证明：
+
+1. ChainOpera 直接使用了 NOFX 的前端代码
+2. 甚至未修改品牌相关的文字标识
+3. 这不是"独立开发"或"Python 重写"，而是直接复制
+
+---
+
+## 九、证据清单
 
 | # | 证据类型 | 描述 | 存证方式 |
 |---|----------|------|----------|
 | 1 | Git Commit | AGPL 许可证生效记录 | SHA-1: `e88f8421...` |
 | 2 | Git Commit | equity-history-batch 创建记录 | SHA-1: `5af5c0b5...` |
 | 3 | 源代码 | api/server.go 第 2542-2732 行 | Git 仓库 |
-| 4 | 网站截图 | ChainOpera API 响应 | 建议区块链存证 |
+| 4 | 网站截图 | ChainOpera API 响应 | 区块链存证 |
 | 5 | 网络请求 | trading-test.chainopera.ai 请求记录 | 建议公证 |
+| 6 | Google 搜索 | "NoFx Logo" 品牌侵权证据 | 截图 + Time.is 时间戳 |
+| 7 | Binance 帖子 | 公开承认代码争议 | 公开记录 |
 
 ---
 
-## 九、结论
+## 十、结论
 
 1. **时间证据确凿**：`equity-history-batch` 接口在 AGPL 生效后 24 分钟创建，从诞生起即受保护
 
@@ -285,7 +313,7 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 
 ---
 
-## 十、联系方式
+## 十一、联系方式
 
 如有任何问题，请联系：
 

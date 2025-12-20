@@ -258,7 +258,6 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 |--------|------|------|
 | **网站描述** | "The future standard for AI Trading - an open community-driven agentic trading OS" | 与 NOFX 宣传语高度一致 |
 | **Login 页面** | 显示 "NoFx Logo" | 直接使用 NOFX 品牌资产 |
-| **Binance 帖子** | "NOFX Addresses Code Usage Concerns with ChainOpera" | 公开承认存在代码使用争议 |
 
 ### 8.3 品牌侵权证据
 
@@ -280,7 +279,6 @@ ChainOpera 网站 `trading-test.chainopera.ai` 的 Login 页面 HTML 中包含 *
 | 4 | 网站截图 | ChainOpera API 响应 | 区块链存证 |
 | 5 | 网络请求 | trading-test.chainopera.ai 请求记录 | 建议公证 |
 | 6 | Google 搜索 | "NoFx Logo" 品牌侵权证据 | 截图 + Time.is 时间戳 |
-| 7 | Binance 帖子 | 公开承认代码争议 | 公开记录 |
 
 ---
 

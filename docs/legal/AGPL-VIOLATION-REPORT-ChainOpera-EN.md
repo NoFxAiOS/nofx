@@ -249,7 +249,6 @@ git show 5af5c0b51773737f166eacea646e3960cee29f59:api/server.go | grep -A 50 "ha
 |---------------|---------|----------|
 | **Website Description** | "The future standard for AI Trading - an open community-driven agentic trading OS" | Highly consistent with NOFX's slogan |
 | **Login Page** | Displays "NoFx Logo" | Direct use of NOFX brand assets |
-| **Binance Post** | "NOFX Addresses Code Usage Concerns with ChainOpera" | Publicly acknowledges code usage dispute exists |
 
 ### 8.3 Brand Infringement Evidence
 
@@ -271,7 +270,6 @@ ChainOpera's website `trading-test.chainopera.ai` Login page HTML contains **"No
 | 4 | Website Screenshot | ChainOpera API response | Blockchain timestamping |
 | 5 | Network Request | trading-test.chainopera.ai request logs | Notarization recommended |
 | 6 | Google Search | "NoFx Logo" brand infringement evidence | Screenshot + Time.is timestamp |
-| 7 | Binance Post | Public acknowledgment of code dispute | Public record |
 
 ---
 

@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	storagePrefix    = "ENC:v1:"
-	storageDelimiter = ":"
+	storagePrefix           = "ENC:v1:"
+	storageDelimiter        = ":"
+	AADPurposeSensitiveData = "sensitive_data_encryption"
 )
 
 // Environment variable names
@@ -280,13 +281,67 @@ func isEncryptedStorageValue(value string) bool {
 	return strings.HasPrefix(value, storagePrefix)
 }
 
-func (cs *CryptoService) DecryptPayload(payload *EncryptedPayload) ([]byte, error) {
+func validateTimestamp(ts int64, label string) error {
+	if ts == 0 {
+		return nil
+	}
+	elapsed := time.Since(time.Unix(ts, 0))
+	if elapsed > 5*time.Minute || elapsed < -1*time.Minute {
+		return fmt.Errorf("%s invalid or expired", label)
+	}
+	return nil
+}
+
+func decodeAAD(payload *EncryptedPayload) ([]byte, *AADData, error) {
+	if payload.AAD == "" {
+		return nil, nil, nil
+	}
+
+	aad, err := base64.RawURLEncoding.DecodeString(payload.AAD)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to decode AAD: %w", err)
+	}
+
+	var aadData AADData
+	if err := json.Unmarshal(aad, &aadData); err != nil {
+		return nil, nil, fmt.Errorf("invalid AAD: %w", err)
+	}
+
+	return aad, &aadData, nil
+}
+
+func validateAAD(aadData *AADData, payloadTS int64, expected *AADData) error {
+	if expected == nil {
+		return nil
+	}
+	if aadData == nil {
+		return errors.New("missing AAD")
+	}
+	if expected.UserID != "" && aadData.UserID != expected.UserID {
+		return errors.New("AAD userId mismatch")
+	}
+	if expected.SessionID != "" && aadData.SessionID != expected.SessionID {
+		return errors.New("AAD sessionId mismatch")
+	}
+	if expected.Purpose != "" && aadData.Purpose != expected.Purpose {
+		return errors.New("AAD purpose mismatch")
+	}
+	if aadData.TS == 0 {
+		return errors.New("AAD timestamp missing")
+	}
+	if err := validateTimestamp(aadData.TS, "AAD timestamp"); err != nil {
+		return err
+	}
+	if payloadTS != 0 && aadData.TS != payloadTS {
+		return errors.New("AAD timestamp mismatch")
+	}
+	return nil
+}
+
+func (cs *CryptoService) DecryptPayload(payload *EncryptedPayload, expectedAAD *AADData) ([]byte, error) {
 	// 1. Validate timestamp (prevent replay attacks)
-	if payload.TS != 0 {
-		elapsed := time.Since(time.Unix(payload.TS, 0))
-		if elapsed > 5*time.Minute || elapsed < -1*time.Minute {
-			return nil, errors.New("timestamp invalid or expired")
-		}
+	if err := validateTimestamp(payload.TS, "timestamp"); err != nil {
+		return nil, err
 	}
 
 	// 2. Decode base64url
@@ -305,17 +360,12 @@ func (cs *CryptoService) DecryptPayload(payload *EncryptedPayload) ([]byte, erro
 		return nil, fmt.Errorf("failed to decode ciphertext: %w", err)
 	}
 
-	var aad []byte
-	if payload.AAD != "" {
-		aad, err = base64.RawURLEncoding.DecodeString(payload.AAD)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode AAD: %w", err)
-		}
-
-		var aadData AADData
-		if err := json.Unmarshal(aad, &aadData); err == nil {
-			// Additional validation logic can be added here
-		}
+	aad, aadData, err := decodeAAD(payload)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateAAD(aadData, payload.TS, expectedAAD); err != nil {
+		return nil, err
 	}
 
 	// 3. Decrypt AES key using RSA-OAEP
@@ -347,8 +397,8 @@ func (cs *CryptoService) DecryptPayload(payload *EncryptedPayload) ([]byte, erro
 	return plaintext, nil
 }
 
-func (cs *CryptoService) DecryptSensitiveData(payload *EncryptedPayload) (string, error) {
-	plaintext, err := cs.DecryptPayload(payload)
+func (cs *CryptoService) DecryptSensitiveData(payload *EncryptedPayload, expectedAAD *AADData) (string, error) {
+	plaintext, err := cs.DecryptPayload(payload, expectedAAD)
 	if err != nil {
 		return "", err
 	}

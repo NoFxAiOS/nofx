@@ -281,7 +281,7 @@ func TestNewHyperliquidTrader(t *testing.T) {
 			walletAddr:    "0x1234567890123456789012345678901234567890",
 			testnet:       true,
 			wantError:     true,
-			errorContains: "Failed to parse private key",
+			errorContains: "failed to parse private key", // lowercase 'f' to match actual error message
 		},
 		{
 			name:          "Empty wallet address",

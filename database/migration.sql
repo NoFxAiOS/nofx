@@ -148,7 +148,21 @@ CREATE TABLE IF NOT EXISTS system_config (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 1.10 创建内测码表
+-- 1.10 创建用户新闻源配置表
+CREATE TABLE IF NOT EXISTS user_news_config (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    enabled BOOLEAN DEFAULT TRUE,
+    news_sources TEXT DEFAULT 'mlion',  -- 逗号分隔的新闻源列表
+    auto_fetch_interval_minutes INTEGER DEFAULT 5,
+    max_articles_per_fetch INTEGER DEFAULT 10,
+    sentiment_threshold REAL DEFAULT 0.0,  -- 情绪阈值用于过滤
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- 内测码表
 CREATE TABLE IF NOT EXISTS beta_codes (
     code TEXT PRIMARY KEY,
     used BOOLEAN DEFAULT FALSE,
@@ -167,6 +181,7 @@ DROP TRIGGER IF EXISTS update_ai_models_updated_at ON ai_models;
 DROP TRIGGER IF EXISTS update_exchanges_updated_at ON exchanges;
 DROP TRIGGER IF EXISTS update_traders_updated_at ON traders;
 DROP TRIGGER IF EXISTS update_user_signal_sources_updated_at ON user_signal_sources;
+DROP TRIGGER IF EXISTS update_user_news_config_updated_at ON user_news_config;
 DROP TRIGGER IF EXISTS update_system_config_updated_at ON system_config;
 DROP TRIGGER IF EXISTS update_beta_codes_updated_at ON beta_codes;
 
@@ -198,6 +213,10 @@ CREATE TRIGGER update_traders_updated_at
 
 CREATE TRIGGER update_user_signal_sources_updated_at
     BEFORE UPDATE ON user_signal_sources
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_news_config_updated_at
+    BEFORE UPDATE ON user_news_config
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_system_config_updated_at
@@ -278,6 +297,10 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts_timestamp ON login_attempts(timest
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+
+-- 用户新闻源配置索引
+CREATE INDEX IF NOT EXISTS idx_user_news_config_user_id ON user_news_config(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_news_config_enabled ON user_news_config(enabled);
 
 -- ============================================================
 -- 第7部分：验证数据完整性

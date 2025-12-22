@@ -6,7 +6,10 @@
     "dev": "vite --port 5000 --host 0.0.0.0",
     "build": "tsc && vite build",
     "preview": "vite preview --port 5000 --host 0.0.0.0",
-    "test": "vitest"
+    "test": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -25,6 +28,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

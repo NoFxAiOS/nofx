@@ -10,6 +10,7 @@ import (
 	"nofx/api/handlers"
 	"nofx/auth"
 	"nofx/config"
+	"nofx/database"
 	"nofx/decision"
 	"nofx/email"
 	"nofx/manager"
@@ -26,18 +27,19 @@ import (
 
 // Server HTTP API服务器
 type Server struct {
-	router          *gin.Engine
-	traderManager   *manager.TraderManager
-	database        *config.Database
-	emailClient     *email.ResendClient
-	creditService   creditsService.Service
-	creditHandler   *credits.Handler
-	learningHandler *handlers.LearningHandler
-	port            int
+	router               *gin.Engine
+	traderManager        *manager.TraderManager
+	database             *config.Database
+	emailClient          *email.ResendClient
+	creditService        creditsService.Service
+	creditHandler        *credits.Handler
+	learningHandler      *handlers.LearningHandler
+	newsConfigHandler    *NewsConfigHandler
+	port                 int
 }
 
 // NewServer 创建API服务器
-func NewServer(traderManager *manager.TraderManager, database *config.Database, port int) *Server {
+func NewServer(traderManager *manager.TraderManager, dbConfig *config.Database, port int) *Server {
 	// 设置为Release模式（减少日志输出）
 	gin.SetMode(gin.ReleaseMode)
 
@@ -60,19 +62,23 @@ func NewServer(traderManager *manager.TraderManager, database *config.Database, 
 	router.Use(corsRecoveryMiddleware())
 
 	// 创建积分服务
-	creditService := creditsService.NewCreditService(database)
+	creditService := creditsService.NewCreditService(dbConfig)
 	creditHandler := credits.NewHandler(creditService)
-	learningHandler := handlers.NewLearningHandler(database)
+	learningHandler := handlers.NewLearningHandler(dbConfig)
+	newsConfigHandler := NewNewsConfigHandler(
+		database.NewUserNewsConfigRepository(dbConfig.GetDB()),
+	)
 
 	s := &Server{
-		router:          router,
-		traderManager:   traderManager,
-		database:        database,
-		emailClient:     email.NewResendClient(),
-		creditService:   creditService,
-		creditHandler:   creditHandler,
-		learningHandler: learningHandler,
-		port:            port,
+		router:               router,
+		traderManager:        traderManager,
+		database:             dbConfig,
+		emailClient:          email.NewResendClient(),
+		creditService:        creditService,
+		creditHandler:        creditHandler,
+		learningHandler:      learningHandler,
+		newsConfigHandler:    newsConfigHandler,
+		port:                 port,
 	}
 	// 设置路由
 	s.setupRoutes()
@@ -276,6 +282,13 @@ func (s *Server) setupRoutes() {
 			// 用户信号源配置
 			protected.GET("/user/signal-sources", s.handleGetUserSignalSource)
 			protected.POST("/user/signal-sources", s.handleSaveUserSignalSource)
+
+			// 用户新闻源配置
+			protected.GET("/user/news-config", s.newsConfigHandler.GetUserNewsConfig)
+			protected.POST("/user/news-config", s.newsConfigHandler.CreateOrUpdateUserNewsConfig)
+			protected.PUT("/user/news-config", s.newsConfigHandler.UpdateUserNewsConfig)
+			protected.DELETE("/user/news-config", s.newsConfigHandler.DeleteUserNewsConfig)
+			protected.GET("/user/news-config/sources", s.newsConfigHandler.GetEnabledNewsSources)
 
 			// 指定trader的数据（使用query参数 ?trader_id=xxx）
 			protected.GET("/status", s.handleStatus)

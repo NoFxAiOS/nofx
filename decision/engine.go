@@ -68,6 +68,7 @@ type Context struct {
 	AltcoinLeverage  int                     `json:"-"` // 山寨币杠杆倍数（从配置读取）
 	LastCloseTime    map[string]int64        `json:"-"` // symbol_action -> unix timestamp (milliseconds) - 用于冷却期检查
 	CooldownMinutes  int                     `json:"-"` // 平仓后的冷却期（分钟）
+	Extensions       map[string]interface{}  `json:"-"` // 可扩展的上下文数据 (新闻、社交情绪等)
 }
 
 // Decision AI的交易决策
@@ -118,11 +119,12 @@ func GetFullDecisionWithCustomPrompt(ctx *Context, mcpClient *mcp.Client, custom
 	if err != nil {
 		// 检查是否为余额不足错误
 		if strings.Contains(err.Error(), "Insufficient Balance") || strings.Contains(err.Error(), "余额不足") {
-			log.Printf("\n" + strings.Repeat("!", 70))
-			log.Printf("❌ 严重错误: AI API 余额不足！")
-			log.Printf("👉 请检查您的 AI 服务提供商 (%s) 账户余额", mcpClient.Provider)
-			log.Printf("👉 或者尝试切换到其他 AI 模型 (在配置中修改)")
-			log.Printf(strings.Repeat("!", 70) + "\n")
+			separator := strings.Repeat("!", 70)
+			fmt.Printf("\n%s\n", separator)
+			fmt.Println("❌ 严重错误: AI API 余额不足！")
+			fmt.Printf("👉 请检查您的 AI 服务提供商 (%s) 账户余额\n", mcpClient.Provider)
+			fmt.Println("👉 或者尝试切换到其他 AI 模型 (在配置中修改)")
+			fmt.Printf("%s\n\n", separator)
 		}
 		return nil, fmt.Errorf("调用AI API失败: %w", err)
 	}
@@ -893,4 +895,34 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	}
 
 	return nil
+}
+
+// SetExtension 设置上下文扩展数据
+// 用于ContextEnricher将数据添加到上下文中
+func (c *Context) SetExtension(key string, value interface{}) {
+	if c.Extensions == nil {
+		c.Extensions = make(map[string]interface{})
+	}
+	c.Extensions[key] = value
+}
+
+// GetExtension 获取上下文扩展数据
+// 返回值和found标志（如果扩展不存在，found为false）
+func (c *Context) GetExtension(key string) (interface{}, bool) {
+	if c.Extensions == nil {
+		return nil, false
+	}
+	val, ok := c.Extensions[key]
+	return val, ok
+}
+
+// GetNewsContext 便利方法：获取新闻上下文（如果存在）
+func (c *Context) GetNewsContext() *NewsContext {
+	if val, ok := c.GetExtension("news"); ok {
+		if newsCtx, ok := val.(*NewsContext); ok {
+			return newsCtx
+		}
+	}
+	// 返回禁用的空上下文作为默认值
+	return NewEmptyNewsContext()
 }

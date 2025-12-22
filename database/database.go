@@ -95,6 +95,11 @@ func (db *DatabaseImpl) Close() error {
 	return err
 }
 
+// GetDB 获取底层的sql.DB连接
+func (db *DatabaseImpl) GetDB() *sql.DB {
+	return db.currentDB
+}
+
 // 示例方法：获取用户
 func (db *DatabaseImpl) GetUserByEmail(email string) (*User, error) {
 	query := "SELECT id, email, password_hash, is_admin FROM users WHERE email = $1"

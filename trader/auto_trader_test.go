@@ -63,7 +63,6 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		positions: []map[string]interface{}{},
 	}
 
-
 	// Create temporary store (using nil means no actual store needed in test)
 	s.mockStore = nil
 
@@ -93,7 +92,7 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		mcpClient:             nil, // No actual MCP Client needed in tests
 		store:                 s.mockStore,
 		initialBalance:        s.config.InitialBalance,
-		customPrompt:          "",  // Use customPrompt instead of systemPromptTemplate
+		customPrompt:          "", // Use customPrompt instead of systemPromptTemplate
 		lastResetTime:         time.Now(),
 		startTime:             time.Now(),
 		callCount:             0,

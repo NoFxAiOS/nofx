@@ -14,11 +14,11 @@ import (
 type PositionSyncManager struct {
 	store                *store.Store
 	interval             time.Duration
-	historySyncInterval  time.Duration        // Interval for full history sync
+	historySyncInterval  time.Duration // Interval for full history sync
 	stopCh               chan struct{}
 	wg                   sync.WaitGroup
-	traderCache          map[string]Trader                    // trader_id -> Trader instance cache
-	configCache          map[string]*store.TraderFullConfig   // trader_id -> config cache
+	traderCache          map[string]Trader                  // trader_id -> Trader instance cache
+	configCache          map[string]*store.TraderFullConfig // trader_id -> config cache
 	cacheMutex           sync.RWMutex
 	lastHistorySync      map[string]time.Time // trader_id -> last history sync time
 	lastHistorySyncMutex sync.RWMutex
@@ -123,7 +123,7 @@ func (m *PositionSyncManager) syncTraderPositions(traderID string, localPosition
 	exchangeID := ""
 	exchangeType := ""
 	if config != nil {
-		exchangeID = config.Exchange.ID           // UUID for database association
+		exchangeID = config.Exchange.ID             // UUID for database association
 		exchangeType = config.Exchange.ExchangeType // "binance", "bybit" etc for trader creation
 	}
 
@@ -587,8 +587,8 @@ func (m *PositionSyncManager) startupSync() {
 			logger.Infof("⚠️  Failed to get trader config for startup sync (ID: %s): %v", traderID, err)
 			continue
 		}
-		exchangeID := config.Exchange.ID               // UUID
-		exchangeType := config.Exchange.ExchangeType  // "binance", "bybit" etc
+		exchangeID := config.Exchange.ID             // UUID
+		exchangeType := config.Exchange.ExchangeType // "binance", "bybit" etc
 
 		// 1. Sync current open positions from exchange
 		m.syncExternalPositions(traderID, exchangeID, exchangeType, trader)

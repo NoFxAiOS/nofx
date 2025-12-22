@@ -301,11 +301,11 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 
 // SendTxResponse Send transaction response
 type SendTxResponse struct {
-	Code                    int                    `json:"code"`
-	Message                 string                 `json:"message"`
-	TxHash                  string                 `json:"tx_hash"`
-	PredictedExecutionTime  int64                  `json:"predicted_execution_time_ms"`
-	Data                    map[string]interface{} `json:"data"`
+	Code                   int                    `json:"code"`
+	Message                string                 `json:"message"`
+	TxHash                 string                 `json:"tx_hash"`
+	PredictedExecutionTime int64                  `json:"predicted_execution_time_ms"`
+	Data                   map[string]interface{} `json:"data"`
 }
 
 // CreateOrderTxInfoAPI Order transaction info with CamelCase JSON tags (matching SDK) + hex signature

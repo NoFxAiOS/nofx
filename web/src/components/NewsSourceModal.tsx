@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, AlertCircle } from 'lucide-react';
-import { useLanguage } from '../contexts/LanguageContext';
+import { X, Plus, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { api } from '../lib/api';
 
 interface NewsConfigData {
   id?: number;
@@ -34,8 +32,7 @@ export function NewsSourceModal({
   onSave,
   initialData,
 }: NewsSourceModalProps) {
-  const { language } = useLanguage();
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);

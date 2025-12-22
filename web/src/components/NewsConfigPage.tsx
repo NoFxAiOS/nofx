@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Newspaper, AlertTriangle } from 'lucide-react';
-import { useLanguage } from '../contexts/LanguageContext';
+import { Newspaper, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { NewsSourceModal } from './NewsSourceModal';
 
@@ -18,7 +17,6 @@ interface NewsConfig {
 }
 
 export function NewsConfigPage() {
-  const { language } = useLanguage();
   const { user, token } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -63,7 +61,7 @@ export function NewsConfigPage() {
     loadNewsConfig();
   }, [user, token]);
 
-  const handleSave = async (data: any) => {
+  const handleSave = async () => {
     // 刷新配置
     const response = await fetch('/api/user/news-config', {
       headers: {

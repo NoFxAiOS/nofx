@@ -9,7 +9,6 @@ import (
 
 	"nofx/decision"
 	"nofx/market"
-	"nofx/provider"
 	"nofx/store"
 
 	"github.com/agiledragon/gomonkey/v2"
@@ -70,16 +69,17 @@ func (s *AutoTraderTestSuite) SetupTest() {
 
 	// Set default configuration
 	s.config = AutoTraderConfig{
-		ID:                   "test_trader",
-		Name:                 "Test Trader",
-		AIModel:              "deepseek",
-		Exchange:             "binance",
-		InitialBalance:       10000.0,
-		ScanInterval:         3 * time.Minute,
-		SystemPromptTemplate: "adaptive",
-		BTCETHLeverage:       10,
-		AltcoinLeverage:      5,
-		IsCrossMargin:        true,
+		ID:             "test_trader",
+		Name:           "Test Trader",
+		AIModel:        "deepseek",
+		Exchange:       "binance",
+		InitialBalance: 10000.0,
+		ScanInterval:   3 * time.Minute,
+		IsCrossMargin:  true,
+		// Removed fields that don't exist in AutoTraderConfig:
+		// - SystemPromptTemplate (removed in refactor)
+		// - BTCETHLeverage (removed in refactor)
+		// - AltcoinLeverage (removed in refactor)
 	}
 
 	// Create AutoTrader instance (direct construction, don't call NewAutoTrader to avoid external dependencies)
@@ -93,9 +93,7 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		mcpClient:             nil, // No actual MCP Client needed in tests
 		store:                 s.mockStore,
 		initialBalance:        s.config.InitialBalance,
-		systemPromptTemplate:  s.config.SystemPromptTemplate,
-		defaultCoins:          []string{"BTC", "ETH"},
-		tradingCoins:          []string{},
+		customPrompt:          "",  // Use customPrompt instead of systemPromptTemplate
 		lastResetTime:         time.Now(),
 		startTime:             time.Now(),
 		callCount:             0,
@@ -105,6 +103,10 @@ func (s *AutoTraderTestSuite) SetupTest() {
 		peakPnLCache:          make(map[string]float64),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                "test_user",
+		// Removed fields that don't exist in AutoTrader:
+		// - systemPromptTemplate (removed in refactor, use customPrompt instead)
+		// - defaultCoins (removed in refactor)
+		// - tradingCoins (removed in refactor)
 	}
 }
 
@@ -199,10 +201,11 @@ func (s *AutoTraderTestSuite) TestGettersAndSetters() {
 		s.Equal("Test Trader", s.autoTrader.GetName())
 	})
 
-	s.Run("SetSystemPromptTemplate", func() {
-		s.autoTrader.SetSystemPromptTemplate("aggressive")
-		s.Equal("aggressive", s.autoTrader.GetSystemPromptTemplate())
-	})
+	// SetSystemPromptTemplate test skipped - method no longer exists after refactor
+	// s.Run("SetSystemPromptTemplate", func() {
+	// 	s.autoTrader.SetSystemPromptTemplate("aggressive")
+	// 	s.Equal("aggressive", s.autoTrader.GetSystemPromptTemplate())
+	// })
 
 	s.Run("SetCustomPrompt", func() {
 		s.autoTrader.SetCustomPrompt("custom prompt")
@@ -323,54 +326,55 @@ func (s *AutoTraderTestSuite) TestGetPositions() {
 // Level 7: getCandidateCoins tests
 // ============================================================
 
-func (s *AutoTraderTestSuite) TestGetCandidateCoins() {
-	s.Run("Use database default coins", func() {
-		s.autoTrader.defaultCoins = []string{"BTC", "ETH", "BNB"}
-		s.autoTrader.tradingCoins = []string{} // Empty custom coins
-
-		coins, err := s.autoTrader.getCandidateCoins()
-
-		s.NoError(err)
-		s.Equal(3, len(coins))
-		s.Equal("BTCUSDT", coins[0].Symbol)
-		s.Equal("ETHUSDT", coins[1].Symbol)
-		s.Equal("BNBUSDT", coins[2].Symbol)
-		s.Contains(coins[0].Sources, "default")
-	})
-
-	s.Run("Use custom coins", func() {
-		s.autoTrader.tradingCoins = []string{"SOL", "AVAX"}
-
-		coins, err := s.autoTrader.getCandidateCoins()
-
-		s.NoError(err)
-		s.Equal(2, len(coins))
-		s.Equal("SOLUSDT", coins[0].Symbol)
-		s.Equal("AVAXUSDT", coins[1].Symbol)
-		s.Contains(coins[0].Sources, "custom")
-	})
-
-	s.Run("Use AI500+OI as fallback", func() {
-		s.autoTrader.defaultCoins = []string{} // Empty default coins
-		s.autoTrader.tradingCoins = []string{} // Empty custom coins
-
-		// Mock provider.GetMergedCoinPool
-		s.patches.ApplyFunc(provider.GetMergedCoinPool, func(ai500Limit int) (*provider.MergedCoinPool, error) {
-			return &provider.MergedCoinPool{
-				AllSymbols: []string{"BTCUSDT", "ETHUSDT"},
-				SymbolSources: map[string][]string{
-					"BTCUSDT": {"ai500", "oi_top"},
-					"ETHUSDT": {"ai500"},
-				},
-			}, nil
-		})
-
-		coins, err := s.autoTrader.getCandidateCoins()
-
-		s.NoError(err)
-		s.Equal(2, len(coins))
-	})
-}
+// TestGetCandidateCoins skipped - methods and fields no longer exist after refactor
+// func (s *AutoTraderTestSuite) TestGetCandidateCoins() {
+// 	s.Run("Use database default coins", func() {
+// 		s.autoTrader.defaultCoins = []string{"BTC", "ETH", "BNB"}
+// 		s.autoTrader.tradingCoins = []string{} // Empty custom coins
+//
+// 		coins, err := s.autoTrader.getCandidateCoins()
+//
+// 		s.NoError(err)
+// 		s.Equal(3, len(coins))
+// 		s.Equal("BTCUSDT", coins[0].Symbol)
+// 		s.Equal("ETHUSDT", coins[1].Symbol)
+// 		s.Equal("BNBUSDT", coins[2].Symbol)
+// 		s.Contains(coins[0].Sources, "default")
+// 	})
+//
+// 	s.Run("Use custom coins", func() {
+// 		s.autoTrader.tradingCoins = []string{"SOL", "AVAX"}
+//
+// 		coins, err := s.autoTrader.getCandidateCoins()
+//
+// 		s.NoError(err)
+// 		s.Equal(2, len(coins))
+// 		s.Equal("SOLUSDT", coins[0].Symbol)
+// 		s.Equal("AVAXUSDT", coins[1].Symbol)
+// 		s.Contains(coins[0].Sources, "custom")
+// 	})
+//
+// 	s.Run("Use AI500+OI as fallback", func() {
+// 		s.autoTrader.defaultCoins = []string{} // Empty default coins
+// 		s.autoTrader.tradingCoins = []string{} // Empty custom coins
+//
+// 		// Mock provider.GetMergedCoinPool
+// 		s.patches.ApplyFunc(provider.GetMergedCoinPool, func(ai500Limit int) (*provider.MergedCoinPool, error) {
+// 			return &provider.MergedCoinPool{
+// 				AllSymbols: []string{"BTCUSDT", "ETHUSDT"},
+// 				SymbolSources: map[string][]string{
+// 					"BTCUSDT": {"ai500", "oi_top"},
+// 					"ETHUSDT": {"ai500"},
+// 				},
+// 			}, nil
+// 		})
+//
+// 		coins, err := s.autoTrader.getCandidateCoins()
+//
+// 		s.NoError(err)
+// 		s.Equal(2, len(coins))
+// 	})
+// }
 
 // ============================================================
 // Level 8: buildTradingContext tests
@@ -863,6 +867,21 @@ func (m *MockTrader) CancelStopOrders(symbol string) error {
 
 func (m *MockTrader) FormatQuantity(symbol string, quantity float64) (string, error) {
 	return fmt.Sprintf("%.4f", quantity), nil
+}
+
+func (m *MockTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
+	// Mock implementation: return a filled order status
+	return map[string]interface{}{
+		"status":      "FILLED",
+		"avgPrice":    50000.0,
+		"executedQty": 0.1,
+		"commission":  5.0,
+	}, nil
+}
+
+func (m *MockTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error) {
+	// Mock implementation: return empty closed PnL records
+	return []ClosedPnLRecord{}, nil
 }
 
 // ============================================================

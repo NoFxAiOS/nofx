@@ -506,15 +506,7 @@ func (gfd *GetFullDecisionV2) GenerateDecision(ctx context.Context, query Query)
 	recommendation, err := gfd.model.CallAPI(ctx, systemPrompt, userPrompt)
 	if err != nil {
 		log.Printf("⚠️ AI模型调用失败: %v, 使用知识库默认建议", err)
-		if len(filterResult.Memories) > 0 {
-			topMemory := filterResult.Memories[0]
-			decision.Recommendation = topMemory.Content
-			decision.SourceMemories = append(decision.SourceMemories, topMemory.ID)
-			decision.Confidence = topMemory.QualityScore * 0.8 // 降级时置信度降低20%
-		} else {
-			decision.Recommendation = "数据不足,建议观望"
-			decision.Confidence = 0.3
-		}
+		gfd.generateFallbackDecision(&decision, filterResult.Memories)
 	} else {
 		// AI模型成功生成建议
 		decision.Recommendation = recommendation
@@ -530,6 +522,19 @@ func (gfd *GetFullDecisionV2) GenerateDecision(ctx context.Context, query Query)
 	gfd.recordMetrics(len(memories), time.Since(startTime))
 
 	return decision, nil
+}
+
+// generateFallbackDecision 生成降级决策(当AI模型失败时)
+func (gfd *GetFullDecisionV2) generateFallbackDecision(decision *Decision, memories []Memory) {
+	if len(memories) > 0 {
+		topMemory := memories[0]
+		decision.Recommendation = topMemory.Content
+		decision.SourceMemories = append(decision.SourceMemories, topMemory.ID)
+		decision.Confidence = topMemory.QualityScore * 0.8 // 降级时置信度降低20%
+	} else {
+		decision.Recommendation = "数据不足,建议观望"
+		decision.Confidence = 0.3
+	}
 }
 
 // buildUserPrompt 构建发送给AI模型的用户提示词

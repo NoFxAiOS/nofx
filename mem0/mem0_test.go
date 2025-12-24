@@ -97,9 +97,14 @@ func TestCircuitBreakerMetrics(t *testing.T) {
 
 // ===== CacheWarmer Tests =====
 
-type MockMemoryStore struct{}
+type MockMemoryStore struct{
+	SearchOverride []Memory
+}
 
 func (m *MockMemoryStore) Search(ctx context.Context, query Query) ([]Memory, error) {
+	if len(m.SearchOverride) > 0 {
+		return m.SearchOverride, nil
+	}
 	return []Memory{
 		{ID: "m1", Content: "test memory", Type: "decision"},
 	}, nil

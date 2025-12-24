@@ -2,6 +2,7 @@ package mem0
 
 import (
 	"context"
+	"fmt"
 	"nofx/ai"
 	"testing"
 )
@@ -267,6 +268,67 @@ func TestGetFullDecisionV2ModelFallback(t *testing.T) {
 	t.Logf("✅ Model fallback test passed")
 	t.Logf("   Primary model: %s (unsupported)", cfg.UnderstandingModel)
 	t.Logf("   Fallback model: %s (used)", cfg.FallbackModel)
+}
+
+// TestGetFullDecisionV2RuntimeFallback 测试当AI模型运行时失败时的降级逻辑
+func TestGetFullDecisionV2RuntimeFallback(t *testing.T) {
+	// 1. 设置正常配置
+	cfg := &Config{
+		Enabled:            true,
+		UnderstandingModel: "mock",
+		FallbackModel:      "mock",
+	}
+
+	// 2. 创建带数据的MockStore
+	store := &MockMemoryStore{}
+	store.SearchOverride = []Memory{
+		{
+			ID:           "mem-1",
+			Content:      "Historical data suggests buying in this condition",
+			QualityScore: 0.9,
+			Type:         "decision",
+		},
+	}
+
+	compressor := NewContextCompressor(700)
+	kb := NewGlobalKnowledgeBase(store)
+	raf := NewRiskAwareFormatter()
+	sm := NewStageManager()
+	warmer := NewCacheWarmer(store, 0, 0)
+
+	gfd, _ := NewGetFullDecisionV2(store, compressor, kb, raf, sm, warmer, cfg)
+
+	// 3. 注入错误到Mock模型
+	// 需要先转换类型
+	if mockModel, ok := gfd.model.(*ai.MockAIModel); ok {
+		mockModel.SetError(fmt.Errorf("simulated API timeout"))
+	} else {
+		t.Fatal("❌ Expected gfd.model to be *ai.MockAIModel")
+	}
+
+	// 4. 生成决策
+	ctx := context.Background()
+	query := Query{Type: "semantic_search", Limit: 5}
+
+	decision, err := gfd.GenerateDecision(ctx, query)
+	if err != nil {
+		t.Fatalf("❌ GenerateDecision should not fail even if AI model fails: %v", err)
+	}
+
+	// 5. 验证是否使用了记忆回退
+	if decision.Recommendation != store.SearchOverride[0].Content {
+		t.Errorf("❌ Expected recommendation to be the top memory content, got: %s", decision.Recommendation)
+	}
+
+	// 6. 验证置信度是否降低
+	expectedConfidence := store.SearchOverride[0].QualityScore * 0.8
+	if decision.Confidence != expectedConfidence {
+		t.Errorf("❌ Expected degraded confidence %.2f, got %.2f", expectedConfidence, decision.Confidence)
+	}
+
+	t.Logf("✅ Runtime fallback test passed")
+	t.Logf("   Reason: AI model failed with timeout")
+	t.Logf("   Result: Fallback to top memory content")
 }
 
 // BenchmarkGetFullDecisionV2WithAIModel 测试GetFullDecisionV2决策生成的性能

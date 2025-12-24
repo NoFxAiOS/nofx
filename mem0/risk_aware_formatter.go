@@ -155,7 +155,7 @@ func (raf *RiskAwareFormatter) FilterMemories(memories []Memory, stage KellyStag
 				RiskScore: 0.3,
 			})
 			result.RemovedCount++
-			log.Printf("  ❌ 移除: %s (类型%s不允许)", m.ID[:8], m.Type)
+			log.Printf("  ❌ 移除: %s (类型%s不允许)", idPrefix(m.ID), m.Type)
 			continue
 		}
 
@@ -169,7 +169,7 @@ func (raf *RiskAwareFormatter) FilterMemories(memories []Memory, stage KellyStag
 				ActualValue: m.QualityScore,
 			})
 			result.RemovedCount++
-			log.Printf("  ❌ 移除: %s (质量分%.2f < %.2f)", m.ID[:8], m.QualityScore, rule.RequiredQualityMin)
+			log.Printf("  ❌ 移除: %s (质量分%.2f < %.2f)", idPrefix(m.ID), m.QualityScore, rule.RequiredQualityMin)
 			continue
 		}
 
@@ -185,7 +185,7 @@ func (raf *RiskAwareFormatter) FilterMemories(memories []Memory, stage KellyStag
 			})
 			result.RemovedCount++
 			log.Printf("  ❌ 移除: %s (Kelly%.1f%% > %.1f%%)",
-				m.ID[:8], kellyFraction*100, rule.MaxKellyFraction*100)
+				idPrefix(m.ID), kellyFraction*100, rule.MaxKellyFraction*100)
 			continue
 		}
 
@@ -201,14 +201,14 @@ func (raf *RiskAwareFormatter) FilterMemories(memories []Memory, stage KellyStag
 			})
 			result.RemovedCount++
 			log.Printf("  ❌ 移除: %s (仓位%.1f%% > %.1f%%)",
-				m.ID[:8], positionSize*100, rule.MaxPositionSize*100)
+				idPrefix(m.ID), positionSize*100, rule.MaxPositionSize*100)
 			continue
 		}
 
 		// 通过过滤,保留记忆
 		result.Memories = append(result.Memories, m)
 		log.Printf("  ✅ 保留: %s (Q=%.2f, Kelly=%.1f%%)",
-			m.ID[:8], m.QualityScore, kellyFraction*100)
+			idPrefix(m.ID), m.QualityScore, kellyFraction*100)
 	}
 
 	// 计算安全评分

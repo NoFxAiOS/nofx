@@ -108,7 +108,7 @@ func (cc *ContextCompressor) Compress(memories []Memory) CompressionResult {
 		if cc.deduplicator.IsDuplicate(m.Content) {
 			deduped++
 			result.DeduplicatedCount++
-			log.Printf("  ⚠️ 去重: %s (相似度高)", m.ID[:8])
+			log.Printf("  ⚠️ 去重: %s (相似度高)", idPrefix(m.ID))
 			continue
 		}
 
@@ -117,7 +117,7 @@ func (cc *ContextCompressor) Compress(memories []Memory) CompressionResult {
 		// 检查是否超过token限制
 		if currentTokens+memTokens > cc.maxTokens || kept >= cc.maxMemories {
 			result.RemovedCount++
-			log.Printf("  ❌ 移除: %s (超token限制或数量限制)", m.ID[:8])
+			log.Printf("  ❌ 移除: %s (超token限制或数量限制)", idPrefix(m.ID))
 			continue
 		}
 
@@ -128,7 +128,7 @@ func (cc *ContextCompressor) Compress(memories []Memory) CompressionResult {
 		result.OutputTokens += memTokens
 
 		cc.deduplicator.Add(m.Content)
-		log.Printf("  ✅ 保留: %s (Q=%.2f, %d tokens)", m.ID[:8], m.QualityScore, memTokens)
+		log.Printf("  ✅ 保留: %s (Q=%.2f, %d tokens)", idPrefix(m.ID), m.QualityScore, memTokens)
 	}
 
 	// Step 4: 计算压缩率
@@ -325,6 +325,14 @@ func (cc *ContextCompressor) GetMetrics() CompressionMetrics {
 	defer cc.metrics.mu.RUnlock()
 
 	return *cc.metrics
+}
+
+// idPrefix 安全地获取ID前缀(最多8个字符)
+func idPrefix(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
 }
 
 // PrintStats 打印统计信息

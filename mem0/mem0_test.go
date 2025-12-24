@@ -671,7 +671,18 @@ func TestGetFullDecisionV2Integration(t *testing.T) {
 	sm := NewStageManager()
 	warmer := NewCacheWarmer(store, 1*time.Second, 30*time.Second)
 
-	gfd := NewGetFullDecisionV2(store, compressor, kb, raf, sm, warmer)
+	// 创建测试用的Mem0配置(使用mock模型,避免实际API调用)
+	cfg := &Config{
+		Enabled:            true,
+		UnderstandingModel: "mock", // 使用mock模型进行测试
+		FallbackModel:      "mock",
+	}
+
+	// 创建决策器,传递cfg参数
+	gfd, err := NewGetFullDecisionV2(store, compressor, kb, raf, sm, warmer, cfg)
+	if err != nil {
+		t.Fatalf("❌ 创建GetFullDecisionV2失败: %v", err)
+	}
 
 	ctx := context.Background()
 	query := Query{
@@ -685,8 +696,9 @@ func TestGetFullDecisionV2Integration(t *testing.T) {
 		t.Logf("⚠️ 决策生成出错(预期,MockStore返回空): %v", err)
 	}
 
-	if decision.Model != "v2" {
-		t.Errorf("❌ 决策模型应为v2")
+	// 检查使用的模型名称
+	if decision.Model != cfg.UnderstandingModel {
+		t.Errorf("❌ 决策模型应为%s,实际为%s", cfg.UnderstandingModel, decision.Model)
 	}
 
 	metrics := gfd.GetMetrics()

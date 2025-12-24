@@ -10,7 +10,7 @@ import (
 // 根据配置动态创建不同的AI模型实例
 // 使用Factory设计模式，符合"开闭原则" - 对扩展开放，对修改关闭
 type AIModelFactory struct {
-	appConfig *config.Config
+	appConfig interface{} // 通用配置接口(可以是任何类型的Config)
 	db        *sql.DB
 
 	// 缓存已创建的模型实例（可选，用于避免重复创建）
@@ -18,7 +18,9 @@ type AIModelFactory struct {
 }
 
 // NewAIModelFactory 创建工厂实例
-func NewAIModelFactory(appConfig *config.Config, db *sql.DB) *AIModelFactory {
+// appConfig: 任何类型的配置对象(不强制要求特定的Config类型)
+// db: 数据库连接,用于读取Gemini配置等(可为nil)
+func NewAIModelFactory(appConfig interface{}, db *sql.DB) *AIModelFactory {
 	return &AIModelFactory{
 		appConfig:  appConfig,
 		db:         db,

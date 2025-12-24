@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"nofx/ai"
 	"sync"
 	"time"
 )
@@ -86,11 +87,13 @@ type ABMetrics struct {
 // GetFullDecisionV2 增强的决策函数(使用Mem0)
 type GetFullDecisionV2 struct {
 	store              MemoryStore
+	model              ai.AIModel            // AI模型(Gemini/GPT-4等),用于生成决策建议
 	compressor         *ContextCompressor
 	kb                 *GlobalKnowledgeBase
 	riskFormatter      *RiskAwareFormatter
 	stageManager       *StageManager
 	cacheWarmer        *CacheWarmer
+	cfg                *Config               // Mem0配置,用于控制模型降级
 	metrics            *DecisionMetrics
 	mu                 sync.RWMutex
 }
@@ -419,27 +422,50 @@ func (ab *ABTestFramework) CompleteTest() map[string]interface{} {
 	return summary
 }
 
-// NewGetFullDecisionV2 创建增强决策器
+// NewGetFullDecisionV2 创建增强决策器,集成AI模型工厂
+// cfg: Mem0配置,包含模型选择(gemini/gpt-4等)和降级策略
+// 返回error: 如果模型创建失败(但不会阻止系统,会降级使用备用模型)
 func NewGetFullDecisionV2(store MemoryStore, compressor *ContextCompressor,
 	kb *GlobalKnowledgeBase, riskFormatter *RiskAwareFormatter,
-	stageManager *StageManager, cacheWarmer *CacheWarmer) *GetFullDecisionV2 {
+	stageManager *StageManager, cacheWarmer *CacheWarmer, cfg *Config) (*GetFullDecisionV2, error) {
+
+	if cfg == nil {
+		return nil, fmt.Errorf("❌ Mem0配置(Config)不能为nil")
+	}
+
+	// 通过工厂创建AI模型,支持自动降级
+	factory := ai.NewAIModelFactory(cfg, nil) // 注: nil可以替换为*sql.DB以从数据库读取Gemini配置
+	model, err := factory.CreateWithFallback(cfg.UnderstandingModel, cfg.FallbackModel)
+
+	if err != nil {
+		// 降级失败,使用Mock模型作为最后的防线
+		log.Printf("⚠️ AI模型创建失败(primary=%s, fallback=%s): %v, 使用Mock模型",
+			cfg.UnderstandingModel, cfg.FallbackModel, err)
+		model = ai.NewMockAIModel()
+	}
+
+	log.Printf("✅ GetFullDecisionV2初始化: 模型=%s, 备用=%s", cfg.UnderstandingModel, cfg.FallbackModel)
+
 	return &GetFullDecisionV2{
 		store:         store,
+		model:         model,
 		compressor:    compressor,
 		kb:            kb,
 		riskFormatter: riskFormatter,
 		stageManager:  stageManager,
 		cacheWarmer:   cacheWarmer,
+		cfg:           cfg,
 		metrics:       &DecisionMetrics{},
-	}
+	}, nil
 }
 
-// GenerateDecision 生成增强的交易决策
+// GenerateDecision 生成增强的交易决策,整合Mem0记忆和AI模型
+// 流程: Query -> Mem0检索 -> 上下文压缩 -> 风险过滤 -> AI模型生成建议
 func (gfd *GetFullDecisionV2) GenerateDecision(ctx context.Context, query Query) (Decision, error) {
 	startTime := time.Now()
 
 	decision := Decision{
-		Model:          "v2",
+		Model:          gfd.cfg.UnderstandingModel, // 记录使用的模型名称(gemini/gpt-4等)
 		SourceMemories: make([]string, 0),
 	}
 
@@ -448,7 +474,7 @@ func (gfd *GetFullDecisionV2) GenerateDecision(ctx context.Context, query Query)
 		decision.SourceMemories = append(decision.SourceMemories, "cached")
 	}
 
-	// Step 2: 从Mem0查询
+	// Step 2: 从Mem0查询相关的记忆
 	memories, err := gfd.store.Search(ctx, query)
 	if err != nil {
 		log.Printf("⚠️ Mem0查询失败,使用知识库降级")
@@ -459,28 +485,72 @@ func (gfd *GetFullDecisionV2) GenerateDecision(ctx context.Context, query Query)
 	// Step 3: 压缩上下文
 	compressResult := gfd.compressor.Compress(memories)
 	decision.UsedCompressor = true
-	decision.Confidence = 0.85
 
 	// Step 4: 应用风险过滤
 	currentStage := gfd.stageManager.GetCurrentStage()
 	filterResult := gfd.riskFormatter.FilterMemories(compressResult.Memories, currentStage)
 	decision.FilteredCount = filterResult.RemovedCount
 
-	// Step 5: 生成建议
-	if len(filterResult.Memories) > 0 {
-		topMemory := filterResult.Memories[0]
-		decision.Recommendation = topMemory.Content
-		decision.SourceMemories = append(decision.SourceMemories, topMemory.ID)
-		decision.Confidence = topMemory.QualityScore
+	// Step 5: 调用AI模型生成决策建议
+	// 系统提示词: Mem0的角色定义
+	systemPrompt := fmt.Sprintf(`你是一个专业的交易决策助手,使用Mem0长期记忆系统增强决策能力。
+当前交易阶段: %s
+模型: %s
+任务: 根据历史记忆和当前查询,生成最优的交易建议。`,
+		currentStage, gfd.cfg.UnderstandingModel)
+
+	// 用户提示词: 包含Query和筛选后的记忆内容
+	userPrompt := gfd.buildUserPrompt(query, filterResult.Memories)
+
+	// 调用AI模型(支持自动降级)
+	recommendation, err := gfd.model.CallAPI(ctx, systemPrompt, userPrompt)
+	if err != nil {
+		log.Printf("⚠️ AI模型调用失败: %v, 使用知识库默认建议", err)
+		if len(filterResult.Memories) > 0 {
+			topMemory := filterResult.Memories[0]
+			decision.Recommendation = topMemory.Content
+			decision.SourceMemories = append(decision.SourceMemories, topMemory.ID)
+			decision.Confidence = topMemory.QualityScore * 0.8 // 降级时置信度降低20%
+		} else {
+			decision.Recommendation = "数据不足,建议观望"
+			decision.Confidence = 0.3
+		}
 	} else {
-		decision.Recommendation = "数据不足,建议观望"
-		decision.Confidence = 0.3
+		// AI模型成功生成建议
+		decision.Recommendation = recommendation
+		decision.Confidence = 0.85
+
+		// 记录使用的记忆ID
+		for _, mem := range filterResult.Memories {
+			decision.SourceMemories = append(decision.SourceMemories, mem.ID)
+		}
 	}
 
-	// 记录指标
+	// Step 6: 记录指标
 	gfd.recordMetrics(len(memories), time.Since(startTime))
 
 	return decision, nil
+}
+
+// buildUserPrompt 构建发送给AI模型的用户提示词
+// 包含当前查询和筛选后的相关记忆
+func (gfd *GetFullDecisionV2) buildUserPrompt(query Query, memories []Memory) string {
+	queryDesc := fmt.Sprintf("查询类型: %s, 限制数: %d", query.Type, query.Limit)
+	prompt := fmt.Sprintf("当前查询: %s\n\n", queryDesc)
+
+	if len(memories) == 0 {
+		prompt += "当前没有相关的历史记忆,请基于市场常识给出建议。"
+		return prompt
+	}
+
+	prompt += fmt.Sprintf("相关的历史记忆(%d条):\n", len(memories))
+	for i, mem := range memories {
+		prompt += fmt.Sprintf("记忆%d [质量%.2f]: %s\n",
+			i+1, mem.QualityScore, mem.Content)
+	}
+
+	prompt += "\n请综合考虑上述历史记忆,生成最优的交易决策建议。"
+	return prompt
 }
 
 // recordMetrics 记录指标

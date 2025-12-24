@@ -273,7 +273,8 @@ func (t *WeexTrader) GetPositions() ([]map[string]interface{}, error) {
 		}
 
 		leverage, _ := strconv.ParseFloat(pos.Leverage, 64)
-		unrealized := pos.UnrealizedPnl
+		unrealized, _ := strconv.ParseFloat(pos.UnrealizedPnl, 64)
+		liquidationPrice, _ := strconv.ParseFloat(pos.LiquidatePrice, 64)
 
 		result = append(result, map[string]interface{}{
 			"symbol":           normalizedSymbol,
@@ -283,7 +284,7 @@ func (t *WeexTrader) GetPositions() ([]map[string]interface{}, error) {
 			"markPrice":        markPrice,
 			"unRealizedProfit": unrealized,
 			"leverage":         leverage,
-			"liquidationPrice": pos.LiquidatePrice,
+			"liquidationPrice": liquidationPrice,
 		})
 	}
 

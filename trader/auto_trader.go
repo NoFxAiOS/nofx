@@ -1119,7 +1119,25 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		// Continue execution, doesn't affect trading
 	}
 
-	// Open position
+	// Open position (prefer preset-aware API when available)
+	if traderWithPreset, ok := at.trader.(interface {
+		OpenLongWithPreset(symbol string, quantity float64, leverage int, preset OrderPreset) (map[string]interface{}, error)
+	}); ok {
+		order, err := traderWithPreset.OpenLongWithPreset(decision.Symbol, quantity, decision.Leverage, OrderPreset{
+			StopLoss:   decision.StopLoss,
+			TakeProfit: decision.TakeProfit,
+		})
+		if err != nil {
+			return err
+		}
+		actionRecord.OrderID, _ = order["orderId"].(int64)
+		logger.Infof("  ✓ Position opened successfully, order ID: %v, quantity: %.4f", order["orderId"], quantity)
+		at.recordAndConfirmOrder(order, decision.Symbol, "open_long", quantity, marketData.CurrentPrice, decision.Leverage, 0)
+		posKey := decision.Symbol + "_long"
+		at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
+		return nil
+	}
+
 	order, err := at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
 	if err != nil {
 		return err
@@ -1236,7 +1254,25 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		// Continue execution, doesn't affect trading
 	}
 
-	// Open position
+	// Open position (prefer preset-aware API when available)
+	if traderWithPreset, ok := at.trader.(interface {
+		OpenShortWithPreset(symbol string, quantity float64, leverage int, preset OrderPreset) (map[string]interface{}, error)
+	}); ok {
+		order, err := traderWithPreset.OpenShortWithPreset(decision.Symbol, quantity, decision.Leverage, OrderPreset{
+			StopLoss:   decision.StopLoss,
+			TakeProfit: decision.TakeProfit,
+		})
+		if err != nil {
+			return err
+		}
+		actionRecord.OrderID, _ = order["orderId"].(int64)
+		logger.Infof("  ✓ Position opened successfully, order ID: %v, quantity: %.4f", order["orderId"], quantity)
+		at.recordAndConfirmOrder(order, decision.Symbol, "open_short", quantity, marketData.CurrentPrice, decision.Leverage, 0)
+		posKey := decision.Symbol + "_short"
+		at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
+		return nil
+	}
+
 	order, err := at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
 	if err != nil {
 		return err

@@ -292,11 +292,19 @@ func (t *WeexTrader) GetPositions() ([]map[string]interface{}, error) {
 }
 
 func (t *WeexTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	return t.openPosition(symbol, quantity, leverage, 1, nil)
+	return t.OpenLongWithPreset(symbol, quantity, leverage, OrderPreset{})
+}
+
+func (t *WeexTrader) OpenLongWithPreset(symbol string, quantity float64, leverage int, preset OrderPreset) (map[string]interface{}, error) {
+	return t.openPosition(symbol, quantity, leverage, 1, preset)
 }
 
 func (t *WeexTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
-	return t.openPosition(symbol, quantity, leverage, 2, nil)
+	return t.OpenShortWithPreset(symbol, quantity, leverage, OrderPreset{})
+}
+
+func (t *WeexTrader) OpenShortWithPreset(symbol string, quantity float64, leverage int, preset OrderPreset) (map[string]interface{}, error) {
+	return t.openPosition(symbol, quantity, leverage, 2, preset)
 }
 
 func (t *WeexTrader) CloseLong(symbol string, quantity float64) (map[string]interface{}, error) {
@@ -696,7 +704,7 @@ func planOrderType(positionSide string, intent planOrderIntent) (int, error) {
 
 // --- internal helpers ---
 
-func (t *WeexTrader) openPosition(symbol string, quantity float64, leverage int, orderType int, preset *OrderPreset) (map[string]interface{}, error) {
+func (t *WeexTrader) openPosition(symbol string, quantity float64, leverage int, orderType int, preset OrderPreset) (map[string]interface{}, error) {
 	if err := t.CancelAllOrders(symbol); err != nil {
 		log.Printf("⚠️ 清理旧委托失败: %v", err)
 	}
@@ -733,21 +741,19 @@ func (t *WeexTrader) openPosition(symbol string, quantity float64, leverage int,
 
 	presetTakeProfit := "0"
 	presetStopLoss := "0"
-	if preset != nil {
-		if preset.TakeProfit > 0 {
-			formatted, err := t.formatPrice(symbol, preset.TakeProfit)
-			if err != nil {
-				return nil, fmt.Errorf("format preset take profit: %w", err)
-			}
-			presetTakeProfit = formatted
+	if preset.TakeProfit > 0 {
+		formatted, err := t.formatPrice(symbol, preset.TakeProfit)
+		if err != nil {
+			return nil, fmt.Errorf("format preset take profit: %w", err)
 		}
-		if preset.StopLoss > 0 {
-			formatted, err := t.formatPrice(symbol, preset.StopLoss)
-			if err != nil {
-				return nil, fmt.Errorf("format preset stop loss: %w", err)
-			}
-			presetStopLoss = formatted
+		presetTakeProfit = formatted
+	}
+	if preset.StopLoss > 0 {
+		formatted, err := t.formatPrice(symbol, preset.StopLoss)
+		if err != nil {
+			return nil, fmt.Errorf("format preset stop loss: %w", err)
 		}
+		presetStopLoss = formatted
 	}
 
 	payload := map[string]string{

@@ -18,31 +18,31 @@ import (
 
 // AccountInfo LIGHTER account information
 type AccountInfo struct {
-	AccountIndex     int64   `json:"account_index"`
-	Index            int64   `json:"index"` // Same as account_index
-	L1Address        string  `json:"l1_address"`
-	AvailableBalance string  `json:"available_balance"`
-	Collateral       string  `json:"collateral"`
-	CrossAssetValue  string  `json:"cross_asset_value"`
-	TotalEquity      string  `json:"total_equity"`
-	UnrealizedPnl    string  `json:"unrealized_pnl"`
+	AccountIndex     int64                 `json:"account_index"`
+	Index            int64                 `json:"index"` // Same as account_index
+	L1Address        string                `json:"l1_address"`
+	AvailableBalance string                `json:"available_balance"`
+	Collateral       string                `json:"collateral"`
+	CrossAssetValue  string                `json:"cross_asset_value"`
+	TotalEquity      string                `json:"total_equity"`
+	UnrealizedPnl    string                `json:"unrealized_pnl"`
 	Positions        []LighterPositionInfo `json:"positions"`
 }
 
 // LighterPositionInfo Position info from Lighter account API
 type LighterPositionInfo struct {
-	MarketID              int     `json:"market_id"`
-	Symbol                string  `json:"symbol"`
-	Sign                  int     `json:"sign"`                    // 1 = long, -1 = short
-	Position              string  `json:"position"`                // Position size
-	AvgEntryPrice         string  `json:"avg_entry_price"`         // Entry price
-	PositionValue         string  `json:"position_value"`          // Position value in USD
-	LiquidationPrice      string  `json:"liquidation_price"`
-	UnrealizedPnl         string  `json:"unrealized_pnl"`
-	RealizedPnl           string  `json:"realized_pnl"`
-	InitialMarginFraction string  `json:"initial_margin_fraction"` // e.g. "5.00" means 5% = 20x leverage
-	AllocatedMargin       string  `json:"allocated_margin"`
-	MarginMode            int     `json:"margin_mode"`             // 0 = cross, 1 = isolated
+	MarketID              int    `json:"market_id"`
+	Symbol                string `json:"symbol"`
+	Sign                  int    `json:"sign"`            // 1 = long, -1 = short
+	Position              string `json:"position"`        // Position size
+	AvgEntryPrice         string `json:"avg_entry_price"` // Entry price
+	PositionValue         string `json:"position_value"`  // Position value in USD
+	LiquidationPrice      string `json:"liquidation_price"`
+	UnrealizedPnl         string `json:"unrealized_pnl"`
+	RealizedPnl           string `json:"realized_pnl"`
+	InitialMarginFraction string `json:"initial_margin_fraction"` // e.g. "5.00" means 5% = 20x leverage
+	AllocatedMargin       string `json:"allocated_margin"`
+	MarginMode            int    `json:"margin_mode"` // 0 = cross, 1 = isolated
 }
 
 // AccountResponse LIGHTER account API response
@@ -74,9 +74,9 @@ type LighterTraderV2 struct {
 	accountIndex     int64  // Account index
 
 	// Authentication token
-	authToken     string
-	tokenExpiry   time.Time
-	accountMutex  sync.RWMutex
+	authToken    string
+	tokenExpiry  time.Time
+	accountMutex sync.RWMutex
 
 	// Market info cache
 	symbolPrecision map[string]SymbolPrecision

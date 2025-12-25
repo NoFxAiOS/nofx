@@ -1,10 +1,13 @@
 package market
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"nofx/logger"
+	"nofx/provider/coinank"
+	"nofx/provider/coinank/coinank_enum"
 	"math"
 	"strconv"
 	"strings"
@@ -22,7 +25,75 @@ type FundingRateCache struct {
 var (
 	fundingRateMap sync.Map // map[string]*FundingRateCache
 	frCacheTTL     = 1 * time.Hour
+	coinankClient  *coinank.CoinankClient // Global CoinAnk client for kline data
 )
+
+// Initialize CoinAnk client
+func init() {
+	coinankClient = coinank.NewCoinankClient(coinank_enum.MainUrl, "0cccbd7992754b67b1848c6746c0fce0")
+}
+
+// getKlinesFromCoinAnk fetches kline data from CoinAnk API (replacement for WSMonitorCli)
+func getKlinesFromCoinAnk(symbol, interval string, limit int) ([]Kline, error) {
+	// Map interval string to coinank enum
+	var coinankInterval coinank_enum.Interval
+	switch interval {
+	case "1m":
+		coinankInterval = coinank_enum.Minute1
+	case "3m":
+		coinankInterval = coinank_enum.Minute3
+	case "5m":
+		coinankInterval = coinank_enum.Minute5
+	case "15m":
+		coinankInterval = coinank_enum.Minute15
+	case "30m":
+		coinankInterval = coinank_enum.Minute30
+	case "1h":
+		coinankInterval = coinank_enum.Hour1
+	case "2h":
+		coinankInterval = coinank_enum.Hour2
+	case "4h":
+		coinankInterval = coinank_enum.Hour4
+	case "6h":
+		coinankInterval = coinank_enum.Hour6
+	case "8h":
+		coinankInterval = coinank_enum.Hour8
+	case "12h":
+		coinankInterval = coinank_enum.Hour12
+	case "1d":
+		coinankInterval = coinank_enum.Day1
+	case "3d":
+		coinankInterval = coinank_enum.Day3
+	case "1w":
+		coinankInterval = coinank_enum.Week1
+	default:
+		return nil, fmt.Errorf("unsupported interval: %s", interval)
+	}
+
+	// Call CoinAnk API (default to Binance exchange for compatibility)
+	ctx := context.Background()
+	endTime := time.Now().UnixMilli()
+	coinankKlines, err := coinankClient.Kline(ctx, symbol, coinank_enum.Binance, 0, endTime, limit, coinankInterval)
+	if err != nil {
+		return nil, fmt.Errorf("CoinAnk API error: %w", err)
+	}
+
+	// Convert coinank kline format to market.Kline format
+	klines := make([]Kline, len(coinankKlines))
+	for i, ck := range coinankKlines {
+		klines[i] = Kline{
+			OpenTime:  ck.StartTime,
+			Open:      ck.Open,
+			High:      ck.High,
+			Low:       ck.Low,
+			Close:     ck.Close,
+			Volume:    ck.Volume,
+			CloseTime: ck.EndTime,
+		}
+	}
+
+	return klines, nil
+}
 
 // Get retrieves market data for the specified token
 func Get(symbol string) (*Data, error) {
@@ -30,10 +101,10 @@ func Get(symbol string) (*Data, error) {
 	var err error
 	// Normalize symbol
 	symbol = Normalize(symbol)
-	// Get 3-minute K-line data (latest 10)
-	klines3m, err = WSMonitorCli.GetCurrentKlines(symbol, "3m") // Get more for calculation
+	// Get 3-minute K-line data from CoinAnk (get 100 for calculation)
+	klines3m, err = getKlinesFromCoinAnk(symbol, "3m", 100)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get 3-minute K-line: %v", err)
+		return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk: %v", err)
 	}
 
 	// Data staleness detection: Prevent DOGEUSDT-style price freeze issues
@@ -42,10 +113,10 @@ func Get(symbol string) (*Data, error) {
 		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
-	// Get 4-hour K-line data (latest 10)
-	klines4h, err = WSMonitorCli.GetCurrentKlines(symbol, "4h") // Get more for indicator calculation
+	// Get 4-hour K-line data from CoinAnk (get 100 for indicator calculation)
+	klines4h, err = getKlinesFromCoinAnk(symbol, "4h", 100)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get 4-hour K-line: %v", err)
+		return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk: %v", err)
 	}
 
 	// Check if data is empty
@@ -144,11 +215,11 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	timeframeData := make(map[string]*TimeframeSeriesData)
 	var primaryKlines []Kline
 
-	// Get K-line data for each timeframe
+	// Get K-line data for each timeframe from CoinAnk
 	for _, tf := range timeframes {
-		klines, err := WSMonitorCli.GetCurrentKlines(symbol, tf)
+		klines, err := getKlinesFromCoinAnk(symbol, tf, 200) // Get enough data for indicators
 		if err != nil {
-			logger.Infof("⚠️ Failed to get %s %s K-line: %v", symbol, tf, err)
+			logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
 			continue
 		}
 

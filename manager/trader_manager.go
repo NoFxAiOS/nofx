@@ -450,7 +450,7 @@ func (tm *TraderManager) LoadUserTradersFromStore(st *store.Store, userID string
 	for _, traderCfg := range traders {
 		// Check if this trader is already loaded
 		if _, exists := tm.traders[traderCfg.ID]; exists {
-			logger.Infof("⚠️ Trader %s already loaded, skipping", traderCfg.Name)
+			// Trader already loaded - this is normal, no need to log
 			continue
 		}
 

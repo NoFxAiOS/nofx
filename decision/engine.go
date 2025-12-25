@@ -403,9 +403,33 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		return candidates, nil
 
 	case "coinpool":
+		// 检查 use_coin_pool 标志，如果为 false 则回退到静态币种
+		if !coinSource.UseCoinPool {
+			logger.Infof("⚠️  source_type is 'coinpool' but use_coin_pool is false, falling back to static coins")
+			for _, symbol := range coinSource.StaticCoins {
+				symbol = market.Normalize(symbol)
+				candidates = append(candidates, CandidateCoin{
+					Symbol:  symbol,
+					Sources: []string{"static"},
+				})
+			}
+			return candidates, nil
+		}
 		return e.getCoinPoolCoins(coinSource.CoinPoolLimit)
 
 	case "oi_top":
+		// 检查 use_oi_top 标志，如果为 false 则回退到静态币种
+		if !coinSource.UseOITop {
+			logger.Infof("⚠️  source_type is 'oi_top' but use_oi_top is false, falling back to static coins")
+			for _, symbol := range coinSource.StaticCoins {
+				symbol = market.Normalize(symbol)
+				candidates = append(candidates, CandidateCoin{
+					Symbol:  symbol,
+					Sources: []string{"static"},
+				})
+			}
+			return candidates, nil
+		}
 		return e.getOITopCoins(coinSource.OITopLimit)
 
 	case "mixed":
@@ -702,6 +726,13 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	var sb strings.Builder
 	riskControl := e.config.RiskControl
 	promptSections := e.config.PromptSections
+
+	// 0. Data Dictionary & Schema (ensure AI understands all fields)
+	lang := detectLanguage(promptSections.RoleDefinition)
+	schemaPrompt := GetSchemaPrompt(lang)
+	sb.WriteString(schemaPrompt)
+	sb.WriteString("\n\n")
+	sb.WriteString("---\n\n")
 
 	// 1. Role definition (editable)
 	if promptSections.RoleDefinition != "" {
@@ -1612,4 +1643,19 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 	}
 
 	return nil
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+// detectLanguage detects language from text content
+// Returns LangChinese if text contains Chinese characters, otherwise LangEnglish
+func detectLanguage(text string) Language {
+	for _, r := range text {
+		if r >= 0x4E00 && r <= 0x9FFF {
+			return LangChinese
+		}
+	}
+	return LangEnglish
 }

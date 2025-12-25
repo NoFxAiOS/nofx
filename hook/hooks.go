@@ -13,7 +13,7 @@ var (
 
 func HookExec[T any](key string, args ...any) *T {
 	if !EnableHooks {
-		log.Printf("🔌 Hooks are disabled, skip hook: %s", key)
+		// Hooks are disabled, skip silently
 		var zero *T
 		return zero
 	}
@@ -21,9 +21,8 @@ func HookExec[T any](key string, args ...any) *T {
 		log.Printf("🔌 Execute hook: %s", key)
 		res := hook(args...)
 		return res.(*T)
-	} else {
-		log.Printf("🔌 Do not find hook: %s", key)
 	}
+	// Hook not found, skip silently (no log spam)
 	var zero *T
 	return zero
 }

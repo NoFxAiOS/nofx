@@ -12,6 +12,9 @@ import (
 	"nofx/crypto"
 	"nofx/logger"
 	"nofx/manager"
+	"nofx/market"
+	"nofx/provider/coinank"
+	"nofx/provider/coinank/coinank_enum"
 	"nofx/store"
 	"nofx/trader"
 	"strconv"
@@ -117,6 +120,9 @@ func (s *Server) setupRoutes() {
 		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
+		// Market data (no authentication required)
+		api.GET("/klines", s.handleKlines)
+
 		// Authentication related routes (no authentication required)
 		api.POST("/register", s.handleRegister)
 		api.POST("/login", s.handleLogin)
@@ -185,6 +191,9 @@ func (s *Server) setupRoutes() {
 			protected.GET("/status", s.handleStatus)
 			protected.GET("/account", s.handleAccount)
 			protected.GET("/positions", s.handlePositions)
+			protected.GET("/trades", s.handleTrades)
+			protected.GET("/orders", s.handleOrders)           // Order list (all orders)
+			protected.GET("/orders/:id/fills", s.handleOrderFills) // Order fill details
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
@@ -1286,6 +1295,29 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		return
 	}
 
+	// Get current position info BEFORE closing (to get quantity and price)
+	positions, err := tempTrader.GetPositions()
+	if err != nil {
+		logger.Infof("⚠️ Failed to get positions: %v", err)
+	}
+
+	var posQty float64
+	var entryPrice float64
+	for _, pos := range positions {
+		if pos["symbol"] == req.Symbol && pos["side"] == strings.ToLower(req.Side) {
+			if amt, ok := pos["positionAmt"].(float64); ok {
+				posQty = amt
+				if posQty < 0 {
+					posQty = -posQty // Make positive
+				}
+			}
+			if price, ok := pos["entryPrice"].(float64); ok {
+				entryPrice = price
+			}
+			break
+		}
+	}
+
 	// Execute close position operation
 	var result map[string]interface{}
 	var closeErr error
@@ -1305,13 +1337,221 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		return
 	}
 
-	logger.Infof("✅ Position closed successfully: symbol=%s, side=%s, result=%v", req.Symbol, req.Side, result)
+	logger.Infof("✅ Position closed successfully: symbol=%s, side=%s, qty=%.6f, result=%v", req.Symbol, req.Side, posQty, result)
+
+	// Record order to database (for chart markers and history)
+	s.recordClosePositionOrder(traderID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Position closed successfully",
 		"symbol":  req.Symbol,
 		"side":    req.Side,
 		"result":  result,
 	})
+}
+
+// recordClosePositionOrder Record close position order to database (Lighter version - direct FILLED status)
+func (s *Server) recordClosePositionOrder(traderID, exchangeType, symbol, side string, quantity, exitPrice float64, result map[string]interface{}) {
+	// Check if order was placed (skip if NO_POSITION)
+	status, _ := result["status"].(string)
+	if status == "NO_POSITION" {
+		logger.Infof("  ⚠️ No position to close, skipping order record")
+		return
+	}
+
+	// Get order ID from result
+	var orderID string
+	switch v := result["orderId"].(type) {
+	case int64:
+		orderID = fmt.Sprintf("%d", v)
+	case float64:
+		orderID = fmt.Sprintf("%.0f", v)
+	case string:
+		orderID = v
+	default:
+		orderID = fmt.Sprintf("%v", v)
+	}
+
+	if orderID == "" || orderID == "0" {
+		logger.Infof("  ⚠️ Order ID is empty, skipping record")
+		return
+	}
+
+	// Determine order action based on side
+	var orderAction string
+	if side == "LONG" {
+		orderAction = "close_long"
+	} else {
+		orderAction = "close_short"
+	}
+
+	// Use entry price if exit price not available
+	if exitPrice == 0 {
+		exitPrice = quantity * 100 // Rough estimate if we don't have price
+	}
+
+	// Estimate fee (0.04% for Lighter taker)
+	fee := exitPrice * quantity * 0.0004
+
+	// Create order record - DIRECTLY as FILLED (Lighter market orders fill immediately)
+	orderRecord := &store.TraderOrder{
+		TraderID:        traderID,
+		ExchangeID:      exchangeType,
+		ExchangeOrderID: orderID,
+		Symbol:          symbol,
+		PositionSide:    side,
+		OrderAction:     orderAction,
+		Type:            "MARKET",
+		Side:            getSideFromAction(orderAction),
+		Quantity:        quantity,
+		Price:           0, // Market order
+		Status:          "FILLED",
+		FilledQuantity:  quantity,
+		AvgFillPrice:    exitPrice,
+		Commission:      fee,
+		FilledAt:        time.Now(),
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+
+	if err := s.store.Order().CreateOrder(orderRecord); err != nil {
+		logger.Infof("  ⚠️ Failed to record order: %v", err)
+		return
+	}
+
+	logger.Infof("  ✅ Order recorded as FILLED: %s [%s] %s qty=%.6f price=%.6f", orderID, orderAction, symbol, quantity, exitPrice)
+
+	// Create fill record immediately
+	tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
+	fillRecord := &store.TraderFill{
+		TraderID:        traderID,
+		ExchangeID:      exchangeType,
+		OrderID:         orderRecord.ID,
+		ExchangeOrderID: orderID,
+		ExchangeTradeID: tradeID,
+		Symbol:          symbol,
+		Side:            getSideFromAction(orderAction),
+		Price:           exitPrice,
+		Quantity:        quantity,
+		QuoteQuantity:   exitPrice * quantity,
+		Commission:      fee,
+		CommissionAsset: "USDT",
+		RealizedPnL:     0,
+		IsMaker:         false,
+		CreatedAt:       time.Now(),
+	}
+
+	if err := s.store.Order().CreateFill(fillRecord); err != nil {
+		logger.Infof("  ⚠️ Failed to record fill: %v", err)
+	} else {
+		logger.Infof("  ✅ Fill record created: price=%.6f qty=%.6f", exitPrice, quantity)
+	}
+}
+
+// pollAndUpdateOrderStatus Poll order status and update with fill data
+func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
+	var actualPrice float64
+	var actualQty float64
+	var fee float64
+
+	// Wait a bit for order to be filled
+	time.Sleep(500 * time.Millisecond)
+
+	// For Lighter, use GetTrades instead of GetOrderStatus (market orders are filled immediately)
+	if exchangeType == "lighter" {
+		s.pollLighterTradeHistory(orderRecordID, traderID, exchangeType, orderID, symbol, orderAction, tempTrader)
+		return
+	}
+
+	// For other exchanges, poll GetOrderStatus
+	for i := 0; i < 5; i++ {
+		status, err := tempTrader.GetOrderStatus(symbol, orderID)
+		if err != nil {
+			logger.Infof("  ⚠️ GetOrderStatus failed (attempt %d/5): %v", i+1, err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if err == nil {
+			statusStr, _ := status["status"].(string)
+			if statusStr == "FILLED" {
+				// Get actual fill price
+				if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
+					actualPrice = avgPrice
+				}
+				// Get actual executed quantity
+				if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
+					actualQty = execQty
+				}
+				// Get commission/fee
+				if commission, ok := status["commission"].(float64); ok {
+					fee = commission
+				}
+
+				logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
+
+				// Update order status to FILLED
+				if err := s.store.Order().UpdateOrderStatus(orderRecordID, "FILLED", actualQty, actualPrice, fee); err != nil {
+					logger.Infof("  ⚠️ Failed to update order status: %v", err)
+					return
+				}
+
+				// Record fill details
+				tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
+				fillRecord := &store.TraderFill{
+					TraderID:        traderID,
+					ExchangeID:      exchangeType,
+					OrderID:         orderRecordID,
+					ExchangeOrderID: orderID,
+					ExchangeTradeID: tradeID,
+					Symbol:          symbol,
+					Side:            getSideFromAction(orderAction),
+					Price:           actualPrice,
+					Quantity:        actualQty,
+					QuoteQuantity:   actualPrice * actualQty,
+					Commission:      fee,
+					CommissionAsset: "USDT",
+					RealizedPnL:     0,
+					IsMaker:         false,
+					CreatedAt:       time.Now(),
+				}
+
+				if err := s.store.Order().CreateFill(fillRecord); err != nil {
+					logger.Infof("  ⚠️ Failed to record fill: %v", err)
+				} else {
+					logger.Infof("  📝 Fill recorded: price=%.6f, qty=%.6f", actualPrice, actualQty)
+				}
+
+				return
+			} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
+				logger.Infof("  ⚠️ Order %s, updating status", statusStr)
+				s.store.Order().UpdateOrderStatus(orderRecordID, statusStr, 0, 0, 0)
+				return
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	logger.Infof("  ⚠️ Failed to confirm order fill after polling, order may still be pending")
+}
+
+// pollLighterTradeHistory No longer used - Lighter orders are marked as FILLED immediately
+// Keeping this function stub for compatibility with other exchanges
+func (s *Server) pollLighterTradeHistory(orderRecordID int64, traderID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
+	// For Lighter, orders are now recorded as FILLED immediately in recordClosePositionOrder
+	// This function is no longer called for Lighter exchange
+	logger.Infof("  ℹ️ pollLighterTradeHistory called but not needed (order already marked FILLED)")
+}
+
+// getSideFromAction Get order side (BUY/SELL) from order action
+func getSideFromAction(action string) string {
+	switch action {
+	case "open_long", "close_short":
+		return "BUY"
+	case "open_short", "close_long":
+		return "SELL"
+	default:
+		return "BUY"
+	}
 }
 
 // handleGetModelConfigs Get AI model configurations
@@ -1871,6 +2111,305 @@ func (s *Server) handlePositions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, positions)
+}
+
+// handleTrades Historical trades list
+func (s *Server) handleTrades(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get optional query parameters
+	symbol := c.Query("symbol")
+	limitStr := c.DefaultQuery("limit", "100")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	// Normalize symbol (add USDT suffix if not present)
+	if symbol != "" {
+		symbol = market.Normalize(symbol)
+	}
+
+	// Get trades from store
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	allTrades, err := store.Position().GetRecentTrades(trader.GetID(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get trades: %v", err),
+		})
+		return
+	}
+
+	// Filter by symbol if specified
+	if symbol != "" {
+		var result []interface{}
+		for _, trade := range allTrades {
+			if trade.Symbol == symbol {
+				result = append(result, trade)
+			}
+		}
+		c.JSON(http.StatusOK, result)
+		return
+	}
+
+	c.JSON(http.StatusOK, allTrades)
+}
+
+// handleOrders Order list (all orders including open, close, stop loss, take profit, etc.)
+func (s *Server) handleOrders(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get optional query parameters
+	symbol := c.Query("symbol")
+	statusFilter := c.Query("status") // NEW, FILLED, CANCELED, etc.
+	limitStr := c.DefaultQuery("limit", "100")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	// Normalize symbol (add USDT suffix if not present)
+	if symbol != "" {
+		symbol = market.Normalize(symbol)
+	}
+
+	// Get orders from store
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	// Get all orders for this trader
+	allOrders, err := store.Order().GetTraderOrders(trader.GetID(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get orders: %v", err),
+		})
+		return
+	}
+
+	// Filter by symbol and status if specified
+	result := make([]interface{}, 0)
+	for _, order := range allOrders {
+		// Filter by symbol
+		if symbol != "" && order.Symbol != symbol {
+			continue
+		}
+		// Filter by status
+		if statusFilter != "" && order.Status != statusFilter {
+			continue
+		}
+		result = append(result, order)
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// handleOrderFills Order fill details (all fills for a specific order)
+func (s *Server) handleOrderFills(c *gin.Context) {
+	orderIDStr := c.Param("id")
+	orderID, err := strconv.ParseInt(orderIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	// Get fills for this order
+	fills, err := store.Order().GetOrderFills(orderID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get order fills: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, fills)
+}
+
+// handleKlines K-line data (supports multiple exchanges via coinank)
+func (s *Server) handleKlines(c *gin.Context) {
+	// Get query parameters
+	symbol := c.Query("symbol")
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol parameter is required"})
+		return
+	}
+
+	interval := c.DefaultQuery("interval", "5m")
+	exchange := c.DefaultQuery("exchange", "binance") // Default to binance for backward compatibility
+	limitStr := c.DefaultQuery("limit", "1000")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 1000
+	}
+
+	// Coinank API has a maximum limit of 1500 klines per request
+	if limit > 1500 {
+		limit = 1500
+	}
+
+	// Normalize symbol (add USDT suffix if not present)
+	symbol = market.Normalize(symbol)
+
+	// Use CoinAnk API for all exchanges (no more Binance API or WebSocket cache)
+	var klines []market.Kline
+
+	// All data now comes from CoinAnk
+	klines, err = s.getKlinesFromCoinank(symbol, interval, exchange, limit)
+	if err != nil {
+		logger.Errorf("❌ CoinAnk API failed for %s on %s: %v", symbol, exchange, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get klines from CoinAnk: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, klines)
+}
+
+// getKlinesFromCoinank fetches kline data from coinank API for multiple exchanges
+func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit int) ([]market.Kline, error) {
+	// Import coinank packages
+	coinankClient := coinank.NewCoinankClient(coinank_enum.MainUrl, "0cccbd7992754b67b1848c6746c0fce0")
+
+	// Map exchange string to coinank enum
+	var coinankExchange coinank_enum.Exchange
+	switch strings.ToLower(exchange) {
+	case "binance":
+		coinankExchange = coinank_enum.Binance
+	case "bybit":
+		coinankExchange = coinank_enum.Bybit
+	case "okx":
+		coinankExchange = coinank_enum.Okex
+	case "bitget":
+		coinankExchange = coinank_enum.Bitget
+	case "hyperliquid":
+		coinankExchange = coinank_enum.Hyperliquid
+	case "aster":
+		coinankExchange = coinank_enum.Aster
+	case "lighter":
+		// Lighter doesn't have direct CoinAnk support, use Binance data as fallback
+		coinankExchange = coinank_enum.Binance
+	default:
+		// For any unknown exchange, default to Binance
+		logger.Warnf("⚠️ Unknown exchange '%s', defaulting to Binance for CoinAnk", exchange)
+		coinankExchange = coinank_enum.Binance
+	}
+
+	// Map interval string to coinank enum
+	var coinankInterval coinank_enum.Interval
+	switch interval {
+	case "1s":
+		coinankInterval = coinank_enum.Second1
+	case "5s":
+		coinankInterval = coinank_enum.Second5
+	case "10s":
+		coinankInterval = coinank_enum.Second10
+	case "30s":
+		coinankInterval = coinank_enum.Second30
+	case "1m":
+		coinankInterval = coinank_enum.Minute1
+	case "3m":
+		coinankInterval = coinank_enum.Minute3
+	case "5m":
+		coinankInterval = coinank_enum.Minute5
+	case "10m":
+		coinankInterval = coinank_enum.Minute10
+	case "15m":
+		coinankInterval = coinank_enum.Minute15
+	case "30m":
+		coinankInterval = coinank_enum.Minute30
+	case "1h":
+		coinankInterval = coinank_enum.Hour1
+	case "2h":
+		coinankInterval = coinank_enum.Hour2
+	case "4h":
+		coinankInterval = coinank_enum.Hour4
+	case "6h":
+		coinankInterval = coinank_enum.Hour6
+	case "8h":
+		coinankInterval = coinank_enum.Hour8
+	case "12h":
+		coinankInterval = coinank_enum.Hour12
+	case "1d":
+		coinankInterval = coinank_enum.Day1
+	case "3d":
+		coinankInterval = coinank_enum.Day3
+	case "1w":
+		coinankInterval = coinank_enum.Week1
+	case "1M":
+		coinankInterval = coinank_enum.Month1
+	default:
+		return nil, fmt.Errorf("unsupported interval for coinank: %s", interval)
+	}
+
+	// Call coinank API
+	ctx := context.Background()
+	endTime := time.Now().UnixMilli()
+	coinankKlines, err := coinankClient.Kline(ctx, symbol, coinankExchange, 0, endTime, limit, coinankInterval)
+	if err != nil {
+		return nil, fmt.Errorf("coinank API error: %w", err)
+	}
+
+	// Convert coinank kline format to market.Kline format
+	klines := make([]market.Kline, len(coinankKlines))
+	for i, ck := range coinankKlines {
+		klines[i] = market.Kline{
+			OpenTime:  ck.StartTime,
+			Open:      ck.Open,
+			High:      ck.High,
+			Low:       ck.Low,
+			Close:     ck.Close,
+			Volume:    ck.Volume,
+			CloseTime: ck.EndTime,
+		}
+	}
+
+	return klines, nil
 }
 
 // handleDecisions Decision log list

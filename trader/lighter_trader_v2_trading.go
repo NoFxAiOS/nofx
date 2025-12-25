@@ -40,7 +40,7 @@ func (t *LighterTraderV2) OpenLong(symbol string, quantity float64, leverage int
 	}
 
 	// 4. Create market buy order (open long)
-	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market")
+	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market", false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open long: %w", err)
 	}
@@ -81,7 +81,7 @@ func (t *LighterTraderV2) OpenShort(symbol string, quantity float64, leverage in
 	}
 
 	// 4. Create market sell order (open short)
-	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market")
+	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market", false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open short: %w", err)
 	}
@@ -120,21 +120,22 @@ func (t *LighterTraderV2) CloseLong(symbol string, quantity float64) (map[string
 
 	logger.Infof("🔻 LIGHTER closing long: %s, qty=%.4f", symbol, quantity)
 
-	// Create market sell order to close (reduceOnly=true)
-	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market")
-	if err != nil {
-		return nil, fmt.Errorf("failed to close long: %w", err)
-	}
-
-	// Cancel all open orders after closing position
+	// Cancel pending orders before closing
 	if err := t.CancelAllOrders(symbol); err != nil {
 		logger.Infof("⚠️  Failed to cancel orders: %v", err)
 	}
 
-	logger.Infof("✓ LIGHTER closed long successfully: %s", symbol)
+	// Create market sell order to close (reduceOnly=true)
+	orderResult, err := t.CreateOrder(symbol, true, quantity, 0, "market", true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to close long: %w", err)
+	}
+
+	txHash, _ := orderResult["orderId"].(string)
+	logger.Infof("✓ LIGHTER closed long successfully: %s (tx: %s)", symbol, txHash)
 
 	return map[string]interface{}{
-		"orderId": orderResult["orderId"],
+		"orderId": txHash,
 		"symbol":  symbol,
 		"status":  "FILLED",
 	}, nil
@@ -163,94 +164,99 @@ func (t *LighterTraderV2) CloseShort(symbol string, quantity float64) (map[strin
 
 	logger.Infof("🔺 LIGHTER closing short: %s, qty=%.4f", symbol, quantity)
 
-	// Create market buy order to close (reduceOnly=true)
-	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market")
-	if err != nil {
-		return nil, fmt.Errorf("failed to close short: %w", err)
-	}
-
-	// Cancel all open orders after closing position
+	// Cancel pending orders before closing
 	if err := t.CancelAllOrders(symbol); err != nil {
 		logger.Infof("⚠️  Failed to cancel orders: %v", err)
 	}
 
-	logger.Infof("✓ LIGHTER closed short successfully: %s", symbol)
+	// Create market buy order to close (reduceOnly=true)
+	orderResult, err := t.CreateOrder(symbol, false, quantity, 0, "market", true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to close short: %w", err)
+	}
+
+	txHash, _ := orderResult["orderId"].(string)
+	logger.Infof("✓ LIGHTER closed short successfully: %s (tx: %s)", symbol, txHash)
 
 	return map[string]interface{}{
-		"orderId": orderResult["orderId"],
+		"orderId": txHash,
 		"symbol":  symbol,
 		"status":  "FILLED",
 	}, nil
 }
 
 // CreateOrder Create order (market or limit) - uses official SDK for signing
-func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float64, price float64, orderType string) (map[string]interface{}, error) {
+func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float64, price float64, orderType string, reduceOnly bool) (map[string]interface{}, error) {
 	if t.txClient == nil {
 		return nil, fmt.Errorf("TxClient not initialized")
 	}
 
-	// Get market index (convert from symbol)
-	marketIndexU16, err := t.getMarketIndex(symbol)
+	// Get market info (includes market_id and precision)
+	marketInfo, err := t.getMarketInfo(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get market index: %w", err)
+		return nil, fmt.Errorf("failed to get market info: %w", err)
 	}
-	marketIndex := uint8(marketIndexU16) // SDK expects uint8
+	marketIndex := uint8(marketInfo.MarketID) // SDK expects uint8
 
 	// Build order request
-	// ClientOrderIndex must be <= 281474976710655 (48-bit max)
-	clientOrderIndex := time.Now().UnixMilli() % 281474976710655
+	// Use ClientOrderIndex=0 for market orders (same as web UI)
+	clientOrderIndex := int64(0)
 
 	var orderTypeValue uint8 = 0 // 0=limit, 1=market
 	if orderType == "market" {
 		orderTypeValue = 1
 	}
 
-	// Convert quantity to LIGHTER base_amount format
-	// Different markets have different size_decimals:
-	// - ETH: supported_size_decimals=4, min=0.0050
-	// - BTC: supported_size_decimals=5, min=0.00020
-	// - SOL: supported_size_decimals=3, min=0.050
-	sizeDecimals := 4 // Default for ETH
-	normalizedSymbol := normalizeSymbol(symbol)
-	switch normalizedSymbol {
-	case "BTC":
-		sizeDecimals = 5
-	case "SOL":
-		sizeDecimals = 3
-	case "ETH":
-		sizeDecimals = 4
-	}
-	baseAmount := int64(quantity * float64(pow10(sizeDecimals)))
+	// Convert quantity to LIGHTER base_amount format using dynamic precision from API
+	baseAmount := int64(quantity * float64(pow10(marketInfo.SizeDecimals)))
+	logger.Infof("🔸 Using size precision: %d decimals, quantity=%.4f → baseAmount=%d",
+		marketInfo.SizeDecimals, quantity, baseAmount)
 
-	// For market orders, we need to set a price protection value
-	// Buy orders: set high price (current * 1.05), Sell orders: set low price (current * 0.95)
+	// Set price based on order type
 	priceValue := uint32(0)
 	if orderType == "limit" {
-		priceValue = uint32(price * 1e2) // Price precision (2 decimals)
+		priceValue = uint32(price * float64(pow10(marketInfo.PriceDecimals)))
+		logger.Infof("🔸 LIMIT order - Price: %.2f (precision: %d decimals)", price, marketInfo.PriceDecimals)
 	} else {
-		// Market order - get current price for protection
+		// Market order - Price field is used as PRICE PROTECTION (slippage limit)
+		// NOT as the execution price! Set it wider to allow order to fill.
 		marketPrice, err := t.GetMarketPrice(symbol)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get market price for protection: %w", err)
+			return nil, fmt.Errorf("failed to get market price: %w", err)
 		}
+
+		// For BUY: set price protection ABOVE market (allow buying up to 105% of market price)
+		// For SELL: set price protection BELOW market (allow selling down to 95% of market price)
+		var protectedPrice float64
 		if isAsk {
-			// Sell order - set minimum price (95% of current)
-			priceValue = uint32(marketPrice * 0.95 * 1e2)
+			// Selling: accept down to 95% of market price
+			protectedPrice = marketPrice * 0.95
+			logger.Infof("🔸 MARKET SELL order - Price protection: %.2f (95%% of market %.2f, precision: %d decimals)",
+				protectedPrice, marketPrice, marketInfo.PriceDecimals)
 		} else {
-			// Buy order - set maximum price (105% of current)
-			priceValue = uint32(marketPrice * 1.05 * 1e2)
+			// Buying: accept up to 105% of market price
+			protectedPrice = marketPrice * 1.05
+			logger.Infof("🔸 MARKET BUY order - Price protection: %.2f (105%% of market %.2f, precision: %d decimals)",
+				protectedPrice, marketPrice, marketInfo.PriceDecimals)
 		}
+		priceValue = uint32(protectedPrice * float64(pow10(marketInfo.PriceDecimals)))
 	}
 
-	// For market orders: TimeInForce must be ImmediateOrCancel (0), OrderExpiry must be 0
-	// For limit orders: OrderExpiry must be between 5 minutes and 30 days from now (in milliseconds)
+	// TimeInForce and Expiry based on order type
+	// Market orders MUST use TimeInForce=0 (ImmediateOrCancel)
+	// Limit orders use TimeInForce=1 (GoodTillTime)
 	var orderExpiry int64 = 0
-	var timeInForce uint8 = 0 // ImmediateOrCancel for market orders
+	var timeInForce uint8 = 0 // Default: ImmediateOrCancel for market orders
 
 	if orderType == "limit" {
-		// Limit orders need expiry and can use GTC (1)
-		timeInForce = 1 // GoodTillTime
+		timeInForce = 1 // GoodTillTime for limit orders
 		orderExpiry = time.Now().Add(7 * 24 * time.Hour).UnixMilli()
+	}
+
+	// Set reduceOnly flag
+	var reduceOnlyValue uint8 = 0
+	if reduceOnly {
+		reduceOnlyValue = 1
 	}
 
 	txReq := &types.CreateOrderTxReq{
@@ -261,7 +267,7 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 		IsAsk:            boolToUint8(isAsk),
 		Type:             orderTypeValue,
 		TimeInForce:      timeInForce,
-		ReduceOnly:       0, // Not reduce-only
+		ReduceOnly:       reduceOnlyValue,
 		TriggerPrice:     0,
 		OrderExpiry:      orderExpiry,
 	}
@@ -343,8 +349,8 @@ func (t *LighterTraderV2) submitOrder(txType int, txInfo string) (map[string]int
 		return nil, fmt.Errorf("failed to write tx_info: %w", err)
 	}
 
-	// Add price_protection field
-	if err := writer.WriteField("price_protection", "true"); err != nil {
+	// Add price_protection field (false = use Price field as slippage protection)
+	if err := writer.WriteField("price_protection", "false"); err != nil {
 		return nil, fmt.Errorf("failed to write price_protection: %w", err)
 	}
 
@@ -420,50 +426,45 @@ func normalizeSymbol(symbol string) string {
 	return strings.ToUpper(s)
 }
 
-// getMarketIndex Get market index (convert from symbol) - dynamically fetch from API
-func (t *LighterTraderV2) getMarketIndex(symbol string) (uint16, error) {
+// getMarketInfo Get market info including precision - dynamically fetch from API
+func (t *LighterTraderV2) getMarketInfo(symbol string) (*MarketInfo, error) {
 	// Normalize symbol to Lighter format
 	normalizedSymbol := normalizeSymbol(symbol)
 
-	// 1. Check cache
-	t.marketMutex.RLock()
-	if index, ok := t.marketIndexMap[normalizedSymbol]; ok {
-		t.marketMutex.RUnlock()
-		return index, nil
-	}
-	t.marketMutex.RUnlock()
-
-	// 2. Fetch market list from API
+	// 1. Fetch market list from API (TODO: cache this)
 	markets, err := t.fetchMarketList()
 	if err != nil {
-		// If API fails, fallback to hardcoded mapping
-		logger.Infof("⚠️  Failed to fetch market list from API, using hardcoded mapping: %v", err)
+		return nil, fmt.Errorf("failed to fetch market list: %w", err)
+	}
+
+	// 2. Find market by symbol
+	for _, market := range markets {
+		if market.Symbol == normalizedSymbol {
+			return &market, nil
+		}
+	}
+
+	return nil, fmt.Errorf("unknown market symbol: %s (normalized: %s)", symbol, normalizedSymbol)
+}
+
+// getMarketIndex Get market index (convert from symbol) - dynamically fetch from API
+func (t *LighterTraderV2) getMarketIndex(symbol string) (uint16, error) {
+	marketInfo, err := t.getMarketInfo(symbol)
+	if err != nil {
+		// Fallback to hardcoded mapping
+		logger.Infof("⚠️  Failed to get market info from API, using hardcoded mapping: %v", err)
+		normalizedSymbol := normalizeSymbol(symbol)
 		return t.getFallbackMarketIndex(normalizedSymbol)
 	}
-
-	// 3. Update cache
-	t.marketMutex.Lock()
-	for _, market := range markets {
-		t.marketIndexMap[market.Symbol] = market.MarketID
-	}
-	t.marketMutex.Unlock()
-
-	// 4. Get from cache
-	t.marketMutex.RLock()
-	index, ok := t.marketIndexMap[normalizedSymbol]
-	t.marketMutex.RUnlock()
-
-	if !ok {
-		return 0, fmt.Errorf("unknown market symbol: %s (normalized: %s)", symbol, normalizedSymbol)
-	}
-
-	return index, nil
+	return marketInfo.MarketID, nil
 }
 
 // MarketInfo Market information
 type MarketInfo struct {
-	Symbol   string `json:"symbol"`
-	MarketID uint16 `json:"market_id"`
+	Symbol        string `json:"symbol"`
+	MarketID      uint16 `json:"market_id"`
+	SizeDecimals  int    `json:"size_decimals"`
+	PriceDecimals int    `json:"price_decimals"`
 }
 
 // fetchMarketList Fetch market list from API
@@ -492,9 +493,11 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	var apiResp struct {
 		Code       int `json:"code"`
 		OrderBooks []struct {
-			Symbol   string `json:"symbol"`
-			MarketID uint16 `json:"market_id"`
-			Status   string `json:"status"`
+			Symbol                 string `json:"symbol"`
+			MarketID               uint16 `json:"market_id"`
+			Status                 string `json:"status"`
+			SupportedSizeDecimals  int    `json:"supported_size_decimals"`
+			SupportedPriceDecimals int    `json:"supported_price_decimals"`
 		} `json:"order_books"`
 	}
 
@@ -511,8 +514,10 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	for _, market := range apiResp.OrderBooks {
 		if market.Status == "active" {
 			markets = append(markets, MarketInfo{
-				Symbol:   market.Symbol,
-				MarketID: market.MarketID,
+				Symbol:           market.Symbol,
+				MarketID:         market.MarketID,
+				SizeDecimals:     market.SupportedSizeDecimals,
+				PriceDecimals:    market.SupportedPriceDecimals,
 			})
 		}
 	}
@@ -580,12 +585,12 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 		return nil, fmt.Errorf("TxClient not initialized")
 	}
 
-	// Get market index
-	marketIndexU16, err := t.getMarketIndex(symbol)
+	// Get market info (includes market_id and precision)
+	marketInfo, err := t.getMarketInfo(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get market index: %w", err)
+		return nil, fmt.Errorf("failed to get market info: %w", err)
 	}
-	marketIndex := uint8(marketIndexU16)
+	marketIndex := uint8(marketInfo.MarketID)
 
 	// Build order request
 	clientOrderIndex := time.Now().UnixMilli() % 281474976710655
@@ -596,21 +601,11 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 		orderTypeValue = 4 // TakeProfitOrder
 	}
 
-	// Convert quantity to base amount
-	sizeDecimals := 4
-	normalizedSymbol := normalizeSymbol(symbol)
-	switch normalizedSymbol {
-	case "BTC":
-		sizeDecimals = 5
-	case "SOL":
-		sizeDecimals = 3
-	case "ETH":
-		sizeDecimals = 4
-	}
-	baseAmount := int64(quantity * float64(pow10(sizeDecimals)))
+	// Convert quantity to base amount using dynamic precision
+	baseAmount := int64(quantity * float64(pow10(marketInfo.SizeDecimals)))
 
-	// TriggerPrice: price precision is 2 decimals (multiply by 100)
-	triggerPriceValue := uint32(triggerPrice * 1e2)
+	// TriggerPrice: use dynamic price precision from API
+	triggerPriceValue := uint32(triggerPrice * float64(pow10(marketInfo.PriceDecimals)))
 
 	// For stop orders, Price should be set to a reasonable execution price
 	// Stop-loss sell: price slightly below trigger (95% of trigger)
@@ -620,10 +615,10 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 	var priceValue uint32
 	if isAsk {
 		// Sell order - set price at 95% of trigger to ensure execution
-		priceValue = uint32(triggerPrice * 0.95 * 1e2)
+		priceValue = uint32(triggerPrice * 0.95 * float64(pow10(marketInfo.PriceDecimals)))
 	} else {
 		// Buy order - set price at 105% of trigger to ensure execution
-		priceValue = uint32(triggerPrice * 1.05 * 1e2)
+		priceValue = uint32(triggerPrice * 1.05 * float64(pow10(marketInfo.PriceDecimals)))
 	}
 
 	// Stop orders MUST use ImmediateOrCancel (0) with expiry set

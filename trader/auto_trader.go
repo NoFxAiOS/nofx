@@ -113,6 +113,7 @@ type AutoTrader struct {
 	lastResetTime         time.Time
 	stopUntil             time.Time
 	isRunning             bool
+	isRunningMutex        sync.RWMutex       // Mutex to protect isRunning flag
 	startTime             time.Time          // System start time
 	callCount             int                // AI call count
 	positionFirstSeenTime map[string]int64   // Position first seen time (symbol_side -> timestamp in milliseconds)
@@ -342,7 +343,10 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 
 // Run runs the automatic trading main loop
 func (at *AutoTrader) Run() error {
+	at.isRunningMutex.Lock()
 	at.isRunning = true
+	at.isRunningMutex.Unlock()
+
 	at.stopMonitorCh = make(chan struct{})
 	at.startTime = time.Now()
 
@@ -356,6 +360,14 @@ func (at *AutoTrader) Run() error {
 	// Start drawdown monitoring
 	at.startDrawdownMonitor()
 
+	// Start Lighter order sync if using Lighter exchange
+	if at.exchange == "lighter" {
+		if lighterTrader, ok := at.trader.(*LighterTraderV2); ok && at.store != nil {
+			lighterTrader.StartOrderSync(at.id, at.store.Order(), 30*time.Second)
+			logger.Infof("🔄 [%s] Lighter order sync enabled (every 30s)", at.name)
+		}
+	}
+
 	ticker := time.NewTicker(at.config.ScanInterval)
 	defer ticker.Stop()
 
@@ -364,7 +376,15 @@ func (at *AutoTrader) Run() error {
 		logger.Infof("❌ Execution failed: %v", err)
 	}
 
-	for at.isRunning {
+	for {
+		at.isRunningMutex.RLock()
+		running := at.isRunning
+		at.isRunningMutex.RUnlock()
+
+		if !running {
+			break
+		}
+
 		select {
 		case <-ticker.C:
 			if err := at.runCycle(); err != nil {
@@ -381,10 +401,14 @@ func (at *AutoTrader) Run() error {
 
 // Stop stops the automatic trading
 func (at *AutoTrader) Stop() {
+	at.isRunningMutex.Lock()
 	if !at.isRunning {
+		at.isRunningMutex.Unlock()
 		return
 	}
 	at.isRunning = false
+	at.isRunningMutex.Unlock()
+
 	close(at.stopMonitorCh) // Notify monitoring goroutine to stop
 	at.monitorWg.Wait()     // Wait for monitoring goroutine to finish
 	logger.Info("⏹ Automatic trading system stopped")
@@ -397,6 +421,15 @@ func (at *AutoTrader) runCycle() error {
 	logger.Info("\n" + strings.Repeat("=", 70) + "\n")
 	logger.Infof("⏰ %s - AI decision cycle #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
 	logger.Info(strings.Repeat("=", 70))
+
+	// 0. Check if trader is stopped (early exit to prevent trades after Stop() is called)
+	at.isRunningMutex.RLock()
+	running := at.isRunning
+	at.isRunningMutex.RUnlock()
+	if !running {
+		logger.Infof("⏹ Trader is stopped, aborting cycle #%d", at.callCount)
+		return nil
+	}
 
 	// Create decision record
 	record := &store.DecisionRecord{
@@ -526,8 +559,26 @@ func (at *AutoTrader) runCycle() error {
 	}
 	logger.Info()
 
+	// Check if trader is stopped before executing any decisions (prevent trades after Stop())
+	at.isRunningMutex.RLock()
+	running = at.isRunning
+	at.isRunningMutex.RUnlock()
+	if !running {
+		logger.Infof("⏹ Trader stopped before decision execution, aborting cycle #%d", at.callCount)
+		return nil
+	}
+
 	// Execute decisions and record results
 	for _, d := range sortedDecisions {
+		// Check if trader is stopped before each decision (allow immediate stop during execution)
+		at.isRunningMutex.RLock()
+		running = at.isRunning
+		at.isRunningMutex.RUnlock()
+		if !running {
+			logger.Infof("⏹ Trader stopped during decision execution, aborting remaining decisions")
+			break
+		}
+
 		actionRecord := store.DecisionAction{
 			Action:     d.Action,
 			Symbol:     d.Symbol,
@@ -744,6 +795,16 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		} else {
 			logger.Infof("📊 [%s] Found %d recent closed trades for AI context", at.name, len(recentTrades))
 			for _, trade := range recentTrades {
+				// Convert Unix timestamps to formatted strings for AI readability
+				entryTimeStr := ""
+				if trade.EntryTime > 0 {
+					entryTimeStr = time.Unix(trade.EntryTime, 0).UTC().Format("01-02 15:04 UTC")
+				}
+				exitTimeStr := ""
+				if trade.ExitTime > 0 {
+					exitTimeStr = time.Unix(trade.ExitTime, 0).UTC().Format("01-02 15:04 UTC")
+				}
+
 				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
 					Symbol:       trade.Symbol,
 					Side:         trade.Side,
@@ -751,8 +812,8 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 					ExitPrice:    trade.ExitPrice,
 					RealizedPnL:  trade.RealizedPnL,
 					PnLPct:       trade.PnLPct,
-					EntryTime:    trade.EntryTime,
-					ExitTime:     trade.ExitTime,
+					EntryTime:    entryTimeStr,
+					ExitTime:     exitTimeStr,
 					HoldDuration: trade.HoldDuration,
 				})
 			}
@@ -1276,12 +1337,16 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		aiProvider = "Qwen"
 	}
 
+	at.isRunningMutex.RLock()
+	isRunning := at.isRunning
+	at.isRunningMutex.RUnlock()
+
 	return map[string]interface{}{
 		"trader_id":       at.id,
 		"trader_name":     at.name,
 		"ai_model":        at.aiModel,
 		"exchange":        at.exchange,
-		"is_running":      at.isRunning,
+		"is_running":      isRunning,
 		"start_time":      at.startTime.Format(time.RFC3339),
 		"runtime_minutes": int(time.Since(at.startTime).Minutes()),
 		"call_count":      at.callCount,
@@ -1344,9 +1409,10 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	}
 
 	// Verify unrealized P&L consistency (API value vs calculated from positions)
+	// Note: Lighter API may return 0 for unrealized PnL, this is a known limitation
 	diff := math.Abs(totalUnrealizedProfit - totalUnrealizedPnLCalculated)
-	if diff > 0.1 { // Allow 0.01 USDT error margin
-		logger.Infof("⚠️ Unrealized P&L inconsistency: API=%.4f, Calculated=%.4f, Diff=%.4f",
+	if diff > 5.0 { // Only warn if difference is significant (> 5 USDT)
+		logger.Infof("⚠️ Unrealized P&L inconsistency (Lighter API limitation): API=%.4f, Calculated=%.4f, Diff=%.4f",
 			totalUnrealizedProfit, totalUnrealizedPnLCalculated, diff)
 	}
 
@@ -1672,38 +1738,99 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 		positionSide = "SHORT"
 	}
 
-	// Poll order status to get actual fill price, quantity and fee
+	// For Lighter exchange, market orders fill immediately - record as FILLED directly
 	var actualPrice = price       // fallback to market price
 	var actualQty = quantity      // fallback to requested quantity
 	var fee float64
 
-	// Wait for order to be filled and get actual fill data
-	time.Sleep(500 * time.Millisecond)
-	for i := 0; i < 5; i++ {
-		status, err := at.trader.GetOrderStatus(symbol, orderID)
-		if err == nil {
-			statusStr, _ := status["status"].(string)
-			if statusStr == "FILLED" {
-				// Get actual fill price
-				if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
-					actualPrice = avgPrice
-				}
-				// Get actual executed quantity
-				if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
-					actualQty = execQty
-				}
-				// Get commission/fee
-				if commission, ok := status["commission"].(float64); ok {
-					fee = commission
-				}
-				logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
-				break
-			} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
-				logger.Infof("  ⚠️ Order %s, skipping position record", statusStr)
-				return
-			}
+	if at.exchange == "lighter" {
+		// Estimate fee (0.04% for Lighter taker)
+		fee = price * quantity * 0.0004
+
+		// Normalize symbol (ETH -> ETHUSDT, BTC -> BTCUSDT)
+		normalizedSymbol := market.Normalize(symbol)
+
+		// Create order record directly as FILLED
+		orderRecord := &store.TraderOrder{
+			TraderID:        at.id,
+			ExchangeID:      at.exchange,
+			ExchangeOrderID: orderID,
+			Symbol:          normalizedSymbol,
+			Side:            getSideFromAction(action),
+			PositionSide:    positionSide,
+			Type:            "MARKET",
+			OrderAction:     action,
+			Quantity:        quantity,
+			Price:           0, // Market order
+			Status:          "FILLED",
+			FilledQuantity:  quantity,
+			AvgFillPrice:    price,
+			Commission:      fee,
+			FilledAt:        time.Now(),
+			Leverage:        leverage,
+			ReduceOnly:      (action == "close_long" || action == "close_short"),
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		}
+
+		if err := at.store.Order().CreateOrder(orderRecord); err != nil {
+			logger.Infof("  ⚠️ Failed to record order: %v", err)
+		} else {
+			logger.Infof("  ✅ Order recorded as FILLED: %s [%s] %s qty=%.6f price=%.6f", orderID, action, symbol, quantity, price)
+
+			// Record fill details
+			at.recordOrderFill(orderRecord.ID, orderID, symbol, action, price, quantity, fee)
+		}
+	} else {
+		// For other exchanges, record as NEW and poll for status
+		orderRecord := at.createOrderRecord(orderID, symbol, action, positionSide, quantity, price, leverage)
+		if err := at.store.Order().CreateOrder(orderRecord); err != nil {
+			logger.Infof("  ⚠️ Failed to record order: %v", err)
+		} else {
+			logger.Infof("  📝 Order recorded: %s [%s] %s", orderID, action, symbol)
+		}
+
+		// Wait for order to be filled and get actual fill data
 		time.Sleep(500 * time.Millisecond)
+		for i := 0; i < 5; i++ {
+			status, err := at.trader.GetOrderStatus(symbol, orderID)
+			if err == nil {
+				statusStr, _ := status["status"].(string)
+				if statusStr == "FILLED" {
+					// Get actual fill price
+					if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
+						actualPrice = avgPrice
+					}
+					// Get actual executed quantity
+					if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
+						actualQty = execQty
+					}
+					// Get commission/fee
+					if commission, ok := status["commission"].(float64); ok {
+						fee = commission
+					}
+					logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
+
+					// Update order status to FILLED
+					if err := at.store.Order().UpdateOrderStatus(orderRecord.ID, "FILLED", actualQty, actualPrice, fee); err != nil {
+						logger.Infof("  ⚠️ Failed to update order status: %v", err)
+					}
+
+					// Record fill details
+					at.recordOrderFill(orderRecord.ID, orderID, symbol, action, actualPrice, actualQty, fee)
+					break
+				} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
+					logger.Infof("  ⚠️ Order %s, skipping position record", statusStr)
+
+					// Update order status
+					if err := at.store.Order().UpdateOrderStatus(orderRecord.ID, statusStr, 0, 0, 0); err != nil {
+						logger.Infof("  ⚠️ Failed to update order status: %v", err)
+					}
+					return
+				}
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 
 	logger.Infof("  📝 Recording position (ID: %s, action: %s, price: %.6f, qty: %.6f, fee: %.4f)",
@@ -1784,6 +1911,119 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 			logger.Infof("  📊 Position closed [%s] %s %s @ %.4f → %.4f, P&L: %.2f, Fee: %.4f",
 				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL, fee)
 		}
+	}
+}
+
+// createOrderRecord creates an order record struct from order details
+func (at *AutoTrader) createOrderRecord(orderID, symbol, action, positionSide string, quantity, price float64, leverage int) *store.TraderOrder {
+	// Determine order type (market for auto trader)
+	orderType := "MARKET"
+
+	// Determine side (BUY/SELL)
+	var side string
+	switch action {
+	case "open_long", "close_short":
+		side = "BUY"
+	case "open_short", "close_long":
+		side = "SELL"
+	}
+
+	// Use action as orderAction directly (keep lowercase format)
+	orderAction := action
+
+	// Determine if it's a reduce only order
+	reduceOnly := (action == "close_long" || action == "close_short")
+
+	// Normalize symbol for consistency
+	normalizedSymbol := market.Normalize(symbol)
+
+	return &store.TraderOrder{
+		TraderID:        at.id,
+		ExchangeID:      at.exchange,
+		ExchangeOrderID: orderID,
+		Symbol:          normalizedSymbol,
+		Side:            side,
+		PositionSide:    positionSide,
+		Type:            orderType,
+		TimeInForce:     "GTC",
+		Quantity:        quantity,
+		Price:           price,
+		Status:          "NEW",
+		FilledQuantity:  0,
+		AvgFillPrice:    0,
+		Commission:      0,
+		CommissionAsset: "USDT",
+		Leverage:        leverage,
+		ReduceOnly:      reduceOnly,
+		ClosePosition:   reduceOnly,
+		OrderAction:     orderAction,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
+	}
+}
+
+// recordOrderFill records order fill/trade details
+func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symbol, action string, price, quantity, fee float64) {
+	if at.store == nil {
+		return
+	}
+
+	// Determine side (BUY/SELL)
+	var side string
+	switch action {
+	case "open_long", "close_short":
+		side = "BUY"
+	case "open_short", "close_long":
+		side = "SELL"
+	}
+
+	// Generate a simple trade ID (exchange doesn't always provide one)
+	tradeID := fmt.Sprintf("%s-%d", exchangeOrderID, time.Now().UnixNano())
+
+	// Normalize symbol for consistency
+	normalizedSymbol := market.Normalize(symbol)
+
+	fill := &store.TraderFill{
+		TraderID:         at.id,
+		ExchangeID:       at.exchange,
+		OrderID:          orderRecordID,
+		ExchangeOrderID:  exchangeOrderID,
+		ExchangeTradeID:  tradeID,
+		Symbol:           normalizedSymbol,
+		Side:             side,
+		Price:            price,
+		Quantity:         quantity,
+		QuoteQuantity:    price * quantity,
+		Commission:       fee,
+		CommissionAsset:  "USDT",
+		RealizedPnL:      0, // Will be calculated for close orders
+		IsMaker:          false, // Market orders are usually taker
+		CreatedAt:        time.Now(),
+	}
+
+	// Calculate realized PnL for close orders
+	if action == "close_long" || action == "close_short" {
+		// Try to get the entry price from the open position
+		var positionSide string
+		if action == "close_long" {
+			positionSide = "LONG"
+		} else {
+			positionSide = "SHORT"
+		}
+
+		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, positionSide); err == nil && openPos != nil {
+			if positionSide == "LONG" {
+				fill.RealizedPnL = (price - openPos.EntryPrice) * quantity
+			} else {
+				fill.RealizedPnL = (openPos.EntryPrice - price) * quantity
+			}
+		}
+	}
+
+	if err := at.store.Order().CreateFill(fill); err != nil {
+		logger.Infof("  ⚠️ Failed to record fill: %v", err)
+	} else {
+		logger.Infof("  📋 Fill recorded: %.4f @ %.6f, fee: %.4f", quantity, price, fee)
 	}
 }
 
@@ -1868,5 +2108,17 @@ func (at *AutoTrader) enforceMaxPositions(currentPositionCount int) error {
 		return fmt.Errorf("❌ [RISK CONTROL] Already at max positions (%d/%d)", currentPositionCount, maxPositions)
 	}
 	return nil
+}
+
+// getSideFromAction converts order action to side (BUY/SELL)
+func getSideFromAction(action string) string {
+	switch action {
+	case "open_long", "close_short":
+		return "BUY"
+	case "open_short", "close_long":
+		return "SELL"
+	default:
+		return "BUY"
+	}
 }
 

@@ -389,13 +389,15 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 		}
 	}
 
-	// Build request URL
-	startTimeMs := startTime.UnixMilli()
+	// Build request URL (use Unix timestamp in seconds, not milliseconds)
+	startTimeSec := startTime.Unix()
 	endpoint := fmt.Sprintf("%s/api/v1/trades?account_index=%d&start_time=%d",
-		t.baseURL, t.accountIndex, startTimeMs)
+		t.baseURL, t.accountIndex, startTimeSec)
 	if limit > 0 {
 		endpoint = fmt.Sprintf("%s&limit=%d", endpoint, limit)
 	}
+
+	logger.Infof("🔍 Calling Lighter GetTrades API: %s", endpoint)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {

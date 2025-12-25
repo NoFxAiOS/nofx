@@ -327,3 +327,77 @@ func (t *LighterTraderV2) FormatQuantity(symbol string, quantity float64) (strin
 	// Using default precision for now
 	return fmt.Sprintf("%.4f", quantity), nil
 }
+
+// GetOrderBook Get order book with best bid/ask prices
+func (t *LighterTraderV2) GetOrderBook(symbol string) (bestBid, bestAsk float64, err error) {
+	// Get market_id first
+	marketID, err := t.getMarketIndex(symbol)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get market ID: %w", err)
+	}
+
+	// Get order book from Lighter API
+	endpoint := fmt.Sprintf("%s/api/v1/orderBook?market_id=%d", t.baseURL, marketID)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0, fmt.Errorf("failed to get order book (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
+	var apiResp struct {
+		Code int `json:"code"`
+		Data struct {
+			Bids [][]interface{} `json:"bids"` // [[price, quantity], ...]
+			Asks [][]interface{} `json:"asks"` // [[price, quantity], ...]
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return 0, 0, fmt.Errorf("failed to parse order book: %w", err)
+	}
+
+	if apiResp.Code != 200 {
+		return 0, 0, fmt.Errorf("API error code: %d", apiResp.Code)
+	}
+
+	// Get best bid (highest buy price)
+	if len(apiResp.Data.Bids) > 0 && len(apiResp.Data.Bids[0]) >= 1 {
+		if price, ok := apiResp.Data.Bids[0][0].(float64); ok {
+			bestBid = price
+		} else if priceStr, ok := apiResp.Data.Bids[0][0].(string); ok {
+			bestBid, _ = strconv.ParseFloat(priceStr, 64)
+		}
+	}
+
+	// Get best ask (lowest sell price)
+	if len(apiResp.Data.Asks) > 0 && len(apiResp.Data.Asks[0]) >= 1 {
+		if price, ok := apiResp.Data.Asks[0][0].(float64); ok {
+			bestAsk = price
+		} else if priceStr, ok := apiResp.Data.Asks[0][0].(string); ok {
+			bestAsk, _ = strconv.ParseFloat(priceStr, 64)
+		}
+	}
+
+	if bestBid <= 0 || bestAsk <= 0 {
+		return 0, 0, fmt.Errorf("invalid order book prices: bid=%.2f, ask=%.2f", bestBid, bestAsk)
+	}
+
+	logger.Infof("✓ Lighter order book: %s bid=%.2f, ask=%.2f", symbol, bestBid, bestAsk)
+	return bestBid, bestAsk, nil
+}

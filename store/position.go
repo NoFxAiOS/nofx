@@ -366,8 +366,8 @@ type RecentTrade struct {
 	ExitPrice    float64 `json:"exit_price"`
 	RealizedPnL  float64 `json:"realized_pnl"`
 	PnLPct       float64 `json:"pnl_pct"`
-	EntryTime    string  `json:"entry_time"`    // Entry time (开仓时间)
-	ExitTime     string  `json:"exit_time"`     // Exit time (平仓时间)
+	EntryTime    int64   `json:"entry_time"`    // Entry time Unix timestamp (seconds)
+	ExitTime     int64   `json:"exit_time"`     // Exit time Unix timestamp (seconds)
 	HoldDuration string  `json:"hold_duration"` // Hold duration (持仓时长), e.g. "2h30m"
 }
 
@@ -412,18 +412,18 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 			}
 		}
 
-		// Format entry time and exit time (always use UTC and indicate it)
+		// Parse entry time and exit time, return as Unix timestamps (seconds)
 		var parsedEntryTime, parsedExitTime time.Time
 		if entryTime.Valid {
 			if parsed, err := time.Parse(time.RFC3339, entryTime.String); err == nil {
 				parsedEntryTime = parsed.UTC()
-				t.EntryTime = parsedEntryTime.Format("01-02 15:04 UTC")
+				t.EntryTime = parsedEntryTime.Unix() // Unix timestamp in seconds
 			}
 		}
 		if exitTime.Valid {
 			if parsed, err := time.Parse(time.RFC3339, exitTime.String); err == nil {
 				parsedExitTime = parsed.UTC()
-				t.ExitTime = parsedExitTime.Format("01-02 15:04 UTC")
+				t.ExitTime = parsedExitTime.Unix() // Unix timestamp in seconds
 			}
 		}
 

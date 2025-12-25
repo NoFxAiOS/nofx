@@ -5,6 +5,7 @@ import { t, type Language } from '../i18n/translations'
 interface DecisionCardProps {
   decision: DecisionRecord
   language: Language
+  onSymbolClick?: (symbol: string) => void
 }
 
 // Action type configuration
@@ -42,7 +43,7 @@ function getConfidenceColor(confidence: number | undefined): string {
 }
 
 // Single Action Card Component
-function ActionCard({ action, language }: { action: DecisionAction; language: Language }) {
+function ActionCard({ action, language, onSymbolClick }: { action: DecisionAction; language: Language; onSymbolClick?: (symbol: string) => void }) {
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
@@ -60,7 +61,12 @@ function ActionCard({ action, language }: { action: DecisionAction; language: La
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <span className="text-xl">{config.icon}</span>
-          <span className="font-mono font-bold text-lg" style={{ color: '#EAECEF' }}>
+          <span
+            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110"
+            style={{ color: '#EAECEF' }}
+            onClick={() => onSymbolClick?.(action.symbol)}
+            title="Click to view chart"
+          >
             {action.symbol.replace('USDT', '')}
           </span>
           <span
@@ -211,9 +217,33 @@ function ActionCard({ action, language }: { action: DecisionAction; language: La
   )
 }
 
-export function DecisionCard({ decision, language }: DecisionCardProps) {
+export function DecisionCard({ decision, language, onSymbolClick }: DecisionCardProps) {
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false)
   const [showInputPrompt, setShowInputPrompt] = useState(false)
   const [showCoT, setShowCoT] = useState(false)
+
+  // Copy text to clipboard
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert(`${label} copied!`)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  // Download text as file
+  const downloadAsFile = (text: string, filename: string) => {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div
@@ -258,14 +288,73 @@ export function DecisionCard({ decision, language }: DecisionCardProps) {
       {decision.decisions && decision.decisions.length > 0 && (
         <div className="space-y-3 mb-4">
           {decision.decisions.map((action, index) => (
-            <ActionCard key={`${action.symbol}-${index}`} action={action} language={language} />
+            <ActionCard key={`${action.symbol}-${index}`} action={action} language={language} onSymbolClick={onSymbolClick} />
           ))}
         </div>
       )}
 
       {/* Collapsible Sections */}
       <div className="space-y-2">
-        {/* Input Prompt */}
+        {/* System Prompt */}
+        {decision.system_prompt && (
+          <div>
+            <button
+              onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚙️</span>
+                <span className="font-semibold" style={{ color: '#a78bfa' }}>
+                  System Prompt
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    copyToClipboard(decision.system_prompt, 'System Prompt')
+                  }}
+                  className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
+                  style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.3)' }}
+                  title="Copy to clipboard"
+                >
+                  <span>📋</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    downloadAsFile(decision.system_prompt, `system-prompt-cycle-${decision.cycle_number}.txt`)
+                  }}
+                  className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
+                  style={{ background: 'rgba(167, 139, 250, 0.2)', color: '#a78bfa', border: '1px solid rgba(167, 139, 250, 0.3)' }}
+                  title="Download as file"
+                >
+                  <span>💾</span>
+                </button>
+                <span
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{ background: 'rgba(167, 139, 250, 0.15)', color: '#a78bfa' }}
+                >
+                  {showSystemPrompt ? t('collapse', language) : t('expand', language)}
+                </span>
+              </div>
+            </button>
+            {showSystemPrompt && (
+              <div
+                className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                style={{
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              >
+                {decision.system_prompt}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* User/Input Prompt */}
         {decision.input_prompt && (
           <div>
             <button
@@ -275,15 +364,39 @@ export function DecisionCard({ decision, language }: DecisionCardProps) {
               <div className="flex items-center gap-2">
                 <span className="text-base">📥</span>
                 <span className="font-semibold" style={{ color: '#60a5fa' }}>
-                  {t('inputPrompt', language)}
+                  User Prompt
                 </span>
               </div>
-              <span
-                className="text-xs px-2 py-0.5 rounded"
-                style={{ background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' }}
-              >
-                {showInputPrompt ? t('collapse', language) : t('expand', language)}
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    copyToClipboard(decision.input_prompt, 'User Prompt')
+                  }}
+                  className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
+                  style={{ background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)' }}
+                  title="Copy to clipboard"
+                >
+                  <span>📋</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    downloadAsFile(decision.input_prompt, `user-prompt-cycle-${decision.cycle_number}.txt`)
+                  }}
+                  className="text-xs px-2.5 py-1 rounded hover:opacity-80 transition-opacity flex items-center gap-1"
+                  style={{ background: 'rgba(96, 165, 250, 0.2)', color: '#60a5fa', border: '1px solid rgba(96, 165, 250, 0.3)' }}
+                  title="Download as file"
+                >
+                  <span>💾</span>
+                </button>
+                <span
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{ background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' }}
+                >
+                  {showInputPrompt ? t('collapse', language) : t('expand', language)}
+                </span>
+              </div>
             </button>
             {showInputPrompt && (
               <div

@@ -817,6 +817,16 @@ function TraderDetailsPage({
     }
   }
 
+  // Handle symbol click from Decision Card
+  const handleSymbolClick = (symbol: string) => {
+    // Set the selected symbol
+    setSelectedChartSymbol(symbol)
+    // Scroll to chart section
+    setTimeout(() => {
+      chartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
+
   // 平仓操作
   const handleClosePosition = async (symbol: string, side: string) => {
     if (!selectedTraderId) return
@@ -1484,7 +1494,7 @@ function TraderDetailsPage({
           >
             {decisions && decisions.length > 0 ? (
               decisions.map((decision, i) => (
-                <DecisionCard key={i} decision={decision} language={language} />
+                <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />
               ))
             ) : (
               <div className="py-16 text-center">

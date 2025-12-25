@@ -9,7 +9,6 @@ import (
 	"nofx/experience"
 	"nofx/logger"
 	"nofx/manager"
-	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
 	"nofx/trader"
@@ -17,7 +16,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -31,7 +29,7 @@ func main() {
 	logger.Init(nil)
 
 	logger.Info("╔════════════════════════════════════════════════════════════╗")
-	logger.Info("║    🤖 AI Multi-Model Trading System - DeepSeek & Qwen      ║")
+	logger.Info("║           🚀 NOFX - AI-Powered Trading System              ║")
 	logger.Info("╚════════════════════════════════════════════════════════════╝")
 
 	// Initialize global configuration (loaded from .env)
@@ -101,12 +99,13 @@ func main() {
 	auth.SetJWTSecret(cfg.JWTSecret)
 	logger.Info("🔑 JWT secret configured")
 
-	// Start WebSocket market monitor FIRST (before loading traders that may need market data)
-	// This ensures WSMonitorCli is initialized before any trader tries to access it
-	go market.NewWSMonitor(150).Start(nil)
-	logger.Info("📊 WebSocket market monitor started")
-	// Give WebSocket monitor time to initialize
-	time.Sleep(500 * time.Millisecond)
+	// WebSocket market monitor is NO LONGER USED
+	// All K-line data now comes from CoinAnk API instead of Binance WebSocket cache
+	// Commented out to reduce unnecessary connections:
+	// go market.NewWSMonitor(150).Start(nil)
+	// logger.Info("📊 WebSocket market monitor started")
+	// time.Sleep(500 * time.Millisecond)
+	logger.Info("📊 Using CoinAnk API for all market data (WebSocket cache disabled)")
 
 	// Create TraderManager and BacktestManager
 	traderManager := manager.NewTraderManager()

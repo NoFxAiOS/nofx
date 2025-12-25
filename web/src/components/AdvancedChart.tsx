@@ -697,7 +697,38 @@ export function AdvancedChart({
       )}
 
       {/* 图表容器 */}
-      <div ref={chartContainerRef} style={{ position: 'relative' }} />
+      <div style={{ position: 'relative' }}>
+        <div ref={chartContainerRef} />
+
+        {/* NOFX 水印 */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            zIndex: 0,
+          }}
+        >
+          <div
+            style={{
+              fontSize: '120px',
+              fontWeight: '900',
+              background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.03) 0%, rgba(240, 185, 11, 0.08) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              letterSpacing: '8px',
+              fontFamily: 'Arial Black, sans-serif',
+              textShadow: '0 0 40px rgba(240, 185, 11, 0.1)',
+            }}
+          >
+            NOFX
+          </div>
+        </div>
+      </div>
 
       {/* 错误提示 */}
       {error && (

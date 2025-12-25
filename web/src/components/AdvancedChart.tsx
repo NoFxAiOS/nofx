@@ -76,10 +76,13 @@ export function AdvancedChart({
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<any>>>(new Map())
   const seriesMarkersRef = useRef<any>(null) // Markers primitive for v5
+  const currentMarkersDataRef = useRef<any[]>([]) // 存储当前的标记数据
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showIndicatorPanel, setShowIndicatorPanel] = useState(false)
+  const [showOrderMarkers, setShowOrderMarkers] = useState(true) // 订单标记显示开关，默认显示
+  const isInitialLoadRef = useRef(true) // 跟踪是否为初始加载
 
   // 指标配置
   const [indicators, setIndicators] = useState<IndicatorConfig[]>([
@@ -360,6 +363,9 @@ export function AdvancedChart({
 
   // 加载数据和指标
   useEffect(() => {
+    // 当 symbol 或 interval 改变时，重置初始加载标志（以便自动适配新数据）
+    isInitialLoadRef.current = true
+
     const loadData = async () => {
       if (!candlestickSeriesRef.current) return
 
@@ -436,15 +442,20 @@ export function AdvancedChart({
             console.log('[AdvancedChart] Markers data:', JSON.stringify(markers, null, 2))
 
             try {
+              // 存储标记数据供后续切换使用
+              currentMarkersDataRef.current = markers
+
               // 使用 v5 API: createSeriesMarkers
+              const markersToShow = showOrderMarkers ? markers : []
+
               if (seriesMarkersRef.current) {
                 // 如果已经存在，更新标记
-                seriesMarkersRef.current.setMarkers(markers)
+                seriesMarkersRef.current.setMarkers(markersToShow)
               } else {
                 // 首次创建标记
-                seriesMarkersRef.current = createSeriesMarkers(candlestickSeriesRef.current, markers)
+                seriesMarkersRef.current = createSeriesMarkers(candlestickSeriesRef.current, markersToShow)
               }
-              console.log('[AdvancedChart] ✅ Markers set successfully!')
+              console.log('[AdvancedChart] ✅ Markers updated! Count:', markersToShow.length, 'Visible:', showOrderMarkers)
             } catch (err) {
               console.error('[AdvancedChart] ❌ Failed to set markers:', err)
             }
@@ -465,8 +476,11 @@ export function AdvancedChart({
           })
         }
 
-        // 自动适配视图
-        chartRef.current?.timeScale().fitContent()
+        // 只在初始加载时自动适配视图，避免刷新时抖动
+        if (isInitialLoadRef.current) {
+          chartRef.current?.timeScale().fitContent()
+          isInitialLoadRef.current = false
+        }
         setLoading(false)
       } catch (err: any) {
         console.error('[AdvancedChart] Error loading data:', err)
@@ -481,6 +495,19 @@ export function AdvancedChart({
     const refreshInterval = setInterval(loadData, 5000)
     return () => clearInterval(refreshInterval)
   }, [symbol, interval, traderID, indicators])
+
+  // 单独处理订单标记的显示/隐藏，避免重新加载数据
+  useEffect(() => {
+    if (!seriesMarkersRef.current) return
+
+    try {
+      const markersToShow = showOrderMarkers ? currentMarkersDataRef.current : []
+      seriesMarkersRef.current.setMarkers(markersToShow)
+      console.log('[AdvancedChart] 🔄 Toggled markers visibility:', showOrderMarkers, 'Count:', markersToShow.length)
+    } catch (err) {
+      console.error('[AdvancedChart] ❌ Failed to toggle markers:', err)
+    }
+  }, [showOrderMarkers])
 
   // 更新指标
   const updateIndicators = (klineData: Kline[]) => {
@@ -599,6 +626,20 @@ export function AdvancedChart({
               <Settings className="w-3.5 h-3.5" />
               <span>{language === 'zh' ? '指标' : 'Indicators'}</span>
             </button>
+
+            {/* 订单标记开关 */}
+            <button
+              onClick={() => setShowOrderMarkers(!showOrderMarkers)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+              style={{
+                background: showOrderMarkers ? 'rgba(240, 185, 11, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                color: showOrderMarkers ? '#F0B90B' : '#848E9C',
+                border: `1px solid ${showOrderMarkers ? 'rgba(240, 185, 11, 0.3)' : '#2B3139'}`,
+              }}
+              title={language === 'zh' ? '切换订单标记显示' : 'Toggle Order Markers'}
+            >
+              <span className="font-bold text-[11px]">B/S</span>
+            </button>
           </div>
         </div>
 
@@ -704,9 +745,8 @@ export function AdvancedChart({
         <div
           style={{
             position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
+            bottom: '20%',
+            right: '5%',
             pointerEvents: 'none',
             userSelect: 'none',
             zIndex: 1,
@@ -714,13 +754,12 @@ export function AdvancedChart({
         >
           <div
             style={{
-              fontSize: '120px',
-              fontWeight: '900',
-              color: 'rgba(240, 185, 11, 0.15)',
-              letterSpacing: '12px',
-              fontFamily: 'Arial Black, sans-serif',
-              textShadow: '0 0 80px rgba(240, 185, 11, 0.25)',
-              opacity: 0.6,
+              fontSize: '56px',
+              fontWeight: '700',
+              color: 'rgba(240, 185, 11, 0.12)',
+              letterSpacing: '4px',
+              fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+              textShadow: '0 2px 30px rgba(240, 185, 11, 0.2)',
             }}
           >
             NOFX
@@ -741,24 +780,6 @@ export function AdvancedChart({
         </div>
       )}
 
-      {/* 图例说明 - 简化版 */}
-      <div
-        className="flex items-center gap-4 px-4 py-2.5 text-xs"
-        style={{ borderTop: '1px solid #2B3139', background: '#0F1215' }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: '#0ECB81', color: '#0B0E11' }}>
-            B
-          </div>
-          <span style={{ color: '#EAECEF' }}>{language === 'zh' ? '买入 (BUY)' : 'BUY'}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: '#F6465D', color: '#0B0E11' }}>
-            S
-          </div>
-          <span style={{ color: '#EAECEF' }}>{language === 'zh' ? '卖出 (SELL)' : 'SELL'}</span>
-        </div>
-      </div>
     </div>
   )
 }

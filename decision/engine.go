@@ -983,10 +983,20 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString("Current Positions: None\n\n")
 	}
 
-	// Candidate coins
+	// Candidate coins (exclude coins already in positions to avoid duplicate data)
+	positionSymbols := make(map[string]bool)
+	for _, pos := range ctx.Positions {
+		positionSymbols[pos.Symbol] = true
+	}
+
 	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.MarketDataMap)))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
+		// Skip if this coin is already a position (data already shown in positions section)
+		if positionSymbols[coin.Symbol] {
+			continue
+		}
+
 		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
 		if !hasData {
 			continue
@@ -1081,6 +1091,8 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	var sb strings.Builder
 	indicators := e.config.Indicators
 
+	// 明确标注币种
+	sb.WriteString(fmt.Sprintf("=== %s Market Data ===\n\n", data.Symbol))
 	sb.WriteString(fmt.Sprintf("current_price = %.4f", data.CurrentPrice))
 
 	if indicators.EnableEMA {
@@ -1252,7 +1264,7 @@ func (e *StrategyEngine) formatQuantData(data *QuantData) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("📊 Quantitative Data:\n")
+	sb.WriteString(fmt.Sprintf("📊 %s Quantitative Data:\n", data.Symbol))
 
 	if len(data.PriceChange) > 0 {
 		sb.WriteString("Price Change: ")

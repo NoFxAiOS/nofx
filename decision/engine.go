@@ -986,14 +986,17 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 	// Candidate coins (exclude coins already in positions to avoid duplicate data)
 	positionSymbols := make(map[string]bool)
 	for _, pos := range ctx.Positions {
-		positionSymbols[pos.Symbol] = true
+		// Normalize symbol to handle both "ETH" and "ETHUSDT" formats
+		normalizedSymbol := market.Normalize(pos.Symbol)
+		positionSymbols[normalizedSymbol] = true
 	}
 
 	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.MarketDataMap)))
 	displayedCount := 0
 	for _, coin := range ctx.CandidateCoins {
 		// Skip if this coin is already a position (data already shown in positions section)
-		if positionSymbols[coin.Symbol] {
+		normalizedCoinSymbol := market.Normalize(coin.Symbol)
+		if positionSymbols[normalizedCoinSymbol] {
 			continue
 		}
 

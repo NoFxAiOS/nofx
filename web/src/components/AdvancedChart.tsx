@@ -709,20 +709,18 @@ export function AdvancedChart({
             transform: 'translate(-50%, -50%)',
             pointerEvents: 'none',
             userSelect: 'none',
-            zIndex: 0,
+            zIndex: 1,
           }}
         >
           <div
             style={{
               fontSize: '120px',
               fontWeight: '900',
-              background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.03) 0%, rgba(240, 185, 11, 0.08) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              letterSpacing: '8px',
+              color: 'rgba(240, 185, 11, 0.15)',
+              letterSpacing: '12px',
               fontFamily: 'Arial Black, sans-serif',
-              textShadow: '0 0 40px rgba(240, 185, 11, 0.1)',
+              textShadow: '0 0 80px rgba(240, 185, 11, 0.25)',
+              opacity: 0.6,
             }}
           >
             NOFX

@@ -10,12 +10,13 @@ import (
 type TraderOrder struct {
 	ID                int64     `json:"id"`
 	TraderID          string    `json:"trader_id"`
-	ExchangeID        string    `json:"exchange_id"`         // 交易所账户UUID
-	ExchangeOrderID   string    `json:"exchange_order_id"`   // 交易所订单ID
-	ClientOrderID     string    `json:"client_order_id"`     // 客户端订单ID
-	Symbol            string    `json:"symbol"`              // 交易对
+	ExchangeID        string    `json:"exchange_id"`         // Exchange account UUID
+	ExchangeType      string    `json:"exchange_type"`       // Exchange type (hyperliquid/lighter/binance/etc)
+	ExchangeOrderID   string    `json:"exchange_order_id"`   // Exchange order ID
+	ClientOrderID     string    `json:"client_order_id"`     // Client order ID
+	Symbol            string    `json:"symbol"`              // Trading pair
 	Side              string    `json:"side"`                // BUY/SELL
-	PositionSide      string    `json:"position_side"`       // LONG/SHORT (双向持仓模式)
+	PositionSide      string    `json:"position_side"`       // LONG/SHORT (hedge mode)
 	Type              string    `json:"type"`                // MARKET/LIMIT/STOP/STOP_MARKET/TAKE_PROFIT/TAKE_PROFIT_MARKET
 	TimeInForce       string    `json:"time_in_force"`       // GTC/IOC/FOK
 	Quantity          float64   `json:"quantity"`            // 订单数量
@@ -38,14 +39,15 @@ type TraderOrder struct {
 	FilledAt          time.Time `json:"filled_at"` // 完全成交时间
 }
 
-// TraderFill 成交记录（一个订单可能有多次成交）
+// TraderFill trade record (one order may have multiple fills)
 type TraderFill struct {
 	ID               int64     `json:"id"`
 	TraderID         string    `json:"trader_id"`
-	ExchangeID       string    `json:"exchange_id"`
-	OrderID          int64     `json:"order_id"`           // 关联的订单ID
-	ExchangeOrderID  string    `json:"exchange_order_id"`  // 交易所订单ID
-	ExchangeTradeID  string    `json:"exchange_trade_id"`  // 交易所成交ID
+	ExchangeID       string    `json:"exchange_id"`        // Exchange account UUID
+	ExchangeType     string    `json:"exchange_type"`      // Exchange type (hyperliquid/lighter/binance/etc)
+	OrderID          int64     `json:"order_id"`           // Related order ID
+	ExchangeOrderID  string    `json:"exchange_order_id"`  // Exchange order ID
+	ExchangeTradeID  string    `json:"exchange_trade_id"`  // Exchange trade ID
 	Symbol           string    `json:"symbol"`
 	Side             string    `json:"side"`           // BUY/SELL
 	Price            float64   `json:"price"`          // 成交价格
@@ -76,6 +78,7 @@ func (s *OrderStore) InitTables() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			trader_id TEXT NOT NULL,
 			exchange_id TEXT NOT NULL DEFAULT '',
+			exchange_type TEXT NOT NULL DEFAULT '',
 			exchange_order_id TEXT NOT NULL,
 			client_order_id TEXT DEFAULT '',
 			symbol TEXT NOT NULL,
@@ -114,6 +117,7 @@ func (s *OrderStore) InitTables() error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			trader_id TEXT NOT NULL,
 			exchange_id TEXT NOT NULL DEFAULT '',
+			exchange_type TEXT NOT NULL DEFAULT '',
 			order_id INTEGER NOT NULL,
 			exchange_order_id TEXT NOT NULL,
 			exchange_trade_id TEXT NOT NULL,
@@ -168,16 +172,16 @@ func (s *OrderStore) CreateOrder(order *TraderOrder) error {
 
 	result, err := s.db.Exec(`
 		INSERT INTO trader_orders (
-			trader_id, exchange_id, exchange_order_id, client_order_id,
+			trader_id, exchange_id, exchange_type, exchange_order_id, client_order_id,
 			symbol, side, position_side, type, time_in_force,
 			quantity, price, stop_price, status,
 			filled_quantity, avg_fill_price, commission, commission_asset,
 			leverage, reduce_only, close_position, working_type, price_protect,
 			order_action, related_position_id,
 			created_at, updated_at, filled_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		order.TraderID, order.ExchangeID, order.ExchangeOrderID, order.ClientOrderID,
+		order.TraderID, order.ExchangeID, order.ExchangeType, order.ExchangeOrderID, order.ClientOrderID,
 		order.Symbol, order.Side, order.PositionSide, order.Type, order.TimeInForce,
 		order.Quantity, order.Price, order.StopPrice, order.Status,
 		order.FilledQuantity, order.AvgFillPrice, order.Commission, order.CommissionAsset,
@@ -244,13 +248,13 @@ func (s *OrderStore) CreateFill(fill *TraderFill) error {
 
 	result, err := s.db.Exec(`
 		INSERT INTO trader_fills (
-			trader_id, exchange_id, order_id, exchange_order_id, exchange_trade_id,
+			trader_id, exchange_id, exchange_type, order_id, exchange_order_id, exchange_trade_id,
 			symbol, side, price, quantity, quote_quantity,
 			commission, commission_asset, realized_pnl, is_maker,
 			created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		fill.TraderID, fill.ExchangeID, fill.OrderID, fill.ExchangeOrderID, fill.ExchangeTradeID,
+		fill.TraderID, fill.ExchangeID, fill.ExchangeType, fill.OrderID, fill.ExchangeOrderID, fill.ExchangeTradeID,
 		fill.Symbol, fill.Side, fill.Price, fill.Quantity, fill.QuoteQuantity,
 		fill.Commission, fill.CommissionAsset, fill.RealizedPnL, fill.IsMaker,
 		now.Format(time.RFC3339),
@@ -267,7 +271,7 @@ func (s *OrderStore) CreateFill(fill *TraderFill) error {
 // GetFillByExchangeTradeID 根据交易所成交ID获取成交记录
 func (s *OrderStore) GetFillByExchangeTradeID(exchangeID, exchangeTradeID string) (*TraderFill, error) {
 	row := s.db.QueryRow(`
-		SELECT id, trader_id, exchange_id, order_id, exchange_order_id, exchange_trade_id,
+		SELECT id, trader_id, exchange_id, exchange_type, order_id, exchange_order_id, exchange_trade_id,
 			symbol, side, price, quantity, quote_quantity,
 			commission, commission_asset, realized_pnl, is_maker,
 			created_at
@@ -278,7 +282,7 @@ func (s *OrderStore) GetFillByExchangeTradeID(exchangeID, exchangeTradeID string
 	var fill TraderFill
 	var createdAt sql.NullString
 	err := row.Scan(
-		&fill.ID, &fill.TraderID, &fill.ExchangeID, &fill.OrderID, &fill.ExchangeOrderID, &fill.ExchangeTradeID,
+		&fill.ID, &fill.TraderID, &fill.ExchangeID, &fill.ExchangeType, &fill.OrderID, &fill.ExchangeOrderID, &fill.ExchangeTradeID,
 		&fill.Symbol, &fill.Side, &fill.Price, &fill.Quantity, &fill.QuoteQuantity,
 		&fill.Commission, &fill.CommissionAsset, &fill.RealizedPnL, &fill.IsMaker,
 		&createdAt,
@@ -303,7 +307,7 @@ func (s *OrderStore) GetFillByExchangeTradeID(exchangeID, exchangeTradeID string
 // GetOrderByExchangeID 根据交易所订单ID获取订单
 func (s *OrderStore) GetOrderByExchangeID(exchangeID, exchangeOrderID string) (*TraderOrder, error) {
 	row := s.db.QueryRow(`
-		SELECT id, trader_id, exchange_id, exchange_order_id, client_order_id,
+		SELECT id, trader_id, exchange_id, exchange_type, exchange_order_id, client_order_id,
 			symbol, side, position_side, type, time_in_force,
 			quantity, price, stop_price, status,
 			filled_quantity, avg_fill_price, commission, commission_asset,
@@ -317,7 +321,7 @@ func (s *OrderStore) GetOrderByExchangeID(exchangeID, exchangeOrderID string) (*
 	var order TraderOrder
 	var createdAt, updatedAt, filledAt sql.NullString
 	err := row.Scan(
-		&order.ID, &order.TraderID, &order.ExchangeID, &order.ExchangeOrderID, &order.ClientOrderID,
+		&order.ID, &order.TraderID, &order.ExchangeID, &order.ExchangeType, &order.ExchangeOrderID, &order.ClientOrderID,
 		&order.Symbol, &order.Side, &order.PositionSide, &order.Type, &order.TimeInForce,
 		&order.Quantity, &order.Price, &order.StopPrice, &order.Status,
 		&order.FilledQuantity, &order.AvgFillPrice, &order.Commission, &order.CommissionAsset,
@@ -355,7 +359,7 @@ func (s *OrderStore) GetOrderByExchangeID(exchangeID, exchangeOrderID string) (*
 // GetTraderOrders 获取trader的订单列表
 func (s *OrderStore) GetTraderOrders(traderID string, limit int) ([]*TraderOrder, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, exchange_id, exchange_order_id, client_order_id,
+		SELECT id, trader_id, exchange_id, exchange_type, exchange_order_id, client_order_id,
 			symbol, side, position_side, type, time_in_force,
 			quantity, price, stop_price, status,
 			filled_quantity, avg_fill_price, commission, commission_asset,
@@ -377,7 +381,7 @@ func (s *OrderStore) GetTraderOrders(traderID string, limit int) ([]*TraderOrder
 		var order TraderOrder
 		var createdAt, updatedAt, filledAt sql.NullString
 		err := rows.Scan(
-			&order.ID, &order.TraderID, &order.ExchangeID, &order.ExchangeOrderID, &order.ClientOrderID,
+			&order.ID, &order.TraderID, &order.ExchangeID, &order.ExchangeType, &order.ExchangeOrderID, &order.ClientOrderID,
 			&order.Symbol, &order.Side, &order.PositionSide, &order.Type, &order.TimeInForce,
 			&order.Quantity, &order.Price, &order.StopPrice, &order.Status,
 			&order.FilledQuantity, &order.AvgFillPrice, &order.Commission, &order.CommissionAsset,
@@ -415,7 +419,7 @@ func (s *OrderStore) GetTraderOrders(traderID string, limit int) ([]*TraderOrder
 // GetOrderFills 获取订单的成交记录
 func (s *OrderStore) GetOrderFills(orderID int64) ([]*TraderFill, error) {
 	rows, err := s.db.Query(`
-		SELECT id, trader_id, exchange_id, order_id, exchange_order_id, exchange_trade_id,
+		SELECT id, trader_id, exchange_id, exchange_type, order_id, exchange_order_id, exchange_trade_id,
 			symbol, side, price, quantity, quote_quantity,
 			commission, commission_asset, realized_pnl, is_maker,
 			created_at
@@ -433,7 +437,7 @@ func (s *OrderStore) GetOrderFills(orderID int64) ([]*TraderFill, error) {
 		var fill TraderFill
 		var createdAt sql.NullString
 		err := rows.Scan(
-			&fill.ID, &fill.TraderID, &fill.ExchangeID, &fill.OrderID, &fill.ExchangeOrderID, &fill.ExchangeTradeID,
+			&fill.ID, &fill.TraderID, &fill.ExchangeID, &fill.ExchangeType, &fill.OrderID, &fill.ExchangeOrderID, &fill.ExchangeTradeID,
 			&fill.Symbol, &fill.Side, &fill.Price, &fill.Quantity, &fill.QuoteQuantity,
 			&fill.Commission, &fill.CommissionAsset, &fill.RealizedPnL, &fill.IsMaker,
 			&createdAt,

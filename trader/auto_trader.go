@@ -363,8 +363,48 @@ func (at *AutoTrader) Run() error {
 	// Start Lighter order sync if using Lighter exchange
 	if at.exchange == "lighter" {
 		if lighterTrader, ok := at.trader.(*LighterTraderV2); ok && at.store != nil {
-			lighterTrader.StartOrderSync(at.id, at.store.Order(), 30*time.Second)
-			logger.Infof("🔄 [%s] Lighter order sync enabled (every 30s)", at.name)
+			lighterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Lighter order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Hyperliquid order sync if using Hyperliquid exchange
+	if at.exchange == "hyperliquid" {
+		if hyperliquidTrader, ok := at.trader.(*HyperliquidTrader); ok && at.store != nil {
+			hyperliquidTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Hyperliquid order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Bybit order sync if using Bybit exchange
+	if at.exchange == "bybit" {
+		if bybitTrader, ok := at.trader.(*BybitTrader); ok && at.store != nil {
+			bybitTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Bybit order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start OKX order sync if using OKX exchange
+	if at.exchange == "okx" {
+		if okxTrader, ok := at.trader.(*OKXTrader); ok && at.store != nil {
+			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] OKX order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Bitget order sync if using Bitget exchange
+	if at.exchange == "bitget" {
+		if bitgetTrader, ok := at.trader.(*BitgetTrader); ok && at.store != nil {
+			bitgetTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Bitget order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Aster order sync if using Aster exchange
+	if at.exchange == "aster" {
+		if asterTrader, ok := at.trader.(*AsterTrader); ok && at.store != nil {
+			asterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Aster order+position sync enabled (every 30s)", at.name)
 		}
 	}
 
@@ -1888,29 +1928,11 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 			return
 		}
 
-		// Calculate P&L
-		var realizedPnL float64
-		if side == "LONG" {
-			realizedPnL = (price - openPos.EntryPrice) * openPos.Quantity
-		} else {
-			realizedPnL = (openPos.EntryPrice - price) * openPos.Quantity
-		}
-
-		// Update position record
-		err = at.store.Position().ClosePosition(
-			openPos.ID,
-			price,       // exitPrice
-			orderID,     // exitOrderID
-			realizedPnL,
-			fee,         // fee from exchange API
-			"ai_decision",
-		)
-		if err != nil {
-			logger.Infof("  ⚠️ Failed to update position: %v", err)
-		} else {
-			logger.Infof("  📊 Position closed [%s] %s %s @ %.4f → %.4f, P&L: %.2f, Fee: %.4f",
-				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL, fee)
-		}
+		// NOTE: Position update removed - Order Sync will handle it automatically
+		// Order Sync will pick up the fill and update the position through PositionBuilder
+		// This ensures accurate fee accumulation and PnL calculation
+		logger.Infof("  ✅ Order placed [%s] %s %s @ %.4f, will be synced by Order Sync",
+			at.id[:8], symbol, side, price)
 	}
 }
 

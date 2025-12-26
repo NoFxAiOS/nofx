@@ -53,6 +53,8 @@ export function ChartWithOrders({
   const seriesMarkersRef = useRef<any>(null) // Markers primitive for v5
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [tooltipData, setTooltipData] = useState<any>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   // 解析时间：支持 Unix 时间戳（数字）或字符串格式
   const parseCustomTime = (time: any): number => {
@@ -243,6 +245,31 @@ export function ChartWithOrders({
 
       window.addEventListener('resize', handleResize)
 
+      // 监听鼠标移动，显示 OHLC 信息
+      chart.subscribeCrosshairMove((param) => {
+        if (!param.time || !param.point || !candlestickSeriesRef.current) {
+          setTooltipData(null)
+          return
+        }
+
+        const data = param.seriesData.get(candlestickSeriesRef.current as any)
+        if (!data) {
+          setTooltipData(null)
+          return
+        }
+
+        const candleData = data as any
+        setTooltipData({
+          time: param.time,
+          open: candleData.open,
+          high: candleData.high,
+          low: candleData.low,
+          close: candleData.close,
+          x: param.point.x,
+          y: param.point.y,
+        })
+      })
+
       return () => {
         window.removeEventListener('resize', handleResize)
         chart.remove()
@@ -370,7 +397,59 @@ export function ChartWithOrders({
       </div>
 
       {/* 图表容器 */}
-      <div ref={chartContainerRef} style={{ position: 'relative' }} />
+      <div style={{ position: 'relative' }}>
+        <div ref={chartContainerRef} />
+
+        {/* OHLC Tooltip */}
+        {tooltipData && (
+          <div
+            ref={tooltipRef}
+            style={{
+              position: 'absolute',
+              left: '10px',
+              top: '10px',
+              padding: '8px 12px',
+              background: 'rgba(15, 18, 21, 0.95)',
+              border: '1px solid rgba(240, 185, 11, 0.3)',
+              borderRadius: '6px',
+              color: '#EAECEF',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              pointerEvents: 'none',
+              zIndex: 10,
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{ marginBottom: '6px', color: '#F0B90B', fontWeight: 'bold', fontSize: '11px' }}>
+              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: '11px' }}>
+              <span style={{ color: '#848E9C' }}>O:</span>
+              <span style={{ color: '#EAECEF', fontWeight: '500' }}>{tooltipData.open?.toFixed(2)}</span>
+
+              <span style={{ color: '#848E9C' }}>H:</span>
+              <span style={{ color: '#0ECB81', fontWeight: '500' }}>{tooltipData.high?.toFixed(2)}</span>
+
+              <span style={{ color: '#848E9C' }}>L:</span>
+              <span style={{ color: '#F6465D', fontWeight: '500' }}>{tooltipData.low?.toFixed(2)}</span>
+
+              <span style={{ color: '#848E9C' }}>C:</span>
+              <span style={{
+                color: tooltipData.close >= tooltipData.open ? '#0ECB81' : '#F6465D',
+                fontWeight: 'bold'
+              }}>
+                {tooltipData.close?.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 错误提示 */}
       {error && (

@@ -1028,12 +1028,42 @@ func (t *HyperliquidTrader) GetTrades(startTime time.Time, limit int) ([]TradeRe
 			side = "SELL"
 		}
 
+		// Parse Dir field to get order action
+		// Hyperliquid Dir values: "Open Long", "Open Short", "Close Long", "Close Short"
+		var orderAction string
+		switch strings.ToLower(fill.Dir) {
+		case "open long":
+			orderAction = "open_long"
+		case "open short":
+			orderAction = "open_short"
+		case "close long":
+			orderAction = "close_long"
+		case "close short":
+			orderAction = "close_short"
+		default:
+			// Fallback: use RealizedPnL if Dir is missing/unknown
+			if pnl != 0 {
+				if side == "BUY" {
+					orderAction = "close_short"
+				} else {
+					orderAction = "close_long"
+				}
+			} else {
+				if side == "BUY" {
+					orderAction = "open_long"
+				} else {
+					orderAction = "open_short"
+				}
+			}
+		}
+
 		// Hyperliquid uses one-way mode, so PositionSide is "BOTH"
 		trade := TradeRecord{
 			TradeID:      strconv.FormatInt(fill.Tid, 10),
 			Symbol:       fill.Coin,
 			Side:         side,
 			PositionSide: "BOTH", // Hyperliquid doesn't have hedge mode
+			OrderAction:  orderAction,
 			Price:        price,
 			Quantity:     qty,
 			RealizedPnL:  pnl,

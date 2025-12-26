@@ -7,11 +7,12 @@ import (
 	"nofx/logger"
 	"nofx/store"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
 
-// LighterOrderHistory 订单历史记录
+// LighterOrderHistory order history record
 type LighterOrderHistory struct {
 	OrderID       string    `json:"order_id"`
 	Symbol        string    `json:"symbol"`
@@ -26,16 +27,23 @@ type LighterOrderHistory struct {
 	FilledAt      int64     `json:"filled_at"`
 }
 
-// SyncOrdersFromLighter 同步 Lighter 交易所的订单历史到本地数据库
-func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *store.OrderStore) error {
-	// 确保有 account index
+// SyncOrdersFromLighter syncs Lighter exchange order history to local database
+// Also creates/updates position records to ensure orders/fills/positions data consistency
+// exchangeID: Exchange account UUID (from exchanges.id)
+// exchangeType: Exchange type ("lighter")
+func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID string, exchangeType string, st *store.Store) error {
+	if st == nil {
+		return fmt.Errorf("store is nil")
+	}
+
+	// Ensure we have account index
 	if t.accountIndex == 0 {
 		if err := t.initializeAccount(); err != nil {
 			return fmt.Errorf("failed to get account index: %w", err)
 		}
 	}
 
-	// 获取最近的订单（过去24小时）
+	// Get recent orders (last 24 hours)
 	startTime := time.Now().Add(-24 * time.Hour).Unix()
 	endpoint := fmt.Sprintf("%s/api/v1/orders?account_index=%d&start_time=%d&limit=100",
 		t.baseURL, t.accountIndex, startTime)
@@ -47,7 +55,7 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// 添加认证头
+	// Add authentication header
 	if err := t.ensureAuthToken(); err != nil {
 		return fmt.Errorf("failed to get auth token: %w", err)
 	}
@@ -72,7 +80,7 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 		return fmt.Errorf("API returned status %d", resp.StatusCode)
 	}
 
-	// 解析响应
+	// Parse response
 	var apiResp struct {
 		Code   int                    `json:"code"`
 		Orders []LighterOrderHistory  `json:"orders"`
@@ -89,21 +97,33 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 
 	logger.Infof("📥 Received %d orders from Lighter", len(apiResp.Orders))
 
-	// 同步每个订单
+	// Sort orders by filled_at ASC (oldest first) for proper position building
+	sort.Slice(apiResp.Orders, func(i, j int) bool {
+		return apiResp.Orders[i].FilledAt < apiResp.Orders[j].FilledAt
+	})
+
+	// Process orders one by one (no transaction to avoid deadlock)
+	orderStore := st.Order()
+	positionStore := st.Position()
+	posBuilder := store.NewPositionBuilder(positionStore)
+
+	// Get current open positions to help determine action for each order
+	openPositions, _ := positionStore.GetOpenPositions(traderID)
+
 	syncedCount := 0
 	for _, order := range apiResp.Orders {
-		// 只同步已成交的订单
+		// Only sync filled orders
 		if order.Status != "filled" {
 			continue
 		}
 
-		// 检查订单是否已存在
-		existing, err := orderStore.GetOrderByExchangeID("lighter", order.OrderID)
+		// Check if order already exists (use exchangeID which is UUID, not exchange type)
+		existing, err := orderStore.GetOrderByExchangeID(exchangeID, order.OrderID)
 		if err == nil && existing != nil {
-			continue // 订单已存在，跳过
+			continue // Order already exists, skip
 		}
 
-		// 解析价格和数量
+		// Parse price and quantity
 		price, _ := parseFloat(order.Price)
 		size, _ := parseFloat(order.Size)
 		filledSize, _ := parseFloat(order.FilledSize)
@@ -112,24 +132,55 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 			filledSize = size
 		}
 
-		// 确定订单方向和动作
+		// Determine order action based on existing positions
+		// Lighter can have both LONG and SHORT positions simultaneously
 		var positionSide, orderAction, side string
+		symbol := order.Symbol
+
 		if order.Side == "buy" {
 			side = "BUY"
-			// 买入可能是开多或平空，这里假设是开多
-			positionSide = "LONG"
-			orderAction = "open_long"
+
+			// Check if we have an open SHORT position for this symbol
+			hasShort := false
+			for _, pos := range openPositions {
+				if pos.Symbol == symbol && pos.Side == "SHORT" && pos.Status == "OPEN" {
+					hasShort = true
+					break
+				}
+			}
+
+			if hasShort {
+				positionSide = "SHORT"
+				orderAction = "close_short"
+			} else {
+				positionSide = "LONG"
+				orderAction = "open_long"
+			}
 		} else {
 			side = "SELL"
-			// 卖出可能是平多或开空，这里假设是平多
-			positionSide = "LONG"
-			orderAction = "close_long"
+
+			// Check if we have an open LONG position
+			hasLong := false
+			for _, pos := range openPositions {
+				if pos.Symbol == symbol && pos.Side == "LONG" && pos.Status == "OPEN" {
+					hasLong = true
+					break
+				}
+			}
+
+			if hasLong {
+				positionSide = "LONG"
+				orderAction = "close_long"
+			} else {
+				positionSide = "SHORT"
+				orderAction = "open_short"
+			}
 		}
 
-		// 估算手续费
+		// Estimate fee
 		fee := price * filledSize * 0.0004
 
-		// 创建订单记录
+		// Create order record
 		filledAt := time.Unix(order.FilledAt, 0)
 		if order.FilledAt == 0 {
 			filledAt = time.Unix(order.UpdatedAt, 0)
@@ -137,9 +188,10 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
-			ExchangeID:      "lighter",
+			ExchangeID:      exchangeID,   // UUID
+			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: order.OrderID,
-			Symbol:          order.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			PositionSide:    positionSide,
 			Type:            "MARKET",
@@ -155,20 +207,21 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 			UpdatedAt:       time.Unix(order.UpdatedAt, 0),
 		}
 
-		// 插入订单记录
+		// Insert order record
 		if err := orderStore.CreateOrder(orderRecord); err != nil {
 			logger.Infof("  ⚠️ Failed to sync order %s: %v", order.OrderID, err)
 			continue
 		}
 
-		// 创建成交记录
+		// Create fill record
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
-			ExchangeID:      "lighter",
+			ExchangeID:      exchangeID,   // UUID
+			ExchangeType:    exchangeType, // Exchange type
 			OrderID:         orderRecord.ID,
 			ExchangeOrderID: order.OrderID,
 			ExchangeTradeID: fmt.Sprintf("%s-%d", order.OrderID, time.Now().UnixNano()),
-			Symbol:          order.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			Price:           price,
 			Quantity:        filledSize,
@@ -184,20 +237,63 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, orderStore *sto
 			logger.Infof("  ⚠️ Failed to sync fill for order %s: %v", order.OrderID, err)
 		}
 
+		// Calculate PnL for close orders
+		var realizedPnL float64
+		if strings.HasPrefix(orderAction, "close_") {
+			// Get the open position to calculate PnL
+			openPos, _ := positionStore.GetOpenPositionBySymbol(traderID, symbol, positionSide)
+			if openPos != nil {
+				if positionSide == "LONG" {
+					realizedPnL = (price - openPos.EntryPrice) * filledSize
+				} else {
+					realizedPnL = (openPos.EntryPrice - price) * filledSize
+				}
+				realizedPnL -= fee
+			}
+		}
+
+		// Create/update position record using PositionBuilder
+		if err := posBuilder.ProcessTrade(
+			traderID, exchangeID, exchangeType,
+			symbol, positionSide, orderAction,
+			filledSize, price, fee, realizedPnL,
+			filledAt, order.OrderID,
+		); err != nil {
+			logger.Infof("  ⚠️ Failed to sync position for order %s: %v", order.OrderID, err)
+		}
+
+		// Update openPositions list dynamically
+		if strings.HasPrefix(orderAction, "open_") {
+			// Add to openPositions (approximate)
+			openPositions = append(openPositions, &store.TraderPosition{
+				Symbol: symbol,
+				Side:   positionSide,
+				Status: "OPEN",
+			})
+		} else if strings.HasPrefix(orderAction, "close_") {
+			// Remove from openPositions (approximate)
+			for i, pos := range openPositions {
+				if pos.Symbol == symbol && pos.Side == positionSide && pos.Status == "OPEN" {
+					openPositions = append(openPositions[:i], openPositions[i+1:]...)
+					break
+				}
+			}
+		}
+
 		syncedCount++
-		logger.Infof("  ✅ Synced order: %s %s %s qty=%.6f price=%.6f", order.OrderID, order.Symbol, side, filledSize, price)
+		logger.Infof("  ✅ Synced order: %s %s %s qty=%.6f price=%.6f", order.OrderID, symbol, side, filledSize, price)
 	}
 
 	logger.Infof("✅ Order sync completed: %d new orders synced", syncedCount)
 	return nil
 }
 
-// StartOrderSync 启动订单同步后台任务
-func (t *LighterTraderV2) StartOrderSync(traderID string, orderStore *store.OrderStore, interval time.Duration) {
+// StartOrderSync starts background order sync task
+func (t *LighterTraderV2) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {
-			if err := t.SyncOrdersFromLighter(traderID, orderStore); err != nil {
+			if err := t.SyncOrdersFromLighter(traderID, exchangeID, exchangeType, st); err != nil {
 				// Only log non-404 errors to reduce log spam
 				if !strings.Contains(err.Error(), "status 404") {
 					logger.Infof("⚠️  Order sync failed: %v", err)
@@ -205,5 +301,5 @@ func (t *LighterTraderV2) StartOrderSync(traderID string, orderStore *store.Orde
 			}
 		}
 	}()
-	logger.Infof("🔄 Lighter order sync started (interval: %v)", interval)
+	logger.Infof("🔄 Lighter order+position sync started (interval: %v)", interval)
 }

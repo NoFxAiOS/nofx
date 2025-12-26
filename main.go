@@ -11,7 +11,6 @@ import (
 	"nofx/manager"
 	"nofx/mcp"
 	"nofx/store"
-	"nofx/trader"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -114,11 +113,6 @@ func main() {
 	if err := backtestManager.RestoreRuns(); err != nil {
 		logger.Warnf("⚠️ Failed to restore backtest history: %v", err)
 	}
-
-	// Start position sync manager (detects manual closures, TP/SL triggers)
-	positionSyncManager := trader.NewPositionSyncManager(st, 0) // 0 = use default 10s interval
-	positionSyncManager.Start()
-	defer positionSyncManager.Stop()
 
 	// Load all traders from database to memory (may auto-start traders with IsRunning=true)
 	if err := traderManager.LoadTradersFromStore(st); err != nil {

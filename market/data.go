@@ -297,6 +297,7 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		MACDValues:  make([]float64, 0, count),
 		RSI7Values:  make([]float64, 0, count),
 		RSI14Values: make([]float64, 0, count),
+		DeltaValues: make([]float64, 0, count),
 		Volume:      make([]float64, 0, count),
 		BOLLUpper:   make([]float64, 0, count),
 		BOLLMiddle:  make([]float64, 0, count),
@@ -323,6 +324,16 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		// Keep MidPrices and Volume for backward compatibility
 		data.MidPrices = append(data.MidPrices, klines[i].Close)
 		data.Volume = append(data.Volume, klines[i].Volume)
+
+		// Calculate close-to-close delta (%)
+		deltaPct := 0.0
+		if i > 0 {
+			prevClose := klines[i-1].Close
+			if prevClose != 0 {
+				deltaPct = ((klines[i].Close - prevClose) / prevClose) * 100
+			}
+		}
+		data.DeltaValues = append(data.DeltaValues, deltaPct)
 
 		// Calculate EMA20 for each point
 		if i >= 19 {
@@ -879,6 +890,10 @@ func formatTimeframeData(sb *strings.Builder, data *TimeframeSeriesData) {
 
 	if len(data.EMA50Values) > 0 {
 		sb.WriteString(fmt.Sprintf("EMA50: %s\n", formatFloatSlice(data.EMA50Values)))
+	}
+
+	if len(data.DeltaValues) > 0 {
+		sb.WriteString(fmt.Sprintf("Delta%%: %s\n", formatFloatSlice(data.DeltaValues)))
 	}
 
 	if len(data.MACDValues) > 0 {

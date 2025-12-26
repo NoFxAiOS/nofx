@@ -11,6 +11,7 @@ import (
 	"nofx/provider"
 	"nofx/security"
 	"nofx/store"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -883,6 +884,10 @@ func (e *StrategyEngine) writeAvailableIndicators(sb *strings.Builder) {
 		sb.WriteString("- MACD indicators\n")
 	}
 
+	if indicators.EnableDelta {
+		sb.WriteString("- Delta (close-to-close % change)\n")
+	}
+
 	if indicators.EnableRSI {
 		sb.WriteString("- RSI indicators")
 		if len(indicators.RSIPeriods) > 0 {
@@ -1230,6 +1235,10 @@ func (e *StrategyEngine) formatTimeframeSeriesData(sb *strings.Builder, data *ma
 		}
 	}
 
+	if indicators.EnableDelta && len(data.DeltaValues) > 0 {
+		sb.WriteString(fmt.Sprintf("Delta (%%): %s\n", formatFloatSlice(data.DeltaValues)))
+	}
+
 	if indicators.EnableMACD && len(data.MACDValues) > 0 {
 		sb.WriteString(fmt.Sprintf("MACD: %s\n", formatFloatSlice(data.MACDValues)))
 	}
@@ -1331,6 +1340,7 @@ func (e *StrategyEngine) formatQuantData(data *QuantData) string {
 				sb.WriteString(fmt.Sprintf("Open Interest (%s):\n", exchange))
 				for _, tf := range []string{"5m", "15m", "1h", "4h", "12h", "24h"} {
 					if d, ok := oiData.Delta[tf]; ok {
+						normalizeQuantOIDelta(d)
 						sb.WriteString(fmt.Sprintf("    %s: %+.4f%% (%s)\n", tf, d.OIDeltaPercent, formatFlowValue(d.OIDeltaValue)))
 					}
 				}
@@ -1358,6 +1368,23 @@ func formatFlowValue(v float64) string {
 		return fmt.Sprintf("%s%.2fK", sign, v/1e3)
 	}
 	return fmt.Sprintf("%s%.2f", sign, v)
+}
+
+// normalizeQuantOIDelta aligns OI delta percent sign with absolute delta value to avoid conflicting directions.
+func normalizeQuantOIDelta(d *OIDeltaData) {
+	if d == nil {
+		return
+	}
+	if d.OIDeltaValue == 0 || d.OIDeltaPercent == 0 {
+		return
+	}
+	if (d.OIDeltaValue > 0 && d.OIDeltaPercent < 0) || (d.OIDeltaValue < 0 && d.OIDeltaPercent > 0) {
+		if d.OIDeltaValue < 0 {
+			d.OIDeltaPercent = -math.Abs(d.OIDeltaPercent)
+		} else {
+			d.OIDeltaPercent = math.Abs(d.OIDeltaPercent)
+		}
+	}
 }
 
 func formatFloatSlice(values []float64) string {

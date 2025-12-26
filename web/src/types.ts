@@ -469,6 +469,7 @@ export interface IndicatorConfig {
   enable_rsi: boolean;
   enable_atr: boolean;
   enable_boll: boolean;
+  enable_delta?: boolean;
   enable_volume: boolean;
   enable_oi: boolean;
   enable_funding_rate: boolean;

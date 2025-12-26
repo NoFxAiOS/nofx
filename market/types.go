@@ -39,6 +39,7 @@ type TimeframeSeriesData struct {
 	MACDValues  []float64  `json:"macd_values"`  // MACD series
 	RSI7Values  []float64  `json:"rsi7_values"`  // RSI7 series
 	RSI14Values []float64  `json:"rsi14_values"` // RSI14 series
+	DeltaValues []float64  `json:"delta_values"` // Close-to-close percentage change
 	Volume      []float64  `json:"volume"`       // Volume series (deprecated, use Klines)
 	ATR14       float64    `json:"atr14"`        // ATR14
 	// Bollinger Bands (period 20, std dev multiplier 2)

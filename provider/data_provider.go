@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"nofx/security"
 	"strings"
@@ -456,6 +457,14 @@ func FormatOIRankingForAI(data *OIRankingData) string {
 		return ""
 	}
 
+	// Normalize sign conflicts between absolute and percentage deltas
+	for i := range data.TopPositions {
+		normalizeOIDelta(&data.TopPositions[i])
+	}
+	for i := range data.LowPositions {
+		normalizeOIDelta(&data.LowPositions[i])
+	}
+
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("## 📊 市场持仓量变化数据 (Open Interest Changes in %s / %s)\n\n", data.TimeRange, data.Duration))
@@ -497,6 +506,24 @@ func FormatOIRankingForAI(data *OIRankingData) string {
 	}
 
 	return sb.String()
+}
+
+// normalizeOIDelta ensures the percent sign aligns with the absolute delta value.
+func normalizeOIDelta(pos *OIPosition) {
+	if pos == nil {
+		return
+	}
+	// Only adjust when both fields are non-zero and signs conflict.
+	if pos.OIDeltaValue == 0 || pos.OIDeltaPercent == 0 {
+		return
+	}
+	if (pos.OIDeltaValue > 0 && pos.OIDeltaPercent < 0) || (pos.OIDeltaValue < 0 && pos.OIDeltaPercent > 0) {
+		sign := 1.0
+		if pos.OIDeltaValue < 0 {
+			sign = -1.0
+		}
+		pos.OIDeltaPercent = sign * math.Abs(pos.OIDeltaPercent)
+	}
 }
 
 // formatOIValue formats OI value for display

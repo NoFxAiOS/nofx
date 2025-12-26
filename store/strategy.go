@@ -83,6 +83,7 @@ type IndicatorConfig struct {
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
 	EnableBOLL        bool `json:"enable_boll"`         // Bollinger Bands
+	EnableDelta       bool `json:"enable_delta"`        // Close-to-close price delta (%)
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
@@ -245,6 +246,7 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EnableRSI:         false,
 			EnableATR:         false,
 			EnableBOLL:        false,
+			EnableDelta:       false,
 			EnableVolume:      true,
 			EnableOI:          true,
 			EnableFundingRate: true,

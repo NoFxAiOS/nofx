@@ -64,7 +64,7 @@ func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
 	}
 
 	// Decrypt
-	decrypted, err := h.cryptoService.DecryptSensitiveData(&payload)
+	decrypted, err := h.cryptoService.DecryptSensitiveData(&payload, nil)
 	if err != nil {
 		log.Printf("❌ Decryption failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Decryption failed"})

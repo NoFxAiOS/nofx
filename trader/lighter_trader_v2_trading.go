@@ -229,14 +229,14 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 		// For SELL: set price protection BELOW market (allow selling down to 95% of market price)
 		var protectedPrice float64
 		if isAsk {
-			// Selling: accept down to 95% of market price
-			protectedPrice = marketPrice * 0.95
-			logger.Infof("🔸 MARKET SELL order - Price protection: %.2f (95%% of market %.2f, precision: %d decimals)",
+			// Selling: accept down to 90% of market price
+			protectedPrice = marketPrice * 0.90
+			logger.Infof("🔸 MARKET SELL order - Price protection: %.2f (90%% of market %.2f, precision: %d decimals)",
 				protectedPrice, marketPrice, marketInfo.PriceDecimals)
 		} else {
-			// Buying: accept up to 105% of market price
-			protectedPrice = marketPrice * 1.05
-			logger.Infof("🔸 MARKET BUY order - Price protection: %.2f (105%% of market %.2f, precision: %d decimals)",
+			// Buying: accept up to 110% of market price
+			protectedPrice = marketPrice * 1.10
+			logger.Infof("🔸 MARKET BUY order - Price protection: %.2f (110%% of market %.2f, precision: %d decimals)",
 				protectedPrice, marketPrice, marketInfo.PriceDecimals)
 		}
 		priceValue = uint32(protectedPrice * float64(pow10(marketInfo.PriceDecimals)))

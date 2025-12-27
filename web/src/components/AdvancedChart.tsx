@@ -446,36 +446,69 @@ export function AdvancedChart({
           if (orders.length > 0) {
             console.log('[AdvancedChart] Creating markers from', orders.length, 'orders')
 
-            // 过滤掉无效时间戳的订单（小于2024年的时间戳）
-            const minValidTimestamp = new Date('2024-01-01').getTime() / 1000
-            const validOrders = orders.filter(order => {
-              if (order.time < minValidTimestamp) {
-                console.warn('[AdvancedChart] ⚠️ Skipping order with invalid timestamp:', order.time, '(', new Date(order.time * 1000).toISOString(), ')')
-                return false
+            // 提取 K 线时间数组（已排序）
+            const klineTimes = klineData.map((k: any) => k.time as number)
+            const klineMinTime = klineTimes[0] || 0
+            const klineMaxTime = klineTimes[klineTimes.length - 1] || 0
+            console.log('[AdvancedChart] Kline time range:', klineMinTime, '-', klineMaxTime, '(', klineTimes.length, 'candles)')
+
+            // 二分查找：找到订单时间所属的 K 线蜡烛
+            // 返回 time <= orderTime 的最大 K 线时间
+            const findCandleTime = (orderTime: number): number | null => {
+              if (orderTime < klineMinTime || orderTime > klineMaxTime) {
+                return null // 超出范围
               }
-              return true
-            })
 
-            console.log('[AdvancedChart] Valid orders:', validOrders.length, 'out of', orders.length)
+              let left = 0
+              let right = klineTimes.length - 1
 
-            const markers = validOrders.map(order => {
-              // 直接使用 rawSide 字段判断买卖（更准确）
-              // rawSide = 'buy' → 绿色 B
-              // rawSide = 'sell' → 红色 S
+              while (left < right) {
+                const mid = Math.ceil((left + right + 1) / 2)
+                if (klineTimes[mid] <= orderTime) {
+                  left = mid
+                } else {
+                  right = mid - 1
+                }
+              }
+
+              return klineTimes[left]
+            }
+
+            // 过滤并对齐订单到 K 线时间
+            const markers: Array<{
+              time: Time
+              position: 'belowBar'
+              color: string
+              shape: 'circle'
+              text: string
+              size: number
+            }> = []
+
+            orders.forEach(order => {
+              // 使用二分查找找到对应的 K 线蜡烛时间
+              const candleTime = findCandleTime(order.time)
+
+              if (candleTime === null) {
+                console.warn('[AdvancedChart] ⚠️ Skipping order outside kline range:',
+                  order.time, '(', new Date(order.time * 1000).toISOString(), ')')
+                return
+              }
+
               const isBuy = order.rawSide === 'buy'
-
-              const marker = {
-                time: order.time as Time,
+              markers.push({
+                time: candleTime as Time,
                 position: 'belowBar' as const,
-                color: isBuy ? '#0ECB81' : '#F6465D', // BUY绿色, SELL红色
-                shape: 'circle' as const, // 使用圆形作为背景
-                text: isBuy ? 'B' : 'S', // 显示 B 或 S
-                size: 1, // 稍微大一点以显示文字
-              }
-
-              console.log('[AdvancedChart] ✅ Created marker:', marker.text, 'for', order.rawSide, 'at', new Date(order.time * 1000).toISOString())
-              return marker
+                color: isBuy ? '#0ECB81' : '#F6465D',
+                shape: 'circle' as const,
+                text: isBuy ? 'B' : 'S',
+                size: 1,
+              })
             })
+
+            // 按时间排序（lightweight-charts 要求标记按时间顺序）
+            markers.sort((a, b) => (a.time as number) - (b.time as number))
+
+            console.log('[AdvancedChart] Valid markers:', markers.length, 'out of', orders.length)
 
             console.log('[AdvancedChart] Setting', markers.length, 'markers on candlestick series')
             console.log('[AdvancedChart] Markers data:', JSON.stringify(markers, null, 2))

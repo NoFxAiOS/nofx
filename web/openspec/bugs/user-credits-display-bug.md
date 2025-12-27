@@ -227,6 +227,63 @@ return <CreditsDashboard data={credits} />;
 
 ---
 
-**修复状态**: 🔄 待修复
-**预计修复时间**: 2小时
-**预计发布时间**: 2025-12-03
+**修复状态**: ✅ 已修复
+**实际修复时间**: 2025-12-27
+**实际发布时间**: 2025-12-27
+**部署地址**: https://www.agentrade.xyz
+
+## 📝 修复更新 (2025-12-27)
+
+### 实际发现的问题 (不同于原始报告)
+经过详细的Playwright E2E测试和代码分析，发现：
+1. **原始报告** 描述的问题是 "积分系统即将上线" 硬编码的显示问题
+2. **实际问题** 是 API返回401 (认证失败) 时，Hook没有设置错误状态导致显示为"-"
+
+### 真实根因
+**文件**: `web/src/hooks/useUserCredits.ts` (第91-97行)
+
+当后端API返回401状态码时，Hook的行为：
+```typescript
+if (response.status === 401) {
+  // 无声清空数据 ❌ - 没有设置错误状态
+  setCredits(null);
+  setLoading(false);
+  return;
+}
+```
+
+这导致：
+- 用户看到 "-" (空数据状态)
+- 没有任何错误提示
+- 用户不知道需要重新登录
+
+### 已实现的修复
+**提交**: ebbf40db
+
+1. ✅ **修复401错误处理** - 现在正确设置错误状态
+   ```typescript
+   setError(new Error('认证失败，请重新登录'));
+   ```
+
+2. ✅ **增强错误日志** - 更好的调试信息
+   - 区分网络错误 vs 认证错误
+   - 包含用户邮箱和时间戳
+
+3. ✅ **创建测试** - Playwright E2E测试
+   - `credits-diagnosis.e2e.spec.ts`
+   - `credits-login-flow.e2e.spec.ts`
+
+4. ✅ **已部署** - Vercel生产部署完成
+   - URL: https://www.agentrade.xyz
+   - 状态: 成功
+   - 时间: 36秒
+
+### 用户体验改进
+| 场景 | 修复前 | 修复后 |
+|-----|------|------|
+| Token失效 | 显示 "-" (无提示) | 显示 ⚠️ 并提示重新登录 |
+| API错误 | 无声失败 | 显示明确错误消息 |
+| 调试困难 | 无日志 | 完整的控制台日志 |
+
+### 完整实现报告
+详见: `CREDITS_DISPLAY_FIX_IMPLEMENTATION.md`

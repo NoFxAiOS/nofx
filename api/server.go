@@ -13,7 +13,7 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/market"
-	"nofx/provider/coinank"
+	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/store"
 	"nofx/trader"
@@ -2321,11 +2321,8 @@ func (s *Server) handleKlines(c *gin.Context) {
 	c.JSON(http.StatusOK, klines)
 }
 
-// getKlinesFromCoinank fetches kline data from coinank API for multiple exchanges
+// getKlinesFromCoinank fetches kline data from coinank free/open API for multiple exchanges
 func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit int) ([]market.Kline, error) {
-	// Import coinank packages
-	coinankClient := coinank.NewCoinankClient(coinank_enum.MainUrl, "0cccbd7992754b67b1848c6746c0fce0")
-
 	// Map exchange string to coinank enum
 	var coinankExchange coinank_enum.Exchange
 	switch strings.ToLower(exchange) {
@@ -2397,12 +2394,34 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 		return nil, fmt.Errorf("unsupported interval for coinank: %s", interval)
 	}
 
-	// Call coinank API
+	// Convert symbol format for different exchanges
+	// OKX uses "BTC-USDT-SWAP" format instead of "BTCUSDT"
+	apiSymbol := symbol
+	if coinankExchange == coinank_enum.Okex {
+		// Convert BTCUSDT -> BTC-USDT-SWAP
+		if strings.HasSuffix(symbol, "USDT") {
+			base := strings.TrimSuffix(symbol, "USDT")
+			apiSymbol = fmt.Sprintf("%s-USDT-SWAP", base)
+		}
+	}
+
+	// Call coinank free/open API (no authentication required)
 	ctx := context.Background()
-	endTime := time.Now().UnixMilli()
-	coinankKlines, err := coinankClient.Kline(ctx, symbol, coinankExchange, 0, endTime, limit, coinankInterval)
+	ts := time.Now().UnixMilli()
+	// Use "To" side to search backward from current time (get historical klines)
+	coinankKlines, err := coinank_api.Kline(ctx, apiSymbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
 	if err != nil {
-		return nil, fmt.Errorf("coinank API error: %w", err)
+		// Free API doesn't support all exchanges (e.g., OKX, Bitget)
+		// Fallback to Binance data as reference
+		if coinankExchange != coinank_enum.Binance {
+			logger.Warnf("⚠️ CoinAnk free API doesn't support %s, falling back to Binance data", coinankExchange)
+			coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
+			if err != nil {
+				return nil, fmt.Errorf("coinank API error (fallback): %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("coinank API error: %w", err)
+		}
 	}
 
 	// Convert coinank kline format to market.Kline format

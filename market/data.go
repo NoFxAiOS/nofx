@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"nofx/logger"
-	"nofx/provider/coinank"
+	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"math"
 	"strconv"
@@ -25,13 +25,9 @@ type FundingRateCache struct {
 var (
 	fundingRateMap sync.Map // map[string]*FundingRateCache
 	frCacheTTL     = 1 * time.Hour
-	coinankClient  *coinank.CoinankClient // Global CoinAnk client for kline data
 )
 
-// Initialize CoinAnk client
-func init() {
-	coinankClient = coinank.NewCoinankClient(coinank_enum.MainUrl, "0cccbd7992754b67b1848c6746c0fce0")
-}
+// Note: Kline data now uses free/open API (coinank_api.Kline) which doesn't require authentication
 
 // getKlinesFromCoinAnk fetches kline data from CoinAnk API (replacement for WSMonitorCli)
 func getKlinesFromCoinAnk(symbol, interval string, limit int) ([]Kline, error) {
@@ -70,10 +66,11 @@ func getKlinesFromCoinAnk(symbol, interval string, limit int) ([]Kline, error) {
 		return nil, fmt.Errorf("unsupported interval: %s", interval)
 	}
 
-	// Call CoinAnk API (default to Binance exchange for compatibility)
+	// Call CoinAnk free/open API (no authentication required)
 	ctx := context.Background()
-	endTime := time.Now().UnixMilli()
-	coinankKlines, err := coinankClient.Kline(ctx, symbol, coinank_enum.Binance, 0, endTime, limit, coinankInterval)
+	ts := time.Now().UnixMilli()
+	// Use "To" side to search backward from current time (get historical klines)
+	coinankKlines, err := coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
 	if err != nil {
 		return nil, fmt.Errorf("CoinAnk API error: %w", err)
 	}

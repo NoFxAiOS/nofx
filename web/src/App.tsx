@@ -72,15 +72,15 @@ function getExchangeDisplayNameFromList(
     : typeName
 }
 
-// Helper function to get exchange type from exchange ID (UUID) - for TradingView charts
+// Helper function to get exchange type from exchange ID (UUID) - for kline charts
 function getExchangeTypeFromList(
   exchangeId: string | undefined,
   exchanges: Exchange[] | undefined
 ): string {
-  if (!exchangeId) return 'BINANCE'
+  if (!exchangeId) return 'binance'
   const exchange = exchanges?.find((e) => e.id === exchangeId)
-  if (!exchange) return 'BINANCE' // Default to BINANCE for charts
-  return exchange.exchange_type?.toUpperCase() || 'BINANCE'
+  if (!exchange) return 'binance' // Default to binance for charts
+  return exchange.exchange_type?.toLowerCase() || 'binance'
 }
 
 // Helper function to check if exchange is a perp-dex type (wallet-based)

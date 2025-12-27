@@ -171,6 +171,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 interval={interval}
                 traderID={traderId}
                 height={550}
+                exchange={exchangeId || 'binance'}
                 onSymbolChange={setChartSymbol}
               />
             </motion.div>

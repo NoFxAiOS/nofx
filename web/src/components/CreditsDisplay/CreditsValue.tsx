@@ -1,3 +1,4 @@
+import { useLanguage } from '../../contexts/LanguageContext';
 import styles from './credits.module.css';
 
 /**
@@ -7,6 +8,8 @@ export interface CreditsValueProps {
   value: number;
   format?: 'number' | 'short';
   onOpen?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
 }
 
 /**
@@ -31,11 +34,24 @@ export function CreditsValue({
   value,
   format = 'number',
   onOpen,
+  disabled = false,
+  loading = false,
 }: CreditsValueProps): React.ReactElement {
+  const { language } = useLanguage();
   const displayValue = format === 'short' ? formatShortNumber(value) : value;
+  const creditsLabel = language === 'zh' ? '用户积分' : 'Credits';
 
   const handleClick = () => {
-    onOpen?.();
+    if (!disabled && !loading) {
+      onOpen?.();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.key === 'Enter' || e.key === ' ') && !disabled && !loading) {
+      e.preventDefault();
+      handleClick();
+    }
   };
 
   return (
@@ -44,16 +60,19 @@ export function CreditsValue({
       data-testid="credits-value"
       data-value={value}
       onClick={handleClick}
-      style={{ cursor: 'pointer' }}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          handleClick();
-        }
+      onKeyDown={handleKeyDown}
+      style={{
+        cursor: disabled || loading ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.6 : 1,
       }}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={`${displayValue} ${creditsLabel}. ${!disabled ? 'Click to purchase more credits' : 'Credits display'}`}
+      aria-disabled={disabled || loading}
+      aria-busy={loading}
     >
-      {displayValue}(用户积分)
+      {loading && <span className={styles.spinner}>⟳ </span>}
+      {displayValue}({creditsLabel})
     </span>
   );
 }

@@ -1,0 +1,373 @@
+/* PaymentModal CSS Module */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.content {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.closeButton:hover {
+  background-color: #f0f0f0;
+}
+
+.closeButton:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+/* Idle State */
+.idleSection {
+  margin-bottom: 24px;
+}
+
+.description {
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.packageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.packageButton {
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.packageButton:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+}
+
+.packageButton:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+.packageButton.selected {
+  border: 2px solid #007bff;
+  background-color: #f0f8ff;
+}
+
+.packageButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.packageName {
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.packagePrice {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.packageCredits {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #007bff;
+  font-weight: 500;
+}
+
+.packageBadge {
+  display: inline-block;
+  background-color: #ffc107;
+  color: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.payButton {
+  width: 100%;
+  padding: 12px 24px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 16px;
+}
+
+.payButton:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.payButton:focus {
+  outline: 2px solid #0056b3;
+  outline-offset: 2px;
+}
+
+.payButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #ccc;
+}
+
+/* Loading State */
+.loadingContainer {
+  text-align: center;
+  padding: 24px;
+}
+
+.spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.loadingText {
+  margin-top: 16px;
+  color: #666;
+}
+
+/* Success State */
+.successContainer {
+  text-align: center;
+  padding: 24px;
+}
+
+.successIcon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.successTitle {
+  color: #28a745;
+  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.successMessage {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.successHighlight {
+  color: #007bff;
+  font-weight: 600;
+}
+
+.completeButton {
+  margin-top: 24px;
+  padding: 12px 24px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.completeButton:hover {
+  background-color: #218838;
+}
+
+.completeButton:focus {
+  outline: 2px solid #218838;
+  outline-offset: 2px;
+}
+
+/* Error State */
+.errorContainer {
+  text-align: center;
+  padding: 24px;
+}
+
+.errorIcon {
+  font-size: 48px;
+  color: #dc3545;
+  margin-bottom: 16px;
+}
+
+.errorTitle {
+  color: #dc3545;
+  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.errorMessage {
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.errorButtonGroup {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.retryButton {
+  padding: 12px 24px;
+  background-color: #ffc107;
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.retryButton:hover {
+  background-color: #e0a800;
+}
+
+.retryButton:focus {
+  outline: 2px solid #e0a800;
+  outline-offset: 2px;
+}
+
+.closeErrorButton {
+  padding: 12px 24px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.closeErrorButton:hover {
+  background-color: #545b62;
+}
+
+.closeErrorButton:focus {
+  outline: 2px solid #545b62;
+  outline-offset: 2px;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .content {
+    max-width: 90%;
+    padding: 16px;
+  }
+
+  .packageGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .errorButtonGroup {
+    flex-direction: column;
+  }
+
+  .errorButtonGroup > button {
+    width: 100%;
+  }
+}
+
+/* Dark Mode Support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+  .content {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+  }
+
+  .packageButton {
+    background-color: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+  }
+
+  .packageButton:hover {
+    border-color: #007bff;
+  }
+
+  .packagePrice {
+    color: #aaa;
+  }
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: #007bff;
+  }
+
+  .packageButton,
+  .payButton,
+  .completeButton,
+  .retryButton,
+  .closeErrorButton {
+    transition: none;
+  }
+}

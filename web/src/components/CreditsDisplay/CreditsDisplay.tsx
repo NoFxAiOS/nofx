@@ -32,19 +32,20 @@ export interface CreditsDisplayProps {
 export function CreditsDisplay({ className, onOpenPayment }: CreditsDisplayProps): React.ReactElement | null {
   const { user, token, isLoading: authLoading } = useAuth();
   const { credits, loading, error } = useUserCredits();
-  
-  console.log('[CreditsDisplay] Auth state:', { 
-    userId: user?.id, 
-    hasToken: !!token, 
-    authLoading,
-    credits,
-    loading,
-    error: error?.message 
-  });
+
+  // Development-only logging for debugging
+  if (process.env.NODE_ENV === 'development') {
+    console.debug('[CreditsDisplay] State:', {
+      hasAuth: !!(user?.id && token),
+      authLoading,
+      creditsAvailable: credits?.available,
+      loading,
+      hasError: !!error
+    });
+  }
 
   // 如果没有用户ID或token，不显示（未登录状态）
   if (!user?.id || !token) {
-    console.log('[CreditsDisplay] Not rendering - missing user.id or token');
     return null;
   }
 
@@ -55,7 +56,9 @@ export function CreditsDisplay({ className, onOpenPayment }: CreditsDisplayProps
 
   // 错误状态：显示警告图标和提示
   if (error) {
-    console.error('[CreditsDisplay] Error:', error.message);
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[CreditsDisplay] Error loading credits:', error.message);
+    }
     return (
       <div
         className={styles.creditsError}

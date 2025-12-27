@@ -56,6 +56,9 @@ export function Header({ simple = false }: HeaderProps) {
                   ? { background: '#F0B90B', color: '#000' }
                   : { background: 'transparent', color: '#848E9C' }
                 }
+                aria-label="Switch to Chinese"
+                aria-current={language === 'zh' ? 'true' : 'false'}
+                title={language === 'zh' ? 'Chinese (Current)' : 'Switch to Chinese'}
               >
                 中文
               </button>
@@ -66,6 +69,9 @@ export function Header({ simple = false }: HeaderProps) {
                   ? { background: '#F0B90B', color: '#000' }
                   : { background: 'transparent', color: '#848E9C' }
                 }
+                aria-label="Switch to English"
+                aria-current={language === 'en' ? 'true' : 'false'}
+                title={language === 'en' ? 'English (Current)' : 'Switch to English'}
               >
                 EN
               </button>

@@ -1,13 +1,15 @@
 /**
  * Payment Modal Component
  * Main container for payment feature
- * Displays package selection and Crossmint checkout
+ * Displays package selection and Crossmint checkout with full accessibility support
  */
 
+import { useEffect, useRef, useCallback } from 'react'
 import { usePaymentContext } from "../contexts/PaymentProvider"
 import { usePaymentPackages } from "../hooks/usePaymentPackages"
 import { formatPrice, formatCredits } from "../utils/formatPrice"
 import type { PaymentPackage } from "../types/payment"
+import styles from "../styles/payment-modal.module.css"
 
 interface PaymentModalProps {
   isOpen: boolean
@@ -22,8 +24,43 @@ export function PaymentModal({
 }: PaymentModalProps) {
   const context = usePaymentContext()
   const { packages } = usePaymentPackages()
+  const contentRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLElement | null>(null)
 
-  if (!isOpen) return null
+  const handleClose = useCallback(() => {
+    context.resetPayment()
+    onClose()
+    // Restore focus to trigger element
+    setTimeout(() => {
+      triggerRef.current?.focus()
+    }, 0)
+  }, [context, onClose])
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleClose])
+
+  // Focus management: store trigger element and restore focus on close
+  useEffect(() => {
+    if (isOpen) {
+      triggerRef.current = document.activeElement as HTMLElement
+      // Move focus to close button
+      const closeButton = contentRef.current?.querySelector('button[aria-label="Close payment modal"]')
+      if (closeButton instanceof HTMLElement) {
+        closeButton.focus()
+      }
+    }
+  }, [isOpen])
 
   const handlePackageSelect = (pkg: PaymentPackage) => {
     context.selectPackage(pkg.id)
@@ -34,44 +71,31 @@ export function PaymentModal({
       onSuccess(context.creditsAdded)
     }
     context.resetPayment()
-    onClose()
+    handleClose()
   }
 
-  const handleClose = () => {
-    context.resetPayment()
-    onClose()
-  }
+  if (!isOpen) return null
 
   const apiKey = import.meta.env.VITE_CROSSMINT_CLIENT_API_KEY
 
   if (!apiKey) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000,
-        }}
-      >
+      <div className={styles.overlay} role="presentation">
         <div
-          style={{
-            backgroundColor: "white",
-            borderRadius: "8px",
-            padding: "24px",
-            maxWidth: "400px",
-            textAlign: "center",
-          }}
+          className={styles.content}
+          role="dialog"
+          aria-label="Configuration error"
+          aria-modal="true"
         >
-          <h2>⚠️ 支付功能暂时不可用</h2>
-          <p>请联系管理员配置支付系统</p>
-          <button onClick={handleClose}>关闭</button>
+          <h2 className={styles.title}>⚠️ 支付功能暂时不可用</h2>
+          <p className={styles.description}>请联系管理员配置支付系统</p>
+          <button
+            className={styles.closeButton}
+            onClick={handleClose}
+            aria-label="Close configuration error dialog"
+          >
+            关闭
+          </button>
         </div>
       </div>
     )
@@ -79,47 +103,29 @@ export function PaymentModal({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
+      className={styles.overlay}
+      role="presentation"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleClose()
+        }
       }}
     >
       <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "8px",
-          padding: "24px",
-          maxWidth: "600px",
-          maxHeight: "90vh",
-          overflow: "auto",
-        }}
+        ref={contentRef}
+        className={styles.content}
+        role="dialog"
+        aria-labelledby="modal-title"
+        aria-modal="true"
       >
         {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "24px",
-          }}
-        >
-          <h2 style={{ margin: 0 }}>充值积分</h2>
+        <div className={styles.header}>
+          <h2 id="modal-title" className={styles.title}>充值积分</h2>
           <button
             onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "24px",
-              cursor: "pointer",
-            }}
+            className={styles.closeButton}
+            aria-label="Close payment modal"
+            title="Press Escape to close (Esc)"
           >
             ✕
           </button>
@@ -127,132 +133,83 @@ export function PaymentModal({
 
         {/* Idle State - Package Selection */}
         {context.paymentStatus === "idle" && (
-          <div>
-            <div style={{ marginBottom: "24px" }}>
-              <p style={{ color: "#666", marginBottom: "16px" }}>
-                选择你想要购买的积分套餐
-              </p>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                  gap: "12px",
-                }}
-              >
-                {packages.map(pkg => (
-                  <button
-                    key={pkg.id}
-                    onClick={() => handlePackageSelect(pkg)}
-                    style={{
-                      padding: "16px",
-                      border:
-                        context.selectedPackage?.id === pkg.id
-                          ? "2px solid #007bff"
-                          : "1px solid #ddd",
-                      borderRadius: "8px",
-                      backgroundColor:
-                        context.selectedPackage?.id === pkg.id
-                          ? "#f0f8ff"
-                          : "white",
-                      cursor: "pointer",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <h4 style={{ margin: "0 0 8px 0" }}>{pkg.name}</h4>
-                    <p style={{ margin: "4px 0", fontSize: "14px" }}>
-                      {formatPrice(pkg.price.amount)}
-                    </p>
-                    <p style={{ margin: "4px 0", fontSize: "14px", color: "#007bff" }}>
-                      {formatCredits(
-                        pkg.credits.amount + (pkg.credits.bonusAmount || 0)
-                      )}{" "}
-                      积分
-                    </p>
-                    {pkg.badge && (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          backgroundColor: "#ffc107",
-                          color: "#000",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          fontSize: "12px",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {pkg.badge}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
+          <div className={styles.idleSection}>
+            <p className={styles.description}>
+              选择你想要购买的积分套餐
+            </p>
+            <div
+              className={styles.packageGrid}
+              role="group"
+              aria-label="Payment packages"
+            >
+              {packages.map(pkg => (
+                <button
+                  key={pkg.id}
+                  onClick={() => handlePackageSelect(pkg)}
+                  className={`${styles.packageButton} ${
+                    context.selectedPackage?.id === pkg.id ? styles.selected : ''
+                  }`}
+                  aria-pressed={context.selectedPackage?.id === pkg.id}
+                  aria-label={`${pkg.name} - ${formatPrice(pkg.price.amount)} - ${formatCredits(pkg.credits.amount + (pkg.credits.bonusAmount || 0))} credits`}
+                >
+                  <h4 className={styles.packageName}>{pkg.name}</h4>
+                  <p className={styles.packagePrice}>
+                    {formatPrice(pkg.price.amount)}
+                  </p>
+                  <p className={styles.packageCredits}>
+                    {formatCredits(
+                      pkg.credits.amount + (pkg.credits.bonusAmount || 0)
+                    )}{" "}
+                    积分
+                  </p>
+                  {pkg.badge && (
+                    <span className={styles.packageBadge}>
+                      {pkg.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
 
-            {context.selectedPackage && (
-              <button
-                onClick={async () => {
-                  await context.initiatePayment(context.selectedPackage!.id)
-                }}
-                style={{
-                  width: "100%",
-                  padding: "12px 24px",
-                  backgroundColor: "#007bff",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  fontSize: "16px",
-                  cursor: "pointer",
-                  marginTop: "16px",
-                }}
-              >
-                继续支付
-              </button>
-            )}
+            <button
+              onClick={async () => {
+                if (context.selectedPackage) {
+                  await context.initiatePayment(context.selectedPackage.id)
+                }
+              }}
+              disabled={!context.selectedPackage}
+              className={styles.payButton}
+              aria-busy={false}
+            >
+              继续支付
+            </button>
           </div>
         )}
 
         {/* Loading State */}
         {context.paymentStatus === "loading" && (
-          <div style={{ textAlign: "center", padding: "24px" }}>
-            <div
-              style={{
-                display: "inline-block",
-                width: "40px",
-                height: "40px",
-                border: "4px solid #f3f3f3",
-                borderTop: "4px solid #007bff",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-            <p style={{ marginTop: "16px", color: "#666" }}>处理中...</p>
+          <div className={styles.loadingContainer} role="status" aria-live="polite" aria-label="Payment processing">
+            <div className={styles.spinner} aria-hidden="true" />
+            <p className={styles.loadingText}>处理中...</p>
           </div>
         )}
 
         {/* Success State */}
         {context.paymentStatus === "success" && (
-          <div style={{ textAlign: "center", padding: "24px" }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px" }}>✓</div>
-            <h3 style={{ color: "#28a745", marginBottom: "16px" }}>支付成功！</h3>
-            <p style={{ fontSize: "18px", marginBottom: "8px" }}>
+          <div className={styles.successContainer} role="status" aria-live="polite">
+            <div className={styles.successIcon} aria-hidden="true">✓</div>
+            <h3 className={styles.successTitle}>支付成功！</h3>
+            <p className={styles.successMessage}>
               已获得{" "}
-              <strong style={{ color: "#007bff" }}>
+              <span className={styles.successHighlight}>
                 {formatCredits(context.creditsAdded)}
-              </strong>{" "}
+              </span>{" "}
               积分
             </p>
             <button
               onClick={handlePaymentSuccess}
-              style={{
-                marginTop: "24px",
-                padding: "12px 24px",
-                backgroundColor: "#28a745",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "16px",
-              }}
+              className={styles.completeButton}
+              aria-label="Complete payment and close modal"
             >
               完成
             </button>
@@ -261,42 +218,28 @@ export function PaymentModal({
 
         {/* Error State */}
         {context.paymentStatus === "error" && (
-          <div style={{ textAlign: "center", padding: "24px" }}>
-            <div style={{ fontSize: "48px", marginBottom: "16px", color: "#dc3545" }}>
+          <div className={styles.errorContainer} role="alert" aria-live="assertive">
+            <div className={styles.errorIcon} aria-hidden="true">
               ✕
             </div>
-            <h3 style={{ color: "#dc3545", marginBottom: "16px" }}>支付失败</h3>
-            <p style={{ color: "#666", marginBottom: "16px" }}>
+            <h3 className={styles.errorTitle}>支付失败</h3>
+            <p className={styles.errorMessage}>
               {context.error || "发生错误，请重试"}
             </p>
-            <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            <div className={styles.errorButtonGroup}>
               <button
                 onClick={() => {
                   context.resetPayment()
                 }}
-                style={{
-                  padding: "12px 24px",
-                  backgroundColor: "#ffc107",
-                  color: "#000",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                }}
+                className={styles.retryButton}
+                aria-label="Retry payment"
               >
                 重试
               </button>
               <button
                 onClick={handleClose}
-                style={{
-                  padding: "12px 24px",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                }}
+                className={styles.closeErrorButton}
+                aria-label="Close payment modal and cancel"
               >
                 关闭
               </button>
@@ -304,13 +247,6 @@ export function PaymentModal({
           </div>
         )}
       </div>
-
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   )
 }

@@ -35,10 +35,25 @@ export function CreditsDisplay({ className }: CreditsDisplayProps): React.ReactE
     return <div className="credits-loading" data-testid="credits-loading" />;
   }
 
-  // 错误状态或无数据：显示占位符
-  if (error || !credits) {
+  // 错误状态：显示警告图标和提示
+  if (error) {
     return (
-      <div className="credits-error" data-testid="credits-error" title="Failed to load credits">
+      <div
+        className="credits-error"
+        data-testid="credits-error"
+        title="积分加载失败，请刷新页面"
+        role="status"
+        aria-label="积分加载失败"
+      >
+        ⚠️
+      </div>
+    );
+  }
+
+  // 无数据：显示占位符（这种情况不应该发生，因为error或loading应该已处理）
+  if (!credits) {
+    return (
+      <div className="credits-error" data-testid="credits-error" title="No credits data">
         -
       </div>
     );

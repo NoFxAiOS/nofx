@@ -54,6 +54,7 @@ export function useUserCredits(): UseUserCreditsReturn {
     if (!user?.id || !token) {
       setCredits(null);
       setError(null);
+      setLoading(false);
       return;
     }
 
@@ -73,13 +74,27 @@ export function useUserCredits(): UseUserCreditsReturn {
         if (response.status === 401) {
           // 认证失败，不需要设置错误，直接清空数据
           setCredits(null);
+          setLoading(false);
           return;
         }
         throw new Error(`Failed to fetch credits: ${response.statusText}`);
       }
 
       const data = await response.json();
-      setCredits(data as UserCredits);
+
+      // 验证API响应数据格式
+      if (!data || typeof data !== 'object') {
+        throw new Error('API响应数据格式错误: 期望对象');
+      }
+
+      const credits = data as UserCredits;
+      if (typeof credits.available !== 'number' ||
+          typeof credits.total !== 'number' ||
+          typeof credits.used !== 'number') {
+        throw new Error('API响应数据格式错误: 缺少必要字段或类型不正确');
+      }
+
+      setCredits(credits);
       setLoading(false);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));

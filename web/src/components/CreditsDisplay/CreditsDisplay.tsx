@@ -1,4 +1,5 @@
 import { useUserCredits } from '../../hooks/useUserCredits';
+import { useAuth } from '../../contexts/AuthContext';
 import { CreditsIcon } from './CreditsIcon';
 import { CreditsValue } from './CreditsValue';
 import styles from './credits.module.css';
@@ -28,15 +29,32 @@ export interface CreditsDisplayProps {
  * <CreditsDisplay className="custom-class" />
  */
 export function CreditsDisplay({ className }: CreditsDisplayProps): React.ReactElement | null {
+  const { user, token, isLoading: authLoading } = useAuth();
   const { credits, loading, error } = useUserCredits();
+  
+  console.log('[CreditsDisplay] Auth state:', { 
+    userId: user?.id, 
+    hasToken: !!token, 
+    authLoading,
+    credits,
+    loading,
+    error: error?.message 
+  });
 
-  // 加载状态：显示骨架屏
-  if (loading) {
+  // 如果没有用户ID或token，不显示（未登录状态）
+  if (!user?.id || !token) {
+    console.log('[CreditsDisplay] Not rendering - missing user.id or token');
+    return null;
+  }
+
+  // 认证加载中或积分加载中：显示骨架屏
+  if (authLoading || loading) {
     return <div className={styles.creditsLoading} data-testid="credits-loading" />;
   }
 
   // 错误状态：显示警告图标和提示
   if (error) {
+    console.error('[CreditsDisplay] Error:', error.message);
     return (
       <div
         className={styles.creditsError}
@@ -50,9 +68,20 @@ export function CreditsDisplay({ className }: CreditsDisplayProps): React.ReactE
     );
   }
 
-  // 无数据：不显示组件（适用于未登录状态）
+  // 无数据：显示0积分
   if (!credits) {
-    return null;
+    return (
+      <div
+        className={`${styles.creditsDisplay} ${className || ''}`}
+        data-testid="credits-display"
+        role="status"
+        aria-live="polite"
+        aria-label="Available credits: 0"
+      >
+        <CreditsIcon />
+        <CreditsValue value={0} />
+      </div>
+    );
   }
 
   // 正常状态：显示积分

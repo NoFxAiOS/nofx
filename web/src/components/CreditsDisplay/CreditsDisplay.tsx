@@ -27,7 +27,7 @@ export interface CreditsDisplayProps {
  * // 或带自定义className
  * <CreditsDisplay className="custom-class" />
  */
-export function CreditsDisplay({ className }: CreditsDisplayProps): React.ReactElement {
+export function CreditsDisplay({ className }: CreditsDisplayProps): React.ReactElement | null {
   const { credits, loading, error } = useUserCredits();
 
   // 加载状态：显示骨架屏

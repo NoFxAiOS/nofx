@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import useSWR from 'swr';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { getApiUrl } from '../lib/apiConfig';
 
 /**
  * 用户资料数据结构

@@ -3,3 +3,4 @@
 # Test artifacts
 test-results/
 playwright-report/
+.env*.local

@@ -1,0 +1,368 @@
+/**
+ * Pricing Page Styles
+ * Extracted from PricingPage.tsx and PricingCard.tsx
+ * Using Tailwind CSS with @apply directives
+ */
+
+@layer components {
+  /* ============= PricingPage Styles ============= */
+
+  .pricing-page {
+    @apply min-h-screen bg-gradient-to-br from-slate-100 to-slate-300 px-5 py-10 md:px-5 md:py-6 sm:px-3 sm:py-4;
+  }
+
+  .pricing-header {
+    @apply text-center mb-16 md:mb-12 sm:mb-8;
+  }
+
+  .pricing-header-content {
+    @apply max-w-3xl mx-auto;
+  }
+
+  .pricing-title {
+    @apply text-6xl md:text-4xl sm:text-2xl font-bold text-gray-900 mb-4;
+  }
+
+  .pricing-subtitle {
+    @apply text-lg md:text-base sm:text-sm text-gray-600;
+  }
+
+  .pricing-cards-section {
+    @apply max-w-6xl mx-auto mb-20 md:mb-16 sm:mb-12;
+  }
+
+  .pricing-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-4 sm:gap-4;
+  }
+
+  .pricing-error {
+    @apply bg-red-100 border border-red-300 rounded-lg p-5 text-center mb-6;
+  }
+
+  .pricing-error p {
+    @apply text-red-800 mb-3;
+  }
+
+  .pricing-retry-button {
+    @apply px-4 py-2 bg-red-600 text-white border-0 rounded font-semibold text-sm cursor-pointer transition-colors duration-200 hover:bg-red-700;
+  }
+
+  .pricing-skeleton {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-4 sm:gap-4;
+  }
+
+  .skeleton-card {
+    @apply h-96 rounded-xl bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 bg-cover animate-pulse;
+  }
+
+  @keyframes loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  .pricing-features-section {
+    @apply bg-white py-16 md:py-12 sm:py-8 mb-16 md:mb-12 sm:mb-8 px-5;
+  }
+
+  .features-container {
+    @apply max-w-5xl mx-auto;
+  }
+
+  .features-title {
+    @apply text-3xl md:text-2xl sm:text-xl font-bold text-center text-gray-900 mb-10 md:mb-8 sm:mb-6;
+  }
+
+  .features-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-4 sm:gap-4;
+  }
+
+  .feature-item {
+    @apply flex items-center gap-3 p-3;
+  }
+
+  .feature-icon {
+    @apply text-xl md:text-lg font-bold text-emerald-600 flex-shrink-0;
+  }
+
+  .feature-text {
+    @apply text-sm md:text-base text-gray-700;
+  }
+
+  .pricing-faq-section {
+    @apply max-w-3xl mx-auto px-5;
+  }
+
+  .faq-container {
+    @apply bg-white rounded-xl p-10 md:p-6 sm:p-4;
+  }
+
+  .faq-title {
+    @apply text-3xl md:text-2xl sm:text-xl font-bold text-gray-900 mb-8 md:mb-6 sm:mb-4 text-center;
+  }
+
+  .faq-list {
+    @apply flex flex-col gap-4;
+  }
+
+  .faq-item {
+    @apply border border-gray-200 rounded-lg overflow-hidden;
+  }
+
+  .faq-question {
+    @apply flex items-center justify-between p-4 bg-gray-50 cursor-pointer font-semibold text-gray-900 select-none transition-colors duration-200 hover:bg-gray-100;
+  }
+
+  .faq-question::after {
+    content: "▼";
+    @apply inline-block transition-transform duration-200;
+  }
+
+  .faq-item[open] .faq-question {
+    @apply bg-blue-50 border-b border-gray-200;
+  }
+
+  .faq-item[open] .faq-question::after {
+    @apply rotate-180;
+  }
+
+  .faq-answer {
+    @apply p-4 text-gray-600 leading-relaxed;
+  }
+
+  /* ============= PricingCard Styles ============= */
+
+  .pricing-card {
+    @apply border-2 border-gray-200 rounded-xl p-6 md:p-5 sm:p-4 bg-white transition-all duration-300 flex flex-col gap-4 hover:shadow-2xl hover:shadow-gray-300 hover:-translate-y-1;
+  }
+
+  .pricing-card.disabled {
+    @apply opacity-60;
+  }
+
+  .pricing-card:hover:not(.disabled) {
+    @apply shadow-lg -translate-y-1;
+  }
+
+  .pricing-card-header {
+    @apply flex justify-between items-start gap-3;
+  }
+
+  .pricing-card-title {
+    @apply text-xl md:text-lg font-bold text-gray-900;
+  }
+
+  .pricing-card-badge {
+    @apply inline-block px-3 py-1 bg-yellow-100 border-2 rounded text-xs font-semibold text-yellow-900 uppercase whitespace-nowrap;
+  }
+
+  .pricing-card-description {
+    @apply text-sm text-gray-600;
+  }
+
+  .pricing-card-price {
+    @apply flex items-baseline gap-1 py-4 md:py-3 sm:py-2 border-t border-b border-gray-200;
+  }
+
+  .price-currency {
+    @apply text-xl md:text-lg font-semibold text-gray-700;
+  }
+
+  .price-amount {
+    @apply text-5xl md:text-4xl sm:text-3xl font-bold text-gray-900;
+  }
+
+  .price-currency-label {
+    @apply text-sm text-gray-600 ml-1;
+  }
+
+  .pricing-card-credits {
+    @apply flex flex-col gap-2 py-3 md:py-2;
+  }
+
+  .credit-row {
+    @apply flex justify-between text-sm;
+  }
+
+  .credit-label {
+    @apply text-gray-600 font-medium;
+  }
+
+  .credit-value {
+    @apply text-gray-900 font-semibold;
+  }
+
+  .credit-row.bonus .credit-value {
+    @apply text-emerald-600;
+  }
+
+  .credit-row.total {
+    @apply pt-2 md:pt-1 border-t border-gray-200;
+  }
+
+  .credit-row.total .credit-value {
+    @apply text-base text-gray-900;
+  }
+
+  .pricing-card-value {
+    @apply bg-gray-100 rounded-lg p-3 md:p-2 text-center;
+  }
+
+  .value-text {
+    @apply text-xs md:text-sm text-gray-700;
+  }
+
+  .value-text strong {
+    @apply text-emerald-600 text-sm md:text-base;
+  }
+
+  .pricing-card-button {
+    @apply w-full px-5 py-3 md:py-2 bg-blue-500 text-white border-0 rounded-lg text-sm md:text-xs font-semibold cursor-pointer transition-all duration-200 hover:bg-blue-600 hover:scale-105 active:scale-95 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .pricing-card-button:disabled,
+  .pricing-card-button.disabled {
+    @apply bg-gray-300 cursor-not-allowed opacity-60;
+  }
+
+  /* ============= Dark Mode ============= */
+
+  @media (prefers-color-scheme: dark) {
+    .pricing-page {
+      @apply bg-gradient-to-br from-gray-900 to-gray-800;
+    }
+
+    .pricing-title,
+    .features-title,
+    .faq-title {
+      @apply text-gray-100;
+    }
+
+    .pricing-subtitle {
+      @apply text-gray-400;
+    }
+
+    .pricing-features-section {
+      @apply bg-gray-900;
+    }
+
+    .features-text {
+      @apply text-gray-300;
+    }
+
+    .faq-container {
+      @apply bg-gray-800;
+    }
+
+    .faq-question {
+      @apply bg-gray-700 text-gray-100 hover:bg-gray-600;
+    }
+
+    .faq-item[open] .faq-question {
+      @apply bg-blue-900;
+    }
+
+    .faq-answer {
+      @apply text-gray-400;
+    }
+
+    .pricing-card {
+      @apply bg-gray-800 border-gray-700;
+    }
+
+    .pricing-card-title {
+      @apply text-gray-100;
+    }
+
+    .pricing-card-description {
+      @apply text-gray-400;
+    }
+
+    .pricing-card-price,
+    .pricing-card-credits {
+      @apply border-gray-700;
+    }
+
+    .price-currency,
+    .price-amount {
+      @apply text-gray-100;
+    }
+
+    .credit-label {
+      @apply text-gray-400;
+    }
+
+    .credit-value {
+      @apply text-gray-100;
+    }
+
+    .pricing-card-value {
+      @apply bg-gray-700;
+    }
+
+    .value-text {
+      @apply text-gray-300;
+    }
+
+    .faq-question::after {
+      @apply text-gray-400;
+    }
+  }
+
+  /* ============= Responsive Design ============= */
+
+  @media (max-width: 640px) {
+    .pricing-card {
+      @apply p-5;
+    }
+
+    .price-amount {
+      @apply text-4xl;
+    }
+
+    .pricing-card-price {
+      @apply py-3;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .pricing-page {
+      @apply px-3 py-4;
+    }
+
+    .pricing-title {
+      @apply text-3xl;
+    }
+
+    .pricing-grid {
+      @apply grid-cols-1;
+    }
+
+    .features-grid {
+      @apply grid-cols-1 gap-4;
+    }
+
+    .pricing-card {
+      @apply p-4 gap-3;
+    }
+
+    .pricing-card-title {
+      @apply text-lg;
+    }
+
+    .price-amount {
+      @apply text-3xl;
+    }
+
+    .pricing-card-price {
+      @apply py-2;
+    }
+
+    .faq-container {
+      @apply p-4;
+    }
+  }
+}

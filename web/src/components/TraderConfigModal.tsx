@@ -38,14 +38,14 @@ interface TraderConfigModalProps {
   onSave?: (data: CreateTraderRequest) => Promise<void>;
 }
 
-export function TraderConfigModal({ 
-  isOpen, 
-  onClose, 
-  traderData, 
+export function TraderConfigModal({
+  isOpen,
+  onClose,
+  traderData,
   isEditMode = false,
   availableModels = [],
   availableExchanges = [],
-  onSave 
+  onSave
 }: TraderConfigModalProps) {
   const { language } = useLanguage();
   const [formData, setFormData] = useState<TraderConfigData>({
@@ -69,8 +69,17 @@ export function TraderConfigModal({
   const [selectedCoins, setSelectedCoins] = useState<string[]>([]);
   const [showCoinSelector, setShowCoinSelector] = useState(false);
   const [promptTemplates, setPromptTemplates] = useState<{name: string}[]>([]);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
+  // 初始化表单数据 - 仅在模态框打开或编辑/创建模式改变时执行
   useEffect(() => {
+    if (!isOpen) {
+      // 模态框关闭时重置初始化标志
+      setHasInitialized(false);
+      return;
+    }
+
+    // 编辑模式：加载交易员数据
     if (traderData) {
       setFormData(traderData);
       // 设置已选择的币种
@@ -78,7 +87,17 @@ export function TraderConfigModal({
         const coins = traderData.trading_symbols.split(',').map(s => s.trim()).filter(s => s);
         setSelectedCoins(coins);
       }
-    } else if (!isEditMode) {
+      // 确保旧数据也有默认的 system_prompt_template
+      if (!traderData.system_prompt_template) {
+        setFormData(prev => ({
+          ...prev,
+          system_prompt_template: 'default'
+        }));
+      }
+      setHasInitialized(true);
+    }
+    // 创建模式：仅在首次打开模态框时初始化默认值
+    else if (!isEditMode && !hasInitialized) {
       setFormData({
         trader_name: '',
         ai_model: availableModels[0]?.id || '',
@@ -95,15 +114,10 @@ export function TraderConfigModal({
         initial_balance: 1000,
         scan_interval_minutes: 3,
       });
+      setSelectedCoins([]);
+      setHasInitialized(true);
     }
-    // 确保旧数据也有默认的 system_prompt_template
-    if (traderData && !traderData.system_prompt_template) {
-      setFormData(prev => ({
-        ...prev,
-        system_prompt_template: 'default'
-      }));
-    }
-  }, [traderData, isEditMode, availableModels, availableExchanges]);
+  }, [isOpen, traderData, isEditMode]);
 
   // 获取系统配置中的币种列表
   useEffect(() => {

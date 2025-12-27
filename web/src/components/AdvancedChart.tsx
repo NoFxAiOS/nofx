@@ -678,6 +678,42 @@ export function AdvancedChart({
             <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#2B3139', color: '#848E9C' }}>
               {interval}
             </span>
+            {/* 交易所标识 */}
+            <span
+              className="text-xs px-2 py-0.5 rounded font-medium uppercase"
+              style={{
+                background: exchange === 'binance' ? 'rgba(243, 186, 47, 0.15)' :
+                           exchange === 'bybit' ? 'rgba(247, 147, 26, 0.15)' :
+                           exchange === 'okx' ? 'rgba(0, 180, 255, 0.15)' :
+                           exchange === 'bitget' ? 'rgba(0, 212, 170, 0.15)' :
+                           exchange === 'hyperliquid' ? 'rgba(80, 227, 194, 0.15)' :
+                           exchange === 'aster' ? 'rgba(138, 43, 226, 0.15)' :
+                           'rgba(255, 255, 255, 0.1)',
+                color: exchange === 'binance' ? '#F3BA2F' :
+                       exchange === 'bybit' ? '#F7931A' :
+                       exchange === 'okx' ? '#00B4FF' :
+                       exchange === 'bitget' ? '#00D4AA' :
+                       exchange === 'hyperliquid' ? '#50E3C2' :
+                       exchange === 'aster' ? '#8A2BE2' :
+                       '#848E9C',
+                border: `1px solid ${
+                  exchange === 'binance' ? 'rgba(243, 186, 47, 0.3)' :
+                  exchange === 'bybit' ? 'rgba(247, 147, 26, 0.3)' :
+                  exchange === 'okx' ? 'rgba(0, 180, 255, 0.3)' :
+                  exchange === 'bitget' ? 'rgba(0, 212, 170, 0.3)' :
+                  exchange === 'hyperliquid' ? 'rgba(80, 227, 194, 0.3)' :
+                  exchange === 'aster' ? 'rgba(138, 43, 226, 0.3)' :
+                  'rgba(255, 255, 255, 0.2)'
+                }`
+              }}
+              title={['bitget', 'lighter'].includes(exchange?.toLowerCase() || '')
+                ? 'Data source: Binance (fallback)' : undefined}
+            >
+              {exchange}
+              {['bitget', 'lighter'].includes(exchange?.toLowerCase() || '') && (
+                <span className="ml-1 text-[9px] opacity-60">*</span>
+              )}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">

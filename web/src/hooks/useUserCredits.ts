@@ -52,6 +52,15 @@ export function useUserCredits(): UseUserCreditsReturn {
    */
   const fetchCredits = useCallback(async () => {
     if (!user?.id || !token) {
+      // 记录调试信息
+      if (typeof window !== 'undefined') {
+        (window as any).__DEBUG_CREDITS_HOOK__ = {
+          hasUser: !!user?.id,
+          hasToken: !!token,
+          userEmail: user?.email,
+          timestamp: new Date().toISOString(),
+        };
+      }
       setCredits(null);
       setError(null);
       setLoading(false);
@@ -61,6 +70,15 @@ export function useUserCredits(): UseUserCreditsReturn {
     try {
       setLoading(true);
       setError(null);
+
+      // 记录API请求开始
+      if (typeof window !== 'undefined') {
+        console.log('[useUserCredits] 发送API请求', {
+          url: `${API_BASE}/user/credits`,
+          userEmail: user?.email,
+          tokenExists: !!token,
+        });
+      }
 
       const response = await fetch(`${API_BASE}/user/credits`, {
         method: 'GET',
@@ -72,7 +90,17 @@ export function useUserCredits(): UseUserCreditsReturn {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // 认证失败，不需要设置错误，直接清空数据
+          // 认证失败：token无效或已过期
+          // 记录错误信息以便调试
+          if (typeof window !== 'undefined') {
+            console.warn('[useUserCredits] 认证失败 (401)', {
+              userEmail: user?.email,
+              tokenExists: !!token,
+              timestamp: new Date().toISOString(),
+            });
+          }
+          // 设置错误而不是无声清空，这样UI能显示警告
+          setError(new Error('认证失败，请重新登录'));
           setCredits(null);
           setLoading(false);
           return;
@@ -107,10 +135,41 @@ export function useUserCredits(): UseUserCreditsReturn {
         throw new Error('API响应数据格式错误: 缺少必要字段');
       }
 
+      // 记录API响应成功
+      if (typeof window !== 'undefined') {
+        console.log('[useUserCredits] API响应成功', {
+          available: creditsData.available,
+          total: creditsData.total,
+          used: creditsData.used,
+        });
+        (window as any).__DEBUG_CREDITS_HOOK__ = {
+          success: true,
+          credits: creditsData,
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       setCredits(creditsData);
       setLoading(false);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
+
+      // 记录错误信息用于调试
+      if (typeof window !== 'undefined') {
+        console.error('[useUserCredits] API请求失败', {
+          error: error.message,
+          errorType: err instanceof TypeError ? 'TypeError (网络问题)' : 'Other',
+          userEmail: user?.email,
+          timestamp: new Date().toISOString(),
+        });
+        (window as any).__DEBUG_CREDITS_HOOK__ = {
+          success: false,
+          error: error.message,
+          errorType: err instanceof TypeError ? 'Network Error' : 'Unknown',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       setError(error);
       setCredits(null);
       setLoading(false);

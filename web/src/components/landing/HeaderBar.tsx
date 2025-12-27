@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import { t, type Language } from '../../i18n/translations'
 import Web3ConnectButton from '../Web3ConnectButton'
+import { CreditsDisplay } from '../CreditsDisplay'
 
 interface HeaderBarProps {
   onLoginClick?: () => void
@@ -244,6 +245,9 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
               {/* User Info and Actions */}
               {!['login', 'register'].includes(currentPage || '') && (
                 <div className='flex items-center gap-3'>
+                  {/* Credits Display - Only show when logged in */}
+                  {isLoggedIn && <CreditsDisplay />}
+                  
                   {/* Web3 Connect Button - Always show except on login/register pages */}
                   <Web3ConnectButton size="small" variant="secondary" />
                   
@@ -583,6 +587,10 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
           {/* User info and logout for mobile when logged in */}
           {isLoggedIn && user && (
             <div className='mt-4 pt-4' style={{ borderTop: '1px solid var(--panel-border)' }}>
+              {/* Credits Display for mobile */}
+              <div className='px-3 py-2 mb-2'>
+                <CreditsDisplay />
+              </div>
               <div className='flex items-center gap-2 px-3 py-2 mb-2 rounded' style={{ background: 'var(--panel-bg)' }}>
                 <div className='w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold' style={{ background: 'var(--brand-yellow)', color: 'var(--brand-black)' }}>
                   {user.email[0].toUpperCase()}

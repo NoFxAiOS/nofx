@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"sort"
 	"strconv"
@@ -210,8 +211,8 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			continue // Order already exists, skip
 		}
 
-		// Normalize symbol (should already have USDT suffix from Bybit)
-		symbol := trade.Symbol
+		// Normalize symbol
+		symbol := market.Normalize(trade.Symbol)
 
 		// Determine position side from order action
 		positionSide := "LONG"

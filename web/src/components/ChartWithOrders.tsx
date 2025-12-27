@@ -218,6 +218,18 @@ export function ChartWithOrders({
         timeVisible: true,
         secondsVisible: false,
       },
+      localization: {
+        timeFormatter: (time: number) => {
+          const date = new Date(time * 1000)
+          return date.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+        },
+      },
     })
 
     chartRef.current = chart

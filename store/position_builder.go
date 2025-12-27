@@ -34,7 +34,7 @@ func (pb *PositionBuilder) ProcessTrade(
 	if strings.HasPrefix(action, "open_") {
 		return pb.handleOpen(traderID, exchangeID, exchangeType, symbol, side, quantity, price, fee, tradeTime, orderID)
 	} else if strings.HasPrefix(action, "close_") {
-		return pb.handleClose(traderID, symbol, side, quantity, price, fee, realizedPnL, tradeTime, orderID)
+		return pb.handleClose(traderID, exchangeID, exchangeType, symbol, side, quantity, price, fee, realizedPnL, tradeTime, orderID)
 	}
 	return nil
 }
@@ -79,12 +79,19 @@ func (pb *PositionBuilder) handleOpen(
 	logger.Infof("  📊 Averaging position: %s %s %.6f @ %.2f + %.6f @ %.2f",
 		symbol, side, existing.Quantity, existing.EntryPrice, quantity, price)
 
+	// Also update exchange_id and exchange_type if they were empty
+	if existing.ExchangeID == "" || existing.ExchangeType == "" {
+		if err := pb.positionStore.UpdatePositionExchangeInfo(existing.ID, exchangeID, exchangeType); err != nil {
+			logger.Infof("  ⚠️  Failed to update exchange info: %v", err)
+		}
+	}
+
 	return pb.positionStore.UpdatePositionQuantityAndPrice(existing.ID, quantity, price, fee)
 }
 
 // handleClose handles closing positions (partial or full)
 func (pb *PositionBuilder) handleClose(
-	traderID, symbol, side string,
+	traderID, exchangeID, exchangeType, symbol, side string,
 	quantity, price, fee, realizedPnL float64,
 	tradeTime time.Time,
 	orderID string,
@@ -96,18 +103,30 @@ func (pb *PositionBuilder) handleClose(
 	}
 
 	if position == nil {
-		// No open position, log warning and skip
+		// No open position found - just skip
+		// This can happen if trades are processed out of order or database was cleared
 		logger.Infof("  ⚠️  No matching open position for %s %s (orderID: %s), skipping", symbol, side, orderID)
 		return nil
 	}
 
 	const QUANTITY_TOLERANCE = 0.0001
 
+	// Calculate realized PnL if not provided (some exchanges like Lighter don't return it)
+	if realizedPnL == 0 && position.EntryPrice > 0 {
+		if side == "LONG" {
+			realizedPnL = (price - position.EntryPrice) * quantity
+		} else {
+			realizedPnL = (position.EntryPrice - price) * quantity
+		}
+		// Round to 2 decimal places
+		realizedPnL = math.Round(realizedPnL*100) / 100
+	}
+
 	if quantity < position.Quantity-QUANTITY_TOLERANCE {
-		// Partial close: reduce quantity
-		logger.Infof("  📉 Partial close: %s %s %.6f → %.6f (closed %.6f @ %.2f)",
-			symbol, side, position.Quantity, position.Quantity-quantity, quantity, price)
-		return pb.positionStore.ReducePositionQuantity(position.ID, quantity, fee)
+		// Partial close: reduce quantity and update weighted average exit price
+		logger.Infof("  📉 Partial close: %s %s %.6f → %.6f (closed %.6f @ %.2f, PnL: %.2f)",
+			symbol, side, position.Quantity, position.Quantity-quantity, quantity, price, realizedPnL)
+		return pb.positionStore.ReducePositionQuantity(position.ID, quantity, price, fee, realizedPnL)
 	} else {
 		// Full close (or close with tolerance): mark as CLOSED
 		closeQty := quantity
@@ -117,18 +136,33 @@ func (pb *PositionBuilder) handleClose(
 			closeQty = position.Quantity
 		}
 
-		logger.Infof("  ✅ Full close: %s %s %.6f @ %.2f (entry: %.2f, PnL: %.2f)",
-			symbol, side, closeQty, price, position.EntryPrice, realizedPnL)
+		// Calculate final weighted average exit price
+		// Include previously accumulated partial close prices + this final close
+		closedBefore := position.EntryQuantity - position.Quantity
+		totalClosed := closedBefore + closeQty
+		var finalExitPrice float64
+		if totalClosed > 0 {
+			finalExitPrice = (position.ExitPrice*closedBefore + price*closeQty) / totalClosed
+			finalExitPrice = math.Round(finalExitPrice*100) / 100
+		} else {
+			finalExitPrice = price
+		}
+
+		// Calculate total PnL (existing + new)
+		totalPnL := position.RealizedPnL + realizedPnL
 
 		// Calculate total fee (existing + new)
 		totalFee := position.Fee + fee
 
+		logger.Infof("  ✅ Full close: %s %s %.6f @ %.2f (avg exit: %.2f, entry: %.2f, PnL: %.2f)",
+			symbol, side, closeQty, price, finalExitPrice, position.EntryPrice, totalPnL)
+
 		return pb.positionStore.ClosePositionFully(
 			position.ID,
-			price,
+			finalExitPrice,
 			orderID,
 			tradeTime,
-			realizedPnL,
+			totalPnL,
 			totalFee,
 			"sync",
 		)

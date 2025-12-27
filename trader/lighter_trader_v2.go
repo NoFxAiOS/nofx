@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"net/url"
 	"nofx/logger"
 	"strings"
 	"sync"
@@ -121,10 +123,15 @@ func NewLighterTraderV2(walletAddr, apiKeyPrivateKeyHex string, apiKeyIndex int,
 	httpClient := lighterHTTP.NewClient(baseURL)
 
 	trader := &LighterTraderV2{
-		ctx:              context.Background(),
-		walletAddr:       walletAddr,
-		client:           &http.Client{Timeout: 30 * time.Second},
-		baseURL:          baseURL,
+		ctx:        context.Background(),
+		walletAddr: walletAddr,
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+			Transport: &http.Transport{
+				Proxy: nil, // Disable proxy for direct connection to Lighter API
+			},
+		},
+		baseURL: baseURL,
 		testnet:          testnet,
 		chainID:          chainID,
 		httpClient:       httpClient,
@@ -156,6 +163,8 @@ func NewLighterTraderV2(walletAddr, apiKeyPrivateKeyHex string, apiKeyIndex int,
 	// 7. Verify API Key is correct
 	if err := trader.checkClient(); err != nil {
 		logger.Warnf("⚠️  API Key verification failed: %v", err)
+		logger.Warnf("⚠️  The API key may not be registered on-chain. Authenticated API calls (like GetTrades) will fail.")
+		logger.Warnf("⚠️  To fix: Register this API key using change_api_key transaction from app.lighter.xyz")
 		// Don't fail here, allow trader to continue (may work with some operations)
 	}
 
@@ -389,15 +398,22 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 		}
 	}
 
-	// Build request URL (use Unix timestamp in seconds, not milliseconds)
-	startTimeSec := startTime.Unix()
-	endpoint := fmt.Sprintf("%s/api/v1/trades?account_index=%d&start_time=%d",
-		t.baseURL, t.accountIndex, startTimeSec)
-	if limit > 0 {
-		endpoint = fmt.Sprintf("%s&limit=%d", endpoint, limit)
+	// Build request URL with correct parameters
+	// Required: sort_by, limit
+	// Optional: account_index, from (timestamp in milliseconds, -1 for no filter)
+	// Note: OpenAPI spec uses "from" not "var_from"
+	// Authentication: Use "auth" query parameter (not Authorization header)
+	if err := t.ensureAuthToken(); err != nil {
+		return nil, fmt.Errorf("failed to get auth token: %w", err)
 	}
 
-	logger.Infof("🔍 Calling Lighter GetTrades API: %s", endpoint)
+	// URL encode auth token (contains colons that need encoding)
+	encodedAuth := url.QueryEscape(t.authToken)
+	// Build endpoint - use from=-1 to get all trades (no time filter)
+	endpoint := fmt.Sprintf("%s/api/v1/trades?account_index=%d&sort_by=timestamp&sort_dir=desc&limit=%d&auth=%s",
+		t.baseURL, t.accountIndex, limit, encodedAuth)
+
+	logger.Infof("🔍 Calling Lighter GetTrades API: %s", endpoint[:min(len(endpoint), 150)]+"...")
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -420,14 +436,42 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 		return []TradeRecord{}, nil
 	}
 
+	// Debug: log raw response (first 500 chars)
+	logBody := string(body)
+	if len(logBody) > 500 {
+		logBody = logBody[:500] + "..."
+	}
+	logger.Infof("📋 Lighter trades API raw response: %s", logBody)
+
 	var response LighterTradeResponse
 	if err := json.Unmarshal(body, &response); err != nil {
+		logger.Infof("⚠️  Failed to parse trades response as object: %v", err)
 		var trades []LighterTrade
 		if err := json.Unmarshal(body, &trades); err != nil {
-			logger.Infof("⚠️  Failed to parse Lighter trades response: %v", err)
+			logger.Infof("⚠️  Failed to parse trades response as array: %v", err)
 			return []TradeRecord{}, nil
 		}
 		response.Trades = trades
+	}
+
+	if response.Code != 200 && response.Code != 0 {
+		logger.Infof("⚠️  Trades API returned non-success code: %d", response.Code)
+		return []TradeRecord{}, nil
+	}
+
+	// Build market_id -> symbol map
+	marketMap := make(map[int]string)
+	markets, err := t.fetchMarketList()
+	if err != nil {
+		logger.Infof("⚠️  Failed to fetch market list: %v, using fallback", err)
+		// Fallback market IDs (common ones)
+		marketMap[0] = "BTC"
+		marketMap[1] = "ETH"
+		marketMap[2] = "SOL"
+	} else {
+		for _, m := range markets {
+			marketMap[int(m.MarketID)] = m.Symbol
+		}
 	}
 
 	// Convert to unified TradeRecord format
@@ -435,24 +479,154 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 	for _, lt := range response.Trades {
 		price, _ := parseFloat(lt.Price)
 		qty, _ := parseFloat(lt.Size)
-		fee, _ := parseFloat(lt.Fee)
-		pnl, _ := parseFloat(lt.RealizedPnl)
 
+		// Calculate fee from taker_fee or maker_fee (they are int64, need conversion)
+		var fee float64
+		if lt.TakerFee > 0 {
+			fee = float64(lt.TakerFee) / 1e6 // Convert from smallest units (6 decimals for USDT)
+		} else if lt.MakerFee > 0 {
+			fee = float64(lt.MakerFee) / 1e6
+		}
+
+		// Get symbol from market_id
+		symbol := marketMap[lt.MarketID]
+		if symbol == "" {
+			symbol = fmt.Sprintf("MARKET%d", lt.MarketID)
+		}
+
+		// Determine side based on our account being bid (buyer) or ask (seller)
+		// IsMakerAsk: true = ask (seller) is maker, false = bid (buyer) is maker
 		var side string
-		if strings.ToLower(lt.Side) == "buy" {
+		var isTaker bool
+		if lt.BidAccountID == t.accountIndex {
 			side = "BUY"
-		} else {
+			isTaker = lt.IsMakerAsk // If maker is ask, then we (bid) are taker
+		} else if lt.AskAccountID == t.accountIndex {
 			side = "SELL"
+			isTaker = !lt.IsMakerAsk // If maker is NOT ask, then we (ask) are taker
+		} else {
+			// Neither bid nor ask is our account - skip this trade
+			continue
+		}
+
+		// Determine position side and action from position change
+		var positionSide, orderAction string
+		var posBefore float64
+		var signChanged bool
+
+		if isTaker {
+			posBefore, _ = parseFloat(lt.TakerPositionSizeBefore)
+			signChanged = lt.TakerPositionSignChanged
+		} else {
+			posBefore, _ = parseFloat(lt.MakerPositionSizeBefore)
+			signChanged = lt.MakerPositionSignChanged
+		}
+
+		// Determine order action based on:
+		// 1. posBefore: position BEFORE this trade (positive=LONG, negative=SHORT, 0=no position)
+		// 2. side: BUY or SELL
+		// 3. signChanged: whether position flipped direction
+		//
+		// Logic:
+		// - BUY when no position (posBefore ≈ 0): open_long
+		// - SELL when no position (posBefore ≈ 0): open_short
+		// - BUY when LONG (posBefore > 0): open_long (adding to long)
+		// - SELL when LONG (posBefore > 0): close_long (reducing long)
+		// - BUY when SHORT (posBefore < 0): close_short (reducing short)
+		// - SELL when SHORT (posBefore < 0): open_short (adding to short)
+		// - signChanged with position flip: split into close + open
+
+		const EPSILON = 0.0001
+		tradeTime := time.UnixMilli(lt.Timestamp)
+
+		// Calculate position after trade
+		var posAfter float64
+		if side == "SELL" {
+			posAfter = posBefore - qty
+		} else {
+			posAfter = posBefore + qty
+		}
+
+		// Check for position flip (signChanged AND both before/after have meaningful size)
+		if signChanged && math.Abs(posBefore) > EPSILON && math.Abs(posAfter) > EPSILON {
+			// Position FLIPPED - split into close + open
+			closeQty := math.Abs(posBefore)
+			openQty := math.Abs(posAfter)
+
+			var closeAction, closeSide, openAction, openSide string
+			if posBefore > 0 {
+				closeSide, closeAction = "LONG", "close_long"
+				openSide, openAction = "SHORT", "open_short"
+			} else {
+				closeSide, closeAction = "SHORT", "close_short"
+				openSide, openAction = "LONG", "open_long"
+			}
+
+			closeTrade := TradeRecord{
+				TradeID:      fmt.Sprintf("%d_close", lt.TradeID),
+				Symbol:       symbol,
+				Side:         side,
+				PositionSide: closeSide,
+				OrderAction:  closeAction,
+				Price:        price,
+				Quantity:     closeQty,
+				RealizedPnL:  0,
+				Fee:          fee * (closeQty / qty),
+				Time:         tradeTime.Add(-time.Millisecond),
+			}
+			result = append(result, closeTrade)
+
+			openTrade := TradeRecord{
+				TradeID:      fmt.Sprintf("%d_open", lt.TradeID),
+				Symbol:       symbol,
+				Side:         side,
+				PositionSide: openSide,
+				OrderAction:  openAction,
+				Price:        price,
+				Quantity:     openQty,
+				RealizedPnL:  0,
+				Fee:          fee * (openQty / qty),
+				Time:         tradeTime,
+			}
+			result = append(result, openTrade)
+
+			logger.Infof("  🔄 Flip: %s %.4f → %s %.4f", closeSide, closeQty, openSide, openQty)
+			continue
+		}
+
+		// Determine action based on position direction and trade side
+		if math.Abs(posBefore) < EPSILON {
+			// No position before → opening new position
+			if side == "BUY" {
+				positionSide, orderAction = "LONG", "open_long"
+			} else {
+				positionSide, orderAction = "SHORT", "open_short"
+			}
+		} else if posBefore > 0 {
+			// Was LONG
+			if side == "BUY" {
+				positionSide, orderAction = "LONG", "open_long" // Adding to long
+			} else {
+				positionSide, orderAction = "LONG", "close_long" // Reducing long
+			}
+		} else {
+			// Was SHORT (posBefore < 0)
+			if side == "BUY" {
+				positionSide, orderAction = "SHORT", "close_short" // Reducing short
+			} else {
+				positionSide, orderAction = "SHORT", "open_short" // Adding to short
+			}
 		}
 
 		trade := TradeRecord{
-			TradeID:      lt.TradeID,
-			Symbol:       lt.Symbol,
+			TradeID:      fmt.Sprintf("%d", lt.TradeID),
+			Symbol:       symbol,
 			Side:         side,
-			PositionSide: "BOTH",
+			PositionSide: positionSide,
+			OrderAction:  orderAction,
 			Price:        price,
 			Quantity:     qty,
-			RealizedPnL:  pnl,
+			RealizedPnL:  0, // Not available in API
 			Fee:          fee,
 			Time:         time.UnixMilli(lt.Timestamp),
 		}

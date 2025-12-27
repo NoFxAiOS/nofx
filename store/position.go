@@ -194,7 +194,13 @@ func (s *PositionStore) UpdatePositionQuantityAndPrice(id int64, addQty float64,
 	// Calculate weighted average entry price
 	newQty := currentQty + addQty
 	newEntryQty := currentEntryQty + addQty
+	// Round quantity to 4 decimal places to avoid floating point precision issues
+	newQty = math.Round(newQty*10000) / 10000
+	newEntryQty = math.Round(newEntryQty*10000) / 10000
+
 	newEntryPrice := (currentEntryPrice*currentQty + addPrice*addQty) / newQty
+	// Round to 2 decimal places to avoid floating point precision issues
+	newEntryPrice = math.Round(newEntryPrice*100) / 100
 
 	// Accumulate fees
 	newFee := currentFee + addFee
@@ -213,17 +219,61 @@ func (s *PositionStore) UpdatePositionQuantityAndPrice(id int64, addQty float64,
 }
 
 // ReducePositionQuantity reduces position quantity for partial close (keeps status as OPEN)
-func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, addFee float64) error {
+// Also updates exit_price with weighted average of all partial closes
+func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exitPrice float64, addFee float64, addPnL float64) error {
+	// First get current position data
+	var currentQty, currentFee, currentExitPrice, entryQty, currentPnL float64
+	err := s.db.QueryRow(`SELECT quantity, fee, exit_price, entry_quantity, realized_pnl FROM trader_positions WHERE id = ?`, id).Scan(&currentQty, &currentFee, &currentExitPrice, &entryQty, &currentPnL)
+	if err != nil {
+		return fmt.Errorf("failed to get current position: %w", err)
+	}
+
+	// Calculate new quantity and fee
+	newQty := math.Round((currentQty-reduceQty)*10000) / 10000
+	newFee := currentFee + addFee
+	newPnL := currentPnL + addPnL
+
+	// Calculate weighted average exit price
+	// closedQty = entryQty - currentQty (already closed before this trade)
+	// newClosedQty = closedQty + reduceQty (total closed after this trade)
+	closedQty := entryQty - currentQty
+	newClosedQty := closedQty + reduceQty
+
+	var newExitPrice float64
+	if newClosedQty > 0 {
+		// Weighted average: (old_exit * old_closed + new_price * new_close) / total_closed
+		newExitPrice = (currentExitPrice*closedQty + exitPrice*reduceQty) / newClosedQty
+		newExitPrice = math.Round(newExitPrice*100) / 100 // Round to 2 decimal places
+	}
+
+	now := time.Now()
+	_, err = s.db.Exec(`
+		UPDATE trader_positions SET
+			quantity = ?,
+			fee = ?,
+			exit_price = ?,
+			realized_pnl = ?,
+			updated_at = ?
+		WHERE id = ?
+	`, newQty, newFee, newExitPrice, newPnL, now.Format(time.RFC3339), id)
+	if err != nil {
+		return fmt.Errorf("failed to reduce position quantity: %w", err)
+	}
+	return nil
+}
+
+// UpdatePositionExchangeInfo updates exchange_id and exchange_type for a position
+func (s *PositionStore) UpdatePositionExchangeInfo(id int64, exchangeID, exchangeType string) error {
 	now := time.Now()
 	_, err := s.db.Exec(`
 		UPDATE trader_positions SET
-			quantity = quantity - ?,
-			fee = fee + ?,
+			exchange_id = ?,
+			exchange_type = ?,
 			updated_at = ?
 		WHERE id = ?
-	`, reduceQty, addFee, now.Format(time.RFC3339), id)
+	`, exchangeID, exchangeType, now.Format(time.RFC3339), id)
 	if err != nil {
-		return fmt.Errorf("failed to reduce position quantity: %w", err)
+		return fmt.Errorf("failed to update position exchange info: %w", err)
 	}
 	return nil
 }
@@ -292,10 +342,12 @@ func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, er
 }
 
 // GetOpenPositionBySymbol gets open position for specified symbol and direction
+// It tries both the normalized symbol (ETHUSDT) and base symbol (ETH) for compatibility
 func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (*TraderPosition, error) {
 	var pos TraderPosition
 	var entryTime, exitTime, createdAt, updatedAt sql.NullString
 
+	// Try with the exact symbol first
 	err := s.db.QueryRow(`
 		SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, COALESCE(entry_quantity, quantity) as entry_quantity, entry_price, entry_order_id,
 			entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
@@ -309,15 +361,37 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 		&pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
 		&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,
 	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
+	if err == nil {
+		s.parsePositionTimes(&pos, entryTime, exitTime, createdAt, updatedAt)
+		return &pos, nil
 	}
 
-	s.parsePositionTimes(&pos, entryTime, exitTime, createdAt, updatedAt)
-	return &pos, nil
+	// If not found and symbol ends with USDT, try without USDT suffix (for backward compatibility)
+	if err == sql.ErrNoRows && strings.HasSuffix(symbol, "USDT") {
+		baseSymbol := strings.TrimSuffix(symbol, "USDT")
+		err = s.db.QueryRow(`
+			SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, COALESCE(entry_quantity, quantity) as entry_quantity, entry_price, entry_order_id,
+				entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
+				leverage, status, close_reason, created_at, updated_at
+			FROM trader_positions
+			WHERE trader_id = ? AND symbol = ? AND side = ? AND status = 'OPEN'
+			ORDER BY entry_time DESC LIMIT 1
+		`, traderID, baseSymbol, side).Scan(
+			&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.ExchangeType, &pos.Symbol, &pos.Side, &pos.Quantity, &pos.EntryQuantity,
+			&pos.EntryPrice, &pos.EntryOrderID, &entryTime, &pos.ExitPrice,
+			&pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
+			&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,
+		)
+		if err == nil {
+			s.parsePositionTimes(&pos, entryTime, exitTime, createdAt, updatedAt)
+			return &pos, nil
+		}
+	}
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return nil, err
 }
 
 // GetClosedPositions gets closed positions (historical records)
@@ -1219,7 +1293,10 @@ func (s *PositionStore) CreateOpenPosition(pos *TraderPosition) error {
 	now := time.Now()
 	pos.CreatedAt = now
 	pos.UpdatedAt = now
-	pos.Status = "OPEN"
+	// Only set status to OPEN if not already set (allows creating CLOSED positions)
+	if pos.Status == "" {
+		pos.Status = "OPEN"
+	}
 	if pos.Source == "" {
 		pos.Source = "system"
 	}
@@ -1228,16 +1305,24 @@ func (s *PositionStore) CreateOpenPosition(pos *TraderPosition) error {
 		pos.EntryQuantity = pos.Quantity
 	}
 
+	// Format exit time if present
+	var exitTimeStr *string
+	if pos.ExitTime != nil {
+		s := pos.ExitTime.Format(time.RFC3339)
+		exitTimeStr = &s
+	}
+
 	result, err := s.db.Exec(`
 		INSERT INTO trader_positions (
 			trader_id, exchange_id, exchange_type, exchange_position_id, symbol, side, quantity, entry_quantity,
-			entry_price, entry_order_id, entry_time, leverage, status, source, fee,
+			entry_price, entry_order_id, entry_time, exit_price, exit_order_id, exit_time,
+			realized_pnl, leverage, status, source, fee,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		pos.TraderID, pos.ExchangeID, pos.ExchangeType, pos.ExchangePositionID, pos.Symbol, pos.Side, pos.Quantity, pos.EntryQuantity,
-		pos.EntryPrice, pos.EntryOrderID, pos.EntryTime.Format(time.RFC3339), pos.Leverage,
-		pos.Status, pos.Source, pos.Fee, now.Format(time.RFC3339), now.Format(time.RFC3339),
+		pos.EntryPrice, pos.EntryOrderID, pos.EntryTime.Format(time.RFC3339), pos.ExitPrice, pos.ExitOrderID, exitTimeStr,
+		pos.RealizedPnL, pos.Leverage, pos.Status, pos.Source, pos.Fee, now.Format(time.RFC3339), now.Format(time.RFC3339),
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {

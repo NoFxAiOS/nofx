@@ -1,33 +1,16 @@
 package trader
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
-	"net/http"
 	"sort"
 	"strings"
 	"time"
 )
 
-// LighterOrderHistory order history record
-type LighterOrderHistory struct {
-	OrderID       string    `json:"order_id"`
-	Symbol        string    `json:"symbol"`
-	Side          string    `json:"side"`           // "buy" or "sell"
-	Type          string    `json:"type"`           // "limit" or "market"
-	Price         string    `json:"price"`
-	Size          string    `json:"size"`
-	FilledSize    string    `json:"filled_size"`
-	Status        string    `json:"status"`         // "filled", "cancelled", etc.
-	CreatedAt     int64     `json:"created_at"`
-	UpdatedAt     int64     `json:"updated_at"`
-	FilledAt      int64     `json:"filled_at"`
-}
-
-// SyncOrdersFromLighter syncs Lighter exchange order history to local database
+// SyncOrdersFromLighter syncs Lighter exchange trade history to local database
 // Also creates/updates position records to ensure orders/fills/positions data consistency
 // exchangeID: Exchange account UUID (from exchanges.id)
 // exchangeType: Exchange type ("lighter")
@@ -36,180 +19,82 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 		return fmt.Errorf("store is nil")
 	}
 
-	// Ensure we have account index
-	if t.accountIndex == 0 {
-		if err := t.initializeAccount(); err != nil {
-			return fmt.Errorf("failed to get account index: %w", err)
-		}
-	}
+	// Get recent trades (last 24 hours)
+	startTime := time.Now().Add(-24 * time.Hour)
 
-	// Get recent orders (last 24 hours)
-	startTime := time.Now().Add(-24 * time.Hour).Unix()
-	endpoint := fmt.Sprintf("%s/api/v1/orders?account_index=%d&start_time=%d&limit=100",
-		t.baseURL, t.accountIndex, startTime)
+	logger.Infof("🔄 Syncing Lighter trades from: %s", startTime.Format(time.RFC3339))
 
-	logger.Infof("🔄 Syncing Lighter orders from: %s", endpoint)
-
-	req, err := http.NewRequest("GET", endpoint, nil)
+	// Use GetTrades method to fetch trade records (same as other exchanges)
+	trades, err := t.GetTrades(startTime, 100)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to get trades: %w", err)
 	}
 
-	// Add authentication header
-	if err := t.ensureAuthToken(); err != nil {
-		return fmt.Errorf("failed to get auth token: %w", err)
-	}
-	req.Header.Set("Authorization", t.authToken)
+	logger.Infof("📥 Received %d trades from Lighter", len(trades))
 
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to get orders: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		// Don't spam logs for 404 errors (API endpoint might not be available)
-		if resp.StatusCode != http.StatusNotFound {
-			logger.Infof("⚠️  Lighter orders API returned %d: %s", resp.StatusCode, string(body))
-		}
-		return fmt.Errorf("API returned status %d", resp.StatusCode)
-	}
-
-	// Parse response
-	var apiResp struct {
-		Code   int                    `json:"code"`
-		Orders []LighterOrderHistory  `json:"orders"`
-	}
-
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		logger.Infof("⚠️  Failed to parse orders response: %v, body: %s", err, string(body))
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if apiResp.Code != 200 {
-		return fmt.Errorf("API returned code %d", apiResp.Code)
-	}
-
-	logger.Infof("📥 Received %d orders from Lighter", len(apiResp.Orders))
-
-	// Sort orders by filled_at ASC (oldest first) for proper position building
-	sort.Slice(apiResp.Orders, func(i, j int) bool {
-		return apiResp.Orders[i].FilledAt < apiResp.Orders[j].FilledAt
+	// Sort trades by time ASC (oldest first) for proper position building
+	sort.Slice(trades, func(i, j int) bool {
+		return trades[i].Time.Before(trades[j].Time)
 	})
 
-	// Process orders one by one (no transaction to avoid deadlock)
+	// Process trades one by one (no transaction to avoid deadlock)
 	orderStore := st.Order()
 	positionStore := st.Position()
 	posBuilder := store.NewPositionBuilder(positionStore)
 
-	// Get current open positions to help determine action for each order
-	openPositions, _ := positionStore.GetOpenPositions(traderID)
-
 	syncedCount := 0
-	for _, order := range apiResp.Orders {
-		// Only sync filled orders
-		if order.Status != "filled" {
-			continue
-		}
-
-		// Check if order already exists (use exchangeID which is UUID, not exchange type)
-		existing, err := orderStore.GetOrderByExchangeID(exchangeID, order.OrderID)
+	for _, trade := range trades {
+		// Check if trade already exists (use exchangeID which is UUID, not exchange type)
+		existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
 		if err == nil && existing != nil {
-			continue // Order already exists, skip
+			continue // Trade already exists, skip
 		}
 
-		// Parse price and quantity
-		price, _ := parseFloat(order.Price)
-		size, _ := parseFloat(order.Size)
-		filledSize, _ := parseFloat(order.FilledSize)
+		// Normalize symbol (add USDT suffix)
+		symbol := market.Normalize(trade.Symbol)
 
-		if filledSize == 0 {
-			filledSize = size
-		}
+		// Use OrderAction from TradeRecord (determined by position change in GetTrades)
+		// This is more accurate than guessing based on database state
+		positionSide := trade.PositionSide
+		orderAction := trade.OrderAction
+		side := trade.Side
 
-		// Determine order action based on existing positions
-		// Lighter can have both LONG and SHORT positions simultaneously
-		var positionSide, orderAction, side string
-		symbol := order.Symbol
-
-		if order.Side == "buy" {
-			side = "BUY"
-
-			// Check if we have an open SHORT position for this symbol
-			hasShort := false
-			for _, pos := range openPositions {
-				if pos.Symbol == symbol && pos.Side == "SHORT" && pos.Status == "OPEN" {
-					hasShort = true
-					break
-				}
-			}
-
-			if hasShort {
-				positionSide = "SHORT"
-				orderAction = "close_short"
-			} else {
+		// Fallback if OrderAction is empty (shouldn't happen with updated GetTrades)
+		if orderAction == "" {
+			if strings.ToUpper(side) == "BUY" {
 				positionSide = "LONG"
 				orderAction = "open_long"
-			}
-		} else {
-			side = "SELL"
-
-			// Check if we have an open LONG position
-			hasLong := false
-			for _, pos := range openPositions {
-				if pos.Symbol == symbol && pos.Side == "LONG" && pos.Status == "OPEN" {
-					hasLong = true
-					break
-				}
-			}
-
-			if hasLong {
-				positionSide = "LONG"
-				orderAction = "close_long"
 			} else {
 				positionSide = "SHORT"
 				orderAction = "open_short"
 			}
 		}
 
-		// Estimate fee
-		fee := price * filledSize * 0.0004
-
 		// Create order record
-		filledAt := time.Unix(order.FilledAt, 0)
-		if order.FilledAt == 0 {
-			filledAt = time.Unix(order.UpdatedAt, 0)
-		}
-
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
-			ExchangeOrderID: order.OrderID,
+			ExchangeOrderID: trade.TradeID,
 			Symbol:          symbol,
-			Side:            side,
+			Side:            strings.ToUpper(side),
 			PositionSide:    positionSide,
 			Type:            "MARKET",
 			OrderAction:     orderAction,
-			Quantity:        filledSize,
-			Price:           price,
+			Quantity:        trade.Quantity,
+			Price:           trade.Price,
 			Status:          "FILLED",
-			FilledQuantity:  filledSize,
-			AvgFillPrice:    price,
-			Commission:      fee,
-			FilledAt:        filledAt,
-			CreatedAt:       time.Unix(order.CreatedAt, 0),
-			UpdatedAt:       time.Unix(order.UpdatedAt, 0),
+			FilledQuantity:  trade.Quantity,
+			AvgFillPrice:    trade.Price,
+			Commission:      trade.Fee,
+			FilledAt:        trade.Time,
+			CreatedAt:       trade.Time,
+			UpdatedAt:       trade.Time,
 		}
 
 		// Insert order record
 		if err := orderStore.CreateOrder(orderRecord); err != nil {
-			logger.Infof("  ⚠️ Failed to sync order %s: %v", order.OrderID, err)
+			logger.Infof("  ⚠️ Failed to sync trade %s: %v", trade.TradeID, err)
 			continue
 		}
 
@@ -219,72 +104,42 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			OrderID:         orderRecord.ID,
-			ExchangeOrderID: order.OrderID,
-			ExchangeTradeID: fmt.Sprintf("%s-%d", order.OrderID, time.Now().UnixNano()),
+			ExchangeOrderID: trade.TradeID,
+			ExchangeTradeID: trade.TradeID,
 			Symbol:          symbol,
-			Side:            side,
-			Price:           price,
-			Quantity:        filledSize,
-			QuoteQuantity:   price * filledSize,
-			Commission:      fee,
+			Side:            strings.ToUpper(side),
+			Price:           trade.Price,
+			Quantity:        trade.Quantity,
+			QuoteQuantity:   trade.Price * trade.Quantity,
+			Commission:      trade.Fee,
 			CommissionAsset: "USDT",
-			RealizedPnL:     0,
-			IsMaker:         order.Type == "limit",
-			CreatedAt:       filledAt,
+			RealizedPnL:     trade.RealizedPnL,
+			IsMaker:         false,
+			CreatedAt:       trade.Time,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {
-			logger.Infof("  ⚠️ Failed to sync fill for order %s: %v", order.OrderID, err)
-		}
-
-		// Calculate PnL for close orders
-		var realizedPnL float64
-		if strings.HasPrefix(orderAction, "close_") {
-			// Get the open position to calculate PnL
-			openPos, _ := positionStore.GetOpenPositionBySymbol(traderID, symbol, positionSide)
-			if openPos != nil {
-				if positionSide == "LONG" {
-					realizedPnL = (price - openPos.EntryPrice) * filledSize
-				} else {
-					realizedPnL = (openPos.EntryPrice - price) * filledSize
-				}
-				realizedPnL -= fee
-			}
+			logger.Infof("  ⚠️ Failed to sync fill for trade %s: %v", trade.TradeID, err)
 		}
 
 		// Create/update position record using PositionBuilder
 		if err := posBuilder.ProcessTrade(
 			traderID, exchangeID, exchangeType,
 			symbol, positionSide, orderAction,
-			filledSize, price, fee, realizedPnL,
-			filledAt, order.OrderID,
+			trade.Quantity, trade.Price, trade.Fee, trade.RealizedPnL,
+			trade.Time, trade.TradeID,
 		); err != nil {
-			logger.Infof("  ⚠️ Failed to sync position for order %s: %v", order.OrderID, err)
-		}
-
-		// Update openPositions list dynamically
-		if strings.HasPrefix(orderAction, "open_") {
-			// Add to openPositions (approximate)
-			openPositions = append(openPositions, &store.TraderPosition{
-				Symbol: symbol,
-				Side:   positionSide,
-				Status: "OPEN",
-			})
-		} else if strings.HasPrefix(orderAction, "close_") {
-			// Remove from openPositions (approximate)
-			for i, pos := range openPositions {
-				if pos.Symbol == symbol && pos.Side == positionSide && pos.Status == "OPEN" {
-					openPositions = append(openPositions[:i], openPositions[i+1:]...)
-					break
-				}
-			}
+			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
+		} else {
+			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, orderAction, trade.Quantity)
 		}
 
 		syncedCount++
-		logger.Infof("  ✅ Synced order: %s %s %s qty=%.6f price=%.6f", order.OrderID, symbol, side, filledSize, price)
+		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f pnl=%.2f fee=%.6f action=%s",
+			trade.TradeID, symbol, side, trade.Quantity, trade.Price, trade.RealizedPnL, trade.Fee, orderAction)
 	}
 
-	logger.Infof("✅ Order sync completed: %d new orders synced", syncedCount)
+	logger.Infof("✅ Order sync completed: %d new trades synced", syncedCount)
 	return nil
 }
 

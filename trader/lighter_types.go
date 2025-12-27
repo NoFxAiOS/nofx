@@ -57,22 +57,36 @@ type OrderResponse struct {
 
 // LighterTradeResponse represents the response from Lighter trades API
 type LighterTradeResponse struct {
-	Trades []LighterTrade `json:"trades"`
+	Code       int            `json:"code"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+	Trades     []LighterTrade `json:"trades"`
 }
 
-// LighterTrade represents a single trade from Lighter
+// LighterTrade represents a single trade from Lighter API
+// API docs: https://apidocs.lighter.xyz/reference/trades
 type LighterTrade struct {
-	TradeID      string `json:"trade_id"`
-	AccountIndex int64  `json:"account_index"`
-	MarketIndex  int    `json:"market_index"`
-	Symbol       string `json:"symbol"`
-	Side         string `json:"side"` // "buy" or "sell"
-	Price        string `json:"price"`
+	TradeID      int64  `json:"trade_id"`
+	TxHash       string `json:"tx_hash"`
+	Type         string `json:"type"`      // "trade", "liquidation", etc
+	MarketID     int    `json:"market_id"` // Need to convert to symbol
 	Size         string `json:"size"`
-	RealizedPnl  string `json:"realized_pnl"`
-	Fee          string `json:"fee"`
+	Price        string `json:"price"`
+	UsdAmount    string `json:"usd_amount"`
+	AskID        int64  `json:"ask_id"`
+	BidID        int64  `json:"bid_id"`
+	AskAccountID int64  `json:"ask_account_id"`
+	BidAccountID int64  `json:"bid_account_id"`
+	IsMakerAsk   bool   `json:"is_maker_ask"`
+	BlockHeight  int64  `json:"block_height"`
 	Timestamp    int64  `json:"timestamp"`
-	IsMaker      bool   `json:"is_maker"`
+	TakerFee     int64 `json:"taker_fee,omitempty"`
+	MakerFee     int64 `json:"maker_fee,omitempty"`
+
+	// Position change information - critical for determining open/close
+	TakerPositionSizeBefore    string `json:"taker_position_size_before"`
+	TakerPositionSignChanged   bool   `json:"taker_position_sign_changed"`
+	MakerPositionSizeBefore    string `json:"maker_position_size_before"`
+	MakerPositionSignChanged   bool   `json:"maker_position_sign_changed,omitempty"`
 }
 
 // parseFloat parses a string to float64, returns 0 for empty string

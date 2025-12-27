@@ -3,6 +3,7 @@ package trader
 import (
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"sort"
 	"strings"
@@ -49,6 +50,9 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			continue // Order already exists, skip
 		}
 
+		// Normalize symbol
+		symbol := market.Normalize(trade.Symbol)
+
 		// Determine order action based on side, positionSide, and realizedPnL
 		// Aster uses one-way position mode (BOTH), so we need to infer from PnL
 		// - RealizedPnL != 0 means it's a close trade
@@ -70,7 +74,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: trade.TradeID,
-			Symbol:          trade.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			PositionSide:    "BOTH", // Aster uses one-way position mode
 			Type:            "LIMIT",
@@ -100,7 +104,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			OrderID:         orderRecord.ID,
 			ExchangeOrderID: trade.TradeID,
 			ExchangeTradeID: trade.TradeID,
-			Symbol:          trade.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			Price:           trade.Price,
 			Quantity:        trade.Quantity,
@@ -119,7 +123,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 		// Create/update position record using PositionBuilder
 		if err := posBuilder.ProcessTrade(
 			traderID, exchangeID, exchangeType,
-			trade.Symbol, positionSide, orderAction,
+			symbol, positionSide, orderAction,
 			trade.Quantity, trade.Price, trade.Fee, trade.RealizedPnL,
 			trade.Time, trade.TradeID,
 		); err != nil {
@@ -130,7 +134,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 
 		syncedCount++
 		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f pnl=%.2f fee=%.6f action=%s",
-			trade.TradeID, trade.Symbol, side, trade.Quantity, trade.Price, trade.RealizedPnL, trade.Fee, orderAction)
+			trade.TradeID, symbol, side, trade.Quantity, trade.Price, trade.RealizedPnL, trade.Fee, orderAction)
 	}
 
 	logger.Infof("✅ Aster order sync completed: %d new trades synced", syncedCount)

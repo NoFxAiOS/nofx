@@ -187,7 +187,7 @@ func (s *OrderStore) CreateOrder(order *TraderOrder) error {
 		order.FilledQuantity, order.AvgFillPrice, order.Commission, order.CommissionAsset,
 		order.Leverage, order.ReduceOnly, order.ClosePosition, order.WorkingType, order.PriceProtect,
 		order.OrderAction, order.RelatedPositionID,
-		now.Format(time.RFC3339), now.Format(time.RFC3339),
+		formatTimeOrNow(order.CreatedAt, now), formatTimeOrNow(order.UpdatedAt, now),
 		formatTimePtr(order.FilledAt),
 	)
 	if err != nil {
@@ -547,6 +547,14 @@ func (s *OrderStore) GetDuplicateFillsCount() (int, error) {
 func formatTimePtr(t time.Time) interface{} {
 	if t.IsZero() {
 		return nil
+	}
+	return t.Format(time.RFC3339)
+}
+
+// formatTimeOrNow returns the formatted time if not zero, otherwise returns now
+func formatTimeOrNow(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return now.Format(time.RFC3339)
 	}
 	return t.Format(time.RFC3339)
 }

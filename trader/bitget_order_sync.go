@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"sort"
 	"strconv"
@@ -161,6 +162,9 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 			continue // Order already exists, skip
 		}
 
+		// Normalize symbol
+		symbol := market.Normalize(trade.Symbol)
+
 		// Determine position side from order action
 		positionSide := "LONG"
 		if strings.Contains(trade.OrderAction, "short") {
@@ -176,7 +180,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: trade.TradeID,
-			Symbol:          trade.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			PositionSide:    "BOTH", // Bitget uses one-way position mode
 			Type:            trade.OrderType,
@@ -206,7 +210,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 			OrderID:         orderRecord.ID,
 			ExchangeOrderID: trade.OrderID,
 			ExchangeTradeID: trade.TradeID,
-			Symbol:          trade.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			Price:           trade.FillPrice,
 			Quantity:        trade.FillQty,
@@ -225,7 +229,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 		// Create/update position record using PositionBuilder
 		if err := posBuilder.ProcessTrade(
 			traderID, exchangeID, exchangeType,
-			trade.Symbol, positionSide, trade.OrderAction,
+			symbol, positionSide, trade.OrderAction,
 			trade.FillQty, trade.FillPrice, trade.Fee, trade.ProfitLoss,
 			trade.ExecTime, trade.TradeID,
 		); err != nil {
@@ -236,7 +240,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 
 		syncedCount++
 		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f pnl=%.2f fee=%.6f action=%s",
-			trade.TradeID, trade.Symbol, side, trade.FillQty, trade.FillPrice, trade.ProfitLoss, trade.Fee, trade.OrderAction)
+			trade.TradeID, symbol, side, trade.FillQty, trade.FillPrice, trade.ProfitLoss, trade.Fee, trade.OrderAction)
 	}
 
 	logger.Infof("✅ Bitget order sync completed: %d new trades synced", syncedCount)

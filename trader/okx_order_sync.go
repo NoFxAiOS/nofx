@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"sort"
 	"strconv"
@@ -184,6 +185,9 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 			continue // Order already exists, skip
 		}
 
+		// Normalize symbol
+		symbol := market.Normalize(trade.Symbol)
+
 		// Determine position side from order action
 		positionSide := "LONG"
 		if strings.Contains(trade.OrderAction, "short") {
@@ -199,7 +203,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 			ExchangeID:      exchangeID,   // UUID
 			ExchangeType:    exchangeType, // Exchange type
 			ExchangeOrderID: trade.TradeID,
-			Symbol:          trade.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			PositionSide:    positionSide,
 			Type:            trade.OrderType,
@@ -229,7 +233,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 			OrderID:         orderRecord.ID,
 			ExchangeOrderID: trade.OrderID,
 			ExchangeTradeID: trade.TradeID,
-			Symbol:          trade.Symbol,
+			Symbol:          symbol,
 			Side:            side,
 			Price:           trade.FillPrice,
 			Quantity:        trade.FillQtyBase,
@@ -248,7 +252,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 		// Create/update position record using PositionBuilder
 		if err := posBuilder.ProcessTrade(
 			traderID, exchangeID, exchangeType,
-			trade.Symbol, positionSide, trade.OrderAction,
+			symbol, positionSide, trade.OrderAction,
 			trade.FillQtyBase, trade.FillPrice, trade.Fee, 0, // No per-trade PnL from OKX
 			trade.ExecTime, trade.TradeID,
 		); err != nil {

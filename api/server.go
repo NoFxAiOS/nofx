@@ -1340,7 +1340,7 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 	logger.Infof("✅ Position closed successfully: symbol=%s, side=%s, qty=%.6f, result=%v", req.Symbol, req.Side, posQty, result)
 
 	// Record order to database (for chart markers and history)
-	s.recordClosePositionOrder(traderID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
+	s.recordClosePositionOrder(traderID, exchangeCfg.ID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Position closed successfully",
@@ -1351,7 +1351,14 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 }
 
 // recordClosePositionOrder Record close position order to database (Lighter version - direct FILLED status)
-func (s *Server) recordClosePositionOrder(traderID, exchangeType, symbol, side string, quantity, exitPrice float64, result map[string]interface{}) {
+func (s *Server) recordClosePositionOrder(traderID, exchangeID, exchangeType, symbol, side string, quantity, exitPrice float64, result map[string]interface{}) {
+	// Skip for exchanges with OrderSync - let the background sync handle it to avoid duplicates
+	switch exchangeType {
+	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster":
+		logger.Infof("  📝 Close order will be synced by OrderSync, skipping immediate record")
+		return
+	}
+
 	// Check if order was placed (skip if NO_POSITION)
 	status, _ := result["status"].(string)
 	if status == "NO_POSITION" {
@@ -1396,7 +1403,8 @@ func (s *Server) recordClosePositionOrder(traderID, exchangeType, symbol, side s
 	// Create order record - DIRECTLY as FILLED (Lighter market orders fill immediately)
 	orderRecord := &store.TraderOrder{
 		TraderID:        traderID,
-		ExchangeID:      exchangeType,
+		ExchangeID:      exchangeID,
+		ExchangeType:    exchangeType,
 		ExchangeOrderID: orderID,
 		Symbol:          symbol,
 		PositionSide:    side,
@@ -1425,7 +1433,8 @@ func (s *Server) recordClosePositionOrder(traderID, exchangeType, symbol, side s
 	tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
 	fillRecord := &store.TraderFill{
 		TraderID:        traderID,
-		ExchangeID:      exchangeType,
+		ExchangeID:      exchangeID,
+		ExchangeType:    exchangeType,
 		OrderID:         orderRecord.ID,
 		ExchangeOrderID: orderID,
 		ExchangeTradeID: tradeID,
@@ -1449,7 +1458,7 @@ func (s *Server) recordClosePositionOrder(traderID, exchangeType, symbol, side s
 }
 
 // pollAndUpdateOrderStatus Poll order status and update with fill data
-func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
+func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchangeID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
 	var actualPrice float64
 	var actualQty float64
 	var fee float64
@@ -1459,7 +1468,7 @@ func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchang
 
 	// For Lighter, use GetTrades instead of GetOrderStatus (market orders are filled immediately)
 	if exchangeType == "lighter" {
-		s.pollLighterTradeHistory(orderRecordID, traderID, exchangeType, orderID, symbol, orderAction, tempTrader)
+		s.pollLighterTradeHistory(orderRecordID, traderID, exchangeID, exchangeType, orderID, symbol, orderAction, tempTrader)
 		return
 	}
 
@@ -1499,7 +1508,8 @@ func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchang
 				tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
 				fillRecord := &store.TraderFill{
 					TraderID:        traderID,
-					ExchangeID:      exchangeType,
+					ExchangeID:      exchangeID,
+					ExchangeType:    exchangeType,
 					OrderID:         orderRecordID,
 					ExchangeOrderID: orderID,
 					ExchangeTradeID: tradeID,
@@ -1536,7 +1546,7 @@ func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchang
 
 // pollLighterTradeHistory No longer used - Lighter orders are marked as FILLED immediately
 // Keeping this function stub for compatibility with other exchanges
-func (s *Server) pollLighterTradeHistory(orderRecordID int64, traderID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
+func (s *Server) pollLighterTradeHistory(orderRecordID int64, traderID, exchangeID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
 	// For Lighter, orders are now recorded as FILLED immediately in recordClosePositionOrder
 	// This function is no longer called for Lighter exchange
 	logger.Infof("  ℹ️ pollLighterTradeHistory called but not needed (order already marked FILLED)")

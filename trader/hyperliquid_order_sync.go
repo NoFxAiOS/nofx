@@ -3,6 +3,7 @@ package trader
 import (
 	"fmt"
 	"nofx/logger"
+	"nofx/market"
 	"nofx/store"
 	"sort"
 	"strings"
@@ -49,11 +50,8 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 				continue // Order already exists, skip
 			}
 
-			// Normalize symbol (add USDT suffix)
-			symbol := trade.Symbol
-			if symbol != "" && !strings.Contains(symbol, "USDT") && !strings.Contains(symbol, "USD") {
-				symbol = symbol + "USDT"
-			}
+			// Normalize symbol
+			symbol := market.Normalize(trade.Symbol)
 
 			// Use order action from trade (parsed from Hyperliquid Dir field)
 			// Dir field values: "Open Long", "Open Short", "Close Long", "Close Short"

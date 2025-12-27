@@ -125,7 +125,7 @@ function TradingViewChartComponent({
       height: '100%',
       symbol: getFullSymbol(),
       interval: timeInterval,
-      timezone: 'Etc/UTC',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai',
       theme: 'dark',
       style: '1',
       locale: language === 'zh' ? 'zh_CN' : 'en',

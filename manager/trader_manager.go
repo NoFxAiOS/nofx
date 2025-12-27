@@ -826,39 +826,43 @@ func (tm *TraderManager) LoadUserTraders(database *config.Database, userID strin
                         }
                 }
 
+                // 🔧 修复: 放宽AI模型验证 - 继续加载但记录警告
                 if aiModelCfg == nil {
-                        log.Printf("⚠️ 交易员 %s 的AI模型 %s 不存在，跳过", traderCfg.Name, traderCfg.AIModelID)
-                        continue
+                        log.Printf("⚠️ 交易员 %s 的AI模型 %s 不存在，将继续加载但标记为配置缺失", traderCfg.Name, traderCfg.AIModelID)
+                        // 继续加载，交易员启动时会检查配置
                 }
 
-                if !aiModelCfg.Enabled {
-                        log.Printf("⚠️ 交易员 %s 的AI模型 %s 未启用，跳过", traderCfg.Name, traderCfg.AIModelID)
-                        continue
+                if aiModelCfg != nil && !aiModelCfg.Enabled {
+                        log.Printf("⚠️ 交易员 %s 的AI模型 %s 未启用，将继续加载", traderCfg.Name, aiModelCfg.ID)
+                        // 继续加载，交易员启动时会检查是否启用
                 }
 
                 // 获取交易所配置（使用该用户的配置）
                 exchanges, err := database.GetExchanges(userID)
                 if err != nil {
-                        log.Printf("⚠️ 获取用户 %s 的交易所配置失败: %v", userID, err)
-                        continue
+                        log.Printf("⚠️ 获取用户 %s 的交易所配置失败: %v，将继续加载交易员", userID, err)
+                        // 继续加载，交易员启动时会检查配置
                 }
 
                 var exchangeCfg *config.ExchangeConfig
-                for _, exchange := range exchanges {
-                        if exchange.ID == traderCfg.ExchangeID {
-                                exchangeCfg = exchange
-                                break
+                if err == nil {
+                        for _, exchange := range exchanges {
+                                if exchange.ID == traderCfg.ExchangeID {
+                                        exchangeCfg = exchange
+                                        break
+                                }
                         }
                 }
 
+                // 🔧 修复: 放宽交易所验证 - 继续加载但记录警告
                 if exchangeCfg == nil {
-                        log.Printf("⚠️ 交易员 %s 的交易所 %s 不存在，跳过", traderCfg.Name, traderCfg.ExchangeID)
-                        continue
+                        log.Printf("⚠️ 交易员 %s 的交易所 %s 不存在，将继续加载但标记为配置缺失", traderCfg.Name, traderCfg.ExchangeID)
+                        // 继续加载，交易员启动时会检查配置
                 }
 
-                if !exchangeCfg.Enabled {
-                        log.Printf("⚠️ 交易员 %s 的交易所 %s 未启用，跳过", traderCfg.Name, traderCfg.ExchangeID)
-                        continue
+                if exchangeCfg != nil && !exchangeCfg.Enabled {
+                        log.Printf("⚠️ 交易员 %s 的交易所 %s 未启用，将继续加载", traderCfg.Name, exchangeCfg.ID)
+                        // 继续加载，交易员启动时会检查是否启用
                 }
 
                 // 使用现有的方法加载交易员
@@ -898,21 +902,47 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
                 log.Printf("✓ 交易员 %s 启用 COIN POOL 信号源: %s", traderCfg.Name, coinPoolURL)
         }
 
+        // 🔧 修复：处理可能为nil的configs
         // 构建AutoTraderConfig
+        var aiModel string
+        var customAPIURL string
+        var customModelName string
+        var useQwen bool
+
+        if aiModelCfg != nil {
+                aiModel = aiModelCfg.Provider
+                customAPIURL = aiModelCfg.CustomAPIURL
+                customModelName = aiModelCfg.CustomModelName
+                useQwen = aiModelCfg.Provider == "qwen"
+        } else {
+                // 使用trader record中的AIModelID作为fallback
+                aiModel = traderCfg.AIModelID
+                log.Printf("⚠️ 交易员 %s 使用fallback AI模型ID: %s (配置缺失)", traderCfg.Name, aiModel)
+        }
+
+        var exchangeID string
+        if exchangeCfg != nil {
+                exchangeID = exchangeCfg.ID
+        } else {
+                // 使用trader record中的ExchangeID作为fallback
+                exchangeID = traderCfg.ExchangeID
+                log.Printf("⚠️ 交易员 %s 使用fallback交易所ID: %s (配置缺失)", traderCfg.Name, exchangeID)
+        }
+
         traderConfig := trader.AutoTraderConfig{
                 ID:                   traderCfg.ID,
                 UserID:               traderCfg.UserID,
                 Name:                 traderCfg.Name,
-                AIModel:              aiModelCfg.Provider, // 使用provider作为模型标识
-                Exchange:             exchangeCfg.ID,      // 使用exchange ID
+                AIModel:              aiModel,
+                Exchange:             exchangeID,
                 InitialBalance:       traderCfg.InitialBalance,
                 BTCETHLeverage:       traderCfg.BTCETHLeverage,
                 AltcoinLeverage:      traderCfg.AltcoinLeverage,
                 ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
                 CoinPoolAPIURL:       effectiveCoinPoolURL,
-                CustomAPIURL:         aiModelCfg.CustomAPIURL,    // 自定义API URL
-                CustomModelName:      aiModelCfg.CustomModelName, // 自定义模型名称
-                UseQwen:              aiModelCfg.Provider == "qwen",
+                CustomAPIURL:         customAPIURL,    // 自定义API URL
+                CustomModelName:      customModelName, // 自定义模型名称
+                UseQwen:              useQwen,
                 MaxDailyLoss:         maxDailyLoss,
                 MaxDrawdown:          maxDrawdown,
                 StopTradingTime:      time.Duration(stopTradingMinutes) * time.Minute,
@@ -924,26 +954,30 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
         }
 
         // 根据交易所类型设置API密钥
-        if exchangeCfg.ID == "binance" {
-                traderConfig.BinanceAPIKey = exchangeCfg.APIKey
-                traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-        } else if exchangeCfg.ID == "hyperliquid" {
-                traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
-                traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
-        } else if exchangeCfg.ID == "aster" {
-                traderConfig.AsterUser = exchangeCfg.AsterUser
-                traderConfig.AsterSigner = exchangeCfg.AsterSigner
-                traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
-        } else if exchangeCfg.ID == "okx" {
-                traderConfig.OKXAPIKey = exchangeCfg.APIKey
-                traderConfig.OKXSecretKey = exchangeCfg.SecretKey
-                traderConfig.OKXPassphrase = exchangeCfg.OKXPassphrase
+        if exchangeCfg != nil {
+                if exchangeCfg.ID == "binance" {
+                        traderConfig.BinanceAPIKey = exchangeCfg.APIKey
+                        traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
+                } else if exchangeCfg.ID == "hyperliquid" {
+                        traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey // hyperliquid用APIKey存储private key
+                        traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
+                } else if exchangeCfg.ID == "aster" {
+                        traderConfig.AsterUser = exchangeCfg.AsterUser
+                        traderConfig.AsterSigner = exchangeCfg.AsterSigner
+                        traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+                } else if exchangeCfg.ID == "okx" {
+                        traderConfig.OKXAPIKey = exchangeCfg.APIKey
+                        traderConfig.OKXSecretKey = exchangeCfg.SecretKey
+                        traderConfig.OKXPassphrase = exchangeCfg.OKXPassphrase
+                }
+        } else {
+                log.Printf("⚠️ 交易员 %s 的交易所 %s 配置缺失，将无法启动交易", traderCfg.Name, exchangeID)
         }
 
         // 根据AI模型设置API密钥
-        if aiModelCfg.Provider == "qwen" {
+        if aiModelCfg != nil && aiModelCfg.Provider == "qwen" {
                 traderConfig.QwenKey = aiModelCfg.APIKey
-        } else if aiModelCfg.Provider == "deepseek" {
+        } else if aiModelCfg != nil && aiModelCfg.Provider == "deepseek" {
                 if aiModelCfg.ID == "platform_deepseek" || aiModelCfg.APIKey == "platform_managed" {
                         // 加载平台配置
                         key, _ := database.GetSystemConfig("deepseek_api_key")
@@ -976,6 +1010,14 @@ func (tm *TraderManager) loadSingleTrader(traderCfg *config.TraderRecord, aiMode
         }
 
         tm.traders[traderCfg.ID] = at
-        log.Printf("✓ Trader '%s' (%s + %s) 已为用户加载到内存", traderCfg.Name, aiModelCfg.Provider, exchangeCfg.ID)
+
+        // 🔧 修复：处理nil config的日志输出
+        aiModelStr := aiModel
+        if aiModelCfg != nil {
+                aiModelStr = aiModelCfg.Provider
+        }
+        exchangeStr := exchangeID
+
+        log.Printf("✓ Trader '%s' (%s + %s) 已为用户加载到内存", traderCfg.Name, aiModelStr, exchangeStr)
         return nil
 }

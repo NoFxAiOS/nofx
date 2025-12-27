@@ -181,6 +181,18 @@ func (h *BaseHandler) HandleCreateTrader(c *gin.Context) {
 		// 这里不返回错误，因为交易员已经成功创建到数据库
 	}
 
+	// 🔧 修复：验证trader确实被加载到内存
+	_, err = h.TraderManager.GetTrader(traderID)
+	if err != nil {
+		// Trader创建成功但加载失败 - 这通常意味着AI模型或交易所配置缺失
+		log.Printf("❌ 交易员已创建但加载失败: %s - %v", traderID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("交易员已创建但加载到内存失败。请检查AI模型 '%s' 和交易所 '%s' 的配置是否存在且已启用。详细错误: %v",
+				req.AIModelID, req.ExchangeID, err),
+		})
+		return
+	}
+
 	log.Printf("✓ 创建交易员成功: %s (模型: %s, 交易所: %s)", req.Name, req.AIModelID, req.ExchangeID)
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -759,9 +771,28 @@ func (h *BaseHandler) HandlePerformance(c *gin.Context) {
 	}
 
 	trader, err := h.TraderManager.GetTrader(traderID)
+
+	// 🔧 修复：如果trader不在内存中，尝试重新加载（可能刚创建）
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
+		log.Printf("⏳ Trader在内存中未找到 %s，尝试重新加载...", traderID)
+		userID := c.GetString("user_id")
+
+		// 尝试重新加载用户的traders
+		err = h.TraderManager.LoadUserTraders(h.Database, userID)
+		if err != nil {
+			log.Printf("⚠️ 重新加载traders失败: %v", err)
+			// 继续尝试获取
+		}
+
+		// 再试一次
+		trader, err = h.TraderManager.GetTrader(traderID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": fmt.Sprintf("交易员不存在或配置缺失: %v。请检查AI模型和交易所的配置。", err),
+			})
+			return
+		}
+		log.Printf("✓ Trader重新加载成功: %s", traderID)
 	}
 
 	// 分析最近100个周期的交易表现（避免长期持仓的交易记录丢失）

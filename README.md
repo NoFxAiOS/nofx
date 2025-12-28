@@ -58,6 +58,10 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 |:---:|:---:|
 | <img src="screenshots/dashboard-page.png" width="400" alt="Dashboard Overview"/> | <img src="screenshots/dashboard-market-chart.png" width="400" alt="Dashboard Market Chart"/> |
 
+| Trading Stats | Position History |
+|:---:|:---:|
+| <img src="screenshots/dashboard-trading-stats.png" width="400" alt="Trading Stats"/> | <img src="screenshots/dashboard-position-history.png" width="400" alt="Position History"/> |
+
 | Positions | Trader Details |
 |:---:|:---:|
 | <img src="screenshots/dashboard-positions.png" width="400" alt="Dashboard Positions"/> | <img src="screenshots/details-page.png" width="400" alt="Trader Details"/> |

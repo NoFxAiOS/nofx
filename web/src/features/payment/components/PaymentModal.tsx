@@ -76,7 +76,7 @@ export function PaymentModal({
 
   if (!isOpen) return null
 
-  const apiKey = import.meta.env.CROSSMINT_CLIENT_API_KEY
+  const apiKey = import.meta.env.VITE_CROSSMINT_CLIENT_API_KEY
 
   if (!apiKey) {
     return (

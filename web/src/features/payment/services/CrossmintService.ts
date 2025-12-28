@@ -10,7 +10,7 @@ export class CrossmintService {
   private apiKey: string
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || import.meta.env.VITE_CROSSMINT_CLIENT_API_KEY || ""
+    this.apiKey = apiKey || import.meta.env.CROSSMINT_CLIENT_API_KEY || ""
 
     if (!this.apiKey) {
       console.warn(

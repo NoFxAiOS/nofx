@@ -31,7 +31,19 @@ var (
 		"stream error",   // HTTP/2 stream error
 		"INTERNAL_ERROR", // Server internal error
 	}
+
+	// TokenUsageCallback is called after each AI request with token usage info
+	TokenUsageCallback func(usage TokenUsage)
 )
+
+// TokenUsage represents token usage from AI API response
+type TokenUsage struct {
+	Provider         string
+	Model            string
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+}
 
 // Client AI API configuration
 type Client struct {
@@ -226,6 +238,11 @@ func (client *Client) parseMCPResponse(body []byte) (string, error) {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -234,6 +251,17 @@ func (client *Client) parseMCPResponse(body []byte) (string, error) {
 
 	if len(result.Choices) == 0 {
 		return "", fmt.Errorf("API returned empty response")
+	}
+
+	// Report token usage if callback is set
+	if TokenUsageCallback != nil && result.Usage.TotalTokens > 0 {
+		TokenUsageCallback(TokenUsage{
+			Provider:         client.Provider,
+			Model:            client.Model,
+			PromptTokens:     result.Usage.PromptTokens,
+			CompletionTokens: result.Usage.CompletionTokens,
+			TotalTokens:      result.Usage.TotalTokens,
+		})
 	}
 
 	return result.Choices[0].Message.Content, nil

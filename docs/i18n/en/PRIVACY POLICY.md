@@ -71,6 +71,10 @@ To help us improve the product experience, the "Software" sends **anonymous usag
 - Trade type (open/close position)
 - Trade amount (USD value)
 - Trading pair (e.g., BTCUSDT)
+- AI model usage statistics:
+  - AI provider name (e.g., OpenAI, DeepSeek, Anthropic)
+  - AI model name (e.g., gpt-4o, deepseek-chat)
+  - Token consumption (input/output tokens per request)
 - Anonymous identifiers (used for counting active numbers, not linked to personal identity):
   - Installation ID: Identifies each independently deployed software instance
   - User ID: Identifies user accounts within the software (only for counting active users)
@@ -80,6 +84,7 @@ To help us improve the product experience, the "Software" sends **anonymous usag
 - Your API keys, private keys, or any credentials
 - Your account addresses, usernames, or identity information
 - Specific trade prices, times, or order details
+- AI conversation content (prompts, responses, or trading decisions)
 - Any information that could reverse-identify personal identity through the above anonymous IDs
 
 **How to Disable:**

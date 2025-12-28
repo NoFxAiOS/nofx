@@ -248,7 +248,7 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
               {!['login', 'register'].includes(currentPage || '') && (
                 <div className='flex items-center gap-3'>
                   {/* Credits Display - Only show when logged in */}
-                  {isLoggedIn && <CreditsDisplay onOpenPayment={() => setIsPaymentModalOpen(true)} />}
+                  {isLoggedIn && <CreditsDisplay />}
 
                   {/* Credits Packages Button */}
                   <button
@@ -610,7 +610,7 @@ export default function HeaderBar({ isLoggedIn = false, isHomePage = false, curr
             <div className='mt-4 pt-4' style={{ borderTop: '1px solid var(--panel-border)' }}>
               {/* Credits Display for mobile */}
               <div className='px-3 py-2 mb-2'>
-                <CreditsDisplay onOpenPayment={() => setIsPaymentModalOpen(true)} />
+                <CreditsDisplay />
               </div>
 
               {/* Credits Packages Button for mobile */}

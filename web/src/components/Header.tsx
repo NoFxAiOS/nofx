@@ -45,7 +45,7 @@ export function Header({ simple = false }: HeaderProps) {
             )}
 
             {/* Credits Display - 仅在非简化模式下显示 */}
-            {!simple && <CreditsDisplay onOpenPayment={() => setIsPaymentModalOpen(true)} />}
+            {!simple && <CreditsDisplay />}
 
             {/* Credits Packages Button - 新增 */}
             <button

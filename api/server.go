@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"nofx/api/credits"
 	"nofx/api/handlers"
+	"nofx/api/payment"
 	"nofx/auth"
 	"nofx/config"
 	"nofx/database"
@@ -16,6 +17,7 @@ import (
 	"nofx/manager"
 	"nofx/middleware"
 	creditsService "nofx/service/credits"
+	paymentService "nofx/service/payment"
 	"os"
 	"strconv"
 	"strings"
@@ -33,6 +35,8 @@ type Server struct {
 	emailClient          *email.ResendClient
 	creditService        creditsService.Service
 	creditHandler        *credits.Handler
+	paymentService       paymentService.Service
+	paymentHandler       *payment.Handler
 	learningHandler      *handlers.LearningHandler
 	newsConfigHandler    *NewsConfigHandler
 	port                 int
@@ -64,6 +68,11 @@ func NewServer(traderManager *manager.TraderManager, dbConfig *config.Database, 
 	// 创建积分服务
 	creditService := creditsService.NewCreditService(dbConfig)
 	creditHandler := credits.NewHandler(creditService)
+
+	// 创建支付服务
+	paymentSvc := paymentService.NewPaymentService(dbConfig)
+	paymentHandler := payment.NewHandler(paymentSvc)
+
 	learningHandler := handlers.NewLearningHandler(dbConfig)
 	newsConfigHandler := NewNewsConfigHandler(
 		database.NewUserNewsConfigRepository(dbConfig.GetDB()),
@@ -76,6 +85,8 @@ func NewServer(traderManager *manager.TraderManager, dbConfig *config.Database, 
 		emailClient:          email.NewResendClient(),
 		creditService:        creditService,
 		creditHandler:        creditHandler,
+		paymentService:       paymentSvc,
+		paymentHandler:       paymentHandler,
 		learningHandler:      learningHandler,
 		newsConfigHandler:    newsConfigHandler,
 		port:                 port,
@@ -254,9 +265,21 @@ func (s *Server) setupRoutes() {
 		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
+		// Crossmint webhook (无需认证，由签名验证保护)
+		api.POST("/webhooks/crossmint", s.paymentHandler.HandleWebhook)
+
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
 		{
+			// 支付订单管理（需要认证）
+			paymentGroup := protected.Group("/payments")
+			paymentGroup.Use(middleware.RateLimitByUser(10, time.Minute)) // 每分钟最多10次支付操作
+			{
+				paymentGroup.POST("/crossmint/create-order", s.paymentHandler.CreateOrder)
+				paymentGroup.GET("/orders/:id", s.paymentHandler.GetOrder)
+				paymentGroup.GET("/orders", s.paymentHandler.GetUserOrders)
+			}
+
 			// AI交易员管理
 			protected.GET("/my-traders", s.handleTraderList)
 			protected.GET("/traders/:id/config", s.handleGetTraderConfig)

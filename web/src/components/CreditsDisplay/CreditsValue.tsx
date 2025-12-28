@@ -7,7 +7,6 @@ import styles from './credits.module.css';
 export interface CreditsValueProps {
   value: number;
   format?: 'number' | 'short';
-  onOpen?: () => void;
   disabled?: boolean;
   loading?: boolean;
 }
@@ -28,12 +27,11 @@ function formatShortNumber(num: number): string {
 
 /**
  * CreditsValue - 积分数值组件
- * 点击打开支付modal，允许用户购买积分
+ * 点击导航到用户profile页面
  */
 export function CreditsValue({
   value,
   format = 'number',
-  onOpen,
   disabled = false,
   loading = false,
 }: CreditsValueProps): React.ReactElement {
@@ -43,7 +41,7 @@ export function CreditsValue({
 
   const handleClick = () => {
     if (!disabled && !loading) {
-      onOpen?.();
+      window.location.href = 'https://www.agentrade.xyz/profile';
     }
   };
 

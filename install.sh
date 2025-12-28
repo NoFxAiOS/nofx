@@ -167,25 +167,31 @@ start_services() {
     echo -e "${GREEN}✓ Services started${NC}"
 }
 
-# Clear trading data via container (called after services are ready)
+# Clear trading data (called before services start)
 clear_trading_data() {
     if [ "$CLEAR_TRADING_DATA" != "yes" ]; then
         return 0
     fi
 
-    echo -e "${YELLOW}Clearing trading data tables via container...${NC}"
+    local db_file="data/data.db"
 
-    # Wait a moment for database to be ready
-    sleep 2
+    if [ ! -f "$db_file" ]; then
+        echo -e "${YELLOW}Database file not found, skipping...${NC}"
+        return 0
+    fi
 
-    # Execute SQL to clear tables via docker exec
-    $COMPOSE_CMD exec -T backend sh -c "sqlite3 /app/data/data.db 'DELETE FROM trader_fills; DELETE FROM trader_orders; DELETE FROM trader_positions;'" 2>/dev/null
+    echo -e "${YELLOW}Clearing trading data tables...${NC}"
 
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Trading data tables cleared${NC}"
+    if command -v sqlite3 &> /dev/null; then
+        sqlite3 "$db_file" 'DELETE FROM trader_fills; DELETE FROM trader_orders; DELETE FROM trader_positions;'
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Trading data tables cleared${NC}"
+        else
+            echo -e "${RED}Failed to clear trading data${NC}"
+        fi
     else
-        echo -e "${RED}Failed to clear trading data. You can manually run:${NC}"
-        echo -e "${BLUE}  $COMPOSE_CMD exec backend sqlite3 /app/data/data.db 'DELETE FROM trader_fills; DELETE FROM trader_orders; DELETE FROM trader_positions;'${NC}"
+        echo -e "${RED}sqlite3 not found. Please install sqlite3 and run manually:${NC}"
+        echo -e "${BLUE}  sqlite3 data/data.db 'DELETE FROM trader_fills; DELETE FROM trader_orders; DELETE FROM trader_positions;'${NC}"
     fi
 }
 
@@ -279,9 +285,9 @@ main() {
     generate_env
     pull_images
     ask_clear_trading_data
+    clear_trading_data
     start_services
     wait_for_services
-    clear_trading_data
     print_success
 }
 

@@ -191,6 +191,7 @@ func (s *Server) setupRoutes() {
 			protected.GET("/status", s.handleStatus)
 			protected.GET("/account", s.handleAccount)
 			protected.GET("/positions", s.handlePositions)
+			protected.GET("/positions/history", s.handlePositionHistory)
 			protected.GET("/trades", s.handleTrades)
 			protected.GET("/orders", s.handleOrders)           // Order list (all orders)
 			protected.GET("/orders/:id/fills", s.handleOrderFills) // Order fill details
@@ -2121,6 +2122,60 @@ func (s *Server) handlePositions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, positions)
+}
+
+// handlePositionHistory Historical closed positions with statistics
+func (s *Server) handlePositionHistory(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get optional query parameters
+	limitStr := c.DefaultQuery("limit", "100")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
+		limit = l
+	}
+
+	// Get store
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	// Get closed positions
+	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to get position history: %v", err),
+		})
+		return
+	}
+
+	// Get statistics
+	stats, _ := store.Position().GetFullStats(trader.GetID())
+
+	// Get symbol stats
+	symbolStats, _ := store.Position().GetSymbolStats(trader.GetID(), 10)
+
+	// Get direction stats
+	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
+
+	c.JSON(http.StatusOK, gin.H{
+		"positions": positions,
+		"stats": stats,
+		"symbol_stats": symbolStats,
+		"direction_stats": directionStats,
+	})
 }
 
 // handleTrades Historical trades list

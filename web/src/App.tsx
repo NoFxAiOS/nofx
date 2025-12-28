@@ -19,6 +19,7 @@ import { t, type Language } from './i18n/translations'
 import { confirmToast, notify } from './lib/notify'
 import { useSystemConfig } from './hooks/useSystemConfig'
 import { DecisionCard } from './components/DecisionCard'
+import { PositionHistory } from './components/PositionHistory'
 import { PunkAvatar, getTraderAvatar } from './components/PunkAvatar'
 import { OFFICIAL_LINKS } from './constants/branding'
 import { BacktestPage } from './components/BacktestPage'
@@ -1514,6 +1515,25 @@ function TraderDetailsPage({
         </div>
         {/* 右侧结束 */}
       </div>
+
+      {/* Position History Section */}
+      {selectedTraderId && (
+        <div
+          className="binance-card p-6 animate-slide-in"
+          style={{ animationDelay: '0.25s' }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h2
+              className="text-xl font-bold flex items-center gap-2"
+              style={{ color: '#EAECEF' }}
+            >
+              <span className="text-2xl">📜</span>
+              {t('positionHistory.title', language)}
+            </h2>
+          </div>
+          <PositionHistory traderId={selectedTraderId} />
+        </div>
+      )}
     </div>
   )
 }

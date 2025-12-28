@@ -29,6 +29,7 @@ import type {
   DebateMessage,
   DebateVote,
   DebatePersonalityInfo,
+  PositionHistoryResponse,
 } from '../types'
 import { CryptoService } from './crypto'
 import { httpClient } from './httpClient'
@@ -774,5 +775,14 @@ export const api = {
   createDebateStream(debateId: string): EventSource {
     const token = localStorage.getItem('auth_token')
     return new EventSource(`${API_BASE}/debates/${debateId}/stream?token=${token}`)
+  },
+
+  // Position History API
+  async getPositionHistory(traderId: string, limit: number = 100): Promise<PositionHistoryResponse> {
+    const result = await httpClient.get<PositionHistoryResponse>(
+      `${API_BASE}/positions/history?trader_id=${traderId}&limit=${limit}`
+    )
+    if (!result.success) throw new Error('获取历史仓位失败')
+    return result.data!
   },
 }

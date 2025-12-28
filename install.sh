@@ -148,7 +148,7 @@ ask_clear_trading_data() {
     echo ""
     echo -e "${BLUE}Type 'yes' to clear tables, press Enter or any other input to skip${NC}"
     echo -n "Input: "
-    read -r confirm
+    read -r confirm < /dev/tty
 
     if [ "$confirm" == "yes" ]; then
         CLEAR_TRADING_DATA="yes"

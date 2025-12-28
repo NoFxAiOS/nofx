@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
+import { MetricTooltip } from './MetricTooltip'
 import type {
   HistoricalPosition,
   TraderStats,
@@ -61,7 +62,8 @@ function StatCard({
   color,
   icon,
   subtitle,
-  formula,
+  metricKey,
+  language = 'en',
 }: {
   title: string
   value: string | number
@@ -69,10 +71,9 @@ function StatCard({
   color?: string
   icon: string
   subtitle?: string
-  formula?: string
+  metricKey?: string
+  language?: string
 }) {
-  const [showTooltip, setShowTooltip] = useState(false)
-
   return (
     <div
       className="rounded-lg p-4 transition-all duration-200 hover:scale-[1.02]"
@@ -87,30 +88,8 @@ function StatCard({
         <span className="text-xs" style={{ color: '#848E9C' }}>
           {title}
         </span>
-        {formula && (
-          <div className="relative">
-            <span
-              className="cursor-help text-xs px-1 rounded"
-              style={{ color: '#848E9C', background: '#2B3139' }}
-              onMouseEnter={() => setShowTooltip(true)}
-              onMouseLeave={() => setShowTooltip(false)}
-            >
-              ?
-            </span>
-            {showTooltip && (
-              <div
-                className="absolute z-50 left-0 top-6 p-2 rounded text-xs whitespace-pre-wrap min-w-[200px] max-w-[300px]"
-                style={{
-                  background: '#1E2329',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-                }}
-              >
-                {formula}
-              </div>
-            )}
-          </div>
+        {metricKey && (
+          <MetricTooltip metricKey={metricKey} language={language} size={12} />
         )}
       </div>
       <div className="flex items-baseline gap-1">
@@ -519,9 +498,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             title={t('positionHistory.totalTrades', language)}
             value={stats.total_trades || 0}
             subtitle={t('positionHistory.winLoss', language, { win: stats.win_trades || 0, loss: stats.loss_trades || 0 })}
-            formula={language === 'zh'
-              ? '总交易次数 = 所有已平仓位数量'
-              : 'Total Trades = Count of all closed positions'}
+            language={language}
           />
           <StatCard
             icon="🎯"
@@ -535,9 +512,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
                   ? '#F0B90B'
                   : '#F6465D'
             }
-            formula={language === 'zh'
-              ? `胜率 = 盈利交易数 / 总交易数 × 100%\n= ${stats.win_trades || 0} / ${stats.total_trades || 0} × 100%`
-              : `Win Rate = Winning Trades / Total Trades × 100%\n= ${stats.win_trades || 0} / ${stats.total_trades || 0} × 100%`}
+            metricKey="win_rate"
+            language={language}
           />
           <StatCard
             icon="💰"
@@ -545,9 +521,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             value={((stats.total_pnl || 0) >= 0 ? '+' : '') + formatNumber(stats.total_pnl || 0)}
             color={(stats.total_pnl || 0) >= 0 ? '#0ECB81' : '#F6465D'}
             subtitle={`${t('positionHistory.fee', language)}: -${formatNumber(stats.total_fee || 0)}`}
-            formula={language === 'zh'
-              ? '总盈亏 = Σ(每笔已平仓位的 realized_pnl)\n不含手续费'
-              : 'Total P&L = Σ(realized_pnl of each closed position)\nExcluding fees'}
+            metricKey="total_return"
+            language={language}
           />
           <StatCard
             icon="📈"
@@ -555,9 +530,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             value={(stats.profit_factor || 0).toFixed(2)}
             color={(stats.profit_factor || 0) >= 1.5 ? '#0ECB81' : (stats.profit_factor || 0) >= 1 ? '#F0B90B' : '#F6465D'}
             subtitle={t('positionHistory.profitFactorDesc', language)}
-            formula={language === 'zh'
-              ? '盈利因子 = 总盈利 / 总亏损\n>1.5 优秀, >1 盈利, <1 亏损'
-              : 'Profit Factor = Total Profit / Total Loss\n>1.5 Excellent, >1 Profitable, <1 Loss'}
+            metricKey="profit_factor"
+            language={language}
           />
           <StatCard
             icon="⚖️"
@@ -565,9 +539,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             value={profitLossRatio === Infinity ? '∞' : profitLossRatio.toFixed(2)}
             color={profitLossRatio >= 1.5 ? '#0ECB81' : profitLossRatio >= 1 ? '#F0B90B' : '#F6465D'}
             subtitle={t('positionHistory.plRatioDesc', language)}
-            formula={language === 'zh'
-              ? `盈亏比 = 平均盈利 / 平均亏损\n= ${formatNumber(stats.avg_win || 0)} / ${formatNumber(stats.avg_loss || 0)}`
-              : `P/L Ratio = Avg Win / Avg Loss\n= ${formatNumber(stats.avg_win || 0)} / ${formatNumber(stats.avg_loss || 0)}`}
+            metricKey="expectancy"
+            language={language}
           />
         </div>
       )}
@@ -581,9 +554,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             value={(stats.sharpe_ratio || 0).toFixed(2)}
             color={(stats.sharpe_ratio || 0) >= 1 ? '#0ECB81' : (stats.sharpe_ratio || 0) >= 0 ? '#F0B90B' : '#F6465D'}
             subtitle={t('positionHistory.sharpeRatioDesc', language)}
-            formula={language === 'zh'
-              ? '夏普比率 = 平均收益 / 收益标准差\n衡量风险调整后的收益\n>1 良好, >2 优秀'
-              : 'Sharpe Ratio = Mean Return / Std Dev\nMeasures risk-adjusted return\n>1 Good, >2 Excellent'}
+            metricKey="sharpe_ratio"
+            language={language}
           />
           <StatCard
             icon="🔻"
@@ -591,27 +563,23 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             value={(stats.max_drawdown_pct || 0).toFixed(1)}
             suffix="%"
             color={(stats.max_drawdown_pct || 0) <= 10 ? '#0ECB81' : (stats.max_drawdown_pct || 0) <= 20 ? '#F0B90B' : '#F6465D'}
-            formula={language === 'zh'
-              ? '最大回撤 = (峰值 - 谷值) / 峰值 × 100%\n基于虚拟起始资金10000计算\n衡量最大亏损幅度'
-              : 'Max Drawdown = (Peak - Trough) / Peak × 100%\nBased on virtual starting equity of 10000\nMeasures largest loss from peak'}
+            metricKey="max_drawdown"
+            language={language}
           />
           <StatCard
             icon="🏆"
             title={t('positionHistory.avgWin', language)}
             value={'+' + formatNumber(stats.avg_win || 0)}
             color="#0ECB81"
-            formula={language === 'zh'
-              ? `平均盈利 = 总盈利 / 盈利交易数\n盈利交易数: ${stats.win_trades || 0}`
-              : `Avg Win = Total Profit / Winning Trades\nWinning Trades: ${stats.win_trades || 0}`}
+            metricKey="avg_trade_pnl"
+            language={language}
           />
           <StatCard
             icon="💸"
             title={t('positionHistory.avgLoss', language)}
             value={'-' + formatNumber(stats.avg_loss || 0)}
             color="#F6465D"
-            formula={language === 'zh'
-              ? `平均亏损 = 总亏损 / 亏损交易数\n亏损交易数: ${stats.loss_trades || 0}`
-              : `Avg Loss = Total Loss / Losing Trades\nLosing Trades: ${stats.loss_trades || 0}`}
+            language={language}
           />
           <StatCard
             icon="💵"
@@ -619,9 +587,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             value={((stats.total_pnl || 0) - (stats.total_fee || 0) >= 0 ? '+' : '') + formatNumber((stats.total_pnl || 0) - (stats.total_fee || 0))}
             color={(stats.total_pnl || 0) - (stats.total_fee || 0) >= 0 ? '#0ECB81' : '#F6465D'}
             subtitle={t('positionHistory.netPnLDesc', language)}
-            formula={language === 'zh'
-              ? `净盈亏 = 总盈亏 - 手续费\n= ${formatNumber(stats.total_pnl || 0)} - ${formatNumber(stats.total_fee || 0)}`
-              : `Net P&L = Total P&L - Fees\n= ${formatNumber(stats.total_pnl || 0)} - ${formatNumber(stats.total_fee || 0)}`}
+            language={language}
           />
         </div>
       )}

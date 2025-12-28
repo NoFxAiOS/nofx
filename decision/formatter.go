@@ -51,7 +51,16 @@ func formatContextData(ctx *Context, lang Language) string {
 		sb.WriteString(formatAccountEN(ctx))
 	}
 
-	// 4. 最近交易记录
+	// 4. 历史交易统计
+	if ctx.TradingStats != nil && ctx.TradingStats.TotalTrades > 0 {
+		if lang == LangChinese {
+			sb.WriteString(formatTradingStatsZH(ctx.TradingStats))
+		} else {
+			sb.WriteString(formatTradingStatsEN(ctx.TradingStats))
+		}
+	}
+
+	// 5. 最近交易记录
 	if len(ctx.RecentOrders) > 0 {
 		if lang == LangChinese {
 			sb.WriteString(formatRecentTradesZH(ctx.RecentOrders))
@@ -117,6 +126,67 @@ func formatAccountZH(ctx *Context) string {
 		sb.WriteString("⚠️ **风险提示**: 保证金使用率 > 50%，建议谨慎开仓\n\n")
 	}
 
+	return sb.String()
+}
+
+// formatTradingStatsZH 格式化历史交易统计（中文）
+func formatTradingStatsZH(stats *TradingStats) string {
+	var sb strings.Builder
+	sb.WriteString("## 历史交易统计\n\n")
+
+	// 盈亏比计算
+	var winLossRatio float64
+	if stats.AvgLoss > 0 {
+		winLossRatio = stats.AvgWin / stats.AvgLoss
+	}
+
+	// 指标定义说明（去掉胜率，聚焦核心指标）
+	sb.WriteString("**指标说明**:\n")
+	sb.WriteString("- 盈利因子: 总盈利 ÷ 总亏损（>1表示盈利，>1.5为良好，>2为优秀）\n")
+	sb.WriteString("- 夏普比率: (平均收益 - 无风险收益) ÷ 收益标准差（>1良好，>2优秀）\n")
+	sb.WriteString("- 盈亏比: 平均盈利 ÷ 平均亏损（>1.5为良好，>2为优秀）\n")
+	sb.WriteString("- 最大回撤: 资金曲线从峰值到谷底的最大跌幅（<20%为低风险）\n\n")
+
+	// 数据值
+	sb.WriteString("**当前数据**:\n")
+	sb.WriteString(fmt.Sprintf("- 总交易: %d 笔\n", stats.TotalTrades))
+	sb.WriteString(fmt.Sprintf("- 盈利因子: %.2f\n", stats.ProfitFactor))
+	sb.WriteString(fmt.Sprintf("- 夏普比率: %.2f\n", stats.SharpeRatio))
+	sb.WriteString(fmt.Sprintf("- 盈亏比: %.2f\n", winLossRatio))
+	sb.WriteString(fmt.Sprintf("- 总盈亏: %+.2f USDT\n", stats.TotalPnL))
+	sb.WriteString(fmt.Sprintf("- 平均盈利: +%.2f USDT\n", stats.AvgWin))
+	sb.WriteString(fmt.Sprintf("- 平均亏损: -%.2f USDT\n", stats.AvgLoss))
+	sb.WriteString(fmt.Sprintf("- 最大回撤: %.1f%%\n\n", stats.MaxDrawdownPct))
+
+	// 综合分析和决策建议
+	sb.WriteString("**决策参考**:\n")
+
+	// 根据统计数据给出具体建议
+	if stats.TotalTrades < 10 {
+		sb.WriteString("- 样本量较小（<10笔），统计结果参考意义有限\n")
+	}
+
+	if stats.ProfitFactor >= 1.5 && stats.SharpeRatio >= 1 {
+		sb.WriteString("- 📈 表现良好: 可以维持当前策略风格\n")
+	} else if stats.ProfitFactor >= 1.0 {
+		sb.WriteString("- 📊 表现正常: 策略可行但有优化空间\n")
+	}
+
+	if stats.ProfitFactor < 1.0 {
+		sb.WriteString("- ⚠️ 盈利因子<1: 亏损大于盈利，需要提高盈亏比，优化止盈止损\n")
+	}
+
+	if winLossRatio > 0 && winLossRatio < 1.5 {
+		sb.WriteString("- ⚠️ 盈亏比偏低: 建议让利润奔跑，提高止盈目标\n")
+	}
+
+	if stats.MaxDrawdownPct > 30 {
+		sb.WriteString("- ⚠️ 最大回撤过高: 建议降低仓位大小控制风险\n")
+	} else if stats.MaxDrawdownPct < 10 {
+		sb.WriteString("- ✅ 回撤控制良好: 风险管理有效\n")
+	}
+
+	sb.WriteString("\n")
 	return sb.String()
 }
 
@@ -330,6 +400,67 @@ func formatAccountEN(ctx *Context) string {
 		sb.WriteString("⚠️ **Risk Notice**: Margin usage > 50%, be cautious with new positions\n\n")
 	}
 
+	return sb.String()
+}
+
+// formatTradingStatsEN 格式化历史交易统计（英文）
+func formatTradingStatsEN(stats *TradingStats) string {
+	var sb strings.Builder
+	sb.WriteString("## Historical Trading Statistics\n\n")
+
+	// Win/Loss ratio calculation
+	var winLossRatio float64
+	if stats.AvgLoss > 0 {
+		winLossRatio = stats.AvgWin / stats.AvgLoss
+	}
+
+	// Metric definitions (focus on core metrics, remove win rate)
+	sb.WriteString("**Metric Definitions**:\n")
+	sb.WriteString("- Profit Factor: Total profits ÷ Total losses (>1 = profitable, >1.5 = good, >2 = excellent)\n")
+	sb.WriteString("- Sharpe Ratio: (Avg return - Risk-free rate) ÷ Std dev of returns (>1 = good, >2 = excellent)\n")
+	sb.WriteString("- Win/Loss Ratio: Avg win ÷ Avg loss (>1.5 = good, >2 = excellent)\n")
+	sb.WriteString("- Max Drawdown: Largest peak-to-trough decline in equity curve (<20% = low risk)\n\n")
+
+	// Data values
+	sb.WriteString("**Current Data**:\n")
+	sb.WriteString(fmt.Sprintf("- Total Trades: %d\n", stats.TotalTrades))
+	sb.WriteString(fmt.Sprintf("- Profit Factor: %.2f\n", stats.ProfitFactor))
+	sb.WriteString(fmt.Sprintf("- Sharpe Ratio: %.2f\n", stats.SharpeRatio))
+	sb.WriteString(fmt.Sprintf("- Win/Loss Ratio: %.2f\n", winLossRatio))
+	sb.WriteString(fmt.Sprintf("- Total PnL: %+.2f USDT\n", stats.TotalPnL))
+	sb.WriteString(fmt.Sprintf("- Avg Win: +%.2f USDT\n", stats.AvgWin))
+	sb.WriteString(fmt.Sprintf("- Avg Loss: -%.2f USDT\n", stats.AvgLoss))
+	sb.WriteString(fmt.Sprintf("- Max Drawdown: %.1f%%\n\n", stats.MaxDrawdownPct))
+
+	// Analysis and decision guidance
+	sb.WriteString("**Decision Guidance**:\n")
+
+	// Specific recommendations based on stats
+	if stats.TotalTrades < 10 {
+		sb.WriteString("- Small sample size (<10 trades), statistics have limited significance\n")
+	}
+
+	if stats.ProfitFactor >= 1.5 && stats.SharpeRatio >= 1 {
+		sb.WriteString("- 📈 Good performance: Maintain current strategy approach\n")
+	} else if stats.ProfitFactor >= 1.0 {
+		sb.WriteString("- 📊 Normal performance: Strategy viable but has room for optimization\n")
+	}
+
+	if stats.ProfitFactor < 1.0 {
+		sb.WriteString("- ⚠️ Profit factor <1: Losses exceed profits, improve win/loss ratio, optimize TP/SL\n")
+	}
+
+	if winLossRatio > 0 && winLossRatio < 1.5 {
+		sb.WriteString("- ⚠️ Low win/loss ratio: Let profits run, increase take-profit targets\n")
+	}
+
+	if stats.MaxDrawdownPct > 30 {
+		sb.WriteString("- ⚠️ High max drawdown: Consider reducing position sizes to control risk\n")
+	} else if stats.MaxDrawdownPct < 10 {
+		sb.WriteString("- ✅ Good drawdown control: Risk management is effective\n")
+	}
+
+	sb.WriteString("\n")
 	return sb.String()
 }
 

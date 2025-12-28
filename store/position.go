@@ -469,6 +469,15 @@ func (s *PositionStore) GetPositionStats(traderID string) (map[string]interface{
 func (s *PositionStore) GetFullStats(traderID string) (*TraderStats, error) {
 	stats := &TraderStats{}
 
+	// First check how many rows exist
+	var count int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM trader_positions WHERE trader_id = ? AND status = 'CLOSED'`, traderID).Scan(&count); err == nil {
+		if count == 0 {
+			// No closed positions, return empty stats
+			return stats, nil
+		}
+	}
+
 	// Query all closed positions
 	rows, err := s.db.Query(`
 		SELECT realized_pnl, fee, exit_time

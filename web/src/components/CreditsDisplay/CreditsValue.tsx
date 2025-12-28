@@ -43,7 +43,7 @@ export function CreditsValue({
 
   const handleClick = () => {
     if (!disabled && !loading) {
-      onOpen?.();
+      window.location.href = 'https://www.agentrade.xyz/profile';
     }
   };
 

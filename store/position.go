@@ -668,19 +668,25 @@ func calculateSharpeRatioFromPnls(pnls []float64) float64 {
 }
 
 // calculateMaxDrawdownFromPnls calculates maximum drawdown
+// Uses a virtual starting equity of 10000 to calculate percentage drawdown
 func calculateMaxDrawdownFromPnls(pnls []float64) float64 {
 	if len(pnls) == 0 {
 		return 0
 	}
 
-	var cumulative, peak, maxDD float64
+	// Use virtual starting equity for percentage calculation
+	const startingEquity = 10000.0
+	equity := startingEquity
+	peak := startingEquity
+	var maxDD float64
+
 	for _, pnl := range pnls {
-		cumulative += pnl
-		if cumulative > peak {
-			peak = cumulative
+		equity += pnl
+		if equity > peak {
+			peak = equity
 		}
 		if peak > 0 {
-			dd := (peak - cumulative) / peak * 100
+			dd := (peak - equity) / peak * 100
 			if dd > maxDD {
 				maxDD = dd
 			}

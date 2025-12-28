@@ -2,6 +2,7 @@ package trader
 
 import (
 	"database/sql"
+	"math"
 	"nofx/store"
 	"testing"
 	"time"
@@ -382,7 +383,8 @@ func TestHyperliquidBugScenario(t *testing.T) {
 	}
 
 	expectedTotalPnL := 4.72 + 5.0 // Sum of both close trades
-	if totalPnL != expectedTotalPnL {
+	// Use tolerance for floating point comparison
+	if math.Abs(totalPnL-expectedTotalPnL) > 0.01 {
 		t.Errorf("Expected total PnL %.2f, got %.2f", expectedTotalPnL, totalPnL)
 	}
 }

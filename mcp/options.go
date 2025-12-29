@@ -160,3 +160,28 @@ func WithQwenConfig(apiKey string) ClientOption {
 		c.Model = DefaultQwenModel
 	}
 }
+
+// WithBlockRunConfig sets BlockRun configuration
+//
+// BlockRun is an x402-enabled AI gateway that allows agents to pay for
+// LLM inference with USDC micropayments on Base. No API key management
+// required - agents pay directly with their wallets.
+//
+// Features:
+//   - 31+ AI models (GPT-5, GPT-4o, Claude, Gemini, etc.)
+//   - OpenAI-compatible API
+//   - x402 wallet-based authentication
+//   - 0% markup during beta
+//
+// Usage example:
+//   client := mcp.NewClient(mcp.WithBlockRunConfig("x402-wallet-auth"))
+//
+// Learn more: https://blockrun.ai
+func WithBlockRunConfig(apiKey string) ClientOption {
+	return func(c *Config) {
+		c.Provider = ProviderBlockRun
+		c.APIKey = apiKey
+		c.BaseURL = DefaultBlockRunBaseURL
+		c.Model = DefaultBlockRunModel
+	}
+}

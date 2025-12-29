@@ -110,6 +110,30 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 | **Gemini** | ✅ Supported | [Get API Key](https://aistudio.google.com) |
 | **Grok** | ✅ Supported | [Get API Key](https://console.x.ai) |
 | **Kimi** | ✅ Supported | [Get API Key](https://platform.moonshot.cn) |
+| **BlockRun** | ✅ Supported | [Learn More](https://blockrun.ai) |
+
+### BlockRun - x402 Micropayment AI Gateway
+
+[BlockRun](https://blockrun.ai) is an x402-enabled AI gateway that allows your trading agent to pay for LLM calls with **USDC micropayments on Base**. No API key management required - your agent's wallet handles payment directly.
+
+**Benefits:**
+- **31+ AI models** - Access GPT-5, GPT-4o, Claude, Gemini, and more through one API
+- **No API keys needed** - Pay with USDC via x402 protocol
+- **0% markup** - Same pricing as official APIs during beta
+- **OpenAI-compatible** - Drop-in replacement for existing code
+
+**Setup:**
+1. Add BlockRun as an AI provider in the web config
+2. Use `x402-wallet-auth` as the API key
+3. Set base URL to `https://api.blockrun.ai/v1`
+4. Ensure your wallet has USDC on Base network
+
+**Available Models via BlockRun:**
+| Provider | Models |
+|----------|--------|
+| OpenAI | gpt-5, gpt-4o, gpt-4o-mini, gpt-4-turbo |
+| Anthropic | claude-3-5-sonnet, claude-3-5-haiku, claude-3-opus |
+| Google | gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash |
 
 ---
 

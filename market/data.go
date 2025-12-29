@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"nofx/logger"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
-	"math"
+	"nofx/provider/hyperliquid"
 	"strconv"
 	"strings"
 	"sync"
@@ -92,16 +93,70 @@ func getKlinesFromCoinAnk(symbol, interval string, limit int) ([]Kline, error) {
 	return klines, nil
 }
 
+// getKlinesFromHyperliquid fetches kline data from Hyperliquid API for xyz dex assets
+func getKlinesFromHyperliquid(symbol, interval string, limit int) ([]Kline, error) {
+	// Remove xyz: prefix if present for the API call
+	baseCoin := strings.TrimPrefix(symbol, "xyz:")
+
+	// Map interval to Hyperliquid format
+	hlInterval := hyperliquid.MapTimeframe(interval)
+
+	// Create Hyperliquid client
+	client := hyperliquid.NewClient()
+
+	// Fetch candles
+	ctx := context.Background()
+	candles, err := client.GetCandles(ctx, baseCoin, hlInterval, limit)
+	if err != nil {
+		return nil, fmt.Errorf("Hyperliquid API error: %w", err)
+	}
+
+	// Convert to market.Kline format
+	klines := make([]Kline, len(candles))
+	for i, c := range candles {
+		open, _ := strconv.ParseFloat(c.Open, 64)
+		high, _ := strconv.ParseFloat(c.High, 64)
+		low, _ := strconv.ParseFloat(c.Low, 64)
+		closePrice, _ := strconv.ParseFloat(c.Close, 64)
+		volume, _ := strconv.ParseFloat(c.Volume, 64)
+
+		klines[i] = Kline{
+			OpenTime:  c.OpenTime,
+			Open:      open,
+			High:      high,
+			Low:       low,
+			Close:     closePrice,
+			Volume:    volume,
+			CloseTime: c.CloseTime,
+		}
+	}
+
+	return klines, nil
+}
+
 // Get retrieves market data for the specified token
 func Get(symbol string) (*Data, error) {
 	var klines3m, klines4h []Kline
 	var err error
 	// Normalize symbol
 	symbol = Normalize(symbol)
-	// Get 3-minute K-line data from CoinAnk (get 100 for calculation)
-	klines3m, err = getKlinesFromCoinAnk(symbol, "3m", 100)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk: %v", err)
+
+	// Check if this is an xyz dex asset (use Hyperliquid API)
+	isXyzAsset := IsXyzDexAsset(symbol)
+
+	// Get 3-minute K-line data (or 5-minute for xyz assets as 3m may not be available)
+	if isXyzAsset {
+		// Use Hyperliquid API for xyz dex assets (use 5m since 3m may not be available)
+		klines3m, err = getKlinesFromHyperliquid(symbol, "5m", 100)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get 5-minute K-line from Hyperliquid: %v", err)
+		}
+	} else {
+		// Use CoinAnk for regular crypto assets
+		klines3m, err = getKlinesFromCoinAnk(symbol, "3m", 100)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk: %v", err)
+		}
 	}
 
 	// Data staleness detection: Prevent DOGEUSDT-style price freeze issues
@@ -110,10 +165,17 @@ func Get(symbol string) (*Data, error) {
 		return nil, fmt.Errorf("%s data is stale, possible cache failure", symbol)
 	}
 
-	// Get 4-hour K-line data from CoinAnk (get 100 for indicator calculation)
-	klines4h, err = getKlinesFromCoinAnk(symbol, "4h", 100)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk: %v", err)
+	// Get 4-hour K-line data
+	if isXyzAsset {
+		klines4h, err = getKlinesFromHyperliquid(symbol, "4h", 100)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get 4-hour K-line from Hyperliquid: %v", err)
+		}
+	} else {
+		klines4h, err = getKlinesFromCoinAnk(symbol, "4h", 100)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk: %v", err)
+		}
 	}
 
 	// Check if data is empty
@@ -212,12 +274,28 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	timeframeData := make(map[string]*TimeframeSeriesData)
 	var primaryKlines []Kline
 
-	// Get K-line data for each timeframe from CoinAnk
+	// Check if this is an xyz dex asset (use Hyperliquid API)
+	isXyzAsset := IsXyzDexAsset(symbol)
+
+	// Get K-line data for each timeframe
 	for _, tf := range timeframes {
-		klines, err := getKlinesFromCoinAnk(symbol, tf, 200) // Get enough data for indicators
-		if err != nil {
-			logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
-			continue
+		var klines []Kline
+		var err error
+
+		if isXyzAsset {
+			// Use Hyperliquid API for xyz dex assets
+			klines, err = getKlinesFromHyperliquid(symbol, tf, 200)
+			if err != nil {
+				logger.Infof("⚠️ Failed to get %s %s K-line from Hyperliquid: %v", symbol, tf, err)
+				continue
+			}
+		} else {
+			// Use CoinAnk for regular crypto assets
+			klines, err = getKlinesFromCoinAnk(symbol, tf, 200)
+			if err != nil {
+				logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
+				continue
+			}
 		}
 
 		if len(klines) == 0 {
@@ -937,9 +1015,60 @@ func formatFloatSlice(values []float64) string {
 	return "[" + strings.Join(strValues, ", ") + "]"
 }
 
-// Normalize normalizes symbol, ensures it's a USDT trading pair
+// xyz dex assets that should NOT get USDT suffix
+var xyzDexAssets = map[string]bool{
+	// Stocks
+	"TSLA": true, "NVDA": true, "AAPL": true, "MSFT": true, "META": true,
+	"AMZN": true, "GOOGL": true, "AMD": true, "COIN": true, "NFLX": true,
+	"PLTR": true, "HOOD": true, "INTC": true, "MSTR": true, "TSM": true,
+	"ORCL": true, "MU": true, "RIVN": true, "COST": true, "LLY": true,
+	"CRCL": true, "SKHX": true, "SNDK": true,
+	// Forex
+	"EUR": true, "JPY": true,
+	// Commodities
+	"GOLD": true, "SILVER": true,
+	// Index
+	"XYZ100": true,
+}
+
+// IsXyzDexAsset checks if a symbol is an xyz dex asset
+func IsXyzDexAsset(symbol string) bool {
+	base := strings.ToUpper(symbol)
+	// Remove any prefix/suffix
+	base = strings.TrimPrefix(base, "XYZ:")
+	for _, suffix := range []string{"USDT", "USD", "-USDC"} {
+		if strings.HasSuffix(base, suffix) {
+			base = strings.TrimSuffix(base, suffix)
+			break
+		}
+	}
+	return xyzDexAssets[base]
+}
+
+// Normalize normalizes symbol
+// For crypto: ensures it's a USDT trading pair
+// For xyz dex assets (stocks, forex, commodities): uses xyz: prefix without USDT suffix
 func Normalize(symbol string) string {
 	symbol = strings.ToUpper(symbol)
+
+	// Check if this is an xyz dex asset
+	if IsXyzDexAsset(symbol) {
+		// Remove any xyz: prefix (case-insensitive) and USDT suffix, then add xyz: prefix
+		base := symbol
+		// Handle both lowercase and uppercase xyz: prefix
+		if strings.HasPrefix(strings.ToLower(base), "xyz:") {
+			base = base[4:] // Remove first 4 characters ("xyz:")
+		}
+		for _, suffix := range []string{"USDT", "USD", "-USDC"} {
+			if strings.HasSuffix(base, suffix) {
+				base = strings.TrimSuffix(base, suffix)
+				break
+			}
+		}
+		return "xyz:" + base
+	}
+
+	// For regular crypto assets
 	if strings.HasSuffix(symbol, "USDT") {
 		return symbol
 	}

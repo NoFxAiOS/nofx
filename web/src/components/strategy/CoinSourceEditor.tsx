@@ -65,10 +65,39 @@ export function CoinSourceEditor({
     { value: 'mixed', icon: Database, color: '#60a5fa' },
   ] as const
 
+  // xyz dex assets (stocks, forex, commodities) - should NOT get USDT suffix
+  const xyzDexAssets = new Set([
+    // Stocks
+    'TSLA', 'NVDA', 'AAPL', 'MSFT', 'META', 'AMZN', 'GOOGL', 'AMD', 'COIN', 'NFLX',
+    'PLTR', 'HOOD', 'INTC', 'MSTR', 'TSM', 'ORCL', 'MU', 'RIVN', 'COST', 'LLY',
+    'CRCL', 'SKHX', 'SNDK',
+    // Forex
+    'EUR', 'JPY',
+    // Commodities
+    'GOLD', 'SILVER',
+    // Index
+    'XYZ100',
+  ])
+
+  const isXyzDexAsset = (symbol: string): boolean => {
+    const base = symbol.toUpperCase().replace(/^XYZ:/, '').replace(/USDT$|USD$|-USDC$/, '')
+    return xyzDexAssets.has(base)
+  }
+
   const handleAddCoin = () => {
     if (!newCoin.trim()) return
     const symbol = newCoin.toUpperCase().trim()
-    const formattedSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`
+
+    // For xyz dex assets (stocks, forex, commodities), use xyz: prefix without USDT
+    let formattedSymbol: string
+    if (isXyzDexAsset(symbol)) {
+      // Remove xyz: prefix (case-insensitive) and any USD suffixes
+      const base = symbol.replace(/^xyz:/i, '').replace(/USDT$|USD$|-USDC$/i, '')
+      formattedSymbol = `xyz:${base}`
+    } else {
+      formattedSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`
+    }
+
     const currentCoins = config.static_coins || []
     if (!currentCoins.includes(formattedSymbol)) {
       onChange({

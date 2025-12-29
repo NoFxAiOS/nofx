@@ -675,6 +675,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	totalWalletBalance := 0.0
 	totalUnrealizedProfit := 0.0
 	availableBalance := 0.0
+	totalEquity := 0.0
 
 	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
 		totalWalletBalance = wallet
@@ -686,8 +687,13 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		availableBalance = avail
 	}
 
-	// Total Equity = Wallet balance + Unrealized profit
-	totalEquity := totalWalletBalance + totalUnrealizedProfit
+	// Use totalEquity directly if provided by trader (more accurate)
+	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
+		totalEquity = eq
+	} else {
+		// Fallback: Total Equity = Wallet balance + Unrealized profit
+		totalEquity = totalWalletBalance + totalUnrealizedProfit
+	}
 
 	// 2. Get position information
 	positions, err := at.trader.GetPositions()
@@ -1473,6 +1479,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	totalWalletBalance := 0.0
 	totalUnrealizedProfit := 0.0
 	availableBalance := 0.0
+	totalEquity := 0.0
 
 	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
 		totalWalletBalance = wallet
@@ -1484,8 +1491,13 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		availableBalance = avail
 	}
 
-	// Total Equity = Wallet balance + Unrealized profit
-	totalEquity := totalWalletBalance + totalUnrealizedProfit
+	// Use totalEquity directly if provided by trader (more accurate)
+	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
+		totalEquity = eq
+	} else {
+		// Fallback: Total Equity = Wallet balance + Unrealized profit
+		totalEquity = totalWalletBalance + totalUnrealizedProfit
+	}
 
 	// Get positions to calculate total margin
 	positions, err := at.trader.GetPositions()

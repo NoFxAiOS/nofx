@@ -315,9 +315,11 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
         </div>
       </td>
 
-      {/* Fee */}
+      {/* Fee - show more precision for small fees */}
       <td className="py-3 px-4 text-right font-mono text-xs" style={{ color: '#848E9C' }}>
-        -{(position.fee || 0).toFixed(2)}
+        -{((position.fee || 0) < 0.01 && (position.fee || 0) > 0)
+          ? (position.fee || 0).toFixed(4)
+          : (position.fee || 0).toFixed(2)}
       </td>
 
       {/* Duration */}

@@ -42,21 +42,37 @@ const INTERVALS: { value: Interval; label: string }[] = [
   { value: '1d', label: '1d' },
 ]
 
+// 根据交易所ID推断市场类型
+function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
+  if (!exchangeId) return 'hyperliquid'
+  const lower = exchangeId.toLowerCase()
+  if (lower.includes('hyperliquid')) return 'hyperliquid'
+  // 其他交易所默认使用 crypto 类型
+  return 'crypto'
+}
+
 export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: ChartTabsProps) {
   const { language } = useLanguage()
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
   const [chartSymbol, setChartSymbol] = useState<string>('BTC')
   const [interval, setInterval] = useState<Interval>('5m')
   const [symbolInput, setSymbolInput] = useState('')
-  const [marketType, setMarketType] = useState<MarketType>('hyperliquid')
+  const [marketType, setMarketType] = useState<MarketType>(() => getMarketTypeFromExchange(exchangeId))
   const [availableSymbols, setAvailableSymbols] = useState<SymbolInfo[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [searchFilter, setSearchFilter] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  // 当交易所ID变化时，自动切换市场类型
+  useEffect(() => {
+    const newMarketType = getMarketTypeFromExchange(exchangeId)
+    setMarketType(newMarketType)
+  }, [exchangeId])
+
   // 根据市场类型确定交易所
   const marketConfig = MARKET_CONFIG[marketType]
-  const currentExchange = marketType === 'crypto' ? (exchangeId || marketConfig.exchange) : marketConfig.exchange
+  // 优先使用传入的 exchangeId（非 hyperliquid 时）
+  const currentExchange = marketType === 'hyperliquid' ? 'hyperliquid' : (exchangeId || marketConfig.exchange)
 
   // 获取可用币种列表
   useEffect(() => {

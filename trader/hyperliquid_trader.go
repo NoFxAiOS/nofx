@@ -1035,7 +1035,15 @@ func (t *HyperliquidTrader) CancelTakeProfitOrders(symbol string) error {
 func (t *HyperliquidTrader) CancelAllOrders(symbol string) error {
 	coin := convertSymbolToHyperliquid(symbol)
 
-	// Get all pending orders
+	// Check if this is an xyz dex asset
+	isXyz := strings.HasPrefix(coin, "xyz:")
+
+	if isXyz {
+		// xyz dex orders - use direct API call
+		return t.cancelXyzOrders(coin)
+	}
+
+	// Standard crypto orders
 	openOrders, err := t.exchange.Info().OpenOrders(t.ctx, t.walletAddr)
 	if err != nil {
 		return fmt.Errorf("failed to get pending orders: %w", err)
@@ -1059,7 +1067,15 @@ func (t *HyperliquidTrader) CancelAllOrders(symbol string) error {
 func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 	coin := convertSymbolToHyperliquid(symbol)
 
-	// Get all pending orders
+	// Check if this is an xyz dex asset
+	isXyz := strings.HasPrefix(coin, "xyz:")
+
+	if isXyz {
+		// xyz dex orders - use direct API call
+		return t.cancelXyzOrders(coin)
+	}
+
+	// Get all pending orders for standard crypto
 	openOrders, err := t.exchange.Info().OpenOrders(t.ctx, t.walletAddr)
 	if err != nil {
 		return fmt.Errorf("failed to get pending orders: %w", err)
@@ -1084,6 +1100,148 @@ func (t *HyperliquidTrader) CancelStopOrders(symbol string) error {
 		logger.Infof("  ℹ No pending orders to cancel for %s", symbol)
 	} else {
 		logger.Infof("  ✓ Cancelled %d pending orders for %s (including TP/SL orders)", canceledCount, symbol)
+	}
+
+	return nil
+}
+
+// cancelXyzOrders cancels all pending orders for xyz dex assets (stocks, forex, commodities)
+func (t *HyperliquidTrader) cancelXyzOrders(coin string) error {
+	// Query xyz dex open orders
+	reqBody := map[string]interface{}{
+		"type": "openOrders",
+		"user": t.walletAddr,
+		"dex":  "xyz",
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	apiURL := "https://api.hyperliquid.xyz/info"
+
+	req, err := http.NewRequestWithContext(t.ctx, "POST", apiURL, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("xyz dex openOrders API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse open orders
+	var openOrders []struct {
+		Coin string `json:"coin"`
+		Oid  int64  `json:"oid"`
+	}
+	if err := json.Unmarshal(body, &openOrders); err != nil {
+		return fmt.Errorf("failed to parse open orders: %w", err)
+	}
+
+	// Filter orders for this coin and cancel them
+	canceledCount := 0
+	for _, order := range openOrders {
+		if order.Coin == coin {
+			if err := t.cancelXyzOrder(order.Oid); err != nil {
+				logger.Infof("  ⚠ Failed to cancel xyz dex order (oid=%d): %v", order.Oid, err)
+				continue
+			}
+			canceledCount++
+		}
+	}
+
+	if canceledCount == 0 {
+		logger.Infof("  ℹ No pending xyz dex orders to cancel for %s", coin)
+	} else {
+		logger.Infof("  ✓ Cancelled %d xyz dex orders for %s", canceledCount, coin)
+	}
+
+	return nil
+}
+
+// cancelXyzOrder cancels a single xyz dex order by oid
+func (t *HyperliquidTrader) cancelXyzOrder(oid int64) error {
+	// Get asset index for this order (we need it for cancel action)
+	// For cancel, we construct a cancel action with the oid
+
+	action := map[string]interface{}{
+		"type": "cancel",
+		"cancels": []map[string]interface{}{
+			{
+				"a": oid, // asset index not needed for cancel by oid in xyz dex
+				"o": oid,
+			},
+		},
+	}
+
+	// Sign the action
+	nonce := time.Now().UnixMilli()
+	isMainnet := !t.isTestnet
+	vaultAddress := ""
+
+	sig, err := hyperliquid.SignL1Action(t.privateKey, action, vaultAddress, nonce, nil, isMainnet)
+	if err != nil {
+		return fmt.Errorf("failed to sign cancel action: %w", err)
+	}
+
+	payload := map[string]any{
+		"action":    action,
+		"nonce":     nonce,
+		"signature": sig,
+	}
+
+	apiURL := hyperliquid.MainnetAPIURL
+	if t.isTestnet {
+		apiURL = hyperliquid.TestnetAPIURL
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(t.ctx, http.MethodPost, apiURL+"/exchange", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Check response
+	var result struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if result.Status != "ok" {
+		return fmt.Errorf("cancel failed: %s", string(body))
 	}
 
 	return nil
@@ -1377,37 +1535,206 @@ func (t *HyperliquidTrader) getXyzAssetIndex(baseCoin string) int {
 	return -1
 }
 
+// placeXyzTriggerOrder places a trigger order (stop loss / take profit) on the xyz dex
+// tpsl: "sl" for stop loss, "tp" for take profit
+func (t *HyperliquidTrader) placeXyzTriggerOrder(coin string, isBuy bool, size float64, triggerPrice float64, tpsl string) error {
+	// Fetch xyz meta if not cached
+	t.xyzMetaMutex.RLock()
+	hasMeta := t.xyzMeta != nil
+	t.xyzMetaMutex.RUnlock()
+
+	if !hasMeta {
+		if err := t.fetchXyzMeta(); err != nil {
+			return fmt.Errorf("failed to fetch xyz meta: %w", err)
+		}
+	}
+
+	// Get asset index from xyz meta (returns 0-based index)
+	metaIndex := t.getXyzAssetIndex(coin)
+	if metaIndex < 0 {
+		return fmt.Errorf("xyz asset %s not found in meta", coin)
+	}
+
+	// HIP-3 perp dex asset index formula: 100000 + perp_dex_index * 10000 + index_in_meta
+	// xyz dex is at perp_dex_index = 1
+	const xyzPerpDexIndex = 1
+	assetIndex := 100000 + xyzPerpDexIndex*10000 + metaIndex
+
+	// Round size to correct precision
+	szDecimals := t.getXyzSzDecimals(coin)
+	multiplier := 1.0
+	for i := 0; i < szDecimals; i++ {
+		multiplier *= 10.0
+	}
+	roundedSize := float64(int(size*multiplier+0.5)) / multiplier
+
+	// Round price to 5 significant figures
+	roundedPrice := t.roundPriceToSigfigs(triggerPrice)
+
+	logger.Infof("📝 Placing xyz dex %s order: %s %s size=%.4f triggerPrice=%.4f assetIndex=%d",
+		tpsl,
+		map[bool]string{true: "BUY", false: "SELL"}[isBuy],
+		coin, roundedSize, roundedPrice, assetIndex)
+
+	// Construct OrderWire with trigger type for stop loss / take profit
+	orderWire := hyperliquid.OrderWire{
+		Asset:      assetIndex,
+		IsBuy:      isBuy,
+		LimitPx:    floatToWireStr(roundedPrice),
+		Size:       floatToWireStr(roundedSize),
+		ReduceOnly: true, // TP/SL orders are always reduce-only
+		OrderType: hyperliquid.OrderWireType{
+			Trigger: &hyperliquid.OrderWireTypeTrigger{
+				TriggerPx: floatToWireStr(roundedPrice),
+				IsMarket:  true,
+				Tpsl:      hyperliquid.Tpsl(tpsl), // "sl" or "tp" - convert string to Tpsl type
+			},
+		},
+	}
+
+	// Create OrderAction with builder
+	action := hyperliquid.OrderAction{
+		Type:     "order",
+		Orders:   []hyperliquid.OrderWire{orderWire},
+		Grouping: "na",
+		Builder: &hyperliquid.BuilderInfo{
+			Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",
+			Fee:     10,
+		},
+	}
+
+	// Sign the action
+	nonce := time.Now().UnixMilli()
+	isMainnet := !t.isTestnet
+	vaultAddress := ""
+
+	sig, err := hyperliquid.SignL1Action(t.privateKey, action, vaultAddress, nonce, nil, isMainnet)
+	if err != nil {
+		return fmt.Errorf("failed to sign xyz dex trigger order: %w", err)
+	}
+
+	// Construct payload for /exchange endpoint
+	payload := map[string]any{
+		"action":    action,
+		"nonce":     nonce,
+		"signature": sig,
+	}
+
+	// Determine API URL
+	apiURL := hyperliquid.MainnetAPIURL
+	if t.isTestnet {
+		apiURL = hyperliquid.TestnetAPIURL
+	}
+
+	// POST to /exchange
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	logger.Infof("📤 Sending xyz dex %s order to %s/exchange", tpsl, apiURL)
+
+	req, err := http.NewRequestWithContext(t.ctx, http.MethodPost, apiURL+"/exchange", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Parse response
+	var result struct {
+		Status   string `json:"status"`
+		Response struct {
+			Type string `json:"type"`
+			Data struct {
+				Statuses []struct {
+					Resting *struct {
+						Oid int64 `json:"oid"`
+					} `json:"resting,omitempty"`
+					Error *string `json:"error,omitempty"`
+				} `json:"statuses"`
+			} `json:"data"`
+		} `json:"response"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		logger.Infof("⚠️  Failed to parse response, raw body: %s", string(body))
+		return fmt.Errorf("xyz dex %s order failed, status=%d, body=%s", tpsl, resp.StatusCode, string(body))
+	}
+
+	// Check for errors in response
+	if result.Status != "ok" {
+		return fmt.Errorf("xyz dex %s order failed: status=%s, body=%s", tpsl, result.Status, string(body))
+	}
+
+	// Check order statuses
+	if len(result.Response.Data.Statuses) > 0 {
+		status := result.Response.Data.Statuses[0]
+		if status.Error != nil {
+			return fmt.Errorf("xyz dex %s order error: %s", tpsl, *status.Error)
+		}
+		if status.Resting != nil {
+			logger.Infof("✅ xyz dex %s order placed: oid=%d", tpsl, status.Resting.Oid)
+		}
+	}
+
+	logger.Infof("✅ xyz dex %s order placed successfully: %s", tpsl, coin)
+	return nil
+}
+
 // SetStopLoss sets stop loss order
 func (t *HyperliquidTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	coin := convertSymbolToHyperliquid(symbol)
 
 	isBuy := positionSide == "SHORT" // Short position stop loss = buy, long position stop loss = sell
 
-	// ⚠️ Critical: Round quantity according to coin precision requirements
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
-
-	// ⚠️ Critical: Price also needs to be processed to 5 significant figures
+	// ⚠️ Critical: Price needs to be processed to 5 significant figures
 	roundedStopPrice := t.roundPriceToSigfigs(stopPrice)
 
-	// Create stop loss order (Trigger Order)
-	order := hyperliquid.CreateOrderRequest{
-		Coin:  coin,
-		IsBuy: isBuy,
-		Size:  roundedQuantity,  // Use rounded quantity
-		Price: roundedStopPrice, // Use processed price
-		OrderType: hyperliquid.OrderType{
-			Trigger: &hyperliquid.TriggerOrderType{
-				TriggerPx: roundedStopPrice,
-				IsMarket:  true,
-				Tpsl:      "sl", // stop loss
-			},
-		},
-		ReduceOnly: true,
-	}
+	// Check if this is an xyz dex asset (stocks, forex, commodities)
+	isXyz := strings.HasPrefix(coin, "xyz:")
 
-	_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
-	if err != nil {
-		return fmt.Errorf("failed to set stop loss: %w", err)
+	if isXyz {
+		// xyz dex stop loss order - use direct API call similar to placeXyzOrder
+		if err := t.placeXyzTriggerOrder(coin, isBuy, quantity, roundedStopPrice, "sl"); err != nil {
+			return fmt.Errorf("failed to set xyz dex stop loss: %w", err)
+		}
+	} else {
+		// Standard crypto stop loss order
+		// ⚠️ Critical: Round quantity according to coin precision requirements
+		roundedQuantity := t.roundToSzDecimals(coin, quantity)
+
+		// Create stop loss order (Trigger Order)
+		order := hyperliquid.CreateOrderRequest{
+			Coin:  coin,
+			IsBuy: isBuy,
+			Size:  roundedQuantity,  // Use rounded quantity
+			Price: roundedStopPrice, // Use processed price
+			OrderType: hyperliquid.OrderType{
+				Trigger: &hyperliquid.TriggerOrderType{
+					TriggerPx: roundedStopPrice,
+					IsMarket:  true,
+					Tpsl:      "sl", // stop loss
+				},
+			},
+			ReduceOnly: true,
+		}
+
+		_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
+		if err != nil {
+			return fmt.Errorf("failed to set stop loss: %w", err)
+		}
 	}
 
 	logger.Infof("  Stop loss price set: %.4f", roundedStopPrice)
@@ -1420,31 +1747,42 @@ func (t *HyperliquidTrader) SetTakeProfit(symbol string, positionSide string, qu
 
 	isBuy := positionSide == "SHORT" // Short position take profit = buy, long position take profit = sell
 
-	// ⚠️ Critical: Round quantity according to coin precision requirements
-	roundedQuantity := t.roundToSzDecimals(coin, quantity)
-
-	// ⚠️ Critical: Price also needs to be processed to 5 significant figures
+	// ⚠️ Critical: Price needs to be processed to 5 significant figures
 	roundedTakeProfitPrice := t.roundPriceToSigfigs(takeProfitPrice)
 
-	// Create take profit order (Trigger Order)
-	order := hyperliquid.CreateOrderRequest{
-		Coin:  coin,
-		IsBuy: isBuy,
-		Size:  roundedQuantity,        // Use rounded quantity
-		Price: roundedTakeProfitPrice, // Use processed price
-		OrderType: hyperliquid.OrderType{
-			Trigger: &hyperliquid.TriggerOrderType{
-				TriggerPx: roundedTakeProfitPrice,
-				IsMarket:  true,
-				Tpsl:      "tp", // take profit
-			},
-		},
-		ReduceOnly: true,
-	}
+	// Check if this is an xyz dex asset (stocks, forex, commodities)
+	isXyz := strings.HasPrefix(coin, "xyz:")
 
-	_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
-	if err != nil {
-		return fmt.Errorf("failed to set take profit: %w", err)
+	if isXyz {
+		// xyz dex take profit order - use direct API call similar to placeXyzOrder
+		if err := t.placeXyzTriggerOrder(coin, isBuy, quantity, roundedTakeProfitPrice, "tp"); err != nil {
+			return fmt.Errorf("failed to set xyz dex take profit: %w", err)
+		}
+	} else {
+		// Standard crypto take profit order
+		// ⚠️ Critical: Round quantity according to coin precision requirements
+		roundedQuantity := t.roundToSzDecimals(coin, quantity)
+
+		// Create take profit order (Trigger Order)
+		order := hyperliquid.CreateOrderRequest{
+			Coin:  coin,
+			IsBuy: isBuy,
+			Size:  roundedQuantity,        // Use rounded quantity
+			Price: roundedTakeProfitPrice, // Use processed price
+			OrderType: hyperliquid.OrderType{
+				Trigger: &hyperliquid.TriggerOrderType{
+					TriggerPx: roundedTakeProfitPrice,
+					IsMarket:  true,
+					Tpsl:      "tp", // take profit
+				},
+			},
+			ReduceOnly: true,
+		}
+
+		_, err := t.exchange.Order(t.ctx, order, defaultBuilder)
+		if err != nil {
+			return fmt.Errorf("failed to set take profit: %w", err)
+		}
 	}
 
 	logger.Infof("  Take profit price set: %.4f", roundedTakeProfitPrice)

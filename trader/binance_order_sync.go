@@ -7,46 +7,102 @@ import (
 	"nofx/store"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
+// syncState stores the last sync time for incremental sync
+var (
+	binanceSyncState      = make(map[string]time.Time) // exchangeID -> lastSyncTime
+	binanceSyncStateMutex sync.RWMutex
+)
+
 // SyncOrdersFromBinance syncs Binance Futures trade history to local database
+// Uses COMMISSION detection + fromId for efficient incremental sync
 // Also creates/updates position records to ensure orders/fills/positions data consistency
 func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string, exchangeType string, st *store.Store) error {
 	if st == nil {
 		return fmt.Errorf("store is nil")
 	}
 
-	// Get recent trades (last 24 hours)
-	startTime := time.Now().Add(-24 * time.Hour)
+	// Get last sync time (default to 24 hours ago for first sync)
+	binanceSyncStateMutex.RLock()
+	lastSyncTime, exists := binanceSyncState[exchangeID]
+	binanceSyncStateMutex.RUnlock()
 
-	logger.Infof("🔄 Syncing Binance trades from: %s", startTime.Format(time.RFC3339))
-
-	// Get list of symbols to sync from current positions and recent income
-	symbols, err := t.getActiveSymbols(startTime)
-	if err != nil {
-		return fmt.Errorf("failed to get active symbols: %w", err)
+	if !exists {
+		lastSyncTime = time.Now().Add(-24 * time.Hour)
 	}
 
-	if len(symbols) == 0 {
-		logger.Infof("📭 No active symbols to sync")
+	// Record current time BEFORE querying, to avoid missing trades during sync
+	// This prevents race condition where trades happen between query and lastSyncTime update
+	syncStartTime := time.Now()
+
+	logger.Infof("🔄 Syncing Binance trades from: %s", lastSyncTime.Format(time.RFC3339))
+
+	// Step 1: Get max trade IDs from local DB for incremental sync
+	orderStore := st.Order()
+	maxTradeIDs, err := orderStore.GetMaxTradeIDsByExchange(exchangeID)
+	if err != nil {
+		logger.Infof("  ⚠️ Failed to get max trade IDs: %v, will use time-based query", err)
+		maxTradeIDs = make(map[string]int64)
+	}
+
+	// Step 2: Use COMMISSION to detect which symbols have new trades (1 API call)
+	changedSymbols, err := t.GetCommissionSymbols(lastSyncTime)
+	if err != nil {
+		logger.Infof("  ⚠️ Failed to get commission symbols: %v, falling back to positions", err)
+		// Fallback: only sync symbols with active positions
+		changedSymbols = t.getPositionSymbols()
+	}
+
+	if len(changedSymbols) == 0 {
+		logger.Infof("📭 No symbols with new trades to sync")
+		// Update last sync time even if no changes
+		binanceSyncStateMutex.Lock()
+		binanceSyncState[exchangeID] = syncStartTime
+		binanceSyncStateMutex.Unlock()
 		return nil
 	}
 
-	logger.Infof("📊 Found %d symbols to sync: %v", len(symbols), symbols)
+	logger.Infof("📊 Found %d symbols with new trades: %v", len(changedSymbols), changedSymbols)
 
-	// Collect all trades from all symbols
+	// Step 3: Query trades for changed symbols using fromId (incremental) or time-based (new symbols)
 	var allTrades []TradeRecord
-	for _, symbol := range symbols {
-		trades, err := t.GetTradesForSymbol(symbol, startTime, 500)
-		if err != nil {
-			logger.Infof("  ⚠️ Failed to get trades for %s: %v", symbol, err)
+	var failedSymbols []string
+	apiCalls := 0
+	for _, symbol := range changedSymbols {
+		var trades []TradeRecord
+		var queryErr error
+
+		if lastID, ok := maxTradeIDs[symbol]; ok && lastID > 0 {
+			// Incremental sync: query from last known trade ID
+			trades, queryErr = t.GetTradesForSymbolFromID(symbol, lastID+1, 500)
+		} else {
+			// New symbol or first sync: query by time
+			trades, queryErr = t.GetTradesForSymbol(symbol, lastSyncTime, 500)
+		}
+		apiCalls++
+
+		if queryErr != nil {
+			logger.Infof("  ⚠️ Failed to get trades for %s: %v", symbol, queryErr)
+			failedSymbols = append(failedSymbols, symbol)
 			continue
 		}
 		allTrades = append(allTrades, trades...)
 	}
 
-	logger.Infof("📥 Received %d trades from Binance", len(allTrades))
+	logger.Infof("📥 Received %d trades from Binance (%d API calls)", len(allTrades), apiCalls)
+
+	// Only update last sync time if ALL symbols were successfully queried
+	// This prevents data loss when some symbols fail due to rate limit or network issues
+	if len(failedSymbols) == 0 {
+		binanceSyncStateMutex.Lock()
+		binanceSyncState[exchangeID] = syncStartTime
+		binanceSyncStateMutex.Unlock()
+	} else {
+		logger.Infof("  ⚠️ %d symbols failed, not updating lastSyncTime to retry next time: %v", len(failedSymbols), failedSymbols)
+	}
 
 	if len(allTrades) == 0 {
 		return nil
@@ -58,7 +114,6 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	})
 
 	// Process trades one by one
-	orderStore := st.Order()
 	positionStore := st.Position()
 	posBuilder := store.NewPositionBuilder(positionStore)
 	syncedCount := 0
@@ -163,36 +218,21 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	return nil
 }
 
-// getActiveSymbols returns list of symbols that have positions or recent trades
-func (t *FuturesTrader) getActiveSymbols(startTime time.Time) ([]string, error) {
-	symbolMap := make(map[string]bool)
-
-	// Get symbols from current positions
+// getPositionSymbols returns list of symbols that have active positions
+// Used as fallback when COMMISSION detection fails
+func (t *FuturesTrader) getPositionSymbols() []string {
 	positions, err := t.GetPositions()
-	if err == nil {
-		for _, pos := range positions {
-			if symbol, ok := pos["symbol"].(string); ok && symbol != "" {
-				symbolMap[symbol] = true
-			}
-		}
-	}
-
-	// Get symbols from recent income (REALIZED_PNL = closures)
-	incomes, err := t.GetTrades(startTime, 500)
-	if err == nil {
-		for _, income := range incomes {
-			if income.Symbol != "" {
-				symbolMap[income.Symbol] = true
-			}
-		}
+	if err != nil {
+		return nil
 	}
 
 	var symbols []string
-	for symbol := range symbolMap {
-		symbols = append(symbols, symbol)
+	for _, pos := range positions {
+		if symbol, ok := pos["symbol"].(string); ok && symbol != "" {
+			symbols = append(symbols, symbol)
+		}
 	}
-
-	return symbols, nil
+	return symbols
 }
 
 // determineOrderAction determines the order action based on trade data

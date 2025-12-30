@@ -344,6 +344,10 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
   const [symbolStats, setSymbolStats] = useState<SymbolStats[]>([])
   const [directionStats, setDirectionStats] = useState<DirectionStats[]>([])
 
+  // Pagination state
+  const [pageSize, setPageSize] = useState<number>(20)
+  const [currentPage, setCurrentPage] = useState<number>(1)
+
   // Filter state
   const [filterSymbol, setFilterSymbol] = useState<string>('all')
   const [filterSide, setFilterSide] = useState<string>('all')
@@ -355,7 +359,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
       try {
         setLoading(true)
         setError(null)
-        const data = await api.getPositionHistory(traderId, 200)
+        // Fetch more data than needed to support filtering, but respect pageSize for initial load
+        const data = await api.getPositionHistory(traderId, Math.max(200, pageSize * 5))
         setPositions(data.positions || [])
         setStats(data.stats)
         setSymbolStats(data.symbol_stats || [])
@@ -370,7 +375,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
     if (traderId) {
       fetchData()
     }
-  }, [traderId])
+  }, [traderId, pageSize])
 
   // Get unique symbols for filter
   const uniqueSymbols = useMemo(() => {
@@ -378,8 +383,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
     return Array.from(symbols).sort()
   }, [positions])
 
-  // Filtered and sorted positions
-  const filteredPositions = useMemo(() => {
+  // Filtered and sorted positions (before pagination)
+  const filteredAndSortedPositions = useMemo(() => {
     let result = [...positions]
 
     // Apply filters
@@ -417,6 +422,24 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
 
     return result
   }, [positions, filterSymbol, filterSide, sortBy, sortOrder])
+
+  // Pagination calculations
+  const totalFilteredCount = filteredAndSortedPositions.length
+  const totalPages = Math.ceil(totalFilteredCount / pageSize)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterSymbol, filterSide, sortBy, sortOrder, pageSize])
+
+  // Paginated positions (for display)
+  const paginatedPositions = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize
+    return filteredAndSortedPositions.slice(startIndex, startIndex + pageSize)
+  }, [filteredAndSortedPositions, currentPage, pageSize])
+
+  // For backwards compatibility, keep filteredPositions as the paginated result
+  const filteredPositions = paginatedPositions
 
   // Calculate profit/loss ratio (avg win / avg loss)
   const profitLossRatio = useMemo(() => {
@@ -775,34 +798,114 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
           </table>
         </div>
 
-        {/* Footer */}
+        {/* Footer with Pagination */}
         <div
-          className="flex items-center justify-between p-4 text-sm"
+          className="flex flex-wrap items-center justify-between gap-4 p-4 text-sm"
           style={{ borderTop: '1px solid #2B3139', color: '#848E9C' }}
         >
-          <span>
-            {t('positionHistory.showingPositions', language, { count: filteredPositions.length, total: positions.length })}
-          </span>
-          {filteredPositions.length > 0 && (
+          {/* Left: Count info */}
+          <div className="flex items-center gap-4">
             <span>
-              {t('positionHistory.totalPnL', language)}:{' '}
-              <span
+              {t('positionHistory.showingPositions', language, { count: totalFilteredCount, total: positions.length })}
+            </span>
+            {totalFilteredCount > 0 && (
+              <span>
+                {t('positionHistory.totalPnL', language)}:{' '}
+                <span
+                  style={{
+                    color:
+                      filteredAndSortedPositions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0) >= 0
+                        ? '#0ECB81'
+                        : '#F6465D',
+                  }}
+                >
+                  {filteredAndSortedPositions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0) >= 0
+                    ? '+'
+                    : ''}
+                  {formatNumber(
+                    filteredAndSortedPositions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0)
+                  )}
+                </span>
+              </span>
+            )}
+          </div>
+
+          {/* Right: Pagination controls */}
+          <div className="flex items-center gap-3">
+            {/* Page size selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: '#848E9C' }}>
+                {language === 'zh' ? '每页' : 'Per page'}:
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded px-2 py-1 text-sm"
                 style={{
-                  color:
-                    filteredPositions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0) >= 0
-                      ? '#0ECB81'
-                      : '#F6465D',
+                  background: '#0B0E11',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
                 }}
               >
-                {filteredPositions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0) >= 0
-                  ? '+'
-                  : ''}
-                {formatNumber(
-                  filteredPositions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0)
-                )}
-              </span>
-            </span>
-          )}
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            {/* Page navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1 rounded text-xs transition-colors disabled:opacity-30"
+                  style={{
+                    background: currentPage === 1 ? 'transparent' : '#2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-2 py-1 rounded text-xs transition-colors disabled:opacity-30"
+                  style={{
+                    background: currentPage === 1 ? 'transparent' : '#2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  ‹
+                </button>
+                <span className="px-3 text-xs" style={{ color: '#EAECEF' }}>
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1 rounded text-xs transition-colors disabled:opacity-30"
+                  style={{
+                    background: currentPage === totalPages ? 'transparent' : '#2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  ›
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-2 py-1 rounded text-xs transition-colors disabled:opacity-30"
+                  style={{
+                    background: currentPage === totalPages ? 'transparent' : '#2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  »
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

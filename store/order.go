@@ -543,6 +543,33 @@ func (s *OrderStore) GetDuplicateFillsCount() (int, error) {
 	return count, err
 }
 
+// GetMaxTradeIDsByExchange returns max trade ID for each symbol for a given exchange
+// Used for incremental sync - only fetch trades with ID > maxTradeID
+func (s *OrderStore) GetMaxTradeIDsByExchange(exchangeID string) (map[string]int64, error) {
+	rows, err := s.db.Query(`
+		SELECT symbol, MAX(CAST(exchange_trade_id AS INTEGER)) as max_trade_id
+		FROM trader_fills
+		WHERE exchange_id = ? AND exchange_trade_id != ''
+		GROUP BY symbol
+	`, exchangeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query max trade IDs: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64)
+	for rows.Next() {
+		var symbol string
+		var maxID int64
+		if err := rows.Scan(&symbol, &maxID); err != nil {
+			continue
+		}
+		result[symbol] = maxID
+	}
+
+	return result, nil
+}
+
 // formatTimePtr formats time.Time to RFC3339 string, returns NULL for zero time
 func formatTimePtr(t time.Time) interface{} {
 	if t.IsZero() {

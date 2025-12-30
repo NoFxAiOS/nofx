@@ -11,29 +11,23 @@ html {
 }
 
 :root {
-  /* Binance Brand Colors */
-  --brand-yellow: #FCD535;
-  --brand-black: #0B0E11;
-  --brand-dark-gray: #1E2329;
-  --brand-light-gray: #EAECEF;
-  --brand-white: #FFFFFF;
-
-  /* Premium Theme Colors */
-  --binance-yellow: #FCD535;
-  --binance-yellow-dark: #F0B90B;
-  --binance-yellow-light: #FDE059;
-  --binance-yellow-glow: rgba(252, 213, 53, 0.15);
+  /* NoFX Neo-Gold Design System */
+  --nofx-gold: #F0B90B;
+  --nofx-bg: #0B0E11;
+  --nofx-accent: #00F0FF;
+  --nofx-glass: rgba(30, 35, 41, 0.6);
+  --nofx-border: rgba(240, 185, 11, 0.2);
 
   --background: #0B0E11;
-  --header-bg: rgba(11, 14, 17, 0.85);
+  --header-bg: rgba(11, 14, 17, 0.9);
   /* Glass header */
-  --glass-bg: rgba(30, 35, 41, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(11, 14, 17, 0.6);
+  --glass-border: rgba(240, 185, 11, 0.1);
 
-  --panel-bg: #1E2329;
-  --panel-bg-hover: #2B3139;
-  --panel-border: #2B3139;
-  --panel-border-hover: #474D57;
+  --panel-bg: #15181D;
+  --panel-bg-hover: #1E2329;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-border-hover: rgba(240, 185, 11, 0.4);
 
   --foreground: #EAECEF;
   --text-primary: #EAECEF;
@@ -53,7 +47,7 @@ html {
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(252, 213, 53, 0.1);
+  --shadow-glow: 0 0 20px rgba(240, 185, 11, 0.2);
 
   font-family:
     'Inter',
@@ -79,15 +73,13 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--background);
-  background-image:
-    radial-gradient(circle at 15% 50%, rgba(252, 213, 53, 0.08), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(14, 203, 129, 0.05), transparent 25%);
+  background-image: none;
   background-attachment: fixed;
 }
 
 /* Premium Selection Styles */
 ::selection {
-  background: rgba(252, 213, 53, 0.3);
+  background: rgba(255, 88, 0, 0.3);
   color: #FFFFFF;
 }
 
@@ -113,7 +105,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--panel-border-hover);
+  background: var(--nofx-gold);
 }
 
 /* Animations */
@@ -187,6 +179,21 @@ body {
   50% {
     transform: scale(1.05);
   }
+}
+
+/* Marquee Animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
 }
 
 .animate-fade-in {

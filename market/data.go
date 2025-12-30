@@ -1183,3 +1183,30 @@ func isStaleData(klines []Kline, symbol string) bool {
 	logger.Infof("⚠️  %s detected extreme price stability (no fluctuation for %d consecutive periods), but volume is normal", symbol, stalePriceThreshold)
 	return false
 }
+
+// ========== 导出的指标计算函数（供测试使用） ==========
+
+// ExportCalculateEMA exports calculateEMA for testing
+func ExportCalculateEMA(klines []Kline, period int) float64 {
+	return calculateEMA(klines, period)
+}
+
+// ExportCalculateMACD exports calculateMACD for testing
+func ExportCalculateMACD(klines []Kline) float64 {
+	return calculateMACD(klines)
+}
+
+// ExportCalculateRSI exports calculateRSI for testing
+func ExportCalculateRSI(klines []Kline, period int) float64 {
+	return calculateRSI(klines, period)
+}
+
+// ExportCalculateATR exports calculateATR for testing
+func ExportCalculateATR(klines []Kline, period int) float64 {
+	return calculateATR(klines, period)
+}
+
+// ExportCalculateBOLL exports calculateBOLL for testing
+func ExportCalculateBOLL(klines []Kline, period int, multiplier float64) (upper, middle, lower float64) {
+	return calculateBOLL(klines, period, multiplier)
+}

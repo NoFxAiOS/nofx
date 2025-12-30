@@ -503,18 +503,19 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 
 	runtime := int((ts - int64(r.cfg.StartTS*1000)) / 60000)
 	ctx := &decision.Context{
-		CurrentTime:     time.UnixMilli(ts).UTC().Format("2006-01-02 15:04:05 UTC"),
-		RuntimeMinutes:  runtime,
-		CallCount:       callCount,
-		Account:         accountInfo,
-		Positions:       positions,
-		CandidateCoins:  candidateCoins,
-		PromptVariant:   r.cfg.PromptVariant,
-		MarketDataMap:   marketData,
-		MultiTFMarket:   multiTF,
-		BTCETHLeverage:  r.cfg.Leverage.BTCETHLeverage,
-		AltcoinLeverage: r.cfg.Leverage.AltcoinLeverage,
-		Timeframes:      r.cfg.Timeframes,
+		CurrentTime:        time.UnixMilli(ts).UTC().Format("2006-01-02 15:04:05 UTC"),
+		CurrentTimestampMs: ts, // Set current backtest timestamp for accurate holding duration calculation
+		RuntimeMinutes:     runtime,
+		CallCount:          callCount,
+		Account:            accountInfo,
+		Positions:          positions,
+		CandidateCoins:     candidateCoins,
+		PromptVariant:      r.cfg.PromptVariant,
+		MarketDataMap:      marketData,
+		MultiTFMarket:      multiTF,
+		BTCETHLeverage:     r.cfg.Leverage.BTCETHLeverage,
+		AltcoinLeverage:    r.cfg.Leverage.AltcoinLeverage,
+		Timeframes:         r.cfg.Timeframes,
 	}
 
 	// Fetch quantitative data if enabled in strategy (uses current data as approximation)
@@ -847,7 +848,7 @@ func (r *Runner) convertPositions(priceMap map[string]float64) []decision.Positi
 			UnrealizedPnLPct: 0,
 			LiquidationPrice: pos.LiquidationPrice,
 			MarginUsed:       pos.Margin,
-			UpdateTime:       time.Now().UnixMilli(),
+			UpdateTime:       pos.OpenTime, // Use position open time instead of current system time
 		})
 	}
 	return list

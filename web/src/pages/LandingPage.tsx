@@ -2,9 +2,14 @@ import { useState } from 'react'
 import HeaderBar from '../components/HeaderBar'
 import LoginModal from '../components/landing/LoginModal'
 import FooterSection from '../components/landing/FooterSection'
-import TerminalHero from '../components/landing/core/TerminalHero'
-import LiveFeed from '../components/landing/core/LiveFeed'
-import AgentGrid from '../components/landing/core/AgentGrid'
+import {
+  ElizaHero,
+  WelcomeSection,
+  ArchitectureSection,
+  TrustedBySection,
+  StatsSection,
+  CTASection
+} from '../components/landing/eliza'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 
@@ -34,13 +39,22 @@ export function LandingPage() {
           }
         }}
       />
-      <div className="min-h-screen bg-nofx-bg text-nofx-text font-sans selection:bg-nofx-gold selection:text-black">
+      <div
+        className="h-screen overflow-y-auto bg-nofx-bg text-nofx-text font-sans selection:bg-nofx-gold selection:text-black"
+        style={{ scrollSnapType: 'y mandatory' }}
+      >
 
-        <TerminalHero />
+        <ElizaHero />
 
-        <LiveFeed />
+        <WelcomeSection />
 
-        <AgentGrid />
+        <ArchitectureSection />
+
+        <TrustedBySection />
+
+        <StatsSection />
+
+        <CTASection />
 
         <FooterSection language={language} />
 

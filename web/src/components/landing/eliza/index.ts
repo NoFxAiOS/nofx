@@ -1,0 +1,6 @@
+export { default as ElizaHero } from './ElizaHero'
+export { default as WelcomeSection } from './WelcomeSection'
+export { default as ArchitectureSection } from './ArchitectureSection'
+export { default as TrustedBySection } from './TrustedBySection'
+export { default as StatsSection } from './StatsSection'
+export { default as CTASection } from './CTASection'

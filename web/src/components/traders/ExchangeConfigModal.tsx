@@ -248,17 +248,6 @@ export function ExchangeConfigModal({
     setSecureInputTarget(null)
   }
 
-  // 掩盖敏感数据显示
-  const maskSecret = (secret: string) => {
-    if (!secret || secret.length === 0) return ''
-    if (secret.length <= 8) return '*'.repeat(secret.length)
-    return (
-      secret.slice(0, 4) +
-      '*'.repeat(Math.max(secret.length - 8, 4)) +
-      secret.slice(-4)
-    )
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isSaving) return

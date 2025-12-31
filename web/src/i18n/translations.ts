@@ -347,17 +347,19 @@ export const translations = {
     hyperliquidWalletAddressDesc:
       'Wallet address corresponding to the private key',
     // Hyperliquid Agent Wallet (New Security Model)
-    hyperliquidAgentWalletTitle: 'Hyperliquid Agent Wallet Configuration',
+    hyperliquidAgentWalletTitle: 'How to get Agent Wallet?',
     hyperliquidAgentWalletDesc:
-      'Use Agent Wallet for secure trading: Agent wallet signs transactions (balance ~0), Main wallet holds funds (never expose private key)',
-    hyperliquidAgentPrivateKey: 'Agent Private Key',
-    enterHyperliquidAgentPrivateKey: 'Enter Agent wallet private key',
+      'Go to Hyperliquid → More → API → Create Agent Wallet. The Agent Wallet can only trade, cannot withdraw funds.',
+    hyperliquidAgentWalletLink: 'https://app.hyperliquid.xyz/API',
+    hyperliquidAgentWalletLinkText: 'Go to Hyperliquid to create Agent Wallet →',
+    hyperliquidAgentPrivateKey: 'Agent Wallet Private Key',
+    enterHyperliquidAgentPrivateKey: '0x... (64 hex characters)',
     hyperliquidAgentPrivateKeyDesc:
-      'Agent wallet private key for signing transactions (keep balance near 0 for security)',
+      'Private key shown when creating Agent Wallet. Only has trading permission, cannot withdraw.',
     hyperliquidMainWalletAddress: 'Main Wallet Address',
-    enterHyperliquidMainWalletAddress: 'Enter Main wallet address',
+    enterHyperliquidMainWalletAddress: '0x... (your main wallet)',
     hyperliquidMainWalletAddressDesc:
-      'Main wallet address that holds your trading funds (never expose its private key)',
+      'The wallet address you use to log in Hyperliquid (holds your funds)',
     // Aster API Pro Configuration
     asterApiProTitle: 'Aster API Pro Wallet Configuration',
     asterApiProDesc:
@@ -1548,16 +1550,17 @@ export const translations = {
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
     // Hyperliquid 代理钱包 (新安全模型)
-    hyperliquidAgentWalletTitle: 'Hyperliquid 代理钱包配置',
+    hyperliquidAgentWalletTitle: '如何获取代理钱包？',
     hyperliquidAgentWalletDesc:
-      '使用代理钱包安全交易：代理钱包用于签名（餘額~0），主钱包持有资金（永不暴露私钥）',
-    hyperliquidAgentPrivateKey: '代理私钥',
-    enterHyperliquidAgentPrivateKey: '输入代理钱包私钥',
-    hyperliquidAgentPrivateKeyDesc: '代理钱包仅有交易权限，无法提现',
+      '打开 Hyperliquid → 右上角 More → API → Create Agent Wallet 创建代理钱包。代理钱包只能交易，无法提现。',
+    hyperliquidAgentWalletLink: 'https://app.hyperliquid.xyz/API',
+    hyperliquidAgentWalletLinkText: '去 Hyperliquid 创建代理钱包 →',
+    hyperliquidAgentPrivateKey: '代理钱包私钥',
+    enterHyperliquidAgentPrivateKey: '0x... (64位十六进制)',
+    hyperliquidAgentPrivateKeyDesc: '创建代理钱包时显示的私钥，只能交易，无法提现',
     hyperliquidMainWalletAddress: '主钱包地址',
-    enterHyperliquidMainWalletAddress: '输入主钱包地址',
-    hyperliquidMainWalletAddressDesc:
-      '持有交易资金的主钱包地址（永不暴露其私钥）',
+    enterHyperliquidMainWalletAddress: '0x... (你的主钱包地址)',
+    hyperliquidMainWalletAddressDesc: '你登录 Hyperliquid 时使用的钱包地址（资金所在钱包）',
     // Aster API Pro 配置
     asterApiProTitle: 'Aster API Pro 代理钱包配置',
     asterApiProDesc:

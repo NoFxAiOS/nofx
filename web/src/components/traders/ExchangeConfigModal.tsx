@@ -915,33 +915,39 @@ export function ExchangeConfigModal({
                 {/* Hyperliquid 交易所的字段 */}
                 {currentExchangeType === 'hyperliquid' && (
                   <>
-                    {/* 安全提示 banner */}
+                    {/* 操作指引 banner */}
                     <div
-                      className="p-3 rounded mb-4"
+                      className="p-4 rounded mb-4"
                       style={{
-                        background: 'rgba(240, 185, 11, 0.1)',
-                        border: '1px solid rgba(240, 185, 11, 0.3)',
+                        background: 'rgba(88, 166, 255, 0.1)',
+                        border: '1px solid rgba(88, 166, 255, 0.3)',
                       }}
                     >
-                      <div className="flex items-start gap-2">
-                        <span style={{ color: '#F0B90B', fontSize: '16px' }}>
-                          🔐
-                        </span>
-                        <div className="flex-1">
-                          <div
-                            className="text-sm font-semibold mb-1"
-                            style={{ color: '#F0B90B' }}
-                          >
-                            {t('hyperliquidAgentWalletTitle', language)}
-                          </div>
-                          <div
-                            className="text-xs"
-                            style={{ color: '#848E9C', lineHeight: '1.5' }}
-                          >
-                            {t('hyperliquidAgentWalletDesc', language)}
-                          </div>
-                        </div>
+                      <div
+                        className="text-sm font-semibold mb-2"
+                        style={{ color: '#58a6ff' }}
+                      >
+                        {t('hyperliquidAgentWalletTitle', language)}
                       </div>
+                      <div
+                        className="text-xs mb-3"
+                        style={{ color: '#c9d1d9', lineHeight: '1.6' }}
+                      >
+                        {t('hyperliquidAgentWalletDesc', language)}
+                      </div>
+                      <a
+                        href="https://app.hyperliquid.xyz/API"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-all hover:scale-105"
+                        style={{
+                          background: 'rgba(88, 166, 255, 0.2)',
+                          color: '#58a6ff',
+                        }}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        {t('hyperliquidAgentWalletLinkText', language)}
+                      </a>
                     </div>
 
                     {/* Agent Private Key 字段 */}
@@ -952,57 +958,36 @@ export function ExchangeConfigModal({
                       >
                         {t('hyperliquidAgentPrivateKey', language)}
                       </label>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={maskSecret(apiKey)}
-                            readOnly
-                            placeholder={t(
-                              'enterHyperliquidAgentPrivateKey',
-                              language
-                            )}
-                            className="w-full px-3 py-2 rounded"
-                            style={{
-                              background: '#0B0E11',
-                              border: '1px solid #2B3139',
-                              color: '#EAECEF',
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setSecureInputTarget('hyperliquid')}
-                            className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                            style={{
-                              background: '#F0B90B',
-                              color: '#000',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {apiKey
-                              ? t('secureInputReenter', language)
-                              : t('secureInputButton', language)}
-                          </button>
-                          {apiKey && (
-                            <button
-                              type="button"
-                              onClick={() => setApiKey('')}
-                              className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
-                              style={{
-                                background: '#1B1F2B',
-                                color: '#848E9C',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {t('secureInputClear', language)}
-                            </button>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder={t(
+                            'enterHyperliquidAgentPrivateKey',
+                            language
                           )}
-                        </div>
-                        {apiKey && (
-                          <div className="text-xs" style={{ color: '#848E9C' }}>
-                            {t('secureInputHint', language)}
-                          </div>
-                        )}
+                          className="w-full px-3 py-2 rounded"
+                          style={{
+                            background: '#0B0E11',
+                            border: '1px solid #2B3139',
+                            color: '#EAECEF',
+                          }}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSecureInputTarget('hyperliquid')}
+                          className="px-3 py-2 rounded text-xs font-semibold transition-all hover:scale-105"
+                          style={{
+                            background: '#2B3139',
+                            color: '#848E9C',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={language === 'zh' ? '分段安全输入（可选）' : 'Staged secure input (optional)'}
+                        >
+                          {language === 'zh' ? '安全输入' : 'Secure'}
+                        </button>
                       </div>
                       <div
                         className="text-xs mt-1"

@@ -1,4 +1,4 @@
-import { Github, Send, ExternalLink } from 'lucide-react'
+import { Github, Send } from 'lucide-react'
 import { t, Language } from '../../i18n/translations'
 import { OFFICIAL_LINKS } from '../../constants/branding'
 
@@ -6,149 +6,93 @@ interface FooterSectionProps {
   language: Language
 }
 
+const XIcon = () => (
+  <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+)
+
 export default function FooterSection({ language }: FooterSectionProps) {
-  const links = {
-    social: [
-      { name: 'GitHub', href: OFFICIAL_LINKS.github, icon: Github },
-      {
-        name: 'X (Twitter)',
-        href: OFFICIAL_LINKS.twitter,
-        icon: () => (
-          <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-          </svg>
-        ),
-      },
-      { name: 'Telegram', href: OFFICIAL_LINKS.telegram, icon: Send },
-    ],
-    resources: [
-      {
-        name: language === 'zh' ? '文档' : 'Documentation',
-        href: 'https://github.com/NoFxAiOS/nofx/blob/main/README.md',
-      },
-      { name: 'Issues', href: 'https://github.com/NoFxAiOS/nofx/issues' },
-      { name: 'Pull Requests', href: 'https://github.com/NoFxAiOS/nofx/pulls' },
-    ],
-    supporters: [
-      { name: 'Aster DEX', href: 'https://www.asterdex.com/en/referral/fdfc0e' },
-      { name: 'Binance', href: 'https://www.maxweb.red/join?ref=NOFXAI' },
-      { name: 'Hyperliquid', href: 'https://hyperliquid.xyz/' },
-    ],
-  }
+  const navLinks = [
+    { name: 'Partners', href: '#' },
+    { name: 'Docs', href: 'https://github.com/NoFxAiOS/nofx/blob/main/README.md' },
+    { name: 'GitHub', href: OFFICIAL_LINKS.github },
+    { name: 'Community', href: OFFICIAL_LINKS.telegram },
+  ]
+
+  const socialLinks = [
+    { name: 'GitHub', href: OFFICIAL_LINKS.github, icon: Github },
+    { name: 'X', href: OFFICIAL_LINKS.twitter, icon: XIcon },
+    { name: 'Telegram', href: OFFICIAL_LINKS.telegram, icon: Send },
+  ]
 
   return (
-    <footer style={{ background: '#0B0E11', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        {/* Top Section */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
-          {/* Brand */}
-          <div className="md:col-span-1">
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-8 h-8" />
-              <span className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                NOFX
-              </span>
-            </div>
-            <p className="text-sm mb-6" style={{ color: '#5E6673' }}>
-              {t('futureStandardAI', language)}
+    <footer className="w-full bg-black border-t border-zinc-800">
+      <div className="max-w-7xl mx-auto px-6 py-12">
+
+        {/* Main Footer Content */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+
+          {/* Left - Brand & CTA */}
+          <div className="md:col-span-3">
+            <p className="text-nofx-gold text-xs font-bold uppercase tracking-wider mb-2">
+              Start Building
             </p>
-            {/* Social Icons */}
-            <div className="flex items-center gap-3">
-              {links.social.map((link) => (
+            <h3 className="text-4xl md:text-5xl font-black text-nofx-gold tracking-tight">
+              NOFX
+            </h3>
+          </div>
+
+          {/* Center - Navigation Links */}
+          <div className="md:col-span-5">
+            <div className="grid grid-cols-2 gap-4">
+              {navLinks.map((link) => (
                 <a
                   key={link.name}
                   href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    color: '#848E9C',
-                  }}
-                  title={link.name}
+                  target={link.href.startsWith('http') ? '_blank' : undefined}
+                  rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                  className="text-zinc-500 hover:text-nofx-gold transition-colors text-sm"
                 >
-                  <link.icon className="w-4 h-4" />
+                  {link.name}
                 </a>
               ))}
             </div>
           </div>
 
-          {/* Links */}
-          <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
-              {t('links', language)}
-            </h4>
-            <ul className="space-y-3">
-              {links.social.map((link) => (
-                <li key={link.name}>
+          {/* Right - Social Links */}
+          <div className="md:col-span-4 flex md:justify-end">
+            <div className="flex items-center gap-4">
+              {socialLinks.map((link) => {
+                const Icon = link.icon
+                return (
                   <a
+                    key={link.name}
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm transition-colors hover:text-[#F0B90B]"
-                    style={{ color: '#5E6673' }}
+                    className="text-zinc-500 hover:text-nofx-gold transition-colors"
+                    title={link.name}
                   >
-                    {link.name}
+                    <Icon />
                   </a>
-                </li>
-              ))}
-            </ul>
+                )
+              })}
+            </div>
           </div>
 
-          {/* Resources */}
-          <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
-              {t('resources', language)}
-            </h4>
-            <ul className="space-y-3">
-              {links.resources.map((link) => (
-                <li key={link.name}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm transition-colors hover:text-[#F0B90B] inline-flex items-center gap-1"
-                    style={{ color: '#5E6673' }}
-                  >
-                    {link.name}
-                    <ExternalLink className="w-3 h-3 opacity-50" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Supporters */}
-          <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
-              {t('supporters', language)}
-            </h4>
-            <ul className="space-y-3">
-              {links.supporters.map((link) => (
-                <li key={link.name}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm transition-colors hover:text-[#F0B90B]"
-                    style={{ color: '#5E6673' }}
-                  >
-                    {link.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
 
         {/* Bottom Section */}
-        <div
-          className="pt-6 text-center text-xs"
-          style={{ color: '#5E6673', borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}
-        >
-          <p className="mb-2">{t('footerTitle', language)}</p>
-          <p style={{ color: '#3C4249' }}>{t('footerWarning', language)}</p>
+        <div className="mt-12 pt-6 border-t border-zinc-800/50 text-center">
+          <p className="text-zinc-600 text-xs">
+            {t('footerTitle', language)}
+          </p>
+          <p className="text-zinc-700 text-xs mt-1">
+            {t('footerWarning', language)}
+          </p>
         </div>
+
       </div>
     </footer>
   )

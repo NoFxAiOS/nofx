@@ -2078,8 +2078,7 @@ func (t *HyperliquidTrader) GetTrades(startTime time.Time, limit int) ([]TradeRe
 	return trades, nil
 }
 
-// defaultBuilder is the builder info for order routing
-var defaultBuilder = &hyperliquid.BuilderInfo{
-	Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",
-	Fee:     10,
-}
+// defaultBuilder is nil to avoid requiring users to approve builder fee
+// Previously used builder address: 0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d
+// If builder fee is needed in the future, implement approval flow first
+var defaultBuilder *hyperliquid.BuilderInfo = nil

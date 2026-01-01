@@ -5,6 +5,7 @@ import FooterSection from '../components/landing/FooterSection'
 import TerminalHero from '../components/landing/core/TerminalHero'
 import LiveFeed from '../components/landing/core/LiveFeed'
 import AgentGrid from '../components/landing/core/AgentGrid'
+import DeploymentHub from '../components/landing/core/DeploymentHub'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 
@@ -41,6 +42,8 @@ export function LandingPage() {
         <LiveFeed />
 
         <AgentGrid />
+
+        <DeploymentHub />
 
         <FooterSection language={language} />
 

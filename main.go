@@ -36,21 +36,30 @@ func main() {
 	cfg := config.Get()
 	logger.Info("✅ Configuration loaded")
 
-	// Initialize database
-	// Default path is data/data.db to work with Docker volume mount (/app/data)
-	dbPath := "data/data.db"
+	// Initialize database from environment variables
+	// DB_TYPE: sqlite (default) or postgres
+	// For SQLite: DB_PATH (default: data/data.db)
+	// For PostgreSQL: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSLMODE
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "data/data.db"
+	}
+	// For backward compatibility: command line arg overrides env var (SQLite only)
 	if len(os.Args) > 1 {
 		dbPath = os.Args[1]
+		os.Setenv("DB_PATH", dbPath)
 	}
-	// Ensure data directory exists
-	if dir := filepath.Dir(dbPath); dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			logger.Errorf("Failed to create data directory: %v", err)
+	// Ensure data directory exists (for SQLite)
+	if os.Getenv("DB_TYPE") == "" || os.Getenv("DB_TYPE") == "sqlite" {
+		if dir := filepath.Dir(dbPath); dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				logger.Errorf("Failed to create data directory: %v", err)
+			}
 		}
 	}
 
-	logger.Infof("📋 Initializing database: %s", dbPath)
-	st, err := store.New(dbPath)
+	logger.Info("📋 Initializing database...")
+	st, err := store.NewFromEnv()
 	if err != nil {
 		logger.Fatalf("❌ Failed to initialize database: %v", err)
 	}

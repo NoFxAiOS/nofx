@@ -7,13 +7,12 @@ import (
 	"fmt"
 	"nofx/logger"
 	"sync"
-
-	_ "modernc.org/sqlite"
 )
 
 // Store unified data storage interface
 type Store struct {
-	db *sql.DB
+	db     *sql.DB
+	driver *DBDriver // Database driver for abstraction
 
 	// Sub-stores (lazy initialization)
 	user     *UserStore
@@ -34,57 +33,56 @@ type Store struct {
 	mu sync.RWMutex
 }
 
-// New creates new Store instance
+// New creates new Store instance (SQLite mode for backward compatibility)
 func New(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	driver, err := NewDBDriver(DBConfig{Type: DBTypeSQLite, Path: dbPath})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// SQLite configuration
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-
-	// Enable foreign key constraints
-	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
-	}
-
-	// Use DELETE mode (traditional mode) to ensure Docker bind mount compatibility
-	// Note: WAL mode causes data sync issues on macOS Docker
-	if _, err := db.Exec("PRAGMA journal_mode=DELETE"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to set journal_mode: %w", err)
-	}
-
-	// Set synchronous=FULL
-	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to set synchronous: %w", err)
-	}
-
-	// Set busy_timeout
-	if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
-	}
-
-	s := &Store{db: db}
+	s := &Store{db: driver.DB(), driver: driver}
 
 	// Initialize all table structures
 	if err := s.initTables(); err != nil {
-		db.Close()
+		driver.Close()
 		return nil, fmt.Errorf("failed to initialize table structure: %w", err)
 	}
 
 	// Initialize default data
 	if err := s.initDefaultData(); err != nil {
-		db.Close()
+		driver.Close()
 		return nil, fmt.Errorf("failed to initialize default data: %w", err)
 	}
 
-	logger.Info("✅ Database enabled DELETE mode and FULL sync")
+	logger.Infof("✅ Database initialized (type: %s)", driver.Type)
+	return s, nil
+}
+
+// NewFromEnv creates new Store instance from environment variables
+// DB_TYPE: sqlite (default) or postgres
+// For SQLite: DB_PATH (default: data/data.db)
+// For PostgreSQL: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, DB_SSLMODE
+func NewFromEnv() (*Store, error) {
+	driver, err := NewDBDriverFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	s := &Store{db: driver.DB(), driver: driver}
+
+	// Initialize all table structures
+	if err := s.initTables(); err != nil {
+		driver.Close()
+		return nil, fmt.Errorf("failed to initialize table structure: %w", err)
+	}
+
+	// Initialize default data
+	if err := s.initDefaultData(); err != nil {
+		driver.Close()
+		return nil, fmt.Errorf("failed to initialize default data: %w", err)
+	}
+
+	logger.Infof("✅ Database initialized (type: %s)", driver.Type)
 	return s, nil
 }
 
@@ -293,7 +291,23 @@ func (s *Store) Order() *OrderStore {
 
 // Close closes database connection
 func (s *Store) Close() error {
+	if s.driver != nil {
+		return s.driver.Close()
+	}
 	return s.db.Close()
+}
+
+// Driver returns database driver for abstraction
+func (s *Store) Driver() *DBDriver {
+	return s.driver
+}
+
+// DBType returns current database type
+func (s *Store) DBType() DBType {
+	if s.driver != nil {
+		return s.driver.Type
+	}
+	return DBTypeSQLite
 }
 
 // DB gets underlying database connection (for legacy code compatibility, gradually deprecated)

@@ -54,10 +54,10 @@ export default function AgentGrid() {
                 <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
                     <div>
                         <div className="flex items-center gap-2 text-nofx-gold font-mono text-xs mb-2 tracking-widest uppercase">
-                            <Crosshair className="w-4 h-4" /> Operator Select
+                            <Crosshair className="w-4 h-4" /> MARKET SELECT
                         </div>
                         <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter">
-                            Available <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold to-white">Units</span>
+                            STRATEGY <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold to-white">UNITS</span>
                         </h2>
                     </div>
                     <div className="font-mono text-right text-xs text-zinc-500 max-w-xs">

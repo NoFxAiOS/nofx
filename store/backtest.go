@@ -1,15 +1,26 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // BacktestStore backtest data storage
 type BacktestStore struct {
-	db *sql.DB
+	db *gorm.DB
+}
+
+// NewBacktestStore creates a new backtest store
+func NewBacktestStore(db *gorm.DB) *BacktestStore {
+	return &BacktestStore{db: db}
+}
+
+// isPostgres checks if the database is PostgreSQL
+func (s *BacktestStore) isPostgres() bool {
+	return s.db.Dialector.Name() == "postgres"
 }
 
 // RunState backtest state
@@ -92,492 +103,469 @@ type RunIndexEntry struct {
 	UpdatedAtISO   string   `json:"updated_at"`
 }
 
+// BacktestRun GORM model for backtest_runs table
+type BacktestRun struct {
+	RunID           string    `gorm:"column:run_id;primaryKey"`
+	UserID          string    `gorm:"column:user_id;not null;default:''"`
+	ConfigJSON      []byte    `gorm:"column:config_json"`
+	State           string    `gorm:"column:state;not null;default:created"`
+	Label           string    `gorm:"column:label;default:''"`
+	SymbolCount     int       `gorm:"column:symbol_count;default:0"`
+	DecisionTF      string    `gorm:"column:decision_tf;default:''"`
+	ProcessedBars   int       `gorm:"column:processed_bars;default:0"`
+	ProgressPct     float64   `gorm:"column:progress_pct;default:0"`
+	EquityLast      float64   `gorm:"column:equity_last;default:0"`
+	MaxDrawdownPct  float64   `gorm:"column:max_drawdown_pct;default:0"`
+	Liquidated      bool      `gorm:"column:liquidated;default:false"`
+	LiquidationNote string    `gorm:"column:liquidation_note;default:''"`
+	PromptTemplate  string    `gorm:"column:prompt_template;default:''"`
+	CustomPrompt    string    `gorm:"column:custom_prompt;default:''"`
+	OverridePrompt  bool      `gorm:"column:override_prompt;default:false"`
+	AIProvider      string    `gorm:"column:ai_provider;default:''"`
+	AIModel         string    `gorm:"column:ai_model;default:''"`
+	LastError       string    `gorm:"column:last_error;default:''"`
+	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (BacktestRun) TableName() string {
+	return "backtest_runs"
+}
+
+// BacktestCheckpoint GORM model
+type BacktestCheckpoint struct {
+	RunID     string    `gorm:"column:run_id;primaryKey"`
+	Payload   []byte    `gorm:"column:payload;not null"`
+	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (BacktestCheckpoint) TableName() string {
+	return "backtest_checkpoints"
+}
+
+// BacktestEquity GORM model
+type BacktestEquity struct {
+	ID        int64   `gorm:"primaryKey;autoIncrement"`
+	RunID     string  `gorm:"column:run_id;not null;index:idx_backtest_equity_run_ts"`
+	TS        int64   `gorm:"column:ts;not null;index:idx_backtest_equity_run_ts"`
+	Equity    float64 `gorm:"column:equity;not null"`
+	Available float64 `gorm:"column:available;not null"`
+	PnL       float64 `gorm:"column:pnl;not null"`
+	PnLPct    float64 `gorm:"column:pnl_pct;not null"`
+	DDPct     float64 `gorm:"column:dd_pct;not null"`
+	Cycle     int     `gorm:"column:cycle;not null"`
+}
+
+func (BacktestEquity) TableName() string {
+	return "backtest_equity"
+}
+
+// BacktestTrade GORM model
+type BacktestTrade struct {
+	ID            int64   `gorm:"primaryKey;autoIncrement"`
+	RunID         string  `gorm:"column:run_id;not null;index:idx_backtest_trades_run_ts"`
+	TS            int64   `gorm:"column:ts;not null;index:idx_backtest_trades_run_ts"`
+	Symbol        string  `gorm:"column:symbol;not null"`
+	Action        string  `gorm:"column:action;not null"`
+	Side          string  `gorm:"column:side;default:''"`
+	Qty           float64 `gorm:"column:qty;default:0"`
+	Price         float64 `gorm:"column:price;default:0"`
+	Fee           float64 `gorm:"column:fee;default:0"`
+	Slippage      float64 `gorm:"column:slippage;default:0"`
+	OrderValue    float64 `gorm:"column:order_value;default:0"`
+	RealizedPnL   float64 `gorm:"column:realized_pnl;default:0"`
+	Leverage      int     `gorm:"column:leverage;default:0"`
+	Cycle         int     `gorm:"column:cycle;default:0"`
+	PositionAfter float64 `gorm:"column:position_after;default:0"`
+	Liquidation   bool    `gorm:"column:liquidation;default:false"`
+	Note          string  `gorm:"column:note;default:''"`
+}
+
+func (BacktestTrade) TableName() string {
+	return "backtest_trades"
+}
+
+// BacktestMetrics GORM model
+type BacktestMetrics struct {
+	RunID     string    `gorm:"column:run_id;primaryKey"`
+	Payload   []byte    `gorm:"column:payload;not null"`
+	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (BacktestMetrics) TableName() string {
+	return "backtest_metrics"
+}
+
+// BacktestDecision GORM model
+type BacktestDecision struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement"`
+	RunID     string    `gorm:"column:run_id;not null;index:idx_backtest_decisions_run_cycle"`
+	Cycle     int       `gorm:"column:cycle;not null;index:idx_backtest_decisions_run_cycle"`
+	Payload   []byte    `gorm:"column:payload;not null"`
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime"`
+}
+
+func (BacktestDecision) TableName() string {
+	return "backtest_decisions"
+}
+
 // initTables initializes backtest related tables
 func (s *BacktestStore) initTables() error {
-	queries := []string{
-		// Backtest runs main table
-		`CREATE TABLE IF NOT EXISTS backtest_runs (
-			run_id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL DEFAULT '',
-			config_json TEXT NOT NULL DEFAULT '',
-			state TEXT NOT NULL DEFAULT 'created',
-			label TEXT DEFAULT '',
-			symbol_count INTEGER DEFAULT 0,
-			decision_tf TEXT DEFAULT '',
-			processed_bars INTEGER DEFAULT 0,
-			progress_pct REAL DEFAULT 0,
-			equity_last REAL DEFAULT 0,
-			max_drawdown_pct REAL DEFAULT 0,
-			liquidated BOOLEAN DEFAULT 0,
-			liquidation_note TEXT DEFAULT '',
-			prompt_template TEXT DEFAULT '',
-			custom_prompt TEXT DEFAULT '',
-			override_prompt BOOLEAN DEFAULT 0,
-			ai_provider TEXT DEFAULT '',
-			ai_model TEXT DEFAULT '',
-			last_error TEXT DEFAULT '',
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
+	// For PostgreSQL with existing tables, skip AutoMigrate to avoid type conflicts
+	if s.db.Dialector.Name() == "postgres" {
+		var tableExists int64
+		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'backtest_runs'`).Scan(&tableExists)
 
-		// Backtest checkpoints
-		`CREATE TABLE IF NOT EXISTS backtest_checkpoints (
-			run_id TEXT PRIMARY KEY,
-			payload BLOB NOT NULL,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
-		)`,
-
-		// Backtest equity curve
-		`CREATE TABLE IF NOT EXISTS backtest_equity (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			run_id TEXT NOT NULL,
-			ts INTEGER NOT NULL,
-			equity REAL NOT NULL,
-			available REAL NOT NULL,
-			pnl REAL NOT NULL,
-			pnl_pct REAL NOT NULL,
-			dd_pct REAL NOT NULL,
-			cycle INTEGER NOT NULL,
-			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
-		)`,
-
-		// Backtest trade records
-		`CREATE TABLE IF NOT EXISTS backtest_trades (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			run_id TEXT NOT NULL,
-			ts INTEGER NOT NULL,
-			symbol TEXT NOT NULL,
-			action TEXT NOT NULL,
-			side TEXT DEFAULT '',
-			qty REAL DEFAULT 0,
-			price REAL DEFAULT 0,
-			fee REAL DEFAULT 0,
-			slippage REAL DEFAULT 0,
-			order_value REAL DEFAULT 0,
-			realized_pnl REAL DEFAULT 0,
-			leverage INTEGER DEFAULT 0,
-			cycle INTEGER DEFAULT 0,
-			position_after REAL DEFAULT 0,
-			liquidation BOOLEAN DEFAULT 0,
-			note TEXT DEFAULT '',
-			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
-		)`,
-
-		// Backtest metrics
-		`CREATE TABLE IF NOT EXISTS backtest_metrics (
-			run_id TEXT PRIMARY KEY,
-			payload BLOB NOT NULL,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
-		)`,
-
-		// Backtest decision logs
-		`CREATE TABLE IF NOT EXISTS backtest_decisions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			run_id TEXT NOT NULL,
-			cycle INTEGER NOT NULL,
-			payload BLOB NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (run_id) REFERENCES backtest_runs(run_id) ON DELETE CASCADE
-		)`,
-
-		// Indexes
-		`CREATE INDEX IF NOT EXISTS idx_backtest_runs_state ON backtest_runs(state, updated_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_backtest_equity_run_ts ON backtest_equity(run_id, ts)`,
-		`CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_ts ON backtest_trades(run_id, ts)`,
-		`CREATE INDEX IF NOT EXISTS idx_backtest_decisions_run_cycle ON backtest_decisions(run_id, cycle)`,
-	}
-
-	for _, query := range queries {
-		if _, err := s.db.Exec(query); err != nil {
-			return fmt.Errorf("failed to execute SQL: %w", err)
+		if tableExists > 0 {
+			// Tables exist - just ensure indexes exist
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_backtest_equity_run_ts ON backtest_equity(run_id, ts)`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_ts ON backtest_trades(run_id, ts)`)
+			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_backtest_decisions_run_cycle ON backtest_decisions(run_id, cycle)`)
+			return nil
 		}
 	}
 
-	// Add potentially missing columns (backward compatibility)
-	s.addColumnIfNotExists("backtest_runs", "label", "TEXT DEFAULT ''")
-	s.addColumnIfNotExists("backtest_runs", "last_error", "TEXT DEFAULT ''")
-	s.addColumnIfNotExists("backtest_trades", "leverage", "INTEGER DEFAULT 0")
+	// AutoMigrate all backtest tables
+	if err := s.db.AutoMigrate(
+		&BacktestRun{},
+		&BacktestCheckpoint{},
+		&BacktestEquity{},
+		&BacktestTrade{},
+		&BacktestMetrics{},
+		&BacktestDecision{},
+	); err != nil {
+		return fmt.Errorf("failed to migrate backtest tables: %w", err)
+	}
 
 	return nil
 }
 
-func (s *BacktestStore) addColumnIfNotExists(table, column, definition string) {
-	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name, ctype string
-		var notnull, pk int
-		var dflt interface{}
-		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
-			continue
-		}
-		if name == column {
-			return // Column already exists
-		}
-	}
-
-	s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
-}
-
 // SaveCheckpoint saves checkpoint
 func (s *BacktestStore) SaveCheckpoint(runID string, payload []byte) error {
-	_, err := s.db.Exec(`
-		INSERT INTO backtest_checkpoints (run_id, payload, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
-		ON CONFLICT(run_id) DO UPDATE SET payload=excluded.payload, updated_at=CURRENT_TIMESTAMP
-	`, runID, payload)
-	return err
+	checkpoint := BacktestCheckpoint{
+		RunID:   runID,
+		Payload: payload,
+	}
+	return s.db.Save(&checkpoint).Error
 }
 
 // LoadCheckpoint loads checkpoint
 func (s *BacktestStore) LoadCheckpoint(runID string) ([]byte, error) {
-	var payload []byte
-	err := s.db.QueryRow(`SELECT payload FROM backtest_checkpoints WHERE run_id = ?`, runID).Scan(&payload)
-	return payload, err
+	var checkpoint BacktestCheckpoint
+	err := s.db.Where("run_id = ?", runID).First(&checkpoint).Error
+	if err != nil {
+		return nil, err
+	}
+	return checkpoint.Payload, nil
 }
 
 // SaveRunMetadata saves run metadata
 func (s *BacktestStore) SaveRunMetadata(meta *RunMetadata) error {
-	created := meta.CreatedAt.UTC().Format(time.RFC3339)
-	updated := meta.UpdatedAt.UTC().Format(time.RFC3339)
-	userID := meta.UserID
-
-	if _, err := s.db.Exec(`
-		INSERT INTO backtest_runs (run_id, user_id, label, last_error, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(run_id) DO NOTHING
-	`, meta.RunID, userID, meta.Label, meta.LastError, created, updated); err != nil {
-		return err
+	run := BacktestRun{
+		RunID:           meta.RunID,
+		UserID:          meta.UserID,
+		State:           string(meta.State),
+		Label:           meta.Label,
+		LastError:       meta.LastError,
+		SymbolCount:     meta.Summary.SymbolCount,
+		DecisionTF:      meta.Summary.DecisionTF,
+		ProcessedBars:   meta.Summary.ProcessedBars,
+		ProgressPct:     meta.Summary.ProgressPct,
+		EquityLast:      meta.Summary.EquityLast,
+		MaxDrawdownPct:  meta.Summary.MaxDrawdownPct,
+		Liquidated:      meta.Summary.Liquidated,
+		LiquidationNote: meta.Summary.LiquidationNote,
+		CreatedAt:       meta.CreatedAt,
+		UpdatedAt:       meta.UpdatedAt,
 	}
-
-	_, err := s.db.Exec(`
-		UPDATE backtest_runs
-		SET user_id = ?, state = ?, symbol_count = ?, decision_tf = ?, processed_bars = ?,
-		    progress_pct = ?, equity_last = ?, max_drawdown_pct = ?, liquidated = ?,
-		    liquidation_note = ?, label = ?, last_error = ?, updated_at = ?
-		WHERE run_id = ?
-	`, userID, string(meta.State), meta.Summary.SymbolCount, meta.Summary.DecisionTF,
-		meta.Summary.ProcessedBars, meta.Summary.ProgressPct, meta.Summary.EquityLast,
-		meta.Summary.MaxDrawdownPct, meta.Summary.Liquidated, meta.Summary.LiquidationNote,
-		meta.Label, meta.LastError, updated, meta.RunID)
-	return err
+	return s.db.Save(&run).Error
 }
 
 // LoadRunMetadata loads run metadata
 func (s *BacktestStore) LoadRunMetadata(runID string) (*RunMetadata, error) {
-	var (
-		userID          string
-		state           string
-		label           string
-		lastErr         string
-		symbolCount     int
-		decisionTF      string
-		processedBars   int
-		progressPct     float64
-		equityLast      float64
-		maxDD           float64
-		liquidated      bool
-		liquidationNote string
-		createdISO      string
-		updatedISO      string
-	)
-
-	err := s.db.QueryRow(`
-		SELECT user_id, state, label, last_error, symbol_count, decision_tf, processed_bars,
-		       progress_pct, equity_last, max_drawdown_pct, liquidated, liquidation_note,
-		       created_at, updated_at
-		FROM backtest_runs WHERE run_id = ?
-	`, runID).Scan(&userID, &state, &label, &lastErr, &symbolCount, &decisionTF,
-		&processedBars, &progressPct, &equityLast, &maxDD, &liquidated, &liquidationNote,
-		&createdISO, &updatedISO)
+	var run BacktestRun
+	err := s.db.Where("run_id = ?", runID).First(&run).Error
 	if err != nil {
 		return nil, err
 	}
 
-	meta := &RunMetadata{
-		RunID:     runID,
-		UserID:    userID,
+	return &RunMetadata{
+		RunID:     run.RunID,
+		UserID:    run.UserID,
 		Version:   1,
-		State:     RunState(state),
-		Label:     label,
-		LastError: lastErr,
+		State:     RunState(run.State),
+		Label:     run.Label,
+		LastError: run.LastError,
 		Summary: RunSummary{
-			SymbolCount:     symbolCount,
-			DecisionTF:      decisionTF,
-			ProcessedBars:   processedBars,
-			ProgressPct:     progressPct,
-			EquityLast:      equityLast,
-			MaxDrawdownPct:  maxDD,
-			Liquidated:      liquidated,
-			LiquidationNote: liquidationNote,
+			SymbolCount:     run.SymbolCount,
+			DecisionTF:      run.DecisionTF,
+			ProcessedBars:   run.ProcessedBars,
+			ProgressPct:     run.ProgressPct,
+			EquityLast:      run.EquityLast,
+			MaxDrawdownPct:  run.MaxDrawdownPct,
+			Liquidated:      run.Liquidated,
+			LiquidationNote: run.LiquidationNote,
 		},
-	}
-
-	meta.CreatedAt, _ = time.Parse(time.RFC3339, createdISO)
-	meta.UpdatedAt, _ = time.Parse(time.RFC3339, updatedISO)
-
-	return meta, nil
+		CreatedAt: run.CreatedAt,
+		UpdatedAt: run.UpdatedAt,
+	}, nil
 }
 
 // ListRunIDs lists all run IDs
 func (s *BacktestStore) ListRunIDs() ([]string, error) {
-	rows, err := s.db.Query(`SELECT run_id FROM backtest_runs ORDER BY datetime(updated_at) DESC`)
+	var runs []BacktestRun
+	err := s.db.Order("updated_at DESC").Find(&runs).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var ids []string
-	for rows.Next() {
-		var runID string
-		if err := rows.Scan(&runID); err != nil {
-			return nil, err
-		}
-		ids = append(ids, runID)
+	ids := make([]string, len(runs))
+	for i, run := range runs {
+		ids[i] = run.RunID
 	}
-	return ids, rows.Err()
+	return ids, nil
 }
 
 // AppendEquityPoint appends equity point
 func (s *BacktestStore) AppendEquityPoint(runID string, point EquityPoint) error {
-	_, err := s.db.Exec(`
-		INSERT INTO backtest_equity (run_id, ts, equity, available, pnl, pnl_pct, dd_pct, cycle)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, runID, point.Timestamp, point.Equity, point.Available, point.PnL,
-		point.PnLPct, point.DrawdownPct, point.Cycle)
-	return err
+	eq := BacktestEquity{
+		RunID:     runID,
+		TS:        point.Timestamp,
+		Equity:    point.Equity,
+		Available: point.Available,
+		PnL:       point.PnL,
+		PnLPct:    point.PnLPct,
+		DDPct:     point.DrawdownPct,
+		Cycle:     point.Cycle,
+	}
+	return s.db.Create(&eq).Error
 }
 
 // LoadEquityPoints loads equity points
 func (s *BacktestStore) LoadEquityPoints(runID string) ([]EquityPoint, error) {
-	rows, err := s.db.Query(`
-		SELECT ts, equity, available, pnl, pnl_pct, dd_pct, cycle
-		FROM backtest_equity WHERE run_id = ? ORDER BY ts ASC
-	`, runID)
+	var eqs []BacktestEquity
+	err := s.db.Where("run_id = ?", runID).Order("ts ASC").Find(&eqs).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	points := make([]EquityPoint, 0)
-	for rows.Next() {
-		var point EquityPoint
-		if err := rows.Scan(&point.Timestamp, &point.Equity, &point.Available,
-			&point.PnL, &point.PnLPct, &point.DrawdownPct, &point.Cycle); err != nil {
-			return nil, err
+	points := make([]EquityPoint, len(eqs))
+	for i, eq := range eqs {
+		points[i] = EquityPoint{
+			Timestamp:   eq.TS,
+			Equity:      eq.Equity,
+			Available:   eq.Available,
+			PnL:         eq.PnL,
+			PnLPct:      eq.PnLPct,
+			DrawdownPct: eq.DDPct,
+			Cycle:       eq.Cycle,
 		}
-		points = append(points, point)
 	}
-	return points, rows.Err()
+	return points, nil
 }
 
 // AppendTradeEvent appends trade event
 func (s *BacktestStore) AppendTradeEvent(runID string, event TradeEvent) error {
-	_, err := s.db.Exec(`
-		INSERT INTO backtest_trades (run_id, ts, symbol, action, side, qty, price, fee,
-		                             slippage, order_value, realized_pnl, leverage, cycle,
-		                             position_after, liquidation, note)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, runID, event.Timestamp, event.Symbol, event.Action, event.Side, event.Quantity,
-		event.Price, event.Fee, event.Slippage, event.OrderValue, event.RealizedPnL,
-		event.Leverage, event.Cycle, event.PositionAfter, event.LiquidationFlag, event.Note)
-	return err
+	trade := BacktestTrade{
+		RunID:         runID,
+		TS:            event.Timestamp,
+		Symbol:        event.Symbol,
+		Action:        event.Action,
+		Side:          event.Side,
+		Qty:           event.Quantity,
+		Price:         event.Price,
+		Fee:           event.Fee,
+		Slippage:      event.Slippage,
+		OrderValue:    event.OrderValue,
+		RealizedPnL:   event.RealizedPnL,
+		Leverage:      event.Leverage,
+		Cycle:         event.Cycle,
+		PositionAfter: event.PositionAfter,
+		Liquidation:   event.LiquidationFlag,
+		Note:          event.Note,
+	}
+	return s.db.Create(&trade).Error
 }
 
 // LoadTradeEvents loads trade events
 func (s *BacktestStore) LoadTradeEvents(runID string) ([]TradeEvent, error) {
-	rows, err := s.db.Query(`
-		SELECT ts, symbol, action, side, qty, price, fee, slippage, order_value,
-		       realized_pnl, leverage, cycle, position_after, liquidation, note
-		FROM backtest_trades WHERE run_id = ? ORDER BY ts ASC
-	`, runID)
+	var trades []BacktestTrade
+	err := s.db.Where("run_id = ?", runID).Order("ts ASC").Find(&trades).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	events := make([]TradeEvent, 0)
-	for rows.Next() {
-		var event TradeEvent
-		if err := rows.Scan(&event.Timestamp, &event.Symbol, &event.Action, &event.Side,
-			&event.Quantity, &event.Price, &event.Fee, &event.Slippage, &event.OrderValue,
-			&event.RealizedPnL, &event.Leverage, &event.Cycle, &event.PositionAfter,
-			&event.LiquidationFlag, &event.Note); err != nil {
-			return nil, err
+	events := make([]TradeEvent, len(trades))
+	for i, trade := range trades {
+		events[i] = TradeEvent{
+			Timestamp:       trade.TS,
+			Symbol:          trade.Symbol,
+			Action:          trade.Action,
+			Side:            trade.Side,
+			Quantity:        trade.Qty,
+			Price:           trade.Price,
+			Fee:             trade.Fee,
+			Slippage:        trade.Slippage,
+			OrderValue:      trade.OrderValue,
+			RealizedPnL:     trade.RealizedPnL,
+			Leverage:        trade.Leverage,
+			Cycle:           trade.Cycle,
+			PositionAfter:   trade.PositionAfter,
+			LiquidationFlag: trade.Liquidation,
+			Note:            trade.Note,
 		}
-		events = append(events, event)
 	}
-	return events, rows.Err()
+	return events, nil
 }
 
 // SaveMetrics saves metrics
 func (s *BacktestStore) SaveMetrics(runID string, payload []byte) error {
-	_, err := s.db.Exec(`
-		INSERT INTO backtest_metrics (run_id, payload, updated_at)
-		VALUES (?, ?, CURRENT_TIMESTAMP)
-		ON CONFLICT(run_id) DO UPDATE SET payload=excluded.payload, updated_at=CURRENT_TIMESTAMP
-	`, runID, payload)
-	return err
+	metrics := BacktestMetrics{
+		RunID:   runID,
+		Payload: payload,
+	}
+	return s.db.Save(&metrics).Error
 }
 
 // LoadMetrics loads metrics
 func (s *BacktestStore) LoadMetrics(runID string) ([]byte, error) {
-	var payload []byte
-	err := s.db.QueryRow(`SELECT payload FROM backtest_metrics WHERE run_id = ?`, runID).Scan(&payload)
-	return payload, err
+	var metrics BacktestMetrics
+	err := s.db.Where("run_id = ?", runID).First(&metrics).Error
+	if err != nil {
+		return nil, err
+	}
+	return metrics.Payload, nil
 }
 
 // SaveDecisionRecord saves decision record
 func (s *BacktestStore) SaveDecisionRecord(runID string, cycle int, payload []byte) error {
-	_, err := s.db.Exec(`
-		INSERT INTO backtest_decisions (run_id, cycle, payload)
-		VALUES (?, ?, ?)
-	`, runID, cycle, payload)
-	return err
+	decision := BacktestDecision{
+		RunID:   runID,
+		Cycle:   cycle,
+		Payload: payload,
+	}
+	return s.db.Create(&decision).Error
 }
 
 // LoadDecisionRecords loads decision records
 func (s *BacktestStore) LoadDecisionRecords(runID string, limit, offset int) ([]json.RawMessage, error) {
-	rows, err := s.db.Query(`
-		SELECT payload FROM backtest_decisions
-		WHERE run_id = ?
-		ORDER BY id DESC
-		LIMIT ? OFFSET ?
-	`, runID, limit, offset)
+	var decisions []BacktestDecision
+	err := s.db.Where("run_id = ?", runID).
+		Order("id DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&decisions).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	records := make([]json.RawMessage, 0, limit)
-	for rows.Next() {
-		var payload []byte
-		if err := rows.Scan(&payload); err != nil {
-			return nil, err
-		}
-		records = append(records, json.RawMessage(payload))
+	records := make([]json.RawMessage, len(decisions))
+	for i, d := range decisions {
+		records[i] = json.RawMessage(d.Payload)
 	}
-	return records, rows.Err()
+	return records, nil
 }
 
 // LoadLatestDecision loads latest decision
 func (s *BacktestStore) LoadLatestDecision(runID string, cycle int) ([]byte, error) {
-	var query string
-	var args []interface{}
-
+	var decision BacktestDecision
+	query := s.db.Where("run_id = ?", runID)
 	if cycle > 0 {
-		query = `SELECT payload FROM backtest_decisions WHERE run_id = ? AND cycle = ? ORDER BY datetime(created_at) DESC LIMIT 1`
-		args = []interface{}{runID, cycle}
-	} else {
-		query = `SELECT payload FROM backtest_decisions WHERE run_id = ? ORDER BY datetime(created_at) DESC LIMIT 1`
-		args = []interface{}{runID}
+		query = query.Where("cycle = ?", cycle)
 	}
-
-	var payload []byte
-	err := s.db.QueryRow(query, args...).Scan(&payload)
-	return payload, err
+	err := query.Order("created_at DESC").First(&decision).Error
+	if err != nil {
+		return nil, err
+	}
+	return decision.Payload, nil
 }
 
 // UpdateProgress updates progress
 func (s *BacktestStore) UpdateProgress(runID string, progressPct, equity float64, barIndex int, liquidated bool) error {
-	_, err := s.db.Exec(`
-		UPDATE backtest_runs
-		SET progress_pct = ?, equity_last = ?, processed_bars = ?, liquidated = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE run_id = ?
-	`, progressPct, equity, barIndex, liquidated, runID)
-	return err
+	return s.db.Model(&BacktestRun{}).Where("run_id = ?", runID).Updates(map[string]interface{}{
+		"progress_pct":   progressPct,
+		"equity_last":    equity,
+		"processed_bars": barIndex,
+		"liquidated":     liquidated,
+	}).Error
 }
 
 // ListIndexEntries lists index entries
 func (s *BacktestStore) ListIndexEntries() ([]RunIndexEntry, error) {
-	rows, err := s.db.Query(`
-		SELECT run_id, state, symbol_count, decision_tf, equity_last, max_drawdown_pct,
-		       created_at, updated_at, config_json
-		FROM backtest_runs
-		ORDER BY datetime(updated_at) DESC
-	`)
+	var runs []BacktestRun
+	err := s.db.Order("updated_at DESC").Find(&runs).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var entries []RunIndexEntry
-	for rows.Next() {
-		var entry RunIndexEntry
-		var symbolCnt int
-		var cfgJSON []byte
-		var createdISO, updatedISO string
-
-		if err := rows.Scan(&entry.RunID, &entry.State, &symbolCnt, &entry.DecisionTF,
-			&entry.EquityLast, &entry.MaxDrawdownPct, &createdISO, &updatedISO, &cfgJSON); err != nil {
-			return nil, err
+	entries := make([]RunIndexEntry, len(runs))
+	for i, run := range runs {
+		entry := RunIndexEntry{
+			RunID:          run.RunID,
+			State:          run.State,
+			DecisionTF:     run.DecisionTF,
+			EquityLast:     run.EquityLast,
+			MaxDrawdownPct: run.MaxDrawdownPct,
+			CreatedAtISO:   run.CreatedAt.Format(time.RFC3339),
+			UpdatedAtISO:   run.UpdatedAt.Format(time.RFC3339),
+			Symbols:        make([]string, 0, run.SymbolCount),
 		}
 
-		entry.CreatedAtISO = createdISO
-		entry.UpdatedAtISO = updatedISO
-		entry.Symbols = make([]string, 0, symbolCnt)
-
-		// Try to extract more information from config
-		if len(cfgJSON) > 0 {
+		if len(run.ConfigJSON) > 0 {
 			var cfg struct {
 				Symbols []string `json:"symbols"`
 				StartTS int64    `json:"start_ts"`
 				EndTS   int64    `json:"end_ts"`
 			}
-			if json.Unmarshal(cfgJSON, &cfg) == nil {
+			if json.Unmarshal(run.ConfigJSON, &cfg) == nil {
 				entry.Symbols = cfg.Symbols
 				entry.StartTS = cfg.StartTS
 				entry.EndTS = cfg.EndTS
 			}
 		}
 
-		entries = append(entries, entry)
+		entries[i] = entry
 	}
-	return entries, rows.Err()
+	return entries, nil
 }
 
 // DeleteRun deletes run
 func (s *BacktestStore) DeleteRun(runID string) error {
-	_, err := s.db.Exec(`DELETE FROM backtest_runs WHERE run_id = ?`, runID)
-	return err
+	// Delete related records first (cascade may not work in all cases)
+	s.db.Where("run_id = ?", runID).Delete(&BacktestCheckpoint{})
+	s.db.Where("run_id = ?", runID).Delete(&BacktestEquity{})
+	s.db.Where("run_id = ?", runID).Delete(&BacktestTrade{})
+	s.db.Where("run_id = ?", runID).Delete(&BacktestMetrics{})
+	s.db.Where("run_id = ?", runID).Delete(&BacktestDecision{})
+
+	return s.db.Where("run_id = ?", runID).Delete(&BacktestRun{}).Error
 }
 
 // SaveConfig saves config
 func (s *BacktestStore) SaveConfig(runID, userID, template, customPrompt, provider, model string, override bool, configJSON []byte) error {
-	now := time.Now().UTC().Format(time.RFC3339)
 	if userID == "" {
 		userID = "default"
 	}
 
-	_, err := s.db.Exec(`
-		INSERT INTO backtest_runs (run_id, user_id, config_json, prompt_template, custom_prompt,
-		                           override_prompt, ai_provider, ai_model, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(run_id) DO NOTHING
-	`, runID, userID, configJSON, template, customPrompt, override, provider, model, now, now)
-	if err != nil {
-		return err
+	run := BacktestRun{
+		RunID:          runID,
+		UserID:         userID,
+		ConfigJSON:     configJSON,
+		PromptTemplate: template,
+		CustomPrompt:   customPrompt,
+		OverridePrompt: override,
+		AIProvider:     provider,
+		AIModel:        model,
 	}
-
-	_, err = s.db.Exec(`
-		UPDATE backtest_runs
-		SET user_id = ?, config_json = ?, prompt_template = ?, custom_prompt = ?,
-		    override_prompt = ?, ai_provider = ?, ai_model = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE run_id = ?
-	`, userID, configJSON, template, customPrompt, override, provider, model, runID)
-	return err
+	return s.db.Save(&run).Error
 }
 
 // LoadConfig loads config
 func (s *BacktestStore) LoadConfig(runID string) ([]byte, error) {
-	var payload []byte
-	err := s.db.QueryRow(`SELECT config_json FROM backtest_runs WHERE run_id = ?`, runID).Scan(&payload)
-	return payload, err
+	var run BacktestRun
+	err := s.db.Where("run_id = ?", runID).First(&run).Error
+	if err != nil {
+		return nil, err
+	}
+	return run.ConfigJSON, nil
 }

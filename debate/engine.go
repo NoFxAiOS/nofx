@@ -101,8 +101,8 @@ func (e *DebateEngine) InitializeClients(participants []*store.DebateParticipant
 			client = mcp.New()
 		}
 
-		// Configure client
-		client.SetAPIKey(aiModel.APIKey, aiModel.CustomAPIURL, aiModel.CustomModelName)
+		// Configure client (convert EncryptedString to string)
+		client.SetAPIKey(string(aiModel.APIKey), aiModel.CustomAPIURL, aiModel.CustomModelName)
 
 		e.clients[p.AIModelID] = client
 	}

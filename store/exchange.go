@@ -1,83 +1,68 @@
 package store
 
 import (
-	"database/sql"
 	"fmt"
+	"nofx/crypto"
 	"nofx/logger"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // ExchangeStore exchange storage
 type ExchangeStore struct {
-	db          *sql.DB
-	encryptFunc func(string) string
-	decryptFunc func(string) string
+	db *gorm.DB
 }
 
 // Exchange exchange configuration
 type Exchange struct {
-	ID                      string    `json:"id"`            // UUID
-	ExchangeType            string    `json:"exchange_type"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
-	AccountName             string    `json:"account_name"`  // User-defined account name
-	UserID                  string    `json:"user_id"`
-	Name                    string    `json:"name"` // Display name (auto-generated or user-defined)
-	Type                    string    `json:"type"` // "cex" or "dex"
-	Enabled                 bool      `json:"enabled"`
-	APIKey                  string    `json:"apiKey"`
-	SecretKey               string    `json:"secretKey"`
-	Passphrase              string    `json:"passphrase"` // OKX-specific
-	Testnet                 bool      `json:"testnet"`
-	HyperliquidWalletAddr   string    `json:"hyperliquidWalletAddr"`
-	AsterUser               string    `json:"asterUser"`
-	AsterSigner             string    `json:"asterSigner"`
-	AsterPrivateKey         string    `json:"asterPrivateKey"`
-	LighterWalletAddr       string    `json:"lighterWalletAddr"`
-	LighterPrivateKey       string    `json:"lighterPrivateKey"`
-	LighterAPIKeyPrivateKey string    `json:"lighterAPIKeyPrivateKey"`
-	LighterAPIKeyIndex      int       `json:"lighterAPIKeyIndex"`
-	CreatedAt               time.Time `json:"created_at"`
-	UpdatedAt               time.Time `json:"updated_at"`
+	ID                      string          `gorm:"primaryKey" json:"id"`
+	ExchangeType            string          `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
+	AccountName             string          `gorm:"column:account_name;not null;default:''" json:"account_name"`
+	UserID                  string          `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
+	Name                    string          `gorm:"not null" json:"name"`
+	Type                    string          `gorm:"not null" json:"type"` // "cex" or "dex"
+	Enabled                 bool            `gorm:"default:false" json:"enabled"`
+	APIKey                  crypto.EncryptedString `gorm:"column:api_key;default:''" json:"apiKey"`
+	SecretKey               crypto.EncryptedString `gorm:"column:secret_key;default:''" json:"secretKey"`
+	Passphrase              crypto.EncryptedString `gorm:"column:passphrase;default:''" json:"passphrase"`
+	Testnet                 bool            `gorm:"default:false" json:"testnet"`
+	HyperliquidWalletAddr   string          `gorm:"column:hyperliquid_wallet_addr;default:''" json:"hyperliquidWalletAddr"`
+	AsterUser               string          `gorm:"column:aster_user;default:''" json:"asterUser"`
+	AsterSigner             string          `gorm:"column:aster_signer;default:''" json:"asterSigner"`
+	AsterPrivateKey         crypto.EncryptedString `gorm:"column:aster_private_key;default:''" json:"asterPrivateKey"`
+	LighterWalletAddr       string          `gorm:"column:lighter_wallet_addr;default:''" json:"lighterWalletAddr"`
+	LighterPrivateKey       crypto.EncryptedString `gorm:"column:lighter_private_key;default:''" json:"lighterPrivateKey"`
+	LighterAPIKeyPrivateKey crypto.EncryptedString `gorm:"column:lighter_api_key_private_key;default:''" json:"lighterAPIKeyPrivateKey"`
+	LighterAPIKeyIndex      int             `gorm:"column:lighter_api_key_index;default:0" json:"lighterAPIKeyIndex"`
+	CreatedAt               time.Time       `json:"created_at"`
+	UpdatedAt               time.Time       `json:"updated_at"`
+}
+
+func (Exchange) TableName() string { return "exchanges" }
+
+// NewExchangeStore creates a new ExchangeStore
+func NewExchangeStore(db *gorm.DB) *ExchangeStore {
+	return &ExchangeStore{db: db}
 }
 
 func (s *ExchangeStore) initTables() error {
-	// Create new table structure with UUID as primary key
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS exchanges (
-			id TEXT PRIMARY KEY,
-			exchange_type TEXT NOT NULL DEFAULT '',
-			account_name TEXT NOT NULL DEFAULT '',
-			user_id TEXT NOT NULL DEFAULT 'default',
-			name TEXT NOT NULL,
-			type TEXT NOT NULL,
-			enabled BOOLEAN DEFAULT 0,
-			api_key TEXT DEFAULT '',
-			secret_key TEXT DEFAULT '',
-			passphrase TEXT DEFAULT '',
-			testnet BOOLEAN DEFAULT 0,
-			hyperliquid_wallet_addr TEXT DEFAULT '',
-			aster_user TEXT DEFAULT '',
-			aster_signer TEXT DEFAULT '',
-			aster_private_key TEXT DEFAULT '',
-			lighter_wallet_addr TEXT DEFAULT '',
-			lighter_private_key TEXT DEFAULT '',
-			lighter_api_key_private_key TEXT DEFAULT '',
-			lighter_api_key_index INTEGER DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		return err
+	// For PostgreSQL with existing table, skip AutoMigrate
+	if s.db.Dialector.Name() == "postgres" {
+		var tableExists int64
+		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'exchanges'`).Scan(&tableExists)
+		if tableExists > 0 {
+			// Still run data migrations
+			s.migrateToMultiAccount()
+			s.db.Model(&Exchange{}).Where("account_name = '' OR account_name IS NULL").Update("account_name", "Default")
+			return nil
+		}
 	}
 
-	// Migration: add new columns if not exists
-	s.db.Exec(`ALTER TABLE exchanges ADD COLUMN passphrase TEXT DEFAULT ''`)
-	s.db.Exec(`ALTER TABLE exchanges ADD COLUMN exchange_type TEXT NOT NULL DEFAULT ''`)
-	s.db.Exec(`ALTER TABLE exchanges ADD COLUMN account_name TEXT NOT NULL DEFAULT ''`)
-	s.db.Exec(`ALTER TABLE exchanges ADD COLUMN lighter_api_key_index INTEGER DEFAULT 0`)
+	if err := s.db.AutoMigrate(&Exchange{}); err != nil {
+		return err
+	}
 
 	// Run migration to multi-account if needed
 	if err := s.migrateToMultiAccount(); err != nil {
@@ -85,120 +70,65 @@ func (s *ExchangeStore) initTables() error {
 	}
 
 	// Fix empty account_name for existing records
-	s.db.Exec(`UPDATE exchanges SET account_name = 'Default' WHERE account_name = '' OR account_name IS NULL`)
+	s.db.Model(&Exchange{}).Where("account_name = '' OR account_name IS NULL").Update("account_name", "Default")
 
-	// Update trigger for new schema
-	s.db.Exec(`DROP TRIGGER IF EXISTS update_exchanges_updated_at`)
-	_, err = s.db.Exec(`
-		CREATE TRIGGER IF NOT EXISTS update_exchanges_updated_at
-		AFTER UPDATE ON exchanges
-		BEGIN
-			UPDATE exchanges SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-		END
-	`)
-	return err
+	return nil
 }
 
 // migrateToMultiAccount migrates old schema (id=exchange_type) to new schema (id=UUID)
 func (s *ExchangeStore) migrateToMultiAccount() error {
 	// Check if migration is needed by looking for old-style IDs (non-UUID)
-	var count int
-	err := s.db.QueryRow(`
-		SELECT COUNT(*) FROM exchanges
-		WHERE exchange_type = '' AND id IN ('binance', 'bybit', 'okx', 'bitget', 'hyperliquid', 'aster', 'lighter')
-	`).Scan(&count)
+	var count int64
+	err := s.db.Model(&Exchange{}).
+		Where("exchange_type = '' AND id IN ?", []string{"binance", "bybit", "okx", "bitget", "hyperliquid", "aster", "lighter"}).
+		Count(&count).Error
 	if err != nil {
 		return err
 	}
 
 	if count == 0 {
-		// No migration needed
 		return nil
 	}
 
 	logger.Infof("🔄 Migrating %d exchange records to multi-account schema...", count)
 
 	// Get all old records
-	rows, err := s.db.Query(`
-		SELECT id, user_id, name, type, enabled, api_key, secret_key,
-		       COALESCE(passphrase, '') as passphrase, testnet,
-		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-		       COALESCE(aster_user, '') as aster_user,
-		       COALESCE(aster_signer, '') as aster_signer,
-		       COALESCE(aster_private_key, '') as aster_private_key,
-		       COALESCE(lighter_wallet_addr, '') as lighter_wallet_addr,
-		       COALESCE(lighter_private_key, '') as lighter_private_key,
-		       COALESCE(lighter_api_key_private_key, '') as lighter_api_key_private_key
-		FROM exchanges
-		WHERE exchange_type = '' AND id IN ('binance', 'bybit', 'okx', 'bitget', 'hyperliquid', 'aster', 'lighter')
-	`)
+	var records []Exchange
+	err = s.db.Where("exchange_type = '' AND id IN ?", []string{"binance", "bybit", "okx", "bitget", "hyperliquid", "aster", "lighter"}).
+		Find(&records).Error
 	if err != nil {
 		return err
-	}
-	defer rows.Close()
-
-	type oldRecord struct {
-		id, userID, name, typ                                                                             string
-		enabled, testnet                                                                                  bool
-		apiKey, secretKey, passphrase                                                                     string
-		hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey                                    string
-		lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey                                     string
-	}
-
-	var records []oldRecord
-	for rows.Next() {
-		var r oldRecord
-		if err := rows.Scan(&r.id, &r.userID, &r.name, &r.typ, &r.enabled,
-			&r.apiKey, &r.secretKey, &r.passphrase, &r.testnet,
-			&r.hyperliquidWalletAddr, &r.asterUser, &r.asterSigner, &r.asterPrivateKey,
-			&r.lighterWalletAddr, &r.lighterPrivateKey, &r.lighterApiKeyPrivateKey); err != nil {
-			return err
-		}
-		records = append(records, r)
 	}
 
 	// Begin transaction
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		for _, r := range records {
+			newID := uuid.New().String()
+			oldID := r.ID // This is the exchange type (e.g., "binance")
 
-	// Migrate each record
-	for _, r := range records {
-		newID := uuid.New().String()
-		oldID := r.id // This is the exchange type (e.g., "binance")
+			// Update traders table to use new UUID
+			if err := tx.Exec("UPDATE traders SET exchange_id = ? WHERE exchange_id = ? AND user_id = ?",
+				newID, oldID, r.UserID).Error; err != nil {
+				logger.Errorf("Failed to update traders for exchange %s: %v", oldID, err)
+				return err
+			}
 
-		// Update traders table to use new UUID
-		_, err = tx.Exec(`UPDATE traders SET exchange_id = ? WHERE exchange_id = ? AND user_id = ?`,
-			newID, oldID, r.userID)
-		if err != nil {
-			logger.Errorf("Failed to update traders for exchange %s: %v", oldID, err)
-			return err
+			// Update the exchange record
+			if err := tx.Model(&Exchange{}).
+				Where("id = ? AND user_id = ?", oldID, r.UserID).
+				Updates(map[string]interface{}{
+					"id":            newID,
+					"exchange_type": oldID,
+					"account_name":  "Default",
+				}).Error; err != nil {
+				logger.Errorf("Failed to migrate exchange %s: %v", oldID, err)
+				return err
+			}
+
+			logger.Infof("✅ Migrated exchange %s -> UUID %s for user %s", oldID, newID, r.UserID)
 		}
-
-		// Update the exchange record
-		_, err = tx.Exec(`
-			UPDATE exchanges SET
-				id = ?,
-				exchange_type = ?,
-				account_name = ?
-			WHERE id = ? AND user_id = ?
-		`, newID, oldID, "Default", oldID, r.userID)
-		if err != nil {
-			logger.Errorf("Failed to migrate exchange %s: %v", oldID, err)
-			return err
-		}
-
-		logger.Infof("✅ Migrated exchange %s -> UUID %s for user %s", oldID, newID, r.userID)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	logger.Infof("✅ Multi-account migration completed successfully")
-	return nil
+		return nil
+	})
 }
 
 func (s *ExchangeStore) initDefaultData() error {
@@ -206,108 +136,24 @@ func (s *ExchangeStore) initDefaultData() error {
 	return nil
 }
 
-func (s *ExchangeStore) encrypt(plaintext string) string {
-	if s.encryptFunc != nil {
-		return s.encryptFunc(plaintext)
-	}
-	return plaintext
-}
-
-func (s *ExchangeStore) decrypt(encrypted string) string {
-	if s.decryptFunc != nil {
-		return s.decryptFunc(encrypted)
-	}
-	return encrypted
-}
-
 // List gets user's exchange list
 func (s *ExchangeStore) List(userID string) ([]*Exchange, error) {
-	rows, err := s.db.Query(`
-		SELECT id, COALESCE(exchange_type, '') as exchange_type, COALESCE(account_name, '') as account_name,
-		       user_id, name, type, enabled, api_key, secret_key,
-		       COALESCE(passphrase, '') as passphrase, testnet,
-		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-		       COALESCE(aster_user, '') as aster_user,
-		       COALESCE(aster_signer, '') as aster_signer,
-		       COALESCE(aster_private_key, '') as aster_private_key,
-		       COALESCE(lighter_wallet_addr, '') as lighter_wallet_addr,
-		       COALESCE(lighter_private_key, '') as lighter_private_key,
-		       COALESCE(lighter_api_key_private_key, '') as lighter_api_key_private_key,
-		       COALESCE(lighter_api_key_index, 0) as lighter_api_key_index,
-		       created_at, updated_at
-		FROM exchanges WHERE user_id = ? ORDER BY exchange_type, account_name
-	`, userID)
+	var exchanges []*Exchange
+	err := s.db.Where("user_id = ?", userID).Order("exchange_type, account_name").Find(&exchanges).Error
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	exchanges := make([]*Exchange, 0)
-	for rows.Next() {
-		var e Exchange
-		var createdAt, updatedAt string
-		err := rows.Scan(
-			&e.ID, &e.ExchangeType, &e.AccountName,
-			&e.UserID, &e.Name, &e.Type,
-			&e.Enabled, &e.APIKey, &e.SecretKey, &e.Passphrase, &e.Testnet,
-			&e.HyperliquidWalletAddr, &e.AsterUser, &e.AsterSigner, &e.AsterPrivateKey,
-			&e.LighterWalletAddr, &e.LighterPrivateKey, &e.LighterAPIKeyPrivateKey, &e.LighterAPIKeyIndex,
-			&createdAt, &updatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		e.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-		e.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
-		e.APIKey = s.decrypt(e.APIKey)
-		e.SecretKey = s.decrypt(e.SecretKey)
-		e.Passphrase = s.decrypt(e.Passphrase)
-		e.AsterPrivateKey = s.decrypt(e.AsterPrivateKey)
-		e.LighterPrivateKey = s.decrypt(e.LighterPrivateKey)
-		e.LighterAPIKeyPrivateKey = s.decrypt(e.LighterAPIKeyPrivateKey)
-		exchanges = append(exchanges, &e)
 	}
 	return exchanges, nil
 }
 
 // GetByID gets a specific exchange by UUID
 func (s *ExchangeStore) GetByID(userID, id string) (*Exchange, error) {
-	var e Exchange
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, COALESCE(exchange_type, '') as exchange_type, COALESCE(account_name, '') as account_name,
-		       user_id, name, type, enabled, api_key, secret_key,
-		       COALESCE(passphrase, '') as passphrase, testnet,
-		       COALESCE(hyperliquid_wallet_addr, '') as hyperliquid_wallet_addr,
-		       COALESCE(aster_user, '') as aster_user,
-		       COALESCE(aster_signer, '') as aster_signer,
-		       COALESCE(aster_private_key, '') as aster_private_key,
-		       COALESCE(lighter_wallet_addr, '') as lighter_wallet_addr,
-		       COALESCE(lighter_private_key, '') as lighter_private_key,
-		       COALESCE(lighter_api_key_private_key, '') as lighter_api_key_private_key,
-		       COALESCE(lighter_api_key_index, 0) as lighter_api_key_index,
-		       created_at, updated_at
-		FROM exchanges WHERE id = ? AND user_id = ?
-	`, id, userID).Scan(
-		&e.ID, &e.ExchangeType, &e.AccountName,
-		&e.UserID, &e.Name, &e.Type,
-		&e.Enabled, &e.APIKey, &e.SecretKey, &e.Passphrase, &e.Testnet,
-		&e.HyperliquidWalletAddr, &e.AsterUser, &e.AsterSigner, &e.AsterPrivateKey,
-		&e.LighterWalletAddr, &e.LighterPrivateKey, &e.LighterAPIKeyPrivateKey, &e.LighterAPIKeyIndex,
-		&createdAt, &updatedAt,
-	)
+	var exchange Exchange
+	err := s.db.Where("id = ? AND user_id = ?", id, userID).First(&exchange).Error
 	if err != nil {
 		return nil, err
 	}
-	e.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	e.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
-	e.APIKey = s.decrypt(e.APIKey)
-	e.SecretKey = s.decrypt(e.SecretKey)
-	e.Passphrase = s.decrypt(e.Passphrase)
-	e.AsterPrivateKey = s.decrypt(e.AsterPrivateKey)
-	e.LighterPrivateKey = s.decrypt(e.LighterPrivateKey)
-	e.LighterAPIKeyPrivateKey = s.decrypt(e.LighterAPIKeyPrivateKey)
-	return &e, nil
+	return &exchange, nil
 }
 
 // getExchangeNameAndType returns the display name and type for an exchange type
@@ -341,7 +187,6 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 	id := uuid.New().String()
 	name, typ := getExchangeNameAndType(exchangeType)
 
-	// If account name is empty, use "Default"
 	if accountName == "" {
 		accountName = "Default"
 	}
@@ -349,19 +194,29 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 	logger.Debugf("🔧 ExchangeStore.Create: userID=%s, exchangeType=%s, accountName=%s, id=%s",
 		userID, exchangeType, accountName, id)
 
-	_, err := s.db.Exec(`
-		INSERT INTO exchanges (id, exchange_type, account_name, user_id, name, type, enabled,
-		                       api_key, secret_key, passphrase, testnet,
-		                       hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
-		                       lighter_wallet_addr, lighter_private_key, lighter_api_key_private_key, lighter_api_key_index,
-		                       created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-	`, id, exchangeType, accountName, userID, name, typ, enabled,
-		s.encrypt(apiKey), s.encrypt(secretKey), s.encrypt(passphrase), testnet,
-		hyperliquidWalletAddr, asterUser, asterSigner, s.encrypt(asterPrivateKey),
-		lighterWalletAddr, s.encrypt(lighterPrivateKey), s.encrypt(lighterApiKeyPrivateKey), lighterApiKeyIndex)
+	exchange := &Exchange{
+		ID:                      id,
+		ExchangeType:            exchangeType,
+		AccountName:             accountName,
+		UserID:                  userID,
+		Name:                    name,
+		Type:                    typ,
+		Enabled:                 enabled,
+		APIKey:                  crypto.EncryptedString(apiKey),
+		SecretKey:               crypto.EncryptedString(secretKey),
+		Passphrase:              crypto.EncryptedString(passphrase),
+		Testnet:                 testnet,
+		HyperliquidWalletAddr:   hyperliquidWalletAddr,
+		AsterUser:               asterUser,
+		AsterSigner:             asterSigner,
+		AsterPrivateKey:         crypto.EncryptedString(asterPrivateKey),
+		LighterWalletAddr:       lighterWalletAddr,
+		LighterPrivateKey:       crypto.EncryptedString(lighterPrivateKey),
+		LighterAPIKeyPrivateKey: crypto.EncryptedString(lighterApiKeyPrivateKey),
+		LighterAPIKeyIndex:      lighterApiKeyIndex,
+	}
 
-	if err != nil {
+	if err := s.db.Create(exchange).Error; err != nil {
 		return "", err
 	}
 	return id, nil
@@ -373,53 +228,42 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 
 	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
-	setClauses := []string{
-		"enabled = ?",
-		"testnet = ?",
-		"hyperliquid_wallet_addr = ?",
-		"aster_user = ?",
-		"aster_signer = ?",
-		"lighter_wallet_addr = ?",
-		"lighter_api_key_index = ?",
-		"updated_at = datetime('now')",
+	updates := map[string]interface{}{
+		"enabled":                 enabled,
+		"testnet":                 testnet,
+		"hyperliquid_wallet_addr": hyperliquidWalletAddr,
+		"aster_user":              asterUser,
+		"aster_signer":            asterSigner,
+		"lighter_wallet_addr":     lighterWalletAddr,
+		"lighter_api_key_index":   lighterApiKeyIndex,
+		"updated_at":              time.Now(),
 	}
-	args := []interface{}{enabled, testnet, hyperliquidWalletAddr, asterUser, asterSigner, lighterWalletAddr, lighterApiKeyIndex}
 
+	// Only update encrypted fields if not empty
 	if apiKey != "" {
-		setClauses = append(setClauses, "api_key = ?")
-		args = append(args, s.encrypt(apiKey))
+		updates["api_key"] = crypto.EncryptedString(apiKey)
 	}
 	if secretKey != "" {
-		setClauses = append(setClauses, "secret_key = ?")
-		args = append(args, s.encrypt(secretKey))
+		updates["secret_key"] = crypto.EncryptedString(secretKey)
 	}
 	if passphrase != "" {
-		setClauses = append(setClauses, "passphrase = ?")
-		args = append(args, s.encrypt(passphrase))
+		updates["passphrase"] = crypto.EncryptedString(passphrase)
 	}
 	if asterPrivateKey != "" {
-		setClauses = append(setClauses, "aster_private_key = ?")
-		args = append(args, s.encrypt(asterPrivateKey))
+		updates["aster_private_key"] = crypto.EncryptedString(asterPrivateKey)
 	}
 	if lighterPrivateKey != "" {
-		setClauses = append(setClauses, "lighter_private_key = ?")
-		args = append(args, s.encrypt(lighterPrivateKey))
+		updates["lighter_private_key"] = crypto.EncryptedString(lighterPrivateKey)
 	}
 	if lighterApiKeyPrivateKey != "" {
-		setClauses = append(setClauses, "lighter_api_key_private_key = ?")
-		args = append(args, s.encrypt(lighterApiKeyPrivateKey))
+		updates["lighter_api_key_private_key"] = crypto.EncryptedString(lighterApiKeyPrivateKey)
 	}
 
-	args = append(args, id, userID)
-	query := fmt.Sprintf(`UPDATE exchanges SET %s WHERE id = ? AND user_id = ?`, strings.Join(setClauses, ", "))
-
-	result, err := s.db.Exec(query, args...)
-	if err != nil {
-		return err
+	result := s.db.Model(&Exchange{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates)
+	if result.Error != nil {
+		return result.Error
 	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return fmt.Errorf("exchange not found: id=%s, userID=%s", id, userID)
 	}
 	return nil
@@ -427,13 +271,16 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 
 // UpdateAccountName updates the account name for an exchange
 func (s *ExchangeStore) UpdateAccountName(userID, id, accountName string) error {
-	result, err := s.db.Exec(`UPDATE exchanges SET account_name = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`,
-		accountName, id, userID)
-	if err != nil {
-		return err
+	result := s.db.Model(&Exchange{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]interface{}{
+			"account_name": accountName,
+			"updated_at":   time.Now(),
+		})
+	if result.Error != nil {
+		return result.Error
 	}
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return fmt.Errorf("exchange not found: id=%s, userID=%s", id, userID)
 	}
 	return nil
@@ -441,12 +288,11 @@ func (s *ExchangeStore) UpdateAccountName(userID, id, accountName string) error 
 
 // Delete deletes an exchange account
 func (s *ExchangeStore) Delete(userID, id string) error {
-	result, err := s.db.Exec(`DELETE FROM exchanges WHERE id = ? AND user_id = ?`, id, userID)
-	if err != nil {
-		return err
+	result := s.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Exchange{})
+	if result.Error != nil {
+		return result.Error
 	}
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
+	if result.RowsAffected == 0 {
 		return fmt.Errorf("exchange not found: id=%s, userID=%s", id, userID)
 	}
 	logger.Infof("🗑️ Deleted exchange: id=%s, userID=%s", id, userID)
@@ -460,20 +306,25 @@ func (s *ExchangeStore) CreateLegacy(userID, id, name, typ string, enabled bool,
 
 	// Check if this is an old-style ID (exchange type as ID)
 	if id == "binance" || id == "bybit" || id == "okx" || id == "bitget" || id == "hyperliquid" || id == "aster" || id == "lighter" {
-		// Use new Create method with exchange type
 		_, err := s.Create(userID, id, "Default", enabled, apiKey, secretKey, "", testnet,
 			hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, "", "", "", 0)
 		return err
 	}
 
 	// Otherwise assume it's already a UUID
-	_, err := s.db.Exec(`
-		INSERT OR IGNORE INTO exchanges (id, exchange_type, account_name, user_id, name, type, enabled,
-		                                 api_key, secret_key, testnet,
-		                                 hyperliquid_wallet_addr, aster_user, aster_signer, aster_private_key,
-		                                 lighter_wallet_addr, lighter_private_key)
-		VALUES (?, '', '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '')
-	`, id, userID, name, typ, enabled, s.encrypt(apiKey), s.encrypt(secretKey), testnet,
-		hyperliquidWalletAddr, asterUser, asterSigner, s.encrypt(asterPrivateKey))
-	return err
+	exchange := &Exchange{
+		ID:                    id,
+		UserID:                userID,
+		Name:                  name,
+		Type:                  typ,
+		Enabled:               enabled,
+		APIKey:                crypto.EncryptedString(apiKey),
+		SecretKey:             crypto.EncryptedString(secretKey),
+		Testnet:               testnet,
+		HyperliquidWalletAddr: hyperliquidWalletAddr,
+		AsterUser:             asterUser,
+		AsterSigner:           asterSigner,
+		AsterPrivateKey:       crypto.EncryptedString(asterPrivateKey),
+	}
+	return s.db.Where("id = ?", id).FirstOrCreate(exchange).Error
 }

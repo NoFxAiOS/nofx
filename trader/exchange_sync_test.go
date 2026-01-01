@@ -1,12 +1,13 @@
 package trader
 
 import (
-	"database/sql"
 	"nofx/store"
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // TestScenario represents a trading scenario to test
@@ -116,11 +117,12 @@ func runStandardTests(t *testing.T, exchangeName string) {
 	for _, scenario := range scenarios {
 		t.Run(scenario.Name, func(t *testing.T) {
 			// Setup database
-			db, err := sql.Open("sqlite3", ":memory:")
+			db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+				Logger: logger.Default.LogMode(logger.Silent),
+			})
 			if err != nil {
 				t.Fatalf("Failed to create test database: %v", err)
 			}
-			defer db.Close()
 
 			positionStore := store.NewPositionStore(db)
 			if err := positionStore.InitTables(); err != nil {
@@ -199,11 +201,12 @@ func TestAllExchangesStandardScenarios(t *testing.T) {
 
 // TestPositionAccumulationBug tests that positions don't accumulate incorrectly
 func TestPositionAccumulationBug(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
-	defer db.Close()
 
 	positionStore := store.NewPositionStore(db)
 	if err := positionStore.InitTables(); err != nil {
@@ -283,11 +286,12 @@ func TestPositionAccumulationBug(t *testing.T) {
 
 // TestQuantityPrecision tests handling of quantity precision issues
 func TestQuantityPrecision(t *testing.T) {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		t.Fatalf("Failed to create test database: %v", err)
 	}
-	defer db.Close()
 
 	positionStore := store.NewPositionStore(db)
 	if err := positionStore.InitTables(); err != nil {

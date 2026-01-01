@@ -1,29 +1,32 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // StrategyStore strategy storage
 type StrategyStore struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // Strategy strategy configuration
 type Strategy struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	IsActive    bool      `json:"is_active"`    // whether it is active (a user can only have one active strategy)
-	IsDefault   bool      `json:"is_default"`   // whether it is a system default strategy
-	Config      string    `json:"config"`       // strategy configuration in JSON format
+	ID          string    `gorm:"primaryKey" json:"id"`
+	UserID      string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
+	Name        string    `gorm:"not null" json:"name"`
+	Description string    `gorm:"default:''" json:"description"`
+	IsActive    bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
+	IsDefault   bool      `gorm:"column:is_default;default:false" json:"is_default"`
+	Config      string    `gorm:"not null;default:'{}'" json:"config"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+func (Strategy) TableName() string { return "strategies" }
 
 // StrategyConfig strategy configuration details (JSON structure)
 type StrategyConfig struct {
@@ -136,24 +139,6 @@ type ExternalDataSource struct {
 }
 
 // RiskControlConfig risk control configuration
-// All parameters are clearly defined without ambiguity:
-//
-// Position Limits:
-//   - MaxPositions: max number of coins held simultaneously (CODE ENFORCED)
-//
-// Trading Leverage (exchange leverage for opening positions):
-//   - BTCETHMaxLeverage: BTC/ETH max exchange leverage (AI guided)
-//   - AltcoinMaxLeverage: Altcoin max exchange leverage (AI guided)
-//
-// Position Value Limits (single position notional value / account equity):
-//   - BTCETHMaxPositionValueRatio: BTC/ETH max = equity × ratio (CODE ENFORCED)
-//   - AltcoinMaxPositionValueRatio: Altcoin max = equity × ratio (CODE ENFORCED)
-//
-// Risk Controls:
-//   - MaxMarginUsage: max margin utilization percentage (CODE ENFORCED)
-//   - MinPositionSize: minimum position size in USDT (CODE ENFORCED)
-//   - MinRiskRewardRatio: min take_profit / stop_loss ratio (AI guided)
-//   - MinConfidence: min AI confidence to open position (AI guided)
 type RiskControlConfig struct {
 	// Max number of coins held simultaneously (CODE ENFORCED)
 	MaxPositions int `json:"max_positions"`
@@ -179,38 +164,21 @@ type RiskControlConfig struct {
 	MinConfidence int `json:"min_confidence"`
 }
 
+// NewStrategyStore creates a new StrategyStore
+func NewStrategyStore(db *gorm.DB) *StrategyStore {
+	return &StrategyStore{db: db}
+}
+
 func (s *StrategyStore) initTables() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS strategies (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL DEFAULT '',
-			name TEXT NOT NULL,
-			description TEXT DEFAULT '',
-			is_active BOOLEAN DEFAULT 0,
-			is_default BOOLEAN DEFAULT 0,
-			config TEXT NOT NULL DEFAULT '{}',
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		return err
+	// For PostgreSQL with existing table, skip AutoMigrate
+	if s.db.Dialector.Name() == "postgres" {
+		var tableExists int64
+		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'strategies'`).Scan(&tableExists)
+		if tableExists > 0 {
+			return nil
+		}
 	}
-
-	// create indexes
-	_, _ = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategies_user_id ON strategies(user_id)`)
-	_, _ = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategies_is_active ON strategies(is_active)`)
-
-	// trigger: automatically update updated_at on update
-	_, err = s.db.Exec(`
-		CREATE TRIGGER IF NOT EXISTS update_strategies_updated_at
-		AFTER UPDATE ON strategies
-		BEGIN
-			UPDATE strategies SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-		END
-	`)
-
-	return err
+	return s.db.AutoMigrate(&Strategy{})
 }
 
 func (s *StrategyStore) initDefaultData() error {
@@ -322,65 +290,40 @@ Only enter positions when multiple signals resonate. Freely use any effective an
 
 // Create create a strategy
 func (s *StrategyStore) Create(strategy *Strategy) error {
-	_, err := s.db.Exec(`
-		INSERT INTO strategies (id, user_id, name, description, is_active, is_default, config)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, strategy.ID, strategy.UserID, strategy.Name, strategy.Description, strategy.IsActive, strategy.IsDefault, strategy.Config)
-	return err
+	return s.db.Create(strategy).Error
 }
 
 // Update update a strategy
 func (s *StrategyStore) Update(strategy *Strategy) error {
-	_, err := s.db.Exec(`
-		UPDATE strategies SET
-			name = ?, description = ?, config = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ? AND user_id = ?
-	`, strategy.Name, strategy.Description, strategy.Config, strategy.ID, strategy.UserID)
-	return err
+	return s.db.Model(&Strategy{}).
+		Where("id = ? AND user_id = ?", strategy.ID, strategy.UserID).
+		Updates(map[string]interface{}{
+			"name":        strategy.Name,
+			"description": strategy.Description,
+			"config":      strategy.Config,
+			"updated_at":  time.Now(),
+		}).Error
 }
 
 // Delete delete a strategy
 func (s *StrategyStore) Delete(userID, id string) error {
 	// do not allow deleting system default strategy
-	var isDefault bool
-	s.db.QueryRow(`SELECT is_default FROM strategies WHERE id = ?`, id).Scan(&isDefault)
-	if isDefault {
+	var st Strategy
+	if err := s.db.Where("id = ?", id).First(&st).Error; err == nil && st.IsDefault {
 		return fmt.Errorf("cannot delete system default strategy")
 	}
 
-	_, err := s.db.Exec(`DELETE FROM strategies WHERE id = ? AND user_id = ?`, id, userID)
-	return err
+	return s.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Strategy{}).Error
 }
 
 // List get user's strategy list
 func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
-	// get user's own strategies + system default strategy
-	rows, err := s.db.Query(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE user_id = ? OR is_default = 1
-		ORDER BY is_default DESC, created_at DESC
-	`, userID)
+	var strategies []*Strategy
+	err := s.db.Where("user_id = ? OR is_default = ?", userID, true).
+		Order("is_default DESC, created_at DESC").
+		Find(&strategies).Error
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	var strategies []*Strategy
-	for rows.Next() {
-		var st Strategy
-		var createdAt, updatedAt string
-		err := rows.Scan(
-			&st.ID, &st.UserID, &st.Name, &st.Description,
-			&st.IsActive, &st.IsDefault, &st.Config,
-			&createdAt, &updatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-		st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
-		strategies = append(strategies, &st)
 	}
 	return strategies, nil
 }
@@ -388,93 +331,52 @@ func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
 // Get get a single strategy
 func (s *StrategyStore) Get(userID, id string) (*Strategy, error) {
 	var st Strategy
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE id = ? AND (user_id = ? OR is_default = 1)
-	`, id, userID).Scan(
-		&st.ID, &st.UserID, &st.Name, &st.Description,
-		&st.IsActive, &st.IsDefault, &st.Config,
-		&createdAt, &updatedAt,
-	)
+	err := s.db.Where("id = ? AND (user_id = ? OR is_default = ?)", id, userID, true).
+		First(&st).Error
 	if err != nil {
 		return nil, err
 	}
-	st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &st, nil
 }
 
 // GetActive get user's currently active strategy
 func (s *StrategyStore) GetActive(userID string) (*Strategy, error) {
 	var st Strategy
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE user_id = ? AND is_active = 1
-	`, userID).Scan(
-		&st.ID, &st.UserID, &st.Name, &st.Description,
-		&st.IsActive, &st.IsDefault, &st.Config,
-		&createdAt, &updatedAt,
-	)
-	if err == sql.ErrNoRows {
+	err := s.db.Where("user_id = ? AND is_active = ?", userID, true).First(&st).Error
+	if err == gorm.ErrRecordNotFound {
 		// no active strategy, return system default strategy
 		return s.GetDefault()
 	}
 	if err != nil {
 		return nil, err
 	}
-	st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &st, nil
 }
 
 // GetDefault get system default strategy
 func (s *StrategyStore) GetDefault() (*Strategy, error) {
 	var st Strategy
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE is_default = 1
-		LIMIT 1
-	`).Scan(
-		&st.ID, &st.UserID, &st.Name, &st.Description,
-		&st.IsActive, &st.IsDefault, &st.Config,
-		&createdAt, &updatedAt,
-	)
+	err := s.db.Where("is_default = ?", true).First(&st).Error
 	if err != nil {
 		return nil, err
 	}
-	st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &st, nil
 }
 
 // SetActive set active strategy (will first deactivate other strategies)
 func (s *StrategyStore) SetActive(userID, strategyID string) error {
-	// begin transaction
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// first deactivate all strategies for the user
+		if err := tx.Model(&Strategy{}).Where("user_id = ?", userID).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
 
-	// first deactivate all strategies for the user
-	_, err = tx.Exec(`UPDATE strategies SET is_active = 0 WHERE user_id = ?`, userID)
-	if err != nil {
-		return err
-	}
-
-	// activate specified strategy
-	_, err = tx.Exec(`UPDATE strategies SET is_active = 1 WHERE id = ? AND (user_id = ? OR is_default = 1)`, strategyID, userID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		// activate specified strategy
+		return tx.Model(&Strategy{}).
+			Where("id = ? AND (user_id = ? OR is_default = ?)", strategyID, userID, true).
+			Update("is_active", true).Error
+	})
 }
 
 // Duplicate duplicate a strategy (used to create custom strategy based on default strategy)

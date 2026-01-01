@@ -549,32 +549,34 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	var aiClient mcp.AIClient
 	provider := model.Provider
 
+	// Convert EncryptedString to string for API key
+	apiKey := string(model.APIKey)
 	switch provider {
 	case "qwen":
 		aiClient = mcp.NewQwenClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "deepseek":
 		aiClient = mcp.NewDeepSeekClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "claude":
 		aiClient = mcp.NewClaudeClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "kimi":
 		aiClient = mcp.NewKimiClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "gemini":
 		aiClient = mcp.NewGeminiClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "grok":
 		aiClient = mcp.NewGrokClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "openai":
 		aiClient = mcp.NewOpenAIClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	default:
 		// Use generic client
 		aiClient = mcp.NewClient()
-		aiClient.SetAPIKey(model.APIKey, model.CustomAPIURL, model.CustomModelName)
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	}
 
 	// Call AI API

@@ -159,10 +159,23 @@ export default function TerminalHero() {
                         <span className="text-stroke-1 text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold via-white to-nofx-gold animate-shimmer bg-[length:200%_auto]">TRADING</span>
                     </h1>
 
-                    <p className="max-w-xl text-zinc-400 text-lg mb-10 font-light leading-relaxed">
+                    <p className="max-w-xl text-zinc-400 text-lg mb-6 font-light leading-relaxed">
                         The World's First Open-Source Agentic Trading OS.
                         Deploy autonomous high-frequency trading agents powered by advanced LLMs.
                     </p>
+
+                    {/* Market Access Strip - Prominent Display */}
+                    <div className="flex flex-wrap gap-4 mb-12 font-mono">
+                        {['CRYPTO', 'US STOCKS', 'FOREX', 'METALS'].map((market) => (
+                            <div key={market} className="flex items-center gap-3 px-4 py-2 rounded bg-zinc-900 border border-zinc-700 text-white font-bold tracking-wider hover:border-nofx-gold hover:shadow-[0_0_15px_rgba(255,215,0,0.3)] transition-all duration-300">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-success opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-success"></span>
+                                </span>
+                                {market}
+                            </div>
+                        ))}
+                    </div>
 
                     {/* Command Line Input Simulation */}
                     <div className="w-full max-w-lg h-12 bg-black/50 border border-zinc-800 rounded flex items-center px-4 mb-10 font-mono text-sm shadow-2xl backdrop-blur-sm group hover:border-nofx-gold/50 transition-colors cursor-text" onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}>
@@ -269,7 +282,7 @@ export default function TerminalHero() {
 import { OFFICIAL_LINKS } from '../../../constants/branding'
 
 function CommunityStats() {
-    const { stars, forks, contributors, isLoading, error } = useGitHubStats('tinkle-community', 'nofx')
+    const { stars, forks, contributors, isLoading, error } = useGitHubStats('NoFxAiOS', 'nofx')
 
     const stats = [
         {

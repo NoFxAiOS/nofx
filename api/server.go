@@ -54,7 +54,7 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
 	// Create debate store and handler
-	debateStore := store.NewDebateStore(st.DB())
+	debateStore := store.NewDebateStore(st.GormDB())
 	if err := debateStore.InitSchema(); err != nil {
 		logger.Errorf("Failed to initialize debate schema: %v", err)
 	}
@@ -124,7 +124,6 @@ func (s *Server) setupRoutes() {
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
 		// Market data (no authentication required)
-		api.GET("/klines", s.handleKlines)
 		api.GET("/klines", s.handleKlines)
 		api.GET("/symbols", s.handleSymbols)
 
@@ -576,12 +575,13 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		var createErr error
 
 		// Use ExchangeType (e.g., "binance") instead of ID (UUID)
+		// Convert EncryptedString fields to string
 		switch exchangeCfg.ExchangeType {
 		case "binance":
-			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+			tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 		case "hyperliquid":
 			tempTrader, createErr = trader.NewHyperliquidTrader(
-				exchangeCfg.APIKey, // private key
+				string(exchangeCfg.APIKey), // private key
 				exchangeCfg.HyperliquidWalletAddr,
 				exchangeCfg.Testnet,
 			)
@@ -589,31 +589,31 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			tempTrader, createErr = trader.NewAsterTrader(
 				exchangeCfg.AsterUser,
 				exchangeCfg.AsterSigner,
-				exchangeCfg.AsterPrivateKey,
+				string(exchangeCfg.AsterPrivateKey),
 			)
 		case "bybit":
 			tempTrader = trader.NewBybitTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
 			)
 		case "okx":
 			tempTrader = trader.NewOKXTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
-				exchangeCfg.Passphrase,
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+				string(exchangeCfg.Passphrase),
 			)
 		case "bitget":
 			tempTrader = trader.NewBitgetTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
-				exchangeCfg.Passphrase,
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+				string(exchangeCfg.Passphrase),
 			)
 		case "lighter":
-			if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 				// Lighter only supports mainnet
 				tempTrader, createErr = trader.NewLighterTraderV2(
 					exchangeCfg.LighterWalletAddr,
-					exchangeCfg.LighterAPIKeyPrivateKey,
+					string(exchangeCfg.LighterAPIKeyPrivateKey),
 					exchangeCfg.LighterAPIKeyIndex,
 					false, // Always use mainnet for Lighter
 				)
@@ -1095,12 +1095,13 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	var createErr error
 
 	// Use ExchangeType (e.g., "binance") instead of ExchangeID (which is now UUID)
+	// Convert EncryptedString fields to string
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+		tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 	case "hyperliquid":
 		tempTrader, createErr = trader.NewHyperliquidTrader(
-			exchangeCfg.APIKey,
+			string(exchangeCfg.APIKey),
 			exchangeCfg.HyperliquidWalletAddr,
 			exchangeCfg.Testnet,
 		)
@@ -1108,31 +1109,31 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		tempTrader, createErr = trader.NewAsterTrader(
 			exchangeCfg.AsterUser,
 			exchangeCfg.AsterSigner,
-			exchangeCfg.AsterPrivateKey,
+			string(exchangeCfg.AsterPrivateKey),
 		)
 	case "bybit":
 		tempTrader = trader.NewBybitTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
 		)
 	case "okx":
 		tempTrader = trader.NewOKXTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "bitget":
 		tempTrader = trader.NewBitgetTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "lighter":
-		if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
 			tempTrader, createErr = trader.NewLighterTraderV2(
 				exchangeCfg.LighterWalletAddr,
-				exchangeCfg.LighterAPIKeyPrivateKey,
+				string(exchangeCfg.LighterAPIKeyPrivateKey),
 				exchangeCfg.LighterAPIKeyIndex,
 				false, // Always use mainnet for Lighter
 			)
@@ -1246,12 +1247,13 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 	var createErr error
 
 	// Use ExchangeType (e.g., "binance") instead of ExchangeID (which is now UUID)
+	// Convert EncryptedString fields to string
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+		tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 	case "hyperliquid":
 		tempTrader, createErr = trader.NewHyperliquidTrader(
-			exchangeCfg.APIKey,
+			string(exchangeCfg.APIKey),
 			exchangeCfg.HyperliquidWalletAddr,
 			exchangeCfg.Testnet,
 		)
@@ -1259,31 +1261,31 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		tempTrader, createErr = trader.NewAsterTrader(
 			exchangeCfg.AsterUser,
 			exchangeCfg.AsterSigner,
-			exchangeCfg.AsterPrivateKey,
+			string(exchangeCfg.AsterPrivateKey),
 		)
 	case "bybit":
 		tempTrader = trader.NewBybitTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
 		)
 	case "okx":
 		tempTrader = trader.NewOKXTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "bitget":
 		tempTrader = trader.NewBitgetTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "lighter":
-		if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
 			tempTrader, createErr = trader.NewLighterTraderV2(
 				exchangeCfg.LighterWalletAddr,
-				exchangeCfg.LighterAPIKeyPrivateKey,
+				string(exchangeCfg.LighterAPIKeyPrivateKey),
 				exchangeCfg.LighterAPIKeyIndex,
 				false, // Always use mainnet for Lighter
 			)

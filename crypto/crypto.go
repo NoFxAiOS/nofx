@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -391,4 +392,78 @@ func GenerateDataKey() (string, error) {
 		return "", err
 	}
 	return base64.StdEncoding.EncodeToString(key), nil
+}
+
+// ============================================================================
+// EncryptedString - GORM custom type for automatic encryption/decryption
+// ============================================================================
+
+// Global crypto service for EncryptedString
+var globalCryptoService *CryptoService
+
+// SetGlobalCryptoService sets the global crypto service for EncryptedString
+func SetGlobalCryptoService(cs *CryptoService) {
+	globalCryptoService = cs
+}
+
+// EncryptedString is a custom type that automatically encrypts on save and decrypts on load
+// Usage: Use EncryptedString instead of string for sensitive fields in GORM models
+type EncryptedString string
+
+// Scan implements sql.Scanner - called when reading from database
+// Automatically decrypts the value
+func (es *EncryptedString) Scan(value interface{}) error {
+	if value == nil {
+		*es = ""
+		return nil
+	}
+
+	var str string
+	switch v := value.(type) {
+	case string:
+		str = v
+	case []byte:
+		str = string(v)
+	default:
+		*es = ""
+		return nil
+	}
+
+	// Decrypt if crypto service is set
+	if globalCryptoService != nil && str != "" && globalCryptoService.IsEncryptedStorageValue(str) {
+		decrypted, err := globalCryptoService.DecryptFromStorage(str)
+		if err != nil {
+			// If decryption fails, return the original value
+			*es = EncryptedString(str)
+		} else {
+			*es = EncryptedString(decrypted)
+		}
+	} else {
+		*es = EncryptedString(str)
+	}
+	return nil
+}
+
+// Value implements driver.Valuer - called when writing to database
+// Automatically encrypts the value
+func (es EncryptedString) Value() (driver.Value, error) {
+	if es == "" {
+		return "", nil
+	}
+
+	// Encrypt if crypto service is set
+	if globalCryptoService != nil {
+		encrypted, err := globalCryptoService.EncryptForStorage(string(es))
+		if err != nil {
+			// If encryption fails, return the original value
+			return string(es), nil
+		}
+		return encrypted, nil
+	}
+	return string(es), nil
+}
+
+// String returns the plaintext string value
+func (es EncryptedString) String() string {
+	return string(es)
 }

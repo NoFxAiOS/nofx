@@ -238,3 +238,44 @@ func getEnv(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// convertQuery converts ? placeholders to $1, $2 for PostgreSQL
+// and handles other database-specific syntax differences
+func convertQuery(query string, dbType DBType) string {
+	if dbType != DBTypePostgres {
+		return query
+	}
+	result := query
+
+	// Convert ? to $1, $2, etc. for PostgreSQL
+	index := 1
+	for strings.Contains(result, "?") {
+		result = strings.Replace(result, "?", fmt.Sprintf("$%d", index), 1)
+		index++
+	}
+
+	// Convert datetime('now') to CURRENT_TIMESTAMP
+	result = strings.ReplaceAll(result, "datetime('now')", "CURRENT_TIMESTAMP")
+
+	// Remove datetime() wrapper for ORDER BY (PostgreSQL timestamps sort correctly)
+	// This handles patterns like "ORDER BY datetime(column) DESC"
+	result = strings.ReplaceAll(result, "datetime(updated_at)", "updated_at")
+	result = strings.ReplaceAll(result, "datetime(created_at)", "created_at")
+
+	return result
+}
+
+// boolDefault returns database-appropriate boolean default for COALESCE
+// Use in queries like: COALESCE(column, %s)
+func boolDefault(dbType DBType, value bool) string {
+	if dbType == DBTypePostgres {
+		if value {
+			return "TRUE"
+		}
+		return "FALSE"
+	}
+	if value {
+		return "1"
+	}
+	return "0"
+}

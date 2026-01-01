@@ -824,7 +824,7 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 		return fmt.Errorf("AI model %s is not enabled yet", model.Name)
 	}
 
-	apiKey := strings.TrimSpace(model.APIKey)
+	apiKey := strings.TrimSpace(string(model.APIKey))
 	if apiKey == "" {
 		return fmt.Errorf("AI model %s is missing API Key, please configure it in the system first", model.Name)
 	}

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Bot, TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
+import { TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
 
 const agents = [
     {

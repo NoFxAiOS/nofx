@@ -664,46 +664,46 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		StrategyConfig:       strategyConfig,
 	}
 
-	// Set API keys based on exchange type
+	// Set API keys based on exchange type (convert EncryptedString to string)
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
-		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
+		traderConfig.BinanceAPIKey = string(exchangeCfg.APIKey)
+		traderConfig.BinanceSecretKey = string(exchangeCfg.SecretKey)
 	case "bybit":
-		traderConfig.BybitAPIKey = exchangeCfg.APIKey
-		traderConfig.BybitSecretKey = exchangeCfg.SecretKey
+		traderConfig.BybitAPIKey = string(exchangeCfg.APIKey)
+		traderConfig.BybitSecretKey = string(exchangeCfg.SecretKey)
 	case "okx":
-		traderConfig.OKXAPIKey = exchangeCfg.APIKey
-		traderConfig.OKXSecretKey = exchangeCfg.SecretKey
-		traderConfig.OKXPassphrase = exchangeCfg.Passphrase
+		traderConfig.OKXAPIKey = string(exchangeCfg.APIKey)
+		traderConfig.OKXSecretKey = string(exchangeCfg.SecretKey)
+		traderConfig.OKXPassphrase = string(exchangeCfg.Passphrase)
 	case "bitget":
-		traderConfig.BitgetAPIKey = exchangeCfg.APIKey
-		traderConfig.BitgetSecretKey = exchangeCfg.SecretKey
-		traderConfig.BitgetPassphrase = exchangeCfg.Passphrase
+		traderConfig.BitgetAPIKey = string(exchangeCfg.APIKey)
+		traderConfig.BitgetSecretKey = string(exchangeCfg.SecretKey)
+		traderConfig.BitgetPassphrase = string(exchangeCfg.Passphrase)
 	case "hyperliquid":
-		traderConfig.HyperliquidPrivateKey = exchangeCfg.APIKey
+		traderConfig.HyperliquidPrivateKey = string(exchangeCfg.APIKey)
 		traderConfig.HyperliquidWalletAddr = exchangeCfg.HyperliquidWalletAddr
 	case "aster":
 		traderConfig.AsterUser = exchangeCfg.AsterUser
 		traderConfig.AsterSigner = exchangeCfg.AsterSigner
-		traderConfig.AsterPrivateKey = exchangeCfg.AsterPrivateKey
+		traderConfig.AsterPrivateKey = string(exchangeCfg.AsterPrivateKey)
 	case "lighter":
-		traderConfig.LighterPrivateKey = exchangeCfg.LighterPrivateKey
+		traderConfig.LighterPrivateKey = string(exchangeCfg.LighterPrivateKey)
 		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
-		traderConfig.LighterAPIKeyPrivateKey = exchangeCfg.LighterAPIKeyPrivateKey
+		traderConfig.LighterAPIKeyPrivateKey = string(exchangeCfg.LighterAPIKeyPrivateKey)
 		traderConfig.LighterAPIKeyIndex = exchangeCfg.LighterAPIKeyIndex
 		traderConfig.LighterTestnet = exchangeCfg.Testnet
 	}
 
-	// Set API keys based on AI model
+	// Set API keys based on AI model (convert EncryptedString to string)
 	switch aiModelCfg.Provider {
 	case "qwen":
-		traderConfig.QwenKey = aiModelCfg.APIKey
+		traderConfig.QwenKey = string(aiModelCfg.APIKey)
 	case "deepseek":
-		traderConfig.DeepSeekKey = aiModelCfg.APIKey
+		traderConfig.DeepSeekKey = string(aiModelCfg.APIKey)
 	default:
 		// For other providers (grok, openai, claude, gemini, kimi, etc.), use CustomAPIKey
-		traderConfig.CustomAPIKey = aiModelCfg.APIKey
+		traderConfig.CustomAPIKey = string(aiModelCfg.APIKey)
 	}
 
 	// Create trader instance

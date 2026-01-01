@@ -20,6 +20,16 @@ type Config struct {
 	RegistrationEnabled bool
 	MaxUsers            int // Maximum number of users allowed (0 = unlimited, default = 10)
 
+	// Database configuration
+	DBType     string // sqlite or postgres
+	DBPath     string // SQLite database file path
+	DBHost     string // PostgreSQL host
+	DBPort     int    // PostgreSQL port
+	DBUser     string // PostgreSQL user
+	DBPassword string // PostgreSQL password
+	DBName     string // PostgreSQL database name
+	DBSSLMode  string // PostgreSQL SSL mode
+
 	// Security configuration
 	// TransportEncryption enables browser-side encryption for API keys
 	// Requires HTTPS or localhost. Set to false for HTTP access via IP.
@@ -43,6 +53,14 @@ func Init() {
 		RegistrationEnabled:   true,
 		MaxUsers:              10,   // Default: 10 users allowed
 		ExperienceImprovement: true, // Default: enabled to help improve the product
+		// Database defaults
+		DBType:    "sqlite",
+		DBPath:    "data/data.db",
+		DBHost:    "localhost",
+		DBPort:    5432,
+		DBUser:    "postgres",
+		DBName:    "nofx",
+		DBSSLMode: "disable",
 	}
 
 	// Load from environment variables
@@ -85,6 +103,34 @@ func Init() {
 	cfg.AlpacaAPIKey = os.Getenv("ALPACA_API_KEY")
 	cfg.AlpacaSecretKey = os.Getenv("ALPACA_SECRET_KEY")
 	cfg.TwelveDataKey = os.Getenv("TWELVEDATA_API_KEY")
+
+	// Database configuration
+	if v := os.Getenv("DB_TYPE"); v != "" {
+		cfg.DBType = strings.ToLower(v)
+	}
+	if v := os.Getenv("DB_PATH"); v != "" {
+		cfg.DBPath = v
+	}
+	if v := os.Getenv("DB_HOST"); v != "" {
+		cfg.DBHost = v
+	}
+	if v := os.Getenv("DB_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil && port > 0 {
+			cfg.DBPort = port
+		}
+	}
+	if v := os.Getenv("DB_USER"); v != "" {
+		cfg.DBUser = v
+	}
+	if v := os.Getenv("DB_PASSWORD"); v != "" {
+		cfg.DBPassword = v
+	}
+	if v := os.Getenv("DB_NAME"); v != "" {
+		cfg.DBName = v
+	}
+	if v := os.Getenv("DB_SSLMODE"); v != "" {
+		cfg.DBSSLMode = v
+	}
 
 	global = cfg
 

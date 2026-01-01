@@ -1,8 +1,15 @@
 import { motion } from 'framer-motion'
-import { Activity, BarChart3, Globe, Wifi, Server, Database, Lock } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-const generateLog = (id) => {
+interface LogEntry {
+    id: number
+    time: string
+    type: string
+    msg: string
+    color: string
+}
+
+const generateLog = (id: number): LogEntry => {
     const types = ['EXE', 'ARB', 'LIQ', 'NET', 'SYS']
     const pairs = ['BTC-USDT', 'ETH-PERP', 'SOL-USDT', 'BNB-BUSD']
     const actions = ['BUY', 'SELL', 'SHORT', 'LONG']
@@ -37,7 +44,7 @@ const generateLog = (id) => {
 }
 
 export default function LiveFeed() {
-    const [logs, setLogs] = useState([])
+    const [logs, setLogs] = useState<LogEntry[]>([])
 
     useEffect(() => {
         // Initial population

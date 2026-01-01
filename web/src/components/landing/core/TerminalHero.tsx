@@ -1,224 +1,324 @@
 import { motion } from 'framer-motion'
-import { ArrowRight, Terminal as TerminalIcon, Star, GitFork, Users, Activity, Layers, Cpu, Network } from 'lucide-react'
+import { ArrowRight, Shield, Activity, CircuitBoard, Cpu, Wifi, Globe, Lock, Zap, Star, GitFork, Users, MessageCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { OFFICIAL_LINKS } from '../../../constants/branding'
+import { httpClient } from '../../../lib/httpClient'
+import { useGitHubStats } from '../../../hooks/useGitHubStats'
 
 export default function TerminalHero() {
-    const [text, setText] = useState('')
-    const [githubData, setGithubData] = useState({ stars: '9.4k', forks: '2.4k', subscribers: '74' })
-    const fullText = "INITIALIZING NOFX KERNEL... CRYPTO | STOCKS | FOREX | METALS... SYSTEM READY."
+
+    // Real-time price state
+    const [prices, setPrices] = useState<Record<string, string>>({
+        BTC: '...',
+        ETH: '...',
+        SOL: '...',
+        BNB: '...',
+        XRP: '...',
+        DOGE: '...',
+        ADA: '...',
+        AVAX: '...'
+    })
 
     useEffect(() => {
-        // Typing effect
-        let i = 0
-        const timer = setInterval(() => {
-            setText(fullText.slice(0, i))
-            i++
-            if (i > fullText.length) clearInterval(timer)
-        }, 30)
+        const fetchPrices = async () => {
+            const symbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX']
 
-        // Fetch GitHub Data
-        fetch('https://api.github.com/repos/NoFxAiOS/nofx')
-            .then(res => res.json())
-            .then(data => {
-                if (data.stargazers_count) {
-                    setGithubData({
-                        stars: (data.stargazers_count / 1000).toFixed(1) + 'k',
-                        forks: (data.forks_count / 1000).toFixed(1) + 'k',
-                        subscribers: data.subscribers_count?.toString() || '74'
-                    })
-                }
-            })
-            .catch(err => console.error("Failed to fetch GitHub stats", err))
+            // We use Promise.all to fetch them in parallel for now, or sequentially if rate limited. 
+            // Parallel is better for UI responsiveness.
+            try {
+                const results = await Promise.all(symbols.map(async (sym) => {
+                    try {
+                        const res = await httpClient.get(`/api/klines?symbol=${sym}USDT&interval=1m&limit=1`)
+                        if (res.success && res.data?.length > 0) {
+                            const closePrice = parseFloat(res.data[0].close)
+                            // Format price: < 1 use 4 decimals, > 1 use 2
+                            const formatted = closePrice < 1
+                                ? closePrice.toFixed(4)
+                                : closePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            return { symbol: sym, price: formatted }
+                        }
+                    } catch (err) {
+                        // ignore individual failures
+                    }
+                    return null
+                }))
 
-        return () => clearInterval(timer)
+                const newPrices: Record<string, string> = {}
+                results.forEach(r => {
+                    if (r) newPrices[r.symbol] = r.price
+                })
+
+                setPrices(prev => ({ ...prev, ...newPrices }))
+
+            } catch (e) {
+                console.error("Failed to fetch market prices", e)
+            }
+        }
+
+        fetchPrices()
+        const interval = setInterval(fetchPrices, 5000)
+        return () => clearInterval(interval)
     }, [])
 
     return (
-        <section className="relative w-full min-h-screen bg-nofx-bg text-nofx-text overflow-hidden flex flex-col items-center justify-center pt-20">
+        <section className="relative w-full min-h-screen bg-nofx-bg text-nofx-text overflow-hidden flex flex-col pt-20">
 
-            {/* 1. ARCHITECTURAL BACKGROUND / HOLOGRAPHIC CONSTRUCT */}
-            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+            {/* BACKGROUND LAYERS */}
+            {/* 1. Grid */}
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
+            <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
 
-                {/* The Mascot "Ghost" in the Machine - PREMIUM & CLEAN */}
-                <div className="absolute right-0 bottom-0 w-[80vw] lg:w-[45vw] h-[85vh] opacity-90 mix-blend-normal flex items-end justify-end">
-                    <div className="relative w-full h-full">
-                        <img
-                            src="/images/nofx_mascot.png"
-                            alt=""
-                            className="w-full h-full object-contain object-bottom drop-shadow-[0_0_50px_rgba(240,185,11,0.2)]"
-                            style={{
-                                maskImage: 'linear-gradient(to top, black 60%, transparent 100%)',
-                                filter: 'grayscale(100%) contrast(110%) brightness(110%) sepia(20%) hue-rotate(320deg)'
-                            }}
-                        />
+            {/* 2. World Map / Data Viz Background (Abstract) */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                <div className="w-[80vw] h-[80vw] rounded-full border border-nofx-gold/20 animate-pulse-slow"></div>
+                <div className="absolute w-[60vw] h-[60vw] rounded-full border border-dashed border-nofx-accent/20 animate-[spin_60s_linear_infinite]"></div>
+            </div>
 
-                        {/* Clean Horizontal Scanline Overlay */}
-                        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSIxIiBmaWxsPSJyZ2JhKDAsIDAsIDAsIDAuMykiIC8+Cjwvc3ZnPg==')] opacity-50 mix-blend-overlay pointer-events-none" />
+            {/* 3. Gradient Spots */}
+            <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-nofx-gold/10 rounded-full blur-[120px] pointer-events-none"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-nofx-accent/5 rounded-full blur-[120px] pointer-events-none"></div>
 
-                        {/* Subtle Glow Behind */}
-                        <div className="absolute right-10 bottom-10 w-64 h-64 bg-nofx-gold/20 rounded-full blur-[100px] -z-10" />
+            {/* CONTENT GRID */}
+            <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 max-w-[1800px] mx-auto w-full px-6 h-full pb-20 pt-10 pointer-events-none">
+
+                {/* LEFT COLUMN: TELEMETRY & STATUS */}
+                <div className="hidden lg:flex col-span-3 flex-col justify-between h-full border-r border-white/5 pr-8 py-10 pointer-events-auto">
+
+                    {/* Top: System Health */}
+                    <div className="space-y-6">
+                        <div className="tech-border p-4 bg-black/40 backdrop-blur-sm">
+                            <h3 className="text-xs font-mono text-nofx-gold mb-4 flex items-center gap-2">
+                                <Activity className="w-3 h-3" /> SYSTEM_DIAGNOSTICS
+                            </h3>
+                            <div className="space-y-3 font-mono text-[10px] text-zinc-400">
+                                <div className="flex justify-between items-center">
+                                    <span>KERNEL_LATENCY</span>
+                                    <span className="text-nofx-accent">12ms</span>
+                                </div>
+                                <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div className="w-[90%] h-full bg-nofx-accent/50"></div>
+                                </div>
+
+                                <div className="flex justify-between items-center">
+                                    <span>MEMORY_INTEGRITY</span>
+                                    <span className="text-nofx-success">100%</span>
+                                </div>
+                                <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div className="w-full h-full bg-nofx-success/50"></div>
+                                </div>
+
+                                <div className="flex justify-between items-center">
+                                    <span>UPTIME</span>
+                                    <span className="text-white">99.999%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 border border-zinc-800/50 rounded bg-zinc-900/20">
+                            <div className="flex items-center gap-3 text-zinc-500 mb-2">
+                                <Shield className="w-4 h-4" />
+                                <span className="text-[10px] font-mono tracking-widest">SECURITY PROTOCOLS</span>
+                            </div>
+                            <div className="flex gap-1">
+                                <div className="h-1 flex-1 bg-nofx-gold"></div>
+                                <div className="h-1 flex-1 bg-nofx-gold"></div>
+                                <div className="h-1 flex-1 bg-nofx-gold"></div>
+                                <div className="h-1 flex-1 bg-zinc-800"></div>
+                            </div>
+                            <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">LEVEL 3 ACTIVATE</div>
+                        </div>
+                    </div>
+
+                    {/* Bottom: Network Log */}
+                    <div className="font-mono text-[10px] text-zinc-600 space-y-1 opacity-70">
+                        <div>&gt; CONNECTING TO MAINNET... OK</div>
+                        <div>&gt; SYNCING NODES (424/424)... OK</div>
+                        <div>&gt; LOADING ASSETS... DONE</div>
+                        <div className="animate-pulse">&gt; AWAITING USER INPUT_</div>
                     </div>
                 </div>
 
-                {/* Clean Geometric Grid */}
-                <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-zinc-500" />
-                        </pattern>
-                    </defs>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
-                </svg>
-            </div>
+                {/* CENTER COLUMN: MAIN ACTION */}
+                <div className="col-span-1 lg:col-span-6 flex flex-col items-center justify-center text-center relative z-20 pointer-events-auto">
 
-            <div className="relative z-10 flex flex-col items-center text-center max-w-[1400px] px-6 w-full h-full justify-center">
+                    {/* Project Identity Chip */}
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8 inline-flex items-center gap-3 px-4 py-2 rounded-full border border-nofx-gold/20 bg-nofx-gold/5 backdrop-blur-md"
+                    >
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-gold opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-gold"></span>
+                        </span>
+                        <span className="text-xs font-mono text-nofx-gold tracking-widest">NOFX OPEN-SOURCE AGENTIC OS</span>
+                    </motion.div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full items-center">
+                    {/* Main Title - Massive & Impactful */}
+                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.8] mb-6 select-none bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-zinc-600">
+                        AGENTIC<br />
+                        <span className="text-stroke-1 text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold via-white to-nofx-gold animate-shimmer bg-[length:200%_auto]">TRADING</span>
+                    </h1>
 
-                    {/* LEFT COLUMN: Main System Interface */}
-                    <div className="col-span-1 lg:col-span-8 text-left z-30 flex flex-col justify-center h-full">
+                    <p className="max-w-xl text-zinc-400 text-lg mb-10 font-light leading-relaxed">
+                        The World's First Open-Source Agentic Trading OS.
+                        Deploy autonomous high-frequency trading agents powered by advanced LLMs.
+                    </p>
 
-                        {/* System Status Tag */}
-                        <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex flex-wrap items-center gap-3 mb-8"
+                    {/* Command Line Input Simulation */}
+                    <div className="w-full max-w-lg h-12 bg-black/50 border border-zinc-800 rounded flex items-center px-4 mb-10 font-mono text-sm shadow-2xl backdrop-blur-sm group hover:border-nofx-gold/50 transition-colors cursor-text" onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}>
+                        <span className="text-nofx-success mr-2">➜</span>
+                        <span className="text-nofx-accent mr-2">~</span>
+                        <span className="text-zinc-500">deploy agent --strategy=hft</span>
+                        <span className="w-2 h-4 bg-nofx-gold ml-1 animate-pulse"></span>
+                    </div>
+
+                    {/* CTA Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
+                        <button
+                            onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}
+                            className="group relative overflow-hidden bg-nofx-gold text-black px-8 py-4 font-bold font-mono tracking-wider hover:scale-105 transition-transform duration-200"
+                            style={{ clipPath: 'polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%)' }}
                         >
-                            <div className="px-3 py-1 border border-nofx-gold/30 bg-nofx-gold/5 rounded-sm text-nofx-gold text-xs font-mono flex items-center gap-2 shadow-[0_0_15px_rgba(240,185,11,0.2)]">
-                                <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full animate-pulse" />
-                                SYSTEM ONLINE
-                            </div>
-                        </motion.div>
+                            <span className="relative z-10 flex items-center gap-2">
+                                INITIALIZE PROTOCOL <ArrowRight className="w-4 h-4" />
+                            </span>
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                        </button>
+                    </div>
 
-                        {/* Main Headline with Project Specifics */}
-                        <motion.div
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="relative"
-                        >
-                            <h1 className="text-6xl md:text-8xl xl:text-9xl font-black tracking-tighter leading-[0.85] mb-8 text-white">
-                                AGENTIC <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold via-white to-nofx-gold animate-shimmer bg-[length:200%_100%]">TRADING OS</span>
-                            </h1>
+                    {/* Community Stats Row */}
+                    <CommunityStats />
 
-                            {/* SVG Connector Line */}
-                            <div className="absolute -left-10 top-2 bottom-2 w-px bg-zinc-800 hidden lg:block">
-                                <div className="absolute top-0 left-[-1px] w-[3px] h-8 bg-nofx-gold" />
-                                <div className="absolute bottom-0 left-[-1px] w-[3px] h-8 bg-zinc-600" />
-                            </div>
-                        </motion.div>
+                </div>
+            </div>
 
-                        {/* Typing Terminal Output */}
-                        <div className="h-24 mb-10 font-mono text-zinc-400 text-sm flex flex-col justify-start gap-3 max-w-2xl border-l-2 border-zinc-800 pl-6">
-                            <div className="flex items-center gap-2 text-nofx-gold">
-                                <span>&gt;</span> {text}<span className="animate-pulse bg-nofx-gold w-2 h-4 block"></span>
-                            </div>
+            {/* RIGHT COLUMN: HOLOGRAPHIC DISPLAY - Absolute Overlay for "Far Right" Effect */}
+            <div className="absolute top-0 right-0 h-full w-[45vw] hidden lg:flex pointer-events-none items-center justify-center z-0">
+                <div className="relative w-full h-full flex items-center justify-center perspective-1000">
+                    {/* 3D Hologram Effect Container */}
+                    <div className="relative w-full h-[90%] flex items-center justify-center transform-style-3d rotate-y-[-12deg]">
 
-                            {/* Clean Markets Row */}
-                            <div className="flex gap-6 text-[10px] md:text-xs text-zinc-500 font-bold tracking-widest uppercase">
-                                <span className="flex items-center gap-2 hover:text-white transition-colors"><Network className="w-3 h-3" /> CRYPTO</span>
-                                <span className="flex items-center gap-2 hover:text-white transition-colors"><Activity className="w-3 h-3" /> STOCKS</span>
-                                <span className="flex items-center gap-2 hover:text-white transition-colors"><Layers className="w-3 h-3" /> FOREX</span>
-                                <span className="flex items-center gap-2 hover:text-white transition-colors"><Cpu className="w-3 h-3" /> METALS</span>
-                            </div>
-                        </div>
+                        {/* Scanning Grid behind Mascot */}
+                        <div className="absolute inset-x-0 top-[10%] bottom-[10%] bg-[linear-gradient(rgba(0,240,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.05)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]"></div>
 
-                        {/* Primary Actions */}
-                        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-lg">
-                            <button
-                                onClick={() => document.getElementById('market-scanner')?.scrollIntoView({ behavior: 'smooth' })}
-                                className="group relative px-8 py-4 bg-nofx-gold text-black font-bold font-mono hover:bg-white transition-all flex items-center justify-between min-w-[200px] hover:shadow-[0_0_20px_rgba(240,185,11,0.4)]"
-                                style={{ clipPath: 'polygon(0 0, 100% 0, 100% 80%, 90% 100%, 0% 100%)' }}
-                            >
-                                <span>DEPLOY TRADERS</span>
-                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                            </button>
-
-                            <a
-                                href={OFFICIAL_LINKS.github}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-8 py-4 border border-zinc-700 bg-black/50 backdrop-blur-sm text-zinc-300 font-mono hover:border-nofx-accent hover:text-nofx-accent transition-all flex items-center justify-between min-w-[200px]"
-                                style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 10% 100%, 0% 80%)' }}
-                            >
-                                <span>SOURCE CODE</span>
-                                <TerminalIcon className="w-4 h-4" />
-                            </a>
+                        {/* The Mascot Image with Glitch/Holo Effects */}
+                        <div className="relative z-10 w-full h-full opacity-90 transition-all duration-500 hover:opacity-100 group flex flex-col justify-end pointer-events-auto">
+                            <div className="absolute inset-0 bg-nofx-accent/10 blur-[80px] rounded-full animate-pulse-slow transition-colors duration-500 group-hover:bg-nofx-gold/40"></div>
+                            <img
+                                src="/images/nofx_mascot.png"
+                                alt="Agent NoFX"
+                                className="w-full h-full object-contain object-bottom filter drop-shadow-[0_0_25px_rgba(0,240,255,0.2)] contrast-110 saturate-0 group-hover:saturate-100 group-hover:drop-shadow-[0_0_35px_rgba(234,179,8,0.5)] transition-all duration-500"
+                                style={{ maskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)' }}
+                            />
+                            {/* Holo Scan Line */}
+                            <div className="absolute w-full h-2 bg-nofx-accent/30 drop-shadow-[0_0_10px_rgba(0,240,255,0.8)] top-0 animate-scan-fast pointer-events-none"></div>
                         </div>
                     </div>
 
-                    {/* RIGHT COLUMN: Modules & Data HUD */}
-                    <div className="col-span-1 lg:col-span-4 flex flex-col gap-6 mt-12 lg:mt-0 z-20">
+                    {/* Floating Data Widgets around Hologram */}
+                    <motion.div
+                        animate={{ y: [0, -10, 0] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                        className="absolute top-[30%] left-[10%] bg-black/80 border border-nofx-accent/30 p-2 rounded backdrop-blur-md shadow-neon-blue"
+                    >
+                        <Cpu className="w-5 h-5 text-nofx-accent" />
+                    </motion.div>
 
-                        {/* Module 1: GitHub Intelligence */}
-                        <div className="border border-zinc-800 bg-black/80 backdrop-blur-md p-6 relative group overflow-hidden">
-                            <div className="absolute top-0 right-0 w-20 h-20 bg-nofx-gold/5 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-150" />
+                    <motion.div
+                        animate={{ y: [0, 10, 0] }}
+                        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                        className="absolute bottom-[20%] right-[20%] bg-black/80 border border-nofx-gold/30 p-2 rounded backdrop-blur-md shadow-neon"
+                    >
+                        <Lock className="w-5 h-5 text-nofx-gold" />
+                    </motion.div>
 
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="text-xs font-mono text-zinc-500 flex items-center gap-2">
-                                    <Users className="w-4 h-4 text-nofx-gold" /> COMMUNITY UPLINK
-                                </div>
-                                <div className="flex gap-1">
-                                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                                </div>
-                            </div>
+                </div>
+            </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <div className="text-2xl font-bold text-white flex items-center gap-1">
-                                        {githubData.stars} <Star className="w-3 h-3 text-nofx-gold fill-nofx-gold" />
-                                    </div>
-                                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Active Star-gazers</div>
-                                </div>
-                                <div>
-                                    <div className="text-2xl font-bold text-white flex items-center gap-1">
-                                        {githubData.forks} <GitFork className="w-3 h-3 text-zinc-500" />
-                                    </div>
-                                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Protocol Forks</div>
-                                </div>
-                            </div>
-                        </div>
+            {/* FLOATING TICKER FOOTER */}
+            <div className="absolute bottom-0 w-full bg-black/80 border-t border-zinc-800/50 backdrop-blur-md z-30 overflow-hidden py-2 flex items-center">
+                <div className="flex animate-marquee whitespace-nowrap gap-12 text-xs font-mono text-zinc-500 px-4">
+                    <span className="flex items-center gap-2"><Globe className="w-3 h-3 text-zinc-600" /> GLOBAL MARKET ACCESS</span>
+                    <span className="flex items-center gap-2 text-nofx-gold"><Zap className="w-3 h-3" /> FLASH LOANS ENABLED</span>
+                    <span className="flex items-center gap-2"><Wifi className="w-3 h-3 text-green-500" /> LOW LATENCY LINK: 12ms</span>
 
-                        {/* Module 2: System Capabilities (Specific to NoFX) */}
-                        <div className="border border-zinc-800 bg-black/60 backdrop-blur-sm p-6 space-y-3 hidden md:block">
-                            <div className="text-xs font-mono text-zinc-500 mb-2">ACTIVE MODULES</div>
+                    {/* Dynamic Coins */}
+                    {Object.entries(prices).map(([symbol, price]) => (
+                        <span key={symbol} className="flex items-center gap-2">
+                            {symbol.toUpperCase()}/USDT <span className="text-nofx-success">${price}</span>
+                        </span>
+                    ))}
 
-                            <div className="flex justify-between items-center text-sm font-mono border-b border-zinc-900 pb-2">
-                                <span className="text-zinc-300">STRATEGY STUDIO</span>
-                                <span className="text-green-500 text-xs">READY</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm font-mono border-b border-zinc-900 pb-2">
-                                <span className="text-zinc-300">DEBATE ARENA</span>
-                                <span className="text-green-500 text-xs text-nofx-accent animate-pulse">Running</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm font-mono pb-2">
-                                <span className="text-zinc-300">BACKTEST LAB</span>
-                                <span className="text-zinc-500 text-xs">Idle</span>
-                            </div>
-                        </div>
+                    <span className="flex items-center gap-2"><CircuitBoard className="w-3 h-3 text-nofx-accent" /> AI MODEL: GEMINI-PRO-1.5</span>
 
+                    {/* Duplicate sequence for seamless loop effect (basic set) */}
+                    {Object.entries(prices).map(([symbol, price]) => (
+                        <span key={`${symbol} -dup`} className="flex items-center gap-2 md:hidden">
+                            {symbol.toUpperCase()}/USDT <span className="text-nofx-success">${price}</span>
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            {/* CRT OVERLAY (Global) */}
+            <div className="absolute inset-0 crt-overlay pointer-events-none z-50 opacity-40"></div>
+        </section >
+    )
+}
+
+import { OFFICIAL_LINKS } from '../../../constants/branding'
+
+function CommunityStats() {
+    const { stars, forks, contributors, isLoading, error } = useGitHubStats('tinkle-community', 'nofx')
+
+    const stats = [
+        {
+            label: 'GITHUB STARS',
+            value: isLoading ? '...' : (error ? '1.2k+' : stars.toLocaleString()),
+            icon: Star,
+            color: 'text-yellow-400',
+            href: OFFICIAL_LINKS.github
+        },
+        {
+            label: 'FORKS',
+            value: isLoading ? '...' : (error ? '240+' : forks.toLocaleString()),
+            icon: GitFork,
+            color: 'text-blue-400',
+            href: `${OFFICIAL_LINKS.github}/fork`
+        },
+        {
+            label: 'CONTRIBUTORS',
+            value: isLoading ? '...' : (contributors > 0 ? contributors : '50+'),
+            icon: Users,
+            color: 'text-green-400',
+            href: `${OFFICIAL_LINKS.github}/graphs/contributors`
+        },
+        {
+            label: 'DEV COMMUNITY',
+            value: '5,800+', // Hardcoded as per user request
+            icon: MessageCircle,
+            color: 'text-blue-500',
+            href: OFFICIAL_LINKS.telegram
+        }
+    ]
+
+    return (
+        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-4xl">
+            {stats.map((stat, i) => (
+                <a
+                    key={i}
+                    href={stat.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center justify-center p-3 rounded bg-black/40 border border-zinc-800/50 backdrop-blur-sm group hover:border-nofx-gold/30 transition-all cursor-pointer hover:bg-white/5"
+                >
+                    <div className="flex items-center gap-2 mb-1">
+                        <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                        <span className="text-[10px] font-mono text-zinc-500 tracking-wider">{stat.label}</span>
                     </div>
-
-                </div>
-
-            </div>
-
-            {/* Decorative Footer */}
-            <div className="absolute bottom-0 w-full border-t border-zinc-800 bg-black/90 backdrop-blur-md p-3 flex flex-wrap justify-between items-center text-[10px] md:text-xs text-zinc-500 font-mono z-20">
-                <div className="flex gap-6 px-4">
-                    <span className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-nofx-gold/50 rounded-full" />
-                        NOFX-OS
-                    </span>
-                    <span className="hidden sm:inline">24H VOL: $42.8M</span>
-                    <span className="hidden sm:inline">ACTIVE AGENTS: 1,024</span>
-                </div>
-                <div className="px-4 flex gap-4">
-                    <span className="text-nofx-gold">ENCRYPTED CONNECTION</span>
-                </div>
-            </div>
-        </section>
+                    <span className="text-xl font-bold font-mono text-white group-hover:text-nofx-gold transition-colors">{stat.value}</span>
+                </a>
+            ))}
+        </div>
     )
 }

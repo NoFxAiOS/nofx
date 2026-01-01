@@ -1,83 +1,126 @@
 import { motion } from 'framer-motion'
-import { Bot, TrendingUp, Layers } from 'lucide-react'
+import { Bot, TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
 
 const agents = [
-    { name: "Alpha-1", type: "Scalper", apy: "142%", winRate: "68%", exposure: "Low", avatar: "/images/nofx_mascot.png", color: "text-nofx-gold" },
-    { name: "Beta-X", type: "Swing", apy: "89%", winRate: "55%", exposure: "Med", icon: TrendingUp, color: "text-blue-400" },
-    { name: "Gamma-Ray", type: "Arbitrage", apy: "24%", winRate: "99%", exposure: "Zero", icon: Layers, color: "text-purple-400" },
+    {
+        name: "ALPHA-1",
+        class: "SCALPER",
+        desc: "High-frequency microstructure exploitation.",
+        apy: "142%",
+        winRate: "68%",
+        risk: "HIGH",
+        color: "text-nofx-gold",
+        border: "border-nofx-gold/50",
+        bg_glow: "shadow-[0_0_30px_rgba(240,185,11,0.1)]",
+        icon: Zap
+    },
+    {
+        name: "BETA-X",
+        class: "SWING_OPS",
+        desc: "Multi-day trend extraction engine.",
+        apy: "89%",
+        winRate: "55%",
+        risk: "MED",
+        color: "text-blue-400",
+        border: "border-blue-400/30",
+        bg_glow: "shadow-[0_0_30px_rgba(96,165,250,0.1)]",
+        icon: TrendingUp
+    },
+    {
+        name: "GAMMA-RAY",
+        class: "ARBITRAGE",
+        desc: "Risk-free spatial price equalization.",
+        apy: "24%",
+        winRate: "99%",
+        risk: "ZERO",
+        color: "text-purple-400",
+        border: "border-purple-400/30",
+        bg_glow: "shadow-[0_0_30px_rgba(192,132,252,0.1)]",
+        icon: Layers
+    },
 ]
 
 export default function AgentGrid() {
     return (
-        <section id="market-scanner" className="py-24 bg-nofx-bg relative">
-            <div className="max-w-7xl mx-auto px-6">
+        <section id="market-scanner" className="py-24 bg-nofx-bg relative overflow-hidden">
 
-                <div className="flex items-center gap-4 mb-12">
-                    <div className="w-2 h-8 bg-nofx-gold" />
-                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
-                        Deployable <span className="text-nofx-gold">Agents</span>
-                    </h2>
+            {/* Background Details */}
+            <div className="absolute top-0 right-0 p-10 opacity-20 pointer-events-none">
+                <Hexagon className="w-64 h-64 text-zinc-800" strokeWidth={0.5} />
+            </div>
+
+            <div className="max-w-7xl mx-auto px-6 relative z-10">
+
+                <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+                    <div>
+                        <div className="flex items-center gap-2 text-nofx-gold font-mono text-xs mb-2 tracking-widest uppercase">
+                            <Crosshair className="w-4 h-4" /> Operator Select
+                        </div>
+                        <h2 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter">
+                            Available <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold to-white">Units</span>
+                        </h2>
+                    </div>
+                    <div className="font-mono text-right text-xs text-zinc-500 max-w-xs">
+                        SELECT AN AUTONOMOUS AGENT TO BEGIN DEPLOYMENT. UNITS ARE PRE-TRAINED ON HISTORICAL TICKS.
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     {agents.map((agent, i) => {
                         const Icon = agent.icon
                         return (
                             <motion.div
                                 key={i}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                whileInView={{ opacity: 1, scale: 1 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                whileInView={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.1 }}
-                                className={`relative bg-zinc-900/50 border border-zinc-800 p-6 overflow-hidden hover:border-zinc-600 transition-colors group ${i === 0 ? 'border-nofx-gold/50 shadow-[0_0_30px_rgba(240,185,11,0.1)]' : ''}`}
+                                className={`group relative bg-black/40 backdrop-blur-sm border ${agent.border} overflow-hidden hover:bg-zinc-900/40 transition-all duration-300 ${agent.bg_glow}`}
+                                style={{ clipPath: 'polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%)' }}
                             >
-                                {/* Header */}
-                                <div className="flex justify-between items-start mb-6">
-                                    <div>
-                                        <div className="text-zinc-400 text-xs font-mono uppercase mb-1">{agent.type} CLASS</div>
-                                        <div className="text-2xl font-bold text-white flex items-center gap-2">
-                                            {agent.name}
-                                            {i === 0 && <span className="text-[10px] bg-nofx-gold text-black px-1.5 py-0.5 rounded font-bold">TOP RATED</span>}
+                                {/* Top "Hinge" decoration */}
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+
+                                <div className="p-8 relative z-10">
+                                    {/* Header */}
+                                    <div className="flex justify-between items-start mb-6">
+                                        <div className="p-3 bg-zinc-900/80 rounded border border-zinc-700">
+                                            <Icon className={`w-8 h-8 ${agent.color}`} />
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-mono text-zinc-500 uppercase">Class</div>
+                                            <div className={`font-bold font-mono tracking-wider ${agent.color}`}>{agent.class}</div>
                                         </div>
                                     </div>
-                                    <Bot className={`w-8 h-8 ${agent.color}`} />
+
+                                    {/* Name & Desc */}
+                                    <h3 className="text-3xl font-bold text-white mb-2 tracking-tight group-hover:text-nofx-accent transition-colors">{agent.name}</h3>
+                                    <p className="text-zinc-500 text-sm mb-8 leading-relaxed h-10">{agent.desc}</p>
+
+                                    {/* Stats Grid */}
+                                    <div className="grid grid-cols-3 gap-px bg-zinc-800/50 border border-zinc-800 rounded overflow-hidden mb-8">
+                                        <div className="bg-black/60 p-3 text-center group-hover:bg-zinc-900/60 transition-colors">
+                                            <div className="text-[10px] text-zinc-500 uppercase font-mono mb-1">APY</div>
+                                            <div className="text-green-400 font-bold">{agent.apy}</div>
+                                        </div>
+                                        <div className="bg-black/60 p-3 text-center group-hover:bg-zinc-900/60 transition-colors">
+                                            <div className="text-[10px] text-zinc-500 uppercase font-mono mb-1">Win %</div>
+                                            <div className="text-white font-bold">{agent.winRate}</div>
+                                        </div>
+                                        <div className="bg-black/60 p-3 text-center group-hover:bg-zinc-900/60 transition-colors">
+                                            <div className="text-[10px] text-zinc-500 uppercase font-mono mb-1">Risk</div>
+                                            <div className={`${agent.color} font-bold`}>{agent.risk}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Btn */}
+                                    <button className={`w-full py-4 text-xs font-bold font-mono uppercase tracking-[0.2em] border border-zinc-700 hover:border-${agent.color === 'text-nofx-gold' ? 'nofx-gold' : 'white'} hover:bg-white/5 transition-all flex items-center justify-center gap-2 group-hover:text-white`}>
+                                        <span className={agent.color}>[</span> INITIALIZE <span className={agent.color}>]</span>
+                                    </button>
                                 </div>
 
-                                {/* Stats Grid */}
-                                <div className="grid grid-cols-3 gap-2 mb-6 font-mono text-sm">
-                                    <div className="bg-black/40 p-2 rounded border border-zinc-800 group-hover:border-zinc-700 transition-colors">
-                                        <div className="text-zinc-500 text-[10px] uppercase">APY</div>
-                                        <div className="text-green-400 font-bold">{agent.apy}</div>
-                                    </div>
-                                    <div className="bg-black/40 p-2 rounded border border-zinc-800 group-hover:border-zinc-700 transition-colors">
-                                        <div className="text-zinc-500 text-[10px] uppercase">Win Rate</div>
-                                        <div className={`font-bold ${agent.color}`}>{agent.winRate}</div>
-                                    </div>
-                                    <div className="bg-black/40 p-2 rounded border border-zinc-800 group-hover:border-zinc-700 transition-colors">
-                                        <div className="text-zinc-500 text-[10px] uppercase">Risk</div>
-                                        <div className="text-white font-bold">{agent.exposure}</div>
-                                    </div>
-                                </div>
-
-                                {/* Visual Asset (Avatar or Abstract Icon) */}
-                                <div className="absolute right-[-20px] bottom-[-20px] opacity-10 group-hover:opacity-20 transition-all duration-500 group-hover:scale-110 pointer-events-none">
-                                    {agent.avatar ? (
-                                        <img
-                                            src={agent.avatar}
-                                            alt="Agent"
-                                            className="w-40 h-40 object-cover grayscale mix-blend-screen"
-                                        />
-                                    ) : (
-                                        Icon && <Icon strokeWidth={1} className={`w-40 h-40 ${agent.color}`} />
-                                    )}
-                                </div>
-
-                                {/* Action */}
-                                <button className={`w-full py-3 font-bold uppercase tracking-wider text-sm transition-colors ${i === 0
-                                    ? 'bg-nofx-gold text-black hover:bg-white'
-                                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                                    }`}>
-                                    Initialize Agent
-                                </button>
+                                {/* Decorative Background Elements */}
+                                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-gradient-to-br from-white/5 to-transparent rounded-full blur-2xl group-hover:opacity-50 transition-opacity opacity-20"></div>
+                                <div className="absolute inset-0 bg-scanlines opacity-20 pointer-events-none"></div>
 
                             </motion.div>
                         )

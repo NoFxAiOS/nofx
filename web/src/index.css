@@ -13,21 +13,27 @@ html {
 :root {
   /* NoFX Neo-Gold Design System */
   --nofx-gold: #F0B90B;
-  --nofx-bg: #0B0E11;
+  --nofx-bg: #05070A;
   --nofx-accent: #00F0FF;
-  --nofx-glass: rgba(30, 35, 41, 0.6);
+  --nofx-glass: rgba(5, 7, 10, 0.7);
   --nofx-border: rgba(240, 185, 11, 0.2);
 
-  --background: #0B0E11;
-  --header-bg: rgba(11, 14, 17, 0.9);
-  /* Glass header */
-  --glass-bg: rgba(11, 14, 17, 0.6);
-  --glass-border: rgba(240, 185, 11, 0.1);
+  /* Cinematic Glows */
+  --glow-primary: 0 0 20px rgba(240, 185, 11, 0.3);
+  --glow-accent: 0 0 20px rgba(0, 240, 255, 0.3);
+  --glow-text: 0 0 10px rgba(240, 185, 11, 0.5);
 
-  --panel-bg: #15181D;
-  --panel-bg-hover: #1E2329;
-  --panel-border: rgba(255, 255, 255, 0.08);
-  --panel-border-hover: rgba(240, 185, 11, 0.4);
+  --background: #05070A;
+  --header-bg: rgba(2, 3, 4, 0.85);
+  /* Deep Abyssal */
+
+  --glass-bg: rgba(5, 7, 10, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  --panel-bg: rgba(14, 18, 23, 0.6);
+  --panel-bg-hover: rgba(20, 24, 29, 0.8);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-border-hover: rgba(240, 185, 11, 0.5);
 
   --foreground: #EAECEF;
   --text-primary: #EAECEF;
@@ -42,19 +48,15 @@ html {
   --binance-red: #F6465D;
   --binance-red-bg: rgba(246, 70, 93, 0.12);
   --binance-red-border: rgba(246, 70, 93, 0.3);
+  --binance-yellow: #F0B90B;
 
   /* Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(240, 185, 11, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 30px rgba(240, 185, 11, 0.15);
 
-  font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: 'IBM Plex Mono', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   font-weight: 400;
   color-scheme: dark;
@@ -64,8 +66,69 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'tnum';
-  font-variant-numeric: tabular-nums;
+}
+
+/* CRT & Tech Effects */
+.crt-overlay {
+  background:
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+.tech-border {
+  position: relative;
+  background: rgba(5, 7, 10, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tech-border::before,
+.tech-border::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--nofx-gold);
+  transition: all 0.3s ease;
+}
+
+.tech-border::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.tech-border::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+.tech-border:hover::before,
+.tech-border:hover::after {
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+
+.bg-vignette {
+  background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.6) 80%, #000000 100%);
+  pointer-events: none;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px rgba(240, 185, 11, 0.6);
+}
+
+.text-glow-accent {
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+}
+
+.border-glow {
+  box-shadow: 0 0 15px rgba(240, 185, 11, 0.2);
 }
 
 body {
@@ -73,7 +136,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--background);
-  background-image: none;
+  background-image: radial-gradient(circle at 50% 0%, #151921 0%, #05070a 60%);
   background-attachment: fixed;
 }
 

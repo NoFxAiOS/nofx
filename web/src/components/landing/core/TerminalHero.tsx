@@ -165,16 +165,26 @@ export default function TerminalHero() {
                     </p>
 
                     {/* Market Access Strip - Prominent Display */}
-                    <div className="flex flex-wrap gap-4 mb-12 font-mono">
-                        {['CRYPTO', 'US STOCKS', 'FOREX', 'METALS'].map((market) => (
-                            <div key={market} className="flex items-center gap-3 px-4 py-2 rounded bg-zinc-900 border border-zinc-700 text-white font-bold tracking-wider hover:border-nofx-gold hover:shadow-[0_0_15px_rgba(255,215,0,0.3)] transition-all duration-300">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-success opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-success"></span>
-                                </span>
-                                {market}
-                            </div>
-                        ))}
+                    {/* Market Access Strip - Prominent Display */}
+                    <div className="flex flex-col gap-4 mb-14">
+                        <div className="text-nofx-gold/80 font-mono text-xs tracking-[0.3em] uppercase flex items-center gap-2 ml-1">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-nofx-success opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-nofx-success"></span>
+                            </span>
+                            Live Data Feeds Active
+                        </div>
+                        <div className="flex flex-wrap gap-4 font-mono">
+                            {['CRYPTO', 'US STOCKS', 'FOREX', 'METALS'].map((market) => (
+                                <div key={market} className="relative group cursor-default">
+                                    <div className="absolute -inset-0.5 bg-gradient-to-r from-nofx-gold/20 to-blue-600/20 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                                    <div className="relative flex items-center gap-3 px-6 py-3 rounded-lg bg-zinc-900/80 border border-zinc-700 hover:border-nofx-gold/50 transition-all duration-300 backdrop-blur-sm">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-nofx-success shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse"></div>
+                                        <span className="text-lg md:text-xl font-bold text-white tracking-wider group-hover:text-nofx-gold transition-colors">{market}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Command Line Input Simulation */}
@@ -287,14 +297,14 @@ function CommunityStats() {
     const stats = [
         {
             label: 'GITHUB STARS',
-            value: isLoading ? '...' : (error ? '1.2k+' : stars.toLocaleString()),
+            value: isLoading ? '...' : (error ? '9.5k+' : stars.toLocaleString()),
             icon: Star,
             color: 'text-yellow-400',
             href: OFFICIAL_LINKS.github
         },
         {
             label: 'FORKS',
-            value: isLoading ? '...' : (error ? '240+' : forks.toLocaleString()),
+            value: isLoading ? '...' : (error ? '2.5k+' : forks.toLocaleString()),
             icon: GitFork,
             color: 'text-blue-400',
             href: `${OFFICIAL_LINKS.github}/fork`

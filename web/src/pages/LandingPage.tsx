@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import HeaderBar from '../components/HeaderBar'
 import LoginModal from '../components/landing/LoginModal'
+import { LoginRequiredOverlay } from '../components/LoginRequiredOverlay'
 import FooterSection from '../components/landing/FooterSection'
 import TerminalHero from '../components/landing/core/TerminalHero'
 import LiveFeed from '../components/landing/core/LiveFeed'
@@ -11,9 +12,16 @@ import { useLanguage } from '../contexts/LanguageContext'
 
 export function LandingPage() {
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [loginOverlayOpen, setLoginOverlayOpen] = useState(false)
+  const [loginOverlayFeature, setLoginOverlayFeature] = useState('')
   const { user, logout } = useAuth()
   const { language, setLanguage } = useLanguage()
   const isLoggedIn = !!user
+
+  const handleLoginRequired = (featureName: string) => {
+    setLoginOverlayFeature(featureName)
+    setLoginOverlayOpen(true)
+  }
 
   return (
     <>
@@ -25,13 +33,21 @@ export function LandingPage() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
+        onLoginRequired={handleLoginRequired}
         onPageChange={(page) => {
-          if (page === 'competition') {
-            window.location.href = '/competition'
-          } else if (page === 'traders') {
-            window.location.href = '/traders'
-          } else if (page === 'trader') {
-            window.location.href = '/dashboard'
+          const pathMap: Record<string, string> = {
+            'competition': '/competition',
+            'strategy-market': '/strategy-market',
+            'traders': '/traders',
+            'trader': '/dashboard',
+            'backtest': '/backtest',
+            'strategy': '/strategy',
+            'debate': '/debate',
+            'faq': '/faq',
+          }
+          const path = pathMap[page]
+          if (path) {
+            window.location.href = path
           }
         }}
       />
@@ -53,6 +69,12 @@ export function LandingPage() {
             language={language}
           />
         )}
+
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
       </div>
     </>
   )

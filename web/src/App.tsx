@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+// Force HMR Update
 import useSWR, { mutate } from 'swr'
 import { api } from './lib/api'
 import { ChartTabs } from './components/ChartTabs'
@@ -11,6 +13,8 @@ import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
 import { DebateArenaPage } from './pages/DebateArenaPage'
+import { StrategyMarketPage } from './pages/StrategyMarketPage'
+import { LoginRequiredOverlay } from './components/LoginRequiredOverlay'
 import HeaderBar from './components/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -40,6 +44,7 @@ type Page =
   | 'trader'
   | 'backtest'
   | 'strategy'
+  | 'strategy-market'
   | 'debate'
   | 'faq'
   | 'login'
@@ -119,6 +124,11 @@ function App() {
   const { loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
+  // Debug log
+  useEffect(() => {
+    console.log('[App] Mounted. Route:', window.location.pathname);
+  }, []);
+
   // 从URL路径读取初始页面状态（支持刷新保持页面）
   const getInitialPage = (): Page => {
     const path = window.location.pathname
@@ -127,10 +137,42 @@ function App() {
     if (path === '/traders' || hash === 'traders') return 'traders'
     if (path === '/backtest' || hash === 'backtest') return 'backtest'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
+    if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
     if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
+  }
+
+  // Login required overlay state
+  const [loginOverlayOpen, setLoginOverlayOpen] = useState(false)
+  const [loginOverlayFeature, setLoginOverlayFeature] = useState('')
+
+  const handleLoginRequired = (featureName: string) => {
+    setLoginOverlayFeature(featureName)
+    setLoginOverlayOpen(true)
+  }
+
+  // Unified page navigation handler
+  const navigateToPage = (page: Page) => {
+    const pathMap: Record<Page, string> = {
+      'competition': '/competition',
+      'strategy-market': '/strategy-market',
+      'traders': '/traders',
+      'trader': '/dashboard',
+      'backtest': '/backtest',
+      'strategy': '/strategy',
+      'debate': '/debate',
+      'faq': '/faq',
+      'login': '/login',
+      'register': '/register',
+    }
+    const path = pathMap[page]
+    if (path) {
+      window.history.pushState({}, '', path)
+      setRoute(path)
+      setCurrentPage(page)
+    }
   }
 
   const [currentPage, setCurrentPage] = useState<Page>(getInitialPage())
@@ -178,6 +220,8 @@ function App() {
         setCurrentPage('backtest')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
+      } else if (path === '/strategy-market' || hash === 'strategy-market') {
+        setCurrentPage('strategy-market')
       } else if (path === '/debate' || hash === 'debate') {
         setCurrentPage('debate')
       } else if (
@@ -381,154 +425,28 @@ function App() {
           onLanguageChange={setLanguage}
           user={user}
           onLogout={logout}
-          onPageChange={(page: Page) => {
-            if (page === 'competition') {
-              window.history.pushState({}, '', '/competition')
-              setRoute('/competition')
-              setCurrentPage('competition')
-            } else if (page === 'traders') {
-              window.history.pushState({}, '', '/traders')
-              setRoute('/traders')
-              setCurrentPage('traders')
-            } else if (page === 'trader') {
-              window.history.pushState({}, '', '/dashboard')
-              setRoute('/dashboard')
-              setCurrentPage('trader')
-            } else if (page === 'faq') {
-              window.history.pushState({}, '', '/faq')
-              setRoute('/faq')
-            } else if (page === 'backtest') {
-              window.history.pushState({}, '', '/backtest')
-              setRoute('/backtest')
-              setCurrentPage('backtest')
-            } else if (page === 'strategy') {
-              window.history.pushState({}, '', '/strategy')
-              setRoute('/strategy')
-              setCurrentPage('strategy')
-            } else if (page === 'debate') {
-              window.history.pushState({}, '', '/debate')
-              setRoute('/debate')
-              setCurrentPage('debate')
-            }
-          }}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
         />
         <FAQPage />
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
       </div>
     )
   }
   if (route === '/reset-password') {
     return <ResetPasswordPage />
   }
-  if (route === '/competition') {
-    return (
-      <div
-        className="min-h-screen"
-        style={{ background: '#000000', color: '#EAECEF' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="competition"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onPageChange={(page: Page) => {
-            console.log('Competition page onPageChange called with:', page)
-            console.log('Current route:', route, 'Current page:', currentPage)
-
-            if (page === 'competition') {
-              console.log('Navigating to competition')
-              window.history.pushState({}, '', '/competition')
-              setRoute('/competition')
-              setCurrentPage('competition')
-            } else if (page === 'traders') {
-              console.log('Navigating to traders')
-              window.history.pushState({}, '', '/traders')
-              setRoute('/traders')
-              setCurrentPage('traders')
-            } else if (page === 'trader') {
-              console.log('Navigating to trader/dashboard')
-              window.history.pushState({}, '', '/dashboard')
-              setRoute('/dashboard')
-              setCurrentPage('trader')
-            } else if (page === 'faq') {
-              console.log('Navigating to faq')
-              window.history.pushState({}, '', '/faq')
-              setRoute('/faq')
-            } else if (page === 'backtest') {
-              console.log('Navigating to backtest')
-              window.history.pushState({}, '', '/backtest')
-              setRoute('/backtest')
-              setCurrentPage('backtest')
-            } else if (page === 'strategy') {
-              console.log('Navigating to strategy')
-              window.history.pushState({}, '', '/strategy')
-              setRoute('/strategy')
-              setCurrentPage('strategy')
-            } else if (page === 'debate') {
-              console.log('Navigating to debate')
-              window.history.pushState({}, '', '/debate')
-              setRoute('/debate')
-              setCurrentPage('debate')
-            }
-
-            console.log(
-              'After navigation - route:',
-              route,
-              'currentPage:',
-              currentPage
-            )
-          }}
-        />
-        <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
-          <CompetitionPage />
-        </main>
-      </div>
-    )
-  }
-
   // Show landing page for root route
   if (route === '/' || route === '') {
     return <LandingPage />
   }
 
-  // Allow unauthenticated users to open backtest page directly (others仍展示 Landing)
+  // Redirect unauthenticated users to landing page
   if (!user || !token) {
-    if (route === '/backtest' || currentPage === 'backtest') {
-      return (
-        <div
-          className="min-h-screen"
-          style={{ background: '#0B0E11', color: '#EAECEF' }}
-        >
-          <HeaderBar
-            isLoggedIn={false}
-            currentPage="backtest"
-            language={language}
-            onLanguageChange={setLanguage}
-            onPageChange={(page: Page) => {
-              if (page === 'competition') {
-                window.history.pushState({}, '', '/competition')
-                setRoute('/competition')
-                setCurrentPage('competition')
-              } else if (page === 'traders') {
-                window.history.pushState({}, '', '/traders')
-                setRoute('/traders')
-                setCurrentPage('traders')
-              }
-            }}
-          />
-          <main className="max-w-[1920px] mx-auto px-6 py-6 pt-24">
-            <BacktestPage />
-          </main>
-        </div>
-      )
-    }
-    return <LandingPage />
-  }
-
-  // Show main app for authenticated users on other routes
-  if (!user || !token) {
-    // Default to landing page when not authenticated and no specific route
     return <LandingPage />
   }
 
@@ -544,41 +462,11 @@ function App() {
         onLanguageChange={setLanguage}
         user={user}
         onLogout={logout}
-        onPageChange={(page: Page) => {
-          console.log('Main app onPageChange called with:', page)
-
-          if (page === 'competition') {
-            window.history.pushState({}, '', '/competition')
-            setRoute('/competition')
-            setCurrentPage('competition')
-          } else if (page === 'traders') {
-            window.history.pushState({}, '', '/traders')
-            setRoute('/traders')
-            setCurrentPage('traders')
-          } else if (page === 'trader') {
-            window.history.pushState({}, '', '/dashboard')
-            setRoute('/dashboard')
-            setCurrentPage('trader')
-          } else if (page === 'backtest') {
-            window.history.pushState({}, '', '/backtest')
-            setRoute('/backtest')
-            setCurrentPage('backtest')
-          } else if (page === 'strategy') {
-            window.history.pushState({}, '', '/strategy')
-            setRoute('/strategy')
-            setCurrentPage('strategy')
-          } else if (page === 'faq') {
-            window.history.pushState({}, '', '/faq')
-            setRoute('/faq')
-          } else if (page === 'debate') {
-            window.history.pushState({}, '', '/debate')
-            setRoute('/debate')
-            setCurrentPage('debate')
-          }
-        }}
+        onLoginRequired={handleLoginRequired}
+        onPageChange={navigateToPage}
       />
 
-      {/* Main Content */}
+      {/* Main Content with Page Transitions */}
       <main
         className={
           currentPage === 'debate'
@@ -586,56 +474,68 @@ function App() {
             : 'max-w-[1920px] mx-auto px-6 py-6 pt-24'
         }
       >
-        {currentPage === 'competition' ? (
-          <CompetitionPage />
-        ) : currentPage === 'traders' ? (
-          <AITradersPage
-            onTraderSelect={(traderId) => {
-              setSelectedTraderId(traderId)
-              window.history.pushState({}, '', '/dashboard')
-              setRoute('/dashboard')
-              setCurrentPage('trader')
-            }}
-          />
-        ) : currentPage === 'backtest' ? (
-          <BacktestPage />
-        ) : currentPage === 'strategy' ? (
-          <StrategyStudioPage />
-        ) : currentPage === 'debate' ? (
-          <DebateArenaPage />
-        ) : (
-          <TraderDetailsPage
-            selectedTrader={selectedTrader}
-            status={status}
-            account={account}
-            positions={positions}
-            decisions={decisions}
-            decisionsLimit={decisionsLimit}
-            onDecisionsLimitChange={setDecisionsLimit}
-            stats={stats}
-            lastUpdate={lastUpdate}
-            language={language}
-            traders={traders}
-            tradersError={tradersError}
-            selectedTraderId={selectedTraderId}
-            onTraderSelect={(traderId) => {
-              setSelectedTraderId(traderId)
-              // 更新 URL 参数（使用 slug: name-id前4位）
-              const trader = traders?.find(t => t.trader_id === traderId)
-              if (trader) {
-                const url = new URL(window.location.href)
-                url.searchParams.set('trader', getTraderSlug(trader))
-                window.history.replaceState({}, '', url.toString())
-              }
-            }}
-            onNavigateToTraders={() => {
-              window.history.pushState({}, '', '/traders')
-              setRoute('/traders')
-              setCurrentPage('traders')
-            }}
-            exchanges={exchanges}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentPage}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+          >
+            {currentPage === 'competition' ? (
+              <CompetitionPage />
+            ) : currentPage === 'strategy-market' ? (
+              <StrategyMarketPage />
+            ) : currentPage === 'traders' ? (
+              <AITradersPage
+                onTraderSelect={(traderId) => {
+                  setSelectedTraderId(traderId)
+                  window.history.pushState({}, '', '/dashboard')
+                  setRoute('/dashboard')
+                  setCurrentPage('trader')
+                }}
+              />
+            ) : currentPage === 'backtest' ? (
+              <BacktestPage />
+            ) : currentPage === 'strategy' ? (
+              <StrategyStudioPage />
+            ) : currentPage === 'debate' ? (
+              <DebateArenaPage />
+            ) : (
+              <TraderDetailsPage
+                selectedTrader={selectedTrader}
+                status={status}
+                account={account}
+                positions={positions}
+                decisions={decisions}
+                decisionsLimit={decisionsLimit}
+                onDecisionsLimitChange={setDecisionsLimit}
+                stats={stats}
+                lastUpdate={lastUpdate}
+                language={language}
+                traders={traders}
+                tradersError={tradersError}
+                selectedTraderId={selectedTraderId}
+                onTraderSelect={(traderId) => {
+                  setSelectedTraderId(traderId)
+                  // 更新 URL 参数（使用 slug: name-id前4位）
+                  const trader = traders?.find(t => t.trader_id === traderId)
+                  if (trader) {
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('trader', getTraderSlug(trader))
+                    window.history.replaceState({}, '', url.toString())
+                  }
+                }}
+                onNavigateToTraders={() => {
+                  window.history.pushState({}, '', '/traders')
+                  setRoute('/traders')
+                  setCurrentPage('traders')
+                }}
+                exchanges={exchanges}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Footer - Hidden on debate page */}
@@ -751,6 +651,13 @@ function App() {
           </div>
         </footer>
       )}
+
+      {/* Login Required Overlay */}
+      <LoginRequiredOverlay
+        isOpen={loginOverlayOpen}
+        onClose={() => setLoginOverlayOpen(false)}
+        featureName={loginOverlayFeature}
+      />
     </div>
   )
 }
@@ -1146,7 +1053,7 @@ function TraderDetailsPage({
             >
               {getModelDisplayName(
                 selectedTrader.ai_model.split('_').pop() ||
-                  selectedTrader.ai_model
+                selectedTrader.ai_model
               )}
             </span>
           </span>
@@ -1351,13 +1258,13 @@ function TraderDetailsPage({
                               style={
                                 pos.side === 'long'
                                   ? {
-                                      background: 'rgba(14, 203, 129, 0.1)',
-                                      color: '#0ECB81',
-                                    }
+                                    background: 'rgba(14, 203, 129, 0.1)',
+                                    color: '#0ECB81',
+                                  }
                                   : {
-                                      background: 'rgba(246, 70, 93, 0.1)',
-                                      color: '#F6465D',
-                                    }
+                                    background: 'rgba(246, 70, 93, 0.1)',
+                                    color: '#F6465D',
+                                  }
                               }
                             >
                               {t(

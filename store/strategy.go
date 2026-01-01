@@ -15,15 +15,17 @@ type StrategyStore struct {
 
 // Strategy strategy configuration
 type Strategy struct {
-	ID          string    `gorm:"primaryKey" json:"id"`
-	UserID      string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
-	Name        string    `gorm:"not null" json:"name"`
-	Description string    `gorm:"default:''" json:"description"`
-	IsActive    bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
-	IsDefault   bool      `gorm:"column:is_default;default:false" json:"is_default"`
-	Config      string    `gorm:"not null;default:'{}'" json:"config"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            string    `gorm:"primaryKey" json:"id"`
+	UserID        string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
+	Name          string    `gorm:"not null" json:"name"`
+	Description   string    `gorm:"default:''" json:"description"`
+	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
+	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
+	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`       // whether visible in strategy market
+	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"`    // whether config details are visible
+	Config        string    `gorm:"not null;default:'{}'" json:"config"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 func (Strategy) TableName() string { return "strategies" }
@@ -298,10 +300,12 @@ func (s *StrategyStore) Update(strategy *Strategy) error {
 	return s.db.Model(&Strategy{}).
 		Where("id = ? AND user_id = ?", strategy.ID, strategy.UserID).
 		Updates(map[string]interface{}{
-			"name":        strategy.Name,
-			"description": strategy.Description,
-			"config":      strategy.Config,
-			"updated_at":  time.Now(),
+			"name":           strategy.Name,
+			"description":    strategy.Description,
+			"config":         strategy.Config,
+			"is_public":      strategy.IsPublic,
+			"config_visible": strategy.ConfigVisible,
+			"updated_at":     time.Now(),
 		}).Error
 }
 
@@ -321,6 +325,18 @@ func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
 	var strategies []*Strategy
 	err := s.db.Where("user_id = ? OR is_default = ?", userID, true).
 		Order("is_default DESC, created_at DESC").
+		Find(&strategies).Error
+	if err != nil {
+		return nil, err
+	}
+	return strategies, nil
+}
+
+// ListPublic get all public strategies for the strategy market
+func (s *StrategyStore) ListPublic() ([]*Strategy, error) {
+	var strategies []*Strategy
+	err := s.db.Where("is_public = ?", true).
+		Order("created_at DESC").
 		Find(&strategies).Error
 	if err != nil {
 		return nil, err

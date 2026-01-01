@@ -30,9 +30,13 @@ export default function FooterSection({ language }: FooterSectionProps) {
       { name: 'Pull Requests', href: 'https://github.com/NoFxAiOS/nofx/pulls' },
     ],
     supporters: [
+      { name: 'Binance', href: 'https://www.binance.com/join?ref=NOFXENG' },
+      { name: 'Bybit', href: 'https://partner.bybit.com/b/83856' },
+      { name: 'OKX', href: 'https://www.okx.com/join/1865360' },
+      { name: 'Bitget', href: 'https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172' },
+      { name: 'Hyperliquid', href: 'https://app.hyperliquid.xyz/join/AITRADING' },
       { name: 'Aster DEX', href: 'https://www.asterdex.com/en/referral/fdfc0e' },
-      { name: 'Binance', href: 'https://www.maxweb.red/join?ref=NOFXAI' },
-      { name: 'Hyperliquid', href: 'https://hyperliquid.xyz/' },
+      { name: 'Lighter', href: 'https://app.lighter.xyz/?referral=68151432' },
     ],
   }
 
@@ -123,21 +127,20 @@ export default function FooterSection({ language }: FooterSectionProps) {
             <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
               {t('supporters', language)}
             </h4>
-            <ul className="space-y-3">
+            <div className="flex flex-wrap gap-2">
               {links.supporters.map((link) => (
-                <li key={link.name}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm transition-colors hover:text-[#F0B90B]"
-                    style={{ color: '#5E6673' }}
-                  >
-                    {link.name}
-                  </a>
-                </li>
+                <a
+                  key={link.name}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs border border-zinc-800 bg-zinc-900/50 rounded px-3 py-1.5 transition-all hover:border-[#F0B90B] hover:text-[#F0B90B] hover:bg-[#F0B90B]/10 hover:shadow-[0_0_10px_rgba(240,185,11,0.2)]"
+                  style={{ color: '#848E9C' }}
+                >
+                  {link.name}
+                </a>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
 

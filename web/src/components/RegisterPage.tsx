@@ -6,14 +6,15 @@ import { getSystemConfig } from '../lib/config'
 import { toast } from 'sonner'
 import { copyWithToast } from '../lib/clipboard'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from './ui/input'
+// import { Input } from './ui/input' // Removed unused import
 import PasswordChecklist from 'react-password-checklist'
 import { RegistrationDisabled } from './RegistrationDisabled'
+import { WhitelistFullPage } from './WhitelistFullPage'
 
 export function RegisterPage() {
   const { language } = useLanguage()
   const { register, completeRegistration } = useAuth()
-  const [step, setStep] = useState<'register' | 'setup-otp' | 'verify-otp'>(
+  const [step, setStep] = useState<'register' | 'setup-otp' | 'verify-otp' | 'whitelist-full'>(
     'register'
   )
   const [email, setEmail] = useState('')
@@ -49,6 +50,11 @@ export function RegisterPage() {
     return <RegistrationDisabled />
   }
 
+  // 如果白名单已满，显示容量已满页面
+  if (step === 'whitelist-full') {
+    return <WhitelistFullPage onBack={() => setStep('register')} />
+  }
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -66,20 +72,54 @@ export function RegisterPage() {
 
     setLoading(true)
 
-    const result = await register(email, password, betaCode.trim() || undefined)
+    try {
+      const result = await register(email, password, betaCode.trim() || undefined)
 
-    if (result.success && result.userID) {
-      setUserID(result.userID)
-      setOtpSecret(result.otpSecret || '')
-      setQrCodeURL(result.qrCodeURL || '')
-      setStep('setup-otp')
-    } else {
-      // Only business errors reach here (system/network errors shown via toast)
-      const msg = result.message || t('registrationFailed', language)
-      setError(msg)
+      // Helper to check for whitelist errors
+      const isWhitelistError = (msg: string) => {
+        const lowerMsg = msg.toLowerCase()
+        return lowerMsg.includes('whitelist') ||
+          lowerMsg.includes('capacity') ||
+          lowerMsg.includes('limit') ||
+          lowerMsg.includes('permission denied') ||
+          lowerMsg.includes('not on whitelist')
+      }
+
+      if (result.success && result.userID) {
+        setUserID(result.userID)
+        setOtpSecret(result.otpSecret || '')
+        setQrCodeURL(result.qrCodeURL || '')
+        setStep('setup-otp')
+      } else {
+        // Check for whitelist/capacity limit error
+        const msg = result.message || t('registrationFailed', language)
+        if (isWhitelistError(msg)) {
+          setStep('whitelist-full')
+          return
+        }
+        setError(msg)
+        toast.error(msg)
+      }
+    } catch (e) {
+      console.error('Registration error:', e)
+      const errorMsg = e instanceof Error ? e.message : 'Registration failed due to server error'
+
+      // Check for whitelist error in catch block too
+      const lowerMsg = errorMsg.toLowerCase()
+      if (lowerMsg.includes('whitelist') ||
+        lowerMsg.includes('capacity') ||
+        lowerMsg.includes('limit') ||
+        lowerMsg.includes('permission denied') ||
+        lowerMsg.includes('not on whitelist')) {
+        setStep('whitelist-full')
+        return
+      }
+
+      setError(errorMsg)
+      toast.error(errorMsg)
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleSetupComplete = () => {
@@ -108,437 +148,326 @@ export function RegisterPage() {
   }
 
   return (
-    <div
-      className="flex items-center justify-center py-12"
-      style={{ minHeight: 'calc(100vh - 64px)' }}
-    >
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <img
-              src="/icons/nofx.svg"
-              alt="NoFx Logo"
-              className="w-16 h-16 object-contain"
-            />
+    <div className="min-h-screen bg-black text-zinc-300 font-mono relative overflow-hidden flex items-center justify-center py-12">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none"></div>
+
+      {/* Scanline Effect */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]"></div>
+
+      <div className="w-full max-w-lg relative z-10 px-6">
+        {/* Navigation - Top Bar (Mobile/Desktop Friendly) */}
+        <div className="flex justify-between items-center mb-8">
+          <button
+            onClick={() => window.location.href = '/'}
+            className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group px-3 py-1.5 rounded border border-transparent hover:border-zinc-700 bg-black/20 backdrop-blur-sm"
+          >
+            <div className="w-2 h-2 rounded-full bg-red-500 group-hover:animate-pulse"></div>
+            <span className="text-xs font-mono uppercase tracking-widest">&lt; ABORT_REGISTRATION</span>
+          </button>
+        </div>
+
+        {/* Terminal Header */}
+        <div className="mb-8 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="absolute -inset-2 bg-nofx-gold/20 rounded-full blur-xl animate-pulse"></div>
+              <img
+                src="/icons/nofx.svg"
+                alt="NoFx Logo"
+                className="w-16 h-16 object-contain relative z-10 opacity-90"
+              />
+            </div>
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
-            {t('appTitle', language)}
+          <h1 className="text-3xl font-bold tracking-tighter text-white uppercase mb-2">
+            <span className="text-nofx-gold">NEW_USER</span> ONBOARDING
           </h1>
-          <p className="text-sm mt-2" style={{ color: '#848E9C' }}>
-            {step === 'register' && t('registerTitle', language)}
-            {step === 'setup-otp' && t('setupTwoFactor', language)}
-            {step === 'verify-otp' && t('verifyOTP', language)}
+          <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">
+            {step === 'register' && 'Initializing Registration Sequence...'}
+            {step === 'setup-otp' && 'Configuring Security Protocols...'}
+            {step === 'verify-otp' && 'Finalizing Authentication...'}
           </p>
         </div>
 
-        {/* Registration Form */}
-        <div
-          className="rounded-lg p-6"
-          style={{
-            background: 'var(--panel-bg)',
-            border: '1px solid var(--panel-border)',
-          }}
-        >
-          {step === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('email', language)}
-                </label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('emailPlaceholder', language)}
-                  required
-                />
-              </div>
+        {/* Terminal Output / Form Container */}
+        <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800 rounded-lg overflow-hidden shadow-2xl relative group">
+          <div className="absolute inset-0 bg-zinc-900/50 opacity-0 group-hover:opacity-100 transition duration-700 pointer-events-none"></div>
 
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('password', language)}
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10"
-                    placeholder={t('passwordPlaceholder', language)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? '隐藏密码' : '显示密码'}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center rounded bg-transparent p-0 m-0 border-0 outline-none focus:outline-none focus:ring-0 appearance-none cursor-pointer btn-icon"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('confirmPassword', language)}
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pr-10"
-                    placeholder={t('confirmPasswordPlaceholder', language)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    aria-label={showConfirmPassword ? '隐藏密码' : '显示密码'}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setShowConfirmPassword((v) => !v)}
-                    className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center rounded bg-transparent p-0 m-0 border-0 outline-none focus:outline-none focus:ring-0 appearance-none cursor-pointer btn-icon"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* 密码规则清单（通过才允许提交） */}
+          {/* Window Bar */}
+          <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/80 border-b border-zinc-800">
+            <div className="flex gap-1.5">
               <div
-                className="mt-1 text-xs"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                <div
-                  className="mb-1"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('passwordRequirements', language)}
-                </div>
-                <PasswordChecklist
-                  rules={[
-                    'minLength',
-                    'capital',
-                    'lowercase',
-                    'number',
-                    'specialChar',
-                    'match',
-                  ]}
-                  minLength={8}
-                  value={password}
-                  valueAgain={confirmPassword}
-                  messages={{
-                    minLength: t('passwordRuleMinLength', language),
-                    capital: t('passwordRuleUppercase', language),
-                    lowercase: t('passwordRuleLowercase', language),
-                    number: t('passwordRuleNumber', language),
-                    specialChar: t('passwordRuleSpecial', language),
-                    match: t('passwordRuleMatch', language),
-                  }}
-                  className="space-y-1"
-                  onChange={(isValid) => setPasswordValid(isValid)}
-                />
-              </div>
+                className="w-2.5 h-2.5 rounded-full bg-red-500/50 hover:bg-red-500 cursor-pointer transition-colors"
+                onClick={() => window.location.href = '/'}
+                title="Close / Return Home"
+              ></div>
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
+            </div>
+            <div className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
+              <span className="text-emerald-500">➜</span> setup_account.sh
+            </div>
+          </div>
 
-              {betaMode && (
+          <div className="p-6 md:p-8 relative">
+            {/* Status Output */}
+            <div className="mb-6 font-mono text-xs space-y-1 text-zinc-500 border-b border-zinc-800/50 pb-4">
+              <div className="flex gap-2">
+                <span className="text-emerald-500">➜</span>
+                <span>System Check: <span className="text-emerald-500">READY</span></span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-emerald-500">➜</span>
+                <span>Mode: {betaMode ? 'CLOSED_BETA CA1' : 'PUBLIC'}</span>
+              </div>
+            </div>
+
+            {step === 'register' && (
+              <form onSubmit={handleRegister} className="space-y-5">
                 <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    内测码 *
-                  </label>
+                  <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5 ml-1 font-bold">{t('email', language)}</label>
                   <input
-                    type="text"
-                    value={betaCode}
-                    onChange={(e) =>
-                      setBetaCode(
-                        e.target.value.replace(/[^a-z0-9]/gi, '').toLowerCase()
-                      )
-                    }
-                    className="w-full px-3 py-2 rounded font-mono"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                    placeholder="请输入6位内测码"
-                    maxLength={6}
-                    required={betaMode}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800 text-white font-mono"
+                    placeholder="user@nofx.os"
+                    required
                   />
-                  <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                    内测码由6位字母数字组成，区分大小写
-                  </p>
-                </div>
-              )}
-
-              {error && (
-                <div
-                  className="text-sm px-3 py-2 rounded"
-                  style={{
-                    background: 'var(--binance-red-bg)',
-                    color: 'var(--binance-red)',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={
-                  loading || (betaMode && !betaCode.trim()) || !passwordValid
-                }
-                className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                style={{
-                  background: 'var(--brand-yellow)',
-                  color: 'var(--brand-black)',
-                }}
-              >
-                {loading
-                  ? t('loading', language)
-                  : t('registerButton', language)}
-              </button>
-            </form>
-          )}
-
-          {step === 'setup-otp' && (
-            <div className="space-y-4">
-              <div className="text-center">
-                <div className="text-4xl mb-2">📱</div>
-                <h3
-                  className="text-lg font-semibold mb-2"
-                  style={{ color: '#EAECEF' }}
-                >
-                  {t('setupTwoFactor', language)}
-                </h3>
-                <p className="text-sm" style={{ color: '#848E9C' }}>
-                  {t('setupTwoFactorDesc', language)}
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <div
-                  className="p-3 rounded"
-                  style={{
-                    background: 'var(--brand-black)',
-                    border: '1px solid var(--panel-border)',
-                  }}
-                >
-                  <p
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('authStep1Title', language)}
-                  </p>
-                  <p
-                    className="text-xs"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {t('authStep1Desc', language)}
-                  </p>
                 </div>
 
-                <div
-                  className="p-3 rounded"
-                  style={{
-                    background: 'var(--brand-black)',
-                    border: '1px solid var(--panel-border)',
-                  }}
-                >
-                  <p
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('authStep2Title', language)}
-                  </p>
-                  <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                    {t('authStep2Desc', language)}
-                  </p>
-
-                  {qrCodeURL && (
-                    <div className="mt-2">
-                      <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                        {t('qrCodeHint', language)}
-                      </p>
-                      <div className="bg-white p-2 rounded text-center">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrCodeURL)}`}
-                          alt="QR Code"
-                          className="mx-auto"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-2">
-                    <p className="text-xs mb-1" style={{ color: '#848E9C' }}>
-                      {t('otpSecret', language)}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <code
-                        className="flex-1 px-2 py-1 text-xs rounded font-mono"
-                        style={{
-                          background: 'var(--panel-bg-hover)',
-                          color: 'var(--brand-light-gray)',
-                        }}
-                      >
-                        {otpSecret}
-                      </code>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5 ml-1 font-bold">{t('password', language)}</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800 text-white font-mono pr-10"
+                        placeholder="••••••••"
+                        required
+                      />
                       <button
-                        onClick={() => copyToClipboard(otpSecret)}
-                        className="px-2 py-1 text-xs rounded"
-                        style={{
-                          background: 'var(--brand-yellow)',
-                          color: 'var(--brand-black)',
-                        }}
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
                       >
-                        {t('copy', language)}
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5 ml-1 font-bold">{t('confirmPassword', language)}</label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800 text-white font-mono pr-10"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div
-                  className="p-3 rounded"
-                  style={{
-                    background: 'var(--brand-black)',
-                    border: '1px solid var(--panel-border)',
-                  }}
-                >
-                  <p
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: 'var(--brand-light-gray)' }}
-                  >
-                    {t('authStep3Title', language)}
-                  </p>
-                  <p
-                    className="text-xs"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {t('authStep3Desc', language)}
-                  </p>
+                <div className="bg-zinc-900/50 p-3 rounded border border-zinc-800/50">
+                  <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2 font-bold flex items-center gap-2">
+                    <div className="w-1 h-1 rounded-full bg-zinc-500"></div>
+                    Password Strength Protocol
+                  </div>
+                  <div className="text-xs font-mono text-zinc-400">
+                    <PasswordChecklist
+                      rules={['minLength', 'capital', 'lowercase', 'number', 'specialChar', 'match']}
+                      minLength={8}
+                      value={password}
+                      valueAgain={confirmPassword}
+                      messages={{
+                        minLength: t('passwordRuleMinLength', language),
+                        capital: t('passwordRuleUppercase', language),
+                        lowercase: t('passwordRuleLowercase', language),
+                        number: t('passwordRuleNumber', language),
+                        specialChar: t('passwordRuleSpecial', language),
+                        match: t('passwordRuleMatch', language),
+                      }}
+                      className="grid grid-cols-2 gap-x-4 gap-y-1"
+                      onChange={(isValid) => setPasswordValid(isValid)}
+                      iconSize={10}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <button
-                onClick={handleSetupComplete}
-                className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
-                style={{ background: '#F0B90B', color: '#000' }}
-              >
-                {t('setupCompleteContinue', language)}
-              </button>
-            </div>
-          )}
+                {betaMode && (
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-1.5 ml-1 font-bold">Priority Access Code</label>
+                    <input
+                      type="text"
+                      value={betaCode}
+                      onChange={(e) => setBetaCode(e.target.value.replace(/[^a-z0-9]/gi, '').toLowerCase())}
+                      className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800 text-white font-mono tracking-widest"
+                      placeholder="XXXXXX"
+                      maxLength={6}
+                      required={betaMode}
+                    />
+                    <p className="text-[10px] text-zinc-600 font-mono mt-1 ml-1">* CASE SENSITIVE ALPHANUMERIC</p>
+                  </div>
+                )}
 
-          {step === 'verify-otp' && (
-            <form onSubmit={handleOTPVerify} className="space-y-4">
-              <div className="text-center mb-4">
-                <div className="text-4xl mb-2">🔐</div>
-                <p className="text-sm" style={{ color: '#848E9C' }}>
-                  {t('enterOTPCode', language)}
-                  <br />
-                  {t('completeRegistrationSubtitle', language)}
-                </p>
-              </div>
+                {error && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono">
+                    [REGISTRATION_ERROR]: {error}
+                  </div>
+                )}
 
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('otpCode', language)}
-                </label>
-                <input
-                  type="text"
-                  value={otpCode}
-                  onChange={(e) =>
-                    setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                  }
-                  className="w-full px-3 py-2 rounded text-center text-2xl font-mono"
-                  style={{
-                    background: 'var(--brand-black)',
-                    border: '1px solid var(--panel-border)',
-                    color: 'var(--brand-light-gray)',
-                  }}
-                  placeholder={t('otpPlaceholder', language)}
-                  maxLength={6}
-                  required
-                />
-              </div>
-
-              {error && (
-                <div
-                  className="text-sm px-3 py-2 rounded"
-                  style={{
-                    background: 'var(--binance-red-bg)',
-                    color: 'var(--binance-red)',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-
-              <div className="flex gap-3">
                 <button
-                  type="button"
-                  onClick={() => setStep('setup-otp')}
-                  className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-                  style={{
-                    background: 'var(--panel-bg-hover)',
-                    color: 'var(--text-secondary)',
-                  }}
+                  type="submit"
+                  disabled={loading || (betaMode && !betaCode.trim()) || !passwordValid}
+                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_15px_rgba(255,215,0,0.1)] hover:shadow-[0_0_25px_rgba(255,215,0,0.25)] flex items-center justify-center gap-2 group mt-4"
                 >
-                  {t('back', language)}
+                  {loading ? (
+                    <span className="animate-pulse">INITIALIZING...</span>
+                  ) : (
+                    <>
+                      <span>CREATE_ACCOUNT</span>
+                      <span className="group-hover:translate-x-1 transition-transform">-&gt;</span>
+                    </>
+                  )}
                 </button>
+              </form>
+            )}
+
+            {step === 'setup-otp' && (
+              <div className="space-y-6">
+                <div className="text-center bg-zinc-900/50 p-4 rounded border border-zinc-800">
+                  <div className="text-xs font-mono text-zinc-400 mb-2">SCAN_QR_CODE_SEQUENCE</div>
+                  {qrCodeURL ? (
+                    <div className="bg-white p-2 rounded inline-block shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrCodeURL)}`}
+                        alt="QR Code"
+                        className="w-32 h-32"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-32 h-32 bg-zinc-800 animate-pulse rounded inline-block"></div>
+                  )}
+                  <div className="mt-4">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Backup Secret Key</p>
+                    <div className="flex items-center gap-2 justify-center bg-black/50 p-2 rounded border border-zinc-700/50 max-w-[200px] mx-auto">
+                      <code className="text-xs font-mono text-nofx-gold">{otpSecret}</code>
+                      <button
+                        onClick={() => copyToClipboard(otpSecret)}
+                        className="text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <span className="text-[10px] uppercase border border-zinc-700 px-1 rounded">Copy</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 font-mono text-xs text-zinc-400">
+                  <div className="flex gap-3">
+                    <span className="text-nofx-gold mt-0.5">01</span>
+                    <p>Install Google Authenticator or Authy on your mobile device.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="text-nofx-gold mt-0.5">02</span>
+                    <p>Scan the QR code above or manually enter the secret key.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="text-nofx-gold mt-0.5">03</span>
+                    <p>Proceed to verify the generated 6-digit token.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSetupComplete}
+                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-colors font-mono shadow-lg"
+                >
+                  PROCEED TO VERIFICATION
+                </button>
+              </div>
+            )}
+
+            {step === 'verify-otp' && (
+              <form onSubmit={handleOTPVerify} className="space-y-6">
+                <div className="text-center">
+                  <p className="text-xs text-zinc-400 font-mono mb-6">
+                    ENTER 6-DIGIT SECURITY TOKEN TO FINALIZE ONBOARDING
+                  </p>
+                </div>
+
+                <div>
+                  <input
+                    type="text"
+                    value={otpCode}
+                    onChange={(e) =>
+                      setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    }
+                    className="w-full bg-black border border-zinc-700 rounded px-4 py-4 text-center text-3xl tracking-[0.5em] font-mono text-white focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800"
+                    placeholder="000000"
+                    maxLength={6}
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                {error && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono text-center">
+                    [VERIFICATION_FAILED]: {error}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading || otpCode.length !== 6}
-                  className="flex-1 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                  style={{ background: '#F0B90B', color: '#000' }}
+                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-colors font-mono shadow-lg disabled:opacity-50"
                 >
-                  {loading
-                    ? t('loading', language)
-                    : t('completeRegistration', language)}
+                  {loading ? 'VALIDATING...' : 'ACTIVATE ACCOUNT'}
                 </button>
-              </div>
-            </form>
-          )}
+              </form>
+            )}
+
+          </div>
+
+          {/* Terminal Footer Info */}
+          <div className="bg-zinc-900/50 p-3 flex justify-between items-center text-[10px] font-mono text-zinc-600 border-t border-zinc-800">
+            <div>ENCRYPTION: AES-256</div>
+            <div>SECURE_REGISTRY</div>
+          </div>
         </div>
 
         {/* Login Link */}
         {step === 'register' && (
-          <div className="text-center mt-6">
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              已有账户？{' '}
+          <div className="text-center mt-8 space-y-4">
+            <p className="text-xs font-mono text-zinc-500">
+              EXISTING_OPERATOR?{' '}
               <button
-                onClick={() => {
-                  window.location.href = '/login'
-                }}
-                className="font-semibold hover:underline transition-colors"
-                style={{ color: 'var(--brand-yellow)' }}
+                onClick={() => window.location.href = '/login'}
+                className="text-nofx-gold hover:underline hover:text-yellow-300 transition-colors ml-1 uppercase"
               >
-                立即登录
+                ACCESS TERMINAL
               </button>
             </p>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="text-[10px] text-zinc-600 hover:text-red-500 transition-colors uppercase tracking-widest hover:underline decoration-red-500/30 font-mono"
+            >
+              [ ABORT_REGISTRATION_RETURN_HOME ]
+            </button>
           </div>
         )}
+
       </div>
     </div>
   )

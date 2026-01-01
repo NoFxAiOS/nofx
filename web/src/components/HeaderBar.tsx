@@ -12,6 +12,7 @@ type Page =
   | 'trader'
   | 'backtest'
   | 'strategy'
+  | 'strategy-market'
   | 'debate'
   | 'faq'
   | 'login'
@@ -27,6 +28,7 @@ interface HeaderBarProps {
   user?: { email: string } | null
   onLogout?: () => void
   onPageChange?: (page: Page) => void
+  onLoginRequired?: (featureName: string) => void
 }
 
 export default function HeaderBar({
@@ -38,6 +40,7 @@ export default function HeaderBar({
   user,
   onLogout,
   onPageChange,
+  onLoginRequired,
 }: HeaderBarProps) {
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -92,380 +95,67 @@ export default function HeaderBar({
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center justify-between flex-1 ml-8">
-          {/* Left Side - Navigation Tabs */}
-          <div className="flex items-center gap-4">
-            {isLoggedIn ? (
-              // Main app navigation when logged in
-              <>
+          {/* Left Side - Navigation Tabs - Always show all tabs */}
+          <div className="flex items-center gap-2">
+            {/* Navigation tabs configuration */}
+            {(() => {
+              // Define all navigation tabs
+              const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
+                { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
+                { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : 'Market', requiresAuth: true },
+                { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
+                { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
+                { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
+                { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
+                { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
+                { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
+              ]
+
+              const handleNavClick = (tab: typeof navTabs[0]) => {
+                // If requires auth and not logged in, show login prompt
+                if (tab.requiresAuth && !isLoggedIn) {
+                  onLoginRequired?.(tab.label)
+                  return
+                }
+                // Navigate normally
+                if (onPageChange) {
+                  onPageChange(tab.page)
+                }
+                navigate(tab.path)
+              }
+
+              return navTabs.map((tab) => (
                 <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('competition')
-                    }
-                    navigate('/competition')
-                  }}
+                  key={tab.page}
+                  onClick={() => handleNavClick(tab)}
                   className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
-                    color:
-                      currentPage === 'competition'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
+                    color: currentPage === tab.page ? 'var(--brand-yellow)' : 'var(--brand-light-gray)',
+                    padding: '8px 12px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
                   onMouseEnter={(e) => {
-                    if (currentPage !== 'competition') {
+                    if (currentPage !== tab.page) {
                       e.currentTarget.style.color = 'var(--brand-yellow)'
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (currentPage !== 'competition') {
+                    if (currentPage !== tab.page) {
                       e.currentTarget.style.color = 'var(--brand-light-gray)'
                     }
                   }}
                 >
-                  {/* Background for selected state */}
-                  {currentPage === 'competition' && (
+                  {currentPage === tab.page && (
                     <span
                       className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
+                      style={{ background: 'rgba(240, 185, 11, 0.15)', zIndex: -1 }}
                     />
                   )}
-
-                  {t('realtimeNav', language)}
+                  {tab.label}
                 </button>
-
-                <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('traders')
-                    }
-                    navigate('/traders')
-                  }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'traders'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'traders') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'traders') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {/* Background for selected state */}
-                  {currentPage === 'traders' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('configNav', language)}
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('trader')
-                    }
-                    navigate('/dashboard')
-                  }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'trader'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'trader') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'trader') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {/* Background for selected state */}
-                  {currentPage === 'trader' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('dashboardNav', language)}
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('strategy')
-                    }
-                    navigate('/strategy')
-                  }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'strategy'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'strategy') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'strategy') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {currentPage === 'strategy' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('strategyNav', language)}
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('debate')
-                    }
-                    navigate('/debate')
-                  }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'debate'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'debate') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'debate') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {currentPage === 'debate' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('debateNav', language)}
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('backtest')
-                    }
-                    navigate('/backtest')
-                  }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'backtest'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'backtest') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'backtest') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {currentPage === 'backtest' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  Backtest
-                </button>
-
-                <button
-                  onClick={() => {
-                    if (onPageChange) {
-                      onPageChange('faq')
-                    }
-                    navigate('/faq')
-                  }}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'faq'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'faq') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'faq') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {/* Background for selected state */}
-                  {currentPage === 'faq' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('faqNav', language)}
-                </button>
-              </>
-            ) : (
-              // Landing page navigation when not logged in
-              <>
-                <a
-                  href="/competition"
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'competition'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'competition') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'competition') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {/* Background for selected state */}
-                  {currentPage === 'competition' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('realtimeNav', language)}
-                </a>
-
-                <a
-                  href="/faq"
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-                  style={{
-                    color:
-                      currentPage === 'faq'
-                        ? 'var(--brand-yellow)'
-                        : 'var(--brand-light-gray)',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (currentPage !== 'faq') {
-                      e.currentTarget.style.color = 'var(--brand-yellow)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (currentPage !== 'faq') {
-                      e.currentTarget.style.color = 'var(--brand-light-gray)'
-                    }
-                  }}
-                >
-                  {/* Background for selected state */}
-                  {currentPage === 'faq' && (
-                    <span
-                      className="absolute inset-0 rounded-lg"
-                      style={{
-                        background: 'rgba(240, 185, 11, 0.15)',
-                        zIndex: -1,
-                      }}
-                    />
-                  )}
-
-                  {t('faqNav', language)}
-                </a>
-              </>
-            )}
+              ))
+            })()}
           </div>
 
           {/* Right Side - Social Links and User Actions */}
@@ -755,89 +445,40 @@ export default function HeaderBar({
           borderTop: '1px solid rgba(240, 185, 11, 0.1)',
         }}
       >
-        <div className="px-4 py-4 space-y-3">
-          {/* New Navigation Tabs */}
-          {isLoggedIn ? (
-            <button
-              onClick={() => {
-                console.log(
-                  '移动端 实时 button clicked, onPageChange:',
-                  onPageChange
-                )
-                onPageChange?.('competition')
+        <div className="px-4 py-4 space-y-2">
+          {/* Mobile Navigation Tabs - Show all tabs */}
+          {(() => {
+            const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
+              { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
+              { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : 'Market', requiresAuth: true },
+              { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
+              { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
+              { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
+              { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
+              { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
+              { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
+            ]
+
+            const handleMobileNavClick = (tab: typeof navTabs[0]) => {
+              if (tab.requiresAuth && !isLoggedIn) {
+                onLoginRequired?.(tab.label)
                 setMobileMenuOpen(false)
-              }}
-              className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-              style={{
-                color:
-                  currentPage === 'competition'
-                    ? 'var(--brand-yellow)'
-                    : 'var(--brand-light-gray)',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                position: 'relative',
-                width: '100%',
-                textAlign: 'left',
-              }}
-            >
-              {/* Background for selected state */}
-              {currentPage === 'competition' && (
-                <span
-                  className="absolute inset-0 rounded-lg"
-                  style={{
-                    background: 'rgba(240, 185, 11, 0.15)',
-                    zIndex: -1,
-                  }}
-                />
-              )}
+                return
+              }
+              if (onPageChange) {
+                onPageChange(tab.page)
+              }
+              navigate(tab.path)
+              setMobileMenuOpen(false)
+            }
 
-              {t('realtimeNav', language)}
-            </button>
-          ) : (
-            <a
-              href="/competition"
-              className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
-              style={{
-                color:
-                  currentPage === 'competition'
-                    ? 'var(--brand-yellow)'
-                    : 'var(--brand-light-gray)',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                position: 'relative',
-              }}
-            >
-              {/* Background for selected state */}
-              {currentPage === 'competition' && (
-                <span
-                  className="absolute inset-0 rounded-lg"
-                  style={{
-                    background: 'rgba(240, 185, 11, 0.15)',
-                    zIndex: -1,
-                  }}
-                />
-              )}
-
-              {t('realtimeNav', language)}
-            </a>
-          )}
-          {/* Only show 配置 and 看板 when logged in */}
-          {isLoggedIn && (
-            <>
+            return navTabs.map((tab) => (
               <button
-                onClick={() => {
-                  if (onPageChange) {
-                    onPageChange('traders')
-                  }
-                  navigate('/traders')
-                  setMobileMenuOpen(false)
-                }}
-                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
+                key={tab.page}
+                onClick={() => handleMobileNavClick(tab)}
+                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                 style={{
-                  color:
-                    currentPage === 'traders'
-                      ? 'var(--brand-yellow)'
-                      : 'var(--brand-light-gray)',
+                  color: currentPage === tab.page ? 'var(--brand-yellow)' : 'var(--brand-light-gray)',
                   padding: '12px 16px',
                   borderRadius: '8px',
                   position: 'relative',
@@ -845,191 +486,21 @@ export default function HeaderBar({
                   textAlign: 'left',
                 }}
               >
-                {/* Background for selected state */}
-                {currentPage === 'traders' && (
+                {currentPage === tab.page && (
                   <span
                     className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.15)',
-                      zIndex: -1,
-                    }}
+                    style={{ background: 'rgba(240, 185, 11, 0.15)', zIndex: -1 }}
                   />
                 )}
-
-                {t('configNav', language)}
-              </button>
-              <button
-                onClick={() => {
-                  if (onPageChange) {
-                    onPageChange('trader')
-                  }
-                  navigate('/dashboard')
-                  setMobileMenuOpen(false)
-                }}
-                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
-                style={{
-                  color:
-                    currentPage === 'trader'
-                      ? 'var(--brand-yellow)'
-                      : 'var(--brand-light-gray)',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  position: 'relative',
-                  width: '100%',
-                  textAlign: 'left',
-                }}
-              >
-                {/* Background for selected state */}
-                {currentPage === 'trader' && (
-                  <span
-                    className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.15)',
-                      zIndex: -1,
-                    }}
-                  />
+                {tab.label}
+                {tab.requiresAuth && !isLoggedIn && (
+                  <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(240, 185, 11, 0.2)', color: '#F0B90B' }}>
+                    {language === 'zh' ? '需登录' : 'Login'}
+                  </span>
                 )}
-
-                {t('dashboardNav', language)}
               </button>
-              <button
-                onClick={() => {
-                  if (onPageChange) {
-                    onPageChange('strategy')
-                  }
-                  navigate('/strategy')
-                  setMobileMenuOpen(false)
-                }}
-                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
-                style={{
-                  color:
-                    currentPage === 'strategy'
-                      ? 'var(--brand-yellow)'
-                      : 'var(--brand-light-gray)',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  position: 'relative',
-                  width: '100%',
-                  textAlign: 'left',
-                }}
-              >
-                {/* Background for selected state */}
-                {currentPage === 'strategy' && (
-                  <span
-                    className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.15)',
-                      zIndex: -1,
-                    }}
-                  />
-                )}
-
-                {t('strategyNav', language)}
-              </button>
-              <button
-                onClick={() => {
-                  if (onPageChange) {
-                    onPageChange('debate')
-                  }
-                  navigate('/debate')
-                  setMobileMenuOpen(false)
-                }}
-                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
-                style={{
-                  color:
-                    currentPage === 'debate'
-                      ? 'var(--brand-yellow)'
-                      : 'var(--brand-light-gray)',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  position: 'relative',
-                  width: '100%',
-                  textAlign: 'left',
-                }}
-              >
-                {/* Background for selected state */}
-                {currentPage === 'debate' && (
-                  <span
-                    className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.15)',
-                      zIndex: -1,
-                    }}
-                  />
-                )}
-
-                {t('debateNav', language)}
-              </button>
-              <button
-                onClick={() => {
-                  if (onPageChange) {
-                    onPageChange('backtest')
-                  }
-                  navigate('/backtest')
-                  setMobileMenuOpen(false)
-                }}
-                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
-                style={{
-                  color:
-                    currentPage === 'backtest'
-                      ? 'var(--brand-yellow)'
-                      : 'var(--brand-light-gray)',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  position: 'relative',
-                  width: '100%',
-                  textAlign: 'left',
-                }}
-              >
-                {/* Background for selected state */}
-                {currentPage === 'backtest' && (
-                  <span
-                    className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.15)',
-                      zIndex: -1,
-                    }}
-                  />
-                )}
-
-                Backtest
-              </button>
-              <button
-                onClick={() => {
-                  if (onPageChange) {
-                    onPageChange('faq')
-                  }
-                  navigate('/faq')
-                  setMobileMenuOpen(false)
-                }}
-                className="block text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500 hover:text-yellow-500"
-                style={{
-                  color:
-                    currentPage === 'faq'
-                      ? 'var(--brand-yellow)'
-                      : 'var(--brand-light-gray)',
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  position: 'relative',
-                  width: '100%',
-                  textAlign: 'left',
-                }}
-              >
-                {/* Background for selected state */}
-                {currentPage === 'faq' && (
-                  <span
-                    className="absolute inset-0 rounded-lg"
-                    style={{
-                      background: 'rgba(240, 185, 11, 0.15)',
-                      zIndex: -1,
-                    }}
-                  />
-                )}
-
-                {t('faqNav', language)}
-              </button>
-            </>
-          )}
+            ))
+          })()}
 
           {/* Original Navigation Items - Only on home page */}
           {isHomePage &&

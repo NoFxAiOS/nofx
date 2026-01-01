@@ -127,6 +127,9 @@ func (s *Server) setupRoutes() {
 		api.GET("/klines", s.handleKlines)
 		api.GET("/symbols", s.handleSymbols)
 
+		// Public strategy market (no authentication required)
+		api.GET("/strategies/public", s.handlePublicStrategies)
+
 		// Authentication related routes (no authentication required)
 		api.POST("/register", s.handleRegister)
 		api.POST("/login", s.handleLogin)

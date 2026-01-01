@@ -54,9 +54,8 @@ export default function TerminalHero() {
             }
         }
 
+        // Only fetch once on mount, cache the result
         fetchPrices()
-        const interval = setInterval(fetchPrices, 5000)
-        return () => clearInterval(interval)
     }, [])
 
     return (

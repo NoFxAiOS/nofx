@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from './ui/input'
+// import { Input } from './ui/input' // Removed unused import
 import { toast } from 'sonner'
 import { useSystemConfig } from '../hooks/useSystemConfig'
 
@@ -102,261 +102,262 @@ export function LoginPage() {
   }
 
   return (
-    <div
-      className="flex items-center justify-center py-12"
-      style={{ minHeight: 'calc(100vh - 64px)' }}
-    >
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <img
-              src="/icons/nofx.svg"
-              alt="NoFx Logo"
-              className="w-16 h-16 object-contain"
-            />
+    <div className="min-h-screen bg-black text-zinc-300 font-mono relative overflow-hidden flex items-center justify-center py-12">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none"></div>
+
+      {/* Scanline Effect */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]"></div>
+
+      <div className="w-full max-w-md relative z-10 px-6">
+        {/* Navigation - Top Bar (Mobile/Desktop Friendly) */}
+        <div className="flex justify-between items-center mb-8">
+          <button
+            onClick={() => window.location.href = '/'}
+            className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group px-3 py-1.5 rounded border border-transparent hover:border-zinc-700 bg-black/20 backdrop-blur-sm"
+          >
+            <div className="w-2 h-2 rounded-full bg-red-500 group-hover:animate-pulse"></div>
+            <span className="text-xs font-mono uppercase tracking-widest">&lt; CANCEL_LOGIN</span>
+          </button>
+        </div>
+
+        {/* Terminal Header */}
+        <div className="mb-8 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="absolute -inset-2 bg-nofx-gold/20 rounded-full blur-xl animate-pulse"></div>
+              <img
+                src="/icons/nofx.svg"
+                alt="NoFx Logo"
+                className="w-16 h-16 object-contain relative z-10 opacity-90"
+              />
+            </div>
           </div>
-          <h1
-            className="text-2xl font-bold"
-            style={{ color: 'var(--brand-light-gray)' }}
-          >
-            登录 NOFX
+          <h1 className="text-3xl font-bold tracking-tighter text-white uppercase mb-2">
+            <span className="text-nofx-gold">SYSTEM</span> ACCESS
           </h1>
-          <p
-            className="text-sm mt-2"
-            style={{ color: 'var(--text-secondary)' }}
-          >
-            {step === 'login' ? '请输入您的邮箱和密码' : '请输入两步验证码'}
+          <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">
+            {step === 'login' ? 'Authentication Protocol v3.0' : 'Multi-Factor Verification'}
           </p>
         </div>
 
-        {/* Login Form */}
-        <div
-          className="rounded-lg p-6"
-          style={{
-            background: 'var(--panel-bg)',
-            border: '1px solid var(--panel-border)',
-          }}
-        >
-          {adminMode ? (
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  管理员密码
-                </label>
-                <input
-                  type="password"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{
-                    background: 'var(--brand-black)',
-                    border: '1px solid var(--panel-border)',
-                    color: 'var(--brand-light-gray)',
-                  }}
-                  placeholder="请输入管理员密码"
-                  required
-                />
+        {/* Terminal Output / Form Container */}
+        <div className="bg-zinc-900/40 backdrop-blur-md border border-zinc-800 rounded-lg overflow-hidden shadow-2xl relative group">
+          <div className="absolute inset-0 bg-zinc-900/50 opacity-0 group-hover:opacity-100 transition duration-700 pointer-events-none"></div>
+
+          {/* Window Bar */}
+          <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/80 border-b border-zinc-800">
+            <div className="flex gap-1.5">
+              <div
+                className="w-2.5 h-2.5 rounded-full bg-red-500/50 hover:bg-red-500 cursor-pointer transition-colors"
+                onClick={() => window.location.href = '/'}
+                title="Close / Return Home"
+              ></div>
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
+            </div>
+            <div className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
+              <span className="text-emerald-500">➜</span> login.exe
+            </div>
+          </div>
+
+          <div className="p-6 md:p-8 relative">
+            {/* Status Output */}
+            <div className="mb-6 font-mono text-xs space-y-1 text-zinc-500 border-b border-zinc-800/50 pb-4">
+              <div className="flex gap-2">
+                <span className="text-emerald-500">➜</span>
+                <span>Initiating handshake...</span>
               </div>
-
-              {error && (
-                <div
-                  className="text-sm px-3 py-2 rounded"
-                  style={{
-                    background: 'var(--binance-red-bg)',
-                    color: 'var(--binance-red)',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                style={{
-                  background: 'var(--brand-yellow)',
-                  color: 'var(--brand-black)',
-                }}
-              >
-                {loading ? t('loading', language) : '登录'}
-              </button>
-            </form>
-          ) : step === 'login' ? (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('email', language)}
-                </label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t('emailPlaceholder', language)}
-                  required
-                />
+              <div className="flex gap-2">
+                <span className="text-emerald-500">➜</span>
+                <span>Target: NOFX CORE HUB</span>
               </div>
+              <div className="flex gap-2">
+                <span className="text-emerald-500">➜</span>
+                <span>Status: <span className="text-zinc-300">AWAITING CREDENTIALS</span></span>
+              </div>
+            </div>
 
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('password', language)}
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10"
-                    placeholder={t('passwordPlaceholder', language)}
+            {adminMode ? (
+              <form onSubmit={handleAdminLogin} className="space-y-5">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-1.5 ml-1">Admin Key</label>
+                  <input
+                    type="password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono"
+                    placeholder="ENTER_ROOT_PASSWORD"
                     required
                   />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? '隐藏密码' : '显示密码'}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center rounded bg-transparent p-0 m-0 border-0 outline-none focus:outline-none focus:ring-0 appearance-none cursor-pointer btn-icon"
-                    style={{ color: 'var(--text-secondary)' }}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
                 </div>
-                <div className="text-right mt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.location.href = '/reset-password'
-                    }}
-                    className="text-xs hover:underline"
-                    style={{ color: '#F0B90B' }}
-                  >
-                    {t('forgotPassword', language)}
-                  </button>
-                </div>
-              </div>
 
-              {error && (
-                <div
-                  className="text-sm px-3 py-2 rounded"
-                  style={{
-                    background: 'var(--binance-red-bg)',
-                    color: 'var(--binance-red)',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
+                {error && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono">
+                    [ERROR]: {error}
+                  </div>
+                )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                style={{
-                  background: 'var(--brand-yellow)',
-                  color: 'var(--brand-black)',
-                }}
-              >
-                {loading ? t('loading', language) : t('loginButton', language)}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleOTPVerify} className="space-y-4">
-              <div className="text-center mb-4">
-                <div className="text-4xl mb-2">📱</div>
-                <p className="text-sm" style={{ color: '#848E9C' }}>
-                  {t('scanQRCodeInstructions', language)}
-                  <br />
-                  {t('enterOTPCode', language)}
-                </p>
-              </div>
-
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: 'var(--brand-light-gray)' }}
-                >
-                  {t('otpCode', language)}
-                </label>
-                <input
-                  type="text"
-                  value={otpCode}
-                  onChange={(e) =>
-                    setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                  }
-                  className="w-full px-3 py-2 rounded text-center text-2xl font-mono"
-                  style={{
-                    background: 'var(--brand-black)',
-                    border: '1px solid var(--panel-border)',
-                    color: 'var(--brand-light-gray)',
-                  }}
-                  placeholder={t('otpPlaceholder', language)}
-                  maxLength={6}
-                  required
-                />
-              </div>
-
-              {error && (
-                <div
-                  className="text-sm px-3 py-2 rounded"
-                  style={{
-                    background: 'var(--binance-red-bg)',
-                    color: 'var(--binance-red)',
-                  }}
-                >
-                  {error}
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep('login')}
-                  className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-                  style={{
-                    background: 'var(--panel-bg-hover)',
-                    color: 'var(--text-secondary)',
-                  }}
-                >
-                  {t('back', language)}
-                </button>
                 <button
                   type="submit"
-                  disabled={loading || otpCode.length !== 6}
-                  className="flex-1 px-4 py-2 rounded text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                  style={{ background: '#F0B90B', color: '#000' }}
+                  disabled={loading}
+                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_20px_rgba(255,215,0,0.1)] hover:shadow-[0_0_30px_rgba(255,215,0,0.3)]"
                 >
-                  {loading ? t('loading', language) : t('verifyOTP', language)}
+                  {loading ? '> VERIFYING...' : '> EXECUTE_LOGIN'}
                 </button>
-              </div>
-            </form>
-          )}
+              </form>
+            ) : step === 'login' ? (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5 ml-1 font-bold">{t('email', language)}</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono"
+                      placeholder="user@nofx.os"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5 ml-1">
+                      <label className="block text-xs uppercase tracking-wider text-zinc-500 font-bold">{t('password', language)}</label>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono pr-10"
+                        placeholder="••••••••••••"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <div className="text-right mt-2">
+                      <button
+                        type="button"
+                        onClick={() => window.location.href = '/reset-password'}
+                        className="text-[10px] uppercase tracking-wide text-zinc-500 hover:text-nofx-gold transition-colors"
+                      >
+                        &gt; {t('forgotPassword', language)}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono flex gap-2 items-start">
+                    <span>⚠</span> <span>{error}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_15px_rgba(255,215,0,0.1)] hover:shadow-[0_0_25px_rgba(255,215,0,0.25)] flex items-center justify-center gap-2 group"
+                >
+                  {loading ? (
+                    <span className="animate-pulse">PROCESSING...</span>
+                  ) : (
+                    <>
+                      <span>AUTHENTICATE</span>
+                      <span className="group-hover:translate-x-1 transition-transform">-&gt;</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleOTPVerify} className="space-y-6">
+                <div className="text-center py-2">
+                  <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-700 text-2xl">
+                    🔐
+                  </div>
+                  <p className="text-xs text-zinc-400 font-mono leading-relaxed">
+                    {t('scanQRCodeInstructions', language)}<br />
+                    {t('enterOTPCode', language)}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-2 text-center font-bold">
+                    {t('otpCode', language)}
+                  </label>
+                  <input
+                    type="text"
+                    value={otpCode}
+                    onChange={(e) =>
+                      setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    }
+                    className="w-full bg-black border border-zinc-700 rounded px-4 py-4 text-center text-2xl tracking-[0.5em] font-mono text-white focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800"
+                    placeholder="000000"
+                    maxLength={6}
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                {error && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono text-center">
+                    [ACCESS DENIED]: {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep('login')}
+                    className="flex-1 bg-zinc-900 border border-zinc-700 text-zinc-400 py-3 rounded text-xs font-mono uppercase hover:bg-zinc-800 transition-colors"
+                  >
+                    &lt; ABORT
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || otpCode.length !== 6}
+                    className="flex-1 bg-nofx-gold text-black font-bold py-3 rounded text-xs font-mono uppercase hover:bg-yellow-400 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'VERIFYING...' : 'CONFIRM IDENTITY'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          {/* Terminal Footer Info */}
+          <div className="bg-zinc-900/50 p-3 flex justify-between items-center text-[10px] font-mono text-zinc-600 border-t border-zinc-800">
+            <div>SECURE_CONNECTION: ENCRYPTED</div>
+            <div>{new Date().toISOString().split('T')[0]}</div>
+          </div>
         </div>
 
         {/* Register Link */}
         {!adminMode && registrationEnabled && (
-          <div className="text-center mt-6">
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              还没有账户？{' '}
+          <div className="text-center mt-8 space-y-4">
+            <p className="text-xs font-mono text-zinc-500">
+              NEW_USER_DETECTED?{' '}
               <button
-                onClick={() => {
-                  window.location.href = '/register'
-                }}
-                className="font-semibold hover:underline transition-colors"
-                style={{ color: 'var(--brand-yellow)' }}
+                onClick={() => window.location.href = '/register'}
+                className="text-nofx-gold hover:underline hover:text-yellow-300 transition-colors ml-1 uppercase"
               >
-                立即注册
+                INITIALIZE REGISTRATION
               </button>
             </p>
+            <button
+              onClick={() => window.location.href = '/'}
+              className="text-[10px] text-zinc-600 hover:text-red-500 transition-colors uppercase tracking-widest hover:underline decoration-red-500/30 font-mono"
+            >
+              [ ABORT_SESSION_RETURN_HOME ]
+            </button>
           </div>
         )}
       </div>

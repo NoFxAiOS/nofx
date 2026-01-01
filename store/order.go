@@ -91,7 +91,21 @@ func (s *OrderStore) InitTables() error {
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'trader_fills'`).Scan(&fillsExist)
 
 		if ordersExist > 0 && fillsExist > 0 {
-			// Tables exist - just ensure indexes exist, skip AutoMigrate
+			// Tables exist - fix INTEGER columns to BOOLEAN (from earlier migrations)
+			// Need to: drop default -> change type -> set new default
+			boolColumns := []struct{ table, col string }{
+				{"trader_orders", "reduce_only"},
+				{"trader_orders", "close_position"},
+				{"trader_orders", "price_protect"},
+				{"trader_fills", "is_maker"},
+			}
+			for _, c := range boolColumns {
+				s.db.Exec(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT", c.table, c.col))
+				s.db.Exec(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE BOOLEAN USING %s::int::boolean", c.table, c.col, c.col))
+				s.db.Exec(fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT false", c.table, c.col))
+			}
+
+			// Ensure indexes exist
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_exchange_unique ON trader_orders(exchange_id, exchange_order_id)`)
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_fills_exchange_unique ON trader_fills(exchange_id, exchange_trade_id)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_orders_trader_id ON trader_orders(trader_id)`)

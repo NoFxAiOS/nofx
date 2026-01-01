@@ -1,0 +1,48 @@
+# NOFX Stable Release Deployment
+# Production-ready stable version
+
+services:
+  nofx:
+    image: ghcr.io/nofxaios/nofx/nofx-backend:stable
+    container_name: nofx-trading
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      - "${NOFX_BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./data:/app/data
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - AI_MAX_TOKENS=8000
+    networks:
+      - nofx-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  nofx-frontend:
+    image: ghcr.io/nofxaios/nofx/nofx-frontend:stable
+    container_name: nofx-frontend
+    restart: unless-stopped
+    ports:
+      - "${NOFX_FRONTEND_PORT:-3000}:80"
+    networks:
+      - nofx-network
+    depends_on:
+      - nofx
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  nofx-network:
+    driver: bridge

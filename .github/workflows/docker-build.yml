@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - release/stable
     tags:
       - 'v*'
   pull_request:
@@ -169,6 +170,14 @@ jobs:
               "${GHCR_IMAGE}:${REF_NAME}-amd64" \
               "${GHCR_IMAGE}:${REF_NAME}-arm64"
             echo "✅ Created latest tag (main branch only)"
+          fi
+
+          # release/stable branch gets the 'stable' tag
+          if [[ "${{ github.ref }}" == "refs/heads/release/stable" ]]; then
+            docker buildx imagetools create -t "${GHCR_IMAGE}:stable" \
+              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
+              "${GHCR_IMAGE}:${REF_NAME}-arm64"
+            echo "✅ Created stable tag (release/stable branch)"
           fi
 
           if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]]; then

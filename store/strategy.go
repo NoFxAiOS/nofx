@@ -62,6 +62,8 @@ type CoinSourceConfig struct {
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
+	// excluded coins list (filtered out from all sources)
+	ExcludedCoins []string `json:"excluded_coins,omitempty"`
 	// whether to use AI500 coin pool
 	UseCoinPool bool `json:"use_coin_pool"`
 	// AI500 coin pool maximum count

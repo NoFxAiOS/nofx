@@ -472,6 +472,7 @@ export interface StrategyConfig {
 export interface CoinSourceConfig {
   source_type: 'static' | 'coinpool' | 'oi_top' | 'mixed';
   static_coins?: string[];
+  excluded_coins?: string[];   // 排除的币种列表
   use_coin_pool: boolean;
   coin_pool_limit?: number;
   coin_pool_api_url?: string;  // AI500 币种池 API URL

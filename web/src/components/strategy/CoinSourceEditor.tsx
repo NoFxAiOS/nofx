@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, X, Database, TrendingUp, List, Link, AlertCircle } from 'lucide-react'
+import { Plus, X, Database, TrendingUp, List, Link, AlertCircle, Ban } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
 
 // Default API URLs for data sources
@@ -20,6 +20,7 @@ export function CoinSourceEditor({
   language,
 }: CoinSourceEditorProps) {
   const [newCoin, setNewCoin] = useState('')
+  const [newExcludedCoin, setNewExcludedCoin] = useState('')
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
@@ -54,6 +55,9 @@ export function CoinSourceEditor({
       apiUrlRequired: { zh: '需要填写 API URL 才能获取数据', en: 'API URL required to fetch data' },
       dataSourceConfig: { zh: '数据源配置', en: 'Data Source Configuration' },
       fillDefault: { zh: '填入默认', en: 'Fill Default' },
+      excludedCoins: { zh: '排除币种', en: 'Excluded Coins' },
+      excludedCoinsDesc: { zh: '这些币种将从所有数据源中排除，不会被交易', en: 'These coins will be excluded from all sources and will not be traded' },
+      addExcludedCoin: { zh: '添加排除', en: 'Add Excluded' },
     }
     return translations[key]?.[language] || key
   }
@@ -112,6 +116,36 @@ export function CoinSourceEditor({
     onChange({
       ...config,
       static_coins: (config.static_coins || []).filter((c) => c !== coin),
+    })
+  }
+
+  const handleAddExcludedCoin = () => {
+    if (!newExcludedCoin.trim()) return
+    const symbol = newExcludedCoin.toUpperCase().trim()
+
+    // For xyz dex assets, use xyz: prefix without USDT
+    let formattedSymbol: string
+    if (isXyzDexAsset(symbol)) {
+      const base = symbol.replace(/^xyz:/i, '').replace(/USDT$|USD$|-USDC$/i, '')
+      formattedSymbol = `xyz:${base}`
+    } else {
+      formattedSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`
+    }
+
+    const currentExcluded = config.excluded_coins || []
+    if (!currentExcluded.includes(formattedSymbol)) {
+      onChange({
+        ...config,
+        excluded_coins: [...currentExcluded, formattedSymbol],
+      })
+    }
+    setNewExcludedCoin('')
+  }
+
+  const handleRemoveExcludedCoin = (coin: string) => {
+    onChange({
+      ...config,
+      excluded_coins: (config.excluded_coins || []).filter((c) => c !== coin),
     })
   }
 
@@ -208,6 +242,68 @@ export function CoinSourceEditor({
           )}
         </div>
       )}
+
+      {/* Excluded Coins */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Ban className="w-4 h-4" style={{ color: '#F6465D' }} />
+          <label className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+            {t('excludedCoins')}
+          </label>
+        </div>
+        <p className="text-xs mb-3" style={{ color: '#848E9C' }}>
+          {t('excludedCoinsDesc')}
+        </p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {(config.excluded_coins || []).map((coin) => (
+            <span
+              key={coin}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
+              style={{ background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D' }}
+            >
+              {coin}
+              {!disabled && (
+                <button
+                  onClick={() => handleRemoveExcludedCoin(coin)}
+                  className="ml-1 hover:text-white transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </span>
+          ))}
+          {(config.excluded_coins || []).length === 0 && (
+            <span className="text-xs italic" style={{ color: '#5E6673' }}>
+              {language === 'zh' ? '无' : 'None'}
+            </span>
+          )}
+        </div>
+        {!disabled && (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newExcludedCoin}
+              onChange={(e) => setNewExcludedCoin(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddExcludedCoin()}
+              placeholder="BTC, ETH, DOGE..."
+              className="flex-1 px-4 py-2 rounded-lg text-sm"
+              style={{
+                background: '#0B0E11',
+                border: '1px solid #2B3139',
+                color: '#EAECEF',
+              }}
+            />
+            <button
+              onClick={handleAddExcludedCoin}
+              className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+              style={{ background: '#F6465D', color: '#EAECEF' }}
+            >
+              <Ban className="w-4 h-4" />
+              {t('addExcludedCoin')}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Coin Pool Options */}
       {(config.source_type === 'coinpool' || config.source_type === 'mixed') && (
@@ -400,6 +496,7 @@ export function CoinSourceEditor({
           )}
         </div>
       )}
+
     </div>
   )
 }

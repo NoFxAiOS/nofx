@@ -119,7 +119,7 @@ type Context struct {
 	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap    map[string]*OITopData              `json:"-"`
 	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData   *provider.OIRankingData                `json:"-"` // Market-wide OI ranking data
+	OIRankingData   *provider.OIRankingData            `json:"-"` // Market-wide OI ranking data
 	BTCETHLeverage  int                                `json:"-"`
 	AltcoinLeverage int                                `json:"-"`
 	Timeframes      []string                           `json:"-"`
@@ -401,7 +401,8 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 				Sources: []string{"static"},
 			})
 		}
-		return candidates, nil
+
+		return e.filterExcludedCoins(candidates), nil
 
 	case "coinpool":
 		// 检查 use_coin_pool 标志，如果为 false 则回退到静态币种
@@ -414,9 +415,13 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 					Sources: []string{"static"},
 				})
 			}
-			return candidates, nil
+			return e.filterExcludedCoins(candidates), nil
 		}
-		return e.getCoinPoolCoins(coinSource.CoinPoolLimit)
+		coins, err := e.getCoinPoolCoins(coinSource.CoinPoolLimit)
+		if err != nil {
+			return nil, err
+		}
+		return e.filterExcludedCoins(coins), nil
 
 	case "oi_top":
 		// 检查 use_oi_top 标志，如果为 false 则回退到静态币种
@@ -429,9 +434,13 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 					Sources: []string{"static"},
 				})
 			}
-			return candidates, nil
+			return e.filterExcludedCoins(candidates), nil
 		}
-		return e.getOITopCoins(coinSource.OITopLimit)
+		coins, err := e.getOITopCoins(coinSource.OITopLimit)
+		if err != nil {
+			return nil, err
+		}
+		return e.filterExcludedCoins(coins), nil
 
 	case "mixed":
 		if coinSource.UseCoinPool {
@@ -471,11 +480,37 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 				Sources: sources,
 			})
 		}
-		return candidates, nil
+		return e.filterExcludedCoins(candidates), nil
 
 	default:
 		return nil, fmt.Errorf("unknown coin source type: %s", coinSource.SourceType)
 	}
+}
+
+// filterExcludedCoins removes excluded coins from the candidates list
+func (e *StrategyEngine) filterExcludedCoins(candidates []CandidateCoin) []CandidateCoin {
+	if len(e.config.CoinSource.ExcludedCoins) == 0 {
+		return candidates
+	}
+
+	// Build excluded set for O(1) lookup
+	excluded := make(map[string]bool)
+	for _, coin := range e.config.CoinSource.ExcludedCoins {
+		normalized := market.Normalize(coin)
+		excluded[normalized] = true
+	}
+
+	// Filter out excluded coins
+	filtered := make([]CandidateCoin, 0, len(candidates))
+	for _, c := range candidates {
+		if !excluded[c.Symbol] {
+			filtered = append(filtered, c)
+		} else {
+			logger.Infof("🚫 Excluded coin: %s", c.Symbol)
+		}
+	}
+
+	return filtered
 }
 
 func (e *StrategyEngine) getCoinPoolCoins(limit int) ([]CandidateCoin, error) {

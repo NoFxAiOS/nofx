@@ -778,7 +778,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		var updateTime int64
 		// Priority 1: Get from database (trader_positions table) - most accurate
 		if at.store != nil {
-			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side); err == nil && dbPos != nil {
+			dbSide := strings.ToUpper(side)
+			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, dbSide); err == nil && dbPos != nil {
 				if dbPos.EntryTime > 0 {
 					updateTime = dbPos.EntryTime
 				}

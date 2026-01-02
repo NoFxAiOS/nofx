@@ -18,11 +18,11 @@ export const translations = {
     view: 'View',
 
     // Navigation
-    realtimeNav: 'Live',
+    realtimeNav: 'Leaderboard',
     configNav: 'Config',
     dashboardNav: 'Dashboard',
     strategyNav: 'Strategy',
-    debateNav: 'Debate Arena',
+    debateNav: 'Arena',
     faqNav: 'FAQ',
 
     // Footer
@@ -1226,11 +1226,11 @@ export const translations = {
     view: '查看',
 
     // Navigation
-    realtimeNav: '实时',
+    realtimeNav: '排行榜',
     configNav: '配置',
     dashboardNav: '看板',
     strategyNav: '策略',
-    debateNav: '行情辩论',
+    debateNav: '竞技场',
     faqNav: '常见问题',
 
     // Footer

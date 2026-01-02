@@ -172,14 +172,7 @@ func NewStrategyStore(db *gorm.DB) *StrategyStore {
 }
 
 func (s *StrategyStore) initTables() error {
-	// For PostgreSQL with existing table, skip AutoMigrate
-	if s.db.Dialector.Name() == "postgres" {
-		var tableExists int64
-		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'strategies'`).Scan(&tableExists)
-		if tableExists > 0 {
-			return nil
-		}
-	}
+	// AutoMigrate will add missing columns without dropping existing data
 	return s.db.AutoMigrate(&Strategy{})
 }
 

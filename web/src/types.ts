@@ -428,9 +428,30 @@ export interface Strategy {
   description: string;
   is_active: boolean;
   is_default: boolean;
+  is_public: boolean;           // 是否在策略市场公开
+  config_visible: boolean;      // 配置参数是否公开可见
   config: StrategyConfig;
   created_at: string;
   updated_at: string;
+}
+
+// 策略使用统计
+export interface StrategyStats {
+  clone_count: number;          // 被克隆次数
+  active_users: number;         // 当前使用人数
+  top_performers?: StrategyPerformer[];  // 收益排行
+}
+
+// 策略使用者收益排行
+export interface StrategyPerformer {
+  user_id: string;
+  user_name: string;            // 脱敏后的用户名
+  total_pnl_pct: number;        // 总收益率
+  total_pnl: number;            // 总收益金额
+  win_rate: number;             // 胜率
+  trade_count: number;          // 交易次数
+  using_since: string;          // 使用开始时间
+  rank: number;                 // 排名
 }
 
 export interface PromptSectionsConfig {

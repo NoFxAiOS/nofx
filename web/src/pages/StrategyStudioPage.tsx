@@ -28,6 +28,7 @@ import {
   Send,
   Download,
   Upload,
+  Globe,
 } from 'lucide-react'
 import type { Strategy, StrategyConfig, AIModel } from '../types'
 import { confirmToast, notify } from '../lib/notify'
@@ -35,6 +36,7 @@ import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
+import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -61,6 +63,7 @@ export function StrategyStudioPage() {
     riskControl: false,
     promptSections: false,
     customPrompt: false,
+    publishSettings: false,
   })
 
   // Right panel states
@@ -181,6 +184,8 @@ export function StrategyStudioPage() {
           description: '',
           is_active: false,
           is_default: false,
+          is_public: false,
+          config_visible: true,
           config: defaultConfig,
           created_at: now,
           updated_at: now,
@@ -343,11 +348,14 @@ export function StrategyStudioPage() {
             name: selectedStrategy.name,
             description: selectedStrategy.description,
             config: editingConfig,
+            is_public: selectedStrategy.is_public,
+            config_visible: selectedStrategy.config_visible,
           }),
         }
       )
       if (!response.ok) throw new Error('Failed to save strategy')
       setHasChanges(false)
+      notify.success(language === 'zh' ? '策略已保存' : 'Strategy saved')
       await fetchStrategies()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -462,6 +470,7 @@ export function StrategyStudioPage() {
       duration: { zh: '耗时', en: 'Duration' },
       noModel: { zh: '请先配置 AI 模型', en: 'Please configure AI model first' },
       testNote: { zh: '使用真实 AI 模型测试，不执行交易', en: 'Test with real AI, no trading' },
+      publishSettings: { zh: '发布设置', en: 'Publish' },
     }
     return translations[key]?.[language] || key
   }
@@ -555,6 +564,28 @@ export function StrategyStudioPage() {
             style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
           />
         </div>
+      ),
+    },
+    {
+      key: 'publishSettings' as const,
+      icon: Globe,
+      color: '#0ECB81',
+      title: t('publishSettings'),
+      content: selectedStrategy && (
+        <PublishSettingsEditor
+          isPublic={selectedStrategy.is_public ?? false}
+          configVisible={selectedStrategy.config_visible ?? true}
+          onIsPublicChange={(value) => {
+            setSelectedStrategy({ ...selectedStrategy, is_public: value })
+            setHasChanges(true)
+          }}
+          onConfigVisibleChange={(value) => {
+            setSelectedStrategy({ ...selectedStrategy, config_visible: value })
+            setHasChanges(true)
+          }}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
       ),
     },
   ]
@@ -658,7 +689,7 @@ export function StrategyStudioPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 mt-1">
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
                     {strategy.is_active && (
                       <span className="px-1.5 py-0.5 text-[10px] rounded" style={{ background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81' }}>
                         {t('active')}
@@ -667,6 +698,12 @@ export function StrategyStudioPage() {
                     {strategy.is_default && (
                       <span className="px-1.5 py-0.5 text-[10px] rounded" style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}>
                         {t('default')}
+                      </span>
+                    )}
+                    {strategy.is_public && (
+                      <span className="px-1.5 py-0.5 text-[10px] rounded flex items-center gap-0.5" style={{ background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' }}>
+                        <Globe className="w-2.5 h-2.5" />
+                        {language === 'zh' ? '公开' : 'Public'}
                       </span>
                     )}
                   </div>

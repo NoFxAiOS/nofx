@@ -416,7 +416,7 @@ Completed: *Categorize issues by profit importance* (2/2)
 
     **💻 Technical Scope**: "Should just need a few lines of code" according to requester - mainly API endpoint routing logic.
 
-- [ ][Issu3 12](https://github.com/NoFxAiOS/nofx/issues/1126)
+- [ ] [Issue 12](https://github.com/NoFxAiOS/nofx/issues/1126)
     ### Issue #12: Real-Time News Integration for AI Trading Decisions
 
     **🔍 Bug Category**: Enhancement / New feature request

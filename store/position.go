@@ -37,15 +37,24 @@ type TraderPosition struct {
 	EntryPrice         float64    `json:"entry_price"`    // Entry price
 	EntryOrderID       string     `json:"entry_order_id"` // Entry order ID
 	EntryTime          time.Time  `json:"entry_time"`     // Entry time
-	ExitPrice          float64    `json:"exit_price"`     // Exit price
+	ExitPrice          float64    `json:"exit_price"`     // Exit price (actual execution price from exchange)
 	ExitOrderID        string     `json:"exit_order_id"`  // Exit order ID
 	ExitTime           *time.Time `json:"exit_time"`      // Exit time
-	RealizedPnL        float64    `json:"realized_pnl"`   // Realized profit and loss
+	RealizedPnL        float64    `json:"realized_pnl"`   // Realized profit and loss (calculated from actual exit price)
 	Fee                float64    `json:"fee"`            // Fee
 	Leverage           int        `json:"leverage"`       // Leverage multiplier
 	Status             string     `json:"status"`         // OPEN/CLOSED
 	CloseReason        string     `json:"close_reason"`   // Close reason: ai_decision/manual/stop_loss/take_profit
 	Source             string     `json:"source"`         // Source: system/manual/sync
+	// New fields for tracking stop loss/take profit adjustments
+	InitialStopLoss    float64    `json:"initial_stop_loss"`    // Original stop loss level set at entry
+	InitialTakeProfit  float64    `json:"initial_take_profit"`  // Original take profit level set at entry
+	FinalStopLoss      float64    `json:"final_stop_loss"`      // Final/adjusted stop loss level (if modified)
+	FinalTakeProfit    float64    `json:"final_take_profit"`    // Final/adjusted take profit level (if modified)
+	AdjustmentCount    int        `json:"adjustment_count"`     // Number of SL/TP adjustments made
+	LastAdjustmentTime *time.Time `json:"last_adjustment_time"` // Timestamp of last adjustment
+	ExchangeSynced     bool       `json:"exchange_synced"`      // Whether position data was synced with exchange
+	LastSyncTime       *time.Time `json:"last_sync_time"`       // Last time synced with exchange
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -99,6 +108,16 @@ func (s *PositionStore) InitTables() error {
 	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_type TEXT NOT NULL DEFAULT ''`)
 	// Migration: add exchange_position_id for deduplication
 	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_position_id TEXT NOT NULL DEFAULT ''`)
+
+	// Migration: add stop loss/take profit tracking columns
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN initial_stop_loss REAL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN initial_take_profit REAL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN final_stop_loss REAL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN final_take_profit REAL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN adjustment_count INTEGER DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN last_adjustment_time DATETIME`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN exchange_synced BOOLEAN DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN last_sync_time DATETIME`)
 	// Migration: add source field (system/manual/sync)
 	s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN source TEXT DEFAULT 'system'`)
 	// Migration: add entry_quantity field (original quantity, never modified on partial close)
@@ -1376,6 +1395,106 @@ func (s *PositionStore) ClosePositionWithAccurateData(id int64, exitPrice float6
 	if err != nil {
 		return fmt.Errorf("failed to close position with accurate data: %w", err)
 	}
+	return nil
+}
+
+// UpdateStopLossTakeProfit updates stop loss and take profit levels, tracking adjustments
+// This is called when AI dynamically adjusts SL/TP during a trade
+func (s *PositionStore) UpdateStopLossTakeProfit(id int64, newStopLoss, newTakeProfit float64) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid position id: %d", id)
+	}
+
+	now := time.Now()
+
+	// Update position with new SL/TP levels and track adjustment
+	_, err := s.db.Exec(`
+		UPDATE trader_positions SET
+			final_stop_loss = ?,
+			final_take_profit = ?,
+			adjustment_count = adjustment_count + 1,
+			last_adjustment_time = ?,
+			updated_at = ?
+		WHERE id = ?
+	`, newStopLoss, newTakeProfit, now.Format(time.RFC3339), now.Format(time.RFC3339), id)
+
+	if err != nil {
+		return fmt.Errorf("failed to update stop loss/take profit: %w", err)
+	}
+
+	return nil
+}
+
+// SyncPositionWithExchange fetches actual execution data from exchange and updates position
+// This ensures P&L is calculated using actual prices, not just the AI-set levels
+func (s *PositionStore) SyncPositionWithExchange(id int64, actualExitPrice float64, actualExitTime time.Time) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid position id: %d", id)
+	}
+
+	// Get position to calculate accurate P&L
+	var pos TraderPosition
+	var entryTime, exitTime, createdAt, updatedAt, lastAdjTime, lastSyncTime sql.NullString
+
+	err := s.db.QueryRow(`
+		SELECT id, trader_id, exchange_id, COALESCE(exchange_type, '') as exchange_type, symbol, side, quantity, COALESCE(entry_quantity, quantity) as entry_quantity,
+		       entry_price, entry_order_id, entry_time, exit_price, exit_order_id, exit_time, realized_pnl, fee,
+		       leverage, status, close_reason, created_at, updated_at,
+		       COALESCE(initial_stop_loss, 0), COALESCE(initial_take_profit, 0),
+		       COALESCE(final_stop_loss, 0), COALESCE(final_take_profit, 0),
+		       COALESCE(adjustment_count, 0), last_adjustment_time, COALESCE(exchange_synced, 0), last_sync_time
+		FROM trader_positions WHERE id = ?
+	`, id).Scan(
+		&pos.ID, &pos.TraderID, &pos.ExchangeID, &pos.ExchangeType, &pos.Symbol, &pos.Side, &pos.Quantity, &pos.EntryQuantity,
+		&pos.EntryPrice, &pos.EntryOrderID, &entryTime, &pos.ExitPrice, &pos.ExitOrderID, &exitTime, &pos.RealizedPnL, &pos.Fee,
+		&pos.Leverage, &pos.Status, &pos.CloseReason, &createdAt, &updatedAt,
+		&pos.InitialStopLoss, &pos.InitialTakeProfit, &pos.FinalStopLoss, &pos.FinalTakeProfit,
+		&pos.AdjustmentCount, &lastAdjTime, &pos.ExchangeSynced, &lastSyncTime,
+	)
+
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("position not found: %d", id)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get position: %w", err)
+	}
+
+	// Calculate realized P&L using actual exit price
+	var realizedPnL float64
+	if pos.Side == "LONG" {
+		realizedPnL = (actualExitPrice - pos.EntryPrice) * pos.Quantity
+	} else { // SHORT
+		realizedPnL = (pos.EntryPrice - actualExitPrice) * pos.Quantity
+	}
+
+	// Account for fees (negative for closing)
+	realizedPnL -= pos.Fee
+
+	now := time.Now()
+
+	_, err = s.db.Exec(`
+		UPDATE trader_positions SET
+			exit_price = ?,
+			exit_time = ?,
+			realized_pnl = ?,
+			exchange_synced = 1,
+			last_sync_time = ?,
+			status = 'CLOSED',
+			updated_at = ?
+		WHERE id = ?
+	`,
+		actualExitPrice,
+		actualExitTime.Format(time.RFC3339),
+		realizedPnL,
+		now.Format(time.RFC3339),
+		now.Format(time.RFC3339),
+		id,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to sync position with exchange: %w", err)
+	}
+
 	return nil
 }
 

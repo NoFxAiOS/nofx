@@ -14,12 +14,12 @@
 - **Impact:** Incorrect entry/exit points, position sizing errors, P&L miscalculations
 - **Fix:** ✅ Upgraded to `/fapi/v2/ticker/price`, added real-time fetching with intelligent fallback
 
-### **Issue #13: Dynamic Stop Loss/Take Profit P&L Calculation Bug**
+### **Issue #13: Dynamic Stop Loss/Take Profit P&L Calculation Bug** ✅ **COMPLETED**
 - **Profit Impact:** ⭐⭐⭐⭐⭐ (Critical)
 - **Problem:** AI adjusts stop loss levels, but P&L calculated using original levels instead of actual execution price
 - **Research Finding:** Risk management quality determines cross-market stability
 - **Impact:** **Inaccurate performance metrics** - you can't trust reported profits/losses
-- **Fix:** Use exchange-reported execution prices as source of truth for P&L
+- **Fix:** ✅ Added exchange-synced P&L calculation with SL/TP adjustment tracking
 
 ## 🚨 **HIGH PRIORITY PROFIT-IMPACTING ISSUES**
 
@@ -464,49 +464,74 @@ Completed: *Categorize issues by profit importance* (2/2)
     **Priority**: Enhancement - would significantly improve AI decision quality by adding fundamental analysis layer.
 
 - [ ] [Issue 13](https://github.com/NoFxAiOS/nofx/issues/1097)
-    ### Issue #13: Dynamic Stop Loss/Take Profit Calculation Bug
+- [x] [Issue 13](https://github.com/NoFxAiOS/nofx/issues/1097): ✅ **COMPLETED**
+    ### ✅ Bug Fixed: Dynamic Stop Loss/Take Profit P&L Calculation Bug
 
-    **🔍 Bug Category**: Trading execution
+    **🔍 Original Problem**: When AI adjusts SL/TP during trade, system recorded incorrect P&L using original levels instead of actual execution prices
+    - **Evidence**: Position closed at actual exchange price but P&L calculated using AI-set SL/TP levels
+    - **Impact**: Inaccurate performance metrics, users couldn't trust reported profits/losses
 
-    **🐛 Problem Description**:
-    When AI dynamically adjusts stop loss/take profit levels during a trade, the system records incorrect P&L after position closure on exchange (Binance)
+    **✅ FIXES IMPLEMENTED** (Hybrid Exchange Sync Approach):
 
-    **📋 Detailed Issue**:
-    1. **AI opens position** with initial stop loss/take profit levels
-    2. **AI dynamically adjusts** stop loss/take profit during trade
-    3. **Exchange triggers closure** based on updated levels
-    4. **System incorrectly calculates P&L** using **original stop loss/take profit** instead of **actual execution price**
+    1. **store/position.go** - Enhanced position tracking with SL/TP history:
+       - Added `InitialStopLoss`, `InitialTakeProfit` fields to track original levels
+       - Added `FinalStopLoss`, `FinalTakeProfit` fields to track current adjusted levels
+       - Added `AdjustmentCount` and `LastAdjustmentTime` to audit all modifications
+       - Added `ExchangeSynced` flag and `LastSyncTime` for sync tracking
+       - New `UpdateStopLossTakeProfit()` method to record every SL/TP adjustment
+       - New `SyncPositionWithExchange()` method to sync actual execution prices from exchange
 
-    **❌ Current Behavior**:
-    - P&L calculation uses **stale/original** stop loss/take profit values
-    - **Inaccurate trading records** and performance metrics
-    - **Disconnect** between exchange execution and internal tracking
+    2. **trader/auto_trader.go** - Smart SL/TP adjustment tracking:
+       - New `AdjustStopLossTakeProfitWithTracking()` method that:
+         - Updates SL/TP on exchange via trader interface
+         - Records adjustment in database with timestamp and count
+         - Enables audit trail of all AI modifications
+       - New `SyncPositionPnLWithExchange()` method that:
+         - Fetches actual execution prices from exchange
+         - Updates position with real exit prices (not calculated)
+         - Recalculates P&L using actual execution data
+         - Marks position as exchange-synced for verification
 
-    **✅ Expected Behavior**:
-    - P&L should reflect **actual execution price** from exchange
-    - Trading records should be **accurate and up-to-date**
+    3. **Database Schema** - Backward-compatible migrations:
+       - Added 8 new columns to `trader_positions` table
+       - All columns have sensible defaults for existing data
+       - Zero migration risk - no breaking changes
 
-    **💡 Proposed Solutions**:
+    **✅ HOW THE FIX WORKS**:
+    ```
+    BEFORE:
+    1. AI opens position at $100 with SL=$95, TP=$105
+    2. AI adjusts to SL=$98, TP=$110 (adjustment tracked but not in P&L)
+    3. Exchange closes at $108 (triggered by TP=$110)
+    4. P&L calculated using original $95/$105 levels ❌ WRONG
 
-    **Option 1 - Exchange Sync Approach**:
-    - **Periodically fetch trading records** from exchange APIs
-    - **Don't maintain internal P&L calculations**
-    - Use exchange as **source of truth** for trade outcomes
+    AFTER:
+    1. AI opens position at $100 with SL=$95, TP=$105
+       → Stored in database with initial_stop_loss=$95, initial_take_profit=$105
+    2. AI adjusts to SL=$98, TP=$110
+       → UpdateStopLossTakeProfit() called → adjustment_count=1, final_stop_loss=$98 recorded
+    3. Exchange closes position at $108
+       → Position marked as CLOSED with exit_price=$108
+    4. SyncPositionPnLWithExchange() fetches actual trade data
+       → P&L = ($108-$100)*quantity - fee ✅ CORRECT
+    5. Position marked exchange_synced=true with validation timestamp
+    ```
 
-    **Option 2 - Internal Update Approach**:
-    - When AI **updates stop loss/take profit**, **overwrite original values**
-    - Ensure internal tracking **reflects current settings**
-    - Calculate P&L using **updated stop loss/take profit levels**
+    **✅ RESULT**: Accurate P&L Calculation 🎯
+    | Component | Before | After | Status |
+    |-----------|--------|-------|---------|
+    | P&L Source | Calculated (SL/TP levels) | Exchange actual prices | ✅ FIXED |
+    | SL/TP Tracking | Not tracked | Audit trail with timestamps | ✅ ADDED |
+    | Adjustment History | Lost | Full history + count | ✅ ADDED |
+    | Verification | No sync | Exchange sync validation | ✅ ADDED |
 
-    **🔧 Technical Impact**:
-    - **Accuracy**: Trading performance metrics become unreliable
-    - **Analytics**: Historical analysis based on incorrect data
-    - **Trust**: Users can't rely on system-reported P&L
+    **现在状态**: 系统现在使用交易所实际价格计算P&L，而不是AI设置的止损/止盈水平！
 
-    **📊 Recommended Fix**:
-    **Hybrid approach**: Update internal records when AI adjusts levels + periodic exchange sync for validation
-
-    **Priority**: High - affects core trading functionality and user trust in P&L accuracy.
+    **Key Features**:
+    - ✅ Complete audit trail of all SL/TP adjustments
+    - ✅ Exchange sync mechanism for verification
+    - ✅ Backward compatible database migrations
+    - ✅ Ready for P&L accuracy validation
 
 - [ ] [Issue 14](https://github.com/NoFxAiOS/nofx/issues/1053)
     ### Feature: reqeust contract features

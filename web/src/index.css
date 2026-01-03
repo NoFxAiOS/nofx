@@ -932,14 +932,17 @@ tr:hover {
 /* Chromatic Aberration & Rim Light */
 .char-premium-effects {
   filter:
-    /* Rim Light (Gold/Cyan) */
-    drop-shadow(0 0 1px rgba(240, 185, 11, 0.8)) drop-shadow(0 0 2px rgba(0, 240, 255, 0.6))
-    /* Chromatic Aberration */
-    drop-shadow(-2px 0 0 rgba(255, 0, 0, 0.3)) drop-shadow(2px 0 0 rgba(0, 255, 255, 0.3));
+    /* Rim Light: Main Warm Gold + Sharp White Highlight (No Cyan to avoid green) */
+    drop-shadow(0 0 2px rgba(240, 185, 11, 0.6)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))
+    /* Chromatic Aberration: Red/Blue shift (Subtle) */
+    drop-shadow(-1px 0 0 rgba(255, 50, 50, 0.4)) drop-shadow(1px 0 0 rgba(50, 50, 255, 0.4));
   transition: filter 0.3s ease;
 }
 
 .char-premium-effects:hover {
   filter:
-    drop-shadow(0 0 2px rgba(240, 185, 11, 1)) drop-shadow(0 0 5px rgba(0, 240, 255, 0.8)) drop-shadow(-3px 0 0 rgba(255, 0, 0, 0.4)) drop-shadow(3px 0 0 rgba(0, 255, 255, 0.4));
+    /* Intense Gold Glow on Hover */
+    drop-shadow(0 0 8px rgba(240, 185, 11, 0.8)) drop-shadow(0 0 2px rgba(255, 255, 255, 0.6))
+    /* Enhanced Aberration */
+    drop-shadow(-2px 0 0 rgba(255, 50, 50, 0.5)) drop-shadow(2px 0 0 rgba(50, 50, 255, 0.5));
 }

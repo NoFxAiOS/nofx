@@ -410,11 +410,18 @@ func (tm *TraderManager) GetTopTradersData() (map[string]interface{}, error) {
 
 // RemoveTrader removes a trader from memory (does not affect database)
 // Used to force reload when updating trader configuration
+// If the trader is running, it will be stopped first
 func (tm *TraderManager) RemoveTrader(traderID string) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
-	if _, exists := tm.traders[traderID]; exists {
+	if t, exists := tm.traders[traderID]; exists {
+		// Stop the trader if it's running (this ensures the goroutine exits)
+		status := t.GetStatus()
+		if isRunning, ok := status["is_running"].(bool); ok && isRunning {
+			logger.Infof("⏹ Stopping trader %s before removing from memory...", traderID)
+			t.Stop()
+		}
 		delete(tm.traders, traderID)
 		logger.Infof("✓ Trader %s removed from memory", traderID)
 	}
@@ -663,6 +670,9 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		ShowInCompetition:    traderCfg.ShowInCompetition,
 		StrategyConfig:       strategyConfig,
 	}
+
+	logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), ScanInterval=%v",
+		traderCfg.Name, traderCfg.ScanIntervalMinutes, traderConfig.ScanInterval)
 
 	// Set API keys based on exchange type (convert EncryptedString to string)
 	switch exchangeCfg.ExchangeType {

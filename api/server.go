@@ -779,11 +779,13 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	// Set scan interval, allow updates
 	scanIntervalMinutes := req.ScanIntervalMinutes
+	logger.Infof("📊 Update trader scan_interval: req=%d, existing=%d", req.ScanIntervalMinutes, existingTrader.ScanIntervalMinutes)
 	if scanIntervalMinutes <= 0 {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // Keep original value
 	} else if scanIntervalMinutes < 3 {
 		scanIntervalMinutes = 3
 	}
+	logger.Infof("📊 Final scan_interval_minutes: %d", scanIntervalMinutes)
 
 	// Set system prompt template
 	systemPromptTemplate := req.SystemPromptTemplate
@@ -818,22 +820,44 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		IsRunning:            existingTrader.IsRunning, // Keep original value
 	}
 
+	// Check if trader was running before update (we'll restart it after)
+	wasRunning := false
+	if existingMemTrader, memErr := s.traderManager.GetTrader(traderID); memErr == nil {
+		status := existingMemTrader.GetStatus()
+		if running, ok := status["is_running"].(bool); ok && running {
+			wasRunning = true
+			logger.Infof("🔄 Trader %s was running, will restart with new config after update", traderID)
+		}
+	}
+
 	// Update database
-	logger.Infof("🔄 Updating trader: ID=%s, Name=%s, AIModelID=%s, StrategyID=%s, req.StrategyID=%s",
-		traderRecord.ID, traderRecord.Name, traderRecord.AIModelID, traderRecord.StrategyID, req.StrategyID)
+	logger.Infof("🔄 Updating trader: ID=%s, Name=%s, AIModelID=%s, StrategyID=%s, ScanInterval=%d min",
+		traderRecord.ID, traderRecord.Name, traderRecord.AIModelID, traderRecord.StrategyID, scanIntervalMinutes)
 	err = s.store.Trader().Update(traderRecord)
 	if err != nil {
 		SafeInternalError(c, "Failed to update trader", err)
 		return
 	}
 
-	// Remove old trader from memory first to ensure fresh config is loaded
+	// Remove old trader from memory first (this also stops if running)
 	s.traderManager.RemoveTrader(traderID)
 
 	// Reload traders into memory with fresh config
 	err = s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to reload user traders into memory: %v", err)
+	}
+
+	// If trader was running before, restart it with new config
+	if wasRunning {
+		if reloadedTrader, getErr := s.traderManager.GetTrader(traderID); getErr == nil {
+			go func() {
+				logger.Infof("▶️ Restarting trader %s with new config...", traderID)
+				if runErr := reloadedTrader.Run(); runErr != nil {
+					logger.Infof("❌ Trader %s runtime error: %v", traderID, runErr)
+				}
+			}()
+		}
 	}
 
 	logger.Infof("✓ Trader updated successfully: %s (model: %s, exchange: %s, strategy: %s)", req.Name, req.AIModelID, req.ExchangeID, strategyID)

@@ -9,6 +9,7 @@ CLAUDE.md
 
 # 编译产物
 nofx-auto
+nofx-backend
 *.exe
 nofx
 nofx_test

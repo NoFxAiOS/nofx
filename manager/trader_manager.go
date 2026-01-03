@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"nofx/debate"
-	"nofx/decision"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/store"
 	"nofx/trader"
@@ -19,7 +19,7 @@ type TraderExecutorAdapter struct {
 }
 
 // ExecuteDecision executes a trading decision
-func (a *TraderExecutorAdapter) ExecuteDecision(d *decision.Decision) error {
+func (a *TraderExecutorAdapter) ExecuteDecision(d *kernel.Decision) error {
 	return a.autoTrader.ExecuteDecision(d)
 }
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"nofx/decision"
+	"nofx/kernel"
 	"nofx/experience"
 	"nofx/logger"
 	"nofx/market"
@@ -104,7 +104,7 @@ type AutoTrader struct {
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
 	store                 *store.Store             // Data storage (decision records, etc.)
-	strategyEngine        *decision.StrategyEngine // Strategy engine (uses strategy configuration)
+	strategyEngine        *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
 	cycleNumber           int                      // Current cycle number
 	initialBalance        float64
 	dailyPnL              float64
@@ -310,7 +310,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	if config.StrategyConfig == nil {
 		return nil, fmt.Errorf("[%s] strategy not configured", config.Name)
 	}
-	strategyEngine := decision.NewStrategyEngine(config.StrategyConfig)
+	strategyEngine := kernel.NewStrategyEngine(config.StrategyConfig)
 	logger.Infof("✓ [%s] Using strategy engine (strategy configuration loaded)", config.Name)
 
 	return &AutoTrader{
@@ -524,7 +524,7 @@ func (at *AutoTrader) runCycle() error {
 
 	// 5. Use strategy engine to call AI for decision
 	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
-	aiDecision, err := decision.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
@@ -585,8 +585,8 @@ func (at *AutoTrader) runCycle() error {
 	// logger.Infof(strings.Repeat("-", 70) + "\n")
 
 	// 7. Print AI decisions
-	// logger.Infof("📋 AI decision list (%d items):\n", len(decision.Decisions))
-	// for i, d := range decision.Decisions {
+	// logger.Infof("📋 AI decision list (%d items):\n", len(kernel.Decisions))
+	// for i, d := range kernel.Decisions {
 	//     logger.Infof("  [%d] %s: %s - %s", i+1, d.Symbol, d.Action, d.Reasoning)
 	//     if d.Action == "open_long" || d.Action == "open_short" {
 	//        logger.Infof("      Leverage: %dx | Position: %.2f USDT | Stop loss: %.4f | Take profit: %.4f",
@@ -664,7 +664,7 @@ func (at *AutoTrader) runCycle() error {
 }
 
 // buildTradingContext builds trading context
-func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
+func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	// 1. Get account information
 	balance, err := at.trader.GetBalance()
 	if err != nil {
@@ -701,7 +701,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
-	var positionInfos []decision.PositionInfo
+	var positionInfos []kernel.PositionInfo
 	totalMarginUsed := 0.0
 
 	// Current position key set (for cleaning up closed position records)
@@ -768,7 +768,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
-		positionInfos = append(positionInfos, decision.PositionInfo{
+		positionInfos = append(positionInfos, kernel.PositionInfo{
 			Symbol:           symbol,
 			Side:             side,
 			EntryPrice:       entryPrice,
@@ -820,13 +820,13 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	logger.Infof("📋 [%s] Strategy leverage config: BTC/ETH=%dx, Altcoin=%dx", at.name, btcEthLeverage, altcoinLeverage)
 
 	// 6. Build context
-	ctx := &decision.Context{
+	ctx := &kernel.Context{
 		CurrentTime:     time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
 		CallCount:       at.callCount,
 		BTCETHLeverage:  btcEthLeverage,
 		AltcoinLeverage: altcoinLeverage,
-		Account: decision.AccountInfo{
+		Account: kernel.AccountInfo{
 			TotalEquity:      totalEquity,
 			AvailableBalance: availableBalance,
 			UnrealizedPnL:    totalUnrealizedProfit,
@@ -859,7 +859,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 					exitTimeStr = time.Unix(trade.ExitTime, 0).UTC().Format("01-02 15:04 UTC")
 				}
 
-				ctx.RecentOrders = append(ctx.RecentOrders, decision.RecentOrder{
+				ctx.RecentOrders = append(ctx.RecentOrders, kernel.RecentOrder{
 					Symbol:       trade.Symbol,
 					Side:         trade.Side,
 					EntryPrice:   trade.EntryPrice,
@@ -881,7 +881,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		} else if stats.TotalTrades == 0 {
 			logger.Infof("⚠️ [%s] GetFullStats returned 0 trades (traderID=%s)", at.name, at.id)
 		} else {
-			ctx.TradingStats = &decision.TradingStats{
+			ctx.TradingStats = &kernel.TradingStats{
 				TotalTrades:    stats.TotalTrades,
 				WinRate:        stats.WinRate,
 				ProfitFactor:   stats.ProfitFactor,
@@ -933,7 +933,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 }
 
 // executeDecisionWithRecord executes AI decision and records detailed information
-func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {
 	case "open_long":
 		return at.executeOpenLongWithRecord(decision, actionRecord)
@@ -953,7 +953,7 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *decision.Decision, act
 
 // ExecuteDecision executes a trading decision from external sources (e.g., debate consensus)
 // This is a public method that can be called by other modules
-func (at *AutoTrader) ExecuteDecision(d *decision.Decision) error {
+func (at *AutoTrader) ExecuteDecision(d *kernel.Decision) error {
 	logger.Infof("[%s] Executing external decision: %s %s", at.name, d.Action, d.Symbol)
 
 	// Create a minimal action record for tracking
@@ -979,7 +979,7 @@ func (at *AutoTrader) ExecuteDecision(d *decision.Decision) error {
 }
 
 // executeOpenLongWithRecord executes open long position and records detailed information
-func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📈 Open long: %s", decision.Symbol)
 
 	// ⚠️ Get current positions for multiple checks
@@ -1096,7 +1096,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 }
 
 // executeOpenShortWithRecord executes open short position and records detailed information
-func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📉 Open short: %s", decision.Symbol)
 
 	// ⚠️ Get current positions for multiple checks
@@ -1213,7 +1213,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 }
 
 // executeCloseLongWithRecord executes close long position and records detailed information
-func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  🔄 Close long: %s", decision.Symbol)
 
 	// Get current price
@@ -1277,7 +1277,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 }
 
 // executeCloseShortWithRecord executes close short position and records detailed information
-func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  🔄 Close short: %s", decision.Symbol)
 
 	// Get current price
@@ -1392,7 +1392,7 @@ func (at *AutoTrader) GetSystemPromptTemplate() string {
 }
 
 // saveEquitySnapshot saves equity snapshot independently (for drawing profit curve, decoupled from AI decision)
-func (at *AutoTrader) saveEquitySnapshot(ctx *decision.Context) {
+func (at *AutoTrader) saveEquitySnapshot(ctx *kernel.Context) {
 	if at.store == nil || ctx == nil {
 		return
 	}
@@ -1624,7 +1624,7 @@ func calculatePnLPercentage(unrealizedPnl, marginUsed float64) float64 {
 
 // sortDecisionsByPriority sorts decisions: close positions first, then open positions, finally hold/wait
 // This avoids position stacking overflow when changing positions
-func sortDecisionsByPriority(decisions []decision.Decision) []decision.Decision {
+func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	if len(decisions) <= 1 {
 		return decisions
 	}
@@ -1644,7 +1644,7 @@ func sortDecisionsByPriority(decisions []decision.Decision) []decision.Decision 
 	}
 
 	// Copy decision list
-	sorted := make([]decision.Decision, len(decisions))
+	sorted := make([]kernel.Decision, len(decisions))
 	copy(sorted, decisions)
 
 	// Sort by priority

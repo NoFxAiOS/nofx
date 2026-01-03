@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"nofx/decision"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -397,7 +397,7 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	// Create strategy engine to build prompt
-	engine := decision.NewStrategyEngine(&req.Config)
+	engine := kernel.NewStrategyEngine(&req.Config)
 
 	// Build system prompt (using built-in method from strategy engine)
 	systemPrompt := engine.BuildSystemPrompt(
@@ -443,7 +443,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	}
 
 	// Create strategy engine to build prompt
-	engine := decision.NewStrategyEngine(&req.Config)
+	engine := kernel.NewStrategyEngine(&req.Config)
 
 	// Get candidate coins
 	candidates, err := engine.GetCandidateCoins()
@@ -505,11 +505,11 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	oiRankingData := engine.FetchOIRankingData()
 
 	// Build real context (for generating User Prompt)
-	testContext := &decision.Context{
+	testContext := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes: 0,
 		CallCount:      1,
-		Account: decision.AccountInfo{
+		Account: kernel.AccountInfo{
 			TotalEquity:      1000.0,
 			AvailableBalance: 1000.0,
 			UnrealizedPnL:    0,
@@ -519,7 +519,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			MarginUsedPct:    0,
 			PositionCount:    0,
 		},
-		Positions:      []decision.PositionInfo{},
+		Positions:      []kernel.PositionInfo{},
 		CandidateCoins: candidates,
 		PromptVariant:  req.PromptVariant,
 		MarketDataMap:  marketDataMap,

@@ -1,4 +1,4 @@
-package decision
+package kernel
 
 import (
 	"encoding/json"

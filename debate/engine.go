@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"nofx/decision"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -18,7 +18,7 @@ import (
 
 // TraderExecutor interface for executing trades
 type TraderExecutor interface {
-	ExecuteDecision(decision *decision.Decision) error
+	ExecuteDecision(decision *kernel.Decision) error
 	GetBalance() (map[string]interface{}, error)
 }
 
@@ -166,7 +166,7 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 	}()
 
 	// Create strategy engine for building context
-	strategyEngine := decision.NewStrategyEngine(strategyConfig)
+	strategyEngine := kernel.NewStrategyEngine(strategyConfig)
 
 	// Build market context using strategy config
 	ctx, err := e.buildMarketContext(session, strategyEngine)
@@ -289,7 +289,7 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 }
 
 // buildMarketContext builds the market context using strategy engine
-func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetails, strategyEngine *decision.StrategyEngine) (*decision.Context, error) {
+func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine) (*kernel.Context, error) {
 	config := strategyEngine.GetConfig()
 
 	// Get candidate coins
@@ -336,11 +336,11 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 	oiRankingData := strategyEngine.FetchOIRankingData()
 
 	// Build context
-	ctx := &decision.Context{
+	ctx := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes: 0,
 		CallCount:      1,
-		Account: decision.AccountInfo{
+		Account: kernel.AccountInfo{
 			TotalEquity:      1000.0, // Simulated for debate
 			AvailableBalance: 1000.0,
 			UnrealizedPnL:    0,
@@ -350,7 +350,7 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 			MarginUsedPct:    0,
 			PositionCount:    0,
 		},
-		Positions:      []decision.PositionInfo{},
+		Positions:      []kernel.PositionInfo{},
 		CandidateCoins: candidates,
 		PromptVariant:  session.PromptVariant,
 		MarketDataMap:  marketDataMap,
@@ -539,7 +539,7 @@ func (e *DebateEngine) getParticipantResponse(
 }
 
 // collectVotes collects final votes from all participants
-func (e *DebateEngine) collectVotes(session *store.DebateSessionWithDetails, strategyEngine *decision.StrategyEngine, allMessages []*store.DebateMessage) ([]*store.DebateVote, error) {
+func (e *DebateEngine) collectVotes(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine, allMessages []*store.DebateMessage) ([]*store.DebateVote, error) {
 	var votes []*store.DebateVote
 
 	// Build voting context
@@ -1009,7 +1009,7 @@ func (e *DebateEngine) ExecuteConsensus(sessionID string, executor TraderExecuto
 	}
 
 	// Create decision
-	tradeDecision := &decision.Decision{
+	tradeDecision := &kernel.Decision{
 		Symbol:          session.Symbol,
 		Action:          action,
 		Leverage:        session.FinalDecision.Leverage,

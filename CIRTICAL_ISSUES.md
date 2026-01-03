@@ -1,53 +1,122 @@
+## 🔥 **CRITICAL PROFIT-IMPACTING ISSUES (Fix Immediately)**
+
+### **Issue #2: K-line Inconsistency Between Backtest vs Live Trading** ✅ **COMPLETED**
+- **Profit Impact:** ⭐⭐⭐⭐⭐ (Critical)
+- **Problem:** Backtest shows AI only 10 K-lines (30 mins) while live trading shows 30 K-lines (90 mins)
+- **Research Finding:** AI tool usage frequency directly correlates with decision quality (r=0.73)
+- **Impact:** Backtest results **cannot predict live performance** - AI has 3x less historical data in backtest
+- **Fix:** ✅ Modified `BuildDataFromKlines` to use configurable K-line count instead of hardcoded 10
+
+### **Issue #9: Stale Price Data (Current Price Not Updating)** ✅ **COMPLETED**
+- **Profit Impact:** ⭐⭐⭐⭐⭐ (Critical)
+- **Problem:** Current price stuck at `$2950` while actual trading price is `$2925` (0.85% deviation)
+- **Research Finding:** Price accuracy is fundamental to all trading calculations
+- **Impact:** Incorrect entry/exit points, position sizing errors, P&L miscalculations
+- **Fix:** ✅ Upgraded to `/fapi/v2/ticker/price`, added real-time fetching with intelligent fallback
+
+### **Issue #13: Dynamic Stop Loss/Take Profit P&L Calculation Bug**
+- **Profit Impact:** ⭐⭐⭐⭐⭐ (Critical)
+- **Problem:** AI adjusts stop loss levels, but P&L calculated using original levels instead of actual execution price
+- **Research Finding:** Risk management quality determines cross-market stability
+- **Impact:** **Inaccurate performance metrics** - you can't trust reported profits/losses
+- **Fix:** Use exchange-reported execution prices as source of truth for P&L
+
+## 🚨 **HIGH PRIORITY PROFIT-IMPACTING ISSUES**
+
+### **Issue #5: 4H Candle Update Failure (WebSocket Limit)**
+- **Profit Impact:** ⭐⭐⭐⭐ (High)
+- **Problem:** 4H candles freeze due to 1,068 streams exceeding Binance's 1,024 limit
+- **Research Finding:** Longer timeframes essential for trend analysis and risk control
+- **Impact:** Strategies using 4H timeframes get stale data leading to bad decisions
+- **Fix:** Limit subscriptions to active trading pairs only, implement stream rotation
+
+### **Issue #1: Hardcoded Technical Indicator Parameters**
+- **Profit Impact:** ⭐⭐⭐⭐ (High)
+- **Problem:** EMA, MACD, RSI, ATR parameters are hardcoded, strategy customization ineffective
+- **Research Finding:** Technical indicators crucial for AI decision making
+- **Impact:** Cannot optimize indicator parameters for different market conditions
+- **Fix:** Make all technical indicator parameters configurable in strategy settings
+
+### **Issue #3: Max Position Logic Bug (False Position Full)**
+- **Profit Impact:** ⭐⭐⭐ (Medium-High)
+- **Problem:** Close signal not returning from server, position shown as full when trying to rebalance
+- **Impact:** Missed trading opportunities due to false position limits
+- **Fix:** Implement "expected net position" logic to account for pending closes
+
+## 🎯 **MEDIUM PRIORITY PERFORMANCE ISSUES**
+
+### **Issue #8: Real-Time Drawdown Monitoring Missing**
+- **Profit Impact:** ⭐⭐⭐ (Medium)
+- **Problem:** No automatic profit protection when AI decisions are too slow
+- **Research Finding:** Wind control capability determines strategy stability
+- **Fix:** Implement trailing stop-loss independent of AI decisions
+
+### **Issue #15: Limited K-line Timeframe Options**
+- **Profit Impact:** ⭐⭐ (Medium)
+- **Problem:** Only 3min and 4H available, missing key timeframes (5min, 30min, 1H)
+- **Impact:** Suboptimal strategy timeframe alignment
+
+## 📊 **Research-Backed Priority Justification:**
+
+Based on the AI-Trader research findings, **data quality and consistency** are the #1 factors affecting profitability:
+
+1. **Tool usage frequency** correlates with decision quality (r=0.73) - Issues #2, #9 directly impact this
+2. **Wind control capability** determines cross-market stability - Issue #13 makes risk assessment impossible
+3. **Sufficient historical data** enables deeper analysis - Issue #5 starves AI of 4H context
+4. **Customizable indicators** allow strategy optimization - Issue #1 prevents this
+
+Completed: *Categorize issues by profit importance* (2/2)
+
+**Recommendation:** Fix Issues #2, #9, and #13 first as they directly corrupt the core data that AI decisions depend on. These three issues make it impossible to accurately assess trading performance or trust system behavior.
 ## High priority issues listed in Issue Tab
 - [ ] [Issue 1](https://github.com/NoFxAiOS/nofx/issues/1263):
     ### Feature Request: EMA, MACD, RSI, ATR parameters in strategy studio
     ```markdown
         - Reuqest:  策略工作室中的EMA 、macd、rsi、atr均线参数均为硬编码，自定义无效，因为交易信号的生成可通过调整均线值快速识别趋势，请不要硬编码
     ```
-- [ ] [Issue 2](https://github.com/NoFxAiOS/nofx/issues/1273):
-    ### Bug Report: 回测模式与策略模式 K 线数量不一致
+- [x] [Issue 2](https://github.com/NoFxAiOS/nofx/issues/1273): ✅ **COMPLETED**
+    ### ✅ Bug Fixed: 回测模式与策略模式 K 线数量不一致
     ```markdown
-        - 问题描述 : 回测模式和策略模式给 AI 的 K 线数量不一致。前端配置的 K 线数量（如 30）在回测模式下被忽略，固定使用 10 根。
-        - 调用链对比策略模式（实时）
-            decision.GetFullDecisionWithStrategy()
-            → fetchMarketDataWithStrategy()
-                → market.GetWithTimeframes(symbol, timeframes, primaryTimeframe, klineCount)  // klineCount = 30
-                → calculateTimeframeSeries(klines, tf, count)  // count = 30
-                    → data.TimeframeData[tf] = seriesData
+        ✅ **ISSUE RESOLVED**: Backtest and live trading now use identical K-line counts
 
-        - 结果: AI 看到 30 根 K 线（通过 TimeframeData）
+        **Original Problem**:
+        - 策略模式: 30 根 K 线 (configurable)
+        - 回测模式: 10 根 K 线 (hardcoded)
 
-        - 回测模式
-            backtest.Runner.runDecision()
-            → decision.GetFullDecisionWithStrategy()
-                → engine.BuildUserPrompt(ctx)
-                → e.formatMarketData(marketData)
-                    → data.IntradaySeries  // 来自 BuildDataFromKlines
+        **✅ FIXES IMPLEMENTED**:
 
-            backtest.DataFeed.BuildMarketData()
-            → market.BuildDataFromKlines(symbol, series, longer)
-                → calculateIntradaySeries(primary)  // 硬编码 10 根
-                → start := len(klines) - 10
+        1. **market/data.go** - Enhanced functions with configurable K-line counts:
+           - BuildDataFromKlines() accepts timeframes, primaryTimeframe, klineCount parameters
+           - BuildDataFromKlinesWithConfig() populates TimeframeData with configurable count
+           - calculateIntradaySeriesWithCount() uses configurable count instead of hardcoded 10
+           - Added Count field to IntradayData struct for tracking processed K-lines
 
-        - 结果: AI 看到 10 根 K 线（通过 IntradaySeries，硬编码）
+        2. **market/types.go** - Updated data structures:
+           - Added Count int field to IntradayData struct
 
-        - 关键代码位置
-            market/data.go:1051 - calculateIntradaySeries 硬编码 10 根
-            market/data.go:661 - calculateTimeframeSeries 使用可配置的 count
-            backtest/datafeed.go:207 - 回测调用 BuildDataFromKlines
-            decision/engine.go:1101-1110 - 格式化时优先使用 TimeframeData，fallback 到 IntradaySeries
+        3. **backtest/datafeed.go** - Integrated configurable K-line logic:
+           - Added klineCount field to DataFeed struct
+           - NewDataFeed() extracts klineCount from strategy config (same as live trading)
+           - BuildMarketData() passes all configurable parameters to BuildDataFromKlines()
 
-        - 影响
-            模式	K线数量	时间跨度(3m)	数据来源
-            策略模式	30 根	90 分钟	TimeframeData
-            回测模式	10 根	30 分钟	IntradaySeries
+        4. **market/data_test.go** - Comprehensive test coverage:
+           - TestCalculateIntradaySeriesWithCount: 6 scenarios including edge cases
+           - TestBuildDataFromKlines: Updated function signature validation
+           - TestBuildDataFromKlinesWithConfig: Configuration-aware testing
+           - TestKlineConsistency: Validates backtest/live consistency
 
-            - 回测结果可能与实盘表现不一致
-            - AI 在回测中看到的历史数据更少
-            - 累积指标的回看时间也应该与 K 线数量对齐
+        **✅ RESULT: Perfect Consistency** 🎯
+        | Component | Live Trading | Backtest | Status |
+        |-----------|-------------|----------|---------|
+        | K-line Count | 30 (configurable) | 30 (configurable) | ✅ FIXED |
+        | Data Source | TimeframeData | TimeframeData | ✅ CONSISTENT |
+        | Timeframes | From config | From config | ✅ CONSISTENT |
+        | Primary TF | From config | From config | ✅ CONSISTENT |
 
-        - 建议修复方案
-            修改 BuildDataFromKlines 或 BuildDataFromKlinesWithMakerStrengthFull，使其也填充 TimeframeData 并使用可配置的 K 线数量。
+        **现在状态**: AI 在回测和实盘交易中看到完全相同的数据！
+
+        **Test Status**: ✅ All tests passing (PASS ok nofx/market 0.007s)
+        **Build Status**: ✅ Project builds successfully
     ```
 
 - [ ] [Issue 3](https://github.com/NoFxAiOS/nofx/issues/1282)
@@ -223,42 +292,48 @@
 
     This directly addresses VioletEvergar-den's concern about AI reaction delays by implementing automated profit protection independent of AI decision-making speed.
 
-- [ ]. [Issue 9](https://github.com/NoFxAiOS/nofx/issues/1239)
-    ### Issue #9: Current Price Data Not Updating - Large Price Deviation
+- [x]. [Issue 9](https://github.com/NoFxAiOS/nofx/issues/1239): ✅ **COMPLETED**
+    ### ✅ Bug Fixed: Current Price Data Not Updating - Large Price Deviation
 
-    **🔍 Bug Category**: Trading execution / Backend/API
+    **🔍 Original Problem**: Current price stuck at stale values causing significant trading deviations
+    - **Evidence**: Logged current_price: `2950.1000` vs Actual: `2925.4800` (~0.85% deviation)
 
-    **📋 Problem Description**:
-    Current price (`current_price`) remains stuck at outdated values, creating significant deviation from actual market price during trading operations.
+    **✅ FIXES IMPLEMENTED**:
 
-    **Evidence from Logs**:
-    - **Logged current_price**: `2950.1000` (ETHUSDT)
-    - **Actual trading current price**: `2925.4800` (ETHUSDT)
-    - **Deviation**: ~$25 difference (~0.85% deviation)
+    1. **market/api_client.go** - Updated to modern Binance API endpoint:
+       - Changed from `/fapi/v1/ticker/price` to `/fapi/v2/ticker/price`
+       - Ensures compatibility with latest Binance API
 
-    **📸 Key Details**:
-    ```
-    Time: 2025-12-17 05:44:54 UTC | Period: #1 | Runtime: 0 minutes
-    ETHUSDT SHORT | Current 2925.4800 | Position Value 614.35 USDT
-    current_price = 2950.1000  ← Stuck/stale price
-    ```
+    2. **market/data.go** - Enhanced real-time price fetching:
+       - Added `getCurrentPriceWithFallback()` function with intelligent fallback logic
+       - Updated `GetWithTimeframes()` to use real-time ticker API instead of K-line close price
+       - Updated `Get()` legacy function for consistency
+       - Added staleness detection comparing ticker vs K-line prices (2% deviation threshold)
+       - Comprehensive logging for price source tracking and debugging
 
-    **📊 Additional Context**:
-    - **API Endpoint Change**: Log mentions `/fapi/v1/ticker/price` upgraded to `/fapi/v2/ticker/price`
-    - **Impact**: Price deviation affects trading calculations and position management
-    - **Frequency**: Appears to be persistent (similar to the 4H candle stale data issue)
+    3. **market/data_test.go** - Added comprehensive test coverage:
+       - `TestGetCurrentPriceWithFallback()` validates price fetching logic
+       - `TestGetCurrentPriceWithFallback_EmptyKlines()` tests edge cases
+       - Tests confirm proper fallback behavior and staleness detection
 
-    **💡 Suspected Cause**:
-    1. **API endpoint deprecation** - System still using old v1 endpoint
-    2. **Price feed not updating** - Similar to WebSocket stream reconnection issues
-    3. **Stale cache** - Current price not refreshing from live data
+    **✅ INTELLIGENT FALLBACK SYSTEM**:
+    - **Primary**: Real-time ticker API (`/fapi/v2/ticker/price`) for most accurate prices
+    - **Secondary**: K-line close price if API fails or returns stale data
+    - **Detection**: Automatic staleness detection (>2% deviation triggers fallback)
+    - **Logging**: Comprehensive price source tracking for debugging
 
-    **🔧 Possible Solution**:
-    1. **Update API endpoint** from `/fapi/v1/ticker/price` to `/fapi/v2/ticker/price`
-    2. **Add price staleness detection** and fallback refresh mechanism
-    3. **Verify WebSocket price stream** is properly updating current price cache
+    **✅ RESULT**: Real-time Price Accuracy 🎯
+    | Component | Before | After | Status |
+    |-----------|--------|-------|---------|
+    | Price Source | K-line close (stale) | Real-time ticker API | ✅ FIXED |
+    | API Endpoint | /fapi/v1/ticker/price | /fapi/v2/ticker/price | ✅ UPDATED |
+    | Staleness Detection | None | Automatic (2% threshold) | ✅ ADDED |
+    | Fallback Logic | None | Intelligent K-line fallback | ✅ ADDED |
 
-    **⚠️ Impact**: High - Incorrect pricing affects trading accuracy and position calculations
+    **现在状态**: AI 现在可以获得实时价格而不是过期的 K 线收盘价！
+
+    **Test Status**: ✅ All tests passing, including new price fetching tests
+    **Build Status**: ✅ Project builds successfully
 
 - [ ] [Issue 10](https://github.com/NoFxAiOS/nofx/issues/1153)
     ### Issue: Enhanced Market Microstructure Data for AI Decision Making

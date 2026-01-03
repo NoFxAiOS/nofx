@@ -16,6 +16,38 @@ import (
 	"time"
 )
 
+// getCurrentPriceWithFallback gets real-time price from ticker API with fallback to K-line data
+func getCurrentPriceWithFallback(symbol string, klines []Kline) (float64, string) {
+	if len(klines) == 0 {
+		return 0, "no_data"
+	}
+
+	// Try to get real-time price from ticker API
+	apiClient := NewAPIClient()
+	realtimePrice, err := apiClient.GetCurrentPrice(symbol)
+	if err != nil {
+		logger.Infof("⚠️  %s failed to get real-time price from ticker API: %v, falling back to K-line data", symbol, err)
+		return klines[len(klines)-1].Close, "kline_fallback"
+	}
+
+	// Validate real-time price against K-line data for staleness detection
+	klinePrice := klines[len(klines)-1].Close
+	priceDeviation := math.Abs(realtimePrice-klinePrice) / klinePrice
+
+	// If the deviation is too large (>2%), the ticker might be stale
+	const maxDeviationThreshold = 0.02 // 2%
+	if priceDeviation > maxDeviationThreshold {
+		logger.Infof("⚠️  %s ticker price deviation %.2f%% from K-line (ticker: %.4f, kline: %.4f), using K-line data",
+			symbol, priceDeviation*100, realtimePrice, klinePrice)
+		return klinePrice, "ticker_stale"
+	}
+
+	// Real-time price looks good
+	logger.Infof("✅ %s using real-time ticker price: %.4f (deviation: %.3f%% from K-line)",
+		symbol, realtimePrice, priceDeviation*100)
+	return realtimePrice, "ticker_realtime"
+}
+
 // FundingRateCache is the funding rate cache structure
 // Binance Funding Rate only updates every 8 hours, using 1-hour cache can significantly reduce API calls
 type FundingRateCache struct {
@@ -187,10 +219,14 @@ func Get(symbol string) (*Data, error) {
 	}
 
 	// Calculate current indicators (based on 3-minute latest data)
-	currentPrice := klines3m[len(klines3m)-1].Close
+	// Get real-time current price with fallback to K-line data
+	currentPrice, priceSource := getCurrentPriceWithFallback(symbol, klines3m)
 	currentEMA20 := calculateEMA(klines3m, 20)
 	currentMACD := calculateMACD(klines3m)
 	currentRSI7 := calculateRSI(klines3m, 7)
+
+	// Log price source for debugging
+	logger.Infof("📊 %s price source: %s, current_price: %.4f", symbol, priceSource, currentPrice)
 
 	// Calculate price change percentage
 	// 1-hour price change = price from 20 3-minute K-lines ago
@@ -325,10 +361,14 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	}
 
 	// Calculate current indicators (based on primary timeframe latest data)
-	currentPrice := primaryKlines[len(primaryKlines)-1].Close
+	// Get real-time current price with fallback to K-line data
+	currentPrice, priceSource := getCurrentPriceWithFallback(symbol, primaryKlines)
 	currentEMA20 := calculateEMA(primaryKlines, 20)
 	currentMACD := calculateMACD(primaryKlines)
 	currentRSI7 := calculateRSI(primaryKlines, 7)
+
+	// Log price source for debugging
+	logger.Infof("📊 %s price source: %s, current_price: %.4f", symbol, priceSource, currentPrice)
 
 	// Calculate price changes
 	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
@@ -655,17 +695,34 @@ func calculateBOLL(klines []Kline, period int, multiplier float64) (upper, middl
 
 // calculateIntradaySeries calculates intraday series data
 func calculateIntradaySeries(klines []Kline) *IntradayData {
+	return calculateIntradaySeriesWithCount(klines, 10) // default to 10 for backward compatibility
+}
+
+// calculateIntradaySeriesWithCount calculates intraday series data with configurable count
+func calculateIntradaySeriesWithCount(klines []Kline, count int) *IntradayData {
 	data := &IntradayData{
-		MidPrices:   make([]float64, 0, 10),
-		EMA20Values: make([]float64, 0, 10),
-		MACDValues:  make([]float64, 0, 10),
-		RSI7Values:  make([]float64, 0, 10),
-		RSI14Values: make([]float64, 0, 10),
-		Volume:      make([]float64, 0, 10),
+		MidPrices:   make([]float64, 0),
+		EMA20Values: make([]float64, 0),
+		MACDValues:  make([]float64, 0),
+		RSI7Values:  make([]float64, 0),
+		RSI14Values: make([]float64, 0),
+		Volume:      make([]float64, 0),
+		Count:       0, // Will be set to actual count at the end
 	}
 
-	// Get latest 10 data points
-	start := len(klines) - 10
+	// Handle edge cases:
+	// count == 0: return empty data
+	// count < 0: use original default of 10
+	if count == 0 {
+		data.ATR14 = 0
+		return data
+	}
+	if count < 0 {
+		count = 10 // original default behavior
+	}
+
+	// Get latest N data points based on configurable count
+	start := len(klines) - count
 	if start < 0 {
 		start = 0
 	}
@@ -699,6 +756,9 @@ func calculateIntradaySeries(klines []Kline) *IntradayData {
 
 	// Calculate 3m ATR14
 	data.ATR14 = calculateATR(klines, 14)
+
+	// Set the actual count of data points processed
+	data.Count = len(data.MidPrices)
 
 	return data
 }
@@ -1092,36 +1152,50 @@ func parseFloat(v interface{}) (float64, error) {
 }
 
 // BuildDataFromKlines constructs market data snapshot from preloaded K-line series (for backtesting/simulation).
-func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data, error) {
-	if len(primary) == 0 {
-		return nil, fmt.Errorf("primary series is empty")
+func BuildDataFromKlines(symbol string, timeframeSeries map[string][]Kline, longerSeries map[string][]Kline, timeframes []string, primaryTimeframe string, klineCount int) *Data {
+	return BuildDataFromKlinesWithConfig(symbol, timeframeSeries, longerSeries, timeframes, primaryTimeframe, klineCount)
+}
+
+// BuildDataFromKlinesWithConfig builds market data with configurable timeframes and kline count
+// This ensures backtest and live trading use the same data structure and kline count
+func BuildDataFromKlinesWithConfig(symbol string, timeframeSeries map[string][]Kline, longerSeries map[string][]Kline, timeframes []string, primaryTimeframe string, klineCount int) *Data {
+	// Get primary timeframe data
+	primary, exists := timeframeSeries[primaryTimeframe]
+	if !exists || len(primary) == 0 {
+		return nil
 	}
 
 	symbol = Normalize(symbol)
 	current := primary[len(primary)-1]
 	currentPrice := current.Close
 
-	data := &Data{
-		Symbol:            symbol,
-		CurrentPrice:      currentPrice,
-		CurrentEMA20:      calculateEMA(primary, 20),
-		CurrentMACD:       calculateMACD(primary),
-		CurrentRSI7:       calculateRSI(primary, 7),
-		PriceChange1h:     priceChangeFromSeries(primary, time.Hour),
-		PriceChange4h:     priceChangeFromSeries(primary, 4*time.Hour),
-		OpenInterest:      &OIData{Latest: 0, Average: 0},
-		FundingRate:       0,
-		IntradaySeries:    calculateIntradaySeries(primary),
-		LongerTermContext: nil,
+	// Initialize TimeframeData like live trading does
+	timeframeData := make(map[string]*TimeframeSeriesData)
+
+	// Create timeframe data for all requested timeframes using configurable count
+	for _, tf := range timeframes {
+		if klines, exists := timeframeSeries[tf]; exists {
+			seriesData := calculateTimeframeSeries(klines, tf, klineCount)
+			timeframeData[tf] = seriesData
+		}
 	}
 
-	if len(longer) > 0 {
-		data.LongerTermContext = calculateLongerTermData(longer)
+	return &Data{
+		Symbol:         symbol,
+		CurrentPrice:   currentPrice,
+		CurrentEMA20:   calculateEMA(primary, 20),
+		CurrentMACD:    calculateMACD(primary),
+		CurrentRSI7:    calculateRSI(primary, 7),
+		PriceChange1h:  priceChangeFromSeries(primary, time.Hour),
+		PriceChange4h:  priceChangeFromSeries(primary, 4*time.Hour),
+		OpenInterest:   &OIData{Latest: 0, Average: 0},
+		FundingRate:    0,
+		TimeframeData:  timeframeData,                                         // Use TimeframeData like live trading
+		IntradaySeries: calculateIntradaySeriesWithCount(primary, klineCount), // Use configurable count
 	}
-
-	return data, nil
 }
 
+// priceChangeFromSeries calculates price change over specified duration
 func priceChangeFromSeries(series []Kline, duration time.Duration) float64 {
 	if len(series) == 0 || duration <= 0 {
 		return 0

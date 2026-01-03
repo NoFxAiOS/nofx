@@ -62,6 +62,7 @@ type IntradayData struct {
 	RSI14Values []float64
 	Volume      []float64
 	ATR14       float64
+	Count       int // Number of klines actually processed
 }
 
 // LongerTermData longer-term data (4-hour timeframe)

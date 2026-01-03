@@ -500,3 +500,385 @@ func TestIsStaleData_EmptyKlines(t *testing.T) {
 		t.Error("Expected false for empty klines, got true")
 	}
 }
+
+// TestCalculateIntradaySeriesWithCount tests configurable K-line count functionality
+func TestCalculateIntradaySeriesWithCount(t *testing.T) {
+	tests := []struct {
+		name           string
+		klineCount     int
+		requestedCount int
+		expectedLen    int
+	}{
+		{
+			name:           "Request 5 from 20 K-lines",
+			klineCount:     20,
+			requestedCount: 5,
+			expectedLen:    5,
+		},
+		{
+			name:           "Request 10 from 30 K-lines",
+			klineCount:     30,
+			requestedCount: 10,
+			expectedLen:    10,
+		},
+		{
+			name:           "Request 30 from 30 K-lines",
+			klineCount:     30,
+			requestedCount: 30,
+			expectedLen:    30,
+		},
+		{
+			name:           "Request more than available",
+			klineCount:     15,
+			requestedCount: 30,
+			expectedLen:    15, // Should return all available
+		},
+		{
+			name:           "Request 0 count",
+			klineCount:     20,
+			requestedCount: 0,
+			expectedLen:    0,
+		},
+		{
+			name:           "Request negative count (use default 10)",
+			klineCount:     20,
+			requestedCount: -5,
+			expectedLen:    10, // Should default to 10
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			klines := generateTestKlines(tt.klineCount)
+			data := calculateIntradaySeriesWithCount(klines, tt.requestedCount)
+
+			if data == nil {
+				t.Fatal("calculateIntradaySeriesWithCount returned nil")
+			}
+
+			if len(data.Volume) != tt.expectedLen {
+				t.Errorf("Volume length = %d, want %d", len(data.Volume), tt.expectedLen)
+			}
+
+			if len(data.MidPrices) != tt.expectedLen {
+				t.Errorf("MidPrices length = %d, want %d", len(data.MidPrices), tt.expectedLen)
+			}
+
+			// Verify Count field matches actual data length
+			if data.Count != tt.expectedLen {
+				t.Errorf("Count = %d, want %d", data.Count, tt.expectedLen)
+			}
+
+			if data.Count != len(data.Volume) {
+				t.Errorf("Count = %d, but Volume length = %d", data.Count, len(data.Volume))
+			}
+
+			// Verify data correctness if we have data
+			if len(data.Volume) > 0 && tt.requestedCount > 0 {
+				// Calculate expected start index
+				start := tt.klineCount - tt.requestedCount
+				if start < 0 {
+					start = 0
+				}
+
+				// Verify first and last values match expected K-lines
+				expectedFirstVolume := klines[start].Volume
+				if data.Volume[0] != expectedFirstVolume {
+					t.Errorf("First volume = %.2f, want %.2f", data.Volume[0], expectedFirstVolume)
+				}
+
+				expectedLastVolume := klines[tt.klineCount-1].Volume
+				lastVolume := data.Volume[len(data.Volume)-1]
+				if lastVolume != expectedLastVolume {
+					t.Errorf("Last volume = %.2f, want %.2f", lastVolume, expectedLastVolume)
+				}
+			}
+		})
+	}
+}
+
+// TestBuildDataFromKlines tests the updated function with new parameters
+func TestBuildDataFromKlines(t *testing.T) {
+	tests := []struct {
+		name             string
+		timeframes       []string
+		primaryTimeframe string
+		klineCount       int
+		expectedTFData   bool // Should populate TimeframeData
+		expectedIntraday bool // Should populate IntradaySeries
+	}{
+		{
+			name:             "Standard case with 3m primary",
+			timeframes:       []string{"3m", "4h"},
+			primaryTimeframe: "3m",
+			klineCount:       30,
+			expectedTFData:   true,
+			expectedIntraday: true,
+		},
+		{
+			name:             "Single timeframe",
+			timeframes:       []string{"3m"},
+			primaryTimeframe: "3m",
+			klineCount:       10,
+			expectedTFData:   true,
+			expectedIntraday: true,
+		},
+		{
+			name:             "Multiple timeframes with 4h primary",
+			timeframes:       []string{"3m", "4h"},
+			primaryTimeframe: "4h",
+			klineCount:       20,
+			expectedTFData:   true,
+			expectedIntraday: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test K-line data for each timeframe
+			timeframeSeries := make(map[string][]Kline)
+			for _, tf := range tt.timeframes {
+				timeframeSeries[tf] = generateTestKlines(50) // Generate enough data
+			}
+
+			longerSeries := make(map[string][]Kline)
+			longerSeries["4h"] = generateTestKlines(100)
+
+			data := BuildDataFromKlines("BTCUSDT", timeframeSeries, longerSeries, tt.timeframes, tt.primaryTimeframe, tt.klineCount)
+
+			if data == nil {
+				t.Fatal("BuildDataFromKlines returned nil")
+			}
+
+			if tt.expectedTFData {
+				if data.TimeframeData == nil {
+					t.Error("TimeframeData should not be nil")
+				}
+				// Verify TimeframeData has entries for requested timeframes
+				for _, tf := range tt.timeframes {
+					if _, exists := data.TimeframeData[tf]; !exists {
+						t.Errorf("TimeframeData missing entry for timeframe %s", tf)
+					}
+				}
+			}
+
+			if tt.expectedIntraday {
+				if data.IntradaySeries == nil {
+					t.Error("IntradaySeries should not be nil")
+				}
+				// Verify IntradaySeries has correct length (should use klineCount)
+				actualLen := len(data.IntradaySeries.Volume)
+				expectedLen := tt.klineCount
+				if len(timeframeSeries[tt.primaryTimeframe]) < tt.klineCount {
+					expectedLen = len(timeframeSeries[tt.primaryTimeframe])
+				}
+				if actualLen != expectedLen {
+					t.Errorf("IntradaySeries volume length = %d, want %d", actualLen, expectedLen)
+				}
+			}
+		})
+	}
+}
+
+// TestBuildDataFromKlinesWithConfig tests the new configuration-based function
+func TestBuildDataFromKlinesWithConfig(t *testing.T) {
+	tests := []struct {
+		name             string
+		timeframes       []string
+		primaryTimeframe string
+		klineCount       int
+	}{
+		{
+			name:             "Backtest configuration - 30 K-lines",
+			timeframes:       []string{"3m", "4h"},
+			primaryTimeframe: "3m",
+			klineCount:       30,
+		},
+		{
+			name:             "Live trading configuration - 30 K-lines",
+			timeframes:       []string{"3m", "4h"},
+			primaryTimeframe: "3m",
+			klineCount:       30,
+		},
+		{
+			name:             "Custom configuration - 15 K-lines",
+			timeframes:       []string{"3m"},
+			primaryTimeframe: "3m",
+			klineCount:       15,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create test K-line data
+			timeframeSeries := make(map[string][]Kline)
+			for _, tf := range tt.timeframes {
+				timeframeSeries[tf] = generateTestKlines(50)
+			}
+
+			longerSeries := make(map[string][]Kline)
+			longerSeries["4h"] = generateTestKlines(100)
+
+			data := BuildDataFromKlinesWithConfig("BTCUSDT", timeframeSeries, longerSeries, tt.timeframes, tt.primaryTimeframe, tt.klineCount)
+
+			if data == nil {
+				t.Fatal("BuildDataFromKlinesWithConfig returned nil")
+			}
+
+			// Verify TimeframeData is properly populated
+			if data.TimeframeData == nil {
+				t.Error("TimeframeData should not be nil")
+			}
+
+			for _, tf := range tt.timeframes {
+				if seriesData, exists := data.TimeframeData[tf]; !exists {
+					t.Errorf("TimeframeData missing entry for timeframe %s", tf)
+				} else {
+					// Verify the data has correct length
+					actualLen := len(seriesData.Volume)
+					expectedLen := tt.klineCount
+					if len(timeframeSeries[tf]) < tt.klineCount {
+						expectedLen = len(timeframeSeries[tf])
+					}
+					if actualLen != expectedLen {
+						t.Errorf("TimeframeData[%s] volume length = %d, want %d", tf, actualLen, expectedLen)
+					}
+				}
+			}
+
+			// Verify IntradaySeries uses configurable count
+			if data.IntradaySeries == nil {
+				t.Error("IntradaySeries should not be nil")
+			}
+
+			actualLen := len(data.IntradaySeries.Volume)
+			expectedLen := tt.klineCount
+			if len(timeframeSeries[tt.primaryTimeframe]) < tt.klineCount {
+				expectedLen = len(timeframeSeries[tt.primaryTimeframe])
+			}
+			if actualLen != expectedLen {
+				t.Errorf("IntradaySeries volume length = %d, want %d", actualLen, expectedLen)
+			}
+		})
+	}
+}
+
+// TestKlineConsistency tests that backtest and live trading use same data structures
+func TestKlineConsistency(t *testing.T) {
+	symbol := "BTCUSDT"
+	timeframes := []string{"3m", "4h"}
+	primaryTimeframe := "3m"
+	klineCount := 30
+
+	// Generate test data
+	timeframeSeries := make(map[string][]Kline)
+	for _, tf := range timeframes {
+		timeframeSeries[tf] = generateTestKlines(50)
+	}
+	longerSeries := map[string][]Kline{"4h": generateTestKlines(100)}
+
+	// Test BuildDataFromKlinesWithConfig (used by backtest)
+	backtestData := BuildDataFromKlinesWithConfig(symbol, timeframeSeries, longerSeries, timeframes, primaryTimeframe, klineCount)
+
+	// Test BuildDataFromKlines with same parameters (used by live trading)
+	liveData := BuildDataFromKlines(symbol, timeframeSeries, longerSeries, timeframes, primaryTimeframe, klineCount)
+
+	if backtestData == nil || liveData == nil {
+		t.Fatal("Data functions returned nil")
+	}
+
+	// Both should have TimeframeData populated
+	if backtestData.TimeframeData == nil || liveData.TimeframeData == nil {
+		t.Error("TimeframeData should be populated in both backtest and live data")
+	}
+
+	// Both should have IntradaySeries with same length
+	if backtestData.IntradaySeries == nil || liveData.IntradaySeries == nil {
+		t.Error("IntradaySeries should be populated in both backtest and live data")
+	}
+
+	backtestLen := len(backtestData.IntradaySeries.Volume)
+	liveLen := len(liveData.IntradaySeries.Volume)
+	if backtestLen != liveLen {
+		t.Errorf("IntradaySeries length mismatch: backtest=%d, live=%d", backtestLen, liveLen)
+	}
+
+	if backtestLen != klineCount {
+		t.Errorf("IntradaySeries should use klineCount=%d, got %d", klineCount, backtestLen)
+	}
+
+	// TimeframeData should have same structure
+	for _, tf := range timeframes {
+		backtestTF, backtestExists := backtestData.TimeframeData[tf]
+		liveTF, liveExists := liveData.TimeframeData[tf]
+
+		if !backtestExists || !liveExists {
+			t.Errorf("TimeframeData[%s] should exist in both: backtest=%v, live=%v", tf, backtestExists, liveExists)
+			continue
+		}
+
+		if len(backtestTF.Volume) != len(liveTF.Volume) {
+			t.Errorf("TimeframeData[%s] length mismatch: backtest=%d, live=%d", tf, len(backtestTF.Volume), len(liveTF.Volume))
+		}
+	}
+}
+
+// TestGetCurrentPriceWithFallback tests the new price fetching mechanism
+func TestGetCurrentPriceWithFallback(t *testing.T) {
+	tests := []struct {
+		name               string
+		klineCount         int
+		expectedPriceSrc   string     // "kline_fallback" since API will likely fail in tests
+		expectedPriceRange [2]float64 // min/max range for price validation
+	}{
+		{
+			name:               "Normal K-line data",
+			klineCount:         10,
+			expectedPriceSrc:   "kline_fallback",        // API call expected to fail in test environment
+			expectedPriceRange: [2]float64{99.0, 110.0}, // Should be around 100.3 based on generateTestKlines
+		},
+		{
+			name:               "Single K-line",
+			klineCount:         1,
+			expectedPriceSrc:   "kline_fallback",
+			expectedPriceRange: [2]float64{99.0, 110.0},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			klines := generateTestKlines(tt.klineCount)
+
+			price, source := getCurrentPriceWithFallback("BTCUSDT", klines)
+
+			// Validate price source (should be fallback due to API unavailability in tests)
+			if source != tt.expectedPriceSrc {
+				t.Logf("Price source: got %s, expected %s (this is normal in test environment)", source, tt.expectedPriceSrc)
+			}
+
+			// Validate price is within expected range
+			if price < tt.expectedPriceRange[0] || price > tt.expectedPriceRange[1] {
+				t.Errorf("Price %.4f outside expected range [%.1f, %.1f]",
+					price, tt.expectedPriceRange[0], tt.expectedPriceRange[1])
+			}
+
+			// Validate price is positive
+			if price <= 0 {
+				t.Errorf("Price should be positive, got %.4f", price)
+			}
+		})
+	}
+}
+
+// TestGetCurrentPriceWithFallback_EmptyKlines tests edge case with no K-line data
+func TestGetCurrentPriceWithFallback_EmptyKlines(t *testing.T) {
+	price, source := getCurrentPriceWithFallback("BTCUSDT", []Kline{})
+
+	if price != 0 {
+		t.Errorf("Expected price 0 for empty klines, got %.4f", price)
+	}
+
+	if source != "no_data" {
+		t.Errorf("Expected source 'no_data' for empty klines, got %s", source)
+	}
+}

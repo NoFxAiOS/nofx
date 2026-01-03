@@ -26,15 +26,24 @@ type DataFeed struct {
 	decisionTimes []int64
 	primaryTF     string
 	longerTF      string
+	klineCount    int // configurable kline count (same as live trading)
 }
 
 func NewDataFeed(cfg BacktestConfig) (*DataFeed, error) {
+	// Extract kline count from strategy config (same as live trading)
+	strategyConfig := cfg.ToStrategyConfig()
+	klineCount := 30 // default
+	if strategyConfig != nil && strategyConfig.Indicators.Klines.PrimaryCount > 0 {
+		klineCount = strategyConfig.Indicators.Klines.PrimaryCount
+	}
+
 	df := &DataFeed{
 		cfg:          cfg,
 		symbols:      make([]string, len(cfg.Symbols)),
 		timeframes:   append([]string(nil), cfg.Timeframes...),
 		symbolSeries: make(map[string]*symbolSeries),
 		primaryTF:    cfg.DecisionTimeframe,
+		klineCount:   klineCount,
 	}
 	copy(df.symbols, cfg.Symbols)
 
@@ -153,10 +162,16 @@ func (df *DataFeed) BuildMarketData(ts int64) (map[string]*market.Data, map[stri
 			if df.longerTF != "" && df.longerTF != tf {
 				longer = df.sliceUpTo(symbol, df.longerTF, ts)
 			}
-			data, err := market.BuildDataFromKlines(symbol, series, longer)
-			if err != nil {
-				return nil, nil, err
+
+			// Build the timeframe series map
+			timeframeSeries := map[string][]market.Kline{tf: series}
+			longerSeries := make(map[string][]market.Kline)
+			if len(longer) > 0 && df.longerTF != "" {
+				longerSeries[df.longerTF] = longer
 			}
+
+			// Use the new config-aware function with same parameters as live trading
+			data := market.BuildDataFromKlines(symbol, timeframeSeries, longerSeries, df.timeframes, df.primaryTF, df.klineCount)
 			perTF[tf] = data
 			if tf == df.primaryTF {
 				result[symbol] = data

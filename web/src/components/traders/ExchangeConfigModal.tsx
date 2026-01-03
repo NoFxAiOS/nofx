@@ -678,6 +678,64 @@ export function ExchangeConfigModal({
                         />
                       </div>
 
+                      {/* Testnet Toggle */}
+                      {(currentExchangeType === 'binance' || currentExchangeType === 'bybit') && (
+                        <div className="mt-4">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={testnet}
+                                onChange={(e) => setTestnet(e.target.checked)}
+                                className="sr-only"
+                              />
+                              <div
+                                className={`w-12 h-6 rounded-full transition-all duration-200 ${
+                                  testnet ? 'bg-orange-500' : 'bg-gray-600'
+                                }`}
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-full bg-white transition-all duration-200 transform ${
+                                    testnet ? 'translate-x-6' : 'translate-x-0.5'
+                                  } mt-0.5`}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                                {t('useTestnet', language)}
+                              </span>
+                              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                                {t('testnetDescription', language)}
+                              </div>
+                            </div>
+                          </label>
+                          {testnet && (
+                            <div
+                              className="mt-3 p-3 rounded-lg"
+                              style={{
+                                background: 'rgba(255, 165, 0, 0.1)',
+                                border: '1px solid rgba(255, 165, 0, 0.3)',
+                              }}
+                            >
+                              <div className="flex items-start gap-2">
+                                <span style={{ color: '#FFA500' }}>⚠️</span>
+                                <div className="text-sm" style={{ color: '#FFA500' }}>
+                                  <div className="font-medium mb-1">
+                                    {language === 'zh' ? '测试网络模式已启用' : 'Testnet Mode Enabled'}
+                                  </div>
+                                  <div className="text-xs" style={{ color: '#CC8400' }}>
+                                    {language === 'zh'
+                                      ? '使用测试网络进行模拟交易，不会使用真实资金。请使用对应的测试网络 API 密钥。'
+                                      : 'Using testnet for simulation trading with virtual funds. Please use testnet API credentials.'}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {(currentExchangeType === 'okx' || currentExchangeType === 'bitget') && (
                         <div>
                           <label

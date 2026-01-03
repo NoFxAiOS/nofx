@@ -74,7 +74,8 @@ type AutoTraderConfig struct {
 	CustomModelName string
 
 	// Scan configuration
-	ScanInterval time.Duration // Scan interval (recommended 3 minutes)
+	ScanInterval      time.Duration // Scan interval (recommended 3 minutes)
+	OrderSyncInterval time.Duration // Order sync interval (default 30 seconds, can be adjusted per exchange)
 
 	// Account configuration
 	InitialBalance float64 // Initial balance (for P&L calculation, must be set manually)
@@ -362,59 +363,65 @@ func (at *AutoTrader) Run() error {
 	// Start drawdown monitoring
 	at.startDrawdownMonitor()
 
+	// Determine order sync interval (use configured value, default to 30 seconds if not set)
+	orderSyncInterval := at.config.OrderSyncInterval
+	if orderSyncInterval == 0 {
+		orderSyncInterval = 30 * time.Second
+	}
+
 	// Start Lighter order sync if using Lighter exchange
 	if at.exchange == "lighter" {
 		if lighterTrader, ok := at.trader.(*LighterTraderV2); ok && at.store != nil {
-			lighterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Lighter order+position sync enabled (every 30s)", at.name)
+			lighterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] Lighter order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 
 	// Start Hyperliquid order sync if using Hyperliquid exchange
 	if at.exchange == "hyperliquid" {
 		if hyperliquidTrader, ok := at.trader.(*HyperliquidTrader); ok && at.store != nil {
-			hyperliquidTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Hyperliquid order+position sync enabled (every 30s)", at.name)
+			hyperliquidTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] Hyperliquid order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 
 	// Start Bybit order sync if using Bybit exchange
 	if at.exchange == "bybit" {
 		if bybitTrader, ok := at.trader.(*BybitTrader); ok && at.store != nil {
-			bybitTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Bybit order+position sync enabled (every 30s)", at.name)
+			bybitTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] Bybit order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 
 	// Start OKX order sync if using OKX exchange
 	if at.exchange == "okx" {
 		if okxTrader, ok := at.trader.(*OKXTrader); ok && at.store != nil {
-			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] OKX order+position sync enabled (every 30s)", at.name)
+			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] OKX order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 
 	// Start Bitget order sync if using Bitget exchange
 	if at.exchange == "bitget" {
 		if bitgetTrader, ok := at.trader.(*BitgetTrader); ok && at.store != nil {
-			bitgetTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Bitget order+position sync enabled (every 30s)", at.name)
+			bitgetTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] Bitget order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 
 	// Start Aster order sync if using Aster exchange
 	if at.exchange == "aster" {
 		if asterTrader, ok := at.trader.(*AsterTrader); ok && at.store != nil {
-			asterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Aster order+position sync enabled (every 30s)", at.name)
+			asterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] Aster order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 
 	// Start Binance order sync if using Binance exchange
 	if at.exchange == "binance" {
 		if binanceTrader, ok := at.trader.(*FuturesTrader); ok && at.store != nil {
-			binanceTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
-			logger.Infof("🔄 [%s] Binance order+position sync enabled (every 30s)", at.name)
+			binanceTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, orderSyncInterval)
+			logger.Infof("🔄 [%s] Binance order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
 

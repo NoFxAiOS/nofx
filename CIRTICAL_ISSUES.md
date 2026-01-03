@@ -292,7 +292,7 @@ Completed: *Categorize issues by profit importance* (2/2)
 
     This directly addresses VioletEvergar-den's concern about AI reaction delays by implementing automated profit protection independent of AI decision-making speed.
 
-- [x]. [Issue 9](https://github.com/NoFxAiOS/nofx/issues/1239): ✅ **COMPLETED**
+- [x] [Issue 9](https://github.com/NoFxAiOS/nofx/issues/1239): ✅ **COMPLETED**
     ### ✅ Bug Fixed: Current Price Data Not Updating - Large Price Deviation
 
     **🔍 Original Problem**: Current price stuck at stale values causing significant trading deviations

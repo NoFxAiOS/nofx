@@ -131,7 +131,7 @@ func (h *DebateHandler) HandleCreateDebate(c *gin.Context) {
 
 	var req CreateDebateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -292,7 +292,7 @@ func (h *DebateHandler) HandleStartDebate(c *gin.Context) {
 
 	// Start debate asynchronously
 	if err := h.engine.StartDebate(debateID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Start debate", err)
 		return
 	}
 
@@ -316,7 +316,7 @@ func (h *DebateHandler) HandleCancelDebate(c *gin.Context) {
 	}
 
 	if err := h.engine.CancelDebate(debateID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Cancel debate", err)
 		return
 	}
 
@@ -495,20 +495,20 @@ func (h *DebateHandler) HandleExecuteDebate(c *gin.Context) {
 	// Parse request
 	var req ExecuteDebateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Get trader executor
 	executor, err := h.traderManager.GetTraderExecutor(req.TraderID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("trader not available: %v", err)})
+		SafeError(c, http.StatusBadRequest, "Trader not available", err)
 		return
 	}
 
 	// Execute consensus
 	if err := h.engine.ExecuteConsensus(debateID, executor); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Execute consensus", err)
 		return
 	}
 
@@ -635,7 +635,9 @@ func (h *DebateHandler) broadcastConsensus(sessionID string, decision *store.Deb
 }
 
 func (h *DebateHandler) broadcastError(sessionID string, err error) {
+	// Sanitize error message before broadcasting to client
+	safeMsg := SanitizeError(err, "An error occurred during debate")
 	h.broadcast(sessionID, "error", map[string]interface{}{
-		"error": err.Error(),
+		"error": safeMsg,
 	})
 }

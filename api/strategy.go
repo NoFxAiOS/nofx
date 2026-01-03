@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"nofx/decision"
+	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
@@ -33,7 +34,7 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 func (s *Server) handlePublicStrategies(c *gin.Context) {
 	strategies, err := s.store.Strategy().ListPublic()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get public strategies: " + err.Error()})
+		SafeInternalError(c, "Failed to get public strategies", err)
 		return
 	}
 
@@ -76,7 +77,7 @@ func (s *Server) handleGetStrategies(c *gin.Context) {
 
 	strategies, err := s.store.Strategy().List(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get strategy list: " + err.Error()})
+		SafeInternalError(c, "Failed to get strategy list", err)
 		return
 	}
 
@@ -151,14 +152,14 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Serialize configuration
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize configuration"})
+		SafeInternalError(c, "Serialize configuration", err)
 		return
 	}
 
@@ -173,7 +174,7 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	}
 
 	if err := s.store.Strategy().Create(strategy); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create strategy: " + err.Error()})
+		SafeInternalError(c, "Failed to create strategy", err)
 		return
 	}
 
@@ -221,14 +222,14 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Serialize configuration
 	configJSON, err := json.Marshal(req.Config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to serialize configuration"})
+		SafeInternalError(c, "Serialize configuration", err)
 		return
 	}
 
@@ -243,7 +244,7 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	}
 
 	if err := s.store.Strategy().Update(strategy); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update strategy: " + err.Error()})
+		SafeInternalError(c, "Failed to update strategy", err)
 		return
 	}
 
@@ -269,7 +270,7 @@ func (s *Server) handleDeleteStrategy(c *gin.Context) {
 	}
 
 	if err := s.store.Strategy().Delete(userID, strategyID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete strategy: " + err.Error()})
+		SafeInternalError(c, "Failed to delete strategy", err)
 		return
 	}
 
@@ -287,7 +288,7 @@ func (s *Server) handleActivateStrategy(c *gin.Context) {
 	}
 
 	if err := s.store.Strategy().SetActive(userID, strategyID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to activate strategy: " + err.Error()})
+		SafeInternalError(c, "Failed to activate strategy", err)
 		return
 	}
 
@@ -309,13 +310,13 @@ func (s *Server) handleDuplicateStrategy(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	newID := uuid.New().String()
 	if err := s.store.Strategy().Duplicate(userID, sourceID, newID, req.Name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to duplicate strategy: " + err.Error()})
+		SafeInternalError(c, "Failed to duplicate strategy", err)
 		return
 	}
 
@@ -383,7 +384,7 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -433,7 +434,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -447,8 +448,9 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	// Get candidate coins
 	candidates, err := engine.GetCandidateCoins()
 	if err != nil {
+		logger.Errorf("[API Error] Failed to get candidate coins: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":       "Failed to get candidate coins: " + err.Error(),
+			"error":       "Failed to get candidate coins",
 			"ai_response": "",
 		})
 		return

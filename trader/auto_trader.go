@@ -425,13 +425,18 @@ func (at *AutoTrader) Run() error {
 		}
 	}
 
-	ticker := time.NewTicker(at.config.ScanInterval)
+	// Start with initial scan interval (will be adjusted dynamically)
+	currentInterval := at.calculateAdaptiveScanInterval()
+	ticker := time.NewTicker(currentInterval)
 	defer ticker.Stop()
 
 	// Execute immediately on first run
 	if err := at.runCycle(); err != nil {
 		logger.Infof("❌ Execution failed: %v", err)
 	}
+
+	// Track when we last adjusted the interval
+	lastIntervalAdjustment := time.Now()
 
 	for {
 		at.isRunningMutex.RLock()
@@ -447,6 +452,17 @@ func (at *AutoTrader) Run() error {
 			if err := at.runCycle(); err != nil {
 				logger.Infof("❌ Execution failed: %v", err)
 			}
+
+			// Recalculate scan interval every 5 minutes or after significant market changes
+			if time.Since(lastIntervalAdjustment) > 5*time.Minute {
+				newInterval := at.calculateAdaptiveScanInterval()
+				if newInterval != currentInterval {
+					logger.Infof("🔄 Adjusting scan interval from %v to %v based on market conditions", currentInterval, newInterval)
+					currentInterval = newInterval
+					ticker.Reset(currentInterval)
+					lastIntervalAdjustment = time.Now()
+				}
+			}
 		case <-at.stopMonitorCh:
 			logger.Infof("[%s] ⏹ Stop signal received, exiting automatic trading main loop", at.name)
 			return nil
@@ -454,6 +470,62 @@ func (at *AutoTrader) Run() error {
 	}
 
 	return nil
+}
+
+// calculateAdaptiveScanInterval calculates optimal scan interval based on market conditions
+// Returns interval shorter during volatile periods or when positions are open
+// (Phase 1.2 Optimization: Adaptive Scan Intervals)
+func (at *AutoTrader) calculateAdaptiveScanInterval() time.Duration {
+	// Get current positions count
+	positions, err := at.trader.GetPositions()
+	openPositionCount := 0
+	if err == nil && positions != nil {
+		openPositionCount = len(positions)
+	}
+
+	// Calculate recent volatility from position P&L if available
+	var recentVolatility float64 = 0.5 // Default medium volatility
+
+	if at.store != nil {
+		// Get recent closed positions to estimate volatility
+		recentPositions, err := at.store.Position().GetClosedPositions(at.id, 10)
+		if err == nil && len(recentPositions) > 0 {
+			// Calculate average win/loss percentage as volatility indicator
+			totalPnLPercent := 0.0
+			for _, pos := range recentPositions {
+				if pos.EntryPrice > 0 && pos.ExitPrice > 0 {
+					pnlPercent := math.Abs((pos.ExitPrice - pos.EntryPrice) / pos.EntryPrice)
+					totalPnLPercent += pnlPercent
+				}
+			}
+			recentVolatility = totalPnLPercent / float64(len(recentPositions))
+		}
+	}
+
+	// Determine scan interval based on conditions
+	baseInterval := at.config.ScanInterval
+	if baseInterval == 0 {
+		baseInterval = 3 * time.Minute // Default 3 minutes
+	}
+
+	// High volatility threshold (> 2% average move per position)
+	if recentVolatility > 0.02 {
+		logger.Infof("⚡ High volatility detected (%.2f%%): using aggressive scan interval (30s)", recentVolatility*100)
+		return 30 * time.Second // Fast response during volatile periods
+	}
+
+	// Medium volatility with open positions
+	if recentVolatility > 0.01 || openPositionCount > 0 {
+		adjustedInterval := baseInterval / 2 // Cut scan interval in half
+		logger.Infof("📊 Medium activity (volatility: %.2f%%, positions: %d): using %v scan interval",
+			recentVolatility*100, openPositionCount, adjustedInterval)
+		return adjustedInterval
+	}
+
+	// Low volatility and no open positions - use default or longer interval
+	logger.Infof("🟢 Low activity (volatility: %.2f%%, positions: %d): using standard %v scan interval",
+		recentVolatility*100, openPositionCount, baseInterval)
+	return baseInterval
 }
 
 // Stop stops the automatic trading

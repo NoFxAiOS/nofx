@@ -4,6 +4,8 @@ import { TrendingUp, Layers, Zap, Hexagon, Crosshair } from 'lucide-react'
 const agents = [
     {
         name: "ALPHA-1",
+        // ... (rest of agents array remains, but I can't skip lines in replacement content easily without context. Wait, let's just replace the top section)
+        // Actually, I'll use multi_replace for targeted cleanup.
         class: "SCALPER",
         desc: "High-frequency microstructure exploitation.",
         apy: "142%",
@@ -41,8 +43,10 @@ const agents = [
 ]
 
 export default function AgentGrid() {
+    // Simplified State to prevent crash
+
     return (
-        <section id="market-scanner" className="py-24 bg-nofx-bg relative overflow-hidden">
+        <section id="market-scanner" className="py-16 md:py-24 bg-nofx-bg relative overflow-hidden">
 
             {/* Background Details */}
             <div className="absolute top-0 right-0 p-10 opacity-20 pointer-events-none">
@@ -51,7 +55,7 @@ export default function AgentGrid() {
 
             <div className="max-w-7xl mx-auto px-6 relative z-10">
 
-                <div className="flex flex-col md:flex-row justify-between items-end mb-16 gap-6">
+                <div className="flex flex-col md:flex-row justify-between items-end mb-10 md:mb-16 gap-6">
                     <div>
                         <div className="flex items-center gap-2 text-nofx-gold font-mono text-xs mb-2 tracking-widest uppercase">
                             <Crosshair className="w-4 h-4" /> MARKET SELECT
@@ -65,17 +69,18 @@ export default function AgentGrid() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Grid Container - Removing scroll tracking for stability test */}
+                <div className="flex flex-row md:grid md:grid-cols-3 gap-4 md:gap-8 overflow-x-auto md:overflow-visible pb-12 md:pb-0 snap-x snap-mandatory -mx-6 px-6 md:mx-0 md:px-0 scrollbar-hide">
                     {agents.map((agent, i) => {
                         const Icon = agent.icon
+
                         return (
                             <motion.div
                                 key={i}
                                 initial={{ opacity: 0, y: 20 }}
                                 whileInView={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.1 }}
-                                className={`group relative bg-black/40 backdrop-blur-sm border ${agent.border} overflow-hidden hover:bg-zinc-900/40 transition-all duration-300 ${agent.bg_glow}`}
-                                style={{ clipPath: 'polygon(0 0, 100% 0, 100% 85%, 85% 100%, 0 100%)' }}
+                                className={`group relative bg-black/40 backdrop-blur-xl border ${agent.border} overflow-hidden transition-all duration-300 min-w-[85vw] md:min-w-0 snap-center shrink-0 rounded-xl md:rounded-none`}
                             >
                                 {/* Top "Hinge" decoration */}
                                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-// Force HMR Update
+// Force HMR Update - Reliability Fix v3 (Emergency Recovery)
 import useSWR, { mutate } from 'swr'
 import { api } from './lib/api'
 import { ChartTabs } from './components/ChartTabs'

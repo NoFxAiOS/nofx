@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion'
 import { ArrowRight, Shield, Activity, CircuitBoard, Cpu, Wifi, Globe, Lock, Zap, Star, GitFork, Users, MessageCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { httpClient } from '../../../lib/httpClient'
 import { useGitHubStats } from '../../../hooks/useGitHubStats'
 
 export default function TerminalHero() {
@@ -27,9 +26,18 @@ export default function TerminalHero() {
             try {
                 const results = await Promise.all(symbols.map(async (sym) => {
                     try {
-                        const res = await httpClient.get(`/api/klines?symbol=${sym}USDT&interval=1m&limit=1`)
-                        if (res.success && res.data?.length > 0) {
-                            const closePrice = parseFloat(res.data[0].close)
+                        // Use native fetch to bypass global error handlers (toasts) in httpClient
+                        const response = await fetch(`/api/klines?symbol=${sym}USDT&interval=1m&limit=1`)
+                        if (!response.ok) return null
+
+                        const res = await response.json()
+                        // Check for standard API response structure or direct array
+                        const klineData = res.data || res
+
+                        if (Array.isArray(klineData) && klineData.length > 0) {
+                            const closePrice = parseFloat(klineData[0].close || klineData[0][4]) // Handle object or array format
+                            if (isNaN(closePrice)) return null
+
                             // Format price: < 1 use 4 decimals, > 1 use 2
                             const formatted = closePrice < 1
                                 ? closePrice.toFixed(4)
@@ -37,7 +45,7 @@ export default function TerminalHero() {
                             return { symbol: sym, price: formatted }
                         }
                     } catch (err) {
-                        // ignore individual failures
+                        // Silent failure for background polling
                     }
                     return null
                 }))
@@ -64,6 +72,7 @@ export default function TerminalHero() {
             {/* BACKGROUND LAYERS */}
             {/* 1. Grid */}
             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none"></div>
+            <div className="absolute inset-x-0 bottom-0 h-[50vh] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none md:hidden" style={{ transform: 'perspective(500px) rotateX(60deg) translateY(100px) scale(2)' }}></div>
             <div className="absolute inset-0 bg-grid-pattern opacity-[0.03] pointer-events-none"></div>
 
             {/* 2. World Map / Data Viz Background (Abstract) */}
@@ -72,9 +81,19 @@ export default function TerminalHero() {
                 <div className="absolute w-[60vw] h-[60vw] rounded-full border border-dashed border-nofx-accent/20 animate-[spin_60s_linear_infinite]"></div>
             </div>
 
-            {/* 3. Gradient Spots */}
-            <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-nofx-gold/10 rounded-full blur-[120px] pointer-events-none"></div>
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-nofx-accent/5 rounded-full blur-[120px] pointer-events-none"></div>
+            {/* 3. Gradient Spots - Intensified for Mobile */}
+            <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] bg-nofx-gold/20 rounded-full blur-[120px] pointer-events-none mix-blend-screen"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] bg-nofx-accent/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen"></div>
+
+            {/* Mobile Bottom Fade */}
+            <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-nofx-bg to-transparent z-20 pointer-events-none md:hidden" />
+
+            {/* Mobile Floating HUD - Moved to Left to avoid covering face */}
+            <div className="md:hidden absolute top-24 left-4 z-0 opacity-40 pointer-events-none">
+                <div className="w-24 h-24 border border-dashed border-nofx-gold/30 rounded-full animate-spin-slow flex items-center justify-center">
+                    <div className="w-16 h-16 border border-nofx-accent/30 rounded-full"></div>
+                </div>
+            </div>
 
             {/* CONTENT GRID */}
             <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 lg:gap-8 max-w-[1800px] mx-auto w-full px-6 h-full pb-20 pt-10 pointer-events-none">
@@ -153,15 +172,18 @@ export default function TerminalHero() {
                     </motion.div>
 
                     {/* Main Title - Massive & Impactful */}
-                    <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.8] mb-6 select-none bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-zinc-600">
-                        AGENTIC<br />
-                        <span className="text-stroke-1 text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold via-white to-nofx-gold animate-shimmer bg-[length:200%_auto]">TRADING</span>
-                    </h1>
+                    {/* Main Title - Massive & Impactful */}
+                    <div className="relative z-20 mix-blend-hard-light md:mix-blend-normal">
+                        <h1 className="text-6xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] md:leading-[0.8] mb-6 select-none bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-zinc-600 drop-shadow-2xl">
+                            AGENTIC<br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold via-white to-nofx-gold animate-shimmer bg-[length:200%_auto] tracking-tight filter drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]">TRADING</span>
+                        </h1>
 
-                    <p className="max-w-xl text-zinc-400 text-lg mb-6 font-light leading-relaxed">
-                        The World's First Open-Source Agentic Trading OS.
-                        Deploy autonomous high-frequency trading agents powered by advanced LLMs.
-                    </p>
+                        <p className="max-w-xl text-zinc-200 md:text-zinc-400 text-lg mb-6 font-light leading-relaxed drop-shadow-md">
+                            The World's First Open-Source Agentic Trading OS.
+                            Deploy autonomous high-frequency trading agents powered by advanced LLMs.
+                        </p>
+                    </div>
 
                     {/* Market Access Strip - Prominent Display */}
                     {/* Market Access Strip - Prominent Display */}
@@ -214,26 +236,52 @@ export default function TerminalHero() {
                 </div>
             </div>
 
-            {/* RIGHT COLUMN: HOLOGRAPHIC DISPLAY - Absolute Overlay for "Far Right" Effect */}
-            <div className="absolute top-0 right-0 h-full w-[45vw] hidden lg:flex pointer-events-none items-center justify-center z-0">
+            {/* RIGHT COLUMN: HOLOGRAPHIC DISPLAY - Absolute Overlay for "Far Right" Effect on Desktop, Background on Mobile */}
+            <div className="absolute top-20 md:top-0 right-0 h-[50vh] md:h-full w-full lg:w-[45vw] flex pointer-events-none items-center justify-center z-0 opacity-80 lg:opacity-100 mix-blend-normal">
                 <div className="relative w-full h-full flex items-center justify-center perspective-1000">
                     {/* 3D Hologram Effect Container */}
                     <div className="relative w-full h-[90%] flex items-center justify-center transform-style-3d rotate-y-[-12deg]">
 
-                        {/* Scanning Grid behind Mascot */}
-                        <div className="absolute inset-x-0 top-[10%] bottom-[10%] bg-[linear-gradient(rgba(0,240,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.05)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]"></div>
+                        {/* Scanning Grid behind Mascot - Mobile Optimized */}
+                        <div className="absolute inset-x-0 top-[10%] bottom-[10%] bg-[linear-gradient(rgba(0,240,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(0,240,255,0.05)_1px,transparent_1px)] bg-[size:20px_20px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)] mobile-grid-pulse"></div>
 
                         {/* The Mascot Image with Glitch/Holo Effects */}
-                        <div className="relative z-10 w-full h-full opacity-90 transition-all duration-500 hover:opacity-100 group flex flex-col justify-end pointer-events-auto">
-                            <div className="absolute inset-0 bg-nofx-accent/10 blur-[80px] rounded-full animate-pulse-slow transition-colors duration-500 group-hover:bg-nofx-gold/40"></div>
-                            <img
-                                src="/images/nofx_mascot.png"
-                                alt="Agent NoFX"
-                                className="w-full h-full object-contain object-bottom filter drop-shadow-[0_0_25px_rgba(0,240,255,0.2)] contrast-110 saturate-0 group-hover:saturate-100 group-hover:drop-shadow-[0_0_35px_rgba(234,179,8,0.5)] transition-all duration-500"
-                                style={{ maskImage: 'linear-gradient(to bottom, black 90%, transparent 100%)' }}
-                            />
-                            {/* Holo Scan Line */}
-                            <div className="absolute w-full h-2 bg-nofx-accent/30 drop-shadow-[0_0_10px_rgba(0,240,255,0.8)] top-0 animate-scan-fast pointer-events-none"></div>
+                        <div className="relative z-10 w-full h-full opacity-100 transition-all duration-500 group flex flex-col justify-end pointer-events-auto">
+                            <div className="absolute inset-x-0 bottom-0 top-1/2 bg-nofx-accent/5 blur-[60px] rounded-full animate-pulse-slow transition-colors duration-500 group-hover:bg-nofx-gold/20"></div>
+
+                            {/* Mobile Holo-Portrait Style - Full Color & Optimized & Premium Desktop */}
+                            <div className="relative w-full h-full flex items-end justify-center">
+                                <img
+                                    src="/images/nofx_mascot.png"
+                                    alt="Agent NoFX"
+                                    className="w-full h-full object-contain object-bottom char-premium-effects animate-breath-mobile transition-all duration-500"
+                                    style={{
+                                        maskImage: 'radial-gradient(ellipse at center, black 60%, transparent 100%), linear-gradient(to bottom, black 0%, black 85%, transparent 100%)',
+                                        WebkitMaskImage: 'radial-gradient(ellipse at center, black 60%, transparent 100%), linear-gradient(to bottom, black 0%, black 85%, transparent 100%)',
+                                        maskComposite: 'intersect',
+                                        WebkitMaskComposite: 'source-in'
+                                    }}
+                                />
+                                {/* Dynamic Holographic Overlay - Premium Noise & Gradient */}
+                                <div className="absolute inset-0 w-full h-full holo-overlay animate-holo opacity-80 pointer-events-none"
+                                    style={{
+                                        maskImage: 'url(/images/nofx_mascot.png)',
+                                        WebkitMaskImage: 'url(/images/nofx_mascot.png)',
+                                        maskSize: 'contain',
+                                        WebkitMaskSize: 'contain',
+                                        maskPosition: 'bottom center',
+                                        WebkitMaskPosition: 'bottom center',
+                                        maskRepeat: 'no-repeat',
+                                        WebkitMaskRepeat: 'no-repeat'
+                                    }}
+                                />
+                            </div>
+
+                            {/* Holo Scan Line - Subtle on Mobile */}
+                            <div className="absolute w-full h-1 bg-nofx-accent/30 drop-shadow-[0_0_10px_rgba(0,240,255,0.8)] top-0 animate-scan-fast pointer-events-none mix-blend-overlay"></div>
+
+                            {/* Mobile Glitch Overlay - Reduced Intensity */}
+                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 mix-blend-overlay md:hidden animate-pulse-fast"></div>
                         </div>
                     </div>
 
@@ -241,7 +289,7 @@ export default function TerminalHero() {
                     <motion.div
                         animate={{ y: [0, -10, 0] }}
                         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                        className="absolute top-[30%] left-[10%] bg-black/80 border border-nofx-accent/30 p-2 rounded backdrop-blur-md shadow-neon-blue"
+                        className="absolute top-[30%] left-[10%] bg-black/80 border border-nofx-accent/30 p-2 rounded backdrop-blur-md shadow-neon-blue hidden md:block"
                     >
                         <Cpu className="w-5 h-5 text-nofx-accent" />
                     </motion.div>
@@ -249,7 +297,7 @@ export default function TerminalHero() {
                     <motion.div
                         animate={{ y: [0, 10, 0] }}
                         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                        className="absolute bottom-[20%] right-[20%] bg-black/80 border border-nofx-gold/30 p-2 rounded backdrop-blur-md shadow-neon"
+                        className="absolute bottom-[20%] right-[20%] bg-black/80 border border-nofx-gold/30 p-2 rounded backdrop-blur-md shadow-neon hidden md:block"
                     >
                         <Lock className="w-5 h-5 text-nofx-gold" />
                     </motion.div>

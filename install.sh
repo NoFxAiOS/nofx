@@ -128,11 +128,71 @@ pull_images() {
     echo -e "${GREEN}✓ Images pulled${NC}"
 }
 
+# Ask user if they want to clear trading data
+ask_clear_trading_data() {
+    local db_file="data/data.db"
+
+    # Only ask if database file exists
+    if [ ! -f "$db_file" ]; then
+        CLEAR_TRADING_DATA="no"
+        return 0
+    fi
+
+    echo ""
+    echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}Do you want to clear trading data? (orders, fills, positions)${NC}"
+    echo -e "${BLUE}  • trader_orders    (Order records)${NC}"
+    echo -e "${BLUE}  • trader_fills     (Fill/execution records)${NC}"
+    echo -e "${BLUE}  • trader_positions (Position records)${NC}"
+    echo -e "${YELLOW}═══════════════════════════════════════════════════════════════${NC}"
+    echo ""
+    echo -e "${BLUE}Type 'yes' to clear tables, press Enter or any other input to skip${NC}"
+    echo -n "Input: "
+    read -r confirm < /dev/tty
+
+    if [ "$confirm" == "yes" ]; then
+        CLEAR_TRADING_DATA="yes"
+        echo -e "${YELLOW}Trading data will be cleared after services start...${NC}"
+    else
+        CLEAR_TRADING_DATA="no"
+        echo -e "${BLUE}Skipping data clear${NC}"
+    fi
+    echo ""
+}
+
 # Start services
 start_services() {
     echo -e "${YELLOW}Starting NOFX services...${NC}"
     $COMPOSE_CMD up -d
     echo -e "${GREEN}✓ Services started${NC}"
+}
+
+# Clear trading data (called before services start)
+clear_trading_data() {
+    if [ "$CLEAR_TRADING_DATA" != "yes" ]; then
+        return 0
+    fi
+
+    local db_file="data/data.db"
+
+    if [ ! -f "$db_file" ]; then
+        echo -e "${YELLOW}Database file not found, skipping...${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}Clearing trading data tables...${NC}"
+
+    if command -v sqlite3 &> /dev/null; then
+        sqlite3 "$db_file" 'DELETE FROM trader_fills; DELETE FROM trader_orders; DELETE FROM trader_positions;'
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✓ Trading data tables cleared${NC}"
+        else
+            echo -e "${RED}Failed to clear trading data${NC}"
+        fi
+    else
+        echo -e "${RED}sqlite3 not found. Please install sqlite3 and run manually:${NC}"
+        echo -e "${BLUE}  sqlite3 data/data.db 'DELETE FROM trader_fills; DELETE FROM trader_orders; DELETE FROM trader_positions;'${NC}"
+    fi
 }
 
 # Wait for services
@@ -224,6 +284,8 @@ main() {
     download_files
     generate_env
     pull_images
+    ask_clear_trading_data
+    clear_trading_data
     start_services
     wait_for_services
     print_success

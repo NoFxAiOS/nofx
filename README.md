@@ -14,9 +14,18 @@
 
 ---
 
-## AI-Powered Crypto Trading Platform
+## AI-Powered Multi-Asset Trading Platform
 
-**NOFX** is an open-source AI trading system that lets you run multiple AI models to trade crypto futures automatically. Configure strategies through a web interface, monitor performance in real-time, and let AI agents compete to find the best trading approach.
+**NOFX** is an open-source AI trading system that lets you run multiple AI models to trade automatically. Configure strategies through a web interface, monitor performance in real-time, and let AI agents compete to find the best trading approach.
+
+### Supported Markets
+
+| Market | Trading | Status |
+|--------|---------|--------|
+| 🪙 **Crypto** | BTC, ETH, Altcoins | ✅ Supported |
+| 📈 **US Stocks** | AAPL, TSLA, NVDA, etc. | ✅ Supported |
+| 💱 **Forex** | EUR/USD, GBP/USD, etc. | ✅ Supported |
+| 🥇 **Metals** | Gold, Silver | ✅ Supported |
 
 ### Core Features
 
@@ -57,6 +66,10 @@ Join our Telegram developer community: **[NOFX Developer Community](https://t.me
 | Overview | Market Chart |
 |:---:|:---:|
 | <img src="screenshots/dashboard-page.png" width="400" alt="Dashboard Overview"/> | <img src="screenshots/dashboard-market-chart.png" width="400" alt="Dashboard Market Chart"/> |
+
+| Trading Stats | Position History |
+|:---:|:---:|
+| <img src="screenshots/dashboard-trading-stats.png" width="400" alt="Trading Stats"/> | <img src="screenshots/dashboard-position-history.png" width="400" alt="Position History"/> |
 
 | Positions | Trader Details |
 |:---:|:---:|

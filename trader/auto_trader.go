@@ -363,8 +363,56 @@ func (at *AutoTrader) Run() error {
 	// Start Lighter order sync if using Lighter exchange
 	if at.exchange == "lighter" {
 		if lighterTrader, ok := at.trader.(*LighterTraderV2); ok && at.store != nil {
-			lighterTrader.StartOrderSync(at.id, at.store.Order(), 30*time.Second)
-			logger.Infof("🔄 [%s] Lighter order sync enabled (every 30s)", at.name)
+			lighterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Lighter order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Hyperliquid order sync if using Hyperliquid exchange
+	if at.exchange == "hyperliquid" {
+		if hyperliquidTrader, ok := at.trader.(*HyperliquidTrader); ok && at.store != nil {
+			hyperliquidTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Hyperliquid order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Bybit order sync if using Bybit exchange
+	if at.exchange == "bybit" {
+		if bybitTrader, ok := at.trader.(*BybitTrader); ok && at.store != nil {
+			bybitTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Bybit order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start OKX order sync if using OKX exchange
+	if at.exchange == "okx" {
+		if okxTrader, ok := at.trader.(*OKXTrader); ok && at.store != nil {
+			okxTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] OKX order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Bitget order sync if using Bitget exchange
+	if at.exchange == "bitget" {
+		if bitgetTrader, ok := at.trader.(*BitgetTrader); ok && at.store != nil {
+			bitgetTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Bitget order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Aster order sync if using Aster exchange
+	if at.exchange == "aster" {
+		if asterTrader, ok := at.trader.(*AsterTrader); ok && at.store != nil {
+			asterTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Aster order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
+	// Start Binance order sync if using Binance exchange
+	if at.exchange == "binance" {
+		if binanceTrader, ok := at.trader.(*FuturesTrader); ok && at.store != nil {
+			binanceTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] Binance order+position sync enabled (every 30s)", at.name)
 		}
 	}
 
@@ -627,6 +675,7 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 	totalWalletBalance := 0.0
 	totalUnrealizedProfit := 0.0
 	availableBalance := 0.0
+	totalEquity := 0.0
 
 	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
 		totalWalletBalance = wallet
@@ -638,8 +687,13 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 		availableBalance = avail
 	}
 
-	// Total Equity = Wallet balance + Unrealized profit
-	totalEquity := totalWalletBalance + totalUnrealizedProfit
+	// Use totalEquity directly if provided by trader (more accurate)
+	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
+		totalEquity = eq
+	} else {
+		// Fallback: Total Equity = Wallet balance + Unrealized profit
+		totalEquity = totalWalletBalance + totalUnrealizedProfit
+	}
 
 	// 2. Get position information
 	positions, err := at.trader.GetPositions()
@@ -817,6 +871,28 @@ func (at *AutoTrader) buildTradingContext() (*decision.Context, error) {
 					HoldDuration: trade.HoldDuration,
 				})
 			}
+		}
+		// Get trading statistics for AI context
+		stats, err := at.store.Position().GetFullStats(at.id)
+		if err != nil {
+			logger.Infof("⚠️ [%s] Failed to get trading stats: %v", at.name, err)
+		} else if stats == nil {
+			logger.Infof("⚠️ [%s] GetFullStats returned nil", at.name)
+		} else if stats.TotalTrades == 0 {
+			logger.Infof("⚠️ [%s] GetFullStats returned 0 trades (traderID=%s)", at.name, at.id)
+		} else {
+			ctx.TradingStats = &decision.TradingStats{
+				TotalTrades:    stats.TotalTrades,
+				WinRate:        stats.WinRate,
+				ProfitFactor:   stats.ProfitFactor,
+				SharpeRatio:    stats.SharpeRatio,
+				TotalPnL:       stats.TotalPnL,
+				AvgWin:         stats.AvgWin,
+				AvgLoss:        stats.AvgLoss,
+				MaxDrawdownPct: stats.MaxDrawdownPct,
+			}
+			logger.Infof("📈 [%s] Trading stats: %d trades, %.1f%% win rate, PF=%.2f, Sharpe=%.2f, DD=%.1f%%",
+				at.name, stats.TotalTrades, stats.WinRate, stats.ProfitFactor, stats.SharpeRatio, stats.MaxDrawdownPct)
 		}
 	} else {
 		logger.Infof("⚠️ [%s] Store is nil, cannot get recent trades", at.name)
@@ -1147,22 +1223,39 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *decision.Decision, ac
 	}
 	actionRecord.Price = marketData.CurrentPrice
 
-	// Get entry price and quantity from exchange API (most accurate)
+	// Normalize symbol for database lookup
+	normalizedSymbol := market.Normalize(decision.Symbol)
+
+	// Get entry price and quantity - prioritize local database for accurate quantity
 	var entryPrice float64
 	var quantity float64
-	positions, err := at.trader.GetPositions()
-	if err == nil {
-		for _, pos := range positions {
-			if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
-				if ep, ok := pos["entryPrice"].(float64); ok {
-					entryPrice = ep
+
+	// First try to get from local database (more accurate for quantity)
+	if at.store != nil {
+		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "LONG"); err == nil && openPos != nil {
+			quantity = openPos.Quantity
+			entryPrice = openPos.EntryPrice
+			logger.Infof("  📊 Using local position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
+		}
+	}
+
+	// Fallback to exchange API if local data not found
+	if quantity == 0 {
+		positions, err := at.trader.GetPositions()
+		if err == nil {
+			for _, pos := range positions {
+				if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
+					if ep, ok := pos["entryPrice"].(float64); ok {
+						entryPrice = ep
+					}
+					if amt, ok := pos["positionAmt"].(float64); ok && amt > 0 {
+						quantity = amt
+					}
+					break
 				}
-				if amt, ok := pos["positionAmt"].(float64); ok && amt > 0 {
-					quantity = amt
-				}
-				break
 			}
 		}
+		logger.Infof("  📊 Using exchange position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
 	}
 
 	// Close position
@@ -1194,22 +1287,39 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *decision.Decision, a
 	}
 	actionRecord.Price = marketData.CurrentPrice
 
-	// Get entry price and quantity from exchange API (most accurate)
+	// Normalize symbol for database lookup
+	normalizedSymbol := market.Normalize(decision.Symbol)
+
+	// Get entry price and quantity - prioritize local database for accurate quantity
 	var entryPrice float64
 	var quantity float64
-	positions, err := at.trader.GetPositions()
-	if err == nil {
-		for _, pos := range positions {
-			if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
-				if ep, ok := pos["entryPrice"].(float64); ok {
-					entryPrice = ep
+
+	// First try to get from local database (more accurate for quantity)
+	if at.store != nil {
+		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "SHORT"); err == nil && openPos != nil {
+			quantity = openPos.Quantity
+			entryPrice = openPos.EntryPrice
+			logger.Infof("  📊 Using local position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
+		}
+	}
+
+	// Fallback to exchange API if local data not found
+	if quantity == 0 {
+		positions, err := at.trader.GetPositions()
+		if err == nil {
+			for _, pos := range positions {
+				if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
+					if ep, ok := pos["entryPrice"].(float64); ok {
+						entryPrice = ep
+					}
+					if amt, ok := pos["positionAmt"].(float64); ok {
+						quantity = -amt // positionAmt is negative for short
+					}
+					break
 				}
-				if amt, ok := pos["positionAmt"].(float64); ok {
-					quantity = -amt // positionAmt is negative for short
-				}
-				break
 			}
 		}
+		logger.Infof("  📊 Using exchange position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
 	}
 
 	// Close position
@@ -1369,6 +1479,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	totalWalletBalance := 0.0
 	totalUnrealizedProfit := 0.0
 	availableBalance := 0.0
+	totalEquity := 0.0
 
 	if wallet, ok := balance["totalWalletBalance"].(float64); ok {
 		totalWalletBalance = wallet
@@ -1380,8 +1491,13 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		availableBalance = avail
 	}
 
-	// Total Equity = Wallet balance + Unrealized profit
-	totalEquity := totalWalletBalance + totalUnrealizedProfit
+	// Use totalEquity directly if provided by trader (more accurate)
+	if eq, ok := balance["totalEquity"].(float64); ok && eq > 0 {
+		totalEquity = eq
+	} else {
+		// Fallback: Total Equity = Wallet balance + Unrealized profit
+		totalEquity = totalWalletBalance + totalUnrealizedProfit
+	}
 
 	// Get positions to calculate total margin
 	positions, err := at.trader.GetPositions()
@@ -1738,106 +1854,76 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 		positionSide = "SHORT"
 	}
 
-	// For Lighter exchange, market orders fill immediately - record as FILLED directly
-	var actualPrice = price       // fallback to market price
-	var actualQty = quantity      // fallback to requested quantity
+	var actualPrice = price
+	var actualQty = quantity
 	var fee float64
 
-	if at.exchange == "lighter" {
-		// Estimate fee (0.04% for Lighter taker)
-		fee = price * quantity * 0.0004
-
-		// Normalize symbol (ETH -> ETHUSDT, BTC -> BTCUSDT)
-		normalizedSymbol := market.Normalize(symbol)
-
-		// Create order record directly as FILLED
-		orderRecord := &store.TraderOrder{
-			TraderID:        at.id,
-			ExchangeID:      at.exchange,
-			ExchangeOrderID: orderID,
-			Symbol:          normalizedSymbol,
-			Side:            getSideFromAction(action),
-			PositionSide:    positionSide,
-			Type:            "MARKET",
-			OrderAction:     action,
-			Quantity:        quantity,
-			Price:           0, // Market order
-			Status:          "FILLED",
-			FilledQuantity:  quantity,
-			AvgFillPrice:    price,
-			Commission:      fee,
-			FilledAt:        time.Now(),
-			Leverage:        leverage,
-			ReduceOnly:      (action == "close_long" || action == "close_short"),
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		}
-
-		if err := at.store.Order().CreateOrder(orderRecord); err != nil {
-			logger.Infof("  ⚠️ Failed to record order: %v", err)
-		} else {
-			logger.Infof("  ✅ Order recorded as FILLED: %s [%s] %s qty=%.6f price=%.6f", orderID, action, symbol, quantity, price)
-
-			// Record fill details
-			at.recordOrderFill(orderRecord.ID, orderID, symbol, action, price, quantity, fee)
-		}
-	} else {
-		// For other exchanges, record as NEW and poll for status
-		orderRecord := at.createOrderRecord(orderID, symbol, action, positionSide, quantity, price, leverage)
-		if err := at.store.Order().CreateOrder(orderRecord); err != nil {
-			logger.Infof("  ⚠️ Failed to record order: %v", err)
-		} else {
-			logger.Infof("  📝 Order recorded: %s [%s] %s", orderID, action, symbol)
-		}
-
-		// Wait for order to be filled and get actual fill data
-		time.Sleep(500 * time.Millisecond)
-		for i := 0; i < 5; i++ {
-			status, err := at.trader.GetOrderStatus(symbol, orderID)
-			if err == nil {
-				statusStr, _ := status["status"].(string)
-				if statusStr == "FILLED" {
-					// Get actual fill price
-					if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
-						actualPrice = avgPrice
-					}
-					// Get actual executed quantity
-					if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
-						actualQty = execQty
-					}
-					// Get commission/fee
-					if commission, ok := status["commission"].(float64); ok {
-						fee = commission
-					}
-					logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
-
-					// Update order status to FILLED
-					if err := at.store.Order().UpdateOrderStatus(orderRecord.ID, "FILLED", actualQty, actualPrice, fee); err != nil {
-						logger.Infof("  ⚠️ Failed to update order status: %v", err)
-					}
-
-					// Record fill details
-					at.recordOrderFill(orderRecord.ID, orderID, symbol, action, actualPrice, actualQty, fee)
-					break
-				} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
-					logger.Infof("  ⚠️ Order %s, skipping position record", statusStr)
-
-					// Update order status
-					if err := at.store.Order().UpdateOrderStatus(orderRecord.ID, statusStr, 0, 0, 0); err != nil {
-						logger.Infof("  ⚠️ Failed to update order status: %v", err)
-					}
-					return
-				}
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
+	// Exchanges with OrderSync: Skip immediate order recording, let OrderSync handle it
+	// This ensures accurate data from GetTrades API and avoids duplicate records
+	switch at.exchange {
+	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster":
+		logger.Infof("  📝 Order submitted (id: %s), will be synced by OrderSync", orderID)
+		return
 	}
+
+	// For exchanges without OrderSync (e.g., Binance): record immediately and poll for fill data
+	orderRecord := at.createOrderRecord(orderID, symbol, action, positionSide, quantity, price, leverage)
+	if err := at.store.Order().CreateOrder(orderRecord); err != nil {
+		logger.Infof("  ⚠️ Failed to record order: %v", err)
+	} else {
+		logger.Infof("  📝 Order recorded: %s [%s] %s", orderID, action, symbol)
+	}
+
+	// Wait for order to be filled and get actual fill data
+	time.Sleep(500 * time.Millisecond)
+	for i := 0; i < 5; i++ {
+		status, err := at.trader.GetOrderStatus(symbol, orderID)
+		if err == nil {
+			statusStr, _ := status["status"].(string)
+			if statusStr == "FILLED" {
+				// Get actual fill price
+				if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
+					actualPrice = avgPrice
+				}
+				// Get actual executed quantity
+				if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
+					actualQty = execQty
+				}
+				// Get commission/fee
+				if commission, ok := status["commission"].(float64); ok {
+					fee = commission
+				}
+				logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
+
+				// Update order status to FILLED
+				if err := at.store.Order().UpdateOrderStatus(orderRecord.ID, "FILLED", actualQty, actualPrice, fee); err != nil {
+					logger.Infof("  ⚠️ Failed to update order status: %v", err)
+				}
+
+				// Record fill details
+				at.recordOrderFill(orderRecord.ID, orderID, symbol, action, actualPrice, actualQty, fee)
+				break
+			} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
+				logger.Infof("  ⚠️ Order %s, skipping position record", statusStr)
+
+				// Update order status
+				if err := at.store.Order().UpdateOrderStatus(orderRecord.ID, statusStr, 0, 0, 0); err != nil {
+					logger.Infof("  ⚠️ Failed to update order status: %v", err)
+				}
+				return
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// Normalize symbol for position record consistency
+	normalizedSymbolForPosition := market.Normalize(symbol)
 
 	logger.Infof("  📝 Recording position (ID: %s, action: %s, price: %.6f, qty: %.6f, fee: %.4f)",
 		orderID, action, actualPrice, actualQty, fee)
 
-	// Record position change with actual fill data
-	at.recordPositionChange(orderID, symbol, positionSide, action, actualQty, actualPrice, leverage, entryPrice, fee)
+	// Record position change with actual fill data (use normalized symbol)
+	at.recordPositionChange(orderID, normalizedSymbolForPosition, positionSide, action, actualQty, actualPrice, leverage, entryPrice, fee)
 
 	// Send anonymous trade statistics for experience improvement (async, non-blocking)
 	// This helps us understand overall product usage across all deployments
@@ -1881,35 +1967,20 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 		}
 
 	case "close_long", "close_short":
-		// Close position: find corresponding open position record and update
-		openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side)
-		if err != nil || openPos == nil {
-			logger.Infof("  ⚠️ Cannot find corresponding open position record (%s %s)", symbol, side)
-			return
-		}
-
-		// Calculate P&L
-		var realizedPnL float64
-		if side == "LONG" {
-			realizedPnL = (price - openPos.EntryPrice) * openPos.Quantity
+		// Close position using PositionBuilder for consistent handling
+		// PositionBuilder will handle both cases:
+		// 1. If open position exists: close it properly
+		// 2. If no open position (e.g., table cleared): create a closed position record
+		posBuilder := store.NewPositionBuilder(at.store.Position())
+		if err := posBuilder.ProcessTrade(
+			at.id, at.exchangeID, at.exchange,
+			symbol, side, action,
+			quantity, price, fee, 0, // realizedPnL will be calculated
+			time.Now(), orderID,
+		); err != nil {
+			logger.Infof("  ⚠️ Failed to process close position: %v", err)
 		} else {
-			realizedPnL = (openPos.EntryPrice - price) * openPos.Quantity
-		}
-
-		// Update position record
-		err = at.store.Position().ClosePosition(
-			openPos.ID,
-			price,       // exitPrice
-			orderID,     // exitOrderID
-			realizedPnL,
-			fee,         // fee from exchange API
-			"ai_decision",
-		)
-		if err != nil {
-			logger.Infof("  ⚠️ Failed to update position: %v", err)
-		} else {
-			logger.Infof("  📊 Position closed [%s] %s %s @ %.4f → %.4f, P&L: %.2f, Fee: %.4f",
-				at.id[:8], symbol, side, openPos.EntryPrice, price, realizedPnL, fee)
+			logger.Infof("  ✅ Position closed [%s] %s %s @ %.4f", at.id[:8], symbol, side, price)
 		}
 	}
 }
@@ -1939,7 +2010,8 @@ func (at *AutoTrader) createOrderRecord(orderID, symbol, action, positionSide st
 
 	return &store.TraderOrder{
 		TraderID:        at.id,
-		ExchangeID:      at.exchange,
+		ExchangeID:      at.exchangeID,
+		ExchangeType:    at.exchange,
 		ExchangeOrderID: orderID,
 		Symbol:          normalizedSymbol,
 		Side:            side,
@@ -1985,7 +2057,8 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 
 	fill := &store.TraderFill{
 		TraderID:         at.id,
-		ExchangeID:       at.exchange,
+		ExchangeID:       at.exchangeID,
+		ExchangeType:     at.exchange,
 		OrderID:          orderRecordID,
 		ExchangeOrderID:  exchangeOrderID,
 		ExchangeTradeID:  tradeID,

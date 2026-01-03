@@ -645,3 +645,70 @@ export interface DebatePersonalityInfo {
   color: string;
   description: string;
 }
+
+// Position History Types
+export interface HistoricalPosition {
+  id: number;
+  trader_id: string;
+  exchange_id: string;
+  exchange_type: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  entry_quantity: number;
+  entry_price: number;
+  entry_order_id: string;
+  entry_time: string;
+  exit_price: number;
+  exit_order_id: string;
+  exit_time: string;
+  realized_pnl: number;
+  fee: number;
+  leverage: number;
+  status: string;
+  close_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Matches Go TraderStats struct exactly
+export interface TraderStats {
+  total_trades: number;
+  win_trades: number;
+  loss_trades: number;
+  win_rate: number;
+  profit_factor: number;
+  sharpe_ratio: number;
+  total_pnl: number;
+  total_fee: number;
+  avg_win: number;
+  avg_loss: number;
+  max_drawdown_pct: number;
+}
+
+// Matches Go SymbolStats struct exactly
+export interface SymbolStats {
+  symbol: string;
+  total_trades: number;
+  win_trades: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl: number;
+  avg_hold_mins: number;
+}
+
+// Matches Go DirectionStats struct exactly
+export interface DirectionStats {
+  side: string;
+  trade_count: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl: number;
+}
+
+export interface PositionHistoryResponse {
+  positions: HistoricalPosition[];
+  stats: TraderStats | null;
+  symbol_stats: SymbolStats[];
+  direction_stats: DirectionStats[];
+}

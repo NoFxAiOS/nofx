@@ -2,6 +2,7 @@ package config
 
 import (
 	"nofx/experience"
+	"nofx/mcp"
 	"os"
 	"strconv"
 	"strings"
@@ -28,6 +29,11 @@ type Config struct {
 	// Helps us understand product usage and improve the experience
 	// Set EXPERIENCE_IMPROVEMENT=false to disable
 	ExperienceImprovement bool
+
+	// Market data provider API keys
+	AlpacaAPIKey    string // Alpaca API key for US stocks
+	AlpacaSecretKey string // Alpaca secret key
+	TwelveDataKey   string // TwelveData API key for forex & metals
 }
 
 // Init initializes global configuration (from .env)
@@ -75,10 +81,25 @@ func Init() {
 		cfg.ExperienceImprovement = strings.ToLower(v) != "false"
 	}
 
+	// Market data provider API keys
+	cfg.AlpacaAPIKey = os.Getenv("ALPACA_API_KEY")
+	cfg.AlpacaSecretKey = os.Getenv("ALPACA_SECRET_KEY")
+	cfg.TwelveDataKey = os.Getenv("TWELVEDATA_API_KEY")
+
 	global = cfg
 
 	// Initialize experience improvement (installation ID will be set after database init)
 	experience.Init(cfg.ExperienceImprovement, "")
+
+	// Set up AI token usage tracking callback
+	mcp.TokenUsageCallback = func(usage mcp.TokenUsage) {
+		experience.TrackAIUsage(experience.AIUsageEvent{
+			ModelProvider: usage.Provider,
+			ModelName:     usage.Model,
+			InputTokens:   usage.PromptTokens,
+			OutputTokens:  usage.CompletionTokens,
+		})
+	}
 }
 
 // Get returns the global configuration

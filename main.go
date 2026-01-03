@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	_ "net/http/pprof"
 	"nofx/api"
 	"nofx/auth"
 	"nofx/backtest"
@@ -11,7 +13,6 @@ import (
 	"nofx/manager"
 	"nofx/mcp"
 	"nofx/store"
-	"nofx/trader"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -115,11 +116,6 @@ func main() {
 		logger.Warnf("⚠️ Failed to restore backtest history: %v", err)
 	}
 
-	// Start position sync manager (detects manual closures, TP/SL triggers)
-	positionSyncManager := trader.NewPositionSyncManager(st, 0) // 0 = use default 10s interval
-	positionSyncManager.Start()
-	defer positionSyncManager.Stop()
-
 	// Load all traders from database to memory (may auto-start traders with IsRunning=true)
 	if err := traderManager.LoadTradersFromStore(st); err != nil {
 		logger.Fatalf("❌ Failed to load traders: %v", err)
@@ -144,6 +140,14 @@ func main() {
 				t.Name, t.ID[:8], status, t.AIModelID, t.ExchangeID)
 		}
 	}
+
+	// Start pprof server for profiling (port 6060)
+	go func() {
+		logger.Info("📊 Starting pprof server on :6060")
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			logger.Warnf("⚠️ pprof server error: %v", err)
+		}
+	}()
 
 	// Start API server
 	server := api.NewServer(traderManager, st, cryptoService, backtestManager, cfg.APIServerPort)

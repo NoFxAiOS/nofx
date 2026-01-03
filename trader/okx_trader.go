@@ -33,6 +33,7 @@ const (
 	okxCancelAlgoPath    = "/api/v5/trade/cancel-algos"
 	okxAlgoPendingPath   = "/api/v5/trade/orders-algo-pending"
 	okxPositionModePath  = "/api/v5/account/set-position-mode"
+	okxAccountConfigPath = "/api/v5/account/config"
 )
 
 // OKXTrader OKX futures trader
@@ -43,6 +44,9 @@ type OKXTrader struct {
 
 	// Margin mode setting
 	isCrossMargin bool
+
+	// Position mode: "long_short_mode" (hedge) or "net_mode" (one-way)
+	positionMode string
 
 	// HTTP client (proxy disabled)
 	httpClient *http.Client
@@ -117,12 +121,44 @@ func NewOKXTrader(apiKey, secretKey, passphrase string) *OKXTrader {
 		instrumentsCache: make(map[string]*OKXInstrument),
 	}
 
-	// Set dual position mode
-	if err := trader.setPositionMode(); err != nil {
-		logger.Infof("⚠️ Failed to set OKX position mode: %v (ignore if already in dual mode)", err)
+	// Get current position mode first
+	if err := trader.detectPositionMode(); err != nil {
+		logger.Infof("⚠️ Failed to detect OKX position mode: %v, assuming dual mode", err)
+		trader.positionMode = "long_short_mode"
 	}
 
+	// Try to set dual position mode (only if not already)
+	if trader.positionMode != "long_short_mode" {
+		if err := trader.setPositionMode(); err != nil {
+			logger.Infof("⚠️ Failed to set OKX position mode: %v (current mode: %s)", err, trader.positionMode)
+		}
+	}
+
+	logger.Infof("✓ OKX trader initialized with position mode: %s", trader.positionMode)
 	return trader
+}
+
+// detectPositionMode gets current position mode from account config
+func (t *OKXTrader) detectPositionMode() error {
+	data, err := t.doRequest("GET", okxAccountConfigPath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get account config: %w", err)
+	}
+
+	var configs []struct {
+		PosMode string `json:"posMode"`
+	}
+
+	if err := json.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("failed to parse account config: %w", err)
+	}
+
+	if len(configs) > 0 {
+		t.positionMode = configs[0].PosMode
+		logger.Infof("✓ Detected OKX position mode: %s", t.positionMode)
+	}
+
+	return nil
 }
 
 // setPositionMode sets dual position mode
@@ -321,16 +357,19 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		Lever   string `json:"lever"`
 		LiqPx   string `json:"liqPx"`
 		Margin  string `json:"margin"`
-		CTime   string `json:"cTime"` // Position created time (ms)
-		UTime   string `json:"uTime"` // Position last update time (ms)
+		MgnMode string `json:"mgnMode"` // Margin mode: "cross" or "isolated"
+		CTime   string `json:"cTime"`   // Position created time (ms)
+		UTime   string `json:"uTime"`   // Position last update time (ms)
 	}
 
 	if err := json.Unmarshal(data, &positions); err != nil {
 		return nil, fmt.Errorf("failed to parse position data: %w", err)
 	}
 
+	logger.Infof("🔍 OKX raw positions response: %d positions", len(positions))
 	var result []map[string]interface{}
 	for _, pos := range positions {
+		logger.Infof("🔍 OKX raw position: instId=%s, posSide=%s, pos=%s, mgnMode=%s", pos.InstId, pos.PosSide, pos.Pos, pos.MgnMode)
 		contractCount, _ := strconv.ParseFloat(pos.Pos, 64)
 		if contractCount == 0 {
 			continue
@@ -344,6 +383,7 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		// Convert symbol format
 		symbol := t.convertSymbolBack(pos.InstId)
+		logger.Infof("🔍 OKX symbol conversion: %s → %s", pos.InstId, symbol)
 
 		// Determine direction and ensure contractCount is positive
 		side := "long"
@@ -368,6 +408,12 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 		cTime, _ := strconv.ParseInt(pos.CTime, 10, 64)
 		uTime, _ := strconv.ParseInt(pos.UTime, 10, 64)
 
+		// Default to cross margin mode if not specified
+		mgnMode := pos.MgnMode
+		if mgnMode == "" {
+			mgnMode = "cross"
+		}
+
 		posMap := map[string]interface{}{
 			"symbol":           symbol,
 			"positionAmt":      posAmt,
@@ -377,8 +423,9 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 			"leverage":         leverage,
 			"liquidationPrice": liqPrice,
 			"side":             side,
-			"createdTime":      cTime, // Position open time (ms)
-			"updatedTime":      uTime, // Position last update time (ms)
+			"mgnMode":          mgnMode, // Margin mode: "cross" or "isolated"
+			"createdTime":      cTime,   // Position open time (ms)
+			"updatedTime":      uTime,   // Position last update time (ms)
 		}
 		result = append(result, posMap)
 	}
@@ -390,6 +437,14 @@ func (t *OKXTrader) GetPositions() ([]map[string]interface{}, error) {
 	t.positionsCacheMutex.Unlock()
 
 	return result, nil
+}
+
+// InvalidatePositionCache clears the position cache to force fresh data on next call
+func (t *OKXTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
 }
 
 // getInstrument gets instrument info
@@ -682,21 +737,47 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// If quantity is 0, get current position (positionAmt is in base asset, e.g. BTC)
-	if quantity == 0 {
-		positions, err := t.GetPositions()
-		if err != nil {
-			return nil, err
-		}
-		for _, pos := range positions {
-			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64) // This is in base asset (BTC)
+	// Invalidate position cache and get fresh positions
+	t.InvalidatePositionCache()
+	positions, err := t.GetPositions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get positions: %w", err)
+	}
+
+	// Find actual position from exchange
+	var actualQty float64
+	var posFound bool
+	var posMgnMode string = "cross" // Default to cross margin
+	logger.Infof("🔍 OKX CloseLong: searching for symbol=%s in %d positions", symbol, len(positions))
+	for _, pos := range positions {
+		logger.Infof("🔍 OKX position: symbol=%v, side=%v, positionAmt=%v, mgnMode=%v", pos["symbol"], pos["side"], pos["positionAmt"], pos["mgnMode"])
+		if pos["symbol"] == symbol {
+			side := pos["side"].(string)
+			// In net_mode, "long" means positive position
+			// In dual mode, check explicit "long" side
+			if side == "long" || (t.positionMode == "net_mode" && side == "long") {
+				actualQty = pos["positionAmt"].(float64)
+				posFound = true
+				if mgnMode, ok := pos["mgnMode"].(string); ok && mgnMode != "" {
+					posMgnMode = mgnMode
+				}
+				logger.Infof("🔍 OKX CloseLong: found matching position! qty=%.6f, mgnMode=%s", actualQty, posMgnMode)
 				break
 			}
 		}
-		if quantity == 0 {
-			return nil, fmt.Errorf("long position not found for %s", symbol)
-		}
+	}
+
+	if !posFound || actualQty == 0 {
+		logger.Infof("🔍 OKX CloseLong: NO position found for %s LONG", symbol)
+		return map[string]interface{}{
+			"status":  "NO_POSITION",
+			"message": fmt.Sprintf("No long position found for %s on OKX", symbol),
+		}, nil
+	}
+
+	// Use actual quantity from exchange (more accurate than passed quantity)
+	if quantity == 0 || quantity > actualQty {
+		quantity = actualQty
 	}
 
 	// Convert quantity (base asset) to contract count
@@ -704,18 +785,22 @@ func (t *OKXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 	contracts := quantity / inst.CtVal
 	szStr := t.formatSize(contracts, inst)
 
-	logger.Infof("🔻 OKX close long: symbol=%s, quantity=%.6f, ctVal=%.6f, contracts=%.2f, szStr=%s",
-		symbol, quantity, inst.CtVal, contracts, szStr)
+	logger.Infof("🔻 OKX close long: symbol=%s, instId=%s, quantity=%.6f, ctVal=%.6f, contracts=%.2f, szStr=%s, posMode=%s, mgnMode=%s",
+		symbol, instId, quantity, inst.CtVal, contracts, szStr, t.positionMode, posMgnMode)
 
 	body := map[string]interface{}{
 		"instId":  instId,
-		"tdMode":  "cross",
+		"tdMode":  posMgnMode, // Use position's actual margin mode (cross or isolated)
 		"side":    "sell",
-		"posSide": "long",
 		"ordType": "market",
 		"sz":      szStr,
 		"clOrdId": genOkxClOrdID(),
 		"tag":     okxTag,
+	}
+
+	// Only add posSide in dual mode (long_short_mode)
+	if t.positionMode == "long_short_mode" {
+		body["posSide"] = "long"
 	}
 
 	data, err := t.doRequest("POST", okxOrderPath, body)
@@ -763,25 +848,42 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		return nil, fmt.Errorf("failed to get instrument info: %w", err)
 	}
 
-	// If quantity is 0, get current position (positionAmt is in base asset, e.g. BTC)
-	if quantity == 0 {
-		positions, err := t.GetPositions()
-		if err != nil {
-			return nil, err
-		}
-		logger.Infof("🔍 OKX CloseShort searching positions: symbol=%s, current position count=%d", symbol, len(positions))
-		for _, pos := range positions {
-			logger.Infof("🔍 OKX position: symbol=%v, side=%v, positionAmt=%v",
-				pos["symbol"], pos["side"], pos["positionAmt"])
-			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64) // This is in base asset (BTC)
-				logger.Infof("🔍 OKX found short position: quantity=%f (base asset)", quantity)
-				break
+	// Invalidate position cache and get fresh positions
+	t.InvalidatePositionCache()
+	positions, err := t.GetPositions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get positions: %w", err)
+	}
+
+	// Find actual position from exchange
+	var actualQty float64
+	var posFound bool
+	var posMgnMode string = "cross" // Default to cross margin
+	logger.Infof("🔍 OKX CloseShort searching positions: symbol=%s, current position count=%d", symbol, len(positions))
+	for _, pos := range positions {
+		logger.Infof("🔍 OKX position: symbol=%v, side=%v, positionAmt=%v, mgnMode=%v",
+			pos["symbol"], pos["side"], pos["positionAmt"], pos["mgnMode"])
+		if pos["symbol"] == symbol && pos["side"] == "short" {
+			actualQty = pos["positionAmt"].(float64)
+			posFound = true
+			if mgnMode, ok := pos["mgnMode"].(string); ok && mgnMode != "" {
+				posMgnMode = mgnMode
 			}
+			logger.Infof("🔍 OKX found short position: quantity=%f (base asset), mgnMode=%s", actualQty, posMgnMode)
+			break
 		}
-		if quantity == 0 {
-			return nil, fmt.Errorf("short position not found for %s", symbol)
-		}
+	}
+
+	if !posFound || actualQty == 0 {
+		return map[string]interface{}{
+			"status":  "NO_POSITION",
+			"message": fmt.Sprintf("No short position found for %s on OKX", symbol),
+		}, nil
+	}
+
+	// Use actual quantity from exchange (more accurate than passed quantity)
+	if quantity == 0 || quantity > actualQty {
+		quantity = actualQty
 	}
 
 	// Ensure quantity is positive (OKX sz parameter must be positive)
@@ -794,18 +896,22 @@ func (t *OKXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 	contracts := quantity / inst.CtVal
 	szStr := t.formatSize(contracts, inst)
 
-	logger.Infof("🔻 OKX close short: symbol=%s, quantity=%.6f, ctVal=%.6f, contracts=%.2f, szStr=%s",
-		symbol, quantity, inst.CtVal, contracts, szStr)
+	logger.Infof("🔻 OKX close short: symbol=%s, quantity=%.6f, ctVal=%.6f, contracts=%.2f, szStr=%s, posMode=%s, mgnMode=%s",
+		symbol, quantity, inst.CtVal, contracts, szStr, t.positionMode, posMgnMode)
 
 	body := map[string]interface{}{
 		"instId":  instId,
-		"tdMode":  "cross",
+		"tdMode":  posMgnMode, // Use position's actual margin mode (cross or isolated)
 		"side":    "buy",
-		"posSide": "short",
 		"ordType": "market",
 		"sz":      szStr,
 		"clOrdId": genOkxClOrdID(),
 		"tag":     okxTag,
+	}
+
+	// Only add posSide in dual mode (long_short_mode)
+	if t.positionMode == "long_short_mode" {
+		body["posSide"] = "short"
 	}
 
 	logger.Infof("🔻 OKX close short request body: %+v", body)

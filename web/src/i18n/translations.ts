@@ -347,17 +347,19 @@ export const translations = {
     hyperliquidWalletAddressDesc:
       'Wallet address corresponding to the private key',
     // Hyperliquid Agent Wallet (New Security Model)
-    hyperliquidAgentWalletTitle: 'Hyperliquid Agent Wallet Configuration',
+    hyperliquidAgentWalletTitle: 'How to get Agent Wallet?',
     hyperliquidAgentWalletDesc:
-      'Use Agent Wallet for secure trading: Agent wallet signs transactions (balance ~0), Main wallet holds funds (never expose private key)',
-    hyperliquidAgentPrivateKey: 'Agent Private Key',
-    enterHyperliquidAgentPrivateKey: 'Enter Agent wallet private key',
+      'Go to Hyperliquid → More → API → Create Agent Wallet. The Agent Wallet can only trade, cannot withdraw funds.',
+    hyperliquidAgentWalletLink: 'https://app.hyperliquid.xyz/API',
+    hyperliquidAgentWalletLinkText: 'Go to Hyperliquid to create Agent Wallet →',
+    hyperliquidAgentPrivateKey: 'Agent Wallet Private Key',
+    enterHyperliquidAgentPrivateKey: '0x... (64 hex characters)',
     hyperliquidAgentPrivateKeyDesc:
-      'Agent wallet private key for signing transactions (keep balance near 0 for security)',
+      'Private key shown when creating Agent Wallet. Only has trading permission, cannot withdraw.',
     hyperliquidMainWalletAddress: 'Main Wallet Address',
-    enterHyperliquidMainWalletAddress: 'Enter Main wallet address',
+    enterHyperliquidMainWalletAddress: '0x... (your main wallet)',
     hyperliquidMainWalletAddressDesc:
-      'Main wallet address that holds your trading funds (never expose its private key)',
+      'The wallet address you use to log in Hyperliquid (holds your funds)',
     // Aster API Pro Configuration
     asterApiProTitle: 'Aster API Pro Wallet Configuration',
     asterApiProDesc:
@@ -1091,6 +1093,55 @@ export const translations = {
       privatekeyObfuscationFailed: 'Clipboard obfuscation failed',
     },
 
+    // Position History
+    positionHistory: {
+      title: 'Position History',
+      loading: 'Loading position history...',
+      noHistory: 'No Position History',
+      noHistoryDesc: 'Closed positions will appear here after trading.',
+      showingPositions: 'Showing {count} of {total} positions',
+      totalPnL: 'Total P&L',
+      // Stats
+      totalTrades: 'Total Trades',
+      winLoss: 'Win: {win} / Loss: {loss}',
+      winRate: 'Win Rate',
+      profitFactor: 'Profit Factor',
+      profitFactorDesc: 'Total Profit / Total Loss',
+      plRatio: 'P/L Ratio',
+      plRatioDesc: 'Avg Win / Avg Loss',
+      sharpeRatio: 'Sharpe Ratio',
+      sharpeRatioDesc: 'Risk-adjusted Return',
+      maxDrawdown: 'Max Drawdown',
+      avgWin: 'Avg Win',
+      avgLoss: 'Avg Loss',
+      netPnL: 'Net P&L',
+      netPnLDesc: 'After Fees',
+      fee: 'Fee',
+      // Direction Stats
+      trades: 'Trades',
+      avgPnL: 'Avg P&L',
+      // Symbol Performance
+      symbolPerformance: 'Symbol Performance',
+      // Filters
+      symbol: 'Symbol',
+      allSymbols: 'All Symbols',
+      side: 'Side',
+      all: 'All',
+      sort: 'Sort',
+      latestFirst: 'Latest First',
+      oldestFirst: 'Oldest First',
+      highestPnL: 'Highest P&L',
+      lowestPnL: 'Lowest P&L',
+      // Table Headers
+      entry: 'Entry',
+      exit: 'Exit',
+      qty: 'Qty',
+      lev: 'Lev',
+      pnl: 'P&L',
+      duration: 'Duration',
+      closedAt: 'Closed At',
+    },
+
     // Debate Arena Page
     debatePage: {
       title: 'Market Debate Arena',
@@ -1499,16 +1550,17 @@ export const translations = {
     hyperliquidPrivateKeyDesc: 'Hyperliquid 使用私钥进行交易认证',
     hyperliquidWalletAddressDesc: '与私钥对应的钱包地址',
     // Hyperliquid 代理钱包 (新安全模型)
-    hyperliquidAgentWalletTitle: 'Hyperliquid 代理钱包配置',
+    hyperliquidAgentWalletTitle: '如何获取代理钱包？',
     hyperliquidAgentWalletDesc:
-      '使用代理钱包安全交易：代理钱包用于签名（餘額~0），主钱包持有资金（永不暴露私钥）',
-    hyperliquidAgentPrivateKey: '代理私钥',
-    enterHyperliquidAgentPrivateKey: '输入代理钱包私钥',
-    hyperliquidAgentPrivateKeyDesc: '代理钱包仅有交易权限，无法提现',
+      '打开 Hyperliquid → 右上角 More → API → Create Agent Wallet 创建代理钱包。代理钱包只能交易，无法提现。',
+    hyperliquidAgentWalletLink: 'https://app.hyperliquid.xyz/API',
+    hyperliquidAgentWalletLinkText: '去 Hyperliquid 创建代理钱包 →',
+    hyperliquidAgentPrivateKey: '代理钱包私钥',
+    enterHyperliquidAgentPrivateKey: '0x... (64位十六进制)',
+    hyperliquidAgentPrivateKeyDesc: '创建代理钱包时显示的私钥，只能交易，无法提现',
     hyperliquidMainWalletAddress: '主钱包地址',
-    enterHyperliquidMainWalletAddress: '输入主钱包地址',
-    hyperliquidMainWalletAddressDesc:
-      '持有交易资金的主钱包地址（永不暴露其私钥）',
+    enterHyperliquidMainWalletAddress: '0x... (你的主钱包地址)',
+    hyperliquidMainWalletAddressDesc: '你登录 Hyperliquid 时使用的钱包地址（资金所在钱包）',
     // Aster API Pro 配置
     asterApiProTitle: 'Aster API Pro 代理钱包配置',
     asterApiProDesc:
@@ -2186,6 +2238,55 @@ export const translations = {
       privatekeyIncomplete: '请输入至少 {expected} 位字符',
       privatekeyInvalidFormat: '私钥格式无效（应为64位十六进制字符）',
       privatekeyObfuscationFailed: '剪贴板混淆失败',
+    },
+
+    // Position History
+    positionHistory: {
+      title: '历史仓位',
+      loading: '加载历史仓位...',
+      noHistory: '暂无历史仓位',
+      noHistoryDesc: '平仓后的仓位记录将显示在此处',
+      showingPositions: '显示 {count} / {total} 条记录',
+      totalPnL: '总盈亏',
+      // Stats
+      totalTrades: '总交易次数',
+      winLoss: '盈利: {win} / 亏损: {loss}',
+      winRate: '胜率',
+      profitFactor: '盈利因子',
+      profitFactorDesc: '总盈利 / 总亏损',
+      plRatio: '盈亏比',
+      plRatioDesc: '平均盈利 / 平均亏损',
+      sharpeRatio: '夏普比率',
+      sharpeRatioDesc: '风险调整收益',
+      maxDrawdown: '最大回撤',
+      avgWin: '平均盈利',
+      avgLoss: '平均亏损',
+      netPnL: '净盈亏',
+      netPnLDesc: '扣除手续费后',
+      fee: '手续费',
+      // Direction Stats
+      trades: '交易次数',
+      avgPnL: '平均盈亏',
+      // Symbol Performance
+      symbolPerformance: '品种表现',
+      // Filters
+      symbol: '交易对',
+      allSymbols: '全部交易对',
+      side: '方向',
+      all: '全部',
+      sort: '排序',
+      latestFirst: '最新优先',
+      oldestFirst: '最早优先',
+      highestPnL: '盈利最高',
+      lowestPnL: '亏损最多',
+      // Table Headers
+      entry: '开仓价',
+      exit: '平仓价',
+      qty: '数量',
+      lev: '杠杆',
+      pnl: '盈亏',
+      duration: '持仓时长',
+      closedAt: '平仓时间',
     },
 
     // Debate Arena Page

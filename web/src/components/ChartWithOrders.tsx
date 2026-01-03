@@ -53,6 +53,8 @@ export function ChartWithOrders({
   const seriesMarkersRef = useRef<any>(null) // Markers primitive for v5
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [tooltipData, setTooltipData] = useState<any>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
   // 解析时间：支持 Unix 时间戳（数字）或字符串格式
   const parseCustomTime = (time: any): number => {
@@ -216,6 +218,18 @@ export function ChartWithOrders({
         timeVisible: true,
         secondsVisible: false,
       },
+      localization: {
+        timeFormatter: (time: number) => {
+          const date = new Date(time * 1000)
+          return date.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })
+        },
+      },
     })
 
     chartRef.current = chart
@@ -242,6 +256,31 @@ export function ChartWithOrders({
     }
 
       window.addEventListener('resize', handleResize)
+
+      // 监听鼠标移动，显示 OHLC 信息
+      chart.subscribeCrosshairMove((param) => {
+        if (!param.time || !param.point || !candlestickSeriesRef.current) {
+          setTooltipData(null)
+          return
+        }
+
+        const data = param.seriesData.get(candlestickSeriesRef.current as any)
+        if (!data) {
+          setTooltipData(null)
+          return
+        }
+
+        const candleData = data as any
+        setTooltipData({
+          time: param.time,
+          open: candleData.open,
+          high: candleData.high,
+          low: candleData.low,
+          close: candleData.close,
+          x: param.point.x,
+          y: param.point.y,
+        })
+      })
 
       return () => {
         window.removeEventListener('resize', handleResize)
@@ -272,6 +311,29 @@ export function ChartWithOrders({
         console.log('[ChartWithOrders] Kline data received:', klineData.length, 'candles')
         candlestickSeriesRef.current.setData(klineData)
 
+        // 构建 K 线时间集合，用于快速查找
+        const klineTimeSet = new Set(klineData.map(k => k.time as number))
+        const klineMinTime = klineData.length > 0 ? klineData[0].time : 0
+        const klineMaxTime = klineData.length > 0 ? klineData[klineData.length - 1].time : 0
+        console.log('[ChartWithOrders] Kline time range:', klineMinTime, '-', klineMaxTime, 'candles:', klineData.length)
+
+        // 计算时间周期的秒数
+        const getIntervalSeconds = (interval: string): number => {
+          const match = interval.match(/(\d+)([smhd])/)
+          if (!match) return 60 // 默认1分钟
+          const [, num, unit] = match
+          const n = parseInt(num)
+          switch (unit) {
+            case 's': return n
+            case 'm': return n * 60
+            case 'h': return n * 3600
+            case 'd': return n * 86400
+            default: return 60
+          }
+        }
+        const intervalSeconds = getIntervalSeconds(interval)
+        console.log('[ChartWithOrders] Interval:', interval, '=', intervalSeconds, 'seconds')
+
         // 2. 获取订单数据并添加标记
         if (traderID) {
           console.log('[ChartWithOrders] Fetching orders for trader:', traderID, 'symbol:', symbol)
@@ -282,35 +344,41 @@ export function ChartWithOrders({
             console.log('[ChartWithOrders] No orders to display')
           }
 
-          // 过滤掉无效时间戳的订单（小于2024年的时间戳）
-          const minValidTimestamp = new Date('2024-01-01').getTime() / 1000
-          const validOrders = orders.filter(order => {
-            if (order.time < minValidTimestamp) {
-              console.warn('[ChartWithOrders] ⚠️ Skipping order with invalid timestamp:', order.time, '(', new Date(order.time * 1000).toISOString(), ')')
-              return false
+          // 转换订单为图表标记，并对齐到 K 线时间
+          const markers: Array<{
+            time: Time
+            position: 'belowBar'
+            color: string
+            shape: 'circle'
+            text: string
+            price: number
+            size: number
+          }> = []
+
+          orders.forEach((order) => {
+            // 将订单时间对齐到 K 线周期（向下取整）
+            const alignedTime = Math.floor(order.time / intervalSeconds) * intervalSeconds
+
+            // 检查对齐后的时间是否在 K 线数据中存在
+            if (!klineTimeSet.has(alignedTime)) {
+              console.warn('[ChartWithOrders] ⚠️ Skipping order - no matching kline:',
+                order.time, '→', alignedTime, '(', new Date(order.time * 1000).toISOString(), ')')
+              return
             }
-            return true
-          })
 
-          console.log('[ChartWithOrders] Valid orders:', validOrders.length, 'out of', orders.length)
-
-          // 转换订单为图表标记 - 简洁版：只用 B/S
-          const markers = validOrders.map((order) => {
-            // 使用 side 字段判断买卖（更准确）
-            // side = BUY → 绿色 B
-            // side = SELL → 红色 S
             const isBuy = order.side === 'BUY'
-
-            return {
-              time: order.time as Time,
+            markers.push({
+              time: alignedTime as Time,
               position: 'belowBar' as const,
               color: isBuy ? '#0ECB81' : '#F6465D',
               shape: 'circle' as const,
               text: isBuy ? 'B' : 'S',
               price: order.price,
               size: 1,
-            }
+            })
           })
+
+          console.log('[ChartWithOrders] Valid markers (with matching klines):', markers.length, 'out of', orders.length)
 
           console.log('[ChartWithOrders] Setting', markers.length, 'markers on chart')
 
@@ -370,7 +438,59 @@ export function ChartWithOrders({
       </div>
 
       {/* 图表容器 */}
-      <div ref={chartContainerRef} style={{ position: 'relative' }} />
+      <div style={{ position: 'relative' }}>
+        <div ref={chartContainerRef} />
+
+        {/* OHLC Tooltip */}
+        {tooltipData && (
+          <div
+            ref={tooltipRef}
+            style={{
+              position: 'absolute',
+              left: '10px',
+              top: '10px',
+              padding: '8px 12px',
+              background: 'rgba(15, 18, 21, 0.95)',
+              border: '1px solid rgba(240, 185, 11, 0.3)',
+              borderRadius: '6px',
+              color: '#EAECEF',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              pointerEvents: 'none',
+              zIndex: 10,
+              backdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div style={{ marginBottom: '6px', color: '#F0B90B', fontWeight: 'bold', fontSize: '11px' }}>
+              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', fontSize: '11px' }}>
+              <span style={{ color: '#848E9C' }}>O:</span>
+              <span style={{ color: '#EAECEF', fontWeight: '500' }}>{tooltipData.open?.toFixed(2)}</span>
+
+              <span style={{ color: '#848E9C' }}>H:</span>
+              <span style={{ color: '#0ECB81', fontWeight: '500' }}>{tooltipData.high?.toFixed(2)}</span>
+
+              <span style={{ color: '#848E9C' }}>L:</span>
+              <span style={{ color: '#F6465D', fontWeight: '500' }}>{tooltipData.low?.toFixed(2)}</span>
+
+              <span style={{ color: '#848E9C' }}>C:</span>
+              <span style={{
+                color: tooltipData.close >= tooltipData.open ? '#0ECB81' : '#F6465D',
+                fontWeight: 'bold'
+              }}>
+                {tooltipData.close?.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 错误提示 */}
       {error && (

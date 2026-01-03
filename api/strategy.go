@@ -9,7 +9,6 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,11 +19,11 @@ import (
 func validateStrategyConfig(config *store.StrategyConfig) []string {
 	var warnings []string
 
-	// Validate quant data URL if enabled
-	if config.Indicators.EnableQuantData && config.Indicators.QuantDataAPIURL != "" {
-		if !strings.Contains(config.Indicators.QuantDataAPIURL, "{symbol}") {
-			warnings = append(warnings, "Quant data URL does not contain {symbol} placeholder. The same data will be used for all coins, which may not be correct.")
-		}
+	// Validate NofxOS API key if any NofxOS feature is enabled
+	if (config.Indicators.EnableQuantData || config.Indicators.EnableOIRanking ||
+		config.Indicators.EnableNetFlowRanking || config.Indicators.EnablePriceRanking) &&
+		config.Indicators.NofxOSAPIKey == "" {
+		warnings = append(warnings, "NofxOS API key is not configured. NofxOS data sources may not work properly.")
 	}
 
 	return warnings
@@ -504,6 +503,12 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	// Fetch OI ranking data (market-wide position changes)
 	oiRankingData := engine.FetchOIRankingData()
 
+	// Fetch NetFlow ranking data (market-wide fund flow)
+	netFlowRankingData := engine.FetchNetFlowRankingData()
+
+	// Fetch Price ranking data (market-wide gainers/losers)
+	priceRankingData := engine.FetchPriceRankingData()
+
 	// Build real context (for generating User Prompt)
 	testContext := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -519,12 +524,14 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			MarginUsedPct:    0,
 			PositionCount:    0,
 		},
-		Positions:      []kernel.PositionInfo{},
-		CandidateCoins: candidates,
-		PromptVariant:  req.PromptVariant,
-		MarketDataMap:  marketDataMap,
-		QuantDataMap:   quantDataMap,
-		OIRankingData:  oiRankingData,
+		Positions:          []kernel.PositionInfo{},
+		CandidateCoins:     candidates,
+		PromptVariant:      req.PromptVariant,
+		MarketDataMap:      marketDataMap,
+		QuantDataMap:       quantDataMap,
+		OIRankingData:      oiRankingData,
+		NetFlowRankingData: netFlowRankingData,
+		PriceRankingData:   priceRankingData,
 	}
 
 	// Build System Prompt

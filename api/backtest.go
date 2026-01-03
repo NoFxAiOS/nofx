@@ -15,7 +15,7 @@ import (
 	"nofx/backtest"
 	"nofx/logger"
 	"nofx/market"
-	"nofx/provider"
+	"nofx/provider/nofxos"
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
@@ -92,9 +92,9 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 		}
 		cfg.SetLoadedStrategy(&strategyConfig)
 		logger.Infof("📊 Backtest using saved strategy: %s (%s)", strategy.Name, strategy.ID)
-		logger.Infof("📊 Strategy coin source: type=%s, use_coin_pool=%v, use_oi_top=%v, static_coins=%v",
+		logger.Infof("📊 Strategy coin source: type=%s, use_ai500=%v, use_oi_top=%v, static_coins=%v",
 			strategyConfig.CoinSource.SourceType,
-			strategyConfig.CoinSource.UseCoinPool,
+			strategyConfig.CoinSource.UseAI500,
 			strategyConfig.CoinSource.UseOITop,
 			strategyConfig.CoinSource.StaticCoins)
 
@@ -638,21 +638,13 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 	var symbols []string
 	symbolSet := make(map[string]bool)
 
-	// Set custom API URLs if provided
-	if coinSource.CoinPoolAPIURL != "" {
-		provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
-	}
-	if coinSource.OITopAPIURL != "" {
-		provider.SetOITopAPI(coinSource.OITopAPIURL)
-	}
-
 	// Handle empty source_type - check flags for backward compatibility
 	sourceType := coinSource.SourceType
 	if sourceType == "" {
-		if coinSource.UseCoinPool && coinSource.UseOITop {
+		if coinSource.UseAI500 && coinSource.UseOITop {
 			sourceType = "mixed"
-		} else if coinSource.UseCoinPool {
-			sourceType = "coinpool"
+		} else if coinSource.UseAI500 {
+			sourceType = "ai500"
 		} else if coinSource.UseOITop {
 			sourceType = "oi_top"
 		} else if len(coinSource.StaticCoins) > 0 {
@@ -673,13 +665,13 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 			}
 		}
 
-	case "coinpool":
-		limit := coinSource.CoinPoolLimit
+	case "ai500":
+		limit := coinSource.AI500Limit
 		if limit <= 0 {
 			limit = 30
 		}
 		logger.Infof("📊 Fetching AI500 coins with limit=%d", limit)
-		coins, err := provider.GetTopRatedCoins(limit)
+		coins, err := nofxos.DefaultClient().GetTopRatedCoins(limit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AI500 coins: %w", err)
 		}
@@ -693,7 +685,7 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 		}
 
 	case "oi_top":
-		coins, err := provider.GetOITopSymbols()
+		coins, err := nofxos.DefaultClient().GetOITopSymbols()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get OI Top coins: %w", err)
 		}
@@ -713,13 +705,13 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 		}
 
 	case "mixed":
-		// Get from coin pool
-		if coinSource.UseCoinPool {
-			limit := coinSource.CoinPoolLimit
+		// Get from AI500
+		if coinSource.UseAI500 {
+			limit := coinSource.AI500Limit
 			if limit <= 0 {
 				limit = 30
 			}
-			coins, err := provider.GetTopRatedCoins(limit)
+			coins, err := nofxos.DefaultClient().GetTopRatedCoins(limit)
 			if err != nil {
 				logger.Warnf("Failed to get AI500 coins: %v", err)
 			} else {
@@ -735,7 +727,7 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 
 		// Get from OI Top
 		if coinSource.UseOITop {
-			coins, err := provider.GetOITopSymbols()
+			coins, err := nofxos.DefaultClient().GetOITopSymbols()
 			if err != nil {
 				logger.Warnf("Failed to get OI Top coins: %v", err)
 			} else {

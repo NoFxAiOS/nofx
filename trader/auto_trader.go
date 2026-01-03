@@ -899,7 +899,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	}
 
 	// 8. Get quantitative data (if enabled in strategy config)
-	if strategyConfig.Indicators.EnableQuantData && strategyConfig.Indicators.QuantDataAPIURL != "" {
+	if strategyConfig.Indicators.EnableQuantData {
 		// Collect symbols to query (candidate coins + position coins)
 		symbolsToQuery := make(map[string]bool)
 		for _, coin := range candidateCoins {
@@ -926,6 +926,26 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		if ctx.OIRankingData != nil {
 			logger.Infof("📊 [%s] OI ranking data ready: %d top, %d low positions",
 				at.name, len(ctx.OIRankingData.TopPositions), len(ctx.OIRankingData.LowPositions))
+		}
+	}
+
+	// 10. Get NetFlow ranking data (market-wide fund flow)
+	if strategyConfig.Indicators.EnableNetFlowRanking {
+		logger.Infof("💰 [%s] Fetching NetFlow ranking data...", at.name)
+		ctx.NetFlowRankingData = at.strategyEngine.FetchNetFlowRankingData()
+		if ctx.NetFlowRankingData != nil {
+			logger.Infof("💰 [%s] NetFlow ranking data ready: inst_in=%d, inst_out=%d",
+				at.name, len(ctx.NetFlowRankingData.InstitutionFutureTop), len(ctx.NetFlowRankingData.InstitutionFutureLow))
+		}
+	}
+
+	// 11. Get Price ranking data (market-wide gainers/losers)
+	if strategyConfig.Indicators.EnablePriceRanking {
+		logger.Infof("📈 [%s] Fetching Price ranking data...", at.name)
+		ctx.PriceRankingData = at.strategyEngine.FetchPriceRankingData()
+		if ctx.PriceRankingData != nil {
+			logger.Infof("📈 [%s] Price ranking data ready for %d durations",
+				at.name, len(ctx.PriceRankingData.Durations))
 		}
 	}
 

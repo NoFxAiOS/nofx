@@ -1,10 +1,8 @@
-import { Clock, Activity, Database, TrendingUp, BarChart2, Info, Lock, LineChart } from 'lucide-react'
+import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 
-// Default API URL for quant data (must contain {symbol} placeholder)
-const DEFAULT_QUANT_DATA_API_URL = 'http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c'
-// Default API base URL for OI ranking data
-const DEFAULT_OI_RANKING_API_URL = 'http://nofxaios.com:30006'
+// Default NofxOS API Key
+const DEFAULT_NOFXOS_API_KEY = 'cm_568c67eae410d912c54c'
 
 interface IndicatorEditorProps {
   config: IndicatorConfig
@@ -47,7 +45,7 @@ export function IndicatorEditor({
       marketSentiment: { zh: '市场情绪', en: 'Market Sentiment' },
       marketSentimentDesc: { zh: '持仓量、资金费率等市场情绪数据', en: 'OI, funding rate and market sentiment data' },
       quantData: { zh: '量化数据', en: 'Quant Data' },
-      quantDataDesc: { zh: '第三方数据源：资金流向、大户动向', en: 'Third-party: netflow, whale movements' },
+      quantDataDesc: { zh: '资金流向、大户动向', en: 'Netflow, whale movements' },
 
       // Timeframes
       timeframes: { zh: '时间周期', en: 'Timeframes' },
@@ -81,20 +79,40 @@ export function IndicatorEditor({
       fundingRate: { zh: '资金费率', en: 'Funding Rate' },
       fundingRateDesc: { zh: '永续合约资金费率', en: 'Perpetual funding rate' },
 
-      // Quant data
-      quantDataUrl: { zh: '数据接口 URL', en: 'Data API URL' },
-      fillDefault: { zh: '填入默认', en: 'Fill Default' },
-      symbolPlaceholder: { zh: '{symbol} 会被替换为币种', en: '{symbol} will be replaced with coin' },
-
       // OI Ranking
-      oiRanking: { zh: 'OI 排行数据', en: 'OI Ranking Data' },
-      oiRankingDesc: { zh: '市场持仓量增减排行，反映资金流向', en: 'Market-wide OI changes, reflects capital flow' },
-      oiRankingDuration: { zh: '时间周期', en: 'Duration' },
-      oiRankingLimit: { zh: '排行数量', en: 'Top N' },
+      oiRanking: { zh: 'OI 排行', en: 'OI Ranking' },
+      oiRankingDesc: { zh: '持仓量增减排行', en: 'OI change ranking' },
       oiRankingNote: { zh: '显示持仓量增加/减少的币种排行，帮助发现资金流向', en: 'Shows coins with OI increase/decrease, helps identify capital flow' },
+
+      // NetFlow Ranking
+      netflowRanking: { zh: '资金流向', en: 'NetFlow' },
+      netflowRankingDesc: { zh: '机构/散户资金流向', en: 'Institution/retail fund flow' },
+      netflowRankingNote: { zh: '显示机构资金流入/流出排行，散户动向对比，发现聪明钱信号', en: 'Shows institution inflow/outflow ranking, retail flow comparison, Smart Money signals' },
+
+      // Price Ranking
+      priceRanking: { zh: '涨跌幅排行', en: 'Price Ranking' },
+      priceRankingDesc: { zh: '涨跌幅排行榜', en: 'Gainers/losers ranking' },
+      priceRankingNote: { zh: '显示涨幅/跌幅排行，结合资金流和持仓变化分析趋势强度', en: 'Shows top gainers/losers, combined with fund flow and OI for trend analysis' },
+      priceRankingMulti: { zh: '多周期', en: 'Multi-period' },
+
+      // Common settings
+      duration: { zh: '周期', en: 'Duration' },
+      limit: { zh: '数量', en: 'Limit' },
 
       // Tips
       aiCanCalculate: { zh: '💡 提示：AI 可自行计算这些指标，开启可减少 AI 计算量', en: '💡 Tip: AI can calculate these, enabling reduces AI workload' },
+
+      // NofxOS Data Provider
+      nofxosTitle: { zh: 'NofxOS 量化数据源', en: 'NofxOS Data Provider' },
+      nofxosDesc: { zh: '专业加密货币量化数据服务', en: 'Professional crypto quant data service' },
+      nofxosFeatures: { zh: 'AI500 · OI排行 · 资金流向 · 涨跌榜', en: 'AI500 · OI Ranking · Fund Flow · Price Ranking' },
+      viewApiDocs: { zh: 'API 文档', en: 'API Docs' },
+      apiKey: { zh: 'API Key', en: 'API Key' },
+      apiKeyPlaceholder: { zh: '输入 NofxOS API Key', en: 'Enter NofxOS API Key' },
+      fillDefault: { zh: '填入默认', en: 'Fill Default' },
+      connected: { zh: '已配置', en: 'Configured' },
+      notConfigured: { zh: '未配置', en: 'Not Configured' },
+      nofxosDataSources: { zh: 'NofxOS 数据源', en: 'NofxOS Data Sources' },
     }
     return translations[key]?.[language] || key
   }
@@ -166,9 +184,364 @@ export function IndicatorEditor({
     ensureRawKlines()
   }
 
+  // Check if any NofxOS feature is enabled
+  const hasNofxosEnabled = config.enable_quant_data || config.enable_oi_ranking || config.enable_netflow_ranking || config.enable_price_ranking
+  const hasApiKey = !!config.nofxos_api_key
+
   return (
     <div className="space-y-5">
-      {/* Section 1: Market Data (Required) */}
+      {/* ============================================ */}
+      {/* NofxOS Data Provider - Top Configuration    */}
+      {/* ============================================ */}
+      <div
+        className="rounded-lg overflow-hidden relative"
+        style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 50%, rgba(236, 72, 153, 0.08) 100%)',
+          border: '1px solid rgba(139, 92, 246, 0.3)',
+        }}
+      >
+        {/* Decorative gradient line at top */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[2px]"
+          style={{ background: 'linear-gradient(90deg, #6366f1, #a855f7, #ec4899)' }}
+        />
+
+        <div className="p-4">
+          {/* Header Row */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}
+              >
+                <Zap className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                  {t('nofxosTitle')}
+                </h3>
+                <span className="text-[10px]" style={{ color: '#848E9C' }}>
+                  {t('nofxosFeatures')}
+                </span>
+              </div>
+            </div>
+
+            {/* Status & API Docs */}
+            <div className="flex items-center gap-2">
+              {hasApiKey ? (
+                <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full" style={{ background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81' }}>
+                  <Check className="w-3 h-3" />
+                  {t('connected')}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full" style={{ background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D' }}>
+                  <AlertCircle className="w-3 h-3" />
+                  {t('notConfigured')}
+                </span>
+              )}
+              <a
+                href="https://nofxos.ai/api-docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full transition-all hover:scale-[1.02]"
+                style={{
+                  background: 'rgba(139, 92, 246, 0.2)',
+                  color: '#a855f7',
+                }}
+              >
+                <ExternalLink className="w-3 h-3" />
+                {t('viewApiDocs')}
+              </a>
+            </div>
+          </div>
+
+          {/* API Key Input */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 relative">
+              <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#848E9C' }} />
+              <input
+                type="text"
+                value={config.nofxos_api_key || ''}
+                onChange={(e) => !disabled && onChange({ ...config, nofxos_api_key: e.target.value })}
+                disabled={disabled}
+                placeholder={t('apiKeyPlaceholder')}
+                className="w-full pl-9 pr-3 py-2 rounded-lg text-sm font-mono"
+                style={{
+                  background: 'rgba(30, 35, 41, 0.8)',
+                  border: hasApiKey ? '1px solid rgba(14, 203, 129, 0.3)' : '1px solid rgba(139, 92, 246, 0.3)',
+                  color: '#EAECEF',
+                }}
+              />
+            </div>
+            {!disabled && !config.nofxos_api_key && (
+              <button
+                type="button"
+                onClick={() => onChange({ ...config, nofxos_api_key: DEFAULT_NOFXOS_API_KEY })}
+                className="px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-[1.02]"
+                style={{
+                  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                  color: '#fff',
+                }}
+              >
+                {t('fillDefault')}
+              </button>
+            )}
+          </div>
+
+          {/* NofxOS Data Sources Grid */}
+          <div className="mt-4">
+            <div className="text-[10px] font-medium mb-2" style={{ color: '#848E9C' }}>
+              {t('nofxosDataSources')}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Quant Data */}
+              <div
+                className="p-2.5 rounded-lg transition-all cursor-pointer"
+                style={{
+                  background: config.enable_quant_data ? 'rgba(96, 165, 250, 0.1)' : 'rgba(30, 35, 41, 0.5)',
+                  border: config.enable_quant_data ? '1px solid rgba(96, 165, 250, 0.3)' : '1px solid rgba(43, 49, 57, 0.5)',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+                onClick={() => !disabled && onChange({ ...config, enable_quant_data: !config.enable_quant_data })}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('quantData')}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.enable_quant_data || false}
+                    onChange={(e) => { e.stopPropagation(); !disabled && onChange({ ...config, enable_quant_data: e.target.checked }) }}
+                    disabled={disabled}
+                    className="w-3.5 h-3.5 rounded accent-blue-500"
+                  />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('quantDataDesc')}</p>
+                {config.enable_quant_data && (
+                  <div className="flex gap-3 mt-2">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={config.enable_quant_oi !== false}
+                        onChange={(e) => { e.stopPropagation(); !disabled && onChange({ ...config, enable_quant_oi: e.target.checked }) }}
+                        disabled={disabled}
+                        className="w-3 h-3 rounded accent-blue-500"
+                      />
+                      <span className="text-[10px]" style={{ color: '#EAECEF' }}>OI</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={config.enable_quant_netflow !== false}
+                        onChange={(e) => { e.stopPropagation(); !disabled && onChange({ ...config, enable_quant_netflow: e.target.checked }) }}
+                        disabled={disabled}
+                        className="w-3 h-3 rounded accent-blue-500"
+                      />
+                      <span className="text-[10px]" style={{ color: '#EAECEF' }}>Netflow</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* OI Ranking */}
+              <div
+                className="p-2.5 rounded-lg transition-all cursor-pointer"
+                style={{
+                  background: config.enable_oi_ranking ? 'rgba(34, 197, 94, 0.1)' : 'rgba(30, 35, 41, 0.5)',
+                  border: config.enable_oi_ranking ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(43, 49, 57, 0.5)',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+                onClick={() => !disabled && onChange({
+                  ...config,
+                  enable_oi_ranking: !config.enable_oi_ranking,
+                  ...(!config.enable_oi_ranking && !config.oi_ranking_duration ? { oi_ranking_duration: '1h' } : {}),
+                  ...(!config.enable_oi_ranking && !config.oi_ranking_limit ? { oi_ranking_limit: 10 } : {}),
+                })}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} />
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('oiRanking')}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.enable_oi_ranking || false}
+                    onChange={(e) => { e.stopPropagation(); !disabled && onChange({
+                      ...config,
+                      enable_oi_ranking: e.target.checked,
+                      ...(e.target.checked && !config.oi_ranking_duration ? { oi_ranking_duration: '1h' } : {}),
+                      ...(e.target.checked && !config.oi_ranking_limit ? { oi_ranking_limit: 10 } : {}),
+                    }) }}
+                    disabled={disabled}
+                    className="w-3.5 h-3.5 rounded accent-green-500"
+                  />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('oiRankingDesc')}</p>
+                {config.enable_oi_ranking && (
+                  <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={config.oi_ranking_duration || '1h'}
+                      onChange={(e) => !disabled && onChange({ ...config, oi_ranking_duration: e.target.value })}
+                      disabled={disabled}
+                      className="flex-1 px-2 py-1 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    >
+                      <option value="1h">1h</option>
+                      <option value="4h">4h</option>
+                      <option value="24h">24h</option>
+                    </select>
+                    <select
+                      value={config.oi_ranking_limit || 10}
+                      onChange={(e) => !disabled && onChange({ ...config, oi_ranking_limit: parseInt(e.target.value) })}
+                      disabled={disabled}
+                      className="w-14 px-2 py-1 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    >
+                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* NetFlow Ranking */}
+              <div
+                className="p-2.5 rounded-lg transition-all cursor-pointer"
+                style={{
+                  background: config.enable_netflow_ranking ? 'rgba(245, 158, 11, 0.1)' : 'rgba(30, 35, 41, 0.5)',
+                  border: config.enable_netflow_ranking ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(43, 49, 57, 0.5)',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+                onClick={() => !disabled && onChange({
+                  ...config,
+                  enable_netflow_ranking: !config.enable_netflow_ranking,
+                  ...(!config.enable_netflow_ranking && !config.netflow_ranking_duration ? { netflow_ranking_duration: '1h' } : {}),
+                  ...(!config.enable_netflow_ranking && !config.netflow_ranking_limit ? { netflow_ranking_limit: 10 } : {}),
+                })}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('netflowRanking')}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.enable_netflow_ranking || false}
+                    onChange={(e) => { e.stopPropagation(); !disabled && onChange({
+                      ...config,
+                      enable_netflow_ranking: e.target.checked,
+                      ...(e.target.checked && !config.netflow_ranking_duration ? { netflow_ranking_duration: '1h' } : {}),
+                      ...(e.target.checked && !config.netflow_ranking_limit ? { netflow_ranking_limit: 10 } : {}),
+                    }) }}
+                    disabled={disabled}
+                    className="w-3.5 h-3.5 rounded accent-amber-500"
+                  />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('netflowRankingDesc')}</p>
+                {config.enable_netflow_ranking && (
+                  <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={config.netflow_ranking_duration || '1h'}
+                      onChange={(e) => !disabled && onChange({ ...config, netflow_ranking_duration: e.target.value })}
+                      disabled={disabled}
+                      className="flex-1 px-2 py-1 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    >
+                      <option value="1h">1h</option>
+                      <option value="4h">4h</option>
+                      <option value="24h">24h</option>
+                    </select>
+                    <select
+                      value={config.netflow_ranking_limit || 10}
+                      onChange={(e) => !disabled && onChange({ ...config, netflow_ranking_limit: parseInt(e.target.value) })}
+                      disabled={disabled}
+                      className="w-14 px-2 py-1 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    >
+                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Price Ranking */}
+              <div
+                className="p-2.5 rounded-lg transition-all cursor-pointer"
+                style={{
+                  background: config.enable_price_ranking ? 'rgba(236, 72, 153, 0.1)' : 'rgba(30, 35, 41, 0.5)',
+                  border: config.enable_price_ranking ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(43, 49, 57, 0.5)',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+                onClick={() => !disabled && onChange({
+                  ...config,
+                  enable_price_ranking: !config.enable_price_ranking,
+                  ...(!config.enable_price_ranking && !config.price_ranking_duration ? { price_ranking_duration: '1h,4h,24h' } : {}),
+                  ...(!config.enable_price_ranking && !config.price_ranking_limit ? { price_ranking_limit: 10 } : {}),
+                })}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#ec4899' }} />
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('priceRanking')}</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={config.enable_price_ranking || false}
+                    onChange={(e) => { e.stopPropagation(); !disabled && onChange({
+                      ...config,
+                      enable_price_ranking: e.target.checked,
+                      ...(e.target.checked && !config.price_ranking_duration ? { price_ranking_duration: '1h,4h,24h' } : {}),
+                      ...(e.target.checked && !config.price_ranking_limit ? { price_ranking_limit: 10 } : {}),
+                    }) }}
+                    disabled={disabled}
+                    className="w-3.5 h-3.5 rounded accent-pink-500"
+                  />
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('priceRankingDesc')}</p>
+                {config.enable_price_ranking && (
+                  <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={config.price_ranking_duration || '1h,4h,24h'}
+                      onChange={(e) => !disabled && onChange({ ...config, price_ranking_duration: e.target.value })}
+                      disabled={disabled}
+                      className="flex-1 px-2 py-1 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    >
+                      <option value="1h">1h</option>
+                      <option value="4h">4h</option>
+                      <option value="24h">24h</option>
+                      <option value="1h,4h,24h">{t('priceRankingMulti')}</option>
+                    </select>
+                    <select
+                      value={config.price_ranking_limit || 10}
+                      onChange={(e) => !disabled && onChange({ ...config, price_ranking_limit: parseInt(e.target.value) })}
+                      disabled={disabled}
+                      className="w-14 px-2 py-1 rounded text-[10px]"
+                      style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    >
+                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Warning if features enabled but no API key */}
+            {hasNofxosEnabled && !hasApiKey && (
+              <div className="flex items-center gap-2 mt-3 p-2 rounded-lg" style={{ background: 'rgba(246, 70, 93, 0.1)', border: '1px solid rgba(246, 70, 93, 0.2)' }}>
+                <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#F6465D' }} />
+                <span className="text-[10px]" style={{ color: '#F6465D' }}>
+                  {language === 'zh' ? '请配置 API Key 以启用 NofxOS 数据源' : 'Please configure API Key to enable NofxOS data sources'}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================ */}
+      {/* Section 1: Market Data (Required)           */}
+      {/* ============================================ */}
       <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
           <BarChart2 className="w-4 h-4" style={{ color: '#F0B90B' }} />
@@ -275,7 +648,9 @@ export function IndicatorEditor({
         </div>
       </div>
 
-      {/* Section 2: Technical Indicators (Optional) */}
+      {/* ============================================ */}
+      {/* Section 2: Technical Indicators (Optional)  */}
+      {/* ============================================ */}
       <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
           <Activity className="w-4 h-4" style={{ color: '#0ECB81' }} />
@@ -345,7 +720,9 @@ export function IndicatorEditor({
         </div>
       </div>
 
-      {/* Section 3: Market Sentiment */}
+      {/* ============================================ */}
+      {/* Section 3: Market Sentiment                 */}
+      {/* ============================================ */}
       <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
           <TrendingUp className="w-4 h-4" style={{ color: '#22c55e' }} />
@@ -385,163 +762,6 @@ export function IndicatorEditor({
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Section 4: Quant Data (External API) */}
-      <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-        <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
-          <Database className="w-4 h-4" style={{ color: '#60a5fa' }} />
-          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('quantData')}</span>
-          <span className="text-xs" style={{ color: '#848E9C' }}>- {t('quantDataDesc')}</span>
-        </div>
-
-        <div className="p-3 space-y-3">
-          {/* Enable Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
-              <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('quantData')}</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={config.enable_quant_data || false}
-              onChange={(e) => !disabled && onChange({ ...config, enable_quant_data: e.target.checked })}
-              disabled={disabled}
-              className="w-4 h-4 rounded accent-blue-500"
-            />
-          </div>
-
-          {/* API URL */}
-          {config.enable_quant_data && (
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px]" style={{ color: '#848E9C' }}>
-                  {t('quantDataUrl')}
-                </label>
-                {!disabled && !config.quant_data_api_url && (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...config, quant_data_api_url: DEFAULT_QUANT_DATA_API_URL })}
-                    className="text-[10px] px-2 py-0.5 rounded"
-                    style={{ background: '#60a5fa20', color: '#60a5fa' }}
-                  >
-                    {t('fillDefault')}
-                  </button>
-                )}
-              </div>
-              <input
-                type="text"
-                value={config.quant_data_api_url || ''}
-                onChange={(e) => !disabled && onChange({ ...config, quant_data_api_url: e.target.value })}
-                disabled={disabled}
-                placeholder="http://example.com/api/coin/{symbol}?include=netflow,oi"
-                className="w-full px-2 py-1.5 rounded text-xs font-mono"
-                style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-              />
-              <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('symbolPlaceholder')}</p>
-
-              {/* OI and Netflow toggles */}
-              <div className="flex gap-4 mt-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={config.enable_quant_oi !== false}
-                    onChange={(e) => !disabled && onChange({ ...config, enable_quant_oi: e.target.checked })}
-                    disabled={disabled}
-                    className="w-3.5 h-3.5 rounded accent-blue-500"
-                  />
-                  <span className="text-xs" style={{ color: '#EAECEF' }}>OI</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={config.enable_quant_netflow !== false}
-                    onChange={(e) => !disabled && onChange({ ...config, enable_quant_netflow: e.target.checked })}
-                    disabled={disabled}
-                    className="w-3.5 h-3.5 rounded accent-blue-500"
-                  />
-                  <span className="text-xs" style={{ color: '#EAECEF' }}>Netflow</span>
-                </label>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Section 5: OI Ranking Data (Market-wide) */}
-      <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
-        <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
-          <LineChart className="w-4 h-4" style={{ color: '#22c55e' }} />
-          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('oiRanking')}</span>
-          <span className="text-xs" style={{ color: '#848E9C' }}>- {t('oiRankingDesc')}</span>
-        </div>
-
-        <div className="p-3 space-y-3">
-          {/* Enable Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} />
-              <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('oiRanking')}</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={config.enable_oi_ranking || false}
-              onChange={(e) => !disabled && onChange({
-                ...config,
-                enable_oi_ranking: e.target.checked,
-                // Set defaults when enabling
-                ...(e.target.checked && !config.oi_ranking_api_url ? { oi_ranking_api_url: DEFAULT_OI_RANKING_API_URL } : {}),
-                ...(e.target.checked && !config.oi_ranking_duration ? { oi_ranking_duration: '1h' } : {}),
-                ...(e.target.checked && !config.oi_ranking_limit ? { oi_ranking_limit: 10 } : {}),
-              })}
-              disabled={disabled}
-              className="w-4 h-4 rounded accent-green-500"
-            />
-          </div>
-
-          {/* Settings */}
-          {config.enable_oi_ranking && (
-            <div className="space-y-3">
-              <div className="flex gap-3">
-                {/* Duration */}
-                <div className="flex-1">
-                  <label className="text-[10px] mb-1 block" style={{ color: '#848E9C' }}>
-                    {t('oiRankingDuration')}
-                  </label>
-                  <select
-                    value={config.oi_ranking_duration || '1h'}
-                    onChange={(e) => !disabled && onChange({ ...config, oi_ranking_duration: e.target.value })}
-                    disabled={disabled}
-                    className="w-full px-2 py-1.5 rounded text-xs"
-                    style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                  >
-                    <option value="1h">{language === 'zh' ? '1小时' : '1 Hour'}</option>
-                    <option value="4h">{language === 'zh' ? '4小时' : '4 Hours'}</option>
-                    <option value="24h">{language === 'zh' ? '24小时' : '24 Hours'}</option>
-                  </select>
-                </div>
-                {/* Limit */}
-                <div className="flex-1">
-                  <label className="text-[10px] mb-1 block" style={{ color: '#848E9C' }}>
-                    {t('oiRankingLimit')}
-                  </label>
-                  <select
-                    value={config.oi_ranking_limit || 10}
-                    onChange={(e) => !disabled && onChange({ ...config, oi_ranking_limit: parseInt(e.target.value) })}
-                    disabled={disabled}
-                    className="w-full px-2 py-1.5 rounded text-xs"
-                    style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
-                  >
-                    {[5, 10, 15, 20].map(n => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <p className="text-[10px]" style={{ color: '#5E6673' }}>{t('oiRankingNote')}</p>
-            </div>
-          )}
         </div>
       </div>
     </div>

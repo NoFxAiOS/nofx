@@ -1,10 +1,6 @@
 import { useState } from 'react'
-import { Plus, X, Database, TrendingUp, List, Link, AlertCircle, Ban } from 'lucide-react'
+import { Plus, X, Database, TrendingUp, List, Ban, Zap } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
-
-// Default API URLs for data sources
-const DEFAULT_COIN_POOL_API_URL = 'http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c'
-const DEFAULT_OI_TOP_API_URL = 'http://nofxaios.com:30006/api/oi/top-ranking?limit=20&duration=1h&auth=cm_568c67eae410d912c54c'
 
 interface CoinSourceEditorProps {
   config: CoinSourceConfig
@@ -26,21 +22,17 @@ export function CoinSourceEditor({
     const translations: Record<string, Record<string, string>> = {
       sourceType: { zh: '数据来源类型', en: 'Source Type' },
       static: { zh: '静态列表', en: 'Static List' },
-      coinpool: { zh: 'AI500 数据源', en: 'AI500 Data Provider' },
+      ai500: { zh: 'AI500 数据源', en: 'AI500 Data Provider' },
       oi_top: { zh: 'OI Top 持仓增长', en: 'OI Top' },
       mixed: { zh: '混合模式', en: 'Mixed Mode' },
       staticCoins: { zh: '自定义币种', en: 'Custom Coins' },
       addCoin: { zh: '添加币种', en: 'Add Coin' },
-      useCoinPool: { zh: '启用 AI500 数据源', en: 'Enable AI500 Data Provider' },
-      coinPoolLimit: { zh: '数据源数量上限', en: 'Data Provider Limit' },
-      coinPoolApiUrl: { zh: 'AI500 API URL', en: 'AI500 API URL' },
-      coinPoolApiUrlPlaceholder: { zh: '输入 AI500 数据源 API 地址...', en: 'Enter AI500 data provider API URL...' },
+      useAI500: { zh: '启用 AI500 数据源', en: 'Enable AI500 Data Provider' },
+      ai500Limit: { zh: '数量上限', en: 'Limit' },
       useOITop: { zh: '启用 OI Top 数据', en: 'Enable OI Top' },
-      oiTopLimit: { zh: 'OI Top 数量上限', en: 'OI Top Limit' },
-      oiTopApiUrl: { zh: 'OI Top API URL', en: 'OI Top API URL' },
-      oiTopApiUrlPlaceholder: { zh: '输入 OI Top 持仓数据 API 地址...', en: 'Enter OI Top API URL...' },
+      oiTopLimit: { zh: '数量上限', en: 'Limit' },
       staticDesc: { zh: '手动指定交易币种列表', en: 'Manually specify trading coins' },
-      coinpoolDesc: {
+      ai500Desc: {
         zh: '使用 AI500 智能筛选的热门币种',
         en: 'Use AI500 smart-filtered popular coins',
       },
@@ -52,19 +44,18 @@ export function CoinSourceEditor({
         zh: '组合多种数据源，AI500 + OI Top + 自定义',
         en: 'Combine multiple sources: AI500 + OI Top + Custom',
       },
-      apiUrlRequired: { zh: '需要填写 API URL 才能获取数据', en: 'API URL required to fetch data' },
       dataSourceConfig: { zh: '数据源配置', en: 'Data Source Configuration' },
-      fillDefault: { zh: '填入默认', en: 'Fill Default' },
       excludedCoins: { zh: '排除币种', en: 'Excluded Coins' },
       excludedCoinsDesc: { zh: '这些币种将从所有数据源中排除，不会被交易', en: 'These coins will be excluded from all sources and will not be traded' },
       addExcludedCoin: { zh: '添加排除', en: 'Add Excluded' },
+      nofxosNote: { zh: '使用 NofxOS API Key（在指标配置中设置）', en: 'Uses NofxOS API Key (set in Indicators config)' },
     }
     return translations[key]?.[language] || key
   }
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
-    { value: 'coinpool', icon: Database, color: '#F0B90B' },
+    { value: 'ai500', icon: Database, color: '#F0B90B' },
     { value: 'oi_top', icon: TrendingUp, color: '#0ECB81' },
     { value: 'mixed', icon: Database, color: '#60a5fa' },
   ] as const
@@ -148,6 +139,20 @@ export function CoinSourceEditor({
       excluded_coins: (config.excluded_coins || []).filter((c) => c !== coin),
     })
   }
+
+  // NofxOS badge component
+  const NofxOSBadge = () => (
+    <span
+      className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+      style={{
+        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))',
+        color: '#a855f7',
+        border: '1px solid rgba(139, 92, 246, 0.3)'
+      }}
+    >
+      NofxOS
+    </span>
+  )
 
   return (
     <div className="space-y-6">
@@ -305,198 +310,137 @@ export function CoinSourceEditor({
         )}
       </div>
 
-      {/* Coin Pool Options */}
-      {(config.source_type === 'coinpool' || config.source_type === 'mixed') && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Link className="w-4 h-4" style={{ color: '#F0B90B' }} />
-            <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-              {t('dataSourceConfig')} - AI500
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="flex items-center gap-3 mb-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.use_coin_pool}
-                  onChange={(e) =>
-                    !disabled && onChange({ ...config, use_coin_pool: e.target.checked })
-                  }
-                  disabled={disabled}
-                  className="w-5 h-5 rounded accent-yellow-500"
-                />
-                <span style={{ color: '#EAECEF' }}>{t('useCoinPool')}</span>
-              </label>
-              {config.use_coin_pool && (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm" style={{ color: '#848E9C' }}>
-                    {t('coinPoolLimit')}:
-                  </span>
-                  <input
-                    type="number"
-                    value={config.coin_pool_limit || 10}
-                    onChange={(e) =>
-                      !disabled &&
-                      onChange({ ...config, coin_pool_limit: parseInt(e.target.value) || 10 })
-                    }
-                    disabled={disabled}
-                    min={1}
-                    max={100}
-                    className="w-20 px-3 py-1.5 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                  />
-                </div>
-              )}
+      {/* AI500 Options */}
+      {(config.source_type === 'ai500' || config.source_type === 'mixed') && (
+        <div
+          className="p-4 rounded-lg"
+          style={{
+            background: 'rgba(240, 185, 11, 0.05)',
+            border: '1px solid rgba(240, 185, 11, 0.2)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
+              <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                AI500 {t('dataSourceConfig')}
+              </span>
+              <NofxOSBadge />
             </div>
           </div>
 
-          {config.use_coin_pool && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm" style={{ color: '#848E9C' }}>
-                  {t('coinPoolApiUrl')}
-                </label>
-                {!disabled && !config.coin_pool_api_url && (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...config, coin_pool_api_url: DEFAULT_COIN_POOL_API_URL })}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ background: '#F0B90B20', color: '#F0B90B' }}
-                  >
-                    {t('fillDefault')}
-                  </button>
-                )}
-              </div>
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
               <input
-                type="url"
-                value={config.coin_pool_api_url || ''}
+                type="checkbox"
+                checked={config.use_ai500}
                 onChange={(e) =>
-                  !disabled && onChange({ ...config, coin_pool_api_url: e.target.value })
+                  !disabled && onChange({ ...config, use_ai500: e.target.checked })
                 }
                 disabled={disabled}
-                placeholder={t('coinPoolApiUrlPlaceholder')}
-                className="w-full px-4 py-2.5 rounded-lg font-mono text-sm"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
+                className="w-5 h-5 rounded accent-yellow-500"
               />
-              {!config.coin_pool_api_url && (
-                <div className="flex items-center gap-2 mt-2">
-                  <AlertCircle className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                  <span className="text-xs" style={{ color: '#F0B90B' }}>
-                    {t('apiUrlRequired')}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+              <span style={{ color: '#EAECEF' }}>{t('useAI500')}</span>
+            </label>
+
+            {config.use_ai500 && (
+              <div className="flex items-center gap-3 pl-8">
+                <span className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('ai500Limit')}:
+                </span>
+                <select
+                  value={config.ai500_limit || 10}
+                  onChange={(e) =>
+                    !disabled &&
+                    onChange({ ...config, ai500_limit: parseInt(e.target.value) || 10 })
+                  }
+                  disabled={disabled}
+                  className="px-3 py-1.5 rounded"
+                  style={{
+                    background: '#0B0E11',
+                    border: '1px solid #2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  {[5, 10, 15, 20, 30, 50].map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <p className="text-xs pl-8" style={{ color: '#5E6673' }}>
+              {t('nofxosNote')}
+            </p>
+          </div>
         </div>
       )}
 
       {/* OI Top Options */}
       {(config.source_type === 'oi_top' || config.source_type === 'mixed') && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Link className="w-4 h-4" style={{ color: '#0ECB81' }} />
-            <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-              {t('dataSourceConfig')} - OI Top
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="flex items-center gap-3 mb-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={config.use_oi_top}
-                  onChange={(e) =>
-                    !disabled && onChange({ ...config, use_oi_top: e.target.checked })
-                  }
-                  disabled={disabled}
-                  className="w-5 h-5 rounded accent-yellow-500"
-                />
-                <span style={{ color: '#EAECEF' }}>{t('useOITop')}</span>
-              </label>
-              {config.use_oi_top && (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm" style={{ color: '#848E9C' }}>
-                    {t('oiTopLimit')}:
-                  </span>
-                  <input
-                    type="number"
-                    value={config.oi_top_limit || 20}
-                    onChange={(e) =>
-                      !disabled &&
-                      onChange({ ...config, oi_top_limit: parseInt(e.target.value) || 20 })
-                    }
-                    disabled={disabled}
-                    min={1}
-                    max={50}
-                    className="w-20 px-3 py-1.5 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                  />
-                </div>
-              )}
+        <div
+          className="p-4 rounded-lg"
+          style={{
+            background: 'rgba(14, 203, 129, 0.05)',
+            border: '1px solid rgba(14, 203, 129, 0.2)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" style={{ color: '#0ECB81' }} />
+              <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                OI Top {t('dataSourceConfig')}
+              </span>
+              <NofxOSBadge />
             </div>
           </div>
 
-          {config.use_oi_top && (
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm" style={{ color: '#848E9C' }}>
-                  {t('oiTopApiUrl')}
-                </label>
-                {!disabled && !config.oi_top_api_url && (
-                  <button
-                    type="button"
-                    onClick={() => onChange({ ...config, oi_top_api_url: DEFAULT_OI_TOP_API_URL })}
-                    className="text-xs px-2 py-1 rounded"
-                    style={{ background: '#0ECB8120', color: '#0ECB81' }}
-                  >
-                    {t('fillDefault')}
-                  </button>
-                )}
-              </div>
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
               <input
-                type="url"
-                value={config.oi_top_api_url || ''}
+                type="checkbox"
+                checked={config.use_oi_top}
                 onChange={(e) =>
-                  !disabled && onChange({ ...config, oi_top_api_url: e.target.value })
+                  !disabled && onChange({ ...config, use_oi_top: e.target.checked })
                 }
                 disabled={disabled}
-                placeholder={t('oiTopApiUrlPlaceholder')}
-                className="w-full px-4 py-2.5 rounded-lg font-mono text-sm"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
+                className="w-5 h-5 rounded accent-green-500"
               />
-              {!config.oi_top_api_url && (
-                <div className="flex items-center gap-2 mt-2">
-                  <AlertCircle className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                  <span className="text-xs" style={{ color: '#F0B90B' }}>
-                    {t('apiUrlRequired')}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+              <span style={{ color: '#EAECEF' }}>{t('useOITop')}</span>
+            </label>
+
+            {config.use_oi_top && (
+              <div className="flex items-center gap-3 pl-8">
+                <span className="text-sm" style={{ color: '#848E9C' }}>
+                  {t('oiTopLimit')}:
+                </span>
+                <select
+                  value={config.oi_top_limit || 20}
+                  onChange={(e) =>
+                    !disabled &&
+                    onChange({ ...config, oi_top_limit: parseInt(e.target.value) || 20 })
+                  }
+                  disabled={disabled}
+                  className="px-3 py-1.5 rounded"
+                  style={{
+                    background: '#0B0E11',
+                    border: '1px solid #2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  {[5, 10, 15, 20, 30, 50].map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <p className="text-xs pl-8" style={{ color: '#5E6673' }}>
+              {t('nofxosNote')}
+            </p>
+          </div>
         </div>
       )}
-
     </div>
   )
 }

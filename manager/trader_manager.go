@@ -606,7 +606,7 @@ func (tm *TraderManager) LoadTradersFromStore(st *store.Store) error {
 			continue
 		}
 
-		// Add to TraderManager (coinPoolURL/oiTopURL already obtained from strategy config)
+		// Add to TraderManager (ai500APIURL/oiTopAPIURL already obtained from strategy config)
 		err = tm.addTraderFromStore(traderCfg, aiModelCfg, exchangeCfg, st)
 		if err != nil {
 			logger.Infof("❌ Failed to add trader %s: %v", traderCfg.Name, err)
@@ -641,7 +641,7 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		return fmt.Errorf("trader %s has no strategy configured", traderCfg.Name)
 	}
 
-	// Build AutoTraderConfig (coinPoolURL/oiTopURL obtained from strategy config, used in StrategyEngine)
+	// Build AutoTraderConfig (ai500APIURL/oiTopAPIURL obtained from strategy config, used in StrategyEngine)
 	traderConfig := trader.AutoTraderConfig{
 		ID:                    traderCfg.ID,
 		Name:                  traderCfg.Name,

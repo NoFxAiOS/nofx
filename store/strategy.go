@@ -32,6 +32,9 @@ func (Strategy) TableName() string { return "strategies" }
 
 // StrategyConfig strategy configuration details (JSON structure)
 type StrategyConfig struct {
+	// language setting: "zh" for Chinese, "en" for English
+	// This determines the language used for data formatting and prompt generation
+	Language string `json:"language,omitempty"`
 	// coin source configuration
 	CoinSource CoinSourceConfig `json:"coin_source"`
 	// quantitative data configuration
@@ -58,24 +61,21 @@ type PromptSectionsConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "coinpool" | "oi_top" | "mixed"
+	// source type: "static" | "ai500" | "oi_top" | "mixed"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
 	// excluded coins list (filtered out from all sources)
 	ExcludedCoins []string `json:"excluded_coins,omitempty"`
 	// whether to use AI500 coin pool
-	UseCoinPool bool `json:"use_coin_pool"`
+	UseAI500 bool `json:"use_ai500"`
 	// AI500 coin pool maximum count
-	CoinPoolLimit int `json:"coin_pool_limit,omitempty"`
-	// AI500 coin pool API URL (strategy-level configuration)
-	CoinPoolAPIURL string `json:"coin_pool_api_url,omitempty"`
+	AI500Limit int `json:"ai500_limit,omitempty"`
 	// whether to use OI Top
 	UseOITop bool `json:"use_oi_top"`
 	// OI Top maximum count
 	OITopLimit int `json:"oi_top_limit,omitempty"`
-	// OI Top API URL (strategy-level configuration)
-	OITopAPIURL string `json:"oi_top_api_url,omitempty"`
+	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
 // IndicatorConfig indicator configuration
@@ -103,16 +103,30 @@ type IndicatorConfig struct {
 	BOLLPeriods []int `json:"boll_periods,omitempty"` // default [20] - can select multiple timeframes
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
+
+	// ========== NofxOS Unified API Configuration ==========
+	// Unified API Key for all NofxOS data sources
+	NofxOSAPIKey string `json:"nofxos_api_key,omitempty"`
+
 	// quantitative data sources (capital flow, position changes, price changes)
-	EnableQuantData    bool   `json:"enable_quant_data"`              // whether to enable quantitative data
-	QuantDataAPIURL    string `json:"quant_data_api_url,omitempty"`   // quantitative data API address
-	EnableQuantOI      bool   `json:"enable_quant_oi"`                // whether to show OI data
-	EnableQuantNetflow bool   `json:"enable_quant_netflow"`           // whether to show Netflow data
+	EnableQuantData    bool `json:"enable_quant_data"`    // whether to enable quantitative data
+	EnableQuantOI      bool `json:"enable_quant_oi"`      // whether to show OI data
+	EnableQuantNetflow bool `json:"enable_quant_netflow"` // whether to show Netflow data
+
 	// OI ranking data (market-wide open interest increase/decrease rankings)
 	EnableOIRanking   bool   `json:"enable_oi_ranking"`             // whether to enable OI ranking data
-	OIRankingAPIURL   string `json:"oi_ranking_api_url,omitempty"`  // OI ranking API base URL
 	OIRankingDuration string `json:"oi_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
 	OIRankingLimit    int    `json:"oi_ranking_limit,omitempty"`    // number of entries (default 10)
+
+	// NetFlow ranking data (market-wide fund flow rankings - institution/personal)
+	EnableNetFlowRanking   bool   `json:"enable_netflow_ranking"`             // whether to enable NetFlow ranking data
+	NetFlowRankingDuration string `json:"netflow_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
+	NetFlowRankingLimit    int    `json:"netflow_ranking_limit,omitempty"`    // number of entries (default 10)
+
+	// Price ranking data (market-wide gainers/losers)
+	EnablePriceRanking   bool   `json:"enable_price_ranking"`             // whether to enable price ranking data
+	PriceRankingDuration string `json:"price_ranking_duration,omitempty"` // durations: "1h" or "1h,4h,24h"
+	PriceRankingLimit    int    `json:"price_ranking_limit,omitempty"`    // number of entries per ranking (default 10)
 }
 
 // KlineConfig K-line configuration
@@ -185,15 +199,20 @@ func (s *StrategyStore) initDefaultData() error {
 
 // GetDefaultStrategyConfig returns the default strategy configuration for the given language
 func GetDefaultStrategyConfig(lang string) StrategyConfig {
+	// Normalize language to "zh" or "en"
+	normalizedLang := "en"
+	if lang == "zh" {
+		normalizedLang = "zh"
+	}
+
 	config := StrategyConfig{
+		Language: normalizedLang,
 		CoinSource: CoinSourceConfig{
-			SourceType:     "coinpool",
-			UseCoinPool:    true,
-			CoinPoolLimit:  10,
-			CoinPoolAPIURL: "http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c",
-			UseOITop:       false,
-			OITopLimit:     20,
-			OITopAPIURL:    "http://nofxaios.com:30006/api/oi/top-ranking?limit=20&duration=1h&auth=cm_568c67eae410d912c54c",
+			SourceType: "ai500",
+			UseAI500:   true,
+			AI500Limit: 10,
+			UseOITop:   false,
+			OITopLimit: 20,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
@@ -217,15 +236,24 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
+			// NofxOS unified API key
+			NofxOSAPIKey: "cm_568c67eae410d912c54c",
+			// Quant data
 			EnableQuantData:    true,
-			QuantDataAPIURL:    "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
 			EnableQuantOI:      true,
 			EnableQuantNetflow: true,
-			// OI ranking data - market-wide OI increase/decrease rankings
+			// OI ranking data
 			EnableOIRanking:   true,
-			OIRankingAPIURL:   "http://nofxaios.com:30006",
 			OIRankingDuration: "1h",
 			OIRankingLimit:    10,
+			// NetFlow ranking data
+			EnableNetFlowRanking:   true,
+			NetFlowRankingDuration: "1h",
+			NetFlowRankingLimit:    10,
+			// Price ranking data
+			EnablePriceRanking:   true,
+			PriceRankingDuration: "1h,4h,24h",
+			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)

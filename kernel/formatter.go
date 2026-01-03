@@ -3,6 +3,7 @@ package kernel
 import (
 	"fmt"
 	"nofx/market"
+	"nofx/provider/nofxos"
 	"sort"
 	"strings"
 	"time"
@@ -89,11 +90,11 @@ func formatContextData(ctx *Context, lang Language) string {
 
 	// 7. OI排名数据（如果有）
 	if ctx.OIRankingData != nil {
+		nofxosLang := nofxos.LangEnglish
 		if lang == LangChinese {
-			sb.WriteString(formatOIRankingZH(ctx.OIRankingData))
-		} else {
-			sb.WriteString(formatOIRankingEN(ctx.OIRankingData))
+			nofxosLang = nofxos.LangChinese
 		}
+		sb.WriteString(nofxos.FormatOIRankingForAI(ctx.OIRankingData, nofxosLang))
 	}
 
 	return sb.String()
@@ -354,11 +355,6 @@ func formatKlineDataZH(symbol string, tfData map[string]*market.TimeframeSeriesD
 	return sb.String()
 }
 
-// formatOIRankingZH 格式化OI排名数据（中文）
-func formatOIRankingZH(oiData interface{}) string {
-	// TODO: 根据实际OIRankingData结构实现
-	return "## 市场持仓量排名\n\n(数据加载中...)\n\n"
-}
 
 // getOIInterpretationZH 获取OI变化解读（中文）
 func getOIInterpretationZH(oiChange, priceChange string) string {
@@ -624,10 +620,6 @@ func formatKlineDataEN(symbol string, tfData map[string]*market.TimeframeSeriesD
 	return sb.String()
 }
 
-// formatOIRankingEN 格式化OI排名数据（英文）
-func formatOIRankingEN(oiData interface{}) string {
-	return "## Market-wide OI Ranking\n\n(Loading data...)\n\n"
-}
 
 // getOIInterpretationEN 获取OI变化解读（英文）
 func getOIInterpretationEN(oiChange, priceChange string) string {

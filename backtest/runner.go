@@ -519,7 +519,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 
 	// Fetch quantitative data if enabled in strategy (uses current data as approximation)
 	strategyConfig := r.strategyEngine.GetConfig()
-	if strategyConfig.Indicators.EnableQuantData && strategyConfig.Indicators.QuantDataAPIURL != "" {
+	if strategyConfig.Indicators.EnableQuantData {
 		// Collect symbols to query (candidate coins + position coins)
 		symbolSet := make(map[string]bool)
 		for _, sym := range r.cfg.Symbols {
@@ -544,6 +544,24 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 		if ctx.OIRankingData != nil {
 			logger.Infof("📊 Backtest: OI ranking data ready: %d top, %d low positions",
 				len(ctx.OIRankingData.TopPositions), len(ctx.OIRankingData.LowPositions))
+		}
+	}
+
+	// Fetch NetFlow ranking data if enabled in strategy
+	if strategyConfig.Indicators.EnableNetFlowRanking {
+		ctx.NetFlowRankingData = r.strategyEngine.FetchNetFlowRankingData()
+		if ctx.NetFlowRankingData != nil {
+			logger.Infof("💰 Backtest: NetFlow ranking data ready: inst_in=%d, inst_out=%d",
+				len(ctx.NetFlowRankingData.InstitutionFutureTop), len(ctx.NetFlowRankingData.InstitutionFutureLow))
+		}
+	}
+
+	// Fetch Price ranking data if enabled in strategy
+	if strategyConfig.Indicators.EnablePriceRanking {
+		ctx.PriceRankingData = r.strategyEngine.FetchPriceRankingData()
+		if ctx.PriceRankingData != nil {
+			logger.Infof("📈 Backtest: Price ranking data ready for %d durations",
+				len(ctx.PriceRankingData.Durations))
 		}
 	}
 

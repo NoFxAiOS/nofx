@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import {
@@ -149,6 +149,45 @@ export function StrategyStudioPage() {
     fetchStrategies()
     fetchAiModels()
   }, [fetchStrategies, fetchAiModels])
+
+  // Track previous language to detect actual changes
+  const prevLanguageRef = useRef(language)
+
+  // When language changes, update prompt sections to match the new language
+  useEffect(() => {
+    const updatePromptSectionsForLanguage = async () => {
+      // Only update if language actually changed (not on initial mount)
+      if (prevLanguageRef.current === language) return
+      prevLanguageRef.current = language
+
+      if (!token) return
+
+      try {
+        // Fetch default config for the new language
+        const response = await fetch(
+          `${API_BASE}/api/strategies/default-config?lang=${language}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        )
+        if (!response.ok) return
+        const defaultConfig = await response.json()
+
+        // Update only the prompt sections and language field
+        setEditingConfig(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            language: language as 'zh' | 'en',
+            prompt_sections: defaultConfig.prompt_sections,
+          }
+        })
+        setHasChanges(true)
+      } catch (err) {
+        console.error('Failed to update prompt sections for language:', err)
+      }
+    }
+
+    updatePromptSectionsForLanguage()
+  }, [language, token]) // Only trigger when language changes
 
   // Create new strategy
   const handleCreateStrategy = async () => {
@@ -336,6 +375,11 @@ export function StrategyStudioPage() {
     if (!token || !selectedStrategy || !editingConfig) return
     setIsSaving(true)
     try {
+      // Always sync the config language with the current interface language
+      const configWithLanguage = {
+        ...editingConfig,
+        language: language as 'zh' | 'en',
+      }
       const response = await fetch(
         `${API_BASE}/api/strategies/${selectedStrategy.id}`,
         {
@@ -347,7 +391,7 @@ export function StrategyStudioPage() {
           body: JSON.stringify({
             name: selectedStrategy.name,
             description: selectedStrategy.description,
-            config: editingConfig,
+            config: configWithLanguage,
             is_public: selectedStrategy.is_public,
             config_visible: selectedStrategy.config_visible,
           }),

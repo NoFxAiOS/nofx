@@ -335,6 +335,12 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 	// Fetch OI ranking data (market-wide position changes)
 	oiRankingData := strategyEngine.FetchOIRankingData()
 
+	// Fetch NetFlow ranking data (market-wide fund flow)
+	netFlowRankingData := strategyEngine.FetchNetFlowRankingData()
+
+	// Fetch Price ranking data (market-wide gainers/losers)
+	priceRankingData := strategyEngine.FetchPriceRankingData()
+
 	// Build context
 	ctx := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
@@ -350,12 +356,14 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 			MarginUsedPct:    0,
 			PositionCount:    0,
 		},
-		Positions:      []kernel.PositionInfo{},
-		CandidateCoins: candidates,
-		PromptVariant:  session.PromptVariant,
-		MarketDataMap:  marketDataMap,
-		QuantDataMap:   quantDataMap,
-		OIRankingData:  oiRankingData,
+		Positions:          []kernel.PositionInfo{},
+		CandidateCoins:     candidates,
+		PromptVariant:      session.PromptVariant,
+		MarketDataMap:      marketDataMap,
+		QuantDataMap:       quantDataMap,
+		OIRankingData:      oiRankingData,
+		NetFlowRankingData: netFlowRankingData,
+		PriceRankingData:   priceRankingData,
 	}
 
 	return ctx, nil

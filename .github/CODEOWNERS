@@ -66,8 +66,8 @@ README.md @hzb1115 @tangmengqiu
 /.github/workflows/*.yml @hzb1115
 
 # Docker | Docker 配置
-Dockerfile @tangmengqiu 
-docker-compose.yml @tangmengqiu 
+Dockerfile @tangmengqiu
+docker-compose.yml @tangmengqiu
 .dockerignore @tangmengqiu
 
 # Database | 数据库

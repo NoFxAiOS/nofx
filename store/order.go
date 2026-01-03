@@ -41,23 +41,23 @@ type TraderOrder struct {
 
 // TraderFill trade record (one order may have multiple fills)
 type TraderFill struct {
-	ID               int64     `json:"id"`
-	TraderID         string    `json:"trader_id"`
-	ExchangeID       string    `json:"exchange_id"`        // Exchange account UUID
-	ExchangeType     string    `json:"exchange_type"`      // Exchange type (hyperliquid/lighter/binance/etc)
-	OrderID          int64     `json:"order_id"`           // Related order ID
-	ExchangeOrderID  string    `json:"exchange_order_id"`  // Exchange order ID
-	ExchangeTradeID  string    `json:"exchange_trade_id"`  // Exchange trade ID
-	Symbol           string    `json:"symbol"`
-	Side             string    `json:"side"`           // BUY/SELL
-	Price            float64   `json:"price"`          // 成交价格
-	Quantity         float64   `json:"quantity"`       // 成交数量
-	QuoteQuantity    float64   `json:"quote_quantity"` // 成交金额（USDT）
-	Commission       float64   `json:"commission"`     // 手续费
-	CommissionAsset  string    `json:"commission_asset"`
-	RealizedPnL      float64   `json:"realized_pnl"` // 实现盈亏（平仓时）
-	IsMaker          bool      `json:"is_maker"`     // 是否为maker
-	CreatedAt        time.Time `json:"created_at"`
+	ID              int64     `json:"id"`
+	TraderID        string    `json:"trader_id"`
+	ExchangeID      string    `json:"exchange_id"`       // Exchange account UUID
+	ExchangeType    string    `json:"exchange_type"`     // Exchange type (hyperliquid/lighter/binance/etc)
+	OrderID         int64     `json:"order_id"`          // Related order ID
+	ExchangeOrderID string    `json:"exchange_order_id"` // Exchange order ID
+	ExchangeTradeID string    `json:"exchange_trade_id"` // Exchange trade ID
+	Symbol          string    `json:"symbol"`
+	Side            string    `json:"side"`           // BUY/SELL
+	Price           float64   `json:"price"`          // 成交价格
+	Quantity        float64   `json:"quantity"`       // 成交数量
+	QuoteQuantity   float64   `json:"quote_quantity"` // 成交金额（USDT）
+	Commission      float64   `json:"commission"`     // 手续费
+	CommissionAsset string    `json:"commission_asset"`
+	RealizedPnL     float64   `json:"realized_pnl"` // 实现盈亏（平仓时）
+	IsMaker         bool      `json:"is_maker"`     // 是否为maker
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // OrderStore 订单存储

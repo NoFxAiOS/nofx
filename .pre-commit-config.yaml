@@ -1,0 +1,40 @@
+# Pre-commit configuration for NOFX
+# See https://pre-commit.com for more information
+# Note: This project also uses Husky + lint-staged in web/ directory
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        exclude: '.*tsconfig\.json$'  # Exclude tsconfig.json files that support comments
+      - id: check-toml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+
+  # Go code quality (local hooks for better control)
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: gofmt
+        args: [-w]
+        language: system
+        files: \.go$
+
+      - id: go-vet
+        name: go vet
+        entry: bash -c 'go vet $(go list ./... | grep -v /scripts)'
+        language: system
+        files: \.go$
+        pass_filenames: false
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: go mod tidy
+        language: system
+        files: go\.(mod|sum)$
+        pass_filenames: false

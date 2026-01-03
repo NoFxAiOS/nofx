@@ -30,7 +30,7 @@ Mars AI交易系统使用双重加密架构来保护敏感数据：
 - AES-256 数据加密密钥 (保存到 `.env`)
 - 自动权限设置和验证
 
-**适用场景**: 
+**适用场景**:
 - 首次部署
 - 开发环境快速设置
 - 生产环境初始化
@@ -233,10 +233,10 @@ source .env && ./mars
    ```bash
    # macOS
    brew install openssl
-   
+
    # Ubuntu/Debian
    sudo apt-get install openssl
-   
+
    # CentOS/RHEL
    sudo yum install openssl
    ```
@@ -251,7 +251,7 @@ source .env && ./mars
    ```bash
    # 验证RSA私钥
    openssl rsa -in secrets/rsa_key -check -noout
-   
+
    # 验证公钥
    openssl rsa -in secrets/rsa_key.pub -pubin -text -noout
    ```

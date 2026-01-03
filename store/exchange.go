@@ -138,11 +138,11 @@ func (s *ExchangeStore) migrateToMultiAccount() error {
 	defer rows.Close()
 
 	type oldRecord struct {
-		id, userID, name, typ                                                                             string
-		enabled, testnet                                                                                  bool
-		apiKey, secretKey, passphrase                                                                     string
-		hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey                                    string
-		lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey                                     string
+		id, userID, name, typ                                          string
+		enabled, testnet                                               bool
+		apiKey, secretKey, passphrase                                  string
+		hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string
+		lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey  string
 	}
 
 	var records []oldRecord

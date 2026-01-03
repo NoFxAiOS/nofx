@@ -18,8 +18,8 @@ type TestScenario struct {
 
 // TestTrade represents a single trade in a test scenario
 type TestTrade struct {
-	Action      string  // open_long, close_short, etc.
-	Side        string  // LONG or SHORT
+	Action      string // open_long, close_short, etc.
+	Side        string // LONG or SHORT
 	Symbol      string
 	Quantity    float64
 	Price       float64

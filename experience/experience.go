@@ -28,13 +28,13 @@ type Client struct {
 }
 
 type TradeEvent struct {
-	Exchange   string
-	TradeType  string
-	Symbol     string
-	AmountUSD  float64
-	Leverage   int
-	UserID     string
-	TraderID   string
+	Exchange  string
+	TradeType string
+	Symbol    string
+	AmountUSD float64
+	Leverage  int
+	UserID    string
+	TraderID  string
 }
 
 type AIUsageEvent struct {
@@ -129,10 +129,10 @@ func sendTradeEvent(event TradeEvent) error {
 					"symbol":               event.Symbol,
 					"amount_usd":           event.AmountUSD,
 					"leverage":             event.Leverage,
-					"installation_id":      installationID,  // For counting active installations
-					"user_id":              event.UserID,    // For counting active users
-					"trader_id":            event.TraderID,  // For counting active traders
-					"engagement_time_msec": 1,               // Required by GA4
+					"installation_id":      installationID, // For counting active installations
+					"user_id":              event.UserID,   // For counting active users
+					"trader_id":            event.TraderID, // For counting active traders
+					"engagement_time_msec": 1,              // Required by GA4
 				},
 			},
 		},

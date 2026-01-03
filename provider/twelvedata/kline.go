@@ -18,20 +18,20 @@ const (
 
 // Bar represents a single OHLCV bar from Twelve Data
 type Bar struct {
-	Datetime string  `json:"datetime"`
-	Open     string  `json:"open"`
-	High     string  `json:"high"`
-	Low      string  `json:"low"`
-	Close    string  `json:"close"`
-	Volume   string  `json:"volume,omitempty"`
+	Datetime string `json:"datetime"`
+	Open     string `json:"open"`
+	High     string `json:"high"`
+	Low      string `json:"low"`
+	Close    string `json:"close"`
+	Volume   string `json:"volume,omitempty"`
 }
 
 // TimeSeriesResponse represents the response from Twelve Data time_series API
 type TimeSeriesResponse struct {
-	Meta   Meta   `json:"meta"`
-	Values []Bar  `json:"values"`
-	Status string `json:"status"`
-	Code   int    `json:"code,omitempty"`
+	Meta    Meta   `json:"meta"`
+	Values  []Bar  `json:"values"`
+	Status  string `json:"status"`
+	Code    int    `json:"code,omitempty"`
 	Message string `json:"message,omitempty"`
 }
 

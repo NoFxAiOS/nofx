@@ -56,21 +56,21 @@ type DebateSession struct {
 	Name            string            `json:"name"`
 	StrategyID      string            `json:"strategy_id"`
 	Status          DebateStatus      `json:"status"`
-	Symbol          string            `json:"symbol"`           // Primary symbol (for backward compat, may be empty for multi-coin)
+	Symbol          string            `json:"symbol"` // Primary symbol (for backward compat, may be empty for multi-coin)
 	MaxRounds       int               `json:"max_rounds"`
 	CurrentRound    int               `json:"current_round"`
-	IntervalMinutes int               `json:"interval_minutes"` // Debate interval (5, 15, 30, 60 minutes)
-	PromptVariant   string            `json:"prompt_variant"`   // balanced/aggressive/conservative/scalping
-	FinalDecision   *DebateDecision   `json:"final_decision,omitempty"`   // Single decision (backward compat)
-	FinalDecisions  []*DebateDecision `json:"final_decisions,omitempty"`  // Multi-coin decisions
+	IntervalMinutes int               `json:"interval_minutes"`          // Debate interval (5, 15, 30, 60 minutes)
+	PromptVariant   string            `json:"prompt_variant"`            // balanced/aggressive/conservative/scalping
+	FinalDecision   *DebateDecision   `json:"final_decision,omitempty"`  // Single decision (backward compat)
+	FinalDecisions  []*DebateDecision `json:"final_decisions,omitempty"` // Multi-coin decisions
 	AutoExecute     bool              `json:"auto_execute"`
 	TraderID        string            `json:"trader_id,omitempty"` // Trader to use for auto-execute
 	// OI Ranking data options
-	EnableOIRanking bool   `json:"enable_oi_ranking"` // Whether to include OI ranking data
-	OIRankingLimit  int    `json:"oi_ranking_limit"`  // Number of OI ranking entries (default 10)
-	OIDuration      string `json:"oi_duration"`       // Duration for OI data (1h, 4h, 24h, etc.)
-	CreatedAt       time.Time         `json:"created_at"`
-	UpdatedAt       time.Time         `json:"updated_at"`
+	EnableOIRanking bool      `json:"enable_oi_ranking"` // Whether to include OI ranking data
+	OIRankingLimit  int       `json:"oi_ranking_limit"`  // Number of OI ranking entries (default 10)
+	OIDuration      string    `json:"oi_duration"`       // Duration for OI data (1h, 4h, 24h, etc.)
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // DebateDecision represents a trading decision from the debate
@@ -86,7 +86,7 @@ type DebateDecision struct {
 	Reasoning       string  `json:"reasoning"`         // Brief reasoning
 
 	// Execution tracking
-	Executed   bool      `json:"executed"`             // Whether this decision was executed
+	Executed   bool      `json:"executed"`              // Whether this decision was executed
 	ExecutedAt time.Time `json:"executed_at,omitempty"` // When it was executed
 	OrderID    string    `json:"order_id,omitempty"`    // Exchange order ID
 	Error      string    `json:"error,omitempty"`       // Execution error if any
@@ -116,8 +116,8 @@ type DebateMessage struct {
 	Personality DebatePersonality `json:"personality"`
 	MessageType string            `json:"message_type"` // analysis/rebuttal/final/vote
 	Content     string            `json:"content"`
-	Decision    *DebateDecision   `json:"decision,omitempty"`   // Single decision (backward compat)
-	Decisions   []*DebateDecision `json:"decisions,omitempty"`  // Multi-coin decisions
+	Decision    *DebateDecision   `json:"decision,omitempty"`  // Single decision (backward compat)
+	Decisions   []*DebateDecision `json:"decisions,omitempty"` // Multi-coin decisions
 	Confidence  int               `json:"confidence"`
 	CreatedAt   time.Time         `json:"created_at"`
 }
@@ -128,8 +128,8 @@ type DebateVote struct {
 	SessionID     string            `json:"session_id"`
 	AIModelID     string            `json:"ai_model_id"`
 	AIModelName   string            `json:"ai_model_name"`
-	Action        string            `json:"action"`           // Primary action (backward compat)
-	Symbol        string            `json:"symbol"`           // Primary symbol (backward compat)
+	Action        string            `json:"action"` // Primary action (backward compat)
+	Symbol        string            `json:"symbol"` // Primary symbol (backward compat)
 	Confidence    int               `json:"confidence"`
 	Leverage      int               `json:"leverage"`
 	PositionPct   float64           `json:"position_pct"`

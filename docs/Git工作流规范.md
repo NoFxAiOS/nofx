@@ -19,7 +19,7 @@ feat/hotfix 分支
   ↓ Review
 dev (合并回dev分支)
   ↓ 不定期完整测试
-main (合并回main分支)  
+main (合并回main分支)
   ↓ 自动发布
 Release Tag
 ```
@@ -54,13 +54,13 @@ feat/hotfix 分支
   ↓ 开发、测试
   ↓ Pull Request
   ↓ Review
-  ↓ 测试：测试人员拉取当前开发者的feature/hotfix分支，对feature/hotfix进行测试  
+  ↓ 测试：测试人员拉取当前开发者的feature/hotfix分支，对feature/hotfix进行测试
 test-cp (合并进test-cp分支测试)
   ↓ 完整测试  --> 失败回滚
 test (合并进test分支)
-  ↓ 合并test分支  
-  ↓ 更新test环境    
-main (合并回main分支)  
+  ↓ 合并test分支
+  ↓ 更新test环境
+main (合并回main分支)
   ↓ 自动发布
 Release Tag
 ```
@@ -68,7 +68,7 @@ Release Tag
 
 **分支规范：**
 - `main`：生产环境稳定分支
-- `test`：测试环境分支（从 `main` 检出）- 
+- `test`：测试环境分支（从 `main` 检出）-
 - `test-cp`：测试者的临时测试环境分支（从 `test` 检出）
 - 功能开发分支：开发者自建 `feat/功能描述` 格式（从 `test` 检出）
 - 热修复分支：开发者自建 `hotfix/问题描述` 格式（从 `test` 检出）
@@ -196,7 +196,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        
+
       - name: Get milestone info
         id: milestone
         run: |
@@ -207,17 +207,17 @@ jobs:
             MILESTONE_TITLE="${{ github.event.inputs.milestone_title }}"
             MILESTONE_DESC=""
           fi
-          
+
           echo "milestone_title=$MILESTONE_TITLE" >> $GITHUB_OUTPUT
           echo "milestone_description=$MILESTONE_DESC" >> $GITHUB_OUTPUT
-          
+
       - name: Create release tag
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git tag -a "v${{ steps.milestone.outputs.milestone_title }}" -m "${{ steps.milestone.outputs.milestone_description }}"
           git push origin "v${{ steps.milestone.outputs.milestone_title }}"
-          
+
       - name: Create GitHub Release
         uses: actions/create-release@v1
         env:
@@ -228,15 +228,15 @@ jobs:
           body: |
             ## Release Notes
             ${{ steps.milestone.outputs.milestone_description }}
-            
+
             ### Features
             - Feature 1
             - Feature 2
-            
+
             ### Bug Fixes
             - Bug fix 1
             - Bug fix 2
-            
+
           draft: false
           prerelease: false
 ```
@@ -297,12 +297,12 @@ git push origin --delete test-tmp
 
 ### 9.1 开源版本分支模型
 ```text
-Feature/Hotfix 分支 ───● 从Dev检出创建分支[开]──────────● 开发&自测[开]──────────● 提交PR→dev[开]                               
-                                                                   
-                                                                                             
+Feature/Hotfix 分支 ───● 从Dev检出创建分支[开]──────────● 开发&自测[开]──────────● 提交PR→dev[开]
+
+
 Dev 分支                 ● 接收PR/Review[评]───● 合并到 dev[评]───● dev 不定期完整测试[测/CI][通过?]───● 发起 PR：dev→main[维]
-                                                                  
-                                                                   
+
+
 Main 分支            ───● Review[评]───────────● 合并到 main[维]───────────● Release + Tag[CI]────────▶
 ```
 
@@ -312,8 +312,8 @@ Feature/Hotfix 分支 ───● 从Test检出创建分支[开]─────
                                                                                                    ╱
                                                                                                   ╱  测试失败回路：test 未通过 → 返回修复并更新 PR）
 Test 分支         ● 接收PR/Review[评]───● 合并到test-cp[维]───● 构建环境[CI]───● 回归测试[测][通过?]───● 合并进test，发起PR：test→main[维]
-                                                                                       
-                                                                                     
+
+
 Main 分支         ● Review[评]──────────● 合并到 main[维]──────────● Release + Tag[CI]────────▶
 
 ```

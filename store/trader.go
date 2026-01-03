@@ -20,12 +20,12 @@ type Trader struct {
 	Name                string    `json:"name"`
 	AIModelID           string    `json:"ai_model_id"`
 	ExchangeID          string    `json:"exchange_id"`
-	StrategyID          string    `json:"strategy_id"`           // Associated strategy ID
+	StrategyID          string    `json:"strategy_id"` // Associated strategy ID
 	InitialBalance      float64   `json:"initial_balance"`
 	ScanIntervalMinutes int       `json:"scan_interval_minutes"`
 	IsRunning           bool      `json:"is_running"`
 	IsCrossMargin       bool      `json:"is_cross_margin"`
-	ShowInCompetition   bool      `json:"show_in_competition"`   // Whether to show in competition page
+	ShowInCompetition   bool      `json:"show_in_competition"` // Whether to show in competition page
 	CreatedAt           time.Time `json:"created_at"`
 	UpdatedAt           time.Time `json:"updated_at"`
 

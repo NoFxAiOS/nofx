@@ -31,21 +31,21 @@ type TraderPosition struct {
 	ExchangeType       string     `json:"exchange_type"`        // Exchange type: binance/bybit/okx/hyperliquid/aster/lighter
 	ExchangePositionID string     `json:"exchange_position_id"` // Exchange-specific unique position ID for deduplication
 	Symbol             string     `json:"symbol"`
-	Side               string     `json:"side"`            // LONG/SHORT
-	EntryQuantity      float64    `json:"entry_quantity"`  // Original entry quantity (never modified)
-	Quantity           float64    `json:"quantity"`        // Remaining quantity (reduced on partial close)
-	EntryPrice         float64    `json:"entry_price"`     // Entry price
-	EntryOrderID       string     `json:"entry_order_id"`  // Entry order ID
-	EntryTime          time.Time  `json:"entry_time"`      // Entry time
-	ExitPrice          float64    `json:"exit_price"`      // Exit price
-	ExitOrderID        string     `json:"exit_order_id"`   // Exit order ID
-	ExitTime           *time.Time `json:"exit_time"`       // Exit time
-	RealizedPnL        float64    `json:"realized_pnl"`    // Realized profit and loss
-	Fee                float64    `json:"fee"`             // Fee
-	Leverage           int        `json:"leverage"`        // Leverage multiplier
-	Status             string     `json:"status"`          // OPEN/CLOSED
-	CloseReason        string     `json:"close_reason"`    // Close reason: ai_decision/manual/stop_loss/take_profit
-	Source             string     `json:"source"`          // Source: system/manual/sync
+	Side               string     `json:"side"`           // LONG/SHORT
+	EntryQuantity      float64    `json:"entry_quantity"` // Original entry quantity (never modified)
+	Quantity           float64    `json:"quantity"`       // Remaining quantity (reduced on partial close)
+	EntryPrice         float64    `json:"entry_price"`    // Entry price
+	EntryOrderID       string     `json:"entry_order_id"` // Entry order ID
+	EntryTime          time.Time  `json:"entry_time"`     // Entry time
+	ExitPrice          float64    `json:"exit_price"`     // Exit price
+	ExitOrderID        string     `json:"exit_order_id"`  // Exit order ID
+	ExitTime           *time.Time `json:"exit_time"`      // Exit time
+	RealizedPnL        float64    `json:"realized_pnl"`   // Realized profit and loss
+	Fee                float64    `json:"fee"`            // Fee
+	Leverage           int        `json:"leverage"`       // Leverage multiplier
+	Status             string     `json:"status"`         // OPEN/CLOSED
+	CloseReason        string     `json:"close_reason"`   // Close reason: ai_decision/manual/stop_loss/take_profit
+	Source             string     `json:"source"`         // Source: system/manual/sync
 	CreatedAt          time.Time  `json:"created_at"`
 	UpdatedAt          time.Time  `json:"updated_at"`
 }
@@ -795,10 +795,10 @@ func (s *PositionStore) GetSymbolStats(traderID string, limit int) ([]SymbolStat
 
 // HoldingTimeStats holding duration analysis
 type HoldingTimeStats struct {
-	Range       string  `json:"range"`        // e.g., "<1h", "1-4h", "4-24h", ">24h"
-	TradeCount  int     `json:"trade_count"`
-	WinRate     float64 `json:"win_rate"`
-	AvgPnL      float64 `json:"avg_pnl"`
+	Range      string  `json:"range"` // e.g., "<1h", "1-4h", "4-24h", ">24h"
+	TradeCount int     `json:"trade_count"`
+	WinRate    float64 `json:"win_rate"`
+	AvgPnL     float64 `json:"avg_pnl"`
 }
 
 // GetHoldingTimeStats analyzes performance by holding duration
@@ -914,9 +914,9 @@ type HistorySummary struct {
 	RecentPnL     float64 `json:"recent_pnl"`
 
 	// Streak info
-	CurrentStreak     int    `json:"current_streak"`      // Positive = wins, negative = losses
-	MaxWinStreak      int    `json:"max_win_streak"`
-	MaxLoseStreak     int    `json:"max_lose_streak"`
+	CurrentStreak int `json:"current_streak"` // Positive = wins, negative = losses
+	MaxWinStreak  int `json:"max_win_streak"`
+	MaxLoseStreak int `json:"max_lose_streak"`
 }
 
 // GetHistorySummary generates comprehensive AI context summary

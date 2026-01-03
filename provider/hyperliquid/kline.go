@@ -18,16 +18,16 @@ const (
 
 // Candle represents a single OHLCV candle from Hyperliquid
 type Candle struct {
-	OpenTime   int64   `json:"t"`  // Open time in milliseconds
-	CloseTime  int64   `json:"T"`  // Close time in milliseconds
-	Symbol     string  `json:"s"`  // Coin symbol
-	Interval   string  `json:"i"`  // Interval
-	Open       string  `json:"o"`  // Open price
-	High       string  `json:"h"`  // High price
-	Low        string  `json:"l"`  // Low price
-	Close      string  `json:"c"`  // Close price
-	Volume     string  `json:"v"`  // Volume in base unit
-	TradeCount int     `json:"n"`  // Number of trades
+	OpenTime   int64  `json:"t"` // Open time in milliseconds
+	CloseTime  int64  `json:"T"` // Close time in milliseconds
+	Symbol     string `json:"s"` // Coin symbol
+	Interval   string `json:"i"` // Interval
+	Open       string `json:"o"` // Open price
+	High       string `json:"h"` // High price
+	Low        string `json:"l"` // Low price
+	Close      string `json:"c"` // Close price
+	Volume     string `json:"v"` // Volume in base unit
+	TradeCount int    `json:"n"` // Number of trades
 }
 
 // CandleRequest represents the request for candleSnapshot
@@ -230,9 +230,9 @@ type Meta struct {
 
 // AssetInfo represents information about a single asset
 type AssetInfo struct {
-	Name       string `json:"name"`
-	SzDecimals int    `json:"szDecimals"`
-	MaxLeverage int   `json:"maxLeverage"`
+	Name        string `json:"name"`
+	SzDecimals  int    `json:"szDecimals"`
+	MaxLeverage int    `json:"maxLeverage"`
 }
 
 // NormalizeCoin normalizes coin name for Hyperliquid API

@@ -197,7 +197,7 @@ func (s *Server) setupRoutes() {
 			protected.GET("/positions", s.handlePositions)
 			protected.GET("/positions/history", s.handlePositionHistory)
 			protected.GET("/trades", s.handleTrades)
-			protected.GET("/orders", s.handleOrders)           // Order list (all orders)
+			protected.GET("/orders", s.handleOrders)               // Order list (all orders)
 			protected.GET("/orders/:id/fills", s.handleOrderFills) // Order fill details
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
@@ -2175,9 +2175,9 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
 
 	c.JSON(http.StatusOK, gin.H{
-		"positions": positions,
-		"stats": stats,
-		"symbol_stats": symbolStats,
+		"positions":       positions,
+		"stats":           stats,
+		"symbol_stats":    symbolStats,
 		"direction_stats": directionStats,
 	})
 }
@@ -2556,8 +2556,8 @@ func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]mark
 			High:        bar.High,
 			Low:         bar.Low,
 			Close:       bar.Close,
-			Volume:      float64(bar.Volume),              // 股数
-			QuoteVolume: float64(bar.Volume) * bar.Close,  // 成交额 = 股数 * 收盘价 (USD)
+			Volume:      float64(bar.Volume),             // 股数
+			QuoteVolume: float64(bar.Volume) * bar.Close, // 成交额 = 股数 * 收盘价 (USD)
 			CloseTime:   bar.Timestamp.UnixMilli(),
 		}
 	}
@@ -2638,8 +2638,8 @@ func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([
 			High:        high,
 			Low:         low,
 			Close:       close,
-			Volume:      volume,            // 合约数量
-			QuoteVolume: volume * close,    // 成交额 (USD)
+			Volume:      volume,         // 合约数量
+			QuoteVolume: volume * close, // 成交额 (USD)
 			CloseTime:   candle.CloseTime,
 		}
 	}

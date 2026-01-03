@@ -24,15 +24,16 @@ func NewQwenClient() AIClient {
 // NewQwenClientWithOptions creates Qwen client (supports options pattern)
 //
 // Usage examples:
-//   // Basic usage
-//   client := mcp.NewQwenClientWithOptions()
 //
-//   // Custom configuration
-//   client := mcp.NewQwenClientWithOptions(
-//       mcp.WithAPIKey("sk-xxx"),
-//       mcp.WithLogger(customLogger),
-//       mcp.WithTimeout(60*time.Second),
-//   )
+//	// Basic usage
+//	client := mcp.NewQwenClientWithOptions()
+//
+//	// Custom configuration
+//	client := mcp.NewQwenClientWithOptions(
+//	    mcp.WithAPIKey("sk-xxx"),
+//	    mcp.WithLogger(customLogger),
+//	    mcp.WithTimeout(60*time.Second),
+//	)
 func NewQwenClientWithOptions(opts ...ClientOption) AIClient {
 	// 1. Create Qwen preset options
 	qwenOpts := []ClientOption{

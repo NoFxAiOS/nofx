@@ -54,7 +54,6 @@ func SetOITopAPI(apiURL string) {
 	oiTopConfig.APIURL = apiURL
 }
 
-
 // GetAI500Data retrieves AI500 coin list (with retry mechanism)
 func GetAI500Data() ([]CoinData, error) {
 	// Check if API URL is configured
@@ -235,7 +234,6 @@ func endsWith(s, suffix string) bool {
 	}
 	return s[len(s)-len(suffix):] == suffix
 }
-
 
 // ========== OI Top (Open Interest Growth Top 20) Data ==========
 

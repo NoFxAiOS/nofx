@@ -11,9 +11,9 @@ import (
 
 // AIModelStore AI model storage
 type AIModelStore struct {
-	db            *sql.DB
-	encryptFunc   func(string) string
-	decryptFunc   func(string) string
+	db          *sql.DB
+	encryptFunc func(string) string
+	decryptFunc func(string) string
 }
 
 // AIModel AI model configuration

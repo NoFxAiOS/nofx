@@ -1,5 +1,5 @@
 ## High priority issues listed in Issue Tab
-- [ ] [Issue 1](https://github.com/NoFxAiOS/nofx/issues/1263): 
+- [ ] [Issue 1](https://github.com/NoFxAiOS/nofx/issues/1263):
     ### Feature Request: EMA, MACD, RSI, ATR parameters in strategy studio
     ```markdown
         - Reuqest:  策略工作室中的EMA 、macd、rsi、atr均线参数均为硬编码，自定义无效，因为交易信号的生成可通过调整均线值快速识别趋势，请不要硬编码
@@ -36,12 +36,12 @@
             market/data.go:661 - calculateTimeframeSeries 使用可配置的 count
             backtest/datafeed.go:207 - 回测调用 BuildDataFromKlines
             decision/engine.go:1101-1110 - 格式化时优先使用 TimeframeData，fallback 到 IntradaySeries
-    
+
         - 影响
             模式	K线数量	时间跨度(3m)	数据来源
             策略模式	30 根	90 分钟	TimeframeData
             回测模式	10 根	30 分钟	IntradaySeries
-            
+
             - 回测结果可能与实盘表现不一致
             - AI 在回测中看到的历史数据更少
             - 累积指标的回看时间也应该与 K 线数量对齐
@@ -84,7 +84,7 @@
     Issue Summary: 4H Candle Update Failure
     Problem: 4-hour candles stop updating while shorter timeframes (15m, 1h) continue working normally.
 
-    Root Cause: 
+    Root Cause:
     - NOFX subscribes to WebSocket streams for all trading pairs (~534 pairs) across multiple timeframes (3m + 4h)
     - This creates ~1,068 concurrent streams, exceeding Binance's 1,024 stream limit
     - Binance closes the connection with "1008 policy violation: Invalid request"
@@ -178,7 +178,7 @@
 
     **Response from Developer** (h72by2sz8y-prog):
     - Suggested user can **modify it with AI assistance**
-    - Mentioned project **"now has local logic"** 
+    - Mentioned project **"now has local logic"**
     - Implied this feature could be implemented by users themselves
 
     **Issue Type**: Enhancement/New feature request
@@ -205,7 +205,7 @@
 
     **Code Locations**:
     - **Condition Check**: `trader/auto_trader.go:1550`
-    - **Execution Logic**: `trader/auto_trader.go:1555` 
+    - **Execution Logic**: `trader/auto_trader.go:1555`
     - **Monitoring Loop**: `trader/auto_trader.go:1560`
 
     **Monitoring Frequency**:
@@ -216,9 +216,9 @@
     - **Trigger**: When profit drops 40% from peak (e.g., from 10% profit to 6% profit)
     - **Action**: Immediately closes position to preserve remaining profit
 
-    **Design Philosophy**: 
+    **Design Philosophy**:
     - **Conservative approach** - waits for meaningful profit (5%+) before monitoring
-    - **Substantial drawdown threshold** (40%) to avoid premature closes  
+    - **Substantial drawdown threshold** (40%) to avoid premature closes
     - **Profit preservation** rather than loss prevention focus
 
     This directly addresses VioletEvergar-den's concern about AI reaction delays by implementing automated profit protection independent of AI decision-making speed.
@@ -233,7 +233,7 @@
 
     **Evidence from Logs**:
     - **Logged current_price**: `2950.1000` (ETHUSDT)
-    - **Actual trading current price**: `2925.4800` (ETHUSDT) 
+    - **Actual trading current price**: `2925.4800` (ETHUSDT)
     - **Deviation**: ~$25 difference (~0.85% deviation)
 
     **📸 Key Details**:
@@ -267,7 +267,7 @@
     **📋 Current Limitation**:
     AI trading decisions are limited by insufficient market data, currently only providing:
     - **K-line data** (OHLCV candles)
-    - **Technical indicators** 
+    - **Technical indicators**
     - **Open Interest (OI)**
     - **Trading volume**
 
@@ -333,7 +333,7 @@
 
     **📚 Benefits**:
     - **Risk-free testing** for new users
-    - **Strategy validation** before live deployment  
+    - **Strategy validation** before live deployment
     - **Educational tool** for learning AI trading behavior
     - **Development testing** for new features
 
@@ -358,7 +358,7 @@
     **💡 Proposed Enhancement**:
     Integrate **fundamental analysis** through:
     - **Real-time news feeds** for relevant cryptocurrencies
-    - **News sentiment analysis** 
+    - **News sentiment analysis**
     - **Combined decision-making**: News + Technical + Trading conditions
 
     **📊 Use Cases**:
@@ -377,7 +377,7 @@
     **✅ Expected Outcome**:
     AI traders make more **informed decisions** by considering:
     1. **Technical signals** (current capability)
-    2. **Market conditions** (current capability)  
+    2. **Market conditions** (current capability)
     3. **Fundamental news events** (new capability)
 
     **📈 Benefits**:
@@ -437,7 +437,7 @@
     ### Feature: reqeust contract features
 
 - [ ] [Issue 15](https://github.com/NoFxAiOS/nofx/issues/977)
-    ### KLine type enhancement 
+    ### KLine type enhancement
     - 现在是3min k和4h k，希望能够选择5min 或者30min，1h这种
 
 - [ ] [Issue 16](https://github.com/NoFxAiOS/nofx/issues/1237)
@@ -459,7 +459,7 @@
     **🔧 Technical Implementation**:
 
     **Real-time monitoring layer**:
-    - **TICK data stream analysis** 
+    - **TICK data stream analysis**
     - **Market momentum detection**
     - **Order book imbalance monitoring**
     - **Energy/volatility thresholds**

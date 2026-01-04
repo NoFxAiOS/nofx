@@ -348,7 +348,7 @@ export function TraderDashboardPage({
                     }}
                 >
                     <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-4">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1 w-full sm:w-auto">
+                        <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-4 text-nofx-text-main min-w-0 flex-1">
                             <div className="relative flex-shrink-0">
                                 <PunkAvatar
                                     seed={getTraderAvatar(
@@ -361,38 +361,33 @@ export function TraderDashboardPage({
                                 <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                             </div>
                             
-                            {/* Mobile: Trader Selector below avatar, full width */}
-                            <div className="w-full sm:hidden">
-                                {traders && traders.length > 0 && (
-                                    <div className="flex items-center gap-2 nofx-glass px-2 py-1.5 rounded-lg border border-white/5 w-full">
-                                        <select
-                                            value={selectedTraderId}
-                                            onChange={(e) => onTraderSelect(e.target.value)}
-                                            className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none w-full"
-                                        >
-                                            {traders.map((trader) => (
-                                                <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
-                                                    {trader.trader_name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
+                            {/* Mobile: Trader Selector next to avatar */}
+                            {traders && traders.length > 0 && (
+                                <div className="sm:hidden flex items-center gap-2 nofx-glass px-2 py-1.5 rounded-lg border border-white/5 flex-shrink-0">
+                                    <select
+                                        value={selectedTraderId}
+                                        onChange={(e) => onTraderSelect(e.target.value)}
+                                        className="bg-transparent text-xs font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none"
+                                    >
+                                        {traders.map((trader) => (
+                                            <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
+                                                {trader.trader_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                                <span className="text-lg sm:text-2xl md:text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted break-words font-bold">
+                                <span className="text-lg sm:text-2xl md:text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted break-words">
                                     {selectedTrader.trader_name}
                                 </span>
-                                <span className="text-xs sm:text-sm font-medium text-nofx-text-muted opacity-80 mt-0.5 sm:mt-1">
-                                    {language === 'zh' ? '当前交易员' : 'Current Trader'}
-                                </span>
-                                <span className="text-[10px] sm:text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-1.5 sm:gap-2 break-all mt-1">
+                                <span className="text-[10px] sm:text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-1.5 sm:gap-2 break-all">
                                     <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
                                     <span className="break-all">ID: {selectedTrader.trader_id}</span>
                                 </span>
                             </div>
-                        </div>
+                        </h2>
 
                         <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 w-full sm:w-auto justify-end">
                             {/* Desktop: Trader Selector */}

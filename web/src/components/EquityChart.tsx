@@ -192,7 +192,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
           style={{ background: '#1E2329', border: '1px solid #2B3139' }}
         >
           <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
-            Cycle #{data.cycle}
+            {t('cycle', language)} #{data.cycle}
           </div>
           <div className="font-bold mono" style={{ color: '#EAECEF' }}>
             {data.raw_equity.toFixed(2)} USDT
@@ -213,33 +213,33 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
 
   return (
     <div className={embedded ? 'p-3 sm:p-5' : 'binance-card p-3 sm:p-5 animate-fade-in'}>
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-        <div className="flex-1">
+      {/* Header - 保持与桌面端一致的布局结构，仅调整尺寸 */}
+      <div className="flex items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
+        <div className="flex-1 min-w-0">
           {!embedded && (
             <h3
-              className="text-base sm:text-lg font-bold mb-2"
+              className="text-sm sm:text-base lg:text-lg font-bold mb-1.5 sm:mb-2"
               style={{ color: '#EAECEF' }}
             >
               {t('accountEquityCurve', language)}
             </h3>
           )}
-          <div className="flex flex-col sm:flex-row sm:items-baseline gap-2 sm:gap-4">
+          <div className="flex items-baseline gap-2 sm:gap-3 lg:gap-4 flex-wrap">
             <span
-              className="text-2xl sm:text-3xl font-bold mono"
+              className="text-xl sm:text-2xl lg:text-3xl font-bold mono whitespace-nowrap"
               style={{ color: '#EAECEF' }}
             >
               {account?.total_equity.toFixed(2) || '0.00'}
               <span
-                className="text-base sm:text-lg ml-1"
+                className="text-sm sm:text-base lg:text-lg ml-1"
                 style={{ color: '#848E9C' }}
               >
                 USDT
               </span>
             </span>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <span
-                className="text-sm sm:text-lg font-bold mono px-2 sm:px-3 py-1 rounded flex items-center gap-1"
+                className="text-xs sm:text-sm lg:text-lg font-bold mono px-1.5 sm:px-2 lg:px-3 py-0.5 sm:py-1 rounded flex items-center gap-0.5 sm:gap-1"
                 style={{
                   color: isProfit ? '#0ECB81' : '#F6465D',
                   background: isProfit
@@ -253,15 +253,15 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
                 }}
               >
                 {isProfit ? (
-                  <ArrowUp className="w-4 h-4" />
+                  <ArrowUp className="w-3 h-3 sm:w-4 sm:h-4" />
                 ) : (
-                  <ArrowDown className="w-4 h-4" />
+                  <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4" />
                 )}
                 {isProfit ? '+' : ''}
                 {currentValue.raw_pnl_pct}%
               </span>
               <span
-                className="text-xs sm:text-sm mono"
+                className="text-[10px] sm:text-xs lg:text-sm mono whitespace-nowrap"
                 style={{ color: '#848E9C' }}
               >
                 ({isProfit ? '+' : ''}
@@ -271,14 +271,14 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
           </div>
         </div>
 
-        {/* Display Mode Toggle */}
+        {/* Display Mode Toggle - 保持右侧位置 */}
         <div
-          className="flex gap-0.5 sm:gap-1 rounded p-0.5 sm:p-1 self-start sm:self-auto"
+          className="flex gap-0.5 sm:gap-1 rounded p-0.5 sm:p-1 flex-shrink-0"
           style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
         >
           <button
             onClick={() => setDisplayMode('dollar')}
-            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded text-xs sm:text-sm font-bold transition-all flex items-center gap-1"
+            className="px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 rounded text-[10px] sm:text-xs lg:text-sm font-bold transition-all flex items-center gap-0.5 sm:gap-1"
             style={
               displayMode === 'dollar'
                 ? {
@@ -289,11 +289,12 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
                 : { background: 'transparent', color: '#848E9C' }
             }
           >
-            <DollarSign className="w-4 h-4" /> USDT
+            <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">USDT</span>
           </button>
           <button
             onClick={() => setDisplayMode('percent')}
-            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded text-xs sm:text-sm font-bold transition-all flex items-center gap-1"
+            className="px-2 sm:px-3 lg:px-4 py-1 sm:py-1.5 lg:py-2 rounded text-[10px] sm:text-xs lg:text-sm font-bold transition-all flex items-center gap-0.5 sm:gap-1"
             style={
               displayMode === 'percent'
                 ? {
@@ -304,7 +305,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
                 : { background: 'transparent', color: '#848E9C' }
             }
           >
-            <Percent className="w-4 h-4" />
+            <Percent className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
         </div>
       </div>
@@ -373,7 +374,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
               label={{
                 value:
                   displayMode === 'dollar'
-                    ? t('initialBalance', language).split(' ')[0]
+                    ? (language === 'zh' ? t('initialBalance', language).split(' ')[0] : t('initialBalance', language).split(' ')[0])
                     : '0%',
                 fill: '#848E9C',
                 fontSize: 12,

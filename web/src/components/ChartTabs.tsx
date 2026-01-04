@@ -226,7 +226,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                           type="text"
                           value={searchFilter}
                           onChange={(e) => setSearchFilter(e.target.value)}
-                          placeholder="Search..."
+                          placeholder={language === 'zh' ? '搜索...' : 'Search...'}
                           className="flex-1 bg-transparent text-[11px] text-white placeholder-gray-600 focus:outline-none"
                           autoFocus
                         />
@@ -236,10 +236,18 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                       {['crypto', 'stock', 'forex', 'commodity', 'index'].map(category => {
                         const categorySymbols = filteredSymbols.filter(s => s.category === category)
                         if (categorySymbols.length === 0) return null
-                        const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Index' }
+                        const labels: Record<string, { zh: string; en: string }> = {
+                          crypto: { zh: '加密货币', en: 'Crypto' },
+                          stock: { zh: '股票', en: 'Stocks' },
+                          forex: { zh: '外汇', en: 'Forex' },
+                          commodity: { zh: '商品', en: 'Commodities' },
+                          index: { zh: '指数', en: 'Index' }
+                        }
                         return (
                           <div key={category}>
-                            <div className="px-3 py-1 text-[9px] font-medium text-gray-500 bg-[#0D1117] uppercase tracking-wider">{labels[category]}</div>
+                            <div className="px-3 py-1 text-[9px] font-medium text-gray-500 bg-[#0D1117] uppercase tracking-wider">
+                              {language === 'zh' ? labels[category].zh : labels[category].en}
+                            </div>
                             {categorySymbols.map(s => (
                               <button
                                 key={s.symbol}
@@ -283,11 +291,11 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 type="text"
                 value={symbolInput}
                 onChange={(e) => setSymbolInput(e.target.value)}
-                placeholder="Symbol..."
+                placeholder={t('enterSymbol', language)}
                 className="w-20 px-2 py-1 bg-[#0D1117] border border-[#30363D] rounded-l text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
               />
               <button type="submit" className="px-2 py-1 bg-[#21262D] border border-[#30363D] border-l-0 rounded-r text-[10px] text-gray-400 hover:text-white hover:bg-[#30363D] transition-all">
-                Go
+                {language === 'zh' ? '确定' : 'Go'}
               </button>
             </form>
           </div>

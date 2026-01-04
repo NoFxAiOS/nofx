@@ -161,7 +161,7 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
           {t('sourceType')}
         </label>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
             <button
               key={value}
@@ -170,7 +170,7 @@ export function CoinSourceEditor({
                 onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
               }
               disabled={disabled}
-              className={`p-4 rounded-lg border transition-all ${
+              className={`p-3 sm:p-4 rounded-lg border transition-all ${
                 config.source_type === value
                   ? 'ring-2 ring-yellow-500'
                   : 'hover:bg-white/5'
@@ -183,11 +183,11 @@ export function CoinSourceEditor({
                 borderColor: '#2B3139',
               }}
             >
-              <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
-              <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+              <Icon className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1.5 sm:mb-2" style={{ color }} />
+              <div className="text-xs sm:text-sm font-medium" style={{ color: '#EAECEF' }}>
                 {t(value)}
               </div>
-              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+              <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 leading-tight" style={{ color: '#848E9C' }}>
                 {t(`${value}Desc`)}
               </div>
             </button>

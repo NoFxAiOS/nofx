@@ -758,9 +758,9 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Middle Column - Config Editor */}
-        <div className="flex-1 min-w-0 overflow-y-auto border-b lg:border-b-0 lg:border-r" style={{ borderColor: '#2B3139' }}>
+        <div className="flex-1 min-w-0 flex flex-col border-b lg:border-b-0 lg:border-r overflow-hidden" style={{ borderColor: '#2B3139' }}>
           {selectedStrategy && editingConfig ? (
-            <div className="p-3 sm:p-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4">
               {/* Strategy Name & Actions */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-2 sm:gap-0">
                 <div className="flex-1 min-w-0 w-full sm:w-auto">
@@ -839,7 +839,7 @@ export function StrategyStudioPage() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <Activity className="w-12 h-12 mx-auto mb-2 opacity-30" style={{ color: '#848E9C' }} />
                 <p className="text-sm" style={{ color: '#848E9C' }}>

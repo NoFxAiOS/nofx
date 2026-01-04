@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useSWR from 'swr'
 import { api } from './lib/api'
-import { ChartTabs } from './components/ChartTabs'
 import { AITradersPage } from './components/AITradersPage'
 import { LoginPage } from './components/LoginPage'
 import { RegisterPage } from './components/RegisterPage'
@@ -20,9 +19,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/ConfirmDialog'
 import { t } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
-import { DecisionCard } from './components/DecisionCard'
-import { PositionHistory } from './components/PositionHistory'
-import { PunkAvatar, getTraderAvatar } from './components/PunkAvatar'
 import { OFFICIAL_LINKS } from './constants/branding'
 import { BacktestPage } from './components/BacktestPage'
 import { TraderDashboardPage } from './pages/TraderDashboardPage'
@@ -47,74 +43,6 @@ type Page =
   | 'faq'
   | 'login'
   | 'register'
-
-// 获取友好的AI模型名称
-function getModelDisplayName(modelId: string): string {
-  switch (modelId.toLowerCase()) {
-    case 'deepseek':
-      return 'DeepSeek'
-    case 'qwen':
-      return 'Qwen'
-    case 'claude':
-      return 'Claude'
-    default:
-      return modelId.toUpperCase()
-  }
-}
-
-// Helper function to get exchange display name from exchange ID (UUID)
-function getExchangeDisplayNameFromList(
-  exchangeId: string | undefined,
-  exchanges: Exchange[] | undefined
-): string {
-  if (!exchangeId) return 'Unknown'
-  const exchange = exchanges?.find((e) => e.id === exchangeId)
-  if (!exchange) return exchangeId.substring(0, 8).toUpperCase() + '...'
-  const typeName = exchange.exchange_type?.toUpperCase() || exchange.name
-  return exchange.account_name
-    ? `${typeName} - ${exchange.account_name}`
-    : typeName
-}
-
-// Helper function to get exchange type from exchange ID (UUID) - for kline charts
-function getExchangeTypeFromList(
-  exchangeId: string | undefined,
-  exchanges: Exchange[] | undefined
-): string {
-  if (!exchangeId) return 'binance'
-  const exchange = exchanges?.find((e) => e.id === exchangeId)
-  if (!exchange) return 'binance' // Default to binance for charts
-  return exchange.exchange_type?.toLowerCase() || 'binance'
-}
-
-// Helper function to check if exchange is a perp-dex type (wallet-based)
-function isPerpDexExchange(exchangeType: string | undefined): boolean {
-  if (!exchangeType) return false
-  const perpDexTypes = ['hyperliquid', 'lighter', 'aster']
-  return perpDexTypes.includes(exchangeType.toLowerCase())
-}
-
-// Helper function to get wallet address for perp-dex exchanges
-function getWalletAddress(exchange: Exchange | undefined): string | undefined {
-  if (!exchange) return undefined
-  const type = exchange.exchange_type?.toLowerCase()
-  switch (type) {
-    case 'hyperliquid':
-      return exchange.hyperliquidWalletAddr
-    case 'lighter':
-      return exchange.lighterWalletAddr
-    case 'aster':
-      return exchange.asterSigner
-    default:
-      return undefined
-  }
-}
-
-// Helper function to truncate wallet address for display
-function truncateAddress(address: string, startLen = 6, endLen = 4): string {
-  if (address.length <= startLen + endLen + 3) return address
-  return `${address.slice(0, startLen)}...${address.slice(-endLen)}`
-}
 
 function App() {
   const { language, setLanguage } = useLanguage()
@@ -660,56 +588,7 @@ function App() {
   )
 }
 
-// Stat Card Component - Binance Style Enhanced
-function StatCard({
-  title,
-  value,
-  change,
-  positive,
-  subtitle,
-}: {
-  title: string
-  value: string
-  change?: number
-  positive?: boolean
-  subtitle?: string
-}) {
-  return (
-    <div className="stat-card animate-fade-in">
-      <div
-        className="text-[10px] sm:text-xs mb-1.5 sm:mb-2 mono uppercase tracking-wider"
-        style={{ color: '#848E9C' }}
-      >
-        {title}
-      </div>
-      <div
-        className="text-lg sm:text-xl lg:text-2xl font-bold mb-1 mono break-words"
-        style={{ color: '#EAECEF' }}
-      >
-        {value}
-      </div>
-      {change !== undefined && (
-        <div className="flex items-center gap-1">
-          <div
-            className="text-xs sm:text-sm mono font-bold"
-            style={{ color: positive ? '#0ECB81' : '#F6465D' }}
-          >
-            {positive ? '▲' : '▼'} {positive ? '+' : ''}
-            {change.toFixed(2)}%
-          </div>
-        </div>
-      )}
-      {subtitle && (
-        <div className="text-[10px] sm:text-xs mt-1.5 sm:mt-2 mono" style={{ color: '#848E9C' }}>
-          {subtitle}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // Wrap App with providers
-export default function AppWithProviders() {
 export default function AppWithProviders() {
   return (
     <LanguageProvider>

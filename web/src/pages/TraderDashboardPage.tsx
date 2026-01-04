@@ -349,8 +349,8 @@ export function TraderDashboardPage({
                 >
                     <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 sm:gap-4 md:gap-5 mb-3 sm:mb-4 md:mb-5">
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 md:gap-5 min-w-0 flex-1 w-full sm:w-auto">
-                            {/* Mobile: Avatar and Trader Selector in one row */}
-                            <div className="sm:hidden flex items-center gap-2 w-full">
+                            {/* Avatar and Info - Same layout for mobile and desktop */}
+                            <h2 className="flex text-2xl font-bold items-center gap-2 sm:gap-3 md:gap-4 lg:gap-5 text-nofx-text-main min-w-0 flex-1">
                                 <div className="relative flex-shrink-0">
                                     <PunkAvatar
                                         seed={getTraderAvatar(
@@ -358,39 +358,7 @@ export function TraderDashboardPage({
                                             selectedTrader.trader_name
                                         )}
                                         size={48}
-                                        className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)]"
-                                    />
-                                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
-                                </div>
-                                
-                                {/* Mobile: Trader Selector next to avatar, full width */}
-                                {traders && traders.length > 0 && (
-                                    <div className="flex items-center gap-2 nofx-glass px-2 py-1.5 rounded-lg border border-white/5 flex-1 min-h-[48px]">
-                                        <select
-                                            value={selectedTraderId}
-                                            onChange={(e) => onTraderSelect(e.target.value)}
-                                            className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none w-full h-full"
-                                        >
-                                            {traders.map((trader) => (
-                                                <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
-                                                    {trader.trader_name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Desktop: Avatar and Info */}
-                            <h2 className="hidden sm:flex text-2xl font-bold items-center gap-3 sm:gap-4 md:gap-5 text-nofx-text-main min-w-0 flex-1">
-                                <div className="relative flex-shrink-0">
-                                    <PunkAvatar
-                                        seed={getTraderAvatar(
-                                            selectedTrader.trader_id,
-                                            selectedTrader.trader_name
-                                        )}
-                                        size={48}
-                                        className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)] sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16"
+                                        className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)] w-12 h-12 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16"
                                     />
                                     <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                                 </div>
@@ -398,23 +366,12 @@ export function TraderDashboardPage({
                                     <span className="text-base sm:text-lg md:text-xl lg:text-2xl font-medium text-nofx-text-main truncate">
                                         {selectedTrader.trader_name}
                                     </span>
-                                    <span className="text-[10px] sm:text-xs md:text-sm font-mono text-nofx-text-muted opacity-60 flex items-center gap-1.5 sm:gap-2 truncate">
+                                    <span className="text-[10px] sm:text-xs md:text-sm font-mono text-nofx-text-muted opacity-60 flex items-center gap-1 sm:gap-1.5 md:gap-2 truncate">
                                         <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
                                         <span className="truncate">ID: {selectedTrader.trader_id}</span>
                                     </span>
                                 </div>
                             </h2>
-
-                            {/* Mobile: Trader Name and ID below avatar and selector */}
-                            <div className="sm:hidden flex flex-col min-w-0 flex-1 overflow-hidden w-full">
-                                <span className="text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted break-words font-bold">
-                                    {selectedTrader.trader_name}
-                                </span>
-                                <span className="text-[10px] font-mono text-nofx-text-muted opacity-60 flex items-center gap-1.5 break-all">
-                                    <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
-                                    <span className="break-all">ID: {selectedTrader.trader_id}</span>
-                                </span>
-                            </div>
                         </div>
 
                         <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-shrink-0 w-full sm:w-auto justify-end">
@@ -531,6 +488,25 @@ export function TraderDashboardPage({
                         )}
                     </div>
                 </div>
+
+                {/* Mobile: Trader Selector below avatar and info, full width */}
+                {traders && traders.length > 0 && (
+                    <div className="sm:hidden w-full mb-3">
+                        <div className="flex items-center gap-2 nofx-glass px-3 py-2 rounded-lg border border-white/5 w-full">
+                            <select
+                                value={selectedTraderId}
+                                onChange={(e) => onTraderSelect(e.target.value)}
+                                className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none w-full h-full"
+                            >
+                                {traders.map((trader) => (
+                                    <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
+                                        {trader.trader_name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                )}
 
                 {/* Debug Info */}
                 {account && (

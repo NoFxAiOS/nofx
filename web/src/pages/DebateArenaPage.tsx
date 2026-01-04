@@ -667,15 +667,15 @@ export function DebateArenaPage() {
                       {t('discussionRecords', language)}
                     </div>
                           <div className="space-y-2 sm:space-y-3">
-                            {Object.entries(rounds).map(([round, msgs]) => (
+                      {Object.entries(rounds).map(([round, msgs]) => (
                               <div key={round} className="bg-white/5 rounded-xl p-2 sm:p-3">
                                 <div className="text-[10px] sm:text-xs text-blue-400 font-bold mb-1.5 sm:mb-2">Round {round}</div>
                                 <div className="space-y-1.5 sm:space-y-2">
                                   {msgs.map(m => <MessageCard key={m.id} msg={m} language={language} />)}
-                                </div>
-                              </div>
-                            ))}
                           </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Right - Votes */}

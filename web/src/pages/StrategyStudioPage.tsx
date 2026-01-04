@@ -658,7 +658,7 @@ export function StrategyStudioPage() {
       </div>
 
       {/* Main Content - Three Columns (responsive) */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
         {/* Left Column - Strategy List */}
         <div className="w-full lg:w-48 flex-shrink-0 border-b lg:border-b-0 lg:border-r overflow-y-auto lg:max-h-none" style={{ borderColor: '#2B3139', maxHeight: '200px' }}>
           <div className="p-2 sm:p-2">
@@ -758,7 +758,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Middle Column - Config Editor */}
-        <div className="flex-1 min-w-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r overflow-hidden" style={{ borderColor: '#2B3139' }}>
+        <div className="flex-1 min-w-0 min-h-[400px] lg:min-h-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r overflow-hidden" style={{ borderColor: '#2B3139' }}>
           {selectedStrategy && editingConfig ? (
             <div className="p-3 sm:p-4">
               {/* Strategy Name & Actions */}
@@ -851,7 +851,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Right Column - Prompt Preview & AI Test */}
-        <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col overflow-hidden border-t lg:border-t-0" style={{ borderColor: '#2B3139' }}>
+        <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col overflow-hidden border-t lg:border-t-0 lg:max-h-none" style={{ borderColor: '#2B3139', maxHeight: '300px' }}>
           {/* Tabs */}
           <div className="flex-shrink-0 flex border-b" style={{ borderColor: '#2B3139' }}>
             <button

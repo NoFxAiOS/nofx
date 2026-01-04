@@ -837,10 +837,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-3 flex-nowrap w-full md:w-auto justify-start md:justify-end">
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-nowrap w-full md:w-auto justify-between sm:justify-end">
           <button
             onClick={handleAddModel}
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
+            className="px-2 sm:px-3 md:px-4 py-2 rounded text-[10px] sm:text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-1 sm:flex-initial flex-shrink-0"
             style={{
               background: '#2B3139',
               color: '#EAECEF',
@@ -848,12 +848,12 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             }}
           >
             <Plus className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
-            <span>{t('aiModels', language)}</span>
+            <span className="truncate">{t('aiModels', language)}</span>
           </button>
 
           <button
             onClick={handleAddExchange}
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
+            className="px-2 sm:px-3 md:px-4 py-2 rounded text-[10px] sm:text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-1 sm:flex-initial flex-shrink-0"
             style={{
               background: '#2B3139',
               color: '#EAECEF',
@@ -861,7 +861,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             }}
           >
             <Plus className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
-            <span>{t('exchanges', language)}</span>
+            <span className="truncate">{t('exchanges', language)}</span>
           </button>
 
           <button
@@ -869,7 +869,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             disabled={
               configuredModels.length === 0 || configuredExchanges.length === 0
             }
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
+            className="px-2 sm:px-3 md:px-4 py-2 rounded text-[10px] sm:text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-1 sm:flex-initial flex-shrink-0"
             style={{
               background:
                 configuredModels.length > 0 && configuredExchanges.length > 0
@@ -882,7 +882,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             }}
           >
             <Plus className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
-            <span>{t('createTrader', language)}</span>
+            <span className="truncate">{t('createTrader', language)}</span>
           </button>
         </div>
       </div>

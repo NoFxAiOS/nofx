@@ -1407,7 +1407,7 @@ func (t *AsterTrader) GetTrades(startTime time.Time, limit int) ([]TradeRecord, 
 			Quantity:     qty,
 			RealizedPnL:  pnl,
 			Fee:          fee,
-			Time:         time.UnixMilli(at.Time),
+			Time:         time.UnixMilli(at.Time).UTC(),
 		}
 		result = append(result, trade)
 	}

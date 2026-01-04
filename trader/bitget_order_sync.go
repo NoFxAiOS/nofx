@@ -110,7 +110,7 @@ func (t *BitgetTrader) GetTrades(startTime time.Time, limit int) ([]BitgetTrade,
 			FillQty:     fillQty,
 			Fee:         -fee, // Bitget returns negative fee
 			FeeAsset:    fill.FeeCcy,
-			ExecTime:    time.UnixMilli(cTime),
+			ExecTime:    time.UnixMilli(cTime).UTC(),
 			ProfitLoss:  profit,
 			OrderType:   "MARKET",
 			OrderAction: orderAction,
@@ -174,7 +174,8 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 		// Normalize side for storage
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record
+		// Create order record - use UTC time to avoid timezone issues
+		execTimeUTC := trade.ExecTime.UTC()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -191,9 +192,9 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 			FilledQuantity:  trade.FillQty,
 			AvgFillPrice:    trade.FillPrice,
 			Commission:      trade.Fee,
-			FilledAt:        trade.ExecTime,
-			CreatedAt:       trade.ExecTime,
-			UpdatedAt:       trade.ExecTime,
+			FilledAt:        execTimeUTC,
+			CreatedAt:       execTimeUTC,
+			UpdatedAt:       execTimeUTC,
 		}
 
 		// Insert order record
@@ -202,7 +203,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 			continue
 		}
 
-		// Create fill record
+		// Create fill record - use UTC time
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -219,7 +220,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 			CommissionAsset: trade.FeeAsset,
 			RealizedPnL:     trade.ProfitLoss,
 			IsMaker:         false,
-			CreatedAt:       trade.ExecTime,
+			CreatedAt:       execTimeUTC,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {

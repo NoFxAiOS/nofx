@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -21,6 +22,10 @@ func DB() *gorm.DB {
 func InitGorm(dbPath string) (*gorm.DB, error) {
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
+		// Use UTC for all auto-generated timestamps (autoCreateTime, autoUpdateTime)
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
@@ -53,6 +58,10 @@ func InitGormPostgres(host string, port int, user, password, dbname, sslmode str
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
+		// Use UTC for all auto-generated timestamps (autoCreateTime, autoUpdateTime)
+		NowFunc: func() time.Time {
+			return time.Now().UTC()
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open PostgreSQL database: %w", err)

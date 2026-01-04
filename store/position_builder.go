@@ -69,8 +69,8 @@ func (pb *PositionBuilder) handleOpen(
 			Status:             "OPEN",
 			Source:             "sync",
 			Fee:                fee,
-			CreatedAt:          time.Now(),
-			UpdatedAt:          time.Now(),
+			CreatedAt:          time.Now().UTC(),
+			UpdatedAt:          time.Now().UTC(),
 		}
 		return pb.positionStore.CreateOpenPosition(position)
 	}

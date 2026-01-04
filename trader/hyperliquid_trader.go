@@ -2070,7 +2070,7 @@ func (t *HyperliquidTrader) GetTrades(startTime time.Time, limit int) ([]TradeRe
 			Quantity:     qty,
 			RealizedPnL:  pnl,
 			Fee:          fee,
-			Time:         time.UnixMilli(fill.Time),
+			Time:         time.UnixMilli(fill.Time).UTC(),
 		}
 		trades = append(trades, trade)
 	}

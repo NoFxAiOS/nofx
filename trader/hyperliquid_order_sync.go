@@ -61,7 +61,8 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 				positionSide = "SHORT"
 			}
 
-			// Create order record
+			// Create order record - use UTC time to avoid timezone issues
+			tradeTimeUTC := trade.Time.UTC()
 			orderRecord := &store.TraderOrder{
 				TraderID:        traderID,
 				ExchangeID:      exchangeID,   // UUID
@@ -78,9 +79,9 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 				FilledQuantity:  trade.Quantity,
 				AvgFillPrice:    trade.Price,
 				Commission:      trade.Fee,
-				FilledAt:        trade.Time,
-				CreatedAt:       trade.Time,
-				UpdatedAt:       trade.Time,
+				FilledAt:        tradeTimeUTC,
+				CreatedAt:       tradeTimeUTC,
+				UpdatedAt:       tradeTimeUTC,
 			}
 
 			// Insert order record
@@ -89,7 +90,7 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 				continue
 			}
 
-			// Create fill record
+			// Create fill record - use UTC time
 			fillRecord := &store.TraderFill{
 				TraderID:        traderID,
 				ExchangeID:      exchangeID,   // UUID
@@ -106,7 +107,7 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 				CommissionAsset: "USDT",
 				RealizedPnL:     trade.RealizedPnL,
 				IsMaker:         false, // Hyperliquid GetTrades doesn't provide maker/taker info
-				CreatedAt:       trade.Time,
+				CreatedAt:       tradeTimeUTC,
 			}
 
 			if err := orderStore.CreateFill(fillRecord); err != nil {

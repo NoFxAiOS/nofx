@@ -1032,8 +1032,8 @@ func (t *BybitTrader) parseClosedPnLResult(resultData interface{}) ([]ClosedPnLR
 			RealizedPnL: closedPnL,
 			Fee:         fee,
 			Leverage:    int(leverage),
-			EntryTime:   time.UnixMilli(createdTime),
-			ExitTime:    time.UnixMilli(updatedTime),
+			EntryTime:   time.UnixMilli(createdTime).UTC(),
+			ExitTime:    time.UnixMilli(updatedTime).UTC(),
 			OrderID:     orderId,
 			CloseType:   "unknown", // Bybit doesn't provide close type directly
 			ExchangeID:  orderId,   // Use orderId as exchange ID

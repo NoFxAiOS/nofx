@@ -127,7 +127,7 @@ func (t *BybitTrader) parseTradesResult(list []map[string]interface{}) ([]BybitT
 		closedSize, _ := strconv.ParseFloat(closedSizeStr, 64)
 		closedPnl, _ := strconv.ParseFloat(closedPnlStr, 64)
 		execTimeMs, _ := strconv.ParseInt(execTimeStr, 10, 64)
-		execTime := time.UnixMilli(execTimeMs)
+		execTime := time.UnixMilli(execTimeMs).UTC()
 
 		// Determine order action based on side and closedSize
 		// If closedSize > 0, it's a close trade
@@ -223,7 +223,8 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 		// Normalize side for storage
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record
+		// Create order record - use UTC time to avoid timezone issues
+		execTimeUTC := trade.ExecTime.UTC()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -240,9 +241,9 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			FilledQuantity:  trade.ExecQty,
 			AvgFillPrice:    trade.ExecPrice,
 			Commission:      trade.ExecFee,
-			FilledAt:        trade.ExecTime,
-			CreatedAt:       trade.ExecTime,
-			UpdatedAt:       trade.ExecTime,
+			FilledAt:        execTimeUTC,
+			CreatedAt:       execTimeUTC,
+			UpdatedAt:       execTimeUTC,
 		}
 
 		// Insert order record
@@ -251,7 +252,7 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			continue
 		}
 
-		// Create fill record
+		// Create fill record - use UTC time
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -268,7 +269,7 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			CommissionAsset: "USDT",
 			RealizedPnL:     trade.ClosedPnL,
 			IsMaker:         trade.IsMaker,
-			CreatedAt:       trade.ExecTime,
+			CreatedAt:       execTimeUTC,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {

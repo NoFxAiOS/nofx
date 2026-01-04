@@ -1069,8 +1069,8 @@ func (t *BitgetTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnL
 
 		cTime, _ := strconv.ParseInt(pos.CTime, 10, 64)
 		uTime, _ := strconv.ParseInt(pos.UTime, 10, 64)
-		record.EntryTime = time.UnixMilli(cTime)
-		record.ExitTime = time.UnixMilli(uTime)
+		record.EntryTime = time.UnixMilli(cTime).UTC()
+		record.ExitTime = time.UnixMilli(uTime).UTC()
 
 		record.CloseType = "unknown"
 		records = append(records, record)

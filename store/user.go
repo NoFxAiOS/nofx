@@ -123,7 +123,7 @@ func (s *UserStore) UpdateOTPVerified(userID string, verified bool) error {
 func (s *UserStore) UpdatePassword(userID, passwordHash string) error {
 	return s.db.Model(&User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"password_hash": passwordHash,
-		"updated_at":    time.Now(),
+		"updated_at":    time.Now().UTC(),
 	}).Error
 }
 

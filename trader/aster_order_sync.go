@@ -68,7 +68,8 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 		// Normalize side for storage
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record
+		// Create order record - use UTC time to avoid timezone issues
+		tradeTimeUTC := trade.Time.UTC()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -85,9 +86,9 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			FilledQuantity:  trade.Quantity,
 			AvgFillPrice:    trade.Price,
 			Commission:      trade.Fee,
-			FilledAt:        trade.Time,
-			CreatedAt:       trade.Time,
-			UpdatedAt:       trade.Time,
+			FilledAt:        tradeTimeUTC,
+			CreatedAt:       tradeTimeUTC,
+			UpdatedAt:       tradeTimeUTC,
 		}
 
 		// Insert order record
@@ -96,7 +97,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			continue
 		}
 
-		// Create fill record
+		// Create fill record - use UTC time
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -113,7 +114,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			CommissionAsset: "USDT",
 			RealizedPnL:     trade.RealizedPnL,
 			IsMaker:         false,
-			CreatedAt:       trade.Time,
+			CreatedAt:       tradeTimeUTC,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {

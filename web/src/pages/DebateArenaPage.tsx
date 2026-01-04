@@ -536,18 +536,18 @@ export function DebateArenaPage() {
   const voteSum = votes.reduce((a, v) => { a[v.action] = (a[v.action] || 0) + 1; return a }, {} as Record<string, number>)
 
   return (
-    <div className="h-full bg-[#0a0c10] flex overflow-hidden">
+    <div className="h-full bg-[#0a0c10] flex flex-col lg:flex-row overflow-hidden">
       {/* Left - Debate List + Online Traders */}
-      <div className="w-56 flex-shrink-0 bg-[#0d1017] border-r border-white/5 flex flex-col">
+      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col" style={{ maxHeight: '40vh', lg: { maxHeight: 'none' } }}>
         {/* New Debate Button */}
         <button onClick={() => setShowCreate(true)}
-          className="m-2 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm flex items-center justify-center gap-1">
-          <Plus size={16} /> {t('newDebate', language)}
+          className="m-1.5 sm:m-2 py-1.5 sm:py-2 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm flex items-center justify-center gap-1">
+          <Plus size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">{t('newDebate', language)}</span><span className="sm:hidden">{language === 'zh' ? '新建' : 'New'}</span>
         </button>
 
         {/* Debate List */}
-        <div className="px-2 py-1 text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
-        <div className="overflow-y-auto" style={{ maxHeight: '30%' }}>
+        <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
+        <div className="overflow-y-auto flex-1" style={{ maxHeight: 'calc(40vh - 100px)', lg: { maxHeight: '30%' } }}>
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
               className={`p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
@@ -614,15 +614,15 @@ export function DebateArenaPage() {
         {detail ? (
           <>
             {/* Header Bar - Compact */}
-            <div className="px-3 py-2 border-b border-white/5 bg-[#0d1017]/50 flex items-center gap-3 flex-shrink-0">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLOR[detail.status]}`} />
-              <span className="font-bold text-white truncate">{detail.name}</span>
-              <span className="text-yellow-400 font-semibold">{detail.symbol}</span>
-              {strategyName && <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">{strategyName}</span>}
-              <span className="text-xs text-gray-500">R{detail.current_round}/{detail.max_rounds}</span>
+            <div className="px-2 sm:px-3 py-1.5 sm:py-2 border-b border-white/5 bg-[#0d1017]/50 flex items-center gap-1.5 sm:gap-3 flex-shrink-0 flex-wrap">
+              <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${STATUS_COLOR[detail.status]}`} />
+              <span className="font-bold text-white truncate text-sm sm:text-base">{detail.name}</span>
+              <span className="text-yellow-400 font-semibold text-xs sm:text-sm">{detail.symbol}</span>
+              {strategyName && <span className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">{strategyName}</span>}
+              <span className="text-[10px] sm:text-xs text-gray-500">R{detail.current_round}/{detail.max_rounds}</span>
 
               {/* Participants */}
-              <div className="flex gap-1 ml-2">
+              <div className="flex gap-0.5 sm:gap-1 ml-1 sm:ml-2">
                 {participants.map(p => {
                   const vote = votes.find(v => v.ai_model_id === p.ai_model_id)
                   const act = vote ? (ACT[vote.action] || ACT.wait) : null
@@ -653,25 +653,25 @@ export function DebateArenaPage() {
             </div>
 
             {/* Main Content Area - Two Column Layout */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
               {Object.keys(rounds).length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-                  <div className="text-6xl mb-4">{detail.status === 'pending' ? '🎯' : '⏳'}</div>
-                  <div className="text-lg">{detail.status === 'pending' ? t('clickToStart', language) : t('waitingAI', language)}</div>
+                  <div className="text-4xl sm:text-6xl mb-2 sm:mb-4">{detail.status === 'pending' ? '🎯' : '⏳'}</div>
+                  <div className="text-sm sm:text-lg px-4 text-center">{detail.status === 'pending' ? t('clickToStart', language) : t('waitingAI', language)}</div>
                 </div>
               ) : (
                 <>
                   {/* Left - Rounds */}
-                  <div className="flex-1 overflow-y-auto p-4 border-r border-white/5">
-                    <div className="text-sm text-gray-400 font-semibold mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  <div className="flex-1 overflow-y-auto p-2 sm:p-4 border-b lg:border-b-0 lg:border-r border-white/5">
+                    <div className="text-xs sm:text-sm text-gray-400 font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+                      <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></span>
                       {t('discussionRecords', language)}
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {Object.entries(rounds).map(([round, msgs]) => (
-                        <div key={round} className="bg-white/5 rounded-xl p-3">
-                          <div className="text-xs text-blue-400 font-bold mb-2">Round {round}</div>
-                          <div className="space-y-2">
+                        <div key={round} className="bg-white/5 rounded-xl p-2 sm:p-3">
+                          <div className="text-[10px] sm:text-xs text-blue-400 font-bold mb-1.5 sm:mb-2">Round {round}</div>
+                          <div className="space-y-1.5 sm:space-y-2">
                             {msgs.map(m => <MessageCard key={m.id} msg={m} />)}
                           </div>
                         </div>
@@ -681,12 +681,12 @@ export function DebateArenaPage() {
 
                   {/* Right - Votes */}
                   {votes.length > 0 && (
-                    <div className="w-[420px] flex-shrink-0 overflow-y-auto p-4 bg-[#0d1017]/50">
-                      <div className="text-sm text-gray-400 font-semibold mb-3 flex items-center gap-2">
-                        <Trophy size={16} className="text-yellow-400" />
+                    <div className="w-full lg:w-[420px] flex-shrink-0 overflow-y-auto p-2 sm:p-4 bg-[#0d1017]/50 border-t lg:border-t-0">
+                      <div className="text-xs sm:text-sm text-gray-400 font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
+                        <Trophy size={14} className="sm:w-4 sm:h-4 text-yellow-400" />
                         {t('finalVotes', language)}
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 sm:space-y-3">
                         {votes.map(v => (
                           <VoteCard key={v.id} vote={{
                             ai_model_name: v.ai_model_name,
@@ -709,26 +709,26 @@ export function DebateArenaPage() {
 
             {/* Consensus Bar - Show when votes exist */}
             {(decision || votes.length > 0) && (
-              <div className="p-3 border-t border-white/5 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 flex items-center gap-4 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <Trophy size={20} className="text-yellow-400" />
-                  <span className="text-sm text-gray-400">{t('consensus', language)}:</span>
+              <div className="p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 flex-shrink-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <Trophy size={16} className="sm:w-5 sm:h-5 text-yellow-400" />
+                  <span className="text-xs sm:text-sm text-gray-400">{t('consensus', language)}:</span>
                   {decision ? (
                     <>
-                      {decision.symbol && <span className="text-yellow-400 font-bold mr-1">{decision.symbol}</span>}
-                      <span className={`flex items-center gap-1 px-2 py-1 rounded font-bold ${(ACT[decision.action] || ACT.wait).bg} ${(ACT[decision.action] || ACT.wait).color}`}>
+                      {decision.symbol && <span className="text-yellow-400 font-bold mr-1 text-xs sm:text-sm">{decision.symbol}</span>}
+                      <span className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold text-[10px] sm:text-xs ${(ACT[decision.action] || ACT.wait).bg} ${(ACT[decision.action] || ACT.wait).color}`}>
                         {(ACT[decision.action] || ACT.wait).icon}
                         {decision.action.replace('_', ' ').toUpperCase()}
                       </span>
                     </>
                   ) : (
-                    <span className="flex items-center gap-1 px-2 py-1 rounded font-bold bg-gray-500/20 text-gray-400">
-                      <Clock size={14} /> VOTING...
+                    <span className="flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-bold bg-gray-500/20 text-gray-400 text-[10px] sm:text-xs">
+                      <Clock size={12} className="sm:w-3.5 sm:h-3.5" /> VOTING...
                     </span>
                   )}
                 </div>
                 {decision && (
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-wrap">
                     <span><span className="text-gray-500">{t('confidence', language)}</span> <span className="text-yellow-400 font-bold">{decision.confidence || 0}%</span></span>
                     {(decision.leverage ?? 0) > 0 && <span><span className="text-gray-500">{t('leverage', language)}</span> <span className="text-white font-bold">{decision.leverage}x</span></span>}
                     {(decision.position_pct ?? 0) > 0 && <span><span className="text-gray-500">{t('position', language)}</span> <span className="text-white font-bold">{((decision.position_pct ?? 0) * 100).toFixed(0)}%</span></span>}
@@ -739,11 +739,11 @@ export function DebateArenaPage() {
                 <div className="flex-1" />
                 {decision && !decision.executed && (decision.action === 'open_long' || decision.action === 'open_short') && (
                   <button onClick={() => setExecId(detail.id)}
-                    className="px-4 py-1.5 rounded-lg bg-yellow-500 text-black font-semibold text-sm flex items-center gap-1">
-                    <Zap size={14} /> {t('execute', language)}
+                    className="px-2 sm:px-4 py-1 sm:py-1.5 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm flex items-center gap-1 w-full sm:w-auto">
+                    <Zap size={12} className="sm:w-3.5 sm:h-3.5" /> {t('execute', language)}
                   </button>
                 )}
-                {decision?.executed && <span className="text-green-400 text-sm font-semibold">✓ {t('executed', language)}</span>}
+                {decision?.executed && <span className="text-green-400 text-xs sm:text-sm font-semibold">✓ {t('executed', language)}</span>}
               </div>
             )}
           </>

@@ -20,7 +20,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default installation directory
-INSTALL_DIR="${1:-$HOME/nofx}"
+INSTALL_DIR="${1:-:/home/ubuntu/new-nofx/data}"
 COMPOSE_FILE="docker-compose.prod.yml"
 GITHUB_RAW="https://raw.githubusercontent.com/oozry12/new-nofx/dev"
 

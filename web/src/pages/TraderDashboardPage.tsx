@@ -342,43 +342,43 @@ export function TraderDashboardPage({
             <div className="w-full px-4 md:px-8 relative z-10 pt-6">
                 {/* Trader Header */}
                 <div
-                    className="mb-6 rounded-lg p-6 animate-scale-in nofx-glass group"
+                    className="mb-4 sm:mb-6 rounded-lg p-4 sm:p-6 animate-scale-in nofx-glass group"
                     style={{
                         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.4) 100%)',
                     }}
                 >
-                    <div className="flex items-start justify-between mb-4">
-                        <h2 className="text-2xl font-bold flex items-center gap-4 text-nofx-text-main">
-                            <div className="relative">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-4">
+                        <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-4 text-nofx-text-main min-w-0 flex-1">
+                            <div className="relative flex-shrink-0">
                                 <PunkAvatar
                                     seed={getTraderAvatar(
                                         selectedTrader.trader_id,
                                         selectedTrader.trader_name
                                     )}
-                                    size={56}
-                                    className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)]"
+                                    size={48}
+                                    className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)] sm:w-14 sm:h-14"
                                 />
-                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
+                                <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted">
+                            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                                <span className="text-lg sm:text-2xl md:text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted break-words">
                                     {selectedTrader.trader_name}
                                 </span>
-                                <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full" />
-                                    ID: {selectedTrader.trader_id}
+                                <span className="text-[10px] sm:text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-1.5 sm:gap-2 break-all">
+                                    <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
+                                    <span className="break-all">ID: {selectedTrader.trader_id}</span>
                                 </span>
                             </div>
                         </h2>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 w-full sm:w-auto justify-end">
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
-                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
+                                <div className="flex items-center gap-1 sm:gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5 flex-shrink-0">
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1"
+                                        className="bg-transparent text-xs sm:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-1 sm:px-2 py-1 max-w-[100px] sm:max-w-none"
                                     >
                                         {traders.map((trader) => (
                                             <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
@@ -391,10 +391,10 @@ export function TraderDashboardPage({
 
                             {/* Wallet Address Display for Perp-DEX */}
                             {exchanges && isPerpDex && (
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg nofx-glass border border-nofx-gold/20">
+                                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg nofx-glass border border-nofx-gold/20 flex-shrink-0 min-w-0">
                                     {walletAddress ? (
                                         <>
-                                            <span className="text-xs font-mono text-nofx-gold">
+                                            <span className="text-[10px] sm:text-xs font-mono text-nofx-gold truncate max-w-[80px] sm:max-w-none">
                                                 {showWalletAddress
                                                     ? walletAddress
                                                     : truncateAddress(walletAddress)}
@@ -402,7 +402,7 @@ export function TraderDashboardPage({
                                             <button
                                                 type="button"
                                                 onClick={() => setShowWalletAddress(!showWalletAddress)}
-                                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                                className="p-0.5 sm:p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
                                                 title={
                                                     showWalletAddress
                                                         ? language === 'zh'
@@ -414,26 +414,26 @@ export function TraderDashboardPage({
                                                 }
                                             >
                                                 {showWalletAddress ? (
-                                                    <EyeOff className="w-3.5 h-3.5 text-nofx-text-muted" />
+                                                    <EyeOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-text-muted" />
                                                 ) : (
-                                                    <Eye className="w-3.5 h-3.5 text-nofx-text-muted" />
+                                                    <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-text-muted" />
                                                 )}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={handleCopyAddress}
-                                                className="p-1 rounded hover:bg-white/10 transition-colors"
+                                                className="p-0.5 sm:p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
                                                 title={language === 'zh' ? '复制地址' : 'Copy address'}
                                             >
                                                 {copiedAddress ? (
-                                                    <Check className="w-3.5 h-3.5 text-nofx-green" />
+                                                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-green" />
                                                 ) : (
-                                                    <Copy className="w-3.5 h-3.5 text-nofx-text-muted" />
+                                                    <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-text-muted" />
                                                 )}
                                             </button>
                                         </>
                                     ) : (
-                                        <span className="text-xs text-nofx-text-muted">
+                                        <span className="text-[10px] sm:text-xs text-nofx-text-muted whitespace-nowrap">
                                             {language === 'zh' ? '未配置地址' : 'No address configured'}
                                         </span>
                                     )}
@@ -441,11 +441,11 @@ export function TraderDashboardPage({
                             )}
                         </div>
                     </div>
-                    <div className="flex items-center gap-6 text-sm flex-wrap text-nofx-text-muted font-mono pl-2">
-                        <span className="flex items-center gap-2">
-                            <span className="opacity-60">AI Model:</span>
+                    <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-[10px] sm:text-xs md:text-sm flex-wrap text-nofx-text-muted font-mono pl-0 sm:pl-2">
+                        <span className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                            <span className="opacity-60 whitespace-nowrap">AI Model:</span>
                             <span
-                                className="font-bold px-2 py-0.5 rounded text-xs tracking-wide"
+                                className="font-bold px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs tracking-wide whitespace-nowrap"
                                 style={{
                                     background: selectedTrader.ai_model.includes('qwen') ? 'rgba(192, 132, 252, 0.15)' : 'rgba(96, 165, 250, 0.15)',
                                     color: selectedTrader.ai_model.includes('qwen') ? '#c084fc' : '#60a5fa',
@@ -458,29 +458,29 @@ export function TraderDashboardPage({
                                 )}
                             </span>
                         </span>
-                        <span className="w-px h-3 bg-white/10" />
-                        <span className="flex items-center gap-2">
-                            <span className="opacity-60">Exchange:</span>
-                            <span className="text-nofx-text-main font-semibold">
+                        <span className="w-px h-3 bg-white/10 flex-shrink-0" />
+                        <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                            <span className="opacity-60 whitespace-nowrap flex-shrink-0">Exchange:</span>
+                            <span className="text-nofx-text-main font-semibold truncate">
                                 {getExchangeDisplayNameFromList(
                                     selectedTrader.exchange_id,
                                     exchanges
                                 )}
                             </span>
                         </span>
-                        <span className="w-px h-3 bg-white/10" />
-                        <span className="flex items-center gap-2">
-                            <span className="opacity-60">Strategy:</span>
-                            <span className="text-nofx-gold font-semibold tracking-wide">
+                        <span className="w-px h-3 bg-white/10 flex-shrink-0" />
+                        <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                            <span className="opacity-60 whitespace-nowrap flex-shrink-0">Strategy:</span>
+                            <span className="text-nofx-gold font-semibold tracking-wide truncate">
                                 {selectedTrader.strategy_name || 'No Strategy'}
                             </span>
                         </span>
                         {status && (
                             <>
-                                <span className="w-px h-3 bg-white/10" />
-                                <span>Cycles: <span className="text-nofx-text-main">{status.call_count}</span></span>
-                                <span className="w-px h-3 bg-white/10" />
-                                <span>Runtime: <span className="text-nofx-text-main">{status.runtime_minutes} min</span></span>
+                                <span className="w-px h-3 bg-white/10 flex-shrink-0" />
+                                <span className="whitespace-nowrap flex-shrink-0">Cycles: <span className="text-nofx-text-main">{status.call_count}</span></span>
+                                <span className="w-px h-3 bg-white/10 flex-shrink-0" />
+                                <span className="whitespace-nowrap flex-shrink-0">Runtime: <span className="text-nofx-text-main">{status.runtime_minutes} min</span></span>
                             </>
                         )}
                     </div>

@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { Eye, EyeOff } from 'lucide-react'
+import { DeepVoidBackground } from './DeepVoidBackground'
 // import { Input } from './ui/input' // Removed unused import
 import { toast } from 'sonner'
 import { useSystemConfig } from '../hooks/useSystemConfig'
@@ -102,13 +103,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-zinc-300 font-mono relative overflow-hidden flex items-center justify-center py-12">
-      {/* Background Effects */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none"></div>
-
-      {/* Scanline Effect */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]"></div>
+    <DeepVoidBackground className="min-h-screen flex items-center justify-center py-12 font-mono" disableAnimation>
 
       <div className="w-full max-w-md relative z-10 px-6">
         {/* Navigation - Top Bar (Mobile/Desktop Friendly) */}
@@ -361,6 +356,6 @@ export function LoginPage() {
           </div>
         )}
       </div>
-    </div>
+    </DeepVoidBackground>
   )
 }

@@ -145,43 +145,41 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   console.log('[ChartTabs] rendering, activeTab:', activeTab)
 
   return (
-    <div className="binance-card" style={{ background: '#0D1117', borderRadius: '8px', overflow: 'hidden' }}>
+    <div className="nofx-glass rounded-lg border border-white/5 relative z-10 w-full h-[600px] flex flex-col">
       {/* Clean Professional Toolbar */}
       <div
-        className="flex items-center justify-between px-3 py-1.5"
-        style={{ borderBottom: '1px solid rgba(43, 49, 57, 0.6)', background: '#161B22' }}
+        className="relative z-20 flex flex-wrap md:flex-nowrap items-center justify-between gap-y-2 px-3 py-2 shrink-0 backdrop-blur-md bg-[#0B0E11]/80 rounded-t-lg"
+        style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}
       >
         {/* Left: Tab Switcher */}
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveTab('equity')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
-              activeTab === 'equity'
-                ? 'bg-blue-500/15 text-blue-400'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${activeTab === 'equity'
+              ? 'bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 shadow-[0_0_10px_rgba(240,185,11,0.1)]'
+              : 'text-nofx-text-muted hover:text-nofx-text-main hover:bg-white/5'
+              }`}
           >
-            <BarChart3 className="w-3 h-3" />
+            <BarChart3 className="w-3.5 h-3.5" />
             <span>{t('accountEquityCurve', language)}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('kline')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition-all ${
-              activeTab === 'kline'
-                ? 'bg-blue-500/15 text-blue-400'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${activeTab === 'kline'
+              ? 'bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20 shadow-[0_0_10px_rgba(240,185,11,0.1)]'
+              : 'text-nofx-text-muted hover:text-nofx-text-main hover:bg-white/5'
+              }`}
           >
-            <CandlestickChart className="w-3 h-3" />
+            <CandlestickChart className="w-3.5 h-3.5" />
             <span>{t('marketChart', language)}</span>
           </button>
 
           {/* Market Type Pills - Only when kline active */}
           {activeTab === 'kline' && (
             <>
-              <div className="w-px h-3 bg-[#30363D] mx-1" />
-              <div className="flex items-center gap-0.5">
+              <div className="w-px h-4 bg-white/10 mx-2" />
+              <div className="flex items-center gap-1">
                 {(Object.keys(MARKET_CONFIG) as MarketType[]).map((type) => {
                   const config = MARKET_CONFIG[type]
                   const isActive = marketType === type
@@ -189,13 +187,13 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                     <button
                       key={type}
                       onClick={() => handleMarketTypeChange(type)}
-                      className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
-                        isActive
-                          ? 'bg-[#21262D] text-white'
-                          : 'text-gray-500 hover:text-gray-400'
-                      }`}
+                      className={`px-2.5 py-1 text-[10px] font-medium rounded transition-all border ${isActive
+                        ? 'bg-white/10 text-white border-white/20'
+                        : 'text-nofx-text-muted border-transparent hover:text-nofx-text-main hover:bg-white/5'
+                        }`}
                     >
-                      {config.icon} {language === 'zh' ? config.label.zh : config.label.en}
+                      <span className="mr-1 opacity-70">{config.icon}</span>
+                      {language === 'zh' ? config.label.zh : config.label.en}
                     </button>
                   )
                 })}
@@ -206,87 +204,89 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
 
         {/* Right: Symbol + Interval */}
         {activeTab === 'kline' && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto min-w-0">
             {/* Symbol Dropdown */}
-            {marketConfig.hasDropdown ? (
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center gap-1 px-2 py-1 bg-[#21262D] rounded text-[11px] font-bold text-white hover:bg-[#30363D] transition-all"
-                >
-                  <span>{chartSymbol}</span>
-                  <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
-                </button>
-                {showDropdown && (
-                  <div className="absolute top-full right-0 mt-1 w-56 bg-[#161B22] border border-[#30363D] rounded-lg shadow-2xl z-50 max-h-72 overflow-hidden">
-                    <div className="p-2 border-b border-[#30363D]">
-                      <div className="flex items-center gap-2 px-2 py-1 bg-[#0D1117] rounded border border-[#30363D]">
-                        <Search className="w-3 h-3 text-gray-500" />
-                        <input
-                          type="text"
-                          value={searchFilter}
-                          onChange={(e) => setSearchFilter(e.target.value)}
-                          placeholder="Search..."
-                          className="flex-1 bg-transparent text-[11px] text-white placeholder-gray-600 focus:outline-none"
-                          autoFocus
-                        />
+            <div className="shrink-0 relative" ref={dropdownRef}>
+              {marketConfig.hasDropdown ? (
+                <>
+                  <button
+                    onClick={() => setShowDropdown(!showDropdown)}
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main hover:border-nofx-gold/30 hover:text-nofx-gold transition-all"
+                  >
+                    <span>{chartSymbol}</span>
+                    <ChevronDown className={`w-3 h-3 text-nofx-text-muted transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showDropdown && (
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#0B0E11] border border-white/10 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] z-50 overflow-hidden nofx-glass ring-1 ring-white/5">
+                      <div className="p-2 border-b border-white/5">
+                        <div className="flex items-center gap-2 px-2 py-1.5 bg-black/40 rounded border border-white/10 focus-within:border-nofx-gold/50 transition-colors">
+                          <Search className="w-3.5 h-3.5 text-nofx-text-muted" />
+                          <input
+                            type="text"
+                            value={searchFilter}
+                            onChange={(e) => setSearchFilter(e.target.value)}
+                            placeholder="Search symbol..."
+                            className="flex-1 bg-transparent text-[11px] text-white placeholder-gray-600 focus:outline-none font-mono"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="overflow-y-auto max-h-60 custom-scrollbar">
+                        {['crypto', 'stock', 'forex', 'commodity', 'index'].map(category => {
+                          const categorySymbols = filteredSymbols.filter(s => s.category === category)
+                          if (categorySymbols.length === 0) return null
+                          const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Index' }
+                          return (
+                            <div key={category}>
+                              <div className="px-3 py-1.5 text-[9px] font-bold text-nofx-text-muted/60 bg-white/5 uppercase tracking-wider">{labels[category]}</div>
+                              {categorySymbols.map(s => (
+                                <button
+                                  key={s.symbol}
+                                  onClick={() => { setChartSymbol(s.symbol); setShowDropdown(false); setSearchFilter('') }}
+                                  className={`w-full px-3 py-2 text-left text-[11px] font-mono hover:bg-white/5 transition-all flex items-center justify-between ${chartSymbol === s.symbol ? 'bg-nofx-gold/10 text-nofx-gold' : 'text-nofx-text-muted'}`}
+                                >
+                                  <span>{s.symbol}</span>
+                                  <span className="text-[9px] opacity-40">{s.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
-                    <div className="overflow-y-auto max-h-52">
-                      {['crypto', 'stock', 'forex', 'commodity', 'index'].map(category => {
-                        const categorySymbols = filteredSymbols.filter(s => s.category === category)
-                        if (categorySymbols.length === 0) return null
-                        const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Index' }
-                        return (
-                          <div key={category}>
-                            <div className="px-3 py-1 text-[9px] font-medium text-gray-500 bg-[#0D1117] uppercase tracking-wider">{labels[category]}</div>
-                            {categorySymbols.map(s => (
-                              <button
-                                key={s.symbol}
-                                onClick={() => { setChartSymbol(s.symbol); setShowDropdown(false); setSearchFilter('') }}
-                                className={`w-full px-3 py-1.5 text-left text-[11px] hover:bg-[#21262D] transition-all ${chartSymbol === s.symbol ? 'bg-blue-500/20 text-blue-400' : 'text-gray-300'}`}
-                              >
-                                {s.symbol}
-                              </button>
-                            ))}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <span className="px-2 py-1 bg-[#21262D] rounded text-[11px] font-bold text-white">{chartSymbol}</span>
-            )}
+                  )}
+                </>
+              ) : (
+                <span className="px-2.5 py-1 bg-black/40 border border-white/10 rounded text-[11px] font-bold text-nofx-text-main font-mono">{chartSymbol}</span>
+              )}
+            </div>
 
-            {/* Interval Selector */}
-            <div className="flex items-center bg-[#21262D] rounded overflow-hidden">
+            {/* Interval Selector - Allow scrolling if needed */}
+            <div className="flex items-center bg-black/40 rounded border border-white/10 overflow-x-auto no-scrollbar max-w-[200px] md:max-w-none">
               {INTERVALS.map((int) => (
                 <button
                   key={int.value}
                   onClick={() => setInterval(int.value)}
-                  className={`px-2 py-1 text-[10px] font-medium transition-all ${
-                    interval === int.value
-                      ? 'bg-blue-500/30 text-blue-400'
-                      : 'text-gray-500 hover:text-gray-300 hover:bg-[#30363D]'
-                  }`}
+                  className={`px-2 py-1 text-[10px] font-medium transition-all ${interval === int.value
+                    ? 'bg-nofx-gold/20 text-nofx-gold'
+                    : 'text-nofx-text-muted hover:text-white hover:bg-white/5'
+                    }`}
                 >
                   {int.label}
                 </button>
               ))}
             </div>
 
-            {/* Quick Input */}
-            <form onSubmit={handleSymbolSubmit} className="flex items-center">
+            {/* Quick Input - Hidden on mobile, dropdown search is enough */}
+            <form onSubmit={handleSymbolSubmit} className="hidden md:flex items-center shrink-0">
               <input
                 type="text"
                 value={symbolInput}
                 onChange={(e) => setSymbolInput(e.target.value)}
-                placeholder="Symbol..."
-                className="w-20 px-2 py-1 bg-[#0D1117] border border-[#30363D] rounded-l text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
+                placeholder="Sym"
+                className="w-16 px-2 py-1 bg-black/40 border border-white/10 rounded-l text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-nofx-gold/50 font-mono transition-colors"
               />
-              <button type="submit" className="px-2 py-1 bg-[#21262D] border border-[#30363D] border-l-0 rounded-r text-[10px] text-gray-400 hover:text-white hover:bg-[#30363D] transition-all">
+              <button type="submit" className="px-2 py-1 bg-white/5 border border-white/10 border-l-0 rounded-r text-[10px] text-nofx-text-muted hover:text-white hover:bg-white/10 transition-all">
                 Go
               </button>
             </form>
@@ -295,32 +295,33 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
       </div>
 
       {/* Tab Content */}
-      <div className="relative overflow-hidden min-h-[400px]">
+      <div className="relative flex-1 bg-[#0B0E11]/50 rounded-b-lg overflow-hidden">
         <AnimatePresence mode="wait">
           {activeTab === 'equity' ? (
             <motion.div
               key="equity"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full"
+              className="h-full w-full absolute inset-0"
             >
               <EquityChart traderId={traderId} embedded />
             </motion.div>
           ) : (
             <motion.div
               key={`kline-${chartSymbol}-${interval}-${currentExchange}`}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="h-full"
+              className="h-full w-full absolute inset-0"
             >
               <AdvancedChart
                 symbol={chartSymbol}
                 interval={interval}
                 traderID={traderId}
+                // Dynamic height to fill container
                 height={550}
                 exchange={currentExchange}
                 onSymbolChange={setChartSymbol}

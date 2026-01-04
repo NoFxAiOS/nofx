@@ -440,10 +440,14 @@ button:disabled {
 }
 
 /* Premium Input Styles */
+/* Premium Input Styles */
 input,
 select,
 textarea {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--panel-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--panel-border);
 }
 
 input:focus,
@@ -452,6 +456,35 @@ textarea:focus {
   border-color: var(--binance-yellow);
   box-shadow: 0 0 0 2px rgba(252, 213, 53, 0.15);
   outline: none;
+  background-color: var(--panel-bg-hover);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Specific Premium Input Utility */
+.premium-input {
+  background: rgba(11, 14, 17, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.premium-input:hover {
+  border-color: rgba(240, 185, 11, 0.3);
+  background: rgba(11, 14, 17, 0.8);
+}
+
+.premium-input:focus {
+  border-color: var(--binance-yellow);
+  box-shadow: 0 0 0 1px rgba(240, 185, 11, 0.2), 0 0 15px rgba(240, 185, 11, 0.1);
+  background: rgba(11, 14, 17, 0.9);
 }
 
 /* Binance Card - Premium Polish */

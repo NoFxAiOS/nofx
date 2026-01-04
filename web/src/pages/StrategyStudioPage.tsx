@@ -774,8 +774,19 @@ export function StrategyStudioPage() {
                     disabled={selectedStrategy.is_default}
                     className="text-lg font-bold bg-transparent border-none outline-none w-full text-nofx-text placeholder-nofx-text-muted"
                   />
+                  <input
+                    type="text"
+                    value={selectedStrategy.description || ''}
+                    onChange={(e) => {
+                      setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
+                      setHasChanges(true)
+                    }}
+                    disabled={selectedStrategy.is_default}
+                    placeholder={language === 'zh' ? '添加策略简介...' : 'Add strategy description...'}
+                    className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
+                  />
                   {hasChanges && (
-                    <span className="text-xs text-nofx-gold">● 未保存</span>
+                    <span className="text-xs text-nofx-gold">● {language === 'zh' ? '未保存' : 'Unsaved'}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">

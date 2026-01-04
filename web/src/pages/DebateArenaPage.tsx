@@ -535,18 +535,18 @@ export function DebateArenaPage() {
   const voteSum = votes.reduce((a, v) => { a[v.action] = (a[v.action] || 0) + 1; return a }, {} as Record<string, number>)
 
   return (
-    <div className="h-full bg-[#0a0c10] flex flex-col lg:flex-row overflow-hidden">
+    <div className="min-h-screen lg:h-screen bg-[#0a0c10] flex flex-col lg:flex-row overflow-hidden">
       {/* Left - Debate List + Online Traders */}
-      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col lg:max-h-none" style={{ maxHeight: '40vh' }}>
+      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col lg:h-screen">
         {/* New Debate Button */}
         <button onClick={() => setShowCreate(true)}
-          className="m-1.5 sm:m-2 py-1.5 sm:py-2 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm flex items-center justify-center gap-1">
+          className="m-1.5 sm:m-2 py-1.5 sm:py-2 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm flex items-center justify-center gap-1 flex-shrink-0">
           <Plus size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">{t('newDebate', language)}</span><span className="sm:hidden">{language === 'zh' ? '新建' : 'New'}</span>
         </button>
 
         {/* Debate List */}
-        <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
-        <div className="overflow-y-auto flex-1 lg:max-h-[30%]" style={{ maxHeight: 'calc(40vh - 100px)' }}>
+        <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs text-gray-500 font-semibold flex-shrink-0">{t('debateSessions', language)}</div>
+        <div className="flex-1 lg:flex-[0_0_40%] min-h-0 overflow-y-auto">
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
               className={`p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
@@ -568,12 +568,12 @@ export function DebateArenaPage() {
         </div>
 
         {/* Online Traders Section */}
-        <div className="flex-1 border-t border-white/5 mt-2 overflow-hidden flex flex-col">
-          <div className="px-2 py-2 text-xs text-gray-500 font-semibold flex items-center gap-1">
+        <div className="flex-1 lg:flex-[0_0_60%] min-h-0 border-t border-white/5 mt-2 overflow-hidden flex flex-col">
+          <div className="px-2 py-2 text-xs text-gray-500 font-semibold flex items-center gap-1 flex-shrink-0">
             <Zap size={12} className="text-green-400" />
             {t('onlineTraders', language)}
           </div>
-          <div className="flex-1 overflow-y-auto px-2 space-y-2">
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 space-y-2 pb-2">
             {traders?.filter(tr => tr.is_running).map(tr => (
               <div key={tr.trader_id}
                 onClick={() => { setTraderId(tr.trader_id); if (decision && !decision.executed) setExecId(detail?.id || null) }}
@@ -609,7 +609,7 @@ export function DebateArenaPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 lg:h-screen overflow-hidden">
         {detail ? (
           <>
             {/* Header Bar - Compact */}
@@ -652,7 +652,7 @@ export function DebateArenaPage() {
             </div>
 
             {/* Main Content Area - Two Column Layout */}
-            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+            <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
               {Object.keys(rounds).length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
                   <div className="text-4xl sm:text-6xl mb-2 sm:mb-4">{detail.status === 'pending' ? '🎯' : '⏳'}</div>
@@ -661,7 +661,7 @@ export function DebateArenaPage() {
               ) : (
                 <>
                   {/* Left - Rounds */}
-                  <div className="flex-1 overflow-y-auto p-2 sm:p-4 border-b lg:border-b-0 lg:border-r border-white/5">
+                  <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-4 border-b lg:border-b-0 lg:border-r border-white/5">
                     <div className="text-xs sm:text-sm text-gray-400 font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
                       <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></span>
                       {t('discussionRecords', language)}
@@ -680,7 +680,7 @@ export function DebateArenaPage() {
 
                   {/* Right - Votes */}
                   {votes.length > 0 && (
-                    <div className="w-full lg:w-[420px] flex-shrink-0 overflow-y-auto p-2 sm:p-4 bg-[#0d1017]/50 border-t lg:border-t-0">
+                    <div className="w-full lg:w-[420px] flex-shrink-0 min-h-0 overflow-y-auto p-2 sm:p-4 bg-[#0d1017]/50 border-t lg:border-t-0">
                       <div className="text-xs sm:text-sm text-gray-400 font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
                         <Trophy size={14} className="sm:w-4 sm:h-4 text-yellow-400" />
                         {t('finalVotes', language)}

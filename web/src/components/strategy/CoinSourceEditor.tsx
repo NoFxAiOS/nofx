@@ -143,12 +143,7 @@ export function CoinSourceEditor({
   // NofxOS badge component
   const NofxOSBadge = () => (
     <span
-      className="text-[9px] px-1.5 py-0.5 rounded font-medium"
-      style={{
-        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2))',
-        color: '#a855f7',
-        border: '1px solid rgba(139, 92, 246, 0.3)'
-      }}
+      className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30"
     >
       NofxOS
     </span>
@@ -158,7 +153,7 @@ export function CoinSourceEditor({
     <div className="space-y-6">
       {/* Source Type Selector */}
       <div>
-        <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
+        <label className="block text-sm font-medium mb-3 text-nofx-text">
           {t('sourceType')}
         </label>
         <div className="grid grid-cols-4 gap-3">
@@ -170,24 +165,16 @@ export function CoinSourceEditor({
                 onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
               }
               disabled={disabled}
-              className={`p-4 rounded-lg border transition-all ${
-                config.source_type === value
-                  ? 'ring-2 ring-yellow-500'
-                  : 'hover:bg-white/5'
-              }`}
-              style={{
-                background:
-                  config.source_type === value
-                    ? 'rgba(240, 185, 11, 0.1)'
-                    : '#0B0E11',
-                borderColor: '#2B3139',
-              }}
+              className={`p-4 rounded-lg border transition-all ${config.source_type === value
+                ? 'ring-2 ring-nofx-gold bg-nofx-gold/10'
+                : 'hover:bg-white/5 bg-nofx-bg'
+                } border-nofx-gold/20`}
             >
               <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
-              <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+              <div className="text-sm font-medium text-nofx-text">
                 {t(value)}
               </div>
-              <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+              <div className="text-xs mt-1 text-nofx-text-muted">
                 {t(`${value}Desc`)}
               </div>
             </button>
@@ -198,15 +185,14 @@ export function CoinSourceEditor({
       {/* Static Coins */}
       {(config.source_type === 'static' || config.source_type === 'mixed') && (
         <div>
-          <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
+          <label className="block text-sm font-medium mb-3 text-nofx-text">
             {t('staticCoins')}
           </label>
           <div className="flex flex-wrap gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
               <span
                 key={coin}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
-                style={{ background: '#2B3139', color: '#EAECEF' }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-nofx-bg-lighter text-nofx-text"
               >
                 {coin}
                 {!disabled && (
@@ -228,17 +214,11 @@ export function CoinSourceEditor({
                 onChange={(e) => setNewCoin(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCoin()}
                 placeholder="BTC, ETH, SOL..."
-                className="flex-1 px-4 py-2 rounded-lg"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
               />
               <button
                 onClick={handleAddCoin}
-                className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                style={{ background: '#F0B90B', color: '#0B0E11' }}
+                className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors bg-nofx-gold text-black hover:bg-yellow-500"
               >
                 <Plus className="w-4 h-4" />
                 {t('addCoin')}
@@ -251,20 +231,19 @@ export function CoinSourceEditor({
       {/* Excluded Coins */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Ban className="w-4 h-4" style={{ color: '#F6465D' }} />
-          <label className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+          <Ban className="w-4 h-4 text-nofx-danger" />
+          <label className="text-sm font-medium text-nofx-text">
             {t('excludedCoins')}
           </label>
         </div>
-        <p className="text-xs mb-3" style={{ color: '#848E9C' }}>
+        <p className="text-xs mb-3 text-nofx-text-muted">
           {t('excludedCoinsDesc')}
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {(config.excluded_coins || []).map((coin) => (
             <span
               key={coin}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
-              style={{ background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D' }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-nofx-danger/15 text-nofx-danger"
             >
               {coin}
               {!disabled && (
@@ -278,7 +257,7 @@ export function CoinSourceEditor({
             </span>
           ))}
           {(config.excluded_coins || []).length === 0 && (
-            <span className="text-xs italic" style={{ color: '#5E6673' }}>
+            <span className="text-xs italic text-nofx-text-muted">
               {language === 'zh' ? '无' : 'None'}
             </span>
           )}
@@ -291,17 +270,11 @@ export function CoinSourceEditor({
               onChange={(e) => setNewExcludedCoin(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddExcludedCoin()}
               placeholder="BTC, ETH, DOGE..."
-              className="flex-1 px-4 py-2 rounded-lg text-sm"
-              style={{
-                background: '#0B0E11',
-                border: '1px solid #2B3139',
-                color: '#EAECEF',
-              }}
+              className="flex-1 px-4 py-2 rounded-lg text-sm bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
             />
             <button
               onClick={handleAddExcludedCoin}
-              className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
-              style={{ background: '#F6465D', color: '#EAECEF' }}
+              className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm bg-nofx-danger text-white hover:bg-red-600"
             >
               <Ban className="w-4 h-4" />
               {t('addExcludedCoin')}
@@ -313,16 +286,12 @@ export function CoinSourceEditor({
       {/* AI500 Options */}
       {(config.source_type === 'ai500' || config.source_type === 'mixed') && (
         <div
-          className="p-4 rounded-lg"
-          style={{
-            background: 'rgba(240, 185, 11, 0.05)',
-            border: '1px solid rgba(240, 185, 11, 0.2)',
-          }}
+          className="p-4 rounded-lg bg-nofx-gold/5 border border-nofx-gold/20"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
-              <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+              <Zap className="w-4 h-4 text-nofx-gold" />
+              <span className="text-sm font-medium text-nofx-text">
                 AI500 {t('dataSourceConfig')}
               </span>
               <NofxOSBadge />
@@ -338,14 +307,14 @@ export function CoinSourceEditor({
                   !disabled && onChange({ ...config, use_ai500: e.target.checked })
                 }
                 disabled={disabled}
-                className="w-5 h-5 rounded accent-yellow-500"
+                className="w-5 h-5 rounded accent-nofx-gold"
               />
-              <span style={{ color: '#EAECEF' }}>{t('useAI500')}</span>
+              <span className="text-nofx-text">{t('useAI500')}</span>
             </label>
 
             {config.use_ai500 && (
               <div className="flex items-center gap-3 pl-8">
-                <span className="text-sm" style={{ color: '#848E9C' }}>
+                <span className="text-sm text-nofx-text-muted">
                   {t('ai500Limit')}:
                 </span>
                 <select
@@ -355,12 +324,7 @@ export function CoinSourceEditor({
                     onChange({ ...config, ai500_limit: parseInt(e.target.value) || 10 })
                   }
                   disabled={disabled}
-                  className="px-3 py-1.5 rounded"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
+                  className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 >
                   {[5, 10, 15, 20, 30, 50].map(n => (
                     <option key={n} value={n}>{n}</option>
@@ -369,7 +333,7 @@ export function CoinSourceEditor({
               </div>
             )}
 
-            <p className="text-xs pl-8" style={{ color: '#5E6673' }}>
+            <p className="text-xs pl-8 text-nofx-text-muted">
               {t('nofxosNote')}
             </p>
           </div>
@@ -379,16 +343,12 @@ export function CoinSourceEditor({
       {/* OI Top Options */}
       {(config.source_type === 'oi_top' || config.source_type === 'mixed') && (
         <div
-          className="p-4 rounded-lg"
-          style={{
-            background: 'rgba(14, 203, 129, 0.05)',
-            border: '1px solid rgba(14, 203, 129, 0.2)',
-          }}
+          className="p-4 rounded-lg bg-nofx-success/5 border border-nofx-success/20"
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" style={{ color: '#0ECB81' }} />
-              <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+              <TrendingUp className="w-4 h-4 text-nofx-success" />
+              <span className="text-sm font-medium text-nofx-text">
                 OI Top {t('dataSourceConfig')}
               </span>
               <NofxOSBadge />
@@ -404,14 +364,14 @@ export function CoinSourceEditor({
                   !disabled && onChange({ ...config, use_oi_top: e.target.checked })
                 }
                 disabled={disabled}
-                className="w-5 h-5 rounded accent-green-500"
+                className="w-5 h-5 rounded accent-nofx-success"
               />
-              <span style={{ color: '#EAECEF' }}>{t('useOITop')}</span>
+              <span className="text-nofx-text">{t('useOITop')}</span>
             </label>
 
             {config.use_oi_top && (
               <div className="flex items-center gap-3 pl-8">
-                <span className="text-sm" style={{ color: '#848E9C' }}>
+                <span className="text-sm text-nofx-text-muted">
                   {t('oiTopLimit')}:
                 </span>
                 <select
@@ -421,12 +381,7 @@ export function CoinSourceEditor({
                     onChange({ ...config, oi_top_limit: parseInt(e.target.value) || 20 })
                   }
                   disabled={disabled}
-                  className="px-3 py-1.5 rounded"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
+                  className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 >
                   {[5, 10, 15, 20, 30, 50].map(n => (
                     <option key={n} value={n}>{n}</option>
@@ -435,7 +390,7 @@ export function CoinSourceEditor({
               </div>
             )}
 
-            <p className="text-xs pl-8" style={{ color: '#5E6673' }}>
+            <p className="text-xs pl-8 text-nofx-text-muted">
               {t('nofxosNote')}
             </p>
           </div>

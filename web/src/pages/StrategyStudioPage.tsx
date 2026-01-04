@@ -762,7 +762,7 @@ export function StrategyStudioPage() {
           {selectedStrategy && editingConfig ? (
             <div className="p-3 sm:p-4">
               {/* Strategy Name & Actions */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-2 sm:gap-0">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3 sm:gap-0">
                 <div className="flex-1 min-w-0 w-full sm:w-auto">
                   <input
                     type="text"
@@ -776,32 +776,32 @@ export function StrategyStudioPage() {
                     style={{ color: '#EAECEF' }}
                   />
                   {hasChanges && (
-                    <span className="text-[10px] sm:text-xs" style={{ color: '#F0B90B' }}>● {language === 'zh' ? '未保存' : 'Unsaved'}</span>
+                    <span className="text-[10px] sm:text-xs mt-1 block" style={{ color: '#F0B90B' }}>● {language === 'zh' ? '未保存' : 'Unsaved'}</span>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 w-full sm:w-auto">
+                <div className="flex items-center justify-center sm:justify-end gap-2 sm:gap-2 flex-shrink-0 w-full sm:w-auto">
                   {!selectedStrategy.is_active && (
                     <button
                       onClick={() => handleActivateStrategy(selectedStrategy.id)}
-                      className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs transition-colors flex-1 sm:flex-initial"
+                      className="flex items-center justify-center gap-1.5 px-3 sm:px-3 py-1.5 sm:py-1.5 rounded-lg text-xs sm:text-xs transition-colors flex-1 sm:flex-initial min-w-[100px] sm:min-w-0"
                       style={{ background: 'rgba(14, 203, 129, 0.1)', border: '1px solid rgba(14, 203, 129, 0.3)', color: '#0ECB81' }}
                     >
-                      <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      {t('activate')}
+                      <Check className="w-3 h-3 sm:w-3 sm:h-3" />
+                      <span>{t('activate')}</span>
                     </button>
                   )}
                   {!selectedStrategy.is_default && (
                     <button
                       onClick={handleSaveStrategy}
                       disabled={isSaving || !hasChanges}
-                      className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-medium transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
+                      className="flex items-center justify-center gap-1.5 px-3 sm:px-3 py-1.5 sm:py-1.5 rounded-lg text-xs sm:text-xs font-medium transition-colors disabled:opacity-50 flex-1 sm:flex-initial min-w-[100px] sm:min-w-0"
                       style={{
                         background: hasChanges ? '#F0B90B' : '#2B3139',
                         color: hasChanges ? '#0B0E11' : '#848E9C',
                       }}
                     >
-                      <Save className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      {isSaving ? t('saving') : t('save')}
+                      <Save className="w-3 h-3 sm:w-3 sm:h-3" />
+                      <span>{isSaving ? t('saving') : t('save')}</span>
                     </button>
                   )}
                 </div>

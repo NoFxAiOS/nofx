@@ -2265,10 +2265,10 @@ export const translations = {
       trades: '交易次数',
       avgPnL: '平均盈亏',
       // Symbol Performance
-      symbolPerformance: '品种表现',
+      symbolPerformance: '币种表现',
       // Filters
-      symbol: '交易对',
-      allSymbols: '全部交易对',
+      symbol: '币种',
+      allSymbols: '全部币种',
       side: '方向',
       all: '全部',
       sort: '排序',

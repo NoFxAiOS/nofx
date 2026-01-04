@@ -385,52 +385,52 @@ function CreateModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="bg-[#1a1d24] rounded-xl w-full max-w-md p-4 border border-white/10">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-white">{t('createDebate', language)}</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4">
+      <div className="bg-[#1a1d24] rounded-xl w-full max-w-md p-3 sm:p-4 border border-white/10 max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-3 sm:mb-4">
+          <h3 className="text-base sm:text-lg font-bold text-white">{t('createDebate', language)}</h3>
+          <button onClick={onClose}><X size={18} className="sm:w-5 sm:h-5 text-gray-400" /></button>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           <input
             value={name} onChange={e => setName(e.target.value)}
-            placeholder={t('debateName', language)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+            placeholder={t('debateName', language)} className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs sm:text-sm"
           />
 
           {/* Strategy selector - moved up */}
           <select value={strategyId} onChange={e => setStrategyId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+            className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs sm:text-sm">
             {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {/* Show dropdown only for static type with coins defined */}
             {isStaticWithCoins ? (
               <select value={symbol} onChange={e => setSymbol(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+                className="flex-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs sm:text-sm">
                 {staticCoins.map(coin => <option key={coin} value={coin}>{coin}</option>)}
               </select>
             ) : (
-              <div className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">
+              <div className="flex-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-xs sm:text-sm">
                 {language === 'zh' ? '根据策略规则自动选择' : 'Auto-selected by strategy'}
               </div>
             )}
             <select value={maxRounds} onChange={e => setMaxRounds(+e.target.value)}
-              className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+              className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs sm:text-sm w-full sm:w-auto">
               {[2,3,4,5].map(n => <option key={n} value={n}>{n} {language === 'zh' ? '轮' : 'rounds'}</option>)}
             </select>
           </div>
 
           {/* Participants */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {participants.map((p, i) => (
-              <div key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs"
+              <div key={i} className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs"
                 style={{ backgroundColor: `${PERS[p.personality].color}20`, border: `1px solid ${PERS[p.personality].color}40` }}>
                 {/* Personality selector */}
                 <select value={p.personality} onChange={e => {
                   const up = [...participants]; up[i].personality = e.target.value as DebatePersonality; setParticipants(up)
-                }} className="bg-transparent text-white text-xs border-0 outline-none cursor-pointer">
+                }} className="bg-transparent text-white text-[10px] sm:text-xs border-0 outline-none cursor-pointer">
                   {Object.entries(PERS).map(([k, v]) => (
                     <option key={k} value={k}>{v.emoji} {language === 'zh' ? v.name : v.nameEn}</option>
                   ))}
@@ -438,24 +438,24 @@ function CreateModal({
                 {/* AI model selector */}
                 <select value={p.ai_model_id} onChange={e => {
                   const up = [...participants]; up[i].ai_model_id = e.target.value; setParticipants(up)
-                }} className="bg-transparent text-white text-xs border-0 outline-none">
+                }} className="bg-transparent text-white text-[10px] sm:text-xs border-0 outline-none">
                   {aiModels.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
                 <button onClick={() => setParticipants(participants.filter((_, j) => j !== i))}
-                  className="text-red-400 hover:text-red-300"><X size={12} /></button>
+                  className="text-red-400 hover:text-red-300"><X size={10} className="sm:w-3 sm:h-3" /></button>
               </div>
             ))}
-            <button onClick={addP} className="px-2 py-1 text-xs text-yellow-400 hover:bg-yellow-500/10 rounded">
+            <button onClick={addP} className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs text-yellow-400 hover:bg-yellow-500/10 rounded">
               + {t('addAI', language)}
             </button>
           </div>
         </div>
 
-        <div className="flex gap-2 mt-4">
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-white/5 text-white text-sm">{t('cancel', language)}</button>
+        <div className="flex flex-col sm:flex-row gap-2 mt-3 sm:mt-4">
+          <button onClick={onClose} className="flex-1 py-1.5 sm:py-2 rounded-lg bg-white/5 text-white text-xs sm:text-sm">{t('cancel', language)}</button>
           <button onClick={submit} disabled={creating}
-            className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm disabled:opacity-50">
-            {creating ? <Loader2 size={16} className="animate-spin mx-auto" /> : t('create', language)}
+            className="flex-1 py-1.5 sm:py-2 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm disabled:opacity-50">
+            {creating ? <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin mx-auto" /> : t('create', language)}
           </button>
         </div>
       </div>
@@ -762,13 +762,13 @@ export function DebateArenaPage() {
 
       {/* Execute Modal */}
       {execId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-[#1a1d24] rounded-xl w-full max-w-sm p-4 border border-white/10">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Zap className="text-yellow-400" /> {t('executeTitle', language)}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-4">
+          <div className="bg-[#1a1d24] rounded-xl w-full max-w-sm p-3 sm:p-4 border border-white/10 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-1.5 sm:gap-2">
+              <Zap size={16} className="sm:w-5 sm:h-5 text-yellow-400" /> {t('executeTitle', language)}
             </h3>
             <select value={traderId} onChange={e => setTraderId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm mb-3">
+              className="w-full px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs sm:text-sm mb-2 sm:mb-3">
               <option value="">{t('selectTrader', language)}...</option>
               {traders?.filter(tr => tr.is_running).map(tr => (
                 <option key={tr.trader_id} value={tr.trader_id}>✅ {tr.trader_name}</option>
@@ -777,15 +777,15 @@ export function DebateArenaPage() {
                 <option key={tr.trader_id} value={tr.trader_id} disabled>⏹ {tr.trader_name} ({t('offline', language)})</option>
               ))}
             </select>
-            <div className="text-xs text-yellow-300 bg-yellow-500/10 p-2 rounded mb-3">
+            <div className="text-[10px] sm:text-xs text-yellow-300 bg-yellow-500/10 p-1.5 sm:p-2 rounded mb-2 sm:mb-3">
               ⚠️ {language === 'zh' ? '将使用账户余额执行真实交易' : 'Will execute real trade with account balance'}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <button onClick={() => { setExecId(null); setTraderId('') }}
-                className="flex-1 py-2 rounded-lg bg-white/5 text-white text-sm">{t('cancel', language)}</button>
+                className="flex-1 py-1.5 sm:py-2 rounded-lg bg-white/5 text-white text-xs sm:text-sm">{t('cancel', language)}</button>
               <button onClick={onExecute} disabled={!traderId || executing || !traders?.find(tr => tr.trader_id === traderId)?.is_running}
-                className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm disabled:opacity-50">
-                {executing ? <Loader2 size={16} className="animate-spin mx-auto" /> : t('execute', language)}
+                className="flex-1 py-1.5 sm:py-2 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm disabled:opacity-50">
+                {executing ? <Loader2 size={14} className="sm:w-4 sm:h-4 animate-spin mx-auto" /> : t('execute', language)}
               </button>
             </div>
           </div>

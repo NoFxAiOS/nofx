@@ -837,10 +837,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
-        <div className="flex gap-2 md:gap-3 w-full md:w-auto overflow-hidden flex-wrap md:flex-nowrap">
+        <div className="flex gap-2 md:gap-3 items-center flex-nowrap">
           <button
             onClick={handleAddModel}
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap"
+            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
             style={{
               background: '#2B3139',
               color: '#EAECEF',
@@ -853,7 +853,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
           <button
             onClick={handleAddExchange}
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap"
+            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
             style={{
               background: '#2B3139',
               color: '#EAECEF',
@@ -869,7 +869,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             disabled={
               configuredModels.length === 0 || configuredExchanges.length === 0
             }
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2 whitespace-nowrap"
+            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
             style={{
               background:
                 configuredModels.length > 0 && configuredExchanges.length > 0

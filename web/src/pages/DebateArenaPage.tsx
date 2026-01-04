@@ -94,7 +94,7 @@ const STATUS_COLOR: Record<string, string> = {
 }
 
 // AI Provider Avatar
-function AIAvatar({ name, size = 24 }: { name: string; size?: number }) {
+function AIAvatar({ name, size = 24, className = '' }: { name: string; size?: number; className?: string }) {
   const providers: Record<string, { bg: string; text: string; letter: string }> = {
     claude: { bg: 'bg-orange-500', text: 'text-white', letter: 'C' },
     deepseek: { bg: 'bg-blue-600', text: 'text-white', letter: 'D' },
@@ -109,7 +109,7 @@ function AIAvatar({ name, size = 24 }: { name: string; size?: number }) {
   const p = Object.entries(providers).find(([k]) => lower.includes(k))?.[1]
     || { bg: 'bg-gray-600', text: 'text-white', letter: name[0]?.toUpperCase() || '?' }
   return (
-    <div className={`${p.bg} ${p.text} rounded-md flex items-center justify-center font-bold`}
+    <div className={`${p.bg} ${p.text} rounded-md flex items-center justify-center font-bold ${className}`}
       style={{ width: size, height: size, fontSize: size * 0.5 }}>
       {p.letter}
     </div>
@@ -144,42 +144,41 @@ function MessageCard({ msg }: { msg: DebateMessage }) {
 
   return (
     <div
-      className="p-3 rounded-lg hover:bg-white/5 transition-all border border-white/5"
+      className="p-2 sm:p-3 rounded-lg hover:bg-white/5 transition-all border border-white/5"
       style={{ borderLeft: `3px solid ${p.color}` }}
     >
       {/* Header - Always visible */}
       <div
-        className="flex items-center gap-2 cursor-pointer"
+        className="flex items-center gap-1.5 sm:gap-2 cursor-pointer flex-wrap"
         onClick={() => setOpen(!open)}
       >
-        <AIAvatar name={msg.ai_model_name} size={24} />
-        <span className="text-sm text-white font-medium">{msg.ai_model_name}</span>
-        <span className="text-xs text-gray-500">{p.nameEn}</span>
-        <div className="flex-1" />
+        <AIAvatar name={msg.ai_model_name} size={20} className="sm:w-6 sm:h-6" />
+        <span className="text-xs sm:text-sm text-white font-medium truncate flex-1 min-w-0">{msg.ai_model_name}</span>
+        <span className="text-[10px] sm:text-xs text-gray-500 hidden sm:inline">{p.nameEn}</span>
         {msg.decision && (
-          <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${a.bg} ${a.color}`}>
-            {a.icon} {msg.decision.symbol || ''} {a.label}
+          <span className={`flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded ${a.bg} ${a.color}`}>
+            {a.icon} <span className="hidden sm:inline">{msg.decision.symbol || ''} </span>{a.label}
           </span>
         )}
-        <span className="text-xs text-yellow-400 font-medium">{msg.decision?.confidence || msg.confidence}%</span>
-        {open ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+        <span className="text-[10px] sm:text-xs text-yellow-400 font-medium">{msg.decision?.confidence || msg.confidence}%</span>
+        {open ? <ChevronUp size={12} className="sm:w-3.5 sm:h-3.5 text-gray-500" /> : <ChevronDown size={12} className="sm:w-3.5 sm:h-3.5 text-gray-500" />}
       </div>
 
       {/* Preview when collapsed */}
       {!open && (
-        <div className="mt-2 text-xs text-gray-400 line-clamp-2">
+        <div className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-gray-400 line-clamp-2">
           {previewText}...
         </div>
       )}
 
       {/* Expanded Content - Full display */}
       {open && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-2 sm:mt-3 space-y-2 sm:space-y-3">
           {/* Reasoning/Analysis Section */}
           {parsed.reasoning && (
-            <div className="bg-black/20 rounded-lg p-3">
-              <div className="text-xs text-blue-400 font-medium mb-2">💭 思考过程 / Reasoning</div>
-              <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto select-text">
+            <div className="bg-black/20 rounded-lg p-2 sm:p-3">
+              <div className="text-[10px] sm:text-xs text-blue-400 font-medium mb-1.5 sm:mb-2">💭 {language === 'zh' ? '思考过程' : 'Reasoning'}</div>
+              <div className="text-[10px] sm:text-xs text-gray-300 leading-relaxed whitespace-pre-wrap max-h-48 sm:max-h-64 overflow-y-auto select-text">
                 {parsed.reasoning}
               </div>
             </div>
@@ -187,9 +186,9 @@ function MessageCard({ msg }: { msg: DebateMessage }) {
 
           {/* Decision Section */}
           {msg.decision && (
-            <div className="bg-black/20 rounded-lg p-3">
-              <div className="text-xs text-green-400 font-medium mb-2">📊 交易决策 / Decision</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-black/20 rounded-lg p-2 sm:p-3">
+              <div className="text-[10px] sm:text-xs text-green-400 font-medium mb-1.5 sm:mb-2">📊 {language === 'zh' ? '交易决策' : 'Decision'}</div>
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-[10px] sm:text-xs">
                 {msg.decision.symbol && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">币种</span>
@@ -239,9 +238,9 @@ function MessageCard({ msg }: { msg: DebateMessage }) {
 
           {/* Full Raw Content (collapsible) */}
           {!parsed.reasoning && (
-            <div className="bg-black/20 rounded-lg p-3">
-              <div className="text-xs text-gray-400 font-medium mb-2">📝 完整输出 / Full Output</div>
-              <div className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto select-text">
+            <div className="bg-black/20 rounded-lg p-2 sm:p-3">
+              <div className="text-[10px] sm:text-xs text-gray-400 font-medium mb-1.5 sm:mb-2">📝 {language === 'zh' ? '完整输出' : 'Full Output'}</div>
+              <div className="text-[10px] sm:text-xs text-gray-300 leading-relaxed whitespace-pre-wrap max-h-64 sm:max-h-96 overflow-y-auto select-text">
                 {parsed.fullContent}
               </div>
             </div>
@@ -249,13 +248,13 @@ function MessageCard({ msg }: { msg: DebateMessage }) {
 
           {/* Multi-coin decisions if available */}
           {msg.decisions && msg.decisions.length > 1 && (
-            <div className="bg-black/20 rounded-lg p-3">
-              <div className="text-xs text-purple-400 font-medium mb-2">🎯 多币种决策 ({msg.decisions.length})</div>
-              <div className="space-y-2">
+            <div className="bg-black/20 rounded-lg p-2 sm:p-3">
+              <div className="text-[10px] sm:text-xs text-purple-400 font-medium mb-1.5 sm:mb-2">🎯 {language === 'zh' ? '多币种决策' : 'Multi-coin Decisions'} ({msg.decisions.length})</div>
+              <div className="space-y-1.5 sm:space-y-2">
                 {msg.decisions.map((d, i) => {
                   const da = ACT[d.action] || ACT.wait
                   return (
-                    <div key={i} className="flex items-center justify-between text-xs p-2 bg-white/5 rounded">
+                    <div key={i} className="flex items-center justify-between text-[10px] sm:text-xs p-1.5 sm:p-2 bg-white/5 rounded flex-wrap gap-1">
                       <span className="text-white font-medium">{d.symbol}</span>
                       <span className={da.color}>{da.icon} {da.label}</span>
                       <span className="text-yellow-400">{d.confidence}%</span>
@@ -277,36 +276,36 @@ function VoteCard({ vote }: { vote: { ai_model_name: string; action: string; sym
   const a = ACT[vote.action] || ACT.wait
   const confColor = vote.confidence >= 70 ? 'bg-green-500' : vote.confidence >= 50 ? 'bg-yellow-500' : 'bg-gray-500'
   return (
-    <div className="bg-[#1a1f2e] rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <AIAvatar name={vote.ai_model_name} size={28} />
-          <div>
-            <span className="text-white font-semibold block">{vote.ai_model_name}</span>
-            {vote.symbol && <span className="text-xs text-gray-400">{vote.symbol}</span>}
+    <div className="bg-[#1a1f2e] rounded-xl p-2.5 sm:p-4 border border-white/10 hover:border-white/20 transition-all">
+      <div className="flex items-center justify-between mb-2 sm:mb-3 flex-wrap gap-1.5 sm:gap-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+          <AIAvatar name={vote.ai_model_name} size={24} className="sm:w-7 sm:h-7" />
+          <div className="min-w-0 flex-1">
+            <span className="text-white font-semibold block text-xs sm:text-sm truncate">{vote.ai_model_name}</span>
+            {vote.symbol && <span className="text-[10px] sm:text-xs text-gray-400">{vote.symbol}</span>}
           </div>
         </div>
-        <span className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${a.bg} ${a.color}`}>
-          {a.icon} {vote.action.replace('_', ' ').toUpperCase()}
+        <span className={`flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-lg text-[10px] sm:text-xs font-bold ${a.bg} ${a.color}`}>
+          {a.icon} <span className="hidden sm:inline">{vote.action.replace('_', ' ').toUpperCase()}</span>
         </span>
       </div>
-      <div className="mb-3">
-        <div className="flex justify-between text-sm mb-1">
+      <div className="mb-2 sm:mb-3">
+        <div className="flex justify-between text-xs sm:text-sm mb-0.5 sm:mb-1">
           <span className="text-gray-400">Confidence</span>
           <span className="text-white font-bold">{vote.confidence}%</span>
         </div>
-        <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+        <div className="h-1.5 sm:h-2 bg-gray-700 rounded-full overflow-hidden">
           <div className={`h-full ${confColor} rounded-full transition-all`} style={{ width: `${vote.confidence}%` }} />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+      <div className="grid grid-cols-2 gap-x-2 sm:gap-x-4 gap-y-0.5 sm:gap-y-1 text-xs sm:text-sm">
         <div className="flex justify-between"><span className="text-gray-500">Leverage</span><span className="text-white font-semibold">{vote.leverage || '-'}x</span></div>
         <div className="flex justify-between"><span className="text-gray-500">Position</span><span className="text-white font-semibold">{vote.position_pct ? `${(vote.position_pct * 100).toFixed(0)}%` : '-'}</span></div>
         <div className="flex justify-between"><span className="text-gray-500">SL</span><span className="text-red-400 font-semibold">{vote.stop_loss_pct ? `${(vote.stop_loss_pct * 100).toFixed(1)}%` : '-'}</span></div>
         <div className="flex justify-between"><span className="text-gray-500">TP</span><span className="text-green-400 font-semibold">{vote.take_profit_pct ? `${(vote.take_profit_pct * 100).toFixed(1)}%` : '-'}</span></div>
       </div>
       {vote.reasoning && (
-        <p className="mt-3 text-xs text-gray-400 leading-relaxed line-clamp-2 border-t border-white/5 pt-2">{vote.reasoning}</p>
+        <p className="mt-2 sm:mt-3 text-[10px] sm:text-xs text-gray-400 leading-relaxed line-clamp-2 border-t border-white/5 pt-1.5 sm:pt-2">{vote.reasoning}</p>
       )}
     </div>
   )

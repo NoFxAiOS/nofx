@@ -161,43 +161,24 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
   const currentValue = chartData[chartData.length - 1]
   const isProfit = currentValue.raw_pnl >= 0
 
-  // 计算Y轴范围，确保初始余额（美元模式）或0（百分比模式）成为tick点之一
+  // 计算Y轴范围
   const calculateYDomain = () => {
     if (displayMode === 'percent') {
-      // 百分比模式：找到最大最小值，留20%余量，确保0在tick中
+      // 百分比模式：找到最大最小值，留20%余量
       const values = chartData.map((d) => d.value)
       const minVal = Math.min(...values)
       const maxVal = Math.max(...values)
       const range = Math.max(Math.abs(maxVal), Math.abs(minVal))
       const padding = Math.max(range * 0.2, 1) // 至少留1%余量
-      
-      // 调整domain，使0成为tick点之一
-      // 计算一个对称的范围，使0在中心或接近中心
-      const maxAbs = Math.max(Math.abs(minVal - padding), Math.abs(maxVal + padding))
-      return [-maxAbs, maxAbs]
+      return [Math.floor(minVal - padding), Math.ceil(maxVal + padding)]
     } else {
-      // 美元模式：以初始余额为基准，上下留10%余量，确保initialBalance在tick中
+      // 美元模式：以初始余额为基准，上下留10%余量
       const values = chartData.map((d) => d.value)
       const minVal = Math.min(...values, initialBalance)
       const maxVal = Math.max(...values, initialBalance)
       const range = maxVal - minVal
       const padding = Math.max(range * 0.15, initialBalance * 0.01) // 至少留1%余量
-      
-      // 计算以initialBalance为中心的对称范围
-      const belowInitial = initialBalance - minVal + padding
-      const aboveInitial = maxVal - initialBalance + padding
-      const maxDeviation = Math.max(belowInitial, aboveInitial)
-      
-      // 调整domain，使initialBalance成为tick点之一
-      // 使用5个tick点，使initialBalance在中间位置
-      const tickCount = 5
-      const step = (maxDeviation * 2) / (tickCount - 1)
-      
-      // 计算domain，使initialBalance正好在tick点上
-      const adjustedMin = initialBalance - step * 2
-      const adjustedMax = initialBalance + step * 2
-      
-      return [adjustedMin, adjustedMax]
+      return [Math.floor(minVal - padding), Math.ceil(maxVal + padding)]
     }
   }
 
@@ -381,8 +362,6 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
               tick={{ fill: '#848E9C', fontSize: 12 }}
               tickLine={{ stroke: '#2B3139' }}
               domain={calculateYDomain()}
-              allowDecimals={true}
-              tickCount={5}
               tickFormatter={(value) =>
                 displayMode === 'dollar' ? `$${value.toFixed(0)}` : `${value}%`
               }

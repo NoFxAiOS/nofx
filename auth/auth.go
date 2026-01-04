@@ -9,6 +9,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -106,9 +107,17 @@ func GenerateOTPSecret() (string, error) {
 	return key.Secret(), nil
 }
 
-// VerifyOTP verifies OTP code
+// VerifyOTP verifies OTP code with 5-day validity window
 func VerifyOTP(secret, code string) bool {
-	return totp.Validate(code, secret)
+	// 5 days = 5 * 24 * 60 * 60 / 30 = 14400 time steps (30 seconds per step)
+	// We allow codes from 14400 steps in the past to current time
+	valid, err := totp.ValidateCustom(code, secret, time.Now(), totp.ValidateOpts{
+		Period:    30,                    // 30 seconds per time step (standard TOTP)
+		Skew:      14400,                 // Allow 5 days worth of time steps (5*24*60*60/30 = 14400)
+		Digits:    6,                     // 6-digit codes (standard)
+		Algorithm: otp.AlgorithmSHA1,     // SHA1 algorithm (standard)
+	})
+	return err == nil && valid
 }
 
 // GenerateJWT generates JWT token

@@ -225,70 +225,70 @@ export function StrategyMarketPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono relative overflow-hidden flex flex-col items-center py-12">
+    <div className="min-h-screen bg-black text-white font-mono relative overflow-hidden flex flex-col items-center py-6 sm:py-12">
       {/* Background Grid & Scanlines */}
       <div className="fixed inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
       <div className="fixed inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none"></div>
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]"></div>
 
-      <div className="w-full max-w-7xl relative z-10 px-6">
+      <div className="w-full max-w-7xl relative z-10 px-4 sm:px-6">
 
         {/* Header Section */}
-        <div className="mb-12 border-b border-zinc-800 pb-8 relative">
-          <div className="absolute top-0 right-0 p-2 border border-zinc-800 rounded bg-black/50 text-xs text-zinc-500 font-mono hidden md:block">
+        <div className="mb-6 sm:mb-12 border-b border-zinc-800 pb-4 sm:pb-8 relative">
+          <div className="absolute top-0 right-0 p-1.5 sm:p-2 border border-zinc-800 rounded bg-black/50 text-[10px] sm:text-xs text-zinc-500 font-mono hidden md:block">
             SYSTEM_STATUS: <span className="text-emerald-500 animate-pulse">ONLINE</span>
             <br />
             MARKET_UPLINK: <span className="text-emerald-500">ESTABLISHED</span>
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <div className="bg-zinc-900 border border-zinc-700 p-3 rounded-none relative group overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-4 mb-3 sm:mb-4">
+            <div className="bg-zinc-900 border border-zinc-700 p-2 sm:p-3 rounded-none relative group overflow-hidden">
               <div className="absolute inset-0 bg-nofx-gold/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <Database className="w-8 h-8 text-nofx-gold relative z-10" />
+              <Database className="w-6 h-6 sm:w-8 sm:h-8 text-nofx-gold relative z-10" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold tracking-tighter text-white uppercase glitch-text" data-text={t.title}>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tighter text-white uppercase glitch-text" data-text={t.title}>
                 {t.title}
               </h1>
-              <p className="text-xs text-nofx-gold tracking-[0.3em] font-bold mt-1">
+              <p className="text-[10px] sm:text-xs text-nofx-gold tracking-[0.2em] sm:tracking-[0.3em] font-bold mt-0.5 sm:mt-1">
                 // {t.subtitle}
               </p>
             </div>
           </div>
-          <p className="text-sm text-zinc-500 max-w-2xl border-l-2 border-zinc-800 pl-4">
+          <p className="text-xs sm:text-sm text-zinc-500 max-w-2xl border-l-2 border-zinc-800 pl-2 sm:pl-4">
             {t.description}
           </p>
         </div>
 
         {/* Search and Filter Bar */}
-        <div className="flex flex-col md:flex-row gap-4 mb-8">
+        <div className="flex flex-col md:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8">
           {/* Search */}
           <div className="relative flex-1 group">
             <div className="absolute -inset-0.5 bg-gradient-to-r from-nofx-gold/20 to-zinc-800/20 rounded opacity-0 group-hover:opacity-100 transition duration-500 blur"></div>
             <div className="relative bg-black flex items-center border border-zinc-800 group-hover:border-nofx-gold/50 transition-colors">
-              <div className="pl-4 pr-3 text-zinc-500 group-hover:text-nofx-gold transition-colors">
-                <Terminal size={16} />
+              <div className="pl-3 sm:pl-4 pr-2 sm:pr-3 text-zinc-500 group-hover:text-nofx-gold transition-colors">
+                <Terminal size={14} className="sm:w-4 sm:h-4" />
               </div>
               <input
                 type="text"
                 placeholder={t.search}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent py-3 text-sm focus:outline-none placeholder-zinc-700 text-nofx-gold font-mono"
+                className="w-full bg-transparent py-2 sm:py-3 text-xs sm:text-sm focus:outline-none placeholder-zinc-700 text-nofx-gold font-mono"
               />
-              <div className="pr-4">
-                <div className="w-2 h-4 bg-nofx-gold animate-pulse"></div>
+              <div className="pr-3 sm:pr-4">
+                <div className="w-1.5 sm:w-2 h-3 sm:h-4 bg-nofx-gold animate-pulse"></div>
               </div>
             </div>
           </div>
 
           {/* Category Filter */}
-          <div className="flex gap-2 bg-zinc-900/50 p-1 border border-zinc-800">
+          <div className="flex gap-1 sm:gap-2 bg-zinc-900/50 p-0.5 sm:p-1 border border-zinc-800">
             {['all', 'popular', 'recent'].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 text-xs font-mono uppercase tracking-wider transition-all relative overflow-hidden ${selectedCategory === cat
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 text-[10px] sm:text-xs font-mono uppercase tracking-wider transition-all relative overflow-hidden flex-1 sm:flex-initial ${selectedCategory === cat
                   ? 'text-black font-bold'
                   : 'text-zinc-500 hover:text-white'
                   }`}
@@ -341,7 +341,7 @@ export function StrategyMarketPage() {
 
         {/* Strategy Grid */}
         {!isLoading && filteredStrategies.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <AnimatePresence>
               {filteredStrategies.map((strategy, i) => {
                 const style = getStrategyStyle(strategy.name)
@@ -366,38 +366,40 @@ export function StrategyMarketPage() {
                     {/* Category Side Strip */}
                     <div className={`absolute left-0 top-0 bottom-0 w-[2px] ${style.bg.replace('/5', '/50')}`}></div>
 
-                    <div className="p-6 relative">
+                    <div className="p-4 sm:p-6 relative">
                       {/* Header */}
-                      <div className="flex justify-between items-start mb-6">
-                        <div className={`p-2 rounded-none border ${style.border} ${style.bg}`}>
-                          <Icon className={`w-5 h-5 ${style.color}`} />
+                      <div className="flex justify-between items-start mb-4 sm:mb-6">
+                        <div className={`p-1.5 sm:p-2 rounded-none border ${style.border} ${style.bg}`}>
+                          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${style.color}`} />
                         </div>
-                        <div className="text-[10px] font-mono">
+                        <div className="text-[9px] sm:text-[10px] font-mono">
                           {strategy.config_visible ? (
-                            <div className="flex items-center gap-1.5 text-emerald-500 border border-emerald-500/20 bg-emerald-500/10 px-2 py-1">
-                              <Eye size={10} />
-                              PUBLIC_ACCESS
+                            <div className="flex items-center gap-1 text-emerald-500 border border-emerald-500/20 bg-emerald-500/10 px-1.5 sm:px-2 py-0.5 sm:py-1">
+                              <Eye size={9} className="sm:w-2.5 sm:h-2.5" />
+                              <span className="hidden sm:inline">PUBLIC_ACCESS</span>
+                              <span className="sm:hidden">PUBLIC</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 text-zinc-500 border border-zinc-800 bg-zinc-900 px-2 py-1">
-                              <EyeOff size={10} />
-                              RESTRICTED
+                            <div className="flex items-center gap-1 text-zinc-500 border border-zinc-800 bg-zinc-900 px-1.5 sm:px-2 py-0.5 sm:py-1">
+                              <EyeOff size={9} className="sm:w-2.5 sm:h-2.5" />
+                              <span className="hidden sm:inline">RESTRICTED</span>
+                              <span className="sm:hidden">LOCKED</span>
                             </div>
                           )}
                         </div>
                       </div>
 
                       {/* Name and Description */}
-                      <h3 className={`text-lg font-bold mb-2 tracking-tight group-hover:${style.color} transition-colors uppercase truncate relative`}>
+                      <h3 className={`text-base sm:text-lg font-bold mb-1.5 sm:mb-2 tracking-tight group-hover:${style.color} transition-colors uppercase truncate relative`}>
                         {strategy.name}
-                        <span className="absolute -bottom-1 left-0 w-8 h-[2px] bg-zinc-800 group-hover:bg-nofx-gold transition-colors"></span>
+                        <span className="absolute -bottom-0.5 sm:-bottom-1 left-0 w-6 sm:w-8 h-[1.5px] sm:h-[2px] bg-zinc-800 group-hover:bg-nofx-gold transition-colors"></span>
                       </h3>
-                      <p className="text-xs text-zinc-500 mb-6 line-clamp-2 h-8 leading-relaxed font-sans">
+                      <p className="text-[10px] sm:text-xs text-zinc-500 mb-4 sm:mb-6 line-clamp-2 h-7 sm:h-8 leading-relaxed font-sans">
                         {strategy.description || 'NO_DESCRIPTION_AVAILABLE'}
                       </p>
 
                       {/* Meta Data */}
-                      <div className="grid grid-cols-2 gap-y-2 mb-6 text-[10px] font-mono text-zinc-600">
+                      <div className="grid grid-cols-2 gap-y-1.5 sm:gap-y-2 mb-4 sm:mb-6 text-[9px] sm:text-[10px] font-mono text-zinc-600">
                         <div className="flex flex-col">
                           <span className="text-zinc-700 uppercase">{t.author}</span>
                           <span className="text-zinc-400 group-hover:text-white transition-colors">@{strategy.author_email?.split('@')[0] || 'UNKNOWN'}</span>
@@ -409,25 +411,25 @@ export function StrategyMarketPage() {
                       </div>
 
                       {/* Config / Indicators */}
-                      <div className="bg-zinc-900/30 border border-zinc-800/50 p-3 mb-4 backdrop-blur-sm min-h-[90px]">
+                      <div className="bg-zinc-900/30 border border-zinc-800/50 p-2 sm:p-3 mb-3 sm:mb-4 backdrop-blur-sm min-h-[80px] sm:min-h-[90px]">
                         {strategy.config_visible && strategy.config ? (
-                          <div className="space-y-3">
+                          <div className="space-y-2 sm:space-y-3">
                             {/* Indicators */}
-                            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+                            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide pb-0.5 sm:pb-1">
                               {indicators.length > 0 ? indicators.map((ind) => (
                                 <span
                                   key={ind}
-                                  className="px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-[9px] text-zinc-300 font-mono whitespace-nowrap"
+                                  className="px-1 sm:px-1.5 py-0.5 border border-zinc-700 bg-zinc-800 text-[8px] sm:text-[9px] text-zinc-300 font-mono whitespace-nowrap"
                                 >
                                   {ind}
                                 </span>
-                              )) : <span className="text-[9px] text-zinc-600">NO_INDICATORS</span>}
+                              )) : <span className="text-[8px] sm:text-[9px] text-zinc-600">NO_INDICATORS</span>}
                             </div>
 
                             {/* Risk Control */}
                             {strategy.config.risk_control && (
-                              <div className="flex justify-between items-center text-[10px]">
-                                <div className="flex gap-3">
+                              <div className="flex justify-between items-center text-[9px] sm:text-[10px]">
+                                <div className="flex gap-2 sm:gap-3">
                                   <div className="flex flex-col">
                                     <span className="text-zinc-600 scale-90 origin-left">LEV</span>
                                     <span className="text-zinc-300 font-bold">{strategy.config.risk_control.btc_eth_max_leverage || '-'}x</span>
@@ -437,14 +439,14 @@ export function StrategyMarketPage() {
                                     <span className="text-zinc-300 font-bold">{strategy.config.risk_control.max_positions || '-'}</span>
                                   </div>
                                 </div>
-                                <Activity size={12} className="text-zinc-700" />
+                                <Activity size={10} className="sm:w-3 sm:h-3 text-zinc-700" />
                               </div>
                             )}
                           </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center h-full text-zinc-600">
-                            <EyeOff size={16} className="mb-1 opacity-50" />
-                            <span className="text-[9px] uppercase tracking-widest">{t.configHiddenDesc}</span>
+                            <EyeOff size={14} className="sm:w-4 sm:h-4 mb-0.5 sm:mb-1 opacity-50" />
+                            <span className="text-[8px] sm:text-[9px] uppercase tracking-widest">{t.configHiddenDesc}</span>
                           </div>
                         )}
                       </div>
@@ -454,23 +456,23 @@ export function StrategyMarketPage() {
                         {strategy.config_visible && strategy.config ? (
                           <button
                             onClick={() => handleCopyConfig(strategy)}
-                            className="w-full py-2.5 text-[10px] font-bold font-mono uppercase tracking-widest border border-zinc-700 bg-black hover:bg-zinc-900 text-zinc-300 hover:text-nofx-gold hover:border-nofx-gold transition-all flex items-center justify-center gap-2 group/btn"
+                            className="w-full py-2 sm:py-2.5 text-[9px] sm:text-[10px] font-bold font-mono uppercase tracking-widest border border-zinc-700 bg-black hover:bg-zinc-900 text-zinc-300 hover:text-nofx-gold hover:border-nofx-gold transition-all flex items-center justify-center gap-1.5 sm:gap-2 group/btn"
                           >
                             {copiedId === strategy.id ? (
                               <>
-                                <Check className="w-3 h-3 text-emerald-500" />
+                                <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-500" />
                                 <span className="text-emerald-500">{t.copied}</span>
                               </>
                             ) : (
                               <>
-                                <Copy className="w-3 h-3 group-hover/btn:scale-110 transition-transform" />
+                                <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3 group-hover/btn:scale-110 transition-transform" />
                                 {t.copyConfig}
                               </>
                             )}
                           </button>
                         ) : (
-                          <button disabled className="w-full py-2.5 text-[10px] font-bold font-mono uppercase tracking-widest border border-zinc-800 bg-black text-zinc-700 cursor-not-allowed flex items-center justify-center gap-2">
-                            <Shield size={12} />
+                          <button disabled className="w-full py-2 sm:py-2.5 text-[9px] sm:text-[10px] font-bold font-mono uppercase tracking-widest border border-zinc-800 bg-black text-zinc-700 cursor-not-allowed flex items-center justify-center gap-1.5 sm:gap-2">
+                            <Shield size={10} className="sm:w-3 sm:h-3" />
                             {t.hideConfig}
                           </button>
                         )}
@@ -490,19 +492,20 @@ export function StrategyMarketPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-16 mb-20 flex justify-center"
+            className="mt-8 sm:mt-16 mb-10 sm:mb-20 flex justify-center"
           >
-            <div className="relative group cursor-pointer" onClick={() => window.location.href = '/strategy'}>
+            <div className="relative group cursor-pointer w-full sm:w-auto" onClick={() => window.location.href = '/strategy'}>
               <div className="absolute -inset-1 bg-gradient-to-r from-nofx-gold to-yellow-600 rounded blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
-              <div className="relative px-8 py-4 bg-black border border-zinc-800 hover:border-nofx-gold/50 flex items-center gap-4 transition-all">
-                <Hexagon className="text-nofx-gold animate-spin-slow" size={24} />
-                <div className="text-left">
-                  <div className="text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{t.shareYours}</div>
-                  <div className="text-[10px] text-zinc-500 font-mono">CONTRIBUTE TO THE GLOBAL DATABASE</div>
+              <div className="relative px-4 sm:px-8 py-3 sm:py-4 bg-black border border-zinc-800 hover:border-nofx-gold/50 flex flex-col sm:flex-row items-center gap-2 sm:gap-4 transition-all">
+                <Hexagon className="text-nofx-gold animate-spin-slow" size={20} className="sm:w-6 sm:h-6" />
+                <div className="text-center sm:text-left">
+                  <div className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{t.shareYours}</div>
+                  <div className="text-[9px] sm:text-[10px] text-zinc-500 font-mono hidden sm:block">CONTRIBUTE TO THE GLOBAL DATABASE</div>
                 </div>
-                <div className="w-[1px] h-8 bg-zinc-800 mx-2"></div>
-                <div className="text-xs font-mono text-zinc-400 group-hover:translate-x-1 transition-transform">
-                  INITIALIZE_UPLOAD -&gt;
+                <div className="w-8 sm:w-[1px] h-[1px] sm:h-8 bg-zinc-800 mx-0 sm:mx-2"></div>
+                <div className="text-[10px] sm:text-xs font-mono text-zinc-400 group-hover:translate-x-1 transition-transform">
+                  <span className="hidden sm:inline">INITIALIZE_UPLOAD -&gt;</span>
+                  <span className="sm:hidden">UPLOAD -&gt;</span>
                 </div>
               </div>
             </div>

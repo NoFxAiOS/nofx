@@ -236,7 +236,7 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 		"aster_signer":            asterSigner,
 		"lighter_wallet_addr":     lighterWalletAddr,
 		"lighter_api_key_index":   lighterApiKeyIndex,
-		"updated_at":              time.Now(),
+		"updated_at":              time.Now().UTC(),
 	}
 
 	// Only update encrypted fields if not empty
@@ -275,7 +275,7 @@ func (s *ExchangeStore) UpdateAccountName(userID, id, accountName string) error 
 		Where("id = ? AND user_id = ?", id, userID).
 		Updates(map[string]interface{}{
 			"account_name": accountName,
-			"updated_at":   time.Now(),
+			"updated_at":   time.Now().UTC(),
 		})
 	if result.Error != nil {
 		return result.Error

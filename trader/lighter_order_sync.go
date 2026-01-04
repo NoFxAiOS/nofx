@@ -70,7 +70,8 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 			}
 		}
 
-		// Create order record
+		// Create order record - use UTC time to avoid timezone issues
+		tradeTimeUTC := trade.Time.UTC()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -87,9 +88,9 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 			FilledQuantity:  trade.Quantity,
 			AvgFillPrice:    trade.Price,
 			Commission:      trade.Fee,
-			FilledAt:        trade.Time,
-			CreatedAt:       trade.Time,
-			UpdatedAt:       trade.Time,
+			FilledAt:        tradeTimeUTC,
+			CreatedAt:       tradeTimeUTC,
+			UpdatedAt:       tradeTimeUTC,
 		}
 
 		// Insert order record
@@ -98,7 +99,7 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 			continue
 		}
 
-		// Create fill record
+		// Create fill record - use UTC time
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -115,7 +116,7 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 			CommissionAsset: "USDT",
 			RealizedPnL:     trade.RealizedPnL,
 			IsMaker:         false,
-			CreatedAt:       trade.Time,
+			CreatedAt:       tradeTimeUTC,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {

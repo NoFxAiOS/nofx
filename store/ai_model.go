@@ -149,7 +149,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 			"enabled":           enabled,
 			"custom_api_url":    customAPIURL,
 			"custom_model_name": customModelName,
-			"updated_at":        time.Now(),
+			"updated_at":        time.Now().UTC(),
 		}
 		// If apiKey is not empty, update it (encryption handled by crypto.EncryptedString)
 		if apiKey != "" {
@@ -167,7 +167,7 @@ func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPI
 			"enabled":           enabled,
 			"custom_api_url":    customAPIURL,
 			"custom_model_name": customModelName,
-			"updated_at":        time.Now(),
+			"updated_at":        time.Now().UTC(),
 		}
 		if apiKey != "" {
 			updates["api_key"] = crypto.EncryptedString(apiKey)

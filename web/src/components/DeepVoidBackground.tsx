@@ -1,5 +1,4 @@
 import React from 'react'
-import { motion } from 'framer-motion'
 
 interface DeepVoidBackgroundProps extends React.HTMLAttributes<HTMLDivElement> {
     children?: React.ReactNode

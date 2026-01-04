@@ -1,7 +1,6 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-// Force HMR Update - Reliability Fix v3 (Emergency Recovery)
-import useSWR, { mutate } from 'swr'
+import useSWR from 'swr'
 import { api } from './lib/api'
 import { TraderDashboardPage } from './pages/TraderDashboardPage'
 
@@ -20,13 +19,11 @@ import HeaderBar from './components/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/ConfirmDialog'
-import { t, type Language } from './i18n/translations'
-import { confirmToast, notify } from './lib/notify'
+import { t } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
 
 import { OFFICIAL_LINKS } from './constants/branding'
 import { BacktestPage } from './components/BacktestPage'
-import { LogOut, Loader2 } from 'lucide-react'
 import type {
   SystemStatus,
   AccountInfo,

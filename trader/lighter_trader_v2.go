@@ -537,7 +537,7 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 		// - signChanged with position flip: split into close + open
 
 		const EPSILON = 0.0001
-		tradeTime := time.UnixMilli(lt.Timestamp)
+		tradeTime := time.UnixMilli(lt.Timestamp).UTC()
 
 		// Calculate position after trade
 		var posAfter float64
@@ -628,7 +628,7 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 			Quantity:     qty,
 			RealizedPnL:  0, // Not available in API
 			Fee:          fee,
-			Time:         time.UnixMilli(lt.Timestamp),
+			Time:         time.UnixMilli(lt.Timestamp).UTC(),
 		}
 		result = append(result, trade)
 	}

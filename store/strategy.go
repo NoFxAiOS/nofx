@@ -328,7 +328,7 @@ func (s *StrategyStore) Update(strategy *Strategy) error {
 			"config":         strategy.Config,
 			"is_public":      strategy.IsPublic,
 			"config_visible": strategy.ConfigVisible,
-			"updated_at":     time.Now(),
+			"updated_at":     time.Now().UTC(),
 		}).Error
 }
 

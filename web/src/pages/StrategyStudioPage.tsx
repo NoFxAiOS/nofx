@@ -635,7 +635,7 @@ export function StrategyStudioPage() {
   ]
 
   return (
-    <div className="h-[calc(100vh-64px)] sm:h-[calc(100vh-64px)] flex flex-col" style={{ background: '#0B0E11' }}>
+    <div className="min-h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] flex flex-col" style={{ background: '#0B0E11' }}>
       {/* Header */}
       <div className="flex-shrink-0 px-3 sm:px-4 py-2 sm:py-3 border-b" style={{ borderColor: '#2B3139' }}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
@@ -658,7 +658,7 @@ export function StrategyStudioPage() {
       </div>
 
       {/* Main Content - Three Columns (responsive) */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
         {/* Left Column - Strategy List */}
         <div className="w-full lg:w-48 flex-shrink-0 border-b lg:border-b-0 lg:border-r overflow-y-auto lg:max-h-none" style={{ borderColor: '#2B3139', maxHeight: '200px', minHeight: '200px' }}>
           <div className="p-2 sm:p-2">
@@ -758,7 +758,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Middle Column - Config Editor */}
-        <div className="flex-1 min-w-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r overflow-y-auto" style={{ borderColor: '#2B3139', minHeight: '300px' }}>
+        <div className="flex-1 min-w-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r" style={{ borderColor: '#2B3139' }}>
           {selectedStrategy && editingConfig ? (
             <div className="p-3 sm:p-4">
               {/* Strategy Name & Actions */}
@@ -851,7 +851,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Right Column - Prompt Preview & AI Test */}
-        <div className="w-full lg:w-[420px] flex-1 lg:flex-shrink-0 flex flex-col overflow-hidden border-t lg:border-t-0" style={{ borderColor: '#2B3139', minHeight: '300px' }}>
+        <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col lg:overflow-hidden border-t lg:border-t-0" style={{ borderColor: '#2B3139' }}>
           {/* Tabs */}
           <div className="flex-shrink-0 flex border-b" style={{ borderColor: '#2B3139' }}>
             <button
@@ -885,7 +885,7 @@ export function StrategyStudioPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 lg:overflow-y-auto">
             {activeRightTab === 'prompt' ? (
               /* Prompt Preview Tab */
               <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">

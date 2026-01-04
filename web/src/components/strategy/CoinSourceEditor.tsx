@@ -155,7 +155,7 @@ export function CoinSourceEditor({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Source Type Selector */}
       <div>
         <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
@@ -198,37 +198,37 @@ export function CoinSourceEditor({
       {/* Static Coins */}
       {(config.source_type === 'static' || config.source_type === 'mixed') && (
         <div>
-          <label className="block text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
+          <label className="block text-xs sm:text-sm font-medium mb-2 sm:mb-3" style={{ color: '#EAECEF' }}>
             {t('staticCoins')}
           </label>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
               <span
                 key={coin}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
+                className="flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm"
                 style={{ background: '#2B3139', color: '#EAECEF' }}
               >
-                {coin}
+                <span className="truncate max-w-[120px] sm:max-w-none">{coin}</span>
                 {!disabled && (
                   <button
                     onClick={() => handleRemoveCoin(coin)}
-                    className="ml-1 hover:text-red-400 transition-colors"
+                    className="ml-0.5 sm:ml-1 hover:text-red-400 transition-colors flex-shrink-0"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </button>
                 )}
               </span>
             ))}
           </div>
           {!disabled && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={newCoin}
                 onChange={(e) => setNewCoin(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCoin()}
                 placeholder="BTC, ETH, SOL..."
-                className="flex-1 px-4 py-2 rounded-lg"
+                className="flex-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base"
                 style={{
                   background: '#0B0E11',
                   border: '1px solid #2B3139',
@@ -237,11 +237,11 @@ export function CoinSourceEditor({
               />
               <button
                 onClick={handleAddCoin}
-                className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 transition-colors text-sm sm:text-base whitespace-nowrap"
                 style={{ background: '#F0B90B', color: '#0B0E11' }}
               >
-                <Plus className="w-4 h-4" />
-                {t('addCoin')}
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>{t('addCoin')}</span>
               </button>
             </div>
           )}
@@ -250,29 +250,29 @@ export function CoinSourceEditor({
 
       {/* Excluded Coins */}
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Ban className="w-4 h-4" style={{ color: '#F6465D' }} />
-          <label className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+        <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+          <Ban className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: '#F6465D' }} />
+          <label className="text-xs sm:text-sm font-medium" style={{ color: '#EAECEF' }}>
             {t('excludedCoins')}
           </label>
         </div>
-        <p className="text-xs mb-3" style={{ color: '#848E9C' }}>
+        <p className="text-[10px] sm:text-xs mb-2 sm:mb-3 leading-relaxed" style={{ color: '#848E9C' }}>
           {t('excludedCoinsDesc')}
         </p>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3">
           {(config.excluded_coins || []).map((coin) => (
             <span
               key={coin}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
+              className="flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm"
               style={{ background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D' }}
             >
-              {coin}
+              <span className="truncate max-w-[120px] sm:max-w-none">{coin}</span>
               {!disabled && (
                 <button
                   onClick={() => handleRemoveExcludedCoin(coin)}
-                  className="ml-1 hover:text-white transition-colors"
+                  className="ml-0.5 sm:ml-1 hover:text-white transition-colors flex-shrink-0"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 </button>
               )}
             </span>
@@ -284,14 +284,14 @@ export function CoinSourceEditor({
           )}
         </div>
         {!disabled && (
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={newExcludedCoin}
               onChange={(e) => setNewExcludedCoin(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddExcludedCoin()}
               placeholder="BTC, ETH, DOGE..."
-              className="flex-1 px-4 py-2 rounded-lg text-sm"
+              className="flex-1 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base"
               style={{
                 background: '#0B0E11',
                 border: '1px solid #2B3139',
@@ -300,11 +300,11 @@ export function CoinSourceEditor({
             />
             <button
               onClick={handleAddExcludedCoin}
-              className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 transition-colors text-sm sm:text-base whitespace-nowrap"
               style={{ background: '#F6465D', color: '#EAECEF' }}
             >
-              <Ban className="w-4 h-4" />
-              {t('addExcludedCoin')}
+              <Ban className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>{t('addExcludedCoin')}</span>
             </button>
           </div>
         )}

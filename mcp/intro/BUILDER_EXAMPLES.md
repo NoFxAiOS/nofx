@@ -142,7 +142,7 @@ story, err := client.CallWithRequest(request)
 request := mcp.NewRequestBuilder().
     WithSystemPrompt("You are a quantitative analyst").
     WithUserPrompt("Analyze BTC/USDT chart pattern").
-    WithTemperature(0.5).        // 中等温度
+    WithTemperature(1.0).        // 默认温度
     WithMaxTokens(1500).
     WithStopSequences([]string{"---", "END"}).  // 多个停止序列
     Build()

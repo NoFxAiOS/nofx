@@ -152,32 +152,32 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 
 	switch aiModel {
 	case "claude":
-		mcpClient = mcp.NewClaudeClient()
+		mcpClient = mcp.NewClaudeClient(mcp.WithTemperature(1.0))
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using Claude AI", config.Name)
 
 	case "kimi":
-		mcpClient = mcp.NewKimiClient()
+		mcpClient = mcp.NewKimiClient(mcp.WithTemperature(1.0))
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using Kimi (Moonshot) AI", config.Name)
 
 	case "gemini":
-		mcpClient = mcp.NewGeminiClient()
+		mcpClient = mcp.NewGeminiClient(mcp.WithTemperature(1.0))
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using Google Gemini AI", config.Name)
 
 	case "grok":
-		mcpClient = mcp.NewGrokClient()
+		mcpClient = mcp.NewGrokClient(mcp.WithTemperature(1.0))
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using xAI Grok AI", config.Name)
 
 	case "openai":
-		mcpClient = mcp.NewOpenAIClient()
+		mcpClient = mcp.NewOpenAIClient(mcp.WithTemperature(1.0))
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using OpenAI", config.Name)
 
 	case "qwen":
-		mcpClient = mcp.NewQwenClient()
+		mcpClient = mcp.NewQwenClient(mcp.WithTemperature(1.0))
 		apiKey := config.QwenKey
 		if apiKey == "" {
 			apiKey = config.CustomAPIKey
@@ -186,12 +186,12 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI", config.Name)
 
 	case "custom":
-		mcpClient = mcp.New()
+		mcpClient = mcp.NewClient(mcp.WithTemperature(1.0))
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using custom AI API: %s (model: %s)", config.Name, config.CustomAPIURL, config.CustomModelName)
 
 	default: // deepseek or empty
-		mcpClient = mcp.NewDeepSeekClient()
+		mcpClient = mcp.NewDeepSeekClient(mcp.WithTemperature(1.0))
 		apiKey := config.DeepSeekKey
 		if apiKey == "" {
 			apiKey = config.CustomAPIKey

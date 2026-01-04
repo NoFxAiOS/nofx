@@ -278,7 +278,7 @@ func Example_real_world_usage() {
 		mcp.WithTimeout(60*time.Second),
 		mcp.WithMaxRetries(5),
 		mcp.WithMaxTokens(4000),
-		mcp.WithTemperature(0.5),
+		mcp.WithTemperature(1.0),
 		mcp.WithLogger(&CustomLogger{}),
 	)
 

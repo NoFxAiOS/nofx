@@ -13,7 +13,7 @@ import (
 const (
 	ProviderCustom = "custom"
 
-	MCPClientTemperature = 0.5
+	MCPClientTemperature = 1.0
 )
 
 var (

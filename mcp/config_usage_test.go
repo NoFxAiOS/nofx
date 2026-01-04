@@ -248,8 +248,8 @@ func TestConfig_DefaultValues(t *testing.T) {
 		t.Errorf("default MaxRetries should be 3, got %d", c.config.MaxRetries)
 	}
 
-	if c.config.Temperature != 0.5 {
-		t.Errorf("default Temperature should be 0.5, got %f", c.config.Temperature)
+	if c.config.Temperature != 1.0 {
+		t.Errorf("default Temperature should be 1.0, got %f", c.config.Temperature)
 	}
 
 	if c.config.RetryWaitBase != 2*time.Second {

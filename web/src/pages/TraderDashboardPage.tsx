@@ -342,14 +342,14 @@ export function TraderDashboardPage({
             <div className="w-full px-4 md:px-8 relative z-10 pt-6">
                 {/* Trader Header */}
                 <div
-                    className="mb-6 rounded-lg p-6 animate-scale-in nofx-glass group"
+                    className="mb-4 sm:mb-6 rounded-lg p-4 sm:p-6 animate-scale-in nofx-glass group"
                     style={{
                         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.4) 100%)',
                     }}
                 >
-                    <div className="flex items-start justify-between mb-4">
-                        <h2 className="text-2xl font-bold flex items-center gap-4 text-nofx-text-main">
-                            <div className="relative">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                        <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-4 text-nofx-text-main min-w-0 flex-1">
+                            <div className="relative flex-shrink-0">
                                 <PunkAvatar
                                     seed={getTraderAvatar(
                                         selectedTrader.trader_id,
@@ -360,25 +360,25 @@ export function TraderDashboardPage({
                                 />
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                             </div>
-                            <div className="flex flex-col">
-                                <span className="text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted">
+                            <div className="flex flex-col min-w-0 flex-1">
+                                <span className="text-xl sm:text-2xl md:text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted truncate">
                                     {selectedTrader.trader_name}
                                 </span>
-                                <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full" />
+                                <span className="text-[10px] sm:text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2 truncate">
+                                    <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
                                     ID: {selectedTrader.trader_id.slice(0, 8)}...
                                 </span>
                             </div>
                         </h2>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap flex-shrink-0">
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
-                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
+                                <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5 flex-shrink-0">
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1"
+                                        className="bg-transparent text-xs sm:text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1 max-w-[120px] sm:max-w-none"
                                     >
                                         {traders.map((trader) => (
                                             <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
@@ -391,7 +391,7 @@ export function TraderDashboardPage({
 
                             {/* Wallet Address Display for Perp-DEX */}
                             {exchanges && isPerpDex && (
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg nofx-glass border border-nofx-gold/20">
+                                <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-lg nofx-glass border border-nofx-gold/20 flex-shrink-0 min-w-0">
                                     {walletAddress ? (
                                         <>
                                             <span className="text-xs font-mono text-nofx-gold">
@@ -441,7 +441,7 @@ export function TraderDashboardPage({
                             )}
                         </div>
                     </div>
-                    <div className="flex items-center gap-6 text-sm flex-wrap text-nofx-text-muted font-mono pl-2">
+                    <div className="flex items-center gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm flex-wrap text-nofx-text-muted font-mono pl-0 sm:pl-2">
                         <span className="flex items-center gap-2">
                             <span className="opacity-60">AI Model:</span>
                             <span
@@ -499,7 +499,7 @@ export function TraderDashboardPage({
                 )}
 
                 {/* Account Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
                     <StatCard
                         title={t('totalEquity', language)}
                         value={`${account?.total_equity?.toFixed(2) || '0.00'}`}
@@ -533,7 +533,7 @@ export function TraderDashboardPage({
                 </div>
 
                 {/* Main Content Area */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
                     {/* Left Column: Charts + Positions */}
                     <div className="space-y-6">
                         {/* Chart Tabs (Equity / K-line) */}
@@ -555,7 +555,7 @@ export function TraderDashboardPage({
 
                         {/* Current Positions */}
                         <div
-                            className="nofx-glass p-6 animate-slide-in relative overflow-hidden group"
+                            className="nofx-glass p-4 sm:p-6 animate-slide-in relative overflow-hidden group"
                             style={{ animationDelay: '0.15s' }}
                         >
                             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -722,34 +722,36 @@ export function TraderDashboardPage({
 
                     {/* Right Column: Recent Decisions */}
                     <div
-                        className="nofx-glass p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] flex flex-col"
+                        className="nofx-glass p-4 sm:p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] flex flex-col"
                         style={{ animationDelay: '0.2s' }}
                     >
                         {/* Header */}
-                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5 shrink-0">
-                            <div
-                                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-[0_4px_14px_rgba(99,102,241,0.4)]"
-                                style={{
-                                    background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                                }}
-                            >
-                                🧠
-                            </div>
-                            <div className="flex-1">
-                                <h2 className="text-xl font-bold text-nofx-text-main">
-                                    {t('recentDecisions', language)}
-                                </h2>
-                                {decisions && decisions.length > 0 && (
-                                    <div className="text-xs text-nofx-text-muted">
-                                        {t('lastCycles', language, { count: decisions.length })}
-                                    </div>
-                                )}
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5 pb-4 border-b border-white/5 shrink-0">
+                            <div className="flex items-center gap-3 flex-1 min-w-0 w-full sm:w-auto">
+                                <div
+                                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-lg sm:text-xl shadow-[0_4px_14px_rgba(99,102,241,0.4)] flex-shrink-0"
+                                    style={{
+                                        background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                                    }}
+                                >
+                                    🧠
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h2 className="text-lg sm:text-xl font-bold text-nofx-text-main truncate">
+                                        {t('recentDecisions', language)}
+                                    </h2>
+                                    {decisions && decisions.length > 0 && (
+                                        <div className="text-xs text-nofx-text-muted">
+                                            {t('lastCycles', language, { count: decisions.length })}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             {/* Limit Selector */}
                             <select
                                 value={decisionsLimit}
                                 onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent focus:outline-none"
+                                className="px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent focus:outline-none flex-shrink-0 w-full sm:w-auto"
                             >
                                 <option value={5}>5</option>
                                 <option value={10}>10</option>
@@ -786,7 +788,7 @@ export function TraderDashboardPage({
                 {/* Position History Section */}
                 {selectedTraderId && (
                     <div
-                        className="nofx-glass p-6 animate-slide-in"
+                        className="nofx-glass p-4 sm:p-6 animate-slide-in"
                         style={{ animationDelay: '0.25s' }}
                     >
                         <div className="flex items-center justify-between mb-5">
@@ -822,18 +824,18 @@ function StatCard({
     icon?: string
 }) {
     return (
-        <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:translate-y-[-2px] border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity text-4xl grayscale group-hover:grayscale-0">
+        <div className="group nofx-glass p-4 sm:p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:translate-y-[-2px] border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-3 sm:p-4 opacity-5 group-hover:opacity-10 transition-opacity text-3xl sm:text-4xl grayscale group-hover:grayscale-0">
                 {icon}
             </div>
-            <div className="text-xs mb-2 font-mono uppercase tracking-wider text-nofx-text-muted flex items-center gap-2">
+            <div className="text-[10px] sm:text-xs mb-2 font-mono uppercase tracking-wider text-nofx-text-muted flex items-center gap-2">
                 {title}
             </div>
-            <div className="flex items-baseline gap-1 mb-1">
-                <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
+            <div className="flex items-baseline gap-1 mb-1 flex-wrap">
+                <div className="text-xl sm:text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors break-words">
                     {value}
                 </div>
-                {unit && <span className="text-xs font-mono text-nofx-text-muted opacity-60">{unit}</span>}
+                {unit && <span className="text-[10px] sm:text-xs font-mono text-nofx-text-muted opacity-60 flex-shrink-0">{unit}</span>}
             </div>
 
             {change !== undefined && (

@@ -300,15 +300,15 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-              className="flex flex-row items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-2 text-sm transition-colors w-full justify-between p-2 sm:p-2 rounded hover:bg-white/5"
             >
-              <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+              <div className="flex items-center gap-2 flex-shrink-0 min-w-0 w-full sm:w-auto">
                 <span className="text-base flex-shrink-0">⚙️</span>
-                <span className="font-semibold truncate" style={{ color: '#a78bfa' }}>
+                <span className="font-semibold truncate flex-1 sm:flex-none" style={{ color: '#a78bfa' }}>
                   System Prompt
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -341,7 +341,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
             </button>
             {showSystemPrompt && (
               <div
-                className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                className="mt-2 rounded-lg p-3 sm:p-4 text-xs sm:text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 style={{
                   background: '#0B0E11',
                   border: '1px solid #2B3139',
@@ -359,15 +359,15 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowInputPrompt(!showInputPrompt)}
-              className="flex flex-row items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-2 text-sm transition-colors w-full justify-between p-2 sm:p-2 rounded hover:bg-white/5"
             >
-              <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+              <div className="flex items-center gap-2 flex-shrink-0 min-w-0 w-full sm:w-auto">
                 <span className="text-base flex-shrink-0">📥</span>
-                <span className="font-semibold truncate" style={{ color: '#60a5fa' }}>
+                <span className="font-semibold truncate flex-1 sm:flex-none" style={{ color: '#60a5fa' }}>
                   User Prompt
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -400,7 +400,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
             </button>
             {showInputPrompt && (
               <div
-                className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                className="mt-2 rounded-lg p-3 sm:p-4 text-xs sm:text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
                 style={{
                   background: '#0B0E11',
                   border: '1px solid #2B3139',

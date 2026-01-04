@@ -395,12 +395,12 @@ export function TraderDashboardPage({
                                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                                 </div>
                                 <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                                    <span className="text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted">
+                                    <span className="text-lg sm:text-xl font-medium text-nofx-text-main truncate">
                                         {selectedTrader.trader_name}
                                     </span>
-                                    <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full" />
-                                        ID: {selectedTrader.trader_id}
+                                    <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2 truncate">
+                                        <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
+                                        <span className="truncate">ID: {selectedTrader.trader_id}</span>
                                     </span>
                                 </div>
                             </h2>

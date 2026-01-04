@@ -471,7 +471,7 @@ function App() {
         className={
           currentPage === 'debate'
             ? 'h-[calc(100vh-64px)] mt-16'
-            : 'max-w-[1920px] mx-auto px-6 py-6 pt-24'
+            : 'max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pt-20 sm:pt-24'
         }
       >
         <AnimatePresence mode="wait">
@@ -541,16 +541,16 @@ function App() {
       {/* Footer - Hidden on debate page */}
       {currentPage !== 'debate' && (
         <footer
-          className="mt-16"
+          className="mt-8 sm:mt-16"
           style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
         >
           <div
-            className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm"
+            className="max-w-[1920px] mx-auto px-4 sm:px-6 py-4 sm:py-6 text-center text-xs sm:text-sm"
             style={{ color: '#5E6673' }}
           >
             <p>{t('footerTitle', language)}</p>
             <p className="mt-1">{t('footerWarning', language)}</p>
-            <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
+            <div className="mt-3 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
               {/* GitHub */}
               <a
                 href={OFFICIAL_LINKS.github}
@@ -937,7 +937,7 @@ function TraderDetailsPage({
     <div>
       {/* Trader Header */}
       <div
-        className="mb-6 rounded p-6 animate-scale-in"
+        className="mb-4 sm:mb-6 rounded p-4 sm:p-6 animate-scale-in"
         style={{
           background:
             'linear-gradient(135deg, rgba(240, 185, 11, 0.15) 0%, rgba(252, 213, 53, 0.05) 100%)',
@@ -945,9 +945,9 @@ function TraderDetailsPage({
           boxShadow: '0 0 30px rgba(240, 185, 11, 0.15)',
         }}
       >
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-3 sm:gap-0">
           <h2
-            className="text-2xl font-bold flex items-center gap-3"
+            className="text-xl sm:text-2xl font-bold flex items-center gap-2 sm:gap-3"
             style={{ color: '#EAECEF' }}
           >
             <PunkAvatar
@@ -955,23 +955,23 @@ function TraderDetailsPage({
                 selectedTrader.trader_id,
                 selectedTrader.trader_name
               )}
-              size={48}
-              className="rounded-lg"
+              size={40}
+              className="rounded-lg sm:w-12 sm:h-12"
             />
             {selectedTrader.trader_name}
           </h2>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
             {/* Trader Selector */}
             {traders && traders.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm" style={{ color: '#848E9C' }}>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
                   {t('switchTrader', language)}:
                 </span>
                 <select
                   value={selectedTraderId}
                   onChange={(e) => onTraderSelect(e.target.value)}
-                  className="rounded px-3 py-2 text-sm font-medium cursor-pointer transition-colors"
+                  className="rounded px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium cursor-pointer transition-colors w-full sm:w-auto"
                   style={{
                     background: '#1E2329',
                     border: '1px solid #2B3139',
@@ -1038,7 +1038,7 @@ function TraderDetailsPage({
           </div>
         </div>
         <div
-          className="flex items-center gap-4 text-sm flex-wrap"
+          className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm flex-wrap"
           style={{ color: '#848E9C' }}
         >
           <span>
@@ -1088,10 +1088,10 @@ function TraderDetailsPage({
       {/* Debug Info */}
       {account && (
         <div
-          className="mb-4 p-3 rounded text-xs font-mono"
+          className="mb-3 sm:mb-4 p-2 sm:p-3 rounded text-[10px] sm:text-xs font-mono overflow-x-auto"
           style={{ background: '#1E2329', border: '1px solid #2B3139' }}
         >
-          <div style={{ color: '#848E9C' }}>
+          <div style={{ color: '#848E9C' }} className="whitespace-nowrap">
             🔄 Last Update: {lastUpdate} | Total Equity:{' '}
             {account?.total_equity?.toFixed(2) || '0.00'} | Available:{' '}
             {account?.available_balance?.toFixed(2) || '0.00'} | P&L:{' '}
@@ -1102,7 +1102,7 @@ function TraderDetailsPage({
       )}
 
       {/* Account Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <StatCard
           title={t('totalEquity', language)}
           value={`${account?.total_equity?.toFixed(2) || '0.00'} USDT`}
@@ -1128,9 +1128,9 @@ function TraderDetailsPage({
       </div>
 
       {/* 主要内容区：左右分屏 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
         {/* 左侧：图表 + 持仓 */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Chart Tabs (Equity / K-line) */}
           <div
             ref={chartSectionRef}
@@ -1150,12 +1150,12 @@ function TraderDetailsPage({
 
           {/* Current Positions */}
           <div
-            className="binance-card p-6 animate-slide-in"
+            className="binance-card p-4 sm:p-6 animate-slide-in"
             style={{ animationDelay: '0.15s' }}
           >
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-5 gap-3 sm:gap-0">
               <h2
-                className="text-xl font-bold flex items-center gap-2"
+                className="text-lg sm:text-xl font-bold flex items-center gap-2"
                 style={{ color: '#EAECEF' }}
               >
                 📈 {t('currentPositions', language)}
@@ -1175,57 +1175,58 @@ function TraderDetailsPage({
             </div>
             {positions && positions.length > 0 ? (
               <div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <table className="w-full text-[10px] sm:text-xs">
                     <thead className="text-left border-b border-gray-800">
                       <tr>
-                        <th className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-left">
+                        <th className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-left">
                           {t('symbol', language)}
                         </th>
-                        <th className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-center">
+                        <th className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-center">
                           {t('side', language)}
                         </th>
-                        <th className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-center">
+                        <th className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-center">
                           {language === 'zh' ? '操作' : 'Action'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-right hidden sm:table-cell"
                           title={t('entryPrice', language)}
                         >
                           {language === 'zh' ? '入场价' : 'Entry'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
                           title={t('markPrice', language)}
                         >
                           {language === 'zh' ? '标记价' : 'Mark'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-right hidden md:table-cell"
                           title={t('quantity', language)}
                         >
                           {language === 'zh' ? '数量' : 'Qty'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-right hidden lg:table-cell"
                           title={t('positionValue', language)}
                         >
                           {language === 'zh' ? '价值' : 'Value'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-center"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-center"
                           title={t('leverage', language)}
                         >
                           {language === 'zh' ? '杠杆' : 'Lev.'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
                           title={t('unrealizedPnL', language)}
                         >
                           {language === 'zh' ? '未实现盈亏' : 'uPnL'}
                         </th>
                         <th
-                          className="px-1 pb-3 font-semibold text-gray-400 whitespace-nowrap text-right"
+                          className="px-1 sm:px-2 pb-2 sm:pb-3 font-semibold text-gray-400 whitespace-nowrap text-right hidden md:table-cell"
                           title={t('liqPrice', language)}
                         >
                           {language === 'zh' ? '强平价' : 'Liq.'}
@@ -1249,12 +1250,12 @@ function TraderDetailsPage({
                             }
                           }}
                         >
-                          <td className="px-1 py-3 font-mono font-semibold whitespace-nowrap text-left">
+                          <td className="px-1 sm:px-2 py-2 sm:py-3 font-mono font-semibold whitespace-nowrap text-left">
                             {pos.symbol}
                           </td>
-                          <td className="px-1 py-3 whitespace-nowrap text-center">
+                          <td className="px-1 sm:px-2 py-2 sm:py-3 whitespace-nowrap text-center">
                             <span
-                              className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                              className="px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-bold"
                               style={
                                 pos.side === 'long'
                                   ? {
@@ -1273,7 +1274,7 @@ function TraderDetailsPage({
                               )}
                             </span>
                           </td>
-                          <td className="px-1 py-3 whitespace-nowrap text-center">
+                          <td className="px-1 sm:px-2 py-2 sm:py-3 whitespace-nowrap text-center">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1284,50 +1285,50 @@ function TraderDetailsPage({
                                 )
                               }}
                               disabled={closingPosition === pos.symbol}
-                              className="btn-danger inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
+                              className="btn-danger inline-flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
                               title={
                                 language === 'zh' ? '平仓' : 'Close Position'
                               }
                             >
                               {closingPosition === pos.symbol ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
+                                <Loader2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 animate-spin" />
                               ) : (
-                                <LogOut className="w-3 h-3" />
+                                <LogOut className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                               )}
-                              {language === 'zh' ? '平仓' : 'Close'}
+                              <span className="hidden sm:inline">{language === 'zh' ? '平仓' : 'Close'}</span>
                             </button>
                           </td>
                           <td
-                            className="px-1 py-3 font-mono whitespace-nowrap text-right"
+                            className="px-1 sm:px-2 py-2 sm:py-3 font-mono whitespace-nowrap text-right hidden sm:table-cell"
                             style={{ color: '#EAECEF' }}
                           >
                             {pos.entry_price.toFixed(4)}
                           </td>
                           <td
-                            className="px-1 py-3 font-mono whitespace-nowrap text-right"
+                            className="px-1 sm:px-2 py-2 sm:py-3 font-mono whitespace-nowrap text-right"
                             style={{ color: '#EAECEF' }}
                           >
                             {pos.mark_price.toFixed(4)}
                           </td>
                           <td
-                            className="px-1 py-3 font-mono whitespace-nowrap text-right"
+                            className="px-1 sm:px-2 py-2 sm:py-3 font-mono whitespace-nowrap text-right hidden md:table-cell"
                             style={{ color: '#EAECEF' }}
                           >
                             {pos.quantity.toFixed(4)}
                           </td>
                           <td
-                            className="px-1 py-3 font-mono font-bold whitespace-nowrap text-right"
+                            className="px-1 sm:px-2 py-2 sm:py-3 font-mono font-bold whitespace-nowrap text-right hidden lg:table-cell"
                             style={{ color: '#EAECEF' }}
                           >
                             {(pos.quantity * pos.mark_price).toFixed(2)}
                           </td>
                           <td
-                            className="px-1 py-3 font-mono whitespace-nowrap text-center"
+                            className="px-1 sm:px-2 py-2 sm:py-3 font-mono whitespace-nowrap text-center"
                             style={{ color: '#F0B90B' }}
                           >
                             {pos.leverage}x
                           </td>
-                          <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
+                          <td className="px-1 sm:px-2 py-2 sm:py-3 font-mono whitespace-nowrap text-right">
                             <span
                               style={{
                                 color:
@@ -1340,7 +1341,7 @@ function TraderDetailsPage({
                             </span>
                           </td>
                           <td
-                            className="px-1 py-3 font-mono whitespace-nowrap text-right"
+                            className="px-1 sm:px-2 py-2 sm:py-3 font-mono whitespace-nowrap text-right hidden md:table-cell"
                             style={{ color: '#848E9C' }}
                           >
                             {pos.liquidation_price.toFixed(4)}
@@ -1349,6 +1350,7 @@ function TraderDetailsPage({
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
                 {/* Pagination footer - only show when there are many positions */}
                 {totalPositions > 10 && (
@@ -1455,16 +1457,16 @@ function TraderDetailsPage({
 
         {/* 右侧：Recent Decisions - 卡片容器 */}
         <div
-          className="binance-card p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)]"
+          className="binance-card p-4 sm:p-6 animate-slide-in h-fit lg:sticky lg:top-20 sm:lg:top-24 lg:max-h-[calc(100vh-120px)]"
           style={{ animationDelay: '0.2s' }}
         >
           {/* 标题 */}
           <div
-            className="flex items-center gap-3 mb-5 pb-4 border-b"
+            className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4 sm:mb-5 pb-3 sm:pb-4 border-b"
             style={{ borderColor: '#2B3139' }}
           >
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-lg sm:text-xl"
               style={{
                 background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
                 boxShadow: '0 4px 14px rgba(99, 102, 241, 0.4)',
@@ -1472,8 +1474,8 @@ function TraderDetailsPage({
             >
               🧠
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold" style={{ color: '#EAECEF' }}>
                 {t('recentDecisions', language)}
               </h2>
               {decisions && decisions.length > 0 && (
@@ -1486,7 +1488,7 @@ function TraderDetailsPage({
             <select
               value={decisionsLimit}
               onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all"
+              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium cursor-pointer transition-all w-full sm:w-auto"
               style={{
                 background: '#2B3139',
                 color: '#EAECEF',
@@ -1503,8 +1505,8 @@ function TraderDetailsPage({
 
           {/* 决策列表 - 可滚动 */}
           <div
-            className="space-y-4 overflow-y-auto pr-2"
-            style={{ maxHeight: 'calc(100vh - 280px)' }}
+            className="space-y-3 sm:space-y-4 overflow-y-auto pr-1 sm:pr-2"
+            style={{ maxHeight: 'calc(100vh - 240px)' }}
           >
             {decisions && decisions.length > 0 ? (
               decisions.map((decision, i) => (
@@ -1532,15 +1534,15 @@ function TraderDetailsPage({
       {/* Position History Section */}
       {selectedTraderId && (
         <div
-          className="binance-card p-6 animate-slide-in"
+          className="binance-card p-4 sm:p-6 animate-slide-in"
           style={{ animationDelay: '0.25s' }}
         >
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
             <h2
-              className="text-xl font-bold flex items-center gap-2"
+              className="text-lg sm:text-xl font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
-              <span className="text-2xl">📜</span>
+              <span className="text-xl sm:text-2xl">📜</span>
               {t('positionHistory.title', language)}
             </h2>
           </div>
@@ -1568,13 +1570,13 @@ function StatCard({
   return (
     <div className="stat-card animate-fade-in">
       <div
-        className="text-xs mb-2 mono uppercase tracking-wider"
+        className="text-[10px] sm:text-xs mb-1.5 sm:mb-2 mono uppercase tracking-wider"
         style={{ color: '#848E9C' }}
       >
         {title}
       </div>
       <div
-        className="text-2xl font-bold mb-1 mono"
+        className="text-lg sm:text-xl lg:text-2xl font-bold mb-1 mono break-words"
         style={{ color: '#EAECEF' }}
       >
         {value}
@@ -1582,7 +1584,7 @@ function StatCard({
       {change !== undefined && (
         <div className="flex items-center gap-1">
           <div
-            className="text-sm mono font-bold"
+            className="text-xs sm:text-sm mono font-bold"
             style={{ color: positive ? '#0ECB81' : '#F6465D' }}
           >
             {positive ? '▲' : '▼'} {positive ? '+' : ''}
@@ -1591,7 +1593,7 @@ function StatCard({
         </div>
       )}
       {subtitle && (
-        <div className="text-xs mt-2 mono" style={{ color: '#848E9C' }}>
+        <div className="text-[10px] sm:text-xs mt-1.5 sm:mt-2 mono" style={{ color: '#848E9C' }}>
           {subtitle}
         </div>
       )}

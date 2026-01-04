@@ -193,20 +193,20 @@ export function CompetitionPage() {
       </div>
 
       {/* Left/Right Split: Performance Chart + Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
         {/* Left: Performance Comparison Chart */}
         <div
-          className="binance-card p-5 animate-slide-in"
+          className="binance-card p-4 sm:p-5 animate-slide-in"
           style={{ animationDelay: '0.1s' }}
         >
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2
-              className="text-lg font-bold flex items-center gap-2"
+              className="text-base sm:text-lg font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
               {t('performanceComparison', language)}
             </h2>
-            <div className="text-xs" style={{ color: '#848E9C' }}>
+            <div className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
               {t('realTimePnL', language)}
             </div>
           </div>
@@ -215,18 +215,18 @@ export function CompetitionPage() {
 
         {/* Right: Leaderboard */}
         <div
-          className="binance-card p-5 animate-slide-in"
+          className="binance-card p-4 sm:p-5 animate-slide-in"
           style={{ animationDelay: '0.1s' }}
         >
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h2
-              className="text-lg font-bold flex items-center gap-2"
+              className="text-base sm:text-lg font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
             >
               {t('leaderboard', language)}
             </h2>
             <div
-              className="text-xs px-2 py-1 rounded"
+              className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded"
               style={{
                 background: 'rgba(240, 185, 11, 0.1)',
                 color: '#F0B90B',
@@ -248,7 +248,7 @@ export function CompetitionPage() {
                 <div
                   key={trader.trader_id}
                   onClick={() => handleTraderClick(trader.trader_id)}
-                  className="rounded p-3 transition-all duration-300 hover:translate-y-[-1px] cursor-pointer hover:shadow-lg"
+                  className="rounded p-2.5 sm:p-3 transition-all duration-300 hover:translate-y-[-1px] cursor-pointer hover:shadow-lg"
                   style={{
                     background: isLeader
                       ? 'linear-gradient(135deg, rgba(240, 185, 11, 0.08) 0%, #0B0E11 100%)'
@@ -259,12 +259,12 @@ export function CompetitionPage() {
                       : '0 1px 4px rgba(0, 0, 0, 0.3)',
                   }}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
                     {/* Rank & Avatar & Name */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       {/* Rank Badge */}
                       <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0"
                         style={{
                           background: index === 0
                             ? 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)'
@@ -281,18 +281,18 @@ export function CompetitionPage() {
                       {/* Punk Avatar */}
                       <PunkAvatar
                         seed={getTraderAvatar(trader.trader_id, trader.trader_name)}
-                        size={36}
-                        className="rounded-lg"
+                        size={32}
+                        className="rounded-lg sm:w-9 sm:h-9 flex-shrink-0"
                       />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <div
-                          className="font-bold text-sm"
+                          className="font-bold text-xs sm:text-sm truncate"
                           style={{ color: '#EAECEF' }}
                         >
                           {trader.trader_name}
                         </div>
                         <div
-                          className="text-xs mono font-semibold"
+                          className="text-[10px] sm:text-xs mono font-semibold truncate"
                           style={{ color: traderColor }}
                         >
                           {trader.ai_model.toUpperCase()} +{' '}
@@ -302,14 +302,14 @@ export function CompetitionPage() {
                     </div>
 
                     {/* Stats */}
-                    <div className="flex items-center gap-2 md:gap-3 flex-wrap md:flex-nowrap">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap w-full sm:w-auto">
                       {/* Total Equity */}
                       <div className="text-right">
-                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                        <div className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                           {t('equity', language)}
                         </div>
                         <div
-                          className="text-xs md:text-sm font-bold mono"
+                          className="text-[10px] sm:text-xs lg:text-sm font-bold mono"
                           style={{ color: '#EAECEF' }}
                         >
                           {trader.total_equity?.toFixed(2) || '0.00'}
@@ -317,12 +317,12 @@ export function CompetitionPage() {
                       </div>
 
                       {/* P&L */}
-                      <div className="text-right min-w-[70px] md:min-w-[90px]">
-                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                      <div className="text-right min-w-[60px] sm:min-w-[70px] lg:min-w-[90px]">
+                        <div className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                           {t('pnl', language)}
                         </div>
                         <div
-                          className="text-base md:text-lg font-bold mono"
+                          className="text-sm sm:text-base lg:text-lg font-bold mono"
                           style={{
                             color:
                               (trader.total_pnl ?? 0) >= 0
@@ -334,7 +334,7 @@ export function CompetitionPage() {
                           {trader.total_pnl_pct?.toFixed(2) || '0.00'}%
                         </div>
                         <div
-                          className="text-xs mono"
+                          className="text-[10px] sm:text-xs mono"
                           style={{ color: '#848E9C' }}
                         >
                           {(trader.total_pnl ?? 0) >= 0 ? '+' : ''}
@@ -344,7 +344,7 @@ export function CompetitionPage() {
 
                       {/* Positions */}
                       <div className="text-right">
-                        <div className="text-xs" style={{ color: '#848E9C' }}>
+                        <div className="text-[10px] sm:text-xs" style={{ color: '#848E9C' }}>
                           {t('pos', language)}
                         </div>
                         <div

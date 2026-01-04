@@ -838,13 +838,45 @@ tr:hover {
 }
 
 /* Responsive utilities */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
+  .binance-card {
+    padding: 0.75rem;
+  }
+
+  .stat-card {
+    padding: 0.75rem;
+  }
+  
+  /* 确保表格在小屏幕上可以横向滚动 */
+  table {
+    min-width: 100%;
+  }
+  
+  /* 优化移动端字体大小 */
+  body {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
   .binance-card {
     padding: 1rem;
   }
 
   .stat-card {
     padding: 1rem;
+  }
+}
+
+/* 确保所有容器在小屏幕上不会溢出 */
+@media (max-width: 640px) {
+  * {
+    max-width: 100%;
+  }
+  
+  img, svg {
+    max-width: 100%;
+    height: auto;
   }
 }
 

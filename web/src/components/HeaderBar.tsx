@@ -76,7 +76,7 @@ export default function HeaderBar({
 
   return (
     <nav className="fixed top-0 w-full z-50 header-bar">
-      <div className="flex items-center justify-between h-16 px-4 sm:px-6 max-w-[1920px] mx-auto">
+      <div className="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-4 lg:px-6 max-w-[1920px] mx-auto">
         {/* Logo - Always go to home page */}
         <div
           onClick={() => {
@@ -84,9 +84,9 @@ export default function HeaderBar({
           }}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
         >
-          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-7 h-7" />
+          <img src="/icons/nofx.svg" alt="NOFX Logo" className="w-6 h-6 sm:w-7 sm:h-7" />
           <span
-            className="text-lg font-bold"
+            className="text-base sm:text-lg font-bold"
             style={{ color: 'var(--brand-yellow)' }}
           >
             NOFX
@@ -94,9 +94,9 @@ export default function HeaderBar({
         </div>
 
         {/* Desktop Menu */}
-        <div className="hidden md:flex items-center justify-between flex-1 ml-8">
+        <div className="hidden md:flex items-center justify-between flex-1 ml-4 lg:ml-8">
           {/* Left Side - Navigation Tabs - Always show all tabs */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 lg:gap-2 flex-wrap">
             {/* Navigation tabs configuration */}
             {(() => {
               // Define all navigation tabs
@@ -128,10 +128,10 @@ export default function HeaderBar({
                 <button
                   key={tab.page}
                   onClick={() => handleNavClick(tab)}
-                  className="text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
+                  className="text-xs lg:text-sm font-bold transition-all duration-300 relative focus:outline-2 focus:outline-yellow-500"
                   style={{
                     color: currentPage === tab.page ? 'var(--brand-yellow)' : 'var(--brand-light-gray)',
-                    padding: '8px 12px',
+                    padding: '6px 10px',
                     borderRadius: '8px',
                     position: 'relative',
                   }}
@@ -159,9 +159,9 @@ export default function HeaderBar({
           </div>
 
           {/* Right Side - Social Links and User Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4">
             {/* Social Links - Always visible */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 lg:gap-1">
               {/* GitHub */}
               <a
                 href={OFFICIAL_LINKS.github}
@@ -232,12 +232,12 @@ export default function HeaderBar({
 
             {/* User Info and Actions */}
             {isLoggedIn && user ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 lg:gap-3">
                 {/* User Info with Dropdown */}
                 <div className="relative" ref={userDropdownRef}>
                   <button
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-2 px-3 py-2 rounded transition-colors"
+                    className="flex items-center gap-1.5 lg:gap-2 px-2 lg:px-3 py-1.5 lg:py-2 rounded transition-colors"
                     style={{
                       background: 'var(--panel-bg)',
                       border: '1px solid var(--panel-border)',
@@ -251,7 +251,7 @@ export default function HeaderBar({
                     }
                   >
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                      className="w-5 h-5 lg:w-6 lg:h-6 rounded-full flex items-center justify-center text-[10px] lg:text-xs font-bold"
                       style={{
                         background: 'var(--brand-yellow)',
                         color: 'var(--brand-black)',
@@ -260,13 +260,13 @@ export default function HeaderBar({
                       {user.email[0].toUpperCase()}
                     </div>
                     <span
-                      className="text-sm"
+                      className="text-xs lg:text-sm hidden xl:inline"
                       style={{ color: 'var(--brand-light-gray)' }}
                     >
                       {user.email}
                     </span>
                     <ChevronDown
-                      className="w-4 h-4"
+                      className="w-3 h-3 lg:w-4 lg:h-4"
                       style={{ color: 'var(--brand-light-gray)' }}
                     />
                   </button>

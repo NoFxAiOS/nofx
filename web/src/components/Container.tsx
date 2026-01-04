@@ -16,7 +16,7 @@ interface ContainerProps {
 /**
  * 统一的容器组件，确保所有页面元素使用一致的最大宽度和内边距
  * - max-width: 1920px
- * - padding: 24px (mobile) -> 32px (tablet) -> 48px (desktop)
+ * - padding: 16px (mobile) -> 24px (tablet) -> 32px (desktop) -> 48px (large)
  */
 export function Container({
   children,
@@ -28,7 +28,7 @@ export function Container({
   maxWidthClass = 'max-w-[1920px]',
 }: ContainerProps) {
   const maxWidth = fluid ? 'w-full' : maxWidthClass
-  const padding = noPadding ? 'px-0' : 'px-6 sm:px-8 lg:px-12'
+  const padding = noPadding ? 'px-0' : 'px-4 sm:px-6 lg:px-8 xl:px-12'
   return (
     <Component
       className={`${maxWidth} mx-auto ${padding} ${className}`}

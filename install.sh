@@ -22,7 +22,7 @@ NC='\033[0m' # No Color
 # Default installation directory
 INSTALL_DIR="${1:-$HOME/nofx}"
 COMPOSE_FILE="docker-compose.prod.yml"
-GITHUB_RAW="https://raw.githubusercontent.com/NoFxAiOS/nofx/main"
+GITHUB_RAW="https://raw.githubusercontent.com/oozry12/new-nofx/dev"
 
 echo -e "${BLUE}"
 echo "╔════════════════════════════════════════════════════════════╗"

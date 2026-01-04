@@ -308,7 +308,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                   System Prompt
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 justify-start sm:justify-start">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 justify-start sm:justify-start w-full sm:w-auto">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -367,7 +367,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                   User Prompt
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 justify-start sm:justify-start">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 justify-start sm:justify-start w-full sm:w-auto">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()

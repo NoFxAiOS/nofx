@@ -758,7 +758,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Middle Column - Config Editor */}
-        <div className="flex-1 min-w-0 overflow-y-auto border-b lg:border-b-0 lg:border-r" style={{ borderColor: '#2B3139' }}>
+        <div className="flex-1 min-w-0 lg:overflow-y-auto border-b lg:border-b-0 lg:border-r overflow-hidden" style={{ borderColor: '#2B3139' }}>
           {selectedStrategy && editingConfig ? (
             <div className="p-3 sm:p-4">
               {/* Strategy Name & Actions */}
@@ -885,7 +885,7 @@ export function StrategyStudioPage() {
           </div>
 
           {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 lg:overflow-y-auto overflow-hidden">
             {activeRightTab === 'prompt' ? (
               /* Prompt Preview Tab */
               <div className="p-2 sm:p-3 space-y-2 sm:space-y-3">

@@ -85,7 +85,7 @@ export function AdvancedChart({
   symbol = 'BTCUSDT',
   interval = '5m',
   traderID,
-  height = 550,
+  height,
   exchange = 'binance', // 默认使用 binance
   onSymbolChange: _onSymbolChange, // Available for future use
 }: AdvancedChartProps) {
@@ -305,9 +305,12 @@ export function AdvancedChart({
   useEffect(() => {
     if (!chartContainerRef.current) return
 
+    // 计算响应式高度：如果未指定height，使用容器高度；否则使用指定高度
+    const containerHeight = height || chartContainerRef.current.clientHeight || 400
+
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
-      height: height,
+      height: containerHeight,
       layout: {
         background: { color: '#0B0E11' },
         textColor: '#B7BDC6',
@@ -410,8 +413,10 @@ export function AdvancedChart({
     // 响应式调整
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
+        const containerHeight = height || chartContainerRef.current.clientHeight || 400
         chartRef.current.applyOptions({
           width: chartContainerRef.current.clientWidth,
+          height: containerHeight,
         })
       }
     }
@@ -771,17 +776,17 @@ export function AdvancedChart({
     >
       {/* Compact Professional Header */}
       <div
-        className="flex items-center justify-between px-4 py-2"
+        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 px-2 sm:px-4 py-2"
         style={{ borderBottom: '1px solid rgba(43, 49, 57, 0.6)', background: '#0D1117' }}
       >
         {/* Left: Symbol Info + Price */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 flex-1 min-w-0">
           {/* Symbol & Interval */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white">{symbol}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1F2937] text-gray-400">{interval}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="text-xs sm:text-sm font-bold text-white truncate">{symbol}</span>
+            <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-[#1F2937] text-gray-400">{interval}</span>
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded font-medium uppercase"
+              className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded font-medium uppercase"
               style={{
                 background: exchange === 'hyperliquid' ? 'rgba(80, 227, 194, 0.1)' : 'rgba(243, 186, 47, 0.1)',
                 color: exchange === 'hyperliquid' ? '#50E3C2' : '#F3BA2F',
@@ -793,9 +798,9 @@ export function AdvancedChart({
 
           {/* Price Display */}
           {marketStats && (
-            <div className="flex items-center gap-3 pl-3 border-l border-[#2B3139]">
+            <div className="flex items-center gap-2 sm:gap-3 pl-0 sm:pl-3 border-0 sm:border-l border-[#2B3139] flex-wrap">
               <span
-                className="text-base font-bold tabular-nums"
+                className="text-sm sm:text-base font-bold tabular-nums"
                 style={{ color: marketStats.priceChange >= 0 ? '#10B981' : '#EF4444' }}
               >
                 {marketStats.price.toLocaleString(undefined, {
@@ -804,7 +809,7 @@ export function AdvancedChart({
                 })}
               </span>
               <span
-                className="text-xs font-medium px-1.5 py-0.5 rounded tabular-nums"
+                className="text-[10px] sm:text-xs font-medium px-1 sm:px-1.5 py-0.5 rounded tabular-nums"
                 style={{
                   background: marketStats.priceChange >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                   color: marketStats.priceChange >= 0 ? '#10B981' : '#EF4444',
@@ -814,7 +819,7 @@ export function AdvancedChart({
               </span>
 
               {/* Compact H/L */}
-              <div className="flex items-center gap-2 text-[11px] text-gray-500">
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-[11px] text-gray-500 flex-wrap">
                 <span>H <span className="text-gray-300">{marketStats.high.toFixed(2)}</span></span>
                 <span>L <span className="text-gray-300">{marketStats.low.toFixed(2)}</span></span>
                 {marketStats.volume > 0 && baseUnit && (
@@ -826,27 +831,27 @@ export function AdvancedChart({
         </div>
 
         {/* Right: Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
           {loading && (
-            <span className="text-[10px] text-yellow-400 animate-pulse mr-2">
+            <span className="text-[9px] sm:text-[10px] text-yellow-400 animate-pulse mr-1 sm:mr-2">
               {language === 'zh' ? '更新中...' : 'Updating...'}
             </span>
           )}
           <button
             onClick={() => setShowIndicatorPanel(!showIndicatorPanel)}
-            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all"
+            className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-1 rounded text-[10px] sm:text-[11px] font-medium transition-all"
             style={{
               background: showIndicatorPanel ? 'rgba(96, 165, 250, 0.15)' : 'transparent',
               color: showIndicatorPanel ? '#60A5FA' : '#6B7280',
             }}
           >
             <Settings className="w-3 h-3" />
-            <span>{language === 'zh' ? '指标' : 'Indicators'}</span>
+            <span className="hidden sm:inline">{language === 'zh' ? '指标' : 'Indicators'}</span>
           </button>
 
           <button
             onClick={() => setShowOrderMarkers(!showOrderMarkers)}
-            className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-all"
+            className="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-1 rounded text-[10px] sm:text-[11px] font-medium transition-all"
             style={{
               background: showOrderMarkers ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
               color: showOrderMarkers ? '#10B981' : '#6B7280',
@@ -929,8 +934,8 @@ export function AdvancedChart({
       )}
 
       {/* 图表容器 */}
-      <div style={{ position: 'relative' }}>
-        <div ref={chartContainerRef} />
+      <div style={{ position: 'relative', width: '100%', height: height ? `${height}px` : '100%', minHeight: '300px' }}>
+        <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
 
         {/* OHLC Tooltip */}
         {tooltipData && (

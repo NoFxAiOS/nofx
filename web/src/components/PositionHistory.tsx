@@ -124,31 +124,31 @@ function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
 
   return (
     <div
-      className="flex items-center justify-between p-3 rounded-lg transition-all duration-200 hover:bg-white/5"
+      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 p-3 rounded-lg transition-all duration-200 hover:bg-white/5"
       style={{ borderBottom: '1px solid #2B3139' }}
     >
-      <div className="flex items-center gap-3">
-        <span className="font-mono font-semibold" style={{ color: '#EAECEF' }}>
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        <span className="font-mono font-semibold text-sm sm:text-base truncate" style={{ color: '#EAECEF' }}>
           {(stat.symbol || '').replace('USDT', '')}
         </span>
-        <span className="text-xs" style={{ color: '#848E9C' }}>
+        <span className="text-xs flex-shrink-0" style={{ color: '#848E9C' }}>
           {stat.total_trades || 0} trades
         </span>
       </div>
-      <div className="flex items-center gap-6">
-        <div className="text-right">
+      <div className="flex items-center gap-3 sm:gap-6 w-full sm:w-auto justify-end sm:justify-start">
+        <div className="text-right sm:text-right">
           <div className="text-xs" style={{ color: '#848E9C' }}>
             Win Rate
           </div>
-          <div className="font-mono font-semibold" style={{ color: winRateColor }}>
+          <div className="font-mono font-semibold text-sm sm:text-base" style={{ color: winRateColor }}>
             {winRate.toFixed(1)}%
           </div>
         </div>
-        <div className="text-right min-w-[80px]">
+        <div className="text-right min-w-[70px] sm:min-w-[80px]">
           <div className="text-xs" style={{ color: '#848E9C' }}>
             P&L
           </div>
-          <div className="font-mono font-semibold" style={{ color: pnlColor }}>
+          <div className="font-mono font-semibold text-sm sm:text-base" style={{ color: pnlColor }}>
             {totalPnl >= 0 ? '+' : ''}
             {formatNumber(totalPnl)}
           </div>
@@ -659,17 +659,17 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
       >
         {/* Filters */}
         <div
-          className="flex flex-wrap items-center gap-4 p-4"
+          className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4"
           style={{ borderBottom: '1px solid #2B3139' }}
         >
-          <div className="flex items-center gap-2">
-            <span className="text-sm" style={{ color: '#848E9C' }}>
+          <div className="flex items-center gap-2 flex-1 sm:flex-none">
+            <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
               {t('positionHistory.symbol', language)}:
             </span>
             <select
               value={filterSymbol}
               onChange={(e) => setFilterSymbol(e.target.value)}
-              className="rounded px-3 py-1.5 text-sm"
+              className="rounded px-2 sm:px-3 py-1.5 text-xs sm:text-sm flex-1 sm:flex-none min-w-0"
               style={{
                 background: '#0B0E11',
                 border: '1px solid #2B3139',
@@ -685,16 +685,16 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm" style={{ color: '#848E9C' }}>
+          <div className="flex items-center gap-2 flex-1 sm:flex-none">
+            <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
               {t('positionHistory.side', language)}:
             </span>
-            <div className="flex rounded overflow-hidden" style={{ border: '1px solid #2B3139' }}>
+            <div className="flex rounded overflow-hidden flex-1 sm:flex-none" style={{ border: '1px solid #2B3139' }}>
               {['all', 'LONG', 'SHORT'].map((side) => (
                 <button
                   key={side}
                   onClick={() => setFilterSide(side)}
-                  className="px-3 py-1.5 text-sm capitalize transition-colors"
+                  className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm capitalize transition-colors flex-1 sm:flex-none"
                   style={{
                     background: filterSide === side ? '#2B3139' : 'transparent',
                     color: filterSide === side ? '#EAECEF' : '#848E9C',
@@ -706,8 +706,8 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm" style={{ color: '#848E9C' }}>
+          <div className="flex items-center gap-2 flex-1 sm:flex-none sm:ml-auto">
+            <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: '#848E9C' }}>
               {t('positionHistory.sort', language)}:
             </span>
             <select
@@ -720,7 +720,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
                 setSortBy(by)
                 setSortOrder(order)
               }}
-              className="rounded px-3 py-1.5 text-sm"
+              className="rounded px-2 sm:px-3 py-1.5 text-xs sm:text-sm flex-1 sm:flex-none min-w-0"
               style={{
                 background: '#0B0E11',
                 border: '1px solid #2B3139',

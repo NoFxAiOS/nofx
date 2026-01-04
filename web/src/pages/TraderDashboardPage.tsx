@@ -347,8 +347,8 @@ export function TraderDashboardPage({
                         background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.4) 100%)',
                     }}
                 >
-                    <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-4 mb-4">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 min-w-0 flex-1 w-full sm:w-auto">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-start justify-between gap-3 sm:gap-4 md:gap-5 mb-3 sm:mb-4 md:mb-5">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 md:gap-5 min-w-0 flex-1 w-full sm:w-auto">
                             {/* Mobile: Avatar and Trader Selector in one row */}
                             <div className="sm:hidden flex items-center gap-2 w-full">
                                 <div className="relative flex-shrink-0">
@@ -382,24 +382,24 @@ export function TraderDashboardPage({
                             </div>
 
                             {/* Desktop: Avatar and Info */}
-                            <h2 className="hidden sm:flex text-2xl font-bold items-center gap-4 text-nofx-text-main min-w-0 flex-1">
+                            <h2 className="hidden sm:flex text-2xl font-bold items-center gap-3 sm:gap-4 md:gap-5 text-nofx-text-main min-w-0 flex-1">
                                 <div className="relative flex-shrink-0">
                                     <PunkAvatar
                                         seed={getTraderAvatar(
                                             selectedTrader.trader_id,
                                             selectedTrader.trader_name
                                         )}
-                                        size={56}
-                                        className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)]"
+                                        size={48}
+                                        className="rounded-xl border-2 border-nofx-gold/30 shadow-[0_0_15px_rgba(240,185,11,0.2)] sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16"
                                     />
-                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
+                                    <div className="absolute -bottom-1 -right-1 w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                                 </div>
-                                <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
-                                    <span className="text-lg sm:text-xl font-medium text-nofx-text-main truncate">
+                                <div className="flex flex-col min-w-0 flex-1 overflow-hidden gap-0.5 sm:gap-1">
+                                    <span className="text-base sm:text-lg md:text-xl lg:text-2xl font-medium text-nofx-text-main truncate">
                                         {selectedTrader.trader_name}
                                     </span>
-                                    <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2 truncate">
-                                        <div className="w-1.5 h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
+                                    <span className="text-[10px] sm:text-xs md:text-sm font-mono text-nofx-text-muted opacity-60 flex items-center gap-1.5 sm:gap-2 truncate">
+                                        <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-nofx-gold rounded-full flex-shrink-0" />
                                         <span className="truncate">ID: {selectedTrader.trader_id}</span>
                                     </span>
                                 </div>
@@ -417,14 +417,14 @@ export function TraderDashboardPage({
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 w-full sm:w-auto justify-end">
+                        <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-shrink-0 w-full sm:w-auto justify-end">
                             {/* Desktop: Trader Selector */}
                             {traders && traders.length > 0 && (
-                                <div className="hidden sm:flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5 flex-shrink-0">
+                                <div className="hidden sm:flex items-center gap-2 nofx-glass px-1.5 sm:px-2 md:px-2.5 py-1 sm:py-1.5 rounded-lg border border-white/5 flex-shrink-0">
                                     <select
                                         value={selectedTraderId}
                                         onChange={(e) => onTraderSelect(e.target.value)}
-                                        className="bg-transparent text-sm font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-2 py-1"
+                                        className="bg-transparent text-xs sm:text-sm md:text-base font-medium cursor-pointer transition-colors text-nofx-text-main focus:outline-none px-1.5 sm:px-2 md:px-2.5 py-0.5 sm:py-1"
                                     >
                                         {traders.map((trader) => (
                                             <option key={trader.trader_id} value={trader.trader_id} className="bg-[#0B0E11]">
@@ -437,10 +437,10 @@ export function TraderDashboardPage({
 
                             {/* Wallet Address Display for Perp-DEX */}
                             {exchanges && isPerpDex && (
-                                <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg nofx-glass border border-nofx-gold/20 flex-shrink-0 min-w-0">
+                                <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 px-1.5 sm:px-2 md:px-3 py-1 sm:py-1.5 md:py-2 rounded-lg nofx-glass border border-nofx-gold/20 flex-shrink-0 min-w-0">
                                     {walletAddress ? (
                                         <>
-                                            <span className="text-[10px] sm:text-xs font-mono text-nofx-gold truncate max-w-[80px] sm:max-w-none">
+                                            <span className="text-[10px] sm:text-xs md:text-sm font-mono text-nofx-gold truncate max-w-[80px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-none">
                                                 {showWalletAddress
                                                     ? walletAddress
                                                     : truncateAddress(walletAddress)}
@@ -448,7 +448,7 @@ export function TraderDashboardPage({
                                             <button
                                                 type="button"
                                                 onClick={() => setShowWalletAddress(!showWalletAddress)}
-                                                className="p-0.5 sm:p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                                                className="p-0.5 sm:p-1 md:p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0"
                                                 title={
                                                     showWalletAddress
                                                         ? language === 'zh'
@@ -460,26 +460,26 @@ export function TraderDashboardPage({
                                                 }
                                             >
                                                 {showWalletAddress ? (
-                                                    <EyeOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-text-muted" />
+                                                    <EyeOff className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-nofx-text-muted" />
                                                 ) : (
-                                                    <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-text-muted" />
+                                                    <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-nofx-text-muted" />
                                                 )}
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={handleCopyAddress}
-                                                className="p-0.5 sm:p-1 rounded hover:bg-white/10 transition-colors flex-shrink-0"
+                                                className="p-0.5 sm:p-1 md:p-1.5 rounded hover:bg-white/10 transition-colors flex-shrink-0"
                                                 title={language === 'zh' ? '复制地址' : 'Copy address'}
                                             >
                                                 {copiedAddress ? (
-                                                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-green" />
+                                                    <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-nofx-green" />
                                                 ) : (
-                                                    <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-nofx-text-muted" />
+                                                    <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-nofx-text-muted" />
                                                 )}
                                             </button>
                                         </>
                                     ) : (
-                                        <span className="text-[10px] sm:text-xs text-nofx-text-muted whitespace-nowrap">
+                                        <span className="text-[10px] sm:text-xs md:text-sm text-nofx-text-muted whitespace-nowrap">
                                             {language === 'zh' ? '未配置地址' : 'No address configured'}
                                         </span>
                                     )}
@@ -487,11 +487,11 @@ export function TraderDashboardPage({
                             )}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-4 md:gap-6 text-[10px] sm:text-xs md:text-sm flex-wrap text-nofx-text-muted font-mono pl-0 sm:pl-2">
-                        <span className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 text-[10px] sm:text-xs md:text-sm lg:text-base flex-wrap text-nofx-text-muted font-mono pl-0 sm:pl-2 md:pl-3">
+                        <span className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0">
                             <span className="opacity-60 whitespace-nowrap">AI Model:</span>
                             <span
-                                className="font-bold px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs tracking-wide whitespace-nowrap"
+                                className="font-bold px-1 sm:px-1.5 md:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs md:text-sm tracking-wide whitespace-nowrap"
                                 style={{
                                     background: selectedTrader.ai_model.includes('qwen') ? 'rgba(192, 132, 252, 0.15)' : 'rgba(96, 165, 250, 0.15)',
                                     color: selectedTrader.ai_model.includes('qwen') ? '#c084fc' : '#60a5fa',
@@ -504,8 +504,8 @@ export function TraderDashboardPage({
                                 )}
                             </span>
                         </span>
-                        <span className="w-px h-3 bg-white/10 flex-shrink-0" />
-                        <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <span className="w-px h-3 sm:h-4 bg-white/10 flex-shrink-0" />
+                        <span className="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0">
                             <span className="opacity-60 whitespace-nowrap flex-shrink-0">Exchange:</span>
                             <span className="text-nofx-text-main font-semibold truncate">
                                 {getExchangeDisplayNameFromList(
@@ -514,8 +514,8 @@ export function TraderDashboardPage({
                                 )}
                             </span>
                         </span>
-                        <span className="w-px h-3 bg-white/10 flex-shrink-0" />
-                        <span className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                        <span className="w-px h-3 sm:h-4 bg-white/10 flex-shrink-0" />
+                        <span className="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0">
                             <span className="opacity-60 whitespace-nowrap flex-shrink-0">Strategy:</span>
                             <span className="text-nofx-gold font-semibold tracking-wide truncate">
                                 {selectedTrader.strategy_name || 'No Strategy'}

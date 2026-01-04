@@ -804,10 +804,10 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   return (
     <div className="space-y-4 md:space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
-        <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4">
+        <div className="flex items-center gap-3 md:gap-4 flex-shrink-0">
           <div
-            className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center"
+            className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
               background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
               boxShadow: '0 4px 14px rgba(240, 185, 11, 0.4)',
@@ -815,7 +815,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           >
             <Bot className="w-5 h-5 md:w-6 md:h-6" style={{ color: '#000' }} />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1
               className="text-xl md:text-2xl font-bold flex items-center gap-2"
               style={{ color: '#EAECEF' }}
@@ -837,31 +837,31 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           </div>
         </div>
 
-        <div className="flex gap-2 md:gap-3 items-center flex-nowrap">
+        <div className="flex items-center gap-2 md:gap-3 flex-nowrap w-full md:w-auto justify-start md:justify-end">
           <button
             onClick={handleAddModel}
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
+            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
             style={{
               background: '#2B3139',
               color: '#EAECEF',
               border: '1px solid #474D57',
             }}
           >
-            <Plus className="w-3 h-3 md:w-4 md:h-4" />
-            {t('aiModels', language)}
+            <Plus className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
+            <span>{t('aiModels', language)}</span>
           </button>
 
           <button
             onClick={handleAddExchange}
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
+            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
             style={{
               background: '#2B3139',
               color: '#EAECEF',
               border: '1px solid #474D57',
             }}
           >
-            <Plus className="w-3 h-3 md:w-4 md:h-4" />
-            {t('exchanges', language)}
+            <Plus className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
+            <span>{t('exchanges', language)}</span>
           </button>
 
           <button
@@ -869,7 +869,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             disabled={
               configuredModels.length === 0 || configuredExchanges.length === 0
             }
-            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
+            className="px-3 md:px-4 py-2 rounded text-xs md:text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 md:gap-2 whitespace-nowrap flex-shrink-0"
             style={{
               background:
                 configuredModels.length > 0 && configuredExchanges.length > 0
@@ -881,8 +881,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                   : '#848E9C',
             }}
           >
-            <Plus className="w-4 h-4" />
-            {t('createTrader', language)}
+            <Plus className="w-3 h-3 md:w-4 md:h-4 flex-shrink-0" />
+            <span>{t('createTrader', language)}</span>
           </button>
         </div>
       </div>

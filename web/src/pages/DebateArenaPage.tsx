@@ -117,7 +117,7 @@ function AIAvatar({ name, size = 24, className = '' }: { name: string; size?: nu
 }
 
 // Message Card - Full content display like AI Testing
-function MessageCard({ msg }: { msg: DebateMessage }) {
+function MessageCard({ msg, language }: { msg: DebateMessage; language: string }) {
   const [open, setOpen] = useState(false)
   const p = PERS[msg.personality] || PERS.analyst
   const a = ACT[msg.decision?.action || 'wait'] || ACT.wait
@@ -537,7 +537,7 @@ export function DebateArenaPage() {
   return (
     <div className="h-full bg-[#0a0c10] flex flex-col lg:flex-row overflow-hidden">
       {/* Left - Debate List + Online Traders */}
-      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col" style={{ maxHeight: '40vh', lg: { maxHeight: 'none' } }}>
+      <div className="w-full lg:w-56 flex-shrink-0 bg-[#0d1017] border-b lg:border-b-0 lg:border-r border-white/5 flex flex-col lg:max-h-none" style={{ maxHeight: '40vh' }}>
         {/* New Debate Button */}
         <button onClick={() => setShowCreate(true)}
           className="m-1.5 sm:m-2 py-1.5 sm:py-2 rounded-lg bg-yellow-500 text-black font-semibold text-xs sm:text-sm flex items-center justify-center gap-1">
@@ -546,7 +546,7 @@ export function DebateArenaPage() {
 
         {/* Debate List */}
         <div className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
-        <div className="overflow-y-auto flex-1" style={{ maxHeight: 'calc(40vh - 100px)', lg: { maxHeight: '30%' } }}>
+        <div className="overflow-y-auto flex-1 lg:max-h-[30%]" style={{ maxHeight: 'calc(40vh - 100px)' }}>
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
               className={`p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
@@ -666,16 +666,16 @@ export function DebateArenaPage() {
                       <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></span>
                       {t('discussionRecords', language)}
                     </div>
-                    <div className="space-y-2 sm:space-y-3">
-                      {Object.entries(rounds).map(([round, msgs]) => (
-                        <div key={round} className="bg-white/5 rounded-xl p-2 sm:p-3">
-                          <div className="text-[10px] sm:text-xs text-blue-400 font-bold mb-1.5 sm:mb-2">Round {round}</div>
-                          <div className="space-y-1.5 sm:space-y-2">
-                            {msgs.map(m => <MessageCard key={m.id} msg={m} />)}
+                          <div className="space-y-2 sm:space-y-3">
+                            {Object.entries(rounds).map(([round, msgs]) => (
+                              <div key={round} className="bg-white/5 rounded-xl p-2 sm:p-3">
+                                <div className="text-[10px] sm:text-xs text-blue-400 font-bold mb-1.5 sm:mb-2">Round {round}</div>
+                                <div className="space-y-1.5 sm:space-y-2">
+                                  {msgs.map(m => <MessageCard key={m.id} msg={m} language={language} />)}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
 
                   {/* Right - Votes */}

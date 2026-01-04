@@ -660,7 +660,7 @@ export function StrategyStudioPage() {
       {/* Main Content - Three Columns (responsive) */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Column - Strategy List */}
-        <div className="w-full lg:w-48 flex-shrink-0 border-b lg:border-b-0 lg:border-r overflow-y-auto" style={{ borderColor: '#2B3139', maxHeight: '200px', lg: { maxHeight: 'none' } }}>
+        <div className="w-full lg:w-48 flex-shrink-0 border-b lg:border-b-0 lg:border-r overflow-y-auto lg:max-h-none" style={{ borderColor: '#2B3139', maxHeight: '200px' }}>
           <div className="p-2 sm:p-2">
             <div className="flex items-center justify-between mb-2 px-1 sm:px-2">
               <span className="text-[10px] sm:text-xs font-medium" style={{ color: '#848E9C' }}>{t('strategies')}</span>

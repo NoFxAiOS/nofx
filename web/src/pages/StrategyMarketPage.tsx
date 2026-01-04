@@ -497,7 +497,7 @@ export function StrategyMarketPage() {
             <div className="relative group cursor-pointer w-full sm:w-auto" onClick={() => window.location.href = '/strategy'}>
               <div className="absolute -inset-1 bg-gradient-to-r from-nofx-gold to-yellow-600 rounded blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
               <div className="relative px-4 sm:px-8 py-3 sm:py-4 bg-black border border-zinc-800 hover:border-nofx-gold/50 flex flex-col sm:flex-row items-center gap-2 sm:gap-4 transition-all">
-                <Hexagon className="text-nofx-gold animate-spin-slow" size={20} className="sm:w-6 sm:h-6" />
+                <Hexagon className="text-nofx-gold animate-spin-slow w-5 h-5 sm:w-6 sm:h-6" />
                 <div className="text-center sm:text-left">
                   <div className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{t.shareYours}</div>
                   <div className="text-[9px] sm:text-[10px] text-zinc-500 font-mono hidden sm:block">CONTRIBUTE TO THE GLOBAL DATABASE</div>

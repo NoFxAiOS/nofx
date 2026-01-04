@@ -300,15 +300,15 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-              className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-0 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex flex-row items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
             >
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-base">⚙️</span>
-                <span className="font-semibold" style={{ color: '#a78bfa' }}>
+              <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+                <span className="text-base flex-shrink-0">⚙️</span>
+                <span className="font-semibold truncate" style={{ color: '#a78bfa' }}>
                   System Prompt
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-start sm:justify-end">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap flex-shrink-0">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -332,7 +332,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                   <span>💾</span>
                 </button>
                 <span
-                  className="text-xs px-2 py-0.5 rounded flex-shrink-0"
+                  className="text-xs px-2 py-0.5 rounded flex-shrink-0 whitespace-nowrap"
                   style={{ background: 'rgba(167, 139, 250, 0.15)', color: '#a78bfa' }}
                 >
                   {showSystemPrompt ? t('collapse', language) : t('expand', language)}
@@ -359,15 +359,15 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           <div>
             <button
               onClick={() => setShowInputPrompt(!showInputPrompt)}
-              className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-0 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              className="flex flex-row items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
             >
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-base">📥</span>
-                <span className="font-semibold" style={{ color: '#60a5fa' }}>
+              <div className="flex items-center gap-2 flex-shrink-0 min-w-0">
+                <span className="text-base flex-shrink-0">📥</span>
+                <span className="font-semibold truncate" style={{ color: '#60a5fa' }}>
                   User Prompt
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-start sm:justify-end">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap flex-shrink-0">
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -391,7 +391,7 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
                   <span>💾</span>
                 </button>
                 <span
-                  className="text-xs px-2 py-0.5 rounded flex-shrink-0"
+                  className="text-xs px-2 py-0.5 rounded flex-shrink-0 whitespace-nowrap"
                   style={{ background: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa' }}
                 >
                   {showInputPrompt ? t('collapse', language) : t('expand', language)}

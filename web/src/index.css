@@ -11,29 +11,29 @@ html {
 }
 
 :root {
-  /* Binance Brand Colors */
-  --brand-yellow: #FCD535;
-  --brand-black: #0B0E11;
-  --brand-dark-gray: #1E2329;
-  --brand-light-gray: #EAECEF;
-  --brand-white: #FFFFFF;
+  /* NoFX Neo-Gold Design System */
+  --nofx-gold: #F0B90B;
+  --nofx-bg: #05070A;
+  --nofx-accent: #00F0FF;
+  --nofx-glass: rgba(5, 7, 10, 0.7);
+  --nofx-border: rgba(240, 185, 11, 0.2);
 
-  /* Premium Theme Colors */
-  --binance-yellow: #FCD535;
-  --binance-yellow-dark: #F0B90B;
-  --binance-yellow-light: #FDE059;
-  --binance-yellow-glow: rgba(252, 213, 53, 0.15);
+  /* Cinematic Glows */
+  --glow-primary: 0 0 20px rgba(240, 185, 11, 0.3);
+  --glow-accent: 0 0 20px rgba(0, 240, 255, 0.3);
+  --glow-text: 0 0 10px rgba(240, 185, 11, 0.5);
 
-  --background: #0B0E11;
-  --header-bg: rgba(11, 14, 17, 0.85);
-  /* Glass header */
-  --glass-bg: rgba(30, 35, 41, 0.4);
+  --background: #05070A;
+  --header-bg: rgba(2, 3, 4, 0.85);
+  /* Deep Abyssal */
+
+  --glass-bg: rgba(5, 7, 10, 0.4);
   --glass-border: rgba(255, 255, 255, 0.08);
 
-  --panel-bg: #1E2329;
-  --panel-bg-hover: #2B3139;
-  --panel-border: #2B3139;
-  --panel-border-hover: #474D57;
+  --panel-bg: rgba(14, 18, 23, 0.6);
+  --panel-bg-hover: rgba(20, 24, 29, 0.8);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --panel-border-hover: rgba(240, 185, 11, 0.5);
 
   --foreground: #EAECEF;
   --text-primary: #EAECEF;
@@ -48,19 +48,15 @@ html {
   --binance-red: #F6465D;
   --binance-red-bg: rgba(246, 70, 93, 0.12);
   --binance-red-border: rgba(246, 70, 93, 0.3);
+  --binance-yellow: #F0B90B;
 
   /* Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(252, 213, 53, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 30px rgba(240, 185, 11, 0.15);
 
-  font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: 'IBM Plex Mono', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   font-weight: 400;
   color-scheme: dark;
@@ -70,8 +66,69 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'tnum';
-  font-variant-numeric: tabular-nums;
+}
+
+/* CRT & Tech Effects */
+.crt-overlay {
+  background:
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+    linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+}
+
+.tech-border {
+  position: relative;
+  background: rgba(5, 7, 10, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tech-border::before,
+.tech-border::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--nofx-gold);
+  transition: all 0.3s ease;
+}
+
+.tech-border::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.tech-border::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+.tech-border:hover::before,
+.tech-border:hover::after {
+  width: 100%;
+  height: 100%;
+  opacity: 0.5;
+}
+
+.bg-vignette {
+  background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.6) 80%, #000000 100%);
+  pointer-events: none;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px rgba(240, 185, 11, 0.6);
+}
+
+.text-glow-accent {
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+}
+
+.border-glow {
+  box-shadow: 0 0 15px rgba(240, 185, 11, 0.2);
 }
 
 body {
@@ -79,15 +136,13 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: var(--background);
-  background-image:
-    radial-gradient(circle at 15% 50%, rgba(252, 213, 53, 0.08), transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(14, 203, 129, 0.05), transparent 25%);
+  background-image: radial-gradient(circle at 50% 0%, #151921 0%, #05070a 60%);
   background-attachment: fixed;
 }
 
 /* Premium Selection Styles */
 ::selection {
-  background: rgba(252, 213, 53, 0.3);
+  background: rgba(255, 88, 0, 0.3);
   color: #FFFFFF;
 }
 
@@ -113,7 +168,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--panel-border-hover);
+  background: var(--nofx-gold);
 }
 
 /* Animations */
@@ -187,6 +242,21 @@ body {
   50% {
     transform: scale(1.05);
   }
+}
+
+/* Marquee Animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
 }
 
 .animate-fade-in {
@@ -370,10 +440,14 @@ button:disabled {
 }
 
 /* Premium Input Styles */
+/* Premium Input Styles */
 input,
 select,
 textarea {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: var(--panel-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--panel-border);
 }
 
 input:focus,
@@ -382,6 +456,35 @@ textarea:focus {
   border-color: var(--binance-yellow);
   box-shadow: 0 0 0 2px rgba(252, 213, 53, 0.15);
   outline: none;
+  background-color: var(--panel-bg-hover);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* Specific Premium Input Utility */
+.premium-input {
+  background: rgba(11, 14, 17, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.premium-input:hover {
+  border-color: rgba(240, 185, 11, 0.3);
+  background: rgba(11, 14, 17, 0.8);
+}
+
+.premium-input:focus {
+  border-color: var(--binance-yellow);
+  box-shadow: 0 0 0 1px rgba(240, 185, 11, 0.2), 0 0 15px rgba(240, 185, 11, 0.1);
+  background: rgba(11, 14, 17, 0.9);
 }
 
 /* Binance Card - Premium Polish */
@@ -776,4 +879,103 @@ tr:hover {
   .stat-card {
     padding: 1rem;
   }
+}
+
+/* Holographic Character Effects - Premium Polish */
+@keyframes holo-shift {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg) contrast(1);
+  }
+
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(15deg) contrast(1.1);
+  }
+
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg) contrast(1);
+  }
+}
+
+@keyframes holo-flicker {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  5% {
+    opacity: 0.8;
+  }
+
+  10% {
+    opacity: 0.7;
+  }
+}
+
+.animate-holo {
+  background-size: 200% 200%;
+  animation: holo-shift 8s ease infinite, holo-flicker 4s infinite;
+}
+
+/* Mobile Breathing Animation */
+@keyframes holo-breath {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-breath-mobile {
+  animation: none;
+}
+
+@media (max-width: 768px) {
+  .animate-breath-mobile {
+    animation: holo-breath 4s ease-in-out infinite;
+  }
+
+  /* Optimize premium effects for mobile */
+  .char-premium-effects {
+    filter:
+      drop-shadow(0 0 1px rgba(240, 185, 11, 0.6)) drop-shadow(0 0 1px rgba(0, 240, 255, 0.5));
+  }
+}
+
+.holo-overlay {
+  /* Complex gradient + noise for texture */
+  background:
+    url('https://grainy-gradients.vercel.app/noise.svg'),
+    conic-gradient(from 0deg at 50% 50%,
+      rgba(240, 185, 11, 0.1) 0deg,
+      rgba(0, 240, 255, 0.1) 120deg,
+      rgba(240, 185, 11, 0.1) 240deg,
+      rgba(240, 185, 11, 0.1) 360deg);
+  mix-blend-mode: overlay;
+  background-blend-mode: overlay, normal;
+}
+
+/* Chromatic Aberration & Rim Light */
+.char-premium-effects {
+  filter:
+    /* Rim Light: Main Warm Gold + Sharp White Highlight (No Cyan to avoid green) */
+    drop-shadow(0 0 2px rgba(240, 185, 11, 0.6)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))
+    /* Chromatic Aberration: Red/Blue shift (Subtle) */
+    drop-shadow(-1px 0 0 rgba(255, 50, 50, 0.4)) drop-shadow(1px 0 0 rgba(50, 50, 255, 0.4));
+  transition: filter 0.3s ease;
+}
+
+.char-premium-effects:hover {
+  filter:
+    /* Intense Gold Glow on Hover */
+    drop-shadow(0 0 8px rgba(240, 185, 11, 0.8)) drop-shadow(0 0 2px rgba(255, 255, 255, 0.6))
+    /* Enhanced Aberration */
+    drop-shadow(-2px 0 0 rgba(255, 50, 50, 0.5)) drop-shadow(2px 0 0 rgba(50, 50, 255, 0.5));
 }

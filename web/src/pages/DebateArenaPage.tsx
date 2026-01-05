@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import { DeepVoidBackground } from '../components/DeepVoidBackground'
 
 // Translations
 const T: Record<string, Record<string, string>> = {
@@ -144,7 +145,7 @@ function MessageCard({ msg }: { msg: DebateMessage }) {
 
   return (
     <div
-      className="p-3 rounded-lg hover:bg-white/5 transition-all border border-white/5"
+      className="p-3 rounded-lg hover:bg-nofx-bg-lighter/60 transition-all border border-nofx-gold/20 backdrop-blur-sm bg-nofx-bg-lighter/20"
       style={{ borderLeft: `3px solid ${p.color}` }}
     >
       {/* Header - Always visible */}
@@ -153,16 +154,16 @@ function MessageCard({ msg }: { msg: DebateMessage }) {
         onClick={() => setOpen(!open)}
       >
         <AIAvatar name={msg.ai_model_name} size={24} />
-        <span className="text-sm text-white font-medium">{msg.ai_model_name}</span>
-        <span className="text-xs text-gray-500">{p.nameEn}</span>
+        <span className="text-sm text-nofx-text font-medium">{msg.ai_model_name}</span>
+        <span className="text-xs text-nofx-text-muted">{p.nameEn}</span>
         <div className="flex-1" />
         {msg.decision && (
           <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${a.bg} ${a.color}`}>
             {a.icon} {msg.decision.symbol || ''} {a.label}
           </span>
         )}
-        <span className="text-xs text-yellow-400 font-medium">{msg.decision?.confidence || msg.confidence}%</span>
-        {open ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+        <span className="text-xs text-nofx-gold font-medium">{msg.decision?.confidence || msg.confidence}%</span>
+        {open ? <ChevronUp size={14} className="text-nofx-text-muted" /> : <ChevronDown size={14} className="text-nofx-text-muted" />}
       </div>
 
       {/* Preview when collapsed */}
@@ -277,13 +278,13 @@ function VoteCard({ vote }: { vote: { ai_model_name: string; action: string; sym
   const a = ACT[vote.action] || ACT.wait
   const confColor = vote.confidence >= 70 ? 'bg-green-500' : vote.confidence >= 50 ? 'bg-yellow-500' : 'bg-gray-500'
   return (
-    <div className="bg-[#1a1f2e] rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all">
+    <div className="bg-nofx-bg-lighter/40 backdrop-blur-md rounded-xl p-4 border border-nofx-gold/20 hover:border-nofx-gold/50 transition-all shadow-lg hover:shadow-[0_0_20px_rgba(240,185,11,0.1)]">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <AIAvatar name={vote.ai_model_name} size={28} />
           <div>
-            <span className="text-white font-semibold block">{vote.ai_model_name}</span>
-            {vote.symbol && <span className="text-xs text-gray-400">{vote.symbol}</span>}
+            <span className="text-nofx-text font-semibold block">{vote.ai_model_name}</span>
+            {vote.symbol && <span className="text-xs text-nofx-text-muted">{vote.symbol}</span>}
           </div>
         </div>
         <span className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${a.bg} ${a.color}`}>
@@ -300,13 +301,13 @@ function VoteCard({ vote }: { vote: { ai_model_name: string; action: string; sym
         </div>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <div className="flex justify-between"><span className="text-gray-500">Leverage</span><span className="text-white font-semibold">{vote.leverage || '-'}x</span></div>
-        <div className="flex justify-between"><span className="text-gray-500">Position</span><span className="text-white font-semibold">{vote.position_pct ? `${(vote.position_pct * 100).toFixed(0)}%` : '-'}</span></div>
-        <div className="flex justify-between"><span className="text-gray-500">SL</span><span className="text-red-400 font-semibold">{vote.stop_loss_pct ? `${(vote.stop_loss_pct * 100).toFixed(1)}%` : '-'}</span></div>
-        <div className="flex justify-between"><span className="text-gray-500">TP</span><span className="text-green-400 font-semibold">{vote.take_profit_pct ? `${(vote.take_profit_pct * 100).toFixed(1)}%` : '-'}</span></div>
+        <div className="flex justify-between"><span className="text-nofx-text-muted">Leverage</span><span className="text-nofx-text font-semibold">{vote.leverage || '-'}x</span></div>
+        <div className="flex justify-between"><span className="text-nofx-text-muted">Position</span><span className="text-nofx-text font-semibold">{vote.position_pct ? `${(vote.position_pct * 100).toFixed(0)}%` : '-'}</span></div>
+        <div className="flex justify-between"><span className="text-nofx-text-muted">SL</span><span className="text-red-400 font-semibold">{vote.stop_loss_pct ? `${(vote.stop_loss_pct * 100).toFixed(1)}%` : '-'}</span></div>
+        <div className="flex justify-between"><span className="text-nofx-text-muted">TP</span><span className="text-green-400 font-semibold">{vote.take_profit_pct ? `${(vote.take_profit_pct * 100).toFixed(1)}%` : '-'}</span></div>
       </div>
       {vote.reasoning && (
-        <p className="mt-3 text-xs text-gray-400 leading-relaxed line-clamp-2 border-t border-white/5 pt-2">{vote.reasoning}</p>
+        <p className="mt-3 text-xs text-nofx-text-muted leading-relaxed line-clamp-2 border-t border-nofx-gold/10 pt-2">{vote.reasoning}</p>
       )}
     </div>
   )
@@ -386,22 +387,22 @@ function CreateModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="bg-[#1a1d24] rounded-xl w-full max-w-md p-4 border border-white/10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="bg-nofx-bg-lighter/90 backdrop-blur-xl rounded-xl w-full max-w-md p-6 border border-nofx-gold/30 shadow-2xl shadow-nofx-gold/10">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-white">{t('createDebate', language)}</h3>
-          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+          <h3 className="text-lg font-bold text-nofx-text">{t('createDebate', language)}</h3>
+          <button onClick={onClose}><X size={20} className="text-nofx-text-muted" /></button>
         </div>
 
         <div className="space-y-3">
           <input
             value={name} onChange={e => setName(e.target.value)}
-            placeholder={t('debateName', language)} className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+            placeholder={t('debateName', language)} className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text text-sm outline-none focus:border-nofx-gold"
           />
 
           {/* Strategy selector - moved up */}
           <select value={strategyId} onChange={e => setStrategyId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+            className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text text-sm outline-none focus:border-nofx-gold">
             {strategies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
 
@@ -409,17 +410,17 @@ function CreateModal({
             {/* Show dropdown only for static type with coins defined */}
             {isStaticWithCoins ? (
               <select value={symbol} onChange={e => setSymbol(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
+                className="flex-1 px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text text-sm outline-none focus:border-nofx-gold">
                 {staticCoins.map(coin => <option key={coin} value={coin}>{coin}</option>)}
               </select>
             ) : (
-              <div className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-400 text-sm">
+              <div className="flex-1 px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text-muted text-sm">
                 {language === 'zh' ? '根据策略规则自动选择' : 'Auto-selected by strategy'}
               </div>
             )}
             <select value={maxRounds} onChange={e => setMaxRounds(+e.target.value)}
-              className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm">
-              {[2,3,4,5].map(n => <option key={n} value={n}>{n} {language === 'zh' ? '轮' : 'rounds'}</option>)}
+              className="px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text text-sm outline-none focus:border-nofx-gold">
+              {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n} {language === 'zh' ? '轮' : 'rounds'}</option>)}
             </select>
           </div>
 
@@ -431,7 +432,7 @@ function CreateModal({
                 {/* Personality selector */}
                 <select value={p.personality} onChange={e => {
                   const up = [...participants]; up[i].personality = e.target.value as DebatePersonality; setParticipants(up)
-                }} className="bg-transparent text-white text-xs border-0 outline-none cursor-pointer">
+                }} className="bg-transparent text-nofx-text text-xs border-0 outline-none cursor-pointer">
                   {Object.entries(PERS).map(([k, v]) => (
                     <option key={k} value={k}>{v.emoji} {language === 'zh' ? v.name : v.nameEn}</option>
                   ))}
@@ -439,23 +440,23 @@ function CreateModal({
                 {/* AI model selector */}
                 <select value={p.ai_model_id} onChange={e => {
                   const up = [...participants]; up[i].ai_model_id = e.target.value; setParticipants(up)
-                }} className="bg-transparent text-white text-xs border-0 outline-none">
+                }} className="bg-transparent text-nofx-text text-xs border-0 outline-none">
                   {aiModels.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
                 <button onClick={() => setParticipants(participants.filter((_, j) => j !== i))}
-                  className="text-red-400 hover:text-red-300"><X size={12} /></button>
+                  className="text-nofx-danger hover:text-red-300"><X size={12} /></button>
               </div>
             ))}
-            <button onClick={addP} className="px-2 py-1 text-xs text-yellow-400 hover:bg-yellow-500/10 rounded">
+            <button onClick={addP} className="px-2 py-1 text-xs text-nofx-gold hover:bg-nofx-gold/10 rounded">
               + {t('addAI', language)}
             </button>
           </div>
         </div>
 
         <div className="flex gap-2 mt-4">
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-white/5 text-white text-sm">{t('cancel', language)}</button>
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text text-sm hover:bg-nofx-bg-lighter transition-colors">{t('cancel', language)}</button>
           <button onClick={submit} disabled={creating}
-            className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm disabled:opacity-50">
+            className="flex-1 py-2 rounded-lg bg-nofx-gold text-black font-semibold text-sm disabled:opacity-50 hover:bg-yellow-500 transition-colors">
             {creating ? <Loader2 size={16} className="animate-spin mx-auto" /> : t('create', language)}
           </button>
         </div>
@@ -536,26 +537,27 @@ export function DebateArenaPage() {
   const voteSum = votes.reduce((a, v) => { a[v.action] = (a[v.action] || 0) + 1; return a }, {} as Record<string, number>)
 
   return (
-    <div className="h-full bg-[#0a0c10] flex overflow-hidden">
+    <DeepVoidBackground className="h-full flex overflow-hidden relative" disableAnimation>
+
       {/* Left - Debate List + Online Traders */}
-      <div className="w-56 flex-shrink-0 bg-[#0d1017] border-r border-white/5 flex flex-col">
+      <div className="w-56 flex-shrink-0 bg-nofx-bg/80 backdrop-blur-md border-r border-nofx-gold/20 flex flex-col z-10">
         {/* New Debate Button */}
         <button onClick={() => setShowCreate(true)}
-          className="m-2 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm flex items-center justify-center gap-1">
+          className="m-2 py-2 rounded-lg bg-nofx-gold text-black font-semibold text-sm flex items-center justify-center gap-1 hover:bg-yellow-500 transition-colors">
           <Plus size={16} /> {t('newDebate', language)}
         </button>
 
         {/* Debate List */}
-        <div className="px-2 py-1 text-xs text-gray-500 font-semibold">{t('debateSessions', language)}</div>
+        <div className="px-2 py-1 text-xs text-nofx-text-muted font-semibold">{t('debateSessions', language)}</div>
         <div className="overflow-y-auto" style={{ maxHeight: '30%' }}>
           {debates?.map(d => (
             <div key={d.id} onClick={() => setSelectedId(d.id)}
-              className={`p-2 cursor-pointer border-l-2 ${selectedId === d.id ? 'bg-yellow-500/10 border-yellow-500' : 'border-transparent hover:bg-white/5'}`}>
+              className={`p-2 cursor-pointer border-l-2 transition-all ${selectedId === d.id ? 'bg-nofx-gold/10 border-nofx-gold shadow-[inset_10px_0_20px_-10px_rgba(240,185,11,0.2)]' : 'border-transparent hover:bg-nofx-bg-lighter/50'}`}>
               <div className="flex items-center gap-2">
                 <span className={`w-2 h-2 rounded-full ${STATUS_COLOR[d.status]}`} />
-                <span className="text-sm text-white truncate flex-1">{d.name}</span>
+                <span className="text-sm text-nofx-text truncate flex-1">{d.name}</span>
               </div>
-              <div className="text-xs text-gray-500 mt-1">{d.symbol} · R{d.current_round}/{d.max_rounds}</div>
+              <div className="text-xs text-nofx-text-muted mt-1">{d.symbol} · R{d.current_round}/{d.max_rounds}</div>
               {d.status === 'pending' && selectedId === d.id && (
                 <div className="flex gap-1 mt-1">
                   <button onClick={e => { e.stopPropagation(); onStart(d.id) }}
@@ -569,41 +571,41 @@ export function DebateArenaPage() {
         </div>
 
         {/* Online Traders Section */}
-        <div className="flex-1 border-t border-white/5 mt-2 overflow-hidden flex flex-col">
-          <div className="px-2 py-2 text-xs text-gray-500 font-semibold flex items-center gap-1">
-            <Zap size={12} className="text-green-400" />
+        <div className="flex-1 border-t border-nofx-gold/20 mt-2 overflow-hidden flex flex-col">
+          <div className="px-2 py-2 text-xs text-nofx-text-muted font-semibold flex items-center gap-1">
+            <Zap size={12} className="text-nofx-success" />
             {t('onlineTraders', language)}
           </div>
           <div className="flex-1 overflow-y-auto px-2 space-y-2">
             {traders?.filter(tr => tr.is_running).map(tr => (
               <div key={tr.trader_id}
                 onClick={() => { setTraderId(tr.trader_id); if (decision && !decision.executed) setExecId(detail?.id || null) }}
-                className={`p-2 rounded-lg cursor-pointer transition-all ${traderId === tr.trader_id ? 'bg-green-500/20 ring-1 ring-green-500' : 'bg-white/5 hover:bg-white/10'}`}>
+                className={`p-2 rounded-lg cursor-pointer transition-all ${traderId === tr.trader_id ? 'bg-nofx-success/20 ring-1 ring-nofx-success' : 'bg-nofx-bg-lighter hover:bg-nofx-bg-light'}`}>
                 <div className="flex items-center gap-2">
                   <PunkAvatar seed={tr.trader_id} size={32} className="rounded-lg" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white font-medium truncate">{tr.trader_name}</div>
-                    <div className="text-xs text-gray-500 truncate">{tr.ai_model}</div>
+                    <div className="text-sm text-nofx-text font-medium truncate">{tr.trader_name}</div>
+                    <div className="text-xs text-nofx-text-muted truncate">{tr.ai_model}</div>
                   </div>
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  <span className="w-2 h-2 rounded-full bg-nofx-success animate-pulse" />
                 </div>
               </div>
             ))}
             {traders?.filter(tr => !tr.is_running).slice(0, 3).map(tr => (
-              <div key={tr.trader_id} className="p-2 rounded-lg bg-white/5 opacity-50">
+              <div key={tr.trader_id} className="p-2 rounded-lg bg-nofx-bg-lighter opacity-50">
                 <div className="flex items-center gap-2">
                   <div className="grayscale">
                     <PunkAvatar seed={tr.trader_id} size={32} className="rounded-lg" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white font-medium truncate">{tr.trader_name}</div>
-                    <div className="text-xs text-gray-500">{t('offline', language)}</div>
+                    <div className="text-sm text-nofx-text font-medium truncate">{tr.trader_name}</div>
+                    <div className="text-xs text-nofx-text-muted">{t('offline', language)}</div>
                   </div>
                 </div>
               </div>
             ))}
             {(!traders || traders.length === 0) && (
-              <div className="text-xs text-gray-500 text-center py-4">{t('noTraders', language)}</div>
+              <div className="text-xs text-nofx-text-muted text-center py-4">{t('noTraders', language)}</div>
             )}
           </div>
         </div>
@@ -614,12 +616,12 @@ export function DebateArenaPage() {
         {detail ? (
           <>
             {/* Header Bar - Compact */}
-            <div className="px-3 py-2 border-b border-white/5 bg-[#0d1017]/50 flex items-center gap-3 flex-shrink-0">
+            <div className="px-3 py-2 border-b border-nofx-gold/20 bg-nofx-bg/60 backdrop-blur-md flex items-center gap-3 flex-shrink-0 shadow-sm">
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${STATUS_COLOR[detail.status]}`} />
-              <span className="font-bold text-white truncate">{detail.name}</span>
-              <span className="text-yellow-400 font-semibold">{detail.symbol}</span>
+              <span className="font-bold text-nofx-text truncate">{detail.name}</span>
+              <span className="text-nofx-gold font-semibold">{detail.symbol}</span>
               {strategyName && <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded">{strategyName}</span>}
-              <span className="text-xs text-gray-500">R{detail.current_round}/{detail.max_rounds}</span>
+              <span className="text-xs text-nofx-text-muted">R{detail.current_round}/{detail.max_rounds}</span>
 
               {/* Participants */}
               <div className="flex gap-1 ml-2">
@@ -627,7 +629,7 @@ export function DebateArenaPage() {
                   const vote = votes.find(v => v.ai_model_id === p.ai_model_id)
                   const act = vote ? (ACT[vote.action] || ACT.wait) : null
                   return (
-                    <div key={p.id} className="flex items-center gap-1 px-1 py-0.5 rounded bg-white/5 text-xs">
+                    <div key={p.id} className="flex items-center gap-1 px-1 py-0.5 rounded bg-nofx-bg-lighter text-xs">
                       <AIAvatar name={p.ai_model_name} size={14} />
                       {act && <span className={`${act.color}`}>{act.icon}</span>}
                     </div>
@@ -662,8 +664,8 @@ export function DebateArenaPage() {
               ) : (
                 <>
                   {/* Left - Rounds */}
-                  <div className="flex-1 overflow-y-auto p-4 border-r border-white/5">
-                    <div className="text-sm text-gray-400 font-semibold mb-3 flex items-center gap-2">
+                  <div className="flex-1 overflow-y-auto p-4 border-r border-nofx-gold/20">
+                    <div className="text-sm text-nofx-text-muted font-semibold mb-3 flex items-center gap-2">
                       <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                       {t('discussionRecords', language)}
                     </div>
@@ -681,9 +683,9 @@ export function DebateArenaPage() {
 
                   {/* Right - Votes */}
                   {votes.length > 0 && (
-                    <div className="w-[420px] flex-shrink-0 overflow-y-auto p-4 bg-[#0d1017]/50">
-                      <div className="text-sm text-gray-400 font-semibold mb-3 flex items-center gap-2">
-                        <Trophy size={16} className="text-yellow-400" />
+                    <div className="w-[420px] flex-shrink-0 overflow-y-auto p-4 bg-nofx-bg/30 backdrop-blur-sm">
+                      <div className="text-sm text-nofx-text-muted font-semibold mb-3 flex items-center gap-2">
+                        <Trophy size={16} className="text-nofx-gold" />
                         {t('finalVotes', language)}
                       </div>
                       <div className="space-y-3">
@@ -709,37 +711,37 @@ export function DebateArenaPage() {
 
             {/* Consensus Bar - Show when votes exist */}
             {(decision || votes.length > 0) && (
-              <div className="p-3 border-t border-white/5 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 flex items-center gap-4 flex-shrink-0">
+              <div className="p-3 border-t border-nofx-gold/20 bg-gradient-to-r from-nofx-gold/10 via-nofx-bg-lighter/50 to-orange-500/10 backdrop-blur-md flex items-center gap-4 flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <Trophy size={20} className="text-yellow-400" />
-                  <span className="text-sm text-gray-400">{t('consensus', language)}:</span>
+                  <Trophy size={20} className="text-nofx-gold" />
+                  <span className="text-sm text-nofx-text-muted">{t('consensus', language)}:</span>
                   {decision ? (
                     <>
-                      {decision.symbol && <span className="text-yellow-400 font-bold mr-1">{decision.symbol}</span>}
+                      {decision.symbol && <span className="text-nofx-gold font-bold mr-1">{decision.symbol}</span>}
                       <span className={`flex items-center gap-1 px-2 py-1 rounded font-bold ${(ACT[decision.action] || ACT.wait).bg} ${(ACT[decision.action] || ACT.wait).color}`}>
                         {(ACT[decision.action] || ACT.wait).icon}
                         {decision.action.replace('_', ' ').toUpperCase()}
                       </span>
                     </>
                   ) : (
-                    <span className="flex items-center gap-1 px-2 py-1 rounded font-bold bg-gray-500/20 text-gray-400">
+                    <span className="flex items-center gap-1 px-2 py-1 rounded font-bold bg-nofx-text-muted/20 text-nofx-text-muted">
                       <Clock size={14} /> VOTING...
                     </span>
                   )}
                 </div>
                 {decision && (
                   <div className="flex items-center gap-4 text-sm">
-                    <span><span className="text-gray-500">{t('confidence', language)}</span> <span className="text-yellow-400 font-bold">{decision.confidence || 0}%</span></span>
-                    {(decision.leverage ?? 0) > 0 && <span><span className="text-gray-500">{t('leverage', language)}</span> <span className="text-white font-bold">{decision.leverage}x</span></span>}
-                    {(decision.position_pct ?? 0) > 0 && <span><span className="text-gray-500">{t('position', language)}</span> <span className="text-white font-bold">{((decision.position_pct ?? 0) * 100).toFixed(0)}%</span></span>}
-                    {(decision.stop_loss ?? 0) > 0 && <span><span className="text-gray-500">SL</span> <span className="text-red-400 font-bold">{((decision.stop_loss ?? 0) * 100).toFixed(1)}%</span></span>}
-                    {(decision.take_profit ?? 0) > 0 && <span><span className="text-gray-500">TP</span> <span className="text-green-400 font-bold">{((decision.take_profit ?? 0) * 100).toFixed(1)}%</span></span>}
+                    <span><span className="text-nofx-text-muted">{t('confidence', language)}</span> <span className="text-nofx-gold font-bold">{decision.confidence || 0}%</span></span>
+                    {(decision.leverage ?? 0) > 0 && <span><span className="text-nofx-text-muted">{t('leverage', language)}</span> <span className="text-nofx-text font-bold">{decision.leverage}x</span></span>}
+                    {(decision.position_pct ?? 0) > 0 && <span><span className="text-nofx-text-muted">{t('position', language)}</span> <span className="text-nofx-text font-bold">{((decision.position_pct ?? 0) * 100).toFixed(0)}%</span></span>}
+                    {(decision.stop_loss ?? 0) > 0 && <span><span className="text-nofx-text-muted">SL</span> <span className="text-red-400 font-bold">{((decision.stop_loss ?? 0) * 100).toFixed(1)}%</span></span>}
+                    {(decision.take_profit ?? 0) > 0 && <span><span className="text-nofx-text-muted">TP</span> <span className="text-green-400 font-bold">{((decision.take_profit ?? 0) * 100).toFixed(1)}%</span></span>}
                   </div>
                 )}
                 <div className="flex-1" />
                 {decision && !decision.executed && (decision.action === 'open_long' || decision.action === 'open_short') && (
                   <button onClick={() => setExecId(detail.id)}
-                    className="px-4 py-1.5 rounded-lg bg-yellow-500 text-black font-semibold text-sm flex items-center gap-1">
+                    className="px-4 py-1.5 rounded-lg bg-nofx-gold text-black font-semibold text-sm flex items-center gap-1 hover:bg-yellow-500 transition-colors">
                     <Zap size={14} /> {t('execute', language)}
                   </button>
                 )}
@@ -748,7 +750,7 @@ export function DebateArenaPage() {
             )}
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-nofx-text-muted">
             <div className="text-center">
               <div className="text-4xl mb-2">🗳️</div>
               <div>{t('selectOrCreate', language)}</div>
@@ -763,13 +765,13 @@ export function DebateArenaPage() {
 
       {/* Execute Modal */}
       {execId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-[#1a1d24] rounded-xl w-full max-w-sm p-4 border border-white/10">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Zap className="text-yellow-400" /> {t('executeTitle', language)}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-nofx-bg-lighter/90 backdrop-blur-xl rounded-xl w-full max-w-sm p-6 border border-nofx-gold/30 shadow-2xl shadow-nofx-gold/10">
+            <h3 className="text-lg font-bold text-nofx-text mb-4 flex items-center gap-2">
+              <Zap className="text-nofx-gold" /> {t('executeTitle', language)}
             </h3>
             <select value={traderId} onChange={e => setTraderId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm mb-3">
+              className="w-full px-3 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text text-sm mb-3">
               <option value="">{t('selectTrader', language)}...</option>
               {traders?.filter(tr => tr.is_running).map(tr => (
                 <option key={tr.trader_id} value={tr.trader_id}>✅ {tr.trader_name}</option>
@@ -778,20 +780,20 @@ export function DebateArenaPage() {
                 <option key={tr.trader_id} value={tr.trader_id} disabled>⏹ {tr.trader_name} ({t('offline', language)})</option>
               ))}
             </select>
-            <div className="text-xs text-yellow-300 bg-yellow-500/10 p-2 rounded mb-3">
+            <div className="text-xs text-yellow-300 bg-nofx-gold/10 p-2 rounded mb-3">
               ⚠️ {language === 'zh' ? '将使用账户余额执行真实交易' : 'Will execute real trade with account balance'}
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setExecId(null); setTraderId('') }}
-                className="flex-1 py-2 rounded-lg bg-white/5 text-white text-sm">{t('cancel', language)}</button>
+                className="flex-1 py-2 rounded-lg bg-nofx-bg text-nofx-text text-sm hover:bg-nofx-bg-light transition-colors">{t('cancel', language)}</button>
               <button onClick={onExecute} disabled={!traderId || executing || !traders?.find(tr => tr.trader_id === traderId)?.is_running}
-                className="flex-1 py-2 rounded-lg bg-yellow-500 text-black font-semibold text-sm disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-nofx-gold text-black font-semibold text-sm disabled:opacity-50 hover:bg-yellow-500 transition-colors">
                 {executing ? <Loader2 size={16} className="animate-spin mx-auto" /> : t('execute', language)}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </DeepVoidBackground>
   )
 }

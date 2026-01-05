@@ -112,7 +112,7 @@ func (e *StrategyEngine) getCoinPoolCoins(limit int) []CandidateCoin {
 }
 ```
 
-- **API:** `config.CoinSource.CoinPoolAPIURL` (默认: `http://nofxaios.com:30006/api/ai500/list`)
+- **API:** `config.CoinSource.CoinPoolAPIURL` (默认: `https://nofxos.ai/api/ai500/list`)
 - **用途:** 获取 AI 评分最高的 N 个币种
 - **标签:** `["ai500"]`
 

@@ -8,12 +8,14 @@ import (
 	"nofx/logger"
 	"sync"
 
-	_ "modernc.org/sqlite"
+	"gorm.io/gorm"
 )
 
 // Store unified data storage interface
 type Store struct {
-	db *sql.DB
+	gdb    *gorm.DB  // GORM database connection
+	db     *sql.DB   // Legacy sql.DB for backward compatibility
+	driver *DBDriver // Database driver for abstraction (legacy)
 
 	// Sub-stores (lazy initialization)
 	user     *UserStore
@@ -25,107 +27,105 @@ type Store struct {
 	position *PositionStore
 	strategy *StrategyStore
 	equity   *EquityStore
-
-	// Encryption functions
-	encryptFunc func(string) string
-	decryptFunc func(string) string
+	order    *OrderStore
 
 	mu sync.RWMutex
 }
 
-// New creates new Store instance
+// New creates new Store instance (SQLite mode for backward compatibility)
 func New(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", dbPath)
+	gdb, err := InitGorm(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// SQLite configuration
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-
-	// Enable foreign key constraints
-	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	// Get underlying sql.DB for legacy compatibility
+	sqlDB, err := gdb.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
 	}
 
-	// Use DELETE mode (traditional mode) to ensure Docker bind mount compatibility
-	// Note: WAL mode causes data sync issues on macOS Docker
-	if _, err := db.Exec("PRAGMA journal_mode=DELETE"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to set journal_mode: %w", err)
-	}
-
-	// Set synchronous=FULL
-	if _, err := db.Exec("PRAGMA synchronous=FULL"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to set synchronous: %w", err)
-	}
-
-	// Set busy_timeout
-	if _, err := db.Exec("PRAGMA busy_timeout = 5000"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
-	}
-
-	s := &Store{db: db}
+	s := &Store{gdb: gdb, db: sqlDB}
 
 	// Initialize all table structures
 	if err := s.initTables(); err != nil {
-		db.Close()
+		sqlDB.Close()
 		return nil, fmt.Errorf("failed to initialize table structure: %w", err)
 	}
 
 	// Initialize default data
 	if err := s.initDefaultData(); err != nil {
-		db.Close()
+		sqlDB.Close()
 		return nil, fmt.Errorf("failed to initialize default data: %w", err)
 	}
 
-	logger.Info("✅ Database enabled DELETE mode and FULL sync")
+	logger.Infof("✅ Database initialized (GORM, SQLite)")
 	return s, nil
 }
 
-// NewFromDB creates Store from existing database connection
+// NewWithConfig creates new Store instance with provided database configuration
+func NewWithConfig(cfg DBConfig) (*Store, error) {
+	gdb, err := InitGormWithConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Get underlying sql.DB for legacy compatibility
+	sqlDB, err := gdb.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
+	}
+
+	s := &Store{gdb: gdb, db: sqlDB}
+
+	// Initialize all table structures
+	if err := s.initTables(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("failed to initialize table structure: %w", err)
+	}
+
+	// Initialize default data
+	if err := s.initDefaultData(); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("failed to initialize default data: %w", err)
+	}
+
+	dbTypeStr := "SQLite"
+	if cfg.Type == DBTypePostgres {
+		dbTypeStr = "PostgreSQL"
+	}
+	logger.Infof("✅ Database initialized (GORM, %s)", dbTypeStr)
+	return s, nil
+}
+
+// NewFromGorm creates Store from existing GORM connection
+func NewFromGorm(gdb *gorm.DB) (*Store, error) {
+	sqlDB, err := gdb.DB()
+	if err != nil {
+		return nil, err
+	}
+	return &Store{gdb: gdb, db: sqlDB}, nil
+}
+
+// NewFromDB creates Store from existing database connection (legacy)
+// Deprecated: Use NewFromGorm instead
 func NewFromDB(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-// SetCryptoFuncs sets encryption/decryption functions
-func (s *Store) SetCryptoFuncs(encrypt, decrypt func(string) string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.encryptFunc = encrypt
-	s.decryptFunc = decrypt
-
-	// Update already initialized sub-stores
-	if s.aiModel != nil {
-		s.aiModel.encryptFunc = encrypt
-		s.aiModel.decryptFunc = decrypt
-	}
-	if s.exchange != nil {
-		s.exchange.encryptFunc = encrypt
-		s.exchange.decryptFunc = decrypt
-	}
-	if s.trader != nil {
-		s.trader.decryptFunc = decrypt
-	}
-}
-
-// initTables initializes all database tables
+// initTables initializes all database tables using GORM AutoMigrate
 func (s *Store) initTables() error {
-	// Initialize system config table first
-	if _, err := s.db.Exec(`
+	// Create system_config table (GORM handles this via raw SQL for simplicity)
+	if err := s.gdb.Exec(`
 		CREATE TABLE IF NOT EXISTS system_config (
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		)
-	`); err != nil {
+	`).Error; err != nil {
 		return fmt.Errorf("failed to create system_config table: %w", err)
 	}
 
-	// Initialize in dependency order
+	// Initialize sub-store tables
 	if err := s.User().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize user tables: %w", err)
 	}
@@ -152,6 +152,9 @@ func (s *Store) initTables() error {
 	}
 	if err := s.Equity().initTables(); err != nil {
 		return fmt.Errorf("failed to initialize equity tables: %w", err)
+	}
+	if err := s.Order().InitTables(); err != nil {
+		return fmt.Errorf("failed to initialize order tables: %w", err)
 	}
 	return nil
 }
@@ -181,7 +184,7 @@ func (s *Store) User() *UserStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.user == nil {
-		s.user = &UserStore{db: s.db}
+		s.user = NewUserStore(s.gdb)
 	}
 	return s.user
 }
@@ -191,11 +194,7 @@ func (s *Store) AIModel() *AIModelStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.aiModel == nil {
-		s.aiModel = &AIModelStore{
-			db:          s.db,
-			encryptFunc: s.encryptFunc,
-			decryptFunc: s.decryptFunc,
-		}
+		s.aiModel = NewAIModelStore(s.gdb)
 	}
 	return s.aiModel
 }
@@ -205,11 +204,7 @@ func (s *Store) Exchange() *ExchangeStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.exchange == nil {
-		s.exchange = &ExchangeStore{
-			db:          s.db,
-			encryptFunc: s.encryptFunc,
-			decryptFunc: s.decryptFunc,
-		}
+		s.exchange = NewExchangeStore(s.gdb)
 	}
 	return s.exchange
 }
@@ -219,10 +214,7 @@ func (s *Store) Trader() *TraderStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.trader == nil {
-		s.trader = &TraderStore{
-			db:          s.db,
-			decryptFunc: s.decryptFunc,
-		}
+		s.trader = NewTraderStore(s.gdb)
 	}
 	return s.trader
 }
@@ -232,7 +224,7 @@ func (s *Store) Decision() *DecisionStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.decision == nil {
-		s.decision = &DecisionStore{db: s.db}
+		s.decision = NewDecisionStore(s.gdb)
 	}
 	return s.decision
 }
@@ -242,7 +234,7 @@ func (s *Store) Backtest() *BacktestStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.backtest == nil {
-		s.backtest = &BacktestStore{db: s.db}
+		s.backtest = NewBacktestStore(s.gdb)
 	}
 	return s.backtest
 }
@@ -252,7 +244,7 @@ func (s *Store) Position() *PositionStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.position == nil {
-		s.position = NewPositionStore(s.db)
+		s.position = NewPositionStore(s.gdb)
 	}
 	return s.position
 }
@@ -262,7 +254,7 @@ func (s *Store) Strategy() *StrategyStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.strategy == nil {
-		s.strategy = &StrategyStore{db: s.db}
+		s.strategy = NewStrategyStore(s.gdb)
 	}
 	return s.strategy
 }
@@ -272,18 +264,66 @@ func (s *Store) Equity() *EquityStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.equity == nil {
-		s.equity = &EquityStore{db: s.db}
+		s.equity = NewEquityStore(s.gdb)
 	}
 	return s.equity
 }
 
-// Close closes database connection
-func (s *Store) Close() error {
-	return s.db.Close()
+// Order gets order storage
+func (s *Store) Order() *OrderStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.order == nil {
+		s.order = NewOrderStore(s.gdb)
+	}
+	return s.order
 }
 
-// DB gets underlying database connection (for legacy code compatibility, gradually deprecated)
-// Deprecated: use Store methods instead
+// Close closes database connection
+func (s *Store) Close() error {
+	if s.driver != nil {
+		return s.driver.Close()
+	}
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
+}
+
+// GormDB returns the GORM database connection
+func (s *Store) GormDB() *gorm.DB {
+	return s.gdb
+}
+
+// Driver returns database driver for abstraction (legacy)
+func (s *Store) Driver() *DBDriver {
+	return s.driver
+}
+
+// DBType returns current database type
+func (s *Store) DBType() DBType {
+	if s.driver != nil {
+		return s.driver.Type
+	}
+	// Detect from GORM dialector
+	if s.gdb != nil {
+		switch s.gdb.Dialector.Name() {
+		case "postgres":
+			return DBTypePostgres
+		default:
+			return DBTypeSQLite
+		}
+	}
+	return DBTypeSQLite
+}
+
+// q converts query placeholders for current database type (legacy helper)
+func (s *Store) q(query string) string {
+	return convertQuery(query, s.DBType())
+}
+
+// DB gets underlying database connection (for legacy code compatibility)
+// Deprecated: use GormDB() instead
 func (s *Store) DB() *sql.DB {
 	return s.db
 }
@@ -291,24 +331,36 @@ func (s *Store) DB() *sql.DB {
 // GetSystemConfig gets a system configuration value by key
 func (s *Store) GetSystemConfig(key string) (string, error) {
 	var value string
-	err := s.db.QueryRow(`SELECT value FROM system_config WHERE key = ?`, key).Scan(&value)
-	if err == sql.ErrNoRows {
+	result := s.gdb.Raw("SELECT value FROM system_config WHERE key = ?", key).Scan(&value)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return "", nil
+		}
+		return "", result.Error
+	}
+	if result.RowsAffected == 0 {
 		return "", nil
 	}
-	return value, err
+	return value, nil
 }
 
 // SetSystemConfig sets a system configuration value
 func (s *Store) SetSystemConfig(key, value string) error {
-	_, err := s.db.Exec(`
+	// Use GORM-compatible upsert
+	return s.gdb.Exec(`
 		INSERT INTO system_config (key, value) VALUES (?, ?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`, key, value)
-	return err
+	`, key, value).Error
 }
 
-// Transaction executes transaction
-func (s *Store) Transaction(fn func(tx *sql.Tx) error) error {
+// Transaction executes transaction with GORM
+func (s *Store) Transaction(fn func(tx *gorm.DB) error) error {
+	return s.gdb.Transaction(fn)
+}
+
+// TransactionSQL executes transaction with sql.Tx (legacy)
+// Deprecated: Use Transaction() instead
+func (s *Store) TransactionSQL(fn func(tx *sql.Tx) error) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

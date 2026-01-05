@@ -1,32 +1,40 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // StrategyStore strategy storage
 type StrategyStore struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // Strategy strategy configuration
 type Strategy struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	IsActive    bool      `json:"is_active"`    // whether it is active (a user can only have one active strategy)
-	IsDefault   bool      `json:"is_default"`   // whether it is a system default strategy
-	Config      string    `json:"config"`       // strategy configuration in JSON format
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID            string    `gorm:"primaryKey" json:"id"`
+	UserID        string    `gorm:"column:user_id;not null;default:'';index" json:"user_id"`
+	Name          string    `gorm:"not null" json:"name"`
+	Description   string    `gorm:"default:''" json:"description"`
+	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
+	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
+	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`       // whether visible in strategy market
+	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"`    // whether config details are visible
+	Config        string    `gorm:"not null;default:'{}'" json:"config"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
+
+func (Strategy) TableName() string { return "strategies" }
 
 // StrategyConfig strategy configuration details (JSON structure)
 type StrategyConfig struct {
+	// language setting: "zh" for Chinese, "en" for English
+	// This determines the language used for data formatting and prompt generation
+	Language string `json:"language,omitempty"`
 	// coin source configuration
 	CoinSource CoinSourceConfig `json:"coin_source"`
 	// quantitative data configuration
@@ -53,22 +61,21 @@ type PromptSectionsConfig struct {
 
 // CoinSourceConfig coin source configuration
 type CoinSourceConfig struct {
-	// source type: "static" | "coinpool" | "oi_top" | "mixed"
+	// source type: "static" | "ai500" | "oi_top" | "mixed"
 	SourceType string `json:"source_type"`
 	// static coin list (used when source_type = "static")
 	StaticCoins []string `json:"static_coins,omitempty"`
+	// excluded coins list (filtered out from all sources)
+	ExcludedCoins []string `json:"excluded_coins,omitempty"`
 	// whether to use AI500 coin pool
-	UseCoinPool bool `json:"use_coin_pool"`
+	UseAI500 bool `json:"use_ai500"`
 	// AI500 coin pool maximum count
-	CoinPoolLimit int `json:"coin_pool_limit,omitempty"`
-	// AI500 coin pool API URL (strategy-level configuration)
-	CoinPoolAPIURL string `json:"coin_pool_api_url,omitempty"`
+	AI500Limit int `json:"ai500_limit,omitempty"`
 	// whether to use OI Top
 	UseOITop bool `json:"use_oi_top"`
 	// OI Top maximum count
 	OITopLimit int `json:"oi_top_limit,omitempty"`
-	// OI Top API URL (strategy-level configuration)
-	OITopAPIURL string `json:"oi_top_api_url,omitempty"`
+	// Note: API URLs are now built automatically using NofxOSAPIKey from IndicatorConfig
 }
 
 // IndicatorConfig indicator configuration
@@ -96,16 +103,30 @@ type IndicatorConfig struct {
 	BOLLPeriods []int `json:"boll_periods,omitempty"` // default [20] - can select multiple timeframes
 	// external data sources
 	ExternalDataSources []ExternalDataSource `json:"external_data_sources,omitempty"`
+
+	// ========== NofxOS Unified API Configuration ==========
+	// Unified API Key for all NofxOS data sources
+	NofxOSAPIKey string `json:"nofxos_api_key,omitempty"`
+
 	// quantitative data sources (capital flow, position changes, price changes)
-	EnableQuantData    bool   `json:"enable_quant_data"`              // whether to enable quantitative data
-	QuantDataAPIURL    string `json:"quant_data_api_url,omitempty"`   // quantitative data API address
-	EnableQuantOI      bool   `json:"enable_quant_oi"`                // whether to show OI data
-	EnableQuantNetflow bool   `json:"enable_quant_netflow"`           // whether to show Netflow data
+	EnableQuantData    bool `json:"enable_quant_data"`    // whether to enable quantitative data
+	EnableQuantOI      bool `json:"enable_quant_oi"`      // whether to show OI data
+	EnableQuantNetflow bool `json:"enable_quant_netflow"` // whether to show Netflow data
+
 	// OI ranking data (market-wide open interest increase/decrease rankings)
 	EnableOIRanking   bool   `json:"enable_oi_ranking"`             // whether to enable OI ranking data
-	OIRankingAPIURL   string `json:"oi_ranking_api_url,omitempty"`  // OI ranking API base URL
 	OIRankingDuration string `json:"oi_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
 	OIRankingLimit    int    `json:"oi_ranking_limit,omitempty"`    // number of entries (default 10)
+
+	// NetFlow ranking data (market-wide fund flow rankings - institution/personal)
+	EnableNetFlowRanking   bool   `json:"enable_netflow_ranking"`             // whether to enable NetFlow ranking data
+	NetFlowRankingDuration string `json:"netflow_ranking_duration,omitempty"` // duration: 1h, 4h, 24h
+	NetFlowRankingLimit    int    `json:"netflow_ranking_limit,omitempty"`    // number of entries (default 10)
+
+	// Price ranking data (market-wide gainers/losers)
+	EnablePriceRanking   bool   `json:"enable_price_ranking"`             // whether to enable price ranking data
+	PriceRankingDuration string `json:"price_ranking_duration,omitempty"` // durations: "1h" or "1h,4h,24h"
+	PriceRankingLimit    int    `json:"price_ranking_limit,omitempty"`    // number of entries per ranking (default 10)
 }
 
 // KlineConfig K-line configuration
@@ -136,24 +157,6 @@ type ExternalDataSource struct {
 }
 
 // RiskControlConfig risk control configuration
-// All parameters are clearly defined without ambiguity:
-//
-// Position Limits:
-//   - MaxPositions: max number of coins held simultaneously (CODE ENFORCED)
-//
-// Trading Leverage (exchange leverage for opening positions):
-//   - BTCETHMaxLeverage: BTC/ETH max exchange leverage (AI guided)
-//   - AltcoinMaxLeverage: Altcoin max exchange leverage (AI guided)
-//
-// Position Value Limits (single position notional value / account equity):
-//   - BTCETHMaxPositionValueRatio: BTC/ETH max = equity × ratio (CODE ENFORCED)
-//   - AltcoinMaxPositionValueRatio: Altcoin max = equity × ratio (CODE ENFORCED)
-//
-// Risk Controls:
-//   - MaxMarginUsage: max margin utilization percentage (CODE ENFORCED)
-//   - MinPositionSize: minimum position size in USDT (CODE ENFORCED)
-//   - MinRiskRewardRatio: min take_profit / stop_loss ratio (AI guided)
-//   - MinConfidence: min AI confidence to open position (AI guided)
 type RiskControlConfig struct {
 	// Max number of coins held simultaneously (CODE ENFORCED)
 	MaxPositions int `json:"max_positions"`
@@ -179,38 +182,14 @@ type RiskControlConfig struct {
 	MinConfidence int `json:"min_confidence"`
 }
 
+// NewStrategyStore creates a new StrategyStore
+func NewStrategyStore(db *gorm.DB) *StrategyStore {
+	return &StrategyStore{db: db}
+}
+
 func (s *StrategyStore) initTables() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS strategies (
-			id TEXT PRIMARY KEY,
-			user_id TEXT NOT NULL DEFAULT '',
-			name TEXT NOT NULL,
-			description TEXT DEFAULT '',
-			is_active BOOLEAN DEFAULT 0,
-			is_default BOOLEAN DEFAULT 0,
-			config TEXT NOT NULL DEFAULT '{}',
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		return err
-	}
-
-	// create indexes
-	_, _ = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategies_user_id ON strategies(user_id)`)
-	_, _ = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_strategies_is_active ON strategies(is_active)`)
-
-	// trigger: automatically update updated_at on update
-	_, err = s.db.Exec(`
-		CREATE TRIGGER IF NOT EXISTS update_strategies_updated_at
-		AFTER UPDATE ON strategies
-		BEGIN
-			UPDATE strategies SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-		END
-	`)
-
-	return err
+	// AutoMigrate will add missing columns without dropping existing data
+	return s.db.AutoMigrate(&Strategy{})
 }
 
 func (s *StrategyStore) initDefaultData() error {
@@ -220,15 +199,20 @@ func (s *StrategyStore) initDefaultData() error {
 
 // GetDefaultStrategyConfig returns the default strategy configuration for the given language
 func GetDefaultStrategyConfig(lang string) StrategyConfig {
+	// Normalize language to "zh" or "en"
+	normalizedLang := "en"
+	if lang == "zh" {
+		normalizedLang = "zh"
+	}
+
 	config := StrategyConfig{
+		Language: normalizedLang,
 		CoinSource: CoinSourceConfig{
-			SourceType:     "coinpool",
-			UseCoinPool:    true,
-			CoinPoolLimit:  10,
-			CoinPoolAPIURL: "http://nofxaios.com:30006/api/ai500/list?auth=cm_568c67eae410d912c54c",
-			UseOITop:       false,
-			OITopLimit:     20,
-			OITopAPIURL:    "http://nofxaios.com:30006/api/oi/top-ranking?limit=20&duration=1h&auth=cm_568c67eae410d912c54c",
+			SourceType: "ai500",
+			UseAI500:   true,
+			AI500Limit: 10,
+			UseOITop:   false,
+			OITopLimit: 20,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
@@ -252,15 +236,24 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			RSIPeriods:        []int{7, 14},
 			ATRPeriods:        []int{14},
 			BOLLPeriods:       []int{20},
+			// NofxOS unified API key
+			NofxOSAPIKey: "cm_568c67eae410d912c54c",
+			// Quant data
 			EnableQuantData:    true,
-			QuantDataAPIURL:    "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
 			EnableQuantOI:      true,
 			EnableQuantNetflow: true,
-			// OI ranking data - market-wide OI increase/decrease rankings
+			// OI ranking data
 			EnableOIRanking:   true,
-			OIRankingAPIURL:   "http://nofxaios.com:30006",
 			OIRankingDuration: "1h",
 			OIRankingLimit:    10,
+			// NetFlow ranking data
+			EnableNetFlowRanking:   true,
+			NetFlowRankingDuration: "1h",
+			NetFlowRankingLimit:    10,
+			// Price ranking data
+			EnablePriceRanking:   true,
+			PriceRankingDuration: "1h,4h,24h",
+			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
@@ -322,65 +315,54 @@ Only enter positions when multiple signals resonate. Freely use any effective an
 
 // Create create a strategy
 func (s *StrategyStore) Create(strategy *Strategy) error {
-	_, err := s.db.Exec(`
-		INSERT INTO strategies (id, user_id, name, description, is_active, is_default, config)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, strategy.ID, strategy.UserID, strategy.Name, strategy.Description, strategy.IsActive, strategy.IsDefault, strategy.Config)
-	return err
+	return s.db.Create(strategy).Error
 }
 
 // Update update a strategy
 func (s *StrategyStore) Update(strategy *Strategy) error {
-	_, err := s.db.Exec(`
-		UPDATE strategies SET
-			name = ?, description = ?, config = ?, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ? AND user_id = ?
-	`, strategy.Name, strategy.Description, strategy.Config, strategy.ID, strategy.UserID)
-	return err
+	return s.db.Model(&Strategy{}).
+		Where("id = ? AND user_id = ?", strategy.ID, strategy.UserID).
+		Updates(map[string]interface{}{
+			"name":           strategy.Name,
+			"description":    strategy.Description,
+			"config":         strategy.Config,
+			"is_public":      strategy.IsPublic,
+			"config_visible": strategy.ConfigVisible,
+			"updated_at":     time.Now().UTC(),
+		}).Error
 }
 
 // Delete delete a strategy
 func (s *StrategyStore) Delete(userID, id string) error {
 	// do not allow deleting system default strategy
-	var isDefault bool
-	s.db.QueryRow(`SELECT is_default FROM strategies WHERE id = ?`, id).Scan(&isDefault)
-	if isDefault {
+	var st Strategy
+	if err := s.db.Where("id = ?", id).First(&st).Error; err == nil && st.IsDefault {
 		return fmt.Errorf("cannot delete system default strategy")
 	}
 
-	_, err := s.db.Exec(`DELETE FROM strategies WHERE id = ? AND user_id = ?`, id, userID)
-	return err
+	return s.db.Where("id = ? AND user_id = ?", id, userID).Delete(&Strategy{}).Error
 }
 
 // List get user's strategy list
 func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
-	// get user's own strategies + system default strategy
-	rows, err := s.db.Query(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE user_id = ? OR is_default = 1
-		ORDER BY is_default DESC, created_at DESC
-	`, userID)
+	var strategies []*Strategy
+	err := s.db.Where("user_id = ? OR is_default = ?", userID, true).
+		Order("is_default DESC, created_at DESC").
+		Find(&strategies).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	return strategies, nil
+}
 
+// ListPublic get all public strategies for the strategy market
+func (s *StrategyStore) ListPublic() ([]*Strategy, error) {
 	var strategies []*Strategy
-	for rows.Next() {
-		var st Strategy
-		var createdAt, updatedAt string
-		err := rows.Scan(
-			&st.ID, &st.UserID, &st.Name, &st.Description,
-			&st.IsActive, &st.IsDefault, &st.Config,
-			&createdAt, &updatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-		st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
-		strategies = append(strategies, &st)
+	err := s.db.Where("is_public = ?", true).
+		Order("created_at DESC").
+		Find(&strategies).Error
+	if err != nil {
+		return nil, err
 	}
 	return strategies, nil
 }
@@ -388,93 +370,52 @@ func (s *StrategyStore) List(userID string) ([]*Strategy, error) {
 // Get get a single strategy
 func (s *StrategyStore) Get(userID, id string) (*Strategy, error) {
 	var st Strategy
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE id = ? AND (user_id = ? OR is_default = 1)
-	`, id, userID).Scan(
-		&st.ID, &st.UserID, &st.Name, &st.Description,
-		&st.IsActive, &st.IsDefault, &st.Config,
-		&createdAt, &updatedAt,
-	)
+	err := s.db.Where("id = ? AND (user_id = ? OR is_default = ?)", id, userID, true).
+		First(&st).Error
 	if err != nil {
 		return nil, err
 	}
-	st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &st, nil
 }
 
 // GetActive get user's currently active strategy
 func (s *StrategyStore) GetActive(userID string) (*Strategy, error) {
 	var st Strategy
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE user_id = ? AND is_active = 1
-	`, userID).Scan(
-		&st.ID, &st.UserID, &st.Name, &st.Description,
-		&st.IsActive, &st.IsDefault, &st.Config,
-		&createdAt, &updatedAt,
-	)
-	if err == sql.ErrNoRows {
+	err := s.db.Where("user_id = ? AND is_active = ?", userID, true).First(&st).Error
+	if err == gorm.ErrRecordNotFound {
 		// no active strategy, return system default strategy
 		return s.GetDefault()
 	}
 	if err != nil {
 		return nil, err
 	}
-	st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &st, nil
 }
 
 // GetDefault get system default strategy
 func (s *StrategyStore) GetDefault() (*Strategy, error) {
 	var st Strategy
-	var createdAt, updatedAt string
-	err := s.db.QueryRow(`
-		SELECT id, user_id, name, description, is_active, is_default, config, created_at, updated_at
-		FROM strategies
-		WHERE is_default = 1
-		LIMIT 1
-	`).Scan(
-		&st.ID, &st.UserID, &st.Name, &st.Description,
-		&st.IsActive, &st.IsDefault, &st.Config,
-		&createdAt, &updatedAt,
-	)
+	err := s.db.Where("is_default = ?", true).First(&st).Error
 	if err != nil {
 		return nil, err
 	}
-	st.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAt)
-	st.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAt)
 	return &st, nil
 }
 
 // SetActive set active strategy (will first deactivate other strategies)
 func (s *StrategyStore) SetActive(userID, strategyID string) error {
-	// begin transaction
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// first deactivate all strategies for the user
+		if err := tx.Model(&Strategy{}).Where("user_id = ?", userID).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
 
-	// first deactivate all strategies for the user
-	_, err = tx.Exec(`UPDATE strategies SET is_active = 0 WHERE user_id = ?`, userID)
-	if err != nil {
-		return err
-	}
-
-	// activate specified strategy
-	_, err = tx.Exec(`UPDATE strategies SET is_active = 1 WHERE id = ? AND (user_id = ? OR is_default = 1)`, strategyID, userID)
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		// activate specified strategy
+		return tx.Model(&Strategy{}).
+			Where("id = ? AND (user_id = ? OR is_default = ?)", strategyID, userID, true).
+			Update("is_active", true).Error
+	})
 }
 
 // Duplicate duplicate a strategy (used to create custom strategy based on default strategy)

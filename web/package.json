@@ -21,7 +21,8 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.24",
-    "lightweight-charts": "^5.0.9",
+    "katex": "^0.16.27",
+    "lightweight-charts": "^5.1.0",
     "lucide-react": "^0.552.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -57,7 +58,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vite": "^6.0.7",
-    "vitest": "^2.1.9"
+    "vitest": "^4.0.16"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

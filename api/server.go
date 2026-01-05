@@ -12,6 +12,12 @@ import (
 	"nofx/crypto"
 	"nofx/logger"
 	"nofx/manager"
+	"nofx/market"
+	"nofx/provider/alpaca"
+	"nofx/provider/coinank/coinank_api"
+	"nofx/provider/coinank/coinank_enum"
+	"nofx/provider/hyperliquid"
+	"nofx/provider/twelvedata"
 	"nofx/store"
 	"nofx/trader"
 	"strconv"
@@ -48,7 +54,7 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
 	// Create debate store and handler
-	debateStore := store.NewDebateStore(st.DB())
+	debateStore := store.NewDebateStore(st.GormDB())
 	if err := debateStore.InitSchema(); err != nil {
 		logger.Errorf("Failed to initialize debate schema: %v", err)
 	}
@@ -116,6 +122,13 @@ func (s *Server) setupRoutes() {
 		api.GET("/equity-history", s.handleEquityHistory)
 		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
+
+		// Market data (no authentication required)
+		api.GET("/klines", s.handleKlines)
+		api.GET("/symbols", s.handleSymbols)
+
+		// Public strategy market (no authentication required)
+		api.GET("/strategies/public", s.handlePublicStrategies)
 
 		// Authentication related routes (no authentication required)
 		api.POST("/register", s.handleRegister)
@@ -185,6 +198,10 @@ func (s *Server) setupRoutes() {
 			protected.GET("/status", s.handleStatus)
 			protected.GET("/account", s.handleAccount)
 			protected.GET("/positions", s.handlePositions)
+			protected.GET("/positions/history", s.handlePositionHistory)
+			protected.GET("/trades", s.handleTrades)
+			protected.GET("/orders", s.handleOrders)               // Order list (all orders)
+			protected.GET("/orders/:id/fills", s.handleOrderFills) // Order fill details
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
@@ -389,7 +406,7 @@ type CreateTraderRequest struct {
 	CustomPrompt         string `json:"custom_prompt"`
 	OverrideBasePrompt   bool   `json:"override_base_prompt"`
 	SystemPromptTemplate string `json:"system_prompt_template"` // System prompt template name
-	UseCoinPool          bool   `json:"use_coin_pool"`
+	UseAI500             bool   `json:"use_ai500"`
 	UseOITop             bool   `json:"use_oi_top"`
 }
 
@@ -469,7 +486,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	userID := c.GetString("user_id")
 	var req CreateTraderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -561,12 +578,13 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		var createErr error
 
 		// Use ExchangeType (e.g., "binance") instead of ID (UUID)
+		// Convert EncryptedString fields to string
 		switch exchangeCfg.ExchangeType {
 		case "binance":
-			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+			tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 		case "hyperliquid":
 			tempTrader, createErr = trader.NewHyperliquidTrader(
-				exchangeCfg.APIKey, // private key
+				string(exchangeCfg.APIKey), // private key
 				exchangeCfg.HyperliquidWalletAddr,
 				exchangeCfg.Testnet,
 			)
@@ -574,31 +592,31 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 			tempTrader, createErr = trader.NewAsterTrader(
 				exchangeCfg.AsterUser,
 				exchangeCfg.AsterSigner,
-				exchangeCfg.AsterPrivateKey,
+				string(exchangeCfg.AsterPrivateKey),
 			)
 		case "bybit":
 			tempTrader = trader.NewBybitTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
 			)
 		case "okx":
 			tempTrader = trader.NewOKXTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
-				exchangeCfg.Passphrase,
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+				string(exchangeCfg.Passphrase),
 			)
 		case "bitget":
 			tempTrader = trader.NewBitgetTrader(
-				exchangeCfg.APIKey,
-				exchangeCfg.SecretKey,
-				exchangeCfg.Passphrase,
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+				string(exchangeCfg.Passphrase),
 			)
 		case "lighter":
-			if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+			if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 				// Lighter only supports mainnet
 				tempTrader, createErr = trader.NewLighterTraderV2(
 					exchangeCfg.LighterWalletAddr,
-					exchangeCfg.LighterAPIKeyPrivateKey,
+					string(exchangeCfg.LighterAPIKeyPrivateKey),
 					exchangeCfg.LighterAPIKeyIndex,
 					false, // Always use mainnet for Lighter
 				)
@@ -648,7 +666,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		BTCETHLeverage:       btcEthLeverage,
 		AltcoinLeverage:      altcoinLeverage,
 		TradingSymbols:       req.TradingSymbols,
-		UseCoinPool:          req.UseCoinPool,
+		UseAI500:             req.UseAI500,
 		UseOITop:             req.UseOITop,
 		CustomPrompt:         req.CustomPrompt,
 		OverrideBasePrompt:   req.OverrideBasePrompt,
@@ -664,7 +682,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	err = s.store.Trader().Create(traderRecord)
 	if err != nil {
 		logger.Infof("❌ Failed to create trader: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create trader: %v", err)})
+		SafeInternalError(c, "Failed to create trader", err)
 		return
 	}
 	logger.Infof("🔧 DEBUG: CreateTrader succeeded")
@@ -714,7 +732,7 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	var req UpdateTraderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -761,11 +779,13 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	// Set scan interval, allow updates
 	scanIntervalMinutes := req.ScanIntervalMinutes
+	logger.Infof("📊 Update trader scan_interval: req=%d, existing=%d", req.ScanIntervalMinutes, existingTrader.ScanIntervalMinutes)
 	if scanIntervalMinutes <= 0 {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // Keep original value
 	} else if scanIntervalMinutes < 3 {
 		scanIntervalMinutes = 3
 	}
+	logger.Infof("📊 Final scan_interval_minutes: %d", scanIntervalMinutes)
 
 	// Set system prompt template
 	systemPromptTemplate := req.SystemPromptTemplate
@@ -800,22 +820,44 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		IsRunning:            existingTrader.IsRunning, // Keep original value
 	}
 
+	// Check if trader was running before update (we'll restart it after)
+	wasRunning := false
+	if existingMemTrader, memErr := s.traderManager.GetTrader(traderID); memErr == nil {
+		status := existingMemTrader.GetStatus()
+		if running, ok := status["is_running"].(bool); ok && running {
+			wasRunning = true
+			logger.Infof("🔄 Trader %s was running, will restart with new config after update", traderID)
+		}
+	}
+
 	// Update database
-	logger.Infof("🔄 Updating trader: ID=%s, Name=%s, AIModelID=%s, StrategyID=%s, req.StrategyID=%s",
-		traderRecord.ID, traderRecord.Name, traderRecord.AIModelID, traderRecord.StrategyID, req.StrategyID)
+	logger.Infof("🔄 Updating trader: ID=%s, Name=%s, AIModelID=%s, StrategyID=%s, ScanInterval=%d min",
+		traderRecord.ID, traderRecord.Name, traderRecord.AIModelID, traderRecord.StrategyID, scanIntervalMinutes)
 	err = s.store.Trader().Update(traderRecord)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update trader: %v", err)})
+		SafeInternalError(c, "Failed to update trader", err)
 		return
 	}
 
-	// Remove old trader from memory first to ensure fresh config is loaded
+	// Remove old trader from memory first (this also stops if running)
 	s.traderManager.RemoveTrader(traderID)
 
 	// Reload traders into memory with fresh config
 	err = s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to reload user traders into memory: %v", err)
+	}
+
+	// If trader was running before, restart it with new config
+	if wasRunning {
+		if reloadedTrader, getErr := s.traderManager.GetTrader(traderID); getErr == nil {
+			go func() {
+				logger.Infof("▶️ Restarting trader %s with new config...", traderID)
+				if runErr := reloadedTrader.Run(); runErr != nil {
+					logger.Infof("❌ Trader %s runtime error: %v", traderID, runErr)
+				}
+			}()
+		}
 	}
 
 	logger.Infof("✓ Trader updated successfully: %s (model: %s, exchange: %s, strategy: %s)", req.Name, req.AIModelID, req.ExchangeID, strategyID)
@@ -836,7 +878,7 @@ func (s *Server) handleDeleteTrader(c *gin.Context) {
 	// Delete from database
 	err := s.store.Trader().Delete(userID, traderID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete trader: %v", err)})
+		SafeInternalError(c, "Failed to delete trader", err)
 		return
 	}
 
@@ -994,14 +1036,14 @@ func (s *Server) handleUpdateTraderPrompt(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Update database
 	err := s.store.Trader().UpdateCustomPrompt(userID, traderID, req.CustomPrompt, req.OverrideBasePrompt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update custom prompt: %v", err)})
+		SafeInternalError(c, "Failed to update custom prompt", err)
 		return
 	}
 
@@ -1026,14 +1068,14 @@ func (s *Server) handleToggleCompetition(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Update database
 	err := s.store.Trader().UpdateShowInCompetition(userID, traderID, req.ShowInCompetition)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update competition visibility: %v", err)})
+		SafeInternalError(c, "Update competition visibility", err)
 		return
 	}
 
@@ -1080,12 +1122,13 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	var createErr error
 
 	// Use ExchangeType (e.g., "binance") instead of ExchangeID (which is now UUID)
+	// Convert EncryptedString fields to string
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+		tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 	case "hyperliquid":
 		tempTrader, createErr = trader.NewHyperliquidTrader(
-			exchangeCfg.APIKey,
+			string(exchangeCfg.APIKey),
 			exchangeCfg.HyperliquidWalletAddr,
 			exchangeCfg.Testnet,
 		)
@@ -1093,31 +1136,31 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		tempTrader, createErr = trader.NewAsterTrader(
 			exchangeCfg.AsterUser,
 			exchangeCfg.AsterSigner,
-			exchangeCfg.AsterPrivateKey,
+			string(exchangeCfg.AsterPrivateKey),
 		)
 	case "bybit":
 		tempTrader = trader.NewBybitTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
 		)
 	case "okx":
 		tempTrader = trader.NewOKXTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "bitget":
 		tempTrader = trader.NewBitgetTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "lighter":
-		if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
 			tempTrader, createErr = trader.NewLighterTraderV2(
 				exchangeCfg.LighterWalletAddr,
-				exchangeCfg.LighterAPIKeyPrivateKey,
+				string(exchangeCfg.LighterAPIKeyPrivateKey),
 				exchangeCfg.LighterAPIKeyIndex,
 				false, // Always use mainnet for Lighter
 			)
@@ -1131,7 +1174,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 
 	if createErr != nil {
 		logger.Infof("⚠️ Failed to create temporary trader: %v", createErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect to exchange: %v", createErr)})
+		SafeInternalError(c, "Failed to connect to exchange", createErr)
 		return
 	}
 
@@ -1139,7 +1182,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	balanceInfo, balanceErr := tempTrader.GetBalance()
 	if balanceErr != nil {
 		logger.Infof("⚠️ Failed to query exchange balance: %v", balanceErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to query balance: %v", balanceErr)})
+		SafeInternalError(c, "Failed to query balance", balanceErr)
 		return
 	}
 
@@ -1231,12 +1274,13 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 	var createErr error
 
 	// Use ExchangeType (e.g., "binance") instead of ExchangeID (which is now UUID)
+	// Convert EncryptedString fields to string
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID)
+		tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 	case "hyperliquid":
 		tempTrader, createErr = trader.NewHyperliquidTrader(
-			exchangeCfg.APIKey,
+			string(exchangeCfg.APIKey),
 			exchangeCfg.HyperliquidWalletAddr,
 			exchangeCfg.Testnet,
 		)
@@ -1244,31 +1288,31 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		tempTrader, createErr = trader.NewAsterTrader(
 			exchangeCfg.AsterUser,
 			exchangeCfg.AsterSigner,
-			exchangeCfg.AsterPrivateKey,
+			string(exchangeCfg.AsterPrivateKey),
 		)
 	case "bybit":
 		tempTrader = trader.NewBybitTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
 		)
 	case "okx":
 		tempTrader = trader.NewOKXTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "bitget":
 		tempTrader = trader.NewBitgetTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 		)
 	case "lighter":
-		if exchangeCfg.LighterWalletAddr != "" && exchangeCfg.LighterAPIKeyPrivateKey != "" {
+		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
 			tempTrader, createErr = trader.NewLighterTraderV2(
 				exchangeCfg.LighterWalletAddr,
-				exchangeCfg.LighterAPIKeyPrivateKey,
+				string(exchangeCfg.LighterAPIKeyPrivateKey),
 				exchangeCfg.LighterAPIKeyIndex,
 				false, // Always use mainnet for Lighter
 			)
@@ -1282,8 +1326,31 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 
 	if createErr != nil {
 		logger.Infof("⚠️ Failed to create temporary trader: %v", createErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect to exchange: %v", createErr)})
+		SafeInternalError(c, "Failed to connect to exchange", createErr)
 		return
+	}
+
+	// Get current position info BEFORE closing (to get quantity and price)
+	positions, err := tempTrader.GetPositions()
+	if err != nil {
+		logger.Infof("⚠️ Failed to get positions: %v", err)
+	}
+
+	var posQty float64
+	var entryPrice float64
+	for _, pos := range positions {
+		if pos["symbol"] == req.Symbol && pos["side"] == strings.ToLower(req.Side) {
+			if amt, ok := pos["positionAmt"].(float64); ok {
+				posQty = amt
+				if posQty < 0 {
+					posQty = -posQty // Make positive
+				}
+			}
+			if price, ok := pos["entryPrice"].(float64); ok {
+				entryPrice = price
+			}
+			break
+		}
 	}
 
 	// Execute close position operation
@@ -1301,17 +1368,235 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 
 	if closeErr != nil {
 		logger.Infof("❌ Close position failed: symbol=%s, side=%s, error=%v", req.Symbol, req.Side, closeErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to close position: %v", closeErr)})
+		SafeInternalError(c, "Failed to close position", closeErr)
 		return
 	}
 
-	logger.Infof("✅ Position closed successfully: symbol=%s, side=%s, result=%v", req.Symbol, req.Side, result)
+	logger.Infof("✅ Position closed successfully: symbol=%s, side=%s, qty=%.6f, result=%v", req.Symbol, req.Side, posQty, result)
+
+	// Record order to database (for chart markers and history)
+	s.recordClosePositionOrder(traderID, exchangeCfg.ID, exchangeCfg.ExchangeType, req.Symbol, req.Side, posQty, entryPrice, result)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Position closed successfully",
 		"symbol":  req.Symbol,
 		"side":    req.Side,
 		"result":  result,
 	})
+}
+
+// recordClosePositionOrder Record close position order to database (Lighter version - direct FILLED status)
+func (s *Server) recordClosePositionOrder(traderID, exchangeID, exchangeType, symbol, side string, quantity, exitPrice float64, result map[string]interface{}) {
+	// Skip for exchanges with OrderSync - let the background sync handle it to avoid duplicates
+	switch exchangeType {
+	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster":
+		logger.Infof("  📝 Close order will be synced by OrderSync, skipping immediate record")
+		return
+	}
+
+	// Check if order was placed (skip if NO_POSITION)
+	status, _ := result["status"].(string)
+	if status == "NO_POSITION" {
+		logger.Infof("  ⚠️ No position to close, skipping order record")
+		return
+	}
+
+	// Get order ID from result
+	var orderID string
+	switch v := result["orderId"].(type) {
+	case int64:
+		orderID = fmt.Sprintf("%d", v)
+	case float64:
+		orderID = fmt.Sprintf("%.0f", v)
+	case string:
+		orderID = v
+	default:
+		orderID = fmt.Sprintf("%v", v)
+	}
+
+	if orderID == "" || orderID == "0" {
+		logger.Infof("  ⚠️ Order ID is empty, skipping record")
+		return
+	}
+
+	// Determine order action based on side
+	var orderAction string
+	if side == "LONG" {
+		orderAction = "close_long"
+	} else {
+		orderAction = "close_short"
+	}
+
+	// Use entry price if exit price not available
+	if exitPrice == 0 {
+		exitPrice = quantity * 100 // Rough estimate if we don't have price
+	}
+
+	// Estimate fee (0.04% for Lighter taker)
+	fee := exitPrice * quantity * 0.0004
+
+	// Create order record - DIRECTLY as FILLED (Lighter market orders fill immediately)
+	orderRecord := &store.TraderOrder{
+		TraderID:        traderID,
+		ExchangeID:      exchangeID,
+		ExchangeType:    exchangeType,
+		ExchangeOrderID: orderID,
+		Symbol:          symbol,
+		PositionSide:    side,
+		OrderAction:     orderAction,
+		Type:            "MARKET",
+		Side:            getSideFromAction(orderAction),
+		Quantity:        quantity,
+		Price:           0, // Market order
+		Status:          "FILLED",
+		FilledQuantity:  quantity,
+		AvgFillPrice:    exitPrice,
+		Commission:      fee,
+		FilledAt:        time.Now().UTC(),
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+	}
+
+	if err := s.store.Order().CreateOrder(orderRecord); err != nil {
+		logger.Infof("  ⚠️ Failed to record order: %v", err)
+		return
+	}
+
+	logger.Infof("  ✅ Order recorded as FILLED: %s [%s] %s qty=%.6f price=%.6f", orderID, orderAction, symbol, quantity, exitPrice)
+
+	// Create fill record immediately
+	tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
+	fillRecord := &store.TraderFill{
+		TraderID:        traderID,
+		ExchangeID:      exchangeID,
+		ExchangeType:    exchangeType,
+		OrderID:         orderRecord.ID,
+		ExchangeOrderID: orderID,
+		ExchangeTradeID: tradeID,
+		Symbol:          symbol,
+		Side:            getSideFromAction(orderAction),
+		Price:           exitPrice,
+		Quantity:        quantity,
+		QuoteQuantity:   exitPrice * quantity,
+		Commission:      fee,
+		CommissionAsset: "USDT",
+		RealizedPnL:     0,
+		IsMaker:         false,
+		CreatedAt:       time.Now().UTC(),
+	}
+
+	if err := s.store.Order().CreateFill(fillRecord); err != nil {
+		logger.Infof("  ⚠️ Failed to record fill: %v", err)
+	} else {
+		logger.Infof("  ✅ Fill record created: price=%.6f qty=%.6f", exitPrice, quantity)
+	}
+}
+
+// pollAndUpdateOrderStatus Poll order status and update with fill data
+func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchangeID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
+	var actualPrice float64
+	var actualQty float64
+	var fee float64
+
+	// Wait a bit for order to be filled
+	time.Sleep(500 * time.Millisecond)
+
+	// For Lighter, use GetTrades instead of GetOrderStatus (market orders are filled immediately)
+	if exchangeType == "lighter" {
+		s.pollLighterTradeHistory(orderRecordID, traderID, exchangeID, exchangeType, orderID, symbol, orderAction, tempTrader)
+		return
+	}
+
+	// For other exchanges, poll GetOrderStatus
+	for i := 0; i < 5; i++ {
+		status, err := tempTrader.GetOrderStatus(symbol, orderID)
+		if err != nil {
+			logger.Infof("  ⚠️ GetOrderStatus failed (attempt %d/5): %v", i+1, err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if err == nil {
+			statusStr, _ := status["status"].(string)
+			if statusStr == "FILLED" {
+				// Get actual fill price
+				if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
+					actualPrice = avgPrice
+				}
+				// Get actual executed quantity
+				if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
+					actualQty = execQty
+				}
+				// Get commission/fee
+				if commission, ok := status["commission"].(float64); ok {
+					fee = commission
+				}
+
+				logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
+
+				// Update order status to FILLED
+				if err := s.store.Order().UpdateOrderStatus(orderRecordID, "FILLED", actualQty, actualPrice, fee); err != nil {
+					logger.Infof("  ⚠️ Failed to update order status: %v", err)
+					return
+				}
+
+				// Record fill details
+				tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
+				fillRecord := &store.TraderFill{
+					TraderID:        traderID,
+					ExchangeID:      exchangeID,
+					ExchangeType:    exchangeType,
+					OrderID:         orderRecordID,
+					ExchangeOrderID: orderID,
+					ExchangeTradeID: tradeID,
+					Symbol:          symbol,
+					Side:            getSideFromAction(orderAction),
+					Price:           actualPrice,
+					Quantity:        actualQty,
+					QuoteQuantity:   actualPrice * actualQty,
+					Commission:      fee,
+					CommissionAsset: "USDT",
+					RealizedPnL:     0,
+					IsMaker:         false,
+					CreatedAt:       time.Now().UTC(),
+				}
+
+				if err := s.store.Order().CreateFill(fillRecord); err != nil {
+					logger.Infof("  ⚠️ Failed to record fill: %v", err)
+				} else {
+					logger.Infof("  📝 Fill recorded: price=%.6f, qty=%.6f", actualPrice, actualQty)
+				}
+
+				return
+			} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
+				logger.Infof("  ⚠️ Order %s, updating status", statusStr)
+				s.store.Order().UpdateOrderStatus(orderRecordID, statusStr, 0, 0, 0)
+				return
+			}
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	logger.Infof("  ⚠️ Failed to confirm order fill after polling, order may still be pending")
+}
+
+// pollLighterTradeHistory No longer used - Lighter orders are marked as FILLED immediately
+// Keeping this function stub for compatibility with other exchanges
+func (s *Server) pollLighterTradeHistory(orderRecordID int64, traderID, exchangeID, exchangeType, orderID, symbol, orderAction string, tempTrader trader.Trader) {
+	// For Lighter, orders are now recorded as FILLED immediately in recordClosePositionOrder
+	// This function is no longer called for Lighter exchange
+	logger.Infof("  ℹ️ pollLighterTradeHistory called but not needed (order already marked FILLED)")
+}
+
+// getSideFromAction Get order side (BUY/SELL) from order action
+func getSideFromAction(action string) string {
+	switch action {
+	case "open_long", "close_short":
+		return "BUY"
+	case "open_short", "close_long":
+		return "SELL"
+	default:
+		return "BUY"
+	}
 }
 
 // handleGetModelConfigs Get AI model configurations
@@ -1321,7 +1606,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 	models, err := s.store.AIModel().List(userID)
 	if err != nil {
 		logger.Infof("❌ Failed to get AI model configs: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get AI model configs: %v", err)})
+		SafeInternalError(c, "Failed to get AI model configs", err)
 		return
 	}
 
@@ -1427,7 +1712,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	for modelID, modelData := range req.Models {
 		err := s.store.AIModel().Update(userID, modelID, modelData.Enabled, modelData.APIKey, modelData.CustomAPIURL, modelData.CustomModelName)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update model %s: %v", modelID, err)})
+			SafeInternalError(c, fmt.Sprintf("Update model %s", modelID), err)
 			return
 		}
 	}
@@ -1449,8 +1734,7 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 	logger.Infof("🔍 Querying exchange configs for user %s", userID)
 	exchanges, err := s.store.Exchange().List(userID)
 	if err != nil {
-		logger.Infof("❌ Failed to get exchange configs: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get exchange configs: %v", err)})
+		SafeInternalError(c, "Failed to get exchange configs", err)
 		return
 	}
 
@@ -1552,7 +1836,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 	for exchangeID, exchangeData := range req.Exchanges {
 		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to update exchange %s: %v", exchangeID, err)})
+			SafeInternalError(c, fmt.Sprintf("Update exchange %s", exchangeID), err)
 			return
 		}
 	}
@@ -1661,7 +1945,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 	)
 	if err != nil {
 		logger.Infof("❌ Failed to create exchange account: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to create exchange account: %v", err)})
+		SafeInternalError(c, "Failed to create exchange account", err)
 		return
 	}
 
@@ -1704,7 +1988,7 @@ func (s *Server) handleDeleteExchange(c *gin.Context) {
 	err = s.store.Exchange().Delete(userID, exchangeID)
 	if err != nil {
 		logger.Infof("❌ Failed to delete exchange account: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete exchange account: %v", err)})
+		SafeInternalError(c, "Failed to delete exchange account", err)
 		return
 	}
 
@@ -1717,7 +2001,7 @@ func (s *Server) handleTraderList(c *gin.Context) {
 	userID := c.GetString("user_id")
 	traders, err := s.store.Trader().List(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get trader list: %v", err)})
+		SafeInternalError(c, "Failed to get trader list", err)
 		return
 	}
 
@@ -1770,7 +2054,7 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 
 	fullCfg, err := s.store.Trader().GetFullConfig(userID, traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("Failed to get trader config: %v", err)})
+		SafeNotFound(c, "Trader config")
 		return
 	}
 	traderConfig := fullCfg.Trader
@@ -1801,7 +2085,7 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"custom_prompt":         traderConfig.CustomPrompt,
 		"override_base_prompt":  traderConfig.OverrideBasePrompt,
 		"is_cross_margin":       traderConfig.IsCrossMargin,
-		"use_coin_pool":         traderConfig.UseCoinPool,
+		"use_ai500":             traderConfig.UseAI500,
 		"use_oi_top":            traderConfig.UseOITop,
 		"is_running":            isRunning,
 	}
@@ -1813,13 +2097,13 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 func (s *Server) handleStatus(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trader")
 		return
 	}
 
@@ -1831,23 +2115,20 @@ func (s *Server) handleStatus(c *gin.Context) {
 func (s *Server) handleAccount(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trader")
 		return
 	}
 
 	logger.Infof("📊 Received account info request [%s]", trader.GetName())
 	account, err := trader.GetAccountInfo()
 	if err != nil {
-		logger.Infof("❌ Failed to get account info [%s]: %v", trader.GetName(), err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get account info: %v", err),
-		})
+		SafeInternalError(c, "Get account info", err)
 		return
 	}
 
@@ -1864,47 +2145,613 @@ func (s *Server) handleAccount(c *gin.Context) {
 func (s *Server) handlePositions(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trader")
 		return
 	}
 
 	positions, err := trader.GetPositions()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get position list: %v", err),
-		})
+		SafeInternalError(c, "Get positions", err)
 		return
 	}
 
 	c.JSON(http.StatusOK, positions)
 }
 
-// handleDecisions Decision log list
-func (s *Server) handleDecisions(c *gin.Context) {
+// handlePositionHistory Historical closed positions with statistics
+func (s *Server) handlePositionHistory(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trader")
+		return
+	}
+
+	// Get optional query parameters
+	limitStr := c.DefaultQuery("limit", "100")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
+		limit = l
+	}
+
+	// Get store
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	// Get closed positions
+	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
+	if err != nil {
+		SafeInternalError(c, "Get position history", err)
+		return
+	}
+
+	// Get statistics
+	stats, _ := store.Position().GetFullStats(trader.GetID())
+
+	// Get symbol stats
+	symbolStats, _ := store.Position().GetSymbolStats(trader.GetID(), 10)
+
+	// Get direction stats
+	directionStats, _ := store.Position().GetDirectionStats(trader.GetID())
+
+	c.JSON(http.StatusOK, gin.H{
+		"positions":       positions,
+		"stats":           stats,
+		"symbol_stats":    symbolStats,
+		"direction_stats": directionStats,
+	})
+}
+
+// handleTrades Historical trades list
+func (s *Server) handleTrades(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		SafeBadRequest(c, "Invalid trader ID")
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		SafeNotFound(c, "Trader")
+		return
+	}
+
+	// Get optional query parameters
+	symbol := c.Query("symbol")
+	limitStr := c.DefaultQuery("limit", "100")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	// Normalize symbol (add USDT suffix if not present)
+	if symbol != "" {
+		symbol = market.Normalize(symbol)
+	}
+
+	// Get trades from store
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	allTrades, err := store.Position().GetRecentTrades(trader.GetID(), limit)
+	if err != nil {
+		SafeInternalError(c, "Get trades", err)
+		return
+	}
+
+	// Filter by symbol if specified
+	if symbol != "" {
+		var result []interface{}
+		for _, trade := range allTrades {
+			if trade.Symbol == symbol {
+				result = append(result, trade)
+			}
+		}
+		c.JSON(http.StatusOK, result)
+		return
+	}
+
+	c.JSON(http.StatusOK, allTrades)
+}
+
+// handleOrders Order list (all orders including open, close, stop loss, take profit, etc.)
+func (s *Server) handleOrders(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		SafeBadRequest(c, "Invalid trader ID")
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		SafeNotFound(c, "Trader")
+		return
+	}
+
+	// Get optional query parameters
+	symbol := c.Query("symbol")
+	statusFilter := c.Query("status") // NEW, FILLED, CANCELED, etc.
+	limitStr := c.DefaultQuery("limit", "100")
+	limit := 100
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	// Normalize symbol (add USDT suffix if not present)
+	if symbol != "" {
+		symbol = market.Normalize(symbol)
+	}
+
+	// Get orders from store
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	// Get all orders for this trader
+	allOrders, err := store.Order().GetTraderOrders(trader.GetID(), limit)
+	if err != nil {
+		SafeInternalError(c, "Get orders", err)
+		return
+	}
+
+	// Filter by symbol and status if specified
+	result := make([]interface{}, 0)
+	for _, order := range allOrders {
+		// Filter by symbol
+		if symbol != "" && order.Symbol != symbol {
+			continue
+		}
+		// Filter by status
+		if statusFilter != "" && order.Status != statusFilter {
+			continue
+		}
+		result = append(result, order)
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// handleOrderFills Order fill details (all fills for a specific order)
+func (s *Server) handleOrderFills(c *gin.Context) {
+	orderIDStr := c.Param("id")
+	orderID, err := strconv.ParseInt(orderIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid order ID"})
+		return
+	}
+
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		SafeBadRequest(c, "Invalid trader ID")
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		SafeNotFound(c, "Trader")
+		return
+	}
+
+	store := trader.GetStore()
+	if store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
+		return
+	}
+
+	// Get fills for this order
+	fills, err := store.Order().GetOrderFills(orderID)
+	if err != nil {
+		SafeInternalError(c, "Get order fills", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, fills)
+}
+
+// handleKlines K-line data (supports multiple exchanges via coinank)
+func (s *Server) handleKlines(c *gin.Context) {
+	// Get query parameters
+	symbol := c.Query("symbol")
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol parameter is required"})
+		return
+	}
+
+	interval := c.DefaultQuery("interval", "5m")
+	exchange := c.DefaultQuery("exchange", "binance") // Default to binance for backward compatibility
+	limitStr := c.DefaultQuery("limit", "1000")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 1000
+	}
+
+	// Coinank API has a maximum limit of 1500 klines per request
+	if limit > 1500 {
+		limit = 1500
+	}
+
+	var klines []market.Kline
+	exchangeLower := strings.ToLower(exchange)
+
+	// Route to appropriate data source based on exchange type
+	switch exchangeLower {
+	case "alpaca":
+		// US Stocks via Alpaca
+		klines, err = s.getKlinesFromAlpaca(symbol, interval, limit)
+		if err != nil {
+			SafeInternalError(c, "Get klines from Alpaca", err)
+			return
+		}
+	case "forex", "metals":
+		// Forex and Metals via Twelve Data
+		klines, err = s.getKlinesFromTwelveData(symbol, interval, limit)
+		if err != nil {
+			SafeInternalError(c, "Get klines from TwelveData", err)
+			return
+		}
+	case "hyperliquid", "hyperliquid-xyz", "xyz":
+		// Hyperliquid native API - supports both crypto perps and stock perps (xyz dex)
+		klines, err = s.getKlinesFromHyperliquid(symbol, interval, limit)
+		if err != nil {
+			SafeInternalError(c, "Get klines from Hyperliquid", err)
+			return
+		}
+	default:
+		// Crypto exchanges via CoinAnk
+		symbol = market.Normalize(symbol)
+		klines, err = s.getKlinesFromCoinank(symbol, interval, exchange, limit)
+		if err != nil {
+			SafeInternalError(c, "Get klines from CoinAnk", err)
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, klines)
+}
+
+// getKlinesFromCoinank fetches kline data from coinank free/open API for multiple exchanges
+func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit int) ([]market.Kline, error) {
+	// Map exchange string to coinank enum
+	var coinankExchange coinank_enum.Exchange
+	switch strings.ToLower(exchange) {
+	case "binance":
+		coinankExchange = coinank_enum.Binance
+	case "bybit":
+		coinankExchange = coinank_enum.Bybit
+	case "okx":
+		coinankExchange = coinank_enum.Okex
+	case "bitget":
+		coinankExchange = coinank_enum.Bitget
+	case "aster":
+		coinankExchange = coinank_enum.Aster
+	case "lighter":
+		// Lighter doesn't have direct CoinAnk support, use Binance data as fallback
+		coinankExchange = coinank_enum.Binance
+	default:
+		// For any unknown exchange, default to Binance
+		logger.Warnf("⚠️ Unknown exchange '%s', defaulting to Binance for CoinAnk", exchange)
+		coinankExchange = coinank_enum.Binance
+	}
+
+	// Map interval string to coinank enum
+	var coinankInterval coinank_enum.Interval
+	switch interval {
+	case "1s":
+		coinankInterval = coinank_enum.Second1
+	case "5s":
+		coinankInterval = coinank_enum.Second5
+	case "10s":
+		coinankInterval = coinank_enum.Second10
+	case "30s":
+		coinankInterval = coinank_enum.Second30
+	case "1m":
+		coinankInterval = coinank_enum.Minute1
+	case "3m":
+		coinankInterval = coinank_enum.Minute3
+	case "5m":
+		coinankInterval = coinank_enum.Minute5
+	case "10m":
+		coinankInterval = coinank_enum.Minute10
+	case "15m":
+		coinankInterval = coinank_enum.Minute15
+	case "30m":
+		coinankInterval = coinank_enum.Minute30
+	case "1h":
+		coinankInterval = coinank_enum.Hour1
+	case "2h":
+		coinankInterval = coinank_enum.Hour2
+	case "4h":
+		coinankInterval = coinank_enum.Hour4
+	case "6h":
+		coinankInterval = coinank_enum.Hour6
+	case "8h":
+		coinankInterval = coinank_enum.Hour8
+	case "12h":
+		coinankInterval = coinank_enum.Hour12
+	case "1d":
+		coinankInterval = coinank_enum.Day1
+	case "3d":
+		coinankInterval = coinank_enum.Day3
+	case "1w":
+		coinankInterval = coinank_enum.Week1
+	case "1M":
+		coinankInterval = coinank_enum.Month1
+	default:
+		return nil, fmt.Errorf("unsupported interval for coinank: %s", interval)
+	}
+
+	// Convert symbol format for different exchanges
+	// OKX uses "BTC-USDT-SWAP" format instead of "BTCUSDT"
+	apiSymbol := symbol
+	if coinankExchange == coinank_enum.Okex {
+		// Convert BTCUSDT -> BTC-USDT-SWAP
+		if strings.HasSuffix(symbol, "USDT") {
+			base := strings.TrimSuffix(symbol, "USDT")
+			apiSymbol = fmt.Sprintf("%s-USDT-SWAP", base)
+		}
+	}
+
+	// Call coinank free/open API (no authentication required)
+	ctx := context.Background()
+	ts := time.Now().UnixMilli()
+	// Use "To" side to search backward from current time (get historical klines)
+	coinankKlines, err := coinank_api.Kline(ctx, apiSymbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
+	if err != nil {
+		// Free API doesn't support all exchanges (e.g., OKX, Bitget)
+		// Fallback to Binance data as reference
+		if coinankExchange != coinank_enum.Binance {
+			logger.Warnf("⚠️ CoinAnk free API doesn't support %s, falling back to Binance data", coinankExchange)
+			coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
+			if err != nil {
+				return nil, fmt.Errorf("coinank API error (fallback): %w", err)
+			}
+		} else {
+			return nil, fmt.Errorf("coinank API error: %w", err)
+		}
+	}
+
+	// Convert coinank kline format to market.Kline format
+	// Coinank: Volume = BTC 数量, Quantity = USDT 成交额
+	klines := make([]market.Kline, len(coinankKlines))
+	for i, ck := range coinankKlines {
+		klines[i] = market.Kline{
+			OpenTime:    ck.StartTime,
+			Open:        ck.Open,
+			High:        ck.High,
+			Low:         ck.Low,
+			Close:       ck.Close,
+			Volume:      ck.Volume,   // BTC 数量
+			QuoteVolume: ck.Quantity, // USDT 成交额
+			CloseTime:   ck.EndTime,
+		}
+	}
+
+	return klines, nil
+}
+
+// getKlinesFromAlpaca fetches kline data from Alpaca API for US stocks
+func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]market.Kline, error) {
+	// Create Alpaca client
+	client := alpaca.NewClient()
+
+	// Map interval to Alpaca timeframe format
+	timeframe := alpaca.MapTimeframe(interval)
+
+	// Fetch bars from Alpaca
+	ctx := context.Background()
+	bars, err := client.GetBars(ctx, symbol, timeframe, limit)
+	if err != nil {
+		return nil, fmt.Errorf("alpaca API error: %w", err)
+	}
+
+	// Convert Alpaca bars to market.Kline format
+	klines := make([]market.Kline, len(bars))
+	for i, bar := range bars {
+		klines[i] = market.Kline{
+			OpenTime:    bar.Timestamp.UnixMilli(),
+			Open:        bar.Open,
+			High:        bar.High,
+			Low:         bar.Low,
+			Close:       bar.Close,
+			Volume:      float64(bar.Volume),             // 股数
+			QuoteVolume: float64(bar.Volume) * bar.Close, // 成交额 = 股数 * 收盘价 (USD)
+			CloseTime:   bar.Timestamp.UnixMilli(),
+		}
+	}
+
+	return klines, nil
+}
+
+// getKlinesFromTwelveData fetches kline data from Twelve Data API for forex and metals
+func (s *Server) getKlinesFromTwelveData(symbol, interval string, limit int) ([]market.Kline, error) {
+	// Create Twelve Data client
+	client := twelvedata.NewClient()
+
+	// Map interval to Twelve Data timeframe format
+	timeframe := twelvedata.MapTimeframe(interval)
+
+	// Fetch time series from Twelve Data
+	ctx := context.Background()
+	result, err := client.GetTimeSeries(ctx, symbol, timeframe, limit)
+	if err != nil {
+		return nil, fmt.Errorf("twelvedata API error: %w", err)
+	}
+
+	// Convert Twelve Data bars to market.Kline format
+	// Note: Twelve Data returns bars in reverse order (newest first)
+	klines := make([]market.Kline, len(result.Values))
+	for i, bar := range result.Values {
+		open, high, low, close, volume, timestamp, err := twelvedata.ParseBar(bar)
+		if err != nil {
+			logger.Warnf("⚠️ Failed to parse TwelveData bar: %v", err)
+			continue
+		}
+
+		// Reverse order: put oldest first
+		idx := len(result.Values) - 1 - i
+		klines[idx] = market.Kline{
+			OpenTime:  timestamp,
+			Open:      open,
+			High:      high,
+			Low:       low,
+			Close:     close,
+			Volume:    volume,
+			CloseTime: timestamp,
+		}
+	}
+
+	return klines, nil
+}
+
+// getKlinesFromHyperliquid fetches kline data from Hyperliquid API
+// Supports both crypto perps (default dex) and stock perps/forex/commodities (xyz dex)
+func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([]market.Kline, error) {
+	// Create Hyperliquid client
+	client := hyperliquid.NewClient()
+
+	// Map interval to Hyperliquid format
+	timeframe := hyperliquid.MapTimeframe(interval)
+
+	// Fetch candles from Hyperliquid
+	// FormatCoinForAPI will automatically add xyz: prefix for stock perps
+	ctx := context.Background()
+	candles, err := client.GetCandles(ctx, symbol, timeframe, limit)
+	if err != nil {
+		return nil, fmt.Errorf("hyperliquid API error: %w", err)
+	}
+
+	// Convert Hyperliquid candles to market.Kline format
+	klines := make([]market.Kline, len(candles))
+	for i, candle := range candles {
+		open, _ := strconv.ParseFloat(candle.Open, 64)
+		high, _ := strconv.ParseFloat(candle.High, 64)
+		low, _ := strconv.ParseFloat(candle.Low, 64)
+		close, _ := strconv.ParseFloat(candle.Close, 64)
+		volume, _ := strconv.ParseFloat(candle.Volume, 64)
+
+		klines[i] = market.Kline{
+			OpenTime:    candle.OpenTime,
+			Open:        open,
+			High:        high,
+			Low:         low,
+			Close:       close,
+			Volume:      volume,         // 合约数量
+			QuoteVolume: volume * close, // 成交额 (USD)
+			CloseTime:   candle.CloseTime,
+		}
+	}
+
+	return klines, nil
+}
+
+// handleSymbols returns available symbols for a given exchange
+func (s *Server) handleSymbols(c *gin.Context) {
+	exchange := c.DefaultQuery("exchange", "hyperliquid")
+
+	type SymbolInfo struct {
+		Symbol      string `json:"symbol"`
+		Name        string `json:"name"`
+		Category    string `json:"category"` // crypto, stock, forex, commodity, index
+		MaxLeverage int    `json:"maxLeverage,omitempty"`
+	}
+
+	var symbols []SymbolInfo
+
+	switch strings.ToLower(exchange) {
+	case "hyperliquid", "hyperliquid-xyz", "xyz":
+		// Fetch symbols from Hyperliquid
+		client := hyperliquid.NewClient()
+		ctx := context.Background()
+
+		// Get crypto perps from default dex
+		if exchange == "hyperliquid" || exchange == "hyperliquid-xyz" {
+			mids, err := client.GetAllMids(ctx)
+			if err == nil {
+				for symbol := range mids {
+					// Skip spot tokens (start with @)
+					if strings.HasPrefix(symbol, "@") {
+						continue
+					}
+					symbols = append(symbols, SymbolInfo{
+						Symbol:   symbol,
+						Name:     symbol,
+						Category: "crypto",
+					})
+				}
+			}
+		}
+
+		// Get xyz dex symbols (stocks, forex, commodities)
+		xyzMids, err := client.GetAllMidsXYZ(ctx)
+		if err == nil {
+			for symbol := range xyzMids {
+				// Remove xyz: prefix for display
+				displaySymbol := strings.TrimPrefix(symbol, "xyz:")
+				category := "stock"
+				if displaySymbol == "GOLD" || displaySymbol == "SILVER" {
+					category = "commodity"
+				} else if displaySymbol == "EUR" || displaySymbol == "JPY" {
+					category = "forex"
+				} else if displaySymbol == "XYZ100" {
+					category = "index"
+				}
+				symbols = append(symbols, SymbolInfo{
+					Symbol:   displaySymbol,
+					Name:     displaySymbol,
+					Category: category,
+				})
+			}
+		}
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange for symbol listing"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"exchange": exchange,
+		"symbols":  symbols,
+		"count":    len(symbols),
+	})
+}
+
+// handleDecisions Decision log list
+func (s *Server) handleDecisions(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		SafeBadRequest(c, "Invalid trader ID")
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		SafeNotFound(c, "Trader")
 		return
 	}
 
 	// Get all historical decision records (unlimited)
 	records, err := trader.GetStore().Decision().GetLatestRecords(trader.GetID(), 10000)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get decision log: %v", err),
-		})
+		SafeInternalError(c, "Get decision log", err)
 		return
 	}
 
@@ -1915,13 +2762,13 @@ func (s *Server) handleDecisions(c *gin.Context) {
 func (s *Server) handleLatestDecisions(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trader")
 		return
 	}
 
@@ -1938,9 +2785,7 @@ func (s *Server) handleLatestDecisions(c *gin.Context) {
 
 	records, err := trader.GetStore().Decision().GetLatestRecords(trader.GetID(), limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get decision log: %v", err),
-		})
+		SafeInternalError(c, "Get decision log", err)
 		return
 	}
 
@@ -1957,21 +2802,19 @@ func (s *Server) handleLatestDecisions(c *gin.Context) {
 func (s *Server) handleStatistics(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
 	trader, err := s.traderManager.GetTrader(traderID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trader")
 		return
 	}
 
 	stats, err := trader.GetStore().Decision().GetStatistics(trader.GetID())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get statistics: %v", err),
-		})
+		SafeInternalError(c, "Get statistics", err)
 		return
 	}
 
@@ -1990,9 +2833,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 
 	competition, err := s.traderManager.GetCompetitionData()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get competition data: %v", err),
-		})
+		SafeInternalError(c, "Get competition data", err)
 		return
 	}
 
@@ -2004,7 +2845,7 @@ func (s *Server) handleCompetition(c *gin.Context) {
 func (s *Server) handleEquityHistory(c *gin.Context) {
 	_, traderID, err := s.getTraderFromQuery(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid trader ID")
 		return
 	}
 
@@ -2012,9 +2853,7 @@ func (s *Server) handleEquityHistory(c *gin.Context) {
 	// Every 3 minutes per cycle: 10000 records = about 20 days of data
 	snapshots, err := s.store.Equity().GetLatest(traderID, 10000)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get historical data: %v", err),
-		})
+		SafeInternalError(c, "Get historical data", err)
 		return
 	}
 
@@ -2092,7 +2931,8 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		// Validate JWT token
 		claims, err := auth.ValidateJWT(tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: " + err.Error()})
+			logger.Errorf("[Auth] Invalid token: %v", err)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
@@ -2160,7 +3000,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -2197,7 +3037,7 @@ func (s *Server) handleRegister(c *gin.Context) {
 
 	err = s.store.User().Create(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user: " + err.Error()})
+		SafeInternalError(c, "Failed to create user", err)
 		return
 	}
 
@@ -2220,14 +3060,14 @@ func (s *Server) handleCompleteRegistration(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Get user information
 	user, err := s.store.User().GetByID(req.UserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User does not exist"})
+		SafeNotFound(c, "User")
 		return
 	}
 
@@ -2273,7 +3113,7 @@ func (s *Server) handleLogin(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -2317,14 +3157,14 @@ func (s *Server) handleVerifyOTP(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Get user information
 	user, err := s.store.User().GetByID(req.UserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User does not exist"})
+		SafeNotFound(c, "User")
 		return
 	}
 
@@ -2358,7 +3198,7 @@ func (s *Server) handleResetPassword(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -2428,6 +3268,9 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		{ExchangeType: "hyperliquid", Name: "Hyperliquid", Type: "dex"},
 		{ExchangeType: "aster", Name: "Aster DEX", Type: "dex"},
 		{ExchangeType: "lighter", Name: "LIGHTER DEX", Type: "dex"},
+		{ExchangeType: "alpaca", Name: "Alpaca (US Stocks)", Type: "stock"},
+		{ExchangeType: "forex", Name: "Forex (TwelveData)", Type: "forex"},
+		{ExchangeType: "metals", Name: "Metals (TwelveData)", Type: "metals"},
 	}
 
 	c.JSON(http.StatusOK, supportedExchanges)
@@ -2484,9 +3327,7 @@ func (s *Server) handlePublicTraderList(c *gin.Context) {
 	// Get trader information from all users
 	competition, err := s.traderManager.GetCompetitionData()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get trader list: %v", err),
-		})
+		SafeInternalError(c, "Get trader list", err)
 		return
 	}
 
@@ -2529,9 +3370,7 @@ func (s *Server) handlePublicTraderList(c *gin.Context) {
 func (s *Server) handlePublicCompetition(c *gin.Context) {
 	competition, err := s.traderManager.GetCompetitionData()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get competition data: %v", err),
-		})
+		SafeInternalError(c, "Get competition data", err)
 		return
 	}
 
@@ -2542,9 +3381,7 @@ func (s *Server) handlePublicCompetition(c *gin.Context) {
 func (s *Server) handleTopTraders(c *gin.Context) {
 	topTraders, err := s.traderManager.GetTopTradersData()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("Failed to get top 10 trader data: %v", err),
-		})
+		SafeInternalError(c, "Get top traders data", err)
 		return
 	}
 
@@ -2567,9 +3404,7 @@ func (s *Server) handleEquityHistoryBatch(c *gin.Context) {
 			// If no trader_ids specified, return historical data for top 5
 			topTraders, err := s.traderManager.GetTopTradersData()
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": fmt.Sprintf("Failed to get top 5 traders: %v", err),
-				})
+				SafeInternalError(c, "Get top traders", err)
 				return
 			}
 
@@ -2664,7 +3499,8 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string, hours int) map[s
 			snapshots, err = s.store.Equity().GetLatest(traderID, 500)
 		}
 		if err != nil {
-			errors[traderID] = fmt.Sprintf("Failed to get historical data: %v", err)
+			logger.Errorf("[API] Failed to get equity history for %s: %v", traderID, err)
+			errors[traderID] = "Failed to get historical data"
 			continue
 		}
 

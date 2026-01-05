@@ -56,14 +56,11 @@ export function FAQContent({
   return (
     <div className="space-y-12">
       {categories.map((category) => (
-        <div key={category.id}>
+        <div key={category.id} className="nofx-glass p-8 rounded-xl border border-white/5">
           {/* Category Header */}
-          <div
-            className="flex items-center gap-3 mb-6 pb-3"
-            style={{ borderBottom: '2px solid #2B3139' }}
-          >
-            <category.icon className="w-7 h-7" style={{ color: '#F0B90B' }} />
-            <h2 className="text-2xl font-bold" style={{ color: '#EAECEF' }}>
+          <div className="flex items-center gap-3 mb-6 pb-3 border-b border-white/10">
+            <category.icon className="w-7 h-7 text-nofx-gold" />
+            <h2 className="text-2xl font-bold text-nofx-text-main">
               {t(category.titleKey, language)}
             </h2>
           </div>
@@ -79,21 +76,12 @@ export function FAQContent({
                 className="scroll-mt-24"
               >
                 {/* Question */}
-                <h3
-                  className="text-xl font-semibold mb-3"
-                  style={{ color: '#EAECEF' }}
-                >
+                <h3 className="text-xl font-semibold mb-3 text-nofx-text-main">
                   {t(item.questionKey, language)}
                 </h3>
 
                 {/* Answer */}
-                <div
-                  className="prose prose-invert max-w-none"
-                  style={{
-                    color: '#B7BDC6',
-                    lineHeight: '1.7',
-                  }}
-                >
+                <div className="prose prose-invert max-w-none text-nofx-text-muted leading-relaxed">
                   {item.id === 'github-projects-tasks' ? (
                     <div className="space-y-3">
                       <div className="text-base">
@@ -295,7 +283,7 @@ export function FAQContent({
                           href="https://github.com/NoFxAiOS/nofx/blob/dev/CONTRIBUTING.md"
                           target="_blank"
                           rel="noreferrer"
-                          style={{ color: '#F0B90B' }}
+                          className="text-nofx-gold hover:underline"
                         >
                           CONTRIBUTING.md
                         </a>
@@ -304,7 +292,7 @@ export function FAQContent({
                           href="https://github.com/NoFxAiOS/nofx/blob/dev/.github/PR_TITLE_GUIDE.md"
                           target="_blank"
                           rel="noreferrer"
-                          style={{ color: '#F0B90B' }}
+                          className="text-nofx-gold hover:underline"
                         >
                           PR_TITLE_GUIDE.md
                         </a>
@@ -383,16 +371,10 @@ export function FAQContent({
                         )}
                       </ol>
 
-                      <div
-                        className="rounded p-3 mt-3"
-                        style={{
-                          background: 'rgba(240, 185, 11, 0.08)',
-                          border: '1px solid rgba(240, 185, 11, 0.25)',
-                        }}
-                      >
+                      <div className="rounded p-3 mt-3 bg-nofx-gold/10 border border-nofx-gold/25">
                         {language === 'zh' ? (
                           <div className="text-sm">
-                            <strong style={{ color: '#F0B90B' }}>提示：</strong>{' '}
+                            <strong className="text-nofx-gold">Note:</strong>{' '}
                             我们为高质量贡献提供激励（Bounty/奖金、荣誉徽章与鸣谢、优先
                             Review/合并与内测资格 等）。 详情可关注带
                             <a
@@ -448,7 +430,7 @@ export function FAQContent({
                 </div>
 
                 {/* Divider */}
-                <div className="mt-6 h-px" style={{ background: '#2B3139' }} />
+                <div className="mt-6 h-px bg-white/5" />
               </section>
             ))}
           </div>

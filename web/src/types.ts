@@ -67,6 +67,7 @@ export interface AccountSnapshot {
 export interface DecisionRecord {
   timestamp: string
   cycle_number: number
+  system_prompt: string
   input_prompt: string
   cot_trace: string
   decision_json: string
@@ -98,7 +99,7 @@ export interface TraderInfo {
   strategy_id?: string
   strategy_name?: string
   custom_prompt?: string
-  use_coin_pool?: boolean
+  use_ai500?: boolean
   use_oi_top?: boolean
   system_prompt_template?: string
 }
@@ -171,7 +172,7 @@ export interface CreateTraderRequest {
   custom_prompt?: string
   override_base_prompt?: boolean
   system_prompt_template?: string
-  use_coin_pool?: boolean
+  use_ai500?: boolean
   use_oi_top?: boolean
 }
 
@@ -248,7 +249,7 @@ export interface TraderConfigData {
   custom_prompt?: string
   override_base_prompt?: boolean
   system_prompt_template?: string
-  use_coin_pool?: boolean
+  use_ai500?: boolean
   use_oi_top?: boolean
 }
 
@@ -427,9 +428,30 @@ export interface Strategy {
   description: string;
   is_active: boolean;
   is_default: boolean;
+  is_public: boolean;           // 是否在策略市场公开
+  config_visible: boolean;      // 配置参数是否公开可见
   config: StrategyConfig;
   created_at: string;
   updated_at: string;
+}
+
+// 策略使用统计
+export interface StrategyStats {
+  clone_count: number;          // 被克隆次数
+  active_users: number;         // 当前使用人数
+  top_performers?: StrategyPerformer[];  // 收益排行
+}
+
+// 策略使用者收益排行
+export interface StrategyPerformer {
+  user_id: string;
+  user_name: string;            // 脱敏后的用户名
+  total_pnl_pct: number;        // 总收益率
+  total_pnl: number;            // 总收益金额
+  win_rate: number;             // 胜率
+  trade_count: number;          // 交易次数
+  using_since: string;          // 使用开始时间
+  rank: number;                 // 排名
 }
 
 export interface PromptSectionsConfig {
@@ -440,6 +462,9 @@ export interface PromptSectionsConfig {
 }
 
 export interface StrategyConfig {
+  // Language setting: "zh" for Chinese, "en" for English
+  // Determines the language used for data formatting and prompt generation
+  language?: 'zh' | 'en';
   coin_source: CoinSourceConfig;
   indicators: IndicatorConfig;
   custom_prompt?: string;
@@ -448,14 +473,14 @@ export interface StrategyConfig {
 }
 
 export interface CoinSourceConfig {
-  source_type: 'static' | 'coinpool' | 'oi_top' | 'mixed';
+  source_type: 'static' | 'ai500' | 'oi_top' | 'mixed';
   static_coins?: string[];
-  use_coin_pool: boolean;
-  coin_pool_limit?: number;
-  coin_pool_api_url?: string;  // AI500 币种池 API URL
+  excluded_coins?: string[];   // 排除的币种列表
+  use_ai500: boolean;
+  ai500_limit?: number;
   use_oi_top: boolean;
   oi_top_limit?: number;
-  oi_top_api_url?: string;     // OI Top API URL
+  // Note: API URLs are now built automatically using nofxos_api_key from IndicatorConfig
 }
 
 export interface IndicatorConfig {
@@ -476,16 +501,30 @@ export interface IndicatorConfig {
   atr_periods?: number[];
   boll_periods?: number[];
   external_data_sources?: ExternalDataSource[];
+
+  // ========== NofxOS 数据源统一配置 ==========
+  // Unified NofxOS API Key - used for all NofxOS data sources
+  nofxos_api_key?: string;
+
   // 量化数据源（资金流向、持仓变化、价格变化）
   enable_quant_data?: boolean;
-  quant_data_api_url?: string;
   enable_quant_oi?: boolean;
   enable_quant_netflow?: boolean;
+
   // OI 排行数据（市场持仓量增减排行）
   enable_oi_ranking?: boolean;
-  oi_ranking_api_url?: string;
   oi_ranking_duration?: string;  // "1h", "4h", "24h"
   oi_ranking_limit?: number;
+
+  // NetFlow 排行数据（机构/散户资金流向排行）
+  enable_netflow_ranking?: boolean;
+  netflow_ranking_duration?: string;  // "1h", "4h", "24h"
+  netflow_ranking_limit?: number;
+
+  // Price 排行数据（涨跌幅排行）
+  enable_price_ranking?: boolean;
+  price_ranking_duration?: string;  // "1h", "4h", "24h" or "1h,4h,24h"
+  price_ranking_limit?: number;
 }
 
 export interface KlineConfig {
@@ -643,4 +682,71 @@ export interface DebatePersonalityInfo {
   emoji: string;
   color: string;
   description: string;
+}
+
+// Position History Types
+export interface HistoricalPosition {
+  id: number;
+  trader_id: string;
+  exchange_id: string;
+  exchange_type: string;
+  symbol: string;
+  side: string;
+  quantity: number;
+  entry_quantity: number;
+  entry_price: number;
+  entry_order_id: string;
+  entry_time: string;
+  exit_price: number;
+  exit_order_id: string;
+  exit_time: string;
+  realized_pnl: number;
+  fee: number;
+  leverage: number;
+  status: string;
+  close_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Matches Go TraderStats struct exactly
+export interface TraderStats {
+  total_trades: number;
+  win_trades: number;
+  loss_trades: number;
+  win_rate: number;
+  profit_factor: number;
+  sharpe_ratio: number;
+  total_pnl: number;
+  total_fee: number;
+  avg_win: number;
+  avg_loss: number;
+  max_drawdown_pct: number;
+}
+
+// Matches Go SymbolStats struct exactly
+export interface SymbolStats {
+  symbol: string;
+  total_trades: number;
+  win_trades: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl: number;
+  avg_hold_mins: number;
+}
+
+// Matches Go DirectionStats struct exactly
+export interface DirectionStats {
+  side: string;
+  trade_count: number;
+  win_rate: number;
+  total_pnl: number;
+  avg_pnl: number;
+}
+
+export interface PositionHistoryResponse {
+  positions: HistoricalPosition[];
+  stats: TraderStats | null;
+  symbol_stats: SymbolStats[];
+  direction_stats: DirectionStats[];
 }

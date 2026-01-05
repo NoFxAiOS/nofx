@@ -37,6 +37,15 @@ type TradeEvent struct {
 	TraderID   string
 }
 
+type AIUsageEvent struct {
+	UserID        string
+	TraderID      string
+	ModelProvider string // openai, deepseek, anthropic, etc.
+	ModelName     string // gpt-4o, deepseek-chat, claude-3, etc.
+	InputTokens   int
+	OutputTokens  int
+}
+
 type telemetryPayload struct {
 	ClientID string           `json:"client_id"`
 	Events   []telemetryEvent `json:"events"`
@@ -168,6 +177,49 @@ func TrackStartup(version string) {
 					Params: map[string]interface{}{
 						"version":              version,
 						"installation_id":      installationID,
+						"engagement_time_msec": 1,
+					},
+				},
+			},
+		}
+
+		jsonData, _ := json.Marshal(payload)
+		url := telemetryEndpoint + "?measurement_id=" + tid + "&api_secret=" + tk
+		req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+		if req != nil {
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := httpClient.Do(req)
+			if err == nil {
+				resp.Body.Close()
+			}
+		}
+	}()
+}
+
+func TrackAIUsage(event AIUsageEvent) {
+	if client == nil || !IsEnabled() {
+		return
+	}
+
+	go func() {
+		client.mu.RLock()
+		installationID := client.installationID
+		client.mu.RUnlock()
+
+		payload := telemetryPayload{
+			ClientID: installationID,
+			Events: []telemetryEvent{
+				{
+					Name: "ai_usage",
+					Params: map[string]interface{}{
+						"model_provider":       event.ModelProvider,
+						"model_name":           event.ModelName,
+						"input_tokens":         event.InputTokens,
+						"output_tokens":        event.OutputTokens,
+						"total_tokens":         event.InputTokens + event.OutputTokens,
+						"installation_id":      installationID,
+						"user_id":              event.UserID,
+						"trader_id":            event.TraderID,
 						"engagement_time_msec": 1,
 					},
 				},

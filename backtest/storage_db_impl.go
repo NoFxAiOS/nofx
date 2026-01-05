@@ -166,7 +166,7 @@ func loadRunMetadataDB(runID string) (*RunMetadata, error) {
 }
 
 func loadRunIDsDB() ([]string, error) {
-	rows, err := persistenceDB.Query(`SELECT run_id FROM backtest_runs ORDER BY datetime(updated_at) DESC`)
+	rows, err := persistenceDB.Query(`SELECT run_id FROM backtest_runs ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +278,9 @@ func loadDecisionTraceDB(runID string, cycle int) (*store.DecisionRecord, error)
 	var rows *sql.Rows
 	var err error
 	if cycle > 0 {
-		rows, err = persistenceDB.Query(query+` AND cycle = ? ORDER BY datetime(created_at) DESC LIMIT 1`, runID, cycle)
+		rows, err = persistenceDB.Query(query+` AND cycle = ? ORDER BY created_at DESC LIMIT 1`, runID, cycle)
 	} else {
-		rows, err = persistenceDB.Query(query+` ORDER BY datetime(created_at) DESC LIMIT 1`, runID)
+		rows, err = persistenceDB.Query(query+` ORDER BY created_at DESC LIMIT 1`, runID)
 	}
 	if err != nil {
 		return nil, err
@@ -461,7 +461,7 @@ func listIndexEntriesDB() ([]RunIndexEntry, error) {
 	rows, err := persistenceDB.Query(`
 		SELECT run_id, state, symbol_count, decision_tf, equity_last, max_drawdown_pct, created_at, updated_at, config_json
 		FROM backtest_runs
-		ORDER BY datetime(updated_at) DESC
+		ORDER BY updated_at DESC
 	`)
 	if err != nil {
 		return nil, err

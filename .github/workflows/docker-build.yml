@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - release/stable
     tags:
       - 'v*'
   pull_request:
@@ -152,12 +153,14 @@ jobs:
         env:
           IMAGE_BASE: ${{ needs.prepare.outputs.image_base }}
         run: |
-          REF_NAME="${{ github.ref_name }}"
+          # Convert branch name: release/stable -> release-stable (matching Docker metadata action)
+          REF_NAME=$(echo "${{ github.ref_name }}" | sed 's/\//-/g')
           GHCR_IMAGE="${{ env.REGISTRY_GHCR }}/${IMAGE_BASE}/nofx-${{ matrix.image_suffix }}"
 
           echo "📦 Creating manifest for ${{ matrix.image_suffix }}"
           echo "Repository: ${IMAGE_BASE}"
           echo "Image: ${GHCR_IMAGE}"
+          echo "Ref name: ${REF_NAME}"
 
           docker buildx imagetools create -t "${GHCR_IMAGE}:${REF_NAME}" \
             "${GHCR_IMAGE}:${REF_NAME}-amd64" \
@@ -169,6 +172,14 @@ jobs:
               "${GHCR_IMAGE}:${REF_NAME}-amd64" \
               "${GHCR_IMAGE}:${REF_NAME}-arm64"
             echo "✅ Created latest tag (main branch only)"
+          fi
+
+          # release/stable branch gets the 'stable' tag
+          if [[ "${{ github.ref }}" == "refs/heads/release/stable" ]]; then
+            docker buildx imagetools create -t "${GHCR_IMAGE}:stable" \
+              "${GHCR_IMAGE}:${REF_NAME}-amd64" \
+              "${GHCR_IMAGE}:${REF_NAME}-arm64"
+            echo "✅ Created stable tag (release/stable branch)"
           fi
 
           if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" ]]; then

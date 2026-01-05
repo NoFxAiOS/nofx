@@ -99,6 +99,10 @@ func (c *ClaudeClient) parseMCPResponse(body []byte) (string, error) {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
 		Error *struct {
 			Type    string `json:"type"`
 			Message string `json:"message"`
@@ -115,6 +119,18 @@ func (c *ClaudeClient) parseMCPResponse(body []byte) (string, error) {
 
 	if len(response.Content) == 0 {
 		return "", fmt.Errorf("Claude returned empty content, body: %s", string(body))
+	}
+
+	// Report token usage if callback is set
+	totalTokens := response.Usage.InputTokens + response.Usage.OutputTokens
+	if TokenUsageCallback != nil && totalTokens > 0 {
+		TokenUsageCallback(TokenUsage{
+			Provider:         c.Provider,
+			Model:            c.Model,
+			PromptTokens:     response.Usage.InputTokens,
+			CompletionTokens: response.Usage.OutputTokens,
+			TotalTokens:      totalTokens,
+		})
 	}
 
 	// Find text content

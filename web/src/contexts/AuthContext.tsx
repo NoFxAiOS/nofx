@@ -192,27 +192,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       requestBody.beta_code = betaCode
     }
 
-    const result = await httpClient.post<{
-      user_id: string
-      otp_secret: string
-      qr_code_url: string
-      message: string
-    }>('/api/register', requestBody)
+    try {
+      const result = await httpClient.post<{
+        user_id: string
+        otp_secret: string
+        qr_code_url: string
+        message: string
+      }>('/api/register', requestBody)
 
-    if (result.success && result.data) {
-      return {
-        success: true,
-        userID: result.data.user_id,
-        otpSecret: result.data.otp_secret,
-        qrCodeURL: result.data.qr_code_url,
-        message: result.message || result.data.message,
+      if (result.success && result.data) {
+        return {
+          success: true,
+          userID: result.data.user_id,
+          otpSecret: result.data.otp_secret,
+          qrCodeURL: result.data.qr_code_url,
+          message: result.message || result.data.message,
+        }
       }
-    }
 
-    // Only business errors reach here (system/network errors were intercepted)
-    return {
-      success: false,
-      message: result.message || 'Registration failed',
+      // Only business errors reach here (system/network errors were intercepted)
+      return {
+        success: false,
+        message: result.message || 'Registration failed',
+      }
+    } catch (error) {
+      console.error('Auth register error:', error);
+      // Re-throw if it's a critical error, or return structured error
+      // Since httpClient throws on 500, we should return a structured error response
+      // to let the UI display it gracefully without crashing.
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Detailed server error'
+      }
     }
   }
 

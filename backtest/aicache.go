@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"nofx/decision"
+	"nofx/kernel"
 	"nofx/market"
 )
 
@@ -17,7 +17,7 @@ type cachedDecision struct {
 	Key           string                 `json:"key"`
 	PromptVariant string                 `json:"prompt_variant"`
 	Timestamp     int64                  `json:"ts"`
-	Decision      *decision.FullDecision `json:"decision"`
+	Decision      *kernel.FullDecision `json:"decision"`
 }
 
 // AICache persists AI decisions for repeated backtesting or replay.
@@ -67,7 +67,7 @@ func (c *AICache) Path() string {
 	return c.path
 }
 
-func (c *AICache) Get(key string) (*decision.FullDecision, bool) {
+func (c *AICache) Get(key string) (*kernel.FullDecision, bool) {
 	if c == nil || key == "" {
 		return nil, false
 	}
@@ -80,7 +80,7 @@ func (c *AICache) Get(key string) (*decision.FullDecision, bool) {
 	return cloneDecision(entry.Decision), true
 }
 
-func (c *AICache) Put(key string, variant string, ts int64, decision *decision.FullDecision) error {
+func (c *AICache) Put(key string, variant string, ts int64, decision *kernel.FullDecision) error {
 	if c == nil || key == "" || decision == nil {
 		return nil
 	}
@@ -109,7 +109,7 @@ func (c *AICache) save() error {
 	return writeFileAtomic(c.path, data, 0o644)
 }
 
-func cloneDecision(src *decision.FullDecision) *decision.FullDecision {
+func cloneDecision(src *kernel.FullDecision) *kernel.FullDecision {
 	if src == nil {
 		return nil
 	}
@@ -117,14 +117,14 @@ func cloneDecision(src *decision.FullDecision) *decision.FullDecision {
 	if err != nil {
 		return nil
 	}
-	var dst decision.FullDecision
+	var dst kernel.FullDecision
 	if err := json.Unmarshal(data, &dst); err != nil {
 		return nil
 	}
 	return &dst
 }
 
-func computeCacheKey(ctx *decision.Context, variant string, ts int64) (string, error) {
+func computeCacheKey(ctx *kernel.Context, variant string, ts int64) (string, error) {
 	if ctx == nil {
 		return "", fmt.Errorf("context is nil")
 	}
@@ -132,9 +132,9 @@ func computeCacheKey(ctx *decision.Context, variant string, ts int64) (string, e
 		Variant        string                   `json:"variant"`
 		Timestamp      int64                    `json:"ts"`
 		CurrentTime    string                   `json:"current_time"`
-		Account        decision.AccountInfo     `json:"account"`
-		Positions      []decision.PositionInfo  `json:"positions"`
-		CandidateCoins []decision.CandidateCoin `json:"candidate_coins"`
+		Account        kernel.AccountInfo     `json:"account"`
+		Positions      []kernel.PositionInfo  `json:"positions"`
+		CandidateCoins []kernel.CandidateCoin `json:"candidate_coins"`
 		MarketData     map[string]market.Data   `json:"market"`
 		MarginUsedPct  float64                  `json:"margin_used_pct"`
 		Runtime        int                      `json:"runtime_minutes"`

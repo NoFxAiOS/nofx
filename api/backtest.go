@@ -15,7 +15,7 @@ import (
 	"nofx/backtest"
 	"nofx/logger"
 	"nofx/market"
-	"nofx/provider"
+	"nofx/provider/nofxos"
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
@@ -60,7 +60,7 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 
 	var req backtestStartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -78,23 +78,23 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 	if cfg.StrategyID != "" {
 		strategy, err := s.store.Strategy().Get(cfg.UserID, cfg.StrategyID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("failed to load strategy: %v", err)})
+			SafeBadRequest(c, "Failed to load strategy")
 			return
 		}
 		if strategy == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("strategy not found: %s", cfg.StrategyID)})
+			SafeBadRequest(c, "Strategy not found")
 			return
 		}
 		var strategyConfig store.StrategyConfig
 		if err := json.Unmarshal([]byte(strategy.Config), &strategyConfig); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("failed to parse strategy config: %v", err)})
+			SafeBadRequest(c, "Failed to parse strategy config")
 			return
 		}
 		cfg.SetLoadedStrategy(&strategyConfig)
 		logger.Infof("📊 Backtest using saved strategy: %s (%s)", strategy.Name, strategy.ID)
-		logger.Infof("📊 Strategy coin source: type=%s, use_coin_pool=%v, use_oi_top=%v, static_coins=%v",
+		logger.Infof("📊 Strategy coin source: type=%s, use_ai500=%v, use_oi_top=%v, static_coins=%v",
 			strategyConfig.CoinSource.SourceType,
-			strategyConfig.CoinSource.UseCoinPool,
+			strategyConfig.CoinSource.UseAI500,
 			strategyConfig.CoinSource.UseOITop,
 			strategyConfig.CoinSource.StaticCoins)
 
@@ -102,7 +102,7 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 		if len(cfg.Symbols) == 0 {
 			symbols, err := s.resolveStrategyCoins(&strategyConfig)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("failed to resolve coins from strategy: %v", err)})
+				SafeBadRequest(c, "Failed to resolve coins from strategy")
 				return
 			}
 			cfg.Symbols = symbols
@@ -111,7 +111,7 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 	}
 
 	if err := s.hydrateBacktestAIConfig(&cfg); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Failed to configure AI model")
 		return
 	}
 
@@ -120,7 +120,7 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 
 	runner, err := s.backtestManager.Start(context.Background(), cfg)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeError(c, http.StatusBadRequest, "Failed to start backtest", err)
 		return
 	}
 
@@ -149,11 +149,11 @@ func (s *Server) handleBacktestControl(c *gin.Context, fn func(string) error) {
 
 	var req runIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 	if req.RunID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "run_id is required"})
+		SafeBadRequest(c, "run_id is required")
 		return
 	}
 
@@ -162,7 +162,7 @@ func (s *Server) handleBacktestControl(c *gin.Context, fn func(string) error) {
 	}
 
 	if err := fn(req.RunID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeError(c, http.StatusBadRequest, "Failed to execute backtest operation", err)
 		return
 	}
 
@@ -181,11 +181,11 @@ func (s *Server) handleBacktestLabel(c *gin.Context) {
 	}
 	var req labelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 	if strings.TrimSpace(req.RunID) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "run_id is required"})
+		SafeBadRequest(c, "run_id is required")
 		return
 	}
 	userID := normalizeUserID(c.GetString("user_id"))
@@ -194,7 +194,7 @@ func (s *Server) handleBacktestLabel(c *gin.Context) {
 	}
 	meta, err := s.backtestManager.UpdateLabel(req.RunID, req.Label)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Update backtest label", err)
 		return
 	}
 	c.JSON(http.StatusOK, meta)
@@ -207,11 +207,11 @@ func (s *Server) handleBacktestDelete(c *gin.Context) {
 	}
 	var req runIDRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 	if strings.TrimSpace(req.RunID) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "run_id is required"})
+		SafeBadRequest(c, "run_id is required")
 		return
 	}
 	userID := normalizeUserID(c.GetString("user_id"))
@@ -219,7 +219,7 @@ func (s *Server) handleBacktestDelete(c *gin.Context) {
 		return
 	}
 	if err := s.backtestManager.Delete(req.RunID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Delete backtest run", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
@@ -277,7 +277,7 @@ func (s *Server) handleBacktestRuns(c *gin.Context) {
 
 	metas, err := s.backtestManager.ListRuns()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "List backtest runs", err)
 		return
 	}
 	stateFilter := strings.ToLower(strings.TrimSpace(c.Query("state")))
@@ -349,7 +349,7 @@ func (s *Server) handleBacktestEquity(c *gin.Context) {
 
 	points, err := s.backtestManager.LoadEquity(runID, timeframe, limit)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeError(c, http.StatusBadRequest, "Failed to load equity data", err)
 		return
 	}
 	c.JSON(http.StatusOK, points)
@@ -375,7 +375,7 @@ func (s *Server) handleBacktestTrades(c *gin.Context) {
 
 	events, err := s.backtestManager.LoadTrades(runID, limit)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeError(c, http.StatusBadRequest, "Failed to load trades", err)
 		return
 	}
 	c.JSON(http.StatusOK, events)
@@ -404,7 +404,7 @@ func (s *Server) handleBacktestMetrics(c *gin.Context) {
 			c.JSON(http.StatusAccepted, gin.H{"error": "metrics not ready yet"})
 			return
 		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeError(c, http.StatusBadRequest, "Failed to load metrics", err)
 		return
 	}
 	c.JSON(http.StatusOK, metrics)
@@ -427,7 +427,7 @@ func (s *Server) handleBacktestTrace(c *gin.Context) {
 	cycle := queryInt(c, "cycle", 0)
 	record, err := s.backtestManager.GetTrace(runID, cycle)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		SafeNotFound(c, "Trace record")
 		return
 	}
 	c.JSON(http.StatusOK, record)
@@ -461,7 +461,7 @@ func (s *Server) handleBacktestDecisions(c *gin.Context) {
 
 	records, err := backtest.LoadDecisionRecords(runID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Load decision records", err)
 		return
 	}
 	c.JSON(http.StatusOK, records)
@@ -483,7 +483,7 @@ func (s *Server) handleBacktestExport(c *gin.Context) {
 	}
 	path, err := s.backtestManager.ExportRun(runID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeError(c, http.StatusBadRequest, "Failed to export backtest", err)
 		return
 	}
 	defer os.Remove(path)
@@ -536,8 +536,7 @@ func (s *Server) handleBacktestKlines(c *gin.Context) {
 
 	klines, err := market.GetKlinesRange(symbol, timeframe, startTime, endTime)
 	if err != nil {
-		logger.Errorf("Failed to fetch klines for %s: %v", symbol, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to fetch klines: %v", err)})
+		SafeInternalError(c, "Fetch klines", err)
 		return
 	}
 
@@ -620,11 +619,11 @@ func writeBacktestAccessError(c *gin.Context, err error) bool {
 	}
 	switch {
 	case errors.Is(err, errBacktestForbidden):
-		c.JSON(http.StatusForbidden, gin.H{"error": "No permission to access this backtest task"})
+		SafeForbidden(c, "No permission to access this backtest task")
 	case errors.Is(err, os.ErrNotExist), errors.Is(err, sql.ErrNoRows):
-		c.JSON(http.StatusNotFound, gin.H{"error": "Backtest task does not exist"})
+		SafeNotFound(c, "Backtest task")
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Access backtest", err)
 	}
 	return true
 }
@@ -639,21 +638,13 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 	var symbols []string
 	symbolSet := make(map[string]bool)
 
-	// Set custom API URLs if provided
-	if coinSource.CoinPoolAPIURL != "" {
-		provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
-	}
-	if coinSource.OITopAPIURL != "" {
-		provider.SetOITopAPI(coinSource.OITopAPIURL)
-	}
-
 	// Handle empty source_type - check flags for backward compatibility
 	sourceType := coinSource.SourceType
 	if sourceType == "" {
-		if coinSource.UseCoinPool && coinSource.UseOITop {
+		if coinSource.UseAI500 && coinSource.UseOITop {
 			sourceType = "mixed"
-		} else if coinSource.UseCoinPool {
-			sourceType = "coinpool"
+		} else if coinSource.UseAI500 {
+			sourceType = "ai500"
 		} else if coinSource.UseOITop {
 			sourceType = "oi_top"
 		} else if len(coinSource.StaticCoins) > 0 {
@@ -674,13 +665,13 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 			}
 		}
 
-	case "coinpool":
-		limit := coinSource.CoinPoolLimit
+	case "ai500":
+		limit := coinSource.AI500Limit
 		if limit <= 0 {
 			limit = 30
 		}
 		logger.Infof("📊 Fetching AI500 coins with limit=%d", limit)
-		coins, err := provider.GetTopRatedCoins(limit)
+		coins, err := nofxos.DefaultClient().GetTopRatedCoins(limit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AI500 coins: %w", err)
 		}
@@ -694,7 +685,7 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 		}
 
 	case "oi_top":
-		coins, err := provider.GetOITopSymbols()
+		coins, err := nofxos.DefaultClient().GetOITopSymbols()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get OI Top coins: %w", err)
 		}
@@ -714,13 +705,13 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 		}
 
 	case "mixed":
-		// Get from coin pool
-		if coinSource.UseCoinPool {
-			limit := coinSource.CoinPoolLimit
+		// Get from AI500
+		if coinSource.UseAI500 {
+			limit := coinSource.AI500Limit
 			if limit <= 0 {
 				limit = 30
 			}
-			coins, err := provider.GetTopRatedCoins(limit)
+			coins, err := nofxos.DefaultClient().GetTopRatedCoins(limit)
 			if err != nil {
 				logger.Warnf("Failed to get AI500 coins: %v", err)
 			} else {
@@ -736,7 +727,7 @@ func (s *Server) resolveStrategyCoins(strategyConfig *store.StrategyConfig) ([]s
 
 		// Get from OI Top
 		if coinSource.UseOITop {
-			coins, err := provider.GetOITopSymbols()
+			coins, err := nofxos.DefaultClient().GetOITopSymbols()
 			if err != nil {
 				logger.Warnf("Failed to get OI Top coins: %v", err)
 			} else {
@@ -824,7 +815,7 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 		return fmt.Errorf("AI model %s is not enabled yet", model.Name)
 	}
 
-	apiKey := strings.TrimSpace(model.APIKey)
+	apiKey := strings.TrimSpace(string(model.APIKey))
 	if apiKey == "" {
 		return fmt.Errorf("AI model %s is missing API Key, please configure it in the system first", model.Name)
 	}

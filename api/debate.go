@@ -8,7 +8,7 @@ import (
 
 	"nofx/debate"
 	"nofx/logger"
-	"nofx/provider"
+	"nofx/provider/nofxos"
 	"nofx/store"
 
 	"github.com/gin-gonic/gin"
@@ -131,7 +131,7 @@ func (h *DebateHandler) HandleCreateDebate(c *gin.Context) {
 
 	var req CreateDebateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
@@ -158,35 +158,27 @@ func (h *DebateHandler) HandleCreateDebate(c *gin.Context) {
 				if len(coinSource.StaticCoins) > 0 {
 					req.Symbol = coinSource.StaticCoins[0]
 				}
-			case "coinpool":
-				// Fetch from coin pool API
-				if coinSource.CoinPoolAPIURL != "" {
-					provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
-				}
-				if coins, err := provider.GetTopRatedCoins(1); err == nil && len(coins) > 0 {
+			case "ai500":
+				// Fetch from AI500 API
+				if coins, err := nofxos.DefaultClient().GetTopRatedCoins(1); err == nil && len(coins) > 0 {
 					req.Symbol = coins[0]
-					logger.Infof("Fetched coin from pool API: %s", req.Symbol)
+					logger.Infof("Fetched coin from AI500 API: %s", req.Symbol)
 				}
 			case "oi_top":
 				// Fetch from OI top API
-				if coinSource.OITopAPIURL != "" {
-					provider.SetOITopAPI(coinSource.OITopAPIURL)
-				}
-				if coins, err := provider.GetOITopSymbols(); err == nil && len(coins) > 0 {
+				if coins, err := nofxos.DefaultClient().GetOITopSymbols(); err == nil && len(coins) > 0 {
 					req.Symbol = coins[0]
 					logger.Infof("Fetched coin from OI Top API: %s", req.Symbol)
 				}
 			case "mixed":
-				// Try coin pool first, then OI top
-				if coinSource.UseCoinPool && coinSource.CoinPoolAPIURL != "" {
-					provider.SetCoinPoolAPI(coinSource.CoinPoolAPIURL)
-					if coins, err := provider.GetTopRatedCoins(1); err == nil && len(coins) > 0 {
+				// Try AI500 first, then OI top
+				if coinSource.UseAI500 {
+					if coins, err := nofxos.DefaultClient().GetTopRatedCoins(1); err == nil && len(coins) > 0 {
 						req.Symbol = coins[0]
-						logger.Infof("Fetched coin from pool API (mixed): %s", req.Symbol)
+						logger.Infof("Fetched coin from AI500 API (mixed): %s", req.Symbol)
 					}
-				} else if coinSource.UseOITop && coinSource.OITopAPIURL != "" {
-					provider.SetOITopAPI(coinSource.OITopAPIURL)
-					if coins, err := provider.GetOITopSymbols(); err == nil && len(coins) > 0 {
+				} else if coinSource.UseOITop {
+					if coins, err := nofxos.DefaultClient().GetOITopSymbols(); err == nil && len(coins) > 0 {
 						req.Symbol = coins[0]
 						logger.Infof("Fetched coin from OI Top API (mixed): %s", req.Symbol)
 					}
@@ -292,7 +284,7 @@ func (h *DebateHandler) HandleStartDebate(c *gin.Context) {
 
 	// Start debate asynchronously
 	if err := h.engine.StartDebate(debateID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Start debate", err)
 		return
 	}
 
@@ -316,7 +308,7 @@ func (h *DebateHandler) HandleCancelDebate(c *gin.Context) {
 	}
 
 	if err := h.engine.CancelDebate(debateID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Cancel debate", err)
 		return
 	}
 
@@ -495,20 +487,20 @@ func (h *DebateHandler) HandleExecuteDebate(c *gin.Context) {
 	// Parse request
 	var req ExecuteDebateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		SafeBadRequest(c, "Invalid request parameters")
 		return
 	}
 
 	// Get trader executor
 	executor, err := h.traderManager.GetTraderExecutor(req.TraderID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("trader not available: %v", err)})
+		SafeError(c, http.StatusBadRequest, "Trader not available", err)
 		return
 	}
 
 	// Execute consensus
 	if err := h.engine.ExecuteConsensus(debateID, executor); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		SafeInternalError(c, "Execute consensus", err)
 		return
 	}
 
@@ -635,7 +627,9 @@ func (h *DebateHandler) broadcastConsensus(sessionID string, decision *store.Deb
 }
 
 func (h *DebateHandler) broadcastError(sessionID string, err error) {
+	// Sanitize error message before broadcasting to client
+	safeMsg := SanitizeError(err, "An error occurred during debate")
 	h.broadcast(sessionID, "error", map[string]interface{}{
-		"error": err.Error(),
+		"error": safeMsg,
 	})
 }

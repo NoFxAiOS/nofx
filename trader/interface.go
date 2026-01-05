@@ -26,6 +26,7 @@ type TradeRecord struct {
 	Symbol       string    // Trading pair (e.g., "BTCUSDT")
 	Side         string    // "BUY" or "SELL"
 	PositionSide string    // "LONG", "SHORT", or "BOTH" (for one-way mode)
+	OrderAction  string    // "open_long", "open_short", "close_long", "close_short" (from exchange Dir field)
 	Price        float64   // Execution price
 	Quantity     float64   // Executed quantity
 	RealizedPnL  float64   // Realized PnL (non-zero for closing trades)

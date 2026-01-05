@@ -28,9 +28,11 @@ const (
 	// - Spot trading: api.htx.com
 	// - Linear Swap (USDT contracts): api.hbdm.com
 	// Previous: api.huobi.pro -> New: api.hbdm.com (for linear swap)
-	htxBaseURL               = "https://api.hbdm.com"
-	htxAccountPath           = "/v2/account/asset-valuation"
-	htxContractAccountPath   = "/linear-swap-api/v1/swap_account_info"
+	htxBaseURL             = "https://api.hbdm.com"
+	htxAccountPath         = "/v2/account/asset-valuation"
+	htxContractAccountPath = "/linear-swap-api/v1/swap_account_info"
+	// V3 unified account API for merged cross/isolated margin accounts
+	htxUnifiedAccountPath    = "/linear-swap-api/v3/unified_account_info"
 	htxPositionPath          = "/linear-swap-api/v1/swap_position_info"
 	htxOrderPath             = "/linear-swap-api/v1/swap_order"
 	htxLeveragePath          = "/linear-swap-api/v1/swap_switch_lever_rate"
@@ -80,13 +82,17 @@ type HTXContract struct {
 	MaxOrderVolume int     // Maximum order volume (contracts)
 }
 
-// HTXResponse HTX API response
+// HTXResponse HTX API response (supports both v1 and v3 formats)
 type HTXResponse struct {
+	// V1 API format
 	Status  string          `json:"status"`
 	Ts      int64           `json:"ts"`
 	Data    json.RawMessage `json:"data"`
 	ErrCode string          `json:"err_code"`
 	ErrMsg  string          `json:"err_msg"`
+	// V3 API format
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
 }
 
 // NewHTXTrader creates an HTX trader
@@ -204,8 +210,13 @@ func (t *HTXTrader) doRequest(method, path string, params map[string]string, bod
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if apiResp.Status != "ok" {
+	// Check for v1 API error (status != "ok")
+	if apiResp.Status != "" && apiResp.Status != "ok" {
 		return nil, fmt.Errorf("API error: %s - %s", apiResp.ErrCode, apiResp.ErrMsg)
+	}
+	// Check for v3 API error (code != 200 and code != 0)
+	if apiResp.Code != 0 && apiResp.Code != 200 {
+		return nil, fmt.Errorf("API error: %d - %s", apiResp.Code, apiResp.Msg)
 	}
 
 	return apiResp.Data, nil
@@ -220,7 +231,54 @@ func (t *HTXTrader) GetBalance() (map[string]interface{}, error) {
 	}
 	t.balanceCacheMutex.RUnlock()
 
-	data, err := t.doRequest("POST", htxContractAccountPath, nil, nil)
+	// Try v3 unified account API first (for merged cross/isolated margin accounts)
+	data, err := t.doRequest("POST", htxUnifiedAccountPath, nil, nil)
+	if err == nil {
+		// V3 API response format
+		var unifiedAccount []struct {
+			MarginAsset       string  `json:"margin_asset"`
+			MarginBalance     float64 `json:"margin_balance"`
+			CrossMarginStatic float64 `json:"cross_margin_static"`
+			CrossProfit       float64 `json:"cross_profit_unreal"`
+			WithdrawAvailable float64 `json:"withdraw_available"`
+		}
+		if err := json.Unmarshal(data, &unifiedAccount); err == nil && len(unifiedAccount) > 0 {
+			logger.Infof("🔵 [HTX] Using unified account API (v3)")
+			totalBalanceDec := decimal.Zero
+			availableBalanceDec := decimal.Zero
+			unrealizedPnLDec := decimal.Zero
+
+			for _, acc := range unifiedAccount {
+				totalBalanceDec = totalBalanceDec.Add(decimal.NewFromFloat(acc.MarginBalance))
+				availableBalanceDec = availableBalanceDec.Add(decimal.NewFromFloat(acc.WithdrawAvailable))
+				unrealizedPnLDec = unrealizedPnLDec.Add(decimal.NewFromFloat(acc.CrossProfit))
+			}
+
+			totalBalance, _ := totalBalanceDec.Float64()
+			availableBalance, _ := availableBalanceDec.Float64()
+			unrealizedPnL, _ := unrealizedPnLDec.Float64()
+
+			result := map[string]interface{}{
+				"totalEquity":           totalBalance,
+				"availableBalance":      availableBalance,
+				"totalUnrealizedProfit": unrealizedPnL,
+				"total_equity":          totalBalance,
+				"available_balance":     availableBalance,
+				"unrealized_pnl":        unrealizedPnL,
+			}
+
+			t.balanceCacheMutex.Lock()
+			t.cachedBalance = result
+			t.balanceCacheTime = time.Now()
+			t.balanceCacheMutex.Unlock()
+
+			return result, nil
+		}
+	}
+
+	// Fallback to v1 API for traditional accounts
+	logger.Infof("🔵 [HTX] Using traditional account API (v1)")
+	data, err = t.doRequest("POST", htxContractAccountPath, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -372,8 +430,8 @@ func (t *HTXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 		logger.Infof("⚠️ [HTX] Failed to set leverage: %v", err)
 	}
 
-	// Generate unique client order ID
-	clientOrderID := fmt.Sprintf("nofx_%d", time.Now().UnixNano())
+	// Generate unique client order ID (HTX requires numeric only, no letters or underscores)
+	clientOrderID := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	// HTX requires volume as integer (number of contracts)
 	quantityDec := decimal.NewFromFloat(quantity)
@@ -433,8 +491,8 @@ func (t *HTXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 		logger.Infof("⚠️ [HTX] Failed to set leverage: %v", err)
 	}
 
-	// Generate unique client order ID
-	clientOrderID := fmt.Sprintf("nofx_%d", time.Now().UnixNano())
+	// Generate unique client order ID (HTX requires numeric only, no letters or underscores)
+	clientOrderID := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	// HTX requires volume as integer (number of contracts)
 	quantityDec := decimal.NewFromFloat(quantity)
@@ -495,8 +553,8 @@ func (t *HTXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		}
 	}
 
-	// Generate unique client order ID
-	clientOrderID := fmt.Sprintf("nofx_%d", time.Now().UnixNano())
+	// Generate unique client order ID (HTX requires numeric only, no letters or underscores)
+	clientOrderID := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	quantityDec := decimal.NewFromFloat(quantity)
 	volume := int(quantityDec.Round(0).IntPart())
@@ -554,8 +612,8 @@ func (t *HTXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		}
 	}
 
-	// Generate unique client order ID
-	clientOrderID := fmt.Sprintf("nofx_%d", time.Now().UnixNano())
+	// Generate unique client order ID (HTX requires numeric only, no letters or underscores)
+	clientOrderID := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	quantityDec := decimal.NewFromFloat(quantity)
 	volume := int(quantityDec.Round(0).IntPart())

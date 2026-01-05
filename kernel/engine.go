@@ -977,9 +977,22 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `action`: The type of action to take\n")
+	sb.WriteString("  - **open_long**: Open a new long position\n")
+	sb.WriteString("  - **open_short**: Open a new short position\n")
+	sb.WriteString("  - **close_long**: Close an existing long position\n")
+	sb.WriteString("  - **close_short**: Close an existing short position\n")
+	sb.WriteString("  - **adjust_stop_loss_long**: Adjust stop loss for existing long position\n")
+	sb.WriteString("  - **adjust_stop_loss_short**: Adjust stop loss for existing short position\n")
+	sb.WriteString("  - **adjust_take_profit_long**: Adjust take profit for existing long position\n")
+	sb.WriteString("  - **adjust_take_profit_short**: Adjust take profit for existing short position\n")
+	sb.WriteString("  - **adjust_both_long**: Adjust both stop loss and take profit for existing long position\n")
+	sb.WriteString("  - **adjust_both_short**: Adjust both stop loss and take profit for existing short position\n")
+	sb.WriteString("  - **hold**: Hold current positions (no action)\n")
+	sb.WriteString("  - **wait**: Wait (no positions, no new openings)\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
 	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- Required when adjusting: stop_loss (if adjusting stop loss), take_profit (if adjusting take profit)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt
@@ -1776,6 +1789,12 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		"close_short": true,
 		"hold":        true,
 		"wait":        true,
+		"adjust_stop_loss_long": true,
+		"adjust_stop_loss_short": true,
+		"adjust_take_profit_long": true,
+		"adjust_take_profit_short": true,
+		"adjust_both_long": true,
+		"adjust_both_short": true,
 	}
 
 	if !validActions[d.Action] {

@@ -963,6 +963,10 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 		return at.executeCloseLongWithRecord(decision, actionRecord)
 	case "close_short":
 		return at.executeCloseShortWithRecord(decision, actionRecord)
+	case "adjust_stop_loss_long", "adjust_stop_loss_short", 
+			"adjust_take_profit_long", "adjust_take_profit_short",
+			"adjust_both_long", "adjust_both_short":
+		return at.executeAdjustStopLossTakeProfit(decision, actionRecord)
 	case "hold", "wait":
 		// No execution needed, just record
 		return nil
@@ -1112,6 +1116,98 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
 
+	return nil
+}
+
+// executeAdjustStopLossTakeProfit executes adjustment of stop loss and/or take profit for existing positions
+func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	logger.Infof("  ⚙️  Adjusting stop loss/take profit for %s: %s", decision.Symbol, decision.Action)
+
+	// Parse action to determine what to adjust
+	isAdjustStopLoss := strings.Contains(decision.Action, "stop_loss")
+	isAdjustTakeProfit := strings.Contains(decision.Action, "take_profit")
+	isAdjustBoth := strings.Contains(decision.Action, "both")
+	isLong := strings.Contains(decision.Action, "long")
+
+	// Get current position information
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return fmt.Errorf("failed to get positions: %w", err)
+	}
+
+	// Find the matching position
+	var targetPosition map[string]interface{}
+	for _, pos := range positions {
+		if pos["symbol"] == decision.Symbol {
+			if (isLong && pos["side"] == "long") || (!isLong && pos["side"] == "short") {
+				targetPosition = pos
+				break
+			}
+		}
+	}
+
+	if targetPosition == nil {
+		return fmt.Errorf("❌ No matching %s position found for %s", 
+			map[bool]string{true: "long", false: "short"}[isLong], decision.Symbol)
+	}
+
+	// Get position quantity
+	quantity := targetPosition["quantity"].(float64)
+	logger.Infof("  📌 Found matching position: %s %s, quantity: %.4f", 
+		decision.Symbol, map[bool]string{true: "long", false: "short"}[isLong], quantity)
+
+	// Get current market price
+	marketData, err := market.Get(decision.Symbol)
+	if err != nil {
+		return err
+	}
+
+	// Record current state
+	actionRecord.Quantity = quantity
+	actionRecord.Price = marketData.CurrentPrice
+	actionRecord.StopLoss = decision.StopLoss
+	actionRecord.TakeProfit = decision.TakeProfit
+
+	// Execute adjustments based on action type
+	positionSide := map[bool]string{true: "LONG", false: "SHORT"}[isLong]
+
+	if isAdjustStopLoss || isAdjustBoth {
+		logger.Infof("  🛑 Adjusting stop loss from %.4f to %.4f for %s %s", 
+			targetPosition["stop_loss"].(float64), decision.StopLoss, decision.Symbol, positionSide)
+
+		// Cancel existing stop loss orders
+		if err := at.trader.CancelStopLossOrders(decision.Symbol); err != nil {
+			logger.Infof("  ⚠️  Failed to cancel old stop loss orders: %v", err)
+			// Continue execution, don't fail the entire adjustment
+		}
+
+		// Set new stop loss
+		if err := at.trader.SetStopLoss(decision.Symbol, positionSide, quantity, decision.StopLoss); err != nil {
+			return fmt.Errorf("failed to set new stop loss: %w", err)
+		}
+
+		logger.Infof("  ✓ Stop loss adjusted successfully")
+	}
+
+	if isAdjustTakeProfit || isAdjustBoth {
+		logger.Infof("  🎯 Adjusting take profit from %.4f to %.4f for %s %s", 
+			targetPosition["take_profit"].(float64), decision.TakeProfit, decision.Symbol, positionSide)
+
+		// Cancel existing take profit orders
+		if err := at.trader.CancelTakeProfitOrders(decision.Symbol); err != nil {
+			logger.Infof("  ⚠️  Failed to cancel old take profit orders: %v", err)
+			// Continue execution, don't fail the entire adjustment
+		}
+
+		// Set new take profit
+		if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, quantity, decision.TakeProfit); err != nil {
+			return fmt.Errorf("failed to set new take profit: %w", err)
+		}
+
+		logger.Infof("  ✓ Take profit adjusted successfully")
+	}
+
+	logger.Infof("  ✓ Stop loss/take profit adjustment completed for %s %s", decision.Symbol, positionSide)
 	return nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"nofx/market"
 	"nofx/mcp"
 	"nofx/store"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1151,8 +1152,24 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 			map[bool]string{true: "long", false: "short"}[isLong], decision.Symbol)
 	}
 
-	// Get position quantity
-	quantity := targetPosition["quantity"].(float64)
+	// Get position quantity using safe type assertion
+	quantity, ok := targetPosition["positionAmt"].(float64)
+	if !ok {
+		// Try alternative field name that might be used by some exchanges
+		if qtyStr, ok := targetPosition["positionAmt"].(string); ok {
+			if qty, err := strconv.ParseFloat(qtyStr, 64); err == nil {
+				quantity = qty
+			} else {
+				return fmt.Errorf("failed to parse position quantity: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to get position quantity: unexpected type %T", targetPosition["positionAmt"])
+		}
+	}
+	// Ensure quantity is positive
+	if quantity < 0 {
+		quantity = -quantity
+	}
 	logger.Infof("  📌 Found matching position: %s %s, quantity: %.4f", 
 		decision.Symbol, map[bool]string{true: "long", false: "short"}[isLong], quantity)
 
@@ -1172,8 +1189,15 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 	positionSide := map[bool]string{true: "LONG", false: "SHORT"}[isLong]
 
 	if isAdjustStopLoss || isAdjustBoth {
-		logger.Infof("  🛑 Adjusting stop loss from %.4f to %.4f for %s %s", 
-			targetPosition["stop_loss"].(float64), decision.StopLoss, decision.Symbol, positionSide)
+		// Get current stop loss if available, otherwise use "-" to indicate no existing stop loss
+		var currentStopLoss string
+		if sl, ok := targetPosition["stop_loss"].(float64); ok {
+			currentStopLoss = fmt.Sprintf("%.4f", sl)
+		} else {
+			currentStopLoss = "-"
+		}
+		logger.Infof("  🛑 Adjusting stop loss from %s to %.4f for %s %s", 
+			currentStopLoss, decision.StopLoss, decision.Symbol, positionSide)
 
 		// Cancel existing stop loss orders
 		if err := at.trader.CancelStopLossOrders(decision.Symbol); err != nil {
@@ -1190,8 +1214,15 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 	}
 
 	if isAdjustTakeProfit || isAdjustBoth {
-		logger.Infof("  🎯 Adjusting take profit from %.4f to %.4f for %s %s", 
-			targetPosition["take_profit"].(float64), decision.TakeProfit, decision.Symbol, positionSide)
+		// Get current take profit if available, otherwise use "-" to indicate no existing take profit
+		var currentTakeProfit string
+		if tp, ok := targetPosition["take_profit"].(float64); ok {
+			currentTakeProfit = fmt.Sprintf("%.4f", tp)
+		} else {
+			currentTakeProfit = "-"
+		}
+		logger.Infof("  🎯 Adjusting take profit from %s to %.4f for %s %s", 
+			currentTakeProfit, decision.TakeProfit, decision.Symbol, positionSide)
 
 		// Cancel existing take profit orders
 		if err := at.trader.CancelTakeProfitOrders(decision.Symbol); err != nil {

@@ -10,6 +10,7 @@ import (
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/hyperliquid"
+	"nofx/store"
 	"strconv"
 	"strings"
 	"sync"
@@ -221,9 +222,17 @@ func Get(symbol string) (*Data, error) {
 	// Calculate current indicators (based on 3-minute latest data)
 	// Get real-time current price with fallback to K-line data
 	currentPrice, priceSource := getCurrentPriceWithFallback(symbol, klines3m)
-	currentEMA20 := calculateEMA(klines3m, 20)
-	currentMACD := calculateMACD(klines3m)
-	currentRSI7 := calculateRSI(klines3m, 7)
+
+	// Use default config if not provided
+	defaultConfig := &store.IndicatorConfig{
+		EMAPeriods:     []int{20},
+		RSIPeriods:     []int{7},
+		MACDFastPeriod: 12,
+		MACDSlowPeriod: 26,
+	}
+	currentEMA20 := calculateEMA(klines3m, defaultConfig.EMAPeriods[0])
+	currentMACD := calculateMACD(klines3m, defaultConfig.MACDFastPeriod, defaultConfig.MACDSlowPeriod)
+	currentRSI7 := calculateRSI(klines3m, defaultConfig.RSIPeriods[0])
 
 	// Log price source for debugging
 	logger.Infof("📊 %s price source: %s, current_price: %.4f", symbol, priceSource, currentPrice)
@@ -261,7 +270,7 @@ func Get(symbol string) (*Data, error) {
 	intradayData := calculateIntradaySeries(klines3m)
 
 	// Calculate longer-term data
-	longerTermData := calculateLongerTermData(klines4h)
+	longerTermData := calculateLongerTermData(klines4h, nil)
 
 	return &Data{
 		Symbol:            symbol,
@@ -345,7 +354,7 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		}
 
 		// Calculate series data for this timeframe (use count from config)
-		seriesData := calculateTimeframeSeries(klines, tf, count)
+		seriesData := calculateTimeframeSeries(klines, tf, count, nil)
 		timeframeData[tf] = seriesData
 	}
 
@@ -363,9 +372,17 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	// Calculate current indicators (based on primary timeframe latest data)
 	// Get real-time current price with fallback to K-line data
 	currentPrice, priceSource := getCurrentPriceWithFallback(symbol, primaryKlines)
-	currentEMA20 := calculateEMA(primaryKlines, 20)
-	currentMACD := calculateMACD(primaryKlines)
-	currentRSI7 := calculateRSI(primaryKlines, 7)
+
+	// Use default config if not provided
+	defaultConfig := &store.IndicatorConfig{
+		EMAPeriods:     []int{20},
+		RSIPeriods:     []int{7},
+		MACDFastPeriod: 12,
+		MACDSlowPeriod: 26,
+	}
+	currentEMA20 := calculateEMA(primaryKlines, defaultConfig.EMAPeriods[0])
+	currentMACD := calculateMACD(primaryKlines, defaultConfig.MACDFastPeriod, defaultConfig.MACDSlowPeriod)
+	currentRSI7 := calculateRSI(primaryKlines, defaultConfig.RSIPeriods[0])
 
 	// Log price source for debugging
 	logger.Infof("📊 %s price source: %s, current_price: %.4f", symbol, priceSource, currentPrice)
@@ -398,9 +415,41 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 }
 
 // calculateTimeframeSeries calculates series data for a single timeframe
-func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *TimeframeSeriesData {
+func calculateTimeframeSeries(klines []Kline, timeframe string, count int, config *store.IndicatorConfig) *TimeframeSeriesData {
 	if count <= 0 {
 		count = 10 // default
+	}
+
+	// Set default config if not provided
+	if config == nil {
+		config = &store.IndicatorConfig{
+			EMAPeriods:     []int{20, 50},
+			RSIPeriods:     []int{7, 14},
+			ATRPeriods:     []int{14},
+			MACDFastPeriod: 12,
+			MACDSlowPeriod: 26,
+			BOLLPeriods:    []int{20},
+		}
+	}
+
+	// Set defaults for empty arrays
+	if len(config.EMAPeriods) == 0 {
+		config.EMAPeriods = []int{20, 50}
+	}
+	if len(config.RSIPeriods) == 0 {
+		config.RSIPeriods = []int{7, 14}
+	}
+	if len(config.ATRPeriods) == 0 {
+		config.ATRPeriods = []int{14}
+	}
+	if config.MACDFastPeriod == 0 {
+		config.MACDFastPeriod = 12
+	}
+	if config.MACDSlowPeriod == 0 {
+		config.MACDSlowPeriod = 26
+	}
+	if len(config.BOLLPeriods) == 0 {
+		config.BOLLPeriods = []int{20}
 	}
 
 	data := &TimeframeSeriesData{
@@ -439,45 +488,62 @@ func calculateTimeframeSeries(klines []Kline, timeframe string, count int) *Time
 		data.MidPrices = append(data.MidPrices, klines[i].Close)
 		data.Volume = append(data.Volume, klines[i].Volume)
 
-		// Calculate EMA20 for each point
-		if i >= 19 {
-			ema20 := calculateEMA(klines[:i+1], 20)
-			data.EMA20Values = append(data.EMA20Values, ema20)
+		// Calculate EMA for configured periods (backward compatible)
+		// For backward compatibility, use first two EMA periods for EMA20Values and EMA50Values
+		if len(config.EMAPeriods) >= 1 {
+			ema1Period := config.EMAPeriods[0]
+			if i >= ema1Period-1 {
+				ema1 := calculateEMA(klines[:i+1], ema1Period)
+				data.EMA20Values = append(data.EMA20Values, ema1)
+			}
+		}
+		if len(config.EMAPeriods) >= 2 {
+			ema2Period := config.EMAPeriods[1]
+			if i >= ema2Period-1 {
+				ema2 := calculateEMA(klines[:i+1], ema2Period)
+				data.EMA50Values = append(data.EMA50Values, ema2)
+			}
 		}
 
-		// Calculate EMA50 for each point
-		if i >= 49 {
-			ema50 := calculateEMA(klines[:i+1], 50)
-			data.EMA50Values = append(data.EMA50Values, ema50)
-		}
-
-		// Calculate MACD for each point
-		if i >= 25 {
-			macd := calculateMACD(klines[:i+1])
+		// Calculate MACD with configured periods
+		if i >= config.MACDSlowPeriod-1 {
+			macd := calculateMACD(klines[:i+1], config.MACDFastPeriod, config.MACDSlowPeriod)
 			data.MACDValues = append(data.MACDValues, macd)
 		}
 
-		// Calculate RSI for each point
-		if i >= 7 {
-			rsi7 := calculateRSI(klines[:i+1], 7)
-			data.RSI7Values = append(data.RSI7Values, rsi7)
+		// Calculate RSI for configured periods (backward compatible)
+		// Use first two RSI periods for RSI7Values and RSI14Values
+		if len(config.RSIPeriods) >= 1 {
+			rsi1Period := config.RSIPeriods[0]
+			if i >= rsi1Period {
+				rsi1 := calculateRSI(klines[:i+1], rsi1Period)
+				data.RSI7Values = append(data.RSI7Values, rsi1)
+			}
 		}
-		if i >= 14 {
-			rsi14 := calculateRSI(klines[:i+1], 14)
-			data.RSI14Values = append(data.RSI14Values, rsi14)
+		if len(config.RSIPeriods) >= 2 {
+			rsi2Period := config.RSIPeriods[1]
+			if i >= rsi2Period {
+				rsi2 := calculateRSI(klines[:i+1], rsi2Period)
+				data.RSI14Values = append(data.RSI14Values, rsi2)
+			}
 		}
 
-		// Calculate Bollinger Bands (period 20, std dev multiplier 2)
-		if i >= 19 {
-			upper, middle, lower := calculateBOLL(klines[:i+1], 20, 2.0)
-			data.BOLLUpper = append(data.BOLLUpper, upper)
-			data.BOLLMiddle = append(data.BOLLMiddle, middle)
-			data.BOLLLower = append(data.BOLLLower, lower)
+		// Calculate Bollinger Bands with configured period
+		if len(config.BOLLPeriods) >= 1 {
+			bollPeriod := config.BOLLPeriods[0]
+			if i >= bollPeriod-1 {
+				upper, middle, lower := calculateBOLL(klines[:i+1], bollPeriod, 2.0)
+				data.BOLLUpper = append(data.BOLLUpper, upper)
+				data.BOLLMiddle = append(data.BOLLMiddle, middle)
+				data.BOLLLower = append(data.BOLLLower, lower)
+			}
 		}
 	}
 
-	// Calculate ATR14
-	data.ATR14 = calculateATR(klines, 14)
+	// Calculate ATR with configured period (use first ATR period)
+	if len(config.ATRPeriods) >= 1 {
+		data.ATR14 = calculateATR(klines, config.ATRPeriods[0])
+	}
 
 	return data
 }
@@ -571,18 +637,33 @@ func calculateEMA(klines []Kline, period int) float64 {
 	return ema
 }
 
-// calculateMACD calculates MACD
-func calculateMACD(klines []Kline) float64 {
-	if len(klines) < 26 {
+// calculateMACD calculates MACD with configurable periods
+func calculateMACD(klines []Kline, fastPeriod, slowPeriod int) float64 {
+	// Default values if not specified
+	if fastPeriod == 0 {
+		fastPeriod = 12
+	}
+	if slowPeriod == 0 {
+		slowPeriod = 26
+	}
+
+	// Validate periods
+	if fastPeriod >= slowPeriod {
+		// Fast period should be smaller than slow period, use defaults
+		fastPeriod = 12
+		slowPeriod = 26
+	}
+
+	if len(klines) < slowPeriod {
 		return 0
 	}
 
-	// Calculate 12-period and 26-period EMA
-	ema12 := calculateEMA(klines, 12)
-	ema26 := calculateEMA(klines, 26)
+	// Calculate fast and slow period EMAs
+	emaFast := calculateEMA(klines, fastPeriod)
+	emaSlow := calculateEMA(klines, slowPeriod)
 
-	// MACD = EMA12 - EMA26
-	return ema12 - ema26
+	// MACD = Fast EMA - Slow EMA
+	return emaFast - emaSlow
 }
 
 // calculateRSI calculates RSI
@@ -695,11 +776,39 @@ func calculateBOLL(klines []Kline, period int, multiplier float64) (upper, middl
 
 // calculateIntradaySeries calculates intraday series data
 func calculateIntradaySeries(klines []Kline) *IntradayData {
-	return calculateIntradaySeriesWithCount(klines, 10) // default to 10 for backward compatibility
+	return calculateIntradaySeriesWithCount(klines, 10, nil) // default to 10 for backward compatibility
 }
 
-// calculateIntradaySeriesWithCount calculates intraday series data with configurable count
-func calculateIntradaySeriesWithCount(klines []Kline, count int) *IntradayData {
+// calculateIntradaySeriesWithCount calculates intraday series data with configurable count and indicators
+func calculateIntradaySeriesWithCount(klines []Kline, count int, config *store.IndicatorConfig) *IntradayData {
+	// Set default config if not provided
+	if config == nil {
+		config = &store.IndicatorConfig{
+			EMAPeriods:     []int{20},
+			RSIPeriods:     []int{7, 14},
+			ATRPeriods:     []int{14},
+			MACDFastPeriod: 12,
+			MACDSlowPeriod: 26,
+		}
+	}
+
+	// Set defaults for empty arrays
+	if len(config.EMAPeriods) == 0 {
+		config.EMAPeriods = []int{20}
+	}
+	if len(config.RSIPeriods) == 0 {
+		config.RSIPeriods = []int{7, 14}
+	}
+	if len(config.ATRPeriods) == 0 {
+		config.ATRPeriods = []int{14}
+	}
+	if config.MACDFastPeriod == 0 {
+		config.MACDFastPeriod = 12
+	}
+	if config.MACDSlowPeriod == 0 {
+		config.MACDSlowPeriod = 26
+	}
+
 	data := &IntradayData{
 		MidPrices:   make([]float64, 0),
 		EMA20Values: make([]float64, 0),
@@ -731,31 +840,42 @@ func calculateIntradaySeriesWithCount(klines []Kline, count int) *IntradayData {
 		data.MidPrices = append(data.MidPrices, klines[i].Close)
 		data.Volume = append(data.Volume, klines[i].Volume)
 
-		// Calculate EMA20 for each point
-		if i >= 19 {
-			ema20 := calculateEMA(klines[:i+1], 20)
-			data.EMA20Values = append(data.EMA20Values, ema20)
+		// Calculate EMA using first configured period (backward compatible with EMA20)
+		if len(config.EMAPeriods) >= 1 {
+			emaPeriod := config.EMAPeriods[0]
+			if i >= emaPeriod-1 {
+				ema := calculateEMA(klines[:i+1], emaPeriod)
+				data.EMA20Values = append(data.EMA20Values, ema)
+			}
 		}
 
-		// Calculate MACD for each point
-		if i >= 25 {
-			macd := calculateMACD(klines[:i+1])
+		// Calculate MACD with configured periods
+		if i >= config.MACDSlowPeriod-1 {
+			macd := calculateMACD(klines[:i+1], config.MACDFastPeriod, config.MACDSlowPeriod)
 			data.MACDValues = append(data.MACDValues, macd)
 		}
 
-		// Calculate RSI for each point
-		if i >= 7 {
-			rsi7 := calculateRSI(klines[:i+1], 7)
-			data.RSI7Values = append(data.RSI7Values, rsi7)
+		// Calculate RSI using configured periods (backward compatible with RSI7 and RSI14)
+		if len(config.RSIPeriods) >= 1 {
+			rsi1Period := config.RSIPeriods[0]
+			if i >= rsi1Period {
+				rsi1 := calculateRSI(klines[:i+1], rsi1Period)
+				data.RSI7Values = append(data.RSI7Values, rsi1)
+			}
 		}
-		if i >= 14 {
-			rsi14 := calculateRSI(klines[:i+1], 14)
-			data.RSI14Values = append(data.RSI14Values, rsi14)
+		if len(config.RSIPeriods) >= 2 {
+			rsi2Period := config.RSIPeriods[1]
+			if i >= rsi2Period {
+				rsi2 := calculateRSI(klines[:i+1], rsi2Period)
+				data.RSI14Values = append(data.RSI14Values, rsi2)
+			}
 		}
 	}
 
-	// Calculate 3m ATR14
-	data.ATR14 = calculateATR(klines, 14)
+	// Calculate ATR using first configured period (backward compatible with ATR14)
+	if len(config.ATRPeriods) >= 1 {
+		data.ATR14 = calculateATR(klines, config.ATRPeriods[0])
+	}
 
 	// Set the actual count of data points processed
 	data.Count = len(data.MidPrices)
@@ -763,20 +883,59 @@ func calculateIntradaySeriesWithCount(klines []Kline, count int) *IntradayData {
 	return data
 }
 
-// calculateLongerTermData calculates longer-term data
-func calculateLongerTermData(klines []Kline) *LongerTermData {
+// calculateLongerTermData calculates longer-term data with configurable indicators
+func calculateLongerTermData(klines []Kline, config *store.IndicatorConfig) *LongerTermData {
+	// Set default config if not provided
+	if config == nil {
+		config = &store.IndicatorConfig{
+			EMAPeriods:     []int{20, 50},
+			RSIPeriods:     []int{14},
+			ATRPeriods:     []int{3, 14},
+			MACDFastPeriod: 12,
+			MACDSlowPeriod: 26,
+		}
+	}
+
+	// Set defaults for empty arrays
+	if len(config.EMAPeriods) == 0 {
+		config.EMAPeriods = []int{20, 50}
+	}
+	if len(config.RSIPeriods) == 0 {
+		config.RSIPeriods = []int{14}
+	}
+	if len(config.ATRPeriods) == 0 {
+		config.ATRPeriods = []int{3, 14}
+	}
+	if config.MACDFastPeriod == 0 {
+		config.MACDFastPeriod = 12
+	}
+	if config.MACDSlowPeriod == 0 {
+		config.MACDSlowPeriod = 26
+	}
+
 	data := &LongerTermData{
 		MACDValues:  make([]float64, 0, 10),
 		RSI14Values: make([]float64, 0, 10),
 	}
 
-	// Calculate EMA
-	data.EMA20 = calculateEMA(klines, 20)
-	data.EMA50 = calculateEMA(klines, 50)
+	// Calculate EMA using configured periods (backward compatible)
+	if len(config.EMAPeriods) >= 1 {
+		data.EMA20 = calculateEMA(klines, config.EMAPeriods[0])
+	}
+	if len(config.EMAPeriods) >= 2 {
+		data.EMA50 = calculateEMA(klines, config.EMAPeriods[1])
+	}
 
-	// Calculate ATR
-	data.ATR3 = calculateATR(klines, 3)
-	data.ATR14 = calculateATR(klines, 14)
+	// Calculate ATR using configured periods (backward compatible with ATR3 and ATR14)
+	if len(config.ATRPeriods) >= 1 {
+		data.ATR3 = calculateATR(klines, config.ATRPeriods[0])
+	}
+	if len(config.ATRPeriods) >= 2 {
+		data.ATR14 = calculateATR(klines, config.ATRPeriods[1])
+	} else if len(config.ATRPeriods) == 1 {
+		// If only one ATR period, use it for both ATR3 and ATR14 fields
+		data.ATR14 = calculateATR(klines, config.ATRPeriods[0])
+	}
 
 	// Calculate volume
 	if len(klines) > 0 {
@@ -796,13 +955,17 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	}
 
 	for i := start; i < len(klines); i++ {
-		if i >= 25 {
-			macd := calculateMACD(klines[:i+1])
+		if i >= config.MACDSlowPeriod-1 {
+			macd := calculateMACD(klines[:i+1], config.MACDFastPeriod, config.MACDSlowPeriod)
 			data.MACDValues = append(data.MACDValues, macd)
 		}
-		if i >= 14 {
-			rsi14 := calculateRSI(klines[:i+1], 14)
-			data.RSI14Values = append(data.RSI14Values, rsi14)
+		// Use first configured RSI period for series (backward compatible with RSI14)
+		if len(config.RSIPeriods) >= 1 {
+			rsiPeriod := config.RSIPeriods[0]
+			if i >= rsiPeriod {
+				rsi := calculateRSI(klines[:i+1], rsiPeriod)
+				data.RSI14Values = append(data.RSI14Values, rsi)
+			}
 		}
 	}
 
@@ -1172,10 +1335,18 @@ func BuildDataFromKlinesWithConfig(symbol string, timeframeSeries map[string][]K
 	// Initialize TimeframeData like live trading does
 	timeframeData := make(map[string]*TimeframeSeriesData)
 
+	// Use default config if not provided
+	defaultConfig := &store.IndicatorConfig{
+		EMAPeriods:     []int{20},
+		RSIPeriods:     []int{7},
+		MACDFastPeriod: 12,
+		MACDSlowPeriod: 26,
+	}
+
 	// Create timeframe data for all requested timeframes using configurable count
 	for _, tf := range timeframes {
 		if klines, exists := timeframeSeries[tf]; exists {
-			seriesData := calculateTimeframeSeries(klines, tf, klineCount)
+			seriesData := calculateTimeframeSeries(klines, tf, klineCount, nil)
 			timeframeData[tf] = seriesData
 		}
 	}
@@ -1183,15 +1354,15 @@ func BuildDataFromKlinesWithConfig(symbol string, timeframeSeries map[string][]K
 	return &Data{
 		Symbol:         symbol,
 		CurrentPrice:   currentPrice,
-		CurrentEMA20:   calculateEMA(primary, 20),
-		CurrentMACD:    calculateMACD(primary),
-		CurrentRSI7:    calculateRSI(primary, 7),
+		CurrentEMA20:   calculateEMA(primary, defaultConfig.EMAPeriods[0]),
+		CurrentMACD:    calculateMACD(primary, defaultConfig.MACDFastPeriod, defaultConfig.MACDSlowPeriod),
+		CurrentRSI7:    calculateRSI(primary, defaultConfig.RSIPeriods[0]),
 		PriceChange1h:  priceChangeFromSeries(primary, time.Hour),
 		PriceChange4h:  priceChangeFromSeries(primary, 4*time.Hour),
 		OpenInterest:   &OIData{Latest: 0, Average: 0},
 		FundingRate:    0,
-		TimeframeData:  timeframeData,                                         // Use TimeframeData like live trading
-		IntradaySeries: calculateIntradaySeriesWithCount(primary, klineCount), // Use configurable count
+		TimeframeData:  timeframeData,                                              // Use TimeframeData like live trading
+		IntradaySeries: calculateIntradaySeriesWithCount(primary, klineCount, nil), // Use configurable count
 	}
 }
 

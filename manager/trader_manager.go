@@ -650,7 +650,7 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		BinanceAPIKey:         "",
 		BinanceSecretKey:      "",
 		HyperliquidPrivateKey: "",
-		HyperliquidTestnet:    exchangeCfg.Testnet,
+		HyperliquidTestnet:    traderCfg.PaperTrading || exchangeCfg.Testnet,
 		UseQwen:               aiModelCfg.Provider == "qwen",
 		DeepSeekKey:           "",
 		QwenKey:               "",
@@ -668,11 +668,11 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	case "binance":
 		traderConfig.BinanceAPIKey = exchangeCfg.APIKey
 		traderConfig.BinanceSecretKey = exchangeCfg.SecretKey
-		traderConfig.BinanceTestnet = exchangeCfg.Testnet
+		traderConfig.BinanceTestnet = traderCfg.PaperTrading || exchangeCfg.Testnet
 	case "bybit":
 		traderConfig.BybitAPIKey = exchangeCfg.APIKey
 		traderConfig.BybitSecretKey = exchangeCfg.SecretKey
-		traderConfig.BybitTestnet = exchangeCfg.Testnet
+		traderConfig.BybitTestnet = traderCfg.PaperTrading || exchangeCfg.Testnet
 	case "okx":
 		traderConfig.OKXAPIKey = exchangeCfg.APIKey
 		traderConfig.OKXSecretKey = exchangeCfg.SecretKey
@@ -693,7 +693,7 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
 		traderConfig.LighterAPIKeyPrivateKey = exchangeCfg.LighterAPIKeyPrivateKey
 		traderConfig.LighterAPIKeyIndex = exchangeCfg.LighterAPIKeyIndex
-		traderConfig.LighterTestnet = exchangeCfg.Testnet
+		traderConfig.LighterTestnet = traderCfg.PaperTrading || exchangeCfg.Testnet
 	}
 
 	// Set API keys based on AI model

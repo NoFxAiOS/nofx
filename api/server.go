@@ -396,6 +396,7 @@ type CreateTraderRequest struct {
 	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
 	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
 	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
+	PaperTrading        *bool   `json:"paper_trading"`       // Pointer type, nil means use default value false
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -527,6 +528,11 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		showInCompetition = *req.ShowInCompetition
 	}
 
+	paperTrading := false // Default to live trading
+	if req.PaperTrading != nil {
+		paperTrading = *req.PaperTrading
+	}
+
 	// Set leverage default values
 	btcEthLeverage := 10 // Default value
 	altcoinLeverage := 5 // Default value
@@ -577,7 +583,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		// Use ExchangeType (e.g., "binance") instead of ID (UUID)
 		switch exchangeCfg.ExchangeType {
 		case "binance":
-			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID, exchangeCfg.Testnet)
+			tempTrader = trader.NewFuturesTrader(exchangeCfg.APIKey, exchangeCfg.SecretKey, userID, paperTrading || exchangeCfg.Testnet)
 		case "hyperliquid":
 			tempTrader, createErr = trader.NewHyperliquidTrader(
 				exchangeCfg.APIKey, // private key
@@ -669,6 +675,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		SystemPromptTemplate: systemPromptTemplate,
 		IsCrossMargin:        isCrossMargin,
 		ShowInCompetition:    showInCompetition,
+		PaperTrading:         paperTrading,
 		ScanIntervalMinutes:  scanIntervalMinutes,
 		IsRunning:            false,
 	}

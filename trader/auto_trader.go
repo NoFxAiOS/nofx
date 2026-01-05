@@ -97,35 +97,49 @@ type AutoTraderConfig struct {
 
 // AutoTrader automatic trader
 type AutoTrader struct {
-	id                    string // Trader unique identifier
-	name                  string // Trader display name
-	aiModel               string // AI model name
-	exchange              string // Trading platform type (binance/bybit/etc)
-	exchangeID            string // Exchange account UUID
-	showInCompetition     bool   // Whether to show in competition page
-	config                AutoTraderConfig
-	trader                Trader // Use Trader interface (supports multiple platforms)
-	mcpClient             mcp.AIClient
-	store                 *store.Store             // Data storage (decision records, etc.)
-	strategyEngine        *decision.StrategyEngine // Strategy engine (uses strategy configuration)
-	cycleNumber           int                      // Current cycle number
-	initialBalance        float64
-	dailyPnL              float64
-	customPrompt          string // Custom trading strategy prompt
-	overrideBasePrompt    bool   // Whether to override base prompt
-	lastResetTime         time.Time
-	stopUntil             time.Time
-	isRunning             bool
-	isRunningMutex        sync.RWMutex       // Mutex to protect isRunning flag
-	startTime             time.Time          // System start time
-	callCount             int                // AI call count
-	positionFirstSeenTime map[string]int64   // Position first seen time (symbol_side -> timestamp in milliseconds)
-	stopMonitorCh         chan struct{}      // Used to stop monitoring goroutine
-	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
-	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
-	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
-	lastBalanceSyncTime   time.Time          // Last balance sync time
-	userID                string             // User ID
+	id                      string // Trader unique identifier
+	name                    string // Trader display name
+	aiModel                 string // AI model name
+	exchange                string // Trading platform type (binance/bybit/etc)
+	exchangeID              string // Exchange account UUID
+	showInCompetition       bool   // Whether to show in competition page
+	config                  AutoTraderConfig
+	trader                  Trader // Use Trader interface (supports multiple platforms)
+	mcpClient               mcp.AIClient
+	store                   *store.Store             // Data storage (decision records, etc.)
+	strategyEngine          *decision.StrategyEngine // Strategy engine (uses strategy configuration)
+	cycleNumber             int                      // Current cycle number
+	initialBalance          float64
+	dailyPnL                float64
+	customPrompt            string // Custom trading strategy prompt
+	overrideBasePrompt      bool   // Whether to override base prompt
+	lastResetTime           time.Time
+	stopUntil               time.Time
+	isRunning               bool
+	isRunningMutex          sync.RWMutex       // Mutex to protect isRunning flag
+	startTime               time.Time          // System start time
+	callCount               int                // AI call count
+	positionFirstSeenTime   map[string]int64   // Position first seen time (symbol_side -> timestamp in milliseconds)
+	stopMonitorCh           chan struct{}      // Used to stop monitoring goroutine
+	monitorWg               sync.WaitGroup     // Used to wait for monitoring goroutine to finish
+	peakPnLCache            map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
+	peakPnLCacheMutex       sync.RWMutex       // Cache read-write lock
+	lastBalanceSyncTime     time.Time          // Last balance sync time
+	userID                  string             // User ID
+	successfulClosesInCycle int                // Track successful close positions in current cycle (for expected net position calculation)
+
+	// Market monitoring for adaptive triggers (Phase 1.3)
+	lastPrices          map[string]float64                  // Last observed prices (symbol -> price)
+	lastPricesMutex     sync.RWMutex                        // Mutex for price map
+	volumeBaseline      map[string]float64                  // Average volume baseline (symbol -> volume)
+	volumeBaselineMutex sync.RWMutex                        // Mutex for volume baseline
+	lastMarketCheckTime time.Time                           // Last time we checked for market triggers
+	orderBookMonitors   map[string]*market.OrderBookMonitor // Order book monitors per symbol
+	orderBookMonitorsMu sync.RWMutex                        // Mutex for order book monitors
+
+	// Event-driven architecture (Phase 2)
+	eventBus              *EventBus              // Centralized event bus for trading signals
+	orderWebSocketManager *OrderWebSocketManager // WebSocket manager for real-time order updates (Phase 2.2)
 }
 
 // NewAutoTrader creates an automatic trader
@@ -316,7 +330,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	strategyEngine := decision.NewStrategyEngine(config.StrategyConfig)
 	logger.Infof("✓ [%s] Using strategy engine (strategy configuration loaded)", config.Name)
 
-	return &AutoTrader{
+	at := &AutoTrader{
 		id:                    config.ID,
 		name:                  config.Name,
 		aiModel:               config.AIModel,
@@ -341,7 +355,20 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		peakPnLCacheMutex:     sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
-	}, nil
+		lastPrices:            make(map[string]float64),
+		lastPricesMutex:       sync.RWMutex{},
+		volumeBaseline:        make(map[string]float64),
+		volumeBaselineMutex:   sync.RWMutex{},
+		lastMarketCheckTime:   time.Now(),
+		orderBookMonitors:     make(map[string]*market.OrderBookMonitor),
+		orderBookMonitorsMu:   sync.RWMutex{},
+		eventBus:              NewEventBus(),
+	}
+
+	// Initialize WebSocket manager with the same EventBus
+	at.orderWebSocketManager = NewOrderWebSocketManager(at.eventBus)
+
+	return at, nil
 }
 
 // Run runs the automatic trading main loop
@@ -424,6 +451,9 @@ func (at *AutoTrader) Run() error {
 			logger.Infof("🔄 [%s] Binance order+position sync enabled (every %v)", at.name, orderSyncInterval)
 		}
 	}
+
+	// Initialize WebSocket order streams (Phase 2.2) - Replace polling with real-time updates
+	at.initializeOrderWebSockets()
 
 	// Start with initial scan interval (will be adjusted dynamically)
 	currentInterval := at.calculateAdaptiveScanInterval()
@@ -528,6 +558,94 @@ func (at *AutoTrader) calculateAdaptiveScanInterval() time.Duration {
 	return baseInterval
 }
 
+// checkMarketTriggers checks for market conditions that should trigger immediate AI analysis
+// Returns true if analysis should be triggered (Phase 1.3 Optimization: Order Book Monitoring)
+func (at *AutoTrader) checkMarketTriggers() bool {
+	// Don't check too frequently (at least 5 seconds between checks)
+	if time.Since(at.lastMarketCheckTime) < 5*time.Second {
+		return false
+	}
+	at.lastMarketCheckTime = time.Now()
+
+	// Get trading context
+	ctx, err := at.buildTradingContext()
+	if err != nil {
+		return false
+	}
+
+	if ctx == nil {
+		return false
+	}
+
+	triggered := false
+	triggerReasons := []string{}
+
+	// Check market data for trigger conditions
+	for symbol, marketData := range ctx.MarketDataMap {
+		if marketData == nil {
+			continue
+		}
+
+		currentPrice := marketData.CurrentPrice
+		if currentPrice <= 0 {
+			continue
+		}
+
+		// Update last price
+		at.lastPricesMutex.Lock()
+		lastPrice, exists := at.lastPrices[symbol]
+		at.lastPrices[symbol] = currentPrice
+		at.lastPricesMutex.Unlock()
+
+		// Skip check if we haven't seen this price before
+		if !exists {
+			continue
+		}
+
+		// Trigger 1: Significant price movement (> 0.5% since last check)
+		priceMovePercent := math.Abs((currentPrice - lastPrice) / lastPrice)
+		if priceMovePercent > 0.005 { // 0.5%
+			triggered = true
+			triggerReasons = append(triggerReasons, fmt.Sprintf("Price spike on %s: %.2f%%", symbol, priceMovePercent*100))
+		}
+
+		// Trigger 2: Significant volume from latest kline (if available)
+		if marketData.IntradaySeries != nil && len(marketData.IntradaySeries.MidPrices) > 0 {
+			// Use intraday data as proxy for volume monitoring
+			// Actual volume would come from exchange WebSocket in production
+			at.volumeBaselineMutex.Lock()
+			baseline, hasBaseline := at.volumeBaseline[symbol]
+			if !hasBaseline || baseline == 0 {
+				// Initialize baseline
+				at.volumeBaseline[symbol] = 1.0 // Normalized baseline
+			}
+			at.volumeBaselineMutex.Unlock()
+		}
+
+		// Check order book monitors if available (Phase 1.3)
+		at.orderBookMonitorsMu.RLock()
+		monitor, hasMonitor := at.orderBookMonitors[symbol]
+		at.orderBookMonitorsMu.RUnlock()
+
+		if hasMonitor && monitor != nil {
+			anomalies := monitor.CheckTriggers()
+			if len(anomalies) > 0 {
+				triggered = true
+				for _, anomaly := range anomalies {
+					triggerReasons = append(triggerReasons, fmt.Sprintf("Order book anomaly on %s: %s", symbol, anomaly.TriggerType))
+				}
+			}
+		}
+	}
+
+	if triggered && len(triggerReasons) > 0 {
+		logger.Infof("🚨 Market trigger detected: %s", strings.Join(triggerReasons, " | "))
+		return true
+	}
+
+	return false
+}
+
 // Stop stops the automatic trading
 func (at *AutoTrader) Stop() {
 	at.isRunningMutex.Lock()
@@ -546,6 +664,7 @@ func (at *AutoTrader) Stop() {
 // runCycle runs one trading cycle (using AI full decision-making)
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
+	at.successfulClosesInCycle = 0 // Reset successful closes counter at start of each cycle
 
 	logger.Info("\n" + strings.Repeat("=", 70) + "\n")
 	logger.Infof("⏰ %s - AI decision cycle #%d", time.Now().Format("2006-01-02 15:04:05"), at.callCount)
@@ -582,6 +701,9 @@ func (at *AutoTrader) runCycle() error {
 		at.lastResetTime = time.Now()
 		logger.Info("📅 Daily P&L reset")
 	}
+
+	// 3. Check for order book triggers (Phase 1.3 - event-driven triggers)
+	at.checkOrderBookTriggers()
 
 	// 4. Collect trading context
 	ctx, err := at.buildTradingContext()
@@ -729,6 +851,11 @@ func (at *AutoTrader) runCycle() error {
 		} else {
 			actionRecord.Success = true
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("✓ %s %s succeeded", d.Symbol, d.Action))
+			// Track successful closes for expected net position calculation (Issue #3 fix)
+			if d.Action == "close_long" || d.Action == "close_short" {
+				at.successfulClosesInCycle++
+				logger.Infof("  📊 Successful closes in cycle: %d", at.successfulClosesInCycle)
+			}
 			// Brief delay after successful execution
 			time.Sleep(1 * time.Second)
 		}
@@ -1069,8 +1196,8 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *decision.Decision, act
 		return fmt.Errorf("failed to get positions: %w", err)
 	}
 
-	// [CODE ENFORCED] Check max positions limit
-	if err := at.enforceMaxPositions(len(positions)); err != nil {
+	// [CODE ENFORCED] Check max positions limit (with expected net position calculation for Issue #3)
+	if err := at.enforceMaxPositions(len(positions), at.successfulClosesInCycle); err != nil {
 		return err
 	}
 
@@ -1187,7 +1314,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *decision.Decision, ac
 	}
 
 	// [CODE ENFORCED] Check max positions limit
-	if err := at.enforceMaxPositions(len(positions)); err != nil {
+	if err := at.enforceMaxPositions(len(positions), at.successfulClosesInCycle); err != nil {
 		return err
 	}
 
@@ -1653,8 +1780,12 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
+	// Sync entry prices with local database for consistency
+	// This ensures weighted average entry prices are used when positions are accumulated
+	synced := at.syncEntryPricesWithDatabase(positions)
+
 	var result []map[string]interface{}
-	for _, pos := range positions {
+	for _, pos := range synced {
 		symbol := pos["symbol"].(string)
 		side := pos["side"].(string)
 		entryPrice := pos["entryPrice"].(float64)
@@ -1692,6 +1823,41 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 	}
 
 	return result, nil
+}
+
+// syncEntryPricesWithDatabase syncs entry prices with local database for consistency
+// This ensures entry prices reflect weighted average calculations from position accumulation
+// rather than relying solely on exchange entry prices which may differ
+func (at *AutoTrader) syncEntryPricesWithDatabase(positions []map[string]interface{}) []map[string]interface{} {
+	if at.store == nil || at.store.Position() == nil {
+		return positions
+	}
+
+	var result []map[string]interface{}
+	for _, pos := range positions {
+		symbol := pos["symbol"].(string)
+		side := pos["side"].(string)
+		exchangeEntryPrice := pos["entryPrice"].(float64)
+
+		// Try to find corresponding position in local database
+		localPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side)
+		if err == nil && localPos != nil && localPos.EntryPrice > 0 {
+			// Found local position record with valid entry price
+			// Use local entry price (weighted average) instead of exchange price
+			if localPos.EntryPrice != exchangeEntryPrice {
+				priceDiff := ((exchangeEntryPrice - localPos.EntryPrice) / localPos.EntryPrice) * 100
+				logger.Debugf(
+					"  📊 Entry price sync: %s %s - exchange: %.2f, local: %.2f (diff: %.2f%%)",
+					symbol, side, exchangeEntryPrice, localPos.EntryPrice, priceDiff,
+				)
+			}
+			pos["entryPrice"] = localPos.EntryPrice
+		}
+
+		result = append(result, pos)
+	}
+
+	return result
 }
 
 // calculatePnLPercentage calculates P&L percentage (based on margin, automatically considers leverage)
@@ -1742,14 +1908,32 @@ func sortDecisionsByPriority(decisions []decision.Decision) []decision.Decision 
 
 // startDrawdownMonitor starts drawdown monitoring
 func (at *AutoTrader) startDrawdownMonitor() {
+	// Get configuration from strategy
+	config := at.strategyEngine.GetConfig()
+	if config == nil || !config.RiskControl.DrawdownMonitoringEnabled {
+		logger.Info("📊 Drawdown monitoring is disabled in strategy configuration")
+		return
+	}
+
+	// Validate and get check interval (min: 15s, max: 300s, default: 60s)
+	checkInterval := config.RiskControl.DrawdownCheckInterval
+	if checkInterval < 15 {
+		checkInterval = 15
+		logger.Infof("⚠️ Drawdown check interval too small, using minimum: 15s")
+	} else if checkInterval > 300 {
+		checkInterval = 300
+		logger.Infof("⚠️ Drawdown check interval too large, using maximum: 300s")
+	}
+
 	at.monitorWg.Add(1)
 	go func() {
 		defer at.monitorWg.Done()
 
-		ticker := time.NewTicker(1 * time.Minute) // Check every minute
+		ticker := time.NewTicker(time.Duration(checkInterval) * time.Second)
 		defer ticker.Stop()
 
-		logger.Info("📊 Started position drawdown monitoring (check every minute)")
+		logger.Infof("📊 Started position drawdown monitoring (check every %ds, profit threshold: %.1f%%, drawdown trigger: %.1f%%)",
+			checkInterval, config.RiskControl.MinProfitThreshold, config.RiskControl.DrawdownCloseThreshold)
 
 		for {
 			select {
@@ -1765,12 +1949,23 @@ func (at *AutoTrader) startDrawdownMonitor() {
 
 // checkPositionDrawdown checks position drawdown situation
 func (at *AutoTrader) checkPositionDrawdown() {
+	// Get configuration from strategy
+	config := at.strategyEngine.GetConfig()
+	if config == nil {
+		logger.Infof("❌ Drawdown monitoring: failed to get strategy config")
+		return
+	}
+
 	// Get current positions
 	positions, err := at.trader.GetPositions()
 	if err != nil {
 		logger.Infof("❌ Drawdown monitoring: failed to get positions: %v", err)
 		return
 	}
+
+	// Get thresholds from configuration
+	minProfitThreshold := config.RiskControl.MinProfitThreshold
+	drawdownTrigger := config.RiskControl.DrawdownCloseThreshold
 
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
@@ -1818,8 +2013,8 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
-		// Check close position condition: profit > 5% and drawdown >= 40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
+		// Check close position condition: use configurable thresholds
+		if currentPnLPct > minProfitThreshold && drawdownPct >= drawdownTrigger {
 			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
 				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 
@@ -2248,7 +2443,10 @@ func (at *AutoTrader) enforceMinPositionSize(positionSizeUSD float64) error {
 }
 
 // enforceMaxPositions checks maximum positions count (CODE ENFORCED)
-func (at *AutoTrader) enforceMaxPositions(currentPositionCount int) error {
+// enforceMaxPositions checks if current position count has reached the max, accounting for pending closes in the current cycle
+// successfulClosesInCycle: number of successful close positions executed in this cycle (to account for API lag)
+// Issue #3 fix: Implements "expected net position" logic to handle API lag when positions haven't updated yet
+func (at *AutoTrader) enforceMaxPositions(currentPositionCount int, successfulClosesInCycle int) error {
 	if at.config.StrategyConfig == nil {
 		return nil
 	}
@@ -2258,9 +2456,24 @@ func (at *AutoTrader) enforceMaxPositions(currentPositionCount int) error {
 		maxPositions = 3 // Default: 3 positions
 	}
 
-	if currentPositionCount >= maxPositions {
-		return fmt.Errorf("❌ [RISK CONTROL] Already at max positions (%d/%d)", currentPositionCount, maxPositions)
+	// Calculate expected net position count
+	// Expected net position = current positions - successful closes in this cycle
+	// This accounts for API lag when GetPositions() hasn't been updated yet
+	expectedNetPositionCount := currentPositionCount - successfulClosesInCycle
+	if expectedNetPositionCount < 0 {
+		expectedNetPositionCount = 0 // Never negative
 	}
+
+	if expectedNetPositionCount >= maxPositions {
+		return fmt.Errorf("❌ [RISK CONTROL] Already at max positions (expected net: %d, current reported: %d, pending closes: %d, max: %d)",
+			expectedNetPositionCount, currentPositionCount, successfulClosesInCycle, maxPositions)
+	}
+
+	if currentPositionCount >= maxPositions && successfulClosesInCycle > 0 {
+		logger.Infof("  ✓ Expected net position (%d) < max (%d) due to %d pending closes, allowing new open position",
+			expectedNetPositionCount, maxPositions, successfulClosesInCycle)
+	}
+
 	return nil
 }
 
@@ -2349,4 +2562,36 @@ func (at *AutoTrader) SyncPositionPnLWithExchange(symbol string, positionSide st
 	logger.Infof("  📊 Position closed for %s/%s would be synced with exchange in background", symbol, positionSide)
 
 	return nil
+}
+
+// initializeOrderWebSockets initializes WebSocket order streams for real-time order updates (Phase 2.2)
+func (at *AutoTrader) initializeOrderWebSockets() {
+	// Register order handler for all exchanges
+	at.orderWebSocketManager.RegisterOrderHandler(func(order market.OrderUpdate) {
+		at.handleOrderUpdate(order)
+	})
+
+	// Start health check (every 10 seconds)
+	at.orderWebSocketManager.StartHealthCheck(10 * time.Second)
+
+	logger.Info("✓ WebSocket order stream health monitoring started")
+}
+
+// handleOrderUpdate processes order updates from WebSocket and publishes events
+func (at *AutoTrader) handleOrderUpdate(order market.OrderUpdate) {
+	logger.Debugf("📊 Order update received: %s %s (status: %s, qty: %.2f, filled: %.2f)",
+		order.Symbol, order.Side, order.Status, order.OriginalQuantity, order.ExecutedQuantity)
+
+	// Update internal state if needed
+	// This could trigger trading logic, update positions, etc.
+
+	// Event publishing is already handled by OrderWebSocketManager
+	// It publishes to the EventBus automatically
+
+	// Call any registered handlers here if needed
+}
+
+// GetOrderWebSocketManager returns the order WebSocket manager
+func (at *AutoTrader) GetOrderWebSocketManager() *OrderWebSocketManager {
+	return at.orderWebSocketManager
 }

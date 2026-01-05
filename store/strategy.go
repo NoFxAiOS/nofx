@@ -92,6 +92,9 @@ type IndicatorConfig struct {
 	RSIPeriods []int `json:"rsi_periods,omitempty"` // default [7, 14]
 	// ATR period configuration
 	ATRPeriods []int `json:"atr_periods,omitempty"` // default [14]
+	// MACD period configuration (fast, slow)
+	MACDFastPeriod int `json:"macd_fast_period,omitempty"` // default 12
+	MACDSlowPeriod int `json:"macd_slow_period,omitempty"` // default 26
 	// BOLL period configuration (period, standard deviation multiplier is fixed at 2)
 	BOLLPeriods []int `json:"boll_periods,omitempty"` // default [20] - can select multiple timeframes
 	// external data sources
@@ -177,6 +180,12 @@ type RiskControlConfig struct {
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
 	// Min AI confidence to open position (AI guided)
 	MinConfidence int `json:"min_confidence"`
+
+	// Drawdown monitoring configuration (CODE ENFORCED - trailing stop for profit protection)
+	DrawdownMonitoringEnabled bool    `json:"drawdown_monitoring_enabled"` // Enable/disable drawdown monitoring (default: true)
+	DrawdownCheckInterval     int     `json:"drawdown_check_interval"`     // Check interval in seconds (default: 60, min: 15, max: 300)
+	MinProfitThreshold        float64 `json:"min_profit_threshold"`        // Minimum profit % to start monitoring (default: 5.0)
+	DrawdownCloseThreshold    float64 `json:"drawdown_close_threshold"`    // Drawdown % from peak to trigger close (default: 40.0, e.g. peak 10% -> 6% triggers close)
 }
 
 func (s *StrategyStore) initTables() error {
@@ -251,6 +260,8 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			EMAPeriods:         []int{20, 50},
 			RSIPeriods:         []int{7, 14},
 			ATRPeriods:         []int{14},
+			MACDFastPeriod:     12, // default MACD fast period
+			MACDSlowPeriod:     26, // default MACD slow period
 			BOLLPeriods:        []int{20},
 			EnableQuantData:    true,
 			QuantDataAPIURL:    "http://nofxaios.com:30006/api/coin/{symbol}?include=netflow,oi,price&auth=cm_568c67eae410d912c54c",
@@ -272,6 +283,11 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
 			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
 			MinConfidence:                75,  // Min 75% confidence (AI guided)
+			// Drawdown monitoring defaults (CODE ENFORCED - automatic profit protection)
+			DrawdownMonitoringEnabled: true, // Enable drawdown monitoring by default
+			DrawdownCheckInterval:     60,   // Check every 60 seconds (1 minute)
+			MinProfitThreshold:        5.0,  // Start monitoring when profit > 5%
+			DrawdownCloseThreshold:    40.0, // Close when profit drops 40% from peak (e.g. 10% -> 6%)
 		},
 	}
 

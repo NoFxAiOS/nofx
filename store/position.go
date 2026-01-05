@@ -580,7 +580,7 @@ type RecentTrade struct {
 // GetRecentTrades gets recent closed trades
 func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTrade, error) {
 	rows, err := s.db.Query(`
-		SELECT symbol, side, entry_price, exit_price, realized_pnl, leverage, entry_time, exit_time
+		SELECT symbol, side, entry_price, exit_price, realized_pnl, quantity, margin_used, entry_time, exit_time
 		FROM trader_positions
 		WHERE trader_id = ? AND status = 'CLOSED'
 		ORDER BY exit_time DESC
@@ -594,10 +594,10 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 	var trades []RecentTrade
 	for rows.Next() {
 		var t RecentTrade
-		var leverage int
+		var quantity, marginUsed float64
 		var entryTime, exitTime sql.NullString
 
-		err := rows.Scan(&t.Symbol, &t.Side, &t.EntryPrice, &t.ExitPrice, &t.RealizedPnL, &leverage, &entryTime, &exitTime)
+		err := rows.Scan(&t.Symbol, &t.Side, &t.EntryPrice, &t.ExitPrice, &t.RealizedPnL, &quantity, &marginUsed, &entryTime, &exitTime)
 		if err != nil {
 			continue
 		}
@@ -609,12 +609,15 @@ func (s *PositionStore) GetRecentTrades(traderID string, limit int) ([]RecentTra
 			t.Side = "short"
 		}
 
-		// Calculate profit/loss percentage
-		if t.EntryPrice > 0 {
-			if t.Side == "long" {
-				t.PnLPct = (t.ExitPrice - t.EntryPrice) / t.EntryPrice * 100 * float64(leverage)
-			} else {
-				t.PnLPct = (t.EntryPrice - t.ExitPrice) / t.EntryPrice * 100 * float64(leverage)
+		// Calculate profit/loss percentage based on margin used (correct formula)
+		// PnL% = (realized_pnl / margin_used) * 100
+		if marginUsed > 0 {
+			t.PnLPct = (t.RealizedPnL / marginUsed) * 100
+		} else if t.EntryPrice > 0 && quantity > 0 {
+			// Fallback: calculate from entry price and quantity if margin_used not available
+			estimatedMarginCost := t.EntryPrice * quantity
+			if estimatedMarginCost > 0 {
+				t.PnLPct = (t.RealizedPnL / estimatedMarginCost) * 100
 			}
 		}
 

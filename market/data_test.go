@@ -550,7 +550,7 @@ func TestCalculateIntradaySeriesWithCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			klines := generateTestKlines(tt.klineCount)
-			data := calculateIntradaySeriesWithCount(klines, tt.requestedCount)
+			data := calculateIntradaySeriesWithCount(klines, tt.requestedCount, nil)
 
 			if data == nil {
 				t.Fatal("calculateIntradaySeriesWithCount returned nil")

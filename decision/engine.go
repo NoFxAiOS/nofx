@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"nofx/logger"
 	"nofx/market"
@@ -106,23 +107,24 @@ type RecentOrder struct {
 
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime     string                             `json:"current_time"`
-	RuntimeMinutes  int                                `json:"runtime_minutes"`
-	CallCount       int                                `json:"call_count"`
-	Account         AccountInfo                        `json:"account"`
-	Positions       []PositionInfo                     `json:"positions"`
-	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap   map[string]*market.Data            `json:"-"`
-	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
-	OITopDataMap    map[string]*OITopData              `json:"-"`
-	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData   *provider.OIRankingData            `json:"-"` // Market-wide OI ranking data
-	BTCETHLeverage  int                                `json:"-"`
-	AltcoinLeverage int                                `json:"-"`
-	Timeframes      []string                           `json:"-"`
+	CurrentTime           string                                  `json:"current_time"`
+	RuntimeMinutes        int                                     `json:"runtime_minutes"`
+	CallCount             int                                     `json:"call_count"`
+	Account               AccountInfo                             `json:"account"`
+	Positions             []PositionInfo                          `json:"positions"`
+	CandidateCoins        []CandidateCoin                         `json:"candidate_coins"`
+	PromptVariant         string                                  `json:"prompt_variant,omitempty"`
+	TradingStats          *TradingStats                           `json:"trading_stats,omitempty"`
+	RecentOrders          []RecentOrder                           `json:"recent_orders,omitempty"`
+	MarketDataMap         map[string]*market.Data                 `json:"-"`
+	MultiTFMarket         map[string]map[string]*market.Data      `json:"-"`
+	OITopDataMap          map[string]*OITopData                   `json:"-"`
+	QuantDataMap          map[string]*QuantData                   `json:"-"`
+	OIRankingData         *provider.OIRankingData                 `json:"-"` // Market-wide OI ranking data
+	MicrostructureDataMap map[string]*market.MarketMicrostructure `json:"-"` // Market microstructure data per symbol
+	BTCETHLeverage        int                                     `json:"-"`
+	AltcoinLeverage       int                                     `json:"-"`
+	Timeframes            []string                                `json:"-"`
 }
 
 // Decision AI trading decision
@@ -300,6 +302,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	config := engine.GetConfig()
 	ctx.MarketDataMap = make(map[string]*market.Data)
+	ctx.MicrostructureDataMap = make(map[string]*market.MarketMicrostructure)
 
 	timeframes := config.Indicators.Klines.SelectedTimeframes
 	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
@@ -333,6 +336,12 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 		ctx.MarketDataMap[pos.Symbol] = data
+
+		// Fetch microstructure data for positions
+		microstructure := engine.FetchMicrostructureData(pos.Symbol)
+		if microstructure != nil {
+			ctx.MicrostructureDataMap[pos.Symbol] = microstructure
+		}
 	}
 
 	// 2. Fetch data for all candidate coins
@@ -368,9 +377,16 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		}
 
 		ctx.MarketDataMap[coin.Symbol] = data
+
+		// Fetch microstructure data for candidate coins
+		microstructure := engine.FetchMicrostructureData(coin.Symbol)
+		if microstructure != nil {
+			ctx.MicrostructureDataMap[coin.Symbol] = microstructure
+		}
 	}
 
 	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins", len(ctx.MarketDataMap))
+	logger.Infof("📊 Fetched microstructure data for %d coins", len(ctx.MicrostructureDataMap))
 	return nil
 }
 
@@ -529,6 +545,43 @@ func (e *StrategyEngine) getOITopCoins(limit int) ([]CandidateCoin, error) {
 // FetchMarketData fetches market data based on strategy configuration
 func (e *StrategyEngine) FetchMarketData(symbol string) (*market.Data, error) {
 	return market.Get(symbol)
+}
+
+// FetchMicrostructureData fetches market microstructure data (order book analysis)
+func (e *StrategyEngine) FetchMicrostructureData(symbol string) *market.MarketMicrostructure {
+	analyzer := market.NewMarketMicrostructureAnalyzer()
+
+	// Fetch order book depth
+	depth, err := analyzer.FetchOrderBookDepth(symbol, 20)
+	if err != nil {
+		logger.Infof("⚠️  Failed to fetch order book depth for %s: %v", symbol, err)
+		return nil
+	}
+
+	// Get current price from market data
+	marketData, err := e.FetchMarketData(symbol)
+	if err != nil {
+		logger.Infof("⚠️  Failed to fetch market data for %s: %v", symbol, err)
+		return nil
+	}
+
+	// Get K-lines for VWAP calculation (get last 100 candles, 1h timeframe)
+	apiClient := &market.APIClient{}
+	klines, err := apiClient.GetKlines(symbol, "1h", 100)
+	if err != nil {
+		logger.Infof("⚠️  Failed to fetch K-lines for %s: %v", symbol, err)
+		// Continue anyway - VWAP is optional
+		klines = nil
+	}
+
+	// Analyze market microstructure
+	microstructure, err := analyzer.AnalyzeMarketMicrostructure(symbol, depth, marketData.CurrentPrice, klines)
+	if err != nil {
+		logger.Infof("⚠️  Failed to analyze microstructure for %s: %v", symbol, err)
+		return nil
+	}
+
+	return microstructure
 }
 
 // FetchExternalData fetches external data sources
@@ -1072,6 +1125,13 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
 		sb.WriteString(e.formatMarketData(marketData))
 
+		// Add microstructure data if available
+		if ctx.MicrostructureDataMap != nil {
+			if microData, hasMicro := ctx.MicrostructureDataMap[coin.Symbol]; hasMicro {
+				sb.WriteString(e.formatMicrostructureData(microData))
+			}
+		}
+
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[coin.Symbol]; hasQuant {
 				sb.WriteString(e.formatQuantData(quantData))
@@ -1120,6 +1180,13 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))
+
+		// Add microstructure data if available
+		if ctx.MicrostructureDataMap != nil {
+			if microData, hasMicro := ctx.MicrostructureDataMap[pos.Symbol]; hasMicro {
+				sb.WriteString(e.formatMicrostructureData(microData))
+			}
+		}
 
 		if ctx.QuantDataMap != nil {
 			if quantData, hasQuant := ctx.QuantDataMap[pos.Symbol]; hasQuant {
@@ -1258,6 +1325,79 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 			}
 		}
 	}
+
+	return sb.String()
+}
+
+// formatMicrostructureData formats market microstructure data for AI prompt
+func (e *StrategyEngine) formatMicrostructureData(micro *market.MarketMicrostructure) string {
+	if micro == nil {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString("Market Microstructure Analysis:\n")
+	sb.WriteString(fmt.Sprintf("- Bid-Ask Spread: %.4f%% | %.2f bps\n",
+		micro.BidAskSpread, micro.BidAskSpreadBps))
+
+	// Get imbalance direction from Details
+	imbalanceDir := "BALANCED"
+	if details, ok := micro.Details["imbalance_direction"]; ok {
+		if dir, ok := details.(string); ok {
+			imbalanceDir = dir
+		}
+	}
+	sb.WriteString(fmt.Sprintf("- Order Book Imbalance: %.3f (sentiment: %s)\n",
+		micro.OrderBookImbalance, imbalanceDir))
+
+	sb.WriteString(fmt.Sprintf("- VWAP: %.4f | Deviation: %+.2f%%\n",
+		micro.VWAP, micro.VWAPDeviation))
+
+	sb.WriteString(fmt.Sprintf("- Order Book Depth (bid/ask): %.2f / %.2f USDT\n",
+		micro.BidDepth, micro.AskDepth))
+
+	if micro.LargeOrderCount > 0 {
+		sb.WriteString(fmt.Sprintf("- Large Orders Detected: %d orders | Volume: %.2f USDT\n",
+			micro.LargeOrderCount, micro.LargeOrderVolume))
+	}
+
+	if len(micro.SupportLevels) > 0 {
+		sb.WriteString("- Support Levels (top 3): ")
+		for i, price := range micro.SupportLevels {
+			if i >= 3 {
+				break
+			}
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("%.4f", price))
+		}
+		sb.WriteString("\n")
+	}
+
+	if len(micro.ResistanceLevels) > 0 {
+		sb.WriteString("- Resistance Levels (top 3): ")
+		for i, price := range micro.ResistanceLevels {
+			if i >= 3 {
+				break
+			}
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("%.4f", price))
+		}
+		sb.WriteString("\n")
+	}
+
+	// Calculate liquidity score (0-100) based on spread and depth
+	spreadPenalty := math.Min(micro.BidAskSpread*10, 30.0)                 // Up to 30 points for wide spreads
+	depthScore := math.Min(100, (micro.BidDepth+micro.AskDepth)/10000*100) // Normalized by 10k
+	liquidityScore := 100 - spreadPenalty - (100 - depthScore)
+	if liquidityScore < 0 {
+		liquidityScore = 0
+	}
+	sb.WriteString(fmt.Sprintf("- Liquidity Score: %.0f/100\n\n", liquidityScore))
 
 	return sb.String()
 }

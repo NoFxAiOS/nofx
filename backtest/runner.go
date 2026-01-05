@@ -566,6 +566,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 	}
 
 	record := &store.DecisionRecord{
+		CycleNumber: callCount,
 		AccountState: store.AccountSnapshot{
 			TotalBalance:          accountInfo.TotalEquity,
 			AvailableBalance:      accountInfo.AvailableBalance,

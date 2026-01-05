@@ -10,6 +10,7 @@ const EXCHANGES = [
   { id: 'OKX', name: 'OKX', prefix: 'OKX:', suffix: '.P' },
   { id: 'BITGET', name: 'Bitget', prefix: 'BITGET:', suffix: '.P' },
   { id: 'MEXC', name: 'MEXC', prefix: 'MEXC:', suffix: '.P' },
+  { id: 'HTX', name: 'HTX', prefix: 'HTX:', suffix: '.P' },
   { id: 'GATEIO', name: 'Gate.io', prefix: 'GATEIO:', suffix: '.P' },
 ] as const
 

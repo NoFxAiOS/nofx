@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"nofx/kernel"
 	"nofx/experience"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // AutoTraderConfig auto trading configuration (simplified version - AI makes all decisions)
@@ -23,7 +25,7 @@ type AutoTraderConfig struct {
 	AIModel string // AI model: "qwen" or "deepseek"
 
 	// Trading platform selection
-	Exchange   string // Exchange type: "binance", "bybit", "okx", "bitget", "hyperliquid", "aster" or "lighter"
+	Exchange   string // Exchange type: "binance", "bybit", "okx", "bitget", "htx", "gate", "hyperliquid", "aster" or "lighter"
 	ExchangeID string // Exchange account UUID (for multi-account support)
 
 	// Binance API configuration
@@ -35,14 +37,22 @@ type AutoTraderConfig struct {
 	BybitSecretKey string
 
 	// OKX API configuration
-	OKXAPIKey    string
-	OKXSecretKey string
+	OKXAPIKey     string
+	OKXSecretKey  string
 	OKXPassphrase string
 
 	// Bitget API configuration
-	BitgetAPIKey    string
-	BitgetSecretKey string
+	BitgetAPIKey     string
+	BitgetSecretKey  string
 	BitgetPassphrase string
+
+	// HTX (Huobi) API configuration
+	HTXAPIKey    string
+	HTXSecretKey string
+
+	// Gate.io API configuration
+	GateAPIKey    string
+	GateSecretKey string
 
 	// Hyperliquid configuration
 	HyperliquidPrivateKey string
@@ -103,9 +113,9 @@ type AutoTrader struct {
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
-	store                 *store.Store             // Data storage (decision records, etc.)
+	store                 *store.Store           // Data storage (decision records, etc.)
 	strategyEngine        *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
-	cycleNumber           int                      // Current cycle number
+	cycleNumber           int                    // Current cycle number
 	initialBalance        float64
 	dailyPnL              float64
 	customPrompt          string // Custom trading strategy prompt
@@ -233,6 +243,12 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	case "bitget":
 		logger.Infof("🏦 [%s] Using Bitget Futures trading", config.Name)
 		trader = NewBitgetTrader(config.BitgetAPIKey, config.BitgetSecretKey, config.BitgetPassphrase)
+	case "htx":
+		logger.Infof("🏦 [%s] Using HTX (Huobi) Futures trading", config.Name)
+		trader = NewHTXTrader(config.HTXAPIKey, config.HTXSecretKey)
+	case "gate":
+		logger.Infof("🏦 [%s] Using Gate.io Futures trading", config.Name)
+		trader = NewGateTrader(config.GateAPIKey, config.GateSecretKey)
 	case "hyperliquid":
 		logger.Infof("🏦 [%s] Using Hyperliquid trading", config.Name)
 		trader, err = NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
@@ -708,11 +724,27 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	currentPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		// Safe type assertions with default values
+		symbol, _ := pos["symbol"].(string)
+		side, _ := pos["side"].(string)
+
+		entryPrice, ok := pos["entryPrice"].(float64)
+		if !ok {
+			logger.Warnf("Position missing entryPrice, skipping: %v", pos)
+			continue
+		}
+
+		markPrice, ok := pos["markPrice"].(float64)
+		if !ok {
+			logger.Warnf("Position missing markPrice, skipping: %v", pos)
+			continue
+		}
+
+		quantity, ok := pos["positionAmt"].(float64)
+		if !ok {
+			logger.Warnf("Position missing positionAmt, skipping: %v", pos)
+			continue
+		}
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}
@@ -722,8 +754,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			continue
 		}
 
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl, _ := pos["unRealizedProfit"].(float64)
+		liquidationPrice, _ := pos["liquidationPrice"].(float64)
 
 		// Calculate margin used (estimated)
 		leverage := 10 // Default value, should actually be fetched from position info
@@ -1078,10 +1110,20 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
 
-	// Set margin mode
+	// [CRITICAL] Check if quantity is sufficient for contract exchanges (Gate.io, HTX)
+	// These exchanges require integer contract counts (minimum 1)
+	quantityDec := decimal.NewFromFloat(quantity)
+	contractSize := quantityDec.Round(0).IntPart()
+	if contractSize < 1 {
+		return fmt.Errorf("❌ [ORDER SIZE] Quantity %.8f rounds to %d contracts (minimum 1). Position size %.2f USD is too small for price %.2f. Increase min position size to at least %.2f USD",
+			quantity, contractSize, actualPositionSize, marketData.CurrentPrice, marketData.CurrentPrice*1.5)
+	}
+	logger.Infof("  📊 Order calculation: %.2f USD / %.2f price = %.8f quantity → %d contracts",
+		actualPositionSize, marketData.CurrentPrice, quantity, contractSize)
+
+	// Try to set margin mode (may fail on some exchanges like Gate.io, will use default)
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
-		logger.Infof("  ⚠️ Failed to set margin mode: %v", err)
-		// Continue execution, doesn't affect trading
+		logger.Infof("  SetMarginMode failed (will use account default): %v", err)
 	}
 
 	// Open position
@@ -1195,10 +1237,20 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	actionRecord.Quantity = quantity
 	actionRecord.Price = marketData.CurrentPrice
 
-	// Set margin mode
+	// [CRITICAL] Check if quantity is sufficient for contract exchanges (Gate.io, HTX)
+	// These exchanges require integer contract counts (minimum 1)
+	quantityDec := decimal.NewFromFloat(quantity)
+	contractSize := quantityDec.Round(0).IntPart()
+	if contractSize < 1 {
+		return fmt.Errorf("❌ [ORDER SIZE] Quantity %.8f rounds to %d contracts (minimum 1). Position size %.2f USD is too small for price %.2f. Increase min position size to at least %.2f USD",
+			quantity, contractSize, actualPositionSize, marketData.CurrentPrice, marketData.CurrentPrice*1.5)
+	}
+	logger.Infof("  📊 Order calculation: %.2f USD / %.2f price = %.8f quantity → %d contracts",
+		actualPositionSize, marketData.CurrentPrice, quantity, contractSize)
+
+	// Try to set margin mode (may fail on some exchanges like Gate.io, will use default)
 	if err := at.trader.SetMarginMode(decision.Symbol, at.config.IsCrossMargin); err != nil {
-		logger.Infof("  ⚠️ Failed to set margin mode: %v", err)
-		// Continue execution, doesn't affect trading
+		logger.Infof("  SetMarginMode failed (will use account default): %v", err)
 	}
 
 	// Open position
@@ -2076,22 +2128,22 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 	normalizedSymbol := market.Normalize(symbol)
 
 	fill := &store.TraderFill{
-		TraderID:         at.id,
-		ExchangeID:       at.exchangeID,
-		ExchangeType:     at.exchange,
-		OrderID:          orderRecordID,
-		ExchangeOrderID:  exchangeOrderID,
-		ExchangeTradeID:  tradeID,
-		Symbol:           normalizedSymbol,
-		Side:             side,
-		Price:            price,
-		Quantity:         quantity,
-		QuoteQuantity:    price * quantity,
-		Commission:       fee,
-		CommissionAsset:  "USDT",
-		RealizedPnL:      0, // Will be calculated for close orders
-		IsMaker:          false, // Market orders are usually taker
-		CreatedAt:        time.Now().UTC(),
+		TraderID:        at.id,
+		ExchangeID:      at.exchangeID,
+		ExchangeType:    at.exchange,
+		OrderID:         orderRecordID,
+		ExchangeOrderID: exchangeOrderID,
+		ExchangeTradeID: tradeID,
+		Symbol:          normalizedSymbol,
+		Side:            side,
+		Price:           price,
+		Quantity:        quantity,
+		QuoteQuantity:   price * quantity,
+		Commission:      fee,
+		CommissionAsset: "USDT",
+		RealizedPnL:     0,     // Will be calculated for close orders
+		IsMaker:         false, // Market orders are usually taker
+		CreatedAt:       time.Now().UTC(),
 	}
 
 	// Calculate realized PnL for close orders
@@ -2214,4 +2266,3 @@ func getSideFromAction(action string) string {
 		return "BUY"
 	}
 }
-

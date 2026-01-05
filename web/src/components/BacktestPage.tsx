@@ -896,6 +896,25 @@ export function BacktestPage() {
     }
   }, [aiModels, formState.aiModelId])
 
+  // Auto-update symbols when strategy is selected
+  useEffect(() => {
+    if (formState.strategyId && selectedStrategy) {
+      const coinSource = selectedStrategy.config?.coin_source
+      if (coinSource) {
+        // If strategy uses static coins, populate them
+        if (coinSource.source_type === 'static' && coinSource.static_coins?.length) {
+          const symbols = coinSource.static_coins.join(',')
+          setFormState((s) => ({ ...s, symbols }))
+        }
+        // If strategy uses dynamic sources (AI500/OI Top), clear symbols
+        else if (coinSource.source_type === 'ai500' || coinSource.source_type === 'oi_top' || 
+                 coinSource.source_type === 'mixed' || coinSource.use_ai500 || coinSource.use_oi_top) {
+          setFormState((s) => ({ ...s, symbols: '' }))
+        }
+      }
+    }
+  }, [formState.strategyId, selectedStrategy])
+
   // Auto-select first run
   useEffect(() => {
     if (!selectedRunId && runs.length > 0) {

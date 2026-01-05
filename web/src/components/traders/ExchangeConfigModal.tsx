@@ -22,6 +22,8 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'bybit', name: 'Bybit Futures', type: 'cex' as const },
   { exchange_type: 'okx', name: 'OKX Futures', type: 'cex' as const },
   { exchange_type: 'bitget', name: 'Bitget Futures', type: 'cex' as const },
+  { exchange_type: 'htx', name: 'HTX (Huobi) Futures', type: 'cex' as const },
+  { exchange_type: 'gate', name: 'Gate.io Futures', type: 'cex' as const },
   { exchange_type: 'hyperliquid', name: 'Hyperliquid', type: 'dex' as const },
   { exchange_type: 'aster', name: 'Aster DEX', type: 'dex' as const },
   { exchange_type: 'lighter', name: 'Lighter', type: 'dex' as const },
@@ -126,6 +128,8 @@ export function ExchangeConfigModal({
     okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
     bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
     bitget: { url: 'https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172', hasReferral: true },
+    htx: { url: 'https://www.htx.com/invite/en-us/1f?invite_code=6xyq8223', hasReferral: true },
+    gate: { url: 'https://www.gate.io/signup/AgBFAApb?ref_type=103', hasReferral: true },
     hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
     aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
     lighter: { url: 'https://app.lighter.xyz/?referral=68151432', hasReferral: true },
@@ -540,11 +544,13 @@ export function ExchangeConfigModal({
 
             {selectedTemplate && (
               <>
-                {/* Binance/Bybit/OKX/Bitget 的输入字段 */}
+                {/* Binance/Bybit/OKX/Bitget/HTX/Gate 的输入字段 */}
                 {(currentExchangeType === 'binance' ||
                   currentExchangeType === 'bybit' ||
                   currentExchangeType === 'okx' ||
-                  currentExchangeType === 'bitget') && (
+                  currentExchangeType === 'bitget' ||
+                  currentExchangeType === 'htx' ||
+                  currentExchangeType === 'gate') && (
                     <>
                       {/* 币安用户配置提示 (D1 方案) */}
                       {currentExchangeType === 'binance' && (
@@ -642,6 +648,94 @@ export function ExchangeConfigModal({
                               </a>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {/* HTX 用户配置提示 */}
+                      {currentExchangeType === 'htx' && (
+                        <div
+                          className="mb-4 p-3 rounded"
+                          style={{
+                            background: '#1a3a52',
+                            border: '1px solid #2b5278',
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span style={{ color: '#58a6ff' }}>ℹ️</span>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: '#EAECEF' }}
+                            >
+                              <strong>HTX API 配置说明</strong>
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.875rem', color: '#c9d1d9' }}>
+                            <p className="mb-2">
+                              <strong>权限要求：</strong>合约交易、账户读取
+                            </p>
+                            <ol
+                              className="list-decimal list-inside space-y-1 mb-3"
+                              style={{ paddingLeft: '0.5rem' }}
+                            >
+                              <li>登录 HTX → 账户与安全 → API 管理</li>
+                              <li>创建 API Key，勾选「合约交易」权限</li>
+                              <li>IP 限制：建议选择「无限制」或添加服务器 IP</li>
+                              <li>保存好 Access Key 和 Secret Key（仅显示一次）</li>
+                            </ol>
+                            <a
+                              href="https://www.htx.com/support/zh-cn/detail/900000249263"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-sm hover:underline"
+                              style={{ color: '#58a6ff' }}
+                            >
+                              📖 查看 HTX 官方教程 ↗
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Gate.io 用户配置提示 */}
+                      {currentExchangeType === 'gate' && (
+                        <div
+                          className="mb-4 p-3 rounded"
+                          style={{
+                            background: '#1a3a52',
+                            border: '1px solid #2b5278',
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span style={{ color: '#58a6ff' }}>ℹ️</span>
+                            <span
+                              className="text-sm font-medium"
+                              style={{ color: '#EAECEF' }}
+                            >
+                              <strong>Gate.io API 配置说明</strong>
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.875rem', color: '#c9d1d9' }}>
+                            <p className="mb-2">
+                              <strong>权限要求：</strong>合约交易（Futures）、账户读取
+                            </p>
+                            <ol
+                              className="list-decimal list-inside space-y-1 mb-3"
+                              style={{ paddingLeft: '0.5rem' }}
+                            >
+                              <li>登录 Gate.io → API 管理 → 创建 API Key</li>
+                              <li>选择「API」类型，勾选「合约」权限</li>
+                              <li>IP 限制：建议选择「不限制」或绑定服务器 IP</li>
+                              <li>备注：Gate.io 使用 v4 版本 API</li>
+                            </ol>
+                            <a
+                              href="https://www.gate.io/help/guide/apiv4/en_US/index.html"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-sm hover:underline"
+                              style={{ color: '#58a6ff' }}
+                            >
+                              📖 查看 Gate.io API 文档 ↗
+                            </a>
+                          </div>
                         </div>
                       )}
 

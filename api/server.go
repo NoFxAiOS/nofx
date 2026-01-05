@@ -611,6 +611,16 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 				string(exchangeCfg.SecretKey),
 				string(exchangeCfg.Passphrase),
 			)
+		case "htx":
+			tempTrader = trader.NewHTXTrader(
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+			)
+		case "gate":
+			tempTrader = trader.NewGateTrader(
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+			)
 		case "lighter":
 			if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 				// Lighter only supports mainnet
@@ -1389,7 +1399,7 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 func (s *Server) recordClosePositionOrder(traderID, exchangeID, exchangeType, symbol, side string, quantity, exitPrice float64, result map[string]interface{}) {
 	// Skip for exchanges with OrderSync - let the background sync handle it to avoid duplicates
 	switch exchangeType {
-	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster":
+	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "htx", "gate":
 		logger.Infof("  📝 Close order will be synced by OrderSync, skipping immediate record")
 		return
 	}
@@ -1846,7 +1856,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 // CreateExchangeRequest request structure for creating a new exchange account
 type CreateExchangeRequest struct {
-	ExchangeType            string `json:"exchange_type" binding:"required"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+	ExchangeType            string `json:"exchange_type" binding:"required"` // "binance", "bybit", "okx", "bitget", "htx", "gate", "hyperliquid", "aster", "lighter"
 	AccountName             string `json:"account_name"`                     // User-defined account name
 	Enabled                 bool   `json:"enabled"`
 	APIKey                  string `json:"api_key"`
@@ -1917,6 +1927,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 	// Validate exchange type
 	validTypes := map[string]bool{
 		"binance": true, "bybit": true, "okx": true, "bitget": true,
+		"htx": true, "gate": true,
 		"hyperliquid": true, "aster": true, "lighter": true,
 	}
 	if !validTypes[req.ExchangeType] {
@@ -3253,6 +3264,9 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		{ExchangeType: "binance", Name: "Binance Futures", Type: "cex"},
 		{ExchangeType: "bybit", Name: "Bybit Futures", Type: "cex"},
 		{ExchangeType: "okx", Name: "OKX Futures", Type: "cex"},
+		{ExchangeType: "bitget", Name: "Bitget Futures", Type: "cex"},
+		{ExchangeType: "htx", Name: "HTX (Huobi) Futures", Type: "cex"},
+		{ExchangeType: "gate", Name: "Gate.io Futures", Type: "cex"},
 		{ExchangeType: "hyperliquid", Name: "Hyperliquid", Type: "dex"},
 		{ExchangeType: "aster", Name: "Aster DEX", Type: "dex"},
 		{ExchangeType: "lighter", Name: "LIGHTER DEX", Type: "dex"},

@@ -63,9 +63,15 @@ export function ChartWithOrders({
       return 0
     }
 
-    // 如果已经是数字（Unix 时间戳），直接返回
+    // 如果已经是数字（Unix 时间戳）
     if (typeof time === 'number') {
-      console.log('[ChartWithOrders] ✅ Unix timestamp:', time, '(', new Date(time * 1000).toISOString(), ')')
+      // 判断是毫秒还是秒：如果大于 10^12 则认为是毫秒（2001年之后的毫秒时间戳）
+      if (time > 1000000000000) {
+        const seconds = Math.floor(time / 1000)
+        console.log('[ChartWithOrders] ✅ Unix timestamp (ms→s):', time, '→', seconds, '(', new Date(time).toISOString(), ')')
+        return seconds
+      }
+      console.log('[ChartWithOrders] ✅ Unix timestamp (s):', time, '(', new Date(time * 1000).toISOString(), ')')
       return time
     }
 

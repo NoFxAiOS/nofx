@@ -179,9 +179,15 @@ export function AdvancedChart({
       return 0
     }
 
-    // 如果已经是数字（Unix 时间戳），直接返回
+    // 如果已经是数字（Unix 时间戳）
     if (typeof time === 'number') {
-      console.log('[AdvancedChart] ✅ Unix timestamp:', time, '(', new Date(time * 1000).toISOString(), ')')
+      // 判断是毫秒还是秒：如果大于 10^12 则认为是毫秒（2001年之后的毫秒时间戳）
+      if (time > 1000000000000) {
+        const seconds = Math.floor(time / 1000)
+        console.log('[AdvancedChart] ✅ Unix timestamp (ms→s):', time, '→', seconds, '(', new Date(time).toISOString(), ')')
+        return seconds
+      }
+      console.log('[AdvancedChart] ✅ Unix timestamp (s):', time, '(', new Date(time * 1000).toISOString(), ')')
       return time
     }
 
@@ -221,8 +227,8 @@ export function AdvancedChart({
   const fetchOrders = async (traderID: string, symbol: string): Promise<OrderMarker[]> => {
     try {
       console.log('[AdvancedChart] Fetching orders for trader:', traderID, 'symbol:', symbol)
-      // 获取已成交的订单，限制50条避免标记太多重叠
-      const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=50`)
+      // 获取已成交的订单，增加到200条以显示更多历史订单
+      const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=200`)
 
       console.log('[AdvancedChart] Orders API response:', result)
 
@@ -580,15 +586,8 @@ export function AdvancedChart({
               return klineTimes[left]
             }
 
-            // 过滤并对齐订单到 K 线时间
-            const markers: Array<{
-              time: Time
-              position: 'belowBar'
-              color: string
-              shape: 'circle'
-              text: string
-              size: number
-            }> = []
+            // 按 K 线时间分组统计订单
+            const ordersByCandle = new Map<number, { buys: number; sells: number }>()
 
             orders.forEach(order => {
               // 使用二分查找找到对应的 K 线蜡烛时间
@@ -600,15 +599,48 @@ export function AdvancedChart({
                 return
               }
 
-              const isBuy = order.rawSide === 'buy'
-              markers.push({
-                time: candleTime as Time,
-                position: 'belowBar' as const,
-                color: isBuy ? '#0ECB81' : '#F6465D',
-                shape: 'circle' as const,
-                text: isBuy ? 'B' : 'S',
-                size: 1,
-              })
+              const existing = ordersByCandle.get(candleTime) || { buys: 0, sells: 0 }
+              if (order.rawSide === 'buy') {
+                existing.buys++
+              } else {
+                existing.sells++
+              }
+              ordersByCandle.set(candleTime, existing)
+            })
+
+            // 为每个有订单的 K 线创建标记
+            const markers: Array<{
+              time: Time
+              position: 'belowBar' | 'aboveBar'
+              color: string
+              shape: 'circle'
+              text: string
+              size: number
+            }> = []
+
+            ordersByCandle.forEach((counts, candleTime) => {
+              // 显示买入标记（绿色，在K线下方）
+              if (counts.buys > 0) {
+                markers.push({
+                  time: candleTime as Time,
+                  position: 'belowBar' as const,
+                  color: '#0ECB81',
+                  shape: 'circle' as const,
+                  text: counts.buys > 1 ? `B${counts.buys}` : 'B',
+                  size: 1,
+                })
+              }
+              // 显示卖出标记（红色，在K线上方）
+              if (counts.sells > 0) {
+                markers.push({
+                  time: candleTime as Time,
+                  position: 'aboveBar' as const,
+                  color: '#F6465D',
+                  shape: 'circle' as const,
+                  text: counts.sells > 1 ? `S${counts.sells}` : 'S',
+                  size: 1,
+                })
+              }
             })
 
             // 按时间排序（lightweight-charts 要求标记按时间顺序）

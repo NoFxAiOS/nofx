@@ -25,10 +25,7 @@ COPY --from=frontend /usr/share/nginx/html /usr/share/nginx/html
 WORKDIR /app
 RUN mkdir -p /app/data
 
-# nginx 配置模板（使用 $PORT 变量）
-COPY railway/nginx.conf.template /etc/nginx/nginx.conf.template
-
-# 启动脚本
+# 启动脚本（包含 nginx 配置生成）
 COPY railway/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

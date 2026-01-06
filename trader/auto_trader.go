@@ -837,7 +837,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
 		// Get position open time from exchange (preferred) or fallback to local tracking
-		posKey := symbol + "_" + side
+		posKey := fmt.Sprintf("%s_%s", symbol, side)
 		currentPositionKeys[posKey] = true
 
 		var updateTime int64

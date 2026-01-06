@@ -331,7 +331,7 @@ func (s *OrderStore) GetMaxTradeIDsByExchange(exchangeID string) (map[string]int
 	var results []symbolMaxID
 
 	err := s.db.Model(&TraderFill{}).
-		Select("symbol, MAX(CAST(exchange_trade_id AS INTEGER)) as max_trade_id").
+		Select("symbol, MAX(CAST(exchange_trade_id AS BIGINT)) as max_trade_id").
 		Where("exchange_id = ? AND exchange_trade_id != ''", exchangeID).
 		Group("symbol").
 		Find(&results).Error

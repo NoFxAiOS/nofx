@@ -883,6 +883,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		if sl, ok := pos["stopLossPrice"].(float64); ok {
 			stopLossPrice = sl
 		}
+		logger.Infof("Debug: Exchange TP=%.4f, SL=%.4f for %s", takeProfitPrice, stopLossPrice, posKey)
 		
 		// 从本地缓存获取，覆盖交易所数据（确保使用系统设置的止盈止损）
 		at.stopLossTakeProfitMutex.RLock()
@@ -891,10 +892,10 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			stopLossPrice = cacheEntry.StopLossPrice
 			logger.Infof("Debug: Cache hit for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
 		} else {
-			logger.Infof("Debug: Cache miss for %s", posKey)
+			logger.Infof("Debug: Cache miss for %s, using exchange values", posKey)
 		}
 		at.stopLossTakeProfitMutex.RUnlock()
-		logger.Infof("Debug: Final TP=%.4f, SL=%.4f", takeProfitPrice, stopLossPrice)
+		logger.Infof("Debug: Final TP=%.4f, SL=%.4f for %s", takeProfitPrice, stopLossPrice, posKey)
 
 		positionInfos = append(positionInfos, kernel.PositionInfo{
 			Symbol:           symbol,

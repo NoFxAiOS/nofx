@@ -195,6 +195,9 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["unRealizedProfit"], _ = strconv.ParseFloat(pos.UnRealizedProfit, 64)
 		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
+		// Add take profit and stop loss information (from Algo Order API)
+		posMap["takeProfitPrice"] = 0.0
+		posMap["stopLossPrice"] = 0.0
 		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
 
 		// Determine direction

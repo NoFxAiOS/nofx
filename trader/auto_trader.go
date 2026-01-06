@@ -2191,6 +2191,28 @@ func (at *AutoTrader) checkPositionProfitLocking() {
 				}
 			}
 		}
+
+		// Cleanup: Remove states for positions that no longer exist
+		at.profitLockStateMutex.Lock()
+		defer at.profitLockStateMutex.Unlock()
+		
+		// Create a set of current position keys
+		currentPositionKeys := make(map[string]bool)
+		for _, pos := range positions {
+			if symbol, ok := pos["symbol"].(string); ok {
+				if side, ok := pos["side"].(string); ok {
+					currentPositionKeys[symbol+"_"+side] = true
+				}
+			}
+		}
+		
+		// Remove entries from profitLockState that are not in current positions
+		for key := range at.profitLockState {
+			if !currentPositionKeys[key] {
+				delete(at.profitLockState, key)
+				logger.Debugf("Profit locking: cleaned up stale state for %s", key)
+			}
+		}
 	}
 }
 

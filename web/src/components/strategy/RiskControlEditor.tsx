@@ -39,6 +39,20 @@ export function RiskControlEditor({
       maxMarginUsageDesc: { zh: '保证金使用率上限，由代码强制执行', en: 'Maximum margin utilization, enforced by code' },
       enableDrawdownProtection: { zh: '启用回撤保护', en: 'Enable Drawdown Protection' },
       enableDrawdownProtectionDesc: { zh: '当利润回撤超过40%时自动平仓', en: 'Auto close position when profit drawdown exceeds 40%' },
+      profitLocking: { zh: '盈利锁定', en: 'Profit Locking' },
+      enableProfitLocking: { zh: '启用盈利锁定', en: 'Enable Profit Locking' },
+      enableProfitLockingDesc: { zh: '当达到目标R倍数时自动移动止损位锁定利润', en: 'Auto move stop loss to lock profit when reaching target R multiple' },
+      profitLockTargets: { zh: '锁定目标R倍数', en: 'Lock Target R Multiples' },
+      profitLockTargetsDesc: { zh: '输入R倍数列表（逗号分隔），例如：1,2,3', en: 'Enter R multiples (comma-separated), e.g., 1,2,3' },
+      profitLockMode: { zh: '锁定模式', en: 'Lock Mode' },
+      profitLockModeBreakeven: { zh: '盈亏平衡', en: 'Breakeven' },
+      profitLockModeBreakevenDesc: { zh: '将止损移动至盈亏平衡点', en: 'Move stop loss to breakeven price' },
+      profitLockModeTrailing: { zh: '移动止损', en: 'Trailing' },
+      profitLockModeTrailingDesc: { zh: '按R倍数逐步移动止损', en: 'Trailing stop based on R multiple' },
+      profitLockPercentage: { zh: '锁定仓位比例', en: 'Lock Position Percentage' },
+      profitLockPercentageDesc: { zh: '每次锁定时平仓的比例（0.3=30%）', en: 'Percentage to close when locking (0.3=30%)' },
+      feeRate: { zh: '手续费率', en: 'Fee Rate' },
+      feeRateDesc: { zh: '用于计算盈亏平衡点的费率（默认0.05%）', en: 'Fee rate for breakeven calculation (default 0.05%)' },
       entryRequirements: { zh: '开仓要求', en: 'Entry Requirements' },
       minPositionSize: { zh: '最小开仓金额', en: 'Min Position Size' },
       minPositionSizeDesc: { zh: 'USDT 最小名义价值', en: 'Minimum notional value in USDT' },
@@ -338,6 +352,131 @@ export function RiskControlEditor({
                 className="h-5 w-5 accent-yellow-500"
               />
             </div>
+          </div>
+
+          {/* Profit Locking */}
+          <div
+            className="p-4 rounded-lg col-span-2"
+            style={{ background: '#0B0E11', border: '1px solid #F0B90B' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                  {t('enableProfitLocking')}
+                </label>
+                <p className="text-xs" style={{ color: '#848E9C' }}>
+                  {t('enableProfitLockingDesc')}
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={config.enable_profit_locking ?? true}
+                onChange={(e) =>
+                  updateField('enable_profit_locking', e.target.checked)
+                }
+                disabled={disabled}
+                className="h-5 w-5 accent-yellow-500"
+              />
+            </div>
+
+            {/* Show profit locking settings when enabled */}
+            {(config.enable_profit_locking ?? true) && (
+              <div className="mt-4 space-y-4">
+                {/* Profit Lock Targets */}
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                    {t('profitLockTargets')}
+                  </label>
+                  <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                    {t('profitLockTargetsDesc')}
+                  </p>
+                  <input
+                    type="text"
+                    value={(config.profit_lock_targets ?? [1, 2, 3]).join(', ')}
+                    onChange={(e) => {
+                      const values = e.target.value.split(',')
+                        .map(v => parseFloat(v.trim()))
+                        .filter(v => !isNaN(v))
+                      updateField('profit_lock_targets', values)
+                    }}
+                    disabled={disabled}
+                    className="w-full px-3 py-2 rounded"
+                    style={{
+                      background: '#1E2329',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                  />
+                </div>
+
+                {/* Profit Lock Mode */}
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                    {t('profitLockMode')}
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="profitLockMode"
+                        value="breakeven"
+                        checked={(config.profit_lock_mode ?? 'breakeven') === 'breakeven'}
+                        onChange={(e) =>
+                          updateField('profit_lock_mode', e.target.value)
+                        }
+                        disabled={disabled}
+                        className="mr-2 accent-yellow-500"
+                      />
+                      <span className="text-sm" style={{ color: '#EAECEF' }}>
+                        {t('profitLockModeBreakeven')}
+                      </span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="radio"
+                        name="profitLockMode"
+                        value="trailing"
+                        checked={(config.profit_lock_mode ?? 'breakeven') === 'trailing'}
+                        onChange={(e) =>
+                          updateField('profit_lock_mode', e.target.value)
+                        }
+                        disabled={disabled}
+                        className="mr-2 accent-yellow-500"
+                      />
+                      <span className="text-sm" style={{ color: '#EAECEF' }}>
+                        {t('profitLockModeTrailing')}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Fee Rate */}
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                    {t('feeRate')}
+                  </label>
+                  <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                    {t('feeRateDesc')}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      value={(config.fee_rate ?? 0.0005) * 10000}
+                      onChange={(e) =>
+                        updateField('fee_rate', parseInt(e.target.value) / 10000)
+                      }
+                      disabled={disabled}
+                      min={1}
+                      max={20}
+                      className="flex-1 accent-yellow-500"
+                    />
+                    <span className="w-16 text-center font-mono" style={{ color: '#F0B90B' }}>
+                      {((config.fee_rate ?? 0.0005) * 100).toFixed(2)}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

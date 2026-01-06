@@ -132,6 +132,9 @@ type AutoTrader struct {
 		StopLossPrice   float64
 	}
 	stopLossTakeProfitMutex sync.RWMutex
+	// Profit locking state tracking
+	profitLockState        map[string]int      // Track which lock targets have been triggered (symbol_side -> index of last triggered target)
+	profitLockStateMutex   sync.RWMutex
 }
 
 // NewAutoTrader creates an automatic trader
@@ -372,6 +375,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		stopLossTakeProfitMutex: sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
+		profitLockState:       make(map[string]int),
+		profitLockStateMutex:  sync.RWMutex{},
 	}, nil
 }
 
@@ -863,31 +868,44 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
-		// Get stop loss/take profit from cache
-	posKey = fmt.Sprintf("%s_%s", symbol, side)
-	var takeProfitPrice, stopLossPrice float64
-	at.stopLossTakeProfitMutex.RLock()
-	if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
-		takeProfitPrice = cacheEntry.TakeProfitPrice
-		stopLossPrice = cacheEntry.StopLossPrice
-	}
-	at.stopLossTakeProfitMutex.RUnlock()
+		// 尝试从交易所返回的position数据中获取止盈止损信息
+		var takeProfitPrice, stopLossPrice float64
+		if tp, ok := pos["takeProfitPrice"].(float64); ok {
+			takeProfitPrice = tp
+		}
+		if sl, ok := pos["stopLossPrice"].(float64); ok {
+			stopLossPrice = sl
+		}
+		
+		// 如果交易所数据中没有，再从本地缓存获取
+		if takeProfitPrice == 0 || stopLossPrice == 0 {
+			at.stopLossTakeProfitMutex.RLock()
+			if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
+				if takeProfitPrice == 0 {
+					takeProfitPrice = cacheEntry.TakeProfitPrice
+				}
+				if stopLossPrice == 0 {
+					stopLossPrice = cacheEntry.StopLossPrice
+				}
+			}
+			at.stopLossTakeProfitMutex.RUnlock()
+		}
 
-	positionInfos = append(positionInfos, kernel.PositionInfo{
-		Symbol:           symbol,
-		Side:             side,
-		EntryPrice:       entryPrice,
-		MarkPrice:        markPrice,
-		Quantity:         quantity,
-		Leverage:         leverage,
-		UnrealizedPnL:    unrealizedPnl,
-		UnrealizedPnLPct: pnlPct,
-		PeakPnLPct:       peakPnlPct,
-		LiquidationPrice: liquidationPrice,
-		MarginUsed:       marginUsed,
-		TakeProfitPrice:  takeProfitPrice,
-		StopLossPrice:    stopLossPrice,
-		UpdateTime:       updateTime,
+		positionInfos = append(positionInfos, kernel.PositionInfo{
+			Symbol:           symbol,
+			Side:             side,
+			EntryPrice:       entryPrice,
+			MarkPrice:        markPrice,
+			Quantity:         quantity,
+			Leverage:         leverage,
+			UnrealizedPnL:    unrealizedPnl,
+			UnrealizedPnLPct: pnlPct,
+			PeakPnLPct:       peakPnlPct,
+			LiquidationPrice: liquidationPrice,
+			MarginUsed:       marginUsed,
+			TakeProfitPrice:  takeProfitPrice,
+			StopLossPrice:    stopLossPrice,
+			UpdateTime:       updateTime,
 	})
 	}
 
@@ -1976,7 +1994,7 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	return sorted
 }
 
-// startDrawdownMonitor starts drawdown monitoring
+// startDrawdownMonitor starts drawdown monitoring and profit locking
 func (at *AutoTrader) startDrawdownMonitor() {
 	at.monitorWg.Add(1)
 	go func() {
@@ -1985,14 +2003,15 @@ func (at *AutoTrader) startDrawdownMonitor() {
 		ticker := time.NewTicker(1 * time.Minute) // Check every minute
 		defer ticker.Stop()
 
-		logger.Info("📊 Started position drawdown monitoring (check every minute)")
+		logger.Info("📊 Started position drawdown monitoring and profit locking (check every minute)")
 
 		for {
 			select {
 			case <-ticker.C:
 				at.checkPositionDrawdown()
+				at.checkPositionProfitLocking()
 			case <-at.stopMonitorCh:
-				logger.Info("⏹ Stopped position drawdown monitoring")
+				logger.Info("⏹ Stopped position drawdown monitoring and profit locking")
 				return
 			}
 		}
@@ -2077,6 +2096,158 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
 				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 		}
+	}
+}
+
+// checkPositionProfitLocking checks position profit locking situation
+func (at *AutoTrader) checkPositionProfitLocking() {
+	if !at.config.StrategyConfig.RiskControl.EnableProfitLocking {
+		return
+	}
+
+	lockTargets := at.config.StrategyConfig.RiskControl.ProfitLockTargets
+	lockMode := at.config.StrategyConfig.RiskControl.ProfitLockMode
+	lockPercentage := at.config.StrategyConfig.RiskControl.ProfitLockPercentage
+	feeRate := at.config.StrategyConfig.RiskControl.FeeRate
+	if feeRate == 0 {
+		feeRate = 0.0005 // Default 0.05%
+	}
+
+	if len(lockTargets) == 0 {
+		return
+	}
+
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		logger.Infof("❌ Profit locking monitoring: failed to get positions: %v", err)
+		return
+	}
+
+	for _, pos := range positions {
+		symbol := pos["symbol"].(string)
+		side := pos["side"].(string)
+		entryPrice := pos["entryPrice"].(float64)
+		markPrice := pos["markPrice"].(float64)
+		stopLossPrice := pos["stopLossPrice"].(float64)
+
+		leverage := 10
+		if lev, ok := pos["leverage"].(float64); ok {
+			leverage = int(lev)
+		}
+
+		// Calculate current R multiple
+		rMultiple := at.calculateRMultiple(entryPrice, stopLossPrice, markPrice, side, leverage)
+		if rMultiple <= 0 {
+			continue
+		}
+
+		posKey := symbol + "_" + side
+
+		// Get current lock state
+		at.profitLockStateMutex.RLock()
+		currentLockIndex := at.profitLockState[posKey]
+		at.profitLockStateMutex.RUnlock()
+
+		// Check if we need to lock at next target
+		for i := currentLockIndex; i < len(lockTargets); i++ {
+			targetR := lockTargets[i]
+			if rMultiple >= targetR {
+				// Trigger locking at this target
+				newStopLoss := at.calculateLockStopLoss(entryPrice, stopLossPrice, markPrice, side, leverage, targetR, lockMode, feeRate)
+				if newStopLoss != 0 {
+					logger.Infof("🔒 Profit locking triggered: %s %s | Target: %.1fR | Current: %.2fR | New SL: %.4f",
+						symbol, side, targetR, rMultiple, newStopLoss)
+
+					// Execute stop loss adjustment
+					positionSide := "LONG"
+					if side == "short" {
+						positionSide = "SHORT"
+					}
+					if err := at.trader.SetStopLoss(symbol, positionSide, 0, newStopLoss); err != nil {
+						logger.Infof("❌ Failed to set profit lock stop loss for %s %s: %v", symbol, side, err)
+					} else {
+						logger.Infof("✅ Profit lock stop loss set: %s %s -> %.4f", symbol, side, newStopLoss)
+						// Update lock state
+						at.profitLockStateMutex.Lock()
+						at.profitLockState[posKey] = i + 1
+						at.profitLockStateMutex.Unlock()
+					}
+				}
+			} else {
+				break
+			}
+		}
+	}
+}
+
+// calculateRMultiple calculates the current R multiple of a position
+func (at *AutoTrader) calculateRMultiple(entryPrice, stopLossPrice, markPrice float64, side string, leverage int) float64 {
+	if stopLossPrice == 0 {
+		return 0
+	}
+
+	var riskPerUnit float64
+	if side == "long" {
+		riskPerUnit = entryPrice - stopLossPrice
+	} else {
+		riskPerUnit = stopLossPrice - entryPrice
+	}
+
+	if riskPerUnit <= 0 {
+		return 0
+	}
+
+	var profitPerUnit float64
+	if side == "long" {
+		profitPerUnit = markPrice - entryPrice
+	} else {
+		profitPerUnit = entryPrice - markPrice
+	}
+
+	return profitPerUnit / riskPerUnit
+}
+
+// calculateLockStopLoss calculates the new stop loss price for profit locking
+func (at *AutoTrader) calculateLockStopLoss(entryPrice, currentSL, markPrice float64, side string, leverage int, targetR float64, mode string, feeRate float64) float64 {
+	breakevenPrice := entryPrice * (1 + feeRate)
+	if side == "short" {
+		breakevenPrice = entryPrice * (1 - feeRate)
+	}
+
+	switch mode {
+	case "breakeven":
+		if side == "long" {
+			if currentSL < breakevenPrice {
+				return breakevenPrice
+			}
+			return currentSL
+		} else {
+			if currentSL > breakevenPrice {
+				return breakevenPrice
+			}
+			return currentSL
+		}
+	case "trailing":
+		risk := (entryPrice - currentSL) / entryPrice * float64(leverage)
+		if risk <= 0 {
+			return breakevenPrice
+		}
+		lockedProfitPct := risk * targetR
+		var targetSLPrice float64
+		if side == "long" {
+			targetSLPrice = entryPrice * (1 + lockedProfitPct - feeRate)
+		} else {
+			targetSLPrice = entryPrice * (1 - lockedProfitPct + feeRate)
+		}
+		if side == "long" && targetSLPrice > currentSL {
+			return targetSLPrice
+		}
+		if side == "short" && targetSLPrice < currentSL {
+			return targetSLPrice
+		}
+		return currentSL
+	default:
+		return breakevenPrice
 	}
 }
 

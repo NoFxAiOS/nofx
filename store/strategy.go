@@ -182,6 +182,18 @@ type RiskControlConfig struct {
 	MinConfidence int `json:"min_confidence"`
 	// Whether to enable drawdown protection (auto close position when drawdown exceeds threshold)
 	EnableDrawdownProtection bool `json:"enable_drawdown_protection"`
+
+	// Profit Locking Configuration
+	// Whether to enable profit locking mechanism
+	EnableProfitLocking bool `json:"enable_profit_locking"`
+	// R-multiples at which to lock profits (e.g., [1, 2, 3] means lock at 1R, 2R, 3R)
+	ProfitLockTargets []float64 `json:"profit_lock_targets"`
+	// Locking mode: "breakeven" (move SL to breakeven) or "trailing" (trailing stop)
+	ProfitLockMode string `json:"profit_lock_mode"`
+	// Percentage of position to lock at each target (e.g., 0.3 means lock 30%)
+	ProfitLockPercentage float64 `json:"profit_lock_percentage"`
+	// Fee rate for breakeven calculation (default 0.0005 = 0.05%)
+	FeeRate float64 `json:"fee_rate"`
 }
 
 // NewStrategyStore creates a new StrategyStore
@@ -258,17 +270,22 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
-		MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
-		BTCETHMaxLeverage:               5,   // BTC/ETH exchange leverage (AI guided)
-		AltcoinMaxLeverage:              5,   // Altcoin exchange leverage (AI guided)
-		BTCETHMaxPositionValueRatio:     5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
-		AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
-		MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
-		MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
-		MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
-		MinConfidence:                   75,  // Min 75% confidence (AI guided)
-		EnableDrawdownProtection:        true, // Enable drawdown protection by default
-	},
+			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
+			BTCETHMaxLeverage:               5,   // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:              5,   // Altcoin exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:     5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
+			AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
+			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
+			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                   75,  // Min 75% confidence (AI guided)
+			EnableDrawdownProtection:        true, // Enable drawdown protection by default
+			EnableProfitLocking:             true, // Enable profit locking by default
+			ProfitLockTargets:               []float64{1, 2, 3}, // Lock at 1R, 2R, 3R
+			ProfitLockMode:                  "breakeven", // Move SL to breakeven
+			ProfitLockPercentage:            0.3, // Lock 30% of position at each target
+			FeeRate:                         0.0005, // 0.05% fee rate
+		},
 	}
 
 	if lang == "zh" {

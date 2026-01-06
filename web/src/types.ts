@@ -570,6 +570,13 @@ export interface RiskControlConfig {
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
   enable_drawdown_protection?: boolean; // Whether to enable drawdown protection, default: true
+
+  // Profit Locking Configuration
+  enable_profit_locking?: boolean;         // Whether to enable profit locking mechanism
+  profit_lock_targets?: number[];          // R-multiples at which to lock profits (e.g., [1, 2, 3])
+  profit_lock_mode?: string;               // Locking mode: "breakeven" or "trailing"
+  profit_lock_percentage?: number;         // Percentage of position to lock at each target
+  fee_rate?: number;                       // Fee rate for breakeven calculation, default 0.0005
 }
 
 // Debate Arena Types

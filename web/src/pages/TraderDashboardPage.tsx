@@ -533,27 +533,26 @@ export function TraderDashboardPage({
                 </div>
 
                 {/* Main Content Area */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                    {/* Left Column: Charts + Positions */}
-                    <div className="space-y-6">
-                        {/* Chart Tabs (Equity / K-line) */}
-                        <div
-                            ref={chartSectionRef}
-                            className="chart-container animate-slide-in scroll-mt-32 backdrop-blur-sm"
-                            style={{ animationDelay: '0.1s' }}
-                        >
-                            <ChartTabs
-                                traderId={selectedTrader.trader_id}
-                                selectedSymbol={selectedChartSymbol}
-                                updateKey={chartUpdateKey}
-                                exchangeId={getExchangeTypeFromList(
-                                    selectedTrader.exchange_id,
-                                    exchanges
-                                )}
-                            />
-                        </div>
-
-                        {/* Current Positions */}
+                <div className="space-y-6 mb-6">
+                    {/* Chart Section */}
+                    <div
+                        ref={chartSectionRef}
+                        className="chart-container animate-slide-in scroll-mt-32 backdrop-blur-sm"
+                        style={{ animationDelay: '0.1s' }}
+                    >
+                        <ChartTabs
+                            traderId={selectedTrader.trader_id}
+                            selectedSymbol={selectedChartSymbol}
+                            updateKey={chartUpdateKey}
+                            exchangeId={getExchangeTypeFromList(
+                                selectedTrader.exchange_id,
+                                exchanges
+                            )}
+                        />
+                    </div>
+                    
+                    {/* Positions + Recent Decisions Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div
                             className="nofx-glass p-6 animate-slide-in relative overflow-hidden group"
                             style={{ animationDelay: '0.15s' }}
@@ -722,11 +721,11 @@ export function TraderDashboardPage({
 
                     {/* Right Column: Recent Decisions */}
                     <div
-                        className="nofx-glass p-6 animate-slide-in flex flex-col h-full"
+                        className="nofx-glass p-6 animate-slide-in"
                         style={{ animationDelay: '0.2s' }}
                     >
                         {/* Header */}
-                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5 shrink-0">
+                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5">
                             <div
                                 className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-[0_4px_14px_rgba(99,102,241,0.4)]"
                                 style={{
@@ -760,7 +759,7 @@ export function TraderDashboardPage({
                         </div>
 
                         {/* Decisions List */}
-                        <div className="space-y-4 pr-2 flex-1 overflow-y-auto custom-scrollbar" style={{ maxHeight: 'none' }}>
+                        <div className="space-y-4 pr-2">
                             {decisions && decisions.length > 0 ? (
                                 decisions.map((decision, i) => (
                                     <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />

@@ -241,12 +241,9 @@ func formatCurrentPositionsZH(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("杠杆 %dx | ", pos.Leverage))
 		sb.WriteString(fmt.Sprintf("保证金 %.0f USDT | ", pos.MarginUsed))
 		sb.WriteString(fmt.Sprintf("强平价 %.4f | ", pos.LiquidationPrice))
-		if pos.TakeProfitPrice > 0 {
-			sb.WriteString(fmt.Sprintf("止盈价 %.4f | ", pos.TakeProfitPrice))
-		}
-		if pos.StopLossPrice > 0 {
-			sb.WriteString(fmt.Sprintf("止损价 %.4f | ", pos.StopLossPrice))
-		}
+		// 显示止盈止损信息，即使价格为0
+		sb.WriteString(fmt.Sprintf("止盈价 %.4f | ", pos.TakeProfitPrice))
+		sb.WriteString(fmt.Sprintf("止损价 %.4f | ", pos.StopLossPrice))
 		sb.WriteString("\n")
 
 		// 添加分析提示
@@ -515,12 +512,9 @@ func formatCurrentPositionsEN(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("Leverage %dx | ", pos.Leverage))
 		sb.WriteString(fmt.Sprintf("Margin %.0f USDT | ", pos.MarginUsed))
 		sb.WriteString(fmt.Sprintf("Liq Price %.4f | ", pos.LiquidationPrice))
-		if pos.TakeProfitPrice > 0 {
-			sb.WriteString(fmt.Sprintf("TP Price %.4f | ", pos.TakeProfitPrice))
-		}
-		if pos.StopLossPrice > 0 {
-			sb.WriteString(fmt.Sprintf("SL Price %.4f | ", pos.StopLossPrice))
-		}
+		// Show stop loss/take profit information even if price is 0
+		sb.WriteString(fmt.Sprintf("TP Price %.4f | ", pos.TakeProfitPrice))
+		sb.WriteString(fmt.Sprintf("SL Price %.4f | ", pos.StopLossPrice))
 		sb.WriteString("\n")
 
 		// Analysis hints

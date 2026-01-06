@@ -89,6 +89,10 @@ type Trader interface {
 	// Returns: status(FILLED/NEW/CANCELED), avgPrice, executedQty, commission
 	GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error)
 
+	// GetOrders Get all orders for a symbol
+	// Returns: slice of orders with details including order type, price, status, etc.
+	GetOrders(symbol string) ([]map[string]interface{}, error)
+
 	// GetClosedPnL Get closed position PnL records from exchange
 	// startTime: start time for query (usually last sync time)
 	// limit: max number of records to return

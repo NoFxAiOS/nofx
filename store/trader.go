@@ -19,19 +19,21 @@ func NewTraderStore(db *gorm.DB) *TraderStore {
 
 // Trader trader configuration
 type Trader struct {
-	ID                  string    `gorm:"primaryKey" json:"id"`
-	UserID              string    `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
-	Name                string    `gorm:"column:name;not null" json:"name"`
-	AIModelID           string    `gorm:"column:ai_model_id;not null" json:"ai_model_id"`
-	ExchangeID          string    `gorm:"column:exchange_id;not null" json:"exchange_id"`
-	StrategyID          string    `gorm:"column:strategy_id;default:''" json:"strategy_id"`
-	InitialBalance      float64   `gorm:"column:initial_balance;not null" json:"initial_balance"`
-	ScanIntervalMinutes int       `gorm:"column:scan_interval_minutes;default:3" json:"scan_interval_minutes"`
-	IsRunning           bool      `gorm:"column:is_running;default:false" json:"is_running"`
-	IsCrossMargin       bool      `gorm:"column:is_cross_margin;default:true" json:"is_cross_margin"`
-	ShowInCompetition   bool      `gorm:"column:show_in_competition;default:true" json:"show_in_competition"`
-	CreatedAt           time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
-	UpdatedAt           time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
+	ID                                string    `gorm:"primaryKey" json:"id"`
+	UserID                            string    `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
+	Name                              string    `gorm:"column:name;not null" json:"name"`
+	AIModelID                         string    `gorm:"column:ai_model_id;not null" json:"ai_model_id"`
+	ExchangeID                        string    `gorm:"column:exchange_id;not null" json:"exchange_id"`
+	StrategyID                        string    `gorm:"column:strategy_id;default:''" json:"strategy_id"`
+	InitialBalance                    float64   `gorm:"column:initial_balance;not null" json:"initial_balance"`
+	ScanIntervalMinutes               int       `gorm:"column:scan_interval_minutes;default:3" json:"scan_interval_minutes"` // Deprecated: Use NoPositionScanIntervalMinutes and WithPositionScanIntervalMinutes instead
+	NoPositionScanIntervalMinutes     int       `gorm:"column:no_position_scan_interval_minutes;default:10" json:"no_position_scan_interval_minutes"` // Scan interval when no positions (minutes)
+	WithPositionScanIntervalMinutes   int       `gorm:"column:with_position_scan_interval_minutes;default:5" json:"with_position_scan_interval_minutes"` // Scan interval when has positions (minutes)
+	IsRunning                         bool      `gorm:"column:is_running;default:false" json:"is_running"`
+	IsCrossMargin                     bool      `gorm:"column:is_cross_margin;default:true" json:"is_cross_margin"`
+	ShowInCompetition                 bool      `gorm:"column:show_in_competition;default:true" json:"show_in_competition"`
+	CreatedAt                         time.Time `gorm:"column:created_at;autoCreateTime" json:"created_at"`
+	UpdatedAt                         time.Time `gorm:"column:updated_at;autoUpdateTime" json:"updated_at"`
 
 	// Following fields are deprecated, kept for backward compatibility, new traders should use StrategyID
 	BTCETHLeverage       int    `gorm:"column:btc_eth_leverage;default:5" json:"btc_eth_leverage,omitempty"`

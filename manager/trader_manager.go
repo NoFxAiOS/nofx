@@ -673,18 +673,26 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		StrategyConfig:           strategyConfig,
 	}
 
-	// For backward compatibility, use ScanIntervalMinutes if provided
-	if traderCfg.ScanIntervalMinutes > 0 {
+	// Priority: new fields > old field > default values
+	// Use new interval fields from database if they are set
+	if traderCfg.NoPositionScanIntervalMinutes > 0 {
+		traderConfig.NoPositionScanInterval = time.Duration(traderCfg.NoPositionScanIntervalMinutes) * time.Minute
+	}
+	
+	if traderCfg.WithPositionScanIntervalMinutes > 0 {
+		traderConfig.WithPositionScanInterval = time.Duration(traderCfg.WithPositionScanIntervalMinutes) * time.Minute
+	}
+	
+	// For backward compatibility, use ScanIntervalMinutes only if new fields are not set
+	if traderCfg.ScanIntervalMinutes > 0 && traderCfg.NoPositionScanIntervalMinutes <= 0 && traderCfg.WithPositionScanIntervalMinutes <= 0 {
 		// Set both intervals to the same value for backward compatibility
 		traderConfig.NoPositionScanInterval = time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute
 		traderConfig.WithPositionScanInterval = time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute
-		
-		logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), NoPositionScanInterval=%v, WithPositionScanInterval=%v",
-			traderCfg.Name, traderCfg.ScanIntervalMinutes, traderConfig.NoPositionScanInterval, traderConfig.WithPositionScanInterval)
-	} else {
-		logger.Infof("📊 Loading trader %s: Using default intervals - NoPosition: %v, WithPosition: %v",
-			traderCfg.Name, traderConfig.NoPositionScanInterval, traderConfig.WithPositionScanInterval)
 	}
+	
+	logger.Infof("📊 Loading trader %s: DB intervals - NoPosition=%d, WithPosition=%d, Old=%d | Configured intervals - NoPosition=%v, WithPosition=%v",
+		traderCfg.Name, traderCfg.NoPositionScanIntervalMinutes, traderCfg.WithPositionScanIntervalMinutes, traderCfg.ScanIntervalMinutes,
+		traderConfig.NoPositionScanInterval, traderConfig.WithPositionScanInterval)
 
 	// Set API keys based on exchange type (convert EncryptedString to string)
 	switch exchangeCfg.ExchangeType {

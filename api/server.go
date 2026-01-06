@@ -548,10 +548,32 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		systemPromptTemplate = req.SystemPromptTemplate
 	}
 
-	// Set scan interval default value
+	// Set scan interval values
+	// Priority: new fields > old field > default values
+	noPositionScanIntervalMinutes := req.NoPositionScanIntervalMinutes
+	withPositionScanIntervalMinutes := req.WithPositionScanIntervalMinutes
 	scanIntervalMinutes := req.ScanIntervalMinutes
+	
+	// Set default values if new fields are not provided
+	if noPositionScanIntervalMinutes < 3 {
+		if scanIntervalMinutes > 0 {
+			noPositionScanIntervalMinutes = scanIntervalMinutes
+		} else {
+			noPositionScanIntervalMinutes = 10 // Default: 10 minutes when no positions
+		}
+	}
+	
+	if withPositionScanIntervalMinutes < 3 {
+		if scanIntervalMinutes > 0 {
+			withPositionScanIntervalMinutes = scanIntervalMinutes
+		} else {
+			withPositionScanIntervalMinutes = 5 // Default: 5 minutes when has positions
+		}
+	}
+	
+	// Set old field value for backward compatibility
 	if scanIntervalMinutes < 3 {
-		scanIntervalMinutes = 3 // Default 3 minutes, not allowed to be less than 3
+		scanIntervalMinutes = 3 // Default 3 minutes for old field
 	}
 
 	// Query exchange actual balance, override user input
@@ -658,25 +680,27 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	// Create trader configuration (database entity)
 	logger.Infof("🔧 DEBUG: Starting to create trader config, ID=%s, Name=%s, AIModel=%s, Exchange=%s, StrategyID=%s", traderID, req.Name, req.AIModelID, req.ExchangeID, req.StrategyID)
 	traderRecord := &store.Trader{
-		ID:                   traderID,
-		UserID:               userID,
-		Name:                 req.Name,
-		AIModelID:            req.AIModelID,
-		ExchangeID:           req.ExchangeID,
-		StrategyID:           req.StrategyID, // Associated strategy ID (new version)
-		InitialBalance:       actualBalance,  // Use actual queried balance
-		BTCETHLeverage:       btcEthLeverage,
-		AltcoinLeverage:      altcoinLeverage,
-		TradingSymbols:       req.TradingSymbols,
-		UseAI500:             req.UseAI500,
-		UseOITop:             req.UseOITop,
-		CustomPrompt:         req.CustomPrompt,
-		OverrideBasePrompt:   req.OverrideBasePrompt,
-		SystemPromptTemplate: systemPromptTemplate,
-		IsCrossMargin:        isCrossMargin,
-		ShowInCompetition:    showInCompetition,
-		ScanIntervalMinutes:  scanIntervalMinutes,
-		IsRunning:            false,
+		ID:                                traderID,
+		UserID:                            userID,
+		Name:                              req.Name,
+		AIModelID:                         req.AIModelID,
+		ExchangeID:                        req.ExchangeID,
+		StrategyID:                        req.StrategyID, // Associated strategy ID (new version)
+		InitialBalance:                    actualBalance,  // Use actual queried balance
+		BTCETHLeverage:                    btcEthLeverage,
+		AltcoinLeverage:                   altcoinLeverage,
+		TradingSymbols:                   req.TradingSymbols,
+		UseAI500:                         req.UseAI500,
+		UseOITop:                         req.UseOITop,
+		CustomPrompt:                     req.CustomPrompt,
+		OverrideBasePrompt:               req.OverrideBasePrompt,
+		SystemPromptTemplate:             systemPromptTemplate,
+		IsCrossMargin:                    isCrossMargin,
+		ShowInCompetition:                showInCompetition,
+		ScanIntervalMinutes:              scanIntervalMinutes,
+		NoPositionScanIntervalMinutes:     noPositionScanIntervalMinutes,
+		WithPositionScanIntervalMinutes:   withPositionScanIntervalMinutes,
+		IsRunning:                        false,
 	}
 
 	// Save to database
@@ -781,15 +805,45 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 		altcoinLeverage = existingTrader.AltcoinLeverage // Keep original value
 	}
 
-	// Set scan interval, allow updates
+	// Set scan interval values
+	// Priority: new fields > old field > existing values
+	noPositionScanIntervalMinutes := req.NoPositionScanIntervalMinutes
+	withPositionScanIntervalMinutes := req.WithPositionScanIntervalMinutes
 	scanIntervalMinutes := req.ScanIntervalMinutes
-	logger.Infof("📊 Update trader scan_interval: req=%d, existing=%d", req.ScanIntervalMinutes, existingTrader.ScanIntervalMinutes)
+	
+	logger.Infof("📊 Update trader scan intervals: req_no=%d, req_with=%d, req_old=%d, existing_no=%d, existing_with=%d, existing_old=%d", 
+		req.NoPositionScanIntervalMinutes, req.WithPositionScanIntervalMinutes, req.ScanIntervalMinutes,
+		existingTrader.NoPositionScanIntervalMinutes, existingTrader.WithPositionScanIntervalMinutes, existingTrader.ScanIntervalMinutes)
+	
+	// Set new fields values
+	if noPositionScanIntervalMinutes <= 0 {
+		if scanIntervalMinutes > 0 {
+			noPositionScanIntervalMinutes = scanIntervalMinutes
+		} else {
+			noPositionScanIntervalMinutes = existingTrader.NoPositionScanIntervalMinutes // Keep original value
+		}
+	} else if noPositionScanIntervalMinutes < 3 {
+		noPositionScanIntervalMinutes = 3
+	}
+	
+	if withPositionScanIntervalMinutes <= 0 {
+		if scanIntervalMinutes > 0 {
+			withPositionScanIntervalMinutes = scanIntervalMinutes
+		} else {
+			withPositionScanIntervalMinutes = existingTrader.WithPositionScanIntervalMinutes // Keep original value
+		}
+	} else if withPositionScanIntervalMinutes < 3 {
+		withPositionScanIntervalMinutes = 3
+	}
+	
+	// Set old field value for backward compatibility
 	if scanIntervalMinutes <= 0 {
 		scanIntervalMinutes = existingTrader.ScanIntervalMinutes // Keep original value
 	} else if scanIntervalMinutes < 3 {
 		scanIntervalMinutes = 3
 	}
-	logger.Infof("📊 Final scan_interval_minutes: %d", scanIntervalMinutes)
+	
+	logger.Infof("📊 Final scan intervals: no=%d, with=%d, old=%d", noPositionScanIntervalMinutes, withPositionScanIntervalMinutes, scanIntervalMinutes)
 
 	// Set system prompt template
 	systemPromptTemplate := req.SystemPromptTemplate
@@ -805,23 +859,25 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 
 	// Update trader configuration
 	traderRecord := &store.Trader{
-		ID:                   traderID,
-		UserID:               userID,
-		Name:                 req.Name,
-		AIModelID:            req.AIModelID,
-		ExchangeID:           req.ExchangeID,
-		StrategyID:           strategyID, // Associated strategy ID
-		InitialBalance:       req.InitialBalance,
-		BTCETHLeverage:       btcEthLeverage,
-		AltcoinLeverage:      altcoinLeverage,
-		TradingSymbols:       req.TradingSymbols,
-		CustomPrompt:         req.CustomPrompt,
-		OverrideBasePrompt:   req.OverrideBasePrompt,
-		SystemPromptTemplate: systemPromptTemplate,
-		IsCrossMargin:        isCrossMargin,
-		ShowInCompetition:    showInCompetition,
-		ScanIntervalMinutes:  scanIntervalMinutes,
-		IsRunning:            existingTrader.IsRunning, // Keep original value
+		ID:                                traderID,
+		UserID:                            userID,
+		Name:                              req.Name,
+		AIModelID:                         req.AIModelID,
+		ExchangeID:                        req.ExchangeID,
+		StrategyID:                        strategyID, // Associated strategy ID
+		InitialBalance:                    req.InitialBalance,
+		BTCETHLeverage:                    btcEthLeverage,
+		AltcoinLeverage:                   altcoinLeverage,
+		TradingSymbols:                   req.TradingSymbols,
+		CustomPrompt:                     req.CustomPrompt,
+		OverrideBasePrompt:               req.OverrideBasePrompt,
+		SystemPromptTemplate:             systemPromptTemplate,
+		IsCrossMargin:                    isCrossMargin,
+		ShowInCompetition:                showInCompetition,
+		ScanIntervalMinutes:              scanIntervalMinutes,
+		NoPositionScanIntervalMinutes:     noPositionScanIntervalMinutes,
+		WithPositionScanIntervalMinutes:   withPositionScanIntervalMinutes,
+		IsRunning:                        existingTrader.IsRunning, // Keep original value
 	}
 
 	// Check if trader was running before update (we'll restart it after)

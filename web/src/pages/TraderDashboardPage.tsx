@@ -847,7 +847,7 @@ export function TraderDashboardPage({
                                 {t('positionHistory.title', language)}
                             </h2>
                         </div>
-                        <PositionHistory traderId={selectedTraderId} />
+                        {selectedTraderId && <PositionHistory traderId={selectedTraderId} />}
                     </div>
                 </div>
             </div>

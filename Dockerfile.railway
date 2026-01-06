@@ -66,7 +66,7 @@ RUN npm run build
 FROM alpine:${ALPINE_VERSION}
 
 RUN apk update && apk add --no-cache \
-    ca-certificates tzdata sqlite nginx supervisor
+    ca-certificates tzdata sqlite nginx supervisor openssl
 
 # Copy TA-Lib
 COPY --from=ta-lib-builder /usr/local /usr/local
@@ -83,6 +83,10 @@ COPY railway/nginx.conf /etc/nginx/http.d/default.conf
 
 # Copy supervisor config
 COPY railway/supervisord.conf /etc/supervisord.conf
+
+# Copy backend startup wrapper (auto-generates encryption keys)
+COPY railway/start-backend.sh /app/start-backend.sh
+RUN chmod +x /app/start-backend.sh
 
 # Create data directory
 RUN mkdir -p /app/data

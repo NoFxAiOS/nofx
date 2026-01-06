@@ -617,6 +617,15 @@ func (at *AutoTrader) runCycle() error {
 		return nil
 	}
 
+	// Get initial position count for tracking during execution
+	initialPositions, err := at.trader.GetPositions()
+	if err != nil {
+		logger.Infof("⚠ Failed to get initial positions for tracking: %v", err)
+		return nil
+	}
+	currentPositionCount := len(initialPositions)
+	logger.Infof("📊 Initial position count: %d", currentPositionCount)
+
 	// Execute decisions and record results
 	for _, d := range sortedDecisions {
 		// Check if trader is stopped before each decision (allow immediate stop during execution)
@@ -642,7 +651,8 @@ func (at *AutoTrader) runCycle() error {
 			Success:    false,
 		}
 
-		if err := at.executeDecisionWithRecord(&d, &actionRecord); err != nil {
+		// Pass current position count to executeDecisionWithRecord for position limit checking
+		if err := at.executeDecisionWithRecord(&d, &actionRecord, &currentPositionCount); err != nil {
 			logger.Infof("❌ Failed to execute decision (%s %s): %v", d.Symbol, d.Action, err)
 			actionRecord.Error = err.Error()
 			record.ExecutionLog = append(record.ExecutionLog, fmt.Sprintf("❌ %s %s failed: %v", d.Symbol, d.Action, err))
@@ -954,16 +964,32 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 }
 
 // executeDecisionWithRecord executes AI decision and records detailed information
-func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, currentPositionCount *int) error {
 	switch decision.Action {
 	case "open_long":
-		return at.executeOpenLongWithRecord(decision, actionRecord)
+		if err := at.executeOpenLongWithRecord(decision, actionRecord, currentPositionCount); err != nil {
+			return err
+		}
+		*currentPositionCount++ // Increment position count after successful open
+		return nil
 	case "open_short":
-		return at.executeOpenShortWithRecord(decision, actionRecord)
+		if err := at.executeOpenShortWithRecord(decision, actionRecord, currentPositionCount); err != nil {
+			return err
+		}
+		*currentPositionCount++ // Increment position count after successful open
+		return nil
 	case "close_long":
-		return at.executeCloseLongWithRecord(decision, actionRecord)
+		if err := at.executeCloseLongWithRecord(decision, actionRecord); err != nil {
+			return err
+		}
+		*currentPositionCount-- // Decrement position count after successful close
+		return nil
 	case "close_short":
-		return at.executeCloseShortWithRecord(decision, actionRecord)
+		if err := at.executeCloseShortWithRecord(decision, actionRecord); err != nil {
+			return err
+		}
+		*currentPositionCount-- // Decrement position count after successful close
+		return nil
 	case "adjust_stop_loss_long", "adjust_stop_loss_short", 
 			"adjust_take_profit_long", "adjust_take_profit_short",
 			"adjust_both_long", "adjust_both_short":
@@ -992,8 +1018,15 @@ func (at *AutoTrader) ExecuteDecision(d *kernel.Decision) error {
 		Reasoning:  d.Reasoning,
 	}
 
+	// Get current position count for external decision execution
+	positions, err := at.trader.GetPositions()
+	if err != nil {
+		return fmt.Errorf("failed to get positions: %w", err)
+	}
+	currentPositionCount := len(positions)
+
 	// Execute the decision
-	err := at.executeDecisionWithRecord(d, actionRecord)
+	err = at.executeDecisionWithRecord(d, actionRecord, &currentPositionCount)
 	if err != nil {
 		logger.Errorf("[%s] External decision execution failed: %v", at.name, err)
 		return err
@@ -1004,17 +1037,17 @@ func (at *AutoTrader) ExecuteDecision(d *kernel.Decision) error {
 }
 
 // executeOpenLongWithRecord executes open long position and records detailed information
-func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, currentPositionCount *int) error {
 	logger.Infof("  📈 Open long: %s", decision.Symbol)
 
-	// ⚠️ Get current positions for multiple checks
+	// ⚠️ Get current positions for duplicate checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {
 		return fmt.Errorf("failed to get positions: %w", err)
 	}
 
-	// [CODE ENFORCED] Check max positions limit
-	if err := at.enforceMaxPositions(len(positions)); err != nil {
+	// [CODE ENFORCED] Check max positions limit using the real-time counter
+	if err := at.enforceMaxPositions(*currentPositionCount); err != nil {
 		return err
 	}
 
@@ -1243,17 +1276,17 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 }
 
 // executeOpenShortWithRecord executes open short position and records detailed information
-func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction, currentPositionCount *int) error {
 	logger.Infof("  📉 Open short: %s", decision.Symbol)
 
-	// ⚠️ Get current positions for multiple checks
+	// ⚠️ Get current positions for duplicate checks
 	positions, err := at.trader.GetPositions()
 	if err != nil {
 		return fmt.Errorf("failed to get positions: %w", err)
 	}
 
-	// [CODE ENFORCED] Check max positions limit
-	if err := at.enforceMaxPositions(len(positions)); err != nil {
+	// [CODE ENFORCED] Check max positions limit using the real-time counter
+	if err := at.enforceMaxPositions(*currentPositionCount); err != nil {
 		return err
 	}
 

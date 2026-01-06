@@ -2115,14 +2115,39 @@ func (at *AutoTrader) checkPositionProfitLocking() {
 	}
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		stopLossPrice := pos["stopLossPrice"].(float64)
+		// Safe type assertion for all fields with nil check
+		symbol, ok := pos["symbol"].(string)
+		if !ok || symbol == "" {
+			logger.Debugf("Profit locking: skipping position with missing or empty symbol")
+			continue
+		}
+
+		side, ok := pos["side"].(string)
+		if !ok || side == "" {
+			logger.Debugf("Profit locking: skipping position %s with missing or empty side", symbol)
+			continue
+		}
+
+		entryPrice, ok := pos["entryPrice"].(float64)
+		if !ok || entryPrice == 0 {
+			logger.Debugf("Profit locking: skipping position %s %s with missing or invalid entryPrice", symbol, side)
+			continue
+		}
+
+		markPrice, ok := pos["markPrice"].(float64)
+		if !ok || markPrice == 0 {
+			logger.Debugf("Profit locking: skipping position %s %s with missing or invalid markPrice", symbol, side)
+			continue
+		}
+
+		stopLossPrice, ok := pos["stopLossPrice"].(float64)
+		if !ok || stopLossPrice == 0 {
+			logger.Debugf("Profit locking: skipping position %s %s with missing or invalid stopLossPrice (required for R multiple calculation)", symbol, side)
+			continue
+		}
 
 		leverage := 10
-		if lev, ok := pos["leverage"].(float64); ok {
+		if lev, ok := pos["leverage"].(float64); ok && lev > 0 {
 			leverage = int(lev)
 		}
 

@@ -718,65 +718,6 @@ export function TraderDashboardPage({
                             )}
                         </div>
 
-                    {/* Right Column: Recent Decisions */}
-                    <div
-                        className="nofx-glass p-6 animate-slide-in"
-                        style={{ animationDelay: '0.2s' }}
-                    >
-                        {/* Header */}
-                        <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/5">
-                            <div
-                                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-[0_4px_14px_rgba(99,102,241,0.4)]"
-                                style={{
-                                    background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
-                                }}
-                            >
-                                🧠
-                            </div>
-                            <div className="flex-1">
-                                <h2 className="text-xl font-bold text-nofx-text-main">
-                                    {t('recentDecisions', language)}
-                                </h2>
-                                {decisions && decisions.length > 0 && (
-                                    <div className="text-xs text-nofx-text-muted">
-                                        {t('lastCycles', language, { count: decisions.length })}
-                                    </div>
-                                )}
-                            </div>
-                            {/* Limit Selector */}
-                            <select
-                                value={decisionsLimit}
-                                onChange={(e) => onDecisionsLimitChange(Number(e.target.value))}
-                                className="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-all bg-black/40 text-nofx-text-main border border-white/10 hover:border-nofx-accent focus:outline-none"
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </select>
-                        </div>
-
-                        {/* Decisions List */}
-                        <div className="space-y-4 pr-2">
-                            {decisions && decisions.length > 0 ? (
-                                decisions.map((decision, i) => (
-                                    <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />
-                                ))
-                            ) : (
-                                <div className="py-16 text-center text-nofx-text-muted opacity-60">
-                                    <div className="text-6xl mb-4 opacity-30 grayscale">🧠</div>
-                                    <div className="text-lg font-semibold mb-2 text-nofx-text-main">
-                                        {t('noDecisionsYet', language)}
-                                    </div>
-                                    <div className="text-sm">
-                                        {t('aiDecisionsWillAppear', language)}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
                     {/* Recent Decisions */}
                     <div
                         className="nofx-glass p-6 animate-slide-in"
@@ -816,8 +757,15 @@ export function TraderDashboardPage({
                             </select>
                         </div>
 
-                        {/* Decisions List */}
-                        <div className="space-y-4 pr-2">
+                        {/* Decisions List - Fixed height with scroll */}
+                        <div 
+                            className="space-y-4 pr-2 overflow-y-auto custom-scrollbar" 
+                            style={{ 
+                                maxHeight: '500px', // 约1.5个周期块高度
+                                scrollbarWidth: 'thin',
+                                scrollbarColor: 'rgba(240, 185, 11, 0.3) rgba(0, 0, 0, 0.2)',
+                            }}
+                        >
                             {decisions && decisions.length > 0 ? (
                                 decisions.map((decision, i) => (
                                     <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />

@@ -667,6 +667,7 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		// Use new interval fields with default values
 		NoPositionScanInterval:    10 * time.Minute, // Default: 10 minutes when no positions
 		WithPositionScanInterval:  5 * time.Minute,  // Default: 5 minutes when has positions
+		// IMPORTANT: Don't set ScanInterval here to avoid overriding new interval fields
 		InitialBalance:           traderCfg.InitialBalance,
 		IsCrossMargin:            traderCfg.IsCrossMargin,
 		ShowInCompetition:        traderCfg.ShowInCompetition,

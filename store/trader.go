@@ -26,7 +26,7 @@ type Trader struct {
 	ExchangeID                        string    `gorm:"column:exchange_id;not null" json:"exchange_id"`
 	StrategyID                        string    `gorm:"column:strategy_id;default:''" json:"strategy_id"`
 	InitialBalance                    float64   `gorm:"column:initial_balance;not null" json:"initial_balance"`
-	ScanIntervalMinutes               int       `gorm:"column:scan_interval_minutes;default:3" json:"scan_interval_minutes"` // Deprecated: Use NoPositionScanIntervalMinutes and WithPositionScanIntervalMinutes instead
+	ScanIntervalMinutes               int       `gorm:"column:scan_interval_minutes;default:0" json:"scan_interval_minutes"` // Deprecated: Use NoPositionScanIntervalMinutes and WithPositionScanIntervalMinutes instead
 	NoPositionScanIntervalMinutes     int       `gorm:"column:no_position_scan_interval_minutes;default:10" json:"no_position_scan_interval_minutes"` // Scan interval when no positions (minutes)
 	WithPositionScanIntervalMinutes   int       `gorm:"column:with_position_scan_interval_minutes;default:5" json:"with_position_scan_interval_minutes"` // Scan interval when has positions (minutes)
 	IsRunning                         bool      `gorm:"column:is_running;default:false" json:"is_running"`

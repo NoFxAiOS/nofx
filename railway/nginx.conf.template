@@ -1,6 +1,3 @@
-# Railway Nginx Configuration
-# Frontend static files + API proxy to backend
-
 server {
     listen ${PORT};
     server_name _;
@@ -8,45 +5,30 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
-    # Gzip compression
+    # Gzip
     gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/javascript application/json;
+    gzip_types text/plain text/css application/json application/javascript text/xml;
 
-    # Frontend routes (SPA)
+    # SPA 路由
     location / {
         try_files $uri $uri/ /index.html;
-
-        # Cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
     }
 
-    # Proxy API requests to backend (runs on 8081 internally)
+    # API 代理到后端
     location /api/ {
-        proxy_pass http://127.0.0.1:8081/api/;
+        proxy_pass http://127.0.0.1:8080/api/;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # Timeout for long-running API calls (AI inference)
         proxy_connect_timeout 300s;
         proxy_send_timeout 300s;
         proxy_read_timeout 300s;
     }
 
-    # Health check endpoint
+    # 健康检查
     location /health {
-        return 200 "OK\n";
+        return 200 'OK';
         add_header Content-Type text/plain;
-        access_log off;
     }
 }

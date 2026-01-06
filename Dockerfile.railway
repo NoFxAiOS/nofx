@@ -1,107 +1,43 @@
-# NOFX Railway Deployment
-# All-in-one Dockerfile for one-click Railway deployment
-# Combines backend + frontend in a single container
+# Railway All-in-One: 复用现有 GHCR 镜像
+# 从现有镜像提取内容，合并到一个容器
 
-ARG GO_VERSION=1.25-alpine
-ARG NODE_VERSION=20-alpine
-ARG ALPINE_VERSION=latest
-ARG TA_LIB_VERSION=0.4.0
+# 从后端镜像提取二进制
+FROM ghcr.io/nofxaios/nofx/nofx-backend:latest AS backend
 
-# ──────────────────────────────────────────────────────────────
-# Stage 1: TA-Lib Build
-# ──────────────────────────────────────────────────────────────
-FROM alpine:${ALPINE_VERSION} AS ta-lib-builder
-ARG TA_LIB_VERSION
+# 从前端镜像提取静态文件
+FROM ghcr.io/nofxaios/nofx/nofx-frontend:latest AS frontend
 
-RUN apk update && apk add --no-cache \
-    wget tar make gcc g++ musl-dev autoconf automake
+# 最终镜像
+FROM alpine:latest
 
-RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-${TA_LIB_VERSION}-src.tar.gz && \
-    tar -xzf ta-lib-${TA_LIB_VERSION}-src.tar.gz && \
-    cd ta-lib && \
-    if [ "$(uname -m)" = "aarch64" ]; then \
-        CONFIG_GUESS=$(find /usr/share -name config.guess | head -1) && \
-        CONFIG_SUB=$(find /usr/share -name config.sub | head -1) && \
-        cp "$CONFIG_GUESS" config.guess && \
-        cp "$CONFIG_SUB" config.sub && \
-        chmod +x config.guess config.sub; \
-    fi && \
-    ./configure --prefix=/usr/local && \
-    make && make install && \
-    cd .. && rm -rf ta-lib ta-lib-${TA_LIB_VERSION}-src.tar.gz
+RUN apk add --no-cache ca-certificates tzdata sqlite nginx openssl gettext
 
-# ──────────────────────────────────────────────────────────────
-# Stage 2: Backend Build (Go)
-# ──────────────────────────────────────────────────────────────
-FROM golang:${GO_VERSION} AS backend-builder
+# 复制后端二进制
+COPY --from=backend /app/nofx /app/nofx
 
-RUN apk update && apk add --no-cache git make gcc g++ musl-dev
+# 复制 TA-Lib 库
+COPY --from=backend /usr/local/lib/libta_lib* /usr/local/lib/
+RUN ldconfig /usr/local/lib 2>/dev/null || true
 
-COPY --from=ta-lib-builder /usr/local /usr/local
+# 复制前端静态文件
+COPY --from=frontend /usr/share/nginx/html /usr/share/nginx/html
 
 WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-RUN CGO_ENABLED=1 GOOS=linux \
-    CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
-    go build -trimpath -ldflags="-s -w" -o nofx .
-
-# ──────────────────────────────────────────────────────────────
-# Stage 3: Frontend Build (Node)
-# ──────────────────────────────────────────────────────────────
-FROM node:${NODE_VERSION} AS frontend-builder
-WORKDIR /build
-
-COPY web/package*.json ./
-RUN npm ci
-
-COPY web/ ./
-RUN npm run build
-
-# ──────────────────────────────────────────────────────────────
-# Stage 4: Runtime (All-in-one)
-# ──────────────────────────────────────────────────────────────
-FROM alpine:${ALPINE_VERSION}
-
-RUN apk update && apk add --no-cache \
-    ca-certificates tzdata sqlite nginx supervisor openssl gettext
-
-# Copy TA-Lib
-COPY --from=ta-lib-builder /usr/local /usr/local
-
-# Copy backend binary
-WORKDIR /app
-COPY --from=backend-builder /app/nofx .
-
-# Copy frontend build
-COPY --from=frontend-builder /build/dist /usr/share/nginx/html
-
-# Copy Railway-specific nginx config template
-COPY railway/nginx.conf.template /etc/nginx/nginx.conf.template
-
-# Copy nginx startup wrapper
-COPY railway/start-nginx.sh /app/start-nginx.sh
-RUN chmod +x /app/start-nginx.sh
-
-# Copy supervisor config
-COPY railway/supervisord.conf /etc/supervisord.conf
-
-# Copy backend startup wrapper (auto-generates encryption keys)
-COPY railway/start-backend.sh /app/start-backend.sh
-RUN chmod +x /app/start-backend.sh
-
-# Create data directory
 RUN mkdir -p /app/data
 
-# Railway uses PORT env var, default to 8080
-ENV PORT=8080
+# nginx 配置模板（使用 $PORT 变量）
+COPY railway/nginx.conf.template /etc/nginx/nginx.conf.template
 
-EXPOSE 8080
+# 启动脚本
+COPY railway/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
-# Health check
+ENV DB_PATH=/app/data/data.db
+ENV PORT=3000
+
+EXPOSE 3000
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3000}/health || exit 1
 
-CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/app/start.sh"]

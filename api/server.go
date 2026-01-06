@@ -202,6 +202,7 @@ func (s *Server) setupRoutes() {
 			protected.GET("/trades", s.handleTrades)
 			protected.GET("/orders", s.handleOrders)               // Order list (all orders)
 			protected.GET("/orders/:id/fills", s.handleOrderFills) // Order fill details
+			protected.GET("/open-orders", s.handleOpenOrders)      // Open orders from exchange (pending SL/TP)
 			protected.GET("/decisions", s.handleDecisions)
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
@@ -2339,6 +2340,40 @@ func (s *Server) handleOrderFills(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, fills)
+}
+
+// handleOpenOrders Get open orders (pending SL/TP) from exchange
+func (s *Server) handleOpenOrders(c *gin.Context) {
+	_, traderID, err := s.getTraderFromQuery(c)
+	if err != nil {
+		SafeBadRequest(c, "Invalid trader ID")
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		SafeNotFound(c, "Trader")
+		return
+	}
+
+	// Get symbol parameter (required for exchange query)
+	symbol := c.Query("symbol")
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol parameter is required"})
+		return
+	}
+
+	// Normalize symbol
+	symbol = market.Normalize(symbol)
+
+	// Get open orders from exchange
+	openOrders, err := trader.GetOpenOrders(symbol)
+	if err != nil {
+		SafeInternalError(c, "Get open orders", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, openOrders)
 }
 
 // handleKlines K-line data (supports multiple exchanges via coinank)

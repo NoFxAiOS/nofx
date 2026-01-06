@@ -776,6 +776,64 @@ func (t *FuturesTrader) CancelStopOrders(symbol string) error {
 	return nil
 }
 
+// GetOpenOrders gets all open/pending orders for a symbol
+func (t *FuturesTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
+	var result []OpenOrder
+
+	// 1. Get legacy open orders
+	orders, err := t.client.NewListOpenOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open orders: %w", err)
+	}
+
+	for _, order := range orders {
+		price, _ := strconv.ParseFloat(order.Price, 64)
+		stopPrice, _ := strconv.ParseFloat(order.StopPrice, 64)
+		quantity, _ := strconv.ParseFloat(order.OrigQuantity, 64)
+
+		result = append(result, OpenOrder{
+			OrderID:      fmt.Sprintf("%d", order.OrderID),
+			Symbol:       order.Symbol,
+			Side:         string(order.Side),
+			PositionSide: string(order.PositionSide),
+			Type:         string(order.Type),
+			Price:        price,
+			StopPrice:    stopPrice,
+			Quantity:     quantity,
+			Status:       string(order.Status),
+		})
+	}
+
+	// 2. Get Algo orders (new API for stop-loss/take-profit)
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().
+		Symbol(symbol).
+		Do(context.Background())
+
+	if err == nil {
+		for _, algoOrder := range algoOrders {
+			triggerPrice, _ := strconv.ParseFloat(algoOrder.TriggerPrice, 64)
+			quantity, _ := strconv.ParseFloat(algoOrder.Quantity, 64)
+
+			result = append(result, OpenOrder{
+				OrderID:      fmt.Sprintf("%d", algoOrder.AlgoId),
+				Symbol:       algoOrder.Symbol,
+				Side:         string(algoOrder.Side),
+				PositionSide: string(algoOrder.PositionSide),
+				Type:         string(algoOrder.OrderType),
+				Price:        0, // Algo orders use stop price
+				StopPrice:    triggerPrice,
+				Quantity:     quantity,
+				Status:       "NEW",
+			})
+		}
+	}
+
+	return result, nil
+}
+
 // GetMarketPrice gets market price
 func (t *FuturesTrader) GetMarketPrice(symbol string) (float64, error) {
 	prices, err := t.client.NewListPricesService().Symbol(symbol).Do(context.Background())

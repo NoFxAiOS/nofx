@@ -1096,3 +1096,9 @@ func genBitgetClientOid() string {
 	rand := time.Now().Nanosecond() % 100000
 	return fmt.Sprintf("nofx%d%05d", timestamp, rand)
 }
+
+// GetOpenOrders gets all open/pending orders for a symbol
+func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
+	// TODO: Implement Bitget open orders
+	return []OpenOrder{}, nil
+}

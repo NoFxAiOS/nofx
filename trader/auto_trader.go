@@ -2218,3 +2218,8 @@ func getSideFromAction(action string) string {
 	}
 }
 
+// GetOpenOrders returns open orders (pending SL/TP) from exchange
+func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
+	return at.trader.GetOpenOrders(symbol)
+}
+

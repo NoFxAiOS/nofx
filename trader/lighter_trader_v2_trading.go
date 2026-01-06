@@ -686,3 +686,9 @@ func pow10(n int) int64 {
 	}
 	return result
 }
+
+// GetOpenOrders gets all open/pending orders for a symbol
+func (t *LighterTraderV2) GetOpenOrders(symbol string) ([]OpenOrder, error) {
+	// TODO: Implement Lighter open orders
+	return []OpenOrder{}, nil
+}

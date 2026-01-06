@@ -94,4 +94,21 @@ type Trader interface {
 	// limit: max number of records to return
 	// Returns accurate exit price, fees, and close reason for positions closed externally
 	GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error)
+
+	// GetOpenOrders Get open/pending orders from exchange
+	// Returns stop-loss, take-profit, and limit orders that haven't been filled
+	GetOpenOrders(symbol string) ([]OpenOrder, error)
+}
+
+// OpenOrder represents a pending order on the exchange
+type OpenOrder struct {
+	OrderID      string  `json:"order_id"`
+	Symbol       string  `json:"symbol"`
+	Side         string  `json:"side"`          // BUY/SELL
+	PositionSide string  `json:"position_side"` // LONG/SHORT
+	Type         string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET
+	Price        float64 `json:"price"`         // Order price (for limit orders)
+	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop orders)
+	Quantity     float64 `json:"quantity"`
+	Status       string  `json:"status"` // NEW
 }

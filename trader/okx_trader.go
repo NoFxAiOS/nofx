@@ -1387,3 +1387,9 @@ func (t *OKXTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRec
 
 	return records, nil
 }
+
+// GetOpenOrders gets all open/pending orders for a symbol
+func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
+	// TODO: Implement OKX open orders
+	return []OpenOrder{}, nil
+}

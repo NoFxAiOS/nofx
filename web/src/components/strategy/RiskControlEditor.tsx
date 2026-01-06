@@ -450,6 +450,33 @@ export function RiskControlEditor({
                   </div>
                 </div>
 
+                {/* Profit Lock Percentage */}
+                <div>
+                  <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                    {t('profitLockPercentage')}
+                  </label>
+                  <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                    {t('profitLockPercentageDesc')}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      value={(config.profit_lock_percentage ?? 0.3) * 100}
+                      onChange={(e) =>
+                        updateField('profit_lock_percentage', parseFloat(e.target.value) / 100)
+                      }
+                      disabled={disabled}
+                      min={0}
+                      max={100}
+                      step={5}
+                      className="flex-1 accent-yellow-500"
+                    />
+                    <span className="w-16 text-center font-mono" style={{ color: '#F0B90B' }}>
+                      {((config.profit_lock_percentage ?? 0.3) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
+
                 {/* Fee Rate */}
                 <div>
                   <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>

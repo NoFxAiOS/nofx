@@ -717,7 +717,6 @@ export function TraderDashboardPage({
                                 </div>
                             )}
                         </div>
-                    </div>
 
                     {/* Right Column: Recent Decisions */}
                     <div

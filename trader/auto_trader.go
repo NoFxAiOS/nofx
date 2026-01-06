@@ -1348,14 +1348,22 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 
 	// Execute adjustments based on action type
 	positionSide := map[bool]string{true: "LONG", false: "SHORT"}[isLong]
+	// Define posKey early so it can be used in cache lookup
+	posKey := fmt.Sprintf("%s_%s", decision.Symbol, strings.ToLower(positionSide))
+	
+	// Get current cache values early so they can be used in both condition blocks
+	var cacheEntry struct {
+		TakeProfitPrice float64
+		StopLossPrice   float64
+	}
+	var cacheExists bool
+	at.stopLossTakeProfitMutex.RLock()
+	cacheEntry, cacheExists = at.stopLossTakeProfitCache[posKey]
+	at.stopLossTakeProfitMutex.RUnlock()
 
 	if isAdjustStopLoss || isAdjustBoth {
 		// Get current stop loss from cache if available, otherwise use "-" to indicate no existing stop loss
 		var currentStopLoss string
-		// Get current values from cache
-		at.stopLossTakeProfitMutex.RLock()
-		cacheEntry, cacheExists := at.stopLossTakeProfitCache[posKey]
-		at.stopLossTakeProfitMutex.RUnlock()
 		
 		if cacheExists {
 			currentStopLoss = fmt.Sprintf("%.4f", cacheEntry.StopLossPrice)
@@ -1405,9 +1413,8 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 	}
 
 	// Update stop loss/take profit cache
-	posKey := fmt.Sprintf("%s_%s", decision.Symbol, strings.ToLower(positionSide))
 	at.stopLossTakeProfitMutex.Lock()
-	// Get current cache values
+	// Get current cache values again to ensure we have the latest data
 	cacheEntry, exists := at.stopLossTakeProfitCache[posKey]
 	if !exists {
 		// Initialize cache entry if it doesn't exist

@@ -722,7 +722,7 @@ export function TraderDashboardPage({
 
                     {/* Right Column: Recent Decisions */}
                     <div
-                        className="nofx-glass p-6 animate-slide-in flex flex-col"
+                        className="nofx-glass p-6 animate-slide-in flex flex-col h-full"
                         style={{ animationDelay: '0.2s' }}
                     >
                         {/* Header */}
@@ -760,7 +760,7 @@ export function TraderDashboardPage({
                         </div>
 
                         {/* Decisions List */}
-                        <div className="space-y-4 pr-2">
+                        <div className="space-y-4 pr-2 flex-1 overflow-y-auto custom-scrollbar" style={{ maxHeight: 'none' }}>
                             {decisions && decisions.length > 0 ? (
                                 decisions.map((decision, i) => (
                                     <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />

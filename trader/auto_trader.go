@@ -2001,6 +2001,11 @@ func (at *AutoTrader) startDrawdownMonitor() {
 
 // checkPositionDrawdown checks position drawdown situation
 func (at *AutoTrader) checkPositionDrawdown() {
+	// Check if drawdown protection is enabled
+	if !at.config.StrategyConfig.RiskControl.EnableDrawdownProtection {
+		return
+	}
+
 	// Get current positions
 	positions, err := at.trader.GetPositions()
 	if err != nil {

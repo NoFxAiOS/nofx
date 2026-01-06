@@ -37,6 +37,8 @@ export function RiskControlEditor({
       minRiskRewardDesc: { zh: '开仓要求的最低盈亏比', en: 'Minimum profit ratio for opening' },
       maxMarginUsage: { zh: '最大保证金使用率（代码强制）', en: 'Max Margin Usage (CODE ENFORCED)' },
       maxMarginUsageDesc: { zh: '保证金使用率上限，由代码强制执行', en: 'Maximum margin utilization, enforced by code' },
+      enableDrawdownProtection: { zh: '启用回撤保护', en: 'Enable Drawdown Protection' },
+      enableDrawdownProtectionDesc: { zh: '当利润回撤超过40%时自动平仓', en: 'Auto close position when profit drawdown exceeds 40%' },
       entryRequirements: { zh: '开仓要求', en: 'Entry Requirements' },
       minPositionSize: { zh: '最小开仓金额', en: 'Min Position Size' },
       minPositionSizeDesc: { zh: 'USDT 最小名义价值', en: 'Minimum notional value in USDT' },
@@ -309,6 +311,32 @@ export function RiskControlEditor({
               <span className="w-12 text-center font-mono" style={{ color: '#0ECB81' }}>
                 {Math.round((config.max_margin_usage ?? 0.9) * 100)}%
               </span>
+            </div>
+          </div>
+
+          {/* Drawdown Protection */}
+          <div
+            className="p-4 rounded-lg col-span-2"
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                  {t('enableDrawdownProtection')}
+                </label>
+                <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                  {t('enableDrawdownProtectionDesc')}
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={config.enable_drawdown_protection ?? true}
+                onChange={(e) =>
+                  updateField('enable_drawdown_protection', e.target.checked)
+                }
+                disabled={disabled}
+                className="h-5 w-5 accent-yellow-500"
+              />
             </div>
           </div>
         </div>

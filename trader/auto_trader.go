@@ -894,7 +894,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			}
 			logger.Infof("Debug: Cache miss for %s, using exchange values TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
 		}
-		at.stopLossTakeProfitMutex.Unlock()
+		at.stopLossTakeProfitMutex.RUnlock()
 		
 		logger.Infof("Debug: Final TP=%.4f, SL=%.4f for %s", takeProfitPrice, stopLossPrice, posKey)
 

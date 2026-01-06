@@ -2107,7 +2107,6 @@ func (at *AutoTrader) checkPositionProfitLocking() {
 
 	lockTargets := at.config.StrategyConfig.RiskControl.ProfitLockTargets
 	lockMode := at.config.StrategyConfig.RiskControl.ProfitLockMode
-	lockPercentage := at.config.StrategyConfig.RiskControl.ProfitLockPercentage
 	feeRate := at.config.StrategyConfig.RiskControl.FeeRate
 	if feeRate == 0 {
 		feeRate = 0.0005 // Default 0.05%

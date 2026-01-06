@@ -849,7 +849,7 @@ export function TraderDashboardPage({
                         </div>
                         <PositionHistory traderId={selectedTraderId} />
                     </div>
-                )}
+                </div>
             </div>
         </DeepVoidBackground>
     )

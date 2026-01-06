@@ -19,7 +19,7 @@ const (
 var (
 	DefaultTimeout = 120 * time.Second
 
-	MaxRetryTimes = 3
+	MaxRetryTimes = 4
 
 	retryableErrors = []string{
 		"EOF",
@@ -351,14 +351,7 @@ func (client *Client) String() string {
 
 // isRetryableError determines if error is retryable (network errors, timeouts, etc.)
 func (client *Client) isRetryableError(err error) bool {
-	errStr := err.Error()
-	// Network errors, timeouts, EOF, etc. can be retried
-	for _, retryable := range client.config.RetryableErrors {
-		if strings.Contains(errStr, retryable) {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 // ============================================================

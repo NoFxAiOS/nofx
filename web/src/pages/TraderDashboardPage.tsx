@@ -722,7 +722,7 @@ export function TraderDashboardPage({
 
                     {/* Right Column: Recent Decisions */}
                     <div
-                        className="nofx-glass p-6 animate-slide-in h-fit lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] flex flex-col"
+                        className="nofx-glass p-6 animate-slide-in flex flex-col"
                         style={{ animationDelay: '0.2s' }}
                     >
                         {/* Header */}

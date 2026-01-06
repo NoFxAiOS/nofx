@@ -194,9 +194,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
       {/* Reasoning */}
       {action.reasoning && (
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
-          <div className="text-xs line-clamp-2" style={{ color: '#848E9C' }}>
-            💡 {action.reasoning}
-          </div>
+          <div className="text-xs line-clamp-2" style={{ color: '#848E9C' }}>💡 {action.reasoning}</div>
         </div>
       )}
 
@@ -267,8 +265,16 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
             <div className="font-bold" style={{ color: '#EAECEF' }}>
               {t('cycle', language)} #{decision.cycle_number}
             </div>
-            <div className="text-xs" style={{ color: '#848E9C' }}>
-              {new Date(decision.timestamp).toLocaleString()}
+            <div className="space-y-1">
+              <div className="text-xs" style={{ color: '#848E9C' }}>
+                <span style={{ color: '#0ECB81' }}>开始:</span> {new Date(new Date(decision.timestamp).getTime() - (decision.ai_request_duration_ms || 0)).toLocaleString()}
+              </div>
+              <div className="text-xs" style={{ color: '#848E9C' }}>
+                <span style={{ color: '#F6465D' }}>结束:</span> {new Date(decision.timestamp).toLocaleString()}
+              </div>
+              <div className="text-xs" style={{ color: '#848E9C' }}>
+                <span style={{ color: '#F0B90B' }}>下次:</span> {new Date(new Date(decision.timestamp).getTime() + (10 * 60 * 1000)).toLocaleString()}
+              </div>
             </div>
           </div>
         </div>

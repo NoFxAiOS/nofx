@@ -78,6 +78,7 @@ export interface DecisionRecord {
   execution_log: string[]
   success: boolean
   error_message?: string
+  ai_request_duration_ms?: number // AI request duration in milliseconds
 }
 
 export interface Statistics {

@@ -1402,15 +1402,12 @@ func (t *HyperliquidTrader) placeXyzOrder(coin string, isBuy bool, size float64,
 		},
 	}
 
-	// Create OrderAction with builder (xyz dex requires builder info for order routing)
+	// Create OrderAction (no builder to avoid requiring builder fee approval)
 	action := hyperliquid.OrderAction{
 		Type:     "order",
 		Orders:   []hyperliquid.OrderWire{orderWire},
 		Grouping: "na",
-		Builder: &hyperliquid.BuilderInfo{
-			Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",
-			Fee:     10,
-		},
+		Builder:  nil,
 	}
 
 	// Sign the action
@@ -1592,15 +1589,12 @@ func (t *HyperliquidTrader) placeXyzTriggerOrder(coin string, isBuy bool, size f
 		},
 	}
 
-	// Create OrderAction with builder
+	// Create OrderAction (no builder to avoid requiring builder fee approval)
 	action := hyperliquid.OrderAction{
 		Type:     "order",
 		Orders:   []hyperliquid.OrderWire{orderWire},
 		Grouping: "na",
-		Builder: &hyperliquid.BuilderInfo{
-			Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",
-			Fee:     10,
-		},
+		Builder:  nil,
 	}
 
 	// Sign the action
@@ -2079,6 +2073,7 @@ func (t *HyperliquidTrader) GetTrades(startTime time.Time, limit int) ([]TradeRe
 }
 
 // defaultBuilder is the builder info for order routing
+// Set to nil to avoid requiring builder fee approval
 //
 //	var defaultBuilder = &hyperliquid.BuilderInfo{
 //		Builder: "0x891dc6f05ad47a3c1a05da55e7a7517971faaf0d",

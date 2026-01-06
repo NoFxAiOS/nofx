@@ -50,6 +50,8 @@ type PositionInfo struct {
 	PeakPnLPct       float64 `json:"peak_pnl_pct"` // Historical peak profit percentage
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
+	TakeProfitPrice  float64 `json:"take_profit_price,omitempty"` // Take profit price
+	StopLossPrice    float64 `json:"stop_loss_price,omitempty"` // Stop loss price
 	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
 }
 

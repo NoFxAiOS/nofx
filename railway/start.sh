@@ -67,14 +67,32 @@ fi
 
 echo "✅ Backend started (PID: $BACKEND_PID)"
 
+# 删除默认的 nginx 配置避免冲突
+rm -f /etc/nginx/http.d/default.conf.bak 2>/dev/null || true
+
 # 测试 nginx 配置
 echo "🔍 Testing nginx config..."
 nginx -t 2>&1
 
 # 检查前端文件是否存在
 echo "📁 Checking frontend files..."
-ls -la /usr/share/nginx/html/ | head -10
+ls -la /usr/share/nginx/html/ | head -5
 
-# 启动 nginx（前台运行）
+# 启动 nginx（后台先测试）
 echo "🌐 Starting nginx on port $PORT..."
-exec nginx -g "daemon off;"
+nginx
+
+# 等待 nginx 启动
+sleep 1
+
+# 测试 nginx 是否响应
+echo "🔍 Testing nginx response..."
+wget -q -O - http://127.0.0.1:$PORT/health || echo "❌ Health check failed"
+
+# 检查 nginx 进程
+echo "📋 Nginx processes:"
+ps aux | grep nginx
+
+# 保持前台运行
+echo "✅ All services started, keeping container alive..."
+tail -f /dev/null

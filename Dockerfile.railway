@@ -66,7 +66,7 @@ RUN npm run build
 FROM alpine:${ALPINE_VERSION}
 
 RUN apk update && apk add --no-cache \
-    ca-certificates tzdata sqlite nginx supervisor openssl
+    ca-certificates tzdata sqlite nginx supervisor openssl gettext
 
 # Copy TA-Lib
 COPY --from=ta-lib-builder /usr/local /usr/local
@@ -78,8 +78,12 @@ COPY --from=backend-builder /app/nofx .
 # Copy frontend build
 COPY --from=frontend-builder /build/dist /usr/share/nginx/html
 
-# Copy Railway-specific nginx config
-COPY railway/nginx.conf /etc/nginx/http.d/default.conf
+# Copy Railway-specific nginx config template
+COPY railway/nginx.conf.template /etc/nginx/nginx.conf.template
+
+# Copy nginx startup wrapper
+COPY railway/start-nginx.sh /app/start-nginx.sh
+RUN chmod +x /app/start-nginx.sh
 
 # Copy supervisor config
 COPY railway/supervisord.conf /etc/supervisord.conf

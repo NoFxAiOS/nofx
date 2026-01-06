@@ -2,7 +2,7 @@ package store
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
 	"time"
 
 	"gorm.io/gorm"
@@ -324,28 +324,32 @@ func (s *OrderStore) GetDuplicateFillsCount() (int, error) {
 
 // GetMaxTradeIDsByExchange returns max trade ID for each symbol for a given exchange
 func (s *OrderStore) GetMaxTradeIDsByExchange(exchangeID string) (map[string]int64, error) {
-	type symbolMaxID struct {
-		Symbol     string
-		MaxTradeID int64
+	type symbolTradeID struct {
+		Symbol          string
+		ExchangeTradeID string
 	}
-	var results []symbolMaxID
+	var results []symbolTradeID
 
+	// Query all trade IDs grouped by symbol, find max in Go to avoid database-specific CAST issues
+	// (PostgreSQL INTEGER is 32-bit, can't handle Binance trade IDs > 2.1B)
 	err := s.db.Model(&TraderFill{}).
-		Select("symbol, MAX(CAST(exchange_trade_id AS INTEGER)) as max_trade_id").
+		Select("symbol, exchange_trade_id").
 		Where("exchange_id = ? AND exchange_trade_id != ''", exchangeID).
-		Group("symbol").
 		Find(&results).Error
 	if err != nil {
-		// If CAST fails (non-numeric trade IDs), fallback to string comparison
-		if strings.Contains(err.Error(), "CAST") || strings.Contains(err.Error(), "invalid") {
-			return make(map[string]int64), nil
-		}
-		return nil, fmt.Errorf("failed to query max trade IDs: %w", err)
+		return nil, fmt.Errorf("failed to query trade IDs: %w", err)
 	}
 
+	// Find max trade ID per symbol in Go (handles 64-bit integers properly)
 	result := make(map[string]int64)
 	for _, r := range results {
-		result[r.Symbol] = r.MaxTradeID
+		tradeID, err := strconv.ParseInt(r.ExchangeTradeID, 10, 64)
+		if err != nil {
+			continue // Skip non-numeric trade IDs
+		}
+		if tradeID > result[r.Symbol] {
+			result[r.Symbol] = tradeID
+		}
 	}
 
 	return result, nil

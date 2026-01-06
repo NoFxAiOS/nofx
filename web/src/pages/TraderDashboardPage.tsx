@@ -553,10 +553,12 @@ export function TraderDashboardPage({
                     
                     {/* Positions + Recent Decisions Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left Column: Current Positions */}
                         <div
-                            className="nofx-glass p-6 animate-slide-in relative overflow-hidden group"
+                            className="nofx-glass p-6 animate-slide-in relative overflow-hidden"
                             style={{ animationDelay: '0.15s' }}
                         >
+                            {/* Background effect */}
                             <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <div className="w-24 h-24 rounded-full bg-blue-500 blur-3xl" />
                             </div>

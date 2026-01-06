@@ -126,6 +126,12 @@ type AutoTrader struct {
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
+	// Stop loss and take profit cache for each position
+	stopLossTakeProfitCache map[string]struct {
+		TakeProfitPrice float64
+		StopLossPrice   float64
+	}
+	stopLossTakeProfitMutex sync.RWMutex
 }
 
 // NewAutoTrader creates an automatic trader
@@ -359,6 +365,11 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		monitorWg:             sync.WaitGroup{},
 		peakPnLCache:          make(map[string]float64),
 		peakPnLCacheMutex:     sync.RWMutex{},
+		stopLossTakeProfitCache: make(map[string]struct {
+			TakeProfitPrice float64
+			StopLossPrice   float64
+		}),
+		stopLossTakeProfitMutex: sync.RWMutex{},
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
@@ -852,20 +863,32 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
-		positionInfos = append(positionInfos, kernel.PositionInfo{
-			Symbol:           symbol,
-			Side:             side,
-			EntryPrice:       entryPrice,
-			MarkPrice:        markPrice,
-			Quantity:         quantity,
-			Leverage:         leverage,
-			UnrealizedPnL:    unrealizedPnl,
-			UnrealizedPnLPct: pnlPct,
-			PeakPnLPct:       peakPnlPct,
-			LiquidationPrice: liquidationPrice,
-			MarginUsed:       marginUsed,
-			UpdateTime:       updateTime,
-		})
+		// Get stop loss/take profit from cache
+	posKey := fmt.Sprintf("%s_%s", symbol, side)
+	var takeProfitPrice, stopLossPrice float64
+	at.stopLossTakeProfitMutex.RLock()
+	if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
+		takeProfitPrice = cacheEntry.TakeProfitPrice
+		stopLossPrice = cacheEntry.StopLossPrice
+	}
+	at.stopLossTakeProfitMutex.RUnlock()
+
+	positionInfos = append(positionInfos, kernel.PositionInfo{
+		Symbol:           symbol,
+		Side:             side,
+		EntryPrice:       entryPrice,
+		MarkPrice:        markPrice,
+		Quantity:         quantity,
+		Leverage:         leverage,
+		UnrealizedPnL:    unrealizedPnl,
+		UnrealizedPnLPct: pnlPct,
+		PeakPnLPct:       peakPnlPct,
+		LiquidationPrice: liquidationPrice,
+		MarginUsed:       marginUsed,
+		TakeProfitPrice:  takeProfitPrice,
+		StopLossPrice:    stopLossPrice,
+		UpdateTime:       updateTime,
+	})
 	}
 
 	// Clean up closed position records
@@ -1223,6 +1246,15 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
 
+	// Update stop loss/take profit cache
+	posKey := fmt.Sprintf("%s_long", decision.Symbol)
+	at.stopLossTakeProfitMutex.Lock()
+	at.stopLossTakeProfitCache[posKey] = struct {
+		TakeProfitPrice float64
+		StopLossPrice   float64
+	}{TakeProfitPrice: decision.TakeProfit, StopLossPrice: decision.StopLoss}
+	at.stopLossTakeProfitMutex.Unlock()
+
 	return nil
 }
 
@@ -1344,6 +1376,29 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 		logger.Infof("  ✓ Take profit adjusted successfully")
 	}
 
+	// Update stop loss/take profit cache
+	posKey := fmt.Sprintf("%s_%s", decision.Symbol, strings.ToLower(positionSide))
+	at.stopLossTakeProfitMutex.Lock()
+	// Get current cache values
+	cacheEntry, exists := at.stopLossTakeProfitCache[posKey]
+	if !exists {
+		// Initialize cache entry if it doesn't exist
+		cacheEntry = struct {
+			TakeProfitPrice float64
+			StopLossPrice   float64
+		}{}
+	}
+	// Update cache based on what was adjusted
+	if isAdjustStopLoss || isAdjustBoth {
+		cacheEntry.StopLossPrice = decision.StopLoss
+	}
+	if isAdjustTakeProfit || isAdjustBoth {
+		cacheEntry.TakeProfitPrice = decision.TakeProfit
+	}
+	// Save updated cache
+	at.stopLossTakeProfitCache[posKey] = cacheEntry
+	at.stopLossTakeProfitMutex.Unlock()
+
 	logger.Infof("  ✓ Stop loss/take profit adjustment completed for %s %s", decision.Symbol, positionSide)
 	return nil
 }
@@ -1461,6 +1516,15 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
+
+	// Update stop loss/take profit cache
+	posKey := fmt.Sprintf("%s_short", decision.Symbol)
+	at.stopLossTakeProfitMutex.Lock()
+	at.stopLossTakeProfitCache[posKey] = struct {
+		TakeProfitPrice float64
+		StopLossPrice   float64
+	}{TakeProfitPrice: decision.TakeProfit, StopLossPrice: decision.StopLoss}
+	at.stopLossTakeProfitMutex.Unlock()
 
 	return nil
 }

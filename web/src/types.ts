@@ -162,7 +162,9 @@ export interface CreateTraderRequest {
   exchange_id: string
   strategy_id?: string // 策略ID（新版，使用保存的策略配置）
   initial_balance?: number // 可选：创建时由后端自动获取，编辑时可手动更新
-  scan_interval_minutes?: number
+  scan_interval_minutes?: number // Deprecated: Use no_position_scan_interval_minutes and with_position_scan_interval_minutes instead
+  no_position_scan_interval_minutes?: number // Scan interval when no positions (minutes)
+  with_position_scan_interval_minutes?: number // Scan interval when has positions (minutes)
   is_cross_margin?: boolean
   show_in_competition?: boolean // 是否在竞技场显示
   // 以下字段为向后兼容保留，新版使用策略配置
@@ -239,7 +241,9 @@ export interface TraderConfigData {
   strategy_name?: string  // 策略名称
   is_cross_margin: boolean
   show_in_competition: boolean  // 是否在竞技场显示
-  scan_interval_minutes: number
+  scan_interval_minutes?: number // Deprecated: Use no_position_scan_interval_minutes and with_position_scan_interval_minutes instead
+  no_position_scan_interval_minutes: number // Scan interval when no positions (minutes)
+  with_position_scan_interval_minutes: number // Scan interval when has positions (minutes)
   initial_balance: number
   is_running: boolean
   // 以下为旧版字段（向后兼容）

@@ -73,7 +73,9 @@ type AutoTraderConfig struct {
 	CustomModelName string
 
 	// Scan configuration
-	ScanInterval time.Duration // Scan interval (recommended 3 minutes)
+	ScanInterval time.Duration // Deprecated: Use NoPositionScanInterval and WithPositionScanInterval instead
+	NoPositionScanInterval time.Duration // Scan interval when no positions (default: 10 minutes)
+	WithPositionScanInterval time.Duration // Scan interval when has positions (default: 5 minutes)
 
 	// Account configuration
 	InitialBalance float64 // Initial balance (for P&L calculation, must be set manually)
@@ -141,6 +143,26 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 			config.AIModel = "qwen"
 		} else {
 			config.AIModel = "deepseek"
+		}
+	}
+	// Set default scan intervals
+	if config.NoPositionScanInterval == 0 {
+		// Default 10 minutes when no positions
+		config.NoPositionScanInterval = 10 * time.Minute
+	}
+	if config.WithPositionScanInterval == 0 {
+		// Default 5 minutes when has positions
+		config.WithPositionScanInterval = 5 * time.Minute
+	}
+	// Handle deprecated ScanInterval for backward compatibility
+	if config.ScanInterval > 0 {
+		logger.Warnf("⚠️ [%s] ScanInterval is deprecated, please use NoPositionScanInterval and WithPositionScanInterval instead", config.Name)
+		// If new intervals are not set, use deprecated value for both
+		if config.NoPositionScanInterval == 10*time.Minute {
+			config.NoPositionScanInterval = config.ScanInterval
+		}
+		if config.WithPositionScanInterval == 5*time.Minute {
+			config.WithPositionScanInterval = config.ScanInterval
 		}
 	}
 
@@ -353,7 +375,8 @@ func (at *AutoTrader) Run() error {
 
 	logger.Info("🚀 AI-driven automatic trading system started")
 	logger.Infof("💰 Initial balance: %.2f USDT", at.initialBalance)
-	logger.Infof("⚙️  Scan interval: %v", at.config.ScanInterval)
+	logger.Infof("⚙️  No position scan interval: %v", at.config.NoPositionScanInterval)
+	logger.Infof("⚙️  With position scan interval: %v", at.config.WithPositionScanInterval)
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
 	at.monitorWg.Add(1)
 	defer at.monitorWg.Done()
@@ -417,8 +440,38 @@ func (at *AutoTrader) Run() error {
 		}
 	}
 
-	ticker := time.NewTicker(at.config.ScanInterval)
+	// Helper function to check if there are any positions
+	hasPositions := func() bool {
+		positions, err := at.trader.GetPositions()
+		if err != nil {
+			logger.Infof("⚠️  Failed to get positions: %v", err)
+			return false
+		}
+		for _, pos := range positions {
+			quantity := pos["positionAmt"].(float64)
+			if quantity != 0 {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Get initial position status
+	currentHasPositions := hasPositions()
+	var currentInterval time.Duration
+	if currentHasPositions {
+		currentInterval = at.config.WithPositionScanInterval
+	} else {
+		currentInterval = at.config.NoPositionScanInterval
+	}
+
+	// Create initial ticker
+	ticker := time.NewTicker(currentInterval)
 	defer ticker.Stop()
+
+	logger.Infof("⚙️  Initial state: %s, using interval: %v", 
+		map[bool]string{true: "Has positions", false: "No positions"}[currentHasPositions], 
+		currentInterval)
 
 	// Execute immediately on first run
 	if err := at.runCycle(); err != nil {
@@ -436,8 +489,28 @@ func (at *AutoTrader) Run() error {
 
 		select {
 		case <-ticker.C:
+			// Execute trading cycle
 			if err := at.runCycle(); err != nil {
 				logger.Infof("❌ Execution failed: %v", err)
+			}
+
+			// Check if position status has changed
+			newHasPositions := hasPositions()
+			if newHasPositions != currentHasPositions {
+				// Position status changed, update ticker
+				currentHasPositions = newHasPositions
+				if currentHasPositions {
+					currentInterval = at.config.WithPositionScanInterval
+				} else {
+					currentInterval = at.config.NoPositionScanInterval
+				}
+
+				// Restart ticker with new interval
+				ticker.Stop()
+				ticker = time.NewTicker(currentInterval)
+				logger.Infof("⚙️  Position status changed: %s, now using interval: %v", 
+					map[bool]string{true: "Has positions", false: "No positions"}[currentHasPositions], 
+					currentInterval)
 			}
 		case <-at.stopMonitorCh:
 			logger.Infof("[%s] ⏹ Stop signal received, exiting automatic trading main loop", at.name)

@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
 import type { AIModel, Exchange, CreateTraderRequest, Strategy } from '../types'
-import { useLanguage } from '../contexts/LanguageContext'
-import { t } from '../i18n/translations'
 import { toast } from 'sonner'
 import { Pencil, Plus, X as IconX, Sparkles, ExternalLink, UserPlus } from 'lucide-react'
 import { httpClient } from '../lib/httpClient'
@@ -33,7 +31,9 @@ interface FormState {
   strategy_id: string
   is_cross_margin: boolean
   show_in_competition: boolean
-  scan_interval_minutes: number
+  scan_interval_minutes: number // Deprecated: Use no_position_scan_interval_minutes and with_position_scan_interval_minutes instead
+  no_position_scan_interval_minutes: number // Scan interval when no positions (minutes)
+  with_position_scan_interval_minutes: number // Scan interval when has positions (minutes)
   initial_balance?: number
 }
 
@@ -56,7 +56,6 @@ export function TraderConfigModal({
   availableExchanges = [],
   onSave,
 }: TraderConfigModalProps) {
-  const { language } = useLanguage()
   const [formData, setFormData] = useState<FormState>({
     trader_name: '',
     ai_model: '',
@@ -65,6 +64,8 @@ export function TraderConfigModal({
     is_cross_margin: true,
     show_in_competition: true,
     scan_interval_minutes: 3,
+    no_position_scan_interval_minutes: 10, // 默认无持仓时10分钟
+    with_position_scan_interval_minutes: 5, // 默认有持仓时5分钟
   })
   const [isSaving, setIsSaving] = useState(false)
   const [strategies, setStrategies] = useState<Strategy[]>([])
@@ -103,6 +104,10 @@ export function TraderConfigModal({
       setFormData({
         ...traderData,
         strategy_id: traderData.strategy_id || '',
+        scan_interval_minutes: traderData.scan_interval_minutes || 3,
+        // 处理新旧配置字段的兼容
+        no_position_scan_interval_minutes: traderData.no_position_scan_interval_minutes || traderData.scan_interval_minutes || 10,
+        with_position_scan_interval_minutes: traderData.with_position_scan_interval_minutes || traderData.scan_interval_minutes || 5,
       })
     } else if (!isEditMode) {
       setFormData({
@@ -113,6 +118,8 @@ export function TraderConfigModal({
         is_cross_margin: true,
         show_in_competition: true,
         scan_interval_minutes: 3,
+        no_position_scan_interval_minutes: 10,
+        with_position_scan_interval_minutes: 5,
       })
     }
   }, [traderData, isEditMode, availableModels, availableExchanges])
@@ -166,6 +173,9 @@ export function TraderConfigModal({
         strategy_id: formData.strategy_id,
         is_cross_margin: formData.is_cross_margin,
         show_in_competition: formData.show_in_competition,
+        // 使用新的周期配置字段，旧字段作为备选
+        no_position_scan_interval_minutes: formData.no_position_scan_interval_minutes,
+        with_position_scan_interval_minutes: formData.with_position_scan_interval_minutes,
         scan_interval_minutes: formData.scan_interval_minutes,
       }
 
@@ -418,28 +428,75 @@ export function TraderConfigModal({
                     </button>
                   </div>
                 </div>
-                <div>
-                  <label className="text-sm text-[#EAECEF] block mb-2">
-                    {t('aiScanInterval', language)}
+                <div className="col-span-2">
+                  <label className="text-sm text-[#EAECEF] block mb-2 font-medium">
+                    AI扫描周期配置
                   </label>
-                  <input
-                    type="number"
-                    value={formData.scan_interval_minutes}
-                    onChange={(e) => {
-                      const parsedValue = Number(e.target.value)
-                      const safeValue = Number.isFinite(parsedValue)
-                        ? Math.max(3, parsedValue)
-                        : 3
-                      handleInputChange('scan_interval_minutes', safeValue)
-                    }}
-                    className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                    min="3"
-                    max="60"
-                    step="1"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('scanIntervalRecommend', language)}
+                  <p className="text-xs text-[#848E9C] mb-3">
+                    根据持仓状态自动切换扫描间隔，优化交易效率
                   </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs text-[#848E9C] block mb-1.5">
+                        无持仓时扫描间隔 (分钟)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={formData.no_position_scan_interval_minutes}
+                          onChange={(e) => {
+                            const parsedValue = Number(e.target.value)
+                            const safeValue = Number.isFinite(parsedValue) && parsedValue > 0
+                              ? Math.max(1, Math.min(120, parsedValue))
+                              : 10
+                            handleInputChange('no_position_scan_interval_minutes', safeValue)
+                          }}
+                          className="flex-1 px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                          min="1"
+                          max="120"
+                          step="1"
+                          placeholder="10"
+                        />
+                        <span className="text-sm text-[#848E9C]">
+                          分钟
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#848E9C] mt-1">
+                        推荐: 5-15分钟，默认: 10分钟
+                      </p>
+                    </div>
+                    
+                    <div>
+                      <label className="text-xs text-[#848E9C] block mb-1.5">
+                        有持仓时扫描间隔 (分钟)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={formData.with_position_scan_interval_minutes}
+                          onChange={(e) => {
+                            const parsedValue = Number(e.target.value)
+                            const safeValue = Number.isFinite(parsedValue) && parsedValue > 0
+                              ? Math.max(1, Math.min(60, parsedValue))
+                              : 5
+                            handleInputChange('with_position_scan_interval_minutes', safeValue)
+                          }}
+                          className="flex-1 px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
+                          min="1"
+                          max="60"
+                          step="1"
+                          placeholder="5"
+                        />
+                        <span className="text-sm text-[#848E9C]">
+                          分钟
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#848E9C] mt-1">
+                        推荐: 1-5分钟，默认: 5分钟
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 

@@ -864,7 +864,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		at.peakPnLCacheMutex.RUnlock()
 
 		// Get stop loss/take profit from cache
-	posKey := fmt.Sprintf("%s_%s", symbol, side)
+	posKey = fmt.Sprintf("%s_%s", symbol, side)
 	var takeProfitPrice, stopLossPrice float64
 	at.stopLossTakeProfitMutex.RLock()
 	if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
@@ -1247,7 +1247,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	}
 
 	// Update stop loss/take profit cache
-	posKey := fmt.Sprintf("%s_long", decision.Symbol)
+	posKey = fmt.Sprintf("%s_long", decision.Symbol)
 	at.stopLossTakeProfitMutex.Lock()
 	at.stopLossTakeProfitCache[posKey] = struct {
 		TakeProfitPrice float64
@@ -1518,7 +1518,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	}
 
 	// Update stop loss/take profit cache
-	posKey := fmt.Sprintf("%s_short", decision.Symbol)
+	posKey = fmt.Sprintf("%s_short", decision.Symbol)
 	at.stopLossTakeProfitMutex.Lock()
 	at.stopLossTakeProfitCache[posKey] = struct {
 		TakeProfitPrice float64

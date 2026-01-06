@@ -104,7 +104,15 @@
 
 ## 快速开始
 
-### 一键安装 (推荐)
+### 一键云部署 (最简单)
+
+一键部署到 Railway - 无需自己搭建服务器：
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/NoFxAiOS/nofx&referralCode=nofx)
+
+部署后，Railway 会提供一个公网 URL 访问你的 NOFX 实例。
+
+### 一键安装 (本地)
 
 **Linux / macOS:**
 ```bash

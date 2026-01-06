@@ -133,7 +133,15 @@ To use NOFX, you'll need:
 
 ## Quick Start
 
-### One-Click Install (Recommended)
+### One-Click Cloud Deploy (Easiest)
+
+Deploy to Railway with one click - no server setup required:
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/NoFxAiOS/nofx&referralCode=nofx)
+
+After deployment, Railway will provide a public URL to access your NOFX instance.
+
+### One-Click Install (Local)
 
 **Linux / macOS:**
 ```bash

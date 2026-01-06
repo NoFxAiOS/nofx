@@ -1,0 +1,99 @@
+# NOFX Railway Deployment
+# All-in-one Dockerfile for one-click Railway deployment
+# Combines backend + frontend in a single container
+
+ARG GO_VERSION=1.25-alpine
+ARG NODE_VERSION=20-alpine
+ARG ALPINE_VERSION=latest
+ARG TA_LIB_VERSION=0.4.0
+
+# ──────────────────────────────────────────────────────────────
+# Stage 1: TA-Lib Build
+# ──────────────────────────────────────────────────────────────
+FROM alpine:${ALPINE_VERSION} AS ta-lib-builder
+ARG TA_LIB_VERSION
+
+RUN apk update && apk add --no-cache \
+    wget tar make gcc g++ musl-dev autoconf automake
+
+RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-${TA_LIB_VERSION}-src.tar.gz && \
+    tar -xzf ta-lib-${TA_LIB_VERSION}-src.tar.gz && \
+    cd ta-lib && \
+    if [ "$(uname -m)" = "aarch64" ]; then \
+        CONFIG_GUESS=$(find /usr/share -name config.guess | head -1) && \
+        CONFIG_SUB=$(find /usr/share -name config.sub | head -1) && \
+        cp "$CONFIG_GUESS" config.guess && \
+        cp "$CONFIG_SUB" config.sub && \
+        chmod +x config.guess config.sub; \
+    fi && \
+    ./configure --prefix=/usr/local && \
+    make && make install && \
+    cd .. && rm -rf ta-lib ta-lib-${TA_LIB_VERSION}-src.tar.gz
+
+# ──────────────────────────────────────────────────────────────
+# Stage 2: Backend Build (Go)
+# ──────────────────────────────────────────────────────────────
+FROM golang:${GO_VERSION} AS backend-builder
+
+RUN apk update && apk add --no-cache git make gcc g++ musl-dev
+
+COPY --from=ta-lib-builder /usr/local /usr/local
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=1 GOOS=linux \
+    CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
+    go build -trimpath -ldflags="-s -w" -o nofx .
+
+# ──────────────────────────────────────────────────────────────
+# Stage 3: Frontend Build (Node)
+# ──────────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION} AS frontend-builder
+WORKDIR /build
+
+COPY web/package*.json ./
+RUN npm ci
+
+COPY web/ ./
+RUN npm run build
+
+# ──────────────────────────────────────────────────────────────
+# Stage 4: Runtime (All-in-one)
+# ──────────────────────────────────────────────────────────────
+FROM alpine:${ALPINE_VERSION}
+
+RUN apk update && apk add --no-cache \
+    ca-certificates tzdata sqlite nginx supervisor
+
+# Copy TA-Lib
+COPY --from=ta-lib-builder /usr/local /usr/local
+
+# Copy backend binary
+WORKDIR /app
+COPY --from=backend-builder /app/nofx .
+
+# Copy frontend build
+COPY --from=frontend-builder /build/dist /usr/share/nginx/html
+
+# Copy Railway-specific nginx config
+COPY railway/nginx.conf /etc/nginx/http.d/default.conf
+
+# Copy supervisor config
+COPY railway/supervisord.conf /etc/supervisord.conf
+
+# Create data directory
+RUN mkdir -p /app/data
+
+# Railway uses PORT env var, default to 8080
+ENV PORT=8080
+
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]

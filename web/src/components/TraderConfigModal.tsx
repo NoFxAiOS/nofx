@@ -105,9 +105,9 @@ export function TraderConfigModal({
         ...traderData,
         strategy_id: traderData.strategy_id || '',
         scan_interval_minutes: traderData.scan_interval_minutes || 3,
-        // 处理新旧配置字段的兼容
-        no_position_scan_interval_minutes: traderData.no_position_scan_interval_minutes || traderData.scan_interval_minutes || 10,
-        with_position_scan_interval_minutes: traderData.with_position_scan_interval_minutes || traderData.scan_interval_minutes || 5,
+        // 处理新旧配置字段的兼容 - 优先使用新字段，只有当新字段为0或undefined时才使用默认值
+        no_position_scan_interval_minutes: traderData.no_position_scan_interval_minutes || 10,
+        with_position_scan_interval_minutes: traderData.with_position_scan_interval_minutes || 5,
       })
     } else if (!isEditMode) {
       setFormData({
@@ -176,7 +176,6 @@ export function TraderConfigModal({
         // 使用新的周期配置字段，旧字段作为备选
         no_position_scan_interval_minutes: formData.no_position_scan_interval_minutes,
         with_position_scan_interval_minutes: formData.with_position_scan_interval_minutes,
-        scan_interval_minutes: formData.scan_interval_minutes,
       }
 
       // 只在编辑模式时包含initial_balance

@@ -107,8 +107,12 @@ export function TraderConfigViewModal({
                 value={traderData.is_cross_margin ? '全仓' : '逐仓'}
               />
               <InfoRow
-                label="扫描间隔"
-                value={`${traderData.scan_interval_minutes || 3} 分钟`}
+                label="无持仓扫描间隔"
+                value={`${traderData.no_position_scan_interval_minutes || 10} 分钟`}
+              />
+              <InfoRow
+                label="有持仓扫描间隔"
+                value={`${traderData.with_position_scan_interval_minutes || 5} 分钟`}
               />
             </div>
           </div>

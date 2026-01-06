@@ -73,7 +73,6 @@ type AutoTraderConfig struct {
 	CustomModelName string
 
 	// Scan configuration
-	ScanInterval time.Duration // Deprecated: Use NoPositionScanInterval and WithPositionScanInterval instead
 	NoPositionScanInterval time.Duration // Scan interval when no positions (default: 10 minutes)
 	WithPositionScanInterval time.Duration // Scan interval when has positions (default: 5 minutes)
 
@@ -162,17 +161,6 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	if config.WithPositionScanInterval == 0 {
 		// Default 5 minutes when has positions
 		config.WithPositionScanInterval = 5 * time.Minute
-	}
-	// Handle deprecated ScanInterval for backward compatibility
-	if config.ScanInterval > 0 {
-		logger.Warnf("⚠️ [%s] ScanInterval is deprecated, please use NoPositionScanInterval and WithPositionScanInterval instead", config.Name)
-		// If new intervals are not set, use deprecated value for both
-		if config.NoPositionScanInterval == 10*time.Minute {
-			config.NoPositionScanInterval = config.ScanInterval
-		}
-		if config.WithPositionScanInterval == 5*time.Minute {
-			config.WithPositionScanInterval = config.ScanInterval
-		}
 	}
 
 	// Initialize AI client based on provider
@@ -1794,7 +1782,7 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		"runtime_minutes": int(time.Since(at.startTime).Minutes()),
 		"call_count":      at.callCount,
 		"initial_balance": at.initialBalance,
-		"scan_interval":   at.config.ScanInterval.String(),
+
 		"stop_until":      at.stopUntil.Format(time.RFC3339),
 		"last_reset_time": at.lastResetTime.Format(time.RFC3339),
 		"ai_provider":     aiProvider,

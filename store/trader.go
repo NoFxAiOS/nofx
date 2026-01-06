@@ -124,13 +124,6 @@ func (s *TraderStore) Update(trader *Trader) error {
 	if trader.InitialBalance > 0 {
 		updates["initial_balance"] = trader.InitialBalance
 	}
-	if trader.ScanIntervalMinutes > 0 {
-		updates["scan_interval_minutes"] = trader.ScanIntervalMinutes
-		fmt.Printf("📊 TraderStore.Update: scan_interval_minutes=%d will be saved\n", trader.ScanIntervalMinutes)
-	} else {
-		fmt.Printf("⚠️ TraderStore.Update: scan_interval_minutes=%d (<=0, NOT updating)\n", trader.ScanIntervalMinutes)
-	}
-	
 	// Always update new interval fields
 	updates["no_position_scan_interval_minutes"] = trader.NoPositionScanIntervalMinutes
 	updates["with_position_scan_interval_minutes"] = trader.WithPositionScanIntervalMinutes

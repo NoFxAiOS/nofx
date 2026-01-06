@@ -2119,6 +2119,18 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 	// Return complete model ID without conversion, consistent with frontend model list
 	aiModelID := traderConfig.AIModelID
 
+	// Set default values for new interval fields if they are 0 or not set
+	noPositionInterval := traderConfig.NoPositionScanIntervalMinutes
+	withPositionInterval := traderConfig.WithPositionScanIntervalMinutes
+	
+	// If new interval fields are 0, use default values
+	if noPositionInterval <= 0 {
+		noPositionInterval = 10
+	}
+	if withPositionInterval <= 0 {
+		withPositionInterval = 5
+	}
+
 	result := map[string]interface{}{
 		"trader_id":                         traderConfig.ID,
 		"trader_name":                       traderConfig.Name,
@@ -2126,9 +2138,9 @@ func (s *Server) handleGetTraderConfig(c *gin.Context) {
 		"exchange_id":                       traderConfig.ExchangeID,
 		"strategy_id":                       traderConfig.StrategyID,
 		"initial_balance":                   traderConfig.InitialBalance,
-		"scan_interval_minutes":             traderConfig.ScanIntervalMinutes,
-		"no_position_scan_interval_minutes": traderConfig.NoPositionScanIntervalMinutes,
-		"with_position_scan_interval_minutes": traderConfig.WithPositionScanIntervalMinutes,
+
+		"no_position_scan_interval_minutes": noPositionInterval,
+		"with_position_scan_interval_minutes": withPositionInterval,
 		"btc_eth_leverage":                  traderConfig.BTCETHLeverage,
 		"altcoin_leverage":                  traderConfig.AltcoinLeverage,
 		"trading_symbols":                   traderConfig.TradingSymbols,

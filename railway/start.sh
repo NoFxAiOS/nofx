@@ -67,6 +67,14 @@ fi
 
 echo "✅ Backend started (PID: $BACKEND_PID)"
 
+# 测试 nginx 配置
+echo "🔍 Testing nginx config..."
+nginx -t 2>&1
+
+# 检查前端文件是否存在
+echo "📁 Checking frontend files..."
+ls -la /usr/share/nginx/html/ | head -10
+
 # 启动 nginx（前台运行）
 echo "🌐 Starting nginx on port $PORT..."
 exec nginx -g "daemon off;"

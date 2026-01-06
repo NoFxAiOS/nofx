@@ -849,16 +849,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 		var updateTime int64
 		// Priority 1: Get from database (trader_positions table) - most accurate
-		var dbTakeProfit, dbStopLoss float64
 		if at.store != nil {
 			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side); err == nil && dbPos != nil {
 				if !dbPos.EntryTime.IsZero() {
 					updateTime = dbPos.EntryTime.UnixMilli()
 				}
-				// Get take profit and stop loss from database
-				dbTakeProfit = dbPos.TakeProfit
-				dbStopLoss = dbPos.StopLoss
-				logger.Infof("Debug: DB hit for %s, TP=%.4f, SL=%.4f", posKey, dbTakeProfit, dbStopLoss)
 			}
 		}
 		// Priority 2: Get from exchange API (Bybit: createdTime, OKX: createdTime)
@@ -880,44 +875,26 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
-		// Get take profit and stop loss from multiple sources (priority: database > cache > exchange)
+		// Get take profit and stop loss from multiple sources (priority: cache > exchange)
 		var takeProfitPrice, stopLossPrice float64
 		
-		// Priority 1: Database (most reliable source)
-		if dbTakeProfit > 0 && dbStopLoss > 0 {
-			takeProfitPrice = dbTakeProfit
-			stopLossPrice = dbStopLoss
-			logger.Infof("Debug: Using DB values for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
+		// Priority 1: Local cache (system-set values)
+		at.stopLossTakeProfitMutex.RLock()
+		if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
+			takeProfitPrice = cacheEntry.TakeProfitPrice
+			stopLossPrice = cacheEntry.StopLossPrice
+			logger.Infof("Debug: Cache hit for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
 		} else {
-			// Priority 2: Local cache (system-set values)
-			at.stopLossTakeProfitMutex.RLock()
-			if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
-				takeProfitPrice = cacheEntry.TakeProfitPrice
-				stopLossPrice = cacheEntry.StopLossPrice
-				logger.Infof("Debug: Cache hit for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
-			} else {
-				// Priority 3: Exchange data (least reliable)
-				if tp, ok := pos["takeProfitPrice"].(float64); ok {
-					takeProfitPrice = tp
-				}
-				if sl, ok := pos["stopLossPrice"].(float64); ok {
-					stopLossPrice = sl
-				}
-				logger.Infof("Debug: Using exchange values for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
+			// Priority 2: Exchange data (least reliable)
+			if tp, ok := pos["takeProfitPrice"].(float64); ok {
+				takeProfitPrice = tp
 			}
-			at.stopLossTakeProfitMutex.Unlock()
+			if sl, ok := pos["stopLossPrice"].(float64); ok {
+				stopLossPrice = sl
+			}
+			logger.Infof("Debug: Cache miss for %s, using exchange values TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
 		}
-		
-		// If we have database values but they're not in cache, update cache
-		if dbTakeProfit > 0 && dbStopLoss > 0 {
-			at.stopLossTakeProfitMutex.Lock()
-			at.stopLossTakeProfitCache[posKey] = struct {
-				TakeProfitPrice float64
-				StopLossPrice   float64
-			}{TakeProfitPrice: dbTakeProfit, StopLossPrice: dbStopLoss}
-			at.stopLossTakeProfitMutex.Unlock()
-			logger.Infof("Debug: Updated cache from DB for %s, TP=%.4f, SL=%.4f", posKey, dbTakeProfit, dbStopLoss)
-		}
+		at.stopLossTakeProfitMutex.Unlock()
 		
 		logger.Infof("Debug: Final TP=%.4f, SL=%.4f for %s", takeProfitPrice, stopLossPrice, posKey)
 

@@ -20,9 +20,9 @@ fi
 echo "📝 Generating nginx config for port $PORT..."
 envsubst '${PORT}' < /etc/nginx/nginx.conf.template > /etc/nginx/http.d/default.conf
 
-# 启动后端（后台运行）
-echo "🔧 Starting backend on port 8080..."
-/app/nofx &
+# 启动后端（后台运行，端口 8081 避免与 nginx 冲突）
+echo "🔧 Starting backend on port 8081..."
+API_SERVER_PORT=8081 /app/nofx &
 BACKEND_PID=$!
 
 # 等待后端启动

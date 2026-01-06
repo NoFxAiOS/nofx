@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-// syncState stores the last sync time for incremental sync
+// syncState stores the last sync time (Unix ms) for incremental sync
 var (
-	binanceSyncState      = make(map[string]time.Time) // exchangeID -> lastSyncTime
+	binanceSyncState      = make(map[string]int64) // exchangeID -> lastSyncTimeMs (Unix ms)
 	binanceSyncStateMutex sync.RWMutex
 )
 
@@ -25,42 +25,106 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 		return fmt.Errorf("store is nil")
 	}
 
-	// Get last sync time (default to 24 hours ago for first sync)
+	orderStore := st.Order()
+
+	// Get last sync time (Unix ms) - first try memory, then database, then default
 	binanceSyncStateMutex.RLock()
-	lastSyncTime, exists := binanceSyncState[exchangeID]
+	lastSyncTimeMs, exists := binanceSyncState[exchangeID]
 	binanceSyncStateMutex.RUnlock()
 
+	nowMs := time.Now().UTC().UnixMilli()
 	if !exists {
-		lastSyncTime = time.Now().Add(-24 * time.Hour)
+		// Try to get last fill time from database (persist across restarts)
+		lastFillTimeMs, err := orderStore.GetLastFillTimeByExchange(exchangeID)
+		if err == nil && lastFillTimeMs > 0 {
+			// If recovered time is in the future, it's clearly wrong - use default
+			if lastFillTimeMs > nowMs {
+				logger.Infof("⚠️ DB sync time %d is in the future (now: %d), using default",
+					lastFillTimeMs, nowMs)
+				lastSyncTimeMs = nowMs - 24*60*60*1000 // 24 hours ago
+			} else {
+				// Add 1 second buffer to avoid re-fetching the same fill
+				lastSyncTimeMs = lastFillTimeMs + 1000
+				logger.Infof("📅 Recovered last sync time from DB: %s (UTC)",
+					time.UnixMilli(lastSyncTimeMs).UTC().Format("2006-01-02 15:04:05"))
+			}
+		} else {
+			// First sync: go back 24 hours
+			lastSyncTimeMs = nowMs - 24*60*60*1000
+			logger.Infof("📅 First sync, starting from 24 hours ago: %s (UTC)",
+				time.UnixMilli(lastSyncTimeMs).UTC().Format("2006-01-02 15:04:05"))
+		}
 	}
 
 	// Record current time BEFORE querying, to avoid missing trades during sync
 	// This prevents race condition where trades happen between query and lastSyncTime update
-	syncStartTime := time.Now()
+	syncStartTimeMs := nowMs
 
-	logger.Infof("🔄 Syncing Binance trades from: %s", lastSyncTime.Format(time.RFC3339))
+	logger.Infof("🔄 Syncing Binance trades from: %s (UTC)",
+		time.UnixMilli(lastSyncTimeMs).UTC().Format("2006-01-02 15:04:05"))
 
 	// Step 1: Get max trade IDs from local DB for incremental sync
-	orderStore := st.Order()
 	maxTradeIDs, err := orderStore.GetMaxTradeIDsByExchange(exchangeID)
 	if err != nil {
 		logger.Infof("  ⚠️ Failed to get max trade IDs: %v, will use time-based query", err)
 		maxTradeIDs = make(map[string]int64)
 	}
 
-	// Step 2: Use COMMISSION to detect which symbols have new trades (1 API call)
-	changedSymbols, err := t.GetCommissionSymbols(lastSyncTime)
+	// Step 2: Detect symbols to sync using multiple methods
+	// COMMISSION detection may miss trades (VIP users, BNB discount, 0-fee trades)
+	symbolMap := make(map[string]bool)
+	lastSyncTime := time.UnixMilli(lastSyncTimeMs) // Convert to time.Time for API calls
+
+	// Method 1: COMMISSION income detection
+	commissionSymbols, err := t.GetCommissionSymbols(lastSyncTime)
 	if err != nil {
-		logger.Infof("  ⚠️ Failed to get commission symbols: %v, falling back to positions", err)
-		// Fallback: only sync symbols with active positions
-		changedSymbols = t.getPositionSymbols()
+		logger.Infof("  ⚠️ Failed to get commission symbols: %v", err)
+	} else {
+		logger.Infof("  📋 COMMISSION symbols found: %d - %v", len(commissionSymbols), commissionSymbols)
+		for _, s := range commissionSymbols {
+			symbolMap[s] = true
+		}
+	}
+
+	// Method 2: Always include active positions (catches trades that COMMISSION missed)
+	positionSymbols := t.getPositionSymbols()
+	logger.Infof("  📋 Position symbols found: %d - %v", len(positionSymbols), positionSymbols)
+	for _, s := range positionSymbols {
+		symbolMap[s] = true
+	}
+
+	// Method 3: Include symbols from recent fills in DB (in case some were partially synced)
+	recentSymbols, _ := orderStore.GetRecentFillSymbolsByExchange(exchangeID, lastSyncTimeMs)
+	logger.Infof("  📋 Recent fill symbols found: %d - %v", len(recentSymbols), recentSymbols)
+	for _, s := range recentSymbols {
+		symbolMap[s] = true
+	}
+
+	// Method 4: FALLBACK - Query REALIZED_PNL income to find symbols with closed trades
+	// This catches trades that COMMISSION missed (VIP users, BNB fee discount)
+	if len(symbolMap) == 0 {
+		logger.Infof("  🔍 No symbols found, trying REALIZED_PNL fallback...")
+		pnlSymbols, err := t.GetPnLSymbols(lastSyncTime)
+		if err != nil {
+			logger.Infof("  ⚠️ Failed to get PnL symbols: %v", err)
+		} else {
+			logger.Infof("  📋 REALIZED_PNL symbols found: %d - %v", len(pnlSymbols), pnlSymbols)
+			for _, s := range pnlSymbols {
+				symbolMap[s] = true
+			}
+		}
+	}
+
+	var changedSymbols []string
+	for s := range symbolMap {
+		changedSymbols = append(changedSymbols, s)
 	}
 
 	if len(changedSymbols) == 0 {
 		logger.Infof("📭 No symbols with new trades to sync")
 		// Update last sync time even if no changes
 		binanceSyncStateMutex.Lock()
-		binanceSyncState[exchangeID] = syncStartTime
+		binanceSyncState[exchangeID] = syncStartTimeMs
 		binanceSyncStateMutex.Unlock()
 		return nil
 	}
@@ -98,7 +162,7 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	// This prevents data loss when some symbols fail due to rate limit or network issues
 	if len(failedSymbols) == 0 {
 		binanceSyncStateMutex.Lock()
-		binanceSyncState[exchangeID] = syncStartTime
+		binanceSyncState[exchangeID] = syncStartTimeMs
 		binanceSyncStateMutex.Unlock()
 	} else {
 		logger.Infof("  ⚠️ %d symbols failed, not updating lastSyncTime to retry next time: %v", len(failedSymbols), failedSymbols)
@@ -110,7 +174,7 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 
 	// Sort trades by time ASC (oldest first) for proper position building
 	sort.Slice(allTrades, func(i, j int) bool {
-		return allTrades[i].Time.Before(allTrades[j].Time)
+		return allTrades[i].Time.UnixMilli() < allTrades[j].Time.UnixMilli()
 	})
 
 	// Process trades one by one
@@ -145,8 +209,8 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 		// Normalize side
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record - use UTC time to avoid timezone issues
-		tradeTimeUTC := trade.Time.UTC()
+		// Create order record - use Unix milliseconds UTC
+		tradeTimeMs := trade.Time.UTC().UnixMilli()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,
@@ -163,9 +227,9 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 			FilledQuantity:  trade.Quantity,
 			AvgFillPrice:    trade.Price,
 			Commission:      trade.Fee,
-			FilledAt:        tradeTimeUTC,
-			CreatedAt:       tradeTimeUTC,
-			UpdatedAt:       tradeTimeUTC,
+			FilledAt:        tradeTimeMs,
+			CreatedAt:       tradeTimeMs,
+			UpdatedAt:       tradeTimeMs,
 		}
 
 		// Insert order record
@@ -174,7 +238,7 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 			continue
 		}
 
-		// Create fill record - use UTC time
+		// Create fill record - use Unix milliseconds UTC
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,
@@ -191,7 +255,7 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 			CommissionAsset: "USDT",
 			RealizedPnL:     trade.RealizedPnL,
 			IsMaker:         false,
-			CreatedAt:       tradeTimeUTC,
+			CreatedAt:       tradeTimeMs,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {
@@ -203,7 +267,7 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 			traderID, exchangeID, exchangeType,
 			symbol, positionSide, orderAction,
 			trade.Quantity, trade.Price, trade.Fee, trade.RealizedPnL,
-			trade.Time, trade.TradeID,
+			tradeTimeMs, trade.TradeID,
 		); err != nil {
 			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
 		} else {
@@ -211,8 +275,9 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 		}
 
 		syncedCount++
-		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f pnl=%.2f fee=%.6f action=%s",
-			trade.TradeID, symbol, side, trade.Quantity, trade.Price, trade.RealizedPnL, trade.Fee, orderAction)
+		logger.Infof("  ✅ Synced trade: %s %s %s qty=%.6f price=%.6f pnl=%.2f fee=%.6f action=%s time=%s(UTC)",
+			trade.TradeID, symbol, side, trade.Quantity, trade.Price, trade.RealizedPnL, trade.Fee, orderAction,
+			trade.Time.UTC().Format("01-02 15:04:05"))
 	}
 
 	logger.Infof("✅ Binance order sync completed: %d new trades synced", syncedCount)
@@ -279,6 +344,15 @@ func (t *FuturesTrader) determineOrderAction(side, positionSide string, realized
 
 // StartOrderSync starts background order sync task for Binance
 func (t *FuturesTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
+	// Run first sync immediately
+	go func() {
+		logger.Infof("🔄 Running initial Binance order sync...")
+		if err := t.SyncOrdersFromBinance(traderID, exchangeID, exchangeType, st); err != nil {
+			logger.Infof("⚠️  Initial Binance order sync failed: %v", err)
+		}
+	}()
+
+	// Then run periodically
 	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {

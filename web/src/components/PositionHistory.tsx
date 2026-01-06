@@ -303,6 +303,11 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
         {displayQty.toFixed(4)}
       </td>
 
+      {/* Position Value (Entry Price * Quantity) */}
+      <td className="py-3 px-4 text-right font-mono" style={{ color: '#EAECEF' }}>
+        {formatNumber(entryPrice * displayQty)}
+      </td>
+
       {/* P&L */}
       <td className="py-3 px-4 text-right">
         <div className="font-mono font-semibold" style={{ color: pnlColor }}>
@@ -763,6 +768,12 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
                   style={{ color: '#848E9C' }}
                 >
                   {t('positionHistory.qty', language)}
+                </th>
+                <th
+                  className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider"
+                  style={{ color: '#848E9C' }}
+                >
+                  {t('positionHistory.value', language)}
                 </th>
                 <th
                   className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider"

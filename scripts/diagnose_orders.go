@@ -7,6 +7,7 @@ import (
 	"nofx/store"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func main() {
@@ -83,7 +84,7 @@ func main() {
 			filledOrders++
 
 			// 检查 filled_at
-			if !order.FilledAt.IsZero() {
+			if order.FilledAt > 0 {
 				withFilledAt++
 			} else {
 				missingFilledAt++
@@ -119,8 +120,8 @@ func main() {
 		}
 
 		filledAtStr := "N/A"
-		if !order.FilledAt.IsZero() {
-			filledAtStr = order.FilledAt.Format("01-02 15:04")
+		if order.FilledAt > 0 {
+			filledAtStr = time.UnixMilli(order.FilledAt).Format("01-02 15:04")
 		}
 
 		fmt.Printf("%-15s %-10s %-10s %-15.2f %-10s %s\n",

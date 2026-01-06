@@ -34,7 +34,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 
 	// Sort trades by time ASC (oldest first) for proper position building
 	sort.Slice(trades, func(i, j int) bool {
-		return trades[i].Time.Before(trades[j].Time)
+		return trades[i].Time.UnixMilli() < trades[j].Time.UnixMilli()
 	})
 
 	// Process trades one by one (no transaction to avoid deadlock)
@@ -68,8 +68,8 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 		// Normalize side for storage
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record - use UTC time to avoid timezone issues
-		tradeTimeUTC := trade.Time.UTC()
+		// Create order record - use Unix milliseconds UTC
+		tradeTimeMs := trade.Time.UTC().UnixMilli()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -86,9 +86,9 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			FilledQuantity:  trade.Quantity,
 			AvgFillPrice:    trade.Price,
 			Commission:      trade.Fee,
-			FilledAt:        tradeTimeUTC,
-			CreatedAt:       tradeTimeUTC,
-			UpdatedAt:       tradeTimeUTC,
+			FilledAt:        tradeTimeMs,
+			CreatedAt:       tradeTimeMs,
+			UpdatedAt:       tradeTimeMs,
 		}
 
 		// Insert order record
@@ -97,7 +97,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			continue
 		}
 
-		// Create fill record - use UTC time
+		// Create fill record - use Unix milliseconds UTC
 		fillRecord := &store.TraderFill{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -114,7 +114,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			CommissionAsset: "USDT",
 			RealizedPnL:     trade.RealizedPnL,
 			IsMaker:         false,
-			CreatedAt:       tradeTimeUTC,
+			CreatedAt:       tradeTimeMs,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {
@@ -126,7 +126,7 @@ func (t *AsterTrader) SyncOrdersFromAster(traderID string, exchangeID string, ex
 			traderID, exchangeID, exchangeType,
 			symbol, positionSide, orderAction,
 			trade.Quantity, trade.Price, trade.Fee, trade.RealizedPnL,
-			trade.Time, trade.TradeID,
+			tradeTimeMs, trade.TradeID,
 		); err != nil {
 			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
 		} else {

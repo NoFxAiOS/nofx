@@ -1244,3 +1244,30 @@ func (t *FuturesTrader) GetCommissionSymbols(lastSyncTime time.Time) ([]string, 
 
 	return symbols, nil
 }
+
+// GetPnLSymbols returns symbols that have REALIZED_PNL records since lastSyncTime
+// This is a fallback when COMMISSION detection fails (VIP users, BNB fee discount)
+func (t *FuturesTrader) GetPnLSymbols(lastSyncTime time.Time) ([]string, error) {
+	incomes, err := t.client.NewGetIncomeHistoryService().
+		IncomeType("REALIZED_PNL").
+		StartTime(lastSyncTime.UnixMilli()).
+		Limit(1000).
+		Do(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PnL history: %w", err)
+	}
+
+	symbolMap := make(map[string]bool)
+	for _, income := range incomes {
+		if income.Symbol != "" {
+			symbolMap[income.Symbol] = true
+		}
+	}
+
+	var symbols []string
+	for symbol := range symbolMap {
+		symbols = append(symbols, symbol)
+	}
+
+	return symbols, nil
+}

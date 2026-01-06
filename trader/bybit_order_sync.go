@@ -195,7 +195,7 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 
 	// Sort trades by time ASC (oldest first) for proper position building
 	sort.Slice(trades, func(i, j int) bool {
-		return trades[i].ExecTime.Before(trades[j].ExecTime)
+		return trades[i].ExecTime.UnixMilli() < trades[j].ExecTime.UnixMilli()
 	})
 
 	// Process trades one by one (no transaction to avoid deadlock)
@@ -223,8 +223,8 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 		// Normalize side for storage
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record - use UTC time to avoid timezone issues
-		execTimeUTC := trade.ExecTime.UTC()
+		// Create order record - use UTC time in milliseconds to avoid timezone issues
+		execTimeMs := trade.ExecTime.UTC().UnixMilli()
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -241,9 +241,9 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			FilledQuantity:  trade.ExecQty,
 			AvgFillPrice:    trade.ExecPrice,
 			Commission:      trade.ExecFee,
-			FilledAt:        execTimeUTC,
-			CreatedAt:       execTimeUTC,
-			UpdatedAt:       execTimeUTC,
+			FilledAt:        execTimeMs,
+			CreatedAt:       execTimeMs,
+			UpdatedAt:       execTimeMs,
 		}
 
 		// Insert order record
@@ -269,7 +269,7 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			CommissionAsset: "USDT",
 			RealizedPnL:     trade.ClosedPnL,
 			IsMaker:         trade.IsMaker,
-			CreatedAt:       execTimeUTC,
+			CreatedAt:       execTimeMs,
 		}
 
 		if err := orderStore.CreateFill(fillRecord); err != nil {
@@ -281,7 +281,7 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 			traderID, exchangeID, exchangeType,
 			symbol, positionSide, trade.OrderAction,
 			trade.ExecQty, trade.ExecPrice, trade.ExecFee, trade.ClosedPnL,
-			trade.ExecTime, trade.ExecID,
+			execTimeMs, trade.ExecID,
 		); err != nil {
 			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.ExecID, err)
 		} else {

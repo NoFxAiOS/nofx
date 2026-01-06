@@ -25,25 +25,27 @@ func NewPositionBuilder(positionStore *PositionStore) *PositionBuilder {
 }
 
 // ProcessTrade processes a single trade and updates position accordingly
+// tradeTimeMs is Unix milliseconds UTC
 func (pb *PositionBuilder) ProcessTrade(
 	traderID, exchangeID, exchangeType, symbol, side, action string,
 	quantity, price, fee, realizedPnL float64,
-	tradeTime time.Time,
+	tradeTimeMs int64,
 	orderID string,
 ) error {
 	if strings.HasPrefix(action, "open_") {
-		return pb.handleOpen(traderID, exchangeID, exchangeType, symbol, side, quantity, price, fee, tradeTime, orderID)
+		return pb.handleOpen(traderID, exchangeID, exchangeType, symbol, side, quantity, price, fee, tradeTimeMs, orderID)
 	} else if strings.HasPrefix(action, "close_") {
-		return pb.handleClose(traderID, exchangeID, exchangeType, symbol, side, quantity, price, fee, realizedPnL, tradeTime, orderID)
+		return pb.handleClose(traderID, exchangeID, exchangeType, symbol, side, quantity, price, fee, realizedPnL, tradeTimeMs, orderID)
 	}
 	return nil
 }
 
 // handleOpen handles opening positions (create new or average into existing)
+// tradeTimeMs is Unix milliseconds UTC
 func (pb *PositionBuilder) handleOpen(
 	traderID, exchangeID, exchangeType, symbol, side string,
 	quantity, price, fee float64,
-	tradeTime time.Time,
+	tradeTimeMs int64,
 	orderID string,
 ) error {
 	// Get existing OPEN position for (symbol, side)
@@ -52,25 +54,26 @@ func (pb *PositionBuilder) handleOpen(
 		return fmt.Errorf("failed to get open position: %w", err)
 	}
 
+	nowMs := time.Now().UTC().UnixMilli()
 	if existing == nil {
 		// Create new position
 		position := &TraderPosition{
 			TraderID:           traderID,
 			ExchangeID:         exchangeID,
 			ExchangeType:       exchangeType,
-			ExchangePositionID: fmt.Sprintf("sync_%s_%s_%d", symbol, side, tradeTime.UnixMilli()),
+			ExchangePositionID: fmt.Sprintf("sync_%s_%s_%d", symbol, side, tradeTimeMs),
 			Symbol:             symbol,
 			Side:               side,
 			Quantity:           quantity,
 			EntryPrice:         price,
 			EntryOrderID:       orderID,
-			EntryTime:          tradeTime,
+			EntryTime:          tradeTimeMs,
 			Leverage:           1,
 			Status:             "OPEN",
 			Source:             "sync",
 			Fee:                fee,
-			CreatedAt:          time.Now().UTC(),
-			UpdatedAt:          time.Now().UTC(),
+			CreatedAt:          nowMs,
+			UpdatedAt:          nowMs,
 		}
 		return pb.positionStore.CreateOpenPosition(position)
 	}
@@ -90,10 +93,11 @@ func (pb *PositionBuilder) handleOpen(
 }
 
 // handleClose handles closing positions (partial or full)
+// tradeTimeMs is Unix milliseconds UTC
 func (pb *PositionBuilder) handleClose(
 	traderID, exchangeID, exchangeType, symbol, side string,
 	quantity, price, fee, realizedPnL float64,
-	tradeTime time.Time,
+	tradeTimeMs int64,
 	orderID string,
 ) error {
 	// Get OPEN position
@@ -161,7 +165,7 @@ func (pb *PositionBuilder) handleClose(
 			position.ID,
 			finalExitPrice,
 			orderID,
-			tradeTime,
+			tradeTimeMs,
 			totalPnL,
 			totalFee,
 			"sync",

@@ -21,6 +21,7 @@ export default {
         'nofx-accent': '#00F0FF', // Cyan Cyber
         'nofx-text': {
           DEFAULT: '#EAECEF',
+          main: '#EAECEF',
           muted: '#848E9C',
         },
         'nofx-success': '#0ECB81',

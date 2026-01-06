@@ -361,7 +361,7 @@ export function TraderDashboardPage({
                                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-nofx-green rounded-full border-2 border-[#0B0E11] shadow-[0_0_8px_rgba(14,203,129,0.8)] animate-pulse" />
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-3xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-nofx-text-main to-nofx-text-muted">
+                                <span className="text-3xl tracking-tight text-nofx-text font-semibold">
                                     {selectedTrader.trader_name}
                                 </span>
                                 <span className="text-xs font-mono text-nofx-text-muted opacity-60 flex items-center gap-2">

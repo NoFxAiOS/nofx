@@ -1165,6 +1165,16 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
 		)
+	case "htx":
+		tempTrader = trader.NewHTXTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+		)
+	case "gate":
+		tempTrader = trader.NewGateTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+		)
 	case "lighter":
 		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
@@ -1316,6 +1326,16 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
+		)
+	case "htx":
+		tempTrader = trader.NewHTXTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+		)
+	case "gate":
+		tempTrader = trader.NewGateTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
 		)
 	case "lighter":
 		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
@@ -1525,63 +1545,61 @@ func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchang
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
-		if err == nil {
-			statusStr, _ := status["status"].(string)
-			if statusStr == "FILLED" {
-				// Get actual fill price
-				if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
-					actualPrice = avgPrice
-				}
-				// Get actual executed quantity
-				if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
-					actualQty = execQty
-				}
-				// Get commission/fee
-				if commission, ok := status["commission"].(float64); ok {
-					fee = commission
-				}
+		statusStr, _ := status["status"].(string)
+		if statusStr == "FILLED" {
+			// Get actual fill price
+			if avgPrice, ok := status["avgPrice"].(float64); ok && avgPrice > 0 {
+				actualPrice = avgPrice
+			}
+			// Get actual executed quantity
+			if execQty, ok := status["executedQty"].(float64); ok && execQty > 0 {
+				actualQty = execQty
+			}
+			// Get commission/fee
+			if commission, ok := status["commission"].(float64); ok {
+				fee = commission
+			}
 
-				logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
+			logger.Infof("  ✅ Order filled: avgPrice=%.6f, qty=%.6f, fee=%.6f", actualPrice, actualQty, fee)
 
-				// Update order status to FILLED
-				if err := s.store.Order().UpdateOrderStatus(orderRecordID, "FILLED", actualQty, actualPrice, fee); err != nil {
-					logger.Infof("  ⚠️ Failed to update order status: %v", err)
-					return
-				}
-
-				// Record fill details
-				tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
-				fillRecord := &store.TraderFill{
-					TraderID:        traderID,
-					ExchangeID:      exchangeID,
-					ExchangeType:    exchangeType,
-					OrderID:         orderRecordID,
-					ExchangeOrderID: orderID,
-					ExchangeTradeID: tradeID,
-					Symbol:          symbol,
-					Side:            getSideFromAction(orderAction),
-					Price:           actualPrice,
-					Quantity:        actualQty,
-					QuoteQuantity:   actualPrice * actualQty,
-					Commission:      fee,
-					CommissionAsset: "USDT",
-					RealizedPnL:     0,
-					IsMaker:         false,
-					CreatedAt:       time.Now().UTC(),
-				}
-
-				if err := s.store.Order().CreateFill(fillRecord); err != nil {
-					logger.Infof("  ⚠️ Failed to record fill: %v", err)
-				} else {
-					logger.Infof("  📝 Fill recorded: price=%.6f, qty=%.6f", actualPrice, actualQty)
-				}
-
-				return
-			} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
-				logger.Infof("  ⚠️ Order %s, updating status", statusStr)
-				s.store.Order().UpdateOrderStatus(orderRecordID, statusStr, 0, 0, 0)
+			// Update order status to FILLED
+			if err := s.store.Order().UpdateOrderStatus(orderRecordID, "FILLED", actualQty, actualPrice, fee); err != nil {
+				logger.Infof("  ⚠️ Failed to update order status: %v", err)
 				return
 			}
+
+			// Record fill details
+			tradeID := fmt.Sprintf("%s-%d", orderID, time.Now().UnixNano())
+			fillRecord := &store.TraderFill{
+				TraderID:        traderID,
+				ExchangeID:      exchangeID,
+				ExchangeType:    exchangeType,
+				OrderID:         orderRecordID,
+				ExchangeOrderID: orderID,
+				ExchangeTradeID: tradeID,
+				Symbol:          symbol,
+				Side:            getSideFromAction(orderAction),
+				Price:           actualPrice,
+				Quantity:        actualQty,
+				QuoteQuantity:   actualPrice * actualQty,
+				Commission:      fee,
+				CommissionAsset: "USDT",
+				RealizedPnL:     0,
+				IsMaker:         false,
+				CreatedAt:       time.Now().UTC(),
+			}
+
+			if err := s.store.Order().CreateFill(fillRecord); err != nil {
+				logger.Infof("  ⚠️ Failed to record fill: %v", err)
+			} else {
+				logger.Infof("  📝 Fill recorded: price=%.6f, qty=%.6f", actualPrice, actualQty)
+			}
+
+			return
+		} else if statusStr == "CANCELED" || statusStr == "EXPIRED" || statusStr == "REJECTED" {
+			logger.Infof("  ⚠️ Order %s, updating status", statusStr)
+			s.store.Order().UpdateOrderStatus(orderRecordID, statusStr, 0, 0, 0)
+			return
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -2440,6 +2458,12 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 		coinankExchange = coinank_enum.Okex
 	case "bitget":
 		coinankExchange = coinank_enum.Bitget
+	case "htx":
+		// HTX (Huobi) doesn't have direct CoinAnk support, use Binance data as fallback
+		coinankExchange = coinank_enum.Binance
+	case "gate":
+		// Gate.io doesn't have direct CoinAnk support, use Binance data as fallback
+		coinankExchange = coinank_enum.Binance
 	case "aster":
 		coinankExchange = coinank_enum.Aster
 	case "lighter":

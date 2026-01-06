@@ -379,6 +379,15 @@ func (t *GateTrader) GetPositions() ([]map[string]interface{}, error) {
 func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	symbol = t.normalizeSymbol(symbol)
 
+	// First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
+	// Also cancel conditional orders (stop-loss/take-profit) - Gate keeps them separate
+	if err := t.CancelStopOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old stop orders (may not have any): %v", err)
+	}
+
 	// Check if contract is supported
 	supported, err := t.isContractSupported(symbol)
 	if err != nil {
@@ -428,6 +437,9 @@ func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (ma
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
+	logger.Infof("✓ Gate.io opened long position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", order.ID)
+
 	return map[string]interface{}{
 		"order_id": strconv.FormatInt(order.ID, 10),
 		"symbol":   symbol,
@@ -439,6 +451,15 @@ func (t *GateTrader) OpenLong(symbol string, quantity float64, leverage int) (ma
 // OpenShort opens a short position
 func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	symbol = t.normalizeSymbol(symbol)
+
+	// First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
+	// Also cancel conditional orders (stop-loss/take-profit) - Gate keeps them separate
+	if err := t.CancelStopOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old stop orders (may not have any): %v", err)
+	}
 
 	// Check if contract is supported
 	supported, err := t.isContractSupported(symbol)
@@ -489,6 +510,9 @@ func (t *GateTrader) OpenShort(symbol string, quantity float64, leverage int) (m
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
+	logger.Infof("✓ Gate.io opened short position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", order.ID)
+
 	return map[string]interface{}{
 		"order_id": strconv.FormatInt(order.ID, 10),
 		"symbol":   symbol,
@@ -502,7 +526,8 @@ func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 	symbol = t.normalizeSymbol(symbol)
 
 	// Get current position to determine quantity if not specified
-	if quantity == 0 {
+	quantityDec := decimal.NewFromFloat(quantity)
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -510,13 +535,17 @@ func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
 				quantity = pos["quantity"].(float64)
+				quantityDec = decimal.NewFromFloat(quantity)
 				break
 			}
 		}
 	}
 
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("no long position found for %s", symbol)
+	}
+
 	// Close by placing opposite order with reduce_only
-	quantityDec := decimal.NewFromFloat(quantity)
 	size := -quantityDec.Round(0).IntPart() // Negative to close long
 
 	// Gate.io minimum order size is 1 contract
@@ -526,6 +555,11 @@ func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 
 	logger.Infof("[Gate.io] CloseLong: quantity=%.8f -> size=%d", quantity, size)
 
+	// Gate.io close position using reduce_only mode:
+	// - size: negative for closing long (opposite direction)
+	// - price: "0" for market order
+	// - tif: "ioc" (Immediate-or-Cancel) for market execution
+	// - reduce_only: true to ensure only reduce position
 	body := map[string]interface{}{
 		"contract":    symbol,
 		"size":        size,
@@ -548,6 +582,14 @@ func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 	}
 	if err := json.Unmarshal(data, &order); err != nil {
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+
+	logger.Infof("✓ Gate.io closed long position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", order.ID)
+
+	// After closing position, cancel all pending orders for this symbol (stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
 	}
 
 	return map[string]interface{}{
@@ -562,7 +604,8 @@ func (t *GateTrader) CloseLong(symbol string, quantity float64) (map[string]inte
 func (t *GateTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	symbol = t.normalizeSymbol(symbol)
 
-	if quantity == 0 {
+	quantityDec := decimal.NewFromFloat(quantity)
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -570,13 +613,17 @@ func (t *GateTrader) CloseShort(symbol string, quantity float64) (map[string]int
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				quantity = pos["quantity"].(float64)
+				quantityDec = decimal.NewFromFloat(quantity)
 				break
 			}
 		}
 	}
 
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("no short position found for %s", symbol)
+	}
+
 	// Close by placing opposite order with reduce_only
-	quantityDec := decimal.NewFromFloat(quantity)
 	size := quantityDec.Round(0).IntPart() // Positive to close short
 
 	// Gate.io minimum order size is 1 contract
@@ -586,6 +633,11 @@ func (t *GateTrader) CloseShort(symbol string, quantity float64) (map[string]int
 
 	logger.Infof("[Gate.io] CloseShort: quantity=%.8f -> size=%d", quantity, size)
 
+	// Gate.io close position using reduce_only mode:
+	// - size: positive for closing short (opposite direction)
+	// - price: "0" for market order
+	// - tif: "ioc" (Immediate-or-Cancel) for market execution
+	// - reduce_only: true to ensure only reduce position
 	body := map[string]interface{}{
 		"contract":    symbol,
 		"size":        size,
@@ -608,6 +660,14 @@ func (t *GateTrader) CloseShort(symbol string, quantity float64) (map[string]int
 	}
 	if err := json.Unmarshal(data, &order); err != nil {
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+
+	logger.Infof("✓ Gate.io closed short position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", order.ID)
+
+	// After closing position, cancel all pending orders for this symbol (stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
 	}
 
 	return map[string]interface{}{

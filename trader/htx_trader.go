@@ -417,6 +417,15 @@ func (t *HTXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 	// HTX uses contract notation (e.g., "BTC-USDT")
 	symbol = t.normalizeSymbol(symbol)
 
+	// First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
+	// Also cancel conditional orders (stop-loss/take-profit) - HTX keeps them separate
+	if err := t.CancelStopOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old stop orders (may not have any): %v", err)
+	}
+
 	// Check if contract is supported
 	supported, checkErr := t.isContractSupported(symbol)
 	if checkErr != nil {
@@ -466,6 +475,9 @@ func (t *HTXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
+	logger.Infof("✓ HTX opened long position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", result.OrderID)
+
 	return map[string]interface{}{
 		"order_id": strconv.FormatInt(result.OrderID, 10),
 		"symbol":   symbol,
@@ -477,6 +489,15 @@ func (t *HTXTrader) OpenLong(symbol string, quantity float64, leverage int) (map
 // OpenShort opens a short position
 func (t *HTXTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
 	symbol = t.normalizeSymbol(symbol)
+
+	// First cancel all pending orders for this symbol (clean up old stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders (may not have any): %v", err)
+	}
+	// Also cancel conditional orders (stop-loss/take-profit) - HTX keeps them separate
+	if err := t.CancelStopOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old stop orders (may not have any): %v", err)
+	}
 
 	// Check if contract is supported
 	supported, checkErr := t.isContractSupported(symbol)
@@ -527,6 +548,9 @@ func (t *HTXTrader) OpenShort(symbol string, quantity float64, leverage int) (ma
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
+	logger.Infof("✓ HTX opened short position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", result.OrderID)
+
 	return map[string]interface{}{
 		"order_id": strconv.FormatInt(result.OrderID, 10),
 		"symbol":   symbol,
@@ -540,7 +564,8 @@ func (t *HTXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 	symbol = t.normalizeSymbol(symbol)
 
 	// Get current position to determine quantity if not specified
-	if quantity == 0 {
+	quantityDec := decimal.NewFromFloat(quantity)
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -548,15 +573,19 @@ func (t *HTXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
 				quantity = pos["quantity"].(float64)
+				quantityDec = decimal.NewFromFloat(quantity)
 				break
 			}
 		}
 	}
 
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("no long position found for %s", symbol)
+	}
+
 	// Generate unique client order ID (HTX requires numeric only, no letters or underscores)
 	clientOrderID := fmt.Sprintf("%d", time.Now().UnixNano())
 
-	quantityDec := decimal.NewFromFloat(quantity)
 	volume := int(quantityDec.Round(0).IntPart())
 
 	// HTX minimum order volume is 1 contract
@@ -587,6 +616,14 @@ func (t *HTXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
+	logger.Infof("✓ HTX closed long position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", result.OrderID)
+
+	// After closing position, cancel all pending orders for this symbol (stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
+	}
+
 	return map[string]interface{}{
 		"order_id": strconv.FormatInt(result.OrderID, 10),
 		"symbol":   symbol,
@@ -599,7 +636,8 @@ func (t *HTXTrader) CloseLong(symbol string, quantity float64) (map[string]inter
 func (t *HTXTrader) CloseShort(symbol string, quantity float64) (map[string]interface{}, error) {
 	symbol = t.normalizeSymbol(symbol)
 
-	if quantity == 0 {
+	quantityDec := decimal.NewFromFloat(quantity)
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
 		positions, err := t.GetPositions()
 		if err != nil {
 			return nil, err
@@ -607,15 +645,19 @@ func (t *HTXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				quantity = pos["quantity"].(float64)
+				quantityDec = decimal.NewFromFloat(quantity)
 				break
 			}
 		}
 	}
 
+	if quantityDec.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("no short position found for %s", symbol)
+	}
+
 	// Generate unique client order ID (HTX requires numeric only, no letters or underscores)
 	clientOrderID := fmt.Sprintf("%d", time.Now().UnixNano())
 
-	quantityDec := decimal.NewFromFloat(quantity)
 	volume := int(quantityDec.Round(0).IntPart())
 
 	// HTX minimum order volume is 1 contract
@@ -644,6 +686,14 @@ func (t *HTXTrader) CloseShort(symbol string, quantity float64) (map[string]inte
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+
+	logger.Infof("✓ HTX closed short position successfully: %s", symbol)
+	logger.Infof("  Order ID: %d", result.OrderID)
+
+	// After closing position, cancel all pending orders for this symbol (stop-loss and take-profit orders)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel pending orders: %v", err)
 	}
 
 	return map[string]interface{}{

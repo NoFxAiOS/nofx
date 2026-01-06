@@ -801,25 +801,6 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
-	// 3. Get order information for all positions
-	ordersMap := make(map[string][]map[string]interface{})
-	// Get all symbols from positions
-	var symbols []string
-	symbolMap := make(map[string]bool)
-	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		if !symbolMap[symbol] {
-			symbols = append(symbols, symbol)
-			symbolMap[symbol] = true
-		}
-	}
-	// Get orders for each symbol
-	for _, symbol := range symbols {
-		if orders, err := at.trader.GetOrders(symbol); err == nil {
-			ordersMap[symbol] = orders
-		}
-	}
-
 	var positionInfos []kernel.PositionInfo
 	totalMarginUsed := 0.0
 

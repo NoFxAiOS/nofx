@@ -130,6 +130,12 @@ func (s *TraderStore) Update(trader *Trader) error {
 	} else {
 		fmt.Printf("⚠️ TraderStore.Update: scan_interval_minutes=%d (<=0, NOT updating)\n", trader.ScanIntervalMinutes)
 	}
+	
+	// Always update new interval fields
+	updates["no_position_scan_interval_minutes"] = trader.NoPositionScanIntervalMinutes
+	updates["with_position_scan_interval_minutes"] = trader.WithPositionScanIntervalMinutes
+	fmt.Printf("📊 TraderStore.Update: no_position_scan_interval_minutes=%d, with_position_scan_interval_minutes=%d will be saved\n", 
+		trader.NoPositionScanIntervalMinutes, trader.WithPositionScanIntervalMinutes)
 
 	return s.db.Model(&Trader{}).
 		Where("id = ? AND user_id = ?", trader.ID, trader.UserID).

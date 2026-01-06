@@ -664,15 +664,27 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		QwenKey:               "",
 		CustomAPIURL:          aiModelCfg.CustomAPIURL,
 		CustomModelName:       aiModelCfg.CustomModelName,
-		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		InitialBalance:       traderCfg.InitialBalance,
-		IsCrossMargin:        traderCfg.IsCrossMargin,
-		ShowInCompetition:    traderCfg.ShowInCompetition,
-		StrategyConfig:       strategyConfig,
+		// Use new interval fields with default values
+		NoPositionScanInterval:    10 * time.Minute, // Default: 10 minutes when no positions
+		WithPositionScanInterval:  5 * time.Minute,  // Default: 5 minutes when has positions
+		InitialBalance:           traderCfg.InitialBalance,
+		IsCrossMargin:            traderCfg.IsCrossMargin,
+		ShowInCompetition:        traderCfg.ShowInCompetition,
+		StrategyConfig:           strategyConfig,
 	}
 
-	logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), ScanInterval=%v",
-		traderCfg.Name, traderCfg.ScanIntervalMinutes, traderConfig.ScanInterval)
+	// For backward compatibility, use ScanIntervalMinutes if provided
+	if traderCfg.ScanIntervalMinutes > 0 {
+		// Set both intervals to the same value for backward compatibility
+		traderConfig.NoPositionScanInterval = time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute
+		traderConfig.WithPositionScanInterval = time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute
+		
+		logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), NoPositionScanInterval=%v, WithPositionScanInterval=%v",
+			traderCfg.Name, traderCfg.ScanIntervalMinutes, traderConfig.NoPositionScanInterval, traderConfig.WithPositionScanInterval)
+	} else {
+		logger.Infof("📊 Loading trader %s: Using default intervals - NoPosition: %v, WithPosition: %v",
+			traderCfg.Name, traderConfig.NoPositionScanInterval, traderConfig.WithPositionScanInterval)
+	}
 
 	// Set API keys based on exchange type (convert EncryptedString to string)
 	switch exchangeCfg.ExchangeType {

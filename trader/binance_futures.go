@@ -267,6 +267,14 @@ func (t *FuturesTrader) SetMarginMode(symbol string, isCrossMargin bool) error {
 	return nil
 }
 
+// InvalidatePositionCache clears the position cache to force fresh data on next call
+func (t *FuturesTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
+}
+
 // SetLeverage sets leverage (with smart detection and cooldown period)
 func (t *FuturesTrader) SetLeverage(symbol string, leverage int) error {
 	// First try to get current leverage (from position information)

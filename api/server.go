@@ -391,14 +391,16 @@ func (s *Server) getTraderFromQuery(c *gin.Context) (*manager.TraderManager, str
 
 // AI trader management related structures
 type CreateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	StrategyID          string  `json:"strategy_id"` // Strategy ID (new version)
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
-	ShowInCompetition   *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
+	Name                              string  `json:"name" binding:"required"`
+	AIModelID                         string  `json:"ai_model_id" binding:"required"`
+	ExchangeID                        string  `json:"exchange_id" binding:"required"`
+	StrategyID                        string  `json:"strategy_id"` // Strategy ID (new version)
+	InitialBalance                    float64 `json:"initial_balance"`
+	ScanIntervalMinutes               int     `json:"scan_interval_minutes"` // Deprecated: Use no_position_scan_interval_minutes and with_position_scan_interval_minutes instead
+	NoPositionScanIntervalMinutes     int     `json:"no_position_scan_interval_minutes"` // Scan interval when no positions (minutes)
+	WithPositionScanIntervalMinutes   int     `json:"with_position_scan_interval_minutes"` // Scan interval when has positions (minutes)
+	IsCrossMargin                     *bool   `json:"is_cross_margin"`     // Pointer type, nil means use default value true
+	ShowInCompetition                 *bool   `json:"show_in_competition"` // Pointer type, nil means use default value true
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`
@@ -708,14 +710,16 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 
 // UpdateTraderRequest Update trader request
 type UpdateTraderRequest struct {
-	Name                string  `json:"name" binding:"required"`
-	AIModelID           string  `json:"ai_model_id" binding:"required"`
-	ExchangeID          string  `json:"exchange_id" binding:"required"`
-	StrategyID          string  `json:"strategy_id"` // Strategy ID (new version)
-	InitialBalance      float64 `json:"initial_balance"`
-	ScanIntervalMinutes int     `json:"scan_interval_minutes"`
-	IsCrossMargin       *bool   `json:"is_cross_margin"`
-	ShowInCompetition   *bool   `json:"show_in_competition"`
+	Name                              string  `json:"name" binding:"required"`
+	AIModelID                         string  `json:"ai_model_id" binding:"required"`
+	ExchangeID                        string  `json:"exchange_id" binding:"required"`
+	StrategyID                        string  `json:"strategy_id"` // Strategy ID (new version)
+	InitialBalance                    float64 `json:"initial_balance"`
+	ScanIntervalMinutes               int     `json:"scan_interval_minutes"` // Deprecated: Use no_position_scan_interval_minutes and with_position_scan_interval_minutes instead
+	NoPositionScanIntervalMinutes     int     `json:"no_position_scan_interval_minutes"` // Scan interval when no positions (minutes)
+	WithPositionScanIntervalMinutes   int     `json:"with_position_scan_interval_minutes"` // Scan interval when has positions (minutes)
+	IsCrossMargin                     *bool   `json:"is_cross_margin"`
+	ShowInCompetition                 *bool   `json:"show_in_competition"`
 	// The following fields are kept for backward compatibility, new version uses strategy config
 	BTCETHLeverage       int    `json:"btc_eth_leverage"`
 	AltcoinLeverage      int    `json:"altcoin_leverage"`

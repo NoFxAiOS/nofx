@@ -1079,6 +1079,14 @@ func (t *BitgetTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnL
 	return records, nil
 }
 
+// InvalidatePositionCache clears the position cache to force fresh data on next call
+func (t *BitgetTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
+}
+
 // clearCache clears all caches
 func (t *BitgetTrader) clearCache() {
 	t.balanceCacheMutex.Lock()

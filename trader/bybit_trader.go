@@ -752,6 +752,14 @@ func (t *BybitTrader) FormatQuantity(symbol string, quantity float64) (string, e
 	return formatted, nil
 }
 
+// InvalidatePositionCache clears the position cache to force fresh data on next call
+func (t *BybitTrader) InvalidatePositionCache() {
+	t.positionsCacheMutex.Lock()
+	t.cachedPositions = nil
+	t.positionsCacheTime = time.Time{}
+	t.positionsCacheMutex.Unlock()
+}
+
 // Helper methods
 
 func (t *BybitTrader) clearCache() {

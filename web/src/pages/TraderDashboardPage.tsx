@@ -759,11 +759,8 @@ export function TraderDashboardPage({
                             </select>
                         </div>
 
-                        {/* Decisions List - Scrollable */}
-                        <div
-                            className="space-y-4 overflow-y-auto pr-2 custom-scrollbar"
-                            style={{ maxHeight: 'calc(100vh - 280px)' }}
-                        >
+                        {/* Decisions List */}
+                        <div className="space-y-4 pr-2">
                             {decisions && decisions.length > 0 ? (
                                 decisions.map((decision, i) => (
                                     <DecisionCard key={i} decision={decision} language={language} onSymbolClick={handleSymbolClick} />

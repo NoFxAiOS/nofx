@@ -482,6 +482,25 @@ func (at *AutoTrader) Run() error {
 		logger.Infof("❌ Execution failed: %v", err)
 	}
 
+	// Check if position status changed after first run
+	newHasPositions := hasPositions()
+	if newHasPositions != currentHasPositions {
+		// Position status changed, update ticker immediately
+		currentHasPositions = newHasPositions
+		if currentHasPositions {
+			currentInterval = at.config.WithPositionScanInterval
+		} else {
+			currentInterval = at.config.NoPositionScanInterval
+		}
+
+		// Restart ticker with new interval
+		ticker.Stop()
+		ticker = time.NewTicker(currentInterval)
+		logger.Infof("⚙️  Position status changed after first run: %s, now using interval: %v", 
+			map[bool]string{true: "Has positions", false: "No positions"}[currentHasPositions], 
+			currentInterval)
+	}
+
 	for {
 		at.isRunningMutex.RLock()
 		running := at.isRunning
@@ -498,10 +517,10 @@ func (at *AutoTrader) Run() error {
 				logger.Infof("❌ Execution failed: %v", err)
 			}
 
-			// Check if position status has changed
+			// Check if position status has changed - immediately after cycle execution
 			newHasPositions := hasPositions()
 			if newHasPositions != currentHasPositions {
-				// Position status changed, update ticker
+				// Position status changed, update ticker immediately
 				currentHasPositions = newHasPositions
 				if currentHasPositions {
 					currentInterval = at.config.WithPositionScanInterval
@@ -1331,10 +1350,15 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 	positionSide := map[bool]string{true: "LONG", false: "SHORT"}[isLong]
 
 	if isAdjustStopLoss || isAdjustBoth {
-		// Get current stop loss if available, otherwise use "-" to indicate no existing stop loss
+		// Get current stop loss from cache if available, otherwise use "-" to indicate no existing stop loss
 		var currentStopLoss string
-		if sl, ok := targetPosition["stop_loss"].(float64); ok {
-			currentStopLoss = fmt.Sprintf("%.4f", sl)
+		// Get current values from cache
+		at.stopLossTakeProfitMutex.RLock()
+		cacheEntry, cacheExists := at.stopLossTakeProfitCache[posKey]
+		at.stopLossTakeProfitMutex.RUnlock()
+		
+		if cacheExists {
+			currentStopLoss = fmt.Sprintf("%.4f", cacheEntry.StopLossPrice)
 		} else {
 			currentStopLoss = "-"
 		}
@@ -1356,10 +1380,10 @@ func (at *AutoTrader) executeAdjustStopLossTakeProfit(decision *kernel.Decision,
 	}
 
 	if isAdjustTakeProfit || isAdjustBoth {
-		// Get current take profit if available, otherwise use "-" to indicate no existing take profit
+		// Get current take profit from cache if available, otherwise use "-" to indicate no existing take profit
 		var currentTakeProfit string
-		if tp, ok := targetPosition["take_profit"].(float64); ok {
-			currentTakeProfit = fmt.Sprintf("%.4f", tp)
+		if cacheExists {
+			currentTakeProfit = fmt.Sprintf("%.4f", cacheEntry.TakeProfitPrice)
 		} else {
 			currentTakeProfit = "-"
 		}

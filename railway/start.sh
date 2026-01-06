@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-# 默认端口
-export PORT=${PORT:-3000}
+# 默认端口（Railway 会设置 PORT=8080）
+export PORT=${PORT:-8080}
 echo "🚀 Starting NOFX on port $PORT..."
 
 # 生成加密密钥（如果没有设置）

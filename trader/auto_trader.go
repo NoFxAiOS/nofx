@@ -2105,16 +2105,8 @@ func (at *AutoTrader) checkPositionProfitLocking() {
 		return
 	}
 
-	lockTargets := at.config.StrategyConfig.RiskControl.ProfitLockTargets
-	lockMode := at.config.StrategyConfig.RiskControl.ProfitLockMode
-	feeRate := at.config.StrategyConfig.RiskControl.FeeRate
-	if feeRate == 0 {
-		feeRate = 0.0005 // Default 0.05%
-	}
-
-	if len(lockTargets) == 0 {
-		return
-	}
+	// Simplified profit locking: auto mode - lock every 1R increment
+	feeRate := 0.0005 // Default 0.05%
 
 	positions, err := at.trader.GetPositions()
 	if err != nil {
@@ -2142,38 +2134,36 @@ func (at *AutoTrader) checkPositionProfitLocking() {
 
 		posKey := symbol + "_" + side
 
-		// Get current lock state
+		// Get current lock state (represents the last locked integer R multiple)
 		at.profitLockStateMutex.RLock()
-		currentLockIndex := at.profitLockState[posKey]
-		at.profitLockStateMutex.RUnlock()
+		lastLockedR := at.profitLockState[posKey]
+		at.profitLockStateMutex.Unlock()
 
-		// Check if we need to lock at next target
-		for i := currentLockIndex; i < len(lockTargets); i++ {
-			targetR := lockTargets[i]
-			if rMultiple >= targetR {
-				// Trigger locking at this target
-				newStopLoss := at.calculateLockStopLoss(entryPrice, stopLossPrice, markPrice, side, leverage, targetR, lockMode, feeRate)
-				if newStopLoss != 0 {
-					logger.Infof("🔒 Profit locking triggered: %s %s | Target: %.1fR | Current: %.2fR | New SL: %.4f",
-						symbol, side, targetR, rMultiple, newStopLoss)
+		// Auto mode: lock every 1R increment
+		currentTargetR := int(rMultiple) // Current integer R multiple
+		
+		// Only lock if we've achieved a new integer R multiple and it's higher than last locked
+		if currentTargetR > lastLockedR && currentTargetR >= 1 {
+			// Use trailing stop mode for auto mode - dynamically adjust stop loss based on current R
+			newStopLoss := at.calculateLockStopLoss(entryPrice, stopLossPrice, markPrice, side, leverage, float64(currentTargetR), "trailing", feeRate)
+			if newStopLoss != 0 {
+				logger.Infof("🔒 Profit locking (Auto): %s %s | Achieved: %.2fR | New SL: %.4f",
+					symbol, side, rMultiple, newStopLoss)
 
-					// Execute stop loss adjustment
-					positionSide := "LONG"
-					if side == "short" {
-						positionSide = "SHORT"
-					}
-					if err := at.trader.SetStopLoss(symbol, positionSide, 0, newStopLoss); err != nil {
-						logger.Infof("❌ Failed to set profit lock stop loss for %s %s: %v", symbol, side, err)
-					} else {
-						logger.Infof("✅ Profit lock stop loss set: %s %s -> %.4f", symbol, side, newStopLoss)
-						// Update lock state
-						at.profitLockStateMutex.Lock()
-						at.profitLockState[posKey] = i + 1
-						at.profitLockStateMutex.Unlock()
-					}
+				// Execute stop loss adjustment
+				positionSide := "LONG"
+				if side == "short" {
+					positionSide = "SHORT"
 				}
-			} else {
-				break
+				if err := at.trader.SetStopLoss(symbol, positionSide, 0, newStopLoss); err != nil {
+					logger.Infof("❌ Failed to set profit lock stop loss for %s %s: %v", symbol, side, err)
+				} else {
+					logger.Infof("✅ Profit lock stop loss set: %s %s -> %.4f", symbol, side, newStopLoss)
+					// Update lock state to current integer R multiple
+					at.profitLockStateMutex.Lock()
+					at.profitLockState[posKey] = currentTargetR
+					at.profitLockStateMutex.Unlock()
+				}
 			}
 		}
 	}

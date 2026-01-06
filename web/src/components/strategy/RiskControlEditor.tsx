@@ -388,65 +388,11 @@ export function RiskControlEditor({
                     {t('profitLockTargets')}
                   </label>
                   <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                    {t('profitLockTargetsDesc')}
+                    自动模式：系统根据盈利情况动态调整锁定目标，适配高R倍数场景
                   </p>
-                  <input
-                    type="text"
-                    value={(config.profit_lock_targets ?? [1, 2, 3]).join(', ')}
-                    onChange={(e) => {
-                      const values = e.target.value.split(',')
-                        .map(v => parseFloat(v.trim()))
-                        .filter(v => !isNaN(v))
-                      updateField('profit_lock_targets', values)
-                    }}
-                    disabled={disabled}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#1E2329',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                  />
-                </div>
-
-                {/* Profit Lock Mode */}
-                <div>
-                  <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-                    {t('profitLockMode')}
-                  </label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="profitLockMode"
-                        value="breakeven"
-                        checked={(config.profit_lock_mode ?? 'breakeven') === 'breakeven'}
-                        onChange={(e) =>
-                          updateField('profit_lock_mode', e.target.value)
-                        }
-                        disabled={disabled}
-                        className="mr-2 accent-yellow-500"
-                      />
-                      <span className="text-sm" style={{ color: '#EAECEF' }}>
-                        {t('profitLockModeBreakeven')}
-                      </span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        name="profitLockMode"
-                        value="trailing"
-                        checked={(config.profit_lock_mode ?? 'breakeven') === 'trailing'}
-                        onChange={(e) =>
-                          updateField('profit_lock_mode', e.target.value)
-                        }
-                        disabled={disabled}
-                        className="mr-2 accent-yellow-500"
-                      />
-                      <span className="text-sm" style={{ color: '#EAECEF' }}>
-                        {t('profitLockModeTrailing')}
-                      </span>
-                    </label>
+                  <div className="flex items-center justify-between bg-[#1E2329] rounded p-3">
+                    <span style={{ color: '#848E9C' }}>当前模式：</span>
+                    <span className="font-mono" style={{ color: '#0ECB81' }}>自动</span>
                   </div>
                 </div>
 
@@ -473,32 +419,6 @@ export function RiskControlEditor({
                     />
                     <span className="w-16 text-center font-mono" style={{ color: '#F0B90B' }}>
                       {((config.profit_lock_percentage ?? 0.3) * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* Fee Rate */}
-                <div>
-                  <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-                    {t('feeRate')}
-                  </label>
-                  <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                    {t('feeRateDesc')}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="range"
-                      value={(config.fee_rate ?? 0.0005) * 10000}
-                      onChange={(e) =>
-                        updateField('fee_rate', parseInt(e.target.value) / 10000)
-                      }
-                      disabled={disabled}
-                      min={1}
-                      max={20}
-                      className="flex-1 accent-yellow-500"
-                    />
-                    <span className="w-16 text-center font-mono" style={{ color: '#F0B90B' }}>
-                      {((config.fee_rate ?? 0.0005) * 100).toFixed(2)}%
                     </span>
                   </div>
                 </div>

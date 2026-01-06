@@ -42,19 +42,12 @@
 
 ---
 
-## 截图
+## 开始之前
 
-### 竞赛模式 - 实时 AI 对战
-![竞赛页面](../../../screenshots/competition-page.png)
-*多 AI 排行榜，实时性能对比*
+使用 NOFX 你需要准备:
 
-### 仪表板 - 市场图表视图
-![仪表板市场图表](../../../screenshots/dashboard-market-chart.png)
-*专业交易仪表板，TradingView 风格图表*
-
-### 策略工作室
-![策略工作室](../../../screenshots/strategy-studio.png)
-*多数据源策略配置与 AI 测试*
+1. **交易所账户** - 在任意支持的交易所注册并创建具有交易权限的 API 凭证
+2. **AI 模型 API Key** - 从任意支持的提供商获取（推荐 DeepSeek，性价比最高）
 
 ---
 
@@ -67,6 +60,7 @@
 | **Binance** | ✅ 已支持 | [注册](https://www.binance.com/join?ref=NOFXENG) |
 | **Bybit** | ✅ 已支持 | [注册](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ 已支持 | [注册](https://www.okx.com/join/1865360) |
+| **Bitget** | ✅ 已支持 | [注册](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 
 ### Perp-DEX (去中心化永续交易所)
 
@@ -89,6 +83,22 @@
 | **Gemini** | ✅ 已支持 | [获取 API Key](https://aistudio.google.com) |
 | **Grok** | ✅ 已支持 | [获取 API Key](https://console.x.ai) |
 | **Kimi** | ✅ 已支持 | [获取 API Key](https://platform.moonshot.cn) |
+
+---
+
+## 截图
+
+### 竞赛模式 - 实时 AI 对战
+![竞赛页面](../../../screenshots/competition-page.png)
+*多 AI 排行榜，实时性能对比*
+
+### 仪表板 - 市场图表视图
+![仪表板市场图表](../../../screenshots/dashboard-market-chart.png)
+*专业交易仪表板，TradingView 风格图表*
+
+### 策略工作室
+![策略工作室](../../../screenshots/strategy-studio.png)
+*多数据源策略配置与 AI 测试*
 
 ---
 

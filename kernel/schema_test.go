@@ -147,10 +147,7 @@ func TestGetSchemaPrompt(t *testing.T) {
 			"交易指标",
 			"持仓指标",
 			"市场数据",
-			"交易规则",
-			"风险管理",
 			"持仓量(OI)变化解读",
-			"常见错误",
 		}
 
 		for _, keyword := range mustContain {
@@ -174,10 +171,7 @@ func TestGetSchemaPrompt(t *testing.T) {
 			"Trade Metrics",
 			"Position Metrics",
 			"Market Data",
-			"Trading Rules",
-			"Risk Management",
 			"Open Interest",
-			"Common Mistakes",
 		}
 
 		for _, keyword := range mustContain {

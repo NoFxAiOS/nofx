@@ -30,6 +30,50 @@ Telegram 開発者コミュニティに参加: **[NOFX 開発者コミュニテ�
 
 ---
 
+## 始める前に
+
+NOFXを使用するには以下が必要です:
+
+1. **取引所アカウント** - サポートされている取引所に登録し、取引権限付きのAPI認証情報を作成
+2. **AI モデル API キー** - サポートされているプロバイダーから取得（コスト効率の良いDeepSeekを推奨）
+
+---
+
+## サポート取引所
+
+### CEX (中央集権型取引所)
+
+| 取引所 | ステータス | 登録 (手数料割引) |
+|----------|--------|-------------------------|
+| **Binance** | ✅ サポート | [登録](https://www.binance.com/join?ref=NOFXENG) |
+| **Bybit** | ✅ サポート | [登録](https://partner.bybit.com/b/83856) |
+| **OKX** | ✅ サポート | [登録](https://www.okx.com/join/1865360) |
+| **Bitget** | ✅ サポート | [登録](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+
+### Perp-DEX (分散型永久先物取引所)
+
+| 取引所 | ステータス | 登録 (手数料割引) |
+|----------|--------|-------------------------|
+| **Hyperliquid** | ✅ サポート | [登録](https://app.hyperliquid.xyz/join/AITRADING) |
+| **Aster DEX** | ✅ サポート | [登録](https://www.asterdex.com/en/referral/fdfc0e) |
+| **Lighter** | ✅ サポート | [登録](https://app.lighter.xyz/?referral=68151432) |
+
+---
+
+## サポート AI モデル
+
+| AI モデル | ステータス | API キー取得 |
+|----------|--------|-------------|
+| **DeepSeek** | ✅ サポート | [API キー取得](https://platform.deepseek.com) |
+| **Qwen** | ✅ サポート | [API キー取得](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ サポート | [API キー取得](https://platform.openai.com) |
+| **Claude** | ✅ サポート | [API キー取得](https://console.anthropic.com) |
+| **Gemini** | ✅ サポート | [API キー取得](https://aistudio.google.com) |
+| **Grok** | ✅ サポート | [API キー取得](https://console.x.ai) |
+| **Kimi** | ✅ サポート | [API キー取得](https://platform.moonshot.cn) |
+
+---
+
 ## クイックスタート
 
 ### オプション 1: Docker デプロイ（推奨）

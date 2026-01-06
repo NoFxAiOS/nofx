@@ -30,6 +30,50 @@ Tham gia cộng đồng Telegram: **[NOFX Developer Community](https://t.me/nofx
 
 ---
 
+## Trước Khi Bắt Đầu
+
+Để sử dụng NOFX, bạn cần:
+
+1. **Tài khoản sàn giao dịch** - Đăng ký trên sàn được hỗ trợ và tạo API key với quyền giao dịch
+2. **API Key mô hình AI** - Lấy từ nhà cung cấp được hỗ trợ (khuyến nghị DeepSeek để tiết kiệm chi phí)
+
+---
+
+## Sàn Giao Dịch Được Hỗ Trợ
+
+### CEX (Sàn Tập Trung)
+
+| Sàn | Trạng thái | Đăng ký (Giảm phí) |
+|----------|--------|-------------------------|
+| **Binance** | ✅ Hỗ trợ | [Đăng ký](https://www.binance.com/join?ref=NOFXENG) |
+| **Bybit** | ✅ Hỗ trợ | [Đăng ký](https://partner.bybit.com/b/83856) |
+| **OKX** | ✅ Hỗ trợ | [Đăng ký](https://www.okx.com/join/1865360) |
+| **Bitget** | ✅ Hỗ trợ | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+
+### Perp-DEX (Sàn Phi Tập Trung)
+
+| Sàn | Trạng thái | Đăng ký (Giảm phí) |
+|----------|--------|-------------------------|
+| **Hyperliquid** | ✅ Hỗ trợ | [Đăng ký](https://app.hyperliquid.xyz/join/AITRADING) |
+| **Aster DEX** | ✅ Hỗ trợ | [Đăng ký](https://www.asterdex.com/en/referral/fdfc0e) |
+| **Lighter** | ✅ Hỗ trợ | [Đăng ký](https://app.lighter.xyz/?referral=68151432) |
+
+---
+
+## Mô Hình AI Được Hỗ Trợ
+
+| Mô hình AI | Trạng thái | Lấy API Key |
+|----------|--------|-------------|
+| **DeepSeek** | ✅ Hỗ trợ | [Lấy API Key](https://platform.deepseek.com) |
+| **Qwen** | ✅ Hỗ trợ | [Lấy API Key](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ Hỗ trợ | [Lấy API Key](https://platform.openai.com) |
+| **Claude** | ✅ Hỗ trợ | [Lấy API Key](https://console.anthropic.com) |
+| **Gemini** | ✅ Hỗ trợ | [Lấy API Key](https://aistudio.google.com) |
+| **Grok** | ✅ Hỗ trợ | [Lấy API Key](https://console.x.ai) |
+| **Kimi** | ✅ Hỗ trợ | [Lấy API Key](https://platform.moonshot.cn) |
+
+---
+
 ## Bắt Đầu Nhanh
 
 ### Tùy chọn 1: Triển khai Docker (Khuyến nghị)

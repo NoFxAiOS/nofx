@@ -1452,9 +1452,9 @@ func (s *Server) recordClosePositionOrder(traderID, exchangeID, exchangeType, sy
 		FilledQuantity:  quantity,
 		AvgFillPrice:    exitPrice,
 		Commission:      fee,
-		FilledAt:        time.Now().UTC(),
-		CreatedAt:       time.Now().UTC(),
-		UpdatedAt:       time.Now().UTC(),
+		FilledAt:        time.Now().UTC().UnixMilli(),
+		CreatedAt:       time.Now().UTC().UnixMilli(),
+		UpdatedAt:       time.Now().UTC().UnixMilli(),
 	}
 
 	if err := s.store.Order().CreateOrder(orderRecord); err != nil {
@@ -1482,7 +1482,7 @@ func (s *Server) recordClosePositionOrder(traderID, exchangeID, exchangeType, sy
 		CommissionAsset: "USDT",
 		RealizedPnL:     0,
 		IsMaker:         false,
-		CreatedAt:       time.Now().UTC(),
+		CreatedAt:       time.Now().UTC().UnixMilli(),
 	}
 
 	if err := s.store.Order().CreateFill(fillRecord); err != nil {
@@ -1557,7 +1557,7 @@ func (s *Server) pollAndUpdateOrderStatus(orderRecordID int64, traderID, exchang
 					CommissionAsset: "USDT",
 					RealizedPnL:     0,
 					IsMaker:         false,
-					CreatedAt:       time.Now().UTC(),
+					CreatedAt:       time.Now().UTC().UnixMilli(),
 				}
 
 				if err := s.store.Order().CreateFill(fillRecord); err != nil {
@@ -2306,28 +2306,14 @@ func (s *Server) handleOrders(c *gin.Context) {
 		return
 	}
 
-	// Get all orders for this trader
-	allOrders, err := store.Order().GetTraderOrders(trader.GetID(), limit)
+	// Get orders with filters applied at database level
+	orders, err := store.Order().GetTraderOrdersFiltered(trader.GetID(), symbol, statusFilter, limit)
 	if err != nil {
 		SafeInternalError(c, "Get orders", err)
 		return
 	}
 
-	// Filter by symbol and status if specified
-	result := make([]interface{}, 0)
-	for _, order := range allOrders {
-		// Filter by symbol
-		if symbol != "" && order.Symbol != symbol {
-			continue
-		}
-		// Filter by status
-		if statusFilter != "" && order.Status != statusFilter {
-			continue
-		}
-		result = append(result, order)
-	}
-
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, orders)
 }
 
 // handleOrderFills Order fill details (all fills for a specific order)

@@ -30,6 +30,50 @@ Telegram 개발자 커뮤니티 참여: **[NOFX 개발자 커뮤니티](https://
 
 ---
 
+## 시작하기 전에
+
+NOFX를 사용하려면 다음이 필요합니다:
+
+1. **거래소 계정** - 지원되는 거래소에 등록하고 거래 권한이 있는 API 자격 증명 생성
+2. **AI 모델 API 키** - 지원되는 제공업체에서 획득 (비용 효율성을 위해 DeepSeek 권장)
+
+---
+
+## 지원 거래소
+
+### CEX (중앙화 거래소)
+
+| 거래소 | 상태 | 등록 (수수료 할인) |
+|----------|--------|-------------------------|
+| **Binance** | ✅ 지원 | [등록](https://www.binance.com/join?ref=NOFXENG) |
+| **Bybit** | ✅ 지원 | [등록](https://partner.bybit.com/b/83856) |
+| **OKX** | ✅ 지원 | [등록](https://www.okx.com/join/1865360) |
+| **Bitget** | ✅ 지원 | [등록](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+
+### Perp-DEX (탈중앙화 영구 선물 거래소)
+
+| 거래소 | 상태 | 등록 (수수료 할인) |
+|----------|--------|-------------------------|
+| **Hyperliquid** | ✅ 지원 | [등록](https://app.hyperliquid.xyz/join/AITRADING) |
+| **Aster DEX** | ✅ 지원 | [등록](https://www.asterdex.com/en/referral/fdfc0e) |
+| **Lighter** | ✅ 지원 | [등록](https://app.lighter.xyz/?referral=68151432) |
+
+---
+
+## 지원 AI 모델
+
+| AI 모델 | 상태 | API 키 받기 |
+|----------|--------|-------------|
+| **DeepSeek** | ✅ 지원 | [API 키 받기](https://platform.deepseek.com) |
+| **Qwen** | ✅ 지원 | [API 키 받기](https://dashscope.console.aliyun.com) |
+| **OpenAI (GPT)** | ✅ 지원 | [API 키 받기](https://platform.openai.com) |
+| **Claude** | ✅ 지원 | [API 키 받기](https://console.anthropic.com) |
+| **Gemini** | ✅ 지원 | [API 키 받기](https://aistudio.google.com) |
+| **Grok** | ✅ 지원 | [API 키 받기](https://console.x.ai) |
+| **Kimi** | ✅ 지원 | [API 키 받기](https://platform.moonshot.cn) |
+
+---
+
 ## 빠른 시작
 
 ### 옵션 1: Docker 배포 (권장)

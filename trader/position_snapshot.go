@@ -40,7 +40,7 @@ func CreatePositionSnapshot(traderID, exchangeID, exchangeType string, trader Tr
 	logger.Infof("📥 Found %d positions on exchange", len(positions))
 
 	// Step 3: Create snapshot record for each position
-	now := time.Now()
+	nowMs := time.Now().UnixMilli()
 	createdCount := 0
 
 	for _, posMap := range positions {
@@ -74,18 +74,18 @@ func CreatePositionSnapshot(traderID, exchangeID, exchangeType string, trader Tr
 			TraderID:           traderID,
 			ExchangeID:         exchangeID,
 			ExchangeType:       exchangeType,
-			ExchangePositionID: fmt.Sprintf("snapshot_%s_%s_%d", symbol, side, now.UnixMilli()),
+			ExchangePositionID: fmt.Sprintf("snapshot_%s_%s_%d", symbol, side, nowMs),
 			Symbol:             symbol,
 			Side:               side,
 			Quantity:           positionAmt,
 			EntryPrice:         entryPrice,
 			EntryOrderID:       "snapshot", // Mark as snapshot
-			EntryTime:          now,
+			EntryTime:          nowMs,
 			Leverage:           int(leverage),
 			Status:             "OPEN",
 			Source:             "snapshot", // Mark source as snapshot
-			CreatedAt:          now,
-			UpdatedAt:          now,
+			CreatedAt:          nowMs,
+			UpdatedAt:          nowMs,
 		}
 
 		if err := positionStore.CreateOpenPosition(snapshotPosition); err != nil {

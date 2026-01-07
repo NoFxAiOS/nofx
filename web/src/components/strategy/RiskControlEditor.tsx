@@ -128,11 +128,6 @@ export function RiskControlEditor({
         zh: 'USDT 最小名义价值',
         en: 'Minimum notional value in USDT',
       },
-      minConfidence: { zh: '最小信心度', en: 'Min Confidence' },
-      minConfidenceDesc: {
-        zh: 'AI 开仓信心度阈值',
-        en: 'AI confidence threshold for entry',
-      },
     }
     return translations[key]?.[language] || key
   }
@@ -587,36 +582,7 @@ export function RiskControlEditor({
             </div>
           </div>
 
-          <div
-            className="p-4 rounded-lg"
-            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-          >
-            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('minConfidence')}
-            </label>
-            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('minConfidenceDesc')}
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                type="range"
-                value={config.min_confidence ?? 75}
-                onChange={(e) =>
-                  updateField('min_confidence', parseInt(e.target.value))
-                }
-                disabled={disabled}
-                min={50}
-                max={100}
-                className="flex-1 accent-green-500"
-              />
-              <span
-                className="w-12 text-center font-mono"
-                style={{ color: '#0ECB81' }}
-              >
-                {config.min_confidence ?? 75}
-              </span>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

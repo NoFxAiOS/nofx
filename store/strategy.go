@@ -178,8 +178,6 @@ type RiskControlConfig struct {
 
 	// Min take_profit / stop_loss ratio (AI guided)
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
-	// Min AI confidence to open position (AI guided)
-	MinConfidence int `json:"min_confidence"`
 	// Whether to enable drawdown protection (auto close position when drawdown exceeds threshold)
 	EnableDrawdownProtection bool `json:"enable_drawdown_protection"`
 
@@ -278,7 +276,6 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
 			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
 			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                   75,  // Min 75% confidence (AI guided)
 			EnableDrawdownProtection:        true, // Enable drawdown protection by default
 			EnableProfitLocking:             true, // Enable profit locking by default
 			ProfitLockTargets:               []float64{1, 2, 3}, // Lock at 1R, 2R, 3R

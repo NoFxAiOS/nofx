@@ -911,8 +911,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("## AI GUIDED (Recommended, you should follow):\n")
 	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
 		riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
-	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
-	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
+	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n\n", riskControl.MinRiskRewardRatio))
 
 	// Position sizing guidance
 	sb.WriteString("## Position Sizing Guidance\n")
@@ -941,12 +940,12 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString(promptSections.EntryStandards)
 		sb.WriteString("\n\nYou have the following indicator data:\n")
 		e.writeAvailableIndicators(&sb)
-		sb.WriteString(fmt.Sprintf("\n**Confidence ≥ %d** required to open positions.\n\n", riskControl.MinConfidence))
+		sb.WriteString("\n\n")
 	} else {
 		sb.WriteString("# 🎯 Entry Standards (Strict)\n\n")
 		sb.WriteString("Only open positions when multiple signals resonate. You have:\n")
 		e.writeAvailableIndicators(&sb)
-		sb.WriteString(fmt.Sprintf("\nFeel free to use any effective analysis method, but **confidence ≥ %d** required to open positions; avoid low-quality behaviors such as single indicators, contradictory signals, sideways consolidation, reopening immediately after closing, etc.\n\n", riskControl.MinConfidence))
+		sb.WriteString("\nFeel free to use any effective analysis method, and avoid low-quality behaviors such as single indicators, contradictory signals, sideways consolidation, reopening immediately after closing, etc.\n\n")
 	}
 
 	// 6. Decision process (editable)
@@ -992,7 +991,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("  - **adjust_both_short**: Adjust both stop loss and take profit for existing short position\n")
 	sb.WriteString("  - **hold**: Hold current positions (no action)\n")
 	sb.WriteString("  - **wait**: Wait (no positions, no new openings)\n")
-	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
+	sb.WriteString("- `confidence`: 0-100\n")
 	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
 	sb.WriteString("- Required when adjusting: stop_loss (if adjusting stop loss), take_profit (if adjusting take profit)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")

@@ -279,7 +279,6 @@ func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
 			MaxMarginUsage:               0.9,
 			MinPositionSize:              12,
 			MinRiskRewardRatio:           3.0,
-			MinConfidence:                75,
 		},
 	}
 }

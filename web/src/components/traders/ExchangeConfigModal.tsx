@@ -27,6 +27,8 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'lighter', name: 'Lighter', type: 'dex' as const },
 ]
 
+const TESTNET_SUPPORTED_EXCHANGES = new Set(['okx', 'hyperliquid'])
+
 interface ExchangeConfigModalProps {
   allExchanges: Exchange[]
   editingExchangeId: string | null
@@ -120,6 +122,19 @@ export function ExchangeConfigModal({
     ? selectedExchange?.exchange_type
     : selectedExchangeType
 
+  const supportsTestnet =
+    !!currentExchangeType && TESTNET_SUPPORTED_EXCHANGES.has(currentExchangeType)
+  const testnetLabel =
+    currentExchangeType === 'okx'
+      ? t('useSimulatedTrading', language)
+      : t('useTestnet', language)
+  const testnetDescription =
+    currentExchangeType === 'okx'
+      ? t('okxSimulatedDescription', language)
+      : currentExchangeType === 'hyperliquid'
+        ? t('hyperliquidTestnetDescription', language)
+        : t('testnetDescription', language)
+
   // 交易所注册链接配置
   const exchangeRegistrationLinks: Record<string, { url: string; hasReferral?: boolean }> = {
     binance: { url: 'https://www.binance.com/join?ref=NOFXENG', hasReferral: true },
@@ -154,6 +169,13 @@ export function ExchangeConfigModal({
       setLighterApiKeyIndex(selectedExchange.lighterApiKeyIndex || 0)
     }
   }, [editingExchangeId, selectedExchange])
+
+  // 创建模式下切换交易所类型时，重置测试网/模拟盘开关
+  useEffect(() => {
+    if (!editingExchangeId) {
+      setTestnet(false)
+    }
+  }, [selectedExchangeType, editingExchangeId])
 
   // 加载服务器IP（当选择binance时）
   useEffect(() => {
@@ -501,15 +523,45 @@ export function ExchangeConfigModal({
                     }}
                     required
                   />
-                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                    {language === 'zh'
-                      ? '为此账户设置一个易于识别的名称，以便区分同一交易所的多个账户'
-                      : 'Set an easily recognizable name for this account to distinguish multiple accounts on the same exchange'}
-                  </div>
+                <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
+                  {language === 'zh'
+                    ? '为此账户设置一个易于识别的名称，以便区分同一交易所的多个账户'
+                    : 'Set an easily recognizable name for this account to distinguish multiple accounts on the same exchange'}
                 </div>
+              </div>
 
-                {/* 注册链接 */}
-                <a
+              {supportsTestnet && (
+                <div
+                  className="mt-4 p-3 rounded-lg flex items-start justify-between gap-4"
+                  style={{ background: '#12161c', border: '1px solid #2B3139' }}
+                >
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                      {testnetLabel}
+                    </div>
+                    <div className="text-xs mt-1 leading-relaxed" style={{ color: '#848E9C' }}>
+                      {testnetDescription}
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={testnet}
+                      onChange={(e) => setTestnet(e.target.checked)}
+                      className="w-5 h-5 rounded"
+                      style={{
+                        accentColor: '#F0B90B',
+                      }}
+                    />
+                    <span className="text-xs font-semibold" style={{ color: testnet ? '#0ECB81' : '#848E9C' }}>
+                      {testnet ? t('enabled', language) : t('disabled', language)}
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              {/* 注册链接 */}
+              <a
                   href={exchangeRegistrationLinks[currentExchangeType || '']?.url || '#'}
                   target="_blank"
                   rel="noopener noreferrer"

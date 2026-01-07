@@ -407,7 +407,6 @@ func (tm *TraderManager) GetTopTradersData() (map[string]interface{}, error) {
 	return result, nil
 }
 
-
 // RemoveTrader removes a trader from memory (does not affect database)
 // Used to force reload when updating trader configuration
 // If the trader is running, it will be stopped first
@@ -658,17 +657,17 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		BinanceAPIKey:         "",
 		BinanceSecretKey:      "",
 		HyperliquidPrivateKey: "",
-		HyperliquidTestnet:    exchangeCfg.Testnet,
 		UseQwen:               aiModelCfg.Provider == "qwen",
 		DeepSeekKey:           "",
 		QwenKey:               "",
 		CustomAPIURL:          aiModelCfg.CustomAPIURL,
 		CustomModelName:       aiModelCfg.CustomModelName,
-		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		InitialBalance:       traderCfg.InitialBalance,
-		IsCrossMargin:        traderCfg.IsCrossMargin,
-		ShowInCompetition:    traderCfg.ShowInCompetition,
-		StrategyConfig:       strategyConfig,
+		ScanInterval:          time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
+		InitialBalance:        traderCfg.InitialBalance,
+		IsCrossMargin:         traderCfg.IsCrossMargin,
+		ShowInCompetition:     traderCfg.ShowInCompetition,
+		Testnet:               exchangeCfg.Testnet,
+		StrategyConfig:        strategyConfig,
 	}
 
 	logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), ScanInterval=%v",
@@ -702,7 +701,6 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		traderConfig.LighterWalletAddr = exchangeCfg.LighterWalletAddr
 		traderConfig.LighterAPIKeyPrivateKey = string(exchangeCfg.LighterAPIKeyPrivateKey)
 		traderConfig.LighterAPIKeyIndex = exchangeCfg.LighterAPIKeyIndex
-		traderConfig.LighterTestnet = exchangeCfg.Testnet
 	}
 
 	// Set API keys based on AI model (convert EncryptedString to string)

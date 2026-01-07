@@ -739,13 +739,13 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                             {pos.take_profit_price !== undefined && pos.take_profit_price > 0 ? (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <span className="px-1.5 py-0.5 rounded bg-nofx-green/15 text-nofx-green text-xs font-semibold border border-nofx-green/25 shadow-[0_0_6px_rgba(14,203,129,0.25)]">
-                                  {pos.take_profit_price.toFixed(4)}
-                                </span>
-                                <span className={`text-[10px] font-medium ${((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
-                                  {((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1) * pos.quantity).toFixed(2)}
-                                </span>
+                              <div className="flex justify-end">
+                                <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-nofx-green/15 text-nofx-green text-xs font-semibold border border-nofx-green/25 shadow-[0_0_6px_rgba(14,203,129,0.25)]">
+                                  <span>{pos.take_profit_price.toFixed(4)}</span>
+                                  <span className={`text-[10px] font-medium ${((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
+                                    {((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1) * pos.quantity).toFixed(2)}
+                                  </span>
+                                </div>
                               </div>
                             ) : (
                               <span className="text-nofx-text-muted opacity-50">-</span>
@@ -753,13 +753,13 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                             {pos.stop_loss_price !== undefined && pos.stop_loss_price > 0 ? (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <span className="px-1.5 py-0.5 rounded bg-nofx-red/15 text-nofx-red text-xs font-semibold border border-nofx-red/25 shadow-[0_0_6px_rgba(246,70,93,0.25)]">
-                                  {pos.stop_loss_price.toFixed(4)}
-                                </span>
-                                <span className={`text-[10px] font-medium ${((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
-                                  {((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1) * pos.quantity).toFixed(2)}
-                                </span>
+                              <div className="flex justify-end">
+                                <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-nofx-red/15 text-nofx-red text-xs font-semibold border border-nofx-red/25 shadow-[0_0_6px_rgba(246,70,93,0.25)]">
+                                  <span>{pos.stop_loss_price.toFixed(4)}</span>
+                                  <span className={`text-[10px] font-medium ${((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
+                                    {((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1) * pos.quantity).toFixed(2)}
+                                  </span>
+                                </div>
                               </div>
                             ) : (
                               <span className="text-nofx-text-muted opacity-50">-</span>

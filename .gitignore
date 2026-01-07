@@ -37,6 +37,10 @@ configbak.json
 data/
 *.db
 
+# Cache 文件
+ai_cache.json
+backtests/**/ai_cache.json
+backtests/**/*.db
 # 决策日志
 decision_logs/
 nofx_test

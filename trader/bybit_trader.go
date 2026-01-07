@@ -1044,3 +1044,64 @@ func (t *BybitTrader) parseClosedPnLResult(resultData interface{}) ([]ClosedPnLR
 
 	return records, nil
 }
+
+// GetOpenOrders gets all open/pending orders for a symbol
+func (t *BybitTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
+	var result []OpenOrder
+
+	// Get conditional orders (stop-loss, take-profit)
+	params := map[string]interface{}{
+		"category":    "linear",
+		"symbol":      symbol,
+		"orderFilter": "StopOrder",
+	}
+
+	resp, err := t.client.NewUtaBybitServiceWithParams(params).GetOpenOrders(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open orders: %w", err)
+	}
+
+	if resp.RetCode == 0 {
+		resultData, ok := resp.Result.(map[string]interface{})
+		if ok {
+			list, _ := resultData["list"].([]interface{})
+			for _, item := range list {
+				order, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				orderId, _ := order["orderId"].(string)
+				sym, _ := order["symbol"].(string)
+				side, _ := order["side"].(string)
+				orderType, _ := order["orderType"].(string)
+				stopOrderType, _ := order["stopOrderType"].(string)
+				triggerPrice, _ := order["triggerPrice"].(string)
+				qty, _ := order["qty"].(string)
+
+				price, _ := strconv.ParseFloat(triggerPrice, 64)
+				quantity, _ := strconv.ParseFloat(qty, 64)
+
+				// Determine type based on stopOrderType
+				displayType := orderType
+				if stopOrderType != "" {
+					displayType = stopOrderType
+				}
+
+				result = append(result, OpenOrder{
+					OrderID:      orderId,
+					Symbol:       sym,
+					Side:         side,
+					PositionSide: "", // Bybit doesn't use positionSide for UTA
+					Type:         displayType,
+					Price:        0,
+					StopPrice:    price,
+					Quantity:     quantity,
+					Status:       "NEW",
+				})
+			}
+		}
+	}
+
+	return result, nil
+}

@@ -31,6 +31,19 @@ interface OrderMarker {
   symbol: string
 }
 
+// 挂单接口定义 (交易所的止盈止损订单)
+interface OpenOrder {
+  order_id: string
+  symbol: string
+  side: string          // BUY/SELL
+  position_side: string // LONG/SHORT
+  type: string          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET
+  price: number         // 限价单价格
+  stop_price: number    // 触发价格 (止损/止盈)
+  quantity: number
+  status: string
+}
+
 interface AdvancedChartProps {
   symbol: string
   interval?: string
@@ -101,6 +114,7 @@ export function AdvancedChart({
   const seriesMarkersRef = useRef<any>(null) // Markers primitive for v5
   const currentMarkersDataRef = useRef<any[]>([]) // 存储当前的标记数据
   const klineDataRef = useRef<Map<number, { volume: number; quoteVolume: number }>>(new Map()) // 存储 kline 额外数据
+  const priceLinesRef = useRef<any[]>([]) // 存储挂单价格线
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -179,9 +193,15 @@ export function AdvancedChart({
       return 0
     }
 
-    // 如果已经是数字（Unix 时间戳），直接返回
+    // 如果已经是数字（Unix 时间戳）
     if (typeof time === 'number') {
-      console.log('[AdvancedChart] ✅ Unix timestamp:', time, '(', new Date(time * 1000).toISOString(), ')')
+      // 判断是毫秒还是秒：如果大于 10^12 则认为是毫秒（2001年之后的毫秒时间戳）
+      if (time > 1000000000000) {
+        const seconds = Math.floor(time / 1000)
+        console.log('[AdvancedChart] ✅ Unix timestamp (ms→s):', time, '→', seconds, '(', new Date(time).toISOString(), ')')
+        return seconds
+      }
+      console.log('[AdvancedChart] ✅ Unix timestamp (s):', time, '(', new Date(time * 1000).toISOString(), ')')
       return time
     }
 
@@ -221,8 +241,8 @@ export function AdvancedChart({
   const fetchOrders = async (traderID: string, symbol: string): Promise<OrderMarker[]> => {
     try {
       console.log('[AdvancedChart] Fetching orders for trader:', traderID, 'symbol:', symbol)
-      // 获取已成交的订单，限制50条避免标记太多重叠
-      const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=50`)
+      // 获取已成交的订单，增加到200条以显示更多历史订单
+      const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=200`)
 
       console.log('[AdvancedChart] Orders API response:', result)
 
@@ -297,6 +317,26 @@ export function AdvancedChart({
       return markers
     } catch (err) {
       console.error('[AdvancedChart] Error fetching orders:', err)
+      return []
+    }
+  }
+
+  // 获取交易所挂单 (止盈止损订单)
+  const fetchOpenOrders = async (traderID: string, symbol: string): Promise<OpenOrder[]> => {
+    try {
+      console.log('[AdvancedChart] Fetching open orders for trader:', traderID, 'symbol:', symbol)
+      const result = await httpClient.get(`/api/open-orders?trader_id=${traderID}&symbol=${symbol}`)
+
+      console.log('[AdvancedChart] Open orders API response:', result)
+
+      if (!result.success || !result.data) {
+        console.warn('[AdvancedChart] No open orders found')
+        return []
+      }
+
+      return result.data as OpenOrder[]
+    } catch (err) {
+      console.error('[AdvancedChart] Error fetching open orders:', err)
       return []
     }
   }
@@ -580,15 +620,8 @@ export function AdvancedChart({
               return klineTimes[left]
             }
 
-            // 过滤并对齐订单到 K 线时间
-            const markers: Array<{
-              time: Time
-              position: 'belowBar'
-              color: string
-              shape: 'circle'
-              text: string
-              size: number
-            }> = []
+            // 按 K 线时间分组统计订单
+            const ordersByCandle = new Map<number, { buys: number; sells: number }>()
 
             orders.forEach(order => {
               // 使用二分查找找到对应的 K 线蜡烛时间
@@ -600,15 +633,48 @@ export function AdvancedChart({
                 return
               }
 
-              const isBuy = order.rawSide === 'buy'
-              markers.push({
-                time: candleTime as Time,
-                position: 'belowBar' as const,
-                color: isBuy ? '#0ECB81' : '#F6465D',
-                shape: 'circle' as const,
-                text: isBuy ? 'B' : 'S',
-                size: 1,
-              })
+              const existing = ordersByCandle.get(candleTime) || { buys: 0, sells: 0 }
+              if (order.rawSide === 'buy') {
+                existing.buys++
+              } else {
+                existing.sells++
+              }
+              ordersByCandle.set(candleTime, existing)
+            })
+
+            // 为每个有订单的 K 线创建标记
+            const markers: Array<{
+              time: Time
+              position: 'belowBar' | 'aboveBar'
+              color: string
+              shape: 'circle'
+              text: string
+              size: number
+            }> = []
+
+            ordersByCandle.forEach((counts, candleTime) => {
+              // 显示买入标记（绿色，在K线下方）
+              if (counts.buys > 0) {
+                markers.push({
+                  time: candleTime as Time,
+                  position: 'belowBar' as const,
+                  color: '#0ECB81',
+                  shape: 'circle' as const,
+                  text: counts.buys > 1 ? `B${counts.buys}` : 'B',
+                  size: 1,
+                })
+              }
+              // 显示卖出标记（红色，在K线上方）
+              if (counts.sells > 0) {
+                markers.push({
+                  time: candleTime as Time,
+                  position: 'aboveBar' as const,
+                  color: '#F6465D',
+                  shape: 'circle' as const,
+                  text: counts.sells > 1 ? `S${counts.sells}` : 'S',
+                  size: 1,
+                })
+              }
             })
 
             // 按时间排序（lightweight-charts 要求标记按时间顺序）
@@ -673,6 +739,87 @@ export function AdvancedChart({
     const refreshInterval = setInterval(() => loadData(true), 5000)
     return () => clearInterval(refreshInterval)
   }, [symbol, interval, traderID, exchange])
+
+  // 单独刷新挂单价格线 (60秒刷新一次，避免频繁调用交易所API)
+  useEffect(() => {
+    if (!traderID || !candlestickSeriesRef.current) return
+
+    // 加载挂单并显示价格线
+    const loadOpenOrders = async () => {
+      try {
+        // 先清除旧的价格线
+        priceLinesRef.current.forEach(line => {
+          try {
+            candlestickSeriesRef.current?.removePriceLine(line)
+          } catch (e) {
+            // 忽略清除错误
+          }
+        })
+        priceLinesRef.current = []
+
+        const openOrders = await fetchOpenOrders(traderID, symbol)
+        console.log('[AdvancedChart] Open orders for price lines:', openOrders)
+
+        if (openOrders.length > 0 && candlestickSeriesRef.current) {
+          openOrders.forEach(order => {
+            // 获取触发价格 (止损/止盈用 stop_price，限价单用 price)
+            const linePrice = order.stop_price > 0 ? order.stop_price : order.price
+            if (linePrice <= 0) return
+
+            // 判断订单类型
+            const isStopLoss = order.type.includes('STOP') || order.type.includes('SL')
+            const isTakeProfit = order.type.includes('TAKE_PROFIT') || order.type.includes('TP')
+            const isLimit = order.type === 'LIMIT'
+
+            // 设置价格线样式
+            let lineColor = '#F0B90B' // 默认黄色
+            const lineStyle = 2 // 虚线
+            let title = ''
+
+            if (isStopLoss) {
+              lineColor = '#F6465D' // 红色 - 止损
+              title = `SL ${order.quantity}`
+            } else if (isTakeProfit) {
+              lineColor = '#0ECB81' // 绿色 - 止盈
+              title = `TP ${order.quantity}`
+            } else if (isLimit) {
+              lineColor = '#F0B90B' // 黄色 - 限价单
+              title = `Limit ${order.side} ${order.quantity}`
+            } else {
+              title = `${order.type} ${order.quantity}`
+            }
+
+            const priceLine = candlestickSeriesRef.current?.createPriceLine({
+              price: linePrice,
+              color: lineColor,
+              lineWidth: 1,
+              lineStyle: lineStyle,
+              axisLabelVisible: true,
+              title: title,
+            })
+
+            if (priceLine) {
+              priceLinesRef.current.push(priceLine)
+            }
+          })
+          console.log('[AdvancedChart] ✅ Created', priceLinesRef.current.length, 'price lines for pending orders')
+        }
+      } catch (err) {
+        console.error('[AdvancedChart] Error loading open orders:', err)
+      }
+    }
+
+    // 初始加载 (延迟1秒等待图表初始化完成)
+    const initialTimeout = setTimeout(loadOpenOrders, 1000)
+
+    // 60秒刷新一次挂单
+    const openOrdersInterval = setInterval(loadOpenOrders, 60000)
+
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(openOrdersInterval)
+    }
+  }, [symbol, traderID])
 
   // 单独处理订单标记的显示/隐藏，避免重新加载数据
   useEffect(() => {

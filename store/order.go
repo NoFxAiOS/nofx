@@ -237,6 +237,27 @@ func (s *OrderStore) GetTraderOrders(traderID string, limit int) ([]*TraderOrder
 	return orders, nil
 }
 
+// GetTraderOrdersFiltered gets trader's order list with optional symbol and status filters
+func (s *OrderStore) GetTraderOrdersFiltered(traderID string, symbol string, status string, limit int) ([]*TraderOrder, error) {
+	var orders []*TraderOrder
+	query := s.db.Where("trader_id = ?", traderID)
+
+	if symbol != "" {
+		query = query.Where("symbol = ?", symbol)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	err := query.Order("created_at DESC").
+		Limit(limit).
+		Find(&orders).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to query orders: %w", err)
+	}
+	return orders, nil
+}
+
 // GetOrderFills gets order's fill records
 func (s *OrderStore) GetOrderFills(orderID int64) ([]*TraderFill, error) {
 	var fills []*TraderFill

@@ -104,7 +104,7 @@
 
 ## 快速开始
 
-### 一键安装 (推荐)
+### 一键安装 (本地/服务器)
 
 **Linux / macOS:**
 ```bash
@@ -112,6 +112,14 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 ```
 
 完成！打开浏览器访问 **http://127.0.0.1:3000**
+
+### 一键云部署 (Railway)
+
+一键部署到 Railway - 无需自己搭建服务器：
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/nofx?referralCode=nofx)
+
+部署后，Railway 会提供一个公网 URL 访问你的 NOFX 实例。
 
 ### Docker Compose (手动)
 

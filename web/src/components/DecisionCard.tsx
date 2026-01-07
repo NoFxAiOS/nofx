@@ -11,41 +11,47 @@ interface DecisionCardProps {
 // Action type configuration
 const ACTION_CONFIG: Record<
   string,
-  { color: string; bg: string; icon: string; label: string }
+  { color: string; bg: string; border: string; icon: string; label: string }
 > = {
   open_long: {
     color: '#0ECB81',
     bg: 'rgba(14, 203, 129, 0.15)',
+    border: 'rgba(14, 203, 129, 0.3)',
     icon: '📈',
     label: 'LONG',
   },
   open_short: {
     color: '#F6465D',
     bg: 'rgba(246, 70, 93, 0.15)',
+    border: 'rgba(246, 70, 93, 0.3)',
     icon: '📉',
     label: 'SHORT',
   },
   close_long: {
     color: '#F0B90B',
     bg: 'rgba(240, 185, 11, 0.15)',
+    border: 'rgba(240, 185, 11, 0.3)',
     icon: '💰',
     label: 'CLOSE',
   },
   close_short: {
     color: '#F0B90B',
     bg: 'rgba(240, 185, 11, 0.15)',
+    border: 'rgba(240, 185, 11, 0.3)',
     icon: '💰',
     label: 'CLOSE',
   },
   hold: {
-    color: '#848E9C',
-    bg: 'rgba(132, 142, 156, 0.15)',
+    color: '#94A3B8',
+    bg: 'rgba(148, 163, 184, 0.15)',
+    border: 'rgba(148, 163, 184, 0.3)',
     icon: '⏸️',
     label: 'HOLD',
   },
   wait: {
-    color: '#848E9C',
-    bg: 'rgba(132, 142, 156, 0.15)',
+    color: '#94A3B8',
+    bg: 'rgba(148, 163, 184, 0.15)',
+    border: 'rgba(148, 163, 184, 0.3)',
     icon: '⏳',
     label: 'WAIT',
   },
@@ -95,11 +101,11 @@ function ActionCard({
 
   return (
     <div
-      className="rounded-lg p-4 transition-all duration-200 hover:scale-[1.01]"
+      className="rounded-lg p-4 transition-all duration-300 hover:scale-[1.01] hover:shadow-lg"
       style={{
-        background: 'linear-gradient(135deg, #1E2329 0%, #181C21 100%)',
-        border: `1px solid ${config.color}33`,
-        boxShadow: `0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03)`,
+        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+        border: `1px solid ${config.border}`,
+        boxShadow: `0 4px 12px rgba(0, 0, 0, 0.2)`,
       }}
     >
       {/* Header Row */}
@@ -107,8 +113,7 @@ function ActionCard({
         <div className="flex items-center gap-3">
           <span className="text-xl">{config.icon}</span>
           <span
-            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110"
-            style={{ color: '#EAECEF' }}
+            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110 text-nofx-text-primary"
             onClick={() => onSymbolClick?.(action.symbol)}
             title="Click to view chart"
           >
@@ -119,7 +124,7 @@ function ActionCard({
             style={{
               background: config.bg,
               color: config.color,
-              border: `1px solid ${config.color}55`,
+              border: `1px solid ${config.border}`,
             }}
           >
             {config.label}
@@ -134,6 +139,7 @@ function ActionCard({
               style={{
                 background: `${getConfidenceColor(action.confidence)}22`,
                 color: getConfidenceColor(action.confidence),
+                border: `1px solid ${getConfidenceColor(action.confidence)}44`,
               }}
             >
               {action.confidence.toFixed(0)}%
@@ -148,36 +154,27 @@ function ActionCard({
 
       {/* Trading Details Grid */}
       {isOpen && (
-        <div
-          className="grid grid-cols-4 gap-3 mt-3 pt-3"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
+        <div className="grid grid-cols-4 gap-3 mt-3 pt-3 border-t border-white/5">
           {/* Entry Price */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+            <div className="text-xs mb-1 text-nofx-text-tertiary">
               {t('entryPrice', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#EAECEF' }}
-            >
+            <div className="font-mono font-semibold text-nofx-text-primary">
               {formatPrice(action.price)}
             </div>
           </div>
 
           {/* Stop Loss */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#F6465D' }}>
+            <div className="text-xs mb-1 text-nofx-danger">
               {t('stopLoss', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#F6465D' }}
-            >
+            <div className="font-mono font-semibold text-nofx-danger">
               {formatPrice(action.stop_loss)}
             </div>
             {action.stop_loss && action.price && (
-              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+              <div className="text-xs mt-0.5 text-nofx-text-tertiary">
                 {calcPctChange(action.price, action.stop_loss, isLong)}
               </div>
             )}
@@ -185,17 +182,14 @@ function ActionCard({
 
           {/* Take Profit */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#0ECB81' }}>
+            <div className="text-xs mb-1 text-nofx-success">
               {t('takeProfit', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#0ECB81' }}
-            >
+            <div className="font-mono font-semibold text-nofx-success">
               {formatPrice(action.take_profit)}
             </div>
             {action.take_profit && action.price && (
-              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+              <div className="text-xs mt-0.5 text-nofx-text-tertiary">
                 {calcPctChange(action.price, action.take_profit, isLong)}
               </div>
             )}
@@ -203,13 +197,10 @@ function ActionCard({
 
           {/* Leverage */}
           <div className="text-center">
-            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+            <div className="text-xs mb-1 text-nofx-text-tertiary">
               {t('leverage', language)}
             </div>
-            <div
-              className="font-mono font-semibold"
-              style={{ color: '#F0B90B' }}
-            >
+            <div className="font-mono font-semibold text-nofx-gold">
               {action.leverage}x
             </div>
           </div>
@@ -218,11 +209,8 @@ function ActionCard({
 
       {/* Risk/Reward Ratio for open positions */}
       {isOpen && action.stop_loss && action.take_profit && action.price && (
-        <div
-          className="mt-3 pt-3 flex items-center justify-between"
-          style={{ borderTop: '1px solid #2B3139' }}
-        >
-          <span className="text-xs" style={{ color: '#848E9C' }}>
+        <div className="mt-3 pt-3 flex items-center justify-between border-t border-white/5">
+          <span className="text-xs text-nofx-text-tertiary">
             {t('riskReward', language)}
           </span>
           <div className="flex items-center gap-2">
@@ -235,15 +223,15 @@ function ActionCard({
               return (
                 <>
                   <div className="flex gap-1">
-                    <span style={{ color: '#F6465D' }}>1</span>
-                    <span style={{ color: '#848E9C' }}>:</span>
-                    <span style={{ color: '#0ECB81' }}>{ratio.toFixed(1)}</span>
+                    <span className="text-nofx-danger">1</span>
+                    <span className="text-nofx-text-tertiary">:</span>
+                    <span className="text-nofx-success">{ratio.toFixed(1)}</span>
                   </div>
                   <div
                     className="h-1.5 rounded-full"
                     style={{
                       width: '60px',
-                      background: '#2B3139',
+                      background: '#334155',
                     }}
                   >
                     <div
@@ -263,8 +251,8 @@ function ActionCard({
 
       {/* Reasoning */}
       {action.reasoning && (
-        <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
-          <div className="text-xs line-clamp-2" style={{ color: '#848E9C' }}>
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <div className="text-sm text-nofx-text-secondary">
             💡 {action.reasoning}
           </div>
         </div>
@@ -273,7 +261,7 @@ function ActionCard({
       {/* Error Message */}
       {action.error && (
         <div
-          className="mt-3 rounded p-2 text-xs"
+          className="mt-3 rounded p-3 text-sm"
           style={{
             background: 'rgba(246, 70, 93, 0.1)',
             border: '1px solid rgba(246, 70, 93, 0.3)',
@@ -321,10 +309,10 @@ export function DecisionCard({
 
   return (
     <div
-      className="rounded-xl p-5 transition-all duration-300 hover:translate-y-[-2px]"
+      className="rounded-xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
       style={{
-        border: '1px solid #2B3139',
-        background: 'linear-gradient(180deg, #1E2329 0%, #181C21 100%)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        background: 'linear-gradient(180deg, #0F172A 0%, #1E293B 100%)',
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
       }}
     >

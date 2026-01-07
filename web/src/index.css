@@ -36,10 +36,10 @@ html {
   --panel-border-hover: rgba(240, 185, 11, 0.5);
 
   --foreground: #EAECEF;
-  --text-primary: #EAECEF;
-  --text-secondary: #848E9C;
-  --text-tertiary: #5E6673;
-  --text-disabled: #474D57;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-tertiary: #7C8A9E;
+  --text-disabled: #64748B;
 
   /* Trading Colors */
   --binance-green: #0ECB81;
@@ -56,9 +56,10 @@ html {
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 30px rgba(240, 185, 11, 0.15);
 
-  font-family: 'IBM Plex Mono', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  line-height: 1.6;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.7;
   font-weight: 400;
+  font-size: 16px;
   color-scheme: dark;
   color: var(--foreground);
   background-color: var(--background);
@@ -66,6 +67,7 @@ html {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.01em;
 }
 
 /* CRT & Tech Effects */

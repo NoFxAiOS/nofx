@@ -965,28 +965,37 @@ function StatCard({
   icon?: string
 }) {
   return (
-    <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:translate-y-[-2px] border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity text-4xl grayscale group-hover:grayscale-0">
+    <div className="group nofx-glass p-5 rounded-lg transition-all duration-300 hover:bg-white/5 hover:-translate-y-1 border border-white/5 hover:border-nofx-gold/20 relative overflow-hidden backdrop-blur-sm">
+      {/* Background Effect */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-nofx-gold/10 to-transparent rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      {/* Icon */}
+      <div className="absolute top-3 right-3 text-3xl opacity-10 group-hover:opacity-20 transition-opacity duration-300">
         {icon}
       </div>
-      <div className="text-xs mb-2 font-mono uppercase tracking-wider text-nofx-text-muted flex items-center gap-2">
+      
+      {/* Title */}
+      <div className="text-xs font-semibold uppercase tracking-wider text-nofx-text-secondary mb-2">
         {title}
       </div>
-      <div className="flex items-baseline gap-1 mb-1">
-        <div className="text-2xl font-bold font-mono text-nofx-text-main tracking-tight group-hover:text-white transition-colors">
+      
+      {/* Value */}
+      <div className="flex items-baseline gap-2 mb-1">
+        <div className="text-2xl font-bold font-mono text-nofx-text-primary tracking-tight">
           {value}
         </div>
         {unit && (
-          <span className="text-xs font-mono text-nofx-text-muted opacity-60">
+          <span className="text-sm font-medium text-nofx-text-secondary">
             {unit}
           </span>
         )}
       </div>
 
+      {/* Change */}
       {change !== undefined && (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 mb-1">
           <div
-            className={`text-sm mono font-bold flex items-center gap-1 ${positive ? 'text-nofx-green' : 'text-nofx-red'}`}
+            className={`text-sm font-semibold flex items-center gap-1 ${positive ? 'text-nofx-green' : 'text-nofx-red'}`}
           >
             <span>{positive ? '▲' : '▼'}</span>
             <span>
@@ -996,8 +1005,10 @@ function StatCard({
           </div>
         </div>
       )}
+      
+      {/* Subtitle */}
       {subtitle && (
-        <div className="text-xs mt-2 mono text-nofx-text-muted opacity-80">
+        <div className="text-xs text-nofx-text-tertiary mt-2">
           {subtitle}
         </div>
       )}

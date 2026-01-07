@@ -381,7 +381,10 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary text-text-primary">
+    <div
+      className="min-h-screen"
+      style={{ background: '#0B0E11', color: '#EAECEF' }}
+    >
       <HeaderBar
         isLoggedIn={!!user}
         currentPage={currentPage}
@@ -394,7 +397,7 @@ function App() {
       />
 
       {/* Main Content with Page Transitions */}
-      <main className="min-h-screen pt-16 px-4 md:px-6 lg:px-8 max-w-[1920px] mx-auto">
+      <main className="min-h-screen pt-16">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentPage}
@@ -402,7 +405,6 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="py-6"
           >
             {currentPage === 'competition' ? (
               <CompetitionPage />
@@ -462,8 +464,14 @@ function App() {
 
       {/* Footer - Hidden on debate page */}
       {currentPage !== 'debate' && (
-        <footer className="mt-16 border-t border-panel-border bg-bg-secondary">
-          <div className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm text-text-tertiary">
+        <footer
+          className="mt-16"
+          style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
+        >
+          <div
+            className="max-w-[1920px] mx-auto px-6 py-6 text-center text-sm"
+            style={{ color: '#5E6673' }}
+          >
             <p>{t('footerTitle', language)}</p>
             <p className="mt-1">{t('footerWarning', language)}</p>
             <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
@@ -472,7 +480,22 @@ function App() {
                 href={OFFICIAL_LINKS.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105 bg-bg-tertiary text-text-tertiary border border-panel-border hover:bg-panel-bg-hover hover:text-text-primary hover:border-primary"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+                style={{
+                  background: '#1E2329',
+                  color: '#848E9C',
+                  border: '1px solid #2B3139',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#2B3139'
+                  e.currentTarget.style.color = '#EAECEF'
+                  e.currentTarget.style.borderColor = '#F0B90B'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#1E2329'
+                  e.currentTarget.style.color = '#848E9C'
+                  e.currentTarget.style.borderColor = '#2B3139'
+                }}
               >
                 <svg
                   width="18"
@@ -489,7 +512,22 @@ function App() {
                 href={OFFICIAL_LINKS.twitter}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105 bg-bg-tertiary text-text-tertiary border border-panel-border hover:bg-panel-bg-hover hover:text-[#1DA1F2] hover:border-[#1DA1F2]"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+                style={{
+                  background: '#1E2329',
+                  color: '#848E9C',
+                  border: '1px solid #2B3139',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#2B3139'
+                  e.currentTarget.style.color = '#EAECEF'
+                  e.currentTarget.style.borderColor = '#1DA1F2'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#1E2329'
+                  e.currentTarget.style.color = '#848E9C'
+                  e.currentTarget.style.borderColor = '#2B3139'
+                }}
               >
                 <svg
                   width="16"
@@ -506,7 +544,22 @@ function App() {
                 href={OFFICIAL_LINKS.telegram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105 bg-bg-tertiary text-text-tertiary border border-panel-border hover:bg-panel-bg-hover hover:text-[#0088cc] hover:border-[#0088cc]"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm font-semibold transition-all hover:scale-105"
+                style={{
+                  background: '#1E2329',
+                  color: '#848E9C',
+                  border: '1px solid #2B3139',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#2B3139'
+                  e.currentTarget.style.color = '#EAECEF'
+                  e.currentTarget.style.borderColor = '#0088cc'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#1E2329'
+                  e.currentTarget.style.color = '#848E9C'
+                  e.currentTarget.style.borderColor = '#2B3139'
+                }}
               >
                 <svg
                   width="16"

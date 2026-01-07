@@ -11,115 +11,57 @@ html {
 }
 
 :root {
-  /* NoFX Core Colors - Simplified */
-  --primary: #F0B90B;
-  --primary-dim: rgba(240, 185, 11, 0.1);
-  --primary-glow: rgba(240, 185, 11, 0.5);
-  
-  --secondary: #00F0FF;
-  --secondary-dim: rgba(0, 240, 255, 0.1);
-  --secondary-glow: rgba(0, 240, 255, 0.3);
-  
-  /* Backgrounds */
-  --bg-primary: #05070A;
-  --bg-secondary: #0E1217;
-  --bg-tertiary: #14181D;
-  --bg-overlay: rgba(2, 3, 4, 0.85);
-  
-  /* Glass Effects */
+  /* NoFX Neo-Gold Design System */
+  --nofx-gold: #F0B90B;
+  --nofx-bg: #05070A;
+  --nofx-accent: #00F0FF;
+  --nofx-glass: rgba(5, 7, 10, 0.7);
+  --nofx-border: rgba(240, 185, 11, 0.2);
+
+  /* Cinematic Glows */
+  --glow-primary: 0 0 20px rgba(240, 185, 11, 0.3);
+  --glow-accent: 0 0 20px rgba(0, 240, 255, 0.3);
+  --glow-text: 0 0 10px rgba(240, 185, 11, 0.5);
+
+  --background: #05070A;
+  --header-bg: rgba(2, 3, 4, 0.85);
+  /* Deep Abyssal */
+
   --glass-bg: rgba(5, 7, 10, 0.4);
   --glass-border: rgba(255, 255, 255, 0.08);
-  
-  /* Panels */
+
   --panel-bg: rgba(14, 18, 23, 0.6);
   --panel-bg-hover: rgba(20, 24, 29, 0.8);
   --panel-border: rgba(255, 255, 255, 0.1);
   --panel-border-hover: rgba(240, 185, 11, 0.5);
-  
-  /* Text Colors - WCAG Compliant */
-  --text-primary: #FFFFFF;
-  --text-secondary: #B0B8C1;
-  --text-tertiary: #7A8491;
-  --text-disabled: #525A66;
-  
+
+  --foreground: #EAECEF;
+  --text-primary: #EAECEF;
+  --text-secondary: #848E9C;
+  --text-tertiary: #5E6673;
+  --text-disabled: #474D57;
+
   /* Trading Colors */
-  --success: #0ECB81;
-  --success-bg: rgba(14, 203, 129, 0.12);
-  --success-border: rgba(14, 203, 129, 0.3);
-  
-  --danger: #F6465D;
-  --danger-bg: rgba(246, 70, 93, 0.12);
-  --danger-border: rgba(246, 70, 93, 0.3);
-  
+  --binance-green: #0ECB81;
+  --binance-green-bg: rgba(14, 203, 129, 0.12);
+  --binance-green-border: rgba(14, 203, 129, 0.3);
+  --binance-red: #F6465D;
+  --binance-red-bg: rgba(246, 70, 93, 0.12);
+  --binance-red-border: rgba(246, 70, 93, 0.3);
+  --binance-yellow: #F0B90B;
+
   /* Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 30px rgba(240, 185, 11, 0.15);
-  
-  /* Typography */
-  --font-family: 'IBM Plex Mono', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-size-xs: 0.75rem;    /* 12px */
-  --font-size-sm: 0.875rem;   /* 14px */
-  --font-size-base: 1rem;     /* 16px */
-  --font-size-md: 1.125rem;   /* 18px */
-  --font-size-lg: 1.25rem;    /* 20px */
-  --font-size-xl: 1.5rem;     /* 24px */
-  --font-size-2xl: 1.875rem;  /* 30px */
-  --font-size-3xl: 2.25rem;   /* 36px */
-  --font-size-4xl: 3rem;      /* 48px */
-  
-  --line-height-xs: 1.3;      /* Tight line height for small text */
-  --line-height-sm: 1.4;
-  --line-height-base: 1.6;    /* Default line height */
-  --line-height-lg: 1.8;      /* Looser line height for larger text */
-  
-  --font-weight-normal: 400;
-  --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
-  
-  /* Heading Styles */
-  --heading-font-weight: var(--font-weight-bold);
-  --heading-line-height: var(--line-height-lg);
-  
-  /* Text Styles */
-  --text-xs: var(--font-size-xs) / var(--line-height-xs);
-  --text-sm: var(--font-size-sm) / var(--line-height-sm);
-  --text-base: var(--font-size-base) / var(--line-height-base);
-  --text-lg: var(--font-size-lg) / var(--line-height-base);
-  --text-xl: var(--font-size-xl) / var(--line-height-lg);
-  
-  /* Spacing */
-  --spacing-1: 0.25rem;    /* 4px */
-  --spacing-2: 0.5rem;     /* 8px */
-  --spacing-3: 0.75rem;    /* 12px */
-  --spacing-4: 1rem;       /* 16px */
-  --spacing-5: 1.25rem;    /* 20px */
-  --spacing-6: 1.5rem;     /* 24px */
-  --spacing-8: 2rem;       /* 32px */
-  --spacing-10: 2.5rem;    /* 40px */
-  --spacing-12: 3rem;      /* 48px */
-  --spacing-16: 4rem;      /* 64px */
-  --spacing-20: 5rem;      /* 80px */
-  --spacing-24: 6rem;      /* 96px */
-  --spacing-32: 8rem;      /* 128px */
-  
-  /* Border radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 24px;
-  --radius-full: 9999px;
-  
-  /* System */
+
+  font-family: 'IBM Plex Mono', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
   color-scheme: dark;
-  color: var(--text-primary);
-  background-color: var(--bg-primary);
-  font-family: var(--font-family);
-  line-height: var(--line-height-base);
-  font-weight: var(--font-weight-normal);
+  color: var(--foreground);
+  background-color: var(--background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -193,70 +135,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: var(--bg-primary);
+  background-color: var(--background);
   background-image: radial-gradient(circle at 50% 0%, #151921 0%, #05070a 60%);
   background-attachment: fixed;
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-}
-
-/* Headings */
-h1, h2, h3, h4, h5, h6 {
-  margin: 0;
-  font-weight: var(--heading-font-weight);
-  line-height: var(--heading-line-height);
-  color: var(--text-primary);
-}
-
-h1 {
-  font-size: var(--font-size-3xl);
-}
-
-h2 {
-  font-size: var(--font-size-2xl);
-}
-
-h3 {
-  font-size: var(--font-size-xl);
-}
-
-h4 {
-  font-size: var(--font-size-lg);
-}
-
-h5 {
-  font-size: var(--font-size-md);
-}
-
-h6 {
-  font-size: var(--font-size-base);
-}
-
-/* Paragraphs */
-p {
-  margin: 0;
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
-  color: var(--text-primary);
-}
-
-/* Links */
-a {
-  color: var(--secondary);
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-a:hover {
-  color: var(--primary);
-}
-
-/* Buttons */
-button {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-sm);
 }
 
 /* Premium Selection Styles */
@@ -762,25 +643,25 @@ textarea::placeholder {
 
 /* Status colors */
 .text-profit {
-  color: var(--success);
-  font-weight: var(--font-weight-bold);
+  color: var(--binance-green);
+  font-weight: 700;
 }
 
 .text-loss {
-  color: var(--danger);
-  font-weight: var(--font-weight-bold);
+  color: var(--binance-red);
+  font-weight: 700;
 }
 
 .bg-profit {
-  background-color: var(--success-bg);
-  color: var(--success);
-  border: 1px solid var(--success-border);
+  background-color: var(--binance-green-bg);
+  color: var(--binance-green);
+  border: 1px solid var(--binance-green-border);
 }
 
 .bg-loss {
-  background-color: var(--danger-bg);
-  color: var(--danger);
-  border: 1px solid var(--danger-border);
+  background-color: var(--binance-red-bg);
+  color: var(--binance-red);
+  border: 1px solid var(--binance-red-border);
 }
 
 /* Skeleton loading */
@@ -797,42 +678,42 @@ textarea::placeholder {
 
 /* Binance button variants */
 .btn-binance {
-  background: var(--primary);
+  background: var(--binance-yellow);
   color: #000;
-  font-weight: var(--font-weight-bold);
+  font-weight: 700;
   border: none;
   border-radius: 4px;
   padding: 0.625rem 1.25rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 4px var(--primary-glow);
+  box-shadow: 0 2px 4px rgba(240, 185, 11, 0.3);
 }
 
 .btn-binance:hover {
-  background: var(--primary);
-  box-shadow: 0 4px 8px var(--primary-glow);
+  background: var(--binance-yellow-light);
+  box-shadow: 0 4px 8px rgba(240, 185, 11, 0.4);
   transform: translateY(-2px);
 }
 
 .btn-binance:active {
-  background: var(--primary);
+  background: var(--binance-yellow-dark);
   transform: translateY(0);
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--primary);
-  border: 1.5px solid var(--primary);
+  color: var(--binance-yellow);
+  border: 1.5px solid var(--binance-yellow);
   border-radius: 4px;
   padding: 0.5rem 1rem;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-weight: var(--font-weight-semibold);
+  font-weight: 600;
 }
 
 .btn-outline:hover {
-  background: var(--primary-dim);
-  border-color: var(--primary);
+  background: rgba(240, 185, 11, 0.1);
+  border-color: var(--binance-yellow-light);
 }
 
 /* Table styles - Binance */
@@ -889,13 +770,13 @@ tr:hover {
 .badge-green {
   background: var(--binance-green-bg);
   border-color: var(--binance-green-border);
-  color: var(--success);
+  color: var(--binance-green);
 }
 
 .badge-red {
   background: var(--binance-red-bg);
   border-color: var(--binance-red-border);
-  color: var(--danger);
+  color: var(--binance-red);
 }
 
 /* Number formatting */
@@ -964,7 +845,7 @@ tr:hover {
   height: 2px;
   background: linear-gradient(90deg,
       transparent,
-      var(--primary),
+      var(--binance-yellow),
       transparent);
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -998,16 +879,6 @@ tr:hover {
   .stat-card {
     padding: 1rem;
   }
-}
-
-/* Hide scrollbar but allow scrolling */
-.hide-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-.hide-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
 }
 
 /* Holographic Character Effects - Premium Polish */

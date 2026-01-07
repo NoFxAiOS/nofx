@@ -7,34 +7,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Core Colors
-        'primary': {
+        'nofx-gold': {
           DEFAULT: '#F0B90B',
           dim: 'rgba(240, 185, 11, 0.1)',
           glow: 'rgba(240, 185, 11, 0.5)',
           highlight: '#FFD700',
         },
-        'secondary': {
-          DEFAULT: '#00F0FF',
-          dim: 'rgba(0, 240, 255, 0.1)',
-          glow: 'rgba(0, 240, 255, 0.3)',
+        'nofx-bg': {
+          DEFAULT: '#05070A', // Deep Void
+          deeper: '#020304',  // Abyssal
+          lighter: '#0E1217', // Surface
         },
-        // Backgrounds
-        'bg': {
-          primary: '#05070A',
-          secondary: '#0E1217',
-          tertiary: '#14181D',
+        'nofx-accent': '#00F0FF', // Cyan Cyber
+        'nofx-text': {
+          DEFAULT: '#EAECEF',
+          muted: '#848E9C',
         },
-        // Text Colors
-        'text': {
-          primary: '#FFFFFF',
-          secondary: '#B0B8C1',
-          tertiary: '#7A8491',
-          disabled: '#525A66',
-        },
-        // Status Colors
-        'success': '#0ECB81',
-        'danger': '#F6465D',
+        'nofx-success': '#0ECB81',
+        'nofx-danger': '#F6465D',
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui'],

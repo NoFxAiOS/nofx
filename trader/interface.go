@@ -2,6 +2,21 @@ package trader
 
 import "time"
 
+// TPSLOrderInfo represents take profit and stop loss order information
+type TPSLOrderInfo struct {
+	OrderID       int64   `json:"order_id"`
+	Symbol        string  `json:"symbol"`
+	OrderType     string  `json:"order_type"` // STOP_MARKET, STOP_LIMIT, TAKE_PROFIT_MARKET, TAKE_PROFIT_LIMIT
+	Side          string  `json:"side"`       // BUY or SELL
+	StopPrice     float64 `json:"stop_price"` // Trigger price
+	Price         float64 `json:"price"`      // Execution price (for limit orders)
+	Quantity      float64 `json:"quantity"`   // Order quantity
+	Status        string  `json:"status"`     // Order status (NEW, PARTIALLY_FILLED, FILLED, CANCELED, EXPIRED)
+	ReduceOnly    bool    `json:"reduce_only"` // Whether order can only reduce position
+	CreateTime    int64   `json:"create_time"`
+	UpdateTime    int64   `json:"update_time"`
+}
+
 // ClosedPnLRecord represents a single closed position record from exchange
 type ClosedPnLRecord struct {
 	Symbol       string    // Trading pair (e.g., "BTCUSDT")
@@ -94,4 +109,10 @@ type Trader interface {
 	// limit: max number of records to return
 	// Returns accurate exit price, fees, and close reason for positions closed externally
 	GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error)
+
+	// GetTPSLOrders Get all take profit and stop loss orders
+	GetTPSLOrders() ([]TPSLOrderInfo, error)
+
+	// GetTPSLOrdersForSymbol Get TP/SL orders for a specific symbol
+	GetTPSLOrdersForSymbol(symbol string) ([]TPSLOrderInfo, error)
 }

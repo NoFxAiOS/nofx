@@ -858,6 +858,24 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
+	// Get TP/SL orders for all positions (for Binance and other exchanges that support it)
+	var tpslOrders map[string][]TPSLOrderInfo
+	if trader, ok := at.trader.(interface {
+		GetTPSLOrders() ([]TPSLOrderInfo, error)
+	}); ok {
+		tpslResult, err := trader.GetTPSLOrders()
+		if err != nil {
+			logger.Infof("⚠️ Failed to get TP/SL orders: %v", err)
+		} else {
+			// Organize TP/SL orders by symbol
+			tpslOrders = make(map[string][]TPSLOrderInfo)
+			for _, order := range tpslResult {
+				tpslOrders[order.Symbol] = append(tpslOrders[order.Symbol], order)
+			}
+			logger.Infof("✓ Retrieved TP/SL orders for %d symbols", len(tpslOrders))
+		}
+	}
+
 	var positionInfos []kernel.PositionInfo
 	totalMarginUsed := 0.0
 
@@ -925,17 +943,64 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
-		// Get take profit and stop loss directly from exchange data
+		// Get take profit and stop loss from TP/SL orders API (for Binance and supported exchanges)
 		var takeProfitPrice, stopLossPrice float64
 		
-		// Extract take profit and stop loss from exchange position data
-		if tp, ok := pos["takeProfitPrice"].(float64); ok {
-			takeProfitPrice = tp
+		// First, try to extract from TP/SL orders API (more accurate for Binance)
+		if tpslOrders != nil {
+			if symbolOrders, ok := tpslOrders[symbol]; ok {
+				for _, order := range symbolOrders {
+					// Determine if this is a take profit or stop loss order based on side and order type
+					// For LONG position: SIDE_BUY = take profit (sell to close at higher price)
+					// For LONG position: SIDE_SELL = stop loss (sell to close at lower price)
+					// For SHORT position: SIDE_SELL = take profit (buy to close at lower price)
+					// For SHORT position: SIDE_BUY = stop loss (buy to close at higher price)
+					
+					isTakeProfit := false
+					isStopLoss := false
+					
+					if side == "long" {
+						if order.Side == "BUY" && strings.Contains(order.OrderType, "TAKE_PROFIT") {
+							isTakeProfit = true
+						}
+						if order.Side == "SELL" && strings.Contains(order.OrderType, "STOP") {
+							isStopLoss = true
+						}
+					} else { // short
+						if order.Side == "SELL" && strings.Contains(order.OrderType, "TAKE_PROFIT") {
+							isTakeProfit = true
+						}
+						if order.Side == "BUY" && strings.Contains(order.OrderType, "STOP") {
+							isStopLoss = true
+						}
+					}
+					
+					// Also check reduceOnly flag as additional indicator
+					if order.ReduceOnly {
+						if isTakeProfit && takeProfitPrice == 0 {
+							takeProfitPrice = order.StopPrice
+							logger.Infof("  ✓ Found take profit order for %s: %.4f", symbol, takeProfitPrice)
+						}
+						if isStopLoss && stopLossPrice == 0 {
+							stopLossPrice = order.StopPrice
+							logger.Infof("  ✓ Found stop loss order for %s: %.4f", symbol, stopLossPrice)
+						}
+					}
+				}
+			}
 		}
-		if sl, ok := pos["stopLossPrice"].(float64); ok {
-			stopLossPrice = sl
+		
+		// Fallback: extract from exchange position data if TP/SL orders API didn't return values
+		if takeProfitPrice == 0 {
+			if tp, ok := pos["takeProfitPrice"].(float64); ok && tp > 0 {
+				takeProfitPrice = tp
+			}
 		}
-		logger.Infof("Debug: Using exchange values for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
+		if stopLossPrice == 0 {
+			if sl, ok := pos["stopLossPrice"].(float64); ok && sl > 0 {
+				stopLossPrice = sl
+			}
+		}
 		
 		logger.Infof("Debug: Final TP=%.4f, SL=%.4f for %s", takeProfitPrice, stopLossPrice, posKey)
 

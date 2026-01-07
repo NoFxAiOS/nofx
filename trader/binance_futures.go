@@ -59,6 +59,11 @@ type FuturesTrader struct {
 
 	// Cache validity period (15 seconds)
 	cacheDuration time.Duration
+
+	// TP/SL orders cache
+	cachedTPSLOrders     []TPSLOrderInfo
+	tpslOrdersCacheTime  time.Time
+	tpslOrdersCacheMutex sync.RWMutex
 }
 
 // NewFuturesTrader creates futures trader
@@ -159,6 +164,111 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 	t.balanceCacheMutex.Unlock()
 
 	return result, nil
+}
+
+// GetTPSLOrders gets all take profit and stop loss orders (with cache)
+func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
+	// Check cache first
+	t.tpslOrdersCacheMutex.RLock()
+	if t.cachedTPSLOrders != nil && time.Since(t.tpslOrdersCacheTime) < t.cacheDuration {
+		cacheAge := time.Since(t.tpslOrdersCacheTime)
+		t.tpslOrdersCacheMutex.RUnlock()
+		logger.Infof("✓ Using cached TP/SL orders (cache age: %.1f seconds ago)", cacheAge.Seconds())
+		return t.cachedTPSLOrders, nil
+	}
+	t.tpslOrdersCacheMutex.RUnlock()
+
+	// Get all open orders (includes TP/SL orders)
+	logger.Infof("🔄 Calling Binance API to get TP/SL orders...")
+	openOrders, err := t.client.NewListOpenOrdersService().Do(context.Background())
+	if err != nil {
+		logger.Infof("❌ Failed to get open orders: %v", err)
+		return nil, fmt.Errorf("failed to get open orders: %w", err)
+	}
+
+	// Filter TP/SL orders (stop orders and limit orders with reduceOnly)
+	var tpslOrders []TPSLOrderInfo
+	for _, order := range openOrders {
+		// Check if this is a TP/SL order
+		isTPSLOrder := false
+		orderType := strings.ToUpper(order.Type)
+		
+		// STOP_MARKET, STOP_LIMIT, TAKE_PROFIT_MARKET, TAKE_PROFIT_LIMIT are TP/SL orders
+		if orderType == "STOP_MARKET" || orderType == "STOP_LIMIT" ||
+		   orderType == "TAKE_PROFIT_MARKET" || orderType == "TAKE_PROFIT_LIMIT" {
+			isTPSLOrder = true
+		}
+		
+		// Also check reduceOnly flag - these are typically TP/SL orders
+		if order.ReduceOnly {
+			isTPSLOrder = true
+		}
+
+		if !isTPSLOrder {
+			continue
+		}
+
+		// Parse price values
+		stopPrice, _ := strconv.ParseFloat(order.StopPrice, 64)
+		price, _ := strconv.ParseFloat(order.Price, 64)
+		quantity, _ := strconv.ParseFloat(order.OrigQty, 64)
+
+		// Validate data - skip if stop price is 0 or invalid
+		if stopPrice == 0 && price == 0 {
+			continue
+		}
+
+		tpslOrder := TPSLOrderInfo{
+			OrderID:    order.OrderId,
+			Symbol:     order.Symbol,
+			OrderType:  orderType,
+			Side:       order.Side,
+			StopPrice:  stopPrice,
+			Price:      price,
+			Quantity:   quantity,
+			Status:     order.Status,
+			ReduceOnly: order.ReduceOnly,
+			CreateTime: order.Time,
+			UpdateTime: order.UpdateTime,
+		}
+		tpslOrders = append(tpslOrders, tpslOrder)
+	}
+
+	logger.Infof("✓ Found %d TP/SL orders from Binance API", len(tpslOrders))
+
+	// Update cache
+	t.tpslOrdersCacheMutex.Lock()
+	t.cachedTPSLOrders = tpslOrders
+	t.tpslOrdersCacheTime = time.Now()
+	t.tpslOrdersCacheMutex.Unlock()
+
+	return tpslOrders, nil
+}
+
+// GetTPSLOrdersForSymbol gets TP/SL orders for a specific symbol
+func (t *FuturesTrader) GetTPSLOrdersForSymbol(symbol string) ([]TPSLOrderInfo, error) {
+	orders, err := t.GetTPSLOrders()
+	if err != nil {
+		return nil, err
+	}
+
+	var symbolOrders []TPSLOrderInfo
+	for _, order := range orders {
+		if order.Symbol == symbol {
+			symbolOrders = append(symbolOrders, order)
+		}
+	}
+
+	return symbolOrders, nil
+}
+
+// InvalidateTPSLCache invalidates the TP/SL orders cache
+func (t *FuturesTrader) InvalidateTPSLCache() {
+	t.tpslOrdersCacheMutex.Lock()
+	t.cachedTPSLOrders = nil
+	t.tpslOrdersCacheTime = time.Time{}
+	t.tpslOrdersCacheMutex.Unlock()
+	logger.Infof("✓ TP/SL orders cache invalidated")
 }
 
 // GetPositions gets all positions (with cache)

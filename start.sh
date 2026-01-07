@@ -151,8 +151,9 @@ check_encryption() {
     # 检查并生成 RSA_PRIVATE_KEY
     if ! is_env_configured "RSA_PRIVATE_KEY"; then
         print_warning "RSA_PRIVATE_KEY 未配置，正在生成..."
-        # 生成 RSA 密钥并转换为单行格式（\n 替换为 \\n）
-        local rsa_key=$(openssl genrsa 2048 2>/dev/null | awk '{printf "%s\\n", $0}')
+        # 生成 RSA 密钥并转换为单行格式（
+ 替换为 \n）
+        local rsa_key=$(openssl genrsa 2048 2>/dev/null | tr '\n' '\\' | sed 's/\\$//' | sed 's/\\/\\n/g')
         set_env_var "RSA_PRIVATE_KEY" "\"$rsa_key\""
         print_success "RSA_PRIVATE_KEY 已生成"
         generated=true
@@ -331,7 +332,7 @@ regenerate_keys() {
     print_success "DATA_ENCRYPTION_KEY 已生成"
 
     # 生成 RSA_PRIVATE_KEY
-    local rsa_key=$(openssl genrsa 2048 2>/dev/null | awk '{printf "%s\\n", $0}')
+    local rsa_key=$(openssl genrsa 2048 2>/dev/null | tr '\n' '\\' | sed 's/\\$//' | sed 's/\\/\\n/g')
     set_env_var "RSA_PRIVATE_KEY" "\"$rsa_key\""
     print_success "RSA_PRIVATE_KEY 已生成"
 

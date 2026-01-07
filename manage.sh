@@ -89,10 +89,10 @@ init_env_file() {
     # 生成 RSA_PRIVATE_KEY
     local rsa_key_file="/tmp/nofx_rsa_key_$$"
     if openssl genrsa -out "$rsa_key_file" 2048 2>/dev/null; then
-        # 将多行 RSA 密钥转换为单行，用 \n 替换换行符
-        local rsa_key=$(awk '{printf "%s\\n", $0}' "$rsa_key_file" | sed 's/\\n$//')
-        # 替换整个 RSA_PRIVATE_KEY 行
-        sed -i "s#^RSA_PRIVATE_KEY=.*#RSA_PRIVATE_KEY=${rsa_key}#" "$env_file"
+        # 将多行 RSA 密钥转换为单行，用 \n 替换实际换行符
+        local rsa_key=$(cat "$rsa_key_file" | tr '\n' '\\' | sed 's/\\$//' | sed 's/\\/\\n/g')
+        # 替换整个 RSA_PRIVATE_KEY 行，确保格式正确
+        sed -i "s#^RSA_PRIVATE_KEY=.*#RSA_PRIVATE_KEY=\"${rsa_key}\"#" "$env_file"
         rm -f "$rsa_key_file"
         echo "=> 已生成 RSA 私钥"
     else

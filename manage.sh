@@ -72,7 +72,8 @@ init_env_file() {
         # 如果 openssl 不可用，使用随机字符串
         jwt_secret=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
     fi
-    sed -i "s/JWT_SECRET=your-jwt-secret-change-this-in-production/JWT_SECRET=$jwt_secret/" "$env_file"
+    # 使用 # 作为分隔符避免 base64 中的 / 字符导致问题
+    sed -i "s#JWT_SECRET=your-jwt-secret-change-this-in-production#JWT_SECRET=$jwt_secret#" "$env_file"
     echo "=> 已生成 JWT 签名密钥"
     
     # 生成 DATA_ENCRYPTION_KEY
@@ -81,7 +82,8 @@ init_env_file() {
         # 如果 openssl 不可用，使用随机字符串
         data_key=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
     fi
-    sed -i "s/DATA_ENCRYPTION_KEY=your-base64-encoded-32-byte-key/DATA_ENCRYPTION_KEY=$data_key/" "$env_file"
+    # 使用 # 作为分隔符避免 base64 中的 / 字符导致问题
+    sed -i "s#DATA_ENCRYPTION_KEY=your-base64-encoded-32-byte-key#DATA_ENCRYPTION_KEY=$data_key#" "$env_file"
     echo "=> 已生成 AES-256 数据加密密钥"
     
     # 生成 RSA_PRIVATE_KEY
@@ -89,7 +91,9 @@ init_env_file() {
     if openssl genrsa -out "$rsa_key_file" 2048 2>/dev/null; then
         # 将多行 RSA 密钥转换为单行，用 \n 替换换行符
         local rsa_key=$(awk '{printf "%s\\n", $0}' "$rsa_key_file" | sed 's/\\n$//')
-        sed -i "s|RSA_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\\\\nYOUR_KEY_HERE\\\\n-----END RSA PRIVATE KEY-----|RSA_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\\\\n${rsa_key}\\\\n-----END RSA PRIVATE KEY-----|" "$env_file"
+        # 使用 # 作为分隔符，并转义密钥中的 # 字符
+        local escaped_rsa_key="${rsa_key//#/\#}"
+        sed -i "s#RSA_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\\\\nYOUR_KEY_HERE\\\\n-----END RSA PRIVATE KEY-----|RSA_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\\\\n${escaped_rsa_key}\\\\n-----END RSA PRIVATE KEY-----|#" "$env_file"
         rm -f "$rsa_key_file"
         echo "=> 已生成 RSA 私钥"
     else

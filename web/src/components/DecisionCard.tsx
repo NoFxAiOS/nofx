@@ -329,23 +329,25 @@ export function DecisionCard({
             <div className="font-bold" style={{ color: '#EAECEF' }}>
               {t('cycle', language)} #{decision.cycle_number}
             </div>
-            <div className="space-y-1">
-              <div className="text-xs" style={{ color: '#848E9C' }}>
-                <span style={{ color: '#0ECB81' }}>开始:</span>{' '}
-                {new Date(
-                  new Date(decision.timestamp).getTime() -
-                    (decision.ai_request_duration_ms || 0)
-                ).toLocaleString()}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="text-xs" style={{ color: '#848E9C' }}>
+                  <span style={{ color: '#0ECB81' }}>开始:</span>{' '}
+                  {new Date(
+                    new Date(decision.timestamp).getTime() - 
+                      (decision.ai_request_duration_ms || 0)
+                  ).toLocaleString()}
+                </div>
+                <div className="text-xs" style={{ color: '#848E9C' }}>
+                  <span style={{ color: '#F6465D' }}>结束:</span>{' '}
+                  {new Date(decision.timestamp).toLocaleString()}
+                </div>
               </div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>
-                <span style={{ color: '#F6465D' }}>结束:</span>{' '}
-                {new Date(decision.timestamp).toLocaleString()}
-              </div>
-              <div className="text-xs" style={{ color: '#848E9C' }}>
-                <span style={{ color: '#F0B90B' }}>下次:</span>{' '}
-                {new Date(
-                  new Date(decision.timestamp).getTime() + 10 * 60 * 1000
-                ).toLocaleString()}
+              <div className="space-y-1">
+                <div className="text-xs" style={{ color: '#848E9C' }}>
+                  <span style={{ color: '#F0B90B' }}>下次扫查周期:</span>{' '}
+                  {decision.positions && decision.positions.length > 0 ? '5分钟' : '10分钟'}
+                </div>
               </div>
             </div>
           </div>

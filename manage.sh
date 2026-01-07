@@ -169,21 +169,33 @@ stop_service() {
 
     local pid=$(cat "$pid_file")
     if ps -p $pid > /dev/null; then
-        echo "<= 正在停止服务 '$name' (PID: $pid)..."
-        kill $pid
+        echo "<= 正在停止服务 '$name' (PID: $pid) 及其子进程..."
         
-        # 等待进程结束，最多等待10秒
+        # 尝试优雅停止进程
+        kill $pid 2>/dev/null || true
+        
+        # 等待主进程结束，最多等待5秒
         local count=0
         while ps -p $pid > /dev/null; do
-            if [ $count -ge 10 ]; then
-                echo "-> 进程 $pid 未能正常退出，强制杀死 (kill -9)..."
-                kill -9 $pid
+            if [ $count -ge 5 ]; then
+                echo "-> 主进程未能正常退出，强制杀死 (kill -9)..."
+                kill -9 $pid 2>/dev/null || true
                 break
             fi
-            echo "-> 等待进程 $pid 结束... ($count/10)"
+            echo "-> 等待进程 $pid 结束... ($count/5)"
             sleep 1
             ((count++))
         done
+        
+        # 如果是前端服务，额外清理相关进程
+        if [ "$name" = "$FRONTEND_NAME" ]; then
+            echo "-> 正在清理前端相关子进程..."
+            # 查找并杀死相关的 vite、npm、node 进程
+            pkill -f "vite" 2>/dev/null || true
+            pkill -f "npm run dev" 2>/dev/null || true
+            # 查找与该目录相关的 node 进程
+            pkill -f "node.*$FRONTEND_WORKING_DIR" 2>/dev/null || true
+        fi
         
         echo "<= 服务 '$name' 已停止。"
     else

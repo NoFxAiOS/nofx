@@ -109,10 +109,4 @@ type Trader interface {
 	// limit: max number of records to return
 	// Returns accurate exit price, fees, and close reason for positions closed externally
 	GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnLRecord, error)
-
-	// GetTPSLOrders Get all take profit and stop loss orders
-	GetTPSLOrders() ([]TPSLOrderInfo, error)
-
-	// GetTPSLOrdersForSymbol Get TP/SL orders for a specific symbol
-	GetTPSLOrdersForSymbol(symbol string) ([]TPSLOrderInfo, error)
 }

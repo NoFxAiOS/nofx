@@ -4,15 +4,20 @@
 # Nofx 项目服务管理脚本 (纯 Shell 版本)
 #
 # 使用方法:
-#   ./manage.sh start   - 启动后端和前端服务
+#   ./manage.sh start   - 启动后端和前端服务（自动初始化环境配置）
 #   ./manage.sh stop    - 停止后端和前端服务
 #   ./manage.sh restart - 重启所有服务
 #   ./manage.sh status  - 查看所有服务状态
+#
+# 自动化功能:
+#   首次启动时，如果检测到 .env 文件不存在，将自动：
+#   1. 复制 .env.example 为 .env
+#   2. 生成所有必需的密钥并填充到 .env 文件中
 # =================================================================
 
 # --- 配置区 ---
-# 项目根目录
-PROJECT_ROOT="/root/nofx"
+# 项目根目录 - 自动获取脚本所在目录
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 后端服务配置
 BACKEND_NAME="nofx-backend"
@@ -36,6 +41,63 @@ check_log_dir() {
         echo "日志目录 $log_dir 不存在，正在创建..."
         mkdir -p "$log_dir"
     fi
+}
+
+# 初始化环境配置文件
+init_env_file() {
+    local env_file="$PROJECT_ROOT/.env"
+    local env_example="$PROJECT_ROOT/.env.example"
+    
+    # 检查 .env 文件是否已存在
+    if [ -f "$env_file" ]; then
+        echo "-> 环境配置文件 .env 已存在，跳过初始化。"
+        return 0
+    fi
+    
+    echo "-> 环境配置文件 .env 不存在，正在自动初始化..."
+    
+    # 检查 .env.example 文件是否存在
+    if [ ! -f "$env_example" ]; then
+        echo "=> [错误] 模板文件 .env.example 不存在，无法初始化环境配置。"
+        return 1
+    fi
+    
+    # 复制模板文件
+    cp "$env_example" "$env_file"
+    echo "=> 已复制 .env.example 到 .env"
+    
+    # 生成 JWT_SECRET
+    local jwt_secret=$(openssl rand -base64 32 2>/dev/null)
+    if [ -z "$jwt_secret" ]; then
+        # 如果 openssl 不可用，使用随机字符串
+        jwt_secret=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    fi
+    sed -i "s/JWT_SECRET=your-jwt-secret-change-this-in-production/JWT_SECRET=$jwt_secret/" "$env_file"
+    echo "=> 已生成 JWT 签名密钥"
+    
+    # 生成 DATA_ENCRYPTION_KEY
+    local data_key=$(openssl rand -base64 32 2>/dev/null)
+    if [ -z "$data_key" ]; then
+        # 如果 openssl 不可用，使用随机字符串
+        data_key=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+    fi
+    sed -i "s/DATA_ENCRYPTION_KEY=your-base64-encoded-32-byte-key/DATA_ENCRYPTION_KEY=$data_key/" "$env_file"
+    echo "=> 已生成 AES-256 数据加密密钥"
+    
+    # 生成 RSA_PRIVATE_KEY
+    local rsa_key_file="/tmp/nofx_rsa_key_$$"
+    if openssl genrsa -out "$rsa_key_file" 2048 2>/dev/null; then
+        # 将多行 RSA 密钥转换为单行，用 \n 替换换行符
+        local rsa_key=$(awk '{printf "%s\\n", $0}' "$rsa_key_file" | sed 's/\\n$//')
+        sed -i "s|RSA_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\\\\nYOUR_KEY_HERE\\\\n-----END RSA PRIVATE KEY-----|RSA_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----\\\\n${rsa_key}\\\\n-----END RSA PRIVATE KEY-----|" "$env_file"
+        rm -f "$rsa_key_file"
+        echo "=> 已生成 RSA 私钥"
+    else
+        echo "=> [警告] 无法生成 RSA 私钥，请手动配置 RSA_PRIVATE_KEY"
+    fi
+    
+    echo "=> 环境配置文件初始化完成！"
+    return 0
 }
 
 # 启动服务的通用函数
@@ -140,6 +202,13 @@ usage() {
 # --- 主逻辑 ---
 case "$1" in
     start)
+        # 初始化环境配置文件
+        init_env_file
+        if [ $? -ne 0 ]; then
+            echo "=> [错误] 环境配置初始化失败，服务启动中止。"
+            exit 1
+        fi
+        
         # 启动后端 (工作目录为项目根目录)
         start_service "$BACKEND_NAME" "$BACKEND_CMD" "$BACKEND_LOG" "$BACKEND_PID_FILE" "$PROJECT_ROOT"
         # 启动前端 (工作目录为 web 目录)

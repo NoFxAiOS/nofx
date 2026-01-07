@@ -186,20 +186,11 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
 		
-		// Initialize take profit and stop loss prices
-		var takeProfitPrice, stopLossPrice float64
-		
-		// Try to extract take profit and stop loss from position data
-		// Binance returns these in different fields depending on the API version
-		if tp, err := strconv.ParseFloat(pos.TakeProfit, 64); err == nil {
-			takeProfitPrice = tp
-		}
-		if sl, err := strconv.ParseFloat(pos.StopLoss, 64); err == nil {
-			stopLossPrice = sl
-		}
-		
-		posMap["takeProfitPrice"] = takeProfitPrice
-		posMap["stopLossPrice"] = stopLossPrice
+		// Initialize take profit and stop loss prices to 0.0
+		// Note: Binance PositionRisk API does not provide take profit and stop loss information
+		// These need to be retrieved from order information separately
+		posMap["takeProfitPrice"] = 0.0
+		posMap["stopLossPrice"] = 0.0
 		
 		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
 

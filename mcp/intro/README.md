@@ -205,6 +205,76 @@ hooks (可重写的步骤)
     └─ isRetryableError
 ```
 
+### 重试机制
+
+MCP客户端实现了强大的重试机制，确保在遇到各种错误情况时能够自动重试请求：
+
+#### 🔄 重试策略
+
+- **指数退避算法**：重试间隔随尝试次数呈指数增长
+  - 基础间隔：2秒
+  - 计算公式：`base_delay * (2^(attempt-1)) + jitter`
+  - Jitter（抖动）：0% 到 50% 的随机延迟，避免请求风暴
+
+- **最大重试次数**：默认3次，可配置
+
+#### 📋 可重试错误类型
+
+1. **网络错误**：
+   - EOF、timeout、connection reset/refused
+   - broken pipe、network unreachable
+   - context deadline exceeded
+
+2. **HTTP状态码**：
+   - 429 (Too Many Requests)
+   - 500 (Internal Server Error)
+   - 502 (Bad Gateway)
+   - 503 (Service Unavailable)
+   - 504 (Gateway Timeout)
+
+3. **服务器错误**：
+   - SERVICE_UNAVAILABLE、GATEWAY_TIMEOUT
+   - TOO_MANY_REQUESTS、rate limit
+   - quota exceeded
+
+#### 📝 日志记录
+
+- 详细的重试日志，包含：
+  - 重试次数和总尝试次数
+  - 错误类型和具体信息
+  - 等待时间（包含指数退避和抖动说明）
+  - 重试结果
+
+- 示例日志：
+  ```
+  INFO: 📞 AI API call attempt 1/3
+  WARN: ❌ AI API call attempt 1/3 failed: status 503: Service Unavailable
+  INFO: ⏳ Retry attempt 2/3 in 2.5s (exponential backoff with jitter)
+  INFO: 📞 AI API call attempt 2/3
+  INFO: ✓ AI API retry succeeded after 2 attempts
+  ```
+
+#### 🛡️ 幂等性保证
+
+- 只有失败的请求才会被重试
+- 重试不会导致数据一致性问题
+- AI API调用本身是幂等的，不会修改服务器状态
+
+#### 🎛️ 自定义重试策略
+
+子类可以通过重写 `isRetryableError` 方法来自定义重试逻辑：
+
+```go
+func (client *CustomClient) isRetryableError(err error) bool {
+    // 自定义重试条件
+    if strings.Contains(err.Error(), "custom-retryable-error") {
+        return true
+    }
+    // 调用父类方法处理其他情况
+    return client.Client.isRetryableError(err)
+}
+```
+
 ### 接口分离
 
 ```go

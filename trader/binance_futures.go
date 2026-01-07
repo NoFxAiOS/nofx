@@ -186,19 +186,30 @@ func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
 		return nil, fmt.Errorf("failed to get open orders: %w", err)
 	}
 
+	// Get all Algo orders (new API for TP/SL)
+	algoOrders, err := t.client.NewListOpenAlgoOrdersService().Do(context.Background())
+	if err != nil {
+		logger.Infof("❌ Failed to get Algo orders: %v", err)
+		// Continue with regular orders only if Algo orders fail
+	} else {
+		logger.Infof("✓ Found %d Algo orders from Binance API", len(algoOrders))
+	}
+
 	// Filter TP/SL orders (stop orders and limit orders with reduceOnly)
 	var tpslOrders []TPSLOrderInfo
+
+	// Process regular orders first
 	for _, order := range openOrders {
 		// Check if this is a TP/SL order
 		isTPSLOrder := false
 		orderType := string(order.Type)
-		
+
 		// STOP_MARKET, STOP_LIMIT, TAKE_PROFIT_MARKET, TAKE_PROFIT_LIMIT are TP/SL orders
 		if orderType == "STOP_MARKET" || orderType == "STOP_LIMIT" ||
-		   orderType == "TAKE_PROFIT_MARKET" || orderType == "TAKE_PROFIT_LIMIT" {
+			orderType == "TAKE_PROFIT_MARKET" || orderType == "TAKE_PROFIT_LIMIT" {
 			isTPSLOrder = true
 		}
-		
+
 		// Also check reduceOnly flag - these are typically TP/SL orders
 		if order.ReduceOnly {
 			isTPSLOrder = true
@@ -234,7 +245,47 @@ func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
 		tpslOrders = append(tpslOrders, tpslOrder)
 	}
 
-	logger.Infof("✓ Found %d TP/SL orders from Binance API", len(tpslOrders))
+	// Process Algo orders (new TP/SL API)
+	for _, algoOrder := range algoOrders {
+		orderType := string(algoOrder.OrderType)
+
+		// Check if this is a TP/SL Algo order
+		isTPSLAlgoOrder := false
+		if orderType == "STOP_MARKET" || orderType == "TAKE_PROFIT_MARKET" {
+			isTPSLAlgoOrder = true
+		}
+
+		if !isTPSLAlgoOrder {
+			continue
+		}
+
+		// Parse price values from Algo order
+		stopPrice, _ := strconv.ParseFloat(algoOrder.TriggerPrice, 64)
+		quantity, _ := strconv.ParseFloat(algoOrder.Quantity, 64)
+
+		// Validate data
+		if stopPrice == 0 {
+			continue
+		}
+
+		// Create TPSLOrderInfo from Algo order
+		tpslOrder := TPSLOrderInfo{
+			OrderID:    algoOrder.AlgoId,
+			Symbol:     algoOrder.Symbol,
+			OrderType:  orderType,
+			Side:       string(algoOrder.Side),
+			StopPrice:  stopPrice,
+			Price:      0, // Algo market orders don't have execution price
+			Quantity:   quantity,
+			Status:     string(algoOrder.Status),
+			ReduceOnly: true, // Algo TP/SL orders are always reduce only
+			CreateTime: algoOrder.CreateTime,
+			UpdateTime: algoOrder.UpdateTime,
+		}
+		tpslOrders = append(tpslOrders, tpslOrder)
+	}
+
+	logger.Infof("✓ Found %d total TP/SL orders (regular + Algo)", len(tpslOrders))
 
 	// Update cache
 	t.tpslOrdersCacheMutex.Lock()
@@ -280,6 +331,13 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
+	// Get all TP/SL orders (regular + Algo)
+	tpslOrders, err := t.GetTPSLOrders()
+	if err != nil {
+		logger.Infof("⚠️ Failed to get TP/SL orders: %v", err)
+		// Continue with positions anyway, TP/SL will be 0
+	}
+
 	var result []map[string]interface{}
 	for _, pos := range positions {
 		posAmt, _ := strconv.ParseFloat(pos.PositionAmt, 64)
@@ -295,20 +353,57 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["unRealizedProfit"], _ = strconv.ParseFloat(pos.UnRealizedProfit, 64)
 		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
-		
+
 		// Initialize take profit and stop loss prices to 0.0
 		// Note: Binance PositionRisk API does not provide take profit and stop loss information
 		// These need to be retrieved from order information separately
 		posMap["takeProfitPrice"] = 0.0
 		posMap["stopLossPrice"] = 0.0
-		
+
 		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
 
 		// Determine direction
+		var side string
 		if posAmt > 0 {
-			posMap["side"] = "long"
+			side = "long"
 		} else {
-			posMap["side"] = "short"
+			side = "short"
+		}
+		posMap["side"] = side
+
+		// Match TP/SL orders to this position
+		symbol := pos.Symbol
+		for _, tpslOrder := range tpslOrders {
+			// Skip orders for different symbols
+			if tpslOrder.Symbol != symbol {
+				continue
+			}
+
+			// Determine if this order matches the position side
+			matchesPositionSide := false
+			tpslOrderType := tpslOrder.OrderType
+			tpslSide := tpslOrder.Side
+
+			// Map order side to position side for matching
+			if side == "long" {
+				// Long position: TP/SL orders should be SELL side
+				if tpslSide == "SELL" {
+					if tpslOrderType == "TAKE_PROFIT_MARKET" || tpslOrderType == "TAKE_PROFIT_LIMIT" {
+						posMap["takeProfitPrice"] = tpslOrder.StopPrice
+					} else if tpslOrderType == "STOP_MARKET" || tpslOrderType == "STOP_LIMIT" {
+						posMap["stopLossPrice"] = tpslOrder.StopPrice
+					}
+				}
+			} else {
+				// Short position: TP/SL orders should be BUY side
+				if tpslSide == "BUY" {
+					if tpslOrderType == "TAKE_PROFIT_MARKET" || tpslOrderType == "TAKE_PROFIT_LIMIT" {
+						posMap["takeProfitPrice"] = tpslOrder.StopPrice
+					} else if tpslOrderType == "STOP_MARKET" || tpslOrderType == "STOP_LIMIT" {
+						posMap["stopLossPrice"] = tpslOrder.StopPrice
+					}
+				}
+			}
 		}
 
 		result = append(result, posMap)

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,6 +24,7 @@ var (
 	MaxRetryTimes = 3
 
 	retryableErrors = []string{
+		// Network errors
 		"EOF",
 		"timeout",
 		"connection reset",
@@ -29,7 +32,32 @@ var (
 		"temporary failure",
 		"no such host",
 		"stream error",   // HTTP/2 stream error
+		"connection closed",
+		"broken pipe",
+		"network unreachable",
+		"host unreachable",
+		"connection timeout",
+		"operation timed out",
+		"context deadline exceeded",
+		
+		// Server errors
 		"INTERNAL_ERROR", // Server internal error
+		"SERVICE_UNAVAILABLE",
+		"SERVER_ERROR",
+		"GATEWAY_TIMEOUT",
+		"BAD_GATEWAY",
+		"TOO_MANY_REQUESTS",
+		"rate limit",
+		"quota exceeded",
+	}
+
+	// RetryableHTTPStatusCodes defines HTTP status codes that should trigger retry
+	RetryableHTTPStatusCodes = []int{
+		429, // Too Many Requests
+		500, // Internal Server Error
+		502, // Bad Gateway
+		503, // Service Unavailable
+		504, // Gateway Timeout
 	}
 
 	// TokenUsageCallback is called after each AI request with token usage info
@@ -156,29 +184,39 @@ func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string,
 	maxRetries := client.config.MaxRetries
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if attempt > 1 {
-			client.logger.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
-		}
-
+		client.logger.Infof("📞 AI API call attempt %d/%d", attempt, maxRetries)
+		
 		// Call the fixed single-call flow
 		result, err := client.hooks.call(systemPrompt, userPrompt)
 		if err == nil {
 			if attempt > 1 {
-				client.logger.Infof("✓ AI API retry succeeded")
+				client.logger.Infof("✓ AI API retry succeeded after %d attempts", attempt)
+			} else {
+				client.logger.Infof("✓ AI API call succeeded on first attempt")
 			}
 			return result, nil
 		}
 
 		lastErr = err
+		client.logger.Warnf("❌ AI API call attempt %d/%d failed: %v", attempt, maxRetries, err)
+		
 		// Check if error is retryable via hooks (supports custom retry strategy in subclass)
 		if !client.hooks.isRetryableError(err) {
+			client.logger.Warnf("🚫 Error is not retryable, giving up")
 			return "", err
 		}
 
-		// Wait before retry
+		// Wait before retry - Exponential backoff with jitter
 		if attempt < maxRetries {
-			waitTime := client.config.RetryWaitBase * time.Duration(attempt)
-			client.logger.Infof("⏳ Waiting %v before retry...", waitTime)
+			// Exponential backoff: base_delay * (2^(attempt-1))
+			exponentialDelay := client.config.RetryWaitBase * time.Duration(1<<(attempt-1))
+			
+			// Add jitter: 0% to 50% of exponential delay
+			jitter := time.Duration(rand.Float64() * float64(exponentialDelay) * 0.5)
+			waitTime := exponentialDelay + jitter
+			
+			client.logger.Infof("⏳ Retry attempt %d/%d in %v (exponential backoff with jitter)", 
+				attempt+1, maxRetries, waitTime)
 			time.Sleep(waitTime)
 		}
 	}
@@ -349,15 +387,38 @@ func (client *Client) String() string {
 		client.Provider, client.Model)
 }
 
-// isRetryableError determines if error is retryable (network errors, timeouts, etc.)
+// isRetryableError determines if error is retryable (network errors, timeouts, HTTP status codes, etc.)
 func (client *Client) isRetryableError(err error) bool {
 	errStr := err.Error()
-	// Network errors, timeouts, EOF, etc. can be retried
+	
+	// Check if error string contains any retryable error keywords
 	for _, retryable := range client.config.RetryableErrors {
-		if strings.Contains(errStr, retryable) {
+		if strings.Contains(strings.ToLower(errStr), strings.ToLower(retryable)) {
 			return true
 		}
 	}
+	
+	// Check if error is HTTP status code error
+	// Look for pattern "status XXX:" in error message
+	const statusPrefix = "status "
+	if idx := strings.Index(errStr, statusPrefix); idx != -1 {
+		// Extract status code part
+		statusPart := errStr[idx+len(statusPrefix):]
+		if colonIdx := strings.Index(statusPart, ":"); colonIdx != -1 {
+			statusPart = statusPart[:colonIdx]
+		}
+		
+		// Parse status code
+		if statusCode, err := strconv.Atoi(strings.TrimSpace(statusPart)); err == nil {
+			// Check if status code is in retryable list
+			for _, retryableStatus := range RetryableHTTPStatusCodes {
+				if statusCode == retryableStatus {
+					return true
+				}
+			}
+		}
+	}
+	
 	return false
 }
 
@@ -395,29 +456,39 @@ func (client *Client) CallWithRequest(req *Request) (string, error) {
 	maxRetries := client.config.MaxRetries
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		if attempt > 1 {
-			client.logger.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
-		}
-
+		client.logger.Infof("📞 AI API call attempt %d/%d with request builder", attempt, maxRetries)
+		
 		// Call single request
 		result, err := client.callWithRequest(req)
 		if err == nil {
 			if attempt > 1 {
-				client.logger.Infof("✓ AI API retry succeeded")
+				client.logger.Infof("✓ AI API retry succeeded after %d attempts", attempt)
+			} else {
+				client.logger.Infof("✓ AI API call succeeded on first attempt")
 			}
 			return result, nil
 		}
 
 		lastErr = err
+		client.logger.Warnf("❌ AI API call attempt %d/%d failed: %v", attempt, maxRetries, err)
+		
 		// Check if error is retryable
 		if !client.hooks.isRetryableError(err) {
+			client.logger.Warnf("🚫 Error is not retryable, giving up")
 			return "", err
 		}
 
-		// Wait before retry
+		// Wait before retry - Exponential backoff with jitter
 		if attempt < maxRetries {
-			waitTime := client.config.RetryWaitBase * time.Duration(attempt)
-			client.logger.Infof("⏳ Waiting %v before retry...", waitTime)
+			// Exponential backoff: base_delay * (2^(attempt-1))
+			exponentialDelay := client.config.RetryWaitBase * time.Duration(1<<(attempt-1))
+			
+			// Add jitter: 0% to 50% of exponential delay
+			jitter := time.Duration(rand.Float64() * float64(exponentialDelay) * 0.5)
+			waitTime := exponentialDelay + jitter
+			
+			client.logger.Infof("⏳ Retry attempt %d/%d in %v (exponential backoff with jitter)", 
+				attempt+1, maxRetries, waitTime)
 			time.Sleep(waitTime)
 		}
 	}

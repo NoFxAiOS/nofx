@@ -330,6 +330,7 @@ func TestClient_IsRetryableError(t *testing.T) {
 		err      error
 		expected bool
 	}{
+		// Network errors
 		{
 			name:     "EOF error",
 			err:      errors.New("unexpected EOF"),
@@ -346,6 +347,65 @@ func TestClient_IsRetryableError(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "connection refused",
+			err:      errors.New("connection refused"),
+			expected: true,
+		},
+		{
+			name:     "broken pipe",
+			err:      errors.New("write: broken pipe"),
+			expected: true,
+		},
+		{
+			name:     "network unreachable",
+			err:      errors.New("network is unreachable"),
+			expected: true,
+		},
+		{
+			name:     "context deadline exceeded",
+			err:      errors.New("context deadline exceeded"),
+			expected: true,
+		},
+		
+		// Server errors
+		{
+			name:     "internal server error",
+			err:      errors.New("status 500: Internal Server Error"),
+			expected: true,
+		},
+		{
+			name:     "service unavailable",
+			err:      errors.New("status 503: Service Unavailable"),
+			expected: true,
+		},
+		{
+			name:     "gateway timeout",
+			err:      errors.New("status 504: Gateway Timeout"),
+			expected: true,
+		},
+		{
+			name:     "too many requests",
+			err:      errors.New("status 429: Too Many Requests"),
+			expected: true,
+		},
+		{
+			name:     "bad gateway",
+			err:      errors.New("status 502: Bad Gateway"),
+			expected: true,
+		},
+		{
+			name:     "rate limit error",
+			err:      errors.New("API returned error: rate limit exceeded"),
+			expected: true,
+		},
+		{
+			name:     "quota exceeded",
+			err:      errors.New("quota exceeded"),
+			expected: true,
+		},
+		
+		// Non-retryable errors
+		{
 			name:     "normal error",
 			err:      errors.New("bad request"),
 			expected: false,
@@ -355,13 +415,28 @@ func TestClient_IsRetryableError(t *testing.T) {
 			err:      errors.New("invalid input"),
 			expected: false,
 		},
+		{
+			name:     "not found",
+			err:      errors.New("status 404: Not Found"),
+			expected: false,
+		},
+		{
+			name:     "unauthorized",
+			err:      errors.New("status 401: Unauthorized"),
+			expected: false,
+		},
+		{
+			name:     "forbidden",
+			err:      errors.New("status 403: Forbidden"),
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := c.isRetryableError(tt.err)
 			if result != tt.expected {
-				t.Errorf("expected %v, got %v", tt.expected, result)
+				t.Errorf("Test %q: expected %v, got %v for error: %v", tt.name, tt.expected, result, tt.err)
 			}
 		})
 	}

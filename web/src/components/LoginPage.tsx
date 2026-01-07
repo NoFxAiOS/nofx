@@ -121,7 +121,7 @@ export function LoginPage() {
         <div className="mb-8 text-center">
           <div className="flex justify-center mb-6">
             <div className="relative">
-              <div className="absolute -inset-2 bg-nofx-gold/20 rounded-full blur-xl animate-pulse"></div>
+              <div className="absolute -inset-2 bg-primary/20 rounded-full blur-xl animate-pulse"></div>
               <img
                 src="/icons/nofx.svg"
                 alt="NoFx Logo"
@@ -130,9 +130,9 @@ export function LoginPage() {
             </div>
           </div>
           <h1 className="text-3xl font-bold tracking-tighter text-white uppercase mb-2">
-            <span className="text-nofx-gold">SYSTEM</span> ACCESS
+            <span className="text-primary">SYSTEM</span> ACCESS
           </h1>
-          <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">
+          <p className="text-text-tertiary text-xs tracking-[0.2em] uppercase">
             {step === 'login' ? 'Authentication Protocol v3.0' : 'Multi-Factor Verification'}
           </p>
         </div>
@@ -177,12 +177,12 @@ export function LoginPage() {
             {adminMode ? (
               <form onSubmit={handleAdminLogin} className="space-y-5">
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-1.5 ml-1">Admin Key</label>
+                  <label className="block text-xs uppercase tracking-wider text-primary mb-1.5 ml-1">Admin Key</label>
                   <input
                     type="password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono"
+                    className="w-full bg-bg-tertiary border border-panel-border rounded px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-text-tertiary text-white font-mono"
                     placeholder="ENTER_ROOT_PASSWORD"
                     required
                   />
@@ -197,7 +197,7 @@ export function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_20px_rgba(255,215,0,0.1)] hover:shadow-[0_0_30px_rgba(255,215,0,0.3)]"
+                  className="w-full bg-primary text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-primary/90 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_20px_rgba(240,185,11,0.1)] hover:shadow-[0_0_30px_rgba(240,185,11,0.3)]"
                 >
                   {loading ? '> VERIFYING...' : '> EXECUTE_LOGIN'}
                 </button>
@@ -206,12 +206,12 @@ export function LoginPage() {
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs uppercase tracking-wider text-zinc-500 mb-1.5 ml-1 font-bold">{t('email', language)}</label>
+                    <label className="block text-xs uppercase tracking-wider text-text-tertiary mb-1.5 ml-1 font-bold">{t('email', language)}</label>
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono"
+                      className="w-full bg-bg-tertiary border border-panel-border rounded px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-text-tertiary text-white font-mono"
                       placeholder="user@nofx.os"
                       required
                     />
@@ -219,7 +219,7 @@ export function LoginPage() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5 ml-1">
-                      <label className="block text-xs uppercase tracking-wider text-zinc-500 font-bold">{t('password', language)}</label>
+                      <label className="block text-xs uppercase tracking-wider text-text-tertiary font-bold">{t('password', language)}</label>
                     </div>
 
                     <div className="relative">
@@ -227,14 +227,14 @@ export function LoginPage() {
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono pr-10"
+                        className="w-full bg-bg-tertiary border border-panel-border rounded px-4 py-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary/50 outline-none transition-all placeholder-text-tertiary text-white font-mono pr-10"
                         placeholder="••••••••••••"
                         required
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors"
                       >
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>

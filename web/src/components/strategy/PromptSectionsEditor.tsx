@@ -47,7 +47,9 @@ export function PromptSectionsEditor({
   disabled,
   language,
 }: PromptSectionsEditorProps) {
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({
     role_definition: false,
     trading_frequency: false,
     entry_standards: false,
@@ -56,16 +58,34 @@ export function PromptSectionsEditor({
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
-      promptSections: { zh: 'System Prompt 自定义', en: 'System Prompt Customization' },
-      promptSectionsDesc: { zh: '自定义 AI 行为和决策逻辑（输出格式和风控规则不可修改）', en: 'Customize AI behavior and decision logic (output format and risk rules are fixed)' },
+      promptSections: {
+        zh: 'System Prompt 自定义',
+        en: 'System Prompt Customization',
+      },
+      promptSectionsDesc: {
+        zh: '自定义 AI 行为和决策逻辑（输出格式和风控规则不可修改）',
+        en: 'Customize AI behavior and decision logic (output format and risk rules are fixed)',
+      },
       roleDefinition: { zh: '角色定义', en: 'Role Definition' },
-      roleDefinitionDesc: { zh: '定义 AI 的身份和核心目标', en: 'Define AI identity and core objectives' },
+      roleDefinitionDesc: {
+        zh: '定义 AI 的身份和核心目标',
+        en: 'Define AI identity and core objectives',
+      },
       tradingFrequency: { zh: '交易频率', en: 'Trading Frequency' },
-      tradingFrequencyDesc: { zh: '设定交易频率预期和过度交易警告', en: 'Set trading frequency expectations and overtrading warnings' },
+      tradingFrequencyDesc: {
+        zh: '设定交易频率预期和过度交易警告',
+        en: 'Set trading frequency expectations and overtrading warnings',
+      },
       entryStandards: { zh: '开仓标准', en: 'Entry Standards' },
-      entryStandardsDesc: { zh: '定义开仓信号条件和避免事项', en: 'Define entry signal conditions and avoidances' },
+      entryStandardsDesc: {
+        zh: '定义开仓信号条件和避免事项',
+        en: 'Define entry signal conditions and avoidances',
+      },
       decisionProcess: { zh: '决策流程', en: 'Decision Process' },
-      decisionProcessDesc: { zh: '设定决策步骤和思考流程', en: 'Set decision steps and thinking process' },
+      decisionProcessDesc: {
+        zh: '设定决策步骤和思考流程',
+        en: 'Set decision steps and thinking process',
+      },
       resetToDefault: { zh: '重置为默认', en: 'Reset to Default' },
       chars: { zh: '字符', en: 'chars' },
     }
@@ -73,10 +93,26 @@ export function PromptSectionsEditor({
   }
 
   const sections = [
-    { key: 'role_definition', label: t('roleDefinition'), desc: t('roleDefinitionDesc') },
-    { key: 'trading_frequency', label: t('tradingFrequency'), desc: t('tradingFrequencyDesc') },
-    { key: 'entry_standards', label: t('entryStandards'), desc: t('entryStandardsDesc') },
-    { key: 'decision_process', label: t('decisionProcess'), desc: t('decisionProcessDesc') },
+    {
+      key: 'role_definition',
+      label: t('roleDefinition'),
+      desc: t('roleDefinitionDesc'),
+    },
+    {
+      key: 'trading_frequency',
+      label: t('tradingFrequency'),
+      desc: t('tradingFrequencyDesc'),
+    },
+    {
+      key: 'entry_standards',
+      label: t('entryStandards'),
+      desc: t('entryStandardsDesc'),
+    },
+    {
+      key: 'decision_process',
+      label: t('decisionProcess'),
+      desc: t('decisionProcessDesc'),
+    },
   ]
 
   const currentConfig = config || {}
@@ -120,7 +156,9 @@ export function PromptSectionsEditor({
           const sectionKey = key as keyof PromptSectionsConfig
           const isExpanded = expandedSections[key]
           const value = getValue(sectionKey)
-          const isModified = currentConfig[sectionKey] !== undefined && currentConfig[sectionKey] !== defaultSections[sectionKey]
+          const isModified =
+            currentConfig[sectionKey] !== undefined &&
+            currentConfig[sectionKey] !== defaultSections[sectionKey]
 
           return (
             <div
@@ -134,17 +172,29 @@ export function PromptSectionsEditor({
               >
                 <div className="flex items-center gap-2">
                   {isExpanded ? (
-                    <ChevronDown className="w-4 h-4" style={{ color: '#848E9C' }} />
+                    <ChevronDown
+                      className="w-4 h-4"
+                      style={{ color: '#848E9C' }}
+                    />
                   ) : (
-                    <ChevronRight className="w-4 h-4" style={{ color: '#848E9C' }} />
+                    <ChevronRight
+                      className="w-4 h-4"
+                      style={{ color: '#848E9C' }}
+                    />
                   )}
-                  <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: '#EAECEF' }}
+                  >
                     {label}
                   </span>
                   {isModified && (
                     <span
                       className="px-1.5 py-0.5 text-[10px] rounded"
-                      style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}
+                      style={{
+                        background: 'rgba(168, 85, 247, 0.15)',
+                        color: '#a855f7',
+                      }}
                     >
                       {language === 'zh' ? '已修改' : 'Modified'}
                     </span>

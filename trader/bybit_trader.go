@@ -163,16 +163,7 @@ func (t *BybitTrader) GetBalance() (map[string]interface{}, error) {
 
 // GetPositions retrieves all positions
 func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
-	// Check cache
-	t.positionsCacheMutex.RLock()
-	if t.cachedPositions != nil && time.Since(t.positionsCacheTime) < t.cacheDuration {
-		positions := t.cachedPositions
-		t.positionsCacheMutex.RUnlock()
-		return positions, nil
-	}
-	t.positionsCacheMutex.RUnlock()
-
-	// Call API
+	// Call API directly, no cache - always get fresh data from exchange
 	params := map[string]interface{}{
 		"category":   "linear",
 		"settleCoin": "USDT",
@@ -250,6 +241,23 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		logger.Infof("[Bybit] GetPositions converted: symbol=%v, rawSide=%s -> side=%s", pos["symbol"], positionSide, side)
 
+		// Initialize take profit and stop loss prices
+		var takeProfitPrice, stopLossPrice float64
+
+		// Extract take profit and stop loss from Bybit position data
+		// Bybit stores take profit and stop loss in different fields depending on the API
+		if tpStr, ok := pos["takeProfit"].(string); ok {
+			if tp, err := strconv.ParseFloat(tpStr, 64); err == nil {
+				takeProfitPrice = tp
+			}
+		}
+
+		if slStr, ok := pos["stopLoss"].(string); ok {
+			if sl, err := strconv.ParseFloat(slStr, 64); err == nil {
+				stopLossPrice = sl
+			}
+		}
+
 		position := map[string]interface{}{
 			"symbol":           pos["symbol"],
 			"side":             side,
@@ -262,16 +270,12 @@ func (t *BybitTrader) GetPositions() ([]map[string]interface{}, error) {
 			"leverage":         leverage,
 			"createdTime":      createdTime, // Position open time (ms)
 			"updatedTime":      updatedTime, // Position last update time (ms)
+			"takeProfitPrice":  takeProfitPrice,
+			"stopLossPrice":    stopLossPrice,
 		}
 
 		positions = append(positions, position)
 	}
-
-	// Update cache
-	t.positionsCacheMutex.Lock()
-	t.cachedPositions = positions
-	t.positionsCacheTime = time.Now()
-	t.positionsCacheMutex.Unlock()
 
 	return positions, nil
 }

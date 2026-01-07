@@ -36,14 +36,14 @@ export function LandingPage() {
         onLoginRequired={handleLoginRequired}
         onPageChange={(page) => {
           const pathMap: Record<string, string> = {
-            'competition': '/competition',
+            competition: '/competition',
             'strategy-market': '/strategy-market',
-            'traders': '/traders',
-            'trader': '/dashboard',
-            'backtest': '/backtest',
-            'strategy': '/strategy',
-            'debate': '/debate',
-            'faq': '/faq',
+            traders: '/traders',
+            trader: '/dashboard',
+            backtest: '/backtest',
+            strategy: '/strategy',
+            debate: '/debate',
+            faq: '/faq',
           }
           const path = pathMap[page]
           if (path) {
@@ -52,7 +52,6 @@ export function LandingPage() {
         }}
       />
       <div className="min-h-screen bg-nofx-bg text-nofx-text font-sans selection:bg-nofx-gold selection:text-black">
-
         <TerminalHero />
 
         <LiveFeed />

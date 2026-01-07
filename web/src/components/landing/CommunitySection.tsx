@@ -11,7 +11,14 @@ interface TweetProps {
   delay: number
 }
 
-function TweetCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay }: TweetProps) {
+function TweetCard({
+  quote,
+  authorName,
+  handle,
+  avatarUrl,
+  tweetUrl,
+  delay,
+}: TweetProps) {
   return (
     <motion.a
       href={tweetUrl}
@@ -69,16 +76,28 @@ function TweetCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay }: Tw
       </p>
 
       {/* Footer */}
-      <div className="flex items-center gap-6 pt-3" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
-        <div className="flex items-center gap-1.5 text-xs" style={{ color: '#5E6673' }}>
+      <div
+        className="flex items-center gap-6 pt-3"
+        style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}
+      >
+        <div
+          className="flex items-center gap-1.5 text-xs"
+          style={{ color: '#5E6673' }}
+        >
           <MessageCircle className="w-3.5 h-3.5" />
           <span>Reply</span>
         </div>
-        <div className="flex items-center gap-1.5 text-xs" style={{ color: '#5E6673' }}>
+        <div
+          className="flex items-center gap-1.5 text-xs"
+          style={{ color: '#5E6673' }}
+        >
           <Repeat2 className="w-3.5 h-3.5" />
           <span>Repost</span>
         </div>
-        <div className="flex items-center gap-1.5 text-xs" style={{ color: '#5E6673' }}>
+        <div
+          className="flex items-center gap-1.5 text-xs"
+          style={{ color: '#5E6673' }}
+        >
           <Heart className="w-3.5 h-3.5" />
           <span>Like</span>
         </div>
@@ -102,7 +121,10 @@ export default function CommunitySection({ language }: CommunitySectionProps) {
       {/* Background Decoration */}
       <div
         className="absolute right-0 top-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl opacity-20"
-        style={{ background: 'radial-gradient(circle, rgba(29, 161, 242, 0.1) 0%, transparent 70%)' }}
+        style={{
+          background:
+            'radial-gradient(circle, rgba(29, 161, 242, 0.1) 0%, transparent 70%)',
+        }}
       />
 
       <div className="max-w-6xl mx-auto px-4 relative z-10">
@@ -113,11 +135,16 @@ export default function CommunitySection({ language }: CommunitySectionProps) {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <h2 className="text-4xl lg:text-5xl font-bold mb-4" style={{ color: '#EAECEF' }}>
+          <h2
+            className="text-4xl lg:text-5xl font-bold mb-4"
+            style={{ color: '#EAECEF' }}
+          >
             {language === 'zh' ? '社区声音' : 'Community Voices'}
           </h2>
           <p className="text-lg" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '看看大家怎么说' : 'See what others are saying'}
+            {language === 'zh'
+              ? '看看大家怎么说'
+              : 'See what others are saying'}
           </p>
         </motion.div>
 

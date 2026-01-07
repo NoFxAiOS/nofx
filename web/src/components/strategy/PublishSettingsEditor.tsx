@@ -20,9 +20,15 @@ export function PublishSettingsEditor({
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
       publishToMarket: { zh: '发布到策略市场', en: 'Publish to Market' },
-      publishDesc: { zh: '策略将在市场公开展示，其他用户可发现并使用', en: 'Strategy will be publicly visible in the marketplace' },
+      publishDesc: {
+        zh: '策略将在市场公开展示，其他用户可发现并使用',
+        en: 'Strategy will be publicly visible in the marketplace',
+      },
       showConfig: { zh: '公开配置参数', en: 'Show Config' },
-      showConfigDesc: { zh: '允许他人查看和复制详细配置', en: 'Allow others to view and clone config details' },
+      showConfigDesc: {
+        zh: '允许他人查看和复制详细配置',
+        en: 'Allow others to view and clone config details',
+      },
       private: { zh: '私有', en: 'PRIVATE' },
       public: { zh: '公开', en: 'PUBLIC' },
       hidden: { zh: '隐藏', en: 'HIDDEN' },
@@ -40,7 +46,9 @@ export function PublishSettingsEditor({
           background: isPublic
             ? 'linear-gradient(135deg, rgba(14, 203, 129, 0.15) 0%, rgba(14, 203, 129, 0.05) 100%)'
             : 'linear-gradient(135deg, #1E2329 0%, #0B0E11 100%)',
-          border: isPublic ? '1px solid rgba(14, 203, 129, 0.4)' : '1px solid #2B3139',
+          border: isPublic
+            ? '1px solid rgba(14, 203, 129, 0.4)'
+            : '1px solid #2B3139',
           boxShadow: isPublic ? '0 0 20px rgba(14, 203, 129, 0.1)' : 'none',
         }}
         onClick={() => !disabled && onIsPublicChange(!isPublic)}
@@ -52,7 +60,7 @@ export function PublishSettingsEditor({
             background: isPublic
               ? 'linear-gradient(90deg, transparent, #0ECB81, transparent)'
               : 'linear-gradient(90deg, transparent, #2B3139, transparent)',
-            opacity: isPublic ? 1 : 0.5
+            opacity: isPublic ? 1 : 0.5,
           }}
         />
 
@@ -62,7 +70,9 @@ export function PublishSettingsEditor({
               className="p-2.5 rounded-lg transition-all duration-300"
               style={{
                 background: isPublic ? 'rgba(14, 203, 129, 0.2)' : '#0B0E11',
-                border: isPublic ? '1px solid rgba(14, 203, 129, 0.3)' : '1px solid #2B3139'
+                border: isPublic
+                  ? '1px solid rgba(14, 203, 129, 0.3)'
+                  : '1px solid #2B3139',
               }}
             >
               {isPublic ? (
@@ -95,7 +105,9 @@ export function PublishSettingsEditor({
                 background: isPublic
                   ? 'linear-gradient(90deg, #0ECB81, #4ade80)'
                   : '#2B3139',
-                boxShadow: isPublic ? '0 0 10px rgba(14, 203, 129, 0.4)' : 'none'
+                boxShadow: isPublic
+                  ? '0 0 10px rgba(14, 203, 129, 0.4)'
+                  : 'none',
               }}
             >
               <div
@@ -103,7 +115,7 @@ export function PublishSettingsEditor({
                 style={{
                   background: '#EAECEF',
                   left: isPublic ? '28px' : '4px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                 }}
               />
             </div>
@@ -119,8 +131,12 @@ export function PublishSettingsEditor({
             background: configVisible
               ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)'
               : 'linear-gradient(135deg, #1E2329 0%, #0B0E11 100%)',
-            border: configVisible ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid #2B3139',
-            boxShadow: configVisible ? '0 0 20px rgba(168, 85, 247, 0.1)' : 'none',
+            border: configVisible
+              ? '1px solid rgba(168, 85, 247, 0.4)'
+              : '1px solid #2B3139',
+            boxShadow: configVisible
+              ? '0 0 20px rgba(168, 85, 247, 0.1)'
+              : 'none',
           }}
           onClick={() => !disabled && onConfigVisibleChange(!configVisible)}
         >
@@ -131,7 +147,7 @@ export function PublishSettingsEditor({
               background: configVisible
                 ? 'linear-gradient(90deg, transparent, #a855f7, transparent)'
                 : 'linear-gradient(90deg, transparent, #2B3139, transparent)',
-              opacity: configVisible ? 1 : 0.5
+              opacity: configVisible ? 1 : 0.5,
             }}
           />
 
@@ -140,8 +156,12 @@ export function PublishSettingsEditor({
               <div
                 className="p-2.5 rounded-lg transition-all duration-300"
                 style={{
-                  background: configVisible ? 'rgba(168, 85, 247, 0.2)' : '#0B0E11',
-                  border: configVisible ? '1px solid rgba(168, 85, 247, 0.3)' : '1px solid #2B3139'
+                  background: configVisible
+                    ? 'rgba(168, 85, 247, 0.2)'
+                    : '#0B0E11',
+                  border: configVisible
+                    ? '1px solid rgba(168, 85, 247, 0.3)'
+                    : '1px solid #2B3139',
                 }}
               >
                 {configVisible ? (
@@ -151,7 +171,10 @@ export function PublishSettingsEditor({
                 )}
               </div>
               <div>
-                <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                <div
+                  className="text-sm font-medium"
+                  style={{ color: '#EAECEF' }}
+                >
                   {t('showConfig')}
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
@@ -174,7 +197,9 @@ export function PublishSettingsEditor({
                   background: configVisible
                     ? 'linear-gradient(90deg, #a855f7, #c084fc)'
                     : '#2B3139',
-                  boxShadow: configVisible ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none'
+                  boxShadow: configVisible
+                    ? '0 0 10px rgba(168, 85, 247, 0.4)'
+                    : 'none',
                 }}
               >
                 <div
@@ -182,7 +207,7 @@ export function PublishSettingsEditor({
                   style={{
                     background: '#EAECEF',
                     left: configVisible ? '28px' : '4px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                   }}
                 />
               </div>

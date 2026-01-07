@@ -6,43 +6,57 @@ interface HowItWorksSectionProps {
   language: Language
 }
 
-export default function HowItWorksSection({ language }: HowItWorksSectionProps) {
+export default function HowItWorksSection({
+  language,
+}: HowItWorksSectionProps) {
   const steps = [
     {
       icon: Download,
       number: '01',
       title: language === 'zh' ? '一键部署' : 'One-Click Deploy',
-      desc: language === 'zh'
-        ? '在你的服务器上运行一条命令即可完成部署'
-        : 'Run a single command on your server to deploy',
+      desc:
+        language === 'zh'
+          ? '在你的服务器上运行一条命令即可完成部署'
+          : 'Run a single command on your server to deploy',
       code: 'curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash',
     },
     {
       icon: Rocket,
       number: '02',
       title: language === 'zh' ? '访问面板' : 'Access Dashboard',
-      desc: language === 'zh'
-        ? '通过浏览器访问你的服务器'
-        : 'Access your server via browser',
+      desc:
+        language === 'zh'
+          ? '通过浏览器访问你的服务器'
+          : 'Access your server via browser',
       code: 'http://YOUR_SERVER_IP:3000',
     },
     {
       icon: TrendingUp,
       number: '03',
       title: language === 'zh' ? '开始交易' : 'Start Trading',
-      desc: language === 'zh'
-        ? '创建交易员，让 AI 开始工作'
-        : 'Create trader, let AI do the work',
-      code: language === 'zh' ? '配置模型 → 配置交易所 → 创建交易员' : 'Configure Model → Exchange → Create Trader',
+      desc:
+        language === 'zh'
+          ? '创建交易员，让 AI 开始工作'
+          : 'Create trader, let AI do the work',
+      code:
+        language === 'zh'
+          ? '配置模型 → 配置交易所 → 创建交易员'
+          : 'Configure Model → Exchange → Create Trader',
     },
   ]
 
   return (
-    <section className="py-24 relative overflow-hidden" style={{ background: '#0D1117' }}>
+    <section
+      className="py-24 relative overflow-hidden"
+      style={{ background: '#0D1117' }}
+    >
       {/* Background Decoration */}
       <div
         className="absolute left-0 top-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl opacity-20"
-        style={{ background: 'radial-gradient(circle, rgba(240, 185, 11, 0.15) 0%, transparent 70%)' }}
+        style={{
+          background:
+            'radial-gradient(circle, rgba(240, 185, 11, 0.15) 0%, transparent 70%)',
+        }}
       />
 
       <div className="max-w-6xl mx-auto px-4 relative z-10">
@@ -53,7 +67,10 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <h2 className="text-4xl lg:text-5xl font-bold mb-4" style={{ color: '#EAECEF' }}>
+          <h2
+            className="text-4xl lg:text-5xl font-bold mb-4"
+            style={{ color: '#EAECEF' }}
+          >
             {t('howToStart', language)}
           </h2>
           <p className="text-lg" style={{ color: '#848E9C' }}>
@@ -66,7 +83,10 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
           {/* Connecting Line */}
           <div
             className="absolute left-[39px] top-0 bottom-0 w-px hidden lg:block"
-            style={{ background: 'linear-gradient(to bottom, transparent, rgba(240, 185, 11, 0.3), transparent)' }}
+            style={{
+              background:
+                'linear-gradient(to bottom, transparent, rgba(240, 185, 11, 0.3), transparent)',
+            }}
           />
 
           <div className="space-y-6">
@@ -91,12 +111,16 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
                     <motion.div
                       className="w-20 h-20 rounded-2xl flex items-center justify-center"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.2) 0%, rgba(240, 185, 11, 0.05) 100%)',
+                        background:
+                          'linear-gradient(135deg, rgba(240, 185, 11, 0.2) 0%, rgba(240, 185, 11, 0.05) 100%)',
                         border: '1px solid rgba(240, 185, 11, 0.3)',
                       }}
                       whileHover={{ scale: 1.1 }}
                     >
-                      <step.icon className="w-8 h-8" style={{ color: '#F0B90B' }} />
+                      <step.icon
+                        className="w-8 h-8"
+                        style={{ color: '#F0B90B' }}
+                      />
                     </motion.div>
                   </div>
 
@@ -109,7 +133,10 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
                       >
                         {step.number}
                       </span>
-                      <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+                      <h3
+                        className="text-xl font-bold"
+                        style={{ color: '#EAECEF' }}
+                      >
                         {step.title}
                       </h3>
                     </div>

@@ -24,7 +24,10 @@ export function FAQSidebar({
     >
       <div className="space-y-6">
         {categories.map((category) => (
-          <div key={category.id} className="nofx-glass p-4 rounded-xl border border-white/5">
+          <div
+            key={category.id}
+            className="nofx-glass p-4 rounded-xl border border-white/5"
+          >
             {/* Category Title */}
             <div className="flex items-center gap-2 mb-3 px-3">
               <category.icon className="w-5 h-5 text-nofx-gold" />
@@ -41,10 +44,11 @@ export function FAQSidebar({
                   <li key={item.id}>
                     <button
                       onClick={() => onItemClick(category.id, item.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all border-l-[3px] ${isActive
-                        ? 'bg-nofx-gold/10 text-nofx-gold border-nofx-gold pl-[9px]'
-                        : 'bg-transparent text-nofx-text-muted border-transparent pl-3 hover:bg-nofx-gold/5 hover:text-nofx-text-main'
-                        }`}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all border-l-[3px] ${
+                        isActive
+                          ? 'bg-nofx-gold/10 text-nofx-gold border-nofx-gold pl-[9px]'
+                          : 'bg-transparent text-nofx-text-muted border-transparent pl-3 hover:bg-nofx-gold/5 hover:text-nofx-text-main'
+                      }`}
                     >
                       {t(item.questionKey, language)}
                     </button>

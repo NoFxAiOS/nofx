@@ -216,13 +216,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         message: result.message || 'Registration failed',
       }
     } catch (error) {
-      console.error('Auth register error:', error);
+      console.error('Auth register error:', error)
       // Re-throw if it's a critical error, or return structured error
       // Since httpClient throws on 500, we should return a structured error response
       // to let the UI display it gracefully without crashing.
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Detailed server error'
+        message:
+          error instanceof Error ? error.message : 'Detailed server error',
       }
     }
   }

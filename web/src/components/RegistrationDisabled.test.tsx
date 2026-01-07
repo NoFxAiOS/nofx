@@ -48,7 +48,9 @@ describe('RegistrationDisabled Component', () => {
 
     it('should display registration closed message', () => {
       renderComponent()
-      const message = screen.getByText(/User registration is currently disabled/i)
+      const message = screen.getByText(
+        /User registration is currently disabled/i
+      )
       expect(message).toBeTruthy()
     })
 

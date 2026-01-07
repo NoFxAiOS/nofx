@@ -116,6 +116,18 @@ func (s *TraderTestSuite) TestGetPositions() {
 					assert.Contains(t, pos, "symbol")
 					assert.Contains(t, pos, "side")
 					assert.Contains(t, pos, "positionAmt")
+					assert.Contains(t, pos, "takeProfitPrice")
+					assert.Contains(t, pos, "stopLossPrice")
+					
+					// Verify that takeProfitPrice and stopLossPrice are float64
+					takeProfit, ok := pos["takeProfitPrice"].(float64)
+					assert.True(t, ok, "takeProfitPrice should be float64 type")
+					stopLoss, ok := pos["stopLossPrice"].(float64)
+					assert.True(t, ok, "stopLossPrice should be float64 type")
+					
+					// Verify that prices are valid (non-negative)
+					assert.GreaterOrEqual(t, takeProfit, 0.0, "takeProfitPrice should be non-negative")
+					assert.GreaterOrEqual(t, stopLoss, 0.0, "stopLossPrice should be non-negative")
 				}
 			},
 		},

@@ -29,7 +29,6 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
         className="max-w-lg w-full relative z-10"
       >
         <div className="bg-zinc-900/40 backdrop-blur-md border border-red-500/30 rounded-lg overflow-hidden relative group">
-
           {/* Top Bar */}
           <div className="flex items-center justify-between px-4 py-2 bg-red-900/20 border-b border-red-500/30">
             <div className="flex gap-1.5 opacity-50">
@@ -60,9 +59,13 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
 
             {/* Description */}
             <p className="text-xs text-zinc-400 mb-8 leading-relaxed font-mono px-4">
-              <span className="text-red-400">[SYSTEM_MESSAGE]:</span> YOUR IDENTIFIER IS NOT ON THE ACTIVE WHITELIST.
-              <br /><br />
-              Platform capacity limits have been reached for the current beta phase. Prioritized access is currently reserved for authorized operators only.
+              <span className="text-red-400">[SYSTEM_MESSAGE]:</span> YOUR
+              IDENTIFIER IS NOT ON THE ACTIVE WHITELIST.
+              <br />
+              <br />
+              Platform capacity limits have been reached for the current beta
+              phase. Prioritized access is currently reserved for authorized
+              operators only.
             </p>
 
             {/* Info Box */}
@@ -70,9 +73,13 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
               <div className="flex items-start gap-3">
                 <Lock className="w-4 h-4 text-red-500 mt-0.5" />
                 <div>
-                  <h3 className="text-xs font-bold text-red-400 uppercase mb-1">Authorization Protocol</h3>
+                  <h3 className="text-xs font-bold text-red-400 uppercase mb-1">
+                    Authorization Protocol
+                  </h3>
                   <p className="text-[10px] text-zinc-500 leading-tight">
-                    Access is rolled out in batches. If you believe this is an error, please verify your credentials or contact system administrators.
+                    Access is rolled out in batches. If you believe this is an
+                    error, please verify your credentials or contact system
+                    administrators.
                   </p>
                 </div>
               </div>
@@ -109,14 +116,12 @@ export function WhitelistFullPage({ onBack }: WhitelistFullPageProps) {
                 </a>
               </div>
             </div>
-
           </div>
 
           {/* Footer */}
           <div className="bg-black/80 p-2 text-[9px] text-zinc-700 text-center border-t border-zinc-800 font-mono uppercase">
             ERR_CODE: WLIST_0x403 // SECURITY_LAYER_ACTIVE
           </div>
-
         </div>
       </motion.div>
     </div>

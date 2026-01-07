@@ -56,7 +56,10 @@ export function FAQContent({
   return (
     <div className="space-y-12">
       {categories.map((category) => (
-        <div key={category.id} className="nofx-glass p-8 rounded-xl border border-white/5">
+        <div
+          key={category.id}
+          className="nofx-glass p-8 rounded-xl border border-white/5"
+        >
           {/* Category Header */}
           <div className="flex items-center gap-3 mb-6 pb-3 border-b border-white/10">
             <category.icon className="w-7 h-7 text-nofx-gold" />

@@ -163,18 +163,8 @@ func (t *FuturesTrader) GetBalance() (map[string]interface{}, error) {
 
 // GetPositions gets all positions (with cache)
 func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
-	// First check if cache is valid
-	t.positionsCacheMutex.RLock()
-	if t.cachedPositions != nil && time.Since(t.positionsCacheTime) < t.cacheDuration {
-		cacheAge := time.Since(t.positionsCacheTime)
-		t.positionsCacheMutex.RUnlock()
-		logger.Infof("✓ Using cached position information (cache age: %.1f seconds ago)", cacheAge.Seconds())
-		return t.cachedPositions, nil
-	}
-	t.positionsCacheMutex.RUnlock()
-
-	// Cache expired or doesn't exist, call API
-	logger.Infof("🔄 Cache expired, calling Binance API to get position information...")
+	// Call API directly, no cache - always get fresh data from exchange
+	logger.Infof("🔄 Calling Binance API to get position information...")
 	positions, err := t.client.NewGetPositionRiskService().Do(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
@@ -195,9 +185,22 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 		posMap["unRealizedProfit"], _ = strconv.ParseFloat(pos.UnRealizedProfit, 64)
 		posMap["leverage"], _ = strconv.ParseFloat(pos.Leverage, 64)
 		posMap["liquidationPrice"], _ = strconv.ParseFloat(pos.LiquidationPrice, 64)
-		// Add take profit and stop loss information (from Algo Order API)
-		posMap["takeProfitPrice"] = 0.0
-		posMap["stopLossPrice"] = 0.0
+		
+		// Initialize take profit and stop loss prices
+		var takeProfitPrice, stopLossPrice float64
+		
+		// Try to extract take profit and stop loss from position data
+		// Binance returns these in different fields depending on the API version
+		if tp, err := strconv.ParseFloat(pos.TakeProfit, 64); err == nil {
+			takeProfitPrice = tp
+		}
+		if sl, err := strconv.ParseFloat(pos.StopLoss, 64); err == nil {
+			stopLossPrice = sl
+		}
+		
+		posMap["takeProfitPrice"] = takeProfitPrice
+		posMap["stopLossPrice"] = stopLossPrice
+		
 		// Note: Binance SDK doesn't expose updateTime field, will fallback to local tracking
 
 		// Determine direction
@@ -209,12 +212,6 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 
 		result = append(result, posMap)
 	}
-
-	// Update cache
-	t.positionsCacheMutex.Lock()
-	t.cachedPositions = result
-	t.positionsCacheTime = time.Now()
-	t.positionsCacheMutex.Unlock()
 
 	return result, nil
 }

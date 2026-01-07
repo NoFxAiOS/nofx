@@ -1691,8 +1691,7 @@ export const translations = {
     noExchangesConfigured: '暂无已配置的交易所',
     signalSource: '信号源',
     signalSourceConfig: '信号源配置',
-    ai500Description:
-      '用于获取 AI500 数据源的 API 地址，留空则不使用此数据源',
+    ai500Description: '用于获取 AI500 数据源的 API 地址，留空则不使用此数据源',
     oiTopDescription: '用于获取持仓量排行数据的API地址，留空则不使用此信号源',
     information: '说明',
     signalSourceInfo1:

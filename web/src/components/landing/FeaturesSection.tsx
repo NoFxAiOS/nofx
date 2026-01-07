@@ -1,5 +1,12 @@
 import { motion } from 'framer-motion'
-import { Brain, Swords, BarChart3, Shield, Blocks, LineChart } from 'lucide-react'
+import {
+  Brain,
+  Swords,
+  BarChart3,
+  Shield,
+  Blocks,
+  LineChart,
+} from 'lucide-react'
 import { t, Language } from '../../i18n/translations'
 
 interface FeaturesSectionProps {
@@ -10,51 +17,58 @@ export default function FeaturesSection({ language }: FeaturesSectionProps) {
   const features = [
     {
       icon: Brain,
-      title: language === 'zh' ? 'AI 策略编排引擎' : 'AI Strategy Orchestration',
-      desc: language === 'zh'
-        ? '支持 DeepSeek、GPT、Claude、Qwen 等多种大模型，自定义 Prompt 策略，AI 自主分析市场并做出交易决策'
-        : 'Support DeepSeek, GPT, Claude, Qwen and more. Custom prompts, AI autonomously analyzes markets and makes trading decisions',
+      title:
+        language === 'zh' ? 'AI 策略编排引擎' : 'AI Strategy Orchestration',
+      desc:
+        language === 'zh'
+          ? '支持 DeepSeek、GPT、Claude、Qwen 等多种大模型，自定义 Prompt 策略，AI 自主分析市场并做出交易决策'
+          : 'Support DeepSeek, GPT, Claude, Qwen and more. Custom prompts, AI autonomously analyzes markets and makes trading decisions',
       highlight: true,
       badge: language === 'zh' ? '核心能力' : 'Core',
     },
     {
       icon: Swords,
       title: language === 'zh' ? '多 AI 竞技场' : 'Multi-AI Arena',
-      desc: language === 'zh'
-        ? '多个 AI 交易员同台竞技，实时 PnL 排行榜，自动优胜劣汰，让最强策略脱颖而出'
-        : 'Multiple AI traders compete in real-time, live PnL leaderboard, automatic survival of the fittest',
+      desc:
+        language === 'zh'
+          ? '多个 AI 交易员同台竞技，实时 PnL 排行榜，自动优胜劣汰，让最强策略脱颖而出'
+          : 'Multiple AI traders compete in real-time, live PnL leaderboard, automatic survival of the fittest',
       highlight: true,
       badge: language === 'zh' ? '独创' : 'Unique',
     },
     {
       icon: LineChart,
       title: language === 'zh' ? '专业量化数据' : 'Pro Quant Data',
-      desc: language === 'zh'
-        ? '集成 K线、技术指标、市场深度、资金费率、持仓量等专业量化数据，为 AI 决策提供全面信息'
-        : 'Integrated candlesticks, indicators, order book, funding rates, open interest - comprehensive data for AI decisions',
+      desc:
+        language === 'zh'
+          ? '集成 K线、技术指标、市场深度、资金费率、持仓量等专业量化数据，为 AI 决策提供全面信息'
+          : 'Integrated candlesticks, indicators, order book, funding rates, open interest - comprehensive data for AI decisions',
       highlight: true,
       badge: language === 'zh' ? '专业' : 'Pro',
     },
     {
       icon: Blocks,
       title: language === 'zh' ? '多交易所支持' : 'Multi-Exchange Support',
-      desc: language === 'zh'
-        ? 'Binance、OKX、Bybit、Hyperliquid、Aster DEX，一套系统管理多个交易所'
-        : 'Binance, OKX, Bybit, Hyperliquid, Aster DEX - one system, multiple exchanges',
+      desc:
+        language === 'zh'
+          ? 'Binance、OKX、Bybit、Hyperliquid、Aster DEX，一套系统管理多个交易所'
+          : 'Binance, OKX, Bybit, Hyperliquid, Aster DEX - one system, multiple exchanges',
     },
     {
       icon: BarChart3,
       title: language === 'zh' ? '实时可视化看板' : 'Real-time Dashboard',
-      desc: language === 'zh'
-        ? '交易监控、收益曲线、持仓分析、AI 决策日志，一目了然'
-        : 'Trade monitoring, PnL curves, position analysis, AI decision logs at a glance',
+      desc:
+        language === 'zh'
+          ? '交易监控、收益曲线、持仓分析、AI 决策日志，一目了然'
+          : 'Trade monitoring, PnL curves, position analysis, AI decision logs at a glance',
     },
     {
       icon: Shield,
       title: language === 'zh' ? '开源自托管' : 'Open Source & Self-Hosted',
-      desc: language === 'zh'
-        ? '代码完全开源可审计，数据存储在本地，API 密钥不经过第三方'
-        : 'Fully open source, data stored locally, API keys never leave your server',
+      desc:
+        language === 'zh'
+          ? '代码完全开源可审计，数据存储在本地，API 密钥不经过第三方'
+          : 'Fully open source, data stored locally, API keys never leave your server',
     },
   ]
 
@@ -77,7 +91,10 @@ export default function FeaturesSection({ language }: FeaturesSectionProps) {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <h2 className="text-4xl lg:text-5xl font-bold mb-4" style={{ color: '#EAECEF' }}>
+          <h2
+            className="text-4xl lg:text-5xl font-bold mb-4"
+            style={{ color: '#EAECEF' }}
+          >
             {t('whyChooseNofx', language)}
           </h2>
           <p className="text-lg max-w-2xl mx-auto" style={{ color: '#848E9C' }}>
@@ -170,10 +187,22 @@ export default function FeaturesSection({ language }: FeaturesSectionProps) {
           viewport={{ once: true }}
         >
           {[
-            { value: '10+', label: language === 'zh' ? 'AI 模型支持' : 'AI Models' },
-            { value: '5+', label: language === 'zh' ? '交易所集成' : 'Exchanges' },
-            { value: '24/7', label: language === 'zh' ? '自动交易' : 'Auto Trading' },
-            { value: '100%', label: language === 'zh' ? '开源免费' : 'Open Source' },
+            {
+              value: '10+',
+              label: language === 'zh' ? 'AI 模型支持' : 'AI Models',
+            },
+            {
+              value: '5+',
+              label: language === 'zh' ? '交易所集成' : 'Exchanges',
+            },
+            {
+              value: '24/7',
+              label: language === 'zh' ? '自动交易' : 'Auto Trading',
+            },
+            {
+              value: '100%',
+              label: language === 'zh' ? '开源免费' : 'Open Source',
+            },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -186,7 +215,8 @@ export default function FeaturesSection({ language }: FeaturesSectionProps) {
               <div
                 className="text-2xl font-bold mb-1"
                 style={{
-                  background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+                  background:
+                    'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}

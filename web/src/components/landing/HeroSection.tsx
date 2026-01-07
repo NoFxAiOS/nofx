@@ -33,7 +33,8 @@ export default function HeroSection({ language }: HeroSectionProps) {
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
           style={{
-            background: 'radial-gradient(circle, rgba(240, 185, 11, 0.08) 0%, transparent 70%)',
+            background:
+              'radial-gradient(circle, rgba(240, 185, 11, 0.08) 0%, transparent 70%)',
           }}
         />
         {/* Floating Orbs */}
@@ -188,9 +189,18 @@ export default function HeroSection({ language }: HeroSectionProps) {
         >
           {[
             { label: 'GitHub Stars', value: `${(stars / 1000).toFixed(1)}K+` },
-            { label: language === 'zh' ? '支持交易所' : 'Exchanges', value: '5+' },
-            { label: language === 'zh' ? 'AI 模型' : 'AI Models', value: '10+' },
-            { label: language === 'zh' ? '开源免费' : 'Open Source', value: '100%' },
+            {
+              label: language === 'zh' ? '支持交易所' : 'Exchanges',
+              value: '5+',
+            },
+            {
+              label: language === 'zh' ? 'AI 模型' : 'AI Models',
+              value: '10+',
+            },
+            {
+              label: language === 'zh' ? '开源免费' : 'Open Source',
+              value: '100%',
+            },
           ].map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -202,7 +212,8 @@ export default function HeroSection({ language }: HeroSectionProps) {
               <div
                 className="text-3xl sm:text-4xl font-bold mb-1"
                 style={{
-                  background: 'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
+                  background:
+                    'linear-gradient(135deg, #F0B90B 0%, #FCD535 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}

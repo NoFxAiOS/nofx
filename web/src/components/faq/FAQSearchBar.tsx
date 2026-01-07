@@ -13,9 +13,7 @@ export function FAQSearchBar({
 }: FAQSearchBarProps) {
   return (
     <div className="relative group">
-      <Search
-        className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-nofx-text-muted group-focus-within:text-nofx-gold transition-colors"
-      />
+      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-nofx-text-muted group-focus-within:text-nofx-gold transition-colors" />
       <input
         type="text"
         value={searchTerm}

@@ -1,6 +1,7 @@
 package trader
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -770,10 +771,55 @@ func (at *AutoTrader) runCycle() error {
 	return nil
 }
 
+// withTimeoutAndRetry executes a function with timeout and retry logic
+func withTimeoutAndRetry[T any](operation func() (T, error), timeout time.Duration, maxRetries int) (T, error) {
+	var result T
+	var lastErr error
+
+	for i := 0; i < maxRetries; i++ {
+		// Create a context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		// Use a channel to communicate the result or error
+		resultCh := make(chan T, 1)
+		errCh := make(chan error, 1)
+
+		go func() {
+			res, err := operation()
+			if err != nil {
+				errCh <- err
+			} else {
+				resultCh <- res
+			}
+		}()
+
+		// Wait for either result, error, or timeout
+		select {
+		case result = <-resultCh:
+			return result, nil
+		case lastErr = <-errCh:
+			logger.Infof("Operation failed, retrying (%d/%d): %v", i+1, maxRetries, lastErr)
+		case <-ctx.Done():
+			lastErr = fmt.Errorf("operation timed out")
+			logger.Infof("Operation timed out, retrying (%d/%d): %v", i+1, maxRetries, lastErr)
+		}
+
+		// Exponential backoff between retries
+		time.Sleep(time.Duration(math.Pow(2, float64(i))) * 100 * time.Millisecond)
+	}
+
+	return result, fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
+}
+
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	// 1. Get account information
-	balance, err := at.trader.GetBalance()
+	balance, err := withTimeoutAndRetry(
+		at.trader.GetBalance,
+		5*time.Second,
+		3,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get account balance: %w", err)
 	}
@@ -803,7 +849,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	}
 
 	// 2. Get position information
-	positions, err := at.trader.GetPositions()
+	positions, err := withTimeoutAndRetry(
+		at.trader.GetPositions,
+		5*time.Second,
+		3,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
@@ -875,26 +925,17 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
-		// Get take profit and stop loss from multiple sources (priority: cache > exchange)
+		// Get take profit and stop loss directly from exchange data
 		var takeProfitPrice, stopLossPrice float64
 		
-		// Priority 1: Local cache (system-set values)
-		at.stopLossTakeProfitMutex.RLock()
-		if cacheEntry, exists := at.stopLossTakeProfitCache[posKey]; exists {
-			takeProfitPrice = cacheEntry.TakeProfitPrice
-			stopLossPrice = cacheEntry.StopLossPrice
-			logger.Infof("Debug: Cache hit for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
-		} else {
-			// Priority 2: Exchange data (least reliable)
-			if tp, ok := pos["takeProfitPrice"].(float64); ok {
-				takeProfitPrice = tp
-			}
-			if sl, ok := pos["stopLossPrice"].(float64); ok {
-				stopLossPrice = sl
-			}
-			logger.Infof("Debug: Cache miss for %s, using exchange values TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
+		// Extract take profit and stop loss from exchange position data
+		if tp, ok := pos["takeProfitPrice"].(float64); ok {
+			takeProfitPrice = tp
 		}
-		at.stopLossTakeProfitMutex.RUnlock()
+		if sl, ok := pos["stopLossPrice"].(float64); ok {
+			stopLossPrice = sl
+		}
+		logger.Infof("Debug: Using exchange values for %s, TP=%.4f, SL=%.4f", posKey, takeProfitPrice, stopLossPrice)
 		
 		logger.Infof("Debug: Final TP=%.4f, SL=%.4f for %s", takeProfitPrice, stopLossPrice, posKey)
 

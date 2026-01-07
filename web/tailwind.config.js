@@ -23,6 +23,8 @@ export default {
           DEFAULT: '#EAECEF',
           muted: '#848E9C',
         },
+        'nofx-green': '#0ECB81',
+        'nofx-red': '#F6465D',
         'nofx-success': '#0ECB81',
         'nofx-danger': '#F6465D',
       },

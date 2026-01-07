@@ -690,7 +690,7 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 whitespace-nowrap text-center">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${pos.side === 'long' ? 'bg-nofx-green/20 text-nofx-green border border-nofx-green/30 shadow-[0_0_8px_rgba(14,203,129,0.3)]' : 'bg-nofx-red/20 text-nofx-red border border-nofx-red/30 shadow-[0_0_8px_rgba(246,70,93,0.3)]'}`}
+                              className={`inline-flex items-center justify-center px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${pos.side === 'long' ? 'bg-nofx-green/25 text-nofx-green border border-nofx-green/40 shadow-[0_0_10px_rgba(14,203,129,0.35)]' : 'bg-nofx-red/25 text-nofx-red border border-nofx-red/40 shadow-[0_0_10px_rgba(246,70,93,0.35)]'}`}
                             >
                               {t(
                                 pos.side === 'long' ? 'long' : 'short',
@@ -739,8 +739,8 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                             {pos.take_profit_price !== undefined && pos.take_profit_price > 0 ? (
-                              <div className="flex items-center justify-end gap-2">
-                                <span className="text-nofx-green font-semibold shadow-[0_0_8px_rgba(14,203,129,0.3)]">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="px-1.5 py-0.5 rounded bg-nofx-green/15 text-nofx-green text-xs font-semibold border border-nofx-green/25 shadow-[0_0_6px_rgba(14,203,129,0.25)]">
                                   {pos.take_profit_price.toFixed(4)}
                                 </span>
                                 <span className={`text-[10px] font-medium ${((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
@@ -753,8 +753,8 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                             {pos.stop_loss_price !== undefined && pos.stop_loss_price > 0 ? (
-                              <div className="flex items-center justify-end gap-2">
-                                <span className="text-nofx-red font-semibold shadow-[0_0_8px_rgba(246,70,93,0.3)]">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="px-1.5 py-0.5 rounded bg-nofx-red/15 text-nofx-red text-xs font-semibold border border-nofx-red/25 shadow-[0_0_6px_rgba(246,70,93,0.25)]">
                                   {pos.stop_loss_price.toFixed(4)}
                                 </span>
                                 <span className={`text-[10px] font-medium ${((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
@@ -767,17 +767,10 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                             <span
-                              className={`font-bold ${pos.unrealized_pnl >= 0 ? 'text-nofx-green shadow-nofx-green' : 'text-nofx-red shadow-nofx-red'}`}
-                              style={{
-                                textShadow:
-                                  pos.unrealized_pnl >= 0
-                                    ? '0 0 10px rgba(14,203,129,0.3)'
-                                    : '0 0 10px rgba(246,70,93,0.3)',
-                              }}
+                              className={`inline-flex items-center px-1.5 py-0.5 rounded font-bold ${pos.unrealized_pnl >= 0 ? 'bg-nofx-green/20 text-nofx-green border border-nofx-green/30 shadow-[0_0_8px_rgba(14,203,129,0.3)]' : 'bg-nofx-red/20 text-nofx-red border border-nofx-red/30 shadow-[0_0_8px_rgba(246,70,93,0.3)]'}`}
                             >
-                              {pos.unrealized_pnl >= 0 ? '+' : ''}
-                              {pos.unrealized_pnl.toFixed(2)}
-                              <span className="text-[9px] ml-1 opacity-80">
+                              {pos.unrealized_pnl >= 0 ? '+' : ''}{pos.unrealized_pnl.toFixed(2)}
+                              <span className="text-[9px] ml-1 opacity-85 font-normal">
                                 ({((pos.mark_price - pos.entry_price) / pos.entry_price * (pos.side === 'long' ? 1 : -1) * 100) >= 0 ? '+' : ''}{((pos.mark_price - pos.entry_price) / pos.entry_price * (pos.side === 'long' ? 1 : -1) * 100).toFixed(2)}%)
                               </span>
                             </span>

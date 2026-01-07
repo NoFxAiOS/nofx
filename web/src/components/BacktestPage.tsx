@@ -1486,7 +1486,7 @@ export function BacktestPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <div>
                           <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>
                             {tr('form.feeLabel')}

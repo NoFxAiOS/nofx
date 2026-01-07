@@ -145,14 +145,19 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   console.log('[ChartTabs] rendering, activeTab:', activeTab)
 
   return (
-    <div className="nofx-glass rounded-lg border border-white/5 relative z-10 w-full h-[600px] flex flex-col">
-      {/* Clean Professional Toolbar */}
+    <div className={`nofx-glass rounded-lg border border-white/5 relative z-10 w-full flex flex-col transition-all duration-300 ${typeof window !== 'undefined' && window.innerWidth < 768 ? 'h-[500px]' : 'h-[600px]'
+      }`}>
+      {/* 
+        Premium Professional Toolbar 
+        Mobile: Single row, horizontal scroll with gradient mask
+        Desktop: Standard flex-wrap/nowrap
+      */}
       <div
         className="relative z-20 flex flex-wrap md:flex-nowrap items-center justify-between gap-y-2 px-3 py-2 shrink-0 backdrop-blur-md bg-[#0B0E11]/80 rounded-t-lg"
         style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}
       >
         {/* Left: Tab Switcher */}
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             onClick={() => setActiveTab('equity')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${activeTab === 'equity'
@@ -161,7 +166,8 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
               }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            <span>{t('accountEquityCurve', language)}</span>
+            <span className="hidden md:inline">{t('accountEquityCurve', language)}</span>
+            <span className="md:hidden">Eq</span>
           </button>
 
           <button
@@ -172,33 +178,31 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
               }`}
           >
             <CandlestickChart className="w-3.5 h-3.5" />
-            <span>{t('marketChart', language)}</span>
+            <span className="hidden md:inline">{t('marketChart', language)}</span>
+            <span className="md:hidden">Kline</span>
           </button>
 
-          {/* Market Type Pills - Only when kline active */}
+          {/* Market Type Pills - Only when kline active, HIDDEN on mobile to save space */}
           {activeTab === 'kline' && (
-            <>
-              <div className="w-px h-4 bg-white/10 mx-2" />
-              <div className="flex items-center gap-1">
-                {(Object.keys(MARKET_CONFIG) as MarketType[]).map((type) => {
-                  const config = MARKET_CONFIG[type]
-                  const isActive = marketType === type
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => handleMarketTypeChange(type)}
-                      className={`px-2.5 py-1 text-[10px] font-medium rounded transition-all border ${isActive
-                        ? 'bg-white/10 text-white border-white/20'
-                        : 'text-nofx-text-muted border-transparent hover:text-nofx-text-main hover:bg-white/5'
-                        }`}
-                    >
-                      <span className="mr-1 opacity-70">{config.icon}</span>
-                      {language === 'zh' ? config.label.zh : config.label.en}
-                    </button>
-                  )
-                })}
-              </div>
-            </>
+            <div className="hidden md:flex items-center gap-1 ml-2 border-l border-white/10 pl-2">
+              {(Object.keys(MARKET_CONFIG) as MarketType[]).map((type) => {
+                const config = MARKET_CONFIG[type]
+                const isActive = marketType === type
+                return (
+                  <button
+                    key={type}
+                    onClick={() => handleMarketTypeChange(type)}
+                    className={`px-2.5 py-1 text-[10px] font-medium rounded transition-all border ${isActive
+                      ? 'bg-white/10 text-white border-white/20'
+                      : 'text-nofx-text-muted border-transparent hover:text-nofx-text-main hover:bg-white/5'
+                      }`}
+                  >
+                    <span className="mr-1 opacity-70">{config.icon}</span>
+                    {language === 'zh' ? config.label.zh : config.label.en}
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
 
@@ -294,8 +298,8 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
         )}
       </div>
 
-      {/* Tab Content */}
-      <div className="relative flex-1 bg-[#0B0E11]/50 rounded-b-lg overflow-hidden">
+      {/* Tab Content - Chart autosizes to this container */}
+      <div className="relative flex-1 bg-[#0B0E11]/50 rounded-b-lg overflow-hidden h-full min-h-0">
         <AnimatePresence mode="wait">
           {activeTab === 'equity' ? (
             <motion.div
@@ -321,8 +325,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 symbol={chartSymbol}
                 interval={interval}
                 traderID={traderId}
-                // Dynamic height to fill container
-                height={550}
+                // Dynamic auto-sizing via ResizeObserver
                 exchange={currentExchange}
                 onSymbolChange={setChartSymbol}
               />

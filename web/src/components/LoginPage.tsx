@@ -10,13 +10,15 @@ import { useSystemConfig } from '../hooks/useSystemConfig'
 
 export function LoginPage() {
   const { language } = useLanguage()
-  const { login, loginAdmin, verifyOTP } = useAuth()
-  const [step, setStep] = useState<'login' | 'otp'>('login')
+  const { login, loginAdmin, verifyOTP, completeRegistration } = useAuth()
+  const [step, setStep] = useState<'login' | 'otp' | 'setup-otp'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [otpCode, setOtpCode] = useState('')
   const [userID, setUserID] = useState('')
+  const [qrCodeURL, setQrCodeURL] = useState('') // New state for recovery
+  const [otpSecret, setOtpSecret] = useState('') // New state for recovery
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
@@ -62,9 +64,25 @@ export function LoginPage() {
     const result = await login(email, password)
 
     if (result.success) {
-      if (result.requiresOTP && result.userID) {
+      // Check for incomplete OTP setup (user registered but didn't complete 2FA)
+      if (result.requiresOTPSetup && result.userID) {
         setUserID(result.userID)
-        setStep('otp')
+        setQrCodeURL(result.qrCodeURL || '')
+        setOtpSecret(result.otpSecret || '')
+        setStep('setup-otp')
+        toast.info("Pending 2FA setup detected. Please complete configuration.")
+      } else if (result.requiresOTP && result.userID) {
+        setUserID(result.userID)
+
+        // Check if backend provided recovery data (meaning 2FA is pending setup)
+        if (result.qrCodeURL) {
+          setQrCodeURL(result.qrCodeURL)
+          setOtpSecret(result.otpSecret || '')
+          setStep('setup-otp')
+          toast.info("Pending 2FA setup detected. Please complete configuration.")
+        } else {
+          setStep('otp')
+        }
       } else {
         // Dismiss the "login expired" toast on successful login (no OTP required)
         if (expiredToastId) {
@@ -72,9 +90,18 @@ export function LoginPage() {
         }
       }
     } else {
-      const msg = result.message || t('loginFailed', language)
-      setError(msg)
-      toast.error(msg)
+      // Check if we have recovery data despite the error (e.g. "Account has not completed OTP setup")
+      if (result.qrCodeURL) {
+        setUserID(result.userID || '') // We might need to ensure userID is returned in error case too, or derived
+        setQrCodeURL(result.qrCodeURL)
+        setOtpSecret(result.otpSecret || '')
+        setStep('setup-otp')
+        toast.warning(t('completeGapSetup', language) || "Incomplete setup detected. Please configure 2FA.")
+      } else {
+        const msg = result.message || t('loginFailed', language)
+        setError(msg)
+        toast.error(msg)
+      }
     }
 
     setLoading(false)
@@ -85,7 +112,11 @@ export function LoginPage() {
     setError('')
     setLoading(true)
 
-    const result = await verifyOTP(userID, otpCode)
+    // If we have qrCodeURL, it means user needs to complete registration (first time OTP setup)
+    // Otherwise, it's a normal login OTP verification
+    const result = qrCodeURL
+      ? await completeRegistration(userID, otpCode)
+      : await verifyOTP(userID, otpCode)
 
     if (!result.success) {
       const msg = result.message || t('verificationFailed', language)
@@ -96,10 +127,18 @@ export function LoginPage() {
       if (expiredToastId) {
         toast.dismiss(expiredToastId)
       }
+      // Clear qrCodeURL after successful completion
+      setQrCodeURL('')
+      setOtpSecret('')
     }
     // 成功的话AuthContext会自动处理登录状态
 
     setLoading(false)
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast.success('Copied to clipboard')
   }
 
   return (
@@ -202,6 +241,66 @@ export function LoginPage() {
                   {loading ? '> VERIFYING...' : '> EXECUTE_LOGIN'}
                 </button>
               </form>
+            ) : step === 'setup-otp' ? (
+              <div className="space-y-6">
+                <div className="text-center bg-zinc-900/50 p-4 rounded border border-zinc-800">
+                  <div className="text-xs font-mono text-zinc-400 mb-2">COMPLETE 2FA CONFIGURATION</div>
+                  {qrCodeURL ? (
+                    <div className="bg-white p-2 rounded inline-block shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`otpauth://totp/NoFX:${email}?secret=${otpSecret}&issuer=NoFX`)}`}
+                        alt="QR Code"
+                        className="w-32 h-32"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-32 h-32 bg-zinc-800 animate-pulse rounded inline-block"></div>
+                  )}
+                  <div className="mt-4">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Backup Secret Key</p>
+                    <div className="flex items-center gap-2 justify-center bg-black/50 p-2 rounded border border-zinc-700/50 max-w-[200px] mx-auto">
+                      <code className="text-xs font-mono text-nofx-gold">{otpSecret}</code>
+                      <button
+                        onClick={() => copyToClipboard(otpSecret)}
+                        className="text-zinc-500 hover:text-white transition-colors"
+                      >
+                        <span className="text-[10px] uppercase border border-zinc-700 px-1 rounded">Copy</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 font-mono text-xs text-zinc-400 bg-black/20 p-4 rounded border border-zinc-800/50">
+                  <div className="flex gap-3 items-start">
+                    <span className="text-nofx-gold font-bold mt-0.5">01</span>
+                    <div>
+                      <p className="font-bold text-white mb-1">Install Authenticator App</p>
+                      <p className="mb-2">Recommended: <span className="text-nofx-gold">Google Authenticator</span>.</p>
+                      <div className="flex gap-2">
+                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">iOS</span>
+                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">Android</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="w-full h-px bg-zinc-800/50"></div>
+
+                  <div className="flex gap-3 items-start">
+                    <span className="text-nofx-gold font-bold mt-0.5">02</span>
+                    <div>
+                      <p className="font-bold text-white mb-1">Scan & Verify</p>
+                      <p>Scan code above, then enter the 6-digit token below to activate your account.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setStep('otp')}
+                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-colors font-mono shadow-lg"
+                >
+                  I HAVE SCANNED THE CODE →
+                </button>
+              </div>
             ) : step === 'login' ? (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-4">

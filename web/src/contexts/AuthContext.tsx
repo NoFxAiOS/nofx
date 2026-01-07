@@ -18,6 +18,10 @@ interface AuthContextType {
     message?: string
     userID?: string
     requiresOTP?: boolean
+    requiresOTPSetup?: boolean
+    qrCodeURL?: string
+    otpSecret?: string
+    email?: string
   }>
   loginAdmin: (password: string) => Promise<{
     success: boolean
@@ -119,22 +123,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
+        // Check for OTP setup required (incomplete registration)
+        if (data.requires_otp_setup) {
+          return {
+            success: true,
+            userID: data.user_id,
+            requiresOTPSetup: true,
+            message: data.message,
+            qrCodeURL: data.qr_code_url,
+            otpSecret: data.otp_secret,
+            email: data.email
+          }
+        }
+        // Check for OTP verification required (normal login flow)
         if (data.requires_otp) {
           return {
             success: true,
             userID: data.user_id,
             requiresOTP: true,
             message: data.message,
+            qrCodeURL: data.qr_code_url,
+            otpSecret: data.otp_secret
           }
         }
+        // Unexpected success response
+        return { success: false, message: '登录响应异常' }
       } else {
-        return { success: false, message: data.error }
+        return {
+          success: false,
+          message: data.error,
+          qrCodeURL: data.qr_code_url,
+          otpSecret: data.otp_secret,
+          userID: data.user_id
+        }
       }
     } catch (error) {
       return { success: false, message: '登录失败，请重试' }
     }
-
-    return { success: false, message: '未知错误' }
   }
 
   const loginAdmin = async (password: string) => {

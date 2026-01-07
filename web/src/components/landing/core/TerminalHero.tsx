@@ -174,7 +174,7 @@ export default function TerminalHero() {
                     {/* Main Title - Massive & Impactful */}
                     {/* Main Title - Massive & Impactful */}
                     <div className="relative z-20 mix-blend-hard-light md:mix-blend-normal">
-                        <h1 className="text-6xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] md:leading-[0.8] mb-6 select-none bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-zinc-600 drop-shadow-2xl">
+                        <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter leading-[0.9] md:leading-[0.8] mb-6 select-none bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-zinc-600 drop-shadow-2xl">
                             AGENTIC<br />
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-nofx-gold via-white to-nofx-gold animate-shimmer bg-[length:200%_auto] tracking-tight filter drop-shadow-[0_0_15px_rgba(234,179,8,0.3)]">TRADING</span>
                         </h1>
@@ -344,14 +344,14 @@ function CommunityStats() {
     const stats = [
         {
             label: 'GITHUB STARS',
-            value: isLoading ? '...' : (error ? '9.5k+' : stars.toLocaleString()),
+            value: isLoading ? '...' : (error ? '9,700+' : stars.toLocaleString()),
             icon: Star,
             color: 'text-yellow-400',
             href: OFFICIAL_LINKS.github
         },
         {
             label: 'FORKS',
-            value: isLoading ? '...' : (error ? '2.5k+' : forks.toLocaleString()),
+            value: isLoading ? '...' : (error ? '2,600+' : forks.toLocaleString()),
             icon: GitFork,
             color: 'text-blue-400',
             href: `${OFFICIAL_LINKS.github}/fork`
@@ -365,7 +365,7 @@ function CommunityStats() {
         },
         {
             label: 'DEV COMMUNITY',
-            value: '5,800+', // Hardcoded as per user request
+            value: '6,000+', // Updated as per user request
             icon: MessageCircle,
             color: 'text-blue-500',
             href: OFFICIAL_LINKS.telegram

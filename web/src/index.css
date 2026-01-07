@@ -471,7 +471,13 @@ textarea::placeholder {
   border-radius: 8px;
   padding: 0.5rem 0.75rem;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.875rem;
+  font-size: 16px;
+
+  /* Prevent iOS zoom */
+  @media (min-width: 768px) {
+    font-size: 0.875rem;
+  }
+
   color: var(--text-primary);
   transition: all 0.2s ease;
 }
@@ -788,8 +794,20 @@ tr:hover {
   color: var(--binance-red);
 }
 
-.number-neutral {
-  color: var(--text-secondary);
+/* Scrollbar Hiding for sleek horizontal scrolls */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Linear Fade Mask for Scrollable Areas */
+.mask-linear-fade {
+  mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%);
 }
 
 /* Divider */

@@ -277,8 +277,8 @@ func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
 			StopPrice:  stopPrice,
 			Price:      0, // Algo market orders don't have execution price
 			Quantity:   quantity,
-			Status:     string(algoOrder.Status),
-			ReduceOnly: true, // Algo TP/SL orders are always reduce only
+			Status:     "ACTIVE", // Algo orders don't have Status field, use default
+			ReduceOnly: true,     // Algo TP/SL orders are always reduce only
 			CreateTime: algoOrder.CreateTime,
 			UpdateTime: algoOrder.UpdateTime,
 		}
@@ -380,7 +380,6 @@ func (t *FuturesTrader) GetPositions() ([]map[string]interface{}, error) {
 			}
 
 			// Determine if this order matches the position side
-			matchesPositionSide := false
 			tpslOrderType := tpslOrder.OrderType
 			tpslSide := tpslOrder.Side
 

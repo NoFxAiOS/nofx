@@ -645,6 +645,18 @@ export function TraderDashboardPage({
                         </th>
                         <th
                           className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right"
+                          title={t('takeProfit', language)}
+                        >
+                          {language === 'zh' ? '止盈' : 'TP'}
+                        </th>
+                        <th
+                          className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right"
+                          title={t('stopLoss', language)}
+                        >
+                          {language === 'zh' ? '止损' : 'SL'}
+                        </th>
+                        <th
+                          className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right"
                           title={t('unrealizedPnL', language)}
                         >
                           {language === 'zh' ? '未实现盈亏' : 'uPnL'}
@@ -678,7 +690,7 @@ export function TraderDashboardPage({
                           </td>
                           <td className="px-1 py-3 whitespace-nowrap text-center">
                             <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${pos.side === 'long' ? 'bg-nofx-green/10 text-nofx-green shadow-[0_0_8px_rgba(14,203,129,0.2)]' : 'bg-nofx-red/10 text-nofx-red shadow-[0_0_8px_rgba(246,70,93,0.2)]'}`}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${pos.side === 'long' ? 'bg-nofx-green/20 text-nofx-green border border-nofx-green/30 shadow-[0_0_8px_rgba(14,203,129,0.3)]' : 'bg-nofx-red/20 text-nofx-red border border-nofx-red/30 shadow-[0_0_8px_rgba(246,70,93,0.3)]'}`}
                             >
                               {t(
                                 pos.side === 'long' ? 'long' : 'short',
@@ -726,6 +738,34 @@ export function TraderDashboardPage({
                             {pos.leverage}x
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
+                            {pos.take_profit_price !== undefined && pos.take_profit_price > 0 ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-nofx-green font-semibold shadow-[0_0_8px_rgba(14,203,129,0.3)]">
+                                  {pos.take_profit_price.toFixed(4)}
+                                </span>
+                                <span className={`text-[10px] font-medium ${((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
+                                  {((pos.take_profit_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1) * pos.quantity).toFixed(2)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-nofx-text-muted opacity-50">-</span>
+                            )}
+                          </td>
+                          <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
+                            {pos.stop_loss_price !== undefined && pos.stop_loss_price > 0 ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <span className="text-nofx-red font-semibold shadow-[0_0_8px_rgba(246,70,93,0.3)]">
+                                  {pos.stop_loss_price.toFixed(4)}
+                                </span>
+                                <span className={`text-[10px] font-medium ${((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1)) >= 0 ? 'text-nofx-green' : 'text-nofx-red'}`}>
+                                  {((pos.stop_loss_price - pos.entry_price) * (pos.side === 'long' ? 1 : -1) * pos.quantity).toFixed(2)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-nofx-text-muted opacity-50">-</span>
+                            )}
+                          </td>
+                          <td className="px-1 py-3 font-mono whitespace-nowrap text-right">
                             <span
                               className={`font-bold ${pos.unrealized_pnl >= 0 ? 'text-nofx-green shadow-nofx-green' : 'text-nofx-red shadow-nofx-red'}`}
                               style={{
@@ -737,6 +777,9 @@ export function TraderDashboardPage({
                             >
                               {pos.unrealized_pnl >= 0 ? '+' : ''}
                               {pos.unrealized_pnl.toFixed(2)}
+                              <span className="text-[9px] ml-1 opacity-80">
+                                ({((pos.mark_price - pos.entry_price) / pos.entry_price * (pos.side === 'long' ? 1 : -1) * 100) >= 0 ? '+' : ''}{((pos.mark_price - pos.entry_price) / pos.entry_price * (pos.side === 'long' ? 1 : -1) * 100).toFixed(2)}%)
+                              </span>
                             </span>
                           </td>
                           <td className="px-1 py-3 font-mono whitespace-nowrap text-right text-nofx-text-muted">

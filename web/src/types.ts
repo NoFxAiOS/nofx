@@ -38,6 +38,8 @@ export interface Position {
   unrealized_pnl_pct: number
   liquidation_price: number
   margin_used: number
+  take_profit_price?: number // Take profit price
+  stop_loss_price?: number // Stop loss price
 }
 
 export interface DecisionAction {

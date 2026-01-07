@@ -2050,6 +2050,17 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			leverage = int(lev)
 		}
 
+		// Extract take profit and stop loss prices if available
+		takeProfitPrice := 0.0
+		stopLossPrice := 0.0
+
+		if tp, ok := pos["takeProfitPrice"].(float64); ok {
+			takeProfitPrice = tp
+		}
+		if sl, ok := pos["stopLossPrice"].(float64); ok {
+			stopLossPrice = sl
+		}
+
 		// Calculate margin used
 		marginUsed := (quantity * markPrice) / float64(leverage)
 
@@ -2057,16 +2068,18 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
 		result = append(result, map[string]interface{}{
-			"symbol":             symbol,
-			"side":               side,
-			"entry_price":        entryPrice,
-			"mark_price":         markPrice,
-			"quantity":           quantity,
-			"leverage":           leverage,
-			"unrealized_pnl":     unrealizedPnl,
-			"unrealized_pnl_pct": pnlPct,
-			"liquidation_price":  liquidationPrice,
-			"margin_used":        marginUsed,
+			"symbol":              symbol,
+			"side":                side,
+			"entry_price":         entryPrice,
+			"mark_price":          markPrice,
+			"quantity":            quantity,
+			"leverage":            leverage,
+			"unrealized_pnl":      unrealizedPnl,
+			"unrealized_pnl_pct":  pnlPct,
+			"liquidation_price":   liquidationPrice,
+			"margin_used":         marginUsed,
+			"take_profit_price":   takeProfitPrice,
+			"stop_loss_price":     stopLossPrice,
 		})
 	}
 

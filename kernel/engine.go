@@ -1276,10 +1276,20 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		positionValue = -positionValue
 	}
 
-	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n\n",
+	// Format take profit and stop loss (display "Not set" if 0)
+	takeProfitStr := "Not set"
+	if pos.TakeProfitPrice > 0 {
+		takeProfitStr = fmt.Sprintf("%.4f", pos.TakeProfitPrice)
+	}
+	stopLossStr := "Not set"
+	if pos.StopLossPrice > 0 {
+		stopLossStr = fmt.Sprintf("%.4f", pos.StopLossPrice)
+	}
+
+	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f | TP: %s | SL: %s%s\n\n",
 		index, pos.Symbol, strings.ToUpper(pos.Side),
 		pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
-		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
+		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, takeProfitStr, stopLossStr, holdingDuration))
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))

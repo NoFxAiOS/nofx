@@ -134,9 +134,23 @@ start_service() {
     echo $pid > "$pid_file"
     
     # 短暂等待，检查进程是否成功启动
-    sleep 2
+    sleep 3
     if ps -p $pid > /dev/null; then
         echo "=> 服务 '$name' 启动成功！PID: $pid, 日志: $log"
+        
+        # 如果是前端服务，尝试从日志中提取 URL
+        if [ "$name" = "$FRONTEND_NAME" ]; then
+            echo ""
+            echo "=> 正在获取前端服务地址..."
+            sleep 2 # 等待 Vite 完全启动并输出地址
+            # 从日志中提取 URL 信息
+            if grep -q "Local:" "$log" || grep -q "Network:" "$log"; then
+                echo ""
+                echo "前端服务地址："
+                grep -E "(Local:|Network:)" "$log" | tail -2 | sed 's/^/  /'
+                echo ""
+            fi
+        fi
     else
         echo "=> [错误] 服务 '$name' 启动失败。请检查日志文件: $log"
         rm "$pid_file" # 启动失败，删除无效的 PID 文件

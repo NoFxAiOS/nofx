@@ -191,7 +191,7 @@ func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
 	for _, order := range openOrders {
 		// Check if this is a TP/SL order
 		isTPSLOrder := false
-		orderType := strings.ToUpper(order.Type)
+		orderType := string(order.Type)
 		
 		// STOP_MARKET, STOP_LIMIT, TAKE_PROFIT_MARKET, TAKE_PROFIT_LIMIT are TP/SL orders
 		if orderType == "STOP_MARKET" || orderType == "STOP_LIMIT" ||
@@ -211,7 +211,7 @@ func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
 		// Parse price values
 		stopPrice, _ := strconv.ParseFloat(order.StopPrice, 64)
 		price, _ := strconv.ParseFloat(order.Price, 64)
-		quantity, _ := strconv.ParseFloat(order.OrigQty, 64)
+		quantity, _ := strconv.ParseFloat(order.OrigQuantity, 64)
 
 		// Validate data - skip if stop price is 0 or invalid
 		if stopPrice == 0 && price == 0 {
@@ -219,14 +219,14 @@ func (t *FuturesTrader) GetTPSLOrders() ([]TPSLOrderInfo, error) {
 		}
 
 		tpslOrder := TPSLOrderInfo{
-			OrderID:    order.OrderId,
+			OrderID:    order.OrderID,
 			Symbol:     order.Symbol,
 			OrderType:  orderType,
-			Side:       order.Side,
+			Side:       string(order.Side),
 			StopPrice:  stopPrice,
 			Price:      price,
 			Quantity:   quantity,
-			Status:     order.Status,
+			Status:     string(order.Status),
 			ReduceOnly: order.ReduceOnly,
 			CreateTime: order.Time,
 			UpdateTime: order.UpdateTime,

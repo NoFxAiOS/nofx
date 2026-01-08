@@ -98,6 +98,7 @@ export function AdvancedChart({
   symbol = 'BTCUSDT',
   interval = '5m',
   traderID,
+  height = 550,
   exchange = 'binance', // 默认使用 binance
   onSymbolChange: _onSymbolChange, // Available for future use
 }: AdvancedChartProps) {
@@ -345,8 +346,8 @@ export function AdvancedChart({
     if (!chartContainerRef.current) return
 
     const chart = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: chartContainerRef.current.clientHeight, // Use container height
+      width: chartContainerRef.current.clientWidth || 800,
+      height: chartContainerRef.current.clientHeight || height,
       layout: {
         background: { color: '#0B0E11' },
         textColor: '#B7BDC6',
@@ -492,7 +493,7 @@ export function AdvancedChart({
       resizeObserver.disconnect()
       chart.remove()
     }
-  }, []) // Removed [height] dependency as we now autosize
+  }, []) // Chart is created once, ResizeObserver handles dimension changes
 
 
   // 加载数据和指标
@@ -914,12 +915,15 @@ export function AdvancedChart({
         borderRadius: '12px',
         overflow: 'hidden',
         border: '1px solid rgba(43, 49, 57, 0.5)',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* Compact Professional Header */}
       <div
         className="flex items-center justify-between px-4 py-2"
-        style={{ borderBottom: '1px solid rgba(43, 49, 57, 0.6)', background: '#0D1117' }}
+        style={{ borderBottom: '1px solid rgba(43, 49, 57, 0.6)', background: '#0D1117', flexShrink: 0 }}
       >
         {/* Left: Symbol Info + Price */}
         <div className="flex items-center gap-4">
@@ -1076,8 +1080,8 @@ export function AdvancedChart({
       )}
 
       {/* 图表容器 */}
-      <div style={{ position: 'relative' }}>
-        <div ref={chartContainerRef} />
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <div ref={chartContainerRef} style={{ height: '100%', width: '100%' }} />
 
         {/* OHLC Tooltip */}
         {tooltipData && (

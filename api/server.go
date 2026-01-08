@@ -605,6 +605,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 				string(exchangeCfg.APIKey),
 				string(exchangeCfg.SecretKey),
 				string(exchangeCfg.Passphrase),
+				exchangeCfg.Testnet,
 			)
 		case "bitget":
 			tempTrader = trader.NewBitgetTrader(
@@ -1149,6 +1150,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
+			exchangeCfg.Testnet,
 		)
 	case "bitget":
 		tempTrader = trader.NewBitgetTrader(
@@ -1301,6 +1303,7 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
+			exchangeCfg.Testnet,
 		)
 	case "bitget":
 		tempTrader = trader.NewBitgetTrader(

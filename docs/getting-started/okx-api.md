@@ -56,6 +56,7 @@ Add your API credentials through the NOFX web interface:
    - **Secret Key**
    - **Passphrase**
 5. Save configuration
+6. If you are using an OKX demo/paper account, enable **Use Simulated Trading** so NOFX adds `x-simulated-trading: 1` to every request.
 
 ## Troubleshooting
 

@@ -79,6 +79,7 @@ func main() {
 	}
 	defer st.Close()
 	backtest.UseDatabase(st.DB())
+	backtest.SetDatabaseType(string(st.DBType()))
 
 	// Initialize installation ID for experience improvement (anonymous statistics)
 	initInstallationID(st)

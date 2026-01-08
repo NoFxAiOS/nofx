@@ -1689,7 +1689,11 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		}
 
 		// Decrypt data
-		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+		expectedAAD := &crypto.AADData{
+			UserID:  userID,
+			Purpose: crypto.AADPurposeSensitiveData,
+		}
+		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload, expectedAAD)
 		if err != nil {
 			logger.Infof("❌ Failed to decrypt model config (UserID: %s): %v", userID, err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decrypt data"})
@@ -1809,7 +1813,11 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 		}
 
 		// Decrypt data
-		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+		expectedAAD := &crypto.AADData{
+			UserID:  userID,
+			Purpose: crypto.AADPurposeSensitiveData,
+		}
+		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload, expectedAAD)
 		if err != nil {
 			logger.Infof("❌ Failed to decrypt exchange config (UserID: %s): %v", userID, err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decrypt data"})
@@ -1903,7 +1911,11 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 			return
 		}
 
-		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload)
+		expectedAAD := &crypto.AADData{
+			UserID:  userID,
+			Purpose: crypto.AADPurposeSensitiveData,
+		}
+		decrypted, err := s.cryptoHandler.cryptoService.DecryptSensitiveData(&encryptedPayload, expectedAAD)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to decrypt data"})
 			return

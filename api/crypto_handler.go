@@ -1,10 +1,15 @@
 package api
 
 import (
+	"bytes"
+	"crypto/ed25519"
+	"encoding/json"
 	"log"
+	"math/big"
 	"net/http"
 	"nofx/config"
 	"nofx/crypto"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -84,10 +89,123 @@ func (h *CryptoHandler) HandleDecryptSensitiveData(c *gin.Context) {
 
 // isValidPrivateKey Validate private key format
 func isValidPrivateKey(key string) bool {
-	// EVM private key: 64 hex characters (optional 0x prefix)
-	if len(key) == 64 || (len(key) == 66 && key[:2] == "0x") {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return false
+	}
+
+	if isValidEVMPrivateKey(trimmed) {
+		return true
+	}
+	if isValidSolanaPrivateKey(trimmed) {
 		return true
 	}
 	// TODO: Add validation for other chains
 	return false
+}
+
+func isValidEVMPrivateKey(key string) bool {
+	// EVM private key: 64 hex characters (optional 0x prefix)
+	trimmed := key
+	if len(trimmed) == 66 && strings.HasPrefix(trimmed, "0x") {
+		trimmed = trimmed[2:]
+	}
+	return len(trimmed) == 64 && isHexString(trimmed)
+}
+
+func isValidSolanaPrivateKey(key string) bool {
+	keyBytes, ok := parseSolanaPrivateKeyBytes(key)
+	if !ok {
+		return false
+	}
+
+	switch len(keyBytes) {
+	case ed25519.SeedSize:
+		return true
+	case ed25519.PrivateKeySize:
+		seed := keyBytes[:ed25519.SeedSize]
+		pub := keyBytes[ed25519.SeedSize:]
+		derived := ed25519.NewKeyFromSeed(seed).Public().(ed25519.PublicKey)
+		return bytes.Equal(derived, pub)
+	default:
+		return false
+	}
+}
+
+func parseSolanaPrivateKeyBytes(key string) ([]byte, bool) {
+	trimmed := strings.TrimSpace(key)
+	if strings.HasPrefix(trimmed, "[") {
+		return parseSolanaJSONKey(trimmed)
+	}
+
+	decoded, ok := decodeBase58(trimmed)
+	if !ok {
+		return nil, false
+	}
+	if len(decoded) != ed25519.SeedSize && len(decoded) != ed25519.PrivateKeySize {
+		return nil, false
+	}
+	return decoded, true
+}
+
+func parseSolanaJSONKey(key string) ([]byte, bool) {
+	var values []int
+	if err := json.Unmarshal([]byte(key), &values); err != nil {
+		return nil, false
+	}
+	if len(values) != ed25519.SeedSize && len(values) != ed25519.PrivateKeySize {
+		return nil, false
+	}
+
+	out := make([]byte, len(values))
+	for i, v := range values {
+		if v < 0 || v > 255 {
+			return nil, false
+		}
+		out[i] = byte(v)
+	}
+	return out, true
+}
+
+const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+func decodeBase58(input string) ([]byte, bool) {
+	if input == "" {
+		return nil, false
+	}
+
+	base := big.NewInt(58)
+	num := big.NewInt(0)
+	for i := 0; i < len(input); i++ {
+		idx := strings.IndexByte(base58Alphabet, input[i])
+		if idx < 0 {
+			return nil, false
+		}
+		num.Mul(num, base)
+		num.Add(num, big.NewInt(int64(idx)))
+	}
+
+	decoded := num.Bytes()
+	leadingZeros := 0
+	for leadingZeros < len(input) && input[leadingZeros] == '1' {
+		leadingZeros++
+	}
+	if leadingZeros > 0 {
+		decoded = append(make([]byte, leadingZeros), decoded...)
+	}
+
+	return decoded, true
+}
+
+func isHexString(s string) bool {
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'f':
+		case c >= 'A' && c <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }

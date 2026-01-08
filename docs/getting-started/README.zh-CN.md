@@ -82,6 +82,10 @@ cp config.json.example config.json
 - 🔑 限制 IP 访问
 - 🔑 在交易所启用 2FA
 
+**私钥校验（输入格式）：**
+- 🔐 EVM：64 位十六进制（可带 `0x` 前缀）
+- 🔐 Solana/Ed25519：Base58 字符串或 JSON 数组；支持 32 字节 seed 或 64 字节 keypair（seed + 公钥）
+
 ---
 
 ## 🆘 故障排除

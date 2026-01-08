@@ -124,11 +124,23 @@ func (df *DataFeed) DecisionBarCount() int {
 }
 
 func (df *DataFeed) DecisionTimestamp(index int) int64 {
+	// Bounds check to prevent panic
+	if index < 0 || index >= len(df.decisionTimes) {
+		return 0
+	}
 	return df.decisionTimes[index]
 }
 
 func (df *DataFeed) sliceUpTo(symbol, tf string, ts int64) []market.Kline {
-	series := df.symbolSeries[symbol].byTF[tf]
+	// Nil checks to prevent panic
+	ss, ok := df.symbolSeries[symbol]
+	if !ok || ss == nil {
+		return nil
+	}
+	series, ok := ss.byTF[tf]
+	if !ok || series == nil {
+		return nil
+	}
 	idx := sort.Search(len(series.closeTimes), func(i int) bool {
 		return series.closeTimes[i] > ts
 	})

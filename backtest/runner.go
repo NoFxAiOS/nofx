@@ -60,8 +60,9 @@ type Runner struct {
 	aiCache   *AICache
 	cachePath string
 
-	lockInfo *RunLockInfo
-	lockStop chan struct{}
+	lockInfo     *RunLockInfo
+	lockStop     chan struct{}
+	lockStopOnce sync.Once // Ensures lockStop is closed only once
 }
 
 // NewRunner constructs a backtest runner.
@@ -175,10 +176,12 @@ func (r *Runner) lockHeartbeatLoop() {
 }
 
 func (r *Runner) releaseLock() {
-	if r.lockStop != nil {
-		close(r.lockStop)
-		r.lockStop = nil
-	}
+	// Use sync.Once to ensure channel is closed exactly once, preventing panic on double-close
+	r.lockStopOnce.Do(func() {
+		if r.lockStop != nil {
+			close(r.lockStop)
+		}
+	})
 	if err := deleteRunLock(r.cfg.RunID); err != nil {
 		logger.Infof("failed to release lock for %s: %v", r.cfg.RunID, err)
 	}
@@ -297,9 +300,12 @@ func (r *Runner) stepOnce() error {
 	if shouldDecide {
 		ctx, rec, err := r.buildDecisionContext(ts, marketData, multiTF, priceMap, callCount)
 		if err != nil {
-			rec.Success = false
-			rec.ErrorMessage = fmt.Sprintf("failed to build trading context: %v", err)
-			_ = r.logDecision(rec)
+			// Defensive nil check to prevent panic if buildDecisionContext returns error with nil record
+			if rec != nil {
+				rec.Success = false
+				rec.ErrorMessage = fmt.Sprintf("failed to build trading context: %v", err)
+				_ = r.logDecision(rec)
+			}
 			return err
 		}
 		record = rec
@@ -617,6 +623,10 @@ func (r *Runner) invokeAIWithRetry(ctx *kernel.Context) (*kernel.FullDecision, e
 
 func (r *Runner) executeDecision(dec kernel.Decision, priceMap map[string]float64, ts int64, cycle int) (store.DecisionAction, []TradeEvent, string, error) {
 	symbol := dec.Symbol
+	if symbol == "" {
+		return store.DecisionAction{}, nil, "", fmt.Errorf("empty symbol in decision")
+	}
+
 	usedLeverage := r.resolveLeverage(dec.Leverage, symbol)
 	actionRecord := store.DecisionAction{
 		Action:    dec.Action,
@@ -625,9 +635,13 @@ func (r *Runner) executeDecision(dec kernel.Decision, priceMap map[string]float6
 		Timestamp: time.UnixMilli(ts).UTC(),
 	}
 
-	basePrice := priceMap[symbol]
-	if basePrice <= 0 {
-		return actionRecord, nil, "", fmt.Errorf("price unavailable for %s", symbol)
+	if priceMap == nil {
+		return actionRecord, nil, "", fmt.Errorf("priceMap is nil")
+	}
+
+	basePrice, ok := priceMap[symbol]
+	if !ok || basePrice <= 0 {
+		return actionRecord, nil, "", fmt.Errorf("price unavailable for %s (found=%v, price=%.4f)", symbol, ok, basePrice)
 	}
 	fillPrice := r.executionPrice(symbol, basePrice, ts)
 
@@ -757,6 +771,9 @@ func (r *Runner) executeDecision(dec kernel.Decision, priceMap map[string]float6
 	}
 }
 
+// MinPositionSizeUSD is the minimum position size in USD to avoid dust positions
+const MinPositionSizeUSD = 10.0
+
 func (r *Runner) determineQuantity(dec kernel.Decision, price float64) float64 {
 	snapshot := r.snapshotState()
 	equity := snapshot.Equity
@@ -788,6 +805,13 @@ func (r *Runner) determineQuantity(dec kernel.Decision, price float64) float64 {
 		sizeUSD = maxPositionValue
 	}
 
+	// Reject positions below minimum size to avoid dust positions
+	if sizeUSD < MinPositionSizeUSD {
+		logger.Infof("📊 Backtest: rejecting position size %.2f USD (below minimum %.2f USD)",
+			sizeUSD, MinPositionSizeUSD)
+		return 0
+	}
+
 	qty := sizeUSD / price
 	if qty < 0 {
 		qty = 0
@@ -805,20 +829,37 @@ func (r *Runner) determineCloseQuantity(symbol, side string, dec kernel.Decision
 }
 
 func (r *Runner) resolveLeverage(requested int, symbol string) int {
-	if requested > 0 {
-		return requested
-	}
 	sym := strings.ToUpper(symbol)
-	if sym == "BTCUSDT" || sym == "ETHUSDT" {
-		if r.cfg.Leverage.BTCETHLeverage > 0 {
-			return r.cfg.Leverage.BTCETHLeverage
+	isBTCETH := sym == "BTCUSDT" || sym == "ETHUSDT"
+
+	// Determine configured max leverage for this symbol type
+	var maxLeverage int
+	if isBTCETH {
+		maxLeverage = r.cfg.Leverage.BTCETHLeverage
+		if maxLeverage <= 0 {
+			maxLeverage = 10 // Default max for BTC/ETH
 		}
 	} else {
-		if r.cfg.Leverage.AltcoinLeverage > 0 {
-			return r.cfg.Leverage.AltcoinLeverage
+		maxLeverage = r.cfg.Leverage.AltcoinLeverage
+		if maxLeverage <= 0 {
+			maxLeverage = 5 // Default max for altcoins
 		}
 	}
-	return 5
+
+	// Use requested leverage if provided, otherwise use max as default
+	leverage := requested
+	if leverage <= 0 {
+		leverage = maxLeverage
+	}
+
+	// Enforce max leverage limit
+	if leverage > maxLeverage {
+		logger.Infof("📊 Backtest: capping leverage from %dx to %dx for %s",
+			leverage, maxLeverage, symbol)
+		leverage = maxLeverage
+	}
+
+	return leverage
 }
 
 func (r *Runner) remainingPosition(symbol, side string) float64 {
@@ -854,6 +895,12 @@ func (r *Runner) convertPositions(priceMap map[string]float64) []kernel.Position
 	list := make([]kernel.PositionInfo, 0, len(positions))
 	for _, pos := range positions {
 		price := priceMap[pos.Symbol]
+		pnl := unrealizedPnL(pos, price)
+		// Calculate P&L percentage based on entry notional (position cost)
+		pnlPct := 0.0
+		if pos.Notional > 0 {
+			pnlPct = (pnl / pos.Notional) * 100
+		}
 		list = append(list, kernel.PositionInfo{
 			Symbol:           pos.Symbol,
 			Side:             pos.Side,
@@ -861,8 +908,8 @@ func (r *Runner) convertPositions(priceMap map[string]float64) []kernel.Position
 			MarkPrice:        price,
 			Quantity:         pos.Quantity,
 			Leverage:         pos.Leverage,
-			UnrealizedPnL:    unrealizedPnL(pos, price),
-			UnrealizedPnLPct: 0,
+			UnrealizedPnL:    pnl,
+			UnrealizedPnLPct: pnlPct,
 			LiquidationPrice: pos.LiquidationPrice,
 			MarginUsed:       pos.Margin,
 			UpdateTime:       time.Now().UnixMilli(),

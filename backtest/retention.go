@@ -73,12 +73,12 @@ func enforceRetentionDB(maxRuns int) {
 		RunStateFailed,
 		RunStateLiquidated,
 	}
-	query := `
+	query := convertQuery(`
 		SELECT run_id FROM backtest_runs
 		WHERE state IN (?, ?, ?, ?)
 		ORDER BY updated_at DESC
 		OFFSET ?
-	`
+	`)
 	rows, err := persistenceDB.Query(query,
 		finalStates[0], finalStates[1], finalStates[2], finalStates[3], maxRuns)
 	if err != nil {

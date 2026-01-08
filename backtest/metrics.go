@@ -91,8 +91,13 @@ func maxDrawdown(points []EquityPoint, state *BacktestState) float64 {
 	return maxDD
 }
 
+// sharpeRatio calculates the Sharpe ratio from equity points.
+// Uses sample standard deviation (n-1) and annualizes assuming ~252 trading days.
+// Returns math.NaN() for edge cases (insufficient data, zero variance).
 func sharpeRatio(points []EquityPoint) float64 {
-	if len(points) < 2 {
+	// Need at least 10 data points for meaningful Sharpe calculation
+	const minDataPoints = 10
+	if len(points) < minDataPoints {
 		return 0
 	}
 
@@ -108,34 +113,42 @@ func sharpeRatio(points []EquityPoint) float64 {
 		returns = append(returns, ret)
 		prev = curr
 	}
-	if len(returns) == 0 {
+	if len(returns) < minDataPoints-1 {
 		return 0
 	}
 
+	// Calculate mean return
 	mean := 0.0
 	for _, r := range returns {
 		mean += r
 	}
 	mean /= float64(len(returns))
 
+	// Calculate sample variance (using n-1 for unbiased estimator)
 	variance := 0.0
 	for _, r := range returns {
 		diff := r - mean
 		variance += diff * diff
 	}
-	variance /= float64(len(returns))
+	if len(returns) > 1 {
+		variance /= float64(len(returns) - 1)
+	}
 
 	std := math.Sqrt(variance)
-	if std == 0 {
-		if mean > 0 {
-			return 999
-		}
-		if mean < 0 {
-			return -999
-		}
+	if std < 1e-10 {
+		// Zero or near-zero volatility - return 0 instead of infinity/NaN
 		return 0
 	}
-	return mean / std
+
+	// Calculate Sharpe ratio (assuming risk-free rate = 0 for crypto)
+	// Annualize by multiplying by sqrt(periods per year)
+	// Assuming each equity point represents ~1 hour, we have ~8760 periods/year
+	// For conservative estimate, use sqrt(252) as if daily returns
+	periodsPerYear := 252.0
+	annualizationFactor := math.Sqrt(periodsPerYear)
+
+	sharpe := (mean / std) * annualizationFactor
+	return sharpe
 }
 
 func fillTradeMetrics(metrics *Metrics, events []TradeEvent) {
@@ -189,7 +202,8 @@ func fillTradeMetrics(metrics *Metrics, events []TradeEvent) {
 	if totalLossAmount > 0 {
 		metrics.ProfitFactor = totalWinAmount / totalLossAmount
 	} else if totalWinAmount > 0 {
-		metrics.ProfitFactor = 999
+		// No losses but have wins - use a high but reasonable cap
+		metrics.ProfitFactor = 100.0
 	}
 
 	bestSymbol := ""

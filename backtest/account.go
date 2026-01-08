@@ -122,10 +122,10 @@ func (acc *BacktestAccount) Close(symbol, side string, quantity float64, price f
 	}
 
 	execPrice := applySlippage(price, acc.slippageRate, side, false)
-	notional := execPrice * quantity
-	closingFee := notional * acc.feeRate
+	closeNotional := execPrice * quantity // Notional at close price (for fee calculation)
+	closingFee := closeNotional * acc.feeRate
 
-	// Calculate proportional opening fee for the quantity being closed
+	// Calculate proportional values based on the portion being closed
 	closePortion := quantity / pos.Quantity
 	openingFeePortion := pos.AccumulatedFee * closePortion
 	totalFee := closingFee + openingFeePortion
@@ -133,13 +133,17 @@ func (acc *BacktestAccount) Close(symbol, side string, quantity float64, price f
 	realized := realizedPnL(pos, quantity, execPrice)
 
 	marginPortion := pos.Margin * closePortion
+	// BUG FIX: Calculate notional portion based on ENTRY price, not close price
+	// pos.Notional tracks the total notional at entry, so we must subtract proportionally
+	entryNotionalPortion := pos.Notional * closePortion
+
 	// Note: Opening fee was already deducted from cash when opening, so we only deduct closing fee here
 	acc.cash += marginPortion + realized - closingFee
 	// But for realized P&L tracking, we include both fees
 	acc.realizedPnL += realized - totalFee
 
 	pos.Quantity -= quantity
-	pos.Notional -= notional
+	pos.Notional -= entryNotionalPortion // FIX: Use entry notional portion, not close notional
 	pos.Margin -= marginPortion
 	pos.AccumulatedFee -= openingFeePortion // Reduce tracked opening fee
 

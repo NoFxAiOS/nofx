@@ -147,7 +147,7 @@ func (BacktestCheckpoint) TableName() string {
 type BacktestEquity struct {
 	ID        int64   `gorm:"primaryKey;autoIncrement"`
 	RunID     string  `gorm:"column:run_id;not null;index:idx_backtest_equity_run_ts"`
-	TS        int64   `gorm:"column:ts;not null;index:idx_backtest_equity_run_ts"`
+	TS        int64   `gorm:"column:ts;type:bigint;not null;index:idx_backtest_equity_run_ts"`
 	Equity    float64 `gorm:"column:equity;not null"`
 	Available float64 `gorm:"column:available;not null"`
 	PnL       float64 `gorm:"column:pnl;not null"`
@@ -164,7 +164,7 @@ func (BacktestEquity) TableName() string {
 type BacktestTrade struct {
 	ID            int64   `gorm:"primaryKey;autoIncrement"`
 	RunID         string  `gorm:"column:run_id;not null;index:idx_backtest_trades_run_ts"`
-	TS            int64   `gorm:"column:ts;not null;index:idx_backtest_trades_run_ts"`
+	TS            int64   `gorm:"column:ts;type:bigint;not null;index:idx_backtest_trades_run_ts"`
 	Symbol        string  `gorm:"column:symbol;not null"`
 	Action        string  `gorm:"column:action;not null"`
 	Side          string  `gorm:"column:side;default:''"`
@@ -217,7 +217,10 @@ func (s *BacktestStore) initTables() error {
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'backtest_runs'`).Scan(&tableExists)
 
 		if tableExists > 0 {
-			// Tables exist - just ensure indexes exist
+			// Tables exist - fix column types and ensure indexes exist
+			// Fix ts column type from INTEGER to BIGINT (timestamps in milliseconds exceed int4 max)
+			s.db.Exec(`ALTER TABLE backtest_equity ALTER COLUMN ts TYPE BIGINT`)
+			s.db.Exec(`ALTER TABLE backtest_trades ALTER COLUMN ts TYPE BIGINT`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_backtest_equity_run_ts ON backtest_equity(run_id, ts)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_backtest_trades_run_ts ON backtest_trades(run_id, ts)`)
 			s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_backtest_decisions_run_cycle ON backtest_decisions(run_id, cycle)`)

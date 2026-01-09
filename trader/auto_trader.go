@@ -295,7 +295,7 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 				}
 			}
 		} else {
-			return nil, fmt.Errorf("initial balance must be greater than 0, please set InitialBalance in config or ensure exchange account has balance")
+			return nil, fmt.Errorf("初始余额必须大于 0。请在配置中设置 InitialBalance，或将资金转入交易所合约账户后重试。Initial balance must be greater than 0. Please set InitialBalance in config or transfer funds to your exchange futures wallet and retry.")
 		}
 	}
 

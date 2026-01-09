@@ -140,10 +140,13 @@ export class HttpClient {
 
     // Handle 404 Not Found - system error
     if (status === 404) {
-      toast.error('API Not Found', {
-        description: 'The requested endpoint does not exist (404)',
+      const serverMessage = this.getServerErrorMessage(error.response.data)
+      toast.error('API Not Found / API 未找到', {
+        description: serverMessage
+          ? `Server: ${serverMessage} / 服务端: ${serverMessage}`
+          : 'The requested endpoint does not exist (404) / 请求的接口不存在 (404)',
       })
-      throw new Error('API not found')
+      throw new Error(serverMessage || 'API not found')
     }
 
     // Handle 500+ Server Error - system error
@@ -157,6 +160,16 @@ export class HttpClient {
     // 4xx errors (except 401/403/404) are business logic errors
     // Return them to the caller for handling
     return Promise.reject(error)
+  }
+
+  private getServerErrorMessage(data: unknown): string {
+    if (!data) return ''
+    if (typeof data === 'string') return data
+    if (typeof data === 'object') {
+      const maybeMessage = (data as any).error || (data as any).message
+      if (typeof maybeMessage === 'string') return maybeMessage
+    }
+    return ''
   }
 
   /**

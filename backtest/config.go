@@ -102,6 +102,9 @@ func (cfg *BacktestConfig) Validate() error {
 		return fmt.Errorf("invalid decision_timeframe: %w", err)
 	}
 	cfg.DecisionTimeframe = normalizedDecision
+	if !containsString(cfg.Timeframes, cfg.DecisionTimeframe) {
+		return fmt.Errorf("decision_timeframe '%s' must be included in timeframes", cfg.DecisionTimeframe)
+	}
 
 	if cfg.DecisionCadenceNBars <= 0 {
 		cfg.DecisionCadenceNBars = 20
@@ -162,6 +165,15 @@ func (cfg *BacktestConfig) Duration() time.Duration {
 		return 0
 	}
 	return time.Unix(cfg.EndTS, 0).Sub(time.Unix(cfg.StartTS, 0))
+}
+
+func containsString(list []string, target string) bool {
+	for _, item := range list {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }
 
 const (

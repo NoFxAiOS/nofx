@@ -60,9 +60,18 @@ type Runner struct {
 	aiCache   *AICache
 	cachePath string
 
+	trailingCfg   store.TrailingStopConfig
+	trailingState map[string]trailingState
+	trailingMu    sync.Mutex
+
 	lockInfo     *RunLockInfo
 	lockStop     chan struct{}
 	lockStopOnce sync.Once // Ensures lockStop is closed only once
+}
+
+type trailingState struct {
+	PeakPnLPct float64
+	PeakPrice  float64
 }
 
 // NewRunner constructs a backtest runner.
@@ -126,6 +135,8 @@ func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 		feed:           feed,
 		account:        account,
 		strategyEngine: strategyEngine,
+		trailingCfg:    strategyConfig.RiskControl.TrailingStop.WithDefaults(),
+		trailingState:  make(map[string]trailingState),
 		decisionLogDir: dLogDir,
 		mcpClient:      client,
 		status:         RunStateCreated,
@@ -294,6 +305,18 @@ func (r *Runner) stepOnce() error {
 		execLog         []string
 		hadError        bool
 	)
+
+	// Apply trailing stops before asking AI to make new decisions
+	trailingEvents, trailingLogs, trailingErr := r.applyTrailingStops(ts, priceMap, state.DecisionCycle)
+	if len(trailingEvents) > 0 {
+		tradeEvents = append(tradeEvents, trailingEvents...)
+	}
+	if len(trailingLogs) > 0 {
+		execLog = append(execLog, trailingLogs...)
+	}
+	if trailingErr {
+		hadError = true
+	}
 
 	decisionAttempted := shouldDecide
 
@@ -769,6 +792,173 @@ func (r *Runner) executeDecision(dec kernel.Decision, priceMap map[string]float6
 	default:
 		return actionRecord, nil, "", fmt.Errorf("unsupported action %s", dec.Action)
 	}
+}
+
+// applyTrailingStops enforces trailing stop rules on open positions before AI decisions
+func (r *Runner) applyTrailingStops(ts int64, priceMap map[string]float64, cycle int) ([]TradeEvent, []string, bool) {
+	cfg := r.trailingCfg
+	if !cfg.Enabled {
+		return nil, nil, false
+	}
+	if cfg.Mode == "" {
+		cfg.Mode = "pnl_pct"
+	}
+
+	events := make([]TradeEvent, 0)
+	logs := make([]string, 0)
+	activeKeys := make(map[string]struct{})
+	hasError := false
+
+	for _, pos := range r.account.Positions() {
+		price, ok := priceMap[pos.Symbol]
+		if !ok || price <= 0 {
+			logs = append(logs, fmt.Sprintf("⚠️ Trailing stop skipped %s %s: price unavailable", pos.Symbol, pos.Side))
+			continue
+		}
+
+		leverage := pos.Leverage
+		if leverage <= 0 {
+			leverage = 1
+		}
+
+		var currentPnLPct float64
+		if pos.Side == "long" {
+			currentPnLPct = ((price - pos.EntryPrice) / pos.EntryPrice) * float64(leverage) * 100
+		} else {
+			currentPnLPct = ((pos.EntryPrice - price) / pos.EntryPrice) * float64(leverage) * 100
+		}
+
+		key := fmt.Sprintf("%s:%s", pos.Symbol, pos.Side)
+		activeKeys[key] = struct{}{}
+
+		r.trailingMu.Lock()
+		state := r.trailingState[key]
+		if state.PeakPnLPct == 0 && state.PeakPrice == 0 {
+			state.PeakPnLPct = currentPnLPct
+			state.PeakPrice = price
+		}
+		if cfg.Mode == "price_pct" {
+			if pos.Side == "long" {
+				if price > state.PeakPrice {
+					state.PeakPrice = price
+				}
+			} else {
+				if state.PeakPrice == 0 || price < state.PeakPrice {
+					state.PeakPrice = price
+				}
+			}
+		} else {
+			if currentPnLPct > state.PeakPnLPct {
+				state.PeakPnLPct = currentPnLPct
+			}
+		}
+		r.trailingState[key] = state
+		r.trailingMu.Unlock()
+
+		// Determine active trail pct with tightening
+		activeTrail := cfg.TrailPct
+		for _, band := range cfg.TightenBands {
+			if currentPnLPct >= band.ProfitPct && band.TrailPct > 0 {
+				activeTrail = band.TrailPct
+			}
+		}
+
+		// Activation gate based on PnL%
+		if cfg.ActivationPct > 0 && currentPnLPct < cfg.ActivationPct && state.PeakPnLPct < cfg.ActivationPct {
+			continue
+		}
+
+		trigger := false
+		switch cfg.Mode {
+		case "price_pct":
+			peakPrice := state.PeakPrice
+			if peakPrice == 0 {
+				peakPrice = price
+			}
+			if pos.Side == "long" {
+				stopPrice := peakPrice * (1 - activeTrail/100)
+				if price <= stopPrice {
+					trigger = true
+				}
+			} else {
+				stopPrice := peakPrice * (1 + activeTrail/100)
+				if price >= stopPrice {
+					trigger = true
+				}
+			}
+		default:
+			stopPnL := state.PeakPnLPct - activeTrail
+			if currentPnLPct <= stopPnL {
+				trigger = true
+			}
+		}
+
+		if trigger {
+			closeQty := pos.Quantity
+			if cfg.ClosePct > 0 && cfg.ClosePct < 1 {
+				closeQty = pos.Quantity * cfg.ClosePct
+			}
+			fillPrice := r.executionPrice(pos.Symbol, price, ts)
+			realized, fee, execPrice, err := r.account.Close(pos.Symbol, pos.Side, closeQty, fillPrice)
+			if err != nil {
+				logs = append(logs, fmt.Sprintf("❌ Trailing stop close failed (%s %s): %v", pos.Symbol, pos.Side, err))
+				hasError = true
+				continue
+			}
+
+			r.trailingMu.Lock()
+			if closeQty >= pos.Quantity || closeQty == 0 {
+				delete(r.trailingState, key)
+			} else {
+				r.trailingState[key] = trailingState{
+					PeakPnLPct: currentPnLPct,
+					PeakPrice:  price,
+				}
+			}
+			r.trailingMu.Unlock()
+
+			action := "close_long"
+			slippage := price - execPrice
+			if pos.Side == "short" {
+				action = "close_short"
+				slippage = execPrice - price
+			}
+
+			events = append(events, TradeEvent{
+				Timestamp:     ts,
+				Symbol:        pos.Symbol,
+				Action:        action,
+				Side:          pos.Side,
+				Quantity:      closeQty,
+				Price:         execPrice,
+				Fee:           fee,
+				Slippage:      slippage,
+				OrderValue:    execPrice * closeQty,
+				RealizedPnL:   realized - fee,
+				Leverage:      leverage,
+				Cycle:         cycle,
+				PositionAfter: r.remainingPosition(pos.Symbol, pos.Side),
+				Note:          "trailing_stop",
+			})
+
+			logs = append(logs, fmt.Sprintf("🚨 Trailing stop triggered: %s %s | Profit: %.2f%% | Peak: %.2f%% | Trail: %.2f%% (mode=%s, closePct=%.2f)",
+				pos.Symbol, pos.Side, currentPnLPct, state.PeakPnLPct, activeTrail, cfg.Mode, cfg.ClosePct))
+		} else {
+			logs = append(logs, fmt.Sprintf("📊 Trailing stop armed: %s %s | Profit: %.2f%% | Peak: %.2f%% | Trail: %.2f%% (mode=%s)",
+				pos.Symbol, pos.Side, currentPnLPct, state.PeakPnLPct, activeTrail, cfg.Mode))
+		}
+	}
+
+	// Prune cache entries for closed positions
+	r.trailingMu.Lock()
+	for key := range r.trailingState {
+		if _, ok := activeKeys[key]; !ok {
+			delete(r.trailingState, key)
+		}
+	}
+	r.trailingMu.Unlock()
+
+	return events, logs, hasError
 }
 
 // MinPositionSizeUSD is the minimum position size in USD to avoid dust positions

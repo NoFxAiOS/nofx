@@ -89,6 +89,55 @@ function truncateAddress(address: string, startLen = 6, endLen = 4): string {
     return `${address.slice(0, startLen)}...${address.slice(-endLen)}`
 }
 
+function getTrailingDisplay(trailing: Position['trailing'], language: Language) {
+    if (!trailing || !trailing.enabled) {
+        return {
+            status: language === 'zh' ? '未开启' : 'Off',
+            color: 'text-nofx-text-muted',
+            parts: [] as string[],
+        }
+    }
+
+    const status =
+        trailing.status === 'waiting_activation'
+            ? language === 'zh'
+                ? '待激活'
+                : 'Waiting'
+            : language === 'zh'
+                ? '已就绪'
+                : 'Armed'
+    const color =
+        trailing.status === 'waiting_activation'
+            ? 'text-nofx-gold'
+            : 'text-nofx-green'
+
+    const trail = trailing.active_trail_pct ?? trailing.trail_pct
+    const stopPrice = trailing.stop_price
+    const stopLabel = `${language === 'zh' ? '止损价' : 'Stop'} ${stopPrice ? stopPrice.toFixed(4) : '—'}`
+    const peakLabel = `${language === 'zh' ? '峰值' : 'Peak'} ${
+        trailing.peak_pnl_pct !== undefined ? trailing.peak_pnl_pct.toFixed(2) : '—'
+    }%`
+    const trailLabel = `${language === 'zh' ? '跟踪' : 'Trail'} ${
+        trail !== undefined ? trail.toFixed(2) : '—'
+    }%`
+    let activationLabel =
+        trailing.activation_pct && trailing.activation_pct > 0
+            ? `${language === 'zh' ? '激活' : 'Act'} ${trailing.activation_pct.toFixed(2)}%`
+            : language === 'zh'
+                ? '立即'
+                : 'Immediate'
+    if (trailing.activation_price && trailing.activation_pct && trailing.activation_pct > 0) {
+        activationLabel += ` / ${trailing.activation_price.toFixed(4)}`
+    }
+    const modeLabel = trailing.mode === 'price_pct' ? (language === 'zh' ? '价格跟踪' : 'Price trail') : 'PnL trail'
+
+    return {
+        status,
+        color,
+        parts: [modeLabel, stopLabel, peakLabel, trailLabel, activationLabel],
+    }
+}
+
 // --- Components ---
 
 interface TraderDashboardPageProps {
@@ -607,6 +656,24 @@ export function TraderDashboardPage({
                                                     >
                                                         <td className="px-1 py-3 font-mono font-semibold whitespace-nowrap text-left text-nofx-text-main group-hover/row:text-white transition-colors">
                                                             {pos.symbol}
+                                                            <div className="text-[11px] text-nofx-text-muted mt-1 flex flex-wrap items-center gap-1">
+                                                                {(() => {
+                                                                    const trailingDisplay = getTrailingDisplay(pos.trailing, language)
+                                                                    return (
+                                                                        <>
+                                                                            <span className={`font-semibold ${trailingDisplay.color}`}>
+                                                                                {trailingDisplay.status}
+                                                                            </span>
+                                                                            {trailingDisplay.parts.map((p, idx) => (
+                                                                                <span key={idx} className="flex items-center gap-1">
+                                                                                    <span className="opacity-60">•</span>
+                                                                                    <span>{p}</span>
+                                                                                </span>
+                                                                            ))}
+                                                                        </>
+                                                                    )
+                                                                })()}
+                                                            </div>
                                                         </td>
                                                         <td className="px-1 py-3 whitespace-nowrap text-center">
                                                             <span

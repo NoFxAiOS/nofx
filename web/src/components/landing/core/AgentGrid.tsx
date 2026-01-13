@@ -32,10 +32,10 @@ const agents = [
     {
         name: "GAMMA-RAY",
         class: "ARBITRAGE",
-        desc: "Risk-free spatial price equalization.",
+        desc: "Low-risk spatial price equalization.",
         apy: "24%",
         winRate: "99%",
-        risk: "ZERO",
+        risk: "LOW",
         color: "text-purple-400",
         border: "border-purple-400/30",
         bg_glow: "shadow-[0_0_30px_rgba(192,132,252,0.1)]",

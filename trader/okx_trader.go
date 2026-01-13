@@ -1396,7 +1396,10 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	// 1. Get pending limit orders
 	path := fmt.Sprintf("%s?instId=%s&instType=SWAP", okxPendingOrdersPath, instId)
 	data, err := t.doRequest("GET", path, nil)
-	if err == nil {
+	if err != nil {
+		logger.Warnf("[OKX] Failed to get pending orders: %v", err)
+	}
+	if err == nil && data != nil {
 		var orders []struct {
 			OrdId   string `json:"ordId"`
 			InstId  string `json:"instId"`
@@ -1437,7 +1440,10 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	// 2. Get pending algo orders (stop-loss/take-profit)
 	algoPath := fmt.Sprintf("%s?instId=%s&instType=SWAP", okxAlgoPendingPath, instId)
 	algoData, err := t.doRequest("GET", algoPath, nil)
-	if err == nil {
+	if err != nil {
+		logger.Warnf("[OKX] Failed to get algo orders: %v", err)
+	}
+	if err == nil && algoData != nil {
 		var algoOrders []struct {
 			AlgoId      string `json:"algoId"`
 			InstId      string `json:"instId"`

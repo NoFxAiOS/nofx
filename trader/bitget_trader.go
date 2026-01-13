@@ -1109,7 +1109,10 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	}
 
 	data, err := t.doRequest("GET", bitgetPendingPath, params)
-	if err == nil {
+	if err != nil {
+		logger.Warnf("[Bitget] Failed to get pending orders: %v", err)
+	}
+	if err == nil && data != nil {
 		var orders struct {
 			EntrustedList []struct {
 				OrderId      string `json:"orderId"`
@@ -1154,7 +1157,10 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	}
 
 	planData, err := t.doRequest("GET", "/api/v2/mix/order/orders-plan-pending", planParams)
-	if err == nil {
+	if err != nil {
+		logger.Warnf("[Bitget] Failed to get plan orders: %v", err)
+	}
+	if err == nil && planData != nil {
 		var planOrders struct {
 			EntrustedList []struct {
 				OrderId       string `json:"orderId"`

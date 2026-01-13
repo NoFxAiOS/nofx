@@ -713,10 +713,20 @@ func (t *LighterTraderV2) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 			orderType = "TAKE_PROFIT_MARKET"
 		}
 
-		// Determine position side based on order direction
+		// Determine position side based on order direction and reduce-only flag
 		positionSide := "LONG"
-		if side == "SELL" {
-			positionSide = "SHORT"
+		if order.ReduceOnly {
+			// For reduce-only orders, position side is opposite to order side
+			if side == "BUY" {
+				positionSide = "SHORT" // Buying to close short
+			} else {
+				positionSide = "LONG" // Selling to close long
+			}
+		} else {
+			// For opening orders
+			if side == "SELL" {
+				positionSide = "SHORT"
+			}
 		}
 
 		// Parse price and quantity from string fields

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"nofx/logger"
 	"strconv"
+	"strings"
 
 	"github.com/elliottech/lighter-go/types"
 )
@@ -185,8 +186,10 @@ func (t *LighterTraderV2) CancelStopOrders(symbol string) error {
 
 	canceledCount := 0
 	for _, order := range orders {
-		// TODO: Check order type, only cancel stop orders
-		// For now, cancel all orders
+		// If order type is provided, only cancel stop-loss/take-profit orders.
+		if order.OrderType != "" && !isLighterStopOrder(order.OrderType) {
+			continue
+		}
 		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
 			logger.Infof("⚠️  Failed to cancel order (ID: %s): %v", order.OrderID, err)
 		} else {
@@ -196,6 +199,15 @@ func (t *LighterTraderV2) CancelStopOrders(symbol string) error {
 
 	logger.Infof("✓ LIGHTER - Canceled %d stop orders", canceledCount)
 	return nil
+}
+
+func isLighterStopOrder(orderType string) bool {
+	switch strings.ToLower(orderType) {
+	case "stop", "stop_loss", "take_profit", "stoploss", "takeprofit":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetActiveOrders Get active orders
@@ -237,9 +249,9 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 
 	// Parse response
 	var apiResp struct {
-		Code    int              `json:"code"`
-		Message string           `json:"message"`
-		Data    []OrderResponse  `json:"data"`
+		Code    int             `json:"code"`
+		Message string          `json:"message"`
+		Data    []OrderResponse `json:"data"`
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {

@@ -101,6 +101,10 @@ For single-tenant/self-hosted usage, you can enable strict admin-only access:
 - 🔑 Restrict IP access
 - 🔑 Enable 2FA on exchanges
 
+**Private Keys (Input Validation):**
+- 🔐 EVM: 64 hex characters (optional `0x` prefix)
+- 🔐 Solana/Ed25519: Base58 string or JSON array; supports 32-byte seed or 64-byte keypair (seed + public key)
+
 ---
 
 ## 🆘 Troubleshooting

@@ -1,16 +1,16 @@
-# PR 标题指南
+# PR Title Guide
 
-## 📋 概述
+## 📋 Overview
 
-我们使用 **Conventional Commits** 格式来保持 PR 标题的一致性，但这是**建议性的**，不会阻止你的 PR 被合并。
+We use the **Conventional Commits** format to maintain consistency in PR titles, but this is **recommended**, not mandatory. It will not prevent your PR from being merged.
 
-## ✅ 推荐格式
+## ✅ Recommended Format
 
 ```
 type(scope): description
 ```
 
-### 示例
+### Examples
 
 ```
 feat(trader): add new trading strategy
@@ -22,63 +22,63 @@ ci(workflow): improve GitHub Actions
 
 ---
 
-## 📖 详细说明
+## 📖 Detailed Guide
 
-### Type（类型）- 必需
+### Type - Required
 
-描述这次变更的类型：
+Describes the type of change:
 
-| Type | 说明 | 示例 |
-|------|------|------|
-| `feat` | 新功能 | `feat(trader): add stop-loss feature` |
-| `fix` | Bug 修复 | `fix(api): handle null response` |
-| `docs` | 文档变更 | `docs: update installation guide` |
-| `style` | 代码格式（不影响代码运行） | `style: format code with prettier` |
-| `refactor` | 重构（既不是新功能也不是修复） | `refactor(exchange): simplify connection logic` |
-| `perf` | 性能优化 | `perf(ai): optimize prompt processing` |
-| `test` | 添加或修改测试 | `test(trader): add unit tests` |
-| `chore` | 构建过程或辅助工具的变动 | `chore: update dependencies` |
-| `ci` | CI/CD 相关变更 | `ci: add test coverage report` |
-| `security` | 安全相关修复 | `security: update vulnerable dependencies` |
-| `build` | 构建系统或外部依赖项变更 | `build: upgrade webpack to v5` |
+| Type | Description | Example |
+|------|-------------|---------|
+| `feat` | New feature | `feat(trader): add stop-loss feature` |
+| `fix` | Bug fix | `fix(api): handle null response` |
+| `docs` | Documentation change | `docs: update installation guide` |
+| `style` | Code formatting (no functional change) | `style: format code with prettier` |
+| `refactor` | Code refactoring (neither feature nor fix) | `refactor(exchange): simplify connection logic` |
+| `perf` | Performance optimization | `perf(ai): optimize prompt processing` |
+| `test` | Add or modify tests | `test(trader): add unit tests` |
+| `chore` | Build process or auxiliary tool changes | `chore: update dependencies` |
+| `ci` | CI/CD related changes | `ci: add test coverage report` |
+| `security` | Security fixes | `security: update vulnerable dependencies` |
+| `build` | Build system or external dependency changes | `build: upgrade webpack to v5` |
 
-### Scope（范围）- 可选
+### Scope - Optional
 
-描述这次变更影响的范围：
+Describes the area affected by the change:
 
-| Scope | 说明 |
-|-------|------|
-| `exchange` | 交易所相关 |
-| `trader` | 交易员/交易策略 |
-| `ai` | AI 模型相关 |
-| `api` | API 接口 |
-| `ui` | 用户界面 |
-| `frontend` | 前端代码 |
-| `backend` | 后端代码 |
-| `security` | 安全相关 |
-| `deps` | 依赖项 |
+| Scope | Description |
+|-------|-------------|
+| `exchange` | Exchange-related |
+| `trader` | Trader/trading strategy |
+| `ai` | AI model related |
+| `api` | API interface |
+| `ui` | User interface |
+| `frontend` | Frontend code |
+| `backend` | Backend code |
+| `security` | Security related |
+| `deps` | Dependencies |
 | `workflow` | GitHub Actions workflows |
-| `github` | GitHub 配置 |
+| `github` | GitHub configuration |
 | `actions` | GitHub Actions |
-| `config` | 配置文件 |
-| `docker` | Docker 相关 |
-| `build` | 构建相关 |
-| `release` | 发布相关 |
+| `config` | Configuration files |
+| `docker` | Docker related |
+| `build` | Build related |
+| `release` | Release related |
 
-**注意：** 如果变更影响多个范围，可以省略 scope 或选择最主要的。
+**Note:** If the change affects multiple scopes, you can omit the scope or choose the most relevant one.
 
-### Description（描述）- 必需
+### Description - Required
 
-- 使用现在时态（"add" 而不是 "added"）
-- 首字母小写
-- 结尾不加句号
-- 简洁明了地描述变更内容
+- Use present tense ("add" not "added")
+- Start with lowercase
+- No period at the end
+- Concisely describe what changed
 
 ---
 
-## 🎯 完整示例
+## 🎯 Complete Examples
 
-### ✅ 好的 PR 标题
+### ✅ Good PR Titles
 
 ```
 feat(trader): add risk management system
@@ -94,38 +94,38 @@ security(api): fix SQL injection vulnerability
 build(docker): optimize Docker image size
 ```
 
-### ⚠️ 需要改进的标题
+### ⚠️ Titles That Need Improvement
 
-| 不好的标题 | 问题 | 改进后 |
-|-----------|------|--------|
-| `update code` | 太模糊 | `refactor(trader): simplify order execution logic` |
-| `Fixed bug` | 首字母大写，不够具体 | `fix(api): handle edge case in login` |
-| `Add new feature.` | 有句号，不够具体 | `feat(ui): add dark mode toggle` |
-| `changes` | 完全不符合格式 | `chore: update dependencies` |
-| `feat: Added new trading algo` | 时态错误 | `feat(trader): add new trading algorithm` |
+| Poor Title | Issue | Improved |
+|-----------|-------|----------|
+| `update code` | Too vague | `refactor(trader): simplify order execution logic` |
+| `Fixed bug` | Capitalized, not specific | `fix(api): handle edge case in login` |
+| `Add new feature.` | Has period, not specific | `feat(ui): add dark mode toggle` |
+| `changes` | Doesn't follow format | `chore: update dependencies` |
+| `feat: Added new trading algo` | Wrong tense | `feat(trader): add new trading algorithm` |
 
 ---
 
-## 🤖 自动检查行为
+## 🤖 Automated Check Behavior
 
-### 当 PR 标题不符合格式时
+### When PR Title Doesn't Follow Format
 
-1. **不会阻止合并** ✅
-   - 检查会标记为"建议"
-   - PR 仍然可以被审查和合并
+1. **Won't block merging** ✅
+   - Check is marked as "advisory"
+   - PR can still be reviewed and merged
 
-2. **会收到友好提示** 💬
-   - 机器人会在 PR 中留言
-   - 提供格式说明和示例
-   - 建议如何改进标题
+2. **Provides friendly reminder** 💬
+   - Bot will comment on the PR
+   - Provides format guidance and examples
+   - Suggests how to improve the title
 
-3. **可以随时更新** 🔄
-   - 更新 PR 标题后会重新检查
-   - 无需关闭和重新打开 PR
+3. **Can be updated anytime** 🔄
+   - Re-checks after updating PR title
+   - No need to close and reopen PR
 
-### 示例评论
+### Example Comment
 
-如果你的 PR 标题是 `update workflow`，你会收到这样的评论：
+If your PR title is `update workflow`, you'll receive a comment like this:
 
 ```markdown
 ## ⚠️ PR Title Format Suggestion
@@ -157,11 +157,11 @@ Your PR can still be reviewed and merged.
 
 ---
 
-## 🔧 配置详情
+## 🔧 Configuration Details
 
-### 支持的 Types
+### Supported Types
 
-在 `.github/workflows/pr-checks.yml` 中配置：
+Configured in `.github/workflows/pr-checks.yml`:
 
 ```yaml
 types: |
@@ -178,7 +178,7 @@ types: |
   build
 ```
 
-### 支持的 Scopes
+### Supported Scopes
 
 ```yaml
 scopes: |
@@ -200,38 +200,38 @@ scopes: |
   release
 ```
 
-### 添加新的 Scope
+### Adding New Scopes
 
-如果你需要添加新的 scope，请：
+If you need to add a new scope:
 
-1. 在 `.github/workflows/pr-checks.yml` 的 `scopes` 部分添加
-2. 在 `.github/workflows/pr-checks-run.yml` 更新正则表达式（可选）
-3. 更新本文档
+1. Add it to the `scopes` section in `.github/workflows/pr-checks.yml`
+2. Update the regex in `.github/workflows/pr-checks-run.yml` (optional)
+3. Update this documentation
 
 ---
 
-## 📚 为什么使用 Conventional Commits？
+## 📚 Why Use Conventional Commits?
 
-### 优点
+### Benefits
 
-1. **自动化 Changelog** 📝
-   - 可以自动生成版本更新日志
-   - 清晰地分类各种变更
+1. **Automated Changelog** 📝
+   - Automatically generate version changelogs
+   - Clearly categorize different types of changes
 
-2. **语义化版本** 🔢
-   - `feat` → MINOR 版本（1.1.0）
-   - `fix` → PATCH 版本（1.0.1）
-   - `BREAKING CHANGE` → MAJOR 版本（2.0.0）
+2. **Semantic Versioning** 🔢
+   - `feat` → MINOR version (1.1.0)
+   - `fix` → PATCH version (1.0.1)
+   - `BREAKING CHANGE` → MAJOR version (2.0.0)
 
-3. **更好的可读性** 👀
-   - 一眼看出 PR 的目的
-   - 更容易浏览 Git 历史
+3. **Better Readability** 👀
+   - Understand PR purpose at a glance
+   - Easier to browse Git history
 
-4. **团队协作** 🤝
-   - 统一的提交风格
-   - 降低沟通成本
+4. **Team Collaboration** 🤝
+   - Unified commit style
+   - Reduces communication overhead
 
-### 示例：自动生成的 Changelog
+### Example: Auto-generated Changelog
 
 ```markdown
 ## v1.2.0 (2025-11-02)
@@ -250,9 +250,9 @@ scopes: |
 
 ---
 
-## 🎓 学习资源
+## 🎓 Learning Resources
 
-- **Conventional Commits 官网:** https://www.conventionalcommits.org/
+- **Conventional Commits:** https://www.conventionalcommits.org/
 - **Angular Commit Guidelines:** https://github.com/angular/angular/blob/main/CONTRIBUTING.md#commit
 - **Semantic Versioning:** https://semver.org/
 
@@ -260,33 +260,33 @@ scopes: |
 
 ## ❓ FAQ
 
-### Q: 我必须遵循这个格式吗？
+### Q: Must I follow this format?
 
-**A:** 不必须。这是建议性的，不会阻止你的 PR 被合并。但遵循格式可以提高项目的可维护性。
+**A:** No. This is recommended but not mandatory. It won't block your PR from being merged. However, following the format improves project maintainability.
 
-### Q: 如果我忘记了怎么办？
+### Q: What if I forget?
 
-**A:** 机器人会在 PR 中提醒你，你可以随时更新标题。
+**A:** The bot will remind you in the PR comments. You can update the title anytime.
 
-### Q: 我可以在一个 PR 中做多种类型的变更吗？
+### Q: Can I make multiple types of changes in one PR?
 
-**A:** 可以，但建议：
-- 选择最主要的类型
-- 或者考虑拆分成多个 PR（更易于审查）
+**A:** Yes, but it's recommended to:
+- Choose the most significant type
+- Or consider splitting into multiple PRs (easier to review)
 
-### Q: Scope 可以省略吗？
+### Q: Can I omit the scope?
 
-**A:** 可以。`requireScope: false` 表示 scope 是可选的。
+**A:** Yes. `requireScope: false` means scope is optional.
 
-示例：`docs: update README` （没有 scope 也可以）
+Example: `docs: update README` (no scope is fine)
 
-### Q: 我想添加新的 type 或 scope，怎么做？
+### Q: How do I add a new type or scope?
 
-**A:** 提一个 PR 修改 `.github/workflows/pr-checks.yml`，并在本文档中说明新增项的用途。
+**A:** Submit a PR to modify `.github/workflows/pr-checks.yml` and document the purpose of the new item in this guide.
 
-### Q: Breaking Changes 怎么表示？
+### Q: How do I indicate Breaking Changes?
 
-**A:** 在描述中添加 `BREAKING CHANGE:` 或在 type 后加 `!`：
+**A:** Add `BREAKING CHANGE:` in the description or add `!` after the type:
 
 ```
 feat!: remove deprecated API
@@ -297,9 +297,9 @@ BREAKING CHANGE: The old /auth endpoint is removed
 
 ---
 
-## 📊 统计
+## 📊 Statistics
 
-想看项目的 commit 类型分布？运行：
+Want to see the commit type distribution in your project? Run:
 
 ```bash
 git log --oneline --no-merges | \
@@ -309,14 +309,14 @@ git log --oneline --no-merges | \
 
 ---
 
-## ✅ 快速检查清单
+## ✅ Quick Checklist
 
-在提交 PR 前，检查你的标题是否：
+Before submitting a PR, check if your title:
 
-- [ ] 包含有效的 type（feat, fix, docs 等）
-- [ ] 使用小写字母开头
-- [ ] 使用现在时态（"add" 而不是 "added"）
-- [ ] 简洁明了（最好在 50 字符内）
-- [ ] 准确描述了变更内容
+- [ ] Contains a valid type (feat, fix, docs, etc.)
+- [ ] Starts with lowercase
+- [ ] Uses present tense ("add" not "added")
+- [ ] Is concise (preferably under 50 characters)
+- [ ] Accurately describes the change
 
-**记住：** 这些都是建议，不是强制要求！
+**Remember:** These are recommendations, not requirements!

@@ -316,8 +316,13 @@ export const translations = {
     aiScanInterval: 'AI Scan Decision Interval (minutes)',
     scanIntervalRecommend: 'Recommended: 3-10 minutes',
     useTestnet: 'Use Testnet',
+    useSimulatedTrading: 'Use Simulated Trading',
     enabled: 'Enabled',
     save: 'Save',
+    okxSimulatedDescription:
+      'Add OKX header x-simulated-trading: 1 for all requests (paper trading sandbox)',
+    hyperliquidTestnetDescription:
+      'Connect to Hyperliquid testnet endpoint for development trading',
 
     // AI Model Configuration
     officialAPI: 'Official API',
@@ -1520,8 +1525,13 @@ export const translations = {
     aiScanInterval: 'AI 扫描决策间隔 (分钟)',
     scanIntervalRecommend: '建议: 3-10分钟',
     useTestnet: '使用测试网',
+    useSimulatedTrading: '使用模拟盘',
     enabled: '启用',
     save: '保存',
+    okxSimulatedDescription:
+      '为所有 OKX 请求自动添加 x-simulated-trading: 1 头部，适用于模拟盘账号',
+    hyperliquidTestnetDescription:
+      '连接 Hyperliquid 官方测试网，便于无风险验证策略',
 
     // AI Model Configuration
     officialAPI: '官方API',

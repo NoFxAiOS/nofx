@@ -284,9 +284,13 @@ func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 	}
 
 	// Sign transaction using SDK
+	// Must provide FromAccountIndex and ApiKeyIndex for nonce auto-fetch to work
 	nonce := int64(-1) // -1 means auto-fetch
+	apiKeyIdx := t.apiKeyIndex
 	tx, err := t.txClient.GetCancelOrderTransaction(txReq, &types.TransactOpts{
-		Nonce: &nonce,
+		FromAccountIndex: &t.accountIndex,
+		ApiKeyIndex:      &apiKeyIdx,
+		Nonce:            &nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to sign cancel order: %w", err)

@@ -273,9 +273,13 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	}
 
 	// Sign transaction using SDK (nonce will be auto-fetched)
+	// Must provide FromAccountIndex and ApiKeyIndex for nonce auto-fetch to work
 	nonce := int64(-1) // -1 means auto-fetch
+	apiKeyIdx := t.apiKeyIndex
 	tx, err := t.txClient.GetCreateOrderTransaction(txReq, &types.TransactOpts{
-		Nonce: &nonce,
+		FromAccountIndex: &t.accountIndex,
+		ApiKeyIndex:      &apiKeyIdx,
+		Nonce:            &nonce,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign order: %w", err)

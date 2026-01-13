@@ -151,6 +151,13 @@ export function TraderDashboardPage({
         setPositionsCurrentPage(1)
     }, [selectedTraderId, positionsPageSize])
 
+    // Auto-set chart symbol for grid trading
+    useEffect(() => {
+        if (status?.strategy_type === 'grid_trading' && status?.grid_symbol) {
+            setSelectedChartSymbol(status.grid_symbol)
+        }
+    }, [status?.strategy_type, status?.grid_symbol])
+
     // Get current exchange info for perp-dex wallet display
     const currentExchange = exchanges?.find(
         (e) => e.id === selectedTrader?.exchange_id

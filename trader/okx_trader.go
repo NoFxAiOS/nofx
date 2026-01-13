@@ -1393,3 +1393,155 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	// TODO: Implement OKX open orders
 	return []OpenOrder{}, nil
 }
+
+// PlaceLimitOrder places a limit order for grid trading
+// Implements GridTrader interface
+func (t *OKXTrader) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	instId := t.convertSymbol(req.Symbol)
+
+	// Get instrument info
+	inst, err := t.getInstrument(req.Symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instrument info: %w", err)
+	}
+
+	// Set leverage if specified
+	if req.Leverage > 0 {
+		if err := t.SetLeverage(req.Symbol, req.Leverage); err != nil {
+			logger.Warnf("[OKX] Failed to set leverage: %v", err)
+		}
+	}
+
+	// Convert quantity to contract size
+	sz := req.Quantity / inst.CtVal
+	szStr := t.formatSize(sz, inst)
+
+	// Determine side and position side
+	side := "buy"
+	posSide := "long"
+	if req.Side == "SELL" {
+		side = "sell"
+		posSide = "short"
+	}
+
+	body := map[string]interface{}{
+		"instId":  instId,
+		"tdMode":  "cross",
+		"side":    side,
+		"posSide": posSide,
+		"ordType": "limit",
+		"sz":      szStr,
+		"px":      fmt.Sprintf("%.8f", req.Price),
+		"clOrdId": genOkxClOrdID(),
+		"tag":     okxTag,
+	}
+
+	// Add reduce only if specified
+	if req.ReduceOnly {
+		body["reduceOnly"] = true
+	}
+
+	logger.Infof("[OKX] PlaceLimitOrder: %s %s @ %.4f, sz=%s", instId, side, req.Price, szStr)
+
+	data, err := t.doRequest("POST", okxOrderPath, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
+	}
+
+	var orders []struct {
+		OrdId   string `json:"ordId"`
+		ClOrdId string `json:"clOrdId"`
+		SCode   string `json:"sCode"`
+		SMsg    string `json:"sMsg"`
+	}
+
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+
+	if len(orders) == 0 {
+		return nil, fmt.Errorf("empty order response")
+	}
+
+	if orders[0].SCode != "0" {
+		return nil, fmt.Errorf("OKX order failed: %s", orders[0].SMsg)
+	}
+
+	logger.Infof("✓ [OKX] Limit order placed: %s %s @ %.4f, orderID=%s",
+		instId, side, req.Price, orders[0].OrdId)
+
+	return &LimitOrderResult{
+		OrderID:      orders[0].OrdId,
+		ClientID:     orders[0].ClOrdId,
+		Symbol:       req.Symbol,
+		Side:         req.Side,
+		PositionSide: req.PositionSide,
+		Price:        req.Price,
+		Quantity:     req.Quantity,
+		Status:       "NEW",
+	}, nil
+}
+
+// CancelOrder cancels a specific order by ID
+// Implements GridTrader interface
+func (t *OKXTrader) CancelOrder(symbol, orderID string) error {
+	instId := t.convertSymbol(symbol)
+
+	body := map[string]interface{}{
+		"instId": instId,
+		"ordId":  orderID,
+	}
+
+	_, err := t.doRequest("POST", "/api/v5/trade/cancel-order", body)
+	if err != nil {
+		return fmt.Errorf("failed to cancel order: %w", err)
+	}
+
+	logger.Infof("✓ [OKX] Order cancelled: %s %s", symbol, orderID)
+	return nil
+}
+
+// GetOrderBook gets the order book for a symbol
+// Implements GridTrader interface
+func (t *OKXTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]float64, err error) {
+	instId := t.convertSymbol(symbol)
+	path := fmt.Sprintf("/api/v5/market/books?instId=%s&sz=%d", instId, depth)
+
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get order book: %w", err)
+	}
+
+	var result []struct {
+		Bids [][]string `json:"bids"`
+		Asks [][]string `json:"asks"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse order book: %w", err)
+	}
+
+	if len(result) == 0 {
+		return nil, nil, nil
+	}
+
+	// Parse bids
+	for _, b := range result[0].Bids {
+		if len(b) >= 2 {
+			price, _ := strconv.ParseFloat(b[0], 64)
+			qty, _ := strconv.ParseFloat(b[1], 64)
+			bids = append(bids, []float64{price, qty})
+		}
+	}
+
+	// Parse asks
+	for _, a := range result[0].Asks {
+		if len(a) >= 2 {
+			price, _ := strconv.ParseFloat(a[0], 64)
+			qty, _ := strconv.ParseFloat(a[1], 64)
+			asks = append(asks, []float64{price, qty})
+		}
+	}
+
+	return bids, asks, nil
+}

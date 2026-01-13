@@ -1102,3 +1102,134 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	// TODO: Implement Bitget open orders
 	return []OpenOrder{}, nil
 }
+
+// PlaceLimitOrder places a limit order for grid trading
+// Implements GridTrader interface
+func (t *BitgetTrader) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	symbol := t.convertSymbol(req.Symbol)
+
+	// Set leverage if specified
+	if req.Leverage > 0 {
+		if err := t.SetLeverage(symbol, req.Leverage); err != nil {
+			logger.Warnf("[Bitget] Failed to set leverage: %v", err)
+		}
+	}
+
+	// Format quantity
+	qtyStr, _ := t.FormatQuantity(symbol, req.Quantity)
+
+	// Determine side
+	side := "buy"
+	if req.Side == "SELL" {
+		side = "sell"
+	}
+
+	body := map[string]interface{}{
+		"symbol":      symbol,
+		"productType": "USDT-FUTURES",
+		"marginMode":  "crossed",
+		"marginCoin":  "USDT",
+		"side":        side,
+		"orderType":   "limit",
+		"size":        qtyStr,
+		"price":       fmt.Sprintf("%.8f", req.Price),
+		"force":       "GTC", // Good Till Cancel
+		"clientOid":   genBitgetClientOid(),
+	}
+
+	// Add reduce only if specified
+	if req.ReduceOnly {
+		body["reduceOnly"] = "YES"
+	}
+
+	logger.Infof("[Bitget] PlaceLimitOrder: %s %s @ %.4f, qty=%s", symbol, side, req.Price, qtyStr)
+
+	data, err := t.doRequest("POST", bitgetOrderPath, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
+	}
+
+	var order struct {
+		OrderId   string `json:"orderId"`
+		ClientOid string `json:"clientOid"`
+	}
+
+	if err := json.Unmarshal(data, &order); err != nil {
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+
+	logger.Infof("✓ [Bitget] Limit order placed: %s %s @ %.4f, orderID=%s",
+		symbol, side, req.Price, order.OrderId)
+
+	return &LimitOrderResult{
+		OrderID:      order.OrderId,
+		ClientID:     order.ClientOid,
+		Symbol:       req.Symbol,
+		Side:         req.Side,
+		PositionSide: req.PositionSide,
+		Price:        req.Price,
+		Quantity:     req.Quantity,
+		Status:       "NEW",
+	}, nil
+}
+
+// CancelOrder cancels a specific order by ID
+// Implements GridTrader interface
+func (t *BitgetTrader) CancelOrder(symbol, orderID string) error {
+	symbol = t.convertSymbol(symbol)
+
+	body := map[string]interface{}{
+		"symbol":      symbol,
+		"productType": "USDT-FUTURES",
+		"orderId":     orderID,
+	}
+
+	_, err := t.doRequest("POST", "/api/v2/mix/order/cancel-order", body)
+	if err != nil {
+		return fmt.Errorf("failed to cancel order: %w", err)
+	}
+
+	logger.Infof("✓ [Bitget] Order cancelled: %s %s", symbol, orderID)
+	return nil
+}
+
+// GetOrderBook gets the order book for a symbol
+// Implements GridTrader interface
+func (t *BitgetTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]float64, err error) {
+	symbol = t.convertSymbol(symbol)
+	path := fmt.Sprintf("/api/v2/mix/market/depth?symbol=%s&productType=USDT-FUTURES&limit=%d", symbol, depth)
+
+	data, err := t.doRequest("GET", path, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get order book: %w", err)
+	}
+
+	var result struct {
+		Bids [][]string `json:"bids"`
+		Asks [][]string `json:"asks"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse order book: %w", err)
+	}
+
+	// Parse bids
+	for _, b := range result.Bids {
+		if len(b) >= 2 {
+			price, _ := strconv.ParseFloat(b[0], 64)
+			qty, _ := strconv.ParseFloat(b[1], 64)
+			bids = append(bids, []float64{price, qty})
+		}
+	}
+
+	// Parse asks
+	for _, a := range result.Asks {
+		if len(a) >= 2 {
+			price, _ := strconv.ParseFloat(a[0], 64)
+			qty, _ := strconv.ParseFloat(a[1], 64)
+			asks = append(asks, []float64{price, qty})
+		}
+	}
+
+	return bids, asks, nil
+}

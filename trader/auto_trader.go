@@ -123,6 +123,7 @@ type AutoTrader struct {
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
+	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 }
 
 // NewAutoTrader creates an automatic trader
@@ -419,9 +420,25 @@ func (at *AutoTrader) Run() error {
 	ticker := time.NewTicker(at.config.ScanInterval)
 	defer ticker.Stop()
 
+	// Check if this is a grid trading strategy
+	isGridStrategy := at.IsGridStrategy()
+	if isGridStrategy {
+		logger.Infof("🔲 [%s] Grid trading strategy detected, initializing grid...", at.name)
+		if err := at.InitializeGrid(); err != nil {
+			logger.Errorf("❌ [%s] Failed to initialize grid: %v", at.name, err)
+			return fmt.Errorf("grid initialization failed: %w", err)
+		}
+	}
+
 	// Execute immediately on first run
-	if err := at.runCycle(); err != nil {
-		logger.Infof("❌ Execution failed: %v", err)
+	if isGridStrategy {
+		if err := at.RunGridCycle(); err != nil {
+			logger.Infof("❌ Grid execution failed: %v", err)
+		}
+	} else {
+		if err := at.runCycle(); err != nil {
+			logger.Infof("❌ Execution failed: %v", err)
+		}
 	}
 
 	for {
@@ -435,8 +452,14 @@ func (at *AutoTrader) Run() error {
 
 		select {
 		case <-ticker.C:
-			if err := at.runCycle(); err != nil {
-				logger.Infof("❌ Execution failed: %v", err)
+			if isGridStrategy {
+				if err := at.RunGridCycle(); err != nil {
+					logger.Infof("❌ Grid execution failed: %v", err)
+				}
+			} else {
+				if err := at.runCycle(); err != nil {
+					logger.Infof("❌ Execution failed: %v", err)
+				}
 			}
 		case <-at.stopMonitorCh:
 			logger.Infof("[%s] ⏹ Stop signal received, exiting automatic trading main loop", at.name)
@@ -1365,6 +1388,12 @@ func (at *AutoTrader) GetID() string {
 	return at.id
 }
 
+// GetUnderlyingTrader returns the underlying Trader interface implementation
+// This is used by grid trading and other components that need direct exchange access
+func (at *AutoTrader) GetUnderlyingTrader() Trader {
+	return at.trader
+}
+
 // GetName gets trader name
 func (at *AutoTrader) GetName() string {
 	return at.name
@@ -1471,7 +1500,7 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 	isRunning := at.isRunning
 	at.isRunningMutex.RUnlock()
 
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"trader_id":       at.id,
 		"trader_name":     at.name,
 		"ai_model":        at.aiModel,
@@ -1486,6 +1515,16 @@ func (at *AutoTrader) GetStatus() map[string]interface{} {
 		"last_reset_time": at.lastResetTime.Format(time.RFC3339),
 		"ai_provider":     aiProvider,
 	}
+
+	// Add strategy info
+	if at.config.StrategyConfig != nil {
+		result["strategy_type"] = at.config.StrategyConfig.StrategyType
+		if at.config.StrategyConfig.GridConfig != nil {
+			result["grid_symbol"] = at.config.StrategyConfig.GridConfig.Symbol
+		}
+	}
+
+	return result
 }
 
 // GetAccountInfo gets account information (for API)

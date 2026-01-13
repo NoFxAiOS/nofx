@@ -28,6 +28,7 @@ type Store struct {
 	strategy *StrategyStore
 	equity   *EquityStore
 	order    *OrderStore
+	grid     *GridStore
 
 	mu sync.RWMutex
 }
@@ -156,6 +157,9 @@ func (s *Store) initTables() error {
 	if err := s.Order().InitTables(); err != nil {
 		return fmt.Errorf("failed to initialize order tables: %w", err)
 	}
+	if err := s.Grid().InitTables(); err != nil {
+		return fmt.Errorf("failed to initialize grid tables: %w", err)
+	}
 	return nil
 }
 
@@ -277,6 +281,16 @@ func (s *Store) Order() *OrderStore {
 		s.order = NewOrderStore(s.gdb)
 	}
 	return s.order
+}
+
+// Grid gets grid trading storage
+func (s *Store) Grid() *GridStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.grid == nil {
+		s.grid = NewGridStore(s.gdb)
+	}
+	return s.grid
 }
 
 // Close closes database connection

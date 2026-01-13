@@ -692,3 +692,45 @@ func (t *LighterTraderV2) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	// TODO: Implement Lighter open orders
 	return []OpenOrder{}, nil
 }
+
+// PlaceLimitOrder implements GridTrader interface for grid trading
+// Places a limit order at the specified price
+func (t *LighterTraderV2) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	if t.txClient == nil {
+		return nil, fmt.Errorf("TxClient not initialized")
+	}
+
+	// Determine if this is a sell (ask) order
+	isAsk := req.Side == "SELL"
+
+	logger.Infof("📝 LIGHTER placing limit order: %s %s @ %.4f, qty=%.4f",
+		req.Symbol, req.Side, req.Price, req.Quantity)
+
+	// Create limit order using existing CreateOrder function
+	orderResult, err := t.CreateOrder(req.Symbol, isAsk, req.Quantity, req.Price, "limit", req.ReduceOnly)
+	if err != nil {
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
+	}
+
+	// Extract order ID from result
+	orderID := ""
+	if id, ok := orderResult["orderId"]; ok {
+		orderID = fmt.Sprintf("%v", id)
+	} else if txHash, ok := orderResult["tx_hash"]; ok {
+		orderID = fmt.Sprintf("%v", txHash)
+	}
+
+	logger.Infof("✓ LIGHTER limit order placed: %s %s @ %.4f, OrderID: %s",
+		req.Symbol, req.Side, req.Price, orderID)
+
+	return &LimitOrderResult{
+		OrderID:      orderID,
+		ClientID:     req.ClientID,
+		Symbol:       req.Symbol,
+		Side:         req.Side,
+		PositionSide: req.PositionSide,
+		Price:        req.Price,
+		Quantity:     req.Quantity,
+		Status:       "NEW",
+	}, nil
+}

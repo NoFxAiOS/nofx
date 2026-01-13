@@ -328,12 +328,13 @@ func (t *LighterTraderV2) FormatQuantity(symbol string, quantity float64) (strin
 	return fmt.Sprintf("%.4f", quantity), nil
 }
 
-// GetOrderBook Get order book with best bid/ask prices
-func (t *LighterTraderV2) GetOrderBook(symbol string) (bestBid, bestAsk float64, err error) {
+// GetOrderBook Get order book (implements GridTrader interface)
+// Returns bids and asks as [][]float64 where each element is [price, quantity]
+func (t *LighterTraderV2) GetOrderBook(symbol string, depth int) (bids, asks [][]float64, err error) {
 	// Get market_id first
 	marketID, err := t.getMarketIndex(symbol)
 	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get market ID: %w", err)
+		return nil, nil, fmt.Errorf("failed to get market ID: %w", err)
 	}
 
 	// Get order book from Lighter API
@@ -341,22 +342,22 @@ func (t *LighterTraderV2) GetOrderBook(symbol string) (bestBid, bestAsk float64,
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		return 0, 0, err
+		return nil, nil, err
 	}
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return 0, 0, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, 0, err
+		return nil, nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, 0, fmt.Errorf("failed to get order book (status %d): %s", resp.StatusCode, string(body))
+		return nil, nil, fmt.Errorf("failed to get order book (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
@@ -369,35 +370,61 @@ func (t *LighterTraderV2) GetOrderBook(symbol string) (bestBid, bestAsk float64,
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return 0, 0, fmt.Errorf("failed to parse order book: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse order book: %w", err)
 	}
 
 	if apiResp.Code != 200 {
-		return 0, 0, fmt.Errorf("API error code: %d", apiResp.Code)
+		return nil, nil, fmt.Errorf("API error code: %d", apiResp.Code)
 	}
 
-	// Get best bid (highest buy price)
-	if len(apiResp.Data.Bids) > 0 && len(apiResp.Data.Bids[0]) >= 1 {
-		if price, ok := apiResp.Data.Bids[0][0].(float64); ok {
-			bestBid = price
-		} else if priceStr, ok := apiResp.Data.Bids[0][0].(string); ok {
-			bestBid, _ = strconv.ParseFloat(priceStr, 64)
+	// Helper to parse price/quantity from interface{}
+	parseFloat := func(v interface{}) float64 {
+		if f, ok := v.(float64); ok {
+			return f
+		}
+		if s, ok := v.(string); ok {
+			f, _ := strconv.ParseFloat(s, 64)
+			return f
+		}
+		return 0
+	}
+
+	// Convert bids to [][]float64
+	maxBids := len(apiResp.Data.Bids)
+	if depth > 0 && depth < maxBids {
+		maxBids = depth
+	}
+	bids = make([][]float64, 0, maxBids)
+	for i := 0; i < maxBids; i++ {
+		if len(apiResp.Data.Bids[i]) >= 2 {
+			price := parseFloat(apiResp.Data.Bids[i][0])
+			qty := parseFloat(apiResp.Data.Bids[i][1])
+			if price > 0 && qty > 0 {
+				bids = append(bids, []float64{price, qty})
+			}
 		}
 	}
 
-	// Get best ask (lowest sell price)
-	if len(apiResp.Data.Asks) > 0 && len(apiResp.Data.Asks[0]) >= 1 {
-		if price, ok := apiResp.Data.Asks[0][0].(float64); ok {
-			bestAsk = price
-		} else if priceStr, ok := apiResp.Data.Asks[0][0].(string); ok {
-			bestAsk, _ = strconv.ParseFloat(priceStr, 64)
+	// Convert asks to [][]float64
+	maxAsks := len(apiResp.Data.Asks)
+	if depth > 0 && depth < maxAsks {
+		maxAsks = depth
+	}
+	asks = make([][]float64, 0, maxAsks)
+	for i := 0; i < maxAsks; i++ {
+		if len(apiResp.Data.Asks[i]) >= 2 {
+			price := parseFloat(apiResp.Data.Asks[i][0])
+			qty := parseFloat(apiResp.Data.Asks[i][1])
+			if price > 0 && qty > 0 {
+				asks = append(asks, []float64{price, qty})
+			}
 		}
 	}
 
-	if bestBid <= 0 || bestAsk <= 0 {
-		return 0, 0, fmt.Errorf("invalid order book prices: bid=%.2f, ask=%.2f", bestBid, bestAsk)
+	if len(bids) > 0 && len(asks) > 0 {
+		logger.Infof("✓ Lighter order book: %s best_bid=%.2f, best_ask=%.2f, depth=%d/%d",
+			symbol, bids[0][0], asks[0][0], len(bids), len(asks))
 	}
 
-	logger.Infof("✓ Lighter order book: %s bid=%.2f, ask=%.2f", symbol, bestBid, bestAsk)
-	return bestBid, bestAsk, nil
+	return bids, asks, nil
 }

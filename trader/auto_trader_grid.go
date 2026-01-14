@@ -858,6 +858,9 @@ func (at *AutoTrader) syncGridState() {
 
 	// CRITICAL: Check stop loss for filled levels
 	at.checkAndExecuteStopLoss()
+
+	// Check grid skew and auto-adjust if needed
+	at.autoAdjustGrid()
 }
 
 // saveGridDecisionRecord saves the grid decision to database
@@ -916,6 +919,89 @@ func (at *AutoTrader) IsGridStrategy() bool {
 		return false
 	}
 	return at.config.StrategyConfig.StrategyType == "grid_trading" && at.config.StrategyConfig.GridConfig != nil
+}
+
+// checkGridSkew checks if grid is heavily skewed (too many fills on one side)
+// Returns: (skewed bool, buyFilledCount int, sellFilledCount int)
+func (at *AutoTrader) checkGridSkew() (bool, int, int) {
+	at.gridState.mu.RLock()
+	defer at.gridState.mu.RUnlock()
+
+	buyFilled := 0
+	sellFilled := 0
+	buyEmpty := 0
+	sellEmpty := 0
+
+	for _, level := range at.gridState.Levels {
+		if level.Side == "buy" {
+			if level.State == "filled" {
+				buyFilled++
+			} else if level.State == "empty" {
+				buyEmpty++
+			}
+		} else {
+			if level.State == "filled" {
+				sellFilled++
+			} else if level.State == "empty" {
+				sellEmpty++
+			}
+		}
+	}
+
+	// Grid is skewed if one side has 3x more fills than the other
+	// or if one side is completely empty
+	skewed := false
+	if buyFilled > 0 && sellFilled == 0 && sellEmpty > 5 {
+		skewed = true // All buys filled, no sells
+	} else if sellFilled > 0 && buyFilled == 0 && buyEmpty > 5 {
+		skewed = true // All sells filled, no buys
+	} else if buyFilled >= 3*sellFilled && buyFilled > 5 {
+		skewed = true
+	} else if sellFilled >= 3*buyFilled && sellFilled > 5 {
+		skewed = true
+	}
+
+	return skewed, buyFilled, sellFilled
+}
+
+// autoAdjustGrid automatically adjusts grid when heavily skewed
+func (at *AutoTrader) autoAdjustGrid() {
+	skewed, buyFilled, sellFilled := at.checkGridSkew()
+	if !skewed {
+		return
+	}
+
+	logger.Warnf("[Grid] Grid heavily skewed: buy_filled=%d, sell_filled=%d. Auto-adjusting...",
+		buyFilled, sellFilled)
+
+	gridConfig := at.config.StrategyConfig.GridConfig
+
+	// Get current price
+	currentPrice, err := at.trader.GetMarketPrice(gridConfig.Symbol)
+	if err != nil {
+		logger.Errorf("[Grid] Failed to get price for auto-adjust: %v", err)
+		return
+	}
+
+	// Check if price is near grid boundary
+	at.gridState.mu.RLock()
+	upper := at.gridState.UpperPrice
+	lower := at.gridState.LowerPrice
+	at.gridState.mu.RUnlock()
+
+	// Only adjust if price has moved significantly (>30% of grid range)
+	gridRange := upper - lower
+	midPrice := (upper + lower) / 2
+	priceDeviation := math.Abs(currentPrice - midPrice)
+
+	if priceDeviation < gridRange*0.3 {
+		return // Price still near center, don't adjust
+	}
+
+	// Cancel existing orders and reinitialize
+	logger.Infof("[Grid] Adjusting grid around new price $%.2f", currentPrice)
+	at.cancelAllGridOrders()
+	at.initializeGridLevels(currentPrice, gridConfig)
 }
 
 // checkAndExecuteStopLoss checks if any filled level has exceeded stop loss and closes it

@@ -58,6 +58,83 @@ func NewGridState(config *store.GridStrategyConfig) *GridState {
 }
 
 // ============================================================================
+// Breakout Detection
+// ============================================================================
+
+// BreakoutType represents the type of price breakout
+type BreakoutType string
+
+const (
+	BreakoutNone  BreakoutType = "none"
+	BreakoutUpper BreakoutType = "upper"
+	BreakoutLower BreakoutType = "lower"
+)
+
+// checkBreakout detects if price has broken out of grid range
+// Returns breakout type and percentage beyond boundary
+func (at *AutoTrader) checkBreakout() (BreakoutType, float64) {
+	gridConfig := at.config.StrategyConfig.GridConfig
+
+	currentPrice, err := at.trader.GetMarketPrice(gridConfig.Symbol)
+	if err != nil {
+		return BreakoutNone, 0
+	}
+
+	at.gridState.mu.RLock()
+	upper := at.gridState.UpperPrice
+	lower := at.gridState.LowerPrice
+	at.gridState.mu.RUnlock()
+
+	if upper <= 0 || lower <= 0 {
+		return BreakoutNone, 0
+	}
+
+	// Check upper breakout
+	if currentPrice > upper {
+		breakoutPct := (currentPrice - upper) / upper * 100
+		return BreakoutUpper, breakoutPct
+	}
+
+	// Check lower breakout
+	if currentPrice < lower {
+		breakoutPct := (lower - currentPrice) / lower * 100
+		return BreakoutLower, breakoutPct
+	}
+
+	return BreakoutNone, 0
+}
+
+// handleBreakout handles price breakout from grid range
+func (at *AutoTrader) handleBreakout(breakoutType BreakoutType, breakoutPct float64) error {
+	logger.Warnf("[Grid] BREAKOUT DETECTED: %s, %.2f%% beyond boundary", breakoutType, breakoutPct)
+
+	// If breakout exceeds 2%, pause grid and cancel orders
+	if breakoutPct >= 2.0 {
+		logger.Warnf("[Grid] Significant breakout (%.2f%%), pausing grid and canceling orders", breakoutPct)
+
+		// Cancel all pending orders to prevent further losses
+		if err := at.cancelAllGridOrders(); err != nil {
+			logger.Errorf("[Grid] Failed to cancel orders on breakout: %v", err)
+		}
+
+		// Pause grid trading
+		at.gridState.mu.Lock()
+		at.gridState.IsPaused = true
+		at.gridState.mu.Unlock()
+
+		return fmt.Errorf("grid paused due to %s breakout (%.2f%%)", breakoutType, breakoutPct)
+	}
+
+	// If breakout is minor (< 2%), consider adjusting grid
+	if breakoutPct >= 1.0 {
+		logger.Infof("[Grid] Minor breakout (%.2f%%), considering grid adjustment", breakoutPct)
+		// Let AI decide whether to adjust
+	}
+
+	return nil
+}
+
+// ============================================================================
 // AutoTrader Grid Methods
 // ============================================================================
 
@@ -196,6 +273,23 @@ func (at *AutoTrader) RunGridCycle() error {
 		if err := at.InitializeGrid(); err != nil {
 			return fmt.Errorf("failed to initialize grid: %w", err)
 		}
+	}
+
+	// CRITICAL: Check for breakout before executing any trades
+	breakoutType, breakoutPct := at.checkBreakout()
+	if breakoutType != BreakoutNone {
+		if err := at.handleBreakout(breakoutType, breakoutPct); err != nil {
+			return err // Grid paused due to breakout
+		}
+	}
+
+	// Check if grid is paused
+	at.gridState.mu.RLock()
+	isPaused := at.gridState.IsPaused
+	at.gridState.mu.RUnlock()
+	if isPaused {
+		logger.Infof("[Grid] Grid is paused, skipping cycle")
+		return nil
 	}
 
 	gridConfig := at.config.StrategyConfig.GridConfig

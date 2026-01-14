@@ -967,8 +967,12 @@ func (at *AutoTrader) checkAndExecuteStopLoss() {
 				logger.Errorf("[Grid] Failed to execute stop loss for level %d: %v", i, closeErr)
 			} else {
 				level.State = "stopped"
-				level.UnrealizedPnL = -lossPct * level.AllocatedUSD / 100
+				realizedLoss := -lossPct * level.AllocatedUSD / 100
+				level.UnrealizedPnL = realizedLoss
 				at.gridState.TotalTrades++
+				// Update daily PnL tracking (lock already held, update directly)
+				at.gridState.DailyPnL += realizedLoss
+				at.gridState.TotalProfit += realizedLoss
 				logger.Infof("[Grid] Stop loss executed: Level %d closed at $%.2f (loss %.2f%%)",
 					i, currentPrice, lossPct)
 			}

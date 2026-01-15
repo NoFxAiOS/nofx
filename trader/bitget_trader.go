@@ -760,35 +760,31 @@ func (t *BitgetTrader) GetMarketPrice(symbol string) (float64, error) {
 
 // SetStopLoss sets stop loss order
 func (t *BitgetTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
-	// Bitget V2 uses plan order for stop loss
+	// Bitget V2 uses TPSL order for stop loss
 	symbol = t.convertSymbol(symbol)
 
-	side := "sell"
-	holdSide := "long"
+	// For one-way position mode, use buy/sell instead of long/short
+	holdSide := "buy"
 	if strings.ToUpper(positionSide) == "SHORT" {
-		side = "buy"
-		holdSide = "short"
+		holdSide = "sell"
 	}
 
 	qtyStr, _ := t.FormatQuantity(symbol, quantity)
 
 	body := map[string]interface{}{
-		"planType":     "loss_plan",
-		"symbol":       symbol,
-		"productType":  "USDT-FUTURES",
-		"marginMode":   "crossed",
-		"marginCoin":   "USDT",
-		"triggerPrice": fmt.Sprintf("%.8f", stopPrice),
-		"triggerType":  "mark_price",
-		"side":         side,
-		"tradeSide":    "close",
-		"orderType":    "market",
-		"size":         qtyStr,
-		"holdSide":     holdSide,
-		"clientOid":    genBitgetClientOid(),
+		"symbol":              symbol,
+		"productType":         "USDT-FUTURES",
+		"marginCoin":          "USDT",
+		"planType":            "loss_plan",
+		"triggerPrice":        fmt.Sprintf("%.8f", stopPrice),
+		"triggerType":         "mark_price",
+		"executePrice":        "0",
+		"holdSide":            holdSide,
+		"size":                qtyStr,
+		"clientOid":           genBitgetClientOid(),
 	}
 
-	_, err := t.doRequest("POST", "/api/v2/mix/order/place-plan-order", body)
+	_, err := t.doRequest("POST", "/api/v2/mix/order/place-tpsl-order", body)
 	if err != nil {
 		return fmt.Errorf("failed to set stop loss: %w", err)
 	}
@@ -799,35 +795,31 @@ func (t *BitgetTrader) SetStopLoss(symbol string, positionSide string, quantity,
 
 // SetTakeProfit sets take profit order
 func (t *BitgetTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
-	// Bitget V2 uses plan order for take profit
+	// Bitget V2 uses TPSL order for take profit
 	symbol = t.convertSymbol(symbol)
 
-	side := "sell"
-	holdSide := "long"
+	// For one-way position mode, use buy/sell instead of long/short
+	holdSide := "buy"
 	if strings.ToUpper(positionSide) == "SHORT" {
-		side = "buy"
-		holdSide = "short"
+		holdSide = "sell"
 	}
 
 	qtyStr, _ := t.FormatQuantity(symbol, quantity)
 
 	body := map[string]interface{}{
-		"planType":     "profit_plan",
-		"symbol":       symbol,
-		"productType":  "USDT-FUTURES",
-		"marginMode":   "crossed",
-		"marginCoin":   "USDT",
-		"triggerPrice": fmt.Sprintf("%.8f", takeProfitPrice),
-		"triggerType":  "mark_price",
-		"side":         side,
-		"tradeSide":    "close",
-		"orderType":    "market",
-		"size":         qtyStr,
-		"holdSide":     holdSide,
-		"clientOid":    genBitgetClientOid(),
+		"symbol":              symbol,
+		"productType":         "USDT-FUTURES",
+		"marginCoin":          "USDT",
+		"planType":            "profit_plan",
+		"triggerPrice":        fmt.Sprintf("%.8f", takeProfitPrice),
+		"triggerType":         "mark_price",
+		"executePrice":        "0",
+		"holdSide":            holdSide,
+		"size":                qtyStr,
+		"clientOid":           genBitgetClientOid(),
 	}
 
-	_, err := t.doRequest("POST", "/api/v2/mix/order/place-plan-order", body)
+	_, err := t.doRequest("POST", "/api/v2/mix/order/place-tpsl-order", body)
 	if err != nil {
 		return fmt.Errorf("failed to set take profit: %w", err)
 	}

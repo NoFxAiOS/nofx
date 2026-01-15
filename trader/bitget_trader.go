@@ -776,7 +776,7 @@ func (t *BitgetTrader) SetStopLoss(symbol string, positionSide string, quantity,
 		"productType":         "USDT-FUTURES",
 		"marginCoin":          "USDT",
 		"planType":            "loss_plan",
-		"triggerPrice":        fmt.Sprintf("%.8f", stopPrice),
+		"triggerPrice":        t.FormatPrice(symbol, stopPrice),
 		"triggerType":         "mark_price",
 		"executePrice":        "0",
 		"holdSide":            holdSide,
@@ -811,7 +811,7 @@ func (t *BitgetTrader) SetTakeProfit(symbol string, positionSide string, quantit
 		"productType":         "USDT-FUTURES",
 		"marginCoin":          "USDT",
 		"planType":            "profit_plan",
-		"triggerPrice":        fmt.Sprintf("%.8f", takeProfitPrice),
+		"triggerPrice":        t.FormatPrice(symbol, takeProfitPrice),
 		"triggerType":         "mark_price",
 		"executePrice":        "0",
 		"holdSide":            holdSide,
@@ -938,6 +938,19 @@ func (t *BitgetTrader) FormatQuantity(symbol string, quantity float64) (string, 
 	// Format according to volume precision
 	format := fmt.Sprintf("%%.%df", contract.VolumePlace)
 	return fmt.Sprintf(format, quantity), nil
+}
+
+// FormatPrice formats price according to contract precision
+func (t *BitgetTrader) FormatPrice(symbol string, price float64) string {
+	contract, err := t.getContract(symbol)
+	if err != nil {
+		// Default to 2 decimal places if contract info not available
+		return fmt.Sprintf("%.2f", price)
+	}
+
+	// Format according to price precision
+	format := fmt.Sprintf("%%.%df", contract.PricePlace)
+	return fmt.Sprintf(format, price)
 }
 
 // GetOrderStatus gets order status

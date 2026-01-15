@@ -2,8 +2,11 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Shield, Activity, CircuitBoard, Cpu, Wifi, Globe, Lock, Zap, Star, GitFork, Users, MessageCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useGitHubStats } from '../../../hooks/useGitHubStats'
+import { useLanguage } from '../../../contexts/LanguageContext'
 
 export default function TerminalHero() {
+    const { language } = useLanguage()
+    const priceLocale = language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US'
 
     // Real-time price state
     const [prices, setPrices] = useState<Record<string, string>>({
@@ -41,7 +44,7 @@ export default function TerminalHero() {
                             // Format price: < 1 use 4 decimals, > 1 use 2
                             const formatted = closePrice < 1
                                 ? closePrice.toFixed(4)
-                                : closePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                : closePrice.toLocaleString(priceLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                             return { symbol: sym, price: formatted }
                         }
                     } catch (err) {
@@ -64,7 +67,7 @@ export default function TerminalHero() {
 
         // Only fetch once on mount, cache the result
         fetchPrices()
-    }, [])
+    }, [priceLocale])
 
     return (
         <section className="relative w-full min-h-screen bg-nofx-bg text-nofx-text overflow-hidden flex flex-col pt-20">

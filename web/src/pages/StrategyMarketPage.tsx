@@ -21,6 +21,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from 'sonner'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { t, type Language } from '../i18n/translations'
 
 interface PublicStrategy {
   id: string
@@ -105,70 +106,15 @@ export function StrategyMarketPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)
-
-  const texts = {
-    zh: {
-      title: '策略市场',
-      subtitle: 'STRATEGY MARKETPLACE',
-      description: '发现、学习并复用社区精英交易员的策略配置',
-      search: '搜索参数...',
-      all: '全部协议',
-      popular: '热门配置',
-      recent: '最新提交',
-      myStrategies: '我的库',
-      noStrategies: '无信号',
-      noStrategiesDesc: '当前频段未检测到策略信号',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DECRYPT CONFIG',
-      hideConfig: 'ENCRYPT',
-      copyConfig: 'CLONE CONFIG',
-      copied: 'COPIED',
-      configHidden: 'ENCRYPTED',
-      configHiddenDesc: '配置参数已加密',
-      indicators: 'INDICATORS',
-      maxPositions: 'POS_LIMIT',
-      maxLeverage: 'LEV_MAX',
-      shareYours: 'UPLOAD_STRATEGY',
-      makePublic: 'PUBLISH',
-      loading: 'INITIALIZING...'
-    },
-    en: {
-      title: 'STRATEGY MARKET',
-      subtitle: 'GLOBAL STRATEGY DATABASE',
-      description: 'Discover, analyze, and clone high-performance trading algorithms',
-      search: 'SEARCH PARAMETERS...',
-      all: 'ALL PROTOCOLS',
-      popular: 'TRENDING',
-      recent: 'LATEST',
-      myStrategies: 'MY LIBRARY',
-      noStrategies: 'NO SIGNAL',
-      noStrategiesDesc: 'No strategic signals detected in this frequency',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DECRYPT CONFIG',
-      hideConfig: 'ENCRYPT',
-      copyConfig: 'CLONE CONFIG',
-      copied: 'COPIED',
-      configHidden: 'ENCRYPTED',
-      configHiddenDesc: 'Configuration parameters encrypted',
-      indicators: 'INDICATORS',
-      maxPositions: 'POS_LIMIT',
-      maxLeverage: 'LEV_MAX',
-      shareYours: 'UPLOAD_STRATEGY',
-      makePublic: 'PUBLISH',
-      loading: 'INITIALIZING...'
-    }
-  }
-
-  const t = texts[language]
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    t(`strategyMarketPage.${key}`, language as Language, params)
 
   // Fetch public strategies
   const { data: strategies, isLoading } = useSWR<PublicStrategy[]>(
     'public-strategies',
     async () => {
       const response = await fetch('/api/strategies/public')
-      if (!response.ok) throw new Error('Failed to fetch strategies')
+      if (!response.ok) throw new Error(tr('errors.fetchFailed'))
       const data = await response.json()
       return data.strategies || []
     },
@@ -192,7 +138,7 @@ export function StrategyMarketPage() {
     try {
       await navigator.clipboard.writeText(JSON.stringify(strategy.config, null, 2))
       setCopiedId(strategy.id)
-      toast.success(t.copied)
+      toast.success(tr('actions.copied'))
       setTimeout(() => setCopiedId(null), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
@@ -201,7 +147,8 @@ export function StrategyMarketPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', {
+    const locale = language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US'
+    return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -234,9 +181,9 @@ export function StrategyMarketPage() {
           {/* Header Section */}
           <div className="mb-12 border-b border-zinc-800 pb-8 relative">
             <div className="absolute top-0 right-0 p-2 border border-zinc-800 rounded bg-black/50 text-xs text-zinc-500 font-mono hidden md:block">
-              SYSTEM_STATUS: <span className="text-emerald-500 animate-pulse">ONLINE</span>
+              {tr('statusPanel.systemStatus')}: <span className="text-emerald-500 animate-pulse">{tr('statusPanel.online')}</span>
               <br />
-              MARKET_UPLINK: <span className="text-emerald-500">ESTABLISHED</span>
+              {tr('statusPanel.marketUplink')}: <span className="text-emerald-500">{tr('statusPanel.established')}</span>
             </div>
 
             <div className="flex items-center gap-4 mb-4">
@@ -245,16 +192,16 @@ export function StrategyMarketPage() {
                 <Database className="w-8 h-8 text-nofx-gold relative z-10" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold tracking-tighter text-white uppercase glitch-text" data-text={t.title}>
-                  {t.title}
+                <h1 className="text-4xl font-bold tracking-tighter text-white uppercase glitch-text" data-text={tr('title')}>
+                  {tr('title')}
                 </h1>
                 <p className="text-xs text-nofx-gold tracking-[0.3em] font-bold mt-1">
-                // {t.subtitle}
+                  {tr('subtitle')}
                 </p>
               </div>
             </div>
             <p className="text-sm text-zinc-500 max-w-2xl border-l-2 border-zinc-800 pl-4">
-              {t.description}
+              {tr('description')}
             </p>
           </div>
 
@@ -269,7 +216,7 @@ export function StrategyMarketPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder={t.search}
+                  placeholder={tr('searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-transparent py-3 text-sm focus:outline-none placeholder-zinc-700 text-nofx-gold font-mono"
@@ -298,7 +245,7 @@ export function StrategyMarketPage() {
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}
-                  <span className="relative z-10">{t[cat as keyof typeof t]}</span>
+                  <span className="relative z-10">{tr(`categories.${cat}`)}</span>
                 </button>
               ))}
             </div>
@@ -314,7 +261,7 @@ export function StrategyMarketPage() {
                   <Cpu size={24} className="text-nofx-gold/50" />
                 </div>
               </div>
-              <p className="text-nofx-gold text-xs tracking-widest animate-pulse">{t.loading}</p>
+              <p className="text-nofx-gold text-xs tracking-widest animate-pulse">{tr('states.loading')}</p>
               <div className="flex gap-1">
                 <div className="w-1 h-1 bg-nofx-gold rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
                 <div className="w-1 h-1 bg-nofx-gold rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
@@ -331,9 +278,9 @@ export function StrategyMarketPage() {
                 <Activity className="w-16 h-16 text-zinc-700 relative z-10" />
               </div>
               <h3 className="text-xl font-bold text-zinc-300 font-mono tracking-tight mb-2">
-                [{t.noStrategies}]
+                [{tr('states.noStrategies')}]
               </h3>
-              <p className="text-zinc-600 text-xs tracking-wide uppercase">{t.noStrategiesDesc}</p>
+              <p className="text-zinc-600 text-xs tracking-wide uppercase">{tr('states.noStrategiesDesc')}</p>
             </div>
           )}
 
@@ -374,12 +321,12 @@ export function StrategyMarketPage() {
                             {strategy.config_visible ? (
                               <div className="flex items-center gap-1.5 text-emerald-500 border border-emerald-500/20 bg-emerald-500/10 px-2 py-1">
                                 <Eye size={10} />
-                                PUBLIC_ACCESS
+                                {tr('access.public')}
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5 text-zinc-500 border border-zinc-800 bg-zinc-900 px-2 py-1">
                                 <EyeOff size={10} />
-                                RESTRICTED
+                                {tr('access.restricted')}
                               </div>
                             )}
                           </div>
@@ -391,17 +338,17 @@ export function StrategyMarketPage() {
                           <span className="absolute -bottom-1 left-0 w-8 h-[2px] bg-zinc-800 group-hover:bg-nofx-gold transition-colors"></span>
                         </h3>
                         <p className="text-xs text-zinc-500 mb-6 line-clamp-2 h-8 leading-relaxed font-sans">
-                          {strategy.description || 'NO_DESCRIPTION_AVAILABLE'}
+                          {strategy.description || tr('meta.noDescription')}
                         </p>
 
                         {/* Meta Data */}
                         <div className="grid grid-cols-2 gap-y-2 mb-6 text-[10px] font-mono text-zinc-600">
                           <div className="flex flex-col">
-                            <span className="text-zinc-700 uppercase">{t.author}</span>
-                            <span className="text-zinc-400 group-hover:text-white transition-colors">@{strategy.author_email?.split('@')[0] || 'UNKNOWN'}</span>
+                            <span className="text-zinc-700 uppercase">{tr('meta.author')}</span>
+                            <span className="text-zinc-400 group-hover:text-white transition-colors">@{strategy.author_email?.split('@')[0] || tr('meta.unknown')}</span>
                           </div>
                           <div className="flex flex-col text-right">
-                            <span className="text-zinc-700 uppercase">{t.createdAt}</span>
+                            <span className="text-zinc-700 uppercase">{tr('meta.createdAt')}</span>
                             <span className="text-zinc-400">{formatDate(strategy.created_at)}</span>
                           </div>
                         </div>
@@ -419,7 +366,7 @@ export function StrategyMarketPage() {
                                   >
                                     {ind}
                                   </span>
-                                )) : <span className="text-[9px] text-zinc-600">NO_INDICATORS</span>}
+                                )) : <span className="text-[9px] text-zinc-600">{tr('actions.noIndicators')}</span>}
                               </div>
 
                               {/* Risk Control */}
@@ -442,7 +389,7 @@ export function StrategyMarketPage() {
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full text-zinc-600">
                               <EyeOff size={16} className="mb-1 opacity-50" />
-                              <span className="text-[9px] uppercase tracking-widest">{t.configHiddenDesc}</span>
+                              <span className="text-[9px] uppercase tracking-widest">{tr('actions.configHiddenDesc')}</span>
                             </div>
                           )}
                         </div>
@@ -457,19 +404,19 @@ export function StrategyMarketPage() {
                               {copiedId === strategy.id ? (
                                 <>
                                   <Check className="w-3 h-3 text-emerald-500" />
-                                  <span className="text-emerald-500">{t.copied}</span>
+                                  <span className="text-emerald-500">{tr('actions.copied')}</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-3 h-3 group-hover/btn:scale-110 transition-transform" />
-                                  {t.copyConfig}
+                                  {tr('actions.copyConfig')}
                                 </>
                               )}
                             </button>
                           ) : (
                             <button disabled className="w-full py-2.5 text-[10px] font-bold font-mono uppercase tracking-widest border border-zinc-800 bg-black text-zinc-700 cursor-not-allowed flex items-center justify-center gap-2">
                               <Shield size={12} />
-                              {t.hideConfig}
+                              {tr('actions.hideConfig')}
                             </button>
                           )}
                         </div>
@@ -495,12 +442,12 @@ export function StrategyMarketPage() {
                 <div className="relative px-8 py-4 bg-black border border-zinc-800 hover:border-nofx-gold/50 flex items-center gap-4 transition-all">
                   <Hexagon className="text-nofx-gold animate-spin-slow" size={24} />
                   <div className="text-left">
-                    <div className="text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{t.shareYours}</div>
-                    <div className="text-[10px] text-zinc-500 font-mono">CONTRIBUTE TO THE GLOBAL DATABASE</div>
+                    <div className="text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{tr('actions.shareYours')}</div>
+                    <div className="text-[10px] text-zinc-500 font-mono">{tr('actions.uploadCta')}</div>
                   </div>
                   <div className="w-[1px] h-8 bg-zinc-800 mx-2"></div>
                   <div className="text-xs font-mono text-zinc-400 group-hover:translate-x-1 transition-transform">
-                    INITIALIZE_UPLOAD -&gt;
+                    {tr('actions.uploadAction')}
                   </div>
                 </div>
               </div>

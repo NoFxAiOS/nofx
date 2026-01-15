@@ -24,12 +24,12 @@ interface SymbolInfo {
 }
 
 // 市场类型配置
-const MARKET_CONFIG = {
-  hyperliquid: { exchange: 'hyperliquid', defaultSymbol: 'BTC', icon: '🔷', label: { zh: 'HL', en: 'HL' }, color: 'cyan', hasDropdown: true },
-  crypto: { exchange: 'binance', defaultSymbol: 'BTCUSDT', icon: '₿', label: { zh: '加密', en: 'Crypto' }, color: 'yellow', hasDropdown: false },
-  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', label: { zh: '美股', en: 'Stocks' }, color: 'green', hasDropdown: false },
-  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', label: { zh: '外汇', en: 'Forex' }, color: 'blue', hasDropdown: false },
-  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', label: { zh: '金属', en: 'Metals' }, color: 'amber', hasDropdown: false },
+const MARKET_CONFIG: Record<MarketType, { exchange: string; defaultSymbol: string; icon: string; labelKey: string; color: string; hasDropdown: boolean }> = {
+  hyperliquid: { exchange: 'hyperliquid', defaultSymbol: 'BTC', icon: '🔷', labelKey: 'chartTabs.markets.hyperliquid', color: 'cyan', hasDropdown: true },
+  crypto: { exchange: 'binance', defaultSymbol: 'BTCUSDT', icon: '₿', labelKey: 'chartTabs.markets.crypto', color: 'yellow', hasDropdown: false },
+  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', labelKey: 'chartTabs.markets.stocks', color: 'green', hasDropdown: false },
+  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', labelKey: 'chartTabs.markets.forex', color: 'blue', hasDropdown: false },
+  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', labelKey: 'chartTabs.markets.metals', color: 'amber', hasDropdown: false },
 }
 
 const INTERVALS: { value: Interval; label: string }[] = [
@@ -53,6 +53,9 @@ function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
 
 export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: ChartTabsProps) {
   const { language } = useLanguage()
+  const tr = (key: string, params?: Record<string, any>) => t(key, language, params)
+  const trChart = (key: string, params?: Record<string, any>) =>
+    t(`chartTabs.${key}`, language, params)
   const [activeTab, setActiveTab] = useState<ChartTab>('equity')
   const [chartSymbol, setChartSymbol] = useState<string>('BTC')
   const [interval, setInterval] = useState<Interval>('5m')
@@ -119,10 +122,18 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
     s.symbol.toLowerCase().includes(searchFilter.toLowerCase())
   )
 
+  const categoryLabels: Record<string, string> = {
+    crypto: trChart('categories.crypto'),
+    stock: trChart('categories.stock'),
+    forex: trChart('categories.forex'),
+    commodity: trChart('categories.commodity'),
+    index: trChart('categories.index'),
+  }
+
   // 当从外部选择币种时，自动切换到K线图
   useEffect(() => {
     if (selectedSymbol) {
-      console.log('[ChartTabs] 收到币种选择:', selectedSymbol, 'updateKey:', updateKey)
+      console.log('[ChartTabs] Received symbol selection:', selectedSymbol, 'updateKey:', updateKey)
       setChartSymbol(selectedSymbol)
       setActiveTab('kline')
     }
@@ -198,7 +209,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                       }`}
                   >
                     <span className="mr-1 opacity-70">{config.icon}</span>
-                    {language === 'zh' ? config.label.zh : config.label.en}
+                    {tr(config.labelKey)}
                   </button>
                 )
               })}
@@ -229,7 +240,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                             type="text"
                             value={searchFilter}
                             onChange={(e) => setSearchFilter(e.target.value)}
-                            placeholder="Search symbol..."
+                            placeholder={trChart('searchPlaceholder')}
                             className="flex-1 bg-transparent text-[11px] text-white placeholder-gray-600 focus:outline-none font-mono"
                             autoFocus
                           />
@@ -239,10 +250,9 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                         {['crypto', 'stock', 'forex', 'commodity', 'index'].map(category => {
                           const categorySymbols = filteredSymbols.filter(s => s.category === category)
                           if (categorySymbols.length === 0) return null
-                          const labels: Record<string, string> = { crypto: 'Crypto', stock: 'Stocks', forex: 'Forex', commodity: 'Commodities', index: 'Index' }
                           return (
                             <div key={category}>
-                              <div className="px-3 py-1.5 text-[9px] font-bold text-nofx-text-muted/60 bg-white/5 uppercase tracking-wider">{labels[category]}</div>
+                              <div className="px-3 py-1.5 text-[9px] font-bold text-nofx-text-muted/60 bg-white/5 uppercase tracking-wider">{categoryLabels[category]}</div>
                               {categorySymbols.map(s => (
                                 <button
                                   key={s.symbol}
@@ -287,11 +297,11 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                 type="text"
                 value={symbolInput}
                 onChange={(e) => setSymbolInput(e.target.value)}
-                placeholder="Sym"
+                placeholder={trChart('quickInputPlaceholder')}
                 className="w-16 px-2 py-1 bg-black/40 border border-white/10 rounded-l text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-nofx-gold/50 font-mono transition-colors"
               />
               <button type="submit" className="px-2 py-1 bg-white/5 border border-white/10 border-l-0 rounded-r text-[10px] text-nofx-text-muted hover:text-white hover:bg-white/10 transition-all">
-                Go
+                {trChart('quickInputAction')}
               </button>
             </form>
           </div>

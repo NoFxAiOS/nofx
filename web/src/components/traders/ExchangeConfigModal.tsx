@@ -60,6 +60,7 @@ export function ExchangeConfigModal({
   onClose,
   language,
 }: ExchangeConfigModalProps) {
+  const tr = (key: string, params?: Record<string, string | number>) => t(`exchangeConfigModal.${key}`, language as Language, params)
   // Selected exchange type for creating new accounts
   const [selectedExchangeType, setSelectedExchangeType] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -199,17 +200,17 @@ export function ExchangeConfigModal({
             setTimeout(() => setCopiedIP(false), 2000)
             toast.success(t('ipCopied', language))
           } else {
-            throw new Error('复制命令执行失败')
+            throw new Error(t('exchangeConfigModal.errors.copyCommandFailed', language))
           }
         } finally {
           document.body.removeChild(textArea)
         }
       }
     } catch (err) {
-      console.error('复制失败:', err)
+      console.error(t('exchangeConfigModal.errors.copyFailed', language), err)
       // 显示错误提示
       toast.error(
-        t('copyIPFailed', language) || `复制失败: ${ip}\n请手动复制此IP地址`
+        t('copyIPFailed', language) || `Failed to copy: ${ip}\nPlease copy this IP address manually`
       )
     }
   }
@@ -269,7 +270,7 @@ export function ExchangeConfigModal({
     // Validate account name
     const trimmedAccountName = accountName.trim()
     if (!trimmedAccountName) {
-      toast.error(language === 'zh' ? '请输入账户名称' : 'Please enter account name')
+      toast.error(tr('errors.accountNameRequired'))
       return
     }
 
@@ -486,13 +487,13 @@ export function ExchangeConfigModal({
                     className="block text-sm font-semibold mb-2"
                     style={{ color: '#EAECEF' }}
                   >
-                    {language === 'zh' ? '账户名称' : 'Account Name'} *
+                    {tr('accountNameLabel')} *
                   </label>
                   <input
                     type="text"
                     value={accountName}
                     onChange={(e) => setAccountName(e.target.value)}
-                    placeholder={language === 'zh' ? '例如：主账户、套利账户' : 'e.g., Main Account, Arbitrage Account'}
+                    placeholder={tr('accountNamePlaceholder')}
                     className="w-full px-3 py-2 rounded"
                     style={{
                       background: '#1E2329',
@@ -502,9 +503,7 @@ export function ExchangeConfigModal({
                     required
                   />
                   <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                    {language === 'zh'
-                      ? '为此账户设置一个易于识别的名称，以便区分同一交易所的多个账户'
-                      : 'Set an easily recognizable name for this account to distinguish multiple accounts on the same exchange'}
+                    {tr('accountNameHint')}
                   </div>
                 </div>
 
@@ -522,14 +521,14 @@ export function ExchangeConfigModal({
                   <div className="flex items-center gap-2">
                     <UserPlus className="w-4 h-4" style={{ color: '#F0B90B' }} />
                     <span className="text-sm" style={{ color: '#EAECEF' }}>
-                      {language === 'zh' ? '还没有交易所账号？点击注册' : "No exchange account? Register here"}
+                      {tr('registerCta')}
                     </span>
                     {exchangeRegistrationLinks[currentExchangeType || '']?.hasReferral && (
                       <span
                         className="text-xs px-1.5 py-0.5 rounded"
                         style={{ background: 'rgba(14, 203, 129, 0.2)', color: '#0ECB81' }}
                       >
-                        {language === 'zh' ? '折扣优惠' : 'Discount'}
+                        {tr('discount')}
                       </span>
                     )}
                   </div>
@@ -1063,12 +1062,10 @@ export function ExchangeConfigModal({
                         <span style={{ color: '#F0B90B', fontSize: '16px' }}>🔐</span>
                         <div className="flex-1">
                           <div className="text-sm font-semibold mb-1" style={{ color: '#F0B90B' }}>
-                            {language === 'zh' ? 'Lighter API Key 配置' : 'Lighter API Key Setup'}
+                            {tr('lighterSetupTitle')}
                           </div>
                           <div className="text-xs" style={{ color: '#848E9C', lineHeight: '1.5' }}>
-                            {language === 'zh'
-                              ? '请在 Lighter 网站生成 API Key，然后填写钱包地址、API Key 私钥和索引。'
-                              : 'Generate an API Key on the Lighter website, then enter your wallet address, API Key private key, and index.'}
+                            {tr('lighterSetupDesc')}
                           </div>
                         </div>
                       </div>
@@ -1140,11 +1137,9 @@ export function ExchangeConfigModal({
                         className="block text-sm font-semibold mb-2 flex items-center gap-2"
                         style={{ color: '#EAECEF' }}
                       >
-                        {language === 'zh' ? 'API Key 索引' : 'API Key Index'}
+                        {tr('apiKeyIndexLabel')}
                         <Tooltip content={
-                          language === 'zh'
-                            ? 'Lighter 允许每个账户创建多个 API Key（最多256个）。索引值对应您创建的第几个 API Key，从0开始计数。如果您只创建了一个 API Key，请使用默认值 0。'
-                            : 'Lighter allows creating multiple API Keys per account (up to 256). The index corresponds to which API Key you created, starting from 0. If you only created one API Key, use the default value 0.'
+                          tr('apiKeyIndexTooltip')
                         }>
                           <HelpCircle
                             className="w-4 h-4 cursor-help"
@@ -1167,9 +1162,7 @@ export function ExchangeConfigModal({
                         }}
                       />
                       <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                        {language === 'zh'
-                          ? '默认为 0。如果您在 Lighter 创建了多个 API Key，请填写对应的索引号（0-255）。'
-                          : 'Default is 0. If you created multiple API Keys on Lighter, enter the corresponding index (0-255).'}
+                        {tr('apiKeyIndexHint')}
                       </div>
                     </div>
                   </>
@@ -1229,7 +1222,7 @@ export function ExchangeConfigModal({
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
               style={{ background: '#F0B90B', color: '#000' }}
             >
-              {isSaving ? t('saving', language) || '保存中...' : t('saveConfig', language)}
+              {isSaving ? t('saving', language) || 'Saving...' : t('saveConfig', language)}
             </button>
           </div>
         </form>

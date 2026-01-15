@@ -23,11 +23,11 @@ export default function FooterSection({ language }: FooterSectionProps) {
     ],
     resources: [
       {
-        name: language === 'zh' ? '文档' : 'Documentation',
+        name: t('footerLinks.documentation', language),
         href: 'https://github.com/NoFxAiOS/nofx/blob/main/README.md',
       },
-      { name: 'Issues', href: 'https://github.com/NoFxAiOS/nofx/issues' },
-      { name: 'Pull Requests', href: 'https://github.com/NoFxAiOS/nofx/pulls' },
+      { name: t('footerLinks.issues', language), href: 'https://github.com/NoFxAiOS/nofx/issues' },
+      { name: t('footerLinks.pullRequests', language), href: 'https://github.com/NoFxAiOS/nofx/pulls' },
     ],
     supporters: [
       { name: 'Binance', href: 'https://www.binance.com/join?ref=NOFXENG' },

@@ -1,3 +1,5 @@
+import type { Language } from './i18n/translations'
+
 export interface SystemStatus {
   trader_id: string
   trader_name: string
@@ -480,9 +482,9 @@ export interface PromptSectionsConfig {
 }
 
 export interface StrategyConfig {
-  // Language setting: "zh" for Chinese, "en" for English
-  // Determines the language used for data formatting and prompt generation
-  language?: 'zh' | 'en';
+  // Language setting used for data formatting and prompt generation
+  // Backend currently supports "zh" and "en"; "es" will fall back to English
+  language?: Language;
   coin_source: CoinSourceConfig;
   indicators: IndicatorConfig;
   custom_prompt?: string;

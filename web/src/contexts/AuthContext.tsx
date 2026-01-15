@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getSystemConfig } from '../lib/config'
 import { reset401Flag, httpClient } from '../lib/httpClient'
+import { useLanguage } from './LanguageContext'
+import { t } from '../i18n/translations'
 
 interface User {
   id: string
@@ -61,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { language } = useLanguage()
 
   useEffect(() => {
     // Reset 401 flag on page load to allow fresh 401 handling
@@ -147,18 +150,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
         // Unexpected success response
-        return { success: false, message: '登录响应异常' }
+        return { success: false, message: t('loginUnexpected', language) }
       } else {
         return {
           success: false,
-          message: data.error,
+          message: data.error || t('loginFailed', language),
           qrCodeURL: data.qr_code_url,
           otpSecret: data.otp_secret,
           userID: data.user_id
         }
       }
     } catch (error) {
-      return { success: false, message: '登录失败，请重试' }
+      return { success: false, message: t('loginFailed', language) }
     }
   }
 
@@ -196,10 +199,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return { success: true }
       } else {
-        return { success: false, message: data.error || '登录失败' }
+        return { success: false, message: data.error || t('loginFailed', language) }
       }
     } catch (e) {
-      return { success: false, message: '登录失败，请重试' }
+      return { success: false, message: t('loginFailed', language) }
     }
   }
 
@@ -238,7 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Only business errors reach here (system/network errors were intercepted)
       return {
         success: false,
-        message: result.message || 'Registration failed',
+        message: result.message || t('registrationFailed', language),
       }
     } catch (error) {
       console.error('Auth register error:', error);
@@ -247,7 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // to let the UI display it gracefully without crashing.
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Detailed server error'
+        message: error instanceof Error ? error.message : t('registrationFailed', language)
       }
     }
   }
@@ -292,7 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: data.error }
       }
     } catch (error) {
-      return { success: false, message: 'OTP验证失败，请重试' }
+      return { success: false, message: t('verificationFailed', language) }
     }
   }
 
@@ -336,7 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: data.error }
       }
     } catch (error) {
-      return { success: false, message: '注册完成失败，请重试' }
+      return { success: false, message: t('registrationFailed', language) }
     }
   }
 
@@ -366,7 +369,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, message: data.error }
       }
     } catch (error) {
-      return { success: false, message: '密码重置失败，请重试' }
+      return { success: false, message: t('resetPasswordFailed', language) }
     }
   }
 

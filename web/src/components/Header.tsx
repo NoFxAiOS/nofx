@@ -1,5 +1,5 @@
 import { useLanguage } from '../contexts/LanguageContext'
-import { t } from '../i18n/translations'
+import { t, type Language } from '../i18n/translations'
 import { Container } from './Container'
 
 interface HeaderProps {
@@ -35,28 +35,23 @@ export function Header({ simple = false }: HeaderProps) {
             className="flex gap-1 rounded p-1"
             style={{ background: '#1E2329' }}
           >
-            <button
-              onClick={() => setLanguage('zh')}
-              className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-              style={
-                language === 'zh'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-              }
-            >
-              中文
-            </button>
-            <button
-              onClick={() => setLanguage('en')}
-              className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
-              style={
-                language === 'en'
-                  ? { background: '#F0B90B', color: '#000' }
-                  : { background: 'transparent', color: '#848E9C' }
-              }
-            >
-              EN
-            </button>
+            {(['zh', 'en', 'es'] as Language[]).map((lang) => {
+              const isActive = language === lang
+              return (
+                <button
+                  key={lang}
+                  onClick={() => setLanguage(lang)}
+                  className="px-3 py-1.5 rounded text-xs font-semibold transition-all"
+                  style={
+                    isActive
+                      ? { background: '#F0B90B', color: '#000' }
+                      : { background: 'transparent', color: '#848E9C' }
+                  }
+                >
+                  {t(`languageNames.${lang}`, language)}
+                </button>
+              )
+            })}
           </div>
         </div>
       </Container>

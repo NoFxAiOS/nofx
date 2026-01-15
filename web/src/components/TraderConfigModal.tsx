@@ -57,6 +57,8 @@ export function TraderConfigModal({
   onSave,
 }: TraderConfigModalProps) {
   const { language } = useLanguage()
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    t(`traderConfigModal.${key}`, language, params)
   const [formData, setFormData] = useState<FormState>({
     trader_name: '',
     ai_model: '',
@@ -125,7 +127,7 @@ export function TraderConfigModal({
 
   const handleFetchCurrentBalance = async () => {
     if (!isEditMode || !traderData?.trader_id) {
-      setBalanceFetchError('只有在编辑模式下才能获取当前余额')
+      setBalanceFetchError(tr('errors.editModeOnly'))
       return
     }
 
@@ -142,13 +144,13 @@ export function TraderConfigModal({
         const currentBalance =
           result.data.total_equity || result.data.balance || 0
         setFormData((prev) => ({ ...prev, initial_balance: currentBalance }))
-        toast.success('已获取当前余额')
+        toast.success(tr('toasts.fetchBalanceSuccess'))
       } else {
-        throw new Error(result.message || '获取余额失败')
+        throw new Error(result.message || tr('errors.fetchBalanceDefault'))
       }
     } catch (error) {
-      console.error('获取余额失败:', error)
-      setBalanceFetchError('获取余额失败，请检查网络连接')
+      console.error('Failed to fetch balance:', error)
+      setBalanceFetchError(tr('errors.fetchBalanceFailed'))
     } finally {
       setIsFetchingBalance(false)
     }
@@ -175,13 +177,13 @@ export function TraderConfigModal({
       }
 
       await toast.promise(onSave(saveData), {
-        loading: '正在保存…',
-        success: '保存成功',
-        error: '保存失败',
+        loading: tr('toasts.save.loading'),
+        success: tr('toasts.save.success'),
+        error: tr('toasts.save.error'),
       })
       onClose()
     } catch (error) {
-      console.error('保存失败:', error)
+      console.error('Failed to save trader:', error)
     } finally {
       setIsSaving(false)
     }
@@ -208,10 +210,10 @@ export function TraderConfigModal({
             </div>
             <div>
               <h2 className="text-xl font-bold text-[#EAECEF]">
-                {isEditMode ? '修改交易员' : '创建交易员'}
+                {isEditMode ? tr('titleEdit') : tr('titleCreate')}
               </h2>
               <p className="text-sm text-[#848E9C] mt-1">
-                {isEditMode ? '修改交易员配置' : '选择策略并配置基础参数'}
+                {isEditMode ? tr('subtitleEdit') : tr('subtitleCreate')}
               </p>
             </div>
           </div>
@@ -231,12 +233,12 @@ export function TraderConfigModal({
           {/* Basic Info */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
-              <span className="text-[#F0B90B]">1</span> 基础配置
+              <span className="text-[#F0B90B]">1</span> {tr('steps.basic')}
             </h3>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  交易员名称 <span className="text-red-500">*</span>
+                  {tr('form.traderName')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -245,13 +247,13 @@ export function TraderConfigModal({
                     handleInputChange('trader_name', e.target.value)
                   }
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
-                  placeholder="请输入交易员名称"
+                  placeholder={tr('form.traderNamePlaceholder')}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
-                    AI模型 <span className="text-red-500">*</span>
+                    {tr('form.aiModel')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.ai_model}
@@ -269,7 +271,7 @@ export function TraderConfigModal({
                 </div>
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
-                    交易所 <span className="text-red-500">*</span>
+                    {tr('form.exchange')} <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={formData.exchange_id}
@@ -300,10 +302,10 @@ export function TraderConfigModal({
                         className="mt-2 inline-flex items-center gap-1.5 text-xs text-[#848E9C] hover:text-[#F0B90B] transition-colors"
                       >
                         <UserPlus className="w-3.5 h-3.5" />
-                        <span>还没有交易所账号？点击注册</span>
+                        <span>{tr('form.registerLink')}</span>
                         {regLink.hasReferral && (
                           <span className="px-1.5 py-0.5 bg-[#F0B90B]/10 text-[#F0B90B] rounded text-[10px]">
-                            折扣优惠
+                            {tr('form.registerDiscount')}
                           </span>
                         )}
                         <ExternalLink className="w-3 h-3" />
@@ -318,13 +320,13 @@ export function TraderConfigModal({
           {/* Strategy Selection */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
-              <span className="text-[#F0B90B]">2</span> 选择交易策略
+              <span className="text-[#F0B90B]">2</span> {tr('steps.strategy')}
               <Sparkles className="w-4 h-4 text-[#F0B90B]" />
             </h3>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  使用策略
+                  {tr('form.useStrategy')}
                 </label>
                 <select
                   value={formData.strategy_id}
@@ -333,18 +335,18 @@ export function TraderConfigModal({
                   }
                   className="w-full px-3 py-2 bg-[#0B0E11] border border-[#2B3139] rounded text-[#EAECEF] focus:border-[#F0B90B] focus:outline-none"
                 >
-                  <option value="">-- 不使用策略（手动配置）--</option>
+                  <option value="">{tr('form.noStrategyOption')}</option>
                   {strategies.map((strategy) => (
                     <option key={strategy.id} value={strategy.id}>
                       {strategy.name}
-                      {strategy.is_active ? ' (当前激活)' : ''}
-                      {strategy.is_default ? ' [默认]' : ''}
+                      {strategy.is_active ? tr('form.activeSuffix') : ''}
+                      {strategy.is_default ? tr('form.defaultSuffix') : ''}
                     </option>
                   ))}
                 </select>
                 {strategies.length === 0 && (
                   <p className="text-xs text-[#848E9C] mt-2">
-                    暂无策略，请先在策略工作室创建策略
+                    {tr('form.noStrategiesHint')}
                   </p>
                 )}
               </div>
@@ -354,25 +356,32 @@ export function TraderConfigModal({
                 <div className="mt-3 p-4 bg-[#1E2329] border border-[#2B3139] rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-[#F0B90B] text-sm font-medium">
-                      策略详情
+                      {tr('form.strategyDetails')}
                     </span>
                     {selectedStrategy.is_active && (
                       <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
-                        激活中
+                        {tr('form.activeBadge')}
                       </span>
                     )}
                   </div>
                   <p className="text-sm text-[#848E9C] mb-2">
-                    {selectedStrategy.description || '无描述'}
+                    {selectedStrategy.description || tr('form.noDescription')}
                   </p>
                   <div className="grid grid-cols-2 gap-2 text-xs text-[#848E9C]">
                     <div>
-                      币种来源: {selectedStrategy.config.coin_source.source_type === 'static' ? '固定币种' :
-                        selectedStrategy.config.coin_source.source_type === 'ai500' ? 'AI500' :
-                        selectedStrategy.config.coin_source.source_type === 'oi_top' ? 'OI Top' : '混合'}
+                      {tr('form.coinSource')}: {(() => {
+                        const type = selectedStrategy.config.coin_source.source_type
+                        const labelMap: Record<string, string> = {
+                          static: tr('form.coinSourceTypes.static'),
+                          ai500: tr('form.coinSourceTypes.ai500'),
+                          oi_top: tr('form.coinSourceTypes.oi_top'),
+                          mixed: tr('form.coinSourceTypes.mixed'),
+                        }
+                        return labelMap[type] || labelMap.mixed
+                      })()}
                     </div>
                     <div>
-                      保证金上限: {((selectedStrategy.config.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%
+                      {tr('form.marginCap')}: {((selectedStrategy.config.risk_control?.max_margin_usage || 0.9) * 100).toFixed(0)}%
                     </div>
                   </div>
                 </div>
@@ -383,13 +392,13 @@ export function TraderConfigModal({
           {/* Trading Parameters */}
           <div className="bg-[#0B0E11] border border-[#2B3139] rounded-lg p-5">
             <h3 className="text-lg font-semibold text-[#EAECEF] mb-5 flex items-center gap-2">
-              <span className="text-[#F0B90B]">3</span> 交易参数
+              <span className="text-[#F0B90B]">3</span> {tr('steps.trading')}
             </h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-[#EAECEF] block mb-2">
-                    保证金模式
+                    {tr('form.marginMode')}
                   </label>
                   <div className="flex gap-2">
                     <button
@@ -401,7 +410,7 @@ export function TraderConfigModal({
                           : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                       }`}
                     >
-                      全仓
+                      {tr('form.cross')}
                     </button>
                     <button
                       type="button"
@@ -414,7 +423,7 @@ export function TraderConfigModal({
                           : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                       }`}
                     >
-                      逐仓
+                      {tr('form.isolated')}
                     </button>
                   </div>
                 </div>
@@ -446,7 +455,7 @@ export function TraderConfigModal({
               {/* Competition visibility */}
               <div>
                 <label className="text-sm text-[#EAECEF] block mb-2">
-                  竞技场显示
+                  {tr('form.arenaVisibility')}
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -458,7 +467,7 @@ export function TraderConfigModal({
                         : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                     }`}
                   >
-                    显示
+                    {tr('form.show')}
                   </button>
                   <button
                     type="button"
@@ -469,11 +478,11 @@ export function TraderConfigModal({
                         : 'bg-[#0B0E11] text-[#848E9C] border border-[#2B3139]'
                     }`}
                   >
-                    隐藏
+                    {tr('form.hide')}
                   </button>
                 </div>
                 <p className="text-xs text-[#848E9C] mt-1">
-                  隐藏后将不在竞技场页面显示此交易员
+                  {tr('form.hideHint')}
                 </p>
               </div>
 
@@ -482,7 +491,7 @@ export function TraderConfigModal({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-sm text-[#EAECEF]">
-                      初始余额 ($)
+                      {tr('form.initialBalance')}
                     </label>
                     <button
                       type="button"
@@ -490,7 +499,7 @@ export function TraderConfigModal({
                       disabled={isFetchingBalance}
                       className="px-3 py-1 text-xs bg-[#F0B90B] text-black rounded hover:bg-[#E1A706] transition-colors disabled:bg-[#848E9C] disabled:cursor-not-allowed"
                     >
-                      {isFetchingBalance ? '获取中...' : '获取当前余额'}
+                      {isFetchingBalance ? tr('form.fetchingBalance') : tr('form.fetchBalance')}
                     </button>
                   </div>
                   <input
@@ -507,7 +516,7 @@ export function TraderConfigModal({
                     step="0.01"
                   />
                   <p className="text-xs text-[#848E9C] mt-1">
-                    用于手动更新初始余额基准（例如充值/提现后）
+                    {tr('form.initialBalanceHint')}
                   </p>
                   {balanceFetchError && (
                     <p className="text-xs text-red-500 mt-1">
@@ -535,7 +544,7 @@ export function TraderConfigModal({
                     <line x1="12" x2="12.01" y1="16" y2="16" />
                   </svg>
                   <span className="text-sm text-[#848E9C]">
-                    系统将自动获取您的账户净值作为初始余额
+                    {tr('form.autoInitialBalance')}
                   </span>
                 </div>
               )}
@@ -550,7 +559,7 @@ export function TraderConfigModal({
             onClick={onClose}
             className="px-6 py-3 bg-[#2B3139] text-[#EAECEF] rounded-lg hover:bg-[#404750] transition-all duration-200 border border-[#404750]"
           >
-            取消
+            {tr('buttons.cancel')}
           </button>
           {onSave && (
             <button
@@ -563,7 +572,11 @@ export function TraderConfigModal({
               }
               className="px-8 py-3 bg-gradient-to-r from-[#F0B90B] to-[#E1A706] text-black rounded-lg hover:from-[#E1A706] hover:to-[#D4951E] transition-all duration-200 disabled:bg-[#848E9C] disabled:cursor-not-allowed font-medium shadow-lg"
             >
-              {isSaving ? '保存中...' : isEditMode ? '保存修改' : '创建交易员'}
+              {isSaving
+                ? tr('buttons.saving')
+                : isEditMode
+                  ? tr('buttons.saveChanges')
+                  : tr('buttons.createTrader')}
             </button>
           )}
         </div>

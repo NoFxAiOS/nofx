@@ -10,18 +10,18 @@ export default function AboutSection({ language }: AboutSectionProps) {
   const features = [
     {
       icon: Shield,
-      title: language === 'zh' ? '完全自主控制' : 'Full Control',
-      desc: language === 'zh' ? '自托管，数据安全' : 'Self-hosted, data secure',
+      titleKey: 'fullControlTitle',
+      descKey: 'fullControlDesc',
     },
     {
       icon: Cpu,
-      title: language === 'zh' ? '多 AI 支持' : 'Multi-AI Support',
-      desc: language === 'zh' ? 'DeepSeek, GPT, Claude...' : 'DeepSeek, GPT, Claude...',
+      titleKey: 'multiAiTitle',
+      descKey: 'multiAiDesc',
     },
     {
       icon: BarChart3,
-      title: language === 'zh' ? '实时监控' : 'Real-time Monitor',
-      desc: language === 'zh' ? '可视化交易看板' : 'Visual trading dashboard',
+      titleKey: 'monitorTitle',
+      descKey: 'monitorDesc',
     },
   ]
 
@@ -65,35 +65,38 @@ export default function AboutSection({ language }: AboutSectionProps) {
 
             {/* Feature Pills */}
             <div className="flex flex-wrap gap-3">
-              {features.map((feature, index) => (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.06)',
-                  }}
-                >
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ background: 'rgba(240, 185, 11, 0.1)' }}
+              {features.map((feature, index) => {
+                const FeatureIcon = feature.icon
+                return (
+                  <motion.div
+                    key={feature.titleKey}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                    }}
                   >
-                    <feature.icon className="w-5 h-5" style={{ color: '#F0B90B' }} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                      {feature.title}
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      style={{ background: 'rgba(240, 185, 11, 0.1)' }}
+                    >
+                      <FeatureIcon className="w-5 h-5" style={{ color: '#F0B90B' }} />
                     </div>
-                    <div className="text-xs" style={{ color: '#5E6673' }}>
-                      {feature.desc}
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                        {t(`aboutFeatures.${feature.titleKey}`, language)}
+                      </div>
+                      <div className="text-xs" style={{ color: '#5E6673' }}>
+                        {t(`aboutFeatures.${feature.descKey}`, language)}
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                )
+              })}
             </div>
           </motion.div>
 

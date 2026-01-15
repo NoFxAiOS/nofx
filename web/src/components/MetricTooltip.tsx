@@ -3,137 +3,166 @@ import { createPortal } from 'react-dom'
 import { HelpCircle } from 'lucide-react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { t, type Language } from '../i18n/translations'
 
 export interface MetricDefinition {
   key: string
-  nameEn: string
-  nameZh: string
+  name: Partial<Record<Language, string>> & { en: string }
   formula: string // LaTeX formula
-  descriptionEn: string
-  descriptionZh: string
+  description: Partial<Record<Language, string>> & { en: string }
 }
 
 // Metric definitions with formulas
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   total_return: {
     key: 'total_return',
-    nameEn: 'Total Return',
-    nameZh: '总收益率',
+    name: { en: 'Total Return', zh: '总收益率', es: 'Retorno total' },
     formula: 'R_{total} = \\frac{V_{end} - V_{start}}{V_{start}} \\times 100\\%',
-    descriptionEn: 'Measures overall portfolio performance from start to end',
-    descriptionZh: '衡量投资组合从开始到结束的整体收益表现',
+    description: {
+      en: 'Measures overall portfolio performance from start to end',
+      zh: '衡量投资组合从开始到结束的整体收益表现',
+      es: 'Mide el rendimiento total del portafolio de inicio a fin',
+    },
   },
   annualized_return: {
     key: 'annualized_return',
-    nameEn: 'Annualized Return',
-    nameZh: '年化收益率',
+    name: { en: 'Annualized Return', zh: '年化收益率', es: 'Retorno anualizado' },
     formula: 'R_{ann} = \\left(1 + R_{total}\\right)^{\\frac{252}{n}} - 1',
-    descriptionEn: 'Standardized yearly return rate (252 trading days)',
-    descriptionZh: '标准化年度收益率（按252个交易日计算）',
+    description: {
+      en: 'Standardized yearly return rate (252 trading days)',
+      zh: '标准化年度收益率（按252个交易日计算）',
+      es: 'Tasa de retorno anual estandarizada (252 dias de trading)',
+    },
   },
   max_drawdown: {
     key: 'max_drawdown',
-    nameEn: 'Maximum Drawdown',
-    nameZh: '最大回撤',
+    name: { en: 'Maximum Drawdown', zh: '最大回撤', es: 'Maximo drawdown' },
     formula: 'MDD = \\max_{t} \\left( \\frac{Peak_t - Trough_t}{Peak_t} \\right)',
-    descriptionEn: 'Largest peak-to-trough decline during the period',
-    descriptionZh: '期间内从峰值到谷底的最大跌幅',
+    description: {
+      en: 'Largest peak-to-trough decline during the period',
+      zh: '期间内从峰值到谷底的最大跌幅',
+      es: 'Mayor descenso pico a valle en el periodo',
+    },
   },
   sharpe_ratio: {
     key: 'sharpe_ratio',
-    nameEn: 'Sharpe Ratio',
-    nameZh: '夏普比率',
+    name: { en: 'Sharpe Ratio', zh: '夏普比率', es: 'Ratio Sharpe' },
     formula: 'SR = \\frac{\\bar{r} - r_f}{\\sigma}',
-    descriptionEn: 'Risk-adjusted return per unit of volatility (r̄=avg return, rf=risk-free rate, σ=std dev)',
-    descriptionZh: '单位波动风险下的超额收益（r̄=平均收益，rf=无风险利率，σ=标准差）',
+    description: {
+      en: 'Risk-adjusted return per unit of volatility (r̄=avg return, rf=risk-free rate, σ=std dev)',
+      zh: '单位波动风险下的超额收益（r̄=平均收益，rf=无风险利率，σ=标准差）',
+      es: 'Retorno ajustado por riesgo por unidad de volatilidad (r prom, rf tasa libre de riesgo, sigma desviacion estandar)',
+    },
   },
   sortino_ratio: {
     key: 'sortino_ratio',
-    nameEn: 'Sortino Ratio',
-    nameZh: '索提诺比率',
+    name: { en: 'Sortino Ratio', zh: '索提诺比率', es: 'Ratio Sortino' },
     formula: 'Sortino = \\frac{\\bar{r} - r_f}{\\sigma_d}',
-    descriptionEn: 'Return per unit of downside risk (σd=downside deviation)',
-    descriptionZh: '单位下行风险的收益（σd=下行标准差）',
+    description: {
+      en: 'Return per unit of downside risk (σd=downside deviation)',
+      zh: '单位下行风险的收益（σd=下行标准差）',
+      es: 'Retorno por unidad de riesgo a la baja (sigma_d = desviacion a la baja)',
+    },
   },
   calmar_ratio: {
     key: 'calmar_ratio',
-    nameEn: 'Calmar Ratio',
-    nameZh: '卡玛比率',
+    name: { en: 'Calmar Ratio', zh: '卡玛比率', es: 'Ratio Calmar' },
     formula: 'Calmar = \\frac{R_{ann}}{|MDD|}',
-    descriptionEn: 'Annualized return divided by maximum drawdown',
-    descriptionZh: '年化收益率与最大回撤的比值',
+    description: {
+      en: 'Annualized return divided by maximum drawdown',
+      zh: '年化收益率与最大回撤的比值',
+      es: 'Retorno anualizado dividido por el maximo drawdown',
+    },
   },
   win_rate: {
     key: 'win_rate',
-    nameEn: 'Win Rate',
-    nameZh: '胜率',
+    name: { en: 'Win Rate', zh: '胜率', es: 'Tasa de acierto' },
     formula: 'WinRate = \\frac{N_{win}}{N_{total}} \\times 100\\%',
-    descriptionEn: 'Percentage of profitable trades',
-    descriptionZh: '盈利交易占总交易数的百分比',
+    description: {
+      en: 'Percentage of profitable trades',
+      zh: '盈利交易占总交易数的百分比',
+      es: 'Porcentaje de trades rentables',
+    },
   },
   profit_factor: {
     key: 'profit_factor',
-    nameEn: 'Profit Factor',
-    nameZh: '盈亏比',
+    name: { en: 'Profit Factor', zh: '盈亏比', es: 'Factor de beneficio' },
     formula: 'PF = \\frac{\\sum Profits}{|\\sum Losses|}',
-    descriptionEn: 'Ratio of gross profit to gross loss',
-    descriptionZh: '总盈利与总亏损的比值',
+    description: {
+      en: 'Ratio of gross profit to gross loss',
+      zh: '总盈利与总亏损的比值',
+      es: 'Relacion entre ganancia bruta y perdida bruta',
+    },
   },
   volatility: {
     key: 'volatility',
-    nameEn: 'Volatility',
-    nameZh: '波动率',
+    name: { en: 'Volatility', zh: '波动率', es: 'Volatilidad' },
     formula: '\\sigma = \\sqrt{\\frac{1}{n}\\sum_{i=1}^{n}(r_i - \\bar{r})^2}',
-    descriptionEn: 'Standard deviation of returns',
-    descriptionZh: '收益率的标准差',
+    description: {
+      en: 'Standard deviation of returns',
+      zh: '收益率的标准差',
+      es: 'Desviacion estandar de los retornos',
+    },
   },
   var_95: {
     key: 'var_95',
-    nameEn: 'VaR (95%)',
-    nameZh: '风险价值',
+    name: { en: 'VaR (95%)', zh: '风险价值', es: 'VaR (95%)' },
     formula: 'P(R < VaR_{95\\%}) = 5\\%',
-    descriptionEn: '95% confidence level maximum expected loss',
-    descriptionZh: '95%置信水平下的最大预期损失',
+    description: {
+      en: '95% confidence level maximum expected loss',
+      zh: '95%置信水平下的最大预期损失',
+      es: 'Perdida maxima esperada con confianza del 95%',
+    },
   },
   alpha: {
     key: 'alpha',
-    nameEn: 'Alpha',
-    nameZh: '超额收益',
+    name: { en: 'Alpha', zh: '超额收益', es: 'Alfa' },
     formula: '\\alpha = R_{portfolio} - R_{benchmark}',
-    descriptionEn: 'Excess return over benchmark',
-    descriptionZh: '相对于基准的超额收益',
+    description: {
+      en: 'Excess return over benchmark',
+      zh: '相对于基准的超额收益',
+      es: 'Exceso de retorno sobre el benchmark',
+    },
   },
   beta: {
     key: 'beta',
-    nameEn: 'Beta',
-    nameZh: '贝塔系数',
+    name: { en: 'Beta', zh: '贝塔系数', es: 'Beta' },
     formula: '\\beta = \\frac{Cov(R_p, R_m)}{Var(R_m)}',
-    descriptionEn: 'Portfolio sensitivity to market movements',
-    descriptionZh: '投资组合对市场波动的敏感度',
+    description: {
+      en: 'Portfolio sensitivity to market movements',
+      zh: '投资组合对市场波动的敏感度',
+      es: 'Sensibilidad de la cartera a los movimientos del mercado',
+    },
   },
   information_ratio: {
     key: 'information_ratio',
-    nameEn: 'Information Ratio',
-    nameZh: '信息比率',
+    name: { en: 'Information Ratio', zh: '信息比率', es: 'Ratio de informacion' },
     formula: 'IR = \\frac{\\alpha}{\\sigma_{tracking}}',
-    descriptionEn: 'Alpha per unit of tracking error',
-    descriptionZh: '单位跟踪误差的超额收益',
+    description: {
+      en: 'Alpha per unit of tracking error',
+      zh: '单位跟踪误差的超额收益',
+      es: 'Alfa por unidad de tracking error',
+    },
   },
   avg_trade_pnl: {
     key: 'avg_trade_pnl',
-    nameEn: 'Avg Trade PnL',
-    nameZh: '平均盈亏',
+    name: { en: 'Avg Trade PnL', zh: '平均盈亏', es: 'PnL promedio por trade' },
     formula: '\\bar{PnL} = \\frac{\\sum PnL_i}{N}',
-    descriptionEn: 'Average profit/loss per trade',
-    descriptionZh: '每笔交易的平均盈亏',
+    description: {
+      en: 'Average profit/loss per trade',
+      zh: '每笔交易的平均盈亏',
+      es: 'Promedio de ganancia/perdida por trade',
+    },
   },
   expectancy: {
     key: 'expectancy',
-    nameEn: 'Expectancy',
-    nameZh: '期望收益',
+    name: { en: 'Expectancy', zh: '期望收益', es: 'Expectativa' },
     formula: 'E = (WinRate \\times \\bar{W}) - (LossRate \\times \\bar{L})',
-    descriptionEn: 'Expected return per trade',
-    descriptionZh: '每笔交易的期望收益',
+    description: {
+      en: 'Expected return per trade',
+      zh: '每笔交易的期望收益',
+      es: 'Retorno esperado por trade',
+    },
   },
 }
 
@@ -171,7 +200,7 @@ interface TooltipPosition {
 
 interface MetricTooltipProps {
   metricKey: string
-  language?: string
+  language?: Language
   size?: number
   className?: string
 }
@@ -239,8 +268,8 @@ export function MetricTooltip({
     return null
   }
 
-  const name = language === 'zh' ? metric.nameZh : metric.nameEn
-  const description = language === 'zh' ? metric.descriptionZh : metric.descriptionEn
+  const name = metric.name[language as Language] || metric.name.en
+  const description = metric.description[language as Language] || metric.description.en
 
   const tooltipContent = (
     <div
@@ -292,7 +321,7 @@ export function MetricTooltip({
           marginBottom: '12px'
         }}>
           <div style={{ fontSize: '12px', color: '#848E9C', marginBottom: '8px' }}>
-            {language === 'zh' ? '计算公式' : 'Formula'}
+            {t('metricTooltip.formula', language as Language)}
           </div>
           <div style={{
             display: 'flex',
@@ -347,13 +376,13 @@ export function MetricTooltip({
 interface MetricLabelProps {
   metricKey: string
   label?: string
-  language?: string
+  language?: Language
   className?: string
 }
 
 export function MetricLabel({ metricKey, label, language = 'en', className = '' }: MetricLabelProps) {
   const metric = METRIC_DEFINITIONS[metricKey]
-  const displayLabel = label || (language === 'zh' ? metric?.nameZh : metric?.nameEn) || metricKey
+  const displayLabel = label || metric?.name[language] || metricKey
 
   return (
     <span className={`inline-flex items-center gap-1 ${className}`}>

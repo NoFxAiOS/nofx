@@ -1,11 +1,12 @@
 import { Shield, AlertTriangle } from 'lucide-react'
+import { t, type Language } from '../../i18n/translations'
 import type { RiskControlConfig, TrailingStopConfig } from '../../types'
 
 interface RiskControlEditorProps {
   config: RiskControlConfig
   onChange: (config: RiskControlConfig) => void
   disabled?: boolean
-  language: string
+  language: Language
 }
 
 export function RiskControlEditor({
@@ -14,54 +15,8 @@ export function RiskControlEditor({
   disabled,
   language,
 }: RiskControlEditorProps) {
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      positionLimits: { zh: '仓位限制', en: 'Position Limits' },
-      maxPositions: { zh: '最大持仓数量', en: 'Max Positions' },
-      maxPositionsDesc: { zh: '同时持有的最大币种数量', en: 'Maximum coins held simultaneously' },
-      trailingStop: { zh: '移动止盈', en: 'Trailing Stop' },
-      trailingStopDesc: { zh: '常规移动止盈：跟随持仓盈亏或价格，触发即平仓（可选部分平仓）', en: 'Classic trailing stop on PnL% or price; closes when stop is hit (optional partial close)' },
-      enableTrailing: { zh: '启用移动止盈', en: 'Enable trailing stop' },
-      mode: { zh: '模式', en: 'Mode' },
-      modeDesc: { zh: '按盈亏%或价格跟踪', en: 'Trail by PnL% or price' },
-      activationPct: { zh: '启动阈值（%）', en: 'Activation Threshold (%)' },
-      activationPctDesc: { zh: '盈亏达到该值后开始跟踪（0=立即）', en: 'Start trailing after this PnL% (0 = immediate)' },
-      trailPct: { zh: '跟踪距离（%）', en: 'Trail Distance (%)' },
-      trailPctDesc: { zh: '止损线=峰值-该百分比（百分比点）', en: 'Stop = peak – this percentage distance (percent points)' },
-      checkInterval: { zh: '检查频率（毫秒）', en: 'Check Interval (ms)' },
-      checkIntervalDesc: { zh: '监控间隔（支持毫秒，越短越及时，需 websocket）', en: 'Monitoring interval (ms, websocket friendly for fast response)' },
-      closePct: { zh: '平仓比例', en: 'Close Portion' },
-      closePctDesc: { zh: '触发后平掉多少仓位（1=全平）', en: 'Portion of position to close when triggered (1=full)' },
-      tightenBands: { zh: '收紧梯度', en: 'Tighten Bands' },
-      addBand: { zh: '添加梯度', en: 'Add band' },
-      profitPct: { zh: '收益达到（%）', en: 'Profit ≥ (%)' },
-      bandTrailPct: { zh: '跟踪距离（%）', en: 'Trail (%)' },
-      // Trading leverage (exchange leverage)
-      tradingLeverage: { zh: '交易杠杆（交易所杠杆）', en: 'Trading Leverage (Exchange)' },
-      btcEthLeverage: { zh: 'BTC/ETH 交易杠杆', en: 'BTC/ETH Trading Leverage' },
-      btcEthLeverageDesc: { zh: '交易所开仓使用的杠杆倍数', en: 'Exchange leverage for opening positions' },
-      altcoinLeverage: { zh: '山寨币交易杠杆', en: 'Altcoin Trading Leverage' },
-      altcoinLeverageDesc: { zh: '交易所开仓使用的杠杆倍数', en: 'Exchange leverage for opening positions' },
-      // Position value ratio (risk control) - CODE ENFORCED
-      positionValueRatio: { zh: '仓位价值比例（代码强制）', en: 'Position Value Ratio (CODE ENFORCED)' },
-      positionValueRatioDesc: { zh: '单仓位名义价值 / 账户净值，由代码强制执行', en: 'Position notional value / equity, enforced by code' },
-      btcEthPositionValueRatio: { zh: 'BTC/ETH 仓位价值比例', en: 'BTC/ETH Position Value Ratio' },
-      btcEthPositionValueRatioDesc: { zh: '单仓最大名义价值 = 净值 × 此值（代码强制）', en: 'Max position value = equity × this ratio (CODE ENFORCED)' },
-      altcoinPositionValueRatio: { zh: '山寨币仓位价值比例', en: 'Altcoin Position Value Ratio' },
-      altcoinPositionValueRatioDesc: { zh: '单仓最大名义价值 = 净值 × 此值（代码强制）', en: 'Max position value = equity × this ratio (CODE ENFORCED)' },
-      riskParameters: { zh: '风险参数', en: 'Risk Parameters' },
-      minRiskReward: { zh: '最小风险回报比', en: 'Min Risk/Reward Ratio' },
-      minRiskRewardDesc: { zh: '开仓要求的最低盈亏比', en: 'Minimum profit ratio for opening' },
-      maxMarginUsage: { zh: '最大保证金使用率（代码强制）', en: 'Max Margin Usage (CODE ENFORCED)' },
-      maxMarginUsageDesc: { zh: '保证金使用率上限，由代码强制执行', en: 'Maximum margin utilization, enforced by code' },
-      entryRequirements: { zh: '开仓要求', en: 'Entry Requirements' },
-      minPositionSize: { zh: '最小开仓金额', en: 'Min Position Size' },
-      minPositionSizeDesc: { zh: 'USDT 最小名义价值', en: 'Minimum notional value in USDT' },
-      minConfidence: { zh: '最小信心度', en: 'Min Confidence' },
-      minConfidenceDesc: { zh: 'AI 开仓信心度阈值', en: 'AI confidence threshold for entry' },
-    }
-    return translations[key]?.[language] || key
-  }
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    t(`strategyConfig.riskControl.${key}`, language, params)
 
   const updateField = <K extends keyof RiskControlConfig>(
     key: K,
@@ -106,11 +61,11 @@ export function RiskControlEditor({
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5" style={{ color: '#F6465D' }} />
           <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {t('trailingStop')}
+            {tr('trailingStop')}
           </h3>
         </div>
         <p className="text-xs mb-4" style={{ color: '#848E9C' }}>
-          {t('trailingStopDesc')}
+          {tr('trailingStopDesc')}
         </p>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div
@@ -118,7 +73,7 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-2" style={{ color: '#EAECEF' }}>
-              {t('enableTrailing')}
+              {tr('enableTrailing')}
             </label>
             <label className="inline-flex items-center gap-2 text-sm" style={{ color: '#EAECEF' }}>
               <input
@@ -128,16 +83,16 @@ export function RiskControlEditor({
                 disabled={disabled}
                 className="accent-green-500 w-4 h-4"
               />
-              {trailing.enabled ? (language === 'zh' ? '已启用' : 'Enabled') : (language === 'zh' ? '已关闭' : 'Disabled')}
+              {trailing.enabled ? tr('statusEnabled') : tr('statusDisabled')}
             </label>
           </div>
 
           <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('mode')}
+              {tr('mode')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('modeDesc')}
+              {tr('modeDesc')}
             </p>
             <select
               value={trailing.mode || 'pnl_pct'}
@@ -153,10 +108,10 @@ export function RiskControlEditor({
 
           <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('activationPct')}
+              {tr('activationPct')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('activationPctDesc')}
+              {tr('activationPctDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -181,10 +136,10 @@ export function RiskControlEditor({
 
           <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('trailPct')}
+              {tr('trailPct')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('trailPctDesc')}
+              {tr('trailPctDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -210,10 +165,10 @@ export function RiskControlEditor({
 
           <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('checkInterval')}
+              {tr('checkInterval')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('checkIntervalDesc')}
+              {tr('checkIntervalDesc')}
             </p>
             <div className="flex items-center gap-2">
               {(() => {
@@ -255,10 +210,10 @@ export function RiskControlEditor({
 
           <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('closePct')}
+              {tr('closePct')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('closePctDesc')}
+              {tr('closePctDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -285,21 +240,19 @@ export function RiskControlEditor({
 
         {/* Tighten Bands */}
         <div className="mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-                {t('tightenBands')}
-              </p>
-              <p className="text-xs" style={{ color: '#848E9C' }}>
-                {language === 'zh'
-                  ? '达到收益阈值后自动缩紧跟踪距离'
-                  : 'Tighten trail after reaching profit bands'}
-              </p>
-            </div>
-            <button
-              onClick={() =>
-                updateTrailing({
-                  tighten_bands: [
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                  {tr('tightenBands')}
+                </p>
+                <p className="text-xs" style={{ color: '#848E9C' }}>
+                  {tr('tightenBandsDesc')}
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  updateTrailing({
+                    tighten_bands: [
                     ...(trailing.tighten_bands || []),
                     { profit_pct: 10, trail_pct: Math.max(0.2, (trailing.trail_pct ?? 3) / 2) },
                   ],
@@ -309,7 +262,7 @@ export function RiskControlEditor({
               className="px-3 py-1 text-xs rounded"
               style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
             >
-              {t('addBand')}
+              {tr('addBand')}
             </button>
           </div>
           <div className="space-y-2">
@@ -320,7 +273,7 @@ export function RiskControlEditor({
                 style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
               >
                 <div className="md:col-span-2 flex items-center gap-2">
-                  <span className="text-xs" style={{ color: '#EAECEF' }}>{t('profitPct')}</span>
+                  <span className="text-xs" style={{ color: '#EAECEF' }}>{tr('profitPct')}</span>
                   <input
                     type="number"
                     value={band.profit_pct}
@@ -338,7 +291,7 @@ export function RiskControlEditor({
               <span className="text-xs" style={{ color: '#848E9C' }}>%</span>
             </div>
                 <div className="md:col-span-2 flex items-center gap-2">
-                  <span className="text-xs" style={{ color: '#EAECEF' }}>{t('bandTrailPct')}</span>
+                  <span className="text-xs" style={{ color: '#EAECEF' }}>{tr('bandTrailPct')}</span>
                   <input
                     type="number"
                     value={band.trail_pct}
@@ -373,7 +326,7 @@ export function RiskControlEditor({
             ))}
             {(trailing.tighten_bands || []).length === 0 && (
               <p className="text-xs" style={{ color: '#848E9C' }}>
-                {language === 'zh' ? '未设置收紧梯度' : 'No tighten bands configured'}
+                {tr('tightenBandsEmpty')}
               </p>
             )}
           </div>
@@ -385,7 +338,7 @@ export function RiskControlEditor({
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-5 h-5" style={{ color: '#F0B90B' }} />
           <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {t('positionLimits')}
+            {tr('positionLimits')}
           </h3>
         </div>
 
@@ -395,10 +348,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('maxPositions')}
+              {tr('maxPositions')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('maxPositionsDesc')}
+              {tr('maxPositionsDesc')}
             </p>
             <input
               type="number"
@@ -422,7 +375,7 @@ export function RiskControlEditor({
         {/* Trading Leverage (Exchange) */}
         <div className="mb-2">
           <p className="text-xs font-medium mb-2" style={{ color: '#F0B90B' }}>
-            {t('tradingLeverage')}
+            {tr('tradingLeverage')}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -431,10 +384,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('btcEthLeverage')}
+              {tr('btcEthLeverage')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('btcEthLeverageDesc')}
+              {tr('btcEthLeverageDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -462,10 +415,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('altcoinLeverage')}
+              {tr('altcoinLeverage')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('altcoinLeverageDesc')}
+              {tr('altcoinLeverageDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -492,10 +445,10 @@ export function RiskControlEditor({
         {/* Position Value Ratio (Risk Control - CODE ENFORCED) */}
         <div className="mb-2">
           <p className="text-xs font-medium" style={{ color: '#0ECB81' }}>
-            {t('positionValueRatio')}
+            {tr('positionValueRatio')}
           </p>
           <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-            {t('positionValueRatioDesc')}
+            {tr('positionValueRatioDesc')}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -504,10 +457,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('btcEthPositionValueRatio')}
+              {tr('btcEthPositionValueRatio')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('btcEthPositionValueRatioDesc')}
+              {tr('btcEthPositionValueRatioDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -536,10 +489,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('altcoinPositionValueRatio')}
+              {tr('altcoinPositionValueRatio')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('altcoinPositionValueRatioDesc')}
+              {tr('altcoinPositionValueRatioDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -570,7 +523,7 @@ export function RiskControlEditor({
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5" style={{ color: '#F6465D' }} />
           <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {t('riskParameters')}
+            {tr('riskParameters')}
           </h3>
         </div>
 
@@ -580,10 +533,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('minRiskReward')}
+              {tr('minRiskReward')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('minRiskRewardDesc')}
+              {tr('minRiskRewardDesc')}
             </p>
             <div className="flex items-center">
               <span style={{ color: '#848E9C' }}>1:</span>
@@ -612,10 +565,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #0ECB81' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('maxMarginUsage')}
+              {tr('maxMarginUsage')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('maxMarginUsageDesc')}
+              {tr('maxMarginUsageDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input
@@ -642,7 +595,7 @@ export function RiskControlEditor({
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-5 h-5" style={{ color: '#0ECB81' }} />
           <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {t('entryRequirements')}
+            {tr('entryRequirements')}
           </h3>
         </div>
 
@@ -652,10 +605,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('minPositionSize')}
+              {tr('minPositionSize')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('minPositionSizeDesc')}
+              {tr('minPositionSizeDesc')}
             </p>
             <div className="flex items-center">
               <input
@@ -685,10 +638,10 @@ export function RiskControlEditor({
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
           >
             <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-              {t('minConfidence')}
+              {tr('minConfidence')}
             </label>
             <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
-              {t('minConfidenceDesc')}
+              {tr('minConfidenceDesc')}
             </p>
             <div className="flex items-center gap-2">
               <input

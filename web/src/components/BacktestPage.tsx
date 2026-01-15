@@ -41,7 +41,7 @@ import {
 } from 'recharts'
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
-import { t } from '../i18n/translations'
+import { t, type Language } from '../i18n/translations'
 import { confirmToast } from '../lib/notify'
 import { DecisionCard } from './DecisionCard'
 import { MetricTooltip } from './MetricTooltip'
@@ -91,7 +91,7 @@ function StatCard({
   trend?: 'up' | 'down' | 'neutral'
   color?: string
   metricKey?: string
-  language?: string
+  language?: Language
 }) {
   const trendColors = {
     up: '#0ECB81',
@@ -283,7 +283,7 @@ function CandlestickChartComponent({
 }: {
   runId: string
   trades: BacktestTradeEvent[]
-  language: string
+  language: Language
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -313,6 +313,12 @@ function CandlestickChartComponent({
   const symbolTrades = useMemo(() => {
     return trades.filter((t) => t.symbol === selectedSymbol)
   }, [trades, selectedSymbol])
+
+  const tr = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      t(`backtestPage.${key}`, language, params),
+    [language]
+  )
 
   // Fetch klines and render chart
   useEffect(() => {
@@ -447,7 +453,7 @@ function CandlestickChartComponent({
   if (symbols.length === 0) {
     return (
       <div className="py-12 text-center" style={{ color: '#5E6673' }}>
-        {language === 'zh' ? '没有交易记录' : 'No trades to display'}
+        {tr('tradeView.empty')}
       </div>
     )
   }
@@ -459,7 +465,7 @@ function CandlestickChartComponent({
         <div className="flex items-center gap-2">
           <CandlestickIcon size={16} style={{ color: '#F0B90B' }} />
           <span className="text-sm" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '币种' : 'Symbol'}
+            {tr('tradeView.symbol')}
           </span>
           <select
             value={selectedSymbol}
@@ -478,7 +484,7 @@ function CandlestickChartComponent({
         <div className="flex items-center gap-2">
           <Clock size={14} style={{ color: '#848E9C' }} />
           <span className="text-sm" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '周期' : 'Interval'}
+            {tr('tradeView.interval')}
           </span>
           <div className="flex rounded overflow-hidden" style={{ border: '1px solid #2B3139' }}>
             {CHART_TIMEFRAMES.map((tf) => (
@@ -498,7 +504,7 @@ function CandlestickChartComponent({
         </div>
 
         <span className="text-xs" style={{ color: '#5E6673' }}>
-          ({symbolTrades.length} {language === 'zh' ? '笔交易' : 'trades'})
+          ({tr('tradeView.tradesCount', { count: symbolTrades.length })})
         </span>
       </div>
 
@@ -511,7 +517,7 @@ function CandlestickChartComponent({
         {isLoading && (
           <div className="flex items-center justify-center h-[400px]" style={{ color: '#848E9C' }}>
             <RefreshCw className="animate-spin mr-2" size={16} />
-            {language === 'zh' ? '加载K线数据...' : 'Loading kline data...'}
+            {tr('tradeView.loadingKlines')}
           </div>
         )}
         {error && (
@@ -526,14 +532,14 @@ function CandlestickChartComponent({
       <div className="flex items-center gap-4 text-xs" style={{ color: '#848E9C' }}>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#0ECB81' }} />
-          <span>{language === 'zh' ? '开仓/盈利' : 'Open/Profit'}</span>
+          <span>{tr('tradeView.legend.openProfit')}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#F6465D' }} />
-          <span>{language === 'zh' ? '亏损平仓' : 'Loss Close'}</span>
+          <span>{tr('tradeView.legend.lossClose')}</span>
         </div>
         <span style={{ color: '#5E6673' }}>|</span>
-        <span>▲ Long · ▼ Short · ✕ {language === 'zh' ? '平仓' : 'Close'}</span>
+        <span>▲ Long · ▼ Short · ✕ {tr('tradeView.legend.close')}</span>
       </div>
     </div>
   )
@@ -625,8 +631,14 @@ function PositionsDisplay({
   language,
 }: {
   positions: BacktestPositionStatus[]
-  language: string
+  language: Language
 }) {
+  const tr = useCallback(
+    (key: string, params?: Record<string, string | number>) =>
+      t(`backtestPage.${key}`, language, params),
+    [language]
+  )
+
   if (!positions || positions.length === 0) {
     return null
   }
@@ -643,7 +655,7 @@ function PositionsDisplay({
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4" style={{ color: '#F0B90B' }} />
           <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-            {language === 'zh' ? '当前持仓' : 'Active Positions'}
+            {t('currentPositions', language)}
           </span>
           <span
             className="px-1.5 py-0.5 rounded text-xs"
@@ -654,13 +666,13 @@ function PositionsDisplay({
         </div>
         <div className="flex items-center gap-3 text-xs">
           <span style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '保证金' : 'Margin'}: ${totalMargin.toFixed(2)}
+            {t('margin', language)}: ${totalMargin.toFixed(2)}
           </span>
           <span
             className="font-medium"
             style={{ color: totalUnrealizedPnL >= 0 ? '#0ECB81' : '#F6465D' }}
           >
-            {language === 'zh' ? '浮盈' : 'Unrealized'}: {totalUnrealizedPnL >= 0 ? '+' : ''}
+            {tr('metrics.unrealized')}: {totalUnrealizedPnL >= 0 ? '+' : ''}
             ${totalUnrealizedPnL.toFixed(2)}
           </span>
         </div>
@@ -706,8 +718,8 @@ function PositionsDisplay({
                     </span>
                   </div>
                   <div className="text-[10px]" style={{ color: '#5E6673' }}>
-                    {language === 'zh' ? '数量' : 'Qty'}: {pos.quantity.toFixed(4)} ·{' '}
-                    {language === 'zh' ? '保证金' : 'Margin'}: ${pos.margin_used.toFixed(2)}
+                    {t('quantity', language)}: {pos.quantity.toFixed(4)} ·{' '}
+                    {t('margin', language)}: ${pos.margin_used.toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -715,10 +727,10 @@ function PositionsDisplay({
               <div className="text-right">
                 <div className="flex items-center gap-2 text-xs">
                   <span style={{ color: '#848E9C' }}>
-                    {language === 'zh' ? '开仓' : 'Entry'}: ${pos.entry_price.toFixed(2)}
+                    {t('entryPrice', language)}: ${pos.entry_price.toFixed(2)}
                   </span>
                   <span style={{ color: '#EAECEF' }}>
-                    {language === 'zh' ? '现价' : 'Mark'}: ${pos.mark_price.toFixed(2)}
+                    {t('markPrice', language)}: ${pos.mark_price.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex items-center justify-end gap-1.5 mt-0.5">
@@ -982,9 +994,9 @@ export function BacktestPage() {
   const handleDelete = async () => {
     if (!selectedRunId) return
     const confirmed = await confirmToast(tr('toasts.confirmDelete', { id: selectedRunId }), {
-      title: language === 'zh' ? '确认删除' : 'Confirm Delete',
-      okText: language === 'zh' ? '删除' : 'Delete',
-      cancelText: language === 'zh' ? '取消' : 'Cancel',
+      title: tr('deleteModal.title'),
+      okText: tr('deleteModal.ok'),
+      cancelText: tr('deleteModal.cancel'),
     })
     if (!confirmed) return
     try {
@@ -1022,10 +1034,10 @@ export function BacktestPage() {
   }
 
   const quickRanges = [
-    { label: language === 'zh' ? '24小时' : '24h', hours: 24 },
-    { label: language === 'zh' ? '3天' : '3d', hours: 72 },
-    { label: language === 'zh' ? '7天' : '7d', hours: 168 },
-    { label: language === 'zh' ? '30天' : '30d', hours: 720 },
+    { label: tr('quickRanges.h24'), hours: 24 },
+    { label: tr('quickRanges.d3'), hours: 72 },
+    { label: tr('quickRanges.d7'), hours: 168 },
+    { label: tr('quickRanges.d30'), hours: 720 },
   ]
 
   const applyQuickRange = (hours: number) => {
@@ -1102,19 +1114,19 @@ export function BacktestPage() {
               <Brain className="w-7 h-7" style={{ color: '#F0B90B' }} />
               {tr('title')}
             </h1>
-            <p className="text-sm mt-1" style={{ color: '#848E9C' }}>
-              {tr('subtitle')}
-            </p>
-          </div>
-          <button
-            onClick={() => setWizardStep(1)}
-            className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all hover:opacity-90"
-            style={{ background: '#F0B90B', color: '#0B0E11' }}
-          >
-            <Play className="w-4 h-4" />
-            {language === 'zh' ? '新建回测' : 'New Backtest'}
-          </button>
-        </div>
+        <p className="text-sm mt-1" style={{ color: '#848E9C' }}>
+          {tr('subtitle')}
+        </p>
+      </div>
+      <button
+        onClick={() => setWizardStep(1)}
+        className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all hover:opacity-90"
+        style={{ background: '#F0B90B', color: '#0B0E11' }}
+      >
+        <Play className="w-4 h-4" />
+        {tr('wizard.newBacktest')}
+      </button>
+    </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Left Panel - Config / History */}
@@ -1141,21 +1153,15 @@ export function BacktestPage() {
                       />
                     )}
                   </div>
-                ))}
-                <span className="ml-2 text-xs" style={{ color: '#848E9C' }}>
-                  {wizardStep === 1
-                    ? language === 'zh'
-                      ? '选择模型'
-                      : 'Select Model'
-                    : wizardStep === 2
-                      ? language === 'zh'
-                        ? '配置参数'
-                        : 'Configure'
-                      : language === 'zh'
-                        ? '确认启动'
-                        : 'Confirm'}
-                </span>
-              </div>
+              ))}
+              <span className="ml-2 text-xs" style={{ color: '#848E9C' }}>
+                {wizardStep === 1
+                  ? tr('wizard.steps.selectModel')
+                  : wizardStep === 2
+                    ? tr('wizard.steps.configure')
+                    : tr('wizard.steps.confirm')}
+              </span>
+            </div>
 
               <form onSubmit={handleStart}>
                 <AnimatePresence mode="wait">
@@ -1203,7 +1209,7 @@ export function BacktestPage() {
                       {/* Strategy Selection (Optional) */}
                       <div>
                         <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
-                          {language === 'zh' ? '策略配置（可选）' : 'Strategy (Optional)'}
+                          {tr('wizard.strategyOptional')}
                         </label>
                         <select
                           className="w-full p-3 rounded-lg text-sm"
@@ -1211,7 +1217,7 @@ export function BacktestPage() {
                           value={formState.strategyId}
                           onChange={(e) => handleFormChange('strategyId', e.target.value)}
                         >
-                          <option value="">{language === 'zh' ? '不使用保存的策略' : 'No saved strategy'}</option>
+                          <option value="">{tr('wizard.noSavedStrategy')}</option>
                           {strategies?.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name} {s.is_active && '✓'} {s.is_default && '⭐'}
@@ -1222,7 +1228,7 @@ export function BacktestPage() {
                           <div className="mt-2 p-2 rounded" style={{ background: 'rgba(240,185,11,0.1)', border: '1px solid rgba(240,185,11,0.2)' }}>
                             <div className="flex items-center gap-2 text-xs">
                               <span style={{ color: '#F0B90B' }}>
-                                {language === 'zh' ? '币种来源:' : 'Coin Source:'}
+                                {tr('wizard.coinSourceLabel')}
                               </span>
                               <span className="font-medium" style={{ color: '#EAECEF' }}>
                                 {coinSourceDescription.type}
@@ -1232,9 +1238,7 @@ export function BacktestPage() {
                             </div>
                             {strategyHasDynamicCoins && (
                               <div className="text-xs mt-1" style={{ color: '#F0B90B' }}>
-                                {language === 'zh'
-                                  ? '⚡ 清空下方币种输入框即可使用策略的动态币种'
-                                  : '⚡ Clear the symbols field below to use strategy\'s dynamic coins'}
+                                {tr('wizard.dynamicHint')}
                               </div>
                             )}
                           </div>
@@ -1246,7 +1250,7 @@ export function BacktestPage() {
                           {tr('form.symbolsLabel')}
                           {strategyHasDynamicCoins && (
                             <span className="ml-2" style={{ color: '#5E6673' }}>
-                              ({language === 'zh' ? '可选 - 策略已配置币种来源' : 'Optional - strategy has coin source'})
+                              ({tr('wizard.optionalStrategyCoinSource')})
                             </span>
                           )}
                         </label>
@@ -1290,7 +1294,7 @@ export function BacktestPage() {
                             onChange={(e) => handleFormChange('symbols', e.target.value)}
                             rows={2}
                             placeholder={strategyHasDynamicCoins
-                              ? (language === 'zh' ? '留空将使用策略配置的币种来源' : 'Leave empty to use strategy coin source')
+                              ? tr('wizard.placeholderUseStrategy')
                               : ''
                             }
                           />
@@ -1301,7 +1305,7 @@ export function BacktestPage() {
                               className="absolute top-2 right-2 px-2 py-1 rounded text-xs"
                               style={{ background: '#F0B90B', color: '#0B0E11' }}
                             >
-                              {language === 'zh' ? '清空使用策略币种' : 'Clear to use strategy'}
+                              {tr('wizard.clearStrategySymbols')}
                             </button>
                           )}
                         </div>
@@ -1314,7 +1318,7 @@ export function BacktestPage() {
                         className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                         style={{ background: '#F0B90B', color: '#0B0E11' }}
                       >
-                        {language === 'zh' ? '下一步' : 'Next'}
+                        {tr('wizard.next')}
                         <ChevronRight className="w-4 h-4" />
                       </button>
                     </motion.div>
@@ -1366,7 +1370,7 @@ export function BacktestPage() {
 
                       <div>
                         <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
-                          {language === 'zh' ? '时间周期' : 'Timeframes'}
+                          {tr('wizard.timeframes')}
                         </label>
                         <div className="flex flex-wrap gap-1">
                           {TIMEFRAME_OPTIONS.map((tf) => {
@@ -1435,7 +1439,7 @@ export function BacktestPage() {
                           style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                         >
                           <ChevronLeft className="w-4 h-4" />
-                          {language === 'zh' ? '上一步' : 'Back'}
+                          {tr('wizard.back')}
                         </button>
                         <button
                           type="button"
@@ -1443,7 +1447,7 @@ export function BacktestPage() {
                           className="flex-1 py-2 rounded-lg font-medium flex items-center justify-center gap-2"
                           style={{ background: '#F0B90B', color: '#0B0E11' }}
                         >
-                          {language === 'zh' ? '下一步' : 'Next'}
+                          {tr('wizard.next')}
                           <ChevronRight className="w-4 h-4" />
                         </button>
                       </div>
@@ -1527,7 +1531,7 @@ export function BacktestPage() {
 
                       <div>
                         <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>
-                          {language === 'zh' ? '策略风格' : 'Strategy Style'}
+                          {tr('wizard.strategyStyle')}
                         </label>
                         <div className="flex flex-wrap gap-1">
                           {['baseline', 'aggressive', 'conservative', 'scalping'].map((p) => (
@@ -1577,7 +1581,7 @@ export function BacktestPage() {
                           style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                         >
                           <ChevronLeft className="w-4 h-4" />
-                          {language === 'zh' ? '上一步' : 'Back'}
+                          {tr('wizard.back')}
                         </button>
                         <button
                           type="submit"
@@ -1607,7 +1611,7 @@ export function BacktestPage() {
                   {tr('runList.title')}
                 </h3>
                 <span className="text-xs" style={{ color: '#848E9C' }}>
-                  {runs.length} {language === 'zh' ? '条' : 'runs'}
+                  {tr('stats.runsCount', { count: runs.length })}
                 </span>
               </div>
 
@@ -1654,7 +1658,7 @@ export function BacktestPage() {
                               ? 'rgba(240,185,11,0.2)'
                               : 'transparent',
                           }}
-                          title={language === 'zh' ? '添加到对比' : 'Add to compare'}
+                          title={tr('compare.add')}
                         >
                           <Eye
                             className="w-3 h-3"
@@ -1786,14 +1790,14 @@ export function BacktestPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <StatCard
                     icon={Target}
-                    label={language === 'zh' ? '当前净值' : 'Equity'}
+                    label={tr('stats.equity')}
                     value={(status?.equity ?? 0).toFixed(2)}
                     suffix="USDT"
                     language={language}
                   />
                   <StatCard
                     icon={TrendingUp}
-                    label={language === 'zh' ? '总收益率' : 'Return'}
+                    label={tr('stats.return')}
                     value={`${(metrics?.total_return_pct ?? 0).toFixed(2)}%`}
                     trend={(metrics?.total_return_pct ?? 0) >= 0 ? 'up' : 'down'}
                     color={(metrics?.total_return_pct ?? 0) >= 0 ? '#0ECB81' : '#F6465D'}
@@ -1802,7 +1806,7 @@ export function BacktestPage() {
                   />
                   <StatCard
                     icon={AlertTriangle}
-                    label={language === 'zh' ? '最大回撤' : 'Max DD'}
+                    label={tr('stats.maxDd')}
                     value={`${(metrics?.max_drawdown_pct ?? 0).toFixed(2)}%`}
                     color="#F6465D"
                     metricKey="max_drawdown"
@@ -1810,7 +1814,7 @@ export function BacktestPage() {
                   />
                   <StatCard
                     icon={BarChart3}
-                    label={language === 'zh' ? '夏普比率' : 'Sharpe'}
+                    label={tr('stats.sharpe')}
                     value={(metrics?.sharpe_ratio ?? 0).toFixed(2)}
                     metricKey="sharpe_ratio"
                     language={language}
@@ -1828,20 +1832,12 @@ export function BacktestPage() {
                         style={{ color: viewTab === tab ? '#F0B90B' : '#848E9C' }}
                       >
                         {tab === 'overview'
-                          ? language === 'zh'
-                            ? '概览'
-                            : 'Overview'
+                          ? tr('tabs.overview')
                           : tab === 'chart'
-                            ? language === 'zh'
-                              ? '图表'
-                              : 'Chart'
+                            ? tr('tabs.chart')
                             : tab === 'trades'
-                              ? language === 'zh'
-                                ? '交易'
-                                : 'Trades'
-                              : language === 'zh'
-                                ? 'AI决策'
-                                : 'Decisions'}
+                              ? tr('tabs.trades')
+                              : tr('tabs.decisions')}
                         {viewTab === tab && (
                           <motion.div
                             layoutId="tab-indicator"
@@ -1874,7 +1870,7 @@ export function BacktestPage() {
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                               <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
                                 <div className="flex items-center gap-1 text-xs" style={{ color: '#848E9C' }}>
-                                  {language === 'zh' ? '胜率' : 'Win Rate'}
+                                  {tr('stats.winRate')}
                                   <MetricTooltip metricKey="win_rate" language={language} size={11} />
                                 </div>
                                 <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
@@ -1883,7 +1879,7 @@ export function BacktestPage() {
                               </div>
                               <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
                                 <div className="flex items-center gap-1 text-xs" style={{ color: '#848E9C' }}>
-                                  {language === 'zh' ? '盈亏因子' : 'Profit Factor'}
+                                  {tr('stats.profitFactor')}
                                   <MetricTooltip metricKey="profit_factor" language={language} size={11} />
                                 </div>
                                 <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
@@ -1892,7 +1888,7 @@ export function BacktestPage() {
                               </div>
                               <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
                                 <div className="text-xs" style={{ color: '#848E9C' }}>
-                                  {language === 'zh' ? '总交易数' : 'Total Trades'}
+                                  {tr('stats.totalTrades')}
                                 </div>
                                 <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
                                   {metrics.trades ?? 0}
@@ -1900,7 +1896,7 @@ export function BacktestPage() {
                               </div>
                               <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
                                 <div className="text-xs" style={{ color: '#848E9C' }}>
-                                  {language === 'zh' ? '最佳币种' : 'Best Symbol'}
+                                  {tr('stats.bestSymbol')}
                                 </div>
                                 <div className="text-lg font-bold" style={{ color: '#0ECB81' }}>
                                   {metrics.best_symbol?.replace('USDT', '') || '-'}
@@ -1922,7 +1918,7 @@ export function BacktestPage() {
                           {/* Equity Chart */}
                           <div>
                             <h4 className="text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
-                              {language === 'zh' ? '资金曲线' : 'Equity Curve'}
+                              {tr('stats.equityCurve')}
                             </h4>
                             {equity && equity.length > 0 ? (
                               <BacktestChart equity={equity} trades={trades ?? []} />
@@ -1937,7 +1933,7 @@ export function BacktestPage() {
                           {selectedRunId && trades && trades.length > 0 && (
                             <div>
                               <h4 className="text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
-                                {language === 'zh' ? 'K线图 & 交易标记' : 'Candlestick & Trade Markers'}
+                                {tr('stats.candlesTrades')}
                               </h4>
                               <CandlestickChartComponent
                                 runId={selectedRunId}

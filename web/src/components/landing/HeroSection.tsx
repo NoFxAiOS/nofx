@@ -16,6 +16,19 @@ export default function HeroSection({ language }: HeroSectionProps) {
     end: stars,
     duration: 2000,
   })
+  const starsValue = animatedStars || stars
+  const starsDisplay = `${(((starsValue || 2500) as number) / 1000).toFixed(1)}K+`
+  const daysDisplay = daysOld || 3
+  const badgeText = t('githubStarsInDays', language, {
+    stars: starsDisplay,
+    days: daysDisplay,
+  })
+  const stats = [
+    { label: t('landingStats.githubStars', language), value: starsDisplay },
+    { label: t('landingStats.exchanges', language), value: '5+' },
+    { label: t('landingStats.aiModels', language), value: '10+' },
+    { label: t('landingStats.openSource', language), value: '100%' },
+  ]
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
@@ -71,24 +84,7 @@ export default function HeroSection({ language }: HeroSectionProps) {
         >
           <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
           <span className="text-sm font-medium" style={{ color: '#F0B90B' }}>
-            {isLoading ? (
-              t('githubStarsInDays', language)
-            ) : language === 'zh' ? (
-              <>
-                {daysOld} 天内获得{' '}
-                <span className="font-bold tabular-nums">
-                  {(animatedStars / 1000).toFixed(1)}K+
-                </span>{' '}
-                GitHub Stars
-              </>
-            ) : (
-              <>
-                <span className="font-bold tabular-nums">
-                  {(animatedStars / 1000).toFixed(1)}K+
-                </span>{' '}
-                GitHub Stars in {daysOld} days
-              </>
-            )}
+            {isLoading ? t('githubStarsInDays', language, { stars: starsDisplay, days: daysDisplay }) : badgeText}
           </span>
         </motion.div>
 
@@ -186,12 +182,7 @@ export default function HeroSection({ language }: HeroSectionProps) {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="flex flex-wrap items-center justify-center gap-8 sm:gap-12"
         >
-          {[
-            { label: 'GitHub Stars', value: `${(stars / 1000).toFixed(1)}K+` },
-            { label: language === 'zh' ? '支持交易所' : 'Exchanges', value: '5+' },
-            { label: language === 'zh' ? 'AI 模型' : 'AI Models', value: '10+' },
-            { label: language === 'zh' ? '开源免费' : 'Open Source', value: '100%' },
-          ].map((stat, index) => (
+          {stats.map((stat, index) => (
             <motion.div
               key={stat.label}
               className="text-center"

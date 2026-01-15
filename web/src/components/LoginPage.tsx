@@ -26,6 +26,13 @@ export function LoginPage() {
   const { config: systemConfig } = useSystemConfig()
   const registrationEnabled = systemConfig?.registration_enabled !== false
   const [expiredToastId, setExpiredToastId] = useState<string | number | null>(null)
+  const trCommon = (key: string, params?: Record<string, string | number>) =>
+    t(`authTerminal.common.${key}`, language, params)
+  const trLogin = (key: string, params?: Record<string, string | number>) =>
+    t(`authTerminal.login.${key}`, language, params)
+  const loginTitleParts = trLogin('title').split(' ')
+  const loginTitleHighlight = loginTitleParts.shift() ?? ''
+  const loginTitleRest = loginTitleParts.join(' ')
 
   // Show notification if user was redirected here due to 401
   useEffect(() => {
@@ -70,7 +77,7 @@ export function LoginPage() {
         setQrCodeURL(result.qrCodeURL || '')
         setOtpSecret(result.otpSecret || '')
         setStep('setup-otp')
-        toast.info("Pending 2FA setup detected. Please complete configuration.")
+        toast.info(trCommon('pendingOtpSetup'))
       } else if (result.requiresOTP && result.userID) {
         setUserID(result.userID)
 
@@ -79,7 +86,7 @@ export function LoginPage() {
           setQrCodeURL(result.qrCodeURL)
           setOtpSecret(result.otpSecret || '')
           setStep('setup-otp')
-          toast.info("Pending 2FA setup detected. Please complete configuration.")
+          toast.info(trCommon('pendingOtpSetup'))
         } else {
           setStep('otp')
         }
@@ -96,7 +103,7 @@ export function LoginPage() {
         setQrCodeURL(result.qrCodeURL)
         setOtpSecret(result.otpSecret || '')
         setStep('setup-otp')
-        toast.warning(t('completeGapSetup', language) || "Incomplete setup detected. Please configure 2FA.")
+        toast.warning(trCommon('incompleteSetup'))
       } else {
         const msg = result.message || t('loginFailed', language)
         setError(msg)
@@ -138,7 +145,7 @@ export function LoginPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-    toast.success('Copied to clipboard')
+    toast.success(trCommon('copySuccess'))
   }
 
   return (
@@ -152,7 +159,7 @@ export function LoginPage() {
             className="flex items-center gap-2 text-zinc-500 hover:text-white transition-colors group px-3 py-1.5 rounded border border-transparent hover:border-zinc-700 bg-black/20 backdrop-blur-sm"
           >
             <div className="w-2 h-2 rounded-full bg-red-500 group-hover:animate-pulse"></div>
-            <span className="text-xs font-mono uppercase tracking-widest">&lt; CANCEL_LOGIN</span>
+            <span className="text-xs font-mono uppercase tracking-widest">{trLogin('cancel')}</span>
           </button>
         </div>
 
@@ -169,10 +176,11 @@ export function LoginPage() {
             </div>
           </div>
           <h1 className="text-3xl font-bold tracking-tighter text-white uppercase mb-2">
-            <span className="text-nofx-gold">SYSTEM</span> ACCESS
+            <span className="text-nofx-gold">{loginTitleHighlight}</span>{' '}
+            {loginTitleRest}
           </h1>
           <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">
-            {step === 'login' ? 'Authentication Protocol v3.0' : 'Multi-Factor Verification'}
+            {step === 'login' ? trLogin('subtitleLogin') : trLogin('subtitleOtp')}
           </p>
         </div>
 
@@ -181,17 +189,17 @@ export function LoginPage() {
           <div className="absolute inset-0 bg-zinc-900/50 opacity-0 group-hover:opacity-100 transition duration-700 pointer-events-none"></div>
 
           {/* Window Bar */}
-          <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/80 border-b border-zinc-800">
-            <div className="flex gap-1.5">
-              <div
-                className="w-2.5 h-2.5 rounded-full bg-red-500/50 hover:bg-red-500 cursor-pointer transition-colors"
-                onClick={() => window.location.href = '/'}
-                title="Close / Return Home"
-              ></div>
-              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
-              <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
-            </div>
-            <div className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
+            <div className="flex items-center justify-between px-4 py-2 bg-zinc-900/80 border-b border-zinc-800">
+              <div className="flex gap-1.5">
+                <div
+                  className="w-2.5 h-2.5 rounded-full bg-red-500/50 hover:bg-red-500 cursor-pointer transition-colors"
+                  onClick={() => window.location.href = '/'}
+                  title={trCommon('closeTooltip')}
+                ></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
+              </div>
+              <div className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
               <span className="text-emerald-500">➜</span> login.exe
             </div>
           </div>
@@ -201,28 +209,28 @@ export function LoginPage() {
             <div className="mb-6 font-mono text-xs space-y-1 text-zinc-500 border-b border-zinc-800/50 pb-4">
               <div className="flex gap-2">
                 <span className="text-emerald-500">➜</span>
-                <span>Initiating handshake...</span>
+                <span>{trLogin('statusHandshake')}</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-emerald-500">➜</span>
-                <span>Target: NOFX CORE HUB</span>
+                <span>{trLogin('statusTarget')}</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-emerald-500">➜</span>
-                <span>Status: <span className="text-zinc-300">AWAITING CREDENTIALS</span></span>
+                <span className="text-zinc-300">{trLogin('statusAwaiting')}</span>
               </div>
             </div>
 
             {adminMode ? (
               <form onSubmit={handleAdminLogin} className="space-y-5">
                 <div>
-                  <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-1.5 ml-1">Admin Key</label>
+                  <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-1.5 ml-1">{trLogin('adminKey')}</label>
                   <input
                     type="password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono"
-                    placeholder="ENTER_ROOT_PASSWORD"
+                    placeholder={trLogin('adminPlaceholder')}
                     required
                   />
                 </div>
@@ -238,13 +246,13 @@ export function LoginPage() {
                   disabled={loading}
                   className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-all transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_20px_rgba(255,215,0,0.1)] hover:shadow-[0_0_30px_rgba(255,215,0,0.3)]"
                 >
-                  {loading ? '> VERIFYING...' : '> EXECUTE_LOGIN'}
+                  {loading ? trLogin('verifying') : trLogin('execute')}
                 </button>
               </form>
             ) : step === 'setup-otp' ? (
               <div className="space-y-6">
                 <div className="text-center bg-zinc-900/50 p-4 rounded border border-zinc-800">
-                  <div className="text-xs font-mono text-zinc-400 mb-2">COMPLETE 2FA CONFIGURATION</div>
+                  <div className="text-xs font-mono text-zinc-400 mb-2">{trLogin('setupTitle')}</div>
                   {qrCodeURL ? (
                     <div className="bg-white p-2 rounded inline-block shadow-[0_0_30px_rgba(255,255,255,0.1)]">
                       <img
@@ -257,14 +265,14 @@ export function LoginPage() {
                     <div className="w-32 h-32 bg-zinc-800 animate-pulse rounded inline-block"></div>
                   )}
                   <div className="mt-4">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Backup Secret Key</p>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">{trCommon('backupSecretKey')}</p>
                     <div className="flex items-center gap-2 justify-center bg-black/50 p-2 rounded border border-zinc-700/50 max-w-[200px] mx-auto">
                       <code className="text-xs font-mono text-nofx-gold">{otpSecret}</code>
                       <button
                         onClick={() => copyToClipboard(otpSecret)}
                         className="text-zinc-500 hover:text-white transition-colors"
                       >
-                        <span className="text-[10px] uppercase border border-zinc-700 px-1 rounded">Copy</span>
+                        <span className="text-[10px] uppercase border border-zinc-700 px-1 rounded">{trCommon('copy')}</span>
                       </button>
                     </div>
                   </div>
@@ -274,11 +282,11 @@ export function LoginPage() {
                   <div className="flex gap-3 items-start">
                     <span className="text-nofx-gold font-bold mt-0.5">01</span>
                     <div>
-                      <p className="font-bold text-white mb-1">Install Authenticator App</p>
-                      <p className="mb-2">Recommended: <span className="text-nofx-gold">Google Authenticator</span>.</p>
+                      <p className="font-bold text-white mb-1">{trLogin('installTitle')}</p>
+                      <p className="mb-2">{trLogin('installDesc')}</p>
                       <div className="flex gap-2">
-                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">iOS</span>
-                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">Android</span>
+                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">{trCommon('ios')}</span>
+                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">{trCommon('android')}</span>
                       </div>
                     </div>
                   </div>
@@ -288,8 +296,8 @@ export function LoginPage() {
                   <div className="flex gap-3 items-start">
                     <span className="text-nofx-gold font-bold mt-0.5">02</span>
                     <div>
-                      <p className="font-bold text-white mb-1">Scan & Verify</p>
-                      <p>Scan code above, then enter the 6-digit token below to activate your account.</p>
+                      <p className="font-bold text-white mb-1">{trLogin('scanVerifyTitle')}</p>
+                      <p>{trLogin('scanVerifyDesc')}</p>
                     </div>
                   </div>
                 </div>
@@ -298,7 +306,7 @@ export function LoginPage() {
                   onClick={() => setStep('otp')}
                   className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-colors font-mono shadow-lg"
                 >
-                  I HAVE SCANNED THE CODE →
+                  {trLogin('scannedCta')}
                 </button>
               </div>
             ) : step === 'login' ? (
@@ -311,7 +319,7 @@ export function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full bg-black/50 border border-zinc-700 rounded px-4 py-3 text-sm focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-700 text-white font-mono"
-                      placeholder="user@nofx.os"
+                      placeholder={t('emailPlaceholder', language)}
                       required
                     />
                   </div>
@@ -362,10 +370,10 @@ export function LoginPage() {
                   className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed font-mono shadow-[0_0_15px_rgba(255,215,0,0.1)] hover:shadow-[0_0_25px_rgba(255,215,0,0.25)] flex items-center justify-center gap-2 group"
                 >
                   {loading ? (
-                    <span className="animate-pulse">PROCESSING...</span>
+                    <span className="animate-pulse">{trLogin('processing')}</span>
                   ) : (
                     <>
-                      <span>AUTHENTICATE</span>
+                      <span>{trLogin('authenticate')}</span>
                       <span className="group-hover:translate-x-1 transition-transform">-&gt;</span>
                     </>
                   )}
@@ -403,7 +411,7 @@ export function LoginPage() {
 
                 {error && (
                   <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono text-center">
-                    [ACCESS DENIED]: {error}
+                    {trLogin('accessDeniedPrefix')} {error}
                   </div>
                 )}
 
@@ -413,14 +421,14 @@ export function LoginPage() {
                     onClick={() => setStep('login')}
                     className="flex-1 bg-zinc-900 border border-zinc-700 text-zinc-400 py-3 rounded text-xs font-mono uppercase hover:bg-zinc-800 transition-colors"
                   >
-                    &lt; ABORT
+                    {trLogin('abort')}
                   </button>
                   <button
                     type="submit"
                     disabled={loading || otpCode.length !== 6}
                     className="flex-1 bg-nofx-gold text-black font-bold py-3 rounded text-xs font-mono uppercase hover:bg-yellow-400 transition-colors disabled:opacity-50"
                   >
-                    {loading ? 'VERIFYING...' : 'CONFIRM IDENTITY'}
+                    {loading ? trLogin('verifyingOtp') : trLogin('confirmIdentity')}
                   </button>
                 </div>
               </form>
@@ -429,7 +437,7 @@ export function LoginPage() {
 
           {/* Terminal Footer Info */}
           <div className="bg-zinc-900/50 p-3 flex justify-between items-center text-[10px] font-mono text-zinc-600 border-t border-zinc-800">
-            <div>SECURE_CONNECTION: ENCRYPTED</div>
+            <div>{trCommon('secureConnection')}</div>
             <div>{new Date().toISOString().split('T')[0]}</div>
           </div>
         </div>
@@ -438,19 +446,19 @@ export function LoginPage() {
         {!adminMode && registrationEnabled && (
           <div className="text-center mt-8 space-y-4">
             <p className="text-xs font-mono text-zinc-500">
-              NEW_USER_DETECTED?{' '}
+              {trCommon('newUserDetected')}{' '}
               <button
                 onClick={() => window.location.href = '/register'}
                 className="text-nofx-gold hover:underline hover:text-yellow-300 transition-colors ml-1 uppercase"
               >
-                INITIALIZE REGISTRATION
+                {trCommon('initializeRegistration')}
               </button>
             </p>
             <button
               onClick={() => window.location.href = '/'}
               className="text-[10px] text-zinc-600 hover:text-red-500 transition-colors uppercase tracking-widest hover:underline decoration-red-500/30 font-mono"
             >
-              [ ABORT_SESSION_RETURN_HOME ]
+              {trCommon('abortSessionHome')}
             </button>
           </div>
         )}

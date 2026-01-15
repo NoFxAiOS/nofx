@@ -50,6 +50,7 @@ export default function HeaderBar({
   const userDropdownRef = useRef<HTMLDivElement>(null)
   const { config: systemConfig } = useSystemConfig()
   const registrationEnabled = systemConfig?.registration_enabled !== false
+  const languageFlag = language === 'zh' ? '🇨🇳' : language === 'es' ? '🇪🇸' : '🇺🇸'
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -98,13 +99,13 @@ export default function HeaderBar({
             {(() => {
               // Define all navigation tabs
               const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
-                { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : 'Market', requiresAuth: true },
+                { page: 'strategy-market', path: '/strategy-market', label: t('strategyMarketPage.title', language), requiresAuth: true },
                 { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
                 { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
                 { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
                 { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
                 { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
-                { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
+                { page: 'backtest', path: '/backtest', label: t('backtest', language), requiresAuth: true },
                 { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
               ]
 
@@ -257,7 +258,7 @@ export default function HeaderBar({
                 className="flex items-center gap-2 px-3 py-2 rounded transition-colors text-nofx-text-muted hover:bg-white/5"
               >
                 <span className="text-lg">
-                  {language === 'zh' ? '🇨🇳' : '🇺🇸'}
+                  {languageFlag}
                 </span>
                 <ChevronDown className="w-4 h-4" />
               </button>
@@ -273,7 +274,7 @@ export default function HeaderBar({
                       ${language === 'zh' ? 'bg-nofx-gold/10' : 'hover:bg-white/5'}`}
                   >
                     <span className="text-base">🇨🇳</span>
-                    <span className="text-sm">中文</span>
+                    <span className="text-sm">{t('languageNames.zh', language)}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -284,7 +285,18 @@ export default function HeaderBar({
                       ${language === 'en' ? 'bg-nofx-gold/10' : 'hover:bg-white/5'}`}
                   >
                     <span className="text-base">🇺🇸</span>
-                    <span className="text-sm">English</span>
+                    <span className="text-sm">{t('languageNames.en', language)}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onLanguageChange?.('es')
+                      setLanguageDropdownOpen(false)
+                    }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 transition-colors text-nofx-text-muted hover:text-white
+                      ${language === 'es' ? 'bg-nofx-gold/10' : 'hover:bg-white/5'}`}
+                  >
+                    <span className="text-base">🇪🇸</span>
+                    <span className="text-sm">{t('languageNames.es', language)}</span>
                   </button>
                 </div>
               )}
@@ -327,13 +339,13 @@ export default function HeaderBar({
               <div className="flex flex-col gap-6 mb-12">
                 {(() => {
                   const navTabs: { page: Page; path: string; label: string; requiresAuth: boolean }[] = [
-                    { page: 'strategy-market', path: '/strategy-market', label: language === 'zh' ? '策略市场' : 'Market', requiresAuth: true },
+                    { page: 'strategy-market', path: '/strategy-market', label: t('strategyMarketPage.title', language), requiresAuth: true },
                     { page: 'traders', path: '/traders', label: t('configNav', language), requiresAuth: true },
                     { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
                     { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
                     { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
                     { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
-                    { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
+                    { page: 'backtest', path: '/backtest', label: t('backtest', language), requiresAuth: true },
                     { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
                   ]
 
@@ -369,7 +381,7 @@ export default function HeaderBar({
                       {tab.label}
                       {tab.requiresAuth && !isLoggedIn && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-800 text-zinc-500 font-normal tracking-wide uppercase align-middle relative -top-1">
-                          LOGIN_REQ
+                          {t('loginRequiredShort', language)}
                         </span>
                       )}
                     </motion.button>
@@ -426,7 +438,7 @@ export default function HeaderBar({
                 <div className="grid grid-cols-2 gap-4">
                   {/* Lang Switcher */}
                   <div className="flex bg-zinc-900 rounded-lg p-1 border border-zinc-800">
-                    {['zh', 'en'].map((lang) => (
+                    {(['zh', 'en', 'es'] as Language[]).map((lang) => (
                       <button
                         key={lang}
                         onClick={() => {
@@ -438,7 +450,7 @@ export default function HeaderBar({
                           : 'text-zinc-500'
                           }`}
                       >
-                        {lang === 'zh' ? 'CN' : 'EN'}
+                        {t(`languageNames.${lang}`, language as Language)}
                       </button>
                     ))}
                   </div>

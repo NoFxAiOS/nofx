@@ -144,6 +144,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const { language } = useLanguage()
   const { user, token } = useAuth()
   const navigate = useNavigate()
+  const tr = (key: string, params?: Record<string, string | number>) => t(`aiTradersPage.${key}`, language as Language, params)
+  const toastText = (key: string) => t(`aiTradersPage.toasts.${key}`, language as Language)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showModelModal, setShowModelModal] = useState(false)
@@ -345,9 +347,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await toast.promise(api.createTrader(data), {
-        loading: '正在创建…',
-        success: '创建成功',
-        error: '创建失败',
+        loading: t('aiTradersPage.toasts.createTrader.loading', language),
+        success: t('aiTradersPage.toasts.createTrader.success', language),
+        error: t('aiTradersPage.toasts.createTrader.error', language),
       })
       setShowCreateModal(false)
       // Immediately refresh traders list for better UX
@@ -403,9 +405,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       console.log('🔥 handleSaveEditTrader - request:', request)
 
       await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
-        loading: '正在保存…',
-        success: '保存成功',
-        error: '保存失败',
+        loading: toastText('saveTrader.loading'),
+        success: toastText('saveTrader.success'),
+        error: toastText('saveTrader.error'),
       })
       setShowEditModal(false)
       setEditingTrader(null)
@@ -425,9 +427,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
     try {
       await toast.promise(api.deleteTrader(traderId), {
-        loading: '正在删除…',
-        success: '删除成功',
-        error: '删除失败',
+        loading: toastText('deleteTrader.loading'),
+        success: toastText('deleteTrader.success'),
+        error: toastText('deleteTrader.error'),
       })
 
       // Immediately refresh traders list for better UX
@@ -442,15 +444,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       if (running) {
         await toast.promise(api.stopTrader(traderId), {
-          loading: '正在停止…',
-          success: '已停止',
-          error: '停止失败',
+          loading: toastText('stopTrader.loading'),
+          success: toastText('stopTrader.success'),
+          error: toastText('stopTrader.error'),
         })
       } else {
         await toast.promise(api.startTrader(traderId), {
-          loading: '正在启动…',
-          success: '已启动',
-          error: '启动失败',
+          loading: toastText('startTrader.loading'),
+          success: toastText('startTrader.success'),
+          error: toastText('startTrader.error'),
         })
       }
 
@@ -466,9 +468,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       const newValue = !currentShowInCompetition
       await toast.promise(api.toggleCompetition(traderId, newValue), {
-        loading: '正在更新…',
-        success: newValue ? '已在竞技场显示' : '已在竞技场隐藏',
-        error: '更新失败',
+        loading: toastText('competition.loading'),
+        success: newValue ? toastText('competition.showSuccess') : toastText('competition.hideSuccess'),
+        error: toastText('competition.error'),
       })
 
       // Immediately refresh traders list to update status
@@ -533,9 +535,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       const request = config.buildRequest(updatedItems)
       await toast.promise(config.updateApi(request), {
-        loading: '正在更新配置…',
-        success: '配置已更新',
-        error: '更新配置失败',
+        loading: toastText('updateConfig.loading'),
+        success: toastText('updateConfig.success'),
+        error: toastText('updateConfig.error'),
       })
 
       // 重新获取用户配置以确保数据同步
@@ -652,9 +654,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await toast.promise(api.updateModelConfigs(request), {
-        loading: '正在更新模型配置…',
-        success: '模型配置已更新',
-        error: '更新模型配置失败',
+        loading: toastText('saveModelConfig.loading'),
+        success: toastText('saveModelConfig.success'),
+        error: toastText('saveModelConfig.error'),
       })
 
       // 重新获取用户配置以确保数据同步
@@ -685,9 +687,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
     try {
       await toast.promise(api.deleteExchange(exchangeId), {
-        loading: language === 'zh' ? '正在删除交易所账户…' : 'Deleting exchange account...',
-        success: language === 'zh' ? '交易所账户已删除' : 'Exchange account deleted',
-        error: language === 'zh' ? '删除交易所账户失败' : 'Failed to delete exchange account',
+        loading: toastText('deleteExchange.loading'),
+        success: toastText('deleteExchange.success'),
+        error: toastText('deleteExchange.error'),
       })
 
       // 重新获取用户配置以确保数据同步
@@ -749,9 +751,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         }
 
         await toast.promise(api.updateExchangeConfigsEncrypted(request), {
-          loading: language === 'zh' ? '正在更新交易所配置…' : 'Updating exchange config...',
-          success: language === 'zh' ? '交易所配置已更新' : 'Exchange config updated',
-          error: language === 'zh' ? '更新交易所配置失败' : 'Failed to update exchange config',
+          loading: toastText('updateExchange.loading'),
+          success: toastText('updateExchange.success'),
+          error: toastText('updateExchange.error'),
         })
       } else {
         // 创建新账户
@@ -774,9 +776,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         }
 
         await toast.promise(api.createExchangeEncrypted(createRequest), {
-          loading: language === 'zh' ? '正在创建交易所账户…' : 'Creating exchange account...',
-          success: language === 'zh' ? '交易所账户已创建' : 'Exchange account created',
-          error: language === 'zh' ? '创建交易所账户失败' : 'Failed to create exchange account',
+          loading: toastText('createExchange.loading'),
+          success: toastText('createExchange.success'),
+          error: toastText('createExchange.error'),
         })
       }
 
@@ -915,7 +917,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                         </span>
                       ) : (
                         <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
-                          {language === 'zh' ? '就绪' : 'STANDBY'}
+                          {tr('standby')}
                         </span>
                       )}
                     </div>
@@ -1011,7 +1013,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                         </span>
                       ) : (
                         <span className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
-                          {language === 'zh' ? '就绪' : 'STANDBY'}
+                          {tr('standby')}
                         </span>
                       )}
                     </div>
@@ -1140,7 +1142,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                               toggleTraderAddressVisibility(trader.trader_id)
                             }}
                             className="p-0.5 rounded hover:bg-gray-700 transition-colors"
-                            title={isVisible ? (language === 'zh' ? '隐藏' : 'Hide') : (language === 'zh' ? '显示' : 'Show')}
+                            title={isVisible ? tr('hide') : tr('show')}
                           >
                             {isVisible ? (
                               <EyeOff className="w-3 h-3" style={{ color: '#848E9C' }} />
@@ -1155,7 +1157,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                               handleCopyAddress(trader.trader_id, walletAddr)
                             }}
                             className="p-0.5 rounded hover:bg-gray-700 transition-colors"
-                            title={language === 'zh' ? '复制' : 'Copy'}
+                            title={tr('copy')}
                           >
                             {isCopied ? (
                               <Check className="w-3 h-3" style={{ color: '#0ECB81' }} />
@@ -1270,7 +1272,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
                               color: '#848E9C',
                             }
                         }
-                        title={trader.show_in_competition !== false ? '在竞技场显示' : '在竞技场隐藏'}
+                        title={trader.show_in_competition !== false ? tr('competitionShow') : tr('competitionHide')}
                       >
                         {trader.show_in_competition !== false ? (
                           <Eye className="w-3 h-3 md:w-4 md:h-4" />

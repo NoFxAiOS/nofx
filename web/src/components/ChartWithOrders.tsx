@@ -10,6 +10,7 @@ import {
 } from 'lightweight-charts'
 import { useLanguage } from '../contexts/LanguageContext'
 import { httpClient } from '../lib/httpClient'
+import { t, type Language } from '../i18n/translations'
 
 // 订单接口定义
 interface OrderMarker {
@@ -47,6 +48,8 @@ export function ChartWithOrders({
   exchange = 'binance', // 默认使用 binance
 }: ChartWithOrdersProps) {
   const { language } = useLanguage()
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    t(`chartWithOrders.${key}`, language as Language, params)
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
@@ -409,7 +412,7 @@ export function ChartWithOrders({
         setLoading(false)
       } catch (err) {
         console.error('Error loading chart data:', err)
-        setError(language === 'zh' ? '加载图表数据失败' : 'Failed to load chart data')
+        setError(tr('loadError'))
         setLoading(false)
       }
     }
@@ -438,7 +441,7 @@ export function ChartWithOrders({
         </div>
         {loading && (
           <div className="text-sm" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '加载中...' : 'Loading...'}
+            {tr('loading')}
           </div>
         )}
       </div>
@@ -469,7 +472,7 @@ export function ChartWithOrders({
             }}
           >
             <div style={{ marginBottom: '6px', color: '#F0B90B', fontWeight: 'bold', fontSize: '11px' }}>
-              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
+              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US', {
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
@@ -515,11 +518,11 @@ export function ChartWithOrders({
       <div className="flex items-center gap-4 p-4 text-xs" style={{ borderTop: '1px solid #2B3139', color: '#848E9C' }}>
         <div className="flex items-center gap-2">
           <span className="font-bold" style={{ color: '#0ECB81' }}>B</span>
-          <span>{language === 'zh' ? 'BUY (买入)' : 'BUY'}</span>
+          <span>{tr('buy')}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-bold" style={{ color: '#F6465D' }}>S</span>
-          <span>{language === 'zh' ? 'SELL (卖出)' : 'SELL'}</span>
+          <span>{tr('sell')}</span>
         </div>
       </div>
     </div>

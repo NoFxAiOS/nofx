@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { useLanguage } from '../../../contexts/LanguageContext'
 
 interface LogEntry {
     id: number
@@ -9,7 +10,7 @@ interface LogEntry {
     color: string
 }
 
-const generateLog = (id: number): LogEntry => {
+const generateLog = (id: number, locale: string): LogEntry => {
     const types = ['EXE', 'ARB', 'LIQ', 'NET', 'SYS']
     const pairs = ['BTC-USDT', 'ETH-PERP', 'SOL-USDT', 'BNB-BUSD']
     const actions = ['BUY', 'SELL', 'SHORT', 'LONG']
@@ -40,26 +41,28 @@ const generateLog = (id: number): LogEntry => {
             color = 'text-blue-400'
     }
 
-    return { id, time: new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + Math.floor(Math.random() * 999), type, msg, color }
+    return { id, time: new Date().toLocaleTimeString(locale, { hour12: false }) + '.' + Math.floor(Math.random() * 999), type, msg, color }
 }
 
 export default function LiveFeed() {
     const [logs, setLogs] = useState<LogEntry[]>([])
+    const { language } = useLanguage()
+    const locale = language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US'
 
     useEffect(() => {
         // Initial population
-        const initialLogs = Array.from({ length: 8 }).map((_, i) => generateLog(i))
+        const initialLogs = Array.from({ length: 8 }).map((_, i) => generateLog(i, locale))
         setLogs(initialLogs)
 
         const interval = setInterval(() => {
             setLogs(prev => {
-                const newLog = generateLog(Date.now())
+                const newLog = generateLog(Date.now(), locale)
                 return [newLog, ...prev.slice(0, 7)]
             })
         }, 800) // Fast 800ms updates for HFT feel
 
         return () => clearInterval(interval)
-    }, [])
+    }, [locale])
 
     return (
         <section className="w-full bg-[#020304] border-y border-zinc-800 py-1 overflow-hidden relative">

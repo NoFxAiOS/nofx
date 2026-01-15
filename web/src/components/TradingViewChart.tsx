@@ -128,7 +128,7 @@ function TradingViewChartComponent({
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai',
       theme: 'dark',
       style: '1',
-      locale: language === 'zh' ? 'zh_CN' : 'en',
+      locale: language === 'zh' ? 'zh_CN' : language === 'es' ? 'es' : 'en',
       enable_publishing: false,
       backgroundColor: 'rgba(11, 14, 17, 1)',
       gridColor: 'rgba(43, 49, 57, 0.5)',

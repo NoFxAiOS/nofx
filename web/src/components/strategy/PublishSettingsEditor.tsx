@@ -1,4 +1,5 @@
 import { Globe, Lock, Eye, EyeOff } from 'lucide-react'
+import { t, type Language } from '../../i18n/translations'
 
 interface PublishSettingsEditorProps {
   isPublic: boolean
@@ -6,7 +7,7 @@ interface PublishSettingsEditorProps {
   onIsPublicChange: (value: boolean) => void
   onConfigVisibleChange: (value: boolean) => void
   disabled?: boolean
-  language: string
+  language: Language
 }
 
 export function PublishSettingsEditor({
@@ -17,19 +18,7 @@ export function PublishSettingsEditor({
   disabled = false,
   language,
 }: PublishSettingsEditorProps) {
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      publishToMarket: { zh: '发布到策略市场', en: 'Publish to Market' },
-      publishDesc: { zh: '策略将在市场公开展示，其他用户可发现并使用', en: 'Strategy will be publicly visible in the marketplace' },
-      showConfig: { zh: '公开配置参数', en: 'Show Config' },
-      showConfigDesc: { zh: '允许他人查看和复制详细配置', en: 'Allow others to view and clone config details' },
-      private: { zh: '私有', en: 'PRIVATE' },
-      public: { zh: '公开', en: 'PUBLIC' },
-      hidden: { zh: '隐藏', en: 'HIDDEN' },
-      visible: { zh: '可见', en: 'VISIBLE' },
-    }
-    return translations[key]?.[language] || key
-  }
+  const tr = (key: string) => t(`strategyConfig.publishSettings.${key}`, language)
 
   return (
     <div className="space-y-3">
@@ -73,10 +62,10 @@ export function PublishSettingsEditor({
             </div>
             <div>
               <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-                {t('publishToMarket')}
+                {tr('publishToMarket')}
               </div>
               <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
-                {t('publishDesc')}
+                {tr('publishDesc')}
               </div>
             </div>
           </div>
@@ -87,7 +76,7 @@ export function PublishSettingsEditor({
               className="text-[10px] font-mono font-bold tracking-wider"
               style={{ color: isPublic ? '#0ECB81' : '#848E9C' }}
             >
-              {isPublic ? t('public') : t('private')}
+              {isPublic ? tr('public') : tr('private')}
             </span>
             <div
               className="relative w-12 h-6 rounded-full transition-all duration-300"
@@ -152,10 +141,10 @@ export function PublishSettingsEditor({
               </div>
               <div>
                 <div className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-                  {t('showConfig')}
+                  {tr('showConfig')}
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
-                  {t('showConfigDesc')}
+                  {tr('showConfigDesc')}
                 </div>
               </div>
             </div>
@@ -166,7 +155,7 @@ export function PublishSettingsEditor({
                 className="text-[10px] font-mono font-bold tracking-wider"
                 style={{ color: configVisible ? '#a855f7' : '#848E9C' }}
               >
-                {configVisible ? t('visible') : t('hidden')}
+                {configVisible ? tr('visible') : tr('hidden')}
               </span>
               <div
                 className="relative w-12 h-6 rounded-full transition-all duration-300"

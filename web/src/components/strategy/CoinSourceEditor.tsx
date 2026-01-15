@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Plus, X, Database, TrendingUp, List, Ban, Zap } from 'lucide-react'
+import { t, type Language } from '../../i18n/translations'
 import type { CoinSourceConfig } from '../../types'
 
 interface CoinSourceEditorProps {
   config: CoinSourceConfig
   onChange: (config: CoinSourceConfig) => void
   disabled?: boolean
-  language: string
+  language: Language
 }
 
 export function CoinSourceEditor({
@@ -17,41 +18,8 @@ export function CoinSourceEditor({
 }: CoinSourceEditorProps) {
   const [newCoin, setNewCoin] = useState('')
   const [newExcludedCoin, setNewExcludedCoin] = useState('')
-
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      sourceType: { zh: '数据来源类型', en: 'Source Type' },
-      static: { zh: '静态列表', en: 'Static List' },
-      ai500: { zh: 'AI500 数据源', en: 'AI500 Data Provider' },
-      oi_top: { zh: 'OI Top 持仓增长', en: 'OI Top' },
-      mixed: { zh: '混合模式', en: 'Mixed Mode' },
-      staticCoins: { zh: '自定义币种', en: 'Custom Coins' },
-      addCoin: { zh: '添加币种', en: 'Add Coin' },
-      useAI500: { zh: '启用 AI500 数据源', en: 'Enable AI500 Data Provider' },
-      ai500Limit: { zh: '数量上限', en: 'Limit' },
-      useOITop: { zh: '启用 OI Top 数据', en: 'Enable OI Top' },
-      oiTopLimit: { zh: '数量上限', en: 'Limit' },
-      staticDesc: { zh: '手动指定交易币种列表', en: 'Manually specify trading coins' },
-      ai500Desc: {
-        zh: '使用 AI500 智能筛选的热门币种',
-        en: 'Use AI500 smart-filtered popular coins',
-      },
-      oiTopDesc: {
-        zh: '使用持仓量增长最快的币种',
-        en: 'Use coins with fastest OI growth',
-      },
-      mixedDesc: {
-        zh: '组合多种数据源，AI500 + OI Top + 自定义',
-        en: 'Combine multiple sources: AI500 + OI Top + Custom',
-      },
-      dataSourceConfig: { zh: '数据源配置', en: 'Data Source Configuration' },
-      excludedCoins: { zh: '排除币种', en: 'Excluded Coins' },
-      excludedCoinsDesc: { zh: '这些币种将从所有数据源中排除，不会被交易', en: 'These coins will be excluded from all sources and will not be traded' },
-      addExcludedCoin: { zh: '添加排除', en: 'Add Excluded' },
-      nofxosNote: { zh: '使用 NofxOS API Key（在指标配置中设置）', en: 'Uses NofxOS API Key (set in Indicators config)' },
-    }
-    return translations[key]?.[language] || key
-  }
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    t(`strategyConfig.coinSource.${key}`, language, params)
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
@@ -154,7 +122,7 @@ export function CoinSourceEditor({
       {/* Source Type Selector */}
       <div>
         <label className="block text-sm font-medium mb-3 text-nofx-text">
-          {t('sourceType')}
+          {tr('sourceType')}
         </label>
         <div className="grid grid-cols-4 gap-3">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
@@ -172,10 +140,10 @@ export function CoinSourceEditor({
             >
               <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
               <div className="text-sm font-medium text-nofx-text">
-                {t(value)}
+                {tr(`types.${value}`)}
               </div>
               <div className="text-xs mt-1 text-nofx-text-muted">
-                {t(`${value}Desc`)}
+                {tr(`typeDescriptions.${value}`)}
               </div>
             </button>
           ))}
@@ -186,7 +154,7 @@ export function CoinSourceEditor({
       {(config.source_type === 'static' || config.source_type === 'mixed') && (
         <div>
           <label className="block text-sm font-medium mb-3 text-nofx-text">
-            {t('staticCoins')}
+            {tr('staticCoins')}
           </label>
           <div className="flex flex-wrap gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
@@ -213,7 +181,7 @@ export function CoinSourceEditor({
                 value={newCoin}
                 onChange={(e) => setNewCoin(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCoin()}
-                placeholder="BTC, ETH, SOL..."
+                placeholder={tr('staticPlaceholder')}
                 className="flex-1 px-4 py-2 rounded-lg bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
               />
               <button
@@ -221,7 +189,7 @@ export function CoinSourceEditor({
                 className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors bg-nofx-gold text-black hover:bg-yellow-500"
               >
                 <Plus className="w-4 h-4" />
-                {t('addCoin')}
+                {tr('addCoin')}
               </button>
             </div>
           )}
@@ -233,11 +201,11 @@ export function CoinSourceEditor({
         <div className="flex items-center gap-2 mb-3">
           <Ban className="w-4 h-4 text-nofx-danger" />
           <label className="text-sm font-medium text-nofx-text">
-            {t('excludedCoins')}
+            {tr('excludedCoins')}
           </label>
         </div>
         <p className="text-xs mb-3 text-nofx-text-muted">
-          {t('excludedCoinsDesc')}
+          {tr('excludedCoinsDesc')}
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {(config.excluded_coins || []).map((coin) => (
@@ -258,7 +226,7 @@ export function CoinSourceEditor({
           ))}
           {(config.excluded_coins || []).length === 0 && (
             <span className="text-xs italic text-nofx-text-muted">
-              {language === 'zh' ? '无' : 'None'}
+              {t('none', language)}
             </span>
           )}
         </div>
@@ -269,7 +237,7 @@ export function CoinSourceEditor({
               value={newExcludedCoin}
               onChange={(e) => setNewExcludedCoin(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddExcludedCoin()}
-              placeholder="BTC, ETH, DOGE..."
+              placeholder={tr('excludedPlaceholder')}
               className="flex-1 px-4 py-2 rounded-lg text-sm bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
             />
             <button
@@ -277,7 +245,7 @@ export function CoinSourceEditor({
               className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm bg-nofx-danger text-white hover:bg-red-600"
             >
               <Ban className="w-4 h-4" />
-              {t('addExcludedCoin')}
+              {tr('addExcludedCoin')}
             </button>
           </div>
         )}
@@ -292,7 +260,7 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-nofx-gold" />
               <span className="text-sm font-medium text-nofx-text">
-                AI500 {t('dataSourceConfig')}
+                AI500 {tr('dataSourceConfig')}
               </span>
               <NofxOSBadge />
             </div>
@@ -309,13 +277,13 @@ export function CoinSourceEditor({
                 disabled={disabled}
                 className="w-5 h-5 rounded accent-nofx-gold"
               />
-              <span className="text-nofx-text">{t('useAI500')}</span>
+              <span className="text-nofx-text">{tr('useAI500')}</span>
             </label>
 
             {config.use_ai500 && (
               <div className="flex items-center gap-3 pl-8">
                 <span className="text-sm text-nofx-text-muted">
-                  {t('ai500Limit')}:
+                  {tr('ai500Limit')}:
                 </span>
                 <select
                   value={config.ai500_limit || 10}
@@ -334,7 +302,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {t('nofxosNote')}
+              {tr('nofxosNote')}
             </p>
           </div>
         </div>
@@ -349,7 +317,7 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-nofx-success" />
               <span className="text-sm font-medium text-nofx-text">
-                OI Top {t('dataSourceConfig')}
+                OI Top {tr('dataSourceConfig')}
               </span>
               <NofxOSBadge />
             </div>
@@ -366,13 +334,13 @@ export function CoinSourceEditor({
                 disabled={disabled}
                 className="w-5 h-5 rounded accent-nofx-success"
               />
-              <span className="text-nofx-text">{t('useOITop')}</span>
+              <span className="text-nofx-text">{tr('useOITop')}</span>
             </label>
 
             {config.use_oi_top && (
               <div className="flex items-center gap-3 pl-8">
                 <span className="text-sm text-nofx-text-muted">
-                  {t('oiTopLimit')}:
+                  {tr('oiTopLimit')}:
                 </span>
                 <select
                   value={config.oi_top_limit || 20}
@@ -391,7 +359,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {t('nofxosNote')}
+              {tr('nofxosNote')}
             </p>
           </div>
         </div>

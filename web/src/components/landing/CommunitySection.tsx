@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { MessageCircle, Heart, Repeat2, ExternalLink } from 'lucide-react'
-import { Language } from '../../i18n/translations'
+import { t, Language } from '../../i18n/translations'
 
 interface TweetProps {
   quote: string
@@ -11,7 +11,13 @@ interface TweetProps {
   delay: number
 }
 
-function TweetCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay }: TweetProps) {
+interface TweetActions {
+  reply: string
+  repost: string
+  like: string
+}
+
+function TweetCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay, actions }: TweetProps & { actions: TweetActions }) {
   return (
     <motion.a
       href={tweetUrl}
@@ -72,15 +78,15 @@ function TweetCard({ quote, authorName, handle, avatarUrl, tweetUrl, delay }: Tw
       <div className="flex items-center gap-6 pt-3" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
         <div className="flex items-center gap-1.5 text-xs" style={{ color: '#5E6673' }}>
           <MessageCircle className="w-3.5 h-3.5" />
-          <span>Reply</span>
+          <span>{actions.reply}</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs" style={{ color: '#5E6673' }}>
           <Repeat2 className="w-3.5 h-3.5" />
-          <span>Repost</span>
+          <span>{actions.repost}</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs" style={{ color: '#5E6673' }}>
           <Heart className="w-3.5 h-3.5" />
-          <span>Like</span>
+          <span>{actions.like}</span>
         </div>
         <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
           <ExternalLink className="w-3.5 h-3.5" style={{ color: '#F0B90B' }} />
@@ -95,7 +101,13 @@ interface CommunitySectionProps {
 }
 
 export default function CommunitySection({ language }: CommunitySectionProps) {
+  const lang = (language || 'en') as Language
   const tweets: TweetProps[] = []
+  const actions = {
+    reply: t('communitySection.actions.reply', lang),
+    repost: t('communitySection.actions.repost', lang),
+    like: t('communitySection.actions.like', lang),
+  }
 
   return (
     <section className="py-24 relative" style={{ background: '#0B0E11' }}>
@@ -114,17 +126,17 @@ export default function CommunitySection({ language }: CommunitySectionProps) {
           viewport={{ once: true }}
         >
           <h2 className="text-4xl lg:text-5xl font-bold mb-4" style={{ color: '#EAECEF' }}>
-            {language === 'zh' ? '社区声音' : 'Community Voices'}
+            {t('communitySection.title', lang)}
           </h2>
           <p className="text-lg" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '看看大家怎么说' : 'See what others are saying'}
+            {t('communitySection.subtitle', lang)}
           </p>
         </motion.div>
 
         {/* Tweet Grid */}
         <div className="grid md:grid-cols-3 gap-5">
           {tweets.map((tweet, idx) => (
-            <TweetCard key={idx} {...tweet} />
+            <TweetCard key={idx} {...tweet} actions={actions} />
           ))}
         </div>
 
@@ -149,7 +161,7 @@ export default function CommunitySection({ language }: CommunitySectionProps) {
             <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
             </svg>
-            {language === 'zh' ? '关注我们的 X' : 'Follow us on X'}
+            {t('communitySection.cta', lang)}
           </a>
         </motion.div>
       </div>

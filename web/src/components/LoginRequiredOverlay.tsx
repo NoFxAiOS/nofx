@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { LogIn, UserPlus, X, AlertTriangle, Terminal } from 'lucide-react'
 import { DeepVoidBackground } from './DeepVoidBackground'
 import { useLanguage } from '../contexts/LanguageContext'
+import { t, type Language } from '../i18n/translations'
 
 interface LoginRequiredOverlayProps {
   isOpen: boolean
@@ -11,39 +12,14 @@ interface LoginRequiredOverlayProps {
 
 export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequiredOverlayProps) {
   const { language } = useLanguage()
-
-  const texts = {
-    zh: {
-      title: '系统访问受限',
-      subtitle: featureName ? `访问「${featureName}」需要更高权限` : '此模块需要授权访问',
-      description: '初始化身份验证协议以解锁完整系统功能：AI 交易员配置、策略市场数据流、回测模拟核心。',
-      benefits: [
-        'AI 交易员控制权',
-        '高频策略核心市场',
-        '历史数据回测引擎',
-        '全系统数据可视化'
-      ],
-      login: '执行登录指令',
-      register: '注册新用户 ID',
-      later: '中止操作'
-    },
-    en: {
-      title: 'SYSTEM ACCESS DENIED',
-      subtitle: featureName ? `Module "${featureName}" requires elevated privileges` : 'Authorization required for this module',
-      description: 'Initialize authentication protocol to unlock full system capabilities: AI Trader configuration, Strategy Market data streams, and Backtest Simulation core.',
-      benefits: [
-        'AI Trader Control',
-        'HFT Strategy Market',
-        'Historical Backtest Engine',
-        'Full System Visualization'
-      ],
-      login: 'EXECUTE LOGIN',
-      register: 'REGISTER NEW ID',
-      later: 'ABORT'
-    }
-  }
-
-  const t = texts[language]
+  const tr = (key: string, params?: Record<string, string | number>) =>
+    t(`loginOverlay.${key}`, language as Language, params)
+  const subtitleText = featureName
+    ? tr('subtitleWithFeature', { feature: featureName })
+    : tr('subtitle')
+  const benefits = ['item1', 'item2', 'item3', 'item4'].map((key) =>
+    tr(`benefits.${key}`)
+  )
 
   return (
     <AnimatePresence>
@@ -94,7 +70,7 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                       <div className="absolute inset-0 bg-red-500/20 blur-xl animate-pulse"></div>
                       <div className="bg-nofx-bg border border-red-500/50 text-red-500 px-4 py-2 flex items-center gap-3 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
                         <AlertTriangle size={18} className="animate-pulse" />
-                        <span className="font-bold tracking-widest text-sm uppercase">{language === 'zh' ? '访问被拒绝' : 'ACCESS DENIED'}</span>
+                        <span className="font-bold tracking-widest text-sm uppercase">{tr('accessDenied')}</span>
                       </div>
                     </div>
                   </div>
@@ -102,19 +78,19 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                   {/* Terminal Text */}
                   <div className="space-y-4 mb-8">
                     <div className="text-center">
-                      <h2 className="text-xl font-bold text-white uppercase tracking-wider mb-2">{t.title}</h2>
-                      <p className="text-nofx-gold text-xs uppercase tracking-widest border-b border-nofx-gold/20 pb-4 inline-block">{t.subtitle}</p>
+                      <h2 className="text-xl font-bold text-white uppercase tracking-wider mb-2">{tr('title')}</h2>
+                      <p className="text-nofx-gold text-xs uppercase tracking-widest border-b border-nofx-gold/20 pb-4 inline-block">{subtitleText}</p>
                     </div>
 
                     <div className="bg-nofx-bg-lighter border-l-2 border-nofx-gold/20 p-3 my-4">
                       <p className="text-xs text-nofx-text-muted leading-relaxed font-mono">
                         <span className="text-green-500 mr-2">$</span>
-                        {t.description}
+                        {tr('description')}
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      {t.benefits.map((benefit, i) => (
+                      {benefits.map((benefit, i) => (
                         <div key={i} className="flex items-center gap-2 text-[10px] text-nofx-text-muted uppercase tracking-wide">
                           <span className="text-nofx-gold">✓</span> {benefit}
                         </div>
@@ -129,7 +105,7 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                       className="flex items-center justify-center gap-2 w-full py-3 bg-nofx-gold text-black font-bold text-xs uppercase tracking-widest hover:bg-yellow-400 transition-all shadow-neon hover:shadow-[0_0_25px_rgba(240,185,11,0.4)] group"
                     >
                       <LogIn size={14} />
-                      <span>{t.login}</span>
+                      <span>{tr('login')}</span>
                       <span className="opacity-0 group-hover:opacity-100 transition-opacity -ml-2 group-hover:ml-0">-&gt;</span>
                     </a>
 
@@ -138,7 +114,7 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                       className="flex items-center justify-center gap-2 w-full py-3 bg-transparent border border-nofx-gold/20 text-nofx-text-muted hover:text-white hover:border-nofx-gold font-bold text-xs uppercase tracking-widest transition-all hover:bg-nofx-gold/10"
                     >
                       <UserPlus size={14} />
-                      <span>{t.register}</span>
+                      <span>{tr('register')}</span>
                     </a>
                   </div>
 
@@ -147,7 +123,7 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
                       onClick={onClose}
                       className="text-[10px] text-nofx-text-muted hover:text-nofx-danger uppercase tracking-widest hover:underline decoration-red-500/30"
                     >
-                      [ {t.later} ]
+                      [ {tr('later')} ]
                     </button>
                   </div>
 

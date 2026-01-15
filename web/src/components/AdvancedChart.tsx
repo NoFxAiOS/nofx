@@ -18,6 +18,7 @@ import {
   calculateBollingerBands,
   type Kline,
 } from '../utils/indicators'
+import { t } from '../i18n/translations'
 import { Settings, BarChart2 } from 'lucide-react'
 
 // 订单接口定义
@@ -76,14 +77,14 @@ const getQuoteUnit = (exchange: string): string => {
 // 获取成交量数量单位
 const getBaseUnit = (exchange: string, symbol: string): string => {
   if (['alpaca'].includes(exchange)) {
-    return '股'
+    return 'shares'
   }
   if (['forex', 'metals'].includes(exchange)) {
     return ''
   }
   // 加密货币：从 symbol 提取基础资产
   const base = symbol.replace(/USDT$|USD$|BUSD$/, '')
-  return base || '个'
+  return base || 'units'
 }
 
 // 格式化大数字
@@ -104,6 +105,8 @@ export function AdvancedChart({
 }: AdvancedChartProps) {
   void _onSymbolChange // Prevent unused warning
   const { language } = useLanguage()
+  const tr = (key: string, params?: Record<string, any>) => t(key, language, params)
+  const locale = language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US'
   const quoteUnit = getQuoteUnit(exchange)
   const baseUnit = getBaseUnit(exchange, symbol)
   const chartContainerRef = useRef<HTMLDivElement>(null)
@@ -411,7 +414,7 @@ export function AdvancedChart({
       localization: {
         timeFormatter: (time: number) => {
           const date = new Date(time * 1000)
-          return date.toLocaleString('zh-CN', {
+          return date.toLocaleString(locale, {
             month: '2-digit',
             day: '2-digit',
             hour: '2-digit',
@@ -980,7 +983,7 @@ export function AdvancedChart({
         <div className="flex items-center gap-1.5">
           {loading && (
             <span className="text-[10px] text-yellow-400 animate-pulse mr-2">
-              {language === 'zh' ? '更新中...' : 'Updating...'}
+              {tr('advancedChart.updating')}
             </span>
           )}
           <button
@@ -992,7 +995,7 @@ export function AdvancedChart({
             }}
           >
             <Settings className="w-3 h-3" />
-            <span>{language === 'zh' ? '指标' : 'Indicators'}</span>
+            <span>{tr('advancedChart.indicators')}</span>
           </button>
 
           <button
@@ -1002,7 +1005,7 @@ export function AdvancedChart({
               background: showOrderMarkers ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
               color: showOrderMarkers ? '#10B981' : '#6B7280',
             }}
-            title={language === 'zh' ? '订单标记' : 'Order Markers'}
+            title={tr('advancedChart.orderMarkers')}
           >
             <span>B/S</span>
           </button>
@@ -1029,7 +1032,7 @@ export function AdvancedChart({
             <div className="flex items-center gap-2">
               <BarChart2 className="w-4 h-4 text-yellow-400" />
               <h4 className="text-sm font-bold text-white">
-                {language === 'zh' ? '技术指标' : 'Technical Indicators'}
+                {tr('advancedChart.technicalIndicators')}
               </h4>
             </div>
             <button
@@ -1074,7 +1077,7 @@ export function AdvancedChart({
             className="px-4 py-2 text-xs text-gray-500 border-t"
             style={{ borderColor: 'rgba(43, 49, 57, 0.5)' }}
           >
-            {language === 'zh' ? '点击选择需要显示的指标' : 'Click to toggle indicators'}
+            {tr('advancedChart.toggleIndicators')}
           </div>
         </div>
       )}
@@ -1105,7 +1108,7 @@ export function AdvancedChart({
             }}
           >
             <div style={{ marginBottom: '6px', color: '#F0B90B', fontWeight: 'bold', fontSize: '11px' }}>
-              {new Date((tooltipData.time as number) * 1000).toLocaleString(language === 'zh' ? 'zh-CN' : 'en-US', {
+              {new Date((tooltipData.time as number) * 1000).toLocaleString(locale, {
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
-import { t } from '../i18n/translations'
+import { t, type Language } from '../i18n/translations'
 import { MetricTooltip } from './MetricTooltip'
 import type {
   HistoricalPosition,
@@ -42,11 +42,11 @@ function formatDuration(minutes: number): string {
 }
 
 // Format date
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, locale: string): string {
   if (!dateStr) return '-'
   const date = new Date(dateStr)
   if (isNaN(date.getTime())) return '-'
-  return date.toLocaleDateString('zh-CN', {
+  return date.toLocaleDateString(locale, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -72,7 +72,7 @@ function StatCard({
   icon: string
   subtitle?: string
   metricKey?: string
-  language?: string
+  language?: Language
 }) {
   return (
     <div
@@ -115,7 +115,7 @@ function StatCard({
 }
 
 // Symbol Stats Row
-function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
+function SymbolStatsRow({ stat, language }: { stat: SymbolStats; language: Language }) {
   const totalPnl = stat.total_pnl || 0
   const winRate = stat.win_rate || 0
   const pnlColor = totalPnl >= 0 ? '#0ECB81' : '#F6465D'
@@ -132,13 +132,13 @@ function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
           {(stat.symbol || '').replace('USDT', '')}
         </span>
         <span className="text-xs" style={{ color: '#848E9C' }}>
-          {stat.total_trades || 0} trades
+          {t('positionHistory.tradesCount', language, { count: stat.total_trades || 0 })}
         </span>
       </div>
       <div className="flex items-center gap-6">
         <div className="text-right">
           <div className="text-xs" style={{ color: '#848E9C' }}>
-            Win Rate
+            {t('positionHistory.winRate', language)}
           </div>
           <div className="font-mono font-semibold" style={{ color: winRateColor }}>
             {winRate.toFixed(1)}%
@@ -146,7 +146,7 @@ function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
         </div>
         <div className="text-right min-w-[80px]">
           <div className="text-xs" style={{ color: '#848E9C' }}>
-            P&L
+            {t('positionHistory.pnl', language)}
           </div>
           <div className="font-mono font-semibold" style={{ color: pnlColor }}>
             {totalPnl >= 0 ? '+' : ''}
@@ -159,7 +159,7 @@ function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
 }
 
 // Direction Stats Card
-function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language: 'en' | 'zh' }) {
+function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language: Language }) {
   const isLong = (stat.side || '').toLowerCase() === 'long'
   const iconColor = isLong ? '#0ECB81' : '#F6465D'
   const totalPnl = stat.total_pnl || 0
@@ -182,7 +182,7 @@ function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language
           className="font-bold uppercase"
           style={{ color: iconColor }}
         >
-          {stat.side || 'Unknown'}
+          {stat.side || t('positionHistory.unknownSide', language)}
         </span>
       </div>
       <div className="grid grid-cols-4 gap-4">
@@ -236,7 +236,7 @@ function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language
 }
 
 // Position Row Component
-function PositionRow({ position }: { position: HistoricalPosition }) {
+function PositionRow({ position, locale }: { position: HistoricalPosition; locale: string }) {
   const side = position.side || ''
   const isLong = side.toUpperCase() === 'LONG'
   const realizedPnl = position.realized_pnl || 0
@@ -334,7 +334,7 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
 
       {/* Exit Time */}
       <td className="py-3 px-4 text-right text-xs" style={{ color: '#848E9C' }}>
-        {formatDate(position.exit_time)}
+        {formatDate(position.exit_time, locale)}
       </td>
     </tr>
   )
@@ -342,6 +342,8 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
 
 export function PositionHistory({ traderId }: PositionHistoryProps) {
   const { language } = useLanguage()
+  const locale =
+    language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [positions, setPositions] = useState<HistoricalPosition[]>([])
@@ -648,7 +650,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
           </div>
           <div className="space-y-1">
             {symbolStats.slice(0, 10).map((stat) => (
-              <SymbolStatsRow key={stat.symbol} stat={stat} />
+              <SymbolStatsRow key={stat.symbol} stat={stat} language={language} />
             ))}
           </div>
         </div>
@@ -803,7 +805,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             </thead>
             <tbody>
               {filteredPositions.map((position) => (
-                <PositionRow key={position.id} position={position} />
+                <PositionRow key={position.id} position={position} locale={locale} />
               ))}
             </tbody>
           </table>
@@ -846,7 +848,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
             {/* Page size selector */}
             <div className="flex items-center gap-2">
               <span className="text-xs" style={{ color: '#848E9C' }}>
-                {language === 'zh' ? '每页' : 'Per page'}:
+                {t('positionHistory.perPage', language)}:
               </span>
               <select
                 value={pageSize}

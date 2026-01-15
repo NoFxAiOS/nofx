@@ -21,11 +21,11 @@ import { BarChart3, TrendingUp, TrendingDown, Zap } from 'lucide-react'
 
 // Time period options: 1D, 3D, 7D, 30D, All
 const TIME_PERIODS = [
-  { key: '1d', hours: 24, label: { en: '1D', zh: '1天' } },
-  { key: '3d', hours: 72, label: { en: '3D', zh: '3天' } },
-  { key: '7d', hours: 168, label: { en: '7D', zh: '7天' } },
-  { key: '30d', hours: 720, label: { en: '30D', zh: '30天' } },
-  { key: 'all', hours: 0, label: { en: 'All', zh: '全部' } },
+  { key: '1d', hours: 24 },
+  { key: '3d', hours: 72 },
+  { key: '7d', hours: 168 },
+  { key: '30d', hours: 720 },
+  { key: 'all', hours: 0 },
 ]
 
 interface ComparisonChartProps {
@@ -34,7 +34,9 @@ interface ComparisonChartProps {
 
 export function ComparisonChart({ traders }: ComparisonChartProps) {
   const { language } = useLanguage()
+  const tr = (key: string, params?: Record<string, any>) => t(key, language, params)
   const [selectedPeriod, setSelectedPeriod] = useState('7d') // Default to 7 days
+  const locale = language === 'zh' ? 'zh-CN' : language === 'es' ? 'es-ES' : 'en-US'
 
   // Get hours for selected period
   const selectedHours = TIME_PERIODS.find(p => p.key === selectedPeriod)?.hours || 0
@@ -117,7 +119,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
           let time: string
           if (selectedHours <= 24) {
             // 1 day: show HH:mm
-            time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+            time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
           } else if (selectedHours <= 72) {
             // 3 days: show MM/DD HH:mm
             time = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
@@ -181,7 +183,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     })
 
     return combined
-  }, [allTraderHistories, traders, selectedHours])
+  }, [allTraderHistories, traders, selectedHours, locale])
 
   // Get trader color
   const traderColor = (traderId: string) => getTraderColor(traders, traderId)
@@ -196,7 +198,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
                       style={{ color: '#F0B90B' }} />
         </div>
         <div className="text-sm mt-4 font-medium" style={{ color: '#848E9C' }}>
-          {t('loadingChartData', language) || 'Loading chart data...'}
+          {tr('comparisonChart.loading')}
         </div>
       </div>
     )
@@ -258,7 +260,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       const date = new Date(data.timestamp)
-      const dateStr = date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+      const dateStr = date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 
       return (
         <div
@@ -352,7 +354,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
                 border: `1px solid ${selectedPeriod === period.key ? 'rgba(240, 185, 11, 0.4)' : '#2B3139'}`,
               }}
             >
-              {language === 'zh' ? period.label.zh : period.label.en}
+              {tr(`comparisonChart.periods.${period.key}`)}
             </button>
           ))}
         </div>

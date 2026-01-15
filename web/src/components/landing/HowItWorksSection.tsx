@@ -11,29 +11,17 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
     {
       icon: Download,
       number: '01',
-      title: language === 'zh' ? '一键部署' : 'One-Click Deploy',
-      desc: language === 'zh'
-        ? '在你的服务器上运行一条命令即可完成部署'
-        : 'Run a single command on your server to deploy',
-      code: 'curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash',
+      key: 'deploy',
     },
     {
       icon: Rocket,
       number: '02',
-      title: language === 'zh' ? '访问面板' : 'Access Dashboard',
-      desc: language === 'zh'
-        ? '通过浏览器访问你的服务器'
-        : 'Access your server via browser',
-      code: 'http://YOUR_SERVER_IP:3000',
+      key: 'dashboard',
     },
     {
       icon: TrendingUp,
       number: '03',
-      title: language === 'zh' ? '开始交易' : 'Start Trading',
-      desc: language === 'zh'
-        ? '创建交易员，让 AI 开始工作'
-        : 'Create trader, let AI do the work',
-      code: language === 'zh' ? '配置模型 → 配置交易所 → 创建交易员' : 'Configure Model → Exchange → Create Trader',
+      key: 'start',
     },
   ]
 
@@ -110,11 +98,11 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
                         {step.number}
                       </span>
                       <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                        {step.title}
+                        {t(`howItWorksSteps.${step.key}.title`, language)}
                       </h3>
                     </div>
                     <p className="mb-4" style={{ color: '#848E9C' }}>
-                      {step.desc}
+                      {t(`howItWorksSteps.${step.key}.desc`, language)}
                     </p>
 
                     {/* Code Block */}
@@ -126,7 +114,7 @@ export default function HowItWorksSection({ language }: HowItWorksSectionProps) 
                       }}
                     >
                       <span style={{ color: '#5E6673' }}>$</span>
-                      <span style={{ color: '#EAECEF' }}>{step.code}</span>
+                      <span style={{ color: '#EAECEF' }}>{t(`howItWorksSteps.${step.key}.code`, language)}</span>
                     </div>
                   </div>
                 </div>

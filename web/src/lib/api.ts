@@ -50,6 +50,24 @@ function getAuthHeaders(): Record<string, string> {
   return headers
 }
 
+function getStoredUserId(): string {
+  const rawUser = localStorage.getItem('auth_user')
+  if (rawUser) {
+    try {
+      const parsed = JSON.parse(rawUser) as { id?: string; user_id?: string }
+      if (parsed?.id) {
+        return parsed.id
+      }
+      if (parsed?.user_id) {
+        return parsed.user_id
+      }
+    } catch {
+      /* ignore malformed auth_user */
+    }
+  }
+  return localStorage.getItem('user_id') || ''
+}
+
 async function handleJSONResponse<T>(res: Response): Promise<T> {
   const text = await res.text()
   if (!res.ok) {
@@ -203,7 +221,7 @@ export const api = {
     await CryptoService.initialize(publicKey)
 
     // 获取用户信息（从localStorage或其他地方）
-    const userId = localStorage.getItem('user_id') || ''
+    const userId = getStoredUserId()
     const sessionId = sessionStorage.getItem('session_id') || ''
 
     // 加密敏感数据
@@ -267,7 +285,7 @@ export const api = {
     await CryptoService.initialize(publicKey)
 
     // 获取用户信息
-    const userId = localStorage.getItem('user_id') || ''
+    const userId = getStoredUserId()
     const sessionId = sessionStorage.getItem('session_id') || ''
 
     // 加密敏感数据
@@ -313,7 +331,7 @@ export const api = {
     await CryptoService.initialize(publicKey)
 
     // 获取用户信息（从localStorage或其他地方）
-    const userId = localStorage.getItem('user_id') || ''
+    const userId = getStoredUserId()
     const sessionId = sessionStorage.getItem('session_id') || ''
 
     // 加密敏感数据

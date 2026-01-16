@@ -13,6 +13,7 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/market"
+	"nofx/notify"
 	"nofx/provider/alpaca"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
@@ -30,14 +31,16 @@ import (
 
 // Server HTTP API server
 type Server struct {
-	router          *gin.Engine
-	traderManager   *manager.TraderManager
-	store           *store.Store
-	cryptoHandler   *CryptoHandler
-	backtestManager *backtest.Manager
-	debateHandler   *DebateHandler
-	httpServer      *http.Server
-	port            int
+	router                *gin.Engine
+	traderManager         *manager.TraderManager
+	store                 *store.Store
+	cryptoHandler         *CryptoHandler
+	backtestManager       *backtest.Manager
+	debateHandler         *DebateHandler
+	httpServer            *http.Server
+	port                  int
+	notificationStore     *store.NotificationStore
+	notificationManager   *notify.NotificationManager
 }
 
 // NewServer Creates API server
@@ -61,14 +64,20 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	debateHandler := NewDebateHandler(debateStore, st.Strategy(), st.AIModel())
 	debateHandler.SetTraderManager(traderManager)
 
+	// Create notification manager
+	notificationStore := st.Notification()
+	notificationManager := notify.NewNotificationManager(notificationStore)
+
 	s := &Server{
-		router:          router,
-		traderManager:   traderManager,
-		store:           st,
-		cryptoHandler:   cryptoHandler,
-		backtestManager: backtestManager,
-		debateHandler:   debateHandler,
-		port:            port,
+		router:                router,
+		traderManager:         traderManager,
+		store:                 st,
+		cryptoHandler:         cryptoHandler,
+		backtestManager:       backtestManager,
+		debateHandler:         debateHandler,
+		port:                  port,
+		notificationStore:     notificationStore,
+		notificationManager:   notificationManager,
 	}
 
 	// Setup routes
@@ -207,7 +216,13 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
 
-			// Backtest routes
+			// Notification routes
+			protected.GET("/notifications/config", s.HandleGetNotificationConfig)
+			protected.POST("/notifications/config", s.HandleUpdateNotificationConfig)
+			protected.POST("/notifications/test", s.HandleTestNotification)
+			protected.DELETE("/notifications/config", s.HandleDisableNotifications)
+
+		// Backtest routes
 			backtest := protected.Group("/backtest")
 			s.registerBacktestRoutes(backtest)
 		}

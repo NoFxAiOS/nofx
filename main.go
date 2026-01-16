@@ -10,6 +10,7 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/mcp"
+	"nofx/notify"
 	"nofx/store"
 	"os"
 	"os/signal"
@@ -101,6 +102,14 @@ func main() {
 	backtestManager := backtest.NewManager(mcpClient)
 	if err := backtestManager.RestoreRuns(); err != nil {
 		logger.Warnf("⚠️ Failed to restore backtest history: %v", err)
+	}
+
+	// Initialize NotificationManager and inject into TraderManager
+	notificationStore := st.Notification()
+	if notificationStore != nil {
+		notificationManager := notify.NewNotificationManager(notificationStore)
+		traderManager.SetNotificationManager(notificationManager)
+		logger.Info("📲 NotificationManager initialized and injected into TraderManager")
 	}
 
 	// Load all traders from database to memory (may auto-start traders with IsRunning=true)

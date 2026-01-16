@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"nofx/notify"
 	"nofx/kernel"
 	"nofx/experience"
 	"nofx/logger"
@@ -123,6 +124,7 @@ type AutoTrader struct {
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
+	notificationManager   interface{}        // Notification manager (lazy typed to avoid import cycle)
 }
 
 // NewAutoTrader creates an automatic trader
@@ -1097,6 +1099,15 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 
 	logger.Infof("  ✓ Position opened successfully, order ID: %v, quantity: %.4f", order["orderId"], quantity)
 
+	// Send notification
+	if at.notificationManager != nil {
+		if nm, ok := at.notificationManager.(interface {
+			NotifyTradeOpened(traderID, userID, symbol string, side string, quantity, price float64) error
+		}); ok {
+			_ = nm.NotifyTradeOpened(at.id, at.userID, decision.Symbol, "long", quantity, marketData.CurrentPrice)
+		}
+	}
+
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "open_long", quantity, marketData.CurrentPrice, decision.Leverage, 0)
 
@@ -1214,6 +1225,15 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 
 	logger.Infof("  ✓ Position opened successfully, order ID: %v, quantity: %.4f", order["orderId"], quantity)
 
+	// Send notification
+	if at.notificationManager != nil {
+		if nm, ok := at.notificationManager.(interface {
+			NotifyTradeOpened(traderID, userID, symbol string, side string, quantity, price float64) error
+		}); ok {
+			_ = nm.NotifyTradeOpened(at.id, at.userID, decision.Symbol, "short", quantity, marketData.CurrentPrice)
+		}
+	}
+
 	// Record order to database and poll for confirmation
 	at.recordAndConfirmOrder(order, decision.Symbol, "open_short", quantity, marketData.CurrentPrice, decision.Leverage, 0)
 
@@ -1293,6 +1313,17 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, marketData.CurrentPrice, 0, entryPrice)
 
 	logger.Infof("  ✓ Position closed successfully")
+
+	// Send notification
+	if at.notificationManager != nil {
+		if nm, ok := at.notificationManager.(interface {
+			NotifyTradeClosed(traderID, userID, symbol string, side string, quantity, price, pnl float64) error
+		}); ok {
+			pnl := (marketData.CurrentPrice - entryPrice) * quantity
+			_ = nm.NotifyTradeClosed(at.id, at.userID, decision.Symbol, "long", quantity, marketData.CurrentPrice, pnl)
+		}
+	}
+
 	return nil
 }
 
@@ -1357,6 +1388,17 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, marketData.CurrentPrice, 0, entryPrice)
 
 	logger.Infof("  ✓ Position closed successfully")
+
+	// Send notification
+	if at.notificationManager != nil {
+		if nm, ok := at.notificationManager.(interface {
+			NotifyTradeClosed(traderID, userID, symbol string, side string, quantity, price, pnl float64) error
+		}); ok {
+			pnl := (entryPrice - marketData.CurrentPrice) * quantity
+			_ = nm.NotifyTradeClosed(at.id, at.userID, decision.Symbol, "short", quantity, marketData.CurrentPrice, pnl)
+		}
+	}
+
 	return nil
 }
 
@@ -1398,6 +1440,11 @@ func (at *AutoTrader) SetCustomPrompt(prompt string) {
 // SetOverrideBasePrompt sets whether to override base prompt
 func (at *AutoTrader) SetOverrideBasePrompt(override bool) {
 	at.overrideBasePrompt = override
+}
+
+// SetNotificationManager sets the notification manager
+func (at *AutoTrader) SetNotificationManager(nm interface{}) {
+	at.notificationManager = nm
 }
 
 // GetSystemPromptTemplate gets current system prompt template name (from strategy config)
@@ -1452,6 +1499,22 @@ func (at *AutoTrader) saveDecision(record *store.DecisionRecord) error {
 	}
 
 	logger.Infof("📝 Decision record saved: trader=%s, cycle=%d", at.id, at.cycleNumber)
+
+	// Send notification if manager is available
+	if at.notificationManager != nil {
+		if nm, ok := at.notificationManager.(interface {
+			NotifyDecision(traderID, userID string, decision map[string]interface{}, opts ...notify.MessageOption) error
+		}); ok {
+			logger.Infof("📮 Preparing to send decision notification: trader=%s, cycle=%d", at.id, at.cycleNumber)
+			decisionMap := map[string]interface{}{
+				"reasoning": record.CoTTrace,
+				"decision":  record.DecisionJSON,
+				"cycle":     at.cycleNumber,
+			}
+			_ = nm.NotifyDecision(at.id, at.userID, decisionMap)
+		}
+	}
+
 	return nil
 }
 

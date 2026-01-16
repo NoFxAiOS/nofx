@@ -6,6 +6,7 @@ import (
 	"nofx/debate"
 	"nofx/kernel"
 	"nofx/logger"
+	"nofx/notify"
 	"nofx/store"
 	"nofx/trader"
 	"sort"
@@ -46,6 +47,7 @@ type TraderManager struct {
 	traders          map[string]*trader.AutoTrader // key: trader ID
 	loadErrors       map[string]error              // key: trader ID, stores last load error
 	competitionCache *CompetitionCache
+	notificationManager *notify.NotificationManager
 	mu               sync.RWMutex
 }
 
@@ -65,6 +67,13 @@ func (tm *TraderManager) GetLoadError(traderID string) error {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
 	return tm.loadErrors[traderID]
+}
+
+// SetNotificationManager sets the notification manager
+func (tm *TraderManager) SetNotificationManager(nm *notify.NotificationManager) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.notificationManager = nm
 }
 
 // GetTrader retrieves a trader by ID
@@ -720,6 +729,11 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	at, err := trader.NewAutoTrader(traderConfig, st, traderCfg.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to create trader: %w", err)
+	}
+
+	// Set notification manager
+	if tm.notificationManager != nil {
+		at.SetNotificationManager(tm.notificationManager)
 	}
 
 	// Set custom prompt (if exists)

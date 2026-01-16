@@ -7,8 +7,9 @@ import { PositionHistory } from '../components/PositionHistory'
 import { PunkAvatar, getTraderAvatar } from '../components/PunkAvatar'
 import { confirmToast, notify } from '../lib/notify'
 import { t, type Language } from '../i18n/translations'
-import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { LogOut, Loader2, Eye, EyeOff, Copy, Check, Bell } from 'lucide-react'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { NotificationConfigModal } from '../components/NotificationConfigModal'
 import type {
     SystemStatus,
     AccountInfo,
@@ -133,6 +134,7 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+    const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -372,6 +374,15 @@ export function TraderDashboardPage({
                         </h2>
 
                         <div className="flex items-center gap-4">
+                            {/* Notification Settings Button */}
+                            <button
+                                onClick={() => setShowNotificationModal(true)}
+                                className="p-2 rounded-lg nofx-glass border border-white/5 hover:border-nofx-gold/30 transition-all hover:scale-105 active:scale-95 group"
+                                title="微信通知设置"
+                            >
+                                <Bell className="w-4 h-4 text-nofx-text-muted group-hover:text-nofx-gold transition-colors" />
+                            </button>
+
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
                                 <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
@@ -799,6 +810,13 @@ export function TraderDashboardPage({
                     </div>
                 )}
             </div>
+
+            {/* Notification Config Modal */}
+            <NotificationConfigModal
+                isOpen={showNotificationModal}
+                onClose={() => setShowNotificationModal(false)}
+                traderId={selectedTrader.trader_id}
+            />
         </DeepVoidBackground>
     )
 }

@@ -378,6 +378,23 @@ function App() {
   }
   // Data page - publicly accessible with embedded dashboard
   if (route === '/data') {
+    const dataPageNavigate = (page: Page) => {
+      const pathMap: Record<string, string> = {
+        'data': '/data',
+        'competition': '/competition',
+        'strategy-market': '/strategy-market',
+        'traders': '/traders',
+        'trader': '/dashboard',
+        'backtest': '/backtest',
+        'strategy': '/strategy',
+        'debate': '/debate',
+        'faq': '/faq',
+      }
+      const path = pathMap[page]
+      if (path) {
+        window.location.href = path
+      }
+    }
     return (
       <div
         className="min-h-screen"
@@ -391,7 +408,7 @@ function App() {
           user={user}
           onLogout={logout}
           onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
+          onPageChange={dataPageNavigate}
         />
         <main className="pt-16">
           <DataPage />

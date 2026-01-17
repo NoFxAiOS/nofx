@@ -14,6 +14,7 @@ import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
 import { DebateArenaPage } from './pages/DebateArenaPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
+import { DataPage } from './pages/DataPage'
 import { LoginRequiredOverlay } from './components/LoginRequiredOverlay'
 import HeaderBar from './components/HeaderBar'
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
@@ -41,6 +42,7 @@ type Page =
   | 'backtest'
   | 'strategy'
   | 'strategy-market'
+  | 'data'
   | 'debate'
   | 'faq'
   | 'login'
@@ -68,6 +70,7 @@ function App() {
     if (path === '/backtest' || hash === 'backtest') return 'backtest'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
+    if (path === '/data' || hash === 'data') return 'data'
     if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
@@ -88,6 +91,7 @@ function App() {
     const pathMap: Record<Page, string> = {
       'competition': '/competition',
       'strategy-market': '/strategy-market',
+      'data': '/data',
       'traders': '/traders',
       'trader': '/dashboard',
       'backtest': '/backtest',
@@ -152,6 +156,8 @@ function App() {
         setCurrentPage('strategy')
       } else if (path === '/strategy-market' || hash === 'strategy-market') {
         setCurrentPage('strategy-market')
+      } else if (path === '/data' || hash === 'data') {
+        setCurrentPage('data')
       } else if (path === '/debate' || hash === 'debate') {
         setCurrentPage('debate')
       } else if (
@@ -370,6 +376,29 @@ function App() {
   if (route === '/reset-password') {
     return <ResetPasswordPage />
   }
+  // Data page - publicly accessible with embedded dashboard
+  if (route === '/data') {
+    return (
+      <div
+        className="min-h-screen"
+        style={{ background: '#0B0E11', color: '#EAECEF' }}
+      >
+        <HeaderBar
+          isLoggedIn={!!user}
+          currentPage="data"
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <main className="pt-16">
+          <DataPage />
+        </main>
+      </div>
+    )
+  }
   // Show landing page for root route
   if (route === '/' || route === '') {
     return <LandingPage />
@@ -408,6 +437,8 @@ function App() {
           >
             {currentPage === 'competition' ? (
               <CompetitionPage />
+            ) : currentPage === 'data' ? (
+              <DataPage />
             ) : currentPage === 'strategy-market' ? (
               <StrategyMarketPage />
             ) : currentPage === 'traders' ? (

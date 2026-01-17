@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"nofx/kernel"
 	"nofx/experience"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -35,13 +35,13 @@ type AutoTraderConfig struct {
 	BybitSecretKey string
 
 	// OKX API configuration
-	OKXAPIKey    string
-	OKXSecretKey string
+	OKXAPIKey     string
+	OKXSecretKey  string
 	OKXPassphrase string
 
 	// Bitget API configuration
-	BitgetAPIKey    string
-	BitgetSecretKey string
+	BitgetAPIKey     string
+	BitgetSecretKey  string
 	BitgetPassphrase string
 
 	// Hyperliquid configuration
@@ -94,35 +94,68 @@ type AutoTraderConfig struct {
 
 // AutoTrader automatic trader
 type AutoTrader struct {
-	id                    string // Trader unique identifier
-	name                  string // Trader display name
-	aiModel               string // AI model name
-	exchange              string // Trading platform type (binance/bybit/etc)
-	exchangeID            string // Exchange account UUID
-	showInCompetition     bool   // Whether to show in competition page
-	config                AutoTraderConfig
-	trader                Trader // Use Trader interface (supports multiple platforms)
-	mcpClient             mcp.AIClient
-	store                 *store.Store             // Data storage (decision records, etc.)
-	strategyEngine        *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
-	cycleNumber           int                      // Current cycle number
-	initialBalance        float64
-	dailyPnL              float64
-	customPrompt          string // Custom trading strategy prompt
-	overrideBasePrompt    bool   // Whether to override base prompt
-	lastResetTime         time.Time
-	stopUntil             time.Time
-	isRunning             bool
-	isRunningMutex        sync.RWMutex       // Mutex to protect isRunning flag
-	startTime             time.Time          // System start time
-	callCount             int                // AI call count
-	positionFirstSeenTime map[string]int64   // Position first seen time (symbol_side -> timestamp in milliseconds)
-	stopMonitorCh         chan struct{}      // Used to stop monitoring goroutine
-	monitorWg             sync.WaitGroup     // Used to wait for monitoring goroutine to finish
-	peakPnLCache          map[string]float64 // Peak profit cache (symbol -> peak P&L percentage)
-	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
-	lastBalanceSyncTime   time.Time          // Last balance sync time
-	userID                string             // User ID
+	id                     string // Trader unique identifier
+	name                   string // Trader display name
+	aiModel                string // AI model name
+	exchange               string // Trading platform type (binance/bybit/etc)
+	exchangeID             string // Exchange account UUID
+	showInCompetition      bool   // Whether to show in competition page
+	config                 AutoTraderConfig
+	trader                 Trader // Use Trader interface (supports multiple platforms)
+	mcpClient              mcp.AIClient
+	store                  *store.Store           // Data storage (decision records, etc.)
+	strategyEngine         *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
+	cycleNumber            int                    // Current cycle number
+	initialBalance         float64
+	dailyPnL               float64
+	customPrompt           string // Custom trading strategy prompt
+	overrideBasePrompt     bool   // Whether to override base prompt
+	lastResetTime          time.Time
+	stopUntil              time.Time
+	isRunning              bool
+	isRunningMutex         sync.RWMutex             // Mutex to protect isRunning flag
+	startTime              time.Time                // System start time
+	callCount              int                      // AI call count
+	positionFirstSeenTime  map[string]int64         // Position first seen time (symbol_side -> timestamp in milliseconds)
+	stopMonitorCh          chan struct{}            // Used to stop monitoring goroutine
+	monitorWg              sync.WaitGroup           // Used to wait for monitoring goroutine to finish
+	trailingState          map[string]TrailingState // Per-position trailing state
+	trailingStateMutex     sync.RWMutex             // Cache read-write lock
+	trailingPositions      map[string]trailingPosition
+	trailingPositionsMu    sync.RWMutex
+	trailingPrices         map[string]float64
+	trailingPricesMu       sync.RWMutex
+	trailingEvalCh         chan trailingEvalTask
+	trailingHealthMu       sync.RWMutex
+	lastTrailingPriceEvent time.Time
+	lastTrailingRefresh    time.Time
+	trailingCloseMu        sync.Mutex
+	trailingClosing        map[string]struct{}
+	lastBalanceSyncTime    time.Time // Last balance sync time
+	userID                 string    // User ID
+}
+
+// TrailingState stores peak information per position
+type TrailingState struct {
+	PeakPnLPct float64
+	PeakPrice  float64
+}
+
+// trailingPosition caches the minimum data needed for trailing stop evaluation
+type trailingPosition struct {
+	Symbol           string
+	Side             string
+	EntryPrice       float64
+	MarkPrice        float64
+	Quantity         float64
+	Leverage         int
+	LiquidationPrice float64
+}
+
+type trailingEvalTask struct {
+	cfg   store.TrailingStopConfig
+	pos   trailingPosition
+	price float64
 }
 
 // NewAutoTrader creates an automatic trader
@@ -334,8 +367,14 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		positionFirstSeenTime: make(map[string]int64),
 		stopMonitorCh:         make(chan struct{}),
 		monitorWg:             sync.WaitGroup{},
-		peakPnLCache:          make(map[string]float64),
-		peakPnLCacheMutex:     sync.RWMutex{},
+		trailingState:         make(map[string]TrailingState),
+		trailingStateMutex:    sync.RWMutex{},
+		trailingPositions:     make(map[string]trailingPosition),
+		trailingPositionsMu:   sync.RWMutex{},
+		trailingPrices:        make(map[string]float64),
+		trailingPricesMu:      sync.RWMutex{},
+		trailingEvalCh:        nil,
+		trailingClosing:       make(map[string]struct{}),
 		lastBalanceSyncTime:   time.Now(),
 		userID:                userID,
 	}, nil
@@ -357,8 +396,13 @@ func (at *AutoTrader) Run() error {
 	at.monitorWg.Add(1)
 	defer at.monitorWg.Done()
 
-	// Start drawdown monitoring
-	at.startDrawdownMonitor()
+	// Start trailing stop monitoring (drawdown-based)
+	tsConfig := at.trailingStopConfig()
+	if tsConfig.Enabled {
+		at.startTrailingStopMonitor(tsConfig)
+	} else {
+		logger.Info("⏸ Trailing stop monitor disabled by strategy config")
+	}
 
 	// Start Lighter order sync if using Lighter exchange
 	if at.exchange == "lighter" {
@@ -763,10 +807,10 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			updateTime = at.positionFirstSeenTime[posKey]
 		}
 
-		// Get peak profit rate for this position
-		at.peakPnLCacheMutex.RLock()
-		peakPnlPct := at.peakPnLCache[posKey]
-		at.peakPnLCacheMutex.RUnlock()
+		// Get peak profit rate for this position (from trailing state)
+		at.trailingStateMutex.RLock()
+		peakPnlPct := at.trailingState[posKey].PeakPnLPct
+		at.trailingStateMutex.RUnlock()
 
 		positionInfos = append(positionInfos, kernel.PositionInfo{
 			Symbol:           symbol,
@@ -1592,6 +1636,8 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to get positions: %w", err)
 	}
 
+	trailingCfg := at.trailingStopConfig()
+
 	var result []map[string]interface{}
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
@@ -1616,6 +1662,112 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		// Calculate P&L percentage (based on margin)
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
+		// Calculate current P&L percentage aligned with trailing stop logic (price-based)
+		var currentPnLPct float64
+		if side == "long" {
+			currentPnLPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
+		} else {
+			currentPnLPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
+		}
+
+		// Trailing stop status (for UI visibility)
+		trailingInfo := map[string]interface{}{
+			"enabled": trailingCfg.Enabled,
+			"status":  "disabled",
+		}
+		if trailingCfg.Enabled {
+			posKey := symbol + "_" + side
+			at.trailingStateMutex.RLock()
+			state := at.trailingState[posKey]
+			at.trailingStateMutex.RUnlock()
+
+			// Helper to derive PnL% from price (handles long/short)
+			calcPnLFromPrice := func(price float64) float64 {
+				if price == 0 {
+					return 0
+				}
+				if side == "long" {
+					return ((price - entryPrice) / entryPrice) * float64(leverage) * 100
+				}
+				return ((entryPrice - price) / entryPrice) * float64(leverage) * 100
+			}
+
+			peakPrice := state.PeakPrice
+			if peakPrice == 0 {
+				peakPrice = markPrice
+			}
+			peakPnLPct := state.PeakPnLPct
+			if peakPnLPct == 0 {
+				// Derive from peak price when no PnL cache yet
+				peakPnLPct = calcPnLFromPrice(peakPrice)
+			}
+
+			// Activation gate: only armed after profit meets threshold
+			activationReached := !(trailingCfg.ActivationPct > 0 && currentPnLPct < trailingCfg.ActivationPct && peakPnLPct < trailingCfg.ActivationPct)
+			status := "armed"
+			if !activationReached {
+				status = "waiting_activation"
+			}
+
+			// Apply tighten bands
+			activeTrailPct := trailingCfg.TrailPct
+			for _, band := range trailingCfg.TightenBands {
+				if currentPnLPct >= band.ProfitPct && band.TrailPct > 0 {
+					activeTrailPct = band.TrailPct
+				}
+			}
+
+			var stopPrice float64
+			var stopPnLPct float64
+			if activationReached {
+				switch trailingCfg.Mode {
+				case "price_pct":
+					if side == "long" {
+						stopPrice = peakPrice * (1 - activeTrailPct/100)
+					} else {
+						stopPrice = peakPrice * (1 + activeTrailPct/100)
+					}
+					stopPnLPct = calcPnLFromPrice(stopPrice)
+				default: // pnl_pct
+					stopPnLPct = peakPnLPct - activeTrailPct
+					if side == "long" {
+						stopPrice = entryPrice * (1 + stopPnLPct/(100*float64(leverage)))
+					} else {
+						stopPrice = entryPrice * (1 - stopPnLPct/(100*float64(leverage)))
+					}
+				}
+			}
+
+			// Activation price (if applicable)
+			var activationPrice float64
+			if trailingCfg.ActivationPct > 0 {
+				if side == "long" {
+					activationPrice = entryPrice * (1 + trailingCfg.ActivationPct/(100*float64(leverage)))
+				} else {
+					activationPrice = entryPrice * (1 - trailingCfg.ActivationPct/(100*float64(leverage)))
+				}
+			}
+
+			trailingInfo = map[string]interface{}{
+				"enabled":            true,
+				"status":             status,
+				"mode":               trailingCfg.Mode,
+				"activation_pct":     trailingCfg.ActivationPct,
+				"activation_price":   activationPrice,
+				"trail_pct":          trailingCfg.TrailPct,
+				"active_trail_pct":   activeTrailPct,
+				"close_pct":          trailingCfg.ClosePct,
+				"peak_pnl_pct":       peakPnLPct,
+				"peak_price":         peakPrice,
+				"stop_pnl_pct":       stopPnLPct,
+				"stop_price":         stopPrice,
+				"current_pnl_pct":    currentPnLPct,
+				"last_mark_price":    markPrice,
+				"last_entry_price":   entryPrice,
+				"activation_reached": activationReached,
+			}
+		}
+
 		result = append(result, map[string]interface{}{
 			"symbol":             symbol,
 			"side":               side,
@@ -1627,6 +1779,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 			"unrealized_pnl_pct": pnlPct,
 			"liquidation_price":  liquidationPrice,
 			"margin_used":        marginUsed,
+			"trailing":           trailingInfo,
 		})
 	}
 
@@ -1679,37 +1832,261 @@ func sortDecisionsByPriority(decisions []kernel.Decision) []kernel.Decision {
 	return sorted
 }
 
-// startDrawdownMonitor starts drawdown monitoring
-func (at *AutoTrader) startDrawdownMonitor() {
+// trailingStopConfig returns trailing stop configuration with defaults applied
+func (at *AutoTrader) trailingStopConfig() store.TrailingStopConfig {
+	if at.config.StrategyConfig == nil {
+		return store.DefaultTrailingStopConfig()
+	}
+	return at.config.StrategyConfig.RiskControl.TrailingStop.WithDefaults()
+}
+
+// trailingInterval returns the configured monitoring cadence with ms support and sane fallback
+func (at *AutoTrader) trailingInterval(cfg store.TrailingStopConfig) time.Duration {
+	if cfg.CheckIntervalMs > 0 {
+		return time.Duration(cfg.CheckIntervalMs) * time.Millisecond
+	}
+	if cfg.CheckIntervalSec > 0 {
+		return time.Duration(cfg.CheckIntervalSec) * time.Second
+	}
+	return 30 * time.Second
+}
+
+// startTrailingEvaluator spins up a worker that processes trailing evaluations off the price/feed path
+func (at *AutoTrader) startTrailingEvaluator() {
+	if at.trailingEvalCh != nil {
+		return
+	}
+
+	at.trailingEvalCh = make(chan trailingEvalTask, 1024)
 	at.monitorWg.Add(1)
 	go func() {
 		defer at.monitorWg.Done()
-
-		ticker := time.NewTicker(1 * time.Minute) // Check every minute
-		defer ticker.Stop()
-
-		logger.Info("📊 Started position drawdown monitoring (check every minute)")
-
 		for {
 			select {
-			case <-ticker.C:
-				at.checkPositionDrawdown()
+			case task := <-at.trailingEvalCh:
+				at.evaluateTrailingStop(task.cfg, task.pos, task.price)
 			case <-at.stopMonitorCh:
-				logger.Info("⏹ Stopped position drawdown monitoring")
 				return
 			}
 		}
 	}()
 }
 
-// checkPositionDrawdown checks position drawdown situation
-func (at *AutoTrader) checkPositionDrawdown() {
+// enqueueTrailingEval routes an evaluation to the worker, falling back to inline if worker missing
+func (at *AutoTrader) enqueueTrailingEval(cfg store.TrailingStopConfig, pos trailingPosition, markPrice float64) {
+	if at.trailingEvalCh == nil {
+		at.evaluateTrailingStop(cfg, pos, markPrice)
+		return
+	}
+
+	select {
+	case at.trailingEvalCh <- trailingEvalTask{cfg: cfg, pos: pos, price: markPrice}:
+	default:
+		logger.Infof("⚠️ Trailing stop worker queue is full, dropping evaluation for %s %s", pos.Symbol, pos.Side)
+	}
+}
+
+func (at *AutoTrader) tryBeginTrailingClose(posKey string) bool {
+	at.trailingCloseMu.Lock()
+	defer at.trailingCloseMu.Unlock()
+	if _, ok := at.trailingClosing[posKey]; ok {
+		return false
+	}
+	at.trailingClosing[posKey] = struct{}{}
+	return true
+}
+
+func (at *AutoTrader) finishTrailingClose(posKey string) {
+	at.trailingCloseMu.Lock()
+	defer at.trailingCloseMu.Unlock()
+	delete(at.trailingClosing, posKey)
+}
+
+// startTrailingStopMonitor starts drawdown-based trailing stop monitoring
+func (at *AutoTrader) startTrailingStopMonitor(cfg store.TrailingStopConfig) {
+	// Ensure evaluation worker is available to keep price feed responsive
+	at.startTrailingEvaluator()
+
+	at.monitorWg.Add(1)
+	go func() {
+		defer at.monitorWg.Done()
+
+		interval := at.trailingInterval(cfg)
+
+		// Prefer websocket-driven monitoring for Hyperliquid to achieve ms-level responsiveness
+		if at.exchange == "hyperliquid" && cfg.Enabled {
+			if err := at.runHyperliquidTrailingMonitor(cfg, interval); err == nil {
+				return
+			} else {
+				logger.Infof("⚠️ Hyperliquid websocket monitor unavailable, falling back to polling: %v", err)
+			}
+		}
+
+		at.runPollingTrailingMonitor(cfg, interval)
+	}()
+}
+
+// runPollingTrailingMonitor runs the legacy ticker-based trailing stop monitor
+func (at *AutoTrader) runPollingTrailingMonitor(cfg store.TrailingStopConfig, interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Minute
+	}
+
+	minInterval := 50 * time.Millisecond
+	if interval < minInterval {
+		interval = minInterval
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	logger.Infof("📊 Started trailing stop monitoring (mode=%s, every %v, activate at %.2f%%, trail %.2f%%)",
+		cfg.Mode, interval, cfg.ActivationPct, cfg.TrailPct)
+
+	for {
+		select {
+		case <-ticker.C:
+			at.checkTrailingStops(cfg)
+		case <-at.stopMonitorCh:
+			logger.Info("⏹ Stopped trailing stop monitoring")
+			return
+		}
+	}
+}
+
+// runHyperliquidTrailingMonitor uses websocket price updates for fast trailing stops
+func (at *AutoTrader) runHyperliquidTrailingMonitor(cfg store.TrailingStopConfig, interval time.Duration) error {
+	stream := NewHyperliquidPriceStream(at.config.HyperliquidTestnet)
+	if err := stream.Start(); err != nil {
+		return fmt.Errorf("failed to start Hyperliquid price stream: %w", err)
+	}
+	defer stream.Close()
+
+	priceCh := make(chan hyperliquidPriceEvent, 512)
+	activeSubs := make(map[string]struct{})
+
+	subscribe := func(coins map[string]struct{}) {
+		for coin := range coins {
+			if _, ok := activeSubs[coin]; ok {
+				continue
+			}
+			normalizedSymbol := hyperliquidCoinToSymbol(coin)
+			symbol := normalizedSymbol
+			if err := stream.SubscribeBbo(coin, func(price float64, ts time.Time) {
+				ev := hyperliquidPriceEvent{
+					symbol: symbol,
+					price:  price,
+					ts:     ts,
+				}
+				select {
+				case priceCh <- ev:
+				default:
+					logger.Infof("⚠️ Hyperliquid price channel full, dropping event for %s", symbol)
+				}
+			}); err != nil {
+				logger.Infof("⚠️ Failed to subscribe Hyperliquid price for %s: %v", coin, err)
+				continue
+			}
+			activeSubs[coin] = struct{}{}
+			logger.Infof("🔌 Subscribed Hyperliquid price stream for %s (%s)", coin, normalizedSymbol)
+		}
+	}
+
+	// Initial refresh to populate caches and subscriptions
+	at.checkTrailingStops(cfg)
+	subscribe(at.hyperliquidCoinsFromCache())
+
+	refreshInterval := interval
+	if refreshInterval < time.Second {
+		refreshInterval = time.Second
+	}
+
+	refreshTicker := time.NewTicker(refreshInterval)
+	defer refreshTicker.Stop()
+
+	for {
+		select {
+		case ev := <-priceCh:
+			at.trailingHealthMu.Lock()
+			at.lastTrailingPriceEvent = ev.ts
+			at.trailingHealthMu.Unlock()
+			for _, pos := range at.trailingPositionsForSymbol(ev.symbol) {
+				at.enqueueTrailingEval(cfg, pos, ev.price)
+			}
+		case <-refreshTicker.C:
+			// Periodically refresh positions to keep entry/qty/leverage accurate
+			at.checkTrailingStops(cfg)
+			at.trailingHealthMu.Lock()
+			at.lastTrailingRefresh = time.Now()
+			at.trailingHealthMu.Unlock()
+
+			// Resubscribe for new/removed symbols
+			currentCoins := at.hyperliquidCoinsFromCache()
+			subscribe(currentCoins)
+			for coin := range activeSubs {
+				if _, ok := currentCoins[coin]; !ok {
+					stream.Unsubscribe(coin)
+					delete(activeSubs, coin)
+					logger.Infof("⏸ Unsubscribed Hyperliquid price stream for %s (no open position)", coin)
+				}
+			}
+		case <-at.stopMonitorCh:
+			logger.Info("⏹ Stopped Hyperliquid trailing stop monitoring")
+			return nil
+		}
+	}
+}
+
+// hyperliquidCoinsFromCache converts cached position symbols to Hyperliquid coin names
+func (at *AutoTrader) hyperliquidCoinsFromCache() map[string]struct{} {
+	at.trailingPositionsMu.RLock()
+	defer at.trailingPositionsMu.RUnlock()
+
+	coins := make(map[string]struct{})
+	for _, pos := range at.trailingPositions {
+		coin := convertSymbolToHyperliquid(pos.Symbol)
+		if coin != "" {
+			coins[coin] = struct{}{}
+		}
+	}
+	return coins
+}
+
+// trailingPositionsForSymbol returns cached positions for a symbol (both long/short)
+func (at *AutoTrader) trailingPositionsForSymbol(symbol string) []trailingPosition {
+	at.trailingPositionsMu.RLock()
+	defer at.trailingPositionsMu.RUnlock()
+
+	var result []trailingPosition
+	for key, pos := range at.trailingPositions {
+		if strings.HasPrefix(key, symbol+"_") {
+			result = append(result, pos)
+		}
+	}
+	return result
+}
+
+// hyperliquidCoinToSymbol converts Hyperliquid coin codes back to platform symbols
+func hyperliquidCoinToSymbol(coin string) string {
+	base := strings.ToUpper(coin)
+	if strings.HasPrefix(strings.ToLower(base), "xyz:") {
+		clean := strings.TrimPrefix(base, "XYZ:")
+		return "xyz:" + clean
+	}
+	return base + "USDT"
+}
+
+// checkTrailingStops checks trailing stop conditions for all open positions
+func (at *AutoTrader) checkTrailingStops(cfg store.TrailingStopConfig) {
 	// Get current positions
 	positions, err := at.trader.GetPositions()
 	if err != nil {
-		logger.Infof("❌ Drawdown monitoring: failed to get positions: %v", err)
+		logger.Infof("❌ Trailing stop: failed to get positions: %v", err)
 		return
 	}
+
+	activeKeys := make(map[string]struct{})
+	snapshot := make(map[string]trailingPosition)
 
 	for _, pos := range positions {
 		symbol := pos["symbol"].(string)
@@ -1721,74 +2098,232 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}
 
-		// Calculate current P&L percentage
 		leverage := 10 // Default value
 		if lev, ok := pos["leverage"].(float64); ok {
 			leverage = int(lev)
 		}
 
-		var currentPnLPct float64
-		if side == "long" {
-			currentPnLPct = ((markPrice - entryPrice) / entryPrice) * float64(leverage) * 100
-		} else {
-			currentPnLPct = ((entryPrice - markPrice) / entryPrice) * float64(leverage) * 100
-		}
-
-		// Construct unique position identifier (distinguish long/short)
 		posKey := symbol + "_" + side
+		activeKeys[posKey] = struct{}{}
 
-		// Get historical peak profit for this position
-		at.peakPnLCacheMutex.RLock()
-		peakPnLPct, exists := at.peakPnLCache[posKey]
-		at.peakPnLCacheMutex.RUnlock()
-
-		if !exists {
-			// If no historical peak record, use current P&L as initial value
-			peakPnLPct = currentPnLPct
-			at.UpdatePeakPnL(symbol, side, currentPnLPct)
-		} else {
-			// Update peak cache
-			at.UpdatePeakPnL(symbol, side, currentPnLPct)
+		tp := trailingPosition{
+			Symbol:           symbol,
+			Side:             side,
+			EntryPrice:       entryPrice,
+			MarkPrice:        markPrice,
+			Quantity:         quantity,
+			Leverage:         leverage,
+			LiquidationPrice: pos["liquidationPrice"].(float64),
 		}
 
-		// Calculate drawdown (magnitude of decline from peak)
-		var drawdownPct float64
-		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
-			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
+		snapshot[posKey] = tp
+		at.enqueueTrailingEval(cfg, tp, markPrice)
+	}
+
+	at.trailingPositionsMu.Lock()
+	at.trailingPositions = snapshot
+	at.trailingPositionsMu.Unlock()
+
+	// Prune peak cache entries for positions that are no longer open
+	at.trailingStateMutex.Lock()
+	for k := range at.trailingState {
+		if _, ok := activeKeys[k]; !ok {
+			delete(at.trailingState, k)
 		}
+	}
+	at.trailingStateMutex.Unlock()
 
-		// Check close position condition: profit > 5% and drawdown >= 40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
-			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+	at.trailingPricesMu.Lock()
+	for k := range at.trailingPrices {
+		if _, ok := activeKeys[k]; !ok {
+			delete(at.trailingPrices, k)
+		}
+	}
+	at.trailingPricesMu.Unlock()
 
-			// Execute close position
-			if err := at.emergencyClosePosition(symbol, side); err != nil {
-				logger.Infof("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
-			} else {
-				logger.Infof("✅ Drawdown close position succeeded: %s %s", symbol, side)
-				// Clear cache for this position after closing
-				at.ClearPeakPnLCache(symbol, side)
+	at.trailingHealthMu.Lock()
+	at.lastTrailingRefresh = time.Now()
+	at.trailingHealthMu.Unlock()
+}
+
+// evaluateTrailingStop applies trailing stop rules to a single position snapshot and executes closes when needed
+func (at *AutoTrader) evaluateTrailingStop(cfg store.TrailingStopConfig, pos trailingPosition, markPrice float64) {
+	if !cfg.Enabled {
+		return
+	}
+
+	if cfg.Mode == "" {
+		cfg.Mode = "pnl_pct"
+	}
+
+	if pos.EntryPrice <= 0 || markPrice <= 0 || pos.Quantity <= 0 {
+		return
+	}
+
+	leverage := pos.Leverage
+	if leverage <= 0 {
+		leverage = 1
+	}
+
+	posKey := pos.Symbol + "_" + pos.Side
+
+	// Cache last seen price for UI
+	at.trailingPricesMu.Lock()
+	at.trailingPrices[posKey] = markPrice
+	at.trailingPricesMu.Unlock()
+
+	// Calculate current P&L percentage
+	currentPnLPct := 0.0
+	if pos.Side == "long" {
+		currentPnLPct = ((markPrice - pos.EntryPrice) / pos.EntryPrice) * float64(leverage) * 100
+	} else {
+		currentPnLPct = ((pos.EntryPrice - markPrice) / pos.EntryPrice) * float64(leverage) * 100
+	}
+
+	// Helper to derive PnL% from price for activation/stop calculations
+	calcPnLFromPrice := func(price float64) float64 {
+		if price <= 0 {
+			return 0
+		}
+		if pos.Side == "long" {
+			return ((price - pos.EntryPrice) / pos.EntryPrice) * float64(leverage) * 100
+		}
+		return ((pos.EntryPrice - price) / pos.EntryPrice) * float64(leverage) * 100
+	}
+
+	// Load and update trailing state
+	at.trailingStateMutex.Lock()
+	state := at.trailingState[posKey]
+	if state.PeakPrice == 0 {
+		state.PeakPrice = markPrice
+	}
+
+	// Track peak PnL regardless of mode for activation gate
+	if currentPnLPct > state.PeakPnLPct {
+		state.PeakPnLPct = currentPnLPct
+	}
+
+	switch cfg.Mode {
+	case "price_pct":
+		if pos.Side == "long" {
+			if markPrice > state.PeakPrice {
+				state.PeakPrice = markPrice
 			}
-		} else if currentPnLPct > 5.0 {
-			// Record situations close to close position condition (for debugging)
-			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+		} else {
+			if state.PeakPrice == 0 || markPrice < state.PeakPrice {
+				state.PeakPrice = markPrice
+			}
 		}
+	default: // pnl_pct
+		if pos.Side == "long" {
+			if markPrice > state.PeakPrice {
+				state.PeakPrice = markPrice
+			}
+		} else {
+			if state.PeakPrice == 0 || markPrice < state.PeakPrice {
+				state.PeakPrice = markPrice
+			}
+		}
+	}
+	at.trailingState[posKey] = state
+	at.trailingStateMutex.Unlock()
+
+	// Determine active trail percentage (tighten if bands met)
+	activeTrailPct := cfg.TrailPct
+	for _, band := range cfg.TightenBands {
+		if currentPnLPct >= band.ProfitPct && band.TrailPct > 0 {
+			activeTrailPct = band.TrailPct
+		}
+	}
+	if activeTrailPct <= 0 {
+		logger.Infof("⚠️ Trailing stop active trail pct is non-positive, skipping (symbol=%s)", pos.Symbol)
+		return
+	}
+
+	// Activation gate (use PnL% for gating)
+	peakPnL := state.PeakPnLPct
+	if peakPnL == 0 {
+		peakPnL = calcPnLFromPrice(state.PeakPrice)
+	}
+	if cfg.ActivationPct > 0 && currentPnLPct < cfg.ActivationPct && peakPnL < cfg.ActivationPct {
+		logger.Infof("📊 Trailing stop waiting activation: %s %s | Profit: %.2f%% < %.2f%%", pos.Symbol, pos.Side, currentPnLPct, cfg.ActivationPct)
+		return
+	}
+
+	trigger := false
+	switch cfg.Mode {
+	case "price_pct":
+		peakPrice := state.PeakPrice
+		if peakPrice == 0 {
+			peakPrice = markPrice
+		}
+		if pos.Side == "long" {
+			stopPrice := peakPrice * (1 - activeTrailPct/100)
+			if markPrice <= stopPrice {
+				trigger = true
+			}
+		} else {
+			stopPrice := peakPrice * (1 + activeTrailPct/100)
+			if markPrice >= stopPrice {
+				trigger = true
+			}
+		}
+	default: // pnl_pct
+		stopPnL := peakPnL - activeTrailPct
+		if currentPnLPct <= stopPnL {
+			trigger = true
+		}
+	}
+
+	if !trigger {
+		logger.Infof("📊 Trailing stop armed: %s %s | Profit: %.2f%% | Peak: %.2f%% | Trail: %.2f%% (mode=%s)", pos.Symbol, pos.Side, currentPnLPct, peakPnL, activeTrailPct, cfg.Mode)
+		return
+	}
+
+	// Determine close quantity (0 = close all)
+	closeQty := 0.0
+	if cfg.ClosePct > 0 && cfg.ClosePct < 1 {
+		closeQty = pos.Quantity * cfg.ClosePct
+	}
+
+	logger.Infof("🚨 Trailing stop triggered: %s %s | Profit: %.2f%% | Peak: %.2f%% | Trail: %.2f%% (mode=%s, closePct=%.2f)",
+		pos.Symbol, pos.Side, currentPnLPct, peakPnL, activeTrailPct, cfg.Mode, cfg.ClosePct)
+
+	if !at.tryBeginTrailingClose(posKey) {
+		logger.Infof("⚠️ Trailing stop close already in progress, skipping duplicate for %s %s", pos.Symbol, pos.Side)
+		return
+	}
+	defer at.finishTrailingClose(posKey)
+
+	if err := at.emergencyClosePosition(pos.Symbol, pos.Side, closeQty); err != nil {
+		logger.Infof("❌ Trailing stop close failed (%s %s): %v", pos.Symbol, pos.Side, err)
+		return
+	}
+
+	logger.Infof("✅ Trailing stop close succeeded: %s %s", pos.Symbol, pos.Side)
+
+	if closeQty == 0 || closeQty >= pos.Quantity {
+		at.ClearTrailingState(pos.Symbol, pos.Side)
+	} else {
+		// Reset peaks to current to avoid immediate retrigger
+		at.SetTrailingState(pos.Symbol, pos.Side, TrailingState{
+			PeakPnLPct: currentPnLPct,
+			PeakPrice:  markPrice,
+		})
 	}
 }
 
-// emergencyClosePosition emergency close position function
-func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
+// emergencyClosePosition emergency close position function (qty=0 closes all)
+func (at *AutoTrader) emergencyClosePosition(symbol, side string, qty float64) error {
 	switch side {
 	case "long":
-		order, err := at.trader.CloseLong(symbol, 0) // 0 = close all
+		order, err := at.trader.CloseLong(symbol, qty) // 0 = close all
 		if err != nil {
 			return err
 		}
 		logger.Infof("✅ Emergency close long position succeeded, order ID: %v", order["orderId"])
 	case "short":
-		order, err := at.trader.CloseShort(symbol, 0) // 0 = close all
+		order, err := at.trader.CloseShort(symbol, qty) // 0 = close all
 		if err != nil {
 			return err
 		}
@@ -1800,43 +2335,32 @@ func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
 	return nil
 }
 
-// GetPeakPnLCache gets peak profit cache
+// GetPeakPnLCache gets peak profit cache (legacy API, PnL only)
 func (at *AutoTrader) GetPeakPnLCache() map[string]float64 {
-	at.peakPnLCacheMutex.RLock()
-	defer at.peakPnLCacheMutex.RUnlock()
+	at.trailingStateMutex.RLock()
+	defer at.trailingStateMutex.RUnlock()
 
-	// Return a copy of the cache
 	cache := make(map[string]float64)
-	for k, v := range at.peakPnLCache {
-		cache[k] = v
+	for k, v := range at.trailingState {
+		cache[k] = v.PeakPnLPct
 	}
 	return cache
 }
 
-// UpdatePeakPnL updates peak profit cache
-func (at *AutoTrader) UpdatePeakPnL(symbol, side string, currentPnLPct float64) {
-	at.peakPnLCacheMutex.Lock()
-	defer at.peakPnLCacheMutex.Unlock()
-
-	posKey := symbol + "_" + side
-	if peak, exists := at.peakPnLCache[posKey]; exists {
-		// Update peak (if long, take larger value; if short, currentPnLPct is negative, also compare)
-		if currentPnLPct > peak {
-			at.peakPnLCache[posKey] = currentPnLPct
-		}
-	} else {
-		// First time recording
-		at.peakPnLCache[posKey] = currentPnLPct
-	}
+// SetTrailingState sets trailing state for a position
+func (at *AutoTrader) SetTrailingState(symbol, side string, state TrailingState) {
+	at.trailingStateMutex.Lock()
+	defer at.trailingStateMutex.Unlock()
+	at.trailingState[symbol+"_"+side] = state
 }
 
-// ClearPeakPnLCache clears peak cache for specified position
-func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
-	at.peakPnLCacheMutex.Lock()
-	defer at.peakPnLCacheMutex.Unlock()
+// ClearTrailingState clears trailing state for specified position
+func (at *AutoTrader) ClearTrailingState(symbol, side string) {
+	at.trailingStateMutex.Lock()
+	defer at.trailingStateMutex.Unlock()
 
 	posKey := symbol + "_" + side
-	delete(at.peakPnLCache, posKey)
+	delete(at.trailingState, posKey)
 }
 
 // recordAndConfirmOrder polls order status for actual fill data and records position
@@ -2079,22 +2603,22 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 	normalizedSymbol := market.Normalize(symbol)
 
 	fill := &store.TraderFill{
-		TraderID:         at.id,
-		ExchangeID:       at.exchangeID,
-		ExchangeType:     at.exchange,
-		OrderID:          orderRecordID,
-		ExchangeOrderID:  exchangeOrderID,
-		ExchangeTradeID:  tradeID,
-		Symbol:           normalizedSymbol,
-		Side:             side,
-		Price:            price,
-		Quantity:         quantity,
-		QuoteQuantity:    price * quantity,
-		Commission:       fee,
-		CommissionAsset:  "USDT",
-		RealizedPnL:      0, // Will be calculated for close orders
-		IsMaker:          false, // Market orders are usually taker
-		CreatedAt:        time.Now().UTC().UnixMilli(),
+		TraderID:        at.id,
+		ExchangeID:      at.exchangeID,
+		ExchangeType:    at.exchange,
+		OrderID:         orderRecordID,
+		ExchangeOrderID: exchangeOrderID,
+		ExchangeTradeID: tradeID,
+		Symbol:          normalizedSymbol,
+		Side:            side,
+		Price:           price,
+		Quantity:        quantity,
+		QuoteQuantity:   price * quantity,
+		Commission:      fee,
+		CommissionAsset: "USDT",
+		RealizedPnL:     0,     // Will be calculated for close orders
+		IsMaker:         false, // Market orders are usually taker
+		CreatedAt:       time.Now().UTC().UnixMilli(),
 	}
 
 	// Calculate realized PnL for close orders
@@ -2222,4 +2746,3 @@ func getSideFromAction(action string) string {
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	return at.trader.GetOpenOrders(symbol)
 }
-

@@ -30,7 +30,7 @@ import {
   Upload,
   Globe,
 } from 'lucide-react'
-import type { Strategy, StrategyConfig, AIModel } from '../types'
+import type { Strategy, StrategyConfig, AIModel, TrailingStopConfig } from '../types'
 import { confirmToast, notify } from '../lib/notify'
 import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
@@ -77,6 +77,31 @@ export function StrategyStudioPage() {
   } | null>(null)
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false)
   const [selectedVariant, setSelectedVariant] = useState('balanced')
+
+  const withTrailingDefaults = useCallback(
+    (config: StrategyConfig): StrategyConfig => {
+      const trailing: TrailingStopConfig | undefined = config?.risk_control?.trailing_stop
+      const normalizedTrailing: TrailingStopConfig = {
+        enabled: trailing?.enabled ?? true,
+        mode: trailing?.mode || 'pnl_pct',
+        activation_pct: trailing?.activation_pct ?? 0,
+        trail_pct: trailing?.trail_pct ?? 3,
+        check_interval_sec: trailing?.check_interval_sec ?? 30,
+        check_interval_ms: trailing?.check_interval_ms,
+        tighten_bands: trailing?.tighten_bands || [],
+        close_pct: trailing?.close_pct ?? 1,
+      }
+      const riskControl = config.risk_control || ({} as any)
+      return {
+        ...config,
+        risk_control: {
+          ...riskControl,
+          trailing_stop: normalizedTrailing,
+        },
+      }
+    },
+    []
+  )
 
   // AI Test Run states
   const [aiTestResult, setAiTestResult] = useState<{
@@ -128,23 +153,27 @@ export function StrategyStudioPage() {
       })
       if (!response.ok) throw new Error('Failed to fetch strategies')
       const data = await response.json()
-      setStrategies(data.strategies || [])
+      const normalizedStrategies: Strategy[] = (data.strategies || []).map((s: Strategy) => ({
+        ...s,
+        config: withTrailingDefaults(s.config),
+      }))
+      setStrategies(normalizedStrategies)
 
       // Select active or first strategy
-      const active = data.strategies?.find((s: Strategy) => s.is_active)
+      const active = normalizedStrategies.find((s: Strategy) => s.is_active)
       if (active) {
         setSelectedStrategy(active)
         setEditingConfig(active.config)
-      } else if (data.strategies?.length > 0) {
-        setSelectedStrategy(data.strategies[0])
-        setEditingConfig(data.strategies[0].config)
+      } else if (normalizedStrategies.length > 0) {
+        setSelectedStrategy(normalizedStrategies[0])
+        setEditingConfig(normalizedStrategies[0].config)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setIsLoading(false)
     }
-  }, [token])
+  }, [token, withTrailingDefaults])
 
   useEffect(() => {
     fetchStrategies()
@@ -198,7 +227,7 @@ export function StrategyStudioPage() {
         `${API_BASE}/api/strategies/default-config?lang=${language}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
-      const defaultConfig = await configResponse.json()
+      const defaultConfig = withTrailingDefaults(await configResponse.json())
 
       const response = await fetch(`${API_BASE}/api/strategies`, {
         method: 'POST',

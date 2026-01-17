@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"gorm.io/gorm"
@@ -21,8 +22,8 @@ type Strategy struct {
 	Description   string    `gorm:"default:''" json:"description"`
 	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
 	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
-	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`       // whether visible in strategy market
-	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"`    // whether config details are visible
+	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`    // whether visible in strategy market
+	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"` // whether config details are visible
 	Config        string    `gorm:"not null;default:'{}'" json:"config"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -45,6 +46,26 @@ type StrategyConfig struct {
 	RiskControl RiskControlConfig `json:"risk_control"`
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+}
+
+// TrailingStopConfig configures the trailing stop
+type TrailingStopConfig struct {
+	Enabled          bool                  `json:"enabled"`                      // Whether trailing stop is enabled
+	Mode             string                `json:"mode,omitempty"`               // "pnl_pct" (default) or "price_pct"
+	ActivationPct    float64               `json:"activation_pct,omitempty"`     // Start trailing after this profit % (0 = trail immediately)
+	TrailPct         float64               `json:"trail_pct,omitempty"`          // Trailing distance in percentage points
+	CheckIntervalSec int                   `json:"check_interval_sec,omitempty"` // Monitor interval in seconds (legacy)
+	CheckIntervalMs  int                   `json:"check_interval_ms,omitempty"`  // Monitor interval in milliseconds (preferred for WS-driven flow)
+	TightenBands     []TrailingTightenBand `json:"tighten_bands,omitempty"`      // Optional tightening bands
+	ClosePct         float64               `json:"close_pct,omitempty"`          // Portion to close when triggered (1.0 = full close)
+	Provided         bool                  `json:"-"`                            // Whether trailing_stop was present in the payload
+	EnabledSet       bool                  `json:"-"`                            // Whether enabled flag was explicitly provided
+}
+
+// TrailingTightenBand defines a profit band where the trail is tightened
+type TrailingTightenBand struct {
+	ProfitPct float64 `json:"profit_pct"` // Profit % threshold to apply this band
+	TrailPct  float64 `json:"trail_pct"`  // Trail % to apply once threshold is reached
 }
 
 // PromptSectionsConfig editable sections of System Prompt
@@ -89,7 +110,7 @@ type IndicatorConfig struct {
 	EnableMACD        bool `json:"enable_macd"`
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
-	EnableBOLL        bool `json:"enable_boll"`         // Bollinger Bands
+	EnableBOLL        bool `json:"enable_boll"` // Bollinger Bands
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
@@ -147,10 +168,10 @@ type KlineConfig struct {
 
 // ExternalDataSource external data source configuration
 type ExternalDataSource struct {
-	Name        string            `json:"name"`         // data source name
-	Type        string            `json:"type"`         // type: "api" | "webhook"
-	URL         string            `json:"url"`          // API URL
-	Method      string            `json:"method"`       // HTTP method
+	Name        string            `json:"name"`   // data source name
+	Type        string            `json:"type"`   // type: "api" | "webhook"
+	URL         string            `json:"url"`    // API URL
+	Method      string            `json:"method"` // HTTP method
 	Headers     map[string]string `json:"headers,omitempty"`
 	DataPath    string            `json:"data_path,omitempty"`    // JSON data path
 	RefreshSecs int               `json:"refresh_secs,omitempty"` // refresh interval (seconds)
@@ -160,6 +181,9 @@ type ExternalDataSource struct {
 type RiskControlConfig struct {
 	// Max number of coins held simultaneously (CODE ENFORCED)
 	MaxPositions int `json:"max_positions"`
+
+	// Trailing stop / drawdown monitor (CODE ENFORCED)
+	TrailingStop TrailingStopConfig `json:"trailing_stop,omitempty"`
 
 	// BTC/ETH exchange leverage for opening positions (AI guided)
 	BTCETHMaxLeverage int `json:"btc_eth_max_leverage"`
@@ -185,6 +209,117 @@ type RiskControlConfig struct {
 // NewStrategyStore creates a new StrategyStore
 func NewStrategyStore(db *gorm.DB) *StrategyStore {
 	return &StrategyStore{db: db}
+}
+
+// DefaultTrailingStopConfig returns the default trailing stop config
+func DefaultTrailingStopConfig() TrailingStopConfig {
+	return TrailingStopConfig{
+		Enabled:          true,
+		Mode:             "pnl_pct",
+		ActivationPct:    0.0, // Trail immediately by default
+		TrailPct:         3.0, // Trail by 3 percentage points
+		CheckIntervalSec: 30,  // Check every 30 seconds
+		CheckIntervalMs:  0,   // Prefer ms when provided (derived from sec when 0)
+		TightenBands:     []TrailingTightenBand{},
+		ClosePct:         1.0, // Close full position by default
+	}
+}
+
+// UnmarshalJSON tracks presence of trailing_stop and enabled flag
+func (c *TrailingStopConfig) UnmarshalJSON(data []byte) error {
+	type Alias TrailingStopConfig
+	aux := &struct {
+		Enabled *bool `json:"enabled"`
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+
+	// Reset before unmarshalling to avoid stale markers
+	*c = TrailingStopConfig{}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	c.Provided = true
+	if aux.Enabled != nil {
+		c.Enabled = *aux.Enabled
+		c.EnabledSet = true
+	}
+
+	return nil
+}
+
+// WithDefaults fills missing fields with defaults while respecting explicit values
+func (c TrailingStopConfig) WithDefaults() TrailingStopConfig {
+	def := DefaultTrailingStopConfig()
+
+	isZeroConfig := c.Mode == "" && c.TrailPct == 0 && c.CheckIntervalSec == 0 && c.CheckIntervalMs == 0 && c.ClosePct == 0 && len(c.TightenBands) == 0 && c.ActivationPct == 0
+
+	// Legacy strategies that omitted trailing_stop entirely: enable with defaults
+	if !c.Provided && isZeroConfig {
+		return def
+	}
+
+	normalize := func(cfg TrailingStopConfig) TrailingStopConfig {
+		if cfg.Mode == "" {
+			cfg.Mode = def.Mode
+		}
+		if cfg.TrailPct <= 0 {
+			cfg.TrailPct = def.TrailPct
+		}
+		cfg = backfillIntervals(cfg, def)
+		if cfg.ClosePct <= 0 || cfg.ClosePct > 1 {
+			cfg.ClosePct = def.ClosePct
+		}
+		if cfg.TightenBands == nil {
+			cfg.TightenBands = []TrailingTightenBand{}
+		}
+		return cfg
+	}
+
+	// Explicit disable: respect Enabled=false if the flag was provided
+	if c.EnabledSet && !c.Enabled {
+		return normalize(c)
+	}
+
+	// Empty but provided config falls back to defaults (enabled)
+	if isZeroConfig {
+		c = def
+	} else {
+		c = normalize(c)
+	}
+
+	// Default to enabled when not explicitly disabled
+	c.Enabled = true
+	return c
+}
+
+// backfillIntervals harmonizes second/ms interval fields with sensible defaults
+func backfillIntervals(c TrailingStopConfig, def TrailingStopConfig) TrailingStopConfig {
+	// Prefer ms if provided
+	if c.CheckIntervalMs <= 0 {
+		if c.CheckIntervalSec > 0 {
+			c.CheckIntervalMs = c.CheckIntervalSec * 1000
+		} else if def.CheckIntervalMs > 0 {
+			c.CheckIntervalMs = def.CheckIntervalMs
+		} else {
+			c.CheckIntervalMs = def.CheckIntervalSec * 1000
+		}
+	}
+
+	// Keep sec in sync (legacy callers/UI may rely on it)
+	if c.CheckIntervalSec <= 0 {
+		derived := int(math.Round(float64(c.CheckIntervalMs) / 1000))
+		if derived > 0 {
+			c.CheckIntervalSec = derived
+		} else if c.CheckIntervalMs == 0 {
+			c.CheckIntervalSec = def.CheckIntervalSec
+		}
+	}
+
+	return c
 }
 
 func (s *StrategyStore) initTables() error {
@@ -256,15 +391,16 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
-			BTCETHMaxLeverage:               5,   // BTC/ETH exchange leverage (AI guided)
-			AltcoinMaxLeverage:              5,   // Altcoin exchange leverage (AI guided)
-			BTCETHMaxPositionValueRatio:     5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
-			AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
-			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
-			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                   75,  // Min 75% confidence (AI guided)
+			MaxPositions:                 3, // Max 3 coins simultaneously (CODE ENFORCED)
+			TrailingStop:                 DefaultTrailingStopConfig(),
+			BTCETHMaxLeverage:            5,   // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:           5,   // Altcoin exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:  5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
+			AltcoinMaxPositionValueRatio: 1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
+			MaxMarginUsage:               0.9, // Max 90% margin usage (CODE ENFORCED)
+			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                75,  // Min 75% confidence (AI guided)
 		},
 	}
 

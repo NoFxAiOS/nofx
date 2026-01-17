@@ -38,6 +38,24 @@ export interface Position {
   unrealized_pnl_pct: number
   liquidation_price: number
   margin_used: number
+  trailing?: TrailingStatus
+}
+
+export interface TrailingStatus {
+  enabled: boolean
+  status: 'disabled' | 'waiting_activation' | 'armed'
+  mode?: 'pnl_pct' | 'price_pct'
+  activation_pct?: number
+  activation_price?: number
+  trail_pct?: number
+  active_trail_pct?: number
+  close_pct?: number
+  peak_pnl_pct?: number
+  peak_price?: number
+  stop_pnl_pct?: number
+  stop_price?: number
+  current_pnl_pct?: number
+  activation_reached?: boolean
 }
 
 export interface DecisionAction {
@@ -547,9 +565,23 @@ export interface ExternalDataSource {
   refresh_secs?: number;
 }
 
+export interface TrailingStopConfig {
+  enabled: boolean;
+  mode?: 'pnl_pct' | 'price_pct'; // trailing based on PnL% or price
+  activation_pct?: number;        // start trailing after this profit % (0 = immediate)
+  trail_pct?: number;             // trailing distance in percentage points
+  check_interval_sec?: number;    // monitor interval in seconds (legacy)
+  check_interval_ms?: number;     // monitor interval in milliseconds (preferred)
+  tighten_bands?: { profit_pct: number; trail_pct: number }[]; // optional tightening bands
+  close_pct?: number;             // portion to close when triggered (1 = full)
+}
+
 export interface RiskControlConfig {
   // Max number of coins held simultaneously (CODE ENFORCED)
   max_positions: number;
+
+  // Trailing stop / drawdown monitor
+  trailing_stop?: TrailingStopConfig;
 
   // Trading Leverage - exchange leverage for opening positions (AI guided)
   btc_eth_max_leverage: number;    // BTC/ETH max exchange leverage

@@ -34,6 +34,12 @@
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
 - **官方 Twitter** - [@nofx_official](https://x.com/nofx_official)
 
+### 官方链接
+
+- **官网**: [https://nofxai.com](https://nofxai.com)
+- **数据站点**: [https://nofxos.ai/dashboard](https://nofxos.ai/dashboard)
+- **API 文档**: [https://nofxos.ai/api-docs](https://nofxos.ai/api-docs)
+
 > **风险提示**: 本系统为实验性质。AI 自动交易存在重大风险。强烈建议仅用于学习/研究目的或小额测试！
 
 ## 开发者社区

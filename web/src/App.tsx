@@ -413,6 +413,11 @@ function App() {
         <main className="pt-16">
           <DataPage />
         </main>
+        <LoginRequiredOverlay
+          isOpen={loginOverlayOpen}
+          onClose={() => setLoginOverlayOpen(false)}
+          featureName={loginOverlayFeature}
+        />
       </div>
     )
   }

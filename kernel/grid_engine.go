@@ -81,6 +81,9 @@ type GridContext struct {
 	WinningTrades int     `json:"winning_trades"`
 	MaxDrawdown   float64 `json:"max_drawdown"`
 	DailyPnL      float64 `json:"daily_pnl"`
+
+	// Box indicators (Donchian Channels)
+	BoxData *market.BoxData `json:"box_data,omitempty"`
 }
 
 // ============================================================================
@@ -226,6 +229,41 @@ func buildGridUserPromptZh(ctx *GridContext) string {
 	sb.WriteString(fmt.Sprintf("- 资金费率: %.4f%%\n", ctx.FundingRate*100))
 	sb.WriteString("\n")
 
+	// Box Indicator Section
+	if ctx.BoxData != nil {
+		sb.WriteString("## 箱体指标 (唐奇安通道)\n\n")
+		sb.WriteString("| 箱体级别 | 上轨 | 下轨 | 宽度 |\n")
+		sb.WriteString("|----------|------|------|------|\n")
+
+		shortWidth := 0.0
+		midWidth := 0.0
+		longWidth := 0.0
+
+		if ctx.BoxData.CurrentPrice > 0 {
+			shortWidth = (ctx.BoxData.ShortUpper - ctx.BoxData.ShortLower) / ctx.BoxData.CurrentPrice * 100
+			midWidth = (ctx.BoxData.MidUpper - ctx.BoxData.MidLower) / ctx.BoxData.CurrentPrice * 100
+			longWidth = (ctx.BoxData.LongUpper - ctx.BoxData.LongLower) / ctx.BoxData.CurrentPrice * 100
+		}
+
+		sb.WriteString(fmt.Sprintf("| 短期 (3天) | %.2f | %.2f | %.2f%% |\n",
+			ctx.BoxData.ShortUpper, ctx.BoxData.ShortLower, shortWidth))
+		sb.WriteString(fmt.Sprintf("| 中期 (10天) | %.2f | %.2f | %.2f%% |\n",
+			ctx.BoxData.MidUpper, ctx.BoxData.MidLower, midWidth))
+		sb.WriteString(fmt.Sprintf("| 长期 (21天) | %.2f | %.2f | %.2f%% |\n",
+			ctx.BoxData.LongUpper, ctx.BoxData.LongLower, longWidth))
+
+		sb.WriteString(fmt.Sprintf("\n当前价格: %.2f\n", ctx.BoxData.CurrentPrice))
+
+		// Check position relative to boxes
+		price := ctx.BoxData.CurrentPrice
+		if price > ctx.BoxData.LongUpper || price < ctx.BoxData.LongLower {
+			sb.WriteString("⚠️ 突破: 价格突破长期箱体!\n")
+		} else if price > ctx.BoxData.MidUpper || price < ctx.BoxData.MidLower {
+			sb.WriteString("⚠️ 警告: 价格接近长期箱体边界\n")
+		}
+		sb.WriteString("\n")
+	}
+
 	// Account section
 	sb.WriteString("## 账户状态\n")
 	sb.WriteString(fmt.Sprintf("- 总权益: $%.2f\n", ctx.TotalEquity))
@@ -287,6 +325,41 @@ func buildGridUserPromptEn(ctx *GridContext) string {
 	sb.WriteString(fmt.Sprintf("- MACD: %.4f, Signal: %.4f, Histogram: %.4f\n", ctx.MACD, ctx.MACDSignal, ctx.MACDHistogram))
 	sb.WriteString(fmt.Sprintf("- Funding Rate: %.4f%%\n", ctx.FundingRate*100))
 	sb.WriteString("\n")
+
+	// Box Indicator Section
+	if ctx.BoxData != nil {
+		sb.WriteString("## Box Indicators (Donchian Channels)\n\n")
+		sb.WriteString("| Box Level | Upper | Lower | Width |\n")
+		sb.WriteString("|-----------|-------|-------|-------|\n")
+
+		shortWidth := 0.0
+		midWidth := 0.0
+		longWidth := 0.0
+
+		if ctx.BoxData.CurrentPrice > 0 {
+			shortWidth = (ctx.BoxData.ShortUpper - ctx.BoxData.ShortLower) / ctx.BoxData.CurrentPrice * 100
+			midWidth = (ctx.BoxData.MidUpper - ctx.BoxData.MidLower) / ctx.BoxData.CurrentPrice * 100
+			longWidth = (ctx.BoxData.LongUpper - ctx.BoxData.LongLower) / ctx.BoxData.CurrentPrice * 100
+		}
+
+		sb.WriteString(fmt.Sprintf("| Short (3d) | %.2f | %.2f | %.2f%% |\n",
+			ctx.BoxData.ShortUpper, ctx.BoxData.ShortLower, shortWidth))
+		sb.WriteString(fmt.Sprintf("| Mid (10d) | %.2f | %.2f | %.2f%% |\n",
+			ctx.BoxData.MidUpper, ctx.BoxData.MidLower, midWidth))
+		sb.WriteString(fmt.Sprintf("| Long (21d) | %.2f | %.2f | %.2f%% |\n",
+			ctx.BoxData.LongUpper, ctx.BoxData.LongLower, longWidth))
+
+		sb.WriteString(fmt.Sprintf("\nCurrent Price: %.2f\n", ctx.BoxData.CurrentPrice))
+
+		// Check position relative to boxes
+		price := ctx.BoxData.CurrentPrice
+		if price > ctx.BoxData.LongUpper || price < ctx.BoxData.LongLower {
+			sb.WriteString("⚠️ BREAKOUT: Price outside long-term box!\n")
+		} else if price > ctx.BoxData.MidUpper || price < ctx.BoxData.MidLower {
+			sb.WriteString("⚠️ WARNING: Price approaching long-term box boundary\n")
+		}
+		sb.WriteString("\n")
+	}
 
 	// Account section
 	sb.WriteString("## Account Status\n")

@@ -1210,3 +1210,35 @@ func ExportCalculateATR(klines []Kline, period int) float64 {
 func ExportCalculateBOLL(klines []Kline, period int, multiplier float64) (upper, middle, lower float64) {
 	return calculateBOLL(klines, period, multiplier)
 }
+
+// calculateDonchian calculates Donchian channel (highest high, lowest low) for given period
+func calculateDonchian(klines []Kline, period int) (upper, lower float64) {
+	if len(klines) == 0 {
+		return 0, 0
+	}
+
+	// Use all available klines if period > len(klines)
+	start := len(klines) - period
+	if start < 0 {
+		start = 0
+	}
+
+	upper = klines[start].High
+	lower = klines[start].Low
+
+	for i := start + 1; i < len(klines); i++ {
+		if klines[i].High > upper {
+			upper = klines[i].High
+		}
+		if klines[i].Low < lower {
+			lower = klines[i].Low
+		}
+	}
+
+	return upper, lower
+}
+
+// ExportCalculateDonchian exports calculateDonchian for testing
+func ExportCalculateDonchian(klines []Kline, period int) (float64, float64) {
+	return calculateDonchian(klines, period)
+}

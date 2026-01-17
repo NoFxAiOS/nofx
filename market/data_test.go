@@ -500,3 +500,40 @@ func TestIsStaleData_EmptyKlines(t *testing.T) {
 		t.Error("Expected false for empty klines, got true")
 	}
 }
+
+func TestCalculateDonchian(t *testing.T) {
+	// Create test klines with known high/low values
+	klines := []Kline{
+		{High: 100, Low: 90},
+		{High: 105, Low: 88},
+		{High: 102, Low: 92},
+		{High: 108, Low: 85},
+		{High: 103, Low: 91},
+	}
+
+	upper, lower := ExportCalculateDonchian(klines, 5)
+
+	if upper != 108 {
+		t.Errorf("Expected upper = 108, got %v", upper)
+	}
+	if lower != 85 {
+		t.Errorf("Expected lower = 85, got %v", lower)
+	}
+}
+
+func TestCalculateDonchian_PartialPeriod(t *testing.T) {
+	klines := []Kline{
+		{High: 100, Low: 90},
+		{High: 105, Low: 88},
+	}
+
+	upper, lower := ExportCalculateDonchian(klines, 10)
+
+	// Should use all available klines when period > len(klines)
+	if upper != 105 {
+		t.Errorf("Expected upper = 105, got %v", upper)
+	}
+	if lower != 88 {
+		t.Errorf("Expected lower = 88, got %v", lower)
+	}
+}

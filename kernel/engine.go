@@ -104,6 +104,19 @@ type RecentOrder struct {
 	HoldDuration string  `json:"hold_duration"` // Hold duration, e.g. "2h30m"
 }
 
+// PendingOrder pending/open order from exchange (for AI input)
+type PendingOrder struct {
+	OrderID      string  `json:"order_id"`      // Order ID
+	Symbol       string  `json:"symbol"`        // Trading pair
+	Side         string  `json:"side"`          // BUY/SELL
+	PositionSide string  `json:"position_side"` // LONG/SHORT (for futures)
+	Type         string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET
+	Price        float64 `json:"price"`         // Order price (for limit orders)
+	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop orders)
+	Quantity     float64 `json:"quantity"`      // Order quantity
+	Status       string  `json:"status"`        // Order status (NEW, etc.)
+}
+
 // Context trading context (complete information passed to AI)
 type Context struct {
 	CurrentTime        string                             `json:"current_time"`
@@ -115,6 +128,7 @@ type Context struct {
 	PromptVariant      string                             `json:"prompt_variant,omitempty"`
 	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
 	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
+	PendingOrders      []PendingOrder                     `json:"pending_orders,omitempty"` // Current pending orders from exchange
 	MarketDataMap      map[string]*market.Data            `json:"-"`
 	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
 	OITopDataMap       map[string]*OITopData              `json:"-"`
@@ -130,13 +144,23 @@ type Context struct {
 // Decision AI trading decision
 type Decision struct {
 	Symbol string `json:"symbol"`
-	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "partial_close_long", "partial_close_short", "place_order", "modify_order", "cancel_order", "set_sl_tp_tiers", "modify_sl_tier", "modify_tp_tier", "hold", "wait"
 
 	// Opening position parameters
 	Leverage        int     `json:"leverage,omitempty"`
 	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
 	StopLoss        float64 `json:"stop_loss,omitempty"`
 	TakeProfit      float64 `json:"take_profit,omitempty"`
+
+	// Order management parameters (for place_order, modify_order, etc.)
+	OrderID      string  `json:"order_id,omitempty"`      // For modify_order, cancel_order
+	OrderType    string  `json:"order_type,omitempty"`    // "limit", "market" for place_order
+	OrderPrice   float64 `json:"order_price,omitempty"`   // Price for limit orders
+	OrderQty     float64 `json:"order_qty,omitempty"`     // Quantity for place_order/modify_order
+	PartialQty   float64 `json:"partial_qty,omitempty"`   // Quantity for partial_close
+	TierCount    int     `json:"tier_count,omitempty"`    // Number of tiers for set_sl_tp_tiers
+	TierLevel    int     `json:"tier_level,omitempty"`    // Tier level for modify_sl_tier/modify_tp_tier
+	TierPrice    float64 `json:"tier_price,omitempty"`    // Price for specific tier
 
 	// Common parameters
 	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
@@ -953,9 +977,10 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("\n\n")
 	} else {
 		sb.WriteString("# 📋 Decision Process\n\n")
-		sb.WriteString("1. Check positions → Should we take profit/stop-loss\n")
+		sb.WriteString("1. Check positions → Should we take profit/stop-loss/adjust orders\n")
 		sb.WriteString("2. Scan candidate coins + multi-timeframe → Are there strong signals\n")
-		sb.WriteString("3. Write chain of thought first, then output structured JSON\n\n")
+		sb.WriteString("3. Consider pending orders and multi-tier SL/TP management\n")
+		sb.WriteString("4. Write chain of thought first, then output structured JSON\n\n")
 	}
 
 	// 7. Output format
@@ -977,9 +1002,18 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | partial_close_long | partial_close_short | place_order | modify_order | cancel_order | set_sl_tp_tiers | modify_sl_tier | modify_tp_tier | hold | wait\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- **Opening position**: Required fields: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- **Closing position**: Only required: action, symbol (confidence optional)\n")
+	sb.WriteString("- **Order management**:\n")
+	sb.WriteString("  - `place_order` (**REQUIRED fields**: order_type, order_price, order_qty | all must be > 0 | order_type must be 'limit' or 'market')\n")
+	sb.WriteString("  - `modify_order` (**REQUIRED fields**: order_id | at least one of: order_qty > 0 or order_price > 0)\n")
+	sb.WriteString("  - `cancel_order` (**REQUIRED fields**: order_id)\n")
+	sb.WriteString("  - `set_sl_tp_tiers` (**REQUIRED fields**: tier_count, stop_loss, take_profit)\n")
+	sb.WriteString("  - `modify_sl_tier` (**REQUIRED fields**: tier_level, tier_price)\n")
+	sb.WriteString("  - `modify_tp_tier` (**REQUIRED fields**: tier_level, tier_price)\n")
+	sb.WriteString("- **Partial close**: `partial_close_long` or `partial_close_short` (**REQUIRED fields**: partial_qty > 0)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt
@@ -1770,12 +1804,23 @@ func validateDecisions(decisions []Decision, accountEquity float64, btcEthLevera
 
 func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
 	validActions := map[string]bool{
-		"open_long":   true,
-		"open_short":  true,
-		"close_long":  true,
-		"close_short": true,
-		"hold":        true,
-		"wait":        true,
+		// Traditional position actions
+		"open_long":            true,
+		"open_short":           true,
+		"close_long":           true,
+		"close_short":          true,
+		"partial_close_long":   true,
+		"partial_close_short":  true,
+		// Order management actions
+		"place_order":         true,
+		"modify_order":        true,
+		"cancel_order":        true,
+		"set_sl_tp_tiers":     true,
+		"modify_sl_tier":      true,
+		"modify_tp_tier":      true,
+		// Other actions
+		"hold": true,
+		"wait": true,
 	}
 
 	if !validActions[d.Action] {

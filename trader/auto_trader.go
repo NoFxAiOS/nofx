@@ -524,7 +524,33 @@ func (at *AutoTrader) runCycle() error {
 	logger.Infof("📊 Account equity: %.2f USDT | Available: %.2f USDT | Positions: %d",
 		ctx.Account.TotalEquity, ctx.Account.AvailableBalance, ctx.Account.PositionCount)
 
-	// 5. Use strategy engine to call AI for decision
+	// 5. Load pending orders from exchange
+	logger.Infof("📋 [%s] Loading pending orders from exchange...", at.name)
+	for _, coin := range ctx.CandidateCoins {
+		openOrders, err := at.trader.GetOpenOrders(coin.Symbol)
+		if err != nil {
+			logger.Warnf("⚠️ [%s] Failed to get open orders for %s: %v", at.name, coin.Symbol, err)
+			continue
+		}
+		for _, order := range openOrders {
+			ctx.PendingOrders = append(ctx.PendingOrders, kernel.PendingOrder{
+				OrderID:      order.OrderID,
+				Symbol:       order.Symbol,
+				Side:         order.Side,
+				PositionSide: order.PositionSide,
+				Type:         order.Type,
+				Price:        order.Price,
+				StopPrice:    order.StopPrice,
+				Quantity:     order.Quantity,
+				Status:       order.Status,
+			})
+		}
+	}
+	if len(ctx.PendingOrders) > 0 {
+		logger.Infof("📋 [%s] Found %d pending orders", at.name, len(ctx.PendingOrders))
+	}
+
+	// 6. Use strategy engine to call AI for decision
 	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
 	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
 
@@ -965,6 +991,22 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 		return at.executeCloseLongWithRecord(decision, actionRecord)
 	case "close_short":
 		return at.executeCloseShortWithRecord(decision, actionRecord)
+	case "partial_close_long":
+		return at.executePartialCloseLongWithRecord(decision, actionRecord)
+	case "partial_close_short":
+		return at.executePartialCloseShortWithRecord(decision, actionRecord)
+	case "place_order":
+		return at.executePlaceOrderWithRecord(decision, actionRecord)
+	case "modify_order":
+		return at.executeModifyOrderWithRecord(decision, actionRecord)
+	case "cancel_order":
+		return at.executeCancelOrderWithRecord(decision, actionRecord)
+	case "set_sl_tp_tiers":
+		return at.executeSetSLTPTiersWithRecord(decision, actionRecord)
+	case "modify_sl_tier":
+		return at.executeModifySLTierWithRecord(decision, actionRecord)
+	case "modify_tp_tier":
+		return at.executeModifyTPTierWithRecord(decision, actionRecord)
 	case "hold", "wait":
 		// No execution needed, just record
 		return nil
@@ -2278,6 +2320,314 @@ func getSideFromAction(action string) string {
 		return "SELL"
 	default:
 		return "BUY"
+	}
+}
+
+// ============================================================================
+// Order Management Action Handlers
+// ============================================================================
+
+// executePartialCloseLongWithRecord executes partial close long
+func (at *AutoTrader) executePartialCloseLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	if decision.PartialQty <= 0 {
+		logger.Warnf("  ⚠️ Partial close failed: missing or invalid partial_qty (%.4f)", decision.PartialQty)
+		return fmt.Errorf("partial_qty is required and must be > 0")
+	}
+	
+	logger.Infof("  📊 Partial close long: %s qty=%.4f", decision.Symbol, decision.PartialQty)
+	
+	// Try to call ClosePositionPartial if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ ClosePositionPartial(string, float64) (map[string]interface{}, error) }:
+		result, err := t.ClosePositionPartial(decision.Symbol, decision.PartialQty)
+		if err != nil {
+			return fmt.Errorf("failed to close position: %w", err)
+		}
+		if orderID, ok := result["orderId"].(string); ok {
+			logger.Infof("  ✅ Partial close executed, order_id=%s", orderID)
+		}
+		return nil
+	default:
+		// Fallback: use regular CloseLong with the quantity
+		logger.Infof("  ℹ️ ClosePositionPartial not available, using CloseLong fallback")
+		result, err := at.trader.CloseLong(decision.Symbol, decision.PartialQty)
+		if err != nil {
+			return fmt.Errorf("failed to close position: %w", err)
+		}
+		if orderID, ok := result["orderId"].(string); ok {
+			logger.Infof("  ✅ Partial close executed, order_id=%s", orderID)
+		}
+		return nil
+	}
+}
+
+// executePartialCloseShortWithRecord executes partial close short
+func (at *AutoTrader) executePartialCloseShortWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	if decision.PartialQty <= 0 {
+		logger.Warnf("  ⚠️ Partial close failed: missing or invalid partial_qty (%.4f)", decision.PartialQty)
+		return fmt.Errorf("partial_qty is required and must be > 0")
+	}
+	
+	logger.Infof("  📊 Partial close short: %s qty=%.4f", decision.Symbol, decision.PartialQty)
+	
+	// Try to call ClosePositionPartial if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ ClosePositionPartial(string, float64) (map[string]interface{}, error) }:
+		result, err := t.ClosePositionPartial(decision.Symbol, decision.PartialQty)
+		if err != nil {
+			return fmt.Errorf("failed to close position: %w", err)
+		}
+		if orderID, ok := result["orderId"].(string); ok {
+			logger.Infof("  ✅ Partial close executed, order_id=%s", orderID)
+		}
+		return nil
+	default:
+		// Fallback: use regular CloseShort with the quantity
+		logger.Infof("  ℹ️ ClosePositionPartial not available, using CloseShort fallback")
+		result, err := at.trader.CloseShort(decision.Symbol, decision.PartialQty)
+		if err != nil {
+			return fmt.Errorf("failed to close position: %w", err)
+		}
+		if orderID, ok := result["orderId"].(string); ok {
+			logger.Infof("  ✅ Partial close executed, order_id=%s", orderID)
+		}
+		return nil
+	}
+}
+
+// executePlaceOrderWithRecord executes place order (limit/market)
+func (at *AutoTrader) executePlaceOrderWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	// Log AI's decision parameters for debugging
+	logger.Infof("  📋 Place order parameters from AI: order_type=%s, order_price=%.4f, order_qty=%.4f", 
+		decision.OrderType, decision.OrderPrice, decision.OrderQty)
+	
+	// Validate required parameters
+	if decision.OrderQty <= 0 {
+		logger.Warnf("  ⚠️ Place order failed: missing or invalid order_qty (%.4f), AI didn't provide valid quantity", decision.OrderQty)
+		return fmt.Errorf("order_qty is required and must be > 0 for place_order action")
+	}
+	
+	if decision.OrderPrice <= 0 && strings.ToLower(decision.OrderType) != "market" {
+		logger.Warnf("  ⚠️ Place order failed: missing or invalid order_price (%.4f) for limit order", decision.OrderPrice)
+		return fmt.Errorf("order_price is required for limit orders")
+	}
+	
+	if decision.OrderType == "" {
+		decision.OrderType = "limit"
+	}
+	
+	// Determine side - default to BUY, but should be based on market analysis or decision reasoning
+	side := "BUY"
+	if strings.Contains(strings.ToLower(decision.Reasoning), "sell") {
+		side = "SELL"
+	}
+	
+	logger.Infof("  📋 Place order: %s %s qty=%.4f price=%.4f type=%s", 
+		decision.Symbol, side, decision.OrderQty, decision.OrderPrice, decision.OrderType)
+	
+	// Try to call PlaceOrder if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ PlaceOrder(string, string, float64, float64, string) (map[string]interface{}, error) }:
+		result, err := t.PlaceOrder(decision.Symbol, side, decision.OrderQty, decision.OrderPrice, decision.OrderType)
+		if err != nil {
+			return fmt.Errorf("failed to place order: %w", err)
+		}
+		if orderID, ok := result["orderId"].(string); ok {
+			logger.Infof("  ✅ Order placed, order_id=%s", orderID)
+		}
+		return nil
+	default:
+		logger.Warnf("  ⚠️ PlaceOrder not available on this trader")
+		return fmt.Errorf("place_order not supported on this exchange")
+	}
+}
+
+// executeModifyOrderWithRecord executes modify order
+func (at *AutoTrader) executeModifyOrderWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	// Log AI's decision parameters for debugging
+	logger.Infof("  📋 Modify order parameters from AI: order_id=%s, order_qty=%.4f, order_price=%.4f", 
+		decision.OrderID, decision.OrderQty, decision.OrderPrice)
+	
+	if decision.OrderID == "" {
+		logger.Warnf("  ⚠️ Modify order failed: missing order_id")
+		return fmt.Errorf("order_id is required for modify_order")
+	}
+	
+	if decision.OrderQty <= 0 && decision.OrderPrice <= 0 {
+		logger.Warnf("  ⚠️ Modify order failed: at least one of order_qty or order_price must be provided (got qty=%.4f, price=%.4f)", 
+			decision.OrderQty, decision.OrderPrice)
+		return fmt.Errorf("at least one of order_qty or order_price is required to modify order")
+	}
+	
+	logger.Infof("  ✏️ Modify order: %s order_id=%s qty=%.4f price=%.4f", 
+		decision.Symbol, decision.OrderID, decision.OrderQty, decision.OrderPrice)
+	
+	// Try to call ModifyOrder if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ ModifyOrder(string, string, float64, float64) (map[string]interface{}, error) }:
+		result, err := t.ModifyOrder(decision.Symbol, decision.OrderID, decision.OrderQty, decision.OrderPrice)
+		if err != nil {
+			return fmt.Errorf("failed to modify order: %w", err)
+		}
+		if orderID, ok := result["orderId"].(string); ok {
+			logger.Infof("  ✅ Order modified, order_id=%s", orderID)
+		}
+		return nil
+	default:
+		logger.Warnf("  ⚠️ ModifyOrder not available on this trader")
+		return fmt.Errorf("modify_order not supported on this exchange")
+	}
+}
+
+// executeCancelOrderWithRecord executes cancel order
+func (at *AutoTrader) executeCancelOrderWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	// Log AI's decision parameters for debugging
+	logger.Infof("  📋 Cancel order parameters from AI: order_id=%s", decision.OrderID)
+	
+	if decision.OrderID == "" {
+		logger.Warnf("  ⚠️ Cancel order failed: missing order_id")
+		return fmt.Errorf("order_id is required for cancel_order")
+	}
+	
+	logger.Infof("  ❌ Cancel order: %s order_id=%s", decision.Symbol, decision.OrderID)
+	
+	// Try to call CancelOrder if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ CancelOrder(string, string) error }:
+		err := t.CancelOrder(decision.Symbol, decision.OrderID)
+		if err != nil {
+			return fmt.Errorf("failed to cancel order: %w", err)
+		}
+		logger.Infof("  ✅ Order cancelled, order_id=%s", decision.OrderID)
+		return nil
+	default:
+		logger.Warnf("  ⚠️ CancelOrder not available on this trader")
+		return fmt.Errorf("cancel_order not supported on this exchange")
+	}
+}
+
+// executeSetSLTPTiersWithRecord executes set stop-loss/take-profit tiers
+func (at *AutoTrader) executeSetSLTPTiersWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	// Log AI's decision parameters for debugging
+	logger.Infof("  📋 Set SL/TP tiers parameters from AI: tier_count=%d, stop_loss=%.4f, take_profit=%.4f", 
+		decision.TierCount, decision.StopLoss, decision.TakeProfit)
+	
+	logger.Infof("  📊 Set SL/TP tiers: %s tier_count=%d", decision.Symbol, decision.TierCount)
+	
+	if decision.TierCount <= 0 {
+		logger.Warnf("  ⚠️ Set SL/TP tiers failed: tier_count must be > 0 (got %d)", decision.TierCount)
+		return fmt.Errorf("tier_count must be > 0")
+	}
+	
+	// Try to call multi-tier setup if available on the concrete trader type
+	// This would typically involve creating multiple stop-loss and take-profit orders
+	switch t := at.trader.(type) {
+	case interface{ SetMultiTierSLTP(string, int, float64, float64) error }:
+		err := t.SetMultiTierSLTP(decision.Symbol, decision.TierCount, decision.StopLoss, decision.TakeProfit)
+		if err != nil {
+			logger.Warnf("  ⚠️ Multi-tier setup failed: %v", err)
+			return fmt.Errorf("failed to set multi-tier SL/TP: %w", err)
+		}
+		logger.Infof("  ✅ Multi-tier SL/TP setup completed for %d tiers", decision.TierCount)
+		return nil
+	default:
+		logger.Infof("  ℹ️ Multi-tier SL/TP not available on this trader, will use standard SL/TP")
+		// Fallback to standard single-tier SL/TP if available
+		// Get current position quantity to set SL/TP
+		positions, err := at.trader.GetPositions()
+		if err != nil {
+			logger.Warnf("  ⚠️ Failed to get positions: %v", err)
+			return fmt.Errorf("failed to get positions for SL/TP setup: %w", err)
+		}
+		
+		var positionQty float64
+		for _, pos := range positions {
+			if sym, ok := pos["symbol"].(string); ok && sym == decision.Symbol {
+				if qty, ok := pos["quantity"].(float64); ok {
+					positionQty = qty
+					break
+				}
+			}
+		}
+		
+		if positionQty <= 0 {
+			logger.Warnf("  ⚠️ No active position found for %s", decision.Symbol)
+			return fmt.Errorf("no active position found for SL/TP setup")
+		}
+		
+		if decision.StopLoss > 0 {
+			if err := at.trader.SetStopLoss(decision.Symbol, "long", positionQty, decision.StopLoss); err != nil {
+				logger.Warnf("  ⚠️ Failed to set stop loss: %v", err)
+			}
+		}
+		if decision.TakeProfit > 0 {
+			if err := at.trader.SetTakeProfit(decision.Symbol, "long", positionQty, decision.TakeProfit); err != nil {
+				logger.Warnf("  ⚠️ Failed to set take profit: %v", err)
+			}
+		}
+		return nil
+	}
+}
+
+// executeModifySLTierWithRecord executes modify stop-loss tier
+func (at *AutoTrader) executeModifySLTierWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	// Log AI's decision parameters for debugging
+	logger.Infof("  📋 Modify SL tier parameters from AI: tier_level=%d, tier_price=%.4f", 
+		decision.TierLevel, decision.TierPrice)
+	
+	logger.Infof("  📊 Modify SL tier: %s tier=%d price=%.4f", 
+		decision.Symbol, decision.TierLevel, decision.TierPrice)
+	
+	if decision.TierLevel <= 0 {
+		logger.Warnf("  ⚠️ Modify SL tier failed: tier_level must be > 0 (got %d)", decision.TierLevel)
+		return fmt.Errorf("tier_level must be > 0")
+	}
+	
+	// Try to call ModifyStopLossTier if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ ModifyStopLossTier(string, int, float64) (map[string]interface{}, error) }:
+		result, err := t.ModifyStopLossTier(decision.Symbol, decision.TierLevel, decision.TierPrice)
+		if err != nil {
+			return fmt.Errorf("failed to modify SL tier: %w", err)
+		}
+		if status, ok := result["status"].(string); ok && status == "success" {
+			logger.Infof("  ✅ SL tier %d modified to price %.4f", decision.TierLevel, decision.TierPrice)
+		}
+		return nil
+	default:
+		logger.Warnf("  ⚠️ ModifyStopLossTier not available on this trader")
+		return fmt.Errorf("modify_sl_tier not supported on this exchange")
+	}
+}
+
+// executeModifyTPTierWithRecord executes modify take-profit tier
+func (at *AutoTrader) executeModifyTPTierWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
+	// Log AI's decision parameters for debugging
+	logger.Infof("  📋 Modify TP tier parameters from AI: tier_level=%d, tier_price=%.4f", 
+		decision.TierLevel, decision.TierPrice)
+	
+	logger.Infof("  📊 Modify TP tier: %s tier=%d price=%.4f", 
+		decision.Symbol, decision.TierLevel, decision.TierPrice)
+	
+	if decision.TierLevel <= 0 {
+		logger.Warnf("  ⚠️ Modify TP tier failed: tier_level must be > 0 (got %d)", decision.TierLevel)
+		return fmt.Errorf("tier_level must be > 0")
+	}
+	
+	// Try to call ModifyTakeProfitTier if available on the concrete trader type
+	switch t := at.trader.(type) {
+	case interface{ ModifyTakeProfitTier(string, int, float64) (map[string]interface{}, error) }:
+		result, err := t.ModifyTakeProfitTier(decision.Symbol, decision.TierLevel, decision.TierPrice)
+		if err != nil {
+			return fmt.Errorf("failed to modify TP tier: %w", err)
+		}
+		if status, ok := result["status"].(string); ok && status == "success" {
+			logger.Infof("  ✅ TP tier %d modified to price %.4f", decision.TierLevel, decision.TierPrice)
+		}
+		return nil
+	default:
+		logger.Warnf("  ⚠️ ModifyTakeProfitTier not available on this trader")
+		return fmt.Errorf("modify_tp_tier not supported on this exchange")
 	}
 }
 

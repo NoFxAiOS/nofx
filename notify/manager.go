@@ -210,8 +210,25 @@ func formatDecisionMessage(decision map[string]interface{}) string {
 	// Reasoning section
 	if reasoning, ok := decision["reasoning"].(string); ok && reasoning != "" && reasoning != "{}" {
 		sb.WriteString("<div style=\"background: rgba(240, 185, 11, 0.1); border-left: 4px solid #F0B90B; padding: 14px; margin-bottom: 16px; border-radius: 6px;\">")
-		sb.WriteString("<div style=\"font-size: 12px; color: #F0B90B; font-weight: 600; margin-bottom: 8px;\">💡 AI Reasoning</div>")
-		sb.WriteString(fmt.Sprintf("<div style=\"font-size: 13px; color: #EAECEF; line-height: 1.6;\">%s</div>", escapeHTML(truncateText(reasoning, 300))))
+		sb.WriteString("<div style=\"display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;\">")
+		sb.WriteString("<div style=\"font-size: 12px; color: #F0B90B; font-weight: 600;\">💡 AI Reasoning</div>")
+		sb.WriteString(fmt.Sprintf("<a href=\"javascript:void(0)\" style=\"font-size: 11px; color: #F0B90B; text-decoration: none; padding: 2px 6px; border-radius: 3px; border: 1px solid rgba(240, 185, 11, 0.4); cursor: pointer;\" onclick=\"var text = this.parentElement.nextElementSibling.innerText || this.parentElement.nextElementSibling.textContent; navigator.clipboard.writeText(text).then(() => {var btn = this; var origText = btn.innerText; btn.innerText = '✓ 已复制'; setTimeout(() => {btn.innerText = origText;}, 2000);}).catch(() => {alert('复制失败，请手动复制');});\">📋 复制</a>"))
+		sb.WriteString("</div>")
+		
+		// If reasoning is longer than 300 chars, add preview + expand button
+		if len(reasoning) > 300 {
+			previewText := escapeHTML(reasoning[:300])
+			fullText := preserveFormatting(escapeHTML(reasoning))
+			sb.WriteString("<div style=\"font-size: 13px; color: #EAECEF; line-height: 1.6; white-space: pre-wrap; word-break: break-word;\">")
+			sb.WriteString(previewText)
+			sb.WriteString("...</div>")
+			sb.WriteString("<div style=\"margin-top: 8px;\">")
+			sb.WriteString(fmt.Sprintf("<a href=\"javascript:void(0)\" style=\"display: inline-block; padding: 6px 12px; background: rgba(240, 185, 11, 0.2); color: #F0B90B; border-radius: 4px; font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid rgba(240, 185, 11, 0.3);\" onclick=\"this.style.display='none'; this.nextElementSibling.style.display='block';\">🔼 展开完整内容</a>"))
+			sb.WriteString(fmt.Sprintf("<div style=\"display: none; font-size: 13px; color: #EAECEF; line-height: 1.6; padding: 8px 0; white-space: pre-wrap; word-break: break-word;\">%s</div>", fullText))
+			sb.WriteString("</div>")
+		} else {
+			sb.WriteString(fmt.Sprintf("<div style=\"font-size: 13px; color: #EAECEF; line-height: 1.6; white-space: pre-wrap; word-break: break-word;\">%s</div>", preserveFormatting(escapeHTML(reasoning))))
+		}
 		sb.WriteString("</div>")
 	}
 
@@ -355,7 +372,17 @@ func formatActionCard(sb *strings.Builder, action map[string]interface{}) {
 
 	// Reasoning for this action
 	if reasoning, ok := action["reasoning"].(string); ok && reasoning != "" {
-		sb.WriteString(fmt.Sprintf("<div style=\"margin-top: 12px; padding-top: 12px; border-top: 1px solid #2B3139; font-size: 12px; color: #848E9C; line-height: 1.4;\">💭 %s</div>", escapeHTML(truncateText(reasoning, 100))))
+		if len(reasoning) > 100 {
+			previewText := escapeHTML(reasoning[:100])
+			fullText := preserveFormatting(escapeHTML(reasoning))
+			sb.WriteString(fmt.Sprintf("<div style=\"margin-top: 12px; padding-top: 12px; border-top: 1px solid #2B3139; font-size: 12px; color: #848E9C; line-height: 1.4; white-space: pre-wrap; word-break: break-word;\">💭 %s...", previewText))
+			sb.WriteString(fmt.Sprintf("<a href=\"javascript:void(0)\" style=\"display: inline-block; margin-left: 4px; color: #F0B90B; text-decoration: none; font-weight: 600;\" onclick=\"if(this.textContent.indexOf('展开')>-1){this.textContent='[收起]'; this.nextElementSibling.style.display='block';}else{this.textContent='[展开]'; this.nextElementSibling.style.display='none';}\">[展开]</a>"))
+			sb.WriteString(fmt.Sprintf("<a href=\"javascript:void(0)\" style=\"display: inline-block; margin-left: 4px; color: #F0B90B; text-decoration: none; font-weight: 600; font-size: 11px;\" onclick=\"var text = this.nextElementSibling.innerText || this.nextElementSibling.textContent; navigator.clipboard.writeText(text).then(() => {var btn = this; var origText = btn.innerText; btn.innerText = '✓'; setTimeout(() => {btn.innerText = origText;}, 1500);}).catch(() => {alert('复制失败');});\">[复制]</a>"))
+			sb.WriteString(fmt.Sprintf("<div style=\"display: none; margin-top: 8px; padding: 8px; background: rgba(240, 185, 11, 0.05); border-radius: 4px; font-size: 12px; color: #EAECEF; line-height: 1.4; white-space: pre-wrap; word-break: break-word;\">%s</div></div>", fullText))
+		} else {
+			sb.WriteString(fmt.Sprintf("<div style=\"margin-top: 12px; padding-top: 12px; border-top: 1px solid #2B3139; font-size: 12px; color: #848E9C; line-height: 1.4; white-space: pre-wrap; word-break: break-word;\">💭 %s", preserveFormatting(escapeHTML(reasoning))))
+			sb.WriteString(fmt.Sprintf("<a href=\"javascript:void(0)\" style=\"display: inline-block; margin-left: 8px; color: #F0B90B; text-decoration: none; font-weight: 600; font-size: 11px;\" onclick=\"var text = this.previousSibling.nodeValue; if(!text) { var parent = this.parentElement; text = parent.textContent.replace('[复制]', '').replace('💭 ', ''); } navigator.clipboard.writeText(text.trim()).then(() => {var btn = this; var origText = btn.innerText; btn.innerText = '✓'; setTimeout(() => {btn.innerText = origText;}, 1500);}).catch(() => {alert('复制失败');});\">[复制]</a></div>"))
+		}
 	}
 
 	sb.WriteString("</div>")
@@ -436,5 +463,16 @@ func escapeHTML(s string) string {
 	s = strings.ReplaceAll(s, ">", "&gt;")
 	s = strings.ReplaceAll(s, "\"", "&quot;")
 	s = strings.ReplaceAll(s, "'", "&#39;")
+	return s
+}
+
+// preserveFormatting preserves line breaks and spacing in text for HTML display
+// Replaces newlines with <br> tags and multiple spaces with &nbsp;
+func preserveFormatting(s string) string {
+	// Replace newlines with HTML line breaks
+	s = strings.ReplaceAll(s, "\n", "<br>")
+	// Replace multiple spaces with non-breaking spaces to preserve indentation
+	// This is a simple approach - replace double spaces with space+nbsp
+	s = strings.ReplaceAll(s, "  ", " &nbsp;")
 	return s
 }

@@ -785,4 +785,122 @@ export const api = {
     if (!result.success) throw new Error('获取历史仓位失败')
     return result.data!
   },
+
+  // Pending Order Management APIs
+  async placeOrder(traderId: string, data: {
+    symbol: string
+    side: string
+    quantity: number
+    price?: number
+    order_type: string
+  }): Promise<any> {
+    const result = await httpClient.post<any>(
+      `${API_BASE}/pending-orders/place?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('下单失败')
+    return result.data
+  },
+
+  async modifyOrder(traderId: string, orderId: string, data: {
+    symbol: string
+    quantity?: number
+    price?: number
+  }): Promise<any> {
+    const result = await httpClient.put<any>(
+      `${API_BASE}/pending-orders/${orderId}/modify?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('修改订单失败')
+    return result.data
+  },
+
+  async cancelOrder(traderId: string, orderId: string, symbol: string): Promise<void> {
+    const result = await httpClient.delete(
+      `${API_BASE}/pending-orders/${orderId}?trader_id=${traderId}`,
+      { symbol }
+    )
+    if (!result.success) throw new Error('取消订单失败')
+  },
+
+  async closePositionPartial(traderId: string, data: {
+    symbol: string
+    quantity: number
+  }): Promise<any> {
+    const result = await httpClient.post<any>(
+      `${API_BASE}/position/close-partial?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('部分平仓失败')
+    return result.data
+  },
+
+  // Multi-tier Stop Loss and Take Profit APIs
+  async setMultipleStopLoss(traderId: string, data: {
+    symbol: string
+    position_side: string
+    quantity: number
+    stop_prices: number[]
+  }): Promise<any> {
+    const result = await httpClient.post<any>(
+      `${API_BASE}/stop-orders/set-multiple-sl?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('设置多层止损失败')
+    return result.data
+  },
+
+  async setMultipleTakeProfit(traderId: string, data: {
+    symbol: string
+    position_side: string
+    quantity: number
+    take_profit_prices: number[]
+  }): Promise<any> {
+    const result = await httpClient.post<any>(
+      `${API_BASE}/stop-orders/set-multiple-tp?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('设置多层止盈失败')
+    return result.data
+  },
+
+  async modifyStopLossTier(traderId: string, tier: number, data: {
+    symbol: string
+    stop_price: number
+  }): Promise<any> {
+    const result = await httpClient.put<any>(
+      `${API_BASE}/stop-orders/sl-tier/${tier}?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('修改止损层失败')
+    return result.data
+  },
+
+  async modifyTakeProfitTier(traderId: string, tier: number, data: {
+    symbol: string
+    take_profit_price: number
+  }): Promise<any> {
+    const result = await httpClient.put<any>(
+      `${API_BASE}/stop-orders/tp-tier/${tier}?trader_id=${traderId}`,
+      data
+    )
+    if (!result.success) throw new Error('修改止盈层失败')
+    return result.data
+  },
+
+  async cancelAllStopLoss(traderId: string, symbol: string): Promise<void> {
+    const result = await httpClient.delete(
+      `${API_BASE}/stop-orders/sl?trader_id=${traderId}`,
+      { symbol }
+    )
+    if (!result.success) throw new Error('取消所有止损失败')
+  },
+
+  async cancelAllTakeProfit(traderId: string, symbol: string): Promise<void> {
+    const result = await httpClient.delete(
+      `${API_BASE}/stop-orders/tp?trader_id=${traderId}`,
+      { symbol }
+    )
+    if (!result.success) throw new Error('取消所有止盈失败')
+  },
 }

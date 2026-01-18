@@ -42,6 +42,12 @@
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
 - **Official Twitter** - [@nofx_official](https://x.com/nofx_official)
 
+### Official Links
+
+- **Official Website**: [https://nofxai.com](https://nofxai.com)
+- **Data Dashboard**: [https://nofxos.ai/dashboard](https://nofxos.ai/dashboard)
+- **API Documentation**: [https://nofxos.ai/api-docs](https://nofxos.ai/api-docs)
+
 > **Risk Warning**: This system is experimental. AI auto-trading carries significant risks. Strongly recommended for learning/research purposes or testing with small amounts only!
 
 ## Developer Community

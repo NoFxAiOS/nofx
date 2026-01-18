@@ -22,6 +22,12 @@
 - **웹 기반 설정**: JSON 편집 불필요 - 웹 인터페이스에서 모든 설정 완료
 - **실시간 대시보드**: 실시간 포지션, 손익 추적, 사고의 연쇄가 포함된 AI 결정 로그
 
+### 공식 링크
+
+- **공식 웹사이트**: [https://nofxai.com](https://nofxai.com)
+- **데이터 대시보드**: [https://nofxos.ai/dashboard](https://nofxos.ai/dashboard)
+- **API 문서**: [https://nofxos.ai/api-docs](https://nofxos.ai/api-docs)
+
 > **위험 경고**: 이 시스템은 실험적입니다. AI 자동 거래에는 상당한 위험이 있습니다. 학습/연구 목적 또는 소액 테스트만 강력히 권장합니다!
 
 ## 개발자 커뮤니티

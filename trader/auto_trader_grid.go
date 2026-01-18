@@ -1443,11 +1443,11 @@ func (at *AutoTrader) GetGridRiskInfo() *GridRiskInfo {
 		recommendedLeverage = min(leverage, 2)
 	}
 
-	// Calculate liquidation distance
-	liquidationDistance := 100.0 / float64(leverage) * 0.9 // ~90% of theoretical max
-
+	// Calculate liquidation distance and price only when there's a position
+	var liquidationDistance float64
 	var liquidationPrice float64
 	if currentPositionSize != 0 && currentPrice > 0 {
+		liquidationDistance = 100.0 / float64(leverage) * 0.9 // ~90% of theoretical max
 		if currentPositionSize > 0 {
 			// Long position: liquidation below entry
 			liquidationPrice = currentPrice * (1 - liquidationDistance/100)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, TrendingUp, AlertTriangle, Activity, Box } from 'lucide-react'
+import { Shield, TrendingUp, AlertTriangle, Activity, Box, ChevronDown, ChevronUp } from 'lucide-react'
 import type { GridRiskInfo } from '../../types'
 
 interface GridRiskPanelProps {
@@ -16,46 +16,48 @@ export function GridRiskPanel({
   const [riskInfo, setRiskInfo] = useState<GridRiskInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   const t = (key: string) => {
     const translations: Record<string, Record<string, string>> = {
       // Section titles
-      leverageInfo: { zh: '杠杆信息', en: 'Leverage Info' },
-      positionInfo: { zh: '仓位信息', en: 'Position Info' },
-      liquidationInfo: { zh: '清算信息', en: 'Liquidation Info' },
-      marketState: { zh: '市场状态', en: 'Market State' },
-      boxState: { zh: '盒子状态', en: 'Box State' },
+      gridRisk: { zh: '网格风控', en: 'Grid Risk' },
+      leverageInfo: { zh: '杠杆', en: 'Leverage' },
+      positionInfo: { zh: '仓位', en: 'Position' },
+      liquidationInfo: { zh: '清算', en: 'Liquidation' },
+      marketState: { zh: '市场', en: 'Market' },
+      boxState: { zh: '箱体', en: 'Box' },
 
       // Leverage
-      currentLeverage: { zh: '当前杠杆', en: 'Current Leverage' },
-      effectiveLeverage: { zh: '有效杠杆', en: 'Effective Leverage' },
-      recommendedLeverage: { zh: '建议杠杆', en: 'Recommended Leverage' },
+      currentLeverage: { zh: '当前', en: 'Current' },
+      effectiveLeverage: { zh: '有效', en: 'Effective' },
+      recommendedLeverage: { zh: '建议', en: 'Recommend' },
 
       // Position
-      currentPosition: { zh: '当前仓位', en: 'Current Position' },
-      maxPosition: { zh: '最大仓位', en: 'Max Position' },
-      positionPercent: { zh: '仓位占比', en: 'Position %' },
+      currentPosition: { zh: '当前', en: 'Current' },
+      maxPosition: { zh: '最大', en: 'Max' },
+      positionPercent: { zh: '占比', en: 'Usage' },
 
       // Liquidation
-      liquidationPrice: { zh: '清算价格', en: 'Liquidation Price' },
-      liquidationDistance: { zh: '清算距离', en: 'Liquidation Distance' },
+      liquidationPrice: { zh: '清算价', en: 'Liq Price' },
+      liquidationDistance: { zh: '距离', en: 'Distance' },
 
       // Market
-      regimeLevel: { zh: '波动级别', en: 'Regime Level' },
-      currentPrice: { zh: '当前价格', en: 'Current Price' },
-      breakoutLevel: { zh: '突破级别', en: 'Breakout Level' },
-      breakoutDirection: { zh: '突破方向', en: 'Breakout Direction' },
+      regimeLevel: { zh: '波动', en: 'Regime' },
+      currentPrice: { zh: '价格', en: 'Price' },
+      breakoutLevel: { zh: '突破', en: 'Breakout' },
+      breakoutDirection: { zh: '方向', en: 'Direction' },
 
       // Box
-      shortBox: { zh: '短期盒子', en: 'Short Box' },
-      midBox: { zh: '中期盒子', en: 'Mid Box' },
-      longBox: { zh: '长期盒子', en: 'Long Box' },
+      shortBox: { zh: '短期', en: 'Short' },
+      midBox: { zh: '中期', en: 'Mid' },
+      longBox: { zh: '长期', en: 'Long' },
 
       // Regime levels
-      narrow: { zh: '窄幅震荡', en: 'Narrow' },
-      standard: { zh: '标准震荡', en: 'Standard' },
-      wide: { zh: '宽幅震荡', en: 'Wide' },
-      volatile: { zh: '剧烈震荡', en: 'Volatile' },
+      narrow: { zh: '窄幅', en: 'Narrow' },
+      standard: { zh: '标准', en: 'Standard' },
+      wide: { zh: '宽幅', en: 'Wide' },
+      volatile: { zh: '剧烈', en: 'Volatile' },
       trending: { zh: '趋势', en: 'Trending' },
 
       // Breakout levels
@@ -65,8 +67,8 @@ export function GridRiskPanel({
       long: { zh: '长期', en: 'Long' },
 
       // Directions
-      up: { zh: '向上', en: 'Up' },
-      down: { zh: '向下', en: 'Down' },
+      up: { zh: '↑', en: '↑' },
+      down: { zh: '↓', en: '↓' },
 
       // Status
       loading: { zh: '加载中...', en: 'Loading...' },
@@ -78,7 +80,7 @@ export function GridRiskPanel({
 
   const fetchRiskInfo = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token')
+      const token = localStorage.getItem('auth_token')
       const response = await fetch(`/api/traders/${traderId}/grid-risk`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -107,40 +109,29 @@ export function GridRiskPanel({
 
   const getRegimeColor = (regime: string) => {
     switch (regime) {
-      case 'narrow':
-        return '#0ECB81' // Green - safe
-      case 'standard':
-        return '#F0B90B' // Yellow - normal
-      case 'wide':
-        return '#F7931A' // Orange - caution
-      case 'volatile':
-        return '#F6465D' // Red - danger
-      case 'trending':
-        return '#8B5CF6' // Purple - trending
-      default:
-        return '#848E9C' // Gray
+      case 'narrow': return '#0ECB81'
+      case 'standard': return '#F0B90B'
+      case 'wide': return '#F7931A'
+      case 'volatile': return '#F6465D'
+      case 'trending': return '#8B5CF6'
+      default: return '#848E9C'
     }
   }
 
   const getBreakoutColor = (level: string) => {
     switch (level) {
-      case 'none':
-        return '#0ECB81' // Green - safe
-      case 'short':
-        return '#F0B90B' // Yellow - minor
-      case 'mid':
-        return '#F7931A' // Orange - warning
-      case 'long':
-        return '#F6465D' // Red - critical
-      default:
-        return '#848E9C'
+      case 'none': return '#0ECB81'
+      case 'short': return '#F0B90B'
+      case 'mid': return '#F7931A'
+      case 'long': return '#F6465D'
+      default: return '#848E9C'
     }
   }
 
   const getPositionColor = (percent: number) => {
-    if (percent < 50) return '#0ECB81' // Green
-    if (percent < 80) return '#F0B90B' // Yellow
-    return '#F6465D' // Red
+    if (percent < 50) return '#0ECB81'
+    if (percent < 80) return '#F0B90B'
+    return '#F6465D'
   }
 
   const formatPrice = (price: number) => {
@@ -151,20 +142,17 @@ export function GridRiskPanel({
   }
 
   const formatUSD = (value: number) => {
-    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
   }
 
-  const sectionStyle = {
+  const cardStyle = {
     background: '#0B0E11',
     border: '1px solid #2B3139',
   }
 
-  const labelStyle = { color: '#848E9C' }
-  const valueStyle = { color: '#EAECEF' }
-
   if (loading) {
     return (
-      <div className="p-4 text-center" style={{ color: '#848E9C' }}>
+      <div className="p-3 text-center text-xs" style={{ color: '#848E9C' }}>
         {t('loading')}
       </div>
     )
@@ -172,7 +160,7 @@ export function GridRiskPanel({
 
   if (error) {
     return (
-      <div className="p-4 text-center" style={{ color: '#F6465D' }}>
+      <div className="p-3 text-center text-xs" style={{ color: '#F6465D' }}>
         {t('error')}: {error}
       </div>
     )
@@ -180,230 +168,205 @@ export function GridRiskPanel({
 
   if (!riskInfo) {
     return (
-      <div className="p-4 text-center" style={{ color: '#848E9C' }}>
+      <div className="p-3 text-center text-xs" style={{ color: '#848E9C' }}>
         {t('noData')}
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      {/* Leverage Info */}
-      <div className="p-4 rounded-lg" style={sectionStyle}>
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-4 h-4" style={{ color: '#F0B90B' }} />
-          <span className="font-medium text-sm" style={{ color: '#EAECEF' }}>
-            {t('leverageInfo')}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('currentLeverage')}
-            </div>
-            <div className="text-lg font-mono" style={valueStyle}>
-              {riskInfo.current_leverage}x
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('effectiveLeverage')}
-            </div>
-            <div className="text-lg font-mono" style={{ color: '#F0B90B' }}>
-              {riskInfo.effective_leverage.toFixed(2)}x
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('recommendedLeverage')}
-            </div>
-            <div
-              className="text-lg font-mono"
-              style={{
-                color:
-                  riskInfo.current_leverage > riskInfo.recommended_leverage
-                    ? '#F6465D'
-                    : '#0ECB81',
-              }}
-            >
-              {riskInfo.recommended_leverage}x
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Position Info */}
-      <div className="p-4 rounded-lg" style={sectionStyle}>
-        <div className="flex items-center gap-2 mb-3">
-          <Activity className="w-4 h-4" style={{ color: '#F0B90B' }} />
-          <span className="font-medium text-sm" style={{ color: '#EAECEF' }}>
-            {t('positionInfo')}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-4 mb-3">
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('currentPosition')}
-            </div>
-            <div className="text-lg font-mono" style={valueStyle}>
-              {formatUSD(riskInfo.current_position)}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('maxPosition')}
-            </div>
-            <div className="text-lg font-mono" style={valueStyle}>
-              {formatUSD(riskInfo.max_position)}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('positionPercent')}
-            </div>
-            <div
-              className="text-lg font-mono"
-              style={{ color: getPositionColor(riskInfo.position_percent) }}
-            >
-              {riskInfo.position_percent.toFixed(1)}%
-            </div>
-          </div>
-        </div>
-        {/* Position Progress Bar */}
-        <div className="h-2 rounded-full overflow-hidden" style={{ background: '#1E2329' }}>
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{
-              width: `${Math.min(riskInfo.position_percent, 100)}%`,
-              background: getPositionColor(riskInfo.position_percent),
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Liquidation Info */}
-      <div className="p-4 rounded-lg" style={sectionStyle}>
-        <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle className="w-4 h-4" style={{ color: '#F6465D' }} />
-          <span className="font-medium text-sm" style={{ color: '#EAECEF' }}>
-            {t('liquidationInfo')}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('liquidationPrice')}
-            </div>
-            <div className="text-lg font-mono" style={{ color: '#F6465D' }}>
-              {riskInfo.liquidation_price > 0 ? formatPrice(riskInfo.liquidation_price) : '-'}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('liquidationDistance')}
-            </div>
-            <div className="text-lg font-mono" style={{ color: '#F6465D' }}>
-              {riskInfo.liquidation_distance.toFixed(1)}%
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Market State */}
-      <div className="p-4 rounded-lg" style={sectionStyle}>
-        <div className="flex items-center gap-2 mb-3">
+    <div className="rounded-lg" style={cardStyle}>
+      {/* Collapsible Header */}
+      <div
+        className="flex items-center justify-between p-3 cursor-pointer hover:bg-[#1E2329] transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
           <Shield className="w-4 h-4" style={{ color: '#F0B90B' }} />
           <span className="font-medium text-sm" style={{ color: '#EAECEF' }}>
-            {t('marketState')}
+            {t('gridRisk')}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-4 mb-3">
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('regimeLevel')}
-            </div>
-            <div
-              className="text-lg font-medium"
-              style={{ color: getRegimeColor(riskInfo.regime_level) }}
+        <div className="flex items-center gap-3">
+          {/* Summary badges when collapsed */}
+          <div className="flex items-center gap-2 text-xs">
+            <span
+              className="px-2 py-0.5 rounded"
+              style={{ background: getRegimeColor(riskInfo.regime_level) + '20', color: getRegimeColor(riskInfo.regime_level) }}
             >
               {t(riskInfo.regime_level || 'standard')}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('currentPrice')}
-            </div>
-            <div className="text-lg font-mono" style={valueStyle}>
-              {formatPrice(riskInfo.current_price)}
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('breakoutLevel')}
-            </div>
-            <div
-              className="text-lg font-medium"
-              style={{ color: getBreakoutColor(riskInfo.breakout_level) }}
+            </span>
+            <span className="font-mono" style={{ color: '#EAECEF' }}>
+              {riskInfo.effective_leverage.toFixed(1)}x
+            </span>
+            <span
+              className="font-mono"
+              style={{ color: getPositionColor(riskInfo.position_percent) }}
             >
-              {t(riskInfo.breakout_level || 'none')}
-            </div>
+              {riskInfo.position_percent.toFixed(0)}%
+            </span>
           </div>
-          <div>
-            <div className="text-xs" style={labelStyle}>
-              {t('breakoutDirection')}
-            </div>
-            <div
-              className="text-lg font-medium"
-              style={{
-                color: riskInfo.breakout_direction === 'up' ? '#0ECB81' : riskInfo.breakout_direction === 'down' ? '#F6465D' : '#848E9C',
-              }}
-            >
-              {riskInfo.breakout_direction ? t(riskInfo.breakout_direction) : '-'}
-            </div>
-          </div>
+          {expanded ? (
+            <ChevronUp className="w-4 h-4" style={{ color: '#848E9C' }} />
+          ) : (
+            <ChevronDown className="w-4 h-4" style={{ color: '#848E9C' }} />
+          )}
         </div>
       </div>
 
-      {/* Box State */}
-      <div className="p-4 rounded-lg" style={sectionStyle}>
-        <div className="flex items-center gap-2 mb-3">
-          <Box className="w-4 h-4" style={{ color: '#F0B90B' }} />
-          <span className="font-medium text-sm" style={{ color: '#EAECEF' }}>
-            {t('boxState')}
-          </span>
+      {/* Expanded Content */}
+      {expanded && (
+        <div className="px-3 pb-3 space-y-3">
+          {/* Row 1: Leverage & Position */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Leverage */}
+            <div className="p-2 rounded" style={{ background: '#1E2329' }}>
+              <div className="flex items-center gap-1 mb-2">
+                <TrendingUp className="w-3 h-3" style={{ color: '#F0B90B' }} />
+                <span className="text-xs font-medium" style={{ color: '#848E9C' }}>{t('leverageInfo')}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('currentLeverage')}</div>
+                  <div className="font-mono" style={{ color: '#EAECEF' }}>{riskInfo.current_leverage}x</div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('effectiveLeverage')}</div>
+                  <div className="font-mono" style={{ color: '#F0B90B' }}>{riskInfo.effective_leverage.toFixed(2)}x</div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('recommendedLeverage')}</div>
+                  <div
+                    className="font-mono"
+                    style={{ color: riskInfo.current_leverage > riskInfo.recommended_leverage ? '#F6465D' : '#0ECB81' }}
+                  >
+                    {riskInfo.recommended_leverage}x
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Position */}
+            <div className="p-2 rounded" style={{ background: '#1E2329' }}>
+              <div className="flex items-center gap-1 mb-2">
+                <Activity className="w-3 h-3" style={{ color: '#F0B90B' }} />
+                <span className="text-xs font-medium" style={{ color: '#848E9C' }}>{t('positionInfo')}</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-xs">
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('currentPosition')}</div>
+                  <div className="font-mono" style={{ color: '#EAECEF' }}>{formatUSD(riskInfo.current_position)}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('maxPosition')}</div>
+                  <div className="font-mono" style={{ color: '#EAECEF' }}>{formatUSD(riskInfo.max_position)}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('positionPercent')}</div>
+                  <div className="font-mono" style={{ color: getPositionColor(riskInfo.position_percent) }}>
+                    {riskInfo.position_percent.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+              {/* Mini progress bar */}
+              <div className="h-1 mt-2 rounded-full overflow-hidden" style={{ background: '#2B3139' }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${Math.min(riskInfo.position_percent, 100)}%`, background: getPositionColor(riskInfo.position_percent) }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Market State & Liquidation */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Market State */}
+            <div className="p-2 rounded" style={{ background: '#1E2329' }}>
+              <div className="flex items-center gap-1 mb-2">
+                <Shield className="w-3 h-3" style={{ color: '#F0B90B' }} />
+                <span className="text-xs font-medium" style={{ color: '#848E9C' }}>{t('marketState')}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('regimeLevel')}</div>
+                  <div className="font-medium" style={{ color: getRegimeColor(riskInfo.regime_level) }}>
+                    {t(riskInfo.regime_level || 'standard')}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('currentPrice')}</div>
+                  <div className="font-mono" style={{ color: '#EAECEF' }}>{formatPrice(riskInfo.current_price)}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('breakoutLevel')}</div>
+                  <div className="font-medium" style={{ color: getBreakoutColor(riskInfo.breakout_level) }}>
+                    {t(riskInfo.breakout_level || 'none')}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('breakoutDirection')}</div>
+                  <div
+                    className="font-medium"
+                    style={{ color: riskInfo.breakout_direction === 'up' ? '#0ECB81' : riskInfo.breakout_direction === 'down' ? '#F6465D' : '#848E9C' }}
+                  >
+                    {riskInfo.breakout_direction ? t(riskInfo.breakout_direction) : '-'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Liquidation */}
+            <div className="p-2 rounded" style={{ background: '#1E2329' }}>
+              <div className="flex items-center gap-1 mb-2">
+                <AlertTriangle className="w-3 h-3" style={{ color: '#F6465D' }} />
+                <span className="text-xs font-medium" style={{ color: '#848E9C' }}>{t('liquidationInfo')}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('liquidationPrice')}</div>
+                  <div className="font-mono" style={{ color: '#F6465D' }}>
+                    {riskInfo.liquidation_price > 0 ? formatPrice(riskInfo.liquidation_price) : '-'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: '#5E6673' }}>{t('liquidationDistance')}</div>
+                  <div className="font-mono" style={{ color: '#F6465D' }}>
+                    {riskInfo.liquidation_distance > 0 ? `${riskInfo.liquidation_distance.toFixed(1)}%` : '-'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Box State */}
+          <div className="p-2 rounded" style={{ background: '#1E2329' }}>
+            <div className="flex items-center gap-1 mb-2">
+              <Box className="w-3 h-3" style={{ color: '#F0B90B' }} />
+              <span className="text-xs font-medium" style={{ color: '#848E9C' }}>{t('boxState')}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="flex justify-between">
+                <span style={{ color: '#5E6673' }}>{t('shortBox')}</span>
+                <span className="font-mono" style={{ color: '#EAECEF' }}>
+                  {formatPrice(riskInfo.short_box_lower)} - {formatPrice(riskInfo.short_box_upper)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: '#5E6673' }}>{t('midBox')}</span>
+                <span className="font-mono" style={{ color: '#EAECEF' }}>
+                  {formatPrice(riskInfo.mid_box_lower)} - {formatPrice(riskInfo.mid_box_upper)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span style={{ color: '#5E6673' }}>{t('longBox')}</span>
+                <span className="font-mono" style={{ color: '#EAECEF' }}>
+                  {formatPrice(riskInfo.long_box_lower)} - {formatPrice(riskInfo.long_box_upper)}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="space-y-3">
-          {/* Short Box */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={labelStyle}>
-              {t('shortBox')}
-            </span>
-            <span className="text-sm font-mono" style={valueStyle}>
-              {formatPrice(riskInfo.short_box_lower)} - {formatPrice(riskInfo.short_box_upper)}
-            </span>
-          </div>
-          {/* Mid Box */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={labelStyle}>
-              {t('midBox')}
-            </span>
-            <span className="text-sm font-mono" style={valueStyle}>
-              {formatPrice(riskInfo.mid_box_lower)} - {formatPrice(riskInfo.mid_box_upper)}
-            </span>
-          </div>
-          {/* Long Box */}
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={labelStyle}>
-              {t('longBox')}
-            </span>
-            <span className="text-sm font-mono" style={valueStyle}>
-              {formatPrice(riskInfo.long_box_lower)} - {formatPrice(riskInfo.long_box_upper)}
-            </span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

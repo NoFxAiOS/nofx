@@ -70,6 +70,15 @@ func formatContextData(ctx *Context, lang Language) string {
 		}
 	}
 
+	// 5.5. 当前挂单
+	if len(ctx.PendingOrders) > 0 {
+		if lang == LangChinese {
+			sb.WriteString(formatPendingOrdersZH(ctx.PendingOrders))
+		} else {
+			sb.WriteString(formatPendingOrdersEN(ctx.PendingOrders))
+		}
+	}
+
 	// 5. 当前持仓
 	if len(ctx.Positions) > 0 {
 		if lang == LangChinese {
@@ -632,4 +641,60 @@ func getOIInterpretationEN(oiChange, priceChange string) string {
 	} else {
 		return OIInterpretation.OIDown_PriceDown.EN
 	}
+}
+
+// formatPendingOrdersZH 格式化当前挂单（中文）
+func formatPendingOrdersZH(orders []PendingOrder) string {
+	var sb strings.Builder
+	sb.WriteString("## 当前挂单\n\n")
+
+	for i, order := range orders {
+		sb.WriteString(fmt.Sprintf("%d. %s %s | ", i+1, order.Symbol, order.Side))
+		sb.WriteString(fmt.Sprintf("类型: %s | ", order.Type))
+
+		if order.Type == "LIMIT" {
+			sb.WriteString(fmt.Sprintf("价格: %.4f | ", order.Price))
+		} else if order.Type == "STOP_MARKET" || order.Type == "TAKE_PROFIT_MARKET" {
+			sb.WriteString(fmt.Sprintf("触发价: %.4f | ", order.StopPrice))
+		}
+
+		sb.WriteString(fmt.Sprintf("数量: %.4f | ", order.Quantity))
+		sb.WriteString(fmt.Sprintf("状态: %s | ", order.Status))
+		sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
+
+		if order.PositionSide != "" {
+			sb.WriteString(fmt.Sprintf("   持仓方向: %s\n", order.PositionSide))
+		}
+	}
+
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+// formatPendingOrdersEN 格式化当前挂单（英文）
+func formatPendingOrdersEN(orders []PendingOrder) string {
+	var sb strings.Builder
+	sb.WriteString("## Current Pending Orders\n\n")
+
+	for i, order := range orders {
+		sb.WriteString(fmt.Sprintf("%d. %s %s | ", i+1, order.Symbol, order.Side))
+		sb.WriteString(fmt.Sprintf("Type: %s | ", order.Type))
+
+		if order.Type == "LIMIT" {
+			sb.WriteString(fmt.Sprintf("Price: %.4f | ", order.Price))
+		} else if order.Type == "STOP_MARKET" || order.Type == "TAKE_PROFIT_MARKET" {
+			sb.WriteString(fmt.Sprintf("Trigger Price: %.4f | ", order.StopPrice))
+		}
+
+		sb.WriteString(fmt.Sprintf("Quantity: %.4f | ", order.Quantity))
+		sb.WriteString(fmt.Sprintf("Status: %s | ", order.Status))
+		sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
+
+		if order.PositionSide != "" {
+			sb.WriteString(fmt.Sprintf("   Position Side: %s\n", order.PositionSide))
+		}
+	}
+
+	sb.WriteString("\n")
+	return sb.String()
 }

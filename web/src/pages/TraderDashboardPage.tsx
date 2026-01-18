@@ -7,8 +7,12 @@ import { PositionHistory } from '../components/PositionHistory'
 import { PunkAvatar, getTraderAvatar } from '../components/PunkAvatar'
 import { confirmToast, notify } from '../lib/notify'
 import { t, type Language } from '../i18n/translations'
-import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { LogOut, Loader2, Eye, EyeOff, Copy, Check, Bell } from 'lucide-react'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { NotificationConfigModal } from '../components/NotificationConfigModal'
+import PendingOrdersPanel from '../components/PendingOrdersPanel'
+import MultiStopLossPanel from '../components/MultiStopLossPanel'
+import MultiTakeProfitPanel from '../components/MultiTakeProfitPanel'
 import type {
     SystemStatus,
     AccountInfo,
@@ -133,6 +137,10 @@ export function TraderDashboardPage({
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+    const [showNotificationModal, setShowNotificationModal] = useState<boolean>(false)
+    const [pendingOrders, setPendingOrders] = useState<any[]>([])
+    const [stopLossTiers, setStopLossTiers] = useState<any[]>([])
+    const [takeProfitTiers, setTakeProfitTiers] = useState<any[]>([])
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -150,6 +158,49 @@ export function TraderDashboardPage({
     useEffect(() => {
         setPositionsCurrentPage(1)
     }, [selectedTraderId, positionsPageSize])
+
+    // Load pending orders, stop loss tiers, and take profit tiers when trader or symbol changes
+    useEffect(() => {
+        if (!selectedTraderId || !selectedTrader) return
+
+        const loadOrderData = async () => {
+            try {
+                // If there's a selected chart symbol, fetch order data for that symbol
+                if (selectedChartSymbol) {
+                    // Load pending orders
+                    const ordersResponse = await fetch(
+                        `/api/open-orders?trader_id=${selectedTraderId}&symbol=${selectedChartSymbol}`
+                    )
+                    if (ordersResponse.ok) {
+                        const data = await ordersResponse.json()
+                        setPendingOrders(data || [])
+                    }
+
+                    // Load stop loss tiers
+                    const slResponse = await fetch(
+                        `/api/stop-orders/sl?trader_id=${selectedTraderId}&symbol=${selectedChartSymbol}`
+                    )
+                    if (slResponse.ok) {
+                        const data = await slResponse.json()
+                        setStopLossTiers(data || [])
+                    }
+
+                    // Load take profit tiers
+                    const tpResponse = await fetch(
+                        `/api/stop-orders/tp?trader_id=${selectedTraderId}&symbol=${selectedChartSymbol}`
+                    )
+                    if (tpResponse.ok) {
+                        const data = await tpResponse.json()
+                        setTakeProfitTiers(data || [])
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load order data:', err)
+            }
+        }
+
+        loadOrderData()
+    }, [selectedTraderId, selectedChartSymbol, selectedTrader])
 
     // Get current exchange info for perp-dex wallet display
     const currentExchange = exchanges?.find(
@@ -372,6 +423,15 @@ export function TraderDashboardPage({
                         </h2>
 
                         <div className="flex items-center gap-4">
+                            {/* Notification Settings Button */}
+                            <button
+                                onClick={() => setShowNotificationModal(true)}
+                                className="p-2 rounded-lg nofx-glass border border-white/5 hover:border-nofx-gold/30 transition-all hover:scale-105 active:scale-95 group"
+                                title="微信通知设置"
+                            >
+                                <Bell className="w-4 h-4 text-nofx-text-muted group-hover:text-nofx-gold transition-colors" />
+                            </button>
+
                             {/* Trader Selector */}
                             {traders && traders.length > 0 && (
                                 <div className="flex items-center gap-2 nofx-glass px-1 py-1 rounded-lg border border-white/5">
@@ -783,6 +843,91 @@ export function TraderDashboardPage({
                     </div>
                 </div>
 
+                {/* Pending Orders Panel */}
+                {selectedTraderId && (
+                    <div
+                        className="rounded-lg p-6 animate-slide-in transition-all duration-200"
+                        style={{
+                            animationDelay: '0.20s',
+                            background: 'linear-gradient(135deg, #1E2329 0%, #181C21 100%)',
+                            border: '1px solid #2B3139',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                        }}
+                    >
+                        <PendingOrdersPanel
+                            traderID={selectedTraderId}
+                            orders={pendingOrders}
+                            onRefresh={() => {
+                                if (selectedTraderId) {
+                                    mutate(`/api/pending-orders?trader_id=${selectedTraderId}`)
+                                }
+                            }}
+                        />
+                    </div>
+                )}
+
+                {/* Multi Stop Loss Panel */}
+                {selectedTraderId && selectedTrader && selectedChartSymbol && positions?.length ? (
+                    <div
+                        className="rounded-lg p-6 animate-slide-in transition-all duration-200"
+                        style={{
+                            animationDelay: '0.22s',
+                            background: 'linear-gradient(135deg, #1E2329 0%, #181C21 100%)',
+                            border: '1px solid #2B3139',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                        }}
+                    >
+                        <MultiStopLossPanel
+                            traderID={selectedTraderId}
+                            symbol={selectedChartSymbol}
+                            positionSide={positions.find(p => p.symbol === selectedChartSymbol)?.side.toUpperCase() || "LONG"}
+                            currentQuantity={positions.find(p => p.symbol === selectedChartSymbol)?.quantity || 0}
+                            tiers={stopLossTiers}
+                            onUpdate={() => {
+                                if (selectedTraderId) {
+                                    mutate(`/api/stop-orders?trader_id=${selectedTraderId}`)
+                                    // Reload SL tiers
+                                    fetch(`/api/stop-orders/sl?trader_id=${selectedTraderId}&symbol=${selectedChartSymbol}`)
+                                        .then(r => r.ok && r.json())
+                                        .then(data => setStopLossTiers(data || []))
+                                        .catch(e => console.error('Failed to reload SL tiers:', e))
+                                }
+                            }}
+                        />
+                    </div>
+                ) : null}
+
+                {/* Multi Take Profit Panel */}
+                {selectedTraderId && selectedTrader && selectedChartSymbol && positions?.length ? (
+                    <div
+                        className="rounded-lg p-6 animate-slide-in transition-all duration-200"
+                        style={{
+                            animationDelay: '0.24s',
+                            background: 'linear-gradient(135deg, #1E2329 0%, #181C21 100%)',
+                            border: '1px solid #2B3139',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                        }}
+                    >
+                        <MultiTakeProfitPanel
+                            traderID={selectedTraderId}
+                            symbol={selectedChartSymbol}
+                            positionSide={positions.find(p => p.symbol === selectedChartSymbol)?.side.toUpperCase() || "LONG"}
+                            currentQuantity={positions.find(p => p.symbol === selectedChartSymbol)?.quantity || 0}
+                            tiers={takeProfitTiers}
+                            onUpdate={() => {
+                                if (selectedTraderId) {
+                                    mutate(`/api/stop-orders?trader_id=${selectedTraderId}`)
+                                    // Reload TP tiers
+                                    fetch(`/api/stop-orders/tp?trader_id=${selectedTraderId}&symbol=${selectedChartSymbol}`)
+                                        .then(r => r.ok && r.json())
+                                        .then(data => setTakeProfitTiers(data || []))
+                                        .catch(e => console.error('Failed to reload TP tiers:', e))
+                                }
+                            }}
+                        />
+                    </div>
+                ) : null}
+
                 {/* Position History Section */}
                 {selectedTraderId && (
                     <div
@@ -799,6 +944,13 @@ export function TraderDashboardPage({
                     </div>
                 )}
             </div>
+
+            {/* Notification Config Modal */}
+            <NotificationConfigModal
+                isOpen={showNotificationModal}
+                onClose={() => setShowNotificationModal(false)}
+                traderId={selectedTrader.trader_id}
+            />
         </DeepVoidBackground>
     )
 }

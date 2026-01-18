@@ -42,8 +42,11 @@ import { DeepVoidBackground } from '../components/DeepVoidBackground'
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
 export function StrategyStudioPage() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { language } = useLanguage()
+
+  // Only haotianda6@gmail.com can edit
+  const isAuthorized = user?.email === 'haotianda6@gmail.com'
 
   const [strategies, setStrategies] = useState<Strategy[]>([])
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null)
@@ -543,7 +546,7 @@ export function StrategyStudioPage() {
         <CoinSourceEditor
           config={editingConfig.coin_source}
           onChange={(coinSource) => updateConfig('coin_source', coinSource)}
-          disabled={selectedStrategy?.is_default}
+          disabled={selectedStrategy?.is_default || !isAuthorized}
           language={language}
         />
       ),
@@ -557,7 +560,7 @@ export function StrategyStudioPage() {
         <IndicatorEditor
           config={editingConfig.indicators}
           onChange={(indicators) => updateConfig('indicators', indicators)}
-          disabled={selectedStrategy?.is_default}
+          disabled={selectedStrategy?.is_default || !isAuthorized}
           language={language}
         />
       ),
@@ -571,7 +574,7 @@ export function StrategyStudioPage() {
         <RiskControlEditor
           config={editingConfig.risk_control}
           onChange={(riskControl) => updateConfig('risk_control', riskControl)}
-          disabled={selectedStrategy?.is_default}
+          disabled={selectedStrategy?.is_default || !isAuthorized}
           language={language}
         />
       ),
@@ -585,7 +588,7 @@ export function StrategyStudioPage() {
         <PromptSectionsEditor
           config={editingConfig.prompt_sections}
           onChange={(promptSections) => updateConfig('prompt_sections', promptSections)}
-          disabled={selectedStrategy?.is_default}
+          disabled={selectedStrategy?.is_default || !isAuthorized}
           language={language}
         />
       ),
@@ -603,7 +606,7 @@ export function StrategyStudioPage() {
           <textarea
             value={editingConfig.custom_prompt || ''}
             onChange={(e) => updateConfig('custom_prompt', e.target.value)}
-            disabled={selectedStrategy?.is_default}
+            disabled={selectedStrategy?.is_default || !isAuthorized}
             placeholder={language === 'zh' ? '输入自定义提示词...' : 'Enter custom prompt...'}
             className="w-full h-32 px-3 py-2 rounded-lg resize-none font-mono text-xs"
             style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
@@ -628,7 +631,7 @@ export function StrategyStudioPage() {
             setSelectedStrategy({ ...selectedStrategy, config_visible: value })
             setHasChanges(true)
           }}
-          disabled={selectedStrategy?.is_default}
+          disabled={selectedStrategy?.is_default || !isAuthorized}
           language={language}
         />
       ),
@@ -669,18 +672,20 @@ export function StrategyStudioPage() {
               <span className="text-xs font-medium text-nofx-text-muted">{t('strategies')}</span>
               <div className="flex items-center gap-1">
                 {/* Import button with hidden file input */}
-                <label className="p-1 rounded hover:bg-white/10 transition-colors cursor-pointer text-nofx-text-muted hover:text-white" title={language === 'zh' ? '导入策略' : 'Import Strategy'}>
+                <label className={`p-1 rounded transition-colors text-nofx-text-muted ${!isAuthorized ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 cursor-pointer hover:text-white'}`} title={language === 'zh' ? '导入策略' : 'Import Strategy'}>
                   <Upload className="w-4 h-4" />
                   <input
                     type="file"
                     accept=".json"
                     onChange={handleImportStrategy}
                     className="hidden"
+                    disabled={!isAuthorized}
                   />
                 </label>
                 <button
                   onClick={handleCreateStrategy}
-                  className="p-1 rounded hover:bg-white/10 transition-colors text-nofx-gold"
+                  disabled={!isAuthorized}
+                  className={`p-1 rounded transition-colors text-nofx-gold ${!isAuthorized ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10'}`}
                   title={language === 'zh' ? '新建策略' : 'New Strategy'}
                 >
                   <Plus className="w-4 h-4" />
@@ -708,7 +713,8 @@ export function StrategyStudioPage() {
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleExportStrategy(strategy) }}
-                        className="p-1 rounded hover:bg-white/10 text-nofx-text-muted hover:text-white"
+                        disabled={!isAuthorized}
+                        className={`p-1 rounded text-nofx-text-muted ${!isAuthorized ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
                         title={language === 'zh' ? '导出' : 'Export'}
                       >
                         <Download className="w-3 h-3" />
@@ -717,14 +723,16 @@ export function StrategyStudioPage() {
                         <>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDuplicateStrategy(strategy.id) }}
-                            className="p-1 rounded hover:bg-white/10 text-nofx-text-muted hover:text-white"
+                            disabled={!isAuthorized}
+                            className={`p-1 rounded text-nofx-text-muted ${!isAuthorized ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
                             title={language === 'zh' ? '复制' : 'Duplicate'}
                           >
                             <Copy className="w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteStrategy(strategy.id) }}
-                            className="p-1 rounded hover:bg-nofx-danger/20 text-nofx-danger"
+                            disabled={!isAuthorized}
+                            className={`p-1 rounded text-nofx-danger ${!isAuthorized ? 'opacity-50 cursor-not-allowed' : 'hover:bg-nofx-danger/20'}`}
                             title={language === 'zh' ? '删除' : 'Delete'}
                           >
                             <Trash2 className="w-3 h-3" />
@@ -771,7 +779,7 @@ export function StrategyStudioPage() {
                       setSelectedStrategy({ ...selectedStrategy, name: e.target.value })
                       setHasChanges(true)
                     }}
-                    disabled={selectedStrategy.is_default}
+                    disabled={selectedStrategy.is_default || !isAuthorized}
                     className="text-lg font-bold bg-transparent border-none outline-none w-full text-nofx-text placeholder-nofx-text-muted"
                   />
                   <input
@@ -781,7 +789,7 @@ export function StrategyStudioPage() {
                       setSelectedStrategy({ ...selectedStrategy, description: e.target.value })
                       setHasChanges(true)
                     }}
-                    disabled={selectedStrategy.is_default}
+                    disabled={selectedStrategy.is_default || !isAuthorized}
                     placeholder={language === 'zh' ? '添加策略简介...' : 'Add strategy description...'}
                     className="text-xs bg-transparent border-none outline-none w-full text-nofx-text-muted placeholder-nofx-text-muted/50 mt-1"
                   />
@@ -793,7 +801,8 @@ export function StrategyStudioPage() {
                   {!selectedStrategy.is_active && (
                     <button
                       onClick={() => handleActivateStrategy(selectedStrategy.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors bg-nofx-success/10 border border-nofx-success/30 text-nofx-success hover:bg-nofx-success/20"
+                      disabled={!isAuthorized}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs transition-colors border border-nofx-success/30 text-nofx-success ${!isAuthorized ? 'opacity-50 cursor-not-allowed bg-nofx-success/5' : 'bg-nofx-success/10 hover:bg-nofx-success/20'}`}
                     >
                       <Check className="w-3 h-3" />
                       {t('activate')}
@@ -802,9 +811,9 @@ export function StrategyStudioPage() {
                   {!selectedStrategy.is_default && (
                     <button
                       onClick={handleSaveStrategy}
-                      disabled={isSaving || !hasChanges}
+                      disabled={isSaving || !hasChanges || !isAuthorized}
                       className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50
-                        ${hasChanges ? 'bg-nofx-gold text-black hover:bg-yellow-500' : 'bg-nofx-bg-lighter text-nofx-text-muted cursor-not-allowed'}`}
+                        ${hasChanges && isAuthorized ? 'bg-nofx-gold text-black hover:bg-yellow-500' : 'bg-nofx-bg-lighter text-nofx-text-muted cursor-not-allowed'}`}
                     >
                       <Save className="w-3 h-3" />
                       {isSaving ? t('saving') : t('save')}

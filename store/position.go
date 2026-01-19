@@ -158,16 +158,19 @@ func (s *PositionStore) UpdatePositionQuantityAndPrice(id int64, addQty float64,
 	newEntryPrice := (pos.EntryPrice*pos.Quantity + addPrice*addQty) / newQty
 	newEntryPrice = math.Round(newEntryPrice*100) / 100
 	newFee := pos.Fee + addFee
+	nowMs := time.Now().UTC().UnixMilli()
 
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"quantity":       newQty,
 		"entry_quantity": newEntryQty,
 		"entry_price":    newEntryPrice,
 		"fee":            newFee,
+		"updated_at":     nowMs,
 	}).Error
 }
 
 // ReducePositionQuantity reduces position quantity for partial close
+// If quantity reaches 0 (or near 0), automatically closes the position
 func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exitPrice float64, addFee float64, addPnL float64) error {
 	var pos TraderPosition
 	if err := s.db.First(&pos, id).Error; err != nil {
@@ -187,19 +190,40 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 		newExitPrice = math.Round(newExitPrice*100) / 100
 	}
 
+	nowMs := time.Now().UTC().UnixMilli()
+
+	// Check if position should be fully closed (quantity reduced to ~0)
+	const QUANTITY_TOLERANCE = 0.0001
+	if newQty <= QUANTITY_TOLERANCE {
+		// Auto-close: set status to CLOSED
+		return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"quantity":     0,
+			"fee":          newFee,
+			"exit_price":   newExitPrice,
+			"realized_pnl": newPnL,
+			"status":       "CLOSED",
+			"exit_time":    nowMs,
+			"close_reason": "sync",
+			"updated_at":   nowMs,
+		}).Error
+	}
+
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"quantity":     newQty,
 		"fee":          newFee,
 		"exit_price":   newExitPrice,
 		"realized_pnl": newPnL,
+		"updated_at":   nowMs,
 	}).Error
 }
 
 // UpdatePositionExchangeInfo updates exchange_id and exchange_type
 func (s *PositionStore) UpdatePositionExchangeInfo(id int64, exchangeID, exchangeType string) error {
+	nowMs := time.Now().UTC().UnixMilli()
 	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"exchange_id":   exchangeID,
 		"exchange_type": exchangeType,
+		"updated_at":    nowMs,
 	}).Error
 }
 

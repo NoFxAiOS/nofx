@@ -47,7 +47,7 @@ export function GridConfigEditor({
       totalInvestment: { zh: '投资金额 (USDT)', en: 'Investment (USDT)' },
       totalInvestmentDesc: { zh: '网格策略的总投资金额', en: 'Total investment for grid strategy' },
       leverage: { zh: '杠杆倍数', en: 'Leverage' },
-      leverageDesc: { zh: '交易使用的杠杆倍数 (1-20)', en: 'Leverage for trading (1-20)' },
+      leverageDesc: { zh: '交易使用的杠杆倍数 (1-5)', en: 'Leverage for trading (1-5)' },
 
       // Grid parameters
       gridCount: { zh: '网格数量', en: 'Grid Count' },
@@ -171,7 +171,7 @@ export function GridConfigEditor({
               onChange={(e) => updateField('leverage', parseInt(e.target.value) || 5)}
               disabled={disabled}
               min={1}
-              max={20}
+              max={5}
               className="w-full px-3 py-2 rounded"
               style={inputStyle}
             />

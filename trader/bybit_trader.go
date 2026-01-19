@@ -1105,3 +1105,159 @@ func (t *BybitTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 
 	return result, nil
 }
+
+// PlaceLimitOrder places a limit order for grid trading
+// Implements GridTrader interface
+func (t *BybitTrader) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	// Format quantity
+	qtyStr, err := t.FormatQuantity(req.Symbol, req.Quantity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format quantity: %w", err)
+	}
+
+	// Format price
+	priceStr := fmt.Sprintf("%.8f", req.Price)
+
+	// Set leverage if specified
+	if req.Leverage > 0 {
+		if err := t.SetLeverage(req.Symbol, req.Leverage); err != nil {
+			logger.Warnf("[Bybit] Failed to set leverage: %v", err)
+		}
+	}
+
+	// Determine side
+	side := "Buy"
+	if req.Side == "SELL" {
+		side = "Sell"
+	}
+
+	params := map[string]interface{}{
+		"category":    "linear",
+		"symbol":      req.Symbol,
+		"side":        side,
+		"orderType":   "Limit",
+		"qty":         qtyStr,
+		"price":       priceStr,
+		"timeInForce": "GTC", // Good Till Cancel
+		"positionIdx": 0,     // One-way position mode
+	}
+
+	// Add reduce only if specified
+	if req.ReduceOnly {
+		params["reduceOnly"] = true
+	}
+
+	logger.Infof("[Bybit] PlaceLimitOrder: %s %s @ %s, qty=%s", req.Symbol, side, priceStr, qtyStr)
+
+	result, err := t.client.NewUtaBybitServiceWithParams(params).PlaceOrder(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
+	}
+
+	// Parse result
+	orderID := ""
+	if result.RetCode == 0 {
+		if resultData, ok := result.Result.(map[string]interface{}); ok {
+			if id, ok := resultData["orderId"].(string); ok {
+				orderID = id
+			}
+		}
+	} else {
+		return nil, fmt.Errorf("Bybit order failed: %s", result.RetMsg)
+	}
+
+	logger.Infof("✓ [Bybit] Limit order placed: %s %s @ %s, qty=%s, orderID=%s",
+		req.Symbol, side, priceStr, qtyStr, orderID)
+
+	return &LimitOrderResult{
+		OrderID:      orderID,
+		ClientID:     req.ClientID,
+		Symbol:       req.Symbol,
+		Side:         req.Side,
+		PositionSide: req.PositionSide,
+		Price:        req.Price,
+		Quantity:     req.Quantity,
+		Status:       "NEW",
+	}, nil
+}
+
+// CancelOrder cancels a specific order by ID
+// Implements GridTrader interface
+func (t *BybitTrader) CancelOrder(symbol, orderID string) error {
+	params := map[string]interface{}{
+		"category": "linear",
+		"symbol":   symbol,
+		"orderId":  orderID,
+	}
+
+	result, err := t.client.NewUtaBybitServiceWithParams(params).CancelOrder(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to cancel order: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return fmt.Errorf("Bybit cancel order failed: %s", result.RetMsg)
+	}
+
+	logger.Infof("✓ [Bybit] Order cancelled: %s %s", symbol, orderID)
+	return nil
+}
+
+// GetOrderBook gets the order book for a symbol
+// Implements GridTrader interface
+func (t *BybitTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]float64, err error) {
+	if depth <= 0 {
+		depth = 25
+	}
+
+	// Use HTTP request directly since the SDK doesn't expose GetOrderbook
+	url := fmt.Sprintf("https://api.bybit.com/v5/market/orderbook?category=linear&symbol=%s&limit=%d", symbol, depth)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get order book: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			S string     `json:"s"` // symbol
+			B [][]string `json:"b"` // bids [[price, size], ...]
+			A [][]string `json:"a"` // asks [[price, size], ...]
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse order book: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, nil, fmt.Errorf("Bybit get orderbook failed: %s", result.RetMsg)
+	}
+
+	// Parse bids
+	for _, b := range result.Result.B {
+		if len(b) >= 2 {
+			price, _ := strconv.ParseFloat(b[0], 64)
+			qty, _ := strconv.ParseFloat(b[1], 64)
+			bids = append(bids, []float64{price, qty})
+		}
+	}
+
+	// Parse asks
+	for _, a := range result.Result.A {
+		if len(a) >= 2 {
+			price, _ := strconv.ParseFloat(a[0], 64)
+			qty, _ := strconv.ParseFloat(a[1], 64)
+			asks = append(asks, []float64{price, qty})
+		}
+	}
+
+	return bids, asks, nil
+}

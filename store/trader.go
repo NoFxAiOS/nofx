@@ -248,3 +248,23 @@ func (s *TraderStore) ListAll() ([]*Trader, error) {
 	}
 	return traders, nil
 }
+
+// ListByExchangeID gets traders that use a specific exchange
+func (s *TraderStore) ListByExchangeID(userID, exchangeID string) ([]*Trader, error) {
+	var traders []*Trader
+	err := s.db.Where("user_id = ? AND exchange_id = ?", userID, exchangeID).Find(&traders).Error
+	if err != nil {
+		return nil, err
+	}
+	return traders, nil
+}
+
+// ListByAIModelID gets traders that use a specific AI model
+func (s *TraderStore) ListByAIModelID(userID, aiModelID string) ([]*Trader, error) {
+	var traders []*Trader
+	err := s.db.Where("user_id = ? AND ai_model_id = ?", userID, aiModelID).Find(&traders).Error
+	if err != nil {
+		return nil, err
+	}
+	return traders, nil
+}

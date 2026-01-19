@@ -187,3 +187,42 @@ var config = Config{
 	},
 	UpdateInterval: 60, // 1 minute
 }
+
+// BoxData represents multi-period Donchian channel (box) data
+type BoxData struct {
+	// Short-term box (72 1h candles = 3 days)
+	ShortUpper float64 `json:"short_upper"`
+	ShortLower float64 `json:"short_lower"`
+
+	// Mid-term box (240 1h candles = 10 days)
+	MidUpper float64 `json:"mid_upper"`
+	MidLower float64 `json:"mid_lower"`
+
+	// Long-term box (500 1h candles = ~21 days)
+	LongUpper float64 `json:"long_upper"`
+	LongLower float64 `json:"long_lower"`
+
+	// Current price position relative to boxes
+	CurrentPrice float64 `json:"current_price"`
+}
+
+// RegimeLevel represents the ranging classification level
+type RegimeLevel string
+
+const (
+	RegimeLevelNarrow   RegimeLevel = "narrow"   // 窄幅震荡
+	RegimeLevelStandard RegimeLevel = "standard" // 标准震荡
+	RegimeLevelWide     RegimeLevel = "wide"     // 宽幅震荡
+	RegimeLevelVolatile RegimeLevel = "volatile" // 剧烈震荡
+	RegimeLevelTrending RegimeLevel = "trending" // 趋势
+)
+
+// BreakoutLevel represents which box level has been broken
+type BreakoutLevel string
+
+const (
+	BreakoutNone  BreakoutLevel = "none"
+	BreakoutShort BreakoutLevel = "short"
+	BreakoutMid   BreakoutLevel = "mid"
+	BreakoutLong  BreakoutLevel = "long"
+)

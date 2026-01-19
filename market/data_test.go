@@ -500,3 +500,86 @@ func TestIsStaleData_EmptyKlines(t *testing.T) {
 		t.Error("Expected false for empty klines, got true")
 	}
 }
+
+func TestCalculateDonchian(t *testing.T) {
+	// Create test klines with known high/low values
+	klines := []Kline{
+		{High: 100, Low: 90},
+		{High: 105, Low: 88},
+		{High: 102, Low: 92},
+		{High: 108, Low: 85},
+		{High: 103, Low: 91},
+	}
+
+	upper, lower := ExportCalculateDonchian(klines, 5)
+
+	if upper != 108 {
+		t.Errorf("Expected upper = 108, got %v", upper)
+	}
+	if lower != 85 {
+		t.Errorf("Expected lower = 85, got %v", lower)
+	}
+}
+
+func TestCalculateDonchian_PartialPeriod(t *testing.T) {
+	klines := []Kline{
+		{High: 100, Low: 90},
+		{High: 105, Low: 88},
+	}
+
+	upper, lower := ExportCalculateDonchian(klines, 10)
+
+	// Should use all available klines when period > len(klines)
+	if upper != 105 {
+		t.Errorf("Expected upper = 105, got %v", upper)
+	}
+	if lower != 88 {
+		t.Errorf("Expected lower = 88, got %v", lower)
+	}
+}
+
+func TestCalculateDonchian_InvalidPeriod(t *testing.T) {
+	klines := []Kline{
+		{High: 100, Low: 90},
+	}
+
+	// Zero period should return (0, 0)
+	upper, lower := ExportCalculateDonchian(klines, 0)
+	if upper != 0 || lower != 0 {
+		t.Errorf("Expected (0, 0) for zero period, got (%v, %v)", upper, lower)
+	}
+
+	// Negative period should return (0, 0)
+	upper, lower = ExportCalculateDonchian(klines, -1)
+	if upper != 0 || lower != 0 {
+		t.Errorf("Expected (0, 0) for negative period, got (%v, %v)", upper, lower)
+	}
+}
+
+func TestCalculateBoxData(t *testing.T) {
+	// Create synthetic kline data
+	klines := make([]Kline, 500)
+	for i := 0; i < 500; i++ {
+		basePrice := 100.0
+		klines[i] = Kline{
+			High:  basePrice + float64(i%10),
+			Low:   basePrice - float64(i%10),
+			Close: basePrice,
+		}
+	}
+
+	box := ExportCalculateBoxData(klines, 100.0)
+
+	if box.ShortUpper == 0 || box.ShortLower == 0 {
+		t.Error("Short box should not be zero")
+	}
+	if box.MidUpper == 0 || box.MidLower == 0 {
+		t.Error("Mid box should not be zero")
+	}
+	if box.LongUpper == 0 || box.LongLower == 0 {
+		t.Error("Long box should not be zero")
+	}
+	if box.CurrentPrice != 100.0 {
+		t.Errorf("Expected CurrentPrice = 100.0, got %v", box.CurrentPrice)
+	}
+}

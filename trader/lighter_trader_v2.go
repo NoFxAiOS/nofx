@@ -74,6 +74,7 @@ type LighterTraderV2 struct {
 	apiKeyPrivateKey string // 40-byte API Key private key (for signing transactions)
 	apiKeyIndex      uint8  // API Key index (default 0)
 	accountIndex     int64  // Account index
+	apiKeyValid      bool   // Whether API key has been validated against server
 
 	// Authentication token
 	authToken     string
@@ -85,8 +86,10 @@ type LighterTraderV2 struct {
 	precisionMutex  sync.RWMutex
 
 	// Market index cache
-	marketIndexMap map[string]uint16 // symbol -> market_id
-	marketMutex    sync.RWMutex
+	marketIndexMap      map[string]uint16 // symbol -> market_id
+	marketMutex         sync.RWMutex
+	marketListCache     []MarketInfo // Cached market list
+	marketListCacheTime time.Time    // Time when cache was populated
 }
 
 // NewLighterTraderV2 Create new LIGHTER trader (using official SDK)
@@ -127,9 +130,6 @@ func NewLighterTraderV2(walletAddr, apiKeyPrivateKeyHex string, apiKeyIndex int,
 		walletAddr: walletAddr,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
-			Transport: &http.Transport{
-				Proxy: nil, // Disable proxy for direct connection to Lighter API
-			},
 		},
 		baseURL: baseURL,
 		testnet:          testnet,
@@ -162,14 +162,18 @@ func NewLighterTraderV2(walletAddr, apiKeyPrivateKeyHex string, apiKeyIndex int,
 
 	// 7. Verify API Key is correct
 	if err := trader.checkClient(); err != nil {
-		logger.Warnf("⚠️  API Key verification failed: %v", err)
-		logger.Warnf("⚠️  The API key may not be registered on-chain. Authenticated API calls (like GetTrades) will fail.")
-		logger.Warnf("⚠️  To fix: Register this API key using change_api_key transaction from app.lighter.xyz")
-		// Don't fail here, allow trader to continue (may work with some operations)
+		trader.apiKeyValid = false
+		logger.Warnf("⚠️  API Key verification FAILED: %v", err)
+		logger.Warnf("⚠️  ❌ The API key stored in NOFX does NOT match the API key registered on Lighter.")
+		logger.Warnf("⚠️  ❌ ALL trading operations (open/close positions, cancel orders) WILL FAIL with 'invalid signature' error.")
+		logger.Warnf("⚠️  🔧 To fix: Update your Lighter API key in NOFX Exchange settings with the correct key from app.lighter.xyz")
+		// Don't fail here, allow trader to continue for read operations (balance, positions)
+	} else {
+		trader.apiKeyValid = true
 	}
 
-	logger.Infof("✓ LIGHTER trader initialized successfully (account=%d, apiKey=%d, testnet=%v)",
-		trader.accountIndex, trader.apiKeyIndex, testnet)
+	logger.Infof("✓ LIGHTER trader initialized (account=%d, apiKey=%d, testnet=%v, apiKeyValid=%v)",
+		trader.accountIndex, trader.apiKeyIndex, testnet, trader.apiKeyValid)
 
 	return trader, nil
 }
@@ -212,7 +216,7 @@ func (t *LighterTraderV2) getAccountByL1Address() (*AccountInfo, error) {
 	}
 
 	// Log raw response for debugging
-	logger.Infof("LIGHTER account API response: %s", string(body))
+	logger.Debugf("LIGHTER account API response: %s", string(body))
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to get account (status %d): %s", resp.StatusCode, string(body))
@@ -238,10 +242,10 @@ func (t *LighterTraderV2) getAccountByL1Address() (*AccountInfo, error) {
 		return nil, fmt.Errorf("no account found for wallet address: %s (try depositing funds first at app.lighter.xyz)", t.walletAddr)
 	}
 
-	// Log all found accounts
-	logger.Infof("Found %d accounts (main: %d, sub: %d)", len(allAccounts), len(accountResp.Accounts), len(accountResp.SubAccounts))
+	// Log account summary
+	logger.Infof("Found %d account(s) (main: %d, sub: %d)", len(allAccounts), len(accountResp.Accounts), len(accountResp.SubAccounts))
 	for i, acc := range allAccounts {
-		logger.Infof("  Account[%d]: index=%d, collateral=%s", i, acc.AccountIndex, acc.Collateral)
+		logger.Debugf("  Account[%d]: index=%d, collateral=%s", i, acc.AccountIndex, acc.Collateral)
 	}
 
 	account := &allAccounts[0]
@@ -253,26 +257,79 @@ func (t *LighterTraderV2) getAccountByL1Address() (*AccountInfo, error) {
 	return account, nil
 }
 
+// ApiKeyResponse API key query response
+type ApiKeyResponse struct {
+	Code    int `json:"code"`
+	ApiKeys []struct {
+		AccountIndex int64  `json:"account_index"`
+		ApiKeyIndex  uint8  `json:"api_key_index"`
+		Nonce        int64  `json:"nonce"`
+		PublicKey    string `json:"public_key"`
+	} `json:"api_keys"`
+}
+
+// getApiKeyFromServer Get API Key public key from Lighter server
+// Uses our own HTTP client instead of SDK's global client to avoid connection issues
+func (t *LighterTraderV2) getApiKeyFromServer() (string, error) {
+	endpoint := fmt.Sprintf("%s/api/v1/apikeys?account_index=%d&api_key_index=%d",
+		t.baseURL, t.accountIndex, t.apiKeyIndex)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var result ApiKeyResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return "", fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if result.Code != 200 {
+		return "", fmt.Errorf("API error (code %d)", result.Code)
+	}
+
+	if len(result.ApiKeys) == 0 {
+		return "", fmt.Errorf("no API keys found for account %d", t.accountIndex)
+	}
+
+	return result.ApiKeys[0].PublicKey, nil
+}
+
 // checkClient Verify if API Key is correct
 func (t *LighterTraderV2) checkClient() error {
 	if t.txClient == nil {
 		return fmt.Errorf("TxClient not initialized")
 	}
 
-	// Get API Key public key registered on server
-	publicKey, err := t.httpClient.GetApiKey(t.accountIndex, t.apiKeyIndex)
+	// Get API Key public key registered on server (using our own HTTP client)
+	serverPubKey, err := t.getApiKeyFromServer()
 	if err != nil {
 		return fmt.Errorf("failed to get API Key: %w", err)
 	}
 
-	// Get local API Key public key
+	// Get local API Key public key from SDK
 	pubKeyBytes := t.txClient.GetKeyManager().PubKeyBytes()
 	localPubKey := hexutil.Encode(pubKeyBytes[:])
-	localPubKey = strings.Replace(localPubKey, "0x", "", 1)
+	localPubKey = strings.TrimPrefix(localPubKey, "0x")
 
 	// Compare public keys
-	if publicKey != localPubKey {
-		return fmt.Errorf("API Key mismatch: local=%s, server=%s", localPubKey, publicKey)
+	if serverPubKey != localPubKey {
+		return fmt.Errorf("API Key mismatch: local=%s, server=%s", localPubKey, serverPubKey)
 	}
 
 	logger.Infof("✓ API Key verification passed")
@@ -436,12 +493,8 @@ func (t *LighterTraderV2) GetTrades(startTime time.Time, limit int) ([]TradeReco
 		return []TradeRecord{}, nil
 	}
 
-	// Debug: log raw response (first 500 chars)
-	logBody := string(body)
-	if len(logBody) > 500 {
-		logBody = logBody[:500] + "..."
-	}
-	logger.Infof("📋 Lighter trades API raw response: %s", logBody)
+	// Debug: log raw response
+	logger.Debugf("Lighter trades API response: %s", string(body))
 
 	var response LighterTradeResponse
 	if err := json.Unmarshal(body, &response); err != nil {

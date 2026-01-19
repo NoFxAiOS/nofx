@@ -1,12 +1,11 @@
 package trader
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
+	"net/url"
 	"nofx/logger"
 	"strconv"
 
@@ -100,15 +99,18 @@ func (t *LighterTraderV2) GetOrderStatus(symbol string, orderID string) (map[str
 		return nil, fmt.Errorf("invalid auth token: %w", err)
 	}
 
-	// Build request URL
-	endpoint := fmt.Sprintf("%s/api/v1/order/%s", t.baseURL, orderID)
+	// URL encode auth token (contains colons that need encoding)
+	// Authentication: Use "auth" query parameter (not Authorization header)
+	encodedAuth := url.QueryEscape(t.authToken)
+
+	// Build request URL with auth query parameter
+	endpoint := fmt.Sprintf("%s/api/v1/order/%s?auth=%s", t.baseURL, orderID, encodedAuth)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", t.authToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := t.client.Do(req)
@@ -148,7 +150,7 @@ func (t *LighterTraderV2) GetOrderStatus(symbol string, orderID string) (map[str
 		"orderId":     order.OrderID,
 		"status":      unifiedStatus,
 		"avgPrice":    order.Price,
-		"executedQty": order.FilledQty,
+		"executedQty": order.FilledBaseAmount,
 		"commission":  0.0,
 	}, nil
 }
@@ -210,9 +212,15 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 		return nil, fmt.Errorf("failed to get market index: %w", err)
 	}
 
-	// Build request URL
-	endpoint := fmt.Sprintf("%s/api/v1/accountActiveOrders?account_index=%d&market_id=%d",
-		t.baseURL, t.accountIndex, marketIndex)
+	// URL encode auth token (contains colons that need encoding)
+	// Authentication: Use "auth" query parameter (not Authorization header)
+	encodedAuth := url.QueryEscape(t.authToken)
+
+	// Build request URL with auth query parameter
+	endpoint := fmt.Sprintf("%s/api/v1/accountActiveOrders?account_index=%d&market_id=%d&auth=%s",
+		t.baseURL, t.accountIndex, marketIndex, encodedAuth)
+
+	logger.Debugf("📋 LIGHTER GetActiveOrders: endpoint=%s", endpoint[:min(len(endpoint), 120)]+"...")
 
 	// Send GET request
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -220,8 +228,6 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add authentication header
-	req.Header.Set("Authorization", t.authToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := t.client.Do(req)
@@ -235,11 +241,13 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Parse response
+	logger.Debugf("📋 LIGHTER GetActiveOrders raw response: %s", string(body))
+
+	// Parse response - Lighter API uses "orders" field, not "data"
 	var apiResp struct {
 		Code    int              `json:"code"`
 		Message string           `json:"message"`
-		Data    []OrderResponse  `json:"data"`
+		Orders  []OrderResponse  `json:"orders"`
 	}
 
 	if err := json.Unmarshal(body, &apiResp); err != nil {
@@ -250,11 +258,15 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 		return nil, fmt.Errorf("failed to get active orders (code %d): %s", apiResp.Code, apiResp.Message)
 	}
 
-	logger.Infof("✓ LIGHTER - Retrieved %d active orders", len(apiResp.Data))
-	return apiResp.Data, nil
+	logger.Infof("✓ LIGHTER - Retrieved %d active orders", len(apiResp.Orders))
+	for i, order := range apiResp.Orders {
+		logger.Debugf("   Order[%d]: order_id=%s, order_index=%d, market=%d", i, order.OrderID, order.OrderIndex, order.MarketIndex)
+	}
+	return apiResp.Orders, nil
 }
 
 // CancelOrder Cancel a single order
+// orderID can be either a numeric order_index or a tx_hash string
 func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 	if t.txClient == nil {
 		return fmt.Errorf("TxClient not initialized")
@@ -267,10 +279,15 @@ func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 	}
 	marketIndex := uint8(marketIndexU16) // SDK expects uint8
 
-	// Convert orderID to int64
+	// Try to parse orderID as numeric order_index first
 	orderIndex, err := strconv.ParseInt(orderID, 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid order ID: %w", err)
+		// orderID is a tx_hash, need to query order to get numeric order_index
+		logger.Debugf("📋 LIGHTER CancelOrder: orderID is tx_hash, querying order...")
+		orderIndex, err = t.getOrderIndexByTxHash(symbol, orderID)
+		if err != nil {
+			return fmt.Errorf("failed to get order index from tx_hash: %w", err)
+		}
 	}
 
 	// Build cancel order request
@@ -280,22 +297,26 @@ func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 	}
 
 	// Sign transaction using SDK
+	// Must provide FromAccountIndex and ApiKeyIndex for nonce auto-fetch to work
 	nonce := int64(-1) // -1 means auto-fetch
+	apiKeyIdx := t.apiKeyIndex
 	tx, err := t.txClient.GetCancelOrderTransaction(txReq, &types.TransactOpts{
-		Nonce: &nonce,
+		FromAccountIndex: &t.accountIndex,
+		ApiKeyIndex:      &apiKeyIdx,
+		Nonce:            &nonce,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to sign cancel order: %w", err)
 	}
 
-	// Serialize transaction
-	txBytes, err := json.Marshal(tx)
+	// Get tx_info from SDK (consistent with CreateOrder and other transactions)
+	txInfo, err := tx.GetTxInfo()
 	if err != nil {
-		return fmt.Errorf("failed to serialize transaction: %w", err)
+		return fmt.Errorf("failed to get tx info: %w", err)
 	}
 
-	// Submit cancel order to LIGHTER API
-	_, err = t.submitCancelOrder(txBytes)
+	// Submit cancel order to LIGHTER API using unified submitOrder function
+	_, err = t.submitOrder(int(tx.GetTxType()), txInfo)
 	if err != nil {
 		return fmt.Errorf("failed to submit cancel order: %w", err)
 	}
@@ -304,65 +325,21 @@ func (t *LighterTraderV2) CancelOrder(symbol, orderID string) error {
 	return nil
 }
 
-// submitCancelOrder Submit signed cancel order to LIGHTER API using multipart/form-data
-func (t *LighterTraderV2) submitCancelOrder(signedTx []byte) (map[string]interface{}, error) {
-	const TX_TYPE_CANCEL_ORDER = 15
-
-	// Build multipart form data (Lighter API requires form-data, not JSON)
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-
-	// Add tx_type field
-	if err := writer.WriteField("tx_type", strconv.Itoa(TX_TYPE_CANCEL_ORDER)); err != nil {
-		return nil, fmt.Errorf("failed to write tx_type: %w", err)
-	}
-
-	// Add tx_info field
-	if err := writer.WriteField("tx_info", string(signedTx)); err != nil {
-		return nil, fmt.Errorf("failed to write tx_info: %w", err)
-	}
-
-	// Close multipart writer
-	if err := writer.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close multipart writer: %w", err)
-	}
-
-	// Send POST request to /api/v1/sendTx
-	endpoint := fmt.Sprintf("%s/api/v1/sendTx", t.baseURL)
-	httpReq, err := http.NewRequest("POST", endpoint, &body)
+// getOrderIndexByTxHash finds the numeric order_index by searching active orders for the tx_hash
+func (t *LighterTraderV2) getOrderIndexByTxHash(symbol, txHash string) (int64, error) {
+	// Get all active orders for this symbol
+	orders, err := t.GetActiveOrders(symbol)
 	if err != nil {
-		return nil, err
+		return 0, fmt.Errorf("failed to get active orders: %w", err)
 	}
 
-	httpReq.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err := t.client.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	// Search for the order with matching tx_hash (order_id)
+	for _, order := range orders {
+		if order.OrderID == txHash {
+			logger.Debugf("📋 LIGHTER Found order_index %d for tx_hash %s", order.OrderIndex, txHash)
+			return order.OrderIndex, nil
+		}
 	}
 
-	// Parse response
-	var sendResp SendTxResponse
-	if err := json.Unmarshal(respBody, &sendResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w, body: %s", err, string(respBody))
-	}
-
-	// Check response code
-	if sendResp.Code != 200 {
-		return nil, fmt.Errorf("failed to submit cancel order (code %d): %s", sendResp.Code, sendResp.Message)
-	}
-
-	result := map[string]interface{}{
-		"tx_hash": sendResp.Data["tx_hash"],
-		"status":  "cancelled",
-	}
-
-	logger.Infof("✓ Cancel order submitted to LIGHTER - tx_hash: %v", sendResp.Data["tx_hash"])
-	return result, nil
+	return 0, fmt.Errorf("order not found with tx_hash: %s (may already be filled or cancelled)", txHash)
 }

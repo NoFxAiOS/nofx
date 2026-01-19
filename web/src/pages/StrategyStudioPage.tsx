@@ -37,6 +37,7 @@ import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
+import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
@@ -59,6 +60,7 @@ export function StrategyStudioPage() {
 
   // Accordion states for left panel
   const [expandedSections, setExpandedSections] = useState({
+    gridConfig: true,
     coinSource: true,
     indicators: false,
     riskControl: false,
@@ -486,6 +488,12 @@ export function StrategyStudioPage() {
       subtitle: { zh: '可视化配置和测试交易策略', en: 'Configure and test trading strategies' },
       strategies: { zh: '策略', en: 'Strategies' },
       newStrategy: { zh: '新建', en: 'New' },
+      strategyType: { zh: '策略类型', en: 'Strategy Type' },
+      aiTrading: { zh: 'AI 智能交易', en: 'AI Trading' },
+      aiTradingDesc: { zh: 'AI 分析市场并自主决策买卖', en: 'AI analyzes market and makes trading decisions' },
+      gridTrading: { zh: 'AI 网格交易', en: 'AI Grid Trading' },
+      gridTradingDesc: { zh: 'AI 控制网格策略，在震荡市场获利', en: 'AI-controlled grid strategy for ranging markets' },
+      gridConfig: { zh: '网格配置', en: 'Grid Configuration' },
       coinSource: { zh: '币种来源', en: 'Coin Source' },
       indicators: { zh: '技术指标', en: 'Indicators' },
       riskControl: { zh: '风控参数', en: 'Risk Control' },
@@ -533,12 +541,33 @@ export function StrategyStudioPage() {
     )
   }
 
+  // Get current strategy type (default to ai_trading if not set)
+  const currentStrategyType = editingConfig?.strategy_type || 'ai_trading'
+
   const configSections = [
+    // Grid Config - only for grid_trading
+    {
+      key: 'gridConfig' as const,
+      icon: Activity,
+      color: '#0ECB81',
+      title: t('gridConfig'),
+      forStrategyType: 'grid_trading' as const,
+      content: editingConfig?.grid_config && (
+        <GridConfigEditor
+          config={editingConfig.grid_config}
+          onChange={(gridConfig) => updateConfig('grid_config', gridConfig)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    // AI Trading sections
     {
       key: 'coinSource' as const,
       icon: Target,
       color: '#F0B90B',
       title: t('coinSource'),
+      forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <CoinSourceEditor
           config={editingConfig.coin_source}
@@ -553,6 +582,7 @@ export function StrategyStudioPage() {
       icon: BarChart3,
       color: '#0ECB81',
       title: t('indicators'),
+      forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <IndicatorEditor
           config={editingConfig.indicators}
@@ -567,6 +597,7 @@ export function StrategyStudioPage() {
       icon: Shield,
       color: '#F6465D',
       title: t('riskControl'),
+      forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <RiskControlEditor
           config={editingConfig.risk_control}
@@ -581,6 +612,7 @@ export function StrategyStudioPage() {
       icon: FileText,
       color: '#a855f7',
       title: t('promptSections'),
+      forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <PromptSectionsEditor
           config={editingConfig.prompt_sections}
@@ -595,6 +627,7 @@ export function StrategyStudioPage() {
       icon: Settings,
       color: '#60a5fa',
       title: t('customPrompt'),
+      forStrategyType: 'ai_trading' as const,
       content: editingConfig && (
         <div>
           <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
@@ -616,6 +649,7 @@ export function StrategyStudioPage() {
       icon: Globe,
       color: '#0ECB81',
       title: t('publishSettings'),
+      forStrategyType: 'both' as const,
       content: selectedStrategy && (
         <PublishSettingsEditor
           isPublic={selectedStrategy.is_public ?? false}
@@ -633,7 +667,9 @@ export function StrategyStudioPage() {
         />
       ),
     },
-  ]
+  ].filter(section =>
+    section.forStrategyType === 'both' || section.forStrategyType === currentStrategyType
+  )
 
   return (
     <DeepVoidBackground className="h-[calc(100vh-64px)] flex flex-col bg-nofx-bg relative overflow-hidden">
@@ -812,6 +848,62 @@ export function StrategyStudioPage() {
                   )}
                 </div>
               </div>
+
+              {/* Strategy Type Selector */}
+              {editingConfig && (
+                <div className="mb-4 p-4 rounded-lg bg-nofx-bg-lighter border border-nofx-gold/20">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                    <span className="text-sm font-medium text-nofx-text">{t('strategyType')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        if (!selectedStrategy?.is_default) {
+                          updateConfig('strategy_type', 'ai_trading')
+                          // Clear grid config when switching to AI trading
+                          updateConfig('grid_config', undefined)
+                        }
+                      }}
+                      disabled={selectedStrategy?.is_default}
+                      className={`p-3 rounded-lg border transition-all ${
+                        (!editingConfig.strategy_type || editingConfig.strategy_type === 'ai_trading')
+                          ? 'border-nofx-gold bg-nofx-gold/10'
+                          : 'border-nofx-border hover:border-nofx-gold/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Bot className="w-4 h-4" style={{ color: '#F0B90B' }} />
+                        <span className="text-sm font-medium text-nofx-text">{t('aiTrading')}</span>
+                      </div>
+                      <p className="text-xs text-nofx-text-muted text-left">{t('aiTradingDesc')}</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!selectedStrategy?.is_default) {
+                          updateConfig('strategy_type', 'grid_trading')
+                          // Initialize grid config if not exists
+                          if (!editingConfig.grid_config) {
+                            updateConfig('grid_config', defaultGridConfig)
+                          }
+                        }
+                      }}
+                      disabled={selectedStrategy?.is_default}
+                      className={`p-3 rounded-lg border transition-all ${
+                        editingConfig.strategy_type === 'grid_trading'
+                          ? 'border-nofx-gold bg-nofx-gold/10'
+                          : 'border-nofx-border hover:border-nofx-gold/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Activity className="w-4 h-4" style={{ color: '#0ECB81' }} />
+                        <span className="text-sm font-medium text-nofx-text">{t('gridTrading')}</span>
+                      </div>
+                      <p className="text-xs text-nofx-text-muted text-left">{t('gridTradingDesc')}</p>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Config Sections */}
               <div className="space-y-2">

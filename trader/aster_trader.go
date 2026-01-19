@@ -1417,6 +1417,191 @@ func (t *AsterTrader) GetTrades(startTime time.Time, limit int) ([]TradeRecord, 
 
 // GetOpenOrders gets all open/pending orders for a symbol
 func (t *AsterTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
-	// TODO: Implement Aster open orders
-	return []OpenOrder{}, nil
+	params := map[string]interface{}{
+		"symbol": symbol,
+	}
+
+	body, err := t.request("GET", "/fapi/v3/openOrders", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open orders: %w", err)
+	}
+
+	var orders []struct {
+		OrderID      int64  `json:"orderId"`
+		Symbol       string `json:"symbol"`
+		Side         string `json:"side"`
+		PositionSide string `json:"positionSide"`
+		Type         string `json:"type"`
+		Price        string `json:"price"`
+		StopPrice    string `json:"stopPrice"`
+		OrigQty      string `json:"origQty"`
+		Status       string `json:"status"`
+	}
+
+	if err := json.Unmarshal(body, &orders); err != nil {
+		return nil, fmt.Errorf("failed to parse open orders: %w", err)
+	}
+
+	var result []OpenOrder
+	for _, order := range orders {
+		price, _ := strconv.ParseFloat(order.Price, 64)
+		stopPrice, _ := strconv.ParseFloat(order.StopPrice, 64)
+		quantity, _ := strconv.ParseFloat(order.OrigQty, 64)
+
+		result = append(result, OpenOrder{
+			OrderID:      fmt.Sprintf("%d", order.OrderID),
+			Symbol:       order.Symbol,
+			Side:         order.Side,
+			PositionSide: order.PositionSide,
+			Type:         order.Type,
+			Price:        price,
+			StopPrice:    stopPrice,
+			Quantity:     quantity,
+			Status:       order.Status,
+		})
+	}
+
+	logger.Infof("✓ ASTER GetOpenOrders: found %d open orders for %s", len(result), symbol)
+	return result, nil
+}
+
+// PlaceLimitOrder places a limit order for grid trading
+func (t *AsterTrader) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	// Format price and quantity to correct precision
+	formattedPrice, err := t.formatPrice(req.Symbol, req.Price)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format price: %w", err)
+	}
+	formattedQty, err := t.formatQuantity(req.Symbol, req.Quantity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to format quantity: %w", err)
+	}
+
+	// Get precision information
+	prec, err := t.getPrecision(req.Symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get precision: %w", err)
+	}
+
+	// Convert to string with correct precision format
+	priceStr := t.formatFloatWithPrecision(formattedPrice, prec.PricePrecision)
+	qtyStr := t.formatFloatWithPrecision(formattedQty, prec.QuantityPrecision)
+
+	// Determine side
+	side := "BUY"
+	if req.Side == "SELL" || req.Side == "Sell" || req.Side == "sell" {
+		side = "SELL"
+	}
+
+	params := map[string]interface{}{
+		"symbol":       req.Symbol,
+		"positionSide": "BOTH",
+		"type":         "LIMIT",
+		"side":         side,
+		"timeInForce":  "GTC",
+		"quantity":     qtyStr,
+		"price":        priceStr,
+	}
+
+	// Add reduceOnly if specified
+	if req.ReduceOnly {
+		params["reduceOnly"] = "true"
+	}
+
+	body, err := t.request("POST", "/fapi/v3/order", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse order response: %w", err)
+	}
+
+	// Extract order ID
+	orderID := ""
+	if id, ok := result["orderId"].(float64); ok {
+		orderID = fmt.Sprintf("%.0f", id)
+	} else if id, ok := result["orderId"].(string); ok {
+		orderID = id
+	}
+
+	// Extract client order ID
+	clientOrderID := ""
+	if cid, ok := result["clientOrderId"].(string); ok {
+		clientOrderID = cid
+	}
+
+	return &LimitOrderResult{
+		OrderID:  orderID,
+		ClientID: clientOrderID,
+		Symbol:   req.Symbol,
+		Side:     side,
+		Price:    formattedPrice,
+		Quantity: formattedQty,
+		Status:   "NEW",
+	}, nil
+}
+
+// CancelOrder cancels a specific order by order ID
+func (t *AsterTrader) CancelOrder(symbol, orderID string) error {
+	params := map[string]interface{}{
+		"symbol":  symbol,
+		"orderId": orderID,
+	}
+
+	_, err := t.request("DELETE", "/fapi/v3/order", params)
+	if err != nil {
+		return fmt.Errorf("failed to cancel order %s: %w", orderID, err)
+	}
+
+	return nil
+}
+
+// GetOrderBook gets the order book for a symbol
+func (t *AsterTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]float64, err error) {
+	if depth <= 0 {
+		depth = 20
+	}
+
+	// Aster uses public endpoint (no signature required)
+	resp, err := t.client.Get(fmt.Sprintf("%s/fapi/v3/depth?symbol=%s&limit=%d", t.baseURL, symbol, depth))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch order book: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Bids [][]string `json:"bids"` // [[price, qty], ...]
+		Asks [][]string `json:"asks"` // [[price, qty], ...]
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse order book: %w", err)
+	}
+
+	// Convert string arrays to float64 arrays
+	bids = make([][]float64, len(result.Bids))
+	for i, bid := range result.Bids {
+		if len(bid) >= 2 {
+			price, _ := strconv.ParseFloat(bid[0], 64)
+			qty, _ := strconv.ParseFloat(bid[1], 64)
+			bids[i] = []float64{price, qty}
+		}
+	}
+
+	asks = make([][]float64, len(result.Asks))
+	for i, ask := range result.Asks {
+		if len(ask) >= 2 {
+			price, _ := strconv.ParseFloat(ask[0], 64)
+			qty, _ := strconv.ParseFloat(ask[1], 64)
+			asks[i] = []float64{price, qty}
+		}
+	}
+
+	return bids, asks, nil
 }

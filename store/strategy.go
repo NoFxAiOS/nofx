@@ -32,6 +32,9 @@ func (Strategy) TableName() string { return "strategies" }
 
 // StrategyConfig strategy configuration details (JSON structure)
 type StrategyConfig struct {
+	// Strategy type: "ai_trading" (default) or "grid_trading"
+	StrategyType string `json:"strategy_type,omitempty"`
+
 	// language setting: "zh" for Chinese, "en" for English
 	// This determines the language used for data formatting and prompt generation
 	Language string `json:"language,omitempty"`
@@ -45,6 +48,39 @@ type StrategyConfig struct {
 	RiskControl RiskControlConfig `json:"risk_control"`
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
+
+	// Grid trading configuration (only used when StrategyType == "grid_trading")
+	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+}
+
+// GridStrategyConfig grid trading specific configuration
+type GridStrategyConfig struct {
+	// Trading pair (e.g., "BTCUSDT")
+	Symbol string `json:"symbol"`
+	// Number of grid levels (5-50)
+	GridCount int `json:"grid_count"`
+	// Total investment in USDT
+	TotalInvestment float64 `json:"total_investment"`
+	// Leverage (1-20)
+	Leverage int `json:"leverage"`
+	// Upper price boundary (0 = auto-calculate from ATR)
+	UpperPrice float64 `json:"upper_price"`
+	// Lower price boundary (0 = auto-calculate from ATR)
+	LowerPrice float64 `json:"lower_price"`
+	// Use ATR to auto-calculate bounds
+	UseATRBounds bool `json:"use_atr_bounds"`
+	// ATR multiplier for bound calculation (default 2.0)
+	ATRMultiplier float64 `json:"atr_multiplier"`
+	// Position distribution: "uniform" | "gaussian" | "pyramid"
+	Distribution string `json:"distribution"`
+	// Maximum drawdown percentage before emergency exit
+	MaxDrawdownPct float64 `json:"max_drawdown_pct"`
+	// Stop loss percentage per position
+	StopLossPct float64 `json:"stop_loss_pct"`
+	// Daily loss limit percentage
+	DailyLossLimitPct float64 `json:"daily_loss_limit_pct"`
+	// Use maker-only orders for lower fees
+	UseMakerOnly bool `json:"use_maker_only"`
 }
 
 // PromptSectionsConfig editable sections of System Prompt

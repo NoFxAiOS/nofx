@@ -9,6 +9,7 @@ import { confirmToast, notify } from '../lib/notify'
 import { t, type Language } from '../i18n/translations'
 import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { GridRiskPanel } from '../components/strategy/GridRiskPanel'
 import type {
     SystemStatus,
     AccountInfo,
@@ -150,6 +151,13 @@ export function TraderDashboardPage({
     useEffect(() => {
         setPositionsCurrentPage(1)
     }, [selectedTraderId, positionsPageSize])
+
+    // Auto-set chart symbol for grid trading
+    useEffect(() => {
+        if (status?.strategy_type === 'grid_trading' && status?.grid_symbol) {
+            setSelectedChartSymbol(status.grid_symbol)
+        }
+    }, [status?.strategy_type, status?.grid_symbol])
 
     // Get current exchange info for perp-dex wallet display
     const currentExchange = exchanges?.find(
@@ -531,6 +539,17 @@ export function TraderDashboardPage({
                         icon="📊"
                     />
                 </div>
+
+                {/* Grid Risk Panel - Only show for grid trading strategy */}
+                {status?.strategy_type === 'grid_trading' && selectedTraderId && (
+                    <div className="mb-8 animate-slide-in" style={{ animationDelay: '0.05s' }}>
+                        <GridRiskPanel
+                            traderId={selectedTraderId}
+                            language={language}
+                            refreshInterval={5000}
+                        />
+                    </div>
+                )}
 
                 {/* Main Content Area */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

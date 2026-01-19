@@ -488,6 +488,16 @@ All contributions are tracked on GitHub. When NOFX generates revenue, contributo
 
 ---
 
+## Sponsors
+
+Thanks to all our sponsors!
+
+<a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="60" height="60" style="border-radius:50%" alt="cat9999aaa" /></a>
+
+[Become a sponsor](https://github.com/sponsors/NoFxAiOS)
+
+---
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)

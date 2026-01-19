@@ -492,8 +492,7 @@ All contributions are tracked on GitHub. When NOFX generates revenue, contributo
 
 Thanks to all our sponsors!
 
-<!-- sponsors -->
-<!-- sponsors -->
+<a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="60" height="60" style="border-radius:50%" alt="cat9999aaa" /></a>
 
 [Become a sponsor](https://github.com/sponsors/NoFxAiOS)
 

@@ -60,8 +60,8 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	// This prevents race condition where trades happen between query and lastSyncTime update
 	syncStartTimeMs := nowMs
 
-	logger.Infof("🔄 Syncing Binance trades from: %s (UTC)",
-		time.UnixMilli(lastSyncTimeMs).UTC().Format("2006-01-02 15:04:05"))
+	logger.Infof("🔄 Syncing Binance trades from: %s (UTC) [ms: %d, now: %d]",
+		time.UnixMilli(lastSyncTimeMs).UTC().Format("2006-01-02 15:04:05"), lastSyncTimeMs, nowMs)
 
 	// Step 1: Get max trade IDs from local DB for incremental sync
 	maxTradeIDs, err := orderStore.GetMaxTradeIDsByExchange(exchangeID)
@@ -181,10 +181,12 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 	posBuilder := store.NewPositionBuilder(positionStore)
 	syncedCount := 0
 
+	skippedCount := 0
 	for _, trade := range allTrades {
 		// Check if trade already exists
 		existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
 		if err == nil && existing != nil {
+			skippedCount++
 			continue // Trade already exists, skip
 		}
 
@@ -279,7 +281,7 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 			trade.Time.UTC().Format("01-02 15:04:05"))
 	}
 
-	logger.Infof("✅ Binance order sync completed: %d new trades synced", syncedCount)
+	logger.Infof("✅ Binance order sync completed: %d new trades synced, %d skipped (already exist)", syncedCount, skippedCount)
 	return nil
 }
 

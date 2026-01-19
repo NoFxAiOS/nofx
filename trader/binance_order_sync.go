@@ -100,18 +100,17 @@ func (t *FuturesTrader) SyncOrdersFromBinance(traderID string, exchangeID string
 		symbolMap[s] = true
 	}
 
-	// Method 4: FALLBACK - Query REALIZED_PNL income to find symbols with closed trades
+	// Method 4: ALWAYS query REALIZED_PNL income to find symbols with closed trades
 	// This catches trades that COMMISSION missed (VIP users, BNB fee discount)
-	if len(symbolMap) == 0 {
-		logger.Infof("  🔍 No symbols found, trying REALIZED_PNL fallback...")
-		pnlSymbols, err := t.GetPnLSymbols(lastSyncTime)
-		if err != nil {
-			logger.Infof("  ⚠️ Failed to get PnL symbols: %v", err)
-		} else {
-			logger.Infof("  📋 REALIZED_PNL symbols found: %d - %v", len(pnlSymbols), pnlSymbols)
-			for _, s := range pnlSymbols {
-				symbolMap[s] = true
-			}
+	// IMPORTANT: Must run always, not just when symbolMap is empty,
+	// because a position might be fully closed (no active position) but have PnL
+	pnlSymbols, err := t.GetPnLSymbols(lastSyncTime)
+	if err != nil {
+		logger.Infof("  ⚠️ Failed to get PnL symbols: %v", err)
+	} else {
+		logger.Infof("  📋 REALIZED_PNL symbols found: %d - %v", len(pnlSymbols), pnlSymbols)
+		for _, s := range pnlSymbols {
+			symbolMap[s] = true
 		}
 	}
 

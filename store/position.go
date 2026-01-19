@@ -253,6 +253,33 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 	}).Error
 }
 
+// GetSyntheticClosedPosition gets an existing synthetic CLOSED position (close_reason='sync_partial')
+// Used when merging multiple close trades that have no matching open position
+func (s *PositionStore) GetSyntheticClosedPosition(traderID, symbol, side string) (*TraderPosition, error) {
+	var pos TraderPosition
+	err := s.db.Where("trader_id = ? AND symbol = ? AND side = ? AND status = ? AND close_reason = ?",
+		traderID, symbol, side, "CLOSED", "sync_partial").
+		Order("exit_time DESC").
+		First(&pos).Error
+	if err != nil {
+		return nil, err
+	}
+	return &pos, nil
+}
+
+// UpdateSyntheticPosition updates a synthetic CLOSED position with additional close trade data
+func (s *PositionStore) UpdateSyntheticPosition(id int64, entryQty, exitPrice, realizedPnL, fee float64, exitTimeMs int64) error {
+	nowMs := time.Now().UTC().UnixMilli()
+	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"entry_quantity": entryQty,
+		"exit_price":     exitPrice,
+		"realized_pnl":   realizedPnL,
+		"fee":            fee,
+		"exit_time":      exitTimeMs,
+		"updated_at":     nowMs,
+	}).Error
+}
+
 // DeleteAllOpenPositions deletes all OPEN positions for a trader
 func (s *PositionStore) DeleteAllOpenPositions(traderID string) error {
 	return s.db.Where("trader_id = ? AND status = ?", traderID, "OPEN").Delete(&TraderPosition{}).Error

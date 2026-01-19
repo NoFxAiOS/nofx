@@ -107,58 +107,9 @@ func (pb *PositionBuilder) handleClose(
 	}
 
 	if position == nil {
-		// No OPEN position found - check for existing synthetic CLOSED position to merge into
-		// This can happen when the position was opened before the sync window (>24h ago)
-		// but closed during the sync window. Multiple close trades should merge together.
-		existingSynthetic, _ := pb.positionStore.GetSyntheticClosedPosition(traderID, symbol, side)
-
-		nowMs := time.Now().UTC().UnixMilli()
-		if existingSynthetic != nil {
-			// Merge into existing synthetic position
-			newEntryQty := existingSynthetic.EntryQuantity + quantity
-			// Calculate weighted average exit price
-			newExitPrice := (existingSynthetic.ExitPrice*existingSynthetic.EntryQuantity + price*quantity) / newEntryQty
-			newExitPrice = math.Round(newExitPrice*100) / 100
-			newPnL := existingSynthetic.RealizedPnL + realizedPnL
-			newFee := existingSynthetic.Fee + fee
-
-			logger.Infof("  📊 Merging into synthetic position: %s %s +%.4f @ %.2f (total: %.4f @ %.2f, pnl: %.2f)",
-				symbol, side, quantity, price, newEntryQty, newExitPrice, newPnL)
-
-			return pb.positionStore.UpdateSyntheticPosition(existingSynthetic.ID, newEntryQty, newExitPrice, newPnL, newFee, tradeTimeMs)
-		}
-
-		// Create new synthetic CLOSED position
-		logger.Infof("  ⚠️  No matching open position for %s %s, creating synthetic CLOSED position", symbol, side)
-		syntheticPosition := &TraderPosition{
-			TraderID:           traderID,
-			ExchangeID:         exchangeID,
-			ExchangeType:       exchangeType,
-			ExchangePositionID: fmt.Sprintf("sync_closed_%s_%s_%d", symbol, side, tradeTimeMs),
-			Symbol:             symbol,
-			Side:               side,
-			Quantity:           0, // Already closed
-			EntryQuantity:      quantity,
-			EntryPrice:         0,        // Unknown - opened before sync window
-			EntryOrderID:       "",       // Unknown
-			EntryTime:          0,        // Unknown
-			ExitPrice:          price,    // We know the exit price
-			ExitOrderID:        orderID,
-			ExitTime:           tradeTimeMs,
-			RealizedPnL:        realizedPnL,
-			Fee:                fee,
-			Leverage:           1,
-			Status:             "CLOSED",
-			CloseReason:        "sync_partial", // Mark as partial data
-			Source:             "sync",
-			CreatedAt:          nowMs,
-			UpdatedAt:          nowMs,
-		}
-		if err := pb.positionStore.Create(syntheticPosition); err != nil {
-			return fmt.Errorf("failed to create synthetic closed position: %w", err)
-		}
-		logger.Infof("  ✅ Created synthetic CLOSED position: %s %s qty=%.4f exit=%.2f pnl=%.2f",
-			symbol, side, quantity, price, realizedPnL)
+		// No open position found - just skip
+		// This can happen if trades are processed out of order or database was cleared
+		logger.Infof("  ⚠️  No matching open position for %s %s (orderID: %s), skipping", symbol, side, orderID)
 		return nil
 	}
 

@@ -492,8 +492,11 @@ All contributions are tracked on GitHub. When NOFX generates revenue, contributo
 
 Thanks to all our sponsors!
 
+<a href="https://github.com/pjl914335852-ux"><img src="https://github.com/pjl914335852-ux.png" width="60" height="60" style="border-radius:50%" alt="pjl914335852-ux" /></a>
 <a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="60" height="60" style="border-radius:50%" alt="cat9999aaa" /></a>
 <a href="https://github.com/1733055465"><img src="https://github.com/1733055465.png" width="60" height="60" style="border-radius:50%" alt="1733055465" /></a>
+<a href="https://github.com/kolal2020"><img src="https://github.com/kolal2020.png" width="60" height="60" style="border-radius:50%" alt="kolal2020" /></a>
+<a href="https://github.com/CyberFFarm"><img src="https://github.com/CyberFFarm.png" width="60" height="60" style="border-radius:50%" alt="CyberFFarm" /></a>
 
 [Become a sponsor](https://github.com/sponsors/NoFxAiOS)
 

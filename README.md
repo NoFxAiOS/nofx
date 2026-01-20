@@ -42,6 +42,12 @@
 - **Tinkle** - [@Web3Tinkle](https://x.com/Web3Tinkle)
 - **Official Twitter** - [@nofx_official](https://x.com/nofx_official)
 
+### Official Links
+
+- **Official Website**: [https://nofxai.com](https://nofxai.com)
+- **Data Dashboard**: [https://nofxos.ai/dashboard](https://nofxos.ai/dashboard)
+- **API Documentation**: [https://nofxos.ai/api-docs](https://nofxos.ai/api-docs)
+
 > **Risk Warning**: This system is experimental. AI auto-trading carries significant risks. Strongly recommended for learning/research purposes or testing with small amounts only!
 
 ## Developer Community
@@ -479,6 +485,23 @@ All contributions are tracked on GitHub. When NOFX generates revenue, contributo
 
 - **GitHub Issues**: [Submit an Issue](https://github.com/NoFxAiOS/nofx/issues)
 - **Developer Community**: [Telegram Group](https://t.me/nofx_dev_community)
+
+---
+
+## Sponsors
+
+Thanks to all our sponsors!
+
+<a href="https://github.com/pjl914335852-ux"><img src="https://github.com/pjl914335852-ux.png" width="60" height="60" style="border-radius:50%" alt="pjl914335852-ux" /></a>
+<a href="https://github.com/cat9999aaa"><img src="https://github.com/cat9999aaa.png" width="60" height="60" style="border-radius:50%" alt="cat9999aaa" /></a>
+<a href="https://github.com/1733055465"><img src="https://github.com/1733055465.png" width="60" height="60" style="border-radius:50%" alt="1733055465" /></a>
+<a href="https://github.com/kolal2020"><img src="https://github.com/kolal2020.png" width="60" height="60" style="border-radius:50%" alt="kolal2020" /></a>
+<a href="https://github.com/CyberFFarm"><img src="https://github.com/CyberFFarm.png" width="60" height="60" style="border-radius:50%" alt="CyberFFarm" /></a>
+<a href="https://github.com/vip3001003"><img src="https://github.com/vip3001003.png" width="60" height="60" style="border-radius:50%" alt="vip3001003" /></a>
+<a href="https://github.com/mrtluh"><img src="https://github.com/mrtluh.png" width="60" height="60" style="border-radius:50%" alt="mrtluh" /></a>
+<a href="https://github.com/cpcp1117-source"><img src="https://github.com/cpcp1117-source.png" width="60" height="60" style="border-radius:50%" alt="cpcp1117-source" /></a>
+
+[Become a sponsor](https://github.com/sponsors/NoFxAiOS)
 
 ---
 

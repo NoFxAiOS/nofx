@@ -144,7 +144,7 @@ type Context struct {
 // Decision AI trading decision
 type Decision struct {
 	Symbol string `json:"symbol"`
-	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "partial_close_long", "partial_close_short", "place_order", "modify_order", "cancel_order", "set_sl_tp_tiers", "modify_sl_tier", "modify_tp_tier", "hold", "wait"
+	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "partial_close_long", "partial_close_short", "place_order", "modify_order", "cancel_order", "set_sl_tp_tiers", "modify_sl_tier", "modify_tp_tier", "hold", "wait", or grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
 	Leverage        int     `json:"leverage,omitempty"`
@@ -161,6 +161,11 @@ type Decision struct {
 	TierCount    int     `json:"tier_count,omitempty"`    // Number of tiers for set_sl_tp_tiers
 	TierLevel    int     `json:"tier_level,omitempty"`    // Tier level for modify_sl_tier/modify_tp_tier
 	TierPrice    float64 `json:"tier_price,omitempty"`    // Price for specific tier
+
+	// Grid trading parameters
+	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
+	Quantity   float64 `json:"quantity,omitempty"`    // Order quantity (for grid)
+	LevelIndex int     `json:"level_index,omitempty"` // Grid level index
 
 	// Common parameters
 	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)

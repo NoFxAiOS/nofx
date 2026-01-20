@@ -41,18 +41,24 @@ type CreateOrderRequest struct {
 	PostOnly    bool    `json:"post_only"`     // Post-only (maker only)
 }
 
-// OrderResponse Order response (Lighter)
+// OrderResponse Order response (Lighter API)
+// Field names must match Lighter API response exactly
 type OrderResponse struct {
-	OrderID      string  `json:"order_id"`
-	Symbol       string  `json:"symbol"`
-	Side         string  `json:"side"`
-	OrderType    string  `json:"order_type"`
-	Quantity     float64 `json:"quantity"`
-	Price        float64 `json:"price"`
-	Status       string  `json:"status"` // "open", "filled", "cancelled"
-	FilledQty    float64 `json:"filled_qty"`
-	RemainingQty float64 `json:"remaining_qty"`
-	CreateTime   int64   `json:"create_time"`
+	OrderID             string `json:"order_id"`
+	OrderIndex          int64  `json:"order_index"`
+	MarketIndex         int    `json:"market_index"`
+	Side                string `json:"side"`                  // "bid" or "ask"
+	Type                string `json:"type"`                  // "limit", "market", etc.
+	IsAsk               bool   `json:"is_ask"`                // true = sell, false = buy
+	Price               string `json:"price"`                 // Price as string
+	InitialBaseAmount   string `json:"initial_base_amount"`   // Original quantity
+	RemainingBaseAmount string `json:"remaining_base_amount"` // Remaining quantity
+	FilledBaseAmount    string `json:"filled_base_amount"`    // Filled quantity
+	Status              string `json:"status"`                // "open", "filled", "cancelled"
+	TriggerPrice        string `json:"trigger_price"`         // For stop orders
+	ReduceOnly          bool   `json:"reduce_only"`
+	Timestamp           int64  `json:"timestamp"`
+	CreatedAt           int64  `json:"created_at"`
 }
 
 // LighterTradeResponse represents the response from Lighter trades API

@@ -22,6 +22,12 @@
 - **Web ベース設定**: JSON 編集不要 - Web インターフェースですべて設定
 - **リアルタイムダッシュボード**: ライブポジション、損益追跡、思考連鎖付き AI 決定ログ
 
+### 公式リンク
+
+- **公式サイト**: [https://nofxai.com](https://nofxai.com)
+- **データダッシュボード**: [https://nofxos.ai/dashboard](https://nofxos.ai/dashboard)
+- **API ドキュメント**: [https://nofxos.ai/api-docs](https://nofxos.ai/api-docs)
+
 > **リスク警告**: このシステムは実験的です。AI 自動取引には重大なリスクがあります。学習/研究目的または少額でのテストのみを強くお勧めします！
 
 ## 開発者コミュニティ

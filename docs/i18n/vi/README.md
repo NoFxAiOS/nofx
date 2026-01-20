@@ -22,6 +22,12 @@
 - **Cấu Hình Web**: Không cần chỉnh sửa JSON - cấu hình mọi thứ qua giao diện web
 - **Dashboard Thời Gian Thực**: Vị thế trực tiếp, theo dõi P/L, nhật ký quyết định AI với chuỗi suy luận
 
+### Liên Kết Chính Thức
+
+- **Website Chính Thức**: [https://nofxai.com](https://nofxai.com)
+- **Bảng Điều Khiển Dữ Liệu**: [https://nofxos.ai/dashboard](https://nofxos.ai/dashboard)
+- **Tài Liệu API**: [https://nofxos.ai/api-docs](https://nofxos.ai/api-docs)
+
 > **Cảnh Báo Rủi Ro**: Hệ thống này mang tính thử nghiệm. Giao dịch tự động AI có rủi ro đáng kể. Chỉ nên sử dụng cho mục đích học tập/nghiên cứu hoặc kiểm tra với số tiền nhỏ!
 
 ## Cộng Đồng Nhà Phát Triển

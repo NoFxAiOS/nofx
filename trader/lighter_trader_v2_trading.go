@@ -273,9 +273,13 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	}
 
 	// Sign transaction using SDK (nonce will be auto-fetched)
+	// Must provide FromAccountIndex and ApiKeyIndex for nonce auto-fetch to work
 	nonce := int64(-1) // -1 means auto-fetch
+	apiKeyIdx := t.apiKeyIndex
 	tx, err := t.txClient.GetCreateOrderTransaction(txReq, &types.TransactOpts{
-		Nonce: &nonce,
+		FromAccountIndex: &t.accountIndex,
+		ApiKeyIndex:      &apiKeyIdx,
+		Nonce:            &nonce,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign order: %w", err)
@@ -288,7 +292,7 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 	}
 
 	// Debug: Log the tx_info content
-	logger.Infof("DEBUG tx_type: %d, tx_info: %s", tx.GetTxType(), txInfo)
+	logger.Debugf("tx_type: %d, tx_info: %s", tx.GetTxType(), txInfo)
 
 	// Submit order to LIGHTER API
 	orderResp, err := t.submitOrder(int(tx.GetTxType()), txInfo)
@@ -301,6 +305,16 @@ func (t *LighterTraderV2) CreateOrder(symbol string, isAsk bool, quantity float6
 		side = "sell"
 	}
 	logger.Infof("✓ LIGHTER order created: %s %s qty=%.4f", symbol, side, quantity)
+
+	// For limit orders, poll for the actual order_index after submission
+	// This is needed because CancelOrder requires the numeric order_index, not tx_hash
+	if orderType == "limit" {
+		txHash, _ := orderResp["tx_hash"].(string)
+		if orderIndex, err := t.pollForOrderIndex(symbol, txHash); err == nil && orderIndex > 0 {
+			orderResp["orderId"] = fmt.Sprintf("%d", orderIndex)
+			orderResp["order_index"] = orderIndex
+		}
+	}
 
 	return orderResp, nil
 }
@@ -386,10 +400,19 @@ func (t *LighterTraderV2) submitOrder(txType int, txInfo string) (map[string]int
 	}
 
 	// Log full response for debugging
-	logger.Infof("DEBUG API response: %s", string(respBody))
+	logger.Debugf("API response: %s", string(respBody))
 
 	// Check response code
 	if sendResp.Code != 200 {
+		// Provide more specific error message for signature errors
+		// Code 21120: invalid signature (order submission)
+		// Code 29500: internal server error: invalid signature (authenticated GET APIs)
+		if (sendResp.Code == 21120 || sendResp.Code == 29500) && strings.Contains(sendResp.Message, "invalid signature") {
+			if !t.apiKeyValid {
+				return nil, fmt.Errorf("API Key MISMATCH (code %d): The API key stored in NOFX does not match the one registered on Lighter. Please update your Lighter API key in Exchange settings at app.lighter.xyz", sendResp.Code)
+			}
+			return nil, fmt.Errorf("API Key signature invalid (code %d): Please verify your Lighter API Key in Exchange settings matches the key registered at app.lighter.xyz", sendResp.Code)
+		}
 		return nil, fmt.Errorf("failed to submit order (code %d): %s", sendResp.Code, sendResp.Message)
 	}
 
@@ -403,15 +426,43 @@ func (t *LighterTraderV2) submitOrder(txType int, txInfo string) (map[string]int
 		}
 	}
 
+	logger.Infof("✓ Order submitted to LIGHTER - tx_hash: %s", txHash)
+
 	result := map[string]interface{}{
 		"tx_hash": txHash,
 		"status":  "submitted",
-		"orderId": txHash, // Use tx_hash as orderId
+		"orderId": txHash, // Use tx_hash as orderId initially
 	}
 
-	logger.Infof("✓ Order submitted to LIGHTER - tx_hash: %s", txHash)
-
 	return result, nil
+}
+
+// pollForOrderIndex polls active orders to find the order_index for a newly created order
+// Returns the highest order_index (newest order) for the given symbol
+func (t *LighterTraderV2) pollForOrderIndex(symbol string, txHash string) (int64, error) {
+	// Wait a moment for the order to be processed
+	time.Sleep(500 * time.Millisecond)
+
+	// Get active orders
+	orders, err := t.GetActiveOrders(symbol)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get active orders: %w", err)
+	}
+
+	if len(orders) == 0 {
+		return 0, fmt.Errorf("no active orders found (order may have been filled immediately)")
+	}
+
+	// Find the highest order_index (newest order)
+	var highestIndex int64
+	for _, order := range orders {
+		if order.OrderIndex > highestIndex {
+			highestIndex = order.OrderIndex
+		}
+	}
+
+	logger.Infof("✓ Order created with order_index: %d (tx_hash: %s)", highestIndex, txHash)
+	return highestIndex, nil
 }
 
 // normalizeSymbol Convert NOFX symbol format to Lighter format
@@ -431,7 +482,7 @@ func (t *LighterTraderV2) getMarketInfo(symbol string) (*MarketInfo, error) {
 	// Normalize symbol to Lighter format
 	normalizedSymbol := normalizeSymbol(symbol)
 
-	// 1. Fetch market list from API (TODO: cache this)
+	// Fetch market list from API (cached for 1 hour)
 	markets, err := t.fetchMarketList()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch market list: %w", err)
@@ -467,8 +518,18 @@ type MarketInfo struct {
 	PriceDecimals int    `json:"price_decimals"`
 }
 
-// fetchMarketList Fetch market list from API
+// fetchMarketList Fetch market list from API with caching (TTL: 1 hour)
 func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
+	// Check cache (TTL: 1 hour)
+	t.marketMutex.RLock()
+	if len(t.marketListCache) > 0 && time.Since(t.marketListCacheTime) < time.Hour {
+		cached := t.marketListCache
+		t.marketMutex.RUnlock()
+		return cached, nil
+	}
+	t.marketMutex.RUnlock()
+
+	// Fetch from API
 	endpoint := fmt.Sprintf("%s/api/v1/orderBooks", t.baseURL)
 
 	req, err := http.NewRequest("GET", endpoint, nil)
@@ -514,13 +575,19 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	for _, market := range apiResp.OrderBooks {
 		if market.Status == "active" {
 			markets = append(markets, MarketInfo{
-				Symbol:           market.Symbol,
-				MarketID:         market.MarketID,
-				SizeDecimals:     market.SupportedSizeDecimals,
-				PriceDecimals:    market.SupportedPriceDecimals,
+				Symbol:        market.Symbol,
+				MarketID:      market.MarketID,
+				SizeDecimals:  market.SupportedSizeDecimals,
+				PriceDecimals: market.SupportedPriceDecimals,
 			})
 		}
 	}
+
+	// Update cache
+	t.marketMutex.Lock()
+	t.marketListCache = markets
+	t.marketListCacheTime = time.Now()
+	t.marketMutex.Unlock()
 
 	logger.Infof("✓ Retrieved %d active markets from Lighter", len(markets))
 	return markets, nil
@@ -550,31 +617,132 @@ func (t *LighterTraderV2) getFallbackMarketIndex(symbol string) (uint16, error) 
 }
 
 // SetLeverage Set leverage (implements Trader interface)
+// Lighter uses InitialMarginFraction to represent leverage:
+//   - InitialMarginFraction = (100 / leverage) * 100  (stored as percentage * 100)
+//   - e.g., 5x leverage = 20% margin = 2000 in API
+//   - e.g., 20x leverage = 5% margin = 500 in API
 func (t *LighterTraderV2) SetLeverage(symbol string, leverage int) error {
 	if t.txClient == nil {
 		return fmt.Errorf("TxClient not initialized")
 	}
 
-	// TODO: Sign and submit SetLeverage transaction using SDK
-	logger.Infof("⚙️  Setting leverage: %s = %dx", symbol, leverage)
+	// Validate leverage range (1x to 50x typical max)
+	if leverage < 1 || leverage > 50 {
+		return fmt.Errorf("leverage must be between 1 and 50, got %d", leverage)
+	}
 
-	return nil // Return success for now
+	// Get market info (includes market_id)
+	marketInfo, err := t.getMarketInfo(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get market info: %w", err)
+	}
+	marketIndex := uint8(marketInfo.MarketID)
+
+	// Calculate InitialMarginFraction from leverage
+	// leverage = 100 / margin_fraction_percent
+	// margin_fraction_percent = 100 / leverage
+	// API value = margin_fraction_percent * 100
+	marginFractionPercent := 100.0 / float64(leverage)
+	initialMarginFraction := uint16(marginFractionPercent * 100) // e.g., 5x => 20% => 2000
+
+	logger.Infof("⚙️  Setting leverage: %s = %dx (margin_fraction=%.2f%%, API value=%d)",
+		symbol, leverage, marginFractionPercent, initialMarginFraction)
+
+	// Build UpdateLeverage request
+	txReq := &types.UpdateLeverageTxReq{
+		MarketIndex:           marketIndex,
+		InitialMarginFraction: initialMarginFraction,
+		MarginMode:            0, // 0 = cross margin (default)
+	}
+
+	// Sign transaction using SDK
+	nonce := int64(-1) // Auto-fetch nonce
+	tx, err := t.txClient.GetUpdateLeverageTransaction(txReq, &types.TransactOpts{
+		Nonce: &nonce,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to sign leverage transaction: %w", err)
+	}
+
+	// Get tx_info from SDK
+	txInfo, err := tx.GetTxInfo()
+	if err != nil {
+		return fmt.Errorf("failed to get tx info: %w", err)
+	}
+
+	// Submit to Lighter API (reuse submitOrder which handles any transaction type)
+	result, err := t.submitOrder(int(tx.GetTxType()), txInfo)
+	if err != nil {
+		return fmt.Errorf("failed to submit leverage transaction: %w", err)
+	}
+
+	logger.Infof("✓ Leverage set successfully: %s = %dx (tx_hash: %v)", symbol, leverage, result["tx_hash"])
+	return nil
 }
 
 // SetMarginMode Set margin mode (implements Trader interface)
+// Lighter uses UpdateLeverage transaction which includes both leverage and margin mode
+// MarginMode: 0 = cross, 1 = isolated
 func (t *LighterTraderV2) SetMarginMode(symbol string, isCrossMargin bool) error {
 	if t.txClient == nil {
 		return fmt.Errorf("TxClient not initialized")
 	}
 
-	modeStr := "isolated"
-	if isCrossMargin {
-		modeStr = "cross"
+	// Get market info
+	marketInfo, err := t.getMarketInfo(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get market info: %w", err)
+	}
+	marketIndex := uint8(marketInfo.MarketID)
+
+	// Determine margin mode value
+	var marginMode uint8 = 0 // cross
+	modeStr := "cross"
+	if !isCrossMargin {
+		marginMode = 1 // isolated
+		modeStr = "isolated"
 	}
 
-	logger.Infof("⚙️  Setting margin mode: %s = %s", symbol, modeStr)
+	// Get current position to preserve leverage, or use default 10x if no position
+	var initialMarginFraction uint16 = 1000 // Default 10x leverage (10% margin = 1000)
+	pos, err := t.GetPosition(symbol)
+	if err == nil && pos != nil && pos.Leverage > 0 {
+		// Calculate InitialMarginFraction from current leverage
+		marginFractionPercent := 100.0 / pos.Leverage
+		initialMarginFraction = uint16(marginFractionPercent * 100)
+	}
 
-	// TODO: Sign and submit SetMarginMode transaction using SDK
+	logger.Infof("⚙️  Setting margin mode: %s = %s (margin_mode=%d, preserving leverage)", symbol, modeStr, marginMode)
+
+	// Build UpdateLeverage request (also updates margin mode)
+	txReq := &types.UpdateLeverageTxReq{
+		MarketIndex:           marketIndex,
+		InitialMarginFraction: initialMarginFraction,
+		MarginMode:            marginMode,
+	}
+
+	// Sign transaction
+	nonce := int64(-1)
+	tx, err := t.txClient.GetUpdateLeverageTransaction(txReq, &types.TransactOpts{
+		Nonce: &nonce,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to sign margin mode transaction: %w", err)
+	}
+
+	// Get tx_info
+	txInfo, err := tx.GetTxInfo()
+	if err != nil {
+		return fmt.Errorf("failed to get tx info: %w", err)
+	}
+
+	// Submit to Lighter API
+	result, err := t.submitOrder(int(tx.GetTxType()), txInfo)
+	if err != nil {
+		return fmt.Errorf("failed to submit margin mode transaction: %w", err)
+	}
+
+	logger.Infof("✓ Margin mode set successfully: %s = %s (tx_hash: %v)", symbol, modeStr, result["tx_hash"])
 	return nil
 }
 
@@ -653,7 +821,7 @@ func (t *LighterTraderV2) CreateStopOrder(symbol string, isAsk bool, quantity fl
 		return nil, fmt.Errorf("failed to get tx info: %w", err)
 	}
 
-	logger.Infof("DEBUG stop order - type: %d, trigger: %.2f, price: %.2f, isAsk: %v", orderTypeValue, triggerPrice, float64(priceValue)/100, isAsk)
+	logger.Debugf("stop order - type: %d, trigger: %.2f, price: %.2f, isAsk: %v", orderTypeValue, triggerPrice, float64(priceValue)/100, isAsk)
 
 	// Submit order
 	orderResp, err := t.submitOrder(int(tx.GetTxType()), txInfo)
@@ -689,6 +857,117 @@ func pow10(n int) int64 {
 
 // GetOpenOrders gets all open/pending orders for a symbol
 func (t *LighterTraderV2) GetOpenOrders(symbol string) ([]OpenOrder, error) {
-	// TODO: Implement Lighter open orders
-	return []OpenOrder{}, nil
+	// Get active orders from Lighter API
+	activeOrders, err := t.GetActiveOrders(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get active orders: %w", err)
+	}
+
+	var result []OpenOrder
+	for _, order := range activeOrders {
+		// Convert side: Lighter uses is_ask (true=sell, false=buy)
+		side := "BUY"
+		if order.IsAsk {
+			side = "SELL"
+		}
+
+		// Determine order type from Lighter's type field
+		orderType := "LIMIT"
+		if order.Type == "market" {
+			orderType = "MARKET"
+		} else if order.Type == "stop_loss" || order.Type == "stop" {
+			orderType = "STOP_MARKET"
+		} else if order.Type == "take_profit" {
+			orderType = "TAKE_PROFIT_MARKET"
+		}
+
+		// Determine position side based on order direction and reduce-only flag
+		positionSide := "LONG"
+		if order.ReduceOnly {
+			// For reduce-only orders, position side is opposite to order side
+			if side == "BUY" {
+				positionSide = "SHORT" // Buying to close short
+			} else {
+				positionSide = "LONG" // Selling to close long
+			}
+		} else {
+			// For opening orders
+			if side == "SELL" {
+				positionSide = "SHORT"
+			}
+		}
+
+		// Parse price and quantity from string fields
+		price, _ := strconv.ParseFloat(order.Price, 64)
+		quantity, _ := strconv.ParseFloat(order.RemainingBaseAmount, 64)
+		if quantity == 0 {
+			quantity, _ = strconv.ParseFloat(order.InitialBaseAmount, 64)
+		}
+		triggerPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
+
+		openOrder := OpenOrder{
+			OrderID:      order.OrderID,
+			Symbol:       symbol,
+			Side:         side,
+			PositionSide: positionSide,
+			Type:         orderType,
+			Price:        price,
+			StopPrice:    triggerPrice,
+			Quantity:     quantity,
+			Status:       "NEW",
+		}
+		result = append(result, openOrder)
+	}
+
+	logger.Infof("✓ LIGHTER GetOpenOrders: found %d open orders for %s", len(result), symbol)
+	return result, nil
+}
+
+// PlaceLimitOrder implements GridTrader interface for grid trading
+// Places a limit order at the specified price
+func (t *LighterTraderV2) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	if t.txClient == nil {
+		return nil, fmt.Errorf("TxClient not initialized")
+	}
+
+	// Determine if this is a sell (ask) order
+	isAsk := req.Side == "SELL"
+
+	logger.Infof("📝 LIGHTER placing limit order: %s %s @ %.4f, qty=%.4f, leverage=%dx",
+		req.Symbol, req.Side, req.Price, req.Quantity, req.Leverage)
+
+	// Set leverage before placing order (important for grid trading)
+	if req.Leverage > 0 {
+		if err := t.SetLeverage(req.Symbol, req.Leverage); err != nil {
+			logger.Warnf("⚠️  Failed to set leverage: %v (continuing with current leverage)", err)
+		}
+	}
+
+	// Create limit order using existing CreateOrder function
+	orderResult, err := t.CreateOrder(req.Symbol, isAsk, req.Quantity, req.Price, "limit", req.ReduceOnly)
+	if err != nil {
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
+	}
+
+	// Extract order ID from result
+	orderID := ""
+	if id, ok := orderResult["orderId"]; ok {
+		orderID = fmt.Sprintf("%v", id)
+	} else if txHash, ok := orderResult["tx_hash"]; ok {
+		orderID = fmt.Sprintf("%v", txHash)
+	}
+
+	logger.Infof("✓ LIGHTER limit order placed: %s %s @ %.4f, OrderID: %s",
+		req.Symbol, req.Side, req.Price, orderID)
+
+	return &LimitOrderResult{
+		OrderID:      orderID,
+		ClientID:     req.ClientID,
+		Symbol:       req.Symbol,
+		Side:         req.Side,
+		PositionSide: req.PositionSide,
+		Price:        req.Price,
+		Quantity:     req.Quantity,
+		Status:       "NEW",
+	}, nil
 }

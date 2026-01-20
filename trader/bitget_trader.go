@@ -217,12 +217,6 @@ func (t *BitgetTrader) convertSymbol(symbol string) string {
 	return strings.ToUpper(symbol)
 }
 
-// deconvertSymbol converts Bitget symbol format back to standard format
-func (t *BitgetTrader) deconvertSymbol(symbol string) string {
-	// Bitget uses same format, just ensure uppercase
-	return strings.ToUpper(symbol)
-}
-
 // GetBalance gets account balance
 func (t *BitgetTrader) GetBalance() (map[string]interface{}, error) {
 	// Check cache
@@ -766,33 +760,35 @@ func (t *BitgetTrader) GetMarketPrice(symbol string) (float64, error) {
 
 // SetStopLoss sets stop loss order
 func (t *BitgetTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
-	// Bitget V2 uses TPSL order for stop loss
+	// Bitget V2 uses plan order for stop loss
 	symbol = t.convertSymbol(symbol)
 
-	// For one-way position mode, determine order direction for stop loss
-	// Long position stop loss = sell, Short position stop loss = buy
-	positionSideLower := strings.ToLower(positionSide)
-	holdSide := "sell" // Default for long position
-	if positionSideLower == "short" {
-		holdSide = "buy" // Short position stop loss is buy
+	side := "sell"
+	holdSide := "long"
+	if strings.ToUpper(positionSide) == "SHORT" {
+		side = "buy"
+		holdSide = "short"
 	}
 
 	qtyStr, _ := t.FormatQuantity(symbol, quantity)
 
 	body := map[string]interface{}{
-		"symbol":              symbol,
-		"productType":         "USDT-FUTURES",
-		"marginCoin":          "USDT",
-		"planType":            "loss_plan",
-		"triggerPrice":        t.FormatPrice(symbol, stopPrice),
-		"triggerType":         "mark_price",
-		"executePrice":        "0",
-		"holdSide":            holdSide,
-		"size":                qtyStr,
-		"clientOid":           genBitgetClientOid(),
+		"planType":     "loss_plan",
+		"symbol":       symbol,
+		"productType":  "USDT-FUTURES",
+		"marginMode":   "crossed",
+		"marginCoin":   "USDT",
+		"triggerPrice": fmt.Sprintf("%.8f", stopPrice),
+		"triggerType":  "mark_price",
+		"side":         side,
+		"tradeSide":    "close",
+		"orderType":    "market",
+		"size":         qtyStr,
+		"holdSide":     holdSide,
+		"clientOid":    genBitgetClientOid(),
 	}
 
-	_, err := t.doRequest("POST", "/api/v2/mix/order/place-tpsl-order", body)
+	_, err := t.doRequest("POST", "/api/v2/mix/order/place-plan-order", body)
 	if err != nil {
 		return fmt.Errorf("failed to set stop loss: %w", err)
 	}
@@ -803,33 +799,35 @@ func (t *BitgetTrader) SetStopLoss(symbol string, positionSide string, quantity,
 
 // SetTakeProfit sets take profit order
 func (t *BitgetTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
-	// Bitget V2 uses TPSL order for take profit
+	// Bitget V2 uses plan order for take profit
 	symbol = t.convertSymbol(symbol)
 
-	// For one-way position mode, determine order direction for take profit
-	// Long position take profit = sell, Short position take profit = buy
-	positionSideLower := strings.ToLower(positionSide)
-	holdSide := "sell" // Default for long position
-	if positionSideLower == "short" {
-		holdSide = "buy" // Short position take profit is buy
+	side := "sell"
+	holdSide := "long"
+	if strings.ToUpper(positionSide) == "SHORT" {
+		side = "buy"
+		holdSide = "short"
 	}
 
 	qtyStr, _ := t.FormatQuantity(symbol, quantity)
 
 	body := map[string]interface{}{
-		"symbol":              symbol,
-		"productType":         "USDT-FUTURES",
-		"marginCoin":          "USDT",
-		"planType":            "profit_plan",
-		"triggerPrice":        t.FormatPrice(symbol, takeProfitPrice),
-		"triggerType":         "mark_price",
-		"executePrice":        "0",
-		"holdSide":            holdSide,
-		"size":                qtyStr,
-		"clientOid":           genBitgetClientOid(),
+		"planType":     "profit_plan",
+		"symbol":       symbol,
+		"productType":  "USDT-FUTURES",
+		"marginMode":   "crossed",
+		"marginCoin":   "USDT",
+		"triggerPrice": fmt.Sprintf("%.8f", takeProfitPrice),
+		"triggerType":  "mark_price",
+		"side":         side,
+		"tradeSide":    "close",
+		"orderType":    "market",
+		"size":         qtyStr,
+		"holdSide":     holdSide,
+		"clientOid":    genBitgetClientOid(),
 	}
 
-	_, err := t.doRequest("POST", "/api/v2/mix/order/place-tpsl-order", body)
+	_, err := t.doRequest("POST", "/api/v2/mix/order/place-plan-order", body)
 	if err != nil {
 		return fmt.Errorf("failed to set take profit: %w", err)
 	}
@@ -950,19 +948,6 @@ func (t *BitgetTrader) FormatQuantity(symbol string, quantity float64) (string, 
 	return fmt.Sprintf(format, quantity), nil
 }
 
-// FormatPrice formats price according to contract precision
-func (t *BitgetTrader) FormatPrice(symbol string, price float64) string {
-	contract, err := t.getContract(symbol)
-	if err != nil {
-		// Default to 2 decimal places if contract info not available
-		return fmt.Sprintf("%.2f", price)
-	}
-
-	// Format according to price precision
-	format := fmt.Sprintf("%%.%df", contract.PricePlace)
-	return fmt.Sprintf(format, price)
-}
-
 // GetOrderStatus gets order status
 func (t *BitgetTrader) GetOrderStatus(symbol string, orderID string) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)
@@ -1036,103 +1021,61 @@ func (t *BitgetTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnL
 		limit = 100
 	}
 
-	// Bitget requires endTime to be after startTime
-	endTime := time.Now()
-	
 	params := map[string]interface{}{
 		"productType": "USDT-FUTURES",
 		"startTime":   fmt.Sprintf("%d", startTime.UnixMilli()),
-		"endTime":     fmt.Sprintf("%d", endTime.UnixMilli()),
-		"limit":       fmt.Sprintf("%d", limit), // 官方文档使用 limit，不是 pageSize
+		"limit":       fmt.Sprintf("%d", limit),
 	}
-
-	logger.Infof("📊 [Bitget] GetClosedPnL request: startTime=%s, endTime=%s, limit=%d", 
-		startTime.Format("2006-01-02 15:04:05"), endTime.Format("2006-01-02 15:04:05"), limit)
 
 	data, err := t.doRequest("GET", "/api/v2/mix/position/history-position", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions history: %w", err)
 	}
 
-	// Debug: print raw response
-	logger.Infof("📊 [Bitget] History position raw response: %s", string(data))
-
 	var resp struct {
 		List []struct {
-			PositionId     string `json:"positionId"`
-			Symbol         string `json:"symbol"`
-			MarginCoin     string `json:"marginCoin"`
-			HoldSide       string `json:"holdSide"`        // long/short
-			PosMode        string `json:"posMode"`         // one_way_mode/hedge_mode
-			OpenAvgPrice   string `json:"openAvgPrice"`    // 开仓均价
-			CloseAvgPrice  string `json:"closeAvgPrice"`   // 平仓均价
-			MarginMode     string `json:"marginMode"`      // isolated/crossed
-			OpenTotalPos   string `json:"openTotalPos"`    // 累计开仓数量
-			CloseTotalPos  string `json:"closeTotalPos"`   // 累计已平仓数量
-			Pnl            string `json:"pnl"`             // 已实现盈亏
-			NetProfit      string `json:"netProfit"`       // 净盈亏
-			TotalFunding   string `json:"totalFunding"`    // 累计资金费用
-			OpenFee        string `json:"openFee"`         // 开仓手续费
-			CloseFee       string `json:"closeFee"`        // 平仓手续费
-			CTime          string `json:"ctime"`           // 创建时间（毫秒时间戳）
-			UTime          string `json:"utime"`           // 更新时间（毫秒时间戳）
+			Symbol       string `json:"symbol"`
+			HoldSide     string `json:"holdSide"`
+			OpenPriceAvg string `json:"openPriceAvg"`
+			ClosePriceAvg string `json:"closePriceAvg"`
+			CloseVol     string `json:"closeVol"`
+			AchievedProfits string `json:"achievedProfits"`
+			TotalFee     string `json:"totalFee"`
+			Leverage     string `json:"leverage"`
+			CTime        string `json:"cTime"`
+			UTime        string `json:"uTime"`
 		} `json:"list"`
-		EndId string `json:"endId"`
 	}
 
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	logger.Infof("📊 [Bitget] Parsed %d history positions", len(resp.List))
-
-	logger.Infof("📊 [Bitget] Parsed %d history positions", len(resp.List))
-
 	records := make([]ClosedPnLRecord, 0, len(resp.List))
 	for _, pos := range resp.List {
-		// Skip if essential fields are missing
-		if pos.Symbol == "" || pos.CloseTotalPos == "" {
-			logger.Infof("⚠️ [Bitget] Skipping invalid history position: symbol=%s, closeTotalPos=%s", pos.Symbol, pos.CloseTotalPos)
-			continue
-		}
-
 		record := ClosedPnLRecord{
 			Symbol: pos.Symbol,
-			Side:   pos.HoldSide, // long/short
+			Side:   pos.HoldSide,
 		}
 
-		// 使用官方文档的字段名
-		record.EntryPrice, _ = strconv.ParseFloat(pos.OpenAvgPrice, 64)
-		record.ExitPrice, _ = strconv.ParseFloat(pos.CloseAvgPrice, 64)
-		record.Quantity, _ = strconv.ParseFloat(pos.CloseTotalPos, 64)
-		
-		// 净盈亏 = 已实现盈亏 - 手续费
-		netProfit, _ := strconv.ParseFloat(pos.NetProfit, 64)
-		record.RealizedPnL = netProfit
-		
-		// 总手续费 = 开仓手续费 + 平仓手续费
-		openFee, _ := strconv.ParseFloat(pos.OpenFee, 64)
-		closeFee, _ := strconv.ParseFloat(pos.CloseFee, 64)
-		record.Fee = openFee + closeFee
-		
-		// Bitget 不返回杠杆信息，使用默认值
-		record.Leverage = 10
+		record.EntryPrice, _ = strconv.ParseFloat(pos.OpenPriceAvg, 64)
+		record.ExitPrice, _ = strconv.ParseFloat(pos.ClosePriceAvg, 64)
+		record.Quantity, _ = strconv.ParseFloat(pos.CloseVol, 64)
+		record.RealizedPnL, _ = strconv.ParseFloat(pos.AchievedProfits, 64)
+		fee, _ := strconv.ParseFloat(pos.TotalFee, 64)
+		record.Fee = -fee
+		lev, _ := strconv.ParseFloat(pos.Leverage, 64)
+		record.Leverage = int(lev)
 
-		// 时间戳转换（毫秒）
 		cTime, _ := strconv.ParseInt(pos.CTime, 10, 64)
 		uTime, _ := strconv.ParseInt(pos.UTime, 10, 64)
 		record.EntryTime = time.UnixMilli(cTime).UTC()
 		record.ExitTime = time.UnixMilli(uTime).UTC()
 
 		record.CloseType = "unknown"
-		
-		logger.Infof("✅ [Bitget] History position: %s %s, entry=%.2f, exit=%.2f, qty=%.4f, netProfit=%.2f, fee=%.2f",
-			record.Symbol, record.Side, record.EntryPrice, record.ExitPrice, record.Quantity, record.RealizedPnL, record.Fee)
-		
 		records = append(records, record)
 	}
 
-	logger.Infof("📊 [Bitget] Returning %d history position records", len(records))
 	return records, nil
 }
 
@@ -1157,7 +1100,9 @@ func genBitgetClientOid() string {
 // GetOpenOrders gets all open/pending orders for a symbol
 func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	symbol = t.convertSymbol(symbol)
+	var result []OpenOrder
 
+	// 1. Get pending limit orders
 	params := map[string]interface{}{
 		"symbol":      symbol,
 		"productType": "USDT-FUTURES",
@@ -1165,136 +1110,146 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 
 	data, err := t.doRequest("GET", bitgetPendingPath, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get open orders: %w", err)
+		logger.Warnf("[Bitget] Failed to get pending orders: %v", err)
 	}
-
-	var orders struct {
-		EntrustedList []struct {
-			OrderId      string `json:"orderId"`
-			Side         string `json:"side"`
-			OrderType    string `json:"orderType"`
-			Price        string `json:"price"`
-			BaseVolume   string `json:"baseVolume"`
-			TriggerPrice string `json:"triggerPrice"`
-		} `json:"entrustedList"`
-	}
-
-	if err := json.Unmarshal(data, &orders); err != nil {
-		return nil, fmt.Errorf("failed to parse orders: %w", err)
-	}
-
-	var result []OpenOrder
-	for _, order := range orders.EntrustedList {
-		price, _ := strconv.ParseFloat(order.Price, 64)
-		qty, _ := strconv.ParseFloat(order.BaseVolume, 64)
-		stopPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
-
-		openOrder := OpenOrder{
-			OrderID:  order.OrderId,
-			Symbol:   symbol,
-			Side:     order.Side,
-			Type:     order.OrderType,
-			Price:    price,
-			StopPrice: stopPrice,
-			Quantity: qty,
-			Status:   "NEW",
+	if err == nil && data != nil {
+		var orders struct {
+			EntrustedList []struct {
+				OrderId      string `json:"orderId"`
+				Symbol       string `json:"symbol"`
+				Side         string `json:"side"`         // buy/sell
+				TradeSide    string `json:"tradeSide"`    // open/close
+				PosSide      string `json:"posSide"`      // long/short
+				OrderType    string `json:"orderType"`    // limit/market
+				Price        string `json:"price"`
+				Size         string `json:"size"`
+				State        string `json:"state"`
+			} `json:"entrustedList"`
 		}
-		result = append(result, openOrder)
+		if err := json.Unmarshal(data, &orders); err == nil {
+			for _, order := range orders.EntrustedList {
+				price, _ := strconv.ParseFloat(order.Price, 64)
+				quantity, _ := strconv.ParseFloat(order.Size, 64)
+
+				// Convert side to standard format
+				side := strings.ToUpper(order.Side)
+				positionSide := strings.ToUpper(order.PosSide)
+
+				result = append(result, OpenOrder{
+					OrderID:      order.OrderId,
+					Symbol:       symbol,
+					Side:         side,
+					PositionSide: positionSide,
+					Type:         strings.ToUpper(order.OrderType),
+					Price:        price,
+					StopPrice:    0,
+					Quantity:     quantity,
+					Status:       "NEW",
+				})
+			}
+		}
 	}
 
+	// 2. Get pending plan orders (stop-loss/take-profit)
+	planParams := map[string]interface{}{
+		"symbol":      symbol,
+		"productType": "USDT-FUTURES",
+	}
+
+	planData, err := t.doRequest("GET", "/api/v2/mix/order/orders-plan-pending", planParams)
+	if err != nil {
+		logger.Warnf("[Bitget] Failed to get plan orders: %v", err)
+	}
+	if err == nil && planData != nil {
+		var planOrders struct {
+			EntrustedList []struct {
+				OrderId       string `json:"orderId"`
+				Symbol        string `json:"symbol"`
+				Side          string `json:"side"`
+				PosSide       string `json:"posSide"`
+				PlanType      string `json:"planType"` // normal_plan/profit_plan/loss_plan
+				TriggerPrice  string `json:"triggerPrice"`
+				Size          string `json:"size"`
+				State         string `json:"state"`
+			} `json:"entrustedList"`
+		}
+		if err := json.Unmarshal(planData, &planOrders); err == nil {
+			for _, order := range planOrders.EntrustedList {
+				triggerPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
+				quantity, _ := strconv.ParseFloat(order.Size, 64)
+
+				side := strings.ToUpper(order.Side)
+				positionSide := strings.ToUpper(order.PosSide)
+
+				// Map Bitget plan type to order type
+				orderType := "STOP_MARKET"
+				if order.PlanType == "profit_plan" {
+					orderType = "TAKE_PROFIT_MARKET"
+				}
+
+				result = append(result, OpenOrder{
+					OrderID:      order.OrderId,
+					Symbol:       symbol,
+					Side:         side,
+					PositionSide: positionSide,
+					Type:         orderType,
+					Price:        0,
+					StopPrice:    triggerPrice,
+					Quantity:     quantity,
+					Status:       "NEW",
+				})
+			}
+		}
+	}
+
+	logger.Infof("✓ BITGET GetOpenOrders: found %d open orders for %s", len(result), symbol)
 	return result, nil
 }
 
-// GetAllOpenOrders gets all open/pending orders across all symbols in the account
-// This is useful when you want to see all pending orders without specifying symbol
-func (t *BitgetTrader) GetAllOpenOrders() ([]OpenOrder, error) {
-	// Use empty symbol to get all pending orders for the account
-	params := map[string]interface{}{
-		"productType": "USDT-FUTURES",
-	}
+// PlaceLimitOrder places a limit order for grid trading
+// Implements GridTrader interface
+func (t *BitgetTrader) PlaceLimitOrder(req *LimitOrderRequest) (*LimitOrderResult, error) {
+	symbol := t.convertSymbol(req.Symbol)
 
-	data, err := t.doRequest("GET", bitgetPendingPath, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get all open orders: %w", err)
-	}
-
-	var orders struct {
-		EntrustedList []struct {
-			OrderId      string `json:"orderId"`
-			Symbol       string `json:"symbol"`
-			Side         string `json:"side"`
-			OrderType    string `json:"orderType"`
-			Price        string `json:"price"`
-			BaseVolume   string `json:"baseVolume"`
-			TriggerPrice string `json:"triggerPrice"`
-		} `json:"entrustedList"`
-	}
-
-	if err := json.Unmarshal(data, &orders); err != nil {
-		return nil, fmt.Errorf("failed to parse all orders: %w", err)
-	}
-
-	var result []OpenOrder
-	for _, order := range orders.EntrustedList {
-		price, _ := strconv.ParseFloat(order.Price, 64)
-		qty, _ := strconv.ParseFloat(order.BaseVolume, 64)
-		stopPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
-
-		openOrder := OpenOrder{
-			OrderID:  order.OrderId,
-			Symbol:   t.deconvertSymbol(order.Symbol), // Convert back from exchange format
-			Side:     order.Side,
-			Type:     order.OrderType,
-			Price:    price,
-			StopPrice: stopPrice,
-			Quantity: qty,
-			Status:   "NEW",
+	// Set leverage if specified
+	if req.Leverage > 0 {
+		if err := t.SetLeverage(symbol, req.Leverage); err != nil {
+			logger.Warnf("[Bitget] Failed to set leverage: %v", err)
 		}
-		result = append(result, openOrder)
 	}
 
-	return result, nil
-}// PlaceOrder places a limit order or market order
-// orderType: "limit" or "market"
-// side: "buy" or "sell"
-func (t *BitgetTrader) PlaceOrder(symbol string, side string, quantity float64, price float64, orderType string) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
-	side = strings.ToLower(side)
-	orderType = strings.ToUpper(orderType)
+	// Format quantity
+	qtyStr, _ := t.FormatQuantity(symbol, req.Quantity)
 
-	// Validate inputs
-	if side != "buy" && side != "sell" {
-		return nil, fmt.Errorf("invalid side: %s, must be buy or sell", side)
+	// Determine side
+	side := "buy"
+	if req.Side == "SELL" {
+		side = "sell"
 	}
 
-	if orderType != "LIMIT" && orderType != "MARKET" {
-		return nil, fmt.Errorf("invalid orderType: %s, must be LIMIT or MARKET", orderType)
-	}
-
-	qtyStr, _ := t.FormatQuantity(symbol, quantity)
-	
 	body := map[string]interface{}{
 		"symbol":      symbol,
 		"productType": "USDT-FUTURES",
-		"marginCoin":  "USDT",
 		"marginMode":  "crossed",
+		"marginCoin":  "USDT",
 		"side":        side,
-		"orderType":   orderType,
+		"orderType":   "limit",
 		"size":        qtyStr,
+		"price":       fmt.Sprintf("%.8f", req.Price),
+		"force":       "GTC", // Good Till Cancel
 		"clientOid":   genBitgetClientOid(),
 	}
 
-	// For limit orders, set price
-	if orderType == "LIMIT" {
-		body["price"] = t.FormatPrice(symbol, price)
+	// Add reduce only if specified
+	if req.ReduceOnly {
+		body["reduceOnly"] = "YES"
 	}
 
-	logger.Infof("  📊 Bitget PlaceOrder: symbol=%s, side=%s, qty=%s, price=%.4f, type=%s", 
-		symbol, side, qtyStr, price, orderType)
+	logger.Infof("[Bitget] PlaceLimitOrder: %s %s @ %.4f, qty=%s", symbol, side, req.Price, qtyStr)
 
 	data, err := t.doRequest("POST", bitgetOrderPath, body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to place order: %w", err)
+		return nil, fmt.Errorf("failed to place limit order: %w", err)
 	}
 
 	var order struct {
@@ -1306,408 +1261,78 @@ func (t *BitgetTrader) PlaceOrder(symbol string, side string, quantity float64, 
 		return nil, fmt.Errorf("failed to parse order response: %w", err)
 	}
 
-	logger.Infof("✓ Bitget order placed successfully: %s", order.OrderId)
+	logger.Infof("✓ [Bitget] Limit order placed: %s %s @ %.4f, orderID=%s",
+		symbol, side, req.Price, order.OrderId)
 
-	return map[string]interface{}{
-		"orderId":   order.OrderId,
-		"symbol":    symbol,
-		"side":      side,
-		"quantity":  quantity,
-		"price":     price,
-		"type":      orderType,
-		"status":    "NEW",
-		"timestamp": time.Now().UnixMilli(),
+	return &LimitOrderResult{
+		OrderID:      order.OrderId,
+		ClientID:     order.ClientOid,
+		Symbol:       req.Symbol,
+		Side:         req.Side,
+		PositionSide: req.PositionSide,
+		Price:        req.Price,
+		Quantity:     req.Quantity,
+		Status:       "NEW",
 	}, nil
 }
 
-// ModifyOrder modifies an existing pending order
-// quantity and price can be 0 to keep unchanged
-func (t *BitgetTrader) ModifyOrder(symbol string, orderID string, quantity float64, price float64) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// Get current order details
-	orderStatus, err := t.GetOrderStatus(symbol, orderID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get order details: %w", err)
-	}
-
-	// If quantity or price not specified, use current values
-	if quantity == 0 {
-		quantity = orderStatus["executedQty"].(float64)
-	}
-	if price == 0 {
-		price = orderStatus["avgPrice"].(float64)
-	}
-
-	qtyStr, _ := t.FormatQuantity(symbol, quantity)
-	priceStr := t.FormatPrice(symbol, price)
-
-	body := map[string]interface{}{
-		"symbol":      symbol,
-		"productType": "USDT-FUTURES",
-		"marginCoin":  "USDT",
-		"orderId":     orderID,
-		"newSize":     qtyStr,
-		"newPrice":    priceStr,
-	}
-
-	logger.Infof("  📊 Bitget ModifyOrder: orderId=%s, newQty=%s, newPrice=%s", orderID, qtyStr, priceStr)
-
-	data, err := t.doRequest("POST", "/api/v2/mix/order/amend-order", body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to modify order: %w", err)
-	}
-
-	var result struct {
-		OrderId string `json:"orderId"`
-	}
-
-	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse modify response: %w", err)
-	}
-
-	logger.Infof("✓ Bitget order modified successfully: %s", result.OrderId)
-
-	return map[string]interface{}{
-		"orderId":   result.OrderId,
-		"symbol":    symbol,
-		"quantity":  quantity,
-		"price":     price,
-		"status":    "MODIFIED",
-		"timestamp": time.Now().UnixMilli(),
-	}, nil
-}
-
-// CancelOrder cancels a specific pending order
-func (t *BitgetTrader) CancelOrder(symbol string, orderID string) error {
+// CancelOrder cancels a specific order by ID
+// Implements GridTrader interface
+func (t *BitgetTrader) CancelOrder(symbol, orderID string) error {
 	symbol = t.convertSymbol(symbol)
 
 	body := map[string]interface{}{
 		"symbol":      symbol,
 		"productType": "USDT-FUTURES",
-		"marginCoin":  "USDT",
 		"orderId":     orderID,
 	}
 
-	logger.Infof("  📊 Bitget CancelOrder: orderId=%s", orderID)
-
-	_, err := t.doRequest("POST", bitgetCancelOrderPath, body)
+	_, err := t.doRequest("POST", "/api/v2/mix/order/cancel-order", body)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "already") {
-			logger.Infof("  ⚠️ Order %s not found or already canceled", orderID)
-			return nil
-		}
 		return fmt.Errorf("failed to cancel order: %w", err)
 	}
 
-	logger.Infof("✓ Bitget order canceled successfully: %s", orderID)
+	logger.Infof("✓ [Bitget] Order cancelled: %s %s", symbol, orderID)
 	return nil
 }
 
-// ClosePositionPartial closes part of a position
-// quantity: amount to close (> 0)
-func (t *BitgetTrader) ClosePositionPartial(symbol string, quantity float64) (map[string]interface{}, error) {
-	if quantity <= 0 {
-		return nil, fmt.Errorf("quantity must be greater than 0")
-	}
-
+// GetOrderBook gets the order book for a symbol
+// Implements GridTrader interface
+func (t *BitgetTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]float64, err error) {
 	symbol = t.convertSymbol(symbol)
+	path := fmt.Sprintf("/api/v2/mix/market/depth?symbol=%s&productType=USDT-FUTURES&limit=%d", symbol, depth)
 
-	// Get current position
-	positions, err := t.GetPositions()
+	data, err := t.doRequest("GET", path, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get positions: %w", err)
+		return nil, nil, fmt.Errorf("failed to get order book: %w", err)
 	}
 
-	var currentPos map[string]interface{}
-	for _, pos := range positions {
-		if posSymbol, ok := pos["symbol"].(string); ok && posSymbol == symbol {
-			currentPos = pos
-			break
+	var result struct {
+		Bids [][]string `json:"bids"`
+		Asks [][]string `json:"asks"`
+	}
+
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse order book: %w", err)
+	}
+
+	// Parse bids
+	for _, b := range result.Bids {
+		if len(b) >= 2 {
+			price, _ := strconv.ParseFloat(b[0], 64)
+			qty, _ := strconv.ParseFloat(b[1], 64)
+			bids = append(bids, []float64{price, qty})
 		}
 	}
 
-	if currentPos == nil {
-		return nil, fmt.Errorf("position not found for symbol: %s", symbol)
-	}
-
-	positionAmt := currentPos["positionAmt"].(float64)
-	side := currentPos["side"].(string)
-
-	// Validate quantity doesn't exceed position
-	if quantity > positionAmt {
-		return nil, fmt.Errorf("close quantity %.4f exceeds position size %.4f", quantity, positionAmt)
-	}
-
-	// Determine close side
-	var closeSide string
-	if side == "long" {
-		closeSide = "sell"
-	} else {
-		closeSide = "buy"
-	}
-
-	qtyStr, _ := t.FormatQuantity(symbol, quantity)
-
-	body := map[string]interface{}{
-		"symbol":      symbol,
-		"productType": "USDT-FUTURES",
-		"marginCoin":  "USDT",
-		"side":        closeSide,
-		"orderType":   "market",
-		"size":        qtyStr,
-		"clientOid":   genBitgetClientOid(),
-	}
-
-	logger.Infof("  📊 Bitget ClosePositionPartial: symbol=%s, qty=%s, side=%s", symbol, qtyStr, closeSide)
-
-	data, err := t.doRequest("POST", bitgetOrderPath, body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to close position partially: %w", err)
-	}
-
-	var order struct {
-		OrderId string `json:"orderId"`
-	}
-
-	if err := json.Unmarshal(data, &order); err != nil {
-		return nil, fmt.Errorf("failed to parse order response: %w", err)
-	}
-
-	t.clearCache()
-
-	logger.Infof("✓ Bitget partial position closed successfully: %s", symbol)
-
-	return map[string]interface{}{
-		"orderId":   order.OrderId,
-		"symbol":    symbol,
-		"quantity":  quantity,
-		"side":      closeSide,
-		"status":    "FILLED",
-		"timestamp": time.Now().UnixMilli(),
-	}, nil
-}
-
-// SetMultipleStopLoss sets multiple stop loss orders at different price levels
-// stopPrices: list of stop loss prices
-func (t *BitgetTrader) SetMultipleStopLoss(symbol string, positionSide string, quantity float64, stopPrices []float64) ([]map[string]interface{}, error) {
-	if len(stopPrices) == 0 {
-		return nil, fmt.Errorf("stopPrices cannot be empty")
-	}
-
-	symbol = t.convertSymbol(symbol)
-	results := make([]map[string]interface{}, 0, len(stopPrices))
-
-	// Cancel existing stop loss orders first
-	t.CancelStopLossOrders(symbol)
-
-	// Set each stop loss price
-	for i, stopPrice := range stopPrices {
-		if err := t.SetStopLoss(symbol, positionSide, quantity/float64(len(stopPrices)), stopPrice); err != nil {
-			logger.Warnf("  ⚠️ Failed to set stop loss %d: %v", i+1, err)
-			continue
-		}
-
-		results = append(results, map[string]interface{}{
-			"symbol":    symbol,
-			"level":     i + 1,
-			"stopPrice": stopPrice,
-			"quantity":  quantity / float64(len(stopPrices)),
-			"status":    "PENDING",
-		})
-	}
-
-	logger.Infof("✓ Bitget set %d multiple stop loss orders for %s", len(results), symbol)
-	return results, nil
-}
-
-// SetMultipleTakeProfit sets multiple take profit orders at different price levels
-// takeProfitPrices: list of take profit prices
-func (t *BitgetTrader) SetMultipleTakeProfit(symbol string, positionSide string, quantity float64, takeProfitPrices []float64) ([]map[string]interface{}, error) {
-	if len(takeProfitPrices) == 0 {
-		return nil, fmt.Errorf("takeProfitPrices cannot be empty")
-	}
-
-	symbol = t.convertSymbol(symbol)
-	results := make([]map[string]interface{}, 0, len(takeProfitPrices))
-
-	// Cancel existing take profit orders first
-	t.CancelTakeProfitOrders(symbol)
-
-	// Set each take profit price
-	for i, tpPrice := range takeProfitPrices {
-		if err := t.SetTakeProfit(symbol, positionSide, quantity/float64(len(takeProfitPrices)), tpPrice); err != nil {
-			logger.Warnf("  ⚠️ Failed to set take profit %d: %v", i+1, err)
-			continue
-		}
-
-		results = append(results, map[string]interface{}{
-			"symbol":         symbol,
-			"level":          i + 1,
-			"takeProfitPrice": tpPrice,
-			"quantity":       quantity / float64(len(takeProfitPrices)),
-			"status":         "PENDING",
-		})
-	}
-
-	logger.Infof("✓ Bitget set %d multiple take profit orders for %s", len(results), symbol)
-	return results, nil
-}
-
-// ModifyStopLossTier modifies a specific stop loss order tier
-// tierIndex: 0-based index of the tier to modify (0=first, 1=second, etc)
-func (t *BitgetTrader) ModifyStopLossTier(symbol string, tierIndex int, stopPrice float64) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// Get pending stop loss orders
-	params := map[string]interface{}{
-		"symbol":      symbol,
-		"productType": "USDT-FUTURES",
-		"planType":    "loss_plan",
-	}
-
-	data, err := t.doRequest("GET", "/api/v2/mix/order/orders-plan-pending", params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get stop loss orders: %w", err)
-	}
-
-	var orders struct {
-		EntrustedList []struct {
-			OrderId   string `json:"orderId"`
-			Size      string `json:"size"`
-			TriggerPrice string `json:"triggerPrice"`
-		} `json:"entrustedList"`
-	}
-
-	if err := json.Unmarshal(data, &orders); err != nil {
-		return nil, fmt.Errorf("failed to parse orders: %w", err)
-	}
-
-	if tierIndex < 0 || tierIndex >= len(orders.EntrustedList) {
-		return nil, fmt.Errorf("tierIndex %d out of range [0, %d)", tierIndex, len(orders.EntrustedList))
-	}
-
-	targetOrder := orders.EntrustedList[tierIndex]
-	qty, _ := strconv.ParseFloat(targetOrder.Size, 64)
-
-	// Cancel the old order
-	body := map[string]interface{}{
-		"symbol":      symbol,
-		"productType": "USDT-FUTURES",
-		"marginCoin":  "USDT",
-		"orderId":     targetOrder.OrderId,
-	}
-	t.doRequest("POST", "/api/v2/mix/order/cancel-plan-order", body)
-
-	// Create new order with new price
-	// Get position side from current position
-	positions, _ := t.GetPositions()
-	var positionSide string
-	for _, pos := range positions {
-		if posSymbol, ok := pos["symbol"].(string); ok && posSymbol == symbol {
-			side, ok := pos["side"].(string)
-			if ok {
-				positionSide = side
-			}
-			break
+	// Parse asks
+	for _, a := range result.Asks {
+		if len(a) >= 2 {
+			price, _ := strconv.ParseFloat(a[0], 64)
+			qty, _ := strconv.ParseFloat(a[1], 64)
+			asks = append(asks, []float64{price, qty})
 		}
 	}
 
-	if positionSide == "" {
-		positionSide = "long"
-	}
-
-	if err := t.SetStopLoss(symbol, positionSide, qty, stopPrice); err != nil {
-		return nil, fmt.Errorf("failed to set new stop loss order: %w", err)
-	}
-
-	logger.Infof("✓ Bitget modified stop loss tier %d for %s to %.4f", tierIndex+1, symbol, stopPrice)
-
-	return map[string]interface{}{
-		"symbol":     symbol,
-		"tier":       tierIndex + 1,
-		"stopPrice":  stopPrice,
-		"quantity":   qty,
-		"status":     "PENDING",
-		"timestamp":  time.Now().UnixMilli(),
-	}, nil
-}
-
-// ModifyTakeProfitTier modifies a specific take profit order tier
-// tierIndex: 0-based index of the tier to modify (0=first, 1=second, etc)
-func (t *BitgetTrader) ModifyTakeProfitTier(symbol string, tierIndex int, takeProfitPrice float64) (map[string]interface{}, error) {
-	symbol = t.convertSymbol(symbol)
-
-	// Get pending take profit orders
-	params := map[string]interface{}{
-		"symbol":      symbol,
-		"productType": "USDT-FUTURES",
-		"planType":    "profit_plan",
-	}
-
-	data, err := t.doRequest("GET", "/api/v2/mix/order/orders-plan-pending", params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get take profit orders: %w", err)
-	}
-
-	var orders struct {
-		EntrustedList []struct {
-			OrderId   string `json:"orderId"`
-			Size      string `json:"size"`
-			TriggerPrice string `json:"triggerPrice"`
-		} `json:"entrustedList"`
-	}
-
-	if err := json.Unmarshal(data, &orders); err != nil {
-		return nil, fmt.Errorf("failed to parse orders: %w", err)
-	}
-
-	if tierIndex < 0 || tierIndex >= len(orders.EntrustedList) {
-		return nil, fmt.Errorf("tierIndex %d out of range [0, %d)", tierIndex, len(orders.EntrustedList))
-	}
-
-	targetOrder := orders.EntrustedList[tierIndex]
-	qty, _ := strconv.ParseFloat(targetOrder.Size, 64)
-
-	// Cancel the old order
-	body := map[string]interface{}{
-		"symbol":      symbol,
-		"productType": "USDT-FUTURES",
-		"marginCoin":  "USDT",
-		"orderId":     targetOrder.OrderId,
-	}
-	t.doRequest("POST", "/api/v2/mix/order/cancel-plan-order", body)
-
-	// Create new order with new price
-	// Get position side from current position
-	positions, _ := t.GetPositions()
-	var positionSide string
-	for _, pos := range positions {
-		if posSymbol, ok := pos["symbol"].(string); ok && posSymbol == symbol {
-			side, ok := pos["side"].(string)
-			if ok {
-				positionSide = side
-			}
-			break
-		}
-	}
-
-	if positionSide == "" {
-		positionSide = "long"
-	}
-
-	if err := t.SetTakeProfit(symbol, positionSide, qty, takeProfitPrice); err != nil {
-		return nil, fmt.Errorf("failed to set new take profit order: %w", err)
-	}
-
-	logger.Infof("✓ Bitget modified take profit tier %d for %s to %.4f", tierIndex+1, symbol, takeProfitPrice)
-
-	return map[string]interface{}{
-		"symbol":          symbol,
-		"tier":            tierIndex + 1,
-		"takeProfitPrice": takeProfitPrice,
-		"quantity":        qty,
-		"status":          "PENDING",
-		"timestamp":       time.Now().UnixMilli(),
-	}, nil
+	return bids, asks, nil
 }

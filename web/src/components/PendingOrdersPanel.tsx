@@ -126,8 +126,20 @@ export const PendingOrdersPanel: React.FC<PendingOrdersPanelProps> = ({
       </div>
 
       {orders.length === 0 ? (
-        <div className="text-center py-8" style={{ color: '#848E9C' }}>
-          No pending orders
+        <div
+          className="rounded-lg p-12 text-center"
+          style={{
+            background: 'linear-gradient(135deg, #1E2329 0%, #181C21 100%)',
+            border: '1px solid #2B3139',
+          }}
+        >
+          <div className="text-4xl mb-4">📋</div>
+          <div className="text-lg font-semibold mb-2" style={{ color: '#EAECEF' }}>
+            No pending orders
+          </div>
+          <div style={{ color: '#848E9C' }}>
+            You don't have any pending orders at the moment
+          </div>
         </div>
       ) : (
         <div className="overflow-x-auto">

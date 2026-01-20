@@ -2196,6 +2196,8 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		return
 	}
 
+	logger.Infof("🔍 [API] Request position history: traderID=%s", traderID)
+
 	// Get optional query parameters
 	limitStr := c.DefaultQuery("limit", "100")
 	limit := 100
@@ -2206,6 +2208,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	// Get store
 	store := trader.GetStore()
 	if store == nil {
+		logger.Infof("❌ [API] Store not available for traderID=%s", traderID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
 		return
 	}
@@ -2213,9 +2216,12 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	// Get closed positions
 	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
 	if err != nil {
+		logger.Infof("❌ [API] Failed to get closed positions: %v", err)
 		SafeInternalError(c, "Get position history", err)
 		return
 	}
+
+	logger.Infof("✅ [API] Returning %d closed positions for traderID=%s", len(positions), traderID)
 
 	// Get statistics
 	stats, _ := store.Position().GetFullStats(trader.GetID())

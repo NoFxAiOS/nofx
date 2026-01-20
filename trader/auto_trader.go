@@ -526,28 +526,58 @@ func (at *AutoTrader) runCycle() error {
 
 	// 5. Load pending orders from exchange
 	logger.Infof("📋 [%s] Loading pending orders from exchange...", at.name)
-	for _, coin := range ctx.CandidateCoins {
-		openOrders, err := at.trader.GetOpenOrders(coin.Symbol)
+	
+	// Try to get all open orders at once (if supported by trader)
+	if allOrdersTrader, ok := at.trader.(interface{ GetAllOpenOrders() ([]OpenOrder, error) }); ok {
+		allOrders, err := allOrdersTrader.GetAllOpenOrders()
 		if err != nil {
-			logger.Warnf("⚠️ [%s] Failed to get open orders for %s: %v", at.name, coin.Symbol, err)
-			continue
-		}
-		for _, order := range openOrders {
-			ctx.PendingOrders = append(ctx.PendingOrders, kernel.PendingOrder{
-				OrderID:      order.OrderID,
-				Symbol:       order.Symbol,
-				Side:         order.Side,
-				PositionSide: order.PositionSide,
-				Type:         order.Type,
-				Price:        order.Price,
-				StopPrice:    order.StopPrice,
-				Quantity:     order.Quantity,
-				Status:       order.Status,
-			})
+			logger.Warnf("⚠️ [%s] Failed to get all open orders: %v, falling back to per-symbol query", at.name, err)
+		} else {
+			for _, order := range allOrders {
+				ctx.PendingOrders = append(ctx.PendingOrders, kernel.PendingOrder{
+					OrderID:      order.OrderID,
+					Symbol:       order.Symbol,
+					Side:         order.Side,
+					PositionSide: order.PositionSide,
+					Type:         order.Type,
+					Price:        order.Price,
+					StopPrice:    order.StopPrice,
+					Quantity:     order.Quantity,
+					Status:       order.Status,
+				})
+			}
+			if len(ctx.PendingOrders) > 0 {
+				logger.Infof("✅ [%s] Found %d total pending orders from account", at.name, len(ctx.PendingOrders))
+			}
 		}
 	}
-	if len(ctx.PendingOrders) > 0 {
-		logger.Infof("📋 [%s] Found %d pending orders", at.name, len(ctx.PendingOrders))
+	
+	// If no orders found via GetAllOpenOrders, try per-symbol query (fallback)
+	if len(ctx.PendingOrders) == 0 {
+		logger.Infof("📋 [%s] Querying pending orders per candidate coin...", at.name)
+		for _, coin := range ctx.CandidateCoins {
+			openOrders, err := at.trader.GetOpenOrders(coin.Symbol)
+			if err != nil {
+				logger.Warnf("⚠️ [%s] Failed to get open orders for %s: %v", at.name, coin.Symbol, err)
+				continue
+			}
+			for _, order := range openOrders {
+				ctx.PendingOrders = append(ctx.PendingOrders, kernel.PendingOrder{
+					OrderID:      order.OrderID,
+					Symbol:       order.Symbol,
+					Side:         order.Side,
+					PositionSide: order.PositionSide,
+					Type:         order.Type,
+					Price:        order.Price,
+					StopPrice:    order.StopPrice,
+					Quantity:     order.Quantity,
+					Status:       order.Status,
+				})
+			}
+		}
+		if len(ctx.PendingOrders) > 0 {
+			logger.Infof("📋 [%s] Found %d pending orders via per-symbol query", at.name, len(ctx.PendingOrders))
+		}
 	}
 
 	// 6. Use strategy engine to call AI for decision
@@ -1157,11 +1187,11 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
+	// Set stop loss and take profit (use lowercase to match position side)
+	if err := at.trader.SetStopLoss(decision.Symbol, "long", quantity, decision.StopLoss); err != nil {
 		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
+	if err := at.trader.SetTakeProfit(decision.Symbol, "long", quantity, decision.TakeProfit); err != nil {
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
 
@@ -1283,11 +1313,11 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
+	// Set stop loss and take profit (use lowercase to match position side)
+	if err := at.trader.SetStopLoss(decision.Symbol, "short", quantity, decision.StopLoss); err != nil {
 		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
+	if err := at.trader.SetTakeProfit(decision.Symbol, "short", quantity, decision.TakeProfit); err != nil {
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
 
@@ -1314,7 +1344,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 
 	// First try to get from local database (more accurate for quantity)
 	if at.store != nil {
-		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "LONG"); err == nil && openPos != nil {
+		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "long"); err == nil && openPos != nil {
 			quantity = openPos.Quantity
 			entryPrice = openPos.EntryPrice
 			logger.Infof("  📊 Using local position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
@@ -1389,7 +1419,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 
 	// First try to get from local database (more accurate for quantity)
 	if at.store != nil {
-		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "SHORT"); err == nil && openPos != nil {
+		if openPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, normalizedSymbol, "short"); err == nil && openPos != nil {
 			quantity = openPos.Quantity
 			entryPrice = openPos.EntryPrice
 			logger.Infof("  📊 Using local position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
@@ -2541,28 +2571,64 @@ func (at *AutoTrader) executeSetSLTPTiersWithRecord(decision *kernel.Decision, a
 		}
 		
 		var positionQty float64
+		var positionSide string
+		var foundPosition bool
+		
 		for _, pos := range positions {
-			if sym, ok := pos["symbol"].(string); ok && sym == decision.Symbol {
-				if qty, ok := pos["quantity"].(float64); ok {
-					positionQty = qty
-					break
+			symbol, symbolOk := pos["symbol"].(string)
+			if !symbolOk || symbol != decision.Symbol {
+				continue
+			}
+			
+			// Try to get side
+			if side, ok := pos["side"].(string); ok {
+				positionSide = side
+			}
+			
+			// Try different quantity field names
+			if qty, ok := pos["positionAmt"].(float64); ok && qty != 0 {
+				positionQty = qty
+				if positionQty < 0 {
+					positionQty = -positionQty // Convert negative short position to positive
+					if positionSide == "" {
+						positionSide = "short"
+					}
+				} else if positionSide == "" {
+					positionSide = "long"
 				}
+				foundPosition = true
+				break
+			} else if qty, ok := pos["quantity"].(float64); ok && qty != 0 {
+				positionQty = qty
+				foundPosition = true
+				break
 			}
 		}
 		
-		if positionQty <= 0 {
-			logger.Warnf("  ⚠️ No active position found for %s", decision.Symbol)
+		if !foundPosition || positionQty <= 0 {
+			logger.Warnf("  ⚠️ No active position found for %s (foundPosition=%v, qty=%.4f)", 
+				decision.Symbol, foundPosition, positionQty)
+			// Log all positions for debugging
+			for i, pos := range positions {
+				logger.Infof("  📊 Position[%d]: %+v", i, pos)
+			}
 			return fmt.Errorf("no active position found for SL/TP setup")
 		}
 		
+		logger.Infof("  ✅ Found position: %s %s qty=%.4f", decision.Symbol, positionSide, positionQty)
+		
 		if decision.StopLoss > 0 {
-			if err := at.trader.SetStopLoss(decision.Symbol, "long", positionQty, decision.StopLoss); err != nil {
+			if err := at.trader.SetStopLoss(decision.Symbol, positionSide, positionQty, decision.StopLoss); err != nil {
 				logger.Warnf("  ⚠️ Failed to set stop loss: %v", err)
+			} else {
+				logger.Infof("  ✅ Stop loss set at %.4f", decision.StopLoss)
 			}
 		}
 		if decision.TakeProfit > 0 {
-			if err := at.trader.SetTakeProfit(decision.Symbol, "long", positionQty, decision.TakeProfit); err != nil {
+			if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, positionQty, decision.TakeProfit); err != nil {
 				logger.Warnf("  ⚠️ Failed to set take profit: %v", err)
+			} else {
+				logger.Infof("  ✅ Take profit set at %.4f", decision.TakeProfit)
 			}
 		}
 		return nil

@@ -113,6 +113,9 @@ func (pb *PositionBuilder) handleClose(
 		return nil
 	}
 
+	logger.Infof("  📍 Found open position: ID=%d, Symbol=%s, Side=%s, OpenQty=%.6f, Entry=%.2f", 
+		position.ID, symbol, side, position.Quantity, position.EntryPrice)
+
 	const QUANTITY_TOLERANCE = 0.0001
 
 	// Calculate realized PnL if not provided (some exchanges like Lighter don't return it)
@@ -158,8 +161,8 @@ func (pb *PositionBuilder) handleClose(
 		// Calculate total fee (existing + new)
 		totalFee := position.Fee + fee
 
-		logger.Infof("  ✅ Full close: %s %s %.6f @ %.2f (avg exit: %.2f, entry: %.2f, PnL: %.2f)",
-			symbol, side, closeQty, price, finalExitPrice, position.EntryPrice, totalPnL)
+		logger.Infof("  ✅ Full close: %s %s %.6f @ %.2f (avg exit: %.2f, entry: %.2f, PnL: %.2f, Fee: %.2f, TraderID: %s)",
+			symbol, side, closeQty, price, finalExitPrice, position.EntryPrice, totalPnL, totalFee, traderID)
 
 		return pb.positionStore.ClosePositionFully(
 			position.ID,

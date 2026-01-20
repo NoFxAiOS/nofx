@@ -217,6 +217,12 @@ func (t *BitgetTrader) convertSymbol(symbol string) string {
 	return strings.ToUpper(symbol)
 }
 
+// deconvertSymbol converts Bitget symbol format back to standard format
+func (t *BitgetTrader) deconvertSymbol(symbol string) string {
+	// Bitget uses same format, just ensure uppercase
+	return strings.ToUpper(symbol)
+}
+
 // GetBalance gets account balance
 func (t *BitgetTrader) GetBalance() (map[string]interface{}, error) {
 	// Check cache
@@ -763,10 +769,12 @@ func (t *BitgetTrader) SetStopLoss(symbol string, positionSide string, quantity,
 	// Bitget V2 uses TPSL order for stop loss
 	symbol = t.convertSymbol(symbol)
 
-	// For one-way position mode, use buy/sell instead of long/short
-	holdSide := "buy"
-	if strings.ToUpper(positionSide) == "SHORT" {
-		holdSide = "sell"
+	// For one-way position mode, determine order direction for stop loss
+	// Long position stop loss = sell, Short position stop loss = buy
+	positionSideLower := strings.ToLower(positionSide)
+	holdSide := "sell" // Default for long position
+	if positionSideLower == "short" {
+		holdSide = "buy" // Short position stop loss is buy
 	}
 
 	qtyStr, _ := t.FormatQuantity(symbol, quantity)
@@ -798,10 +806,12 @@ func (t *BitgetTrader) SetTakeProfit(symbol string, positionSide string, quantit
 	// Bitget V2 uses TPSL order for take profit
 	symbol = t.convertSymbol(symbol)
 
-	// For one-way position mode, use buy/sell instead of long/short
-	holdSide := "buy"
-	if strings.ToUpper(positionSide) == "SHORT" {
-		holdSide = "sell"
+	// For one-way position mode, determine order direction for take profit
+	// Long position take profit = sell, Short position take profit = buy
+	positionSideLower := strings.ToLower(positionSide)
+	holdSide := "sell" // Default for long position
+	if positionSideLower == "short" {
+		holdSide = "buy" // Short position take profit is buy
 	}
 
 	qtyStr, _ := t.FormatQuantity(symbol, quantity)
@@ -1026,61 +1036,103 @@ func (t *BitgetTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnL
 		limit = 100
 	}
 
+	// Bitget requires endTime to be after startTime
+	endTime := time.Now()
+	
 	params := map[string]interface{}{
 		"productType": "USDT-FUTURES",
 		"startTime":   fmt.Sprintf("%d", startTime.UnixMilli()),
-		"limit":       fmt.Sprintf("%d", limit),
+		"endTime":     fmt.Sprintf("%d", endTime.UnixMilli()),
+		"limit":       fmt.Sprintf("%d", limit), // 官方文档使用 limit，不是 pageSize
 	}
+
+	logger.Infof("📊 [Bitget] GetClosedPnL request: startTime=%s, endTime=%s, limit=%d", 
+		startTime.Format("2006-01-02 15:04:05"), endTime.Format("2006-01-02 15:04:05"), limit)
 
 	data, err := t.doRequest("GET", "/api/v2/mix/position/history-position", params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get positions history: %w", err)
 	}
 
+	// Debug: print raw response
+	logger.Infof("📊 [Bitget] History position raw response: %s", string(data))
+
 	var resp struct {
 		List []struct {
-			Symbol       string `json:"symbol"`
-			HoldSide     string `json:"holdSide"`
-			OpenPriceAvg string `json:"openPriceAvg"`
-			ClosePriceAvg string `json:"closePriceAvg"`
-			CloseVol     string `json:"closeVol"`
-			AchievedProfits string `json:"achievedProfits"`
-			TotalFee     string `json:"totalFee"`
-			Leverage     string `json:"leverage"`
-			CTime        string `json:"cTime"`
-			UTime        string `json:"uTime"`
+			PositionId     string `json:"positionId"`
+			Symbol         string `json:"symbol"`
+			MarginCoin     string `json:"marginCoin"`
+			HoldSide       string `json:"holdSide"`        // long/short
+			PosMode        string `json:"posMode"`         // one_way_mode/hedge_mode
+			OpenAvgPrice   string `json:"openAvgPrice"`    // 开仓均价
+			CloseAvgPrice  string `json:"closeAvgPrice"`   // 平仓均价
+			MarginMode     string `json:"marginMode"`      // isolated/crossed
+			OpenTotalPos   string `json:"openTotalPos"`    // 累计开仓数量
+			CloseTotalPos  string `json:"closeTotalPos"`   // 累计已平仓数量
+			Pnl            string `json:"pnl"`             // 已实现盈亏
+			NetProfit      string `json:"netProfit"`       // 净盈亏
+			TotalFunding   string `json:"totalFunding"`    // 累计资金费用
+			OpenFee        string `json:"openFee"`         // 开仓手续费
+			CloseFee       string `json:"closeFee"`        // 平仓手续费
+			CTime          string `json:"ctime"`           // 创建时间（毫秒时间戳）
+			UTime          string `json:"utime"`           // 更新时间（毫秒时间戳）
 		} `json:"list"`
+		EndId string `json:"endId"`
 	}
 
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	logger.Infof("📊 [Bitget] Parsed %d history positions", len(resp.List))
+
+	logger.Infof("📊 [Bitget] Parsed %d history positions", len(resp.List))
+
 	records := make([]ClosedPnLRecord, 0, len(resp.List))
 	for _, pos := range resp.List {
-		record := ClosedPnLRecord{
-			Symbol: pos.Symbol,
-			Side:   pos.HoldSide,
+		// Skip if essential fields are missing
+		if pos.Symbol == "" || pos.CloseTotalPos == "" {
+			logger.Infof("⚠️ [Bitget] Skipping invalid history position: symbol=%s, closeTotalPos=%s", pos.Symbol, pos.CloseTotalPos)
+			continue
 		}
 
-		record.EntryPrice, _ = strconv.ParseFloat(pos.OpenPriceAvg, 64)
-		record.ExitPrice, _ = strconv.ParseFloat(pos.ClosePriceAvg, 64)
-		record.Quantity, _ = strconv.ParseFloat(pos.CloseVol, 64)
-		record.RealizedPnL, _ = strconv.ParseFloat(pos.AchievedProfits, 64)
-		fee, _ := strconv.ParseFloat(pos.TotalFee, 64)
-		record.Fee = -fee
-		lev, _ := strconv.ParseFloat(pos.Leverage, 64)
-		record.Leverage = int(lev)
+		record := ClosedPnLRecord{
+			Symbol: pos.Symbol,
+			Side:   pos.HoldSide, // long/short
+		}
 
+		// 使用官方文档的字段名
+		record.EntryPrice, _ = strconv.ParseFloat(pos.OpenAvgPrice, 64)
+		record.ExitPrice, _ = strconv.ParseFloat(pos.CloseAvgPrice, 64)
+		record.Quantity, _ = strconv.ParseFloat(pos.CloseTotalPos, 64)
+		
+		// 净盈亏 = 已实现盈亏 - 手续费
+		netProfit, _ := strconv.ParseFloat(pos.NetProfit, 64)
+		record.RealizedPnL = netProfit
+		
+		// 总手续费 = 开仓手续费 + 平仓手续费
+		openFee, _ := strconv.ParseFloat(pos.OpenFee, 64)
+		closeFee, _ := strconv.ParseFloat(pos.CloseFee, 64)
+		record.Fee = openFee + closeFee
+		
+		// Bitget 不返回杠杆信息，使用默认值
+		record.Leverage = 10
+
+		// 时间戳转换（毫秒）
 		cTime, _ := strconv.ParseInt(pos.CTime, 10, 64)
 		uTime, _ := strconv.ParseInt(pos.UTime, 10, 64)
 		record.EntryTime = time.UnixMilli(cTime).UTC()
 		record.ExitTime = time.UnixMilli(uTime).UTC()
 
 		record.CloseType = "unknown"
+		
+		logger.Infof("✅ [Bitget] History position: %s %s, entry=%.2f, exit=%.2f, qty=%.4f, netProfit=%.2f, fee=%.2f",
+			record.Symbol, record.Side, record.EntryPrice, record.ExitPrice, record.Quantity, record.RealizedPnL, record.Fee)
+		
 		records = append(records, record)
 	}
 
+	logger.Infof("📊 [Bitget] Returning %d history position records", len(records))
 	return records, nil
 }
 
@@ -1153,7 +1205,56 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	return result, nil
 }
 
-// PlaceOrder places a limit order or market order
+// GetAllOpenOrders gets all open/pending orders across all symbols in the account
+// This is useful when you want to see all pending orders without specifying symbol
+func (t *BitgetTrader) GetAllOpenOrders() ([]OpenOrder, error) {
+	// Use empty symbol to get all pending orders for the account
+	params := map[string]interface{}{
+		"productType": "USDT-FUTURES",
+	}
+
+	data, err := t.doRequest("GET", bitgetPendingPath, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all open orders: %w", err)
+	}
+
+	var orders struct {
+		EntrustedList []struct {
+			OrderId      string `json:"orderId"`
+			Symbol       string `json:"symbol"`
+			Side         string `json:"side"`
+			OrderType    string `json:"orderType"`
+			Price        string `json:"price"`
+			BaseVolume   string `json:"baseVolume"`
+			TriggerPrice string `json:"triggerPrice"`
+		} `json:"entrustedList"`
+	}
+
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return nil, fmt.Errorf("failed to parse all orders: %w", err)
+	}
+
+	var result []OpenOrder
+	for _, order := range orders.EntrustedList {
+		price, _ := strconv.ParseFloat(order.Price, 64)
+		qty, _ := strconv.ParseFloat(order.BaseVolume, 64)
+		stopPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
+
+		openOrder := OpenOrder{
+			OrderID:  order.OrderId,
+			Symbol:   t.deconvertSymbol(order.Symbol), // Convert back from exchange format
+			Side:     order.Side,
+			Type:     order.OrderType,
+			Price:    price,
+			StopPrice: stopPrice,
+			Quantity: qty,
+			Status:   "NEW",
+		}
+		result = append(result, openOrder)
+	}
+
+	return result, nil
+}// PlaceOrder places a limit order or market order
 // orderType: "limit" or "market"
 // side: "buy" or "sell"
 func (t *BitgetTrader) PlaceOrder(symbol string, side string, quantity float64, price float64, orderType string) (map[string]interface{}, error) {

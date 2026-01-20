@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"math"
+	"nofx/logger"
 	"strings"
 	"time"
 
@@ -216,7 +217,10 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 		quantity = pos.EntryQuantity
 	}
 
-	return s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
+	nowMs := time.Now().UTC().UnixMilli()
+	
+	// Close the position
+	if err := s.db.Model(&TraderPosition{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"quantity":       quantity,
 		"exit_price":     exitPrice,
 		"exit_order_id":  exitOrderID,
@@ -225,8 +229,16 @@ func (s *PositionStore) ClosePositionFully(id int64, exitPrice float64, exitOrde
 		"fee":            totalFee,
 		"status":         "CLOSED",
 		"close_reason":   closeReason,
-		"updated_at":     time.Now().UTC().UnixMilli(),
-	}).Error
+		"updated_at":     nowMs,
+	}).Error; err != nil {
+		return err
+	}
+
+	// Log the closed position for debugging
+	logger.Infof("📌 [DB] Position closed: ID=%d, Symbol=%s, Side=%s, Qty=%.6f, Entry=%.2f, Exit=%.2f, PnL=%.2f, Fee=%.2f, ExitTime=%d, TraderID=%s",
+		id, pos.Symbol, pos.Side, quantity, pos.EntryPrice, exitPrice, totalRealizedPnL, totalFee, exitTimeMs, pos.TraderID)
+
+	return nil
 }
 
 // DeleteAllOpenPositions deletes all OPEN positions for a trader
@@ -289,12 +301,21 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 // GetClosedPositions gets closed positions
 func (s *PositionStore) GetClosedPositions(traderID string, limit int) ([]*TraderPosition, error) {
 	var positions []*TraderPosition
+	
+	logger.Infof("📊 [DB] Querying closed positions: traderID=%s, limit=%d", traderID, limit)
+	
 	err := s.db.Where("trader_id = ? AND status = ?", traderID, "CLOSED").
 		Order("exit_time DESC").
 		Limit(limit).
 		Find(&positions).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to query closed positions: %w", err)
+	}
+
+	logger.Infof("📊 [DB] Found %d closed positions for traderID=%s", len(positions), traderID)
+	for i, pos := range positions {
+		logger.Infof("  [%d] %s %s: Qty=%.6f, Entry=%.2f, Exit=%.2f, ExitTime=%d, PnL=%.2f",
+			i+1, pos.Symbol, pos.Side, pos.Quantity, pos.EntryPrice, pos.ExitPrice, pos.ExitTime, pos.RealizedPnL)
 	}
 
 	for _, pos := range positions {

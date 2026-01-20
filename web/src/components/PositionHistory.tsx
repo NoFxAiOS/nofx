@@ -14,6 +14,13 @@ interface PositionHistoryProps {
   traderId: string
 }
 
+interface Reflection {
+    id: number
+    content: string
+    score: number
+    tags: string
+}
+
 // Format number with proper decimals
 function formatNumber(value: number, decimals: number = 2): string {
   if (Math.abs(value) >= 1000000) {
@@ -235,8 +242,102 @@ function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language
   )
 }
 
+function ReflectionModal({
+  position,
+  onClose,
+  traderId
+}: {
+  position: HistoricalPosition,
+  onClose: () => void,
+  traderId: string
+}) {
+  const [loading, setLoading] = useState(true)
+  const [reflection, setReflection] = useState<Reflection | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const { language } = useLanguage()
+
+  useEffect(() => {
+    const fetchReflection = async () => {
+      try {
+        setLoading(true)
+        // Check if exists first (GET), if not generate (POST)
+        // For simplicity, let's assume POST handles both generation and fetching existing if implemented that way,
+        // or we try GET first then POST. The API design in handleGenerateReflection handles "check existing" logic.
+        // So we can just call the generate endpoint which returns existing or new.
+        const res = await api.generateReflection(traderId, position.id)
+        setReflection(res)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to generate reflection')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchReflection()
+  }, [position.id, traderId])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div
+        className="w-full max-w-2xl rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
+        style={{ background: '#1E2329', border: '1px solid #2B3139' }}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-[#2B3139]">
+          <h3 className="text-lg font-semibold text-[#EAECEF]">
+            {language === 'zh' ? '交易反思' : 'Trade Reflection'}
+          </h3>
+          <button onClick={onClose} className="text-[#848E9C] hover:text-[#EAECEF]">
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6 max-h-[80vh] overflow-y-auto">
+          {loading ? (
+             <div className="flex flex-col items-center justify-center py-12 space-y-4">
+               <div className="animate-spin text-[#F0B90B]">
+                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24">
+                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                 </svg>
+               </div>
+               <p className="text-[#848E9C] text-sm animate-pulse">
+                 {language === 'zh' ? 'AI 正在深度复盘您的交易...' : 'AI is deeply analyzing your trade...'}
+               </p>
+             </div>
+          ) : error ? (
+            <div className="text-[#F6465D] text-center py-8">{error}</div>
+          ) : reflection ? (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <span className="text-4xl font-bold" style={{ color: reflection.score >= 7 ? '#0ECB81' : reflection.score >= 4 ? '#F0B90B' : '#F6465D' }}>
+                        {reflection.score}
+                    </span>
+                    <span className="text-[#848E9C] text-sm mt-2">/ 10</span>
+                </div>
+                <div className="flex gap-2 flex-wrap justify-end">
+                    {JSON.parse(reflection.tags || '[]').map((tag: string, i: number) => (
+                        <span key={i} className="px-2 py-1 rounded text-xs bg-[#2B3139] text-[#EAECEF]">
+                            {tag}
+                        </span>
+                    ))}
+                </div>
+              </div>
+
+              <div className="prose prose-invert max-w-none">
+                <div className="whitespace-pre-wrap text-[#EAECEF] text-sm leading-relaxed">
+                    {reflection.content}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Position Row Component
-function PositionRow({ position }: { position: HistoricalPosition }) {
+function PositionRow({ position, onReflect }: { position: HistoricalPosition, onReflect: (pos: HistoricalPosition) => void }) {
   const side = position.side || ''
   const isLong = side.toUpperCase() === 'LONG'
   const realizedPnl = position.realized_pnl || 0
@@ -266,7 +367,7 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
 
   return (
     <tr
-      className="transition-all duration-200 hover:bg-white/5"
+      className="transition-all duration-200 hover:bg-white/5 group"
       style={{ borderBottom: '1px solid #2B3139' }}
     >
       {/* Symbol */}
@@ -336,6 +437,16 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
       <td className="py-3 px-4 text-right text-xs" style={{ color: '#848E9C' }}>
         {formatDate(position.exit_time)}
       </td>
+
+      {/* Action */}
+      <td className="py-3 px-4 text-right">
+          <button
+            onClick={() => onReflect(position)}
+            className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded text-xs bg-[#2B3139] hover:bg-[#363C45] text-[#EAECEF]"
+          >
+            Reflect
+          </button>
+      </td>
     </tr>
   )
 }
@@ -348,6 +459,7 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
   const [stats, setStats] = useState<TraderStats | null>(null)
   const [symbolStats, setSymbolStats] = useState<SymbolStats[]>([])
   const [directionStats, setDirectionStats] = useState<DirectionStats[]>([])
+  const [reflectingPos, setReflectingPos] = useState<HistoricalPosition | null>(null)
 
   // Pagination state
   const [pageSize, setPageSize] = useState<number>(20)
@@ -520,6 +632,14 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
 
   return (
     <div className="space-y-6">
+      {reflectingPos && (
+        <ReflectionModal
+            position={reflectingPos}
+            onClose={() => setReflectingPos(null)}
+            traderId={traderId}
+        />
+      )}
+
       {/* Overall Stats - Row 1: Core Metrics */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -799,11 +919,14 @@ export function PositionHistory({ traderId }: PositionHistoryProps) {
                 >
                   {t('positionHistory.closedAt', language)}
                 </th>
+                <th className="py-3 px-4 text-right text-xs font-semibold uppercase tracking-wider" style={{ color: '#848E9C' }}>
+                    Action
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredPositions.map((position) => (
-                <PositionRow key={position.id} position={position} />
+                <PositionRow key={position.id} position={position} onReflect={setReflectingPos} />
               ))}
             </tbody>
           </table>

@@ -158,6 +158,8 @@ func (s *Server) setupRoutes() {
 			protected.POST("/traders/:id/close-position", s.handleClosePosition)
 			protected.PUT("/traders/:id/competition", s.handleToggleCompetition)
 			protected.GET("/traders/:id/grid-risk", s.handleGetGridRiskInfo)
+			protected.POST("/traders/:id/positions/:posId/reflect", s.handleGenerateReflection)
+			protected.GET("/traders/:id/positions/:posId/reflect", s.handleGetReflection)
 
 			// AI model configuration
 			protected.GET("/models", s.handleGetModelConfigs)
@@ -3652,6 +3654,65 @@ func (s *Server) getEquityHistoryForTraders(traderIDs []string, hours int) map[s
 	}
 
 	return result
+}
+
+// handleGenerateReflection triggers AI reflection for a closed position
+func (s *Server) handleGenerateReflection(c *gin.Context) {
+	// userID := c.GetString("user_id") // Can be used for auth check
+	traderID := c.Param("id")
+	posIDStr := c.Param("posId")
+
+	posID, err := strconv.ParseInt(posIDStr, 10, 64)
+	if err != nil {
+		SafeBadRequest(c, "Invalid position ID")
+		return
+	}
+
+	trader, err := s.traderManager.GetTrader(traderID)
+	if err != nil {
+		SafeNotFound(c, "Trader")
+		return
+	}
+
+	// Check if reflection already exists
+	existing, err := s.store.Reflection().GetByPositionID(posID)
+	if err == nil && existing != nil {
+		c.JSON(http.StatusOK, existing)
+		return
+	}
+
+	// Generate reflection
+	reflection, err := trader.GenerateReflection(posID)
+	if err != nil {
+		SafeInternalError(c, "Generate reflection", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, reflection)
+}
+
+// handleGetReflection gets reflection for a closed position
+func (s *Server) handleGetReflection(c *gin.Context) {
+	posIDStr := c.Param("posId")
+
+	posID, err := strconv.ParseInt(posIDStr, 10, 64)
+	if err != nil {
+		SafeBadRequest(c, "Invalid position ID")
+		return
+	}
+
+	reflection, err := s.store.Reflection().GetByPositionID(posID)
+	if err != nil {
+		SafeInternalError(c, "Get reflection", err)
+		return
+	}
+
+	if reflection == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Reflection not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, reflection)
 }
 
 // handleGetPublicTraderConfig Get public trader configuration information (no authentication required, does not include sensitive information)

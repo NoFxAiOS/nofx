@@ -29,6 +29,7 @@ type Store struct {
 	equity   *EquityStore
 	order    *OrderStore
 	grid     *GridStore
+	reflection *ReflectionStore
 
 	mu sync.RWMutex
 }
@@ -159,6 +160,9 @@ func (s *Store) initTables() error {
 	}
 	if err := s.Grid().InitTables(); err != nil {
 		return fmt.Errorf("failed to initialize grid tables: %w", err)
+	}
+	if err := s.Reflection().initTables(); err != nil {
+		return fmt.Errorf("failed to initialize reflection tables: %w", err)
 	}
 	return nil
 }
@@ -291,6 +295,16 @@ func (s *Store) Grid() *GridStore {
 		s.grid = NewGridStore(s.gdb)
 	}
 	return s.grid
+}
+
+// Reflection gets reflection storage
+func (s *Store) Reflection() *ReflectionStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.reflection == nil {
+		s.reflection = NewReflectionStore(s.gdb)
+	}
+	return s.reflection
 }
 
 // Close closes database connection

@@ -785,4 +785,20 @@ export const api = {
     if (!result.success) throw new Error('获取历史仓位失败')
     return result.data!
   },
+
+  async generateReflection(traderId: string, positionId: number): Promise<any> {
+    const result = await httpClient.post<any>(
+      `${API_BASE}/traders/${traderId}/positions/${positionId}/reflect`
+    )
+    if (!result.success) throw new Error('Failed to generate reflection')
+    return result.data!
+  },
+
+  async getReflection(traderId: string, positionId: number): Promise<any> {
+    const result = await httpClient.get<any>(
+      `${API_BASE}/traders/${traderId}/positions/${positionId}/reflect`
+    )
+    if (!result.success) throw new Error('Failed to get reflection')
+    return result.data!
+  },
 }

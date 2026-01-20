@@ -601,6 +601,15 @@ export interface RiskControlConfig {
   min_position_size: number;       // Min position size in USDT (CODE ENFORCED)
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
+
+  // Trailing Stop Configuration
+  trailing_stop?: TrailingStopConfig;
+}
+
+export interface TrailingStopConfig {
+  enabled: boolean;
+  activation_pct: number;  // Profit % to activate (e.g. 1.0 = 1%)
+  callback_pct: number;    // Price drop % from peak to trigger close (e.g. 0.5 = 0.5%)
 }
 
 // Debate Arena Types

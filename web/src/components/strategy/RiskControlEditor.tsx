@@ -42,6 +42,14 @@ export function RiskControlEditor({
       minPositionSizeDesc: { zh: 'USDT 最小名义价值', en: 'Minimum notional value in USDT' },
       minConfidence: { zh: '最小信心度', en: 'Min Confidence' },
       minConfidenceDesc: { zh: 'AI 开仓信心度阈值', en: 'AI confidence threshold for entry' },
+      // Trailing Stop
+      trailingStop: { zh: '移动止损（追踪止损）', en: 'Trailing Stop' },
+      enableTrailingStop: { zh: '启用移动止损', en: 'Enable Trailing Stop' },
+      trailingStopDesc: { zh: '当盈利达到激活比例后，价格回撤超过设定值时触发平仓', en: 'Triggers close when profit exceeds activation % and price drops by callback %' },
+      activationPct: { zh: '激活盈利比例 (%)', en: 'Activation Profit (%)' },
+      activationPctDesc: { zh: '当持仓收益率达到此比例时激活移动止损', en: 'Activate trailing stop when profit reaches this %' },
+      callbackPct: { zh: '回调比例 (%)', en: 'Callback (%)' },
+      callbackPctDesc: { zh: '从最高点回撤此比例（基于价格）时平仓', en: 'Close when price drops this % from peak' },
     }
     return translations[key]?.[language] || key
   }
@@ -251,7 +259,7 @@ export function RiskControlEditor({
           </h3>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 mb-6">
           <div
             className="p-4 rounded-lg"
             style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
@@ -384,6 +392,110 @@ export function RiskControlEditor({
               </span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Trailing Stop Configuration */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Shield className="w-5 h-5" style={{ color: '#3B82F6' }} />
+          <h3 className="font-medium" style={{ color: '#EAECEF' }}>
+            {t('trailingStop')}
+          </h3>
+        </div>
+
+        <div className="p-4 rounded-lg" style={{ background: '#0B0E11', border: '1px solid #3B82F6' }}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.trailing_stop?.enabled ?? false}
+                  onChange={(e) =>
+                    updateField('trailing_stop', {
+                      enabled: e.target.checked,
+                      activation_pct: config.trailing_stop?.activation_pct ?? 1.0,
+                      callback_pct: config.trailing_stop?.callback_pct ?? 0.5,
+                    })
+                  }
+                  disabled={disabled}
+                  className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
+                  {t('enableTrailingStop')}
+                </span>
+              </label>
+              <p className="text-xs mt-1 ml-6" style={{ color: '#848E9C' }}>
+                {t('trailingStopDesc')}
+              </p>
+            </div>
+          </div>
+
+          {config.trailing_stop?.enabled && (
+            <div className="grid grid-cols-2 gap-4 pl-6 border-l border-[#2B3139]">
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#EAECEF' }}>
+                  {t('activationPct')}
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    value={config.trailing_stop?.activation_pct ?? 1.0}
+                    onChange={(e) =>
+                      updateField('trailing_stop', {
+                        ...config.trailing_stop!,
+                        activation_pct: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    disabled={disabled}
+                    step={0.1}
+                    min={0}
+                    className="w-24 px-2 py-1.5 rounded text-sm"
+                    style={{
+                      background: '#1E2329',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                  />
+                  <span className="ml-2 text-xs" style={{ color: '#848E9C' }}>%</span>
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#848E9C' }}>
+                  {t('activationPctDesc')}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs mb-1" style={{ color: '#EAECEF' }}>
+                  {t('callbackPct')}
+                </label>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    value={config.trailing_stop?.callback_pct ?? 0.5}
+                    onChange={(e) =>
+                      updateField('trailing_stop', {
+                        ...config.trailing_stop!,
+                        callback_pct: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    disabled={disabled}
+                    step={0.1}
+                    min={0}
+                    className="w-24 px-2 py-1.5 rounded text-sm"
+                    style={{
+                      background: '#1E2329',
+                      border: '1px solid #2B3139',
+                      color: '#EAECEF',
+                    }}
+                  />
+                  <span className="ml-2 text-xs" style={{ color: '#848E9C' }}>%</span>
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: '#848E9C' }}>
+                  {t('callbackPctDesc')}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

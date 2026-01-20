@@ -216,6 +216,19 @@ type RiskControlConfig struct {
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
 	// Min AI confidence to open position (AI guided)
 	MinConfidence int `json:"min_confidence"`
+
+	// Trailing Stop Configuration
+	TrailingStop TrailingStopConfig `json:"trailing_stop"`
+}
+
+// TrailingStopConfig trailing stop configuration
+type TrailingStopConfig struct {
+	// Whether to enable trailing stop
+	Enabled bool `json:"enabled"`
+	// Activation profit percentage (e.g. 1.0 = 1%)
+	ActivationPct float64 `json:"activation_pct"`
+	// Callback percentage (e.g. 0.5 = 0.5% drop from peak)
+	CallbackPct float64 `json:"callback_pct"`
 }
 
 // NewStrategyStore creates a new StrategyStore

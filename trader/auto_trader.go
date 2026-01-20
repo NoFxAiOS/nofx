@@ -1793,26 +1793,78 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		// Calculate drawdown (magnitude of decline from peak)
 		var drawdownPct float64
 		if peakPnLPct > 0 && currentPnLPct < peakPnLPct {
+			// Use percentage of profit lost as default drawdown metric (for backward compatibility)
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
-		// Check close position condition: profit > 5% and drawdown >= 40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
-			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+		// Trailing stop logic
+		shouldClose := false
+		closeReason := ""
 
-			// Execute close position
+		// 1. Get configuration
+		var trailingConfig *store.TrailingStopConfig
+		if at.config.StrategyConfig != nil {
+			trailingConfig = &at.config.StrategyConfig.RiskControl.TrailingStop
+		}
+
+		// 2. Check conditions
+		if trailingConfig != nil && trailingConfig.Enabled {
+			// Configurable Trailing Stop
+			// Logic: If current profit >= activation AND drop from peak >= callback
+			// Callback here is interpreted as percentage drop from peak price (represented by PnL change)
+			// PnL change approx equals price change * leverage
+			// So CallbackPct (price change) needs to be compared with (PeakPnL - CurrentPnL) / Leverage
+			// OR we simply interpret CallbackPct as "PnL drop percentage" if user inputs 20%?
+			// Let's assume standard trailing stop: Price drops X%.
+			// PnL drop = Price drop * Leverage.
+			// Example: CallbackPct = 1.0 (1% price drop). Leverage = 10. Required PnL drop = 10%.
+			// So: (PeakPnL - CurrentPnL) >= (CallbackPct * Leverage)
+
+			activationPct := trailingConfig.ActivationPct
+			if activationPct <= 0 {
+				activationPct = 1.0 // Default 1% profit activation
+			}
+
+			callbackPnlDrop := trailingConfig.CallbackPct * float64(leverage)
+			if callbackPnlDrop <= 0 {
+				// Fallback to old logic if not properly configured: 40% of profit
+				// But here we want Price-based.
+				// Let's set a safe default if enabled but 0: 0.5% price drop
+				callbackPnlDrop = 0.5 * float64(leverage)
+			}
+
+			if currentPnLPct >= activationPct {
+				currentDrawdown := peakPnLPct - currentPnLPct
+				if currentDrawdown >= callbackPnlDrop {
+					shouldClose = true
+					closeReason = fmt.Sprintf("Trailing Stop: Profit %.2f%% >= %.2f%%, Drawdown %.2f%% >= %.2f%% (Price drop %.2f%%)",
+						currentPnLPct, activationPct, currentDrawdown, callbackPnlDrop, trailingConfig.CallbackPct)
+				}
+			}
+		} else {
+			// Legacy Default Logic (Hardcoded)
+			// Condition: profit > 5% and drawdown of profit >= 40%
+			if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
+				shouldClose = true
+				closeReason = fmt.Sprintf("Default Profit Protection: Profit %.2f%%, Drawdown %.2f%%", currentPnLPct, drawdownPct)
+			}
+		}
+
+		// Execute close
+		if shouldClose {
+			logger.Infof("🚨 %s - %s %s | Current: %.2f%% | Peak: %.2f%%",
+				closeReason, symbol, side, currentPnLPct, peakPnLPct)
+
 			if err := at.emergencyClosePosition(symbol, side); err != nil {
-				logger.Infof("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
+				logger.Infof("❌ Close position failed (%s %s): %v", symbol, side, err)
 			} else {
-				logger.Infof("✅ Drawdown close position succeeded: %s %s", symbol, side)
-				// Clear cache for this position after closing
+				logger.Infof("✅ Close position succeeded: %s %s", symbol, side)
 				at.ClearPeakPnLCache(symbol, side)
 			}
-		} else if currentPnLPct > 5.0 {
-			// Record situations close to close position condition (for debugging)
-			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+		} else if currentPnLPct > 2.0 {
+			// Log monitoring info for profitable positions
+			logger.Infof("📊 Monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | PnL Drawdown: %.2f%%",
+				symbol, side, currentPnLPct, peakPnLPct, peakPnLPct-currentPnLPct)
 		}
 	}
 }

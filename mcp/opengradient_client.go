@@ -157,21 +157,12 @@ func (c *OpenGradientClient) SetAPIKey(apiKey string, customURL string, customMo
 	// For OpenGradient with x402, the apiKey parameter is used as the private key
 	c.privateKey = apiKey
 
-	if len(apiKey) > 8 {
-		c.logger.Infof("🔧 [MCP] OpenGradient Private Key: %s...%s", apiKey[:4], apiKey[len(apiKey)-4:])
-	}
 	if customURL != "" {
 		c.BaseURL = customURL
-		c.logger.Infof("🔧 [MCP] OpenGradient using custom BaseURL: %s", customURL)
-	} else {
-		c.logger.Infof("🔧 [MCP] OpenGradient using default BaseURL: %s", c.BaseURL)
-	}
+	} 
 	if customModel != "" {
 		c.Model = customModel
-		c.logger.Infof("🔧 [MCP] OpenGradient using custom Model: %s", customModel)
-	} else {
-		c.logger.Infof("🔧 [MCP] OpenGradient using default Model: %s", c.Model)
-	}
+	} 
 
 	// Initialize x402 with the private key
 	if c.privateKey != "" && !c.x402Wrapped {

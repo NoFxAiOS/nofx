@@ -271,12 +271,12 @@ func TestOpenGradientConstants(t *testing.T) {
 		t.Errorf("ProviderOpenGradient should be 'opengradient', got '%s'", ProviderOpenGradient)
 	}
 
-	if DefaultOpenGradientBaseURL != "https://api.opengradient.ai/v1" {
-		t.Errorf("DefaultOpenGradientBaseURL should be 'https://api.opengradient.ai/v1', got '%s'", DefaultOpenGradientBaseURL)
+	if DefaultOpenGradientBaseURL != "https://llm.opengradient.ai/v1" {
+		t.Errorf("DefaultOpenGradientBaseURL should be 'https://llm.opengradient.ai/v1', got '%s'", DefaultOpenGradientBaseURL)
 	}
 
-	if DefaultOpenGradientModel != "llama-3.3-70b" {
-		t.Errorf("DefaultOpenGradientModel should be 'llama-3.3-70b', got '%s'", DefaultOpenGradientModel)
+	if DefaultOpenGradientModel != "openai/gpt-4.1" {
+		t.Errorf("DefaultOpenGradientModel should be 'openai/gpt-4.1', got '%s'", DefaultOpenGradientModel)
 	}
 }
 

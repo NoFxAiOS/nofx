@@ -1,20 +1,43 @@
 package mcp
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
-	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+	evmV1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
+	"github.com/coinbase/x402/go/types"
 )
 
 const (
 	ProviderOpenGradient       = "opengradient"
-	DefaultOpenGradientBaseURL = "https://api.opengradient.ai/v1"
-	DefaultOpenGradientModel   = "llama-3.3-70b"
+	DefaultOpenGradientBaseURL = "https://llm.opengradient.ai/v1"
+	DefaultOpenGradientModel   = "openai/gpt-4.1"
+
+	// OpenGradient devnet chain ID (0x29f8 = 10744)
+	ogDevnetNetwork   = "og-devnet"
+	ogDevnetChainID   = "eip155:10744"
 )
+
+// ogDevnetSchemeWrapper wraps the EVM V1 scheme to translate og-devnet network to CAIP-2 format
+type ogDevnetSchemeWrapper struct {
+	inner *evmV1.ExactEvmSchemeV1
+}
+
+func (w *ogDevnetSchemeWrapper) Scheme() string {
+	return w.inner.Scheme()
+}
+
+func (w *ogDevnetSchemeWrapper) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1) (types.PaymentPayloadV1, error) {
+	// Translate og-devnet to CAIP-2 format
+	if requirements.Network == ogDevnetNetwork {
+		requirements.Network = ogDevnetChainID
+	}
+	return w.inner.CreatePaymentPayload(ctx, requirements)
+}
 
 type OpenGradientClient struct {
 	*Client
@@ -81,9 +104,14 @@ func (c *OpenGradientClient) initX402() error {
 		return fmt.Errorf("failed to create EVM signer: %w", err)
 	}
 
-	// Create x402 client with EVM scheme registration
+	// Create x402 client with EVM V1 scheme registration
+	// OpenGradient uses x402 V1 with custom network "og-devnet"
+	// We wrap the scheme to translate og-devnet to CAIP-2 format (eip155:10744)
+	wrappedScheme := &ogDevnetSchemeWrapper{
+		inner: evmV1.NewExactEvmSchemeV1(signer),
+	}
 	c.x402Client = x402.Newx402Client().
-		Register("eip155:*", evm.NewExactEvmScheme(signer))
+		RegisterV1(ogDevnetNetwork, wrappedScheme)
 
 	// Wrap HTTP client with x402 payment support
 	c.httpClient = x402http.WrapHTTPClientWithPayment(
@@ -91,6 +119,9 @@ func (c *OpenGradientClient) initX402() error {
 		x402http.Newx402HTTPClient(c.x402Client),
 	)
 	c.x402Wrapped = true
+
+	// Set placeholder API key for base client (required for CallWithMessages check)
+	c.APIKey = "x402-authenticated"
 
 	c.logger.Infof("🔐 [MCP] OpenGradient x402 payment initialized")
 	return nil

@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 
@@ -14,29 +15,42 @@ import (
 
 const (
 	ProviderOpenGradient       = "opengradient"
-	DefaultOpenGradientBaseURL = "https://llm.opengradient.ai/v1"
-	DefaultOpenGradientModel   = "openai/gpt-4.1"
+	DefaultOpenGradientBaseURL = "https://llmogevm.opengradient.ai/v1"
+	DefaultOpenGradientModel   = "google/gemini-2.5-flash"
 
-	// OpenGradient devnet chain ID (0x29f8 = 10744)
-	ogDevnetNetwork   = "og-devnet"
-	ogDevnetChainID   = "eip155:10744"
+	// OpenGradient EVM chain ID (0x40000 = 262144)
+	ogEvmNetwork   = "og-evm"
+	ogEvmChainID   = "eip155:262144"
 )
 
-// ogDevnetSchemeWrapper wraps the EVM V1 scheme to translate og-devnet network to CAIP-2 format
-type ogDevnetSchemeWrapper struct {
+// ogEvmSchemeWrapper wraps the EVM V1 scheme to translate og-evm network to CAIP-2 format
+type ogEvmSchemeWrapper struct {
 	inner *evmV1.ExactEvmSchemeV1
 }
 
-func (w *ogDevnetSchemeWrapper) Scheme() string {
+func (w *ogEvmSchemeWrapper) Scheme() string {
 	return w.inner.Scheme()
 }
 
-func (w *ogDevnetSchemeWrapper) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1) (types.PaymentPayloadV1, error) {
-	// Translate og-devnet to CAIP-2 format
-	if requirements.Network == ogDevnetNetwork {
-		requirements.Network = ogDevnetChainID
+func (w *ogEvmSchemeWrapper) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1) (types.PaymentPayloadV1, error) {
+	// Save original network
+	originalNetwork := requirements.Network
+
+	// Translate og-evm to CAIP-2 format for EVM signing
+	if requirements.Network == ogEvmNetwork {
+		requirements.Network = ogEvmChainID
 	}
-	return w.inner.CreatePaymentPayload(ctx, requirements)
+
+	// Create payload with translated network (for proper chain ID signing)
+	payload, err := w.inner.CreatePaymentPayload(ctx, requirements)
+	if err != nil {
+		return payload, err
+	}
+
+	// Restore original network in payload (server expects og-evm)
+	payload.Network = originalNetwork
+
+	return payload, nil
 }
 
 type OpenGradientClient struct {
@@ -105,19 +119,25 @@ func (c *OpenGradientClient) initX402() error {
 	}
 
 	// Create x402 client with EVM V1 scheme registration
-	// OpenGradient uses x402 V1 with custom network "og-devnet"
-	// We wrap the scheme to translate og-devnet to CAIP-2 format (eip155:10744)
-	wrappedScheme := &ogDevnetSchemeWrapper{
+	// OpenGradient uses x402 V1 with custom network "og-evm"
+	// We wrap the scheme to translate og-evm to CAIP-2 format (eip155:262144)
+	wrappedScheme := &ogEvmSchemeWrapper{
 		inner: evmV1.NewExactEvmSchemeV1(signer),
 	}
 	c.x402Client = x402.Newx402Client().
-		RegisterV1(ogDevnetNetwork, wrappedScheme)
+		RegisterV1(ogEvmNetwork, wrappedScheme)
+
+	// Force HTTP/1.1 - OpenGradient's ALB has issues with HTTP/2
+	c.httpClient.Transport = &http.Transport{
+		TLSNextProto: make(map[string]func(string, *tls.Conn) http.RoundTripper),
+	}
 
 	// Wrap HTTP client with x402 payment support
 	c.httpClient = x402http.WrapHTTPClientWithPayment(
 		c.httpClient,
 		x402http.Newx402HTTPClient(c.x402Client),
 	)
+
 	c.x402Wrapped = true
 
 	// Set placeholder API key for base client (required for CallWithMessages check)
@@ -165,7 +185,7 @@ func (c *OpenGradientClient) SetAPIKey(apiKey string, customURL string, customMo
 }
 
 func (c *OpenGradientClient) setAuthHeader(reqHeaders http.Header) {
-	// x402 handles authentication via the wrapped HTTP client
-	// No Bearer token needed - the x402 wrapper intercepts 402 responses
-	// and automatically adds payment signatures
+	// OpenGradient requires an Authorization header (any value works)
+	// The actual auth is handled by x402 payment
+	reqHeaders.Set("Authorization", "Bearer x402")
 }

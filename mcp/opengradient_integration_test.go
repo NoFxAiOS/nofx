@@ -59,7 +59,6 @@ func TestOpenGradientIntegration_WithCustomModel(t *testing.T) {
 
 	client := NewOpenGradientClientWithOptions(
 		WithOpenGradientPrivateKey(privateKey),
-		WithModel("openai/gpt-4.1"), // Use default model explicitly
 	)
 
 	result, err := client.CallWithMessages(

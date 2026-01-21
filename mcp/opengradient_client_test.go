@@ -275,8 +275,8 @@ func TestOpenGradientConstants(t *testing.T) {
 		t.Errorf("DefaultOpenGradientBaseURL should be 'https://llm.opengradient.ai/v1', got '%s'", DefaultOpenGradientBaseURL)
 	}
 
-	if DefaultOpenGradientModel != "openai/gpt-4.1" {
-		t.Errorf("DefaultOpenGradientModel should be 'openai/gpt-4.1', got '%s'", DefaultOpenGradientModel)
+	if DefaultOpenGradientModel != "openai/gpt-4.1-2025-04-14" {
+		t.Errorf("DefaultOpenGradientModel should be 'openai/gpt-4.1-2025-04-14', got '%s'", DefaultOpenGradientModel)
 	}
 }
 

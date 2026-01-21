@@ -243,7 +243,7 @@ func TestOpenGradientClient_HooksIntegration(t *testing.T) {
 }
 
 // ============================================================
-// Test setAuthHeader (should be empty for x402)
+// Test setAuthHeader (sets placeholder for x402)
 // ============================================================
 
 func TestOpenGradientClient_SetAuthHeader(t *testing.T) {
@@ -256,9 +256,10 @@ func TestOpenGradientClient_SetAuthHeader(t *testing.T) {
 	// Call setAuthHeader
 	ogClient.setAuthHeader(headers)
 
-	// Verify no Authorization header is set (x402 handles auth)
-	if _, exists := headers["Authorization"]; exists {
-		t.Error("Authorization header should not be set for x402 client")
+	// Verify Authorization header is set to "Bearer x402"
+	// OpenGradient requires an Authorization header (actual auth is handled by x402 payment)
+	if auth := headers["Authorization"]; len(auth) == 0 || auth[0] != "Bearer x402" {
+		t.Errorf("Authorization header should be 'Bearer x402', got '%v'", headers["Authorization"])
 	}
 }
 
@@ -271,12 +272,12 @@ func TestOpenGradientConstants(t *testing.T) {
 		t.Errorf("ProviderOpenGradient should be 'opengradient', got '%s'", ProviderOpenGradient)
 	}
 
-	if DefaultOpenGradientBaseURL != "https://llm.opengradient.ai/v1" {
-		t.Errorf("DefaultOpenGradientBaseURL should be 'https://llm.opengradient.ai/v1', got '%s'", DefaultOpenGradientBaseURL)
+	if DefaultOpenGradientBaseURL != "https://llmogevm.opengradient.ai/v1" {
+		t.Errorf("DefaultOpenGradientBaseURL should be 'https://llmogevm.opengradient.ai/v1', got '%s'", DefaultOpenGradientBaseURL)
 	}
 
-	if DefaultOpenGradientModel != "openai/gpt-4.1-2025-04-14" {
-		t.Errorf("DefaultOpenGradientModel should be 'openai/gpt-4.1-2025-04-14', got '%s'", DefaultOpenGradientModel)
+	if DefaultOpenGradientModel != "gemini-2.5-flash" {
+		t.Errorf("DefaultOpenGradientModel should be 'gemini-2.5-flash', got '%s'", DefaultOpenGradientModel)
 	}
 }
 

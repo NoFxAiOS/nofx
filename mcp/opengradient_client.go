@@ -16,7 +16,7 @@ import (
 const (
 	ProviderOpenGradient       = "opengradient"
 	DefaultOpenGradientBaseURL = "https://llmogevm.opengradient.ai/v1"
-	DefaultOpenGradientModel   = "gemini-2.5-flash"
+	DefaultOpenGradientModel   = "gemini-2.5-pro"
 
 	// OpenGradient EVM chain ID (0x40000 = 262144)
 	ogEvmNetwork   = "og-evm"

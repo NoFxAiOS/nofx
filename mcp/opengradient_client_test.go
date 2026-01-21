@@ -276,8 +276,8 @@ func TestOpenGradientConstants(t *testing.T) {
 		t.Errorf("DefaultOpenGradientBaseURL should be 'https://llmogevm.opengradient.ai/v1', got '%s'", DefaultOpenGradientBaseURL)
 	}
 
-	if DefaultOpenGradientModel != "gemini-2.5-flash" {
-		t.Errorf("DefaultOpenGradientModel should be 'gemini-2.5-flash', got '%s'", DefaultOpenGradientModel)
+	if DefaultOpenGradientModel != "gemini-2.5-pro" {
+		t.Errorf("DefaultOpenGradientModel should be 'gemini-2.5-pro', got '%s'", DefaultOpenGradientModel)
 	}
 }
 

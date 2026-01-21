@@ -114,8 +114,6 @@ func TestOpenGradientIntegration_CallWithRequest(t *testing.T) {
 	req := NewRequestBuilder().
 		WithSystemPrompt("You are a helpful coding assistant.").
 		WithUserPrompt("Write a one-line Python hello world program.").
-		WithMaxTokens(100).
-		WithTemperature(0.3).
 		MustBuild()
 
 	result, err := client.CallWithRequest(req)

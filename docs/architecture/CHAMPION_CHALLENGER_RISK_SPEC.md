@@ -1,6 +1,6 @@
 # Champion-Challenger A/B 测试框架 - 生产级风控规范
 
-> **版本**: v1.1.1
+> **版本**: v1.1.2
 > **最后更新**: 2026-01-22
 > **状态**: 生产就绪
 
@@ -17,6 +17,7 @@
 - [5. Regime 硬定义](#5-regime-硬定义)
 - [6. UCB 预算分配 - 虚拟先验](#6-ucb-预算分配---虚拟先验)
 - [7. v1.1.1 实现一致性补丁](#7-v111-实现一致性补丁)
+- [9. Implementation Reference (v1.1.2)](#9-implementation-reference-v112)
 - [变更历史](#变更历史)
 
 ---
@@ -861,3 +862,119 @@ def calc_accurate_risk(self, positions: List[Position], equity: float) -> float:
 | D | `segment_size=0` 导致空段 | `n_days<20` 拒绝; `<40` 用2段; `>=40` 用4段 |
 | E | clamp 回填导致比例跳变 | 水位法 + champion 绝对下限 0.40 |
 | F | r/C 方向定义可能混淆 | 硬定义: r 用仓位方向, C 用标的收益率 |
+
+---
+
+## 9. Implementation Reference (v1.1.2)
+
+The v1.1.2 specification is implemented in the following Go packages:
+
+### Package Structure
+
+```
+backtest/
+├── risk/
+│   ├── types.go          # Core types (Position, StrategyResults, constants)
+│   ├── types_test.go
+│   ├── correlation.go    # Correlation matrix with symbol order tracking
+│   ├── correlation_test.go
+│   ├── portfolio.go      # Dual-metric risk calculator (fast + accurate)
+│   ├── portfolio_test.go
+│   ├── regime.go         # Regime calculator with hard thresholds
+│   ├── regime_test.go
+│   ├── budget.go         # UCB budget allocator with water-fill
+│   ├── budget_test.go
+│   ├── gates.go          # Risk Parity, Dominance, Evidence gates
+│   └── gates_test.go
+├── abtest/
+│   ├── cycle.go          # Cycle state management
+│   ├── manager.go        # A/B test orchestration
+│   └── manager_test.go
+├── config.go             # BacktestConfig with ABTest fields
+├── runner.go             # Runner with ABTest manager integration
+└── runner_abtest_test.go
+```
+
+### v1.1.2 Bug Fixes Implemented
+
+| Fix | Issue | Implementation |
+|-----|-------|----------------|
+| 8.A | Volatility O(n²) slicing | `correlation.go`: vectorized daily_vol calculation |
+| 8.B | Correlation cache no symbol order | `correlation.go`: `symbolIndex` map for O(1) lookup |
+| 8.C | No MAX_CHALLENGERS limit | `types.go`: `MaxChallengers = 10`, `budget.go`: `selectTopChallengers()` |
+| 8.D | Water-fill order bias | `budget.go`: `budgetSnapshot` per iteration |
+| 8.E | No re-clamp after normalize | `budget.go`: `normalize()` re-enforces min/max |
+| 8.F | Position.size sign ambiguity | `types.go`: Quantity always >= 0, Side for direction |
+
+### Usage Example
+
+```go
+import (
+    "nofx/backtest/abtest"
+    "nofx/backtest/risk"
+)
+
+// Create manager
+mgr := abtest.NewManager(abtest.DefaultCycleConfig(), "champion_strategy")
+mgr.AddChallenger("challenger_v2")
+
+// Get budget allocation
+budgets := mgr.GetBudgetAllocation()
+// budgets["champion_strategy"] >= 0.40 (absolute floor)
+// budgets["challenger_v2"] in [0.05, 0.25]
+
+// Start cycle with current regime
+regime := mgr.GetRegimeCalculator().Calculate(atrPercentile, adx)
+mgr.StartCycle(regime)
+
+// ... run strategies with allocated budgets ...
+
+// End cycle with results
+results := map[string]risk.StrategyResults{
+    "champion_strategy": {...},
+    "challenger_v2": {...},
+}
+cycleResult, _ := mgr.EndCycle(results)
+
+// Gate checks run automatically: RiskParity -> Dominance -> Evidence
+if cycleResult.ShouldPromote {
+    mgr.Promote(cycleResult.PromotionCandidate)
+}
+```
+
+### Key Constants (from `risk/types.go`)
+
+```go
+// Portfolio risk
+TargetPortfolioVol     = 0.02 // 2% daily volatility target
+CorrelationWindow      = 60   // 60 hourly bars
+AccurateUpdateInterval = time.Hour
+
+// Budget allocation
+ChampionMinBudget     = 0.50
+ChampionAbsoluteFloor = 0.40
+ChallengerMaxBudget   = 0.25
+ChallengerMinBudget   = 0.05
+MaxChallengers        = 10
+
+// Regime thresholds
+VolHighPercentile = 0.70
+VolLowPercentile  = 0.30
+TrendADXThreshold = 25.0
+
+// Gate thresholds
+RiskDeviationThreshold = 0.20
+DominanceWinsRequired  = 3
+MinTrades              = 30
+MinActiveDays          = 15
+```
+
+---
+
+## 变更历史 (更新)
+
+| 版本 | 日期 | 变更内容 |
+|------|------|----------|
+| v1.1.2 | 2026-01-22 | Go 实现: 6 个 bug fix + 完整 risk/abtest 包 |
+| v1.1.1 | 2026-01-22 | 实现一致性补丁 (A-F) |
+| v1.1 | 2026-01-22 | 初版生产规范 |

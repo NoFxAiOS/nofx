@@ -1173,9 +1173,9 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		)
 	case "weex":
 		tempTrader, createErr = trader.NewWeexTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 			exchangeCfg.Testnet,
 		)
 	case "lighter":
@@ -1332,9 +1332,9 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		)
 	case "weex":
 		tempTrader, createErr = trader.NewWeexTrader(
-			exchangeCfg.APIKey,
-			exchangeCfg.SecretKey,
-			exchangeCfg.Passphrase,
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
 			exchangeCfg.Testnet,
 		)
 	case "lighter":

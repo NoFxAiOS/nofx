@@ -690,9 +690,9 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		traderConfig.BitgetSecretKey = string(exchangeCfg.SecretKey)
 		traderConfig.BitgetPassphrase = string(exchangeCfg.Passphrase)
 	case "weex":
-		traderConfig.WeexAPIKey = exchangeCfg.APIKey
-		traderConfig.WeexSecretKey = exchangeCfg.SecretKey
-		traderConfig.WeexPassphrase = exchangeCfg.Passphrase
+		traderConfig.WeexAPIKey = string(exchangeCfg.APIKey)
+		traderConfig.WeexSecretKey = string(exchangeCfg.SecretKey)
+		traderConfig.WeexPassphrase = string(exchangeCfg.Passphrase)
 		traderConfig.WeexTestnet = exchangeCfg.Testnet
 	case "hyperliquid":
 		traderConfig.HyperliquidPrivateKey = string(exchangeCfg.APIKey)

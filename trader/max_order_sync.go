@@ -64,30 +64,34 @@ func (t *MAXTrader) SyncOrdersFromMAX(traderID string, exchangeID string, exchan
 	latestFillTime := lastSyncTimeMs
 
 	for _, record := range records {
-		// Create fill record
-		fill := &store.Fill{
-			ExchangeID:    exchangeID,
-			TraderID:      traderID,
-			Symbol:        record.Symbol,
-			Side:          record.Side,
-			Price:         record.EntryPrice,
-			Qty:           record.Quantity,
-			QuoteQty:      record.EntryPrice * record.Quantity,
-			Commission:    record.Fee,
-			RealizedPnl:   record.RealizedPnL,
-			ExchangeType:  exchangeType,
-			FillTimeMs:    record.EntryTime.UnixMilli(),
-			ExchangeFillID: record.ExchangeID,
-		}
-
 		// Check if fill already exists
-		exists, _ := orderStore.FillExists(exchangeID, record.ExchangeID)
-		if exists {
+		existing, _ := orderStore.GetFillByExchangeTradeID(exchangeID, record.ExchangeID)
+		if existing != nil {
 			continue
 		}
 
+		// Create fill record
+		fill := &store.TraderFill{
+			ExchangeID:      exchangeID,
+			TraderID:        traderID,
+			ExchangeType:    exchangeType,
+			OrderID:         0, // MAX sync doesn't track orders
+			ExchangeOrderID: "",
+			ExchangeTradeID: record.ExchangeID,
+			Symbol:          record.Symbol,
+			Side:            record.Side,
+			Price:           record.EntryPrice,
+			Quantity:        record.Quantity,
+			QuoteQuantity:   record.EntryPrice * record.Quantity,
+			Commission:      record.Fee,
+			CommissionAsset: "TWD", // MAX uses TWD for fees
+			RealizedPnL:     record.RealizedPnL,
+			IsMaker:         false,
+			CreatedAt:       record.EntryTime.UnixMilli(),
+		}
+
 		// Save fill
-		if err := orderStore.SaveFill(fill); err != nil {
+		if err := orderStore.CreateFill(fill); err != nil {
 			logger.Warnf("  ⚠️ Failed to save fill: %v", err)
 			continue
 		}

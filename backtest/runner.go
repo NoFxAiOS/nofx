@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"nofx/backtest/abtest"
 	"nofx/kernel"
 	"nofx/market"
 	"nofx/mcp"
@@ -57,8 +58,9 @@ type Runner struct {
 	createdAt        time.Time
 	lastMetricsWrite time.Time
 
-	aiCache   *AICache
-	cachePath string
+	aiCache       *AICache
+	cachePath     string
+	abtestManager *abtest.Manager
 
 	lockInfo     *RunLockInfo
 	lockStop     chan struct{}
@@ -137,6 +139,17 @@ func NewRunner(cfg BacktestConfig, mcpClient mcp.AIClient) (*Runner, error) {
 		createdAt:      createdAt,
 		aiCache:        aiCache,
 		cachePath:      cachePath,
+	}
+
+	// Initialize A/B test manager if enabled
+	if cfg.ABTestEnabled && cfg.ABTestChampionID != "" {
+		r.abtestManager = abtest.NewManager(
+			abtest.DefaultCycleConfig(),
+			cfg.ABTestChampionID,
+		)
+		for _, cid := range cfg.ABTestChallengerIDs {
+			r.abtestManager.AddChallenger(cid)
+		}
 	}
 
 	if err := r.initLock(); err != nil {
@@ -1528,4 +1541,9 @@ func barVWAP(k market.Kline) float64 {
 		return 0
 	}
 	return sum / count
+}
+
+// GetABTestManager returns the A/B test manager (may be nil if not enabled).
+func (r *Runner) GetABTestManager() *abtest.Manager {
+	return r.abtestManager
 }

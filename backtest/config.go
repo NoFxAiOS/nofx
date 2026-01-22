@@ -50,6 +50,11 @@ type BacktestConfig struct {
 	AICfg    AIConfig       `json:"ai"`
 	Leverage LeverageConfig `json:"leverage"`
 
+	// A/B Test configuration
+	ABTestEnabled       bool     `json:"abtest_enabled"`
+	ABTestChampionID    string   `json:"abtest_champion_id"`
+	ABTestChallengerIDs []string `json:"abtest_challenger_ids"`
+
 	SharedAICachePath         string `json:"ai_cache_path,omitempty"`
 	CheckpointIntervalBars    int    `json:"checkpoint_interval_bars,omitempty"`
 	CheckpointIntervalSeconds int    `json:"checkpoint_interval_seconds,omitempty"`

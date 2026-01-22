@@ -61,6 +61,10 @@ type AutoTraderConfig struct {
 	LighterAPIKeyIndex      int    // LIGHTER API Key index (0-255)
 	LighterTestnet          bool   // Whether to use testnet
 
+	// MAX Exchange configuration (Taiwan spot exchange)
+	MAXAPIKey    string
+	MAXSecretKey string
+
 	// AI configuration
 	UseQwen     bool
 	DeepSeekKey string
@@ -264,6 +268,10 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 			return nil, fmt.Errorf("failed to initialize LIGHTER trader: %w", err)
 		}
 		logger.Infof("✓ LIGHTER trader initialized successfully")
+	case "max":
+		logger.Infof("🏦 [%s] Using MAX Exchange (Taiwan spot trading)", config.Name)
+		trader = NewMAXTrader(config.MAXAPIKey, config.MAXSecretKey)
+		logger.Infof("✓ MAX Exchange trader initialized successfully")
 	default:
 		return nil, fmt.Errorf("unsupported trading platform: %s", config.Exchange)
 	}

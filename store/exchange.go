@@ -173,6 +173,8 @@ func getExchangeNameAndType(exchangeType string) (name string, typ string) {
 		return "Aster DEX", "dex"
 	case "lighter":
 		return "LIGHTER DEX", "dex"
+	case "max":
+		return "MAX Exchange", "cex"
 	default:
 		return exchangeType + " Exchange", "cex"
 	}

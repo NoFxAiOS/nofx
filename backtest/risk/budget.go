@@ -128,7 +128,12 @@ func (b *BudgetAllocator) Allocate(
 		remainingBudget -= totalAdded
 	}
 
-	// Step 5: Normalize and ensure champion floor
+	// Step 5: Give remaining budget to champion (when challengers hit max)
+	if remainingBudget > 1e-9 {
+		allocations[championID] += remainingBudget
+	}
+
+	// Step 6: Normalize and ensure champion floor
 	return b.normalize(allocations, championID)
 }
 
@@ -263,7 +268,9 @@ func (b *BudgetAllocator) normalize(alloc BudgetAllocation, championID string) B
 				if k != championID {
 					alloc[k] *= scale
 					// Re-enforce min/max after scaling (v1.1.2 requirement)
+					// Use round to 10 decimal places to avoid floating-point precision issues
 					alloc[k] = math.Max(ChallengerMinBudget, math.Min(ChallengerMaxBudget, alloc[k]))
+					alloc[k] = math.Round(alloc[k]*1e10) / 1e10
 				}
 			}
 		}

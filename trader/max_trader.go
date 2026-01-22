@@ -802,3 +802,10 @@ func (t *MAXTrader) mapOrderState(state string) string {
 		return state
 	}
 }
+
+// CancelStopOrders cancels stop loss and take profit orders
+// MAX spot exchange doesn't have native stop orders, so this is a no-op
+func (t *MAXTrader) CancelStopOrders(symbol string) error {
+	// MAX is a spot exchange without native stop-loss/take-profit support
+	return nil
+}

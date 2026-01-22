@@ -1749,7 +1749,7 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 		// Don't return error here since model config was successfully updated to database
 	}
 
-	logger.Infof("✓ AI model config updated: %+v", req.Models)
+	logger.Infof("✓ AI model config updated for user %s (credentials redacted)", userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Model configuration updated"})
 }
 
@@ -1882,7 +1882,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 		// Don't return error here since exchange config was successfully updated to database
 	}
 
-	logger.Infof("✓ Exchange config updated: %+v", req.Exchanges)
+	logger.Infof("✓ Exchange config updated for user %s (credentials redacted)", userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Exchange configuration updated"})
 }
 

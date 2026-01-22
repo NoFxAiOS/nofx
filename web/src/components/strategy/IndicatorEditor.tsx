@@ -1,8 +1,9 @@
 import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
 
-// Default NofxOS API Key
-const DEFAULT_NOFXOS_API_KEY = 'cm_568c67eae410d912c54c'
+// SECURITY: API key should be configured by user, not hardcoded
+// Users should set their own NofxOS API key in their profile/settings
+const DEFAULT_NOFXOS_API_KEY = ''
 
 interface IndicatorEditorProps {
   config: IndicatorConfig

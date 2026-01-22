@@ -273,7 +273,8 @@ func (s *Server) handleBacktestRuns(c *gin.Context) {
 	}
 	rawUserID := strings.TrimSpace(c.GetString("user_id"))
 	userID := normalizeUserID(rawUserID)
-	filterByUser := rawUserID != "" && rawUserID != "admin"
+	// SECURITY: Always filter by user - removed "admin" bypass
+	filterByUser := rawUserID != ""
 
 	metas, err := s.backtestManager.ListRuns()
 	if err != nil {
@@ -600,8 +601,9 @@ func (s *Server) ensureBacktestRunOwnership(runID, userID string) (*backtest.Run
 	if err != nil {
 		return nil, err
 	}
-	if userID == "" || userID == "admin" {
-		return meta, nil
+	// SECURITY: Removed "admin" bypass - proper RBAC should be implemented if admin access is needed
+	if userID == "" {
+		return nil, errBacktestForbidden
 	}
 	owner := strings.TrimSpace(meta.UserID)
 	if owner == "" {

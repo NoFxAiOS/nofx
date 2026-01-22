@@ -772,8 +772,12 @@ export const api = {
   },
 
   // SSE stream for live debate updates
+  // SECURITY WARNING: Token in URL is logged in server logs and browser history
+  // TODO: Implement short-lived SSE tokens or use WebSocket with proper auth
   createDebateStream(debateId: string): EventSource {
     const token = localStorage.getItem('auth_token')
+    // EventSource API doesn't support custom headers, so token must be in URL
+    // This is a known limitation - consider using WebSocket for better security
     return new EventSource(`${API_BASE}/debates/${debateId}/stream?token=${token}`)
   },
 

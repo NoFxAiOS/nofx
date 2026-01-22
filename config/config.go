@@ -68,7 +68,8 @@ func Init() {
 		cfg.JWTSecret = strings.TrimSpace(v)
 	}
 	if cfg.JWTSecret == "" {
-		cfg.JWTSecret = "default-jwt-secret-change-in-production"
+		// SECURITY: Fail fast if JWT_SECRET is not set - do not use a default value
+		panic("SECURITY ERROR: JWT_SECRET environment variable must be set. Generate one with: openssl rand -base64 32")
 	}
 
 	if v := os.Getenv("REGISTRATION_ENABLED"); v != "" {

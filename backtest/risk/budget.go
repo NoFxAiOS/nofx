@@ -134,7 +134,17 @@ func (b *BudgetAllocator) Allocate(
 	}
 
 	// Step 6: Normalize and ensure champion floor
-	return b.normalize(allocations, championID)
+	result := b.normalize(allocations, championID)
+
+	// Step 7: Final precision cleanup to ensure constraints hold
+	for k, v := range result {
+		result[k] = math.Round(v*1e10) / 1e10
+		if k != championID {
+			result[k] = math.Min(ChallengerMaxBudget, result[k])
+		}
+	}
+
+	return result
 }
 
 // selectTopChallengers returns top MaxChallengers by UCB score.

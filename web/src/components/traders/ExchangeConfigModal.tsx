@@ -542,11 +542,12 @@ export function ExchangeConfigModal({
 
             {selectedTemplate && (
               <>
-                {/* Binance/Bybit/OKX/Bitget 的输入字段 */}
+                {/* Binance/Bybit/OKX/Bitget/MAX 的输入字段 */}
                 {(currentExchangeType === 'binance' ||
                   currentExchangeType === 'bybit' ||
                   currentExchangeType === 'okx' ||
-                  currentExchangeType === 'bitget') && (
+                  currentExchangeType === 'bitget' ||
+                  currentExchangeType === 'max') && (
                     <>
                       {/* 币安用户配置提示 (D1 方案) */}
                       {currentExchangeType === 'binance' && (
@@ -1218,6 +1219,8 @@ export function ExchangeConfigModal({
                   (!lighterWalletAddr.trim() || !lighterApiKeyPrivateKey.trim())) ||
                 (currentExchangeType === 'bybit' &&
                   (!apiKey.trim() || !secretKey.trim())) ||
+                (currentExchangeType === 'max' &&
+                  (!apiKey.trim() || !secretKey.trim())) ||
                 (selectedTemplate?.type === 'cex' &&
                   currentExchangeType !== 'hyperliquid' &&
                   currentExchangeType !== 'aster' &&
@@ -1226,6 +1229,7 @@ export function ExchangeConfigModal({
                   currentExchangeType !== 'bybit' &&
                   currentExchangeType !== 'okx' &&
                   currentExchangeType !== 'bitget' &&
+                  currentExchangeType !== 'max' &&
                   (!apiKey.trim() || !secretKey.trim()))
               }
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"

@@ -252,7 +252,9 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			UseAI500:   true,
 			AI500Limit: 10,
 			UseOITop:   false,
-			OITopLimit: 20,
+			OITopLimit: 10,
+			UseOILow:   false,
+			OILowLimit: 10,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{

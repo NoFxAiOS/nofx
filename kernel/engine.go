@@ -594,7 +594,7 @@ func (e *StrategyEngine) getAI500Coins(limit int) ([]CandidateCoin, error) {
 
 func (e *StrategyEngine) getOITopCoins(limit int) ([]CandidateCoin, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = 10
 	}
 
 	positions, err := e.nofxosClient.GetOITopPositions()
@@ -618,7 +618,7 @@ func (e *StrategyEngine) getOITopCoins(limit int) ([]CandidateCoin, error) {
 
 func (e *StrategyEngine) getOILowCoins(limit int) ([]CandidateCoin, error) {
 	if limit <= 0 {
-		limit = 20
+		limit = 10
 	}
 
 	positions, err := e.nofxosClient.GetOILowPositions()

@@ -447,6 +447,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if err != nil {
 			return nil, err
 		}
+		// 空列表是正常情况，直接返回
 		return e.filterExcludedCoins(coins), nil
 
 	case "oi_top":
@@ -466,6 +467,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if err != nil {
 			return nil, err
 		}
+		// 空列表是正常情况，直接返回
 		return e.filterExcludedCoins(coins), nil
 
 	case "mixed":

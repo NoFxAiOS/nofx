@@ -534,6 +534,12 @@ func (at *AutoTrader) runCycle() error {
 		return fmt.Errorf("failed to build trading context: %w", err)
 	}
 
+	// 如果没有候选币种，友好提示并跳过本周期
+	if len(ctx.CandidateCoins) == 0 {
+		logger.Infof("ℹ️  No candidate coins available, skipping this cycle")
+		return nil
+	}
+
 	// Save equity snapshot independently (decoupled from AI decision, used for drawing profit curve)
 	at.saveEquitySnapshot(ctx)
 

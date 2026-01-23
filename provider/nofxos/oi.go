@@ -129,6 +129,31 @@ func (c *Client) GetOITopSymbols() ([]string, error) {
 	return symbols, nil
 }
 
+// GetOILowPositions retrieves OI decrease positions (for short opportunities)
+func (c *Client) GetOILowPositions() ([]OIPosition, error) {
+	data, err := c.GetOIRanking("1h", 20)
+	if err != nil {
+		return nil, err
+	}
+	return data.LowPositions, nil
+}
+
+// GetOILowSymbols retrieves OI low coin symbol list
+func (c *Client) GetOILowSymbols() ([]string, error) {
+	positions, err := c.GetOILowPositions()
+	if err != nil {
+		return nil, err
+	}
+
+	var symbols []string
+	for _, pos := range positions {
+		symbol := NormalizeSymbol(pos.Symbol)
+		symbols = append(symbols, symbol)
+	}
+
+	return symbols, nil
+}
+
 // FormatOIRankingForAI formats OI ranking data for AI consumption
 func FormatOIRankingForAI(data *OIRankingData, lang Language) string {
 	if data == nil {

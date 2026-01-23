@@ -470,6 +470,26 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		// 空列表是正常情况，直接返回
 		return e.filterExcludedCoins(coins), nil
 
+	case "oi_low":
+		// 持仓减少榜，适合做空
+		if !coinSource.UseOILow {
+			logger.Infof("⚠️  source_type is 'oi_low' but use_oi_low is false, falling back to static coins")
+			for _, symbol := range coinSource.StaticCoins {
+				symbol = market.Normalize(symbol)
+				candidates = append(candidates, CandidateCoin{
+					Symbol:  symbol,
+					Sources: []string{"static"},
+				})
+			}
+			return e.filterExcludedCoins(candidates), nil
+		}
+		coins, err := e.getOILowCoins(coinSource.OILowLimit)
+		if err != nil {
+			return nil, err
+		}
+		// 空列表是正常情况，直接返回
+		return e.filterExcludedCoins(coins), nil
+
 	case "mixed":
 		if coinSource.UseAI500 {
 			poolCoins, err := e.getAI500Coins(coinSource.AI500Limit)
@@ -489,6 +509,17 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 			} else {
 				for _, coin := range oiCoins {
 					symbolSources[coin.Symbol] = append(symbolSources[coin.Symbol], "oi_top")
+				}
+			}
+		}
+
+		if coinSource.UseOILow {
+			oiLowCoins, err := e.getOILowCoins(coinSource.OILowLimit)
+			if err != nil {
+				logger.Infof("⚠️  Failed to get OI Low: %v", err)
+			} else {
+				for _, coin := range oiLowCoins {
+					symbolSources[coin.Symbol] = append(symbolSources[coin.Symbol], "oi_low")
 				}
 			}
 		}
@@ -580,6 +611,30 @@ func (e *StrategyEngine) getOITopCoins(limit int) ([]CandidateCoin, error) {
 		candidates = append(candidates, CandidateCoin{
 			Symbol:  symbol,
 			Sources: []string{"oi_top"},
+		})
+	}
+	return candidates, nil
+}
+
+func (e *StrategyEngine) getOILowCoins(limit int) ([]CandidateCoin, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+
+	positions, err := e.nofxosClient.GetOILowPositions()
+	if err != nil {
+		return nil, err
+	}
+
+	var candidates []CandidateCoin
+	for i, pos := range positions {
+		if i >= limit {
+			break
+		}
+		symbol := market.Normalize(pos.Symbol)
+		candidates = append(candidates, CandidateCoin{
+			Symbol:  symbol,
+			Sources: []string{"oi_low"},
 		})
 	}
 	return candidates, nil
@@ -1291,13 +1346,38 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 
 func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 	if len(sources) > 1 {
-		return " (AI500+OI_Top dual signal)"
+		// 多信号源组合
+		hasAI500 := false
+		hasOITop := false
+		hasOILow := false
+		for _, s := range sources {
+			switch s {
+			case "ai500":
+				hasAI500 = true
+			case "oi_top":
+				hasOITop = true
+			case "oi_low":
+				hasOILow = true
+			}
+		}
+		if hasAI500 && hasOITop {
+			return " (AI500+OI_Top dual signal)"
+		}
+		if hasAI500 && hasOILow {
+			return " (AI500+OI_Low dual signal)"
+		}
+		if hasOITop && hasOILow {
+			return " (OI_Top+OI_Low)"
+		}
+		return " (Multiple sources)"
 	} else if len(sources) == 1 {
 		switch sources[0] {
 		case "ai500":
 			return " (AI500)"
 		case "oi_top":
-			return " (OI_Top position growth)"
+			return " (OI_Top 持仓增加)"
+		case "oi_low":
+			return " (OI_Low 持仓减少)"
 		case "static":
 			return " (Manual selection)"
 		}

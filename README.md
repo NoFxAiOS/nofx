@@ -500,6 +500,9 @@ Thanks to all our sponsors!
 <a href="https://github.com/vip3001003"><img src="https://github.com/vip3001003.png" width="60" height="60" style="border-radius:50%" alt="vip3001003" /></a>
 <a href="https://github.com/mrtluh"><img src="https://github.com/mrtluh.png" width="60" height="60" style="border-radius:50%" alt="mrtluh" /></a>
 <a href="https://github.com/cpcp1117-source"><img src="https://github.com/cpcp1117-source.png" width="60" height="60" style="border-radius:50%" alt="cpcp1117-source" /></a>
+<a href="https://github.com/match-007"><img src="https://github.com/match-007.png" width="60" height="60" style="border-radius:50%" alt="match-007" /></a>
+<a href="https://github.com/leiwuhen1715"><img src="https://github.com/leiwuhen1715.png" width="60" height="60" style="border-radius:50%" alt="leiwuhen1715" /></a>
+<a href="https://github.com/SHAOXIA1991"><img src="https://github.com/SHAOXIA1991.png" width="60" height="60" style="border-radius:50%" alt="SHAOXIA1991" /></a>
 
 [Become a sponsor](https://github.com/sponsors/NoFxAiOS)
 

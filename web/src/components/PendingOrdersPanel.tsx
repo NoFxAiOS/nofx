@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Edit2, Trash2, Plus } from 'lucide-react';
 import PlaceOrderModal from './PlaceOrderModal';
+import { httpClient } from '../lib/httpClient';
 
 export interface PendingOrder {
   orderId: string;
@@ -50,18 +51,13 @@ export const PendingOrdersPanel: React.FC<PendingOrdersPanelProps> = ({
     }
 
     try {
-      const response = await fetch(
+      const result = await httpClient.delete<{ error?: string }>(
         `/api/pending-orders/${orderId}?trader_id=${traderID}`,
-        {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol }),
-        }
+        { symbol }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to cancel order: ${error.error}`);
+      if (!result.success) {
+        alert(`Failed to cancel order: ${result.message || 'Unknown error'}`);
         return;
       }
 
@@ -82,22 +78,17 @@ export const PendingOrdersPanel: React.FC<PendingOrdersPanelProps> = ({
     if (!selectedOrder) return;
 
     try {
-      const response = await fetch(
+      const result = await httpClient.put<{ error?: string }>(
         `/api/pending-orders/${selectedOrder.orderId}/modify?trader_id=${traderID}`,
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol: selectedOrder.symbol,
-            quantity: newQuantity || selectedOrder.quantity,
-            price: newPrice || selectedOrder.price,
-          }),
+          symbol: selectedOrder.symbol,
+          quantity: newQuantity || selectedOrder.quantity,
+          price: newPrice || selectedOrder.price,
         }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to modify order: ${error.error}`);
+      if (!result.success) {
+        alert(`Failed to modify order: ${result.message || 'Unknown error'}`);
         return;
       }
 

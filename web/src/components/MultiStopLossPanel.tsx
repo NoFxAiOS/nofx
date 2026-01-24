@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { httpClient } from '../lib/httpClient';
 
 interface StopLossTier {
   level: number;
@@ -60,23 +61,18 @@ const MultiStopLossPanel: React.FC<MultiStopLossPanelProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
+      const result = await httpClient.post<{ error?: string }>(
         `/api/stop-orders/set-multiple-sl?trader_id=${traderID}`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol,
-            position_side: positionSide,
-            quantity: currentQuantity,
-            stop_prices: prices,
-          }),
+          symbol,
+          position_side: positionSide,
+          quantity: currentQuantity,
+          stop_prices: prices,
         }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to set stop losses: ${error.error}`);
+      if (!result.success) {
+        alert(`Failed to set stop losses: ${result.message || 'Unknown error'}`);
         return;
       }
 
@@ -100,21 +96,16 @@ const MultiStopLossPanel: React.FC<MultiStopLossPanelProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
+      const result = await httpClient.put<{ error?: string }>(
         `/api/stop-orders/sl-tier/${tier}?trader_id=${traderID}`,
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol,
-            stop_price: newPrice,
-          }),
+          symbol,
+          stop_price: newPrice,
         }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to modify tier: ${error.error}`);
+      if (!result.success) {
+        alert(`Failed to modify tier: ${result.message || 'Unknown error'}`);
         return;
       }
 

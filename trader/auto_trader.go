@@ -567,6 +567,8 @@ func (at *AutoTrader) runCycle() error {
 					StopPrice:    order.StopPrice,
 					Quantity:     order.Quantity,
 					Status:       order.Status,
+					StopLoss:     order.StopLoss,
+					TakeProfit:   order.TakeProfit,
 				})
 			}
 			if len(ctx.PendingOrders) > 0 {
@@ -575,13 +577,41 @@ func (at *AutoTrader) runCycle() error {
 		}
 	}
 	
-	// If no orders found via GetAllOpenOrders, try per-symbol query (fallback)
+	// If no orders found via GetAllOpenOrders, try querying with empty symbol (get all) first
 	if len(ctx.PendingOrders) == 0 {
-		logger.Infof("📋 [%s] Querying pending orders per candidate coin...", at.name)
-		for _, coin := range ctx.CandidateCoins {
-			openOrders, err := at.trader.GetOpenOrders(coin.Symbol)
+		logger.Infof("📋 [%s] Querying ALL pending orders (empty symbol)...", at.name)
+		allOpenOrders, err := at.trader.GetOpenOrders("") // Empty symbol = get all
+		if err != nil {
+			logger.Warnf("⚠️ [%s] Failed to get all open orders with empty symbol: %v", at.name, err)
+		} else {
+			for _, order := range allOpenOrders {
+				ctx.PendingOrders = append(ctx.PendingOrders, kernel.PendingOrder{
+					OrderID:      order.OrderID,
+					Symbol:       order.Symbol,
+					Side:         order.Side,
+					PositionSide: order.PositionSide,
+					Type:         order.Type,
+					Price:        order.Price,
+					StopPrice:    order.StopPrice,
+					Quantity:     order.Quantity,
+					Status:       order.Status,
+					StopLoss:     order.StopLoss,
+					TakeProfit:   order.TakeProfit,
+				})
+			}
+			if len(ctx.PendingOrders) > 0 {
+				logger.Infof("✅ [%s] Found %d pending orders via empty-symbol query", at.name, len(ctx.PendingOrders))
+			}
+		}
+	}
+
+	// If still no orders, try per-position-symbol query as last resort
+	if len(ctx.PendingOrders) == 0 && len(ctx.Positions) > 0 {
+		logger.Infof("📋 [%s] Querying pending orders for %d position symbols...", at.name, len(ctx.Positions))
+		for _, pos := range ctx.Positions {
+			openOrders, err := at.trader.GetOpenOrders(pos.Symbol)
 			if err != nil {
-				logger.Warnf("⚠️ [%s] Failed to get open orders for %s: %v", at.name, coin.Symbol, err)
+				logger.Warnf("⚠️ [%s] Failed to get open orders for %s: %v", at.name, pos.Symbol, err)
 				continue
 			}
 			for _, order := range openOrders {
@@ -595,11 +625,13 @@ func (at *AutoTrader) runCycle() error {
 					StopPrice:    order.StopPrice,
 					Quantity:     order.Quantity,
 					Status:       order.Status,
+					StopLoss:     order.StopLoss,
+					TakeProfit:   order.TakeProfit,
 				})
 			}
 		}
 		if len(ctx.PendingOrders) > 0 {
-			logger.Infof("📋 [%s] Found %d pending orders via per-symbol query", at.name, len(ctx.PendingOrders))
+			logger.Infof("📋 [%s] Found %d pending orders via position-symbol query", at.name, len(ctx.PendingOrders))
 		}
 	}
 
@@ -849,6 +881,37 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		peakPnlPct := at.peakPnLCache[posKey]
 		at.peakPnLCacheMutex.RUnlock()
 
+		// Get stop loss and take profit for this position
+		// Priority 1: Try to get from position data (position-level TPSL)
+		var stopLoss, takeProfit float64
+		if sl, ok := pos["stopLoss"].(float64); ok && sl > 0 {
+			stopLoss = sl
+		}
+		if tp, ok := pos["takeProfit"].(float64); ok && tp > 0 {
+			takeProfit = tp
+		}
+		
+		// Priority 2: If not found in position data, query order-level TPSL
+		if stopLoss == 0 || takeProfit == 0 {
+			if sltpTrader, ok := at.trader.(interface{ GetPositionSLTP(string, string) (float64, float64, error) }); ok {
+				logger.Infof("📋 [%s] Getting SL/TP for position %s %s...", at.name, symbol, side)
+				sl, tp, err := sltpTrader.GetPositionSLTP(symbol, side)
+				if err == nil {
+					if stopLoss == 0 && sl > 0 {
+						stopLoss = sl
+					}
+					if takeProfit == 0 && tp > 0 {
+						takeProfit = tp
+					}
+					logger.Infof("📋 [%s] Position %s SL/TP: SL=%.4f TP=%.4f", at.name, symbol, stopLoss, takeProfit)
+				} else {
+					logger.Warnf("⚠️ [%s] Failed to get SL/TP for %s: %v", at.name, symbol, err)
+				}
+			}
+		} else {
+			logger.Infof("📋 [%s] Position %s SL/TP from position data: SL=%.4f TP=%.4f", at.name, symbol, stopLoss, takeProfit)
+		}
+
 		positionInfos = append(positionInfos, kernel.PositionInfo{
 			Symbol:           symbol,
 			Side:             side,
@@ -862,6 +925,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			LiquidationPrice: liquidationPrice,
 			MarginUsed:       marginUsed,
 			UpdateTime:       updateTime,
+			StopLoss:         stopLoss,
+			TakeProfit:       takeProfit,
 		})
 	}
 
@@ -2493,6 +2558,31 @@ func (at *AutoTrader) executePlaceOrderWithRecord(decision *kernel.Decision, act
 	
 	logger.Infof("  📋 Place order: %s %s qty=%.4f price=%.4f type=%s", 
 		decision.Symbol, side, decision.OrderQty, decision.OrderPrice, decision.OrderType)
+	
+	// Extract stop loss and take profit values
+	stopLoss := decision.StopLoss.FloatOrZero()
+	takeProfit := decision.TakeProfit.FloatOrZero()
+	
+	// Log stop loss and take profit if provided
+	if stopLoss > 0 || takeProfit > 0 {
+		logger.Infof("  📋 With SL/TP: stop_loss=%.4f take_profit=%.4f", stopLoss, takeProfit)
+	}
+	
+	// Try to call PlaceOrderWithSLTP first if stop loss or take profit is provided
+	if stopLoss > 0 || takeProfit > 0 {
+		if t, ok := at.trader.(interface{ PlaceOrderWithSLTP(string, string, float64, float64, string, float64, float64) (map[string]interface{}, error) }); ok {
+			result, err := t.PlaceOrderWithSLTP(decision.Symbol, side, decision.OrderQty, decision.OrderPrice, decision.OrderType, stopLoss, takeProfit)
+			if err != nil {
+				return fmt.Errorf("failed to place order with SL/TP: %w", err)
+			}
+			if orderID, ok := result["orderId"].(string); ok {
+				logger.Infof("  ✅ Order placed with SL/TP, order_id=%s", orderID)
+			}
+			return nil
+		}
+		// Fall through to regular PlaceOrder if PlaceOrderWithSLTP not available
+		logger.Warnf("  ⚠️ PlaceOrderWithSLTP not available, placing order without preset SL/TP")
+	}
 	
 	// Try to call PlaceOrder if available on the concrete trader type
 	switch t := at.trader.(type) {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { httpClient } from '../lib/httpClient';
 
 interface PlaceOrderModalProps {
   traderID: string;
@@ -53,24 +54,19 @@ const PlaceOrderModal: React.FC<PlaceOrderModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
+      const result = await httpClient.post<{ error?: string }>(
         `/api/pending-orders/place?trader_id=${traderID}`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol,
-            side,
-            quantity: parseFloat(quantity),
-            price: orderType === 'limit' ? parseFloat(price) : 0,
-            order_type: orderType,
-          }),
+          symbol,
+          side,
+          quantity: parseFloat(quantity),
+          price: orderType === 'limit' ? parseFloat(price) : 0,
+          order_type: orderType,
         }
       );
 
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || 'Failed to place order');
+      if (!result.success) {
+        setError(result.message || 'Failed to place order');
         return;
       }
 

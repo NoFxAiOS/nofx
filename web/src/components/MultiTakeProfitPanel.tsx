@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { httpClient } from '../lib/httpClient';
 
 interface TakeProfitTier {
   level: number;
@@ -60,23 +61,18 @@ const MultiTakeProfitPanel: React.FC<MultiTakeProfitPanelProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
+      const result = await httpClient.post<{ error?: string }>(
         `/api/stop-orders/set-multiple-tp?trader_id=${traderID}`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol,
-            position_side: positionSide,
-            quantity: currentQuantity,
-            take_profit_prices: prices,
-          }),
+          symbol,
+          position_side: positionSide,
+          quantity: currentQuantity,
+          take_profit_prices: prices,
         }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to set take profits: ${error.error}`);
+      if (!result.success) {
+        alert(`Failed to set take profits: ${result.message || 'Unknown error'}`);
         return;
       }
 
@@ -100,21 +96,16 @@ const MultiTakeProfitPanel: React.FC<MultiTakeProfitPanelProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
+      const result = await httpClient.put<{ error?: string }>(
         `/api/stop-orders/tp-tier/${tier}?trader_id=${traderID}`,
         {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol,
-            take_profit_price: newPrice,
-          }),
+          symbol,
+          take_profit_price: newPrice,
         }
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        alert(`Failed to modify tier: ${error.error}`);
+      if (!result.success) {
+        alert(`Failed to modify tier: ${result.message || 'Unknown error'}`);
         return;
       }
 

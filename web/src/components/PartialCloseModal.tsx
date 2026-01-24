@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { httpClient } from '../lib/httpClient';
 
 interface PartialCloseModalProps {
   symbol: string;
@@ -60,21 +61,16 @@ const PartialCloseModal: React.FC<PartialCloseModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
+      const result = await httpClient.post<{ error?: string }>(
         `/api/position/close-partial?trader_id=${traderID}`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            symbol,
-            quantity: closeQty,
-          }),
+          symbol,
+          quantity: closeQty,
         }
       );
 
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || 'Failed to close position');
+      if (!result.success) {
+        setError(result.message || 'Failed to close position');
         return;
       }
 

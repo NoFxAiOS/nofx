@@ -242,9 +242,10 @@ export class HttpClient {
    */
   async delete<T = any>(
     url: string,
+    data?: any,
     headers?: Record<string, string>
   ): Promise<ApiResponse<T>> {
-    return this.request<T>(url, { method: 'DELETE', headers })
+    return this.request<T>(url, { method: 'DELETE', data, headers })
   }
 
   /**

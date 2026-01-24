@@ -431,13 +431,15 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
 
 // FormatDecisionExample 格式化决策示例（用于文档）
 func FormatDecisionExample(lang Language) string {
+	sl := 42000.0
+	tp := 48000.0
 	example := Decision{
 		Symbol:          "BTCUSDT",
 		Action:          "OPEN_NEW",
 		Leverage:        3,
 		PositionSizeUSD: 1000,
-		StopLoss:        42000,
-		TakeProfit:      48000,
+		StopLoss:        PriceValue{Single: &sl},
+		TakeProfit:      PriceValue{Single: &tp},
 		Confidence:      85,
 		Reasoning:       "详细的推理过程...",
 	}

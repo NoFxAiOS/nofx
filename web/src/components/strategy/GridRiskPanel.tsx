@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Shield, TrendingUp, AlertTriangle, Activity, Box, ChevronDown, ChevronUp } from 'lucide-react'
+import { httpClient } from '../../lib/httpClient'
 import type { GridRiskInfo } from '../../types'
 
 interface GridRiskPanelProps {
@@ -80,19 +81,13 @@ export function GridRiskPanel({
 
   const fetchRiskInfo = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`/api/traders/${traderId}/grid-risk`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const result = await httpClient.get<GridRiskInfo>(`/api/traders/${traderId}/grid-risk`)
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Failed to fetch')
       }
 
-      const data = await response.json()
-      setRiskInfo(data)
+      setRiskInfo(result.data)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')

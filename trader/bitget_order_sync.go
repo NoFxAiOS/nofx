@@ -156,58 +156,8 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 		}
 		return nil
 	}
-		// Step 3: Query trades for changed symbols using incremental sync when possible
-		var allTrades []TradeRecord
-		var failedSymbols []string
-		var partiallyFailedSymbols []string
-		apiCalls := 0
 
-		for _, symbol := range changedSymbols {
-			var trades []TradeRecord
-			var queryErr error
-
-			if lastID, ok := maxTradeIDs[symbol]; ok && lastID > 0 {
-				// Incremental sync: query from last known trade ID
-				trades, queryErr = t.GetTradesForSymbolFromID(symbol, lastID+1, 100)
-			} else {
-				// New symbol or first sync: query by time
-				trades, queryErr = t.GetTradesForSymbol(symbol, lastSyncTime, 100)
-			}
-			apiCalls++
-
-			if queryErr != nil {
-				// Distinguish between "symbol not found" errors (which are OK to skip) 
-				// and other API errors (which should be logged as failures)
-				errStr := queryErr.Error()
-				if strings.Contains(errStr, "40309") || strings.Contains(errStr, "The symbol has been removed") {
-					// This is a delisted symbol - safe to skip
-					logger.Infof("  ℹ️ Symbol %s appears to be delisted (skipping)", symbol)
-					partiallyFailedSymbols = append(partiallyFailedSymbols, symbol)
-				} else if strings.Contains(errStr, "Too Many Requests") || strings.Contains(errStr, "429") {
-					// Rate limit - might succeed on next attempt
-					logger.Warnf("  ⏳ Rate limited while fetching %s: %v", symbol, queryErr)
-					failedSymbols = append(failedSymbols, symbol)
-				} else {
-					// Other errors - log for investigation
-					logger.Warnf("  ⚠️ Failed to get trades for %s: %v", symbol, queryErr)
-					failedSymbols = append(failedSymbols, symbol)
-				}
-				continue
-			}
-			allTrades = append(allTrades, trades...)
-		}
-
-		logger.Infof("📥 [Bitget] Received %d trades (%d API calls, %d skipped delisted symbols)", 
-			len(allTrades), apiCalls, len(partiallyFailedSymbols))
-
-		if len(allTrades) == 0 {
-			if len(failedSymbols) > 0 {
-				logger.Warnf("  ⚠️ %d symbols failed: %v", len(failedSymbols), failedSymbols)
-			}
-			return nil
-		}
-
-		// Sort trades by time ASC (oldest first) for proper position building
+	// Sort trades by time ASC (oldest first) for proper position building
 	sort.Slice(allTrades, func(i, j int) bool {
 		return allTrades[i].Time.UnixMilli() < allTrades[j].Time.UnixMilli()
 	})

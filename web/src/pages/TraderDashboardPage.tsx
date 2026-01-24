@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { mutate } from 'swr'
 import { api } from '../lib/api'
+import { httpClient } from '../lib/httpClient'
 import { ChartTabs } from '../components/ChartTabs'
 import { DecisionCard } from '../components/DecisionCard'
 import { PositionHistory } from '../components/PositionHistory'
@@ -176,13 +177,12 @@ export function TraderDashboardPage({
         setLoadingOrders(true)
         try {
             // First, try to get all orders without symbol filter
-            const response = await fetch(
+            const result = await httpClient.get<Record<string, unknown>[]>(
                 `/api/open-orders?trader_id=${selectedTraderId}`
             )
-            if (response.ok) {
-                const data = await response.json()
-                // API returns array directly or wrapped in success/data
-                const ordersArray = Array.isArray(data) ? data : (data.data || [])
+            if (result.success && result.data) {
+                // API returns array directly
+                const ordersArray = Array.isArray(result.data) ? result.data : []
                 if (Array.isArray(ordersArray)) {
                     const orders = ordersArray.map((order: Record<string, unknown>) => ({
                         orderId: String(order.order_id || order.orderId || ''),

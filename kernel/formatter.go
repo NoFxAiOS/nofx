@@ -545,6 +545,33 @@ func formatCurrentPositionsEN(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("Margin %.0f USDT | ", pos.MarginUsed))
 		sb.WriteString(fmt.Sprintf("Liq Price %.4f\n", pos.LiquidationPrice))
 
+		// Display stop loss and take profit
+		if pos.StopLoss > 0 || pos.TakeProfit > 0 {
+			sb.WriteString("   🎯 **SL/TP**: ")
+			if pos.StopLoss > 0 {
+				// Calculate stop loss distance
+				slDistance := (pos.StopLoss - pos.EntryPrice) / pos.EntryPrice * 100
+				if strings.ToLower(pos.Side) == "short" {
+					slDistance = (pos.EntryPrice - pos.StopLoss) / pos.EntryPrice * 100
+				}
+				sb.WriteString(fmt.Sprintf("SL %.4f (%+.2f%%) | ", pos.StopLoss, -slDistance))
+			} else {
+				sb.WriteString("SL Not Set⚠️ | ")
+			}
+			if pos.TakeProfit > 0 {
+				// Calculate take profit distance
+				tpDistance := (pos.TakeProfit - pos.EntryPrice) / pos.EntryPrice * 100
+				if strings.ToLower(pos.Side) == "short" {
+					tpDistance = (pos.EntryPrice - pos.TakeProfit) / pos.EntryPrice * 100
+				}
+				sb.WriteString(fmt.Sprintf("TP %.4f (+%.2f%%)\n", pos.TakeProfit, tpDistance))
+			} else {
+				sb.WriteString("TP Not Set⚠️\n")
+			}
+		} else {
+			sb.WriteString("   ⚠️ **Risk Warning**: No SL/TP set! Recommend setting immediately\n")
+		}
+
 		// Analysis hints
 		if drawdown < -0.30*pos.PeakPnLPct && pos.PeakPnLPct > 0.02 {
 			sb.WriteString(fmt.Sprintf("   ⚠️ **Take Profit Alert**: PnL dropped from peak %.2f%% to %.2f%%, drawdown %.2f%%, consider taking profit\n",

@@ -1309,6 +1309,108 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString("\n")
 	}
 
+	// Pending orders (show before positions for better visibility)
+	if len(ctx.PendingOrders) > 0 {
+		lang := e.GetLanguage()
+		if lang == LangChinese {
+			sb.WriteString("## 当前挂单\n\n")
+			for i, order := range ctx.PendingOrders {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | ", i+1, order.Symbol, order.Side))
+				sb.WriteString(fmt.Sprintf("类型: %s | ", order.Type))
+
+				if order.Type == "LIMIT" {
+					sb.WriteString(fmt.Sprintf("价格: %.4f | ", order.Price))
+				} else if order.Type == "STOP_MARKET" || order.Type == "TAKE_PROFIT_MARKET" {
+					sb.WriteString(fmt.Sprintf("触发价: %.4f | ", order.StopPrice))
+				}
+
+				sb.WriteString(fmt.Sprintf("数量: %.4f | ", order.Quantity))
+				sb.WriteString(fmt.Sprintf("状态: %s | ", order.Status))
+				sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
+
+				if order.PositionSide != "" {
+					sb.WriteString(fmt.Sprintf("   持仓方向: %s", order.PositionSide))
+				}
+
+				// 显示挂单的止盈止损
+				if order.StopLoss > 0 || order.TakeProfit > 0 {
+					if order.PositionSide != "" {
+						sb.WriteString(" | ")
+					} else {
+						sb.WriteString("   ")
+					}
+					sb.WriteString("🎯 ")
+					if order.StopLoss > 0 {
+						sb.WriteString(fmt.Sprintf("止损: %.4f", order.StopLoss))
+					}
+					if order.TakeProfit > 0 {
+						if order.StopLoss > 0 {
+							sb.WriteString(" | ")
+						}
+						sb.WriteString(fmt.Sprintf("止盈: %.4f", order.TakeProfit))
+					}
+					sb.WriteString("\n")
+				} else if order.Type == "LIMIT" {
+					if order.PositionSide != "" {
+						sb.WriteString("\n")
+					}
+					sb.WriteString("   ⚠️ **注意**: 该挂单未设置止盈止损\n")
+				} else if order.PositionSide != "" {
+					sb.WriteString("\n")
+				}
+			}
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString("## Current Pending Orders\n\n")
+			for i, order := range ctx.PendingOrders {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | ", i+1, order.Symbol, order.Side))
+				sb.WriteString(fmt.Sprintf("Type: %s | ", order.Type))
+
+				if order.Type == "LIMIT" {
+					sb.WriteString(fmt.Sprintf("Price: %.4f | ", order.Price))
+				} else if order.Type == "STOP_MARKET" || order.Type == "TAKE_PROFIT_MARKET" {
+					sb.WriteString(fmt.Sprintf("Trigger Price: %.4f | ", order.StopPrice))
+				}
+
+				sb.WriteString(fmt.Sprintf("Quantity: %.4f | ", order.Quantity))
+				sb.WriteString(fmt.Sprintf("Status: %s | ", order.Status))
+				sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
+
+				if order.PositionSide != "" {
+					sb.WriteString(fmt.Sprintf("   Position Side: %s", order.PositionSide))
+				}
+
+				// Show stop-loss and take-profit for pending orders
+				if order.StopLoss > 0 || order.TakeProfit > 0 {
+					if order.PositionSide != "" {
+						sb.WriteString(" | ")
+					} else {
+						sb.WriteString("   ")
+					}
+					sb.WriteString("🎯 ")
+					if order.StopLoss > 0 {
+						sb.WriteString(fmt.Sprintf("SL: %.4f", order.StopLoss))
+					}
+					if order.TakeProfit > 0 {
+						if order.StopLoss > 0 {
+							sb.WriteString(" | ")
+						}
+						sb.WriteString(fmt.Sprintf("TP: %.4f", order.TakeProfit))
+					}
+					sb.WriteString("\n")
+				} else if order.Type == "LIMIT" {
+					if order.PositionSide != "" {
+						sb.WriteString("\n")
+					}
+					sb.WriteString("   ⚠️ **Warning**: This pending order has no SL/TP set\n")
+				} else if order.PositionSide != "" {
+					sb.WriteString("\n")
+				}
+			}
+			sb.WriteString("\n")
+		}
+	}
+
 	// Position information
 	if len(ctx.Positions) > 0 {
 		sb.WriteString("## Current Positions\n")
@@ -1403,10 +1505,28 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		positionValue = -positionValue
 	}
 
-	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n\n",
+	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n",
 		index, pos.Symbol, strings.ToUpper(pos.Side),
 		pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
 		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
+
+	// Display stop loss and take profit for positions
+	if pos.StopLoss > 0 || pos.TakeProfit > 0 {
+		sb.WriteString("   🎯 ")
+		if pos.StopLoss > 0 {
+			sb.WriteString(fmt.Sprintf("Stop Loss: %.4f", pos.StopLoss))
+		}
+		if pos.TakeProfit > 0 {
+			if pos.StopLoss > 0 {
+				sb.WriteString(" | ")
+			}
+			sb.WriteString(fmt.Sprintf("Take Profit: %.4f", pos.TakeProfit))
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("   ⚠️ **WARNING**: No SL/TP set for this position - HIGH RISK!\n")
+	}
+	sb.WriteString("\n")
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))

@@ -2440,11 +2440,14 @@ func (s *Server) handleOpenOrders(c *gin.Context) {
 	}
 
 	// Get open orders from exchange
+	logger.Infof("[API] /open-orders trader=%s symbol=%s - fetching from exchange", traderID, symbol)
 	openOrders, err := trader.GetOpenOrders(symbol)
 	if err != nil {
+		logger.Warnf("[API] /open-orders trader=%s symbol=%s - error: %v", traderID, symbol, err)
 		SafeInternalError(c, "Get open orders", err)
 		return
 	}
+	logger.Infof("[API] /open-orders trader=%s symbol=%s - %d orders returned", traderID, symbol, len(openOrders))
 
 	c.JSON(http.StatusOK, openOrders)
 }

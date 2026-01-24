@@ -13,6 +13,9 @@ fi
 if [ -z "$DATA_ENCRYPTION_KEY" ]; then
     export DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
 fi
+if [ -z "$JWT_SECRET" ]; then
+    export JWT_SECRET=$(openssl rand -base64 32)
+fi
 
 # 生成 nginx 配置
 cat > /etc/nginx/http.d/default.conf << NGINX_EOF
@@ -47,13 +50,23 @@ NGINX_EOF
 
 # 启动后端（端口 8081）
 API_SERVER_PORT=8081 /app/nofx &
-sleep 4
+sleep 6
 
-# 检查后端是否在 8081 响应（若崩溃会在这里暴露）
-if ! wget -q -O- --timeout=3 http://127.0.0.1:8081/api/health >/dev/null 2>&1; then
-    echo "❌ Backend not responding on 8081. Set in Railway: JWT_SECRET, DATA_ENCRYPTION_KEY, RSA_PRIVATE_KEY. Check deploy logs for nofx Fatal/panic."
-    exit 1
-fi
+# 等待后端就绪（冷启动可能超过 4s），最多重试 8 次，每次间隔 2s
+i=1
+while [ $i -le 8 ]; do
+    if wget -q -O- --timeout=3 http://127.0.0.1:8081/api/health >/dev/null 2>&1; then
+        break
+    fi
+    if [ $i -eq 8 ]; then
+        echo "❌ Backend still not responding on 8081 after ~22s."
+        echo "→ Scroll UP in this deploy's logs for nofx 'Fatal' or 'panic' — that is the real error."
+        echo "→ JWT_SECRET, DATA_ENCRYPTION_KEY, RSA_PRIVATE_KEY are auto-generated when unset. Leave them unset or fix the error shown above."
+        exit 1
+    fi
+    sleep 2
+    i=$((i + 1))
+done
 
 # 启动 nginx（后台）
 nginx

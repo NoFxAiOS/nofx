@@ -10,7 +10,7 @@ FROM ghcr.io/nofxaios/nofx/nofx-frontend:latest AS frontend
 # 最终镜像
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates tzdata sqlite nginx openssl gettext
+RUN apk add --no-cache ca-certificates tzdata sqlite nginx openssl gettext wget
 
 # 复制后端二进制
 COPY --from=backend /app/nofx /app/nofx

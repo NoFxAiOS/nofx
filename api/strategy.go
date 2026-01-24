@@ -632,10 +632,20 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	}
 
 	// Call AI API
+	logger.Infof("[Strategy Test-Run] Params to AI server: provider=%s model=%s system_prompt=%d chars user_prompt=%d chars",
+		provider, model.Name, len(systemPrompt), len(userPrompt))
+	logger.Infof("[Strategy Test-Run] system_prompt: %s", systemPrompt)
+	logger.Infof("[Strategy Test-Run] user_prompt: %s", userPrompt)
+
 	response, err := aiClient.CallWithMessages(systemPrompt, userPrompt)
+
 	if err != nil {
+		logger.Errorf("[Strategy Test-Run] AI server error: %v", err)
 		return "", fmt.Errorf("AI API call failed: %w", err)
 	}
+
+	logger.Infof("[Strategy Test-Run] Response from AI server: %d chars", len(response))
+	logger.Infof("[Strategy Test-Run] response: %s", response)
 
 	return response, nil
 }

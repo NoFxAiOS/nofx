@@ -2432,15 +2432,12 @@ func (s *Server) handleOpenOrders(c *gin.Context) {
 		return
 	}
 
-	// Get symbol parameter (required for exchange query)
+	// Get symbol parameter (optional - empty means get all orders)
 	symbol := c.Query("symbol")
-	if symbol == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol parameter is required"})
-		return
+	if symbol != "" {
+		// Normalize symbol if provided
+		symbol = market.Normalize(symbol)
 	}
-
-	// Normalize symbol
-	symbol = market.Normalize(symbol)
 
 	// Get open orders from exchange
 	openOrders, err := trader.GetOpenOrders(symbol)

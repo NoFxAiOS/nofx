@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { mutate } from 'swr'
 import { api } from '../lib/api'
 import { ChartTabs } from '../components/ChartTabs'
@@ -7,9 +7,11 @@ import { PositionHistory } from '../components/PositionHistory'
 import { PunkAvatar, getTraderAvatar } from '../components/PunkAvatar'
 import { confirmToast, notify } from '../lib/notify'
 import { t, type Language } from '../i18n/translations'
-import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
+import { LogOut, Loader2, Eye, EyeOff, Copy, Check, Bell, RefreshCw } from 'lucide-react'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
 import { GridRiskPanel } from '../components/strategy/GridRiskPanel'
+import { NotificationConfigModal } from '../components/NotificationConfigModal'
+import { PendingOrdersPanel, type PendingOrder } from '../components/PendingOrdersPanel'
 import type {
     SystemStatus,
     AccountInfo,
@@ -131,9 +133,14 @@ export function TraderDashboardPage({
     const [closingPosition, setClosingPosition] = useState<string | null>(null)
     const [selectedChartSymbol, setSelectedChartSymbol] = useState<string | undefined>(undefined)
     const [chartUpdateKey, setChartUpdateKey] = useState<number>(0)
+    const [showNotificationModal, setShowNotificationModal] = useState(false)
     const chartSectionRef = useRef<HTMLDivElement>(null)
     const [showWalletAddress, setShowWalletAddress] = useState<boolean>(false)
     const [copiedAddress, setCopiedAddress] = useState<boolean>(false)
+
+    // Pending orders state
+    const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([])
+    const [loadingOrders, setLoadingOrders] = useState<boolean>(false)
 
     // Current positions pagination
     const [positionsPageSize, setPositionsPageSize] = useState<number>(20)
@@ -158,6 +165,54 @@ export function TraderDashboardPage({
             setSelectedChartSymbol(status.grid_symbol)
         }
     }, [status?.strategy_type, status?.grid_symbol])
+
+    // Fetch pending orders for all position symbols
+    const fetchPendingOrders = useCallback(async () => {
+        if (!selectedTraderId) {
+            setPendingOrders([])
+            return
+        }
+
+        setLoadingOrders(true)
+        try {
+            // First, try to get all orders without symbol filter
+            const response = await fetch(
+                `/api/open-orders?trader_id=${selectedTraderId}`
+            )
+            if (response.ok) {
+                const data = await response.json()
+                // API returns array directly or wrapped in success/data
+                const ordersArray = Array.isArray(data) ? data : (data.data || [])
+                if (Array.isArray(ordersArray)) {
+                    const orders = ordersArray.map((order: Record<string, unknown>) => ({
+                        orderId: String(order.order_id || order.orderId || ''),
+                        symbol: String(order.symbol || ''),
+                        side: String(order.side || ''),
+                        type: String(order.type || ''),
+                        price: Number(order.price) || 0,
+                        stopPrice: Number(order.stop_price || order.stopPrice) || 0,
+                        quantity: Number(order.quantity) || 0,
+                        status: String(order.status || 'NEW'),
+                    }))
+                    setPendingOrders(orders)
+                } else {
+                    setPendingOrders([])
+                }
+            } else {
+                setPendingOrders([])
+            }
+        } catch (error) {
+            console.error('Failed to fetch pending orders:', error)
+            setPendingOrders([])
+        } finally {
+            setLoadingOrders(false)
+        }
+    }, [selectedTraderId])
+
+    // Fetch pending orders when positions change
+    useEffect(() => {
+        fetchPendingOrders()
+    }, [fetchPendingOrders])
 
     // Get current exchange info for perp-dex wallet display
     const currentExchange = exchanges?.find(
@@ -446,6 +501,18 @@ export function TraderDashboardPage({
                                         </span>
                                     )}
                                 </div>
+                            )}
+
+                            {/* Notification Config Button */}
+                            {selectedTraderId && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNotificationModal(true)}
+                                    className="p-2 rounded-lg hover:bg-white/10 transition-colors nofx-glass border border-nofx-gold/20"
+                                    title={language === 'zh' ? '配置通知' : 'Notification config'}
+                                >
+                                    <Bell className="w-4 h-4 text-nofx-gold" />
+                                </button>
                             )}
                         </div>
                     </div>
@@ -737,6 +804,37 @@ export function TraderDashboardPage({
                                 </div>
                             )}
                         </div>
+
+                        {/* Pending Orders Panel */}
+                        {selectedTraderId && (
+                            <div className="mt-6 pt-6 border-t border-white/5">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold text-nofx-text-main flex items-center gap-2">
+                                        <span className="text-xl">📋</span>
+                                        {language === 'zh' ? '待处理订单' : 'Pending Orders'}
+                                        {pendingOrders.length > 0 && (
+                                            <span className="text-xs px-2 py-0.5 rounded bg-nofx-gold/10 text-nofx-gold border border-nofx-gold/20">
+                                                {pendingOrders.length}
+                                            </span>
+                                        )}
+                                    </h3>
+                                    <button
+                                        onClick={fetchPendingOrders}
+                                        disabled={loadingOrders}
+                                        className="p-2 rounded-lg hover:bg-white/10 transition-colors text-nofx-text-muted hover:text-nofx-text-main disabled:opacity-50"
+                                        title={language === 'zh' ? '刷新订单' : 'Refresh orders'}
+                                    >
+                                        <RefreshCw className={`w-4 h-4 ${loadingOrders ? 'animate-spin' : ''}`} />
+                                    </button>
+                                </div>
+                                <PendingOrdersPanel
+                                    traderID={selectedTraderId}
+                                    orders={pendingOrders}
+                                    onRefresh={fetchPendingOrders}
+                                    onCancel={() => fetchPendingOrders()}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Right Column: Recent Decisions */}
@@ -818,6 +916,12 @@ export function TraderDashboardPage({
                     </div>
                 )}
             </div>
+            {/* Notification Config Modal */}
+            <NotificationConfigModal
+                isOpen={showNotificationModal}
+                onClose={() => setShowNotificationModal(false)}
+                traderId={selectedTraderId || ''}
+            />
         </DeepVoidBackground>
     )
 }

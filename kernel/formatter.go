@@ -251,6 +251,33 @@ func formatCurrentPositionsZH(ctx *Context) string {
 		sb.WriteString(fmt.Sprintf("保证金 %.0f USDT | ", pos.MarginUsed))
 		sb.WriteString(fmt.Sprintf("强平价 %.4f\n", pos.LiquidationPrice))
 
+		// 显示止盈止损点位
+		if pos.StopLoss > 0 || pos.TakeProfit > 0 {
+			sb.WriteString("   🎯 **止盈止损**: ")
+			if pos.StopLoss > 0 {
+				// 计算止损距离
+				slDistance := (pos.StopLoss - pos.EntryPrice) / pos.EntryPrice * 100
+				if strings.ToLower(pos.Side) == "short" {
+					slDistance = (pos.EntryPrice - pos.StopLoss) / pos.EntryPrice * 100
+				}
+				sb.WriteString(fmt.Sprintf("止损 %.4f (%+.2f%%) | ", pos.StopLoss, -slDistance))
+			} else {
+				sb.WriteString("止损 未设置⚠️ | ")
+			}
+			if pos.TakeProfit > 0 {
+				// 计算止盈距离
+				tpDistance := (pos.TakeProfit - pos.EntryPrice) / pos.EntryPrice * 100
+				if strings.ToLower(pos.Side) == "short" {
+					tpDistance = (pos.EntryPrice - pos.TakeProfit) / pos.EntryPrice * 100
+				}
+				sb.WriteString(fmt.Sprintf("止盈 %.4f (+%.2f%%)\n", pos.TakeProfit, tpDistance))
+			} else {
+				sb.WriteString("止盈 未设置⚠️\n")
+			}
+		} else {
+			sb.WriteString("   ⚠️ **风险警告**: 未设置止盈止损！建议立即设置\n")
+		}
+
 		// 添加分析提示
 		if drawdown < -0.30*pos.PeakPnLPct && pos.PeakPnLPct > 0.02 {
 			sb.WriteString(fmt.Sprintf("   ⚠️ **止盈提示**: 当前盈亏从峰值 %.2f%% 回撤到 %.2f%%，回撤幅度 %.2f%%，建议考虑止盈\n",
@@ -663,7 +690,35 @@ func formatPendingOrdersZH(orders []PendingOrder) string {
 		sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
 
 		if order.PositionSide != "" {
-			sb.WriteString(fmt.Sprintf("   持仓方向: %s\n", order.PositionSide))
+			sb.WriteString(fmt.Sprintf("   持仓方向: %s", order.PositionSide))
+		}
+
+		// 显示挂单的止盈止损
+		if order.StopLoss > 0 || order.TakeProfit > 0 {
+			if order.PositionSide != "" {
+				sb.WriteString(" | ")
+			} else {
+				sb.WriteString("   ")
+			}
+			sb.WriteString("🎯 ")
+			if order.StopLoss > 0 {
+				sb.WriteString(fmt.Sprintf("止损: %.4f", order.StopLoss))
+			}
+			if order.TakeProfit > 0 {
+				if order.StopLoss > 0 {
+					sb.WriteString(" | ")
+				}
+				sb.WriteString(fmt.Sprintf("止盈: %.4f", order.TakeProfit))
+			}
+			sb.WriteString("\n")
+		} else if order.Type == "LIMIT" {
+			// 限价单没有止盈止损时警告
+			if order.PositionSide != "" {
+				sb.WriteString("\n")
+			}
+			sb.WriteString("   ⚠️ **注意**: 该挂单未设置止盈止损\n")
+		} else if order.PositionSide != "" {
+			sb.WriteString("\n")
 		}
 	}
 
@@ -691,7 +746,35 @@ func formatPendingOrdersEN(orders []PendingOrder) string {
 		sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
 
 		if order.PositionSide != "" {
-			sb.WriteString(fmt.Sprintf("   Position Side: %s\n", order.PositionSide))
+			sb.WriteString(fmt.Sprintf("   Position Side: %s", order.PositionSide))
+		}
+
+		// Show stop-loss and take-profit for pending orders
+		if order.StopLoss > 0 || order.TakeProfit > 0 {
+			if order.PositionSide != "" {
+				sb.WriteString(" | ")
+			} else {
+				sb.WriteString("   ")
+			}
+			sb.WriteString("🎯 ")
+			if order.StopLoss > 0 {
+				sb.WriteString(fmt.Sprintf("SL: %.4f", order.StopLoss))
+			}
+			if order.TakeProfit > 0 {
+				if order.StopLoss > 0 {
+					sb.WriteString(" | ")
+				}
+				sb.WriteString(fmt.Sprintf("TP: %.4f", order.TakeProfit))
+			}
+			sb.WriteString("\n")
+		} else if order.Type == "LIMIT" {
+			// Warn if limit order has no SL/TP
+			if order.PositionSide != "" {
+				sb.WriteString("\n")
+			}
+			sb.WriteString("   ⚠️ **Warning**: This pending order has no SL/TP set\n")
+		} else if order.PositionSide != "" {
+			sb.WriteString("\n")
 		}
 	}
 

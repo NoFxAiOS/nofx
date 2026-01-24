@@ -51,6 +51,8 @@ type PositionInfo struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
+	StopLoss         float64 `json:"stop_loss"`   // Current stop loss price (0 if not set)
+	TakeProfit       float64 `json:"take_profit"` // Current take profit price (0 if not set)
 }
 
 // AccountInfo account information
@@ -110,11 +112,13 @@ type PendingOrder struct {
 	Symbol       string  `json:"symbol"`        // Trading pair
 	Side         string  `json:"side"`          // BUY/SELL
 	PositionSide string  `json:"position_side"` // LONG/SHORT (for futures)
-	Type         string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET
+	Type         string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET/TPSL
 	Price        float64 `json:"price"`         // Order price (for limit orders)
 	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop orders)
 	Quantity     float64 `json:"quantity"`      // Order quantity
 	Status       string  `json:"status"`        // Order status (NEW, etc.)
+	StopLoss     float64 `json:"stop_loss"`     // Stop loss price for this order (0 if not set)
+	TakeProfit   float64 `json:"take_profit"`   // Take profit price for this order (0 if not set)
 }
 
 // Context trading context (complete information passed to AI)
@@ -142,15 +146,114 @@ type Context struct {
 }
 
 // Decision AI trading decision
+// TierSpec represents a tier item in tiered SL/TP
+type TierSpec struct {
+	TierLevel int     `json:"tier_level,omitempty"`
+	TierPrice float64 `json:"tier_price"`
+	TierQtyPct float64 `json:"tier_qty_pct,omitempty"`
+}
+
+// PriceValue supports number, array of numbers, or array of objects {tier_level,tier_price,tier_qty_pct}
+type PriceValue struct {
+	Single *float64
+	Levels []float64
+	Tiers  []TierSpec
+}
+
+func (p *PriceValue) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if len(s) == 0 || s == "null" {
+		return nil
+	}
+	// number
+	if s[0] == '-' || (s[0] >= '0' && s[0] <= '9') {
+		var f float64
+		if err := json.Unmarshal(b, &f); err != nil {
+			return err
+		}
+		p.Single = &f
+		return nil
+	}
+	// array
+	if s[0] == '[' {
+		// try []float64
+		var arrNum []float64
+		if err := json.Unmarshal(b, &arrNum); err == nil {
+			p.Levels = arrNum
+			return nil
+		}
+		// try []TierSpec
+		var arrTier []TierSpec
+		if err := json.Unmarshal(b, &arrTier); err == nil {
+			// extract prices to Levels too for convenience
+			p.Tiers = arrTier
+			p.Levels = make([]float64, 0, len(arrTier))
+			for _, t := range arrTier {
+				p.Levels = append(p.Levels, t.TierPrice)
+			}
+			return nil
+		}
+		// fallback: array of generic objects with tier_price field
+		var rawArr []map[string]interface{}
+		if err := json.Unmarshal(b, &rawArr); err == nil {
+			prices := make([]float64, 0, len(rawArr))
+			tiers := make([]TierSpec, 0, len(rawArr))
+			for _, m := range rawArr {
+				var lvl int
+				if v, ok := m["tier_level"].(float64); ok {
+					lvl = int(v)
+				}
+				var price float64
+				if v, ok := m["tier_price"].(float64); ok {
+					price = v
+				}
+				var pct float64
+				if v, ok := m["tier_qty_pct"].(float64); ok {
+					pct = v
+				}
+				if price != 0 {
+					prices = append(prices, price)
+					tiers = append(tiers, TierSpec{TierLevel: lvl, TierPrice: price, TierQtyPct: pct})
+				}
+			}
+			p.Levels = prices
+			p.Tiers = tiers
+			return nil
+		}
+		return fmt.Errorf("unsupported array format for PriceValue: %s", s)
+	}
+	return fmt.Errorf("unsupported stop_loss/take_profit format: %s", s)
+}
+
+func (p PriceValue) FloatOrZero() float64 {
+	if p.Single != nil {
+		return *p.Single
+	}
+	if len(p.Levels) > 0 {
+		return p.Levels[0]
+	}
+	return 0
+}
+
+func (p PriceValue) Prices() []float64 {
+	if len(p.Levels) > 0 {
+		return p.Levels
+	}
+	if p.Single != nil {
+		return []float64{*p.Single}
+	}
+	return nil
+}
+
 type Decision struct {
 	Symbol string `json:"symbol"`
 	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "partial_close_long", "partial_close_short", "place_order", "modify_order", "cancel_order", "set_sl_tp_tiers", "modify_sl_tier", "modify_tp_tier", "hold", "wait", or grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
-	Leverage        int     `json:"leverage,omitempty"`
-	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
-	StopLoss        float64 `json:"stop_loss,omitempty"`
-	TakeProfit      float64 `json:"take_profit,omitempty"`
+	Leverage        int        `json:"leverage,omitempty"`
+	PositionSizeUSD float64    `json:"position_size_usd,omitempty"`
+	StopLoss        PriceValue `json:"stop_loss,omitempty"`
+	TakeProfit      PriceValue `json:"take_profit,omitempty"`
 
 	// Order management parameters (for place_order, modify_order, etc.)
 	OrderID      string  `json:"order_id,omitempty"`      // For modify_order, cancel_order
@@ -1877,37 +1980,39 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 				d.Symbol, d.PositionSizeUSD, maxPositionValue+tolerance, accountEquity, posRatio, maxPositionValue)
 			d.PositionSizeUSD = maxPositionValue
 		}
-		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
+		sl := d.StopLoss.FloatOrZero()
+		tp := d.TakeProfit.FloatOrZero()
+		if sl <= 0 || tp <= 0 {
 			return fmt.Errorf("stop loss and take profit must be greater than 0")
 		}
 
 		if d.Action == "open_long" {
-			if d.StopLoss >= d.TakeProfit {
+			if sl >= tp {
 				return fmt.Errorf("for long positions, stop loss price must be less than take profit price")
 			}
 		} else {
-			if d.StopLoss <= d.TakeProfit {
+			if sl <= tp {
 				return fmt.Errorf("for short positions, stop loss price must be greater than take profit price")
 			}
 		}
 
 		var entryPrice float64
 		if d.Action == "open_long" {
-			entryPrice = d.StopLoss + (d.TakeProfit-d.StopLoss)*0.2
+			entryPrice = sl + (tp-sl)*0.2
 		} else {
-			entryPrice = d.StopLoss - (d.StopLoss-d.TakeProfit)*0.2
+			entryPrice = sl - (sl-tp)*0.2
 		}
 
 		var riskPercent, rewardPercent, riskRewardRatio float64
 		if d.Action == "open_long" {
-			riskPercent = (entryPrice - d.StopLoss) / entryPrice * 100
-			rewardPercent = (d.TakeProfit - entryPrice) / entryPrice * 100
+			riskPercent = (entryPrice - sl) / entryPrice * 100
+			rewardPercent = (tp - entryPrice) / entryPrice * 100
 			if riskPercent > 0 {
 				riskRewardRatio = rewardPercent / riskPercent
 			}
 		} else {
-			riskPercent = (d.StopLoss - entryPrice) / entryPrice * 100
-			rewardPercent = (entryPrice - d.TakeProfit) / entryPrice * 100
+			riskPercent = (sl - entryPrice) / entryPrice * 100
+			rewardPercent = (entryPrice - tp) / entryPrice * 100
 			if riskPercent > 0 {
 				riskRewardRatio = rewardPercent / riskPercent
 			}
@@ -1915,7 +2020,7 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 		if riskRewardRatio < 3.0 {
 			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥3.0:1 [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
-				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
+				riskRewardRatio, riskPercent, rewardPercent, sl, tp)
 		}
 	}
 

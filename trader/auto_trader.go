@@ -124,11 +124,8 @@ type AutoTrader struct {
 	peakPnLCacheMutex     sync.RWMutex       // Cache read-write lock
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
-<<<<<<< HEAD
 	notificationManager   interface{}        // Notification manager (lazy typed to avoid import cycle)
-=======
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
->>>>>>> upstream/dev
 }
 
 // NewAutoTrader creates an automatic trader
@@ -717,8 +714,8 @@ func (at *AutoTrader) runCycle() error {
 			Quantity:   0,
 			Leverage:   d.Leverage,
 			Price:      0,
-			StopLoss:   d.StopLoss,
-			TakeProfit: d.TakeProfit,
+			StopLoss:   d.StopLoss.FloatOrZero(),
+			TakeProfit: d.TakeProfit.FloatOrZero(),
 			Confidence: d.Confidence,
 			Reasoning:  d.Reasoning,
 			Timestamp:  time.Now().UTC(),
@@ -1081,8 +1078,8 @@ func (at *AutoTrader) ExecuteDecision(d *kernel.Decision) error {
 		Symbol:     d.Symbol,
 		Action:     d.Action,
 		Leverage:   d.Leverage,
-		StopLoss:   d.StopLoss,
-		TakeProfit: d.TakeProfit,
+		StopLoss:   d.StopLoss.FloatOrZero(),
+		TakeProfit: d.TakeProfit.FloatOrZero(),
 		Confidence: d.Confidence,
 		Reasoning:  d.Reasoning,
 	}
@@ -1214,10 +1211,10 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
 	// Set stop loss and take profit (use lowercase to match position side)
-	if err := at.trader.SetStopLoss(decision.Symbol, "long", quantity, decision.StopLoss); err != nil {
+	if err := at.trader.SetStopLoss(decision.Symbol, "long", quantity, decision.StopLoss.FloatOrZero()); err != nil {
 		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "long", quantity, decision.TakeProfit); err != nil {
+	if err := at.trader.SetTakeProfit(decision.Symbol, "long", quantity, decision.TakeProfit.FloatOrZero()); err != nil {
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
 
@@ -1340,10 +1337,10 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
 	// Set stop loss and take profit (use lowercase to match position side)
-	if err := at.trader.SetStopLoss(decision.Symbol, "short", quantity, decision.StopLoss); err != nil {
+	if err := at.trader.SetStopLoss(decision.Symbol, "short", quantity, decision.StopLoss.FloatOrZero()); err != nil {
 		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "short", quantity, decision.TakeProfit); err != nil {
+	if err := at.trader.SetTakeProfit(decision.Symbol, "short", quantity, decision.TakeProfit.FloatOrZero()); err != nil {
 		logger.Infof("  ⚠ Failed to set take profit: %v", err)
 	}
 
@@ -2580,10 +2577,12 @@ func (at *AutoTrader) executeCancelOrderWithRecord(decision *kernel.Decision, ac
 
 // executeSetSLTPTiersWithRecord executes set stop-loss/take-profit tiers
 func (at *AutoTrader) executeSetSLTPTiersWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
-	// Log AI's decision parameters for debugging
-	logger.Infof("  📋 Set SL/TP tiers parameters from AI: tier_count=%d, stop_loss=%.4f, take_profit=%.4f", 
-		decision.TierCount, decision.StopLoss, decision.TakeProfit)
-	
+	// Extract levels from flexible fields
+	slLevels := decision.StopLoss.Prices()
+	tpLevels := decision.TakeProfit.Prices()
+	logger.Infof("  📋 Set SL/TP tiers parameters from AI: tier_count=%d, sl_levels=%v, tp_levels=%v",
+		decision.TierCount, slLevels, tpLevels)
+
 	logger.Infof("  📊 Set SL/TP tiers: %s tier_count=%d", decision.Symbol, decision.TierCount)
 	
 	if decision.TierCount <= 0 {
@@ -2594,8 +2593,9 @@ func (at *AutoTrader) executeSetSLTPTiersWithRecord(decision *kernel.Decision, a
 	// Try to call multi-tier setup if available on the concrete trader type
 	// This would typically involve creating multiple stop-loss and take-profit orders
 	switch t := at.trader.(type) {
+	// Preferred: native multi-tier API (if any future trader implements it)
 	case interface{ SetMultiTierSLTP(string, int, float64, float64) error }:
-		err := t.SetMultiTierSLTP(decision.Symbol, decision.TierCount, decision.StopLoss, decision.TakeProfit)
+		err := t.SetMultiTierSLTP(decision.Symbol, decision.TierCount, decision.StopLoss.FloatOrZero(), decision.TakeProfit.FloatOrZero())
 		if err != nil {
 			logger.Warnf("  ⚠️ Multi-tier setup failed: %v", err)
 			return fmt.Errorf("failed to set multi-tier SL/TP: %w", err)
@@ -2603,7 +2603,7 @@ func (at *AutoTrader) executeSetSLTPTiersWithRecord(decision *kernel.Decision, a
 		logger.Infof("  ✅ Multi-tier SL/TP setup completed for %d tiers", decision.TierCount)
 		return nil
 	default:
-		logger.Infof("  ℹ️ Multi-tier SL/TP not available on this trader, will use standard SL/TP")
+		logger.Infof("  ℹ️ Multi-tier SL/TP not available on this trader, will try exchange-specific multi-setters or fallback")
 		// Fallback to standard single-tier SL/TP if available
 		// Get current position quantity to set SL/TP
 		positions, err := at.trader.GetPositions()
@@ -2659,18 +2659,44 @@ func (at *AutoTrader) executeSetSLTPTiersWithRecord(decision *kernel.Decision, a
 		
 		logger.Infof("  ✅ Found position: %s %s qty=%.4f", decision.Symbol, positionSide, positionQty)
 		
-		if decision.StopLoss > 0 {
-			if err := at.trader.SetStopLoss(decision.Symbol, positionSide, positionQty, decision.StopLoss); err != nil {
-				logger.Warnf("  ⚠️ Failed to set stop loss: %v", err)
-			} else {
-				logger.Infof("  ✅ Stop loss set at %.4f", decision.StopLoss)
+		// Try exchange-specific multi-tier setters if present
+		usedAny := false
+		if len(slLevels) > 0 {
+			if tt, ok := at.trader.(interface{ SetMultipleStopLoss(string, string, float64, []float64) ([]map[string]interface{}, error) }); ok {
+				if _, err := tt.SetMultipleStopLoss(decision.Symbol, positionSide, positionQty, slLevels); err != nil {
+					logger.Warnf("  ⚠️ Failed to set multiple stop loss: %v", err)
+				} else {
+					logger.Infof("  ✅ Multiple stop loss set: %v", slLevels)
+					usedAny = true
+				}
 			}
 		}
-		if decision.TakeProfit > 0 {
-			if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, positionQty, decision.TakeProfit); err != nil {
-				logger.Warnf("  ⚠️ Failed to set take profit: %v", err)
-			} else {
-				logger.Infof("  ✅ Take profit set at %.4f", decision.TakeProfit)
+		if len(tpLevels) > 0 {
+			if tt, ok := at.trader.(interface{ SetMultipleTakeProfit(string, string, float64, []float64) ([]map[string]interface{}, error) }); ok {
+				if _, err := tt.SetMultipleTakeProfit(decision.Symbol, positionSide, positionQty, tpLevels); err != nil {
+					logger.Warnf("  ⚠️ Failed to set multiple take profit: %v", err)
+				} else {
+					logger.Infof("  ✅ Multiple take profit set: %v", tpLevels)
+					usedAny = true
+				}
+			}
+		}
+
+		// Fallback to single SL/TP if no multi-tier methods used
+		if !usedAny {
+			if decision.StopLoss.FloatOrZero() > 0 {
+				if err := at.trader.SetStopLoss(decision.Symbol, positionSide, positionQty, decision.StopLoss.FloatOrZero()); err != nil {
+					logger.Warnf("  ⚠️ Failed to set stop loss: %v", err)
+				} else {
+					logger.Infof("  ✅ Stop loss set at %.4f", decision.StopLoss.FloatOrZero())
+				}
+			}
+			if decision.TakeProfit.FloatOrZero() > 0 {
+				if err := at.trader.SetTakeProfit(decision.Symbol, positionSide, positionQty, decision.TakeProfit.FloatOrZero()); err != nil {
+					logger.Warnf("  ⚠️ Failed to set take profit: %v", err)
+				} else {
+					logger.Infof("  ✅ Take profit set at %.4f", decision.TakeProfit.FloatOrZero())
+				}
 			}
 		}
 		return nil

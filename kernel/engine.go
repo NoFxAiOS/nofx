@@ -262,6 +262,13 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		engine = NewStrategyEngine(&defaultConfig)
 	}
 
+	// Defensive: ensure CandidateCoins is never empty so "Candidate Coins (0 coins)" cannot appear.
+	// buildTradingContext and Test-Run already apply [BTC] when GetCandidateCoins returns 0; this catches any other path.
+	if len(ctx.CandidateCoins) == 0 {
+		logger.Warnf("⚠️ GetFullDecisionWithStrategy: ctx.CandidateCoins is empty; using [BTCUSDT] so the prompt and market fetch can run. Fix strategy coin_source (source_type, static_coins).")
+		ctx.CandidateCoins = []CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"fallback"}}}
+	}
+
 	// 1. Fetch market data using strategy config
 	if len(ctx.MarketDataMap) == 0 {
 		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {

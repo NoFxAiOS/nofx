@@ -696,10 +696,14 @@ func (at *AutoTrader) runCycle() error {
 
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
+	logName := at.name
+	if logName == "" {
+		logName = at.id
+	}
 	// 0. Reload strategy config from DB so UI changes (e.g. static_coins) are picked up without restart
 	if at.store == nil || at.config.StrategyID == "" {
 		cfg := at.strategyEngine.GetConfig()
-		logger.Infof("📋 [%s] Strategy reload: skipped (store=%v, strategyID=%q) | in-memory: source_type=%q static_coins=%v", at.name, at.store != nil, at.config.StrategyID, cfg.CoinSource.SourceType, cfg.CoinSource.StaticCoins)
+		logger.Infof("📋 [%s] trader_name=%s Strategy reload: skipped (store=%v, strategyID=%q) | in-memory: source_type=%q static_coins=%v", logName, logName, at.store != nil, at.config.StrategyID, cfg.CoinSource.SourceType, cfg.CoinSource.StaticCoins)
 	} else {
 		strategy, err := at.store.Strategy().Get(at.userID, at.config.StrategyID)
 		if err != nil {

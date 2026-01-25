@@ -563,6 +563,12 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	// Build System Prompt
 	systemPrompt := engine.BuildSystemPrompt(1000.0, req.PromptVariant)
 
+	// Defensive: ensure testContext.CandidateCoins is never empty before BuildUserPrompt
+	if len(testContext.CandidateCoins) == 0 {
+		logger.Warnf("[Strategy Test-Run] testContext.CandidateCoins is empty before BuildUserPrompt; using [BTCUSDT]. Check strategy coin_source.")
+		testContext.CandidateCoins = []kernel.CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"fallback"}}}
+	}
+
 	// Build User Prompt (using real market data)
 	userPrompt := engine.BuildUserPrompt(testContext)
 

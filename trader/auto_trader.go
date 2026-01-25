@@ -697,7 +697,10 @@ func (at *AutoTrader) runCycle() error {
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	// 0. Reload strategy config from DB so UI changes (e.g. static_coins) are picked up without restart
-	if at.store != nil && at.config.StrategyID != "" {
+	if at.store == nil || at.config.StrategyID == "" {
+		cfg := at.strategyEngine.GetConfig()
+		logger.Infof("📋 [%s] Strategy reload: skipped (store=%v, strategyID=%q) | in-memory: source_type=%q static_coins=%v", at.name, at.store != nil, at.config.StrategyID, cfg.CoinSource.SourceType, cfg.CoinSource.StaticCoins)
+	} else {
 		strategy, err := at.store.Strategy().Get(at.userID, at.config.StrategyID)
 		if err != nil {
 			logger.Warnf("⚠️ [%s] Failed to reload strategy config: %v (using in-memory config)", at.name, err)
@@ -708,6 +711,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			} else {
 				at.strategyEngine = kernel.NewStrategyEngine(newConfig)
 				at.config.StrategyConfig = newConfig
+				logger.Infof("📋 [%s] Reloaded strategy from DB: source_type=%q static_coins=%v", at.name, newConfig.CoinSource.SourceType, newConfig.CoinSource.StaticCoins)
 			}
 		}
 	}
@@ -845,6 +849,10 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	candidateCoins, err := at.strategyEngine.GetCandidateCoins()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get candidate coins: %w", err)
+	}
+	if len(candidateCoins) == 0 {
+		logger.Warnf("⚠️ [%s] GetCandidateCoins returned 0; using [BTC] as fallback so the cycle can run. Check strategy: coin_source.source_type and static_coins; if using ai500/oi_top, check NofxOS API key and network.", at.name)
+		candidateCoins = []kernel.CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"static"}}}
 	}
 	logger.Infof("📋 [%s] Strategy engine fetched candidate coins: %d", at.name, len(candidateCoins))
 

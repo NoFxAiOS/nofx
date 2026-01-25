@@ -431,6 +431,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 	symbolSources := make(map[string][]string)
 
 	coinSource := e.config.CoinSource
+	logger.Infof("📋 GetCandidateCoins: source_type=%q static_coins_len=%d", coinSource.SourceType, len(coinSource.StaticCoins))
 
 	switch coinSource.SourceType {
 	case "static":

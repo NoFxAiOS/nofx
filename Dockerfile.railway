@@ -23,6 +23,8 @@ RUN ldconfig /usr/local/lib 2>/dev/null || true
 COPY --from=frontend /usr/share/nginx/html /usr/share/nginx/html
 
 WORKDIR /app
+# /app/data holds data.db and logs. On Railway, mount a Volume at /app/data to persist
+# registration and config across deploys. See docs/railway.md.
 RUN mkdir -p /app/data
 
 # 启动脚本（包含 nginx 配置生成）

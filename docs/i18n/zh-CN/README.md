@@ -127,6 +127,11 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 
 部署后，Railway 会提供一个公网 URL 访问你的 NOFX 实例。
 
+> **Railway 数据持久化（用户、策略等）**  
+> 默认每次重新部署后数据会丢失（容器文件系统是临时的）。若要保留数据：  
+> - **方式一：Volume**：在 Railway 服务中添加 **Volume**，将 **挂载路径** 设为 `/app/data`，然后重新部署。详见 [docs/railway.md](../../railway.md)。  
+> - **方式二：PostgreSQL**：在 Railway 添加 Postgres 数据库，并在 NOFX 服务中设置 `DB_TYPE=postgres` 以及 `DB_HOST`、`DB_USER`、`DB_PASSWORD`、`DB_NAME`、`DB_SSLMODE=require`。详见 [docs/railway.md](../../railway.md)。
+
 ### Docker Compose (手动)
 
 ```bash

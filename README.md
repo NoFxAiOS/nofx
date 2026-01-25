@@ -156,6 +156,11 @@ Deploy to Railway with one click - no server setup required:
 
 After deployment, Railway will provide a public URL to access your NOFX instance.
 
+> **Persisting data (registration, strategies, etc.) on Railway**  
+> By default, data is lost on each new deploy because the container filesystem is ephemeral. To keep your data:
+> - **Option A – Volume:** In your Railway service, add a **Volume**, set the **mount path** to `/app/data`, and redeploy. See [docs/railway.md](docs/railway.md).
+> - **Option B – PostgreSQL:** Add a Postgres database in Railway and set `DB_TYPE=postgres` plus `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE=require` on your NOFX service. See [docs/railway.md](docs/railway.md).
+
 ### Docker Compose (Manual)
 
 ```bash

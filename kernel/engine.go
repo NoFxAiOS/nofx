@@ -434,7 +434,14 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 
 	switch coinSource.SourceType {
 	case "static":
-		for _, symbol := range coinSource.StaticCoins {
+		staticCoins := coinSource.StaticCoins
+		if len(staticCoins) == 0 {
+			logger.Warnf("⚠️ coin_source.source_type is 'static' but static_coins is empty or missing in strategy config. " +
+				"Check that the strategy was saved with static coins (e.g. BTC) in the UI. " +
+				"Falling back to [BTC] so at least one candidate is available.")
+			staticCoins = []string{"BTC"}
+		}
+		for _, symbol := range staticCoins {
 			symbol = market.Normalize(symbol)
 			candidates = append(candidates, CandidateCoin{
 				Symbol:  symbol,

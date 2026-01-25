@@ -292,6 +292,10 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	// 3. Build User Prompt using strategy engine
 	userPrompt := engine.BuildUserPrompt(ctx)
 
+	// Log prompts sent to AI (for debugging)
+	logger.Info("\n========== AI REQUEST: System Prompt ==========\n" + systemPrompt)
+	logger.Info("\n========== AI REQUEST: User Prompt ==========\n" + userPrompt)
+
 	// 4. Call AI API
 	aiCallStart := time.Now()
 	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
@@ -299,6 +303,9 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	if err != nil {
 		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
+
+	// Log response received from AI (for debugging)
+	logger.Info("\n========== AI RESPONSE ==========\n" + aiResponse)
 
 	// 5. Parse AI response
 	decision, err := parseFullDecisionResponse(
@@ -403,7 +410,14 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		ctx.MarketDataMap[coin.Symbol] = data
 	}
 
-	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins", len(ctx.MarketDataMap))
+	candidatesWithData := 0
+	for _, c := range ctx.CandidateCoins {
+		if _, ok := ctx.MarketDataMap[c.Symbol]; ok {
+			candidatesWithData++
+		}
+	}
+	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins (candidate coins: %d, with data: %d)",
+		len(ctx.MarketDataMap), len(ctx.CandidateCoins), candidatesWithData)
 	return nil
 }
 
@@ -1249,8 +1263,12 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		positionSymbols[normalizedSymbol] = true
 	}
 
-	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.MarketDataMap)))
+	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.CandidateCoins)))
 	displayedCount := 0
+	unavailMsg := "market data temporarily unavailable"
+	if e.GetLanguage() == LangChinese {
+		unavailMsg = "行情数据暂时不可用"
+	}
 	for _, coin := range ctx.CandidateCoins {
 		// Skip if this coin is already a position (data already shown in positions section)
 		normalizedCoinSymbol := market.Normalize(coin.Symbol)
@@ -1259,13 +1277,13 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		}
 
 		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
-		if !hasData {
-			continue
-		}
 		displayedCount++
-
 		sourceTags := e.formatCoinSourceTag(coin.Sources)
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
+		if !hasData {
+			sb.WriteString("(" + unavailMsg + ")\n\n")
+			continue
+		}
 		sb.WriteString(e.formatMarketData(marketData))
 
 		if ctx.QuantDataMap != nil {

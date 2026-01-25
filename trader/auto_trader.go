@@ -90,6 +90,8 @@ type AutoTraderConfig struct {
 
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
+	// StrategyID is used to reload strategy config from DB each cycle so UI changes (e.g. static_coins) are picked up without restart
+	StrategyID string
 }
 
 // AutoTrader automatic trader
@@ -694,6 +696,22 @@ func (at *AutoTrader) runCycle() error {
 
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
+	// 0. Reload strategy config from DB so UI changes (e.g. static_coins) are picked up without restart
+	if at.store != nil && at.config.StrategyID != "" {
+		strategy, err := at.store.Strategy().Get(at.userID, at.config.StrategyID)
+		if err != nil {
+			logger.Warnf("⚠️ [%s] Failed to reload strategy config: %v (using in-memory config)", at.name, err)
+		} else {
+			newConfig, err := strategy.ParseConfig()
+			if err != nil {
+				logger.Warnf("⚠️ [%s] Failed to parse reloaded strategy config: %v (using in-memory config)", at.name, err)
+			} else {
+				at.strategyEngine = kernel.NewStrategyEngine(newConfig)
+				at.config.StrategyConfig = newConfig
+			}
+		}
+	}
+
 	// 1. Get account information
 	balance, err := at.trader.GetBalance()
 	if err != nil {

@@ -118,7 +118,7 @@ export interface AIModel {
 
 export interface Exchange {
   id: string                     // UUID (empty for supported exchange templates)
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "bitget", "weex", "hyperliquid", "aster", "lighter"
   account_name: string           // User-defined account name
   name: string                   // Display name
   type: 'cex' | 'dex'
@@ -141,7 +141,7 @@ export interface Exchange {
 }
 
 export interface CreateExchangeRequest {
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "bitget", "weex", "hyperliquid", "aster", "lighter"
   account_name: string           // User-defined account name
   enabled: boolean
   api_key?: string

@@ -51,6 +51,8 @@ type PositionInfo struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
+	StopLoss         float64 `json:"stop_loss"`   // Current stop loss price (0 if not set)
+	TakeProfit       float64 `json:"take_profit"` // Current take profit price (0 if not set)
 }
 
 // AccountInfo account information
@@ -104,46 +106,169 @@ type RecentOrder struct {
 	HoldDuration string  `json:"hold_duration"` // Hold duration, e.g. "2h30m"
 }
 
+// PendingOrder pending/open order from exchange (for AI input)
+type PendingOrder struct {
+	OrderID      string  `json:"order_id"`      // Order ID
+	Symbol       string  `json:"symbol"`        // Trading pair
+	Side         string  `json:"side"`          // BUY/SELL
+	PositionSide string  `json:"position_side"` // LONG/SHORT (for futures)
+	Type         string  `json:"type"`          // LIMIT/STOP_MARKET/TAKE_PROFIT_MARKET/TPSL
+	Price        float64 `json:"price"`         // Order price (for limit orders)
+	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop orders)
+	Quantity     float64 `json:"quantity"`      // Order quantity
+	Status       string  `json:"status"`        // Order status (NEW, etc.)
+	StopLoss     float64 `json:"stop_loss"`     // Stop loss price for this order (0 if not set)
+	TakeProfit   float64 `json:"take_profit"`   // Take profit price for this order (0 if not set)
+}
+
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime     string                             `json:"current_time"`
-	RuntimeMinutes  int                                `json:"runtime_minutes"`
-	CallCount       int                                `json:"call_count"`
-	Account         AccountInfo                        `json:"account"`
-	Positions       []PositionInfo                     `json:"positions"`
-	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap   map[string]*market.Data            `json:"-"`
-	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
-	OITopDataMap    map[string]*OITopData              `json:"-"`
-	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData      *nofxos.OIRankingData      `json:"-"` // Market-wide OI ranking data
-	NetFlowRankingData *nofxos.NetFlowRankingData `json:"-"` // Market-wide fund flow ranking data
-	PriceRankingData   *nofxos.PriceRankingData   `json:"-"` // Market-wide price gainers/losers
-	BTCETHLeverage     int                          `json:"-"`
-	AltcoinLeverage int                                `json:"-"`
-	Timeframes      []string                           `json:"-"`
+	CurrentTime        string                             `json:"current_time"`
+	RuntimeMinutes     int                                `json:"runtime_minutes"`
+	CallCount          int                                `json:"call_count"`
+	Account            AccountInfo                        `json:"account"`
+	Positions          []PositionInfo                     `json:"positions"`
+	CandidateCoins     []CandidateCoin                    `json:"candidate_coins"`
+	PromptVariant      string                             `json:"prompt_variant,omitempty"`
+	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
+	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
+	PendingOrders      []PendingOrder                     `json:"pending_orders,omitempty"` // Current pending orders from exchange
+	MarketDataMap      map[string]*market.Data            `json:"-"`
+	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
+	OITopDataMap       map[string]*OITopData              `json:"-"`
+	QuantDataMap       map[string]*QuantData              `json:"-"`
+	OIRankingData      *nofxos.OIRankingData              `json:"-"` // Market-wide OI ranking data
+	NetFlowRankingData *nofxos.NetFlowRankingData         `json:"-"` // Market-wide fund flow ranking data
+	PriceRankingData   *nofxos.PriceRankingData           `json:"-"` // Market-wide price gainers/losers
+	BTCETHLeverage     int                                `json:"-"`
+	AltcoinLeverage    int                                `json:"-"`
+	Timeframes         []string                           `json:"-"`
 }
 
 // Decision AI trading decision
+// TierSpec represents a tier item in tiered SL/TP
+type TierSpec struct {
+	TierLevel int     `json:"tier_level,omitempty"`
+	TierPrice float64 `json:"tier_price"`
+	TierQtyPct float64 `json:"tier_qty_pct,omitempty"`
+}
+
+// PriceValue supports number, array of numbers, or array of objects {tier_level,tier_price,tier_qty_pct}
+type PriceValue struct {
+	Single *float64
+	Levels []float64
+	Tiers  []TierSpec
+}
+
+func (p *PriceValue) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if len(s) == 0 || s == "null" {
+		return nil
+	}
+	// number
+	if s[0] == '-' || (s[0] >= '0' && s[0] <= '9') {
+		var f float64
+		if err := json.Unmarshal(b, &f); err != nil {
+			return err
+		}
+		p.Single = &f
+		return nil
+	}
+	// array
+	if s[0] == '[' {
+		// try []float64
+		var arrNum []float64
+		if err := json.Unmarshal(b, &arrNum); err == nil {
+			p.Levels = arrNum
+			return nil
+		}
+		// try []TierSpec
+		var arrTier []TierSpec
+		if err := json.Unmarshal(b, &arrTier); err == nil {
+			// extract prices to Levels too for convenience
+			p.Tiers = arrTier
+			p.Levels = make([]float64, 0, len(arrTier))
+			for _, t := range arrTier {
+				p.Levels = append(p.Levels, t.TierPrice)
+			}
+			return nil
+		}
+		// fallback: array of generic objects with tier_price field
+		var rawArr []map[string]interface{}
+		if err := json.Unmarshal(b, &rawArr); err == nil {
+			prices := make([]float64, 0, len(rawArr))
+			tiers := make([]TierSpec, 0, len(rawArr))
+			for _, m := range rawArr {
+				var lvl int
+				if v, ok := m["tier_level"].(float64); ok {
+					lvl = int(v)
+				}
+				var price float64
+				if v, ok := m["tier_price"].(float64); ok {
+					price = v
+				}
+				var pct float64
+				if v, ok := m["tier_qty_pct"].(float64); ok {
+					pct = v
+				}
+				if price != 0 {
+					prices = append(prices, price)
+					tiers = append(tiers, TierSpec{TierLevel: lvl, TierPrice: price, TierQtyPct: pct})
+				}
+			}
+			p.Levels = prices
+			p.Tiers = tiers
+			return nil
+		}
+		return fmt.Errorf("unsupported array format for PriceValue: %s", s)
+	}
+	return fmt.Errorf("unsupported stop_loss/take_profit format: %s", s)
+}
+
+func (p PriceValue) FloatOrZero() float64 {
+	if p.Single != nil {
+		return *p.Single
+	}
+	if len(p.Levels) > 0 {
+		return p.Levels[0]
+	}
+	return 0
+}
+
+func (p PriceValue) Prices() []float64 {
+	if len(p.Levels) > 0 {
+		return p.Levels
+	}
+	if p.Single != nil {
+		return []float64{*p.Single}
+	}
+	return nil
+}
+
 type Decision struct {
 	Symbol string `json:"symbol"`
-	Action string `json:"action"` // Standard: "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
+	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "partial_close_long", "partial_close_short", "place_order", "modify_order", "cancel_order", "set_sl_tp_tiers", "modify_sl_tier", "modify_tp_tier", "hold", "wait", or grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
-	Leverage        int     `json:"leverage,omitempty"`
-	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
-	StopLoss        float64 `json:"stop_loss,omitempty"`
-	TakeProfit      float64 `json:"take_profit,omitempty"`
+	Leverage        int        `json:"leverage,omitempty"`
+	PositionSizeUSD float64    `json:"position_size_usd,omitempty"`
+	StopLoss        PriceValue `json:"stop_loss,omitempty"`
+	TakeProfit      PriceValue `json:"take_profit,omitempty"`
+
+	// Order management parameters (for place_order, modify_order, etc.)
+	OrderID      string  `json:"order_id,omitempty"`      // For modify_order, cancel_order
+	OrderType    string  `json:"order_type,omitempty"`    // "limit", "market" for place_order
+	OrderPrice   float64 `json:"order_price,omitempty"`   // Price for limit orders
+	OrderQty     float64 `json:"order_qty,omitempty"`     // Quantity for place_order/modify_order
+	PartialQty   float64 `json:"partial_qty,omitempty"`   // Quantity for partial_close
+	TierCount    int     `json:"tier_count,omitempty"`    // Number of tiers for set_sl_tp_tiers
+	TierLevel    int     `json:"tier_level,omitempty"`    // Tier level for modify_sl_tier/modify_tp_tier
+	TierPrice    float64 `json:"tier_price,omitempty"`    // Price for specific tier
 
 	// Grid trading parameters
 	Price      float64 `json:"price,omitempty"`       // Limit order price (for grid)
 	Quantity   float64 `json:"quantity,omitempty"`    // Order quantity (for grid)
 	LevelIndex int     `json:"level_index,omitempty"` // Grid level index
-	OrderID    string  `json:"order_id,omitempty"`    // Order ID (for cancel)
 
 	// Common parameters
 	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
@@ -1017,9 +1142,10 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 		sb.WriteString("\n\n")
 	} else {
 		sb.WriteString("# 📋 Decision Process\n\n")
-		sb.WriteString("1. Check positions → Should we take profit/stop-loss\n")
+		sb.WriteString("1. Check positions → Should we take profit/stop-loss/adjust orders\n")
 		sb.WriteString("2. Scan candidate coins + multi-timeframe → Are there strong signals\n")
-		sb.WriteString("3. Write chain of thought first, then output structured JSON\n\n")
+		sb.WriteString("3. Consider pending orders and multi-tier SL/TP management\n")
+		sb.WriteString("4. Write chain of thought first, then output structured JSON\n\n")
 	}
 
 	// 7. Output format
@@ -1041,9 +1167,18 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | partial_close_long | partial_close_short | place_order | modify_order | cancel_order | set_sl_tp_tiers | modify_sl_tier | modify_tp_tier | hold | wait\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- **Opening position**: Required fields: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- **Closing position**: Only required: action, symbol (confidence optional)\n")
+	sb.WriteString("- **Order management**:\n")
+	sb.WriteString("  - `place_order` (**REQUIRED fields**: order_type, order_price, order_qty | all must be > 0 | order_type must be 'limit' or 'market')\n")
+	sb.WriteString("  - `modify_order` (**REQUIRED fields**: order_id | at least one of: order_qty > 0 or order_price > 0)\n")
+	sb.WriteString("  - `cancel_order` (**REQUIRED fields**: order_id)\n")
+	sb.WriteString("  - `set_sl_tp_tiers` (**REQUIRED fields**: tier_count, stop_loss, take_profit)\n")
+	sb.WriteString("  - `modify_sl_tier` (**REQUIRED fields**: tier_level, tier_price)\n")
+	sb.WriteString("  - `modify_tp_tier` (**REQUIRED fields**: tier_level, tier_price)\n")
+	sb.WriteString("- **Partial close**: `partial_close_long` or `partial_close_short` (**REQUIRED fields**: partial_qty > 0)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt
@@ -1231,6 +1366,108 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		sb.WriteString("\n")
 	}
 
+	// Pending orders (show before positions for better visibility)
+	if len(ctx.PendingOrders) > 0 {
+		lang := e.GetLanguage()
+		if lang == LangChinese {
+			sb.WriteString("## 当前挂单\n\n")
+			for i, order := range ctx.PendingOrders {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | ", i+1, order.Symbol, order.Side))
+				sb.WriteString(fmt.Sprintf("类型: %s | ", order.Type))
+
+				if order.Type == "LIMIT" {
+					sb.WriteString(fmt.Sprintf("价格: %.4f | ", order.Price))
+				} else if order.Type == "STOP_MARKET" || order.Type == "TAKE_PROFIT_MARKET" {
+					sb.WriteString(fmt.Sprintf("触发价: %.4f | ", order.StopPrice))
+				}
+
+				sb.WriteString(fmt.Sprintf("数量: %.4f | ", order.Quantity))
+				sb.WriteString(fmt.Sprintf("状态: %s | ", order.Status))
+				sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
+
+				if order.PositionSide != "" {
+					sb.WriteString(fmt.Sprintf("   持仓方向: %s", order.PositionSide))
+				}
+
+				// 显示挂单的止盈止损
+				if order.StopLoss > 0 || order.TakeProfit > 0 {
+					if order.PositionSide != "" {
+						sb.WriteString(" | ")
+					} else {
+						sb.WriteString("   ")
+					}
+					sb.WriteString("🎯 ")
+					if order.StopLoss > 0 {
+						sb.WriteString(fmt.Sprintf("止损: %.4f", order.StopLoss))
+					}
+					if order.TakeProfit > 0 {
+						if order.StopLoss > 0 {
+							sb.WriteString(" | ")
+						}
+						sb.WriteString(fmt.Sprintf("止盈: %.4f", order.TakeProfit))
+					}
+					sb.WriteString("\n")
+				} else if order.Type == "LIMIT" {
+					if order.PositionSide != "" {
+						sb.WriteString("\n")
+					}
+					sb.WriteString("   ⚠️ **注意**: 该挂单未设置止盈止损\n")
+				} else if order.PositionSide != "" {
+					sb.WriteString("\n")
+				}
+			}
+			sb.WriteString("\n")
+		} else {
+			sb.WriteString("## Current Pending Orders\n\n")
+			for i, order := range ctx.PendingOrders {
+				sb.WriteString(fmt.Sprintf("%d. %s %s | ", i+1, order.Symbol, order.Side))
+				sb.WriteString(fmt.Sprintf("Type: %s | ", order.Type))
+
+				if order.Type == "LIMIT" {
+					sb.WriteString(fmt.Sprintf("Price: %.4f | ", order.Price))
+				} else if order.Type == "STOP_MARKET" || order.Type == "TAKE_PROFIT_MARKET" {
+					sb.WriteString(fmt.Sprintf("Trigger Price: %.4f | ", order.StopPrice))
+				}
+
+				sb.WriteString(fmt.Sprintf("Quantity: %.4f | ", order.Quantity))
+				sb.WriteString(fmt.Sprintf("Status: %s | ", order.Status))
+				sb.WriteString(fmt.Sprintf("ID: %s\n", order.OrderID))
+
+				if order.PositionSide != "" {
+					sb.WriteString(fmt.Sprintf("   Position Side: %s", order.PositionSide))
+				}
+
+				// Show stop-loss and take-profit for pending orders
+				if order.StopLoss > 0 || order.TakeProfit > 0 {
+					if order.PositionSide != "" {
+						sb.WriteString(" | ")
+					} else {
+						sb.WriteString("   ")
+					}
+					sb.WriteString("🎯 ")
+					if order.StopLoss > 0 {
+						sb.WriteString(fmt.Sprintf("SL: %.4f", order.StopLoss))
+					}
+					if order.TakeProfit > 0 {
+						if order.StopLoss > 0 {
+							sb.WriteString(" | ")
+						}
+						sb.WriteString(fmt.Sprintf("TP: %.4f", order.TakeProfit))
+					}
+					sb.WriteString("\n")
+				} else if order.Type == "LIMIT" {
+					if order.PositionSide != "" {
+						sb.WriteString("\n")
+					}
+					sb.WriteString("   ⚠️ **Warning**: This pending order has no SL/TP set\n")
+				} else if order.PositionSide != "" {
+					sb.WriteString("\n")
+				}
+			}
+			sb.WriteString("\n")
+		}
+	}
+
 	// Position information
 	if len(ctx.Positions) > 0 {
 		sb.WriteString("## Current Positions\n")
@@ -1325,10 +1562,28 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		positionValue = -positionValue
 	}
 
-	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n\n",
+	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n",
 		index, pos.Symbol, strings.ToUpper(pos.Side),
 		pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
 		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
+
+	// Display stop loss and take profit for positions
+	if pos.StopLoss > 0 || pos.TakeProfit > 0 {
+		sb.WriteString("   🎯 ")
+		if pos.StopLoss > 0 {
+			sb.WriteString(fmt.Sprintf("Stop Loss: %.4f", pos.StopLoss))
+		}
+		if pos.TakeProfit > 0 {
+			if pos.StopLoss > 0 {
+				sb.WriteString(" | ")
+			}
+			sb.WriteString(fmt.Sprintf("Take Profit: %.4f", pos.TakeProfit))
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("   ⚠️ **WARNING**: No SL/TP set for this position - HIGH RISK!\n")
+	}
+	sb.WriteString("\n")
 
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))
@@ -1859,12 +2114,23 @@ func validateDecisions(decisions []Decision, accountEquity float64, btcEthLevera
 
 func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
 	validActions := map[string]bool{
-		"open_long":   true,
-		"open_short":  true,
-		"close_long":  true,
-		"close_short": true,
-		"hold":        true,
-		"wait":        true,
+		// Traditional position actions
+		"open_long":            true,
+		"open_short":           true,
+		"close_long":           true,
+		"close_short":          true,
+		"partial_close_long":   true,
+		"partial_close_short":  true,
+		// Order management actions
+		"place_order":         true,
+		"modify_order":        true,
+		"cancel_order":        true,
+		"set_sl_tp_tiers":     true,
+		"modify_sl_tier":      true,
+		"modify_tp_tier":      true,
+		// Other actions
+		"hold": true,
+		"wait": true,
 	}
 
 	if !validActions[d.Action] {
@@ -1907,44 +2173,48 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		}
 
 		tolerance := maxPositionValue * 0.01
-		if d.PositionSizeUSD > maxPositionValue+tolerance {
-			if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-				return fmt.Errorf("BTC/ETH single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-			} else {
-				return fmt.Errorf("altcoin single coin position value cannot exceed %.0f USDT (%.1fx account equity), actual: %.0f", maxPositionValue, posRatio, d.PositionSizeUSD)
-			}
+		if tolerance < 0.5 {
+			tolerance = 0.5
 		}
-		if d.StopLoss <= 0 || d.TakeProfit <= 0 {
+
+		if d.PositionSizeUSD > maxPositionValue+tolerance {
+			logger.Infof("⚠️  [Position Size Fallback] %s position %.2f exceeds limit %.2f (equity %.2f × %.1fx); capping to %.2f",
+				d.Symbol, d.PositionSizeUSD, maxPositionValue+tolerance, accountEquity, posRatio, maxPositionValue)
+			d.PositionSizeUSD = maxPositionValue
+		}
+		sl := d.StopLoss.FloatOrZero()
+		tp := d.TakeProfit.FloatOrZero()
+		if sl <= 0 || tp <= 0 {
 			return fmt.Errorf("stop loss and take profit must be greater than 0")
 		}
 
 		if d.Action == "open_long" {
-			if d.StopLoss >= d.TakeProfit {
+			if sl >= tp {
 				return fmt.Errorf("for long positions, stop loss price must be less than take profit price")
 			}
 		} else {
-			if d.StopLoss <= d.TakeProfit {
+			if sl <= tp {
 				return fmt.Errorf("for short positions, stop loss price must be greater than take profit price")
 			}
 		}
 
 		var entryPrice float64
 		if d.Action == "open_long" {
-			entryPrice = d.StopLoss + (d.TakeProfit-d.StopLoss)*0.2
+			entryPrice = sl + (tp-sl)*0.2
 		} else {
-			entryPrice = d.StopLoss - (d.StopLoss-d.TakeProfit)*0.2
+			entryPrice = sl - (sl-tp)*0.2
 		}
 
 		var riskPercent, rewardPercent, riskRewardRatio float64
 		if d.Action == "open_long" {
-			riskPercent = (entryPrice - d.StopLoss) / entryPrice * 100
-			rewardPercent = (d.TakeProfit - entryPrice) / entryPrice * 100
+			riskPercent = (entryPrice - sl) / entryPrice * 100
+			rewardPercent = (tp - entryPrice) / entryPrice * 100
 			if riskPercent > 0 {
 				riskRewardRatio = rewardPercent / riskPercent
 			}
 		} else {
-			riskPercent = (d.StopLoss - entryPrice) / entryPrice * 100
-			rewardPercent = (entryPrice - d.TakeProfit) / entryPrice * 100
+			riskPercent = (sl - entryPrice) / entryPrice * 100
+			rewardPercent = (entryPrice - tp) / entryPrice * 100
 			if riskPercent > 0 {
 				riskRewardRatio = rewardPercent / riskPercent
 			}
@@ -1952,7 +2222,7 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 
 		if riskRewardRatio < 3.0 {
 			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥3.0:1 [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
-				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
+				riskRewardRatio, riskPercent, rewardPercent, sl, tp)
 		}
 	}
 

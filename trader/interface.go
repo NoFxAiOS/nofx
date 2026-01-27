@@ -114,7 +114,9 @@ type OpenOrder struct {
 	Price        float64 `json:"price"`         // Order price (for limit orders)
 	StopPrice    float64 `json:"stop_price"`    // Trigger price (for stop orders)
 	Quantity     float64 `json:"quantity"`
-	Status       string  `json:"status"` // NEW
+	Status       string  `json:"status"`        // NEW
+	StopLoss     float64 `json:"stop_loss"`     // Preset stop loss price for this order
+	TakeProfit   float64 `json:"take_profit"`   // Preset take profit price for this order
 }
 
 // LimitOrderRequest represents a limit order request for grid trading
@@ -128,6 +130,8 @@ type LimitOrderRequest struct {
 	PostOnly     bool    `json:"post_only"`     // Maker only order
 	ReduceOnly   bool    `json:"reduce_only"`   // Reduce position only
 	ClientID     string  `json:"client_id"`     // Client order ID for tracking
+	StopLoss     float64 `json:"stop_loss"`     // Stop loss price (0 = not set)
+	TakeProfit   float64 `json:"take_profit"`   // Take profit price (0 = not set)
 }
 
 // LimitOrderResult represents the result of placing a limit order

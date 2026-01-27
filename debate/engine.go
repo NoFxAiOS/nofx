@@ -1017,13 +1017,15 @@ func (e *DebateEngine) ExecuteConsensus(sessionID string, executor TraderExecuto
 	}
 
 	// Create decision
+	slPrice := stopLossPrice
+	tpPrice := takeProfitPrice
 	tradeDecision := &kernel.Decision{
 		Symbol:          session.Symbol,
 		Action:          action,
 		Leverage:        session.FinalDecision.Leverage,
 		PositionSizeUSD: positionSizeUSD,
-		StopLoss:        stopLossPrice,
-		TakeProfit:      takeProfitPrice,
+		StopLoss:        kernel.PriceValue{Single: &slPrice},
+		TakeProfit:      kernel.PriceValue{Single: &tpPrice},
 		Confidence:      session.FinalDecision.Confidence,
 		Reasoning:       fmt.Sprintf("Debate consensus: %s", session.FinalDecision.Reasoning),
 	}

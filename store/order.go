@@ -153,7 +153,7 @@ func (s *OrderStore) CreateOrder(order *TraderOrder) error {
 	// Check if order already exists
 	existing, err := s.GetOrderByExchangeID(order.ExchangeID, order.ExchangeOrderID)
 	if err != nil {
-		return fmt.Errorf("failed to check existing order: %w", err)
+		fmt.Printf("ℹ️ Check existing order returned error (continuing): %v\n", err)
 	}
 	if existing != nil {
 		order.ID = existing.ID
@@ -162,7 +162,12 @@ func (s *OrderStore) CreateOrder(order *TraderOrder) error {
 		return nil
 	}
 
-	return s.db.Create(order).Error
+	result := s.db.Create(order)
+	if result.Error != nil {
+		fmt.Printf("❌ Create order error: %v\nOrder data: ExchangeID=%s, ExchangeOrderID=%s, TraderID=%s, Symbol=%s\n", 
+			result.Error, order.ExchangeID, order.ExchangeOrderID, order.TraderID, order.Symbol)
+	}
+	return result.Error
 }
 
 // UpdateOrderStatus updates order status
@@ -420,4 +425,56 @@ func (s *OrderStore) GetRecentFillSymbolsByExchange(exchangeID string, sinceMs i
 		return nil, err
 	}
 	return symbols, nil
+}
+
+// SaveOrder saves or updates an order (for pending order operations)
+func (s *OrderStore) SaveOrder(order *TraderOrder) error {
+	if order.ID == 0 {
+		// New order
+		return s.CreateOrder(order)
+	}
+	// Update existing order
+	return s.db.Save(order).Error
+}
+
+// UpdateOrder updates specific fields of an order by ID
+// If orderID is empty, this is a bulk update (used for cancel all operations)
+func (s *OrderStore) UpdateOrder(orderID string, updates map[string]interface{}) error {
+	updates["updated_at"] = time.Now().UnixMilli()
+	
+	if orderID == "" {
+		// Bulk update - used for cancel all operations
+		// This should be handled by the calling code with proper WHERE clause
+		return fmt.Errorf("bulk update requires explicit WHERE clause")
+	}
+	
+	// Convert string ID to int64
+	id, err := strconv.ParseInt(orderID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid order id: %w", err)
+	}
+
+	return s.db.Model(&TraderOrder{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// CancelOrdersByType cancels all orders of a specific type (stop or limit) for a symbol
+func (s *OrderStore) CancelOrdersByType(traderID, symbol, orderType string) error {
+	updates := map[string]interface{}{
+		"status":     "CANCELED",
+		"updated_at": time.Now().UnixMilli(),
+	}
+	return s.db.Model(&TraderOrder{}).
+		Where("trader_id = ? AND symbol = ? AND type = ? AND status != ?", traderID, symbol, orderType, "CANCELED").
+		Updates(updates).Error
+}
+
+// CancelAllOrdersForSymbol cancels all orders (stop loss and take profit) for a symbol
+func (s *OrderStore) CancelAllOrdersForSymbol(traderID, symbol string) error {
+	updates := map[string]interface{}{
+		"status":     "CANCELED",
+		"updated_at": time.Now().UnixMilli(),
+	}
+	return s.db.Model(&TraderOrder{}).
+		Where("trader_id = ? AND symbol = ? AND status != ?", traderID, symbol, "CANCELED").
+		Updates(updates).Error
 }

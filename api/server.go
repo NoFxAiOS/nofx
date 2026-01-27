@@ -13,6 +13,7 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/market"
+	"nofx/notify"
 	"nofx/provider/alpaca"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
@@ -30,14 +31,16 @@ import (
 
 // Server HTTP API server
 type Server struct {
-	router          *gin.Engine
-	traderManager   *manager.TraderManager
-	store           *store.Store
-	cryptoHandler   *CryptoHandler
-	backtestManager *backtest.Manager
-	debateHandler   *DebateHandler
-	httpServer      *http.Server
-	port            int
+	router                *gin.Engine
+	traderManager         *manager.TraderManager
+	store                 *store.Store
+	cryptoHandler         *CryptoHandler
+	backtestManager       *backtest.Manager
+	debateHandler         *DebateHandler
+	httpServer            *http.Server
+	port                  int
+	notificationStore     *store.NotificationStore
+	notificationManager   *notify.NotificationManager
 }
 
 // NewServer Creates API server
@@ -61,14 +64,20 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	debateHandler := NewDebateHandler(debateStore, st.Strategy(), st.AIModel())
 	debateHandler.SetTraderManager(traderManager)
 
+	// Create notification manager
+	notificationStore := st.Notification()
+	notificationManager := notify.NewNotificationManager(notificationStore)
+
 	s := &Server{
-		router:          router,
-		traderManager:   traderManager,
-		store:           st,
-		cryptoHandler:   cryptoHandler,
-		backtestManager: backtestManager,
-		debateHandler:   debateHandler,
-		port:            port,
+		router:                router,
+		traderManager:         traderManager,
+		store:                 st,
+		cryptoHandler:         cryptoHandler,
+		backtestManager:       backtestManager,
+		debateHandler:         debateHandler,
+		port:                  port,
+		notificationStore:     notificationStore,
+		notificationManager:   notificationManager,
 	}
 
 	// Setup routes
@@ -208,7 +217,27 @@ func (s *Server) setupRoutes() {
 			protected.GET("/decisions/latest", s.handleLatestDecisions)
 			protected.GET("/statistics", s.handleStatistics)
 
-			// Backtest routes
+			// Pending order management
+			protected.POST("/pending-orders/place", s.handlePlaceOrder)                   // Place new limit/market order
+			protected.PUT("/pending-orders/:id/modify", s.handleModifyOrder)             // Modify pending order
+			protected.DELETE("/pending-orders/:id", s.handleCancelOrder)                 // Cancel pending order
+			protected.POST("/position/close-partial", s.handleClosePositionPartial)      // Close part of position
+
+			// Stop loss and take profit management
+			protected.POST("/stop-orders/set-multiple-sl", s.handleSetMultipleStopLoss)         // Set multiple stop loss tiers
+			protected.POST("/stop-orders/set-multiple-tp", s.handleSetMultipleTakeProfit)       // Set multiple take profit tiers
+			protected.PUT("/stop-orders/sl-tier/:tier", s.handleModifyStopLossTier)             // Modify specific stop loss tier
+			protected.PUT("/stop-orders/tp-tier/:tier", s.handleModifyTakeProfitTier)           // Modify specific take profit tier
+			protected.DELETE("/stop-orders/sl", s.handleCancelAllStopLoss)                      // Cancel all stop loss orders
+			protected.DELETE("/stop-orders/tp", s.handleCancelAllTakeProfit)                    // Cancel all take profit orders
+
+			// Notification routes
+			protected.GET("/notifications/config", s.HandleGetNotificationConfig)
+			protected.POST("/notifications/config", s.HandleUpdateNotificationConfig)
+			protected.POST("/notifications/test", s.HandleTestNotification)
+			protected.DELETE("/notifications/config", s.HandleDisableNotifications)
+
+		// Backtest routes
 			backtest := protected.Group("/backtest")
 			s.registerBacktestRoutes(backtest)
 		}
@@ -2208,6 +2237,8 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 		return
 	}
 
+	logger.Infof("🔍 [API] Request position history: traderID=%s", traderID)
+
 	// Get optional query parameters
 	limitStr := c.DefaultQuery("limit", "100")
 	limit := 100
@@ -2218,6 +2249,7 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	// Get store
 	store := trader.GetStore()
 	if store == nil {
+		logger.Infof("❌ [API] Store not available for traderID=%s", traderID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Store not available"})
 		return
 	}
@@ -2225,9 +2257,12 @@ func (s *Server) handlePositionHistory(c *gin.Context) {
 	// Get closed positions
 	positions, err := store.Position().GetClosedPositions(trader.GetID(), limit)
 	if err != nil {
+		logger.Infof("❌ [API] Failed to get closed positions: %v", err)
 		SafeInternalError(c, "Get position history", err)
 		return
 	}
+
+	logger.Infof("✅ [API] Returning %d closed positions for traderID=%s", len(positions), traderID)
 
 	// Get statistics
 	stats, _ := store.Position().GetFullStats(trader.GetID())
@@ -2397,22 +2432,22 @@ func (s *Server) handleOpenOrders(c *gin.Context) {
 		return
 	}
 
-	// Get symbol parameter (required for exchange query)
+	// Get symbol parameter (optional - empty means get all orders)
 	symbol := c.Query("symbol")
-	if symbol == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol parameter is required"})
-		return
+	if symbol != "" {
+		// Normalize symbol if provided
+		symbol = market.Normalize(symbol)
 	}
 
-	// Normalize symbol
-	symbol = market.Normalize(symbol)
-
 	// Get open orders from exchange
+	logger.Infof("[API] /open-orders trader=%s symbol=%s - fetching from exchange", traderID, symbol)
 	openOrders, err := trader.GetOpenOrders(symbol)
 	if err != nil {
+		logger.Warnf("[API] /open-orders trader=%s symbol=%s - error: %v", traderID, symbol, err)
 		SafeInternalError(c, "Get open orders", err)
 		return
 	}
+	logger.Infof("[API] /open-orders trader=%s symbol=%s - %d orders returned", traderID, symbol, len(openOrders))
 
 	c.JSON(http.StatusOK, openOrders)
 }
@@ -3683,4 +3718,834 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// ==================== Pending Order Management Handlers ====================
+
+// handlePlaceOrder Place a new limit or market order
+func (s *Server) handlePlaceOrder(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol    string  `json:"symbol" binding:"required"`
+		Side      string  `json:"side" binding:"required"` // buy or sell
+		Quantity  float64 `json:"quantity" binding:"required"`
+		Price     float64 `json:"price"` // For limit orders
+		OrderType string  `json:"order_type" binding:"required"` // limit or market
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("📝 User %s placing order: trader=%s, symbol=%s, side=%s, qty=%.6f, type=%s",
+		userID, traderID, req.Symbol, req.Side, req.Quantity, req.OrderType)
+
+	// Get trader configuration
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	// Place order based on exchange type
+	var result map[string]interface{}
+	var placeErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, placeErr = bitgetTrader.PlaceOrder(req.Symbol, req.Side, req.Quantity, req.Price, req.OrderType)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order placement not supported for this exchange"})
+		return
+	}
+
+	if placeErr != nil {
+		logger.Infof("❌ Place order failed: %v", placeErr)
+		SafeInternalError(c, "Failed to place order", placeErr)
+		return
+	}
+
+	// Save order to database
+	if result != nil {
+		orderData := &store.TraderOrder{
+			TraderID:        traderID,
+			ExchangeID:      fullConfig.Exchange.ID,
+			ExchangeType:    fullConfig.Exchange.ExchangeType,
+			ExchangeOrderID: fmt.Sprintf("%v", result["orderId"]),
+			Symbol:          req.Symbol,
+			Side:            req.Side,
+			Type:            req.OrderType,
+			Quantity:        req.Quantity,
+			Price:           req.Price,
+			Status:          "NEW",
+			CreatedAt:       time.Now().UnixMilli(),
+			UpdatedAt:       time.Now().UnixMilli(),
+		}
+		if err := s.store.Order().SaveOrder(orderData); err != nil {
+			logger.Warnf("⚠️ Failed to save order to database: %v", err)
+			// Don't fail the request, the order was placed successfully on the exchange
+		}
+	}
+
+	logger.Infof("✅ Order placed successfully: %v", result)
+	c.JSON(http.StatusOK, result)
+}
+
+// handleModifyOrder Modify a pending order
+func (s *Server) handleModifyOrder(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+	orderID := c.Param("id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol   string  `json:"symbol" binding:"required"`
+		Quantity float64 `json:"quantity"`
+		Price    float64 `json:"price"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("📝 User %s modifying order: trader=%s, orderId=%s, symbol=%s",
+		userID, traderID, orderID, req.Symbol)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var result map[string]interface{}
+	var modifyErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, modifyErr = bitgetTrader.ModifyOrder(req.Symbol, orderID, req.Quantity, req.Price)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order modification not supported for this exchange"})
+		return
+	}
+
+	if modifyErr != nil {
+		logger.Infof("❌ Modify order failed: %v", modifyErr)
+		SafeInternalError(c, "Failed to modify order", modifyErr)
+		return
+	}
+
+	// Update order in database
+	if result != nil {
+		if err := s.store.Order().UpdateOrder(orderID, map[string]interface{}{
+			"quantity":   req.Quantity,
+			"price":      req.Price,
+			"updated_at": time.Now().UnixMilli(),
+		}); err != nil {
+			logger.Warnf("⚠️ Failed to update order in database: %v", err)
+			// Don't fail the request, the order was modified successfully on the exchange
+		}
+	}
+
+	logger.Infof("✅ Order modified successfully: %v", result)
+	c.JSON(http.StatusOK, result)
+}
+
+// handleCancelOrder Cancel a pending order
+func (s *Server) handleCancelOrder(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+	orderID := c.Param("id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol string `json:"symbol" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("🗑️ User %s canceling order: trader=%s, orderId=%s, symbol=%s",
+		userID, traderID, orderID, req.Symbol)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var cancelErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			cancelErr = bitgetTrader.CancelOrder(req.Symbol, orderID)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Order cancellation not supported for this exchange"})
+		return
+	}
+
+	if cancelErr != nil {
+		logger.Infof("❌ Cancel order failed: %v", cancelErr)
+		SafeInternalError(c, "Failed to cancel order", cancelErr)
+		return
+	}
+
+	// Update order status in database to CANCELED
+	if err := s.store.Order().UpdateOrder(orderID, map[string]interface{}{
+		"status":     "CANCELED",
+		"updated_at": time.Now().UnixMilli(),
+	}); err != nil {
+		logger.Warnf("⚠️ Failed to update order status in database: %v", err)
+		// Don't fail the request, the order was canceled successfully on the exchange
+	}
+
+	logger.Infof("✅ Order canceled successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Order canceled successfully",
+		"order_id": orderID,
+	})
+}
+
+// handleClosePositionPartial Close part of a position
+func (s *Server) handleClosePositionPartial(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol   string  `json:"symbol" binding:"required"`
+		Quantity float64 `json:"quantity" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("📊 User %s partial closing position: trader=%s, symbol=%s, qty=%.6f",
+		userID, traderID, req.Symbol, req.Quantity)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var result map[string]interface{}
+	var closeErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, closeErr = bitgetTrader.ClosePositionPartial(req.Symbol, req.Quantity)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Partial close not supported for this exchange"})
+		return
+	}
+
+	if closeErr != nil {
+		logger.Infof("❌ Partial close failed: %v", closeErr)
+		SafeInternalError(c, "Failed to close position partially", closeErr)
+		return
+	}
+
+	// Save partial close order to database
+	if result != nil {
+		orderData := &store.TraderOrder{
+			TraderID:        traderID,
+			ExchangeID:      fullConfig.Exchange.ID,
+			ExchangeType:    fullConfig.Exchange.ExchangeType,
+			ExchangeOrderID: fmt.Sprintf("%v", result["orderId"]),
+			Symbol:          req.Symbol,
+			Side:            "sell", // Partial close is always a sell (reduce position)
+			Type:            "market",
+			Quantity:        req.Quantity,
+			Status:          "FILLED",
+			FilledQuantity:  req.Quantity,
+			ClosePosition:   true,
+			ReduceOnly:      true,
+			CreatedAt:       time.Now().UnixMilli(),
+			UpdatedAt:       time.Now().UnixMilli(),
+			FilledAt:        time.Now().UnixMilli(),
+		}
+		logger.Debugf("📝 Saving partial close order: TraderID=%s, ExchangeID=%s, ExchangeType=%s, ExchangeOrderID=%s, Symbol=%s, Qty=%.6f",
+			orderData.TraderID, orderData.ExchangeID, orderData.ExchangeType, orderData.ExchangeOrderID, orderData.Symbol, orderData.Quantity)
+		if err := s.store.Order().SaveOrder(orderData); err != nil {
+			logger.Warnf("⚠️ Failed to save partial close order to database: %v (Order: %+v)", err, orderData)
+			// Don't fail the request, the position was closed successfully on the exchange
+		} else {
+			logger.Infof("✅ Partial close order saved to database with ID: %d", orderData.ID)
+		}
+	}
+
+	logger.Infof("✅ Position partially closed successfully: %v", result)
+	c.JSON(http.StatusOK, result)
+}
+
+// handleSetMultipleStopLoss Set multiple stop loss orders
+func (s *Server) handleSetMultipleStopLoss(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol       string    `json:"symbol" binding:"required"`
+		PositionSide string    `json:"position_side" binding:"required"` // long or short
+		Quantity     float64   `json:"quantity" binding:"required"`
+		StopPrices   []float64 `json:"stop_prices" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("🛑 User %s setting %d stop loss orders: trader=%s, symbol=%s",
+		userID, len(req.StopPrices), traderID, req.Symbol)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var result []map[string]interface{}
+	var setErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, setErr = bitgetTrader.SetMultipleStopLoss(req.Symbol, req.PositionSide, req.Quantity, req.StopPrices)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Multiple stop loss not supported for this exchange"})
+		return
+	}
+
+	if setErr != nil {
+		logger.Infof("❌ Set multiple stop loss failed: %v", setErr)
+		SafeInternalError(c, "Failed to set stop loss orders", setErr)
+		return
+	}
+
+	// Save stop loss orders to database
+	if result != nil {
+		quantityPerTier := req.Quantity / float64(len(req.StopPrices))
+		for i, stopPrice := range req.StopPrices {
+			orderData := &store.TraderOrder{
+				TraderID:        traderID,
+				ExchangeID:      fullConfig.Exchange.ID,
+				ExchangeType:    fullConfig.Exchange.ExchangeType,
+				ExchangeOrderID: fmt.Sprintf("%v", result[i]["order_id"]),
+				Symbol:          req.Symbol,
+				Side:            "sell", // Stop loss is always a sell
+				Type:            "stop",
+				Quantity:        quantityPerTier,
+				StopPrice:       stopPrice,
+				Status:          "NEW",
+				ReduceOnly:      true,
+				CreatedAt:       time.Now().UnixMilli(),
+				UpdatedAt:       time.Now().UnixMilli(),
+			}
+			if err := s.store.Order().SaveOrder(orderData); err != nil {
+				logger.Warnf("⚠️ Failed to save stop loss order #%d to database: %v", i+1, err)
+				// Don't fail the request, the orders were set successfully on the exchange
+			}
+		}
+	}
+
+	logger.Infof("✅ Multiple stop loss orders set successfully: %v", result)
+	c.JSON(http.StatusOK, gin.H{
+		"orders": result,
+		"count":  len(result),
+	})
+}
+
+// handleSetMultipleTakeProfit Set multiple take profit orders
+func (s *Server) handleSetMultipleTakeProfit(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol            string    `json:"symbol" binding:"required"`
+		PositionSide      string    `json:"position_side" binding:"required"` // long or short
+		Quantity          float64   `json:"quantity" binding:"required"`
+		TakeProfitPrices  []float64 `json:"take_profit_prices" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("📈 User %s setting %d take profit orders: trader=%s, symbol=%s",
+		userID, len(req.TakeProfitPrices), traderID, req.Symbol)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var result []map[string]interface{}
+	var setErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, setErr = bitgetTrader.SetMultipleTakeProfit(req.Symbol, req.PositionSide, req.Quantity, req.TakeProfitPrices)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Multiple take profit not supported for this exchange"})
+		return
+	}
+
+	if setErr != nil {
+		logger.Infof("❌ Set multiple take profit failed: %v", setErr)
+		SafeInternalError(c, "Failed to set take profit orders", setErr)
+		return
+	}
+
+	// Save take profit orders to database
+	if result != nil {
+		quantityPerTier := req.Quantity / float64(len(req.TakeProfitPrices))
+		for i, tpPrice := range req.TakeProfitPrices {
+			orderData := &store.TraderOrder{
+				TraderID:        traderID,
+				ExchangeID:      fullConfig.Exchange.ID,
+				ExchangeType:    fullConfig.Exchange.ExchangeType,
+				ExchangeOrderID: fmt.Sprintf("%v", result[i]["order_id"]),
+				Symbol:          req.Symbol,
+				Side:            "sell", // Take profit is always a sell
+				Type:            "limit",
+				Quantity:        quantityPerTier,
+				Price:           tpPrice,
+				Status:          "NEW",
+				ReduceOnly:      true,
+				CreatedAt:       time.Now().UnixMilli(),
+				UpdatedAt:       time.Now().UnixMilli(),
+			}
+			if err := s.store.Order().SaveOrder(orderData); err != nil {
+				logger.Warnf("⚠️ Failed to save take profit order #%d to database: %v", i+1, err)
+				// Don't fail the request, the orders were set successfully on the exchange
+			}
+		}
+	}
+
+	logger.Infof("✅ Multiple take profit orders set successfully: %v", result)
+	c.JSON(http.StatusOK, gin.H{
+		"orders": result,
+		"count":  len(result),
+	})
+}
+
+// handleModifyStopLossTier Modify a specific stop loss tier
+func (s *Server) handleModifyStopLossTier(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+	tierStr := c.Param("tier")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	tier, err := strconv.Atoi(tierStr)
+	if err != nil || tier < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tier number"})
+		return
+	}
+
+	var req struct {
+		Symbol    string  `json:"symbol" binding:"required"`
+		StopPrice float64 `json:"stop_price" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("🔧 User %s modifying stop loss tier %d: trader=%s, symbol=%s, price=%.4f",
+		userID, tier, traderID, req.Symbol, req.StopPrice)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var result map[string]interface{}
+	var modErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, modErr = bitgetTrader.ModifyStopLossTier(req.Symbol, tier-1, req.StopPrice) // Convert to 0-based index
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not supported for this exchange"})
+		return
+	}
+
+	if modErr != nil {
+		logger.Infof("❌ Modify stop loss tier failed: %v", modErr)
+		SafeInternalError(c, "Failed to modify stop loss tier", modErr)
+		return
+	}
+
+	// Update stop loss order in database
+	if result != nil {
+		if err := s.store.Order().UpdateOrder(fmt.Sprintf("%v", result["order_id"]), map[string]interface{}{
+			"stop_price": req.StopPrice,
+		}); err != nil {
+			logger.Warnf("⚠️ Failed to update stop loss tier in database: %v", err)
+			// Don't fail the request, the tier was modified successfully on the exchange
+		}
+	}
+
+	logger.Infof("✅ Stop loss tier modified successfully: %v", result)
+	c.JSON(http.StatusOK, result)
+}
+
+// handleModifyTakeProfitTier Modify a specific take profit tier
+func (s *Server) handleModifyTakeProfitTier(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+	tierStr := c.Param("tier")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	tier, err := strconv.Atoi(tierStr)
+	if err != nil || tier < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tier number"})
+		return
+	}
+
+	var req struct {
+		Symbol           string  `json:"symbol" binding:"required"`
+		TakeProfitPrice  float64 `json:"take_profit_price" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("🔧 User %s modifying take profit tier %d: trader=%s, symbol=%s, price=%.4f",
+		userID, tier, traderID, req.Symbol, req.TakeProfitPrice)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	var result map[string]interface{}
+	var modErr error
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			result, modErr = bitgetTrader.ModifyTakeProfitTier(req.Symbol, tier-1, req.TakeProfitPrice) // Convert to 0-based index
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not supported for this exchange"})
+		return
+	}
+
+	if modErr != nil {
+		logger.Infof("❌ Modify take profit tier failed: %v", modErr)
+		SafeInternalError(c, "Failed to modify take profit tier", modErr)
+		return
+	}
+
+	// Update take profit order in database
+	if result != nil {
+		if err := s.store.Order().UpdateOrder(fmt.Sprintf("%v", result["order_id"]), map[string]interface{}{
+			"price": req.TakeProfitPrice,
+		}); err != nil {
+			logger.Warnf("⚠️ Failed to update take profit tier in database: %v", err)
+			// Don't fail the request, the tier was modified successfully on the exchange
+		}
+	}
+
+	logger.Infof("✅ Take profit tier modified successfully: %v", result)
+	c.JSON(http.StatusOK, result)
+}
+
+// handleCancelAllStopLoss Cancel all stop loss orders
+func (s *Server) handleCancelAllStopLoss(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol string `json:"symbol" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("🗑️ User %s canceling all stop loss orders: trader=%s, symbol=%s",
+		userID, traderID, req.Symbol)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			bitgetTrader.CancelStopLossOrders(req.Symbol)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not supported for this exchange"})
+		return
+	}
+
+	// Update all stop loss orders for this symbol to CANCELED status in database
+	if err := s.store.Order().CancelOrdersByType(traderID, req.Symbol, "stop"); err != nil {
+		logger.Warnf("⚠️ Failed to update stop loss orders in database: %v", err)
+		// Don't fail the request, the orders were canceled successfully on the exchange
+	}
+
+	logger.Infof("✅ All stop loss orders canceled successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "All stop loss orders canceled successfully"})
+}
+
+// handleCancelAllTakeProfit Cancel all take profit orders
+func (s *Server) handleCancelAllTakeProfit(c *gin.Context) {
+	userID := c.GetString("user_id")
+	traderID := c.Query("trader_id")
+
+	if traderID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trader_id query parameter is required"})
+		return
+	}
+
+	var req struct {
+		Symbol string `json:"symbol" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		return
+	}
+
+	logger.Infof("🗑️ User %s canceling all take profit orders: trader=%s, symbol=%s",
+		userID, traderID, req.Symbol)
+
+	fullConfig, err := s.store.Trader().GetFullConfig(userID, traderID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Trader does not exist"})
+		return
+	}
+
+	tempTrader, err := s.createTemporaryTrader(fullConfig.Exchange)
+	if err != nil {
+		SafeInternalError(c, "Failed to connect to exchange", err)
+		return
+	}
+
+	switch fullConfig.Exchange.ExchangeType {
+	case "bitget":
+		if bitgetTrader, ok := tempTrader.(*trader.BitgetTrader); ok {
+			bitgetTrader.CancelTakeProfitOrders(req.Symbol)
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cast trader instance"})
+			return
+		}
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Not supported for this exchange"})
+		return
+	}
+
+	// Update all take profit orders for this symbol to CANCELED status in database
+	if err := s.store.Order().CancelOrdersByType(traderID, req.Symbol, "limit"); err != nil {
+		logger.Warnf("⚠️ Failed to update take profit orders in database: %v", err)
+		// Don't fail the request, the orders were canceled successfully on the exchange
+	}
+
+	logger.Infof("✅ All take profit orders canceled successfully")
+	c.JSON(http.StatusOK, gin.H{"message": "All take profit orders canceled successfully"})
+}
+
+// createTemporaryTrader Helper function to create a temporary trader instance from exchange config
+func (s *Server) createTemporaryTrader(exchangeCfg *store.Exchange) (interface{}, error) {
+	if exchangeCfg == nil || !exchangeCfg.Enabled {
+		return nil, fmt.Errorf("exchange not configured or not enabled")
+	}
+
+	switch exchangeCfg.ExchangeType {
+	case "bitget":
+		return trader.NewBitgetTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
+		), nil
+	case "binance":
+		return trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), ""), nil
+	case "bybit":
+		return trader.NewBybitTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey)), nil
+	case "okx":
+		return trader.NewOKXTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
+		), nil
+	case "hyperliquid":
+		return trader.NewHyperliquidTrader(
+			string(exchangeCfg.APIKey),
+			exchangeCfg.HyperliquidWalletAddr,
+			exchangeCfg.Testnet,
+		)
+	case "aster":
+		return trader.NewAsterTrader(
+			exchangeCfg.AsterUser,
+			exchangeCfg.AsterSigner,
+			string(exchangeCfg.AsterPrivateKey),
+		)
+	case "lighter":
+		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
+			return trader.NewLighterTraderV2(
+				exchangeCfg.LighterWalletAddr,
+				string(exchangeCfg.LighterAPIKeyPrivateKey),
+				exchangeCfg.LighterAPIKeyIndex,
+				false,
+			)
+		}
+		return nil, fmt.Errorf("lighter requires wallet address and API Key private key")
+	default:
+		return nil, fmt.Errorf("unsupported exchange type: %s", exchangeCfg.ExchangeType)
+	}
 }

@@ -50,8 +50,9 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 
 1. **分析账户状态**: 评估当前风险水平、保证金使用率、持仓情况
 2. **分析当前持仓**: 判断是否需要止盈、止损、加仓或持有
-3. **分析候选币种**: 评估新的交易机会，结合技术分析和资金流向
-4. **做出决策**: 输出明确的交易决策，包含详细的推理过程
+3. **管理待处理订单**: 调整限价单、设置多层止盈止损、部分平仓
+4. **分析候选币种**: 评估新的交易机会，结合技术分析和资金流向
+5. **做出决策**: 输出明确的交易决策，包含详细的推理过程
 
 ## 决策原则
 
@@ -75,6 +76,12 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 - 分批止盈：盈利3%平33%，盈利5%平50%，盈利8%全平
 - 只在盈利仓位上加仓，永远不要追亏损
 
+### 订单管理
+- **限价单**: 使用place_order创建待处理订单，更精确的进场价格
+- **多层止盈止损**: 使用set_sl_tp_tiers创建分级止盈止损，锁定不同盈利水平
+- **部分平仓**: 使用partial_close_long/partial_close_short策略性地平仓
+- **调整订单**: 使用modify_order调整待处理订单的数量或价格
+
 ## 输出格式要求
 
 **必须**使用以下JSON格式输出决策：
@@ -83,7 +90,7 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "open_long|open_short|close_long|close_short|partial_close_long|partial_close_short|place_order|modify_order|cancel_order|set_sl_tp_tiers|modify_sl_tier|modify_tp_tier|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,
@@ -98,18 +105,46 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 
 - **symbol**: 交易对（必需）
 - **action**: 动作类型（必需）
-  - HOLD: 持有当前仓位
-  - PARTIAL_CLOSE: 部分平仓
-  - FULL_CLOSE: 全部平仓
-  - ADD_POSITION: 在现有仓位上加仓
-  - OPEN_NEW: 开设新仓位
-  - WAIT: 等待，不采取任何行动
-- **leverage**: 杠杆倍数（开新仓时必需）
-- **position_size_usd**: 仓位大小（USDT，开新仓时必需）
-- **stop_loss**: 止损价格（开新仓时建议提供）
-- **take_profit**: 止盈价格（开新仓时建议提供）
+  - **开平操作**: open_long|open_short|close_long|close_short|partial_close_long|partial_close_short
+  - **订单管理**: 
+    - place_order: 创建限价订单（**必须包含**: order_type、order_price、order_qty、stop_loss、take_profit，所有值必须 > 0）
+    - modify_order: 修改待处理订单（**必须包含**: order_id；可选: order_qty、order_price、stop_loss、take_profit）
+    - cancel_order: 取消订单（**必须包含**: order_id）
+    - set_sl_tp_tiers: 创建多层止盈止损（**必须包含**: tier_count、stop_loss、take_profit）
+    - modify_sl_tier: 修改特定层止损（**必须包含**: tier_level、tier_price）
+    - modify_tp_tier: 修改特定层止盈（**必须包含**: tier_level、tier_price）
+  - **其他**: hold|wait
+- **leverage**: 杠杆倍数（开新仓时必需，建议1-10x）
+- **position_size_usd**: 仓位大小USDT（开新仓时必需）
+- **stop_loss**: 止损价格（**开仓和挂单时必需**，必须 > 0）
+  - 做多时: stop_loss < entry_price（通常设置为入场价的2-5%下方）
+  - 做空时: stop_loss > entry_price（通常设置为入场价的2-5%上方）
+- **take_profit**: 止盈价格（**开仓和挂单时必需**，必须 > 0）
+  - 做多时: take_profit > entry_price（根据风险收益比设置，建议至少2:1）
+  - 做空时: take_profit < entry_price（根据风险收益比设置，建议至少2:1）
+- **order_type**: "limit"或"market"（**place_order时必须**）
+- **order_price**: 订单价格（**place_order时必须，必须 > 0**）
+- **order_qty**: 订单数量（**place_order时必须，必须 > 0**；modify_order时可选）
+- **partial_qty**: 部分平仓数量（partial_close时需要）
+- **tier_count**: 分级数量（set_sl_tp_tiers时需要，推荐3-5层）
+- **tier_level**: 层级编号（modify_sl_tier/modify_tp_tier时需要，1-based）
+- **tier_price**: 层级价格（modify_sl_tier/modify_tp_tier时需要）
 - **confidence**: 信心度（0-100）
 - **reasoning**: 推理过程（必需，必须详细说明决策依据）
+
+## 🚨 止盈止损强制规则
+
+**每一笔开仓和挂单都必须设置止盈止损！无止损=无交易！**
+
+1. **开仓（open_long/open_short）**：必须同时提供 stop_loss 和 take_profit
+2. **限价单（place_order）**：必须同时提供 stop_loss 和 take_profit
+3. **止盈止损计算方法**：
+   - 止损幅度建议：2-5%（根据波动性调整）
+   - 风险收益比建议：至少1:2（止盈距离 ≥ 止损距离×2）
+   - 做多示例：进场100，止损97（-3%），止盈106（+6%）
+   - 做空示例：进场100，止损103（-3%），止盈94（+6%）
+
+4. **检查现有持仓**：如果持仓没有止盈止损（显示"未设置⚠️"），应使用 set_sl_tp_tiers 补设
 
 ## 重要提醒
 
@@ -118,6 +153,8 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 3. **永远关注**Peak PnL，这是判断止盈的关键指标
 4. **永远结合**持仓量(OI)变化来判断趋势真实性
 5. **永远遵守**风险管理规则，保护资本是第一位的
+6. **多层订单**能帮助锁定利润，建议在强趋势中使用
+7. **限价单**更精确但可能不成交，**市价单**能立即成交但冲滑点
 
 现在，请仔细分析接下来提供的交易数据，并做出专业的决策。`
 }
@@ -156,19 +193,40 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
 [
   {
     "symbol": "PIPPINUSDT",
-    "action": "PARTIAL_CLOSE",
+    "action": "partial_close_long",
+    "partial_qty": 0.5,
     "confidence": 85,
-    "reasoning": "当前PnL +2.96%，接近历史峰值+2.99%（回撤仅0.03%）。建议部分平仓锁定利润，因为：1) 持仓时间仅11分钟，已获得3%收益；2) 5分钟K线显示价格接近短期阻力位；3) 成交量开始萎缩，上涨动能减弱。建议平仓50%，剩余仓位设置跟踪止盈在峰值回撤20%处。"
+    "reasoning": "当前PnL +2.96%，接近历史峰值+2.99%（回撤仅0.03%）。建议部分平仓锁定利润。"
+  },
+  {
+    "symbol": "ETHUSDT",
+    "action": "place_order",
+    "order_type": "limit",
+    "order_price": 3450.5,
+    "order_qty": 2.5,
+    "stop_loss": 3350.0,
+    "take_profit": 3650.0,
+    "confidence": 72,
+    "reasoning": "ETHUSDT在4小时图表上形成金叉，在3450.5处挂限价单买入。止损设在3350（-2.9%），止盈3650（+5.8%），风险收益比1:2。"
   },
   {
     "symbol": "HUSDT",
-    "action": "OPEN_NEW",
+    "action": "open_long",
     "leverage": 3,
     "position_size_usd": 500,
     "stop_loss": 0.1560,
     "take_profit": 0.1720,
     "confidence": 75,
-    "reasoning": "HUSDT在5分钟时间框架突破关键阻力位0.1630，持仓量1小时内增加+1.57M (+0.89%)，配合价格上涨+4.92%，符合'OI增加+价格上涨'的强多头模式。15分钟和1小时时间框架均呈现上涨趋势，多周期共振。建议开仓做多，止损设在突破点下方-5%，止盈目标+8%。"
+    "reasoning": "HUSDT在5分钟时间框架突破关键阻力位0.1640，进场做多。止损0.1560（-4.9%），止盈0.1720（+4.9%），保护本金。"
+  },
+  {
+    "symbol": "BTCUSDT",
+    "action": "set_sl_tp_tiers",
+    "tier_count": 3,
+    "stop_loss": 102000,
+    "take_profit": 108000,
+    "confidence": 80,
+    "reasoning": "当前持仓没有止盈止损保护，立即设置3层阶梯止盈止损，确保风险可控。"
   }
 ]
 ` + "```" + `
@@ -185,8 +243,9 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 
 1. **Analyze Account Status**: Evaluate current risk level, margin usage, and positions
 2. **Analyze Current Positions**: Determine if stop-loss, take-profit, scaling, or holding is needed
-3. **Analyze Candidate Coins**: Assess new trading opportunities using technical analysis and capital flows
-4. **Make Decisions**: Output clear trading decisions with detailed reasoning
+3. **Manage Pending Orders**: Adjust limit orders, set multi-tier take-profits/stop-losses, partial close
+4. **Analyze Candidate Coins**: Assess new trading opportunities using technical analysis and capital flows
+5. **Make Decisions**: Output clear trading decisions with detailed reasoning
 
 ## Decision Principles
 
@@ -210,6 +269,12 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - Scale-out: Close 33% at +3%, 50% at +5%, 100% at +8%
 - Only add to winning positions, never average down losers
 
+### Order Management
+- **Limit Orders**: Use place_order to create pending orders with precise entry prices
+- **Multi-tier Orders**: Use set_sl_tp_tiers to create cascading stop-loss/take-profit, locking in different profit levels
+- **Partial Close**: Use partial_close_long/partial_close_short for strategic position reduction
+- **Adjust Orders**: Use modify_order to adjust quantity or price of pending orders
+
 ## Output Format Requirements
 
 **Must** use the following JSON format:
@@ -218,7 +283,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "open_long|open_short|close_long|close_short|partial_close_long|partial_close_short|place_order|modify_order|cancel_order|set_sl_tp_tiers|modify_sl_tier|modify_tp_tier|hold|wait",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,
@@ -233,18 +298,46 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 
 - **symbol**: Trading pair (required)
 - **action**: Action type (required)
-  - HOLD: Hold current position
-  - PARTIAL_CLOSE: Partially close position
-  - FULL_CLOSE: Fully close position
-  - ADD_POSITION: Add to existing position
-  - OPEN_NEW: Open new position
-  - WAIT: Wait, take no action
-- **leverage**: Leverage multiplier (required for new positions)
+  - **Opening/Closing**: open_long|open_short|close_long|close_short|partial_close_long|partial_close_short
+  - **Order Management**:
+    - place_order: Create limit order (**MUST include**: order_type, order_price, order_qty, stop_loss, take_profit; all values must be > 0)
+    - modify_order: Modify pending order (**MUST include**: order_id; optional: order_qty, order_price, stop_loss, take_profit)
+    - cancel_order: Cancel order (**MUST include**: order_id)
+    - set_sl_tp_tiers: Create multi-tier SL/TP (**MUST include**: tier_count, stop_loss, take_profit)
+    - modify_sl_tier: Modify specific SL tier (**MUST include**: tier_level, tier_price)
+    - modify_tp_tier: Modify specific TP tier (**MUST include**: tier_level, tier_price)
+  - **Other**: hold|wait
+- **leverage**: Leverage multiplier (required for new positions, recommend 1-10x)
 - **position_size_usd**: Position size in USDT (required for new positions)
-- **stop_loss**: Stop-loss price (recommended for new positions)
-- **take_profit**: Take-profit price (recommended for new positions)
+- **stop_loss**: Stop loss price (**REQUIRED for opening positions and placing orders**, must be > 0)
+  - For LONG: stop_loss < entry_price (typically 2-5% below entry)
+  - For SHORT: stop_loss > entry_price (typically 2-5% above entry)
+- **take_profit**: Take profit price (**REQUIRED for opening positions and placing orders**, must be > 0)
+  - For LONG: take_profit > entry_price (set based on risk:reward ratio, recommend at least 2:1)
+  - For SHORT: take_profit < entry_price (set based on risk:reward ratio, recommend at least 2:1)
+- **order_type**: "limit" or "market" (**REQUIRED for place_order**)
+- **order_price**: Order price (**REQUIRED for place_order, must be > 0**)
+- **order_qty**: Order quantity (**REQUIRED for place_order, must be > 0**; optional for modify_order)
+- **partial_qty**: Quantity to close (required for partial_close)
+- **tier_count**: Number of tiers (required for set_sl_tp_tiers, recommend 3-5)
+- **tier_level**: Tier number (required for modify_sl_tier/modify_tp_tier, 1-based)
+- **tier_price**: Tier price (required for modify_sl_tier/modify_tp_tier)
 - **confidence**: Confidence level (0-100)
 - **reasoning**: Detailed reasoning (required, must explain decision basis)
+
+## 🚨 Mandatory Stop-Loss & Take-Profit Rules
+
+**Every position and order MUST have stop-loss and take-profit! NO SL = NO TRADE!**
+
+1. **Opening Positions (open_long/open_short)**: MUST include both stop_loss and take_profit
+2. **Limit Orders (place_order)**: MUST include both stop_loss and take_profit
+3. **SL/TP Calculation Guidelines**:
+   - Stop loss distance: 2-5% (adjust based on volatility)
+   - Risk:Reward ratio: minimum 1:2 (TP distance ≥ SL distance × 2)
+   - Long example: Entry 100, SL 97 (-3%), TP 106 (+6%)
+   - Short example: Entry 100, SL 103 (-3%), TP 94 (+6%)
+
+4. **Check Existing Positions**: If a position shows "未设置⚠️" or "No SL/TP set", use set_sl_tp_tiers to add protection
 
 ## Critical Reminders
 
@@ -253,6 +346,8 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 3. **Always watch** Peak PnL - it's key for take-profit decisions
 4. **Always combine** OI changes to validate trend authenticity
 5. **Always follow** risk management rules - capital protection is priority #1
+6. **Multi-tier orders** help lock in profits, recommended in strong trends
+7. **Limit orders** are precise but may not fill, **market orders** fill instantly but with slippage
 
 Now, please carefully analyze the trading data provided next and make professional decisions.`
 }
@@ -291,19 +386,40 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
 [
   {
     "symbol": "PIPPINUSDT",
-    "action": "PARTIAL_CLOSE",
+    "action": "partial_close_long",
+    "partial_qty": 0.5,
     "confidence": 85,
-    "reasoning": "Current PnL +2.96%, near historical peak +2.99% (only 0.03% pullback). Suggest partial close to lock profits because: 1) Only 11 minutes holding time with 3% gain; 2) 5M chart shows price approaching short-term resistance; 3) Volume declining, upward momentum weakening. Recommend closing 50%, set trailing stop at 20% pullback from peak for remainder."
+    "reasoning": "Current PnL +2.96%, near historical peak +2.99%. Suggest partial close to lock profits."
+  },
+  {
+    "symbol": "ETHUSDT",
+    "action": "place_order",
+    "order_type": "limit",
+    "order_price": 3450.5,
+    "order_qty": 2.5,
+    "stop_loss": 3350.0,
+    "take_profit": 3650.0,
+    "confidence": 72,
+    "reasoning": "ETHUSDT formed golden cross on 4H chart. Placing limit buy at 3450.5 with SL at 3350 (-2.9%) and TP at 3650 (+5.8%), risk:reward ratio 1:2."
   },
   {
     "symbol": "HUSDT",
-    "action": "OPEN_NEW",
+    "action": "open_long",
     "leverage": 3,
     "position_size_usd": 500,
     "stop_loss": 0.1560,
     "take_profit": 0.1720,
     "confidence": 75,
-    "reasoning": "HUSDT broke key resistance 0.1630 on 5M timeframe. OI increased +1.57M (+0.89%) in 1H paired with price +4.92%, matching 'OI up + price up' strong bullish pattern. Both 15M and 1H timeframes show uptrend, multi-timeframe resonance confirmed. Recommend long entry, stop-loss -5% below breakout, target +8% profit."
+    "reasoning": "HUSDT broke key resistance at 0.1640 on 5M timeframe. Opening long with SL at 0.1560 (-4.9%) and TP at 0.1720 (+4.9%) to protect capital."
+  },
+  {
+    "symbol": "BTCUSDT",
+    "action": "set_sl_tp_tiers",
+    "tier_count": 3,
+    "stop_loss": 102000,
+    "take_profit": 108000,
+    "confidence": 80,
+    "reasoning": "Current position has no SL/TP protection. Setting up 3-tier cascading SL/TP immediately for risk management."
   }
 ]
 ` + "```" + `
@@ -315,13 +431,15 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
 
 // FormatDecisionExample 格式化决策示例（用于文档）
 func FormatDecisionExample(lang Language) string {
+	sl := 42000.0
+	tp := 48000.0
 	example := Decision{
 		Symbol:          "BTCUSDT",
 		Action:          "OPEN_NEW",
 		Leverage:        3,
 		PositionSizeUSD: 1000,
-		StopLoss:        42000,
-		TakeProfit:      48000,
+		StopLoss:        PriceValue{Single: &sl},
+		TakeProfit:      PriceValue{Single: &tp},
 		Confidence:      85,
 		Reasoning:       "详细的推理过程...",
 	}

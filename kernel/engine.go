@@ -383,12 +383,12 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	}
 
 	// 2. Fetch data for all candidate coins
-	positionSymbols := make(map[string]bool)
-	for _, pos := range ctx.Positions {
-		positionSymbols[pos.Symbol] = true
-	}
-
-	const minOIThresholdMillions = 15.0 // 15M USD minimum open interest value
+	// OI threshold filter disabled below - all coins are included regardless of OI value. To re-enable, uncomment the block.
+	// positionSymbols := make(map[string]bool)
+	// for _, pos := range ctx.Positions {
+	// 	positionSymbols[pos.Symbol] = true
+	// }
+	// const minOIThresholdMillions = 15.0 // 15M USD minimum open interest value
 
 	for _, coin := range ctx.CandidateCoins {
 		if _, exists := ctx.MarketDataMap[coin.Symbol]; exists {
@@ -401,20 +401,18 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 
-	// Liquidity filter (skip for xyz dex assets - they don't have OI data from Binance)
-	// OI threshold filter disabled - all coins are included regardless of OI value
-	isExistingPosition := positionSymbols[coin.Symbol]
-	isXyzAsset := market.IsXyzDexAsset(coin.Symbol)
-	// OI threshold check disabled - commented out to allow all coins
-	// if !isExistingPosition && !isXyzAsset && data.OpenInterest != nil && data.CurrentPrice > 0 {
-	// 	oiValue := data.OpenInterest.Latest * data.CurrentPrice
-	// 	oiValueInMillions := oiValue / 1_000_000
-	// 	if oiValueInMillions < minOIThresholdMillions {
-	// 		logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
-	// 			coin.Symbol, oiValueInMillions, minOIThresholdMillions)
-	// 		continue
-	// 	}
-	// }
+		// Liquidity filter (skip for xyz dex assets - they don't have OI data from Binance)
+		// isExistingPosition := positionSymbols[coin.Symbol]
+		// isXyzAsset := market.IsXyzDexAsset(coin.Symbol)
+		// if !isExistingPosition && !isXyzAsset && data.OpenInterest != nil && data.CurrentPrice > 0 {
+		// 	oiValue := data.OpenInterest.Latest * data.CurrentPrice
+		// 	oiValueInMillions := oiValue / 1_000_000
+		// 	if oiValueInMillions < minOIThresholdMillions {
+		// 		logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
+		// 			coin.Symbol, oiValueInMillions, minOIThresholdMillions)
+		// 		continue
+		// 	}
+		// }
 
 		ctx.MarketDataMap[coin.Symbol] = data
 	}

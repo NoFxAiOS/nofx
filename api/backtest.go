@@ -120,7 +120,7 @@ func (s *Server) handleBacktestStart(c *gin.Context) {
 
 	runner, err := s.backtestManager.Start(context.Background(), cfg)
 	if err != nil {
-		SafeError(c, http.StatusBadRequest, "Failed to start backtest", err)
+		SafeError(c, http.StatusBadRequest, SanitizeError(err, "Failed to start backtest"), err)
 		return
 	}
 

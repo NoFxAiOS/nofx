@@ -101,12 +101,12 @@ func TestSanitizeExchangeConfigForLog(t *testing.T) {
 		LighterPrivateKey     string `json:"lighter_private_key"`
 	}{
 		"binance": {
-			Enabled:   true,
-			APIKey:    "binance_api_key_1234567890abcdef",
-			SecretKey: "binance_secret_key_1234567890abcdef",
-			Testnet:   false,
-			LighterWalletAddr:   "",
-			LighterPrivateKey:   "",
+			Enabled:           true,
+			APIKey:            "binance_api_key_1234567890abcdef",
+			SecretKey:         "binance_secret_key_1234567890abcdef",
+			Testnet:           false,
+			LighterWalletAddr: "",
+			LighterPrivateKey: "",
 		},
 		"hyperliquid": {
 			Enabled:               true,

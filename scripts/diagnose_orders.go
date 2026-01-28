@@ -63,13 +63,13 @@ func main() {
 
 	// 统计数据
 	var (
-		totalOrders       = len(orders)
-		filledOrders      = 0
-		withFilledAt      = 0
-		withAvgFillPrice  = 0
-		withOrderAction   = 0
-		missingFilledAt   = 0
-		missingAvgPrice   = 0
+		totalOrders        = len(orders)
+		filledOrders       = 0
+		withFilledAt       = 0
+		withAvgFillPrice   = 0
+		withOrderAction    = 0
+		missingFilledAt    = 0
+		missingAvgPrice    = 0
 		missingOrderAction = 0
 	)
 

@@ -8,10 +8,10 @@ export default {
     extend: {
       colors: {
         'nofx-gold': {
-          DEFAULT: '#F0B90B',
+          DEFAULT: '#9100e6',
           dim: 'rgba(240, 185, 11, 0.1)',
-          glow: 'rgba(240, 185, 11, 0.5)',
-          highlight: '#FFD700',
+          glow: 'rgba(131, 22, 76, 0.5)',
+          highlight: '#7f089c',
         },
         'nofx-bg': {
           DEFAULT: '#05070A', // Deep Void

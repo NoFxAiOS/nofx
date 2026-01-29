@@ -1,4 +1,4 @@
-import { Github, Send, ExternalLink } from 'lucide-react'
+import { Github, Send } from 'lucide-react';
 import { t, Language } from '../../i18n/translations'
 import { OFFICIAL_LINKS } from '../../constants/branding'
 
@@ -99,28 +99,6 @@ export default function FooterSection({ language }: FooterSectionProps) {
             </ul>
           </div>
 
-          {/* Resources */}
-          <div>
-            <h4 className="text-sm font-semibold mb-4" style={{ color: '#EAECEF' }}>
-              {t('resources', language)}
-            </h4>
-            <ul className="space-y-3">
-              {links.resources.map((link) => (
-                <li key={link.name}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm transition-colors hover:text-[#F0B90B] inline-flex items-center gap-1"
-                    style={{ color: '#5E6673' }}
-                  >
-                    {link.name}
-                    <ExternalLink className="w-3 h-3 opacity-50" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
 
           {/* Supporters */}
           <div>

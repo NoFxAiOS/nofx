@@ -1,6 +1,6 @@
 module nofx
 
-go 1.25.3
+go 1.25
 
 require (
 	github.com/adshao/go-binance/v2 v2.8.9

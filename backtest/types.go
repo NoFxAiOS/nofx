@@ -150,19 +150,19 @@ type RunSummary struct {
 
 // StatusPayload is used for /status API responses.
 type StatusPayload struct {
-	RunID          string            `json:"run_id"`
-	State          RunState          `json:"state"`
-	ProgressPct    float64           `json:"progress_pct"`
-	ProcessedBars  int               `json:"processed_bars"`
-	CurrentTime    int64             `json:"current_time"`
-	DecisionCycle  int               `json:"decision_cycle"`
-	Equity         float64           `json:"equity"`
-	UnrealizedPnL  float64           `json:"unrealized_pnl"`
-	RealizedPnL    float64           `json:"realized_pnl"`
-	Positions      []PositionStatus  `json:"positions,omitempty"`
-	Note           string            `json:"note,omitempty"`
-	LastError      string            `json:"last_error,omitempty"`
-	LastUpdatedIso string            `json:"last_updated_iso"`
+	RunID          string           `json:"run_id"`
+	State          RunState         `json:"state"`
+	ProgressPct    float64          `json:"progress_pct"`
+	ProcessedBars  int              `json:"processed_bars"`
+	CurrentTime    int64            `json:"current_time"`
+	DecisionCycle  int              `json:"decision_cycle"`
+	Equity         float64          `json:"equity"`
+	UnrealizedPnL  float64          `json:"unrealized_pnl"`
+	RealizedPnL    float64          `json:"realized_pnl"`
+	Positions      []PositionStatus `json:"positions,omitempty"`
+	Note           string           `json:"note,omitempty"`
+	LastError      string           `json:"last_error,omitempty"`
+	LastUpdatedIso string           `json:"last_updated_iso"`
 }
 
 // PositionStatus represents a position with unrealized P&L for status display.

@@ -18,17 +18,17 @@ import (
 
 // Bitget API endpoints (V2)
 const (
-	bitgetBaseURL         = "https://api.bitget.com"
-	bitgetAccountPath     = "/api/v2/mix/account/accounts"
-	bitgetPositionPath    = "/api/v2/mix/position/all-position"
-	bitgetOrderPath       = "/api/v2/mix/order/place-order"
-	bitgetLeveragePath    = "/api/v2/mix/account/set-leverage"
-	bitgetTickerPath      = "/api/v2/mix/market/ticker"
-	bitgetContractsPath   = "/api/v2/mix/market/contracts"
-	bitgetCancelOrderPath = "/api/v2/mix/order/cancel-order"
-	bitgetPendingPath     = "/api/v2/mix/order/orders-pending"
-	bitgetHistoryPath     = "/api/v2/mix/order/orders-history"
-	bitgetMarginModePath  = "/api/v2/mix/account/set-margin-mode"
+	bitgetBaseURL          = "https://api.bitget.com"
+	bitgetAccountPath      = "/api/v2/mix/account/accounts"
+	bitgetPositionPath     = "/api/v2/mix/position/all-position"
+	bitgetOrderPath        = "/api/v2/mix/order/place-order"
+	bitgetLeveragePath     = "/api/v2/mix/account/set-leverage"
+	bitgetTickerPath       = "/api/v2/mix/market/ticker"
+	bitgetContractsPath    = "/api/v2/mix/market/contracts"
+	bitgetCancelOrderPath  = "/api/v2/mix/order/cancel-order"
+	bitgetPendingPath      = "/api/v2/mix/order/orders-pending"
+	bitgetHistoryPath      = "/api/v2/mix/order/orders-history"
+	bitgetMarginModePath   = "/api/v2/mix/account/set-margin-mode"
 	bitgetPositionModePath = "/api/v2/mix/account/set-position-mode"
 )
 
@@ -62,22 +62,22 @@ type BitgetTrader struct {
 
 // BitgetContract Bitget contract info
 type BitgetContract struct {
-	Symbol       string  // Symbol name
-	BaseCoin     string  // Base coin
-	QuoteCoin    string  // Quote coin
-	MinTradeNum  float64 // Minimum trade amount
-	MaxTradeNum  float64 // Maximum trade amount
+	Symbol         string  // Symbol name
+	BaseCoin       string  // Base coin
+	QuoteCoin      string  // Quote coin
+	MinTradeNum    float64 // Minimum trade amount
+	MaxTradeNum    float64 // Maximum trade amount
 	SizeMultiplier float64 // Contract size multiplier
-	PricePlace   int     // Price decimal places
-	VolumePlace  int     // Volume decimal places
+	PricePlace     int     // Price decimal places
+	VolumePlace    int     // Volume decimal places
 }
 
 // BitgetResponse Bitget API response
 type BitgetResponse struct {
-	Code    string          `json:"code"`
-	Msg     string          `json:"msg"`
-	Data    json.RawMessage `json:"data"`
-	RequestTime int64       `json:"requestTime"`
+	Code        string          `json:"code"`
+	Msg         string          `json:"msg"`
+	Data        json.RawMessage `json:"data"`
+	RequestTime int64           `json:"requestTime"`
 }
 
 // NewBitgetTrader creates a Bitget trader
@@ -237,11 +237,11 @@ func (t *BitgetTrader) GetBalance() (map[string]interface{}, error) {
 	}
 
 	var accounts []struct {
-		MarginCoin      string `json:"marginCoin"`
-		Available       string `json:"available"`       // Available balance
-		AccountEquity   string `json:"accountEquity"`   // Total equity
-		UsdtEquity      string `json:"usdtEquity"`      // USDT equity
-		UnrealizedPL    string `json:"unrealizedPL"`    // Unrealized P&L
+		MarginCoin    string `json:"marginCoin"`
+		Available     string `json:"available"`     // Available balance
+		AccountEquity string `json:"accountEquity"` // Total equity
+		UsdtEquity    string `json:"usdtEquity"`    // USDT equity
+		UnrealizedPL  string `json:"unrealizedPL"`  // Unrealized P&L
 	}
 
 	if err := json.Unmarshal(data, &accounts); err != nil {
@@ -964,15 +964,15 @@ func (t *BitgetTrader) GetOrderStatus(symbol string, orderID string) (map[string
 	}
 
 	var order struct {
-		OrderId      string `json:"orderId"`
-		State        string `json:"state"`        // filled, canceled, partially_filled, new
-		PriceAvg     string `json:"priceAvg"`     // Average fill price
-		BaseVolume   string `json:"baseVolume"`   // Filled quantity
-		Fee          string `json:"fee"`          // Fee
-		Side         string `json:"side"`
-		OrderType    string `json:"orderType"`
-		CTime        string `json:"cTime"`
-		UTime        string `json:"uTime"`
+		OrderId    string `json:"orderId"`
+		State      string `json:"state"`      // filled, canceled, partially_filled, new
+		PriceAvg   string `json:"priceAvg"`   // Average fill price
+		BaseVolume string `json:"baseVolume"` // Filled quantity
+		Fee        string `json:"fee"`        // Fee
+		Side       string `json:"side"`
+		OrderType  string `json:"orderType"`
+		CTime      string `json:"cTime"`
+		UTime      string `json:"uTime"`
 	}
 
 	if err := json.Unmarshal(data, &order); err != nil {
@@ -1034,16 +1034,16 @@ func (t *BitgetTrader) GetClosedPnL(startTime time.Time, limit int) ([]ClosedPnL
 
 	var resp struct {
 		List []struct {
-			Symbol       string `json:"symbol"`
-			HoldSide     string `json:"holdSide"`
-			OpenPriceAvg string `json:"openPriceAvg"`
-			ClosePriceAvg string `json:"closePriceAvg"`
-			CloseVol     string `json:"closeVol"`
+			Symbol          string `json:"symbol"`
+			HoldSide        string `json:"holdSide"`
+			OpenPriceAvg    string `json:"openPriceAvg"`
+			ClosePriceAvg   string `json:"closePriceAvg"`
+			CloseVol        string `json:"closeVol"`
 			AchievedProfits string `json:"achievedProfits"`
-			TotalFee     string `json:"totalFee"`
-			Leverage     string `json:"leverage"`
-			CTime        string `json:"cTime"`
-			UTime        string `json:"uTime"`
+			TotalFee        string `json:"totalFee"`
+			Leverage        string `json:"leverage"`
+			CTime           string `json:"cTime"`
+			UTime           string `json:"uTime"`
 		} `json:"list"`
 	}
 

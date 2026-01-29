@@ -106,32 +106,32 @@ type RecentOrder struct {
 
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime     string                             `json:"current_time"`
-	RuntimeMinutes  int                                `json:"runtime_minutes"`
-	CallCount       int                                `json:"call_count"`
-	Account         AccountInfo                        `json:"account"`
-	Positions       []PositionInfo                     `json:"positions"`
-	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap   map[string]*market.Data            `json:"-"`
-	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
-	OITopDataMap    map[string]*OITopData              `json:"-"`
-	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData      *nofxos.OIRankingData      `json:"-"` // Market-wide OI ranking data
-	NetFlowRankingData *nofxos.NetFlowRankingData `json:"-"` // Market-wide fund flow ranking data
-	PriceRankingData   *nofxos.PriceRankingData   `json:"-"` // Market-wide price gainers/losers
-	BTCETHLeverage     int                          `json:"-"`
-	AltcoinLeverage int                                `json:"-"`
-	Timeframes      []string                           `json:"-"`
+	CurrentTime        string                             `json:"current_time"`
+	RuntimeMinutes     int                                `json:"runtime_minutes"`
+	CallCount          int                                `json:"call_count"`
+	Account            AccountInfo                        `json:"account"`
+	Positions          []PositionInfo                     `json:"positions"`
+	CandidateCoins     []CandidateCoin                    `json:"candidate_coins"`
+	PromptVariant      string                             `json:"prompt_variant,omitempty"`
+	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
+	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
+	MarketDataMap      map[string]*market.Data            `json:"-"`
+	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
+	OITopDataMap       map[string]*OITopData              `json:"-"`
+	QuantDataMap       map[string]*QuantData              `json:"-"`
+	OIRankingData      *nofxos.OIRankingData              `json:"-"` // Market-wide OI ranking data
+	NetFlowRankingData *nofxos.NetFlowRankingData         `json:"-"` // Market-wide fund flow ranking data
+	PriceRankingData   *nofxos.PriceRankingData           `json:"-"` // Market-wide price gainers/losers
+	BTCETHLeverage     int                                `json:"-"`
+	AltcoinLeverage    int                                `json:"-"`
+	Timeframes         []string                           `json:"-"`
 }
 
 // Decision AI trading decision
 type Decision struct {
-	Symbol string `json:"symbol"`
-	Action string `json:"action"` // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
-
+	Symbol string  `json:"symbol"`
+	Action string  `json:"action"` // "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+	Price  float64 `json:"price,omitempty"`
 	// Opening position parameters
 	Leverage        int     `json:"leverage,omitempty"`
 	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
@@ -1635,6 +1635,7 @@ func extractDecisions(response string) ([]Decision, error) {
 	if match := reDecisionTag.FindStringSubmatch(s); match != nil && len(match) > 1 {
 		jsonPart = strings.TrimSpace(match[1])
 		logger.Infof("✓ Extracted JSON using <decision> tag")
+		logger.Infof("RAW JSON >>> %s <<<", jsonPart)
 	} else {
 		jsonPart = s
 		logger.Infof("⚠️  <decision> tag not found, searching JSON in full text")

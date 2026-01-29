@@ -48,6 +48,7 @@ type Config struct {
 
 // Init initializes global configuration (from .env)
 func Init() {
+	os.Setenv("LOG_LEVEL", "debug")
 	cfg := &Config{
 		APIServerPort:         8080,
 		RegistrationEnabled:   true,

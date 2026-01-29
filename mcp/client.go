@@ -55,7 +55,7 @@ type Client struct {
 	MaxTokens  int  // Maximum tokens for AI response
 
 	httpClient *http.Client
-	logger     Logger // Logger (replaceable)
+	logger     Logger  // Logger (replaceable)
 	config     *Config // Config object (stores all configurations)
 
 	// hooks are used to implement dynamic dispatch (polymorphism)

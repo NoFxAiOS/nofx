@@ -100,7 +100,6 @@ func TestLeverageFallback(t *testing.T) {
 	}
 }
 
-
 // contains checks if string contains substring (helper function)
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||

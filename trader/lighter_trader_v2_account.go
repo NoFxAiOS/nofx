@@ -66,8 +66,8 @@ func (t *LighterTraderV2) GetBalance() (map[string]interface{}, error) {
 	// Return in standard format compatible with auto_trader.go
 	// (totalEquity = totalWalletBalance + totalUnrealizedProfit)
 	return map[string]interface{}{
-		"totalWalletBalance":    walletBalance,           // Wallet balance (excluding unrealized PnL)
-		"totalUnrealizedProfit": balance.UnrealizedPnL,   // Unrealized PnL
+		"totalWalletBalance":    walletBalance,            // Wallet balance (excluding unrealized PnL)
+		"totalUnrealizedProfit": balance.UnrealizedPnL,    // Unrealized PnL
 		"availableBalance":      balance.AvailableBalance, // Available balance
 		// Keep additional fields for reference
 		"total_equity":       balance.TotalEquity,
@@ -177,7 +177,7 @@ func (t *LighterTraderV2) GetPositionsRaw(symbol string) ([]Position, error) {
 		}
 
 		// Parse fields from Lighter API response
-		size, _ := strconv.ParseFloat(lPos.Position, 64)        // API returns "position" not "size"
+		size, _ := strconv.ParseFloat(lPos.Position, 64)            // API returns "position" not "size"
 		entryPrice, _ := strconv.ParseFloat(lPos.AvgEntryPrice, 64) // API returns "avg_entry_price"
 		positionValue, _ := strconv.ParseFloat(lPos.PositionValue, 64)
 		liqPrice, _ := strconv.ParseFloat(lPos.LiquidationPrice, 64)

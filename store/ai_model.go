@@ -18,16 +18,16 @@ type AIModelStore struct {
 
 // AIModel AI model configuration
 type AIModel struct {
-	ID              string          `gorm:"primaryKey" json:"id"`
-	UserID          string          `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
-	Name            string          `gorm:"not null" json:"name"`
-	Provider        string          `gorm:"not null" json:"provider"`
-	Enabled         bool            `gorm:"default:false" json:"enabled"`
+	ID              string                 `gorm:"primaryKey" json:"id"`
+	UserID          string                 `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
+	Name            string                 `gorm:"not null" json:"name"`
+	Provider        string                 `gorm:"not null" json:"provider"`
+	Enabled         bool                   `gorm:"default:false" json:"enabled"`
 	APIKey          crypto.EncryptedString `gorm:"column:api_key;default:''" json:"apiKey"`
-	CustomAPIURL    string          `gorm:"column:custom_api_url;default:''" json:"customApiUrl"`
-	CustomModelName string          `gorm:"column:custom_model_name;default:''" json:"customModelName"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	CustomAPIURL    string                 `gorm:"column:custom_api_url;default:''" json:"customApiUrl"`
+	CustomModelName string                 `gorm:"column:custom_model_name;default:''" json:"customModelName"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
 }
 
 func (AIModel) TableName() string { return "ai_models" }

@@ -42,6 +42,10 @@ type Trader struct {
 	CustomPrompt         string `gorm:"column:custom_prompt;default:''" json:"custom_prompt,omitempty"`
 	OverrideBasePrompt   bool   `gorm:"column:override_base_prompt;default:false" json:"override_base_prompt,omitempty"`
 	SystemPromptTemplate string `gorm:"column:system_prompt_template;default:default" json:"system_prompt_template,omitempty"`
+	// Exit percentages stored per-trader (overrides strategy defaults if > 0)
+	StopLossPct    float64 `gorm:"column:stop_loss_pct;default:0" json:"stop_loss_pct,omitempty"`
+	TakeProfit1Pct float64 `gorm:"column:take_profit_1_pct;default:0" json:"take_profit_1_pct,omitempty"`
+	TakeProfit2Pct float64 `gorm:"column:take_profit_2_pct;default:0" json:"take_profit_2_pct,omitempty"`
 }
 
 // TableName returns the table name for Trader
@@ -110,11 +114,11 @@ func (s *TraderStore) Update(trader *Trader) error {
 		trader.ID, trader.Name, trader.AIModelID, trader.StrategyID)
 
 	updates := map[string]interface{}{
-		"name":           trader.Name,
-		"ai_model_id":    trader.AIModelID,
-		"exchange_id":    trader.ExchangeID,
-		"strategy_id":    trader.StrategyID,
-		"is_cross_margin": trader.IsCrossMargin,
+		"name":                trader.Name,
+		"ai_model_id":         trader.AIModelID,
+		"exchange_id":         trader.ExchangeID,
+		"strategy_id":         trader.StrategyID,
+		"is_cross_margin":     trader.IsCrossMargin,
 		"show_in_competition": trader.ShowInCompetition,
 	}
 
@@ -127,6 +131,17 @@ func (s *TraderStore) Update(trader *Trader) error {
 		fmt.Printf("📊 TraderStore.Update: scan_interval_minutes=%d will be saved\n", trader.ScanIntervalMinutes)
 	} else {
 		fmt.Printf("⚠️ TraderStore.Update: scan_interval_minutes=%d (<=0, NOT updating)\n", trader.ScanIntervalMinutes)
+	}
+
+	// Save per-trader exit percentages if provided (>0)
+	if trader.StopLossPct > 0 {
+		updates["stop_loss_pct"] = trader.StopLossPct
+	}
+	if trader.TakeProfit1Pct > 0 {
+		updates["take_profit_1_pct"] = trader.TakeProfit1Pct
+	}
+	if trader.TakeProfit2Pct > 0 {
+		updates["take_profit_2_pct"] = trader.TakeProfit2Pct
 	}
 
 	return s.db.Model(&Trader{}).

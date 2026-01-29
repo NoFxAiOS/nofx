@@ -28,7 +28,7 @@ func main() {
 	logger.Init(nil)
 
 	logger.Info("╔════════════════════════════════════════════════════════════╗")
-	logger.Info("║           🚀 NOFX - AI-Powered Trading System              ║")
+	logger.Info("║           🚀 MASTER - MY PRIVATE Trading System              ║")
 	logger.Info("╚════════════════════════════════════════════════════════════╝")
 
 	// Initialize global configuration (loaded from .env)

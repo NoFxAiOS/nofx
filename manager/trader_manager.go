@@ -407,7 +407,6 @@ func (tm *TraderManager) GetTopTradersData() (map[string]interface{}, error) {
 	return result, nil
 }
 
-
 // RemoveTrader removes a trader from memory (does not affect database)
 // Used to force reload when updating trader configuration
 // If the trader is running, it will be stopped first
@@ -664,11 +663,35 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 		QwenKey:               "",
 		CustomAPIURL:          aiModelCfg.CustomAPIURL,
 		CustomModelName:       aiModelCfg.CustomModelName,
-		ScanInterval:         time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
-		InitialBalance:       traderCfg.InitialBalance,
-		IsCrossMargin:        traderCfg.IsCrossMargin,
-		ShowInCompetition:    traderCfg.ShowInCompetition,
-		StrategyConfig:       strategyConfig,
+		ScanInterval:          time.Duration(traderCfg.ScanIntervalMinutes) * time.Minute,
+		InitialBalance:        traderCfg.InitialBalance,
+		IsCrossMargin:         traderCfg.IsCrossMargin,
+		ShowInCompetition:     traderCfg.ShowInCompetition,
+		StrategyConfig:        strategyConfig,
+	}
+
+	// Apply exit configuration from strategy if provided
+	if strategyConfig != nil {
+		if strategyConfig.Exit.StopLossPct > 0 {
+			traderConfig.StopLossPct = strategyConfig.Exit.StopLossPct
+		}
+		if strategyConfig.Exit.TakeProfit1Pct > 0 {
+			traderConfig.TakeProfit1Pct = strategyConfig.Exit.TakeProfit1Pct
+		}
+		if strategyConfig.Exit.TakeProfit2Pct > 0 {
+			traderConfig.TakeProfit2Pct = strategyConfig.Exit.TakeProfit2Pct
+		}
+	}
+
+	// Trader-level override: if trader config has explicit values, prefer them
+	if traderCfg.StopLossPct > 0 {
+		traderConfig.StopLossPct = traderCfg.StopLossPct
+	}
+	if traderCfg.TakeProfit1Pct > 0 {
+		traderConfig.TakeProfit1Pct = traderCfg.TakeProfit1Pct
+	}
+	if traderCfg.TakeProfit2Pct > 0 {
+		traderConfig.TakeProfit2Pct = traderCfg.TakeProfit2Pct
 	}
 
 	logger.Infof("📊 Loading trader %s: ScanIntervalMinutes=%d (from DB), ScanInterval=%v",

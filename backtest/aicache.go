@@ -14,9 +14,9 @@ import (
 )
 
 type cachedDecision struct {
-	Key           string                 `json:"key"`
-	PromptVariant string                 `json:"prompt_variant"`
-	Timestamp     int64                  `json:"ts"`
+	Key           string               `json:"key"`
+	PromptVariant string               `json:"prompt_variant"`
+	Timestamp     int64                `json:"ts"`
 	Decision      *kernel.FullDecision `json:"decision"`
 }
 
@@ -129,16 +129,16 @@ func computeCacheKey(ctx *kernel.Context, variant string, ts int64) (string, err
 		return "", fmt.Errorf("context is nil")
 	}
 	payload := struct {
-		Variant        string                   `json:"variant"`
-		Timestamp      int64                    `json:"ts"`
-		CurrentTime    string                   `json:"current_time"`
+		Variant        string                 `json:"variant"`
+		Timestamp      int64                  `json:"ts"`
+		CurrentTime    string                 `json:"current_time"`
 		Account        kernel.AccountInfo     `json:"account"`
 		Positions      []kernel.PositionInfo  `json:"positions"`
 		CandidateCoins []kernel.CandidateCoin `json:"candidate_coins"`
-		MarketData     map[string]market.Data   `json:"market"`
-		MarginUsedPct  float64                  `json:"margin_used_pct"`
-		Runtime        int                      `json:"runtime_minutes"`
-		CallCount      int                      `json:"call_count"`
+		MarketData     map[string]market.Data `json:"market"`
+		MarginUsedPct  float64                `json:"margin_used_pct"`
+		Runtime        int                    `json:"runtime_minutes"`
+		CallCount      int                    `json:"call_count"`
 	}{
 		Variant:        variant,
 		Timestamp:      ts,

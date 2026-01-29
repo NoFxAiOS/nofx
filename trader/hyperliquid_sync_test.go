@@ -328,13 +328,13 @@ func TestHyperliquidBugScenario(t *testing.T) {
 	// Account has 30 USDT, should not be able to hold 1.7 ETH
 
 	trades := []struct {
-		action   string
-		side     string
-		symbol   string
-		qty      float64
-		price    float64
-		fee      float64
-		pnl      float64
+		action string
+		side   string
+		symbol string
+		qty    float64
+		price  float64
+		fee    float64
+		pnl    float64
 	}{
 		// Order 853: Open Short
 		{"open_short", "SHORT", "ETHUSDT", 0.0472, 3500, 0.2, 0},

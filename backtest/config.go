@@ -241,12 +241,12 @@ func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
 
 	return &store.StrategyConfig{
 		CoinSource: store.CoinSourceConfig{
-			SourceType: "static",
+			SourceType:  "static",
 			StaticCoins: cfg.Symbols,
-			UseAI500:   false,
-			AI500Limit: len(cfg.Symbols),
-			UseOITop:   false,
-			OITopLimit: 0,
+			UseAI500:    false,
+			AI500Limit:  len(cfg.Symbols),
+			UseOITop:    false,
+			OITopLimit:  0,
 		},
 		Indicators: store.IndicatorConfig{
 			Klines: store.KlineConfig{

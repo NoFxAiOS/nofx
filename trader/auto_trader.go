@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"nofx/kernel"
 	"nofx/experience"
+	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
@@ -35,13 +35,13 @@ type AutoTraderConfig struct {
 	BybitSecretKey string
 
 	// OKX API configuration
-	OKXAPIKey    string
-	OKXSecretKey string
+	OKXAPIKey     string
+	OKXSecretKey  string
 	OKXPassphrase string
 
 	// Bitget API configuration
-	BitgetAPIKey    string
-	BitgetSecretKey string
+	BitgetAPIKey     string
+	BitgetSecretKey  string
 	BitgetPassphrase string
 
 	// Hyperliquid configuration
@@ -90,6 +90,11 @@ type AutoTraderConfig struct {
 
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
+
+	// Position exit configuration (percentages, e.g., 2.0 = 2%)
+	StopLossPct    float64 // 固定止损百分比（默认 2.0）
+	TakeProfit1Pct float64 // 第一阶段止盈百分比（默认 2.0）
+	TakeProfit2Pct float64 // 第二阶段止盈百分比（默认 6.0）
 }
 
 // AutoTrader automatic trader
@@ -103,9 +108,9 @@ type AutoTrader struct {
 	config                AutoTraderConfig
 	trader                Trader // Use Trader interface (supports multiple platforms)
 	mcpClient             mcp.AIClient
-	store                 *store.Store             // Data storage (decision records, etc.)
+	store                 *store.Store           // Data storage (decision records, etc.)
 	strategyEngine        *kernel.StrategyEngine // Strategy engine (uses strategy configuration)
-	cycleNumber           int                      // Current cycle number
+	cycleNumber           int                    // Current cycle number
 	initialBalance        float64
 	dailyPnL              float64
 	customPrompt          string // Custom trading strategy prompt
@@ -207,6 +212,17 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	// Set default trading platform
 	if config.Exchange == "" {
 		config.Exchange = "binance"
+	}
+
+	// Set default exit percentages if not provided
+	if config.StopLossPct == 0 {
+		config.StopLossPct = 2.0
+	}
+	if config.TakeProfit1Pct == 0 {
+		config.TakeProfit1Pct = 2.0
+	}
+	if config.TakeProfit2Pct == 0 {
+		config.TakeProfit2Pct = 6.0
 	}
 
 	// Create corresponding trader based on configuration
@@ -1104,12 +1120,52 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
+	// 设置止损/止盈策略：使用配置百分比，优先使用实际成交价作为基准，回退到 marketData.CurrentPrice
+	entryPrice := marketData.CurrentPrice
+	// 尝试从订单回执中读取实际成交均价
+	if avg, ok := order["avgPrice"].(float64); ok && avg > 0 {
+		entryPrice = avg
+	} else if avg, ok := order["avg_price"].(float64); ok && avg > 0 {
+		entryPrice = avg
+	} else if orderID, ok := order["orderId"]; ok {
+		// 尝试通过 GetOrderStatus 查询成交均价
+		orderIDStr := fmt.Sprintf("%v", orderID)
+		if status, err := at.trader.GetOrderStatus(decision.Symbol, orderIDStr); err == nil {
+			if avg2, ok2 := status["avgPrice"].(float64); ok2 && avg2 > 0 {
+				entryPrice = avg2
+			} else if avg2, ok2 := status["avg_price"].(float64); ok2 && avg2 > 0 {
+				entryPrice = avg2
+			}
+		}
+	}
+
+	slPct := at.config.StopLossPct / 100.0
+	tp1Pct := at.config.TakeProfit1Pct / 100.0
+	tp2Pct := at.config.TakeProfit2Pct / 100.0
+
+	slPrice := entryPrice * (1.0 - slPct)
+	tp1 := entryPrice * (1.0 + tp1Pct)
+	tp2 := entryPrice * (1.0 + tp2Pct)
+
+	halfQty := quantity / 2.0
+
+	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, slPrice); err != nil {
 		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+
+	// 第一次止盈：平一半仓位
+	if halfQty > 0 {
+		if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", halfQty, tp1); err != nil {
+			logger.Infof("  ⚠ Failed to set first take profit: %v", err)
+		}
+	}
+
+	// 第二次止盈：平剩余仓位
+	remQty := quantity - halfQty
+	if remQty > 0 {
+		if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", remQty, tp2); err != nil {
+			logger.Infof("  ⚠ Failed to set second take profit: %v", err)
+		}
 	}
 
 	return nil
@@ -1221,12 +1277,50 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
+	// 设置止损/止盈策略：使用配置百分比，优先使用实际成交价作为基准，回退到 marketData.CurrentPrice
+	entryPrice := marketData.CurrentPrice
+	if avg, ok := order["avgPrice"].(float64); ok && avg > 0 {
+		entryPrice = avg
+	} else if avg, ok := order["avg_price"].(float64); ok && avg > 0 {
+		entryPrice = avg
+	} else if orderID, ok := order["orderId"]; ok {
+		orderIDStr := fmt.Sprintf("%v", orderID)
+		if status, err := at.trader.GetOrderStatus(decision.Symbol, orderIDStr); err == nil {
+			if avg2, ok2 := status["avgPrice"].(float64); ok2 && avg2 > 0 {
+				entryPrice = avg2
+			} else if avg2, ok2 := status["avg_price"].(float64); ok2 && avg2 > 0 {
+				entryPrice = avg2
+			}
+		}
+	}
+
+	slPct := at.config.StopLossPct / 100.0
+	tp1Pct := at.config.TakeProfit1Pct / 100.0
+	tp2Pct := at.config.TakeProfit2Pct / 100.0
+
+	slPrice := entryPrice * (1.0 + slPct) // short stop loss is above entry
+	tp1 := entryPrice * (1.0 - tp1Pct)
+	tp2 := entryPrice * (1.0 - tp2Pct)
+
+	halfQty := quantity / 2.0
+
+	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, slPrice); err != nil {
 		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
 	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+
+	// 第一次止盈：平一半仓位
+	if halfQty > 0 {
+		if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", halfQty, tp1); err != nil {
+			logger.Infof("  ⚠ Failed to set first take profit: %v", err)
+		}
+	}
+
+	// 第二次止盈：平剩余仓位
+	remQty := quantity - halfQty
+	if remQty > 0 {
+		if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", remQty, tp2); err != nil {
+			logger.Infof("  ⚠ Failed to set second take profit: %v", err)
+		}
 	}
 
 	return nil
@@ -2079,22 +2173,22 @@ func (at *AutoTrader) recordOrderFill(orderRecordID int64, exchangeOrderID, symb
 	normalizedSymbol := market.Normalize(symbol)
 
 	fill := &store.TraderFill{
-		TraderID:         at.id,
-		ExchangeID:       at.exchangeID,
-		ExchangeType:     at.exchange,
-		OrderID:          orderRecordID,
-		ExchangeOrderID:  exchangeOrderID,
-		ExchangeTradeID:  tradeID,
-		Symbol:           normalizedSymbol,
-		Side:             side,
-		Price:            price,
-		Quantity:         quantity,
-		QuoteQuantity:    price * quantity,
-		Commission:       fee,
-		CommissionAsset:  "USDT",
-		RealizedPnL:      0, // Will be calculated for close orders
-		IsMaker:          false, // Market orders are usually taker
-		CreatedAt:        time.Now().UTC().UnixMilli(),
+		TraderID:        at.id,
+		ExchangeID:      at.exchangeID,
+		ExchangeType:    at.exchange,
+		OrderID:         orderRecordID,
+		ExchangeOrderID: exchangeOrderID,
+		ExchangeTradeID: tradeID,
+		Symbol:          normalizedSymbol,
+		Side:            side,
+		Price:           price,
+		Quantity:        quantity,
+		QuoteQuantity:   price * quantity,
+		Commission:      fee,
+		CommissionAsset: "USDT",
+		RealizedPnL:     0,     // Will be calculated for close orders
+		IsMaker:         false, // Market orders are usually taker
+		CreatedAt:       time.Now().UTC().UnixMilli(),
 	}
 
 	// Calculate realized PnL for close orders
@@ -2222,4 +2316,3 @@ func getSideFromAction(action string) string {
 func (at *AutoTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	return at.trader.GetOpenOrders(symbol)
 }
-

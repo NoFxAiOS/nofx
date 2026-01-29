@@ -12,7 +12,7 @@ import (
 type PriceRankingItem struct {
 	Pair         string  `json:"pair"`
 	Symbol       string  `json:"symbol"`
-	PriceDelta   float64 `json:"price_delta"`    // Decimal format: 0.0723 = 7.23%
+	PriceDelta   float64 `json:"price_delta"` // Decimal format: 0.0723 = 7.23%
 	Price        float64 `json:"price"`
 	FutureFlow   float64 `json:"future_flow"`
 	SpotFlow     float64 `json:"spot_flow"`

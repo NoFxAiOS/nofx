@@ -233,7 +233,7 @@ func TestBinanceTimestampFormats(t *testing.T) {
 
 	// Test what happens when we parse a time stored in DB
 	// Simulate old DB value stored in local time
-	oldLocalTime := time.Date(2026, 1, 6, 18, 0, 0, 0, time.Local) // 18:00 local
+	oldLocalTime := time.Date(2026, 1, 6, 18, 0, 0, 0, time.Local)    // 18:00 local
 	oldLocalTimeAsUTC := time.Date(2026, 1, 6, 18, 0, 0, 0, time.UTC) // Same numbers but UTC
 
 	t.Logf("\n🔍 Timezone mismatch scenario:")
@@ -386,7 +386,7 @@ func TestBinanceTradeIDRange(t *testing.T) {
 			continue
 		}
 
-		var minID, maxID int64 = 1<<62, 0
+		var minID, maxID int64 = 1 << 62, 0
 		for _, trade := range trades {
 			var id int64
 			fmt.Sscanf(trade.TradeID, "%d", &id)

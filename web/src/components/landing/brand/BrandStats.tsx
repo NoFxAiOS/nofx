@@ -4,7 +4,7 @@ const stats = [
     { label: "TRADING VOL", value: "$4.2B+" },
     { label: "AI AGENTS", value: "850+" },
     { label: "STRATEGIES", value: "Infinite" },
-    { label: "UPTIME", value: "99.9%" },
+    { label: "系统持续运行", value: "99.9%" },
 ]
 
 export default function BrandStats() {

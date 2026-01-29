@@ -13,6 +13,16 @@ type StrategyStore struct {
 	db *gorm.DB
 }
 
+// ExitConfig position exit configuration (stop loss / take profit percentages)
+type ExitConfig struct {
+	// 固定止损百分比，例如 2.0 表示 2%
+	StopLossPct float64 `json:"stop_loss_pct,omitempty"`
+	// 第一阶段止盈百分比，例如 2.0 表示 2%
+	TakeProfit1Pct float64 `json:"take_profit_1_pct,omitempty"`
+	// 第二阶段止盈百分比，例如 6.0 表示 6%
+	TakeProfit2Pct float64 `json:"take_profit_2_pct,omitempty"`
+}
+
 // Strategy strategy configuration
 type Strategy struct {
 	ID            string    `gorm:"primaryKey" json:"id"`
@@ -21,8 +31,8 @@ type Strategy struct {
 	Description   string    `gorm:"default:''" json:"description"`
 	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
 	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
-	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`       // whether visible in strategy market
-	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"`    // whether config details are visible
+	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`    // whether visible in strategy market
+	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"` // whether config details are visible
 	Config        string    `gorm:"not null;default:'{}'" json:"config"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -43,6 +53,8 @@ type StrategyConfig struct {
 	CustomPrompt string `json:"custom_prompt,omitempty"`
 	// risk control configuration
 	RiskControl RiskControlConfig `json:"risk_control"`
+	// exit configuration (stop loss / take profit)
+	Exit ExitConfig `json:"exit,omitempty"`
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 }
@@ -89,7 +101,7 @@ type IndicatorConfig struct {
 	EnableMACD        bool `json:"enable_macd"`
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
-	EnableBOLL        bool `json:"enable_boll"`         // Bollinger Bands
+	EnableBOLL        bool `json:"enable_boll"` // Bollinger Bands
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
@@ -147,10 +159,10 @@ type KlineConfig struct {
 
 // ExternalDataSource external data source configuration
 type ExternalDataSource struct {
-	Name        string            `json:"name"`         // data source name
-	Type        string            `json:"type"`         // type: "api" | "webhook"
-	URL         string            `json:"url"`          // API URL
-	Method      string            `json:"method"`       // HTTP method
+	Name        string            `json:"name"`   // data source name
+	Type        string            `json:"type"`   // type: "api" | "webhook"
+	URL         string            `json:"url"`    // API URL
+	Method      string            `json:"method"` // HTTP method
 	Headers     map[string]string `json:"headers,omitempty"`
 	DataPath    string            `json:"data_path,omitempty"`    // JSON data path
 	RefreshSecs int               `json:"refresh_secs,omitempty"` // refresh interval (seconds)
@@ -256,15 +268,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
-			BTCETHMaxLeverage:               5,   // BTC/ETH exchange leverage (AI guided)
-			AltcoinMaxLeverage:              5,   // Altcoin exchange leverage (AI guided)
-			BTCETHMaxPositionValueRatio:     5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
-			AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
-			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
-			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                   75,  // Min 75% confidence (AI guided)
+			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
+			BTCETHMaxLeverage:            5,   // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:           5,   // Altcoin exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:  5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
+			AltcoinMaxPositionValueRatio: 1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
+			MaxMarginUsage:               0.9, // Max 90% margin usage (CODE ENFORCED)
+			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                75,  // Min 75% confidence (AI guided)
 		},
 	}
 

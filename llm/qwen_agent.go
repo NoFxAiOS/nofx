@@ -265,8 +265,8 @@ func (a *QwenAgent) ResetSession() {
 
 // ChatCompletionRequest OpenAI 兼容格式请求
 type ChatCompletionRequest struct {
-	Model    string                   `json:"model"`
-	Messages []ChatCompletionMessage  `json:"messages"`
+	Model    string                  `json:"model"`
+	Messages []ChatCompletionMessage `json:"messages"`
 }
 
 // ChatCompletionMessage 消息结构

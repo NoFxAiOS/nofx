@@ -105,11 +105,11 @@ export default function TerminalHero() {
                     <div className="space-y-6">
                         <div className="tech-border p-4 bg-black/40 backdrop-blur-sm">
                             <h3 className="text-xs font-mono text-nofx-gold mb-4 flex items-center gap-2">
-                                <Activity className="w-3 h-3" /> SYSTEM_DIAGNOSTICS
+                                <Activity className="w-3 h-3" /> 系统机能诊断
                             </h3>
                             <div className="space-y-3 font-mono text-[10px] text-zinc-400">
                                 <div className="flex justify-between items-center">
-                                    <span>KERNEL_LATENCY</span>
+                                    <span>内核响应延迟</span>
                                     <span className="text-nofx-accent">12ms</span>
                                 </div>
                                 <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
@@ -117,7 +117,7 @@ export default function TerminalHero() {
                                 </div>
 
                                 <div className="flex justify-between items-center">
-                                    <span>MEMORY_INTEGRITY</span>
+                                    <span>内存完整性校验</span>
                                     <span className="text-nofx-success">100%</span>
                                 </div>
                                 <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
@@ -125,7 +125,7 @@ export default function TerminalHero() {
                                 </div>
 
                                 <div className="flex justify-between items-center">
-                                    <span>UPTIME</span>
+                                    <span>系统持续运行</span>
                                     <span className="text-white">99.999%</span>
                                 </div>
                             </div>
@@ -134,7 +134,7 @@ export default function TerminalHero() {
                         <div className="p-4 border border-zinc-800/50 rounded bg-zinc-900/20">
                             <div className="flex items-center gap-3 text-zinc-500 mb-2">
                                 <Shield className="w-4 h-4" />
-                                <span className="text-[10px] font-mono tracking-widest">SECURITY PROTOCOLS</span>
+                                <span className="text-[10px] font-mono tracking-widest">安全防御协议</span>
                             </div>
                             <div className="flex gap-1">
                                 <div className="h-1 flex-1 bg-nofx-gold"></div>
@@ -142,7 +142,7 @@ export default function TerminalHero() {
                                 <div className="h-1 flex-1 bg-nofx-gold"></div>
                                 <div className="h-1 flex-1 bg-zinc-800"></div>
                             </div>
-                            <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">LEVEL 3 ACTIVATE</div>
+                            <div className="mt-2 text-right text-[10px] text-nofx-gold/80 font-mono">三级防护已激活</div>
                         </div>
                     </div>
 

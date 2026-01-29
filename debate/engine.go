@@ -620,10 +620,10 @@ func (e *DebateEngine) getParticipantVote(
 	// If no valid decisions, create a default one with session symbol
 	if primaryDecision == nil && session.Symbol != "" {
 		primaryDecision = &store.DebateDecision{
-			Action:     "hold",
-			Symbol:     session.Symbol,
-			Confidence: 50,
-			Leverage:   5,
+			Action:      "hold",
+			Symbol:      session.Symbol,
+			Confidence:  50,
+			Leverage:    5,
 			PositionPct: 0.2,
 		}
 		decisions = []*store.DebateDecision{primaryDecision}
@@ -1105,16 +1105,16 @@ func parseDecisions(response string) ([]*store.DebateDecision, int) {
 	if jsonContent != "" {
 		// Intermediate struct to handle both field naming conventions
 		type rawDecision struct {
-			Action       string  `json:"action"`
-			Symbol       string  `json:"symbol"`
-			Confidence   int     `json:"confidence"`
-			Leverage     int     `json:"leverage"`
-			PositionPct  float64 `json:"position_pct"`
-			StopLoss     float64 `json:"stop_loss"`
-			TakeProfit   float64 `json:"take_profit"`
-			StopLossPct  float64 `json:"stop_loss_pct"`  // Alternative field name
+			Action        string  `json:"action"`
+			Symbol        string  `json:"symbol"`
+			Confidence    int     `json:"confidence"`
+			Leverage      int     `json:"leverage"`
+			PositionPct   float64 `json:"position_pct"`
+			StopLoss      float64 `json:"stop_loss"`
+			TakeProfit    float64 `json:"take_profit"`
+			StopLossPct   float64 `json:"stop_loss_pct"`   // Alternative field name
 			TakeProfitPct float64 `json:"take_profit_pct"` // Alternative field name
-			Reasoning    string  `json:"reasoning"`
+			Reasoning     string  `json:"reasoning"`
 		}
 
 		convertRawDecision := func(r *rawDecision) *store.DebateDecision {

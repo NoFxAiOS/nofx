@@ -23,8 +23,8 @@ type Config struct {
 	UseFullURL  bool
 
 	// Retry configuration
-	MaxRetries     int
-	RetryWaitBase  time.Duration
+	MaxRetries      int
+	RetryWaitBase   time.Duration
 	RetryableErrors []string
 
 	// Timeout configuration
@@ -39,11 +39,11 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		// Default values
-		MaxTokens:      getEnvInt("AI_MAX_TOKENS", 2000),
-		Temperature:    MCPClientTemperature,
-		MaxRetries:     MaxRetryTimes,
-		RetryWaitBase:  2 * time.Second,
-		Timeout:        DefaultTimeout,
+		MaxTokens:       getEnvInt("AI_MAX_TOKENS", 2000),
+		Temperature:     MCPClientTemperature,
+		MaxRetries:      MaxRetryTimes,
+		RetryWaitBase:   2 * time.Second,
+		Timeout:         DefaultTimeout,
 		RetryableErrors: retryableErrors,
 
 		// Default dependencies (use global logger)

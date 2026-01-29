@@ -180,9 +180,9 @@ func TestBinanceSyncVerification(t *testing.T) {
 	t.Logf("%s", repeatStr("=", 60))
 
 	type DataMismatch struct {
-		TradeID string
-		Field   string
-		DB      float64
+		TradeID  string
+		Field    string
+		DB       float64
 		Exchange float64
 	}
 
@@ -246,12 +246,12 @@ func TestBinanceSyncVerification(t *testing.T) {
 	t.Logf("%s", repeatStr("=", 60))
 
 	type SymbolSummary struct {
-		Symbol          string
-		ExchangeCount   int
-		DBCount         int
-		TotalQty        float64
-		TotalFee        float64
-		TotalPnL        float64
+		Symbol           string
+		ExchangeCount    int
+		DBCount          int
+		TotalQty         float64
+		TotalFee         float64
+		TotalPnL         float64
 		ExchangeTotalQty float64
 		ExchangeTotalFee float64
 		ExchangeTotalPnL float64

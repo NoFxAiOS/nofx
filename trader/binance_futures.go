@@ -1329,3 +1329,152 @@ func (t *FuturesTrader) GetPnLSymbols(lastSyncTime time.Time) ([]string, error) 
 
 	return symbols, nil
 }
+
+// ============================================================================
+// 👇👇👇 请将这段代码复制并粘贴到 trader/binance_futures.go 文件的最后面 👇👇👇
+// ============================================================================
+
+// OpenLimitLong places a LIMIT buy order (限价开多)
+func (t *FuturesTrader) OpenLimitLong(symbol string, quantity float64, price float64, leverage int) (map[string]interface{}, error) {
+	// 1. First cancel all pending orders (optional, keeps logic clean)
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders: %v", err)
+	}
+
+	// 2. Set leverage
+	if err := t.SetLeverage(symbol, leverage); err != nil {
+		return nil, err
+	}
+
+	// 3. Format quantity
+	quantityStr, err := t.FormatQuantity(symbol, quantity)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check min notional
+	if err := t.CheckMinNotional(symbol, quantity); err != nil {
+		return nil, err
+	}
+
+	// 4. Create LIMIT buy order
+	order, err := t.client.NewCreateOrderService().
+		Symbol(symbol).
+		Side(futures.SideTypeBuy).
+		PositionSide(futures.PositionSideTypeLong).
+		Type(futures.OrderTypeLimit).            // 👈 使用限价单
+		TimeInForce(futures.TimeInForceTypeGTC). // 👈 GTC (成交或取消)
+		Price(fmt.Sprintf("%f", price)).         // 👈 设置价格
+		Quantity(quantityStr).
+		NewClientOrderID(getBrOrderID()).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to open limit long position: %w", err)
+	}
+
+	logger.Infof("✓ Placed LIMIT LONG order successfully: %s quantity: %s price: %.4f", symbol, quantityStr, price)
+	logger.Infof("  Order ID: %d", order.OrderID)
+
+	result := make(map[string]interface{})
+	result["orderId"] = order.OrderID
+	result["symbol"] = order.Symbol
+	result["status"] = order.Status
+	return result, nil
+}
+
+// OpenLimitShort places a LIMIT sell order (限价开空)
+func (t *FuturesTrader) OpenLimitShort(symbol string, quantity float64, price float64, leverage int) (map[string]interface{}, error) {
+	// 1. First cancel all pending orders
+	if err := t.CancelAllOrders(symbol); err != nil {
+		logger.Infof("  ⚠ Failed to cancel old pending orders: %v", err)
+	}
+
+	// 2. Set leverage
+	if err := t.SetLeverage(symbol, leverage); err != nil {
+		return nil, err
+	}
+
+	// 3. Format quantity
+	quantityStr, err := t.FormatQuantity(symbol, quantity)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check min notional
+	if err := t.CheckMinNotional(symbol, quantity); err != nil {
+		return nil, err
+	}
+
+	// 4. Create LIMIT sell order
+	order, err := t.client.NewCreateOrderService().
+		Symbol(symbol).
+		Side(futures.SideTypeSell).
+		PositionSide(futures.PositionSideTypeShort).
+		Type(futures.OrderTypeLimit).            // 👈 使用限价单
+		TimeInForce(futures.TimeInForceTypeGTC). // 👈 GTC
+		Price(fmt.Sprintf("%f", price)).         // 👈 设置价格
+		Quantity(quantityStr).
+		NewClientOrderID(getBrOrderID()).
+		Do(context.Background())
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to open limit short position: %w", err)
+	}
+
+	logger.Infof("✓ Placed LIMIT SHORT order successfully: %s quantity: %s price: %.4f", symbol, quantityStr, price)
+	logger.Infof("  Order ID: %d", order.OrderID)
+
+	result := make(map[string]interface{})
+	result["orderId"] = order.OrderID
+	result["symbol"] = order.Symbol
+	result["status"] = order.Status
+	return result, nil
+}
+
+// ============================================================================
+// 👇👇👇 移动止盈功能 (粘贴到 binance_futures.go 文件末尾) 👇👇👇
+// ============================================================================
+
+// SetTrailingStop sets a trailing stop order (移动止盈/移动止损)
+// callbackRate: 回撤比例 (例如 1.0 代表 1%, 范围 0.1 ~ 5.0)
+func (t *FuturesTrader) SetTrailingStop(symbol string, positionSide string, quantity float64, callbackRate float64) error {
+	var side futures.SideType
+	var posSide futures.PositionSideType
+
+	// 确定方向：持有多单 -> 卖出平仓；持有空单 -> 买入平仓
+	if positionSide == "LONG" {
+		side = futures.SideTypeSell
+		posSide = futures.PositionSideTypeLong
+	} else {
+		side = futures.SideTypeBuy
+		posSide = futures.PositionSideTypeShort
+	}
+
+	// 修正 callbackRate 范围 (币安要求 0.1% - 5%)
+	if callbackRate < 0.1 {
+		callbackRate = 0.1
+	}
+	if callbackRate > 5.0 {
+		callbackRate = 5.0
+	}
+
+	// 调用币安 Algo Order 接口
+	_, err := t.client.NewCreateAlgoOrderService().
+		Symbol(symbol).
+		Side(side).
+		PositionSide(posSide).
+		Type(futures.AlgoOrderTypeTrailingStopMarket).   // 👈 关键：移动止损单
+		CallbackRate(fmt.Sprintf("%.1f", callbackRate)). // 👈 回撤比例
+		WorkingType(futures.WorkingTypeContractPrice).   // 触发类型：最新成交价
+		ClosePosition(true).                             // 👈 触发后完全平仓
+		ClientAlgoId(getBrOrderID()).
+		Do(context.Background())
+
+	if err != nil {
+		return fmt.Errorf("failed to set trailing stop: %w", err)
+	}
+
+	logger.Infof(" 🚀 Trailing Stop set for %s %s | Callback: %.1f%%", symbol, positionSide, callbackRate)
+	return nil
+}

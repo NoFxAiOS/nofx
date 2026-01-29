@@ -105,6 +105,7 @@ export default function HeaderBar({
                 { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
                 { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
                 { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
+                { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
               ]
 
               const handleNavClick = (tab: typeof navTabs[0]) => {
@@ -333,6 +334,7 @@ export default function HeaderBar({
                     { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
                     { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
                     { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
+                    { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
                   ]
 
                   const handleMobileNavClick = (tab: typeof navTabs[0]) => {

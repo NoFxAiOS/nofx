@@ -1,4 +1,4 @@
-# NOFX — Open Source AI Торгова ОС
+<h1 align="center">NOFX — Open Source AI Торгова ОС</h1>
 
 <p align="center">
   <strong>Інфраструктурний рівень для AI-powered фінансової торгівлі</strong>

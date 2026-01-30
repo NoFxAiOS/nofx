@@ -1,4 +1,4 @@
-# NOFX — Hệ Điều Hành Giao Dịch AI Mã Nguồn Mở
+<h1 align="center">NOFX — Hệ Điều Hành Giao Dịch AI Mã Nguồn Mở</h1>
 
 <p align="center">
   <strong>Lớp cơ sở hạ tầng cho giao dịch tài chính AI-powered</strong>

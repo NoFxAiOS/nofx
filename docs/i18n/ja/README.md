@@ -1,4 +1,4 @@
-# NOFX — オープンソース AI トレーディング OS
+<h1 align="center">NOFX — オープンソース AI トレーディング OS</h1>
 
 <p align="center">
   <strong>AI 駆動金融取引のインフラストラクチャレイヤー</strong>

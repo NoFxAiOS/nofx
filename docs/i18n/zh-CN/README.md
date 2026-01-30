@@ -1,4 +1,4 @@
-# NOFX — 开源 AI 交易操作系统
+<h1 align="center">NOFX — 开源 AI 交易操作系统</h1>
 
 <p align="center">
   <strong>AI 驱动金融交易的基础设施层</strong>

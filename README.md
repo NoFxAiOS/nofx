@@ -83,6 +83,7 @@ To use NOFX, you'll need:
 | **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Supported | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ Supported | [Register](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (Decentralized Perpetual Exchanges)
 

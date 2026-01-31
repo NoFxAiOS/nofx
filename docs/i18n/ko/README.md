@@ -63,6 +63,7 @@ NOFX를 사용하려면 다음이 필요합니다:
 | **Bybit** | ✅ 지원 | [등록](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ 지원 | [등록](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ 지원 | [등록](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ 지원 | [등록](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (탈중앙화 영구 선물 거래소)
 

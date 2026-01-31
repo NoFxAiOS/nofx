@@ -63,6 +63,7 @@
 | **Bybit** | ✅ Поддерживается | [Регистрация](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Поддерживается | [Регистрация](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Поддерживается | [Регистрация](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ Поддерживается | [Регистрация](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (Децентрализованные биржи)
 

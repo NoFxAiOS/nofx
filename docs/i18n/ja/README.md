@@ -63,6 +63,7 @@ NOFXを使用するには以下が必要です:
 | **Bybit** | ✅ サポート | [登録](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ サポート | [登録](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ サポート | [登録](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ サポート | [登録](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (分散型永久先物取引所)
 

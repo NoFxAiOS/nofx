@@ -75,6 +75,7 @@
 | **Bybit** | ✅ 已支持 | [注册](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ 已支持 | [注册](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ 已支持 | [注册](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ 已支持 | [注册](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (去中心化永续交易所)
 

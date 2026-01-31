@@ -63,6 +63,7 @@
 | **Bybit** | ✅ Підтримується | [Реєстрація](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Підтримується | [Реєстрація](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Підтримується | [Реєстрація](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ Підтримується | [Реєстрація](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (Децентралізовані біржі)
 

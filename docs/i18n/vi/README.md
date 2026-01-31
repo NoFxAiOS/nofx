@@ -63,6 +63,7 @@ Tham gia cộng đồng Telegram: **[NOFX Developer Community](https://t.me/nofx
 | **Bybit** | ✅ Hỗ trợ | [Đăng ký](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Hỗ trợ | [Đăng ký](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Hỗ trợ | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ Hỗ trợ | [Đăng ký](https://www.kucoin.com/r/broker/CXEV7XKK) |
 
 ### Perp-DEX (Sàn Phi Tập Trung)
 

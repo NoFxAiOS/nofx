@@ -1438,7 +1438,8 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	}
 
 	// 2. Get pending algo orders (stop-loss/take-profit)
-	algoPath := fmt.Sprintf("%s?instId=%s&instType=SWAP", okxAlgoPendingPath, instId)
+	// OKX requires ordType parameter for algo orders API
+	algoPath := fmt.Sprintf("%s?instId=%s&instType=SWAP&ordType=conditional", okxAlgoPendingPath, instId)
 	algoData, err := t.doRequest("GET", algoPath, nil)
 	if err != nil {
 		logger.Warnf("[OKX] Failed to get algo orders: %v", err)
@@ -1451,12 +1452,13 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 			PosSide     string `json:"posSide"`
 			OrdType     string `json:"ordType"` // conditional/oco/trigger
 			TriggerPx   string `json:"triggerPx"`
+			SlTriggerPx string `json:"slTriggerPx"` // Stop loss trigger price
+			TpTriggerPx string `json:"tpTriggerPx"` // Take profit trigger price
 			Sz          string `json:"sz"`
 			State       string `json:"state"`
 		}
 		if err := json.Unmarshal(algoData, &algoOrders); err == nil {
 			for _, order := range algoOrders {
-				triggerPrice, _ := strconv.ParseFloat(order.TriggerPx, 64)
 				quantity, _ := strconv.ParseFloat(order.Sz, 64)
 
 				side := strings.ToUpper(order.Side)
@@ -1465,23 +1467,59 @@ func (t *OKXTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 					positionSide = "BOTH"
 				}
 
-				// Map OKX algo order type
-				orderType := "STOP_MARKET"
-				if order.OrdType == "oco" {
-					orderType = "TAKE_PROFIT_MARKET"
+				// Check for stop loss order (slTriggerPx is set)
+				if order.SlTriggerPx != "" {
+					slPrice, _ := strconv.ParseFloat(order.SlTriggerPx, 64)
+					if slPrice > 0 {
+						result = append(result, OpenOrder{
+							OrderID:      order.AlgoId + "_sl",
+							Symbol:       symbol,
+							Side:         side,
+							PositionSide: positionSide,
+							Type:         "STOP_MARKET",
+							Price:        0,
+							StopPrice:    slPrice,
+							Quantity:     quantity,
+							Status:       "NEW",
+						})
+					}
 				}
 
-				result = append(result, OpenOrder{
-					OrderID:      order.AlgoId,
-					Symbol:       symbol,
-					Side:         side,
-					PositionSide: positionSide,
-					Type:         orderType,
-					Price:        0,
-					StopPrice:    triggerPrice,
-					Quantity:     quantity,
-					Status:       "NEW",
-				})
+				// Check for take profit order (tpTriggerPx is set)
+				if order.TpTriggerPx != "" {
+					tpPrice, _ := strconv.ParseFloat(order.TpTriggerPx, 64)
+					if tpPrice > 0 {
+						result = append(result, OpenOrder{
+							OrderID:      order.AlgoId + "_tp",
+							Symbol:       symbol,
+							Side:         side,
+							PositionSide: positionSide,
+							Type:         "TAKE_PROFIT_MARKET",
+							Price:        0,
+							StopPrice:    tpPrice,
+							Quantity:     quantity,
+							Status:       "NEW",
+						})
+					}
+				}
+
+				// Fallback for trigger orders (triggerPx is set)
+				if order.TriggerPx != "" && order.SlTriggerPx == "" && order.TpTriggerPx == "" {
+					triggerPrice, _ := strconv.ParseFloat(order.TriggerPx, 64)
+					if triggerPrice > 0 {
+						result = append(result, OpenOrder{
+							OrderID:      order.AlgoId,
+							Symbol:       symbol,
+							Side:         side,
+							PositionSide: positionSide,
+							Type:         "STOP_MARKET",
+							Price:        0,
+							StopPrice:    triggerPrice,
+							Quantity:     quantity,
+							Status:       "NEW",
+						})
+					}
+				}
 			}
 		}
 	}

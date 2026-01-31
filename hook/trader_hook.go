@@ -40,3 +40,20 @@ func (r *NewAsterTraderResult) GetResult() *http.Client {
 	r.Error()
 	return r.Client
 }
+
+type NewWeexTraderResult struct {
+	Err    error
+	Client *http.Client
+}
+
+func (r *NewWeexTraderResult) Error() error {
+	if r.Err != nil {
+		log.Printf("⚠️ 执行NewWeexTraderResult时出错: %v", r.Err)
+	}
+	return r.Err
+}
+
+func (r *NewWeexTraderResult) GetResult() *http.Client {
+	r.Error()
+	return r.Client
+}

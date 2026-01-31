@@ -22,6 +22,7 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'bybit', name: 'Bybit Futures', type: 'cex' as const },
   { exchange_type: 'okx', name: 'OKX Futures', type: 'cex' as const },
   { exchange_type: 'bitget', name: 'Bitget Futures', type: 'cex' as const },
+  { exchange_type: 'weex', name: 'Weex Futures', type: 'cex' as const },
   { exchange_type: 'hyperliquid', name: 'Hyperliquid', type: 'dex' as const },
   { exchange_type: 'aster', name: 'Aster DEX', type: 'dex' as const },
   { exchange_type: 'lighter', name: 'Lighter', type: 'dex' as const },
@@ -288,6 +289,9 @@ export function ExchangeConfigModal({
       } else if (currentExchangeType === 'bitget') {
         if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
+      } else if (currentExchangeType === 'weex') {
+        if (!apiKey.trim() || !secretKey.trim() || !passphrase.trim()) return
+        await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), passphrase.trim(), testnet)
       } else if (currentExchangeType === 'hyperliquid') {
         if (!apiKey.trim() || !hyperliquidWalletAddr.trim()) return // 验证私钥和钱包地址
         await onSave(
@@ -544,7 +548,8 @@ export function ExchangeConfigModal({
                 {(currentExchangeType === 'binance' ||
                   currentExchangeType === 'bybit' ||
                   currentExchangeType === 'okx' ||
-                  currentExchangeType === 'bitget') && (
+                  currentExchangeType === 'bitget' ||
+                  currentExchangeType === 'weex') && (
                     <>
                       {/* 币安用户配置提示 (D1 方案) */}
                       {currentExchangeType === 'binance' && (
@@ -689,7 +694,9 @@ export function ExchangeConfigModal({
                         />
                       </div>
 
-                      {(currentExchangeType === 'okx' || currentExchangeType === 'bitget') && (
+                      {(currentExchangeType === 'okx' ||
+                        currentExchangeType === 'bitget' ||
+                        currentExchangeType === 'weex') && (
                         <div>
                           <label
                             className="block text-sm font-semibold mb-2"
@@ -1206,6 +1213,10 @@ export function ExchangeConfigModal({
                   (!apiKey.trim() ||
                     !secretKey.trim() ||
                     !passphrase.trim())) ||
+                (currentExchangeType === 'weex' &&
+                  (!apiKey.trim() ||
+                    !secretKey.trim() ||
+                    !passphrase.trim())) ||
                 (currentExchangeType === 'hyperliquid' &&
                   (!apiKey.trim() || !hyperliquidWalletAddr.trim())) || // 验证私钥和钱包地址
                 (currentExchangeType === 'aster' &&
@@ -1224,6 +1235,7 @@ export function ExchangeConfigModal({
                   currentExchangeType !== 'bybit' &&
                   currentExchangeType !== 'okx' &&
                   currentExchangeType !== 'bitget' &&
+                  currentExchangeType !== 'weex' &&
                   (!apiKey.trim() || !secretKey.trim()))
               }
               className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"

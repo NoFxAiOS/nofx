@@ -256,13 +256,14 @@ func (s *Server) handleGetServerIP(c *gin.Context) {
 	})
 }
 
-// getPublicIPFromAPI Get public IP via third-party API
+// getPublicIPFromAPI Get public IP via third-party API (IPv4 only)
 func getPublicIPFromAPI() string {
-	// Try multiple public IP query services
+	// Try multiple public IP query services (IPv4-only endpoints)
 	services := []string{
-		"https://api.ipify.org?format=text",
-		"https://icanhazip.com",
-		"https://ifconfig.me",
+		"https://api4.ipify.org?format=text", // IPv4 only
+		"https://ipv4.icanhazip.com",         // IPv4 only
+		"https://v4.ident.me",                // IPv4 only
+		"https://api.ipify.org?format=text",  // May return IPv4 or IPv6
 	}
 
 	client := &http.Client{
@@ -284,8 +285,9 @@ func getPublicIPFromAPI() string {
 			}
 
 			ip := strings.TrimSpace(string(body[:n]))
-			// Verify if it's a valid IP address
-			if net.ParseIP(ip) != nil {
+			parsedIP := net.ParseIP(ip)
+			// Verify if it's a valid IPv4 address (not containing ":")
+			if parsedIP != nil && parsedIP.To4() != nil {
 				return ip
 			}
 		}

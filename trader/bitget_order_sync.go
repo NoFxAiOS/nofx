@@ -48,52 +48,82 @@ func (t *BitgetTrader) GetTrades(startTime time.Time, limit int) ([]BitgetTrade,
 		return nil, fmt.Errorf("failed to get fill history: %w", err)
 	}
 
-	var resp struct {
-		FillList []struct {
-			TradeID    string `json:"tradeId"`
-			Symbol     string `json:"symbol"`
-			OrderID    string `json:"orderId"`
-			Side       string `json:"side"`       // buy, sell
-			Price      string `json:"price"`      // Fill price
-			BaseVolume string `json:"baseVolume"` // Fill size in base currency
-			Fee        string `json:"fee"`        // Fee (negative for cost)
-			FeeCcy     string `json:"feeCcy"`     // Fee currency
-			Profit     string `json:"profit"`     // Realized PnL
-			CTime      string `json:"cTime"`      // Fill time (ms)
-			TradeSide  string `json:"tradeSide"`  // open, close
-		} `json:"fillList"`
+
+	// Bitget fill structure - supports both one-way and hedge mode
+	type BitgetFill struct {
+		TradeID    string `json:"tradeId"`
+		Symbol     string `json:"symbol"`
+		OrderID    string `json:"orderId"`
+		Side       string `json:"side"`       // buy, sell
+		Price      string `json:"price"`      // Fill price
+		BaseVolume string `json:"baseVolume"` // Fill size in base currency
+		Profit     string `json:"profit"`     // Realized PnL
+		CTime      string `json:"cTime"`      // Fill time (ms)
+		TradeSide  string `json:"tradeSide"`  // one-way: buy_single/sell_single, hedge: open/close
+		FeeDetail  []struct {
+			FeeCoin  string `json:"feeCoin"`
+			TotalFee string `json:"totalFee"`
+		} `json:"feeDetail"`
 	}
 
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("failed to parse fills: %w", err)
+	// Try parsing as wrapped response first (fillList field)
+	var wrappedResp struct {
+		FillList []BitgetFill `json:"fillList"`
 	}
 
-	trades := make([]BitgetTrade, 0, len(resp.FillList))
+	// Try direct array format (Bitget V2 API returns data as direct array)
+	var directFills []BitgetFill
 
-	for _, fill := range resp.FillList {
+	// Try wrapped format first
+	if err := json.Unmarshal(data, &wrappedResp); err == nil && len(wrappedResp.FillList) > 0 {
+		logger.Infof("🔍 Bitget: parsed as wrapped format, fillList count: %d", len(wrappedResp.FillList))
+		directFills = wrappedResp.FillList
+	} else {
+		// Try direct array format
+		if err := json.Unmarshal(data, &directFills); err != nil {
+			logger.Infof("⚠️ Bitget fill-history parse failed, raw: %s", string(data))
+			return nil, fmt.Errorf("failed to parse fills: %w", err)
+		}
+		logger.Infof("🔍 Bitget: parsed as direct array, fills count: %d", len(directFills))
+	}
+
+	trades := make([]BitgetTrade, 0, len(directFills))
+
+	for _, fill := range directFills {
 		fillPrice, _ := strconv.ParseFloat(fill.Price, 64)
 		fillQty, _ := strconv.ParseFloat(fill.BaseVolume, 64)
-		fee, _ := strconv.ParseFloat(fill.Fee, 64)
 		profit, _ := strconv.ParseFloat(fill.Profit, 64)
 		cTime, _ := strconv.ParseInt(fill.CTime, 10, 64)
 
+		// Extract fee from feeDetail array (Bitget V2 API)
+		var fee float64
+		var feeAsset string
+		if len(fill.FeeDetail) > 0 {
+			fee, _ = strconv.ParseFloat(fill.FeeDetail[0].TotalFee, 64)
+			feeAsset = fill.FeeDetail[0].FeeCoin
+		}
+
 		// Determine order action based on side and tradeSide
-		// Bitget one-way mode:
-		// - buy + open = open long
-		// - sell + open = open short
-		// - sell + close = close long
-		// - buy + close = close short
+		// Bitget one-way mode: buy_single (open long), sell_single (close long)
+		// Bitget hedge mode: open + buy = open_long, close + sell = close_long
 		orderAction := "open_long"
 		side := strings.ToLower(fill.Side)
 		tradeSide := strings.ToLower(fill.TradeSide)
 
-		if tradeSide == "open" {
+		// One-way position mode (buy_single/sell_single)
+		if tradeSide == "buy_single" {
+			orderAction = "open_long"
+		} else if tradeSide == "sell_single" {
+			orderAction = "close_long"
+		} else if tradeSide == "open" {
+			// Hedge mode: open
 			if side == "buy" {
 				orderAction = "open_long"
 			} else {
 				orderAction = "open_short"
 			}
 		} else if tradeSide == "close" {
+			// Hedge mode: close
 			if side == "sell" {
 				orderAction = "close_long"
 			} else {
@@ -108,8 +138,8 @@ func (t *BitgetTrader) GetTrades(startTime time.Time, limit int) ([]BitgetTrade,
 			Side:        fill.Side,
 			FillPrice:   fillPrice,
 			FillQty:     fillQty,
-			Fee:         -fee, // Bitget returns negative fee
-			FeeAsset:    fill.FeeCcy,
+			Fee:         -fee, // Bitget returns negative fee, convert to positive
+			FeeAsset:    feeAsset,
 			ExecTime:    time.UnixMilli(cTime).UTC(),
 			ProfitLoss:  profit,
 			OrderType:   "MARKET",

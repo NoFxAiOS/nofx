@@ -24,7 +24,7 @@
 ### 핵심 기능
 
 - **다중 AI 지원**: DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi 실행 - 언제든 모델 전환 가능
-- **다중 거래소**: Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter에서 통합 거래
+- **다중 거래소**: Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster DEX, Lighter에서 통합 거래
 - **전략 스튜디오**: 코인 소스, 지표, 리스크 제어를 설정하는 시각적 전략 빌더
 - **AI 경쟁 모드**: 여러 AI 트레이더가 실시간으로 경쟁, 성과를 나란히 추적
 - **웹 기반 설정**: JSON 편집 불필요 - 웹 인터페이스에서 모든 설정 완료
@@ -64,6 +64,7 @@ NOFX를 사용하려면 다음이 필요합니다:
 | **OKX** | ✅ 지원 | [등록](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ 지원 | [등록](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 | **KuCoin** | ✅ 지원 | [등록](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ 지원 | [등록](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (탈중앙화 영구 선물 거래소)
 

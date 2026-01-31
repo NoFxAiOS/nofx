@@ -31,7 +31,7 @@
 ### 核心功能
 
 - **多 AI 支持**: 运行 DeepSeek、通义千问、GPT、Claude、Gemini、Grok、Kimi - 随时切换模型
-- **多交易所**: 在 Binance、Bybit、OKX、Hyperliquid、Aster DEX、Lighter 统一交易
+- **多交易所**: 在 Binance、Bybit、OKX、Bitget、KuCoin、Gate、Hyperliquid、Aster DEX、Lighter 统一交易
 - **策略工作室**: 可视化策略构建器，配置币种来源、指标和风控参数
 - **AI 竞赛模式**: 多个 AI 交易员实时竞争，并排追踪表现
 - **Web 配置**: 无需编辑 JSON - 通过 Web 界面完成所有配置
@@ -76,6 +76,7 @@
 | **OKX** | ✅ 已支持 | [注册](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ 已支持 | [注册](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 | **KuCoin** | ✅ 已支持 | [注册](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ 已支持 | [注册](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (去中心化永续交易所)
 

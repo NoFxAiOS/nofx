@@ -1151,9 +1151,10 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	}
 
 	// 2. Get pending plan orders (stop-loss/take-profit)
+	// Bitget V2 API requires planType parameter: profit_loss for SL/TP orders
 	planParams := map[string]interface{}{
-		"symbol":      symbol,
 		"productType": "USDT-FUTURES",
+		"planType":    "profit_loss",
 	}
 
 	planData, err := t.doRequest("GET", "/api/v2/mix/order/orders-plan-pending", planParams)
@@ -1163,33 +1164,53 @@ func (t *BitgetTrader) GetOpenOrders(symbol string) ([]OpenOrder, error) {
 	if err == nil && planData != nil {
 		var planOrders struct {
 			EntrustedList []struct {
-				OrderId       string `json:"orderId"`
-				Symbol        string `json:"symbol"`
-				Side          string `json:"side"`
-				PosSide       string `json:"posSide"`
-				PlanType      string `json:"planType"` // normal_plan/profit_plan/loss_plan
-				TriggerPrice  string `json:"triggerPrice"`
-				Size          string `json:"size"`
-				State         string `json:"state"`
+				OrderId                 string `json:"orderId"`
+				Symbol                  string `json:"symbol"`
+				Side                    string `json:"side"`
+				PosSide                 string `json:"posSide"`
+				PlanType                string `json:"planType"` // pos_loss, pos_profit
+				TriggerPrice            string `json:"triggerPrice"`
+				StopLossTriggerPrice    string `json:"stopLossTriggerPrice"`
+				StopSurplusTriggerPrice string `json:"stopSurplusTriggerPrice"`
+				Size                    string `json:"size"`
+				PlanStatus              string `json:"planStatus"`
 			} `json:"entrustedList"`
 		}
 		if err := json.Unmarshal(planData, &planOrders); err == nil {
 			for _, order := range planOrders.EntrustedList {
-				triggerPrice, _ := strconv.ParseFloat(order.TriggerPrice, 64)
-				quantity, _ := strconv.ParseFloat(order.Size, 64)
+				// Filter by symbol if specified
+				if symbol != "" && order.Symbol != symbol {
+					continue
+				}
 
+				// Determine trigger price based on plan type
+				var triggerPrice float64
+				orderType := "STOP_MARKET"
+
+				if order.PlanType == "pos_profit" {
+					// Take profit order
+					orderType = "TAKE_PROFIT_MARKET"
+					if order.StopSurplusTriggerPrice != "" {
+						triggerPrice, _ = strconv.ParseFloat(order.StopSurplusTriggerPrice, 64)
+					} else {
+						triggerPrice, _ = strconv.ParseFloat(order.TriggerPrice, 64)
+					}
+				} else {
+					// Stop loss order (pos_loss)
+					if order.StopLossTriggerPrice != "" {
+						triggerPrice, _ = strconv.ParseFloat(order.StopLossTriggerPrice, 64)
+					} else {
+						triggerPrice, _ = strconv.ParseFloat(order.TriggerPrice, 64)
+					}
+				}
+
+				quantity, _ := strconv.ParseFloat(order.Size, 64)
 				side := strings.ToUpper(order.Side)
 				positionSide := strings.ToUpper(order.PosSide)
 
-				// Map Bitget plan type to order type
-				orderType := "STOP_MARKET"
-				if order.PlanType == "profit_plan" {
-					orderType = "TAKE_PROFIT_MARKET"
-				}
-
 				result = append(result, OpenOrder{
 					OrderID:      order.OrderId,
-					Symbol:       symbol,
+					Symbol:       order.Symbol,
 					Side:         side,
 					PositionSide: positionSide,
 					Type:         orderType,

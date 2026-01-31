@@ -24,7 +24,7 @@
 ### Tính Năng Chính
 
 - **Hỗ trợ Đa AI**: Chạy DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi - chuyển đổi mô hình bất cứ lúc nào
-- **Đa Sàn Giao Dịch**: Giao dịch trên Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter từ một nền tảng
+- **Đa Sàn Giao Dịch**: Giao dịch trên Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster DEX, Lighter từ một nền tảng
 - **Strategy Studio**: Trình tạo chiến lược trực quan với nguồn coin, chỉ báo và kiểm soát rủi ro
 - **Chế Độ Thi Đấu AI**: Nhiều AI trader cạnh tranh theo thời gian thực, theo dõi hiệu suất song song
 - **Cấu Hình Web**: Không cần chỉnh sửa JSON - cấu hình mọi thứ qua giao diện web
@@ -64,6 +64,7 @@ Tham gia cộng đồng Telegram: **[NOFX Developer Community](https://t.me/nofx
 | **OKX** | ✅ Hỗ trợ | [Đăng ký](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Hỗ trợ | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 | **KuCoin** | ✅ Hỗ trợ | [Đăng ký](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ Hỗ trợ | [Đăng ký](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (Sàn Phi Tập Trung)
 

@@ -24,7 +24,7 @@
 ### Основні функції
 
 - **Мульти-AI підтримка**: Запускайте DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — перемикайтеся між моделями будь-коли
-- **Мульти-біржа**: Торгуйте на Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter з єдиної платформи
+- **Мульти-біржа**: Торгуйте на Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster DEX, Lighter з єдиної платформи
 - **Студія стратегій**: Візуальний конструктор стратегій з джерелами монет, індикаторами та контролем ризиків
 - **Режим AI-змагання**: Кілька AI трейдерів змагаються в реальному часі, відстеження ефективності пліч-о-пліч
 - **Веб-конфігурація**: Без редагування JSON — налаштування всього через веб-інтерфейс
@@ -64,6 +64,7 @@
 | **OKX** | ✅ Підтримується | [Реєстрація](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Підтримується | [Реєстрація](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
 | **KuCoin** | ✅ Підтримується | [Реєстрація](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ Підтримується | [Реєстрація](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (Децентралізовані біржі)
 

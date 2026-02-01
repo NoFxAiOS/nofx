@@ -25,6 +25,7 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'bybit', name: 'Bybit Futures', type: 'cex' as const },
   { exchange_type: 'okx', name: 'OKX Futures', type: 'cex' as const },
   { exchange_type: 'bitget', name: 'Bitget Futures', type: 'cex' as const },
+  { exchange_type: 'gate', name: 'Gate.io Futures', type: 'cex' as const },
   { exchange_type: 'kucoin', name: 'KuCoin Futures', type: 'cex' as const },
   { exchange_type: 'hyperliquid', name: 'Hyperliquid', type: 'dex' as const },
   { exchange_type: 'aster', name: 'Aster DEX', type: 'dex' as const },
@@ -198,6 +199,7 @@ export function ExchangeConfigModal({
     okx: { url: 'https://www.okx.com/join/1865360', hasReferral: true },
     bybit: { url: 'https://partner.bybit.com/b/83856', hasReferral: true },
     bitget: { url: 'https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172', hasReferral: true },
+    gate: { url: 'https://www.gatenode.xyz/share/VQBGUAxY', hasReferral: true },
     kucoin: { url: 'https://www.kucoin.com/r/broker/CXEV7XKK', hasReferral: true },
     hyperliquid: { url: 'https://app.hyperliquid.xyz/join/AITRADING', hasReferral: true },
     aster: { url: 'https://www.asterdex.com/en/referral/fdfc0e', hasReferral: true },
@@ -501,7 +503,7 @@ export function ExchangeConfigModal({
               </div>
 
               {/* CEX Fields */}
-              {(currentExchangeType === 'binance' || currentExchangeType === 'bybit' || currentExchangeType === 'okx' || currentExchangeType === 'bitget' || currentExchangeType === 'kucoin') && (
+              {(currentExchangeType === 'binance' || currentExchangeType === 'bybit' || currentExchangeType === 'okx' || currentExchangeType === 'bitget' || currentExchangeType === 'gate' || currentExchangeType === 'kucoin') && (
                 <>
                   {currentExchangeType === 'binance' && (
                     <div

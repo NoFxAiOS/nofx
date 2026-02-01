@@ -1136,8 +1136,19 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		// Continue execution, doesn't affect trading
 	}
 
-	// Open position
-	order, err := at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
+	// Open position (attempt to use optimized version with TP/SL if available)
+	var order map[string]interface{}
+	var err error
+
+	// Try to call OpenLongWithTPSL for Bitget V2 API support
+	if openLongWithTPSL, ok := at.trader.(interface {
+		OpenLongWithTPSL(symbol string, quantity float64, leverage int, takeProfit, stopLoss float64) (map[string]interface{}, error)
+	}); ok {
+		order, err = openLongWithTPSL.OpenLongWithTPSL(decision.Symbol, quantity, decision.Leverage, decision.TakeProfit, decision.StopLoss)
+	} else {
+		// Fallback to regular OpenLong for other exchanges
+		order, err = at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
+	}
 	if err != nil {
 		return err
 	}
@@ -1156,12 +1167,22 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
-	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+	// For exchanges that don't support preset TP/SL in the order (like Binance), set them separately
+	// Check if the order already included TP/SL parameters (Bitget V2 does this)
+	if _, ok := at.trader.(interface {
+		OpenLongWithTPSL(symbol string, quantity float64, leverage int, takeProfit, stopLoss float64) (map[string]interface{}, error)
+	}); !ok {
+		// Not Bitget, use fallback approach
+		if decision.StopLoss > 0 {
+			if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
+				logger.Infof("  ⚠ Failed to set stop loss: %v", err)
+			}
+		}
+		if decision.TakeProfit > 0 {
+			if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
+				logger.Infof("  ⚠ Failed to set take profit: %v", err)
+			}
+		}
 	}
 
 	return nil
@@ -1253,8 +1274,19 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		// Continue execution, doesn't affect trading
 	}
 
-	// Open position
-	order, err := at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
+	// Open position (attempt to use optimized version with TP/SL if available)
+	var order map[string]interface{}
+	var err error
+
+	// Try to call OpenShortWithTPSL for Bitget V2 API support
+	if openShortWithTPSL, ok := at.trader.(interface {
+		OpenShortWithTPSL(symbol string, quantity float64, leverage int, takeProfit, stopLoss float64) (map[string]interface{}, error)
+	}); ok {
+		order, err = openShortWithTPSL.OpenShortWithTPSL(decision.Symbol, quantity, decision.Leverage, decision.TakeProfit, decision.StopLoss)
+	} else {
+		// Fallback to regular OpenShort for other exchanges
+		order, err = at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
+	}
 	if err != nil {
 		return err
 	}
@@ -1273,12 +1305,22 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
-	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+	// For exchanges that don't support preset TP/SL in the order (like Binance), set them separately
+	// Check if the order already included TP/SL parameters (Bitget V2 does this)
+	if _, ok := at.trader.(interface {
+		OpenShortWithTPSL(symbol string, quantity float64, leverage int, takeProfit, stopLoss float64) (map[string]interface{}, error)
+	}); !ok {
+		// Not Bitget, use fallback approach
+		if decision.StopLoss > 0 {
+			if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
+				logger.Infof("  ⚠ Failed to set stop loss: %v", err)
+			}
+		}
+		if decision.TakeProfit > 0 {
+			if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
+				logger.Infof("  ⚠ Failed to set take profit: %v", err)
+			}
+		}
 	}
 
 	return nil

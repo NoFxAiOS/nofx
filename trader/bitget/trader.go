@@ -486,8 +486,13 @@ func (t *BitgetTrader) SetLeverage(symbol string, leverage int) error {
 	return nil
 }
 
-// OpenLong opens long position
+// OpenLong opens long position (backward compatible)
 func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return t.OpenLongWithTPSL(symbol, quantity, leverage, 0, 0)
+}
+
+// OpenLongWithTPSL opens long position with take profit and stop loss (Bitget V2 API)
+func (t *BitgetTrader) OpenLongWithTPSL(symbol string, quantity float64, leverage int, takeProfit, stopLoss float64) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel old orders first
@@ -512,7 +517,19 @@ func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (
 		"clientOid":   genBitgetClientOid(),
 	}
 
-	logger.Infof("  📊 Bitget OpenLong: symbol=%s, qty=%s, leverage=%d", symbol, qtyStr, leverage)
+	// Add preset stop loss if provided
+	if stopLoss > 0 {
+		body["presetStopLossPrice"] = fmt.Sprintf("%.8f", stopLoss)
+		logger.Infof("  📊 Bitget OpenLong: symbol=%s, qty=%s, leverage=%d, SL=%.4f", symbol, qtyStr, leverage, stopLoss)
+	} else {
+		logger.Infof("  📊 Bitget OpenLong: symbol=%s, qty=%s, leverage=%d", symbol, qtyStr, leverage)
+	}
+
+	// Add preset take profit if provided
+	if takeProfit > 0 {
+		body["presetStopSurplusPrice"] = fmt.Sprintf("%.8f", takeProfit)
+		logger.Infof("  📊 Bitget OpenLong TP: %.4f", takeProfit)
+	}
 
 	data, err := t.doRequest("POST", bitgetOrderPath, body)
 	if err != nil {
@@ -540,8 +557,13 @@ func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (
 	}, nil
 }
 
-// OpenShort opens short position
+// OpenShort opens short position (backward compatible)
 func (t *BitgetTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return t.OpenShortWithTPSL(symbol, quantity, leverage, 0, 0)
+}
+
+// OpenShortWithTPSL opens short position with take profit and stop loss (Bitget V2 API)
+func (t *BitgetTrader) OpenShortWithTPSL(symbol string, quantity float64, leverage int, takeProfit, stopLoss float64) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel old orders first
@@ -566,7 +588,19 @@ func (t *BitgetTrader) OpenShort(symbol string, quantity float64, leverage int) 
 		"clientOid":   genBitgetClientOid(),
 	}
 
-	logger.Infof("  📊 Bitget OpenShort: symbol=%s, qty=%s, leverage=%d", symbol, qtyStr, leverage)
+	// Add preset stop loss if provided
+	if stopLoss > 0 {
+		body["presetStopLossPrice"] = fmt.Sprintf("%.8f", stopLoss)
+		logger.Infof("  📊 Bitget OpenShort: symbol=%s, qty=%s, leverage=%d, SL=%.4f", symbol, qtyStr, leverage, stopLoss)
+	} else {
+		logger.Infof("  📊 Bitget OpenShort: symbol=%s, qty=%s, leverage=%d", symbol, qtyStr, leverage)
+	}
+
+	// Add preset take profit if provided
+	if takeProfit > 0 {
+		body["presetStopSurplusPrice"] = fmt.Sprintf("%.8f", takeProfit)
+		logger.Infof("  📊 Bitget OpenShort TP: %.4f", takeProfit)
+	}
 
 	data, err := t.doRequest("POST", bitgetOrderPath, body)
 	if err != nil {

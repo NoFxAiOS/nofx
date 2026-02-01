@@ -488,6 +488,17 @@ func (t *BitgetTrader) SetLeverage(symbol string, leverage int) error {
 
 // OpenLong opens long position
 func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return t.openLongInternal(symbol, quantity, leverage, 0, 0)
+}
+
+// OpenLongWithTPSL opens long position with stop-loss and take-profit preset in the same API call
+// This is more reliable than setting TP/SL separately after opening the position
+func (t *BitgetTrader) OpenLongWithTPSL(symbol string, quantity float64, leverage int, stopLoss, takeProfit float64) (map[string]interface{}, error) {
+	return t.openLongInternal(symbol, quantity, leverage, stopLoss, takeProfit)
+}
+
+// openLongInternal is the internal implementation for opening long positions
+func (t *BitgetTrader) openLongInternal(symbol string, quantity float64, leverage int, stopLoss, takeProfit float64) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel old orders first
@@ -512,7 +523,18 @@ func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (
 		"clientOid":   genBitgetClientOid(),
 	}
 
-	logger.Infof("  📊 Bitget OpenLong: symbol=%s, qty=%s, leverage=%d", symbol, qtyStr, leverage)
+	// Add preset stop-loss if provided (formatted to correct precision)
+	if stopLoss > 0 {
+		body["presetStopLossPrice"] = t.FormatPrice(symbol, stopLoss)
+	}
+
+	// Add preset take-profit if provided (formatted to correct precision)
+	if takeProfit > 0 {
+		body["presetStopSurplusPrice"] = t.FormatPrice(symbol, takeProfit)
+	}
+
+	logger.Infof("  📊 Bitget OpenLong: symbol=%s, qty=%s, leverage=%d, SL=%s, TP=%s",
+		symbol, qtyStr, leverage, t.FormatPrice(symbol, stopLoss), t.FormatPrice(symbol, takeProfit))
 
 	data, err := t.doRequest("POST", bitgetOrderPath, body)
 	if err != nil {
@@ -542,6 +564,16 @@ func (t *BitgetTrader) OpenLong(symbol string, quantity float64, leverage int) (
 
 // OpenShort opens short position
 func (t *BitgetTrader) OpenShort(symbol string, quantity float64, leverage int) (map[string]interface{}, error) {
+	return t.openShortInternal(symbol, quantity, leverage, 0, 0)
+}
+
+// OpenShortWithTPSL opens short position with stop-loss and take-profit preset in the same API call
+func (t *BitgetTrader) OpenShortWithTPSL(symbol string, quantity float64, leverage int, stopLoss, takeProfit float64) (map[string]interface{}, error) {
+	return t.openShortInternal(symbol, quantity, leverage, stopLoss, takeProfit)
+}
+
+// openShortInternal is the internal implementation for opening short positions
+func (t *BitgetTrader) openShortInternal(symbol string, quantity float64, leverage int, stopLoss, takeProfit float64) (map[string]interface{}, error) {
 	symbol = t.convertSymbol(symbol)
 
 	// Cancel old orders first
@@ -566,7 +598,18 @@ func (t *BitgetTrader) OpenShort(symbol string, quantity float64, leverage int) 
 		"clientOid":   genBitgetClientOid(),
 	}
 
-	logger.Infof("  📊 Bitget OpenShort: symbol=%s, qty=%s, leverage=%d", symbol, qtyStr, leverage)
+	// Add preset stop-loss if provided (formatted to correct precision)
+	if stopLoss > 0 {
+		body["presetStopLossPrice"] = t.FormatPrice(symbol, stopLoss)
+	}
+
+	// Add preset take-profit if provided (formatted to correct precision)
+	if takeProfit > 0 {
+		body["presetStopSurplusPrice"] = t.FormatPrice(symbol, takeProfit)
+	}
+
+	logger.Infof("  📊 Bitget OpenShort: symbol=%s, qty=%s, leverage=%d, SL=%s, TP=%s",
+		symbol, qtyStr, leverage, t.FormatPrice(symbol, stopLoss), t.FormatPrice(symbol, takeProfit))
 
 	data, err := t.doRequest("POST", bitgetOrderPath, body)
 	if err != nil {
@@ -947,6 +990,19 @@ func (t *BitgetTrader) FormatQuantity(symbol string, quantity float64) (string, 
 	// Format according to volume precision
 	format := fmt.Sprintf("%%.%df", contract.VolumePlace)
 	return fmt.Sprintf(format, quantity), nil
+}
+
+// FormatPrice formats price according to contract precision
+func (t *BitgetTrader) FormatPrice(symbol string, price float64) string {
+	contract, err := t.getContract(symbol)
+	if err != nil {
+		// Default: 1 decimal place (0.1 precision) for BTC-like contracts
+		return fmt.Sprintf("%.1f", price)
+	}
+
+	// Format according to price precision
+	format := fmt.Sprintf("%%.%df", contract.PricePlace)
+	return fmt.Sprintf(format, price)
 }
 
 // GetOrderStatus gets order status

@@ -147,7 +147,8 @@ func (pb *PositionBuilder) handleClose(
 		var finalExitPrice float64
 		if totalClosed > 0 {
 			finalExitPrice = (position.ExitPrice*closedBefore + price*closeQty) / totalClosed
-			finalExitPrice = math.Round(finalExitPrice*100) / 100
+			// Use 8 decimal places for price precision (crypto standard)
+			finalExitPrice = math.Round(finalExitPrice*100000000) / 100000000
 		} else {
 			finalExitPrice = price
 		}

@@ -156,7 +156,8 @@ func (s *PositionStore) UpdatePositionQuantityAndPrice(id int64, addQty float64,
 	newQty := math.Round((pos.Quantity+addQty)*10000) / 10000
 	newEntryQty := math.Round((currentEntryQty+addQty)*10000) / 10000
 	newEntryPrice := (pos.EntryPrice*pos.Quantity + addPrice*addQty) / newQty
-	newEntryPrice = math.Round(newEntryPrice*100) / 100
+	// Use 8 decimal places for price precision (crypto standard)
+	newEntryPrice = math.Round(newEntryPrice*100000000) / 100000000
 	newFee := pos.Fee + addFee
 	nowMs := time.Now().UTC().UnixMilli()
 
@@ -187,7 +188,8 @@ func (s *PositionStore) ReducePositionQuantity(id int64, reduceQty float64, exit
 	var newExitPrice float64
 	if newClosedQty > 0 {
 		newExitPrice = (pos.ExitPrice*closedQty + exitPrice*reduceQty) / newClosedQty
-		newExitPrice = math.Round(newExitPrice*100) / 100
+		// Use 8 decimal places for price precision (crypto standard)
+		newExitPrice = math.Round(newExitPrice*100000000) / 100000000
 	}
 
 	nowMs := time.Now().UTC().UnixMilli()

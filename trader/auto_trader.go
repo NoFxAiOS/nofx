@@ -16,6 +16,7 @@ import (
 	"nofx/trader/bybit"
 	"nofx/trader/gate"
 	"nofx/trader/hyperliquid"
+	"nofx/trader/kucoin"
 	"nofx/trader/lighter"
 	"nofx/trader/okx"
 	"strings"
@@ -55,6 +56,11 @@ type AutoTraderConfig struct {
 	// Gate API configuration
 	GateAPIKey    string
 	GateSecretKey string
+
+	// KuCoin API configuration
+	KuCoinAPIKey    string
+	KuCoinSecretKey string
+	KuCoinPassphrase string
 
 	// Hyperliquid configuration
 	HyperliquidPrivateKey string
@@ -249,6 +255,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	case "gate":
 		logger.Infof("🏦 [%s] Using Gate.io Futures trading", config.Name)
 		trader = gate.NewGateTrader(config.GateAPIKey, config.GateSecretKey)
+	case "kucoin":
+		logger.Infof("🏦 [%s] Using KuCoin Futures trading", config.Name)
+		trader = kucoin.NewKuCoinTrader(config.KuCoinAPIKey, config.KuCoinSecretKey, config.KuCoinPassphrase)
 	case "hyperliquid":
 		logger.Infof("🏦 [%s] Using Hyperliquid trading", config.Name)
 		trader, err = hyperliquid.NewHyperliquidTrader(config.HyperliquidPrivateKey, config.HyperliquidWalletAddr, config.HyperliquidTestnet)
@@ -440,6 +449,14 @@ func (at *AutoTrader) Run() error {
 		}
 	}
 
+	// Start KuCoin order sync if using KuCoin exchange
+	if at.exchange == "kucoin" {
+		if kucoinTrader, ok := at.trader.(*kucoin.KuCoinTrader); ok && at.store != nil {
+			kucoinTrader.StartOrderSync(at.id, at.exchangeID, at.exchange, at.store, 30*time.Second)
+			logger.Infof("🔄 [%s] KuCoin order+position sync enabled (every 30s)", at.name)
+		}
+	}
+
 	ticker := time.NewTicker(at.config.ScanInterval)
 	defer ticker.Stop()
 
@@ -557,14 +574,25 @@ func (at *AutoTrader) runCycle() error {
 		return fmt.Errorf("failed to build trading context: %w", err)
 	}
 
-	// 如果没有候选币种，友好提示并跳过本周期
+	// Save equity snapshot independently (decoupled from AI decision, used for drawing profit curve)
+	// NOTE: Must be called BEFORE candidate coins check to ensure equity is always recorded
+	at.saveEquitySnapshot(ctx)
+
+	// 如果没有候选币种，记录但不报错
 	if len(ctx.CandidateCoins) == 0 {
 		logger.Infof("ℹ️  No candidate coins available, skipping this cycle")
+		record.Success = true // 不是错误，只是没有候选币
+		record.ExecutionLog = append(record.ExecutionLog, "No candidate coins available, cycle skipped")
+		record.AccountState = store.AccountSnapshot{
+			TotalBalance:          ctx.Account.TotalEquity,
+			AvailableBalance:      ctx.Account.AvailableBalance,
+			TotalUnrealizedProfit: ctx.Account.UnrealizedPnL,
+			PositionCount:         ctx.Account.PositionCount,
+			InitialBalance:        at.initialBalance,
+		}
+		at.saveDecision(record)
 		return nil
 	}
-
-	// Save equity snapshot independently (decoupled from AI decision, used for drawing profit curve)
-	at.saveEquitySnapshot(ctx)
 
 	logger.Info(strings.Repeat("=", 70))
 	for _, coin := range ctx.CandidateCoins {
@@ -844,14 +872,19 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	}
 
 	// 3. Use strategy engine to get candidate coins (must have strategy engine)
+	var candidateCoins []kernel.CandidateCoin
 	if at.strategyEngine == nil {
-		return nil, fmt.Errorf("trader has no strategy engine configured")
+		logger.Infof("⚠️ [%s] No strategy engine configured, skipping candidate coins", at.name)
+	} else {
+		coins, err := at.strategyEngine.GetCandidateCoins()
+		if err != nil {
+			// Log warning but don't fail - equity snapshot should still be saved
+			logger.Infof("⚠️ [%s] Failed to get candidate coins: %v (will use empty list)", at.name, err)
+		} else {
+			candidateCoins = coins
+			logger.Infof("📋 [%s] Strategy engine fetched candidate coins: %d", at.name, len(candidateCoins))
+		}
 	}
-	candidateCoins, err := at.strategyEngine.GetCandidateCoins()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get candidate coins: %w", err)
-	}
-	logger.Infof("📋 [%s] Strategy engine fetched candidate coins: %d", at.name, len(candidateCoins))
 
 	// 4. Calculate total P&L
 	totalPnL := totalEquity - at.initialBalance
@@ -1949,7 +1982,7 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 	// Exchanges with OrderSync: Skip immediate order recording, let OrderSync handle it
 	// This ensures accurate data from GetTrades API and avoids duplicate records
 	switch at.exchange {
-	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster":
+	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "kucoin":
 		logger.Infof("  📝 Order submitted (id: %s), will be synced by OrderSync", orderID)
 		return
 	}

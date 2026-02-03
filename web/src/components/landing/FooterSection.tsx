@@ -35,6 +35,7 @@ export default function FooterSection({ language }: FooterSectionProps) {
       { name: 'OKX', href: 'https://www.okx.com/join/1865360' },
       { name: 'Bitget', href: 'https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172' },
       { name: 'Gate.io', href: 'https://www.gatenode.xyz/share/VQBGUAxY' },
+      { name: 'KuCoin', href: 'https://www.kucoin.com/r/broker/CXEV7XKK' },
       { name: 'Hyperliquid', href: 'https://app.hyperliquid.xyz/join/AITRADING' },
       { name: 'Aster DEX', href: 'https://www.asterdex.com/en/referral/fdfc0e' },
       { name: 'Lighter', href: 'https://app.lighter.xyz/?referral=68151432' },

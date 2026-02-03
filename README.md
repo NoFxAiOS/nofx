@@ -78,35 +78,35 @@ To use NOFX, you'll need:
 ### CEX (Centralized Exchanges)
 
 | Exchange | Status | Register (Fee Discount) |
-|----------|--------|-------------------------|
-| **Binance** | ✅ Supported | [Register](https://www.binance.com/join?ref=NOFXENG) |
-| **Bybit** | ✅ Supported | [Register](https://partner.bybit.com/b/83856) |
-| **OKX** | ✅ Supported | [Register](https://www.okx.com/join/1865360) |
-| **Bitget** | ✅ Supported | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
-| **KuCoin** | ✅ Supported | [Register](https://www.kucoin.com/r/broker/CXEV7XKK) |
-| **Gate** | ✅ Supported | [Register](https://www.gatenode.xyz/share/VQBGUAxY) |
+|:---------|:------:|:------------------------|
+| <img src="web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [Register](https://www.binance.com/join?ref=NOFXENG) |
+| <img src="web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [Register](https://partner.bybit.com/b/83856) |
+| <img src="web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [Register](https://www.okx.com/join/1865360) |
+| <img src="web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [Register](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| <img src="web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [Register](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| <img src="web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [Register](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (Decentralized Perpetual Exchanges)
 
 | Exchange | Status | Register (Fee Discount) |
-|----------|--------|-------------------------|
-| **Hyperliquid** | ✅ Supported | [Register](https://app.hyperliquid.xyz/join/AITRADING) |
-| **Aster DEX** | ✅ Supported | [Register](https://www.asterdex.com/en/referral/fdfc0e) |
-| **Lighter** | ✅ Supported | [Register](https://app.lighter.xyz/?referral=68151432) |
+|:---------|:------:|:------------------------|
+| <img src="web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [Register](https://app.hyperliquid.xyz/join/AITRADING) |
+| <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster DEX** | ✅ | [Register](https://www.asterdex.com/en/referral/fdfc0e) |
+| <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Register](https://app.lighter.xyz/?referral=68151432) |
 
 ---
 
 ## Supported AI Models
 
 | AI Model | Status | Get API Key |
-|----------|--------|-------------|
-| **DeepSeek** | ✅ Supported | [Get API Key](https://platform.deepseek.com) |
-| **Qwen** | ✅ Supported | [Get API Key](https://dashscope.console.aliyun.com) |
-| **OpenAI (GPT)** | ✅ Supported | [Get API Key](https://platform.openai.com) |
-| **Claude** | ✅ Supported | [Get API Key](https://console.anthropic.com) |
-| **Gemini** | ✅ Supported | [Get API Key](https://aistudio.google.com) |
-| **Grok** | ✅ Supported | [Get API Key](https://console.x.ai) |
-| **Kimi** | ✅ Supported | [Get API Key](https://platform.moonshot.cn) |
+|:---------|:------:|:------------|
+| <img src="web/public/icons/deepseek.svg" width="20" height="20" style="vertical-align: middle;"/> **DeepSeek** | ✅ | [Get API Key](https://platform.deepseek.com) |
+| <img src="web/public/icons/qwen.svg" width="20" height="20" style="vertical-align: middle;"/> **Qwen** | ✅ | [Get API Key](https://dashscope.console.aliyun.com) |
+| <img src="web/public/icons/openai.svg" width="20" height="20" style="vertical-align: middle;"/> **OpenAI (GPT)** | ✅ | [Get API Key](https://platform.openai.com) |
+| <img src="web/public/icons/claude.svg" width="20" height="20" style="vertical-align: middle;"/> **Claude** | ✅ | [Get API Key](https://console.anthropic.com) |
+| <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [Get API Key](https://aistudio.google.com) |
+| <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [Get API Key](https://console.x.ai) |
+| <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [Get API Key](https://platform.moonshot.cn) |
 
 ---
 

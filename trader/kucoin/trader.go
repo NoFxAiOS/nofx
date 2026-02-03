@@ -50,6 +50,10 @@ type KuCoinTrader struct {
 	// HTTP client
 	httpClient *http.Client
 
+	// Server time offset (local - server) in milliseconds
+	serverTimeOffset int64
+	serverTimeMutex  sync.RWMutex
+
 	// Balance cache
 	cachedBalance     map[string]interface{}
 	balanceCacheTime  time.Time
@@ -107,8 +111,62 @@ func NewKuCoinTrader(apiKey, secretKey, passphrase string) *KuCoinTrader {
 		contractsCache: make(map[string]*KuCoinContract),
 	}
 
+	// Sync server time on initialization
+	if err := trader.syncServerTime(); err != nil {
+		logger.Warnf("⚠️ Failed to sync KuCoin server time: %v (will retry on first request)", err)
+	}
+
 	logger.Infof("✓ KuCoin Futures trader initialized")
 	return trader
+}
+
+// syncServerTime fetches KuCoin server time and calculates offset
+func (t *KuCoinTrader) syncServerTime() error {
+	resp, err := t.httpClient.Get(kucoinBaseURL + "/api/v1/timestamp")
+	if err != nil {
+		return fmt.Errorf("failed to get server time: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var result struct {
+		Code string `json:"code"`
+		Data int64  `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if result.Code != "200000" {
+		return fmt.Errorf("server time API error: %s", result.Code)
+	}
+
+	serverTime := result.Data
+	localTime := time.Now().UnixMilli()
+	offset := localTime - serverTime
+
+	t.serverTimeMutex.Lock()
+	t.serverTimeOffset = offset
+	t.serverTimeMutex.Unlock()
+
+	logger.Infof("✓ KuCoin time synced: offset=%dms (local %d - server %d)", offset, localTime, serverTime)
+	return nil
+}
+
+// getTimestamp returns the current timestamp adjusted for server time offset
+func (t *KuCoinTrader) getTimestamp() string {
+	t.serverTimeMutex.RLock()
+	offset := t.serverTimeOffset
+	t.serverTimeMutex.RUnlock()
+
+	// Subtract offset to get server time from local time
+	timestamp := time.Now().UnixMilli() - offset
+	return strconv.FormatInt(timestamp, 10)
 }
 
 // sign generates KuCoin API signature
@@ -147,7 +205,7 @@ func (t *KuCoinTrader) doRequest(method, path string, body interface{}) ([]byte,
 		}
 	}
 
-	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
+	timestamp := t.getTimestamp()
 	signature := t.sign(timestamp, method, path, string(bodyBytes))
 	signedPassphrase := t.signPassphrase(t.passphrase)
 
@@ -186,6 +244,13 @@ func (t *KuCoinTrader) doRequest(method, path string, body interface{}) ([]byte,
 	}
 
 	if kcResp.Code != "200000" {
+		// If timestamp error, try to re-sync server time
+		if kcResp.Code == "400002" || strings.Contains(kcResp.Msg, "TIMESTAMP") {
+			logger.Warnf("⚠️ KuCoin timestamp error, re-syncing server time...")
+			if err := t.syncServerTime(); err != nil {
+				logger.Warnf("⚠️ Failed to re-sync server time: %v", err)
+			}
+		}
 		return nil, fmt.Errorf("KuCoin API error: code=%s, msg=%s", kcResp.Code, kcResp.Msg)
 	}
 

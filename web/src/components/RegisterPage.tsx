@@ -248,6 +248,12 @@ export function RegisterPage() {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                        aria-label={
+                          showPassword
+                            ? t('hidePassword', language)
+                            : t('showPassword', language)
+                        }
+                        aria-pressed={showPassword}
                       >
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
@@ -269,6 +275,12 @@ export function RegisterPage() {
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                        aria-label={
+                          showConfirmPassword
+                            ? t('hidePassword', language)
+                            : t('showPassword', language)
+                        }
+                        aria-pressed={showConfirmPassword}
                       >
                         {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>

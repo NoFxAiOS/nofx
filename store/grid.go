@@ -63,6 +63,10 @@ type GridConfigModel struct {
 	AIProvider string `json:"ai_provider" gorm:"default:deepseek"`
 	AIModel    string `json:"ai_model" gorm:"default:deepseek-chat"`
 	IsActive   bool   `json:"is_active" gorm:"default:false"`
+
+	// Direction adjustment settings
+	EnableDirectionAdjust bool    `json:"enable_direction_adjust" gorm:"default:false"`
+	DirectionBiasRatio    float64 `json:"direction_bias_ratio" gorm:"default:0.7"`
 }
 
 func (GridConfigModel) TableName() string {
@@ -107,6 +111,11 @@ type GridInstanceModel struct {
 
 	// Position adjustment due to breakout
 	PositionReductionPct float64 `json:"position_reduction_pct" gorm:"default:0"` // 0 = normal, 50 = reduced
+
+	// Grid direction adjustment state
+	CurrentDirection       string    `json:"current_direction" gorm:"default:neutral"`
+	DirectionChangedAt     time.Time `json:"direction_changed_at"`
+	DirectionChangeCount   int       `json:"direction_change_count" gorm:"default:0"`
 
 	TotalProfit     float64   `json:"total_profit" gorm:"default:0"`
 	TotalFees       float64   `json:"total_fees" gorm:"default:0"`

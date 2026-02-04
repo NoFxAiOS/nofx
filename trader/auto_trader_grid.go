@@ -65,14 +65,20 @@ type GridState struct {
 
 	// Current regime level
 	CurrentRegimeLevel string
+
+	// Grid direction adjustment
+	CurrentDirection       market.GridDirection
+	DirectionChangedAt     time.Time
+	DirectionChangeCount   int
 }
 
 // NewGridState creates a new grid state
 func NewGridState(config *store.GridStrategyConfig) *GridState {
 	return &GridState{
-		Config:    config,
-		Levels:    make([]kernel.GridLevelInfo, 0),
-		OrderBook: make(map[string]int),
+		Config:           config,
+		Levels:           make([]kernel.GridLevelInfo, 0),
+		OrderBook:        make(map[string]int),
+		CurrentDirection: market.GridDirectionNeutral,
 	}
 }
 
@@ -325,7 +331,17 @@ func (at *AutoTrader) checkBoxBreakout() error {
 	}
 
 	// Take action based on breakout level
-	action := getBreakoutAction(breakoutLevel)
+	// Use direction-aware action if enabled
+	enableDirectionAdjust := gridConfig.EnableDirectionAdjust
+	action := getBreakoutActionWithDirection(breakoutLevel, enableDirectionAdjust)
+
+	// If direction adjustment action, determine the new direction
+	if action == BreakoutActionAdjustDirection {
+		box, _ := market.GetBoxData(gridConfig.Symbol)
+		newDirection := determineGridDirection(box, at.gridState.CurrentDirection, breakoutLevel, direction)
+		return at.executeDirectionAdjustment(newDirection)
+	}
+
 	return at.executeBreakoutAction(action)
 }
 
@@ -358,9 +374,36 @@ func (at *AutoTrader) executeBreakoutAction(action BreakoutAction) error {
 			logger.Infof("Failed to cancel orders: %v", err)
 		}
 		return at.closeAllPositions()
+
+	case BreakoutActionAdjustDirection:
+		// Direction adjustment is handled separately via executeDirectionAdjustment
+		// This case should not be reached, but handle gracefully
+		logger.Infof("Direction adjustment action received via executeBreakoutAction")
+		return nil
 	}
 
 	return nil
+}
+
+// executeDirectionAdjustment handles grid direction changes based on box breakout
+func (at *AutoTrader) executeDirectionAdjustment(newDirection market.GridDirection) error {
+	at.gridState.mu.RLock()
+	oldDirection := at.gridState.CurrentDirection
+	at.gridState.mu.RUnlock()
+
+	if oldDirection == newDirection {
+		return nil // No change needed
+	}
+
+	logger.Infof("[Grid] Direction adjustment: %s → %s", oldDirection, newDirection)
+
+	// Cancel existing orders before adjusting
+	if err := at.cancelAllGridOrders(); err != nil {
+		logger.Warnf("[Grid] Failed to cancel orders during direction adjustment: %v", err)
+	}
+
+	// Apply the new direction
+	return at.adjustGridDirection(newDirection)
 }
 
 // closeAllPositions closes all open positions for the grid symbol
@@ -410,10 +453,16 @@ func (at *AutoTrader) checkFalseBreakoutRecovery() error {
 	breakoutLevel := at.gridState.BreakoutLevel
 	isPaused := at.gridState.IsPaused
 	positionReduction := at.gridState.PositionReductionPct
+	currentDirection := at.gridState.CurrentDirection
 	at.gridState.mu.RUnlock()
 
-	// Only check if we had a breakout
-	if breakoutLevel == string(market.BreakoutNone) && positionReduction == 0 && !isPaused {
+	// Only check if we had a breakout or non-neutral direction
+	needsRecoveryCheck := breakoutLevel != string(market.BreakoutNone) ||
+		positionReduction != 0 ||
+		isPaused ||
+		(gridConfig.EnableDirectionAdjust && currentDirection != market.GridDirectionNeutral)
+
+	if !needsRecoveryCheck {
 		return nil
 	}
 
@@ -434,6 +483,18 @@ func (at *AutoTrader) checkFalseBreakoutRecovery() error {
 		at.gridState.PositionReductionPct = 50 // Recover at 50%
 		at.gridState.IsPaused = false
 		at.gridState.mu.Unlock()
+	}
+
+	// Check for direction recovery toward neutral (if direction adjustment is enabled)
+	if gridConfig.EnableDirectionAdjust && currentDirection != market.GridDirectionNeutral {
+		if shouldRecoverDirection(box, currentDirection) {
+			newDirection := determineRecoveryDirection(box.CurrentPrice, box, currentDirection)
+			if newDirection != currentDirection {
+				logger.Infof("[Grid] Direction recovery: %s → %s (price back in short box)",
+					currentDirection, newDirection)
+				at.adjustGridDirection(newDirection)
+			}
+		}
 	}
 
 	return nil
@@ -570,6 +631,128 @@ func (at *AutoTrader) initializeGridLevels(currentPrice float64, config *store.G
 	}
 
 	at.gridState.Levels = levels
+
+	// Apply direction-based side assignment if enabled
+	if config.EnableDirectionAdjust {
+		at.applyGridDirection(currentPrice)
+	}
+}
+
+// applyGridDirection adjusts grid level sides based on the current direction
+// This redistributes buy/sell levels according to the direction bias ratio
+func (at *AutoTrader) applyGridDirection(currentPrice float64) {
+	config := at.gridState.Config
+	direction := at.gridState.CurrentDirection
+
+	// Get bias ratio from config, default to 0.7 (70%/30%)
+	biasRatio := config.DirectionBiasRatio
+	if biasRatio <= 0 || biasRatio > 1 {
+		biasRatio = 0.7
+	}
+
+	buyRatio, _ := direction.GetBuySellRatio(biasRatio)
+
+	// Calculate how many levels should be buy vs sell based on direction
+	totalLevels := len(at.gridState.Levels)
+	targetBuyLevels := int(float64(totalLevels) * buyRatio)
+
+	// For neutral: use price-based assignment (buy below, sell above)
+	if direction == market.GridDirectionNeutral {
+		for i := range at.gridState.Levels {
+			if at.gridState.Levels[i].Price <= currentPrice {
+				at.gridState.Levels[i].Side = "buy"
+			} else {
+				at.gridState.Levels[i].Side = "sell"
+			}
+		}
+		return
+	}
+
+	// For long/long_bias: more buy levels
+	// For short/short_bias: more sell levels
+	switch direction {
+	case market.GridDirectionLong:
+		// 100% buy - all levels are buy
+		for i := range at.gridState.Levels {
+			at.gridState.Levels[i].Side = "buy"
+		}
+
+	case market.GridDirectionShort:
+		// 100% sell - all levels are sell
+		for i := range at.gridState.Levels {
+			at.gridState.Levels[i].Side = "sell"
+		}
+
+	case market.GridDirectionLongBias, market.GridDirectionShortBias:
+		// Assign sides based on position relative to current price
+		// For long_bias: keep all below as buy, convert some above to buy
+		// For short_bias: keep all above as sell, convert some below to sell
+		buyCount := 0
+		sellCount := 0
+
+		for i := range at.gridState.Levels {
+			needMoreBuys := buyCount < targetBuyLevels
+			needMoreSells := sellCount < (totalLevels - targetBuyLevels)
+
+			if at.gridState.Levels[i].Price <= currentPrice {
+				// Level below or at current price
+				if needMoreBuys {
+					at.gridState.Levels[i].Side = "buy"
+					buyCount++
+				} else {
+					at.gridState.Levels[i].Side = "sell"
+					sellCount++
+				}
+			} else {
+				// Level above current price
+				if needMoreSells && direction == market.GridDirectionShortBias {
+					at.gridState.Levels[i].Side = "sell"
+					sellCount++
+				} else if needMoreBuys && direction == market.GridDirectionLongBias {
+					at.gridState.Levels[i].Side = "buy"
+					buyCount++
+				} else if needMoreSells {
+					at.gridState.Levels[i].Side = "sell"
+					sellCount++
+				} else {
+					at.gridState.Levels[i].Side = "buy"
+					buyCount++
+				}
+			}
+		}
+	}
+
+	logger.Infof("[Grid] Applied direction %s: buy_ratio=%.0f%%, levels reconfigured",
+		direction, buyRatio*100)
+}
+
+// adjustGridDirection handles runtime direction adjustment when breakout is detected
+func (at *AutoTrader) adjustGridDirection(newDirection market.GridDirection) error {
+	at.gridState.mu.Lock()
+	defer at.gridState.mu.Unlock()
+
+	oldDirection := at.gridState.CurrentDirection
+	if oldDirection == newDirection {
+		return nil // No change needed
+	}
+
+	at.gridState.CurrentDirection = newDirection
+	at.gridState.DirectionChangedAt = time.Now()
+	at.gridState.DirectionChangeCount++
+
+	logger.Infof("[Grid] Direction changed: %s → %s (change count: %d)",
+		oldDirection, newDirection, at.gridState.DirectionChangeCount)
+
+	// Get current price for recalculation
+	currentPrice, err := at.trader.GetMarketPrice(at.gridState.Config.Symbol)
+	if err != nil {
+		return fmt.Errorf("failed to get market price: %w", err)
+	}
+
+	// Reapply direction to grid levels
+	at.applyGridDirection(currentPrice)
+
+	return nil
 }
 
 // RunGridCycle executes one grid trading cycle
@@ -1370,6 +1553,85 @@ func (at *AutoTrader) initializeGridLevelsLocked(currentPrice float64, config *s
 	}
 
 	at.gridState.Levels = levels
+
+	// Apply direction-based side assignment if enabled (note: caller holds lock)
+	if config.EnableDirectionAdjust {
+		at.applyGridDirectionLocked(currentPrice)
+	}
+}
+
+// applyGridDirectionLocked adjusts grid level sides based on the current direction (caller must hold lock)
+func (at *AutoTrader) applyGridDirectionLocked(currentPrice float64) {
+	config := at.gridState.Config
+	direction := at.gridState.CurrentDirection
+
+	// Get bias ratio from config, default to 0.7 (70%/30%)
+	biasRatio := config.DirectionBiasRatio
+	if biasRatio <= 0 || biasRatio > 1 {
+		biasRatio = 0.7
+	}
+
+	buyRatio, _ := direction.GetBuySellRatio(biasRatio)
+
+	// For neutral: use price-based assignment (buy below, sell above)
+	if direction == market.GridDirectionNeutral {
+		for i := range at.gridState.Levels {
+			if at.gridState.Levels[i].Price <= currentPrice {
+				at.gridState.Levels[i].Side = "buy"
+			} else {
+				at.gridState.Levels[i].Side = "sell"
+			}
+		}
+		return
+	}
+
+	totalLevels := len(at.gridState.Levels)
+	targetBuyLevels := int(float64(totalLevels) * buyRatio)
+
+	switch direction {
+	case market.GridDirectionLong:
+		for i := range at.gridState.Levels {
+			at.gridState.Levels[i].Side = "buy"
+		}
+
+	case market.GridDirectionShort:
+		for i := range at.gridState.Levels {
+			at.gridState.Levels[i].Side = "sell"
+		}
+
+	case market.GridDirectionLongBias, market.GridDirectionShortBias:
+		buyCount := 0
+		sellCount := 0
+
+		for i := range at.gridState.Levels {
+			needMoreBuys := buyCount < targetBuyLevels
+			needMoreSells := sellCount < (totalLevels - targetBuyLevels)
+
+			if at.gridState.Levels[i].Price <= currentPrice {
+				if needMoreBuys {
+					at.gridState.Levels[i].Side = "buy"
+					buyCount++
+				} else {
+					at.gridState.Levels[i].Side = "sell"
+					sellCount++
+				}
+			} else {
+				if needMoreSells && direction == market.GridDirectionShortBias {
+					at.gridState.Levels[i].Side = "sell"
+					sellCount++
+				} else if needMoreBuys && direction == market.GridDirectionLongBias {
+					at.gridState.Levels[i].Side = "buy"
+					buyCount++
+				} else if needMoreSells {
+					at.gridState.Levels[i].Side = "sell"
+					sellCount++
+				} else {
+					at.gridState.Levels[i].Side = "buy"
+					buyCount++
+				}
+			}
+		}
+	}
 }
 
 // GridRiskInfo contains risk information for frontend display
@@ -1397,6 +1659,11 @@ type GridRiskInfo struct {
 
 	BreakoutLevel     string `json:"breakout_level"`
 	BreakoutDirection string `json:"breakout_direction"`
+
+	// Grid direction
+	CurrentGridDirection    string `json:"current_grid_direction"`
+	DirectionChangeCount    int    `json:"direction_change_count"`
+	EnableDirectionAdjust   bool   `json:"enable_direction_adjust"`
 }
 
 // GetGridRiskInfo returns current risk information for frontend display
@@ -1513,6 +1780,10 @@ func (at *AutoTrader) GetGridRiskInfo() *GridRiskInfo {
 
 		BreakoutLevel:     at.gridState.BreakoutLevel,
 		BreakoutDirection: at.gridState.BreakoutDirection,
+
+		CurrentGridDirection:  string(at.gridState.CurrentDirection),
+		DirectionChangeCount:  at.gridState.DirectionChangeCount,
+		EnableDirectionAdjust: gridConfig.EnableDirectionAdjust,
 	}
 }
 

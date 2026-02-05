@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
 import { t } from '../i18n/translations'
 import { MetricTooltip } from './MetricTooltip'
+import { formatPrice, formatQuantity } from '../utils/format'
 import type {
   HistoricalPosition,
   TraderStats,
@@ -14,7 +15,7 @@ interface PositionHistoryProps {
   traderId: string
 }
 
-// Format number with proper decimals
+// Format number with proper decimals (for large numbers)
 function formatNumber(value: number, decimals: number = 2): string {
   if (Math.abs(value) >= 1000000) {
     return (value / 1000000).toFixed(2) + 'M'
@@ -23,14 +24,6 @@ function formatNumber(value: number, decimals: number = 2): string {
     return (value / 1000).toFixed(2) + 'K'
   }
   return value.toFixed(decimals)
-}
-
-// Format price with proper decimals
-function formatPrice(price: number): string {
-  if (!price || price === 0) return '-'
-  if (price >= 1000) return price.toFixed(2)
-  if (price >= 1) return price.toFixed(4)
-  return price.toFixed(6)
 }
 
 // Format duration from minutes
@@ -300,7 +293,7 @@ function PositionRow({ position }: { position: HistoricalPosition }) {
 
       {/* Quantity */}
       <td className="py-3 px-4 text-right font-mono" style={{ color: '#848E9C' }}>
-        {displayQty.toFixed(4)}
+        {formatQuantity(displayQty)}
       </td>
 
       {/* Position Value (Entry Price * Quantity) */}

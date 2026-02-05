@@ -60,7 +60,11 @@ func (t *GateTrader) GetTrades(startTime time.Time, limit int) ([]GateTrade, err
 			continue
 		}
 
-		fillPrice, _ := strconv.ParseFloat(trade.Price, 64)
+		fillPrice, err := strconv.ParseFloat(trade.Price, 64)
+		if err != nil || fillPrice == 0 {
+			logger.Infof("⚠️  Gate trade %d: fillPrice parse issue - raw='%s' parsed=%.8f err=%v",
+				trade.Id, trade.Price, fillPrice, err)
+		}
 
 		// Get quanto_multiplier for this contract to convert size to base currency
 		quantoMultiplier := 1.0
@@ -176,12 +180,6 @@ func (t *GateTrader) SyncOrdersFromGate(traderID string, exchangeID string, exch
 	syncedCount := 0
 
 	for _, trade := range trades {
-		// Check if trade already exists (use exchangeID which is UUID, not exchange type)
-		existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
-		if err == nil && existing != nil {
-			continue // Order already exists, skip
-		}
-
 		// Normalize symbol (Gate uses BTC_USDT, normalize to BTCUSDT)
 		symbol := market.Normalize(strings.ReplaceAll(trade.Symbol, "_", ""))
 
@@ -191,11 +189,30 @@ func (t *GateTrader) SyncOrdersFromGate(traderID string, exchangeID string, exch
 			positionSide = "SHORT"
 		}
 
+		execTimeMs := trade.ExecTime.UTC().UnixMilli()
+
+		// Check if trade already exists (use exchangeID which is UUID, not exchange type)
+		existing, err := orderStore.GetOrderByExchangeID(exchangeID, trade.TradeID)
+		if err == nil && existing != nil {
+			// Order exists, but still try to update position for close trades
+			// This handles the case where order was created but position update failed
+			if strings.HasPrefix(trade.OrderAction, "close_") && trade.FillPrice > 0 {
+				if err := posBuilder.ProcessTrade(
+					traderID, exchangeID, exchangeType,
+					symbol, positionSide, trade.OrderAction,
+					trade.FillQty, trade.FillPrice, trade.Fee, trade.ProfitLoss,
+					execTimeMs, trade.TradeID,
+				); err != nil {
+					logger.Infof("  ⚠️ Retry position update for existing trade %s failed: %v", trade.TradeID, err)
+				}
+			}
+			continue
+		}
+
 		// Normalize side for storage
 		side := strings.ToUpper(trade.Side)
 
-		// Create order record - use UTC time in milliseconds to avoid timezone issues
-		execTimeMs := trade.ExecTime.UTC().UnixMilli()
+		// Create order record
 		orderRecord := &store.TraderOrder{
 			TraderID:        traderID,
 			ExchangeID:      exchangeID,   // UUID
@@ -248,15 +265,20 @@ func (t *GateTrader) SyncOrdersFromGate(traderID string, exchangeID string, exch
 		}
 
 		// Create/update position record using PositionBuilder
-		if err := posBuilder.ProcessTrade(
-			traderID, exchangeID, exchangeType,
-			symbol, positionSide, trade.OrderAction,
-			trade.FillQty, trade.FillPrice, trade.Fee, trade.ProfitLoss,
-			execTimeMs, trade.TradeID,
-		); err != nil {
-			logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
+		// Debug: Log the price being passed to ensure it's not 0
+		if trade.FillPrice <= 0 {
+			logger.Infof("  ⚠️ WARNING: trade %s has FillPrice=%.10f (invalid), skipping position update", trade.TradeID, trade.FillPrice)
 		} else {
-			logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f)", trade.TradeID, trade.OrderAction, trade.FillQty)
+			if err := posBuilder.ProcessTrade(
+				traderID, exchangeID, exchangeType,
+				symbol, positionSide, trade.OrderAction,
+				trade.FillQty, trade.FillPrice, trade.Fee, trade.ProfitLoss,
+				execTimeMs, trade.TradeID,
+			); err != nil {
+				logger.Infof("  ⚠️ Failed to sync position for trade %s: %v", trade.TradeID, err)
+			} else {
+				logger.Infof("  📍 Position updated for trade: %s (action: %s, qty: %.6f, price: %.10f)", trade.TradeID, trade.OrderAction, trade.FillQty, trade.FillPrice)
+			}
 		}
 
 		syncedCount++

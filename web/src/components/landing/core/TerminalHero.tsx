@@ -298,14 +298,14 @@ function CommunityStats() {
     const stats = [
         {
             label: 'GITHUB STARS',
-            value: isLoading ? '...' : (error ? '9,700+' : stars.toLocaleString()),
+            value: isLoading ? '...' : (error ? '10,500+' : stars.toLocaleString()),
             icon: Star,
             color: 'text-yellow-400',
             href: OFFICIAL_LINKS.github
         },
         {
             label: 'FORKS',
-            value: isLoading ? '...' : (error ? '2,600+' : forks.toLocaleString()),
+            value: isLoading ? '...' : (error ? '2,800+' : forks.toLocaleString()),
             icon: GitFork,
             color: 'text-blue-400',
             href: `${OFFICIAL_LINKS.github}/fork`
@@ -319,7 +319,7 @@ function CommunityStats() {
         },
         {
             label: 'DEV COMMUNITY',
-            value: '6,000+', // Updated as per user request
+            value: '6,600+',
             icon: MessageCircle,
             color: 'text-blue-500',
             href: OFFICIAL_LINKS.telegram

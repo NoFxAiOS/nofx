@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Github } from 'lucide-react'
 import { Marquee } from './Marquee'
 import { OFFICIAL_LINKS } from '../../../constants/branding'
+import AgentTerminal from './AgentTerminal'
 
 export default function BrandHero() {
     const handleScroll = () => {
@@ -75,32 +76,25 @@ export default function BrandHero() {
                     </motion.div>
                 </div>
 
-                {/* Right Visual - Mascot */}
-                <div className="flex-1 relative flex items-end justify-center lg:justify-end overflow-hidden">
-                    {/* Abstract background elements */}
-                    <div className="absolute top-1/4 right-0 w-[600px] h-[600px] bg-nofx-accent/20 rounded-full blur-[100px] pointer-events-none" />
-                    <div className="absolute bottom-0 left-10 w-[400px] h-[400px] bg-nofx-gold/10 rounded-full blur-[80px] pointer-events-none" />
+                {/* Right Visual - Agent Terminal */}
+                <div className="flex-1 relative overflow-visible flex items-center justify-center py-8 lg:py-0 min-h-[600px]">
+                    {/* Background gradient orbs */}
+                    <div className="absolute top-1/2 right-[15%] -translate-y-1/2 w-[450px] h-[450px] rounded-full bg-gradient-to-br from-nofx-gold/20 via-nofx-gold/5 to-transparent blur-[80px]" />
+                    <div className="absolute top-[25%] right-[35%] w-[250px] h-[250px] rounded-full bg-nofx-accent/10 blur-[60px]" />
 
-                    {/* Grid Pattern */}
-                    <div className="absolute inset-0 opacity-20"
+                    {/* Subtle dot grid */}
+                    <div
+                        className="absolute inset-0 opacity-[0.04]"
                         style={{
-                            backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)',
-                            backgroundSize: '40px 40px'
+                            backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.4) 1px, transparent 0)',
+                            backgroundSize: '32px 32px'
                         }}
                     />
 
-                    <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 1, delay: 0.2 }}
-                        className="relative z-10 w-full h-full flex items-end justify-center lg:justify-end lg:pr-10"
-                    >
-                        <img
-                            src="/images/nofx_mascot.png"
-                            alt="Cyberpunk Mascot"
-                            className="h-[80vh] object-contain drop-shadow-[0_0_50px_rgba(0,0,0,0.5)]"
-                        />
-                    </motion.div>
+                    {/* Terminal Panel */}
+                    <div className="relative z-10">
+                        <AgentTerminal />
+                    </div>
                 </div>
             </div>
         </section>

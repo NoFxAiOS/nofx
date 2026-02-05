@@ -273,7 +273,7 @@ export default function TerminalHero() {
                         </span>
                     ))}
 
-                    <span className="flex items-center gap-2"><CircuitBoard className="w-3 h-3 text-nofx-accent" /> AI MODEL: CLAUDE-OPUS-4.6</span>
+                    <span className="flex items-center gap-2"><CircuitBoard className="w-3 h-3 text-nofx-accent" /> AI MODEL: Claude Opus 4.6</span>
 
                     {/* Duplicate sequence for seamless loop effect (basic set) */}
                     {Object.entries(prices).map(([symbol, price]) => (

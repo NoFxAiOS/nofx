@@ -1169,10 +1169,35 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 		// Continue execution, doesn't affect trading
 	}
 
-	// Open position
-	order, err := at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
-	if err != nil {
-		return err
+	// Open position - try to use OpenLongWithTPSL if available (single API call with TP/SL)
+	var order map[string]interface{}
+	if trader, ok := at.trader.(interface {
+		OpenLongWithTPSL(symbol string, quantity float64, leverage int, stopLoss, takeProfit float64) (map[string]interface{}, error)
+	}); ok && (decision.StopLoss > 0 || decision.TakeProfit > 0) {
+		// Use optimized method that includes TP/SL in single API call (e.g., Bitget)
+		order, err = trader.OpenLongWithTPSL(decision.Symbol, quantity, decision.Leverage, decision.StopLoss, decision.TakeProfit)
+		if err != nil {
+			return err
+		}
+		logger.Infof("  ✓ Position opened with preset TP/SL (single API call)")
+	} else {
+		// Fallback to legacy method (separate API calls)
+		order, err = at.trader.OpenLong(decision.Symbol, quantity, decision.Leverage)
+		if err != nil {
+			return err
+		}
+
+		// Set stop loss and take profit separately
+		if decision.StopLoss > 0 {
+			if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
+				logger.Infof("  ⚠ Failed to set stop loss: %v", err)
+			}
+		}
+		if decision.TakeProfit > 0 {
+			if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
+				logger.Infof("  ⚠ Failed to set take profit: %v", err)
+			}
+		}
 	}
 
 	// Record order ID
@@ -1188,14 +1213,6 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	// Record position opening time
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
-
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
-	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
-	}
 
 	return nil
 }
@@ -1286,10 +1303,35 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 		// Continue execution, doesn't affect trading
 	}
 
-	// Open position
-	order, err := at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
-	if err != nil {
-		return err
+	// Open position - try to use OpenShortWithTPSL if available (single API call with TP/SL)
+	var order map[string]interface{}
+	if trader, ok := at.trader.(interface {
+		OpenShortWithTPSL(symbol string, quantity float64, leverage int, stopLoss, takeProfit float64) (map[string]interface{}, error)
+	}); ok && (decision.StopLoss > 0 || decision.TakeProfit > 0) {
+		// Use optimized method that includes TP/SL in single API call (e.g., Bitget)
+		order, err = trader.OpenShortWithTPSL(decision.Symbol, quantity, decision.Leverage, decision.StopLoss, decision.TakeProfit)
+		if err != nil {
+			return err
+		}
+		logger.Infof("  ✓ Position opened with preset TP/SL (single API call)")
+	} else {
+		// Fallback to legacy method (separate API calls)
+		order, err = at.trader.OpenShort(decision.Symbol, quantity, decision.Leverage)
+		if err != nil {
+			return err
+		}
+
+		// Set stop loss and take profit separately
+		if decision.StopLoss > 0 {
+			if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
+				logger.Infof("  ⚠ Failed to set stop loss: %v", err)
+			}
+		}
+		if decision.TakeProfit > 0 {
+			if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
+				logger.Infof("  ⚠ Failed to set take profit: %v", err)
+			}
+		}
 	}
 
 	// Record order ID
@@ -1305,14 +1347,6 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	// Record position opening time
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
-
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
-	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
-	}
 
 	return nil
 }

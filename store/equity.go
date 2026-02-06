@@ -53,7 +53,9 @@ func (s *EquityStore) Save(snapshot *EquitySnapshot) error {
 		snapshot.Timestamp = snapshot.Timestamp.UTC()
 	}
 
-	if err := s.db.Create(snapshot).Error; err != nil {
+	// Omit ID to let PostgreSQL sequence auto-generate it
+	// Without this, GORM inserts ID=0 which causes duplicate key errors
+	if err := s.db.Omit("ID").Create(snapshot).Error; err != nil {
 		return fmt.Errorf("failed to save equity snapshot: %w", err)
 	}
 	return nil

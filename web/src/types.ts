@@ -506,6 +506,10 @@ export interface GridStrategyConfig {
   daily_loss_limit_pct: number;
   // Use maker-only orders for lower fees
   use_maker_only: boolean;
+  // Enable automatic grid direction adjustment based on box breakouts
+  enable_direction_adjust?: boolean;
+  // Direction bias ratio for long_bias/short_bias modes (default 0.7 = 70%/30%)
+  direction_bias_ratio?: number;
 }
 
 export interface CoinSourceConfig {

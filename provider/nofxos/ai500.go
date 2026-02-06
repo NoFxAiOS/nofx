@@ -105,7 +105,8 @@ func (c *Client) GetTopRatedCoins(limit int) ([]string, error) {
 	}
 
 	if len(availableCoins) == 0 {
-		return nil, fmt.Errorf("no available coins")
+		// Empty list is normal - just return empty slice, not an error
+		return []string{}, nil
 	}
 
 	// Sort by Score descending (bubble sort)
@@ -147,10 +148,7 @@ func (c *Client) GetAvailableCoins() ([]string, error) {
 		}
 	}
 
-	if len(symbols) == 0 {
-		return nil, fmt.Errorf("no available coins")
-	}
-
+	// Empty list is normal - just return empty slice, not an error
 	return symbols, nil
 }
 

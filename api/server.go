@@ -20,6 +20,15 @@ import (
 	"nofx/provider/twelvedata"
 	"nofx/store"
 	"nofx/trader"
+	"nofx/trader/aster"
+	"nofx/trader/binance"
+	"nofx/trader/bitget"
+	"nofx/trader/bybit"
+	"nofx/trader/gate"
+	hyperliquidtrader "nofx/trader/hyperliquid"
+	"nofx/trader/kucoin"
+	"nofx/trader/lighter"
+	"nofx/trader/okx"
 	"strconv"
 	"strings"
 	"time"
@@ -256,13 +265,14 @@ func (s *Server) handleGetServerIP(c *gin.Context) {
 	})
 }
 
-// getPublicIPFromAPI Get public IP via third-party API
+// getPublicIPFromAPI Get public IP via third-party API (IPv4 only)
 func getPublicIPFromAPI() string {
-	// Try multiple public IP query services
+	// Try multiple public IP query services (IPv4-only endpoints)
 	services := []string{
-		"https://api.ipify.org?format=text",
-		"https://icanhazip.com",
-		"https://ifconfig.me",
+		"https://api4.ipify.org?format=text", // IPv4 only
+		"https://ipv4.icanhazip.com",         // IPv4 only
+		"https://v4.ident.me",                // IPv4 only
+		"https://api.ipify.org?format=text",  // May return IPv4 or IPv6
 	}
 
 	client := &http.Client{
@@ -284,8 +294,9 @@ func getPublicIPFromAPI() string {
 			}
 
 			ip := strings.TrimSpace(string(body[:n]))
-			// Verify if it's a valid IP address
-			if net.ParseIP(ip) != nil {
+			parsedIP := net.ParseIP(ip)
+			// Verify if it's a valid IPv4 address (not containing ":")
+			if parsedIP != nil && parsedIP.To4() != nil {
 				return ip
 			}
 		}
@@ -583,32 +594,43 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		// Convert EncryptedString fields to string
 		switch exchangeCfg.ExchangeType {
 		case "binance":
-			tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
+			tempTrader = binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 		case "hyperliquid":
-			tempTrader, createErr = trader.NewHyperliquidTrader(
+			tempTrader, createErr = hyperliquidtrader.NewHyperliquidTrader(
 				string(exchangeCfg.APIKey), // private key
 				exchangeCfg.HyperliquidWalletAddr,
 				exchangeCfg.Testnet,
 			)
 		case "aster":
-			tempTrader, createErr = trader.NewAsterTrader(
+			tempTrader, createErr = aster.NewAsterTrader(
 				exchangeCfg.AsterUser,
 				exchangeCfg.AsterSigner,
 				string(exchangeCfg.AsterPrivateKey),
 			)
 		case "bybit":
-			tempTrader = trader.NewBybitTrader(
+			tempTrader = bybit.NewBybitTrader(
 				string(exchangeCfg.APIKey),
 				string(exchangeCfg.SecretKey),
 			)
 		case "okx":
-			tempTrader = trader.NewOKXTrader(
+			tempTrader = okx.NewOKXTrader(
 				string(exchangeCfg.APIKey),
 				string(exchangeCfg.SecretKey),
 				string(exchangeCfg.Passphrase),
 			)
 		case "bitget":
-			tempTrader = trader.NewBitgetTrader(
+			tempTrader = bitget.NewBitgetTrader(
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+				string(exchangeCfg.Passphrase),
+			)
+		case "gate":
+			tempTrader = gate.NewGateTrader(
+				string(exchangeCfg.APIKey),
+				string(exchangeCfg.SecretKey),
+			)
+		case "kucoin":
+			tempTrader = kucoin.NewKuCoinTrader(
 				string(exchangeCfg.APIKey),
 				string(exchangeCfg.SecretKey),
 				string(exchangeCfg.Passphrase),
@@ -616,7 +638,7 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 		case "lighter":
 			if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 				// Lighter only supports mainnet
-				tempTrader, createErr = trader.NewLighterTraderV2(
+				tempTrader, createErr = lighter.NewLighterTraderV2(
 					exchangeCfg.LighterWalletAddr,
 					string(exchangeCfg.LighterAPIKeyPrivateKey),
 					exchangeCfg.LighterAPIKeyIndex,
@@ -1141,32 +1163,43 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	// Convert EncryptedString fields to string
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
+		tempTrader = binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 	case "hyperliquid":
-		tempTrader, createErr = trader.NewHyperliquidTrader(
+		tempTrader, createErr = hyperliquidtrader.NewHyperliquidTrader(
 			string(exchangeCfg.APIKey),
 			exchangeCfg.HyperliquidWalletAddr,
 			exchangeCfg.Testnet,
 		)
 	case "aster":
-		tempTrader, createErr = trader.NewAsterTrader(
+		tempTrader, createErr = aster.NewAsterTrader(
 			exchangeCfg.AsterUser,
 			exchangeCfg.AsterSigner,
 			string(exchangeCfg.AsterPrivateKey),
 		)
 	case "bybit":
-		tempTrader = trader.NewBybitTrader(
+		tempTrader = bybit.NewBybitTrader(
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 		)
 	case "okx":
-		tempTrader = trader.NewOKXTrader(
+		tempTrader = okx.NewOKXTrader(
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
 		)
 	case "bitget":
-		tempTrader = trader.NewBitgetTrader(
+		tempTrader = bitget.NewBitgetTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
+		)
+	case "gate":
+		tempTrader = gate.NewGateTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+		)
+	case "kucoin":
+		tempTrader = kucoin.NewKuCoinTrader(
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
@@ -1174,7 +1207,7 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 	case "lighter":
 		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
-			tempTrader, createErr = trader.NewLighterTraderV2(
+			tempTrader, createErr = lighter.NewLighterTraderV2(
 				exchangeCfg.LighterWalletAddr,
 				string(exchangeCfg.LighterAPIKeyPrivateKey),
 				exchangeCfg.LighterAPIKeyIndex,
@@ -1293,32 +1326,43 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 	// Convert EncryptedString fields to string
 	switch exchangeCfg.ExchangeType {
 	case "binance":
-		tempTrader = trader.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
+		tempTrader = binance.NewFuturesTrader(string(exchangeCfg.APIKey), string(exchangeCfg.SecretKey), userID)
 	case "hyperliquid":
-		tempTrader, createErr = trader.NewHyperliquidTrader(
+		tempTrader, createErr = hyperliquidtrader.NewHyperliquidTrader(
 			string(exchangeCfg.APIKey),
 			exchangeCfg.HyperliquidWalletAddr,
 			exchangeCfg.Testnet,
 		)
 	case "aster":
-		tempTrader, createErr = trader.NewAsterTrader(
+		tempTrader, createErr = aster.NewAsterTrader(
 			exchangeCfg.AsterUser,
 			exchangeCfg.AsterSigner,
 			string(exchangeCfg.AsterPrivateKey),
 		)
 	case "bybit":
-		tempTrader = trader.NewBybitTrader(
+		tempTrader = bybit.NewBybitTrader(
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 		)
 	case "okx":
-		tempTrader = trader.NewOKXTrader(
+		tempTrader = okx.NewOKXTrader(
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
 		)
 	case "bitget":
-		tempTrader = trader.NewBitgetTrader(
+		tempTrader = bitget.NewBitgetTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			string(exchangeCfg.Passphrase),
+		)
+	case "gate":
+		tempTrader = gate.NewGateTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+		)
+	case "kucoin":
+		tempTrader = kucoin.NewKuCoinTrader(
 			string(exchangeCfg.APIKey),
 			string(exchangeCfg.SecretKey),
 			string(exchangeCfg.Passphrase),
@@ -1326,7 +1370,7 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 	case "lighter":
 		if exchangeCfg.LighterWalletAddr != "" && string(exchangeCfg.LighterAPIKeyPrivateKey) != "" {
 			// Lighter only supports mainnet
-			tempTrader, createErr = trader.NewLighterTraderV2(
+			tempTrader, createErr = lighter.NewLighterTraderV2(
 				exchangeCfg.LighterWalletAddr,
 				string(exchangeCfg.LighterAPIKeyPrivateKey),
 				exchangeCfg.LighterAPIKeyIndex,
@@ -1405,7 +1449,7 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 func (s *Server) recordClosePositionOrder(traderID, exchangeID, exchangeType, symbol, side string, quantity, exitPrice float64, result map[string]interface{}) {
 	// Skip for exchanges with OrderSync - let the background sync handle it to avoid duplicates
 	switch exchangeType {
-	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster":
+	case "binance", "lighter", "hyperliquid", "bybit", "okx", "bitget", "aster", "gate":
 		logger.Infof("  📝 Close order will be synced by OrderSync, skipping immediate record")
 		return
 	}
@@ -1959,7 +2003,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 	// Validate exchange type
 	validTypes := map[string]bool{
 		"binance": true, "bybit": true, "okx": true, "bitget": true,
-		"hyperliquid": true, "aster": true, "lighter": true,
+		"hyperliquid": true, "aster": true, "lighter": true, "gate": true, "kucoin": true,
 	}
 	if !validTypes[req.ExchangeType] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid exchange type: %s", req.ExchangeType)})
@@ -2491,10 +2535,15 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 		coinankExchange = coinank_enum.Okex
 	case "bitget":
 		coinankExchange = coinank_enum.Bitget
+	case "gate":
+		coinankExchange = coinank_enum.Gate
 	case "aster":
 		coinankExchange = coinank_enum.Aster
 	case "lighter":
 		// Lighter doesn't have direct CoinAnk support, use Binance data as fallback
+		coinankExchange = coinank_enum.Binance
+	case "kucoin":
+		// KuCoin doesn't have direct CoinAnk support, use Binance data as fallback
 		coinankExchange = coinank_enum.Binance
 	default:
 		// For any unknown exchange, default to Binance
@@ -3340,6 +3389,8 @@ func (s *Server) handleGetSupportedExchanges(c *gin.Context) {
 		{ExchangeType: "binance", Name: "Binance Futures", Type: "cex"},
 		{ExchangeType: "bybit", Name: "Bybit Futures", Type: "cex"},
 		{ExchangeType: "okx", Name: "OKX Futures", Type: "cex"},
+		{ExchangeType: "gate", Name: "Gate.io Futures", Type: "cex"},
+		{ExchangeType: "kucoin", Name: "KuCoin Futures", Type: "cex"},
 		{ExchangeType: "hyperliquid", Name: "Hyperliquid", Type: "dex"},
 		{ExchangeType: "aster", Name: "Aster DEX", Type: "dex"},
 		{ExchangeType: "lighter", Name: "LIGHTER DEX", Type: "dex"},

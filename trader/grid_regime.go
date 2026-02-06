@@ -194,3 +194,119 @@ func getBreakoutAction(level market.BreakoutLevel) BreakoutAction {
 		return BreakoutActionNone
 	}
 }
+
+// ============================================================================
+// Task 10: Grid Direction Adjustment
+// ============================================================================
+
+const (
+	// BreakoutActionAdjustDirection adjusts grid direction based on breakout
+	BreakoutActionAdjustDirection BreakoutAction = 4
+)
+
+// determineGridDirection determines the new grid direction based on box breakout
+// currentDirection: the current grid direction
+// breakoutLevel: which box level has been broken (short/mid/long)
+// direction: breakout direction ("up" or "down")
+// Returns: the new grid direction
+func determineGridDirection(box *market.BoxData, currentDirection market.GridDirection, breakoutLevel market.BreakoutLevel, direction string) market.GridDirection {
+	if box == nil {
+		return currentDirection
+	}
+
+	price := box.CurrentPrice
+
+	switch breakoutLevel {
+	case market.BreakoutShort:
+		// Short box breakout: bias direction
+		// Still within mid box, so not a full trend yet
+		if direction == "up" {
+			return market.GridDirectionLongBias
+		}
+		return market.GridDirectionShortBias
+
+	case market.BreakoutMid:
+		// Mid box breakout: full direction
+		// More significant move, commit fully
+		if direction == "up" {
+			return market.GridDirectionLong
+		}
+		return market.GridDirectionShort
+
+	case market.BreakoutLong:
+		// Long box breakout: handled by existing emergency logic
+		// Return current direction, let existing handlers take over
+		return currentDirection
+
+	case market.BreakoutNone:
+		// No breakout - check if we should recover toward neutral
+		return determineRecoveryDirection(price, box, currentDirection)
+
+	default:
+		return currentDirection
+	}
+}
+
+// determineRecoveryDirection determines if grid direction should recover toward neutral
+// This implements the gradual recovery logic: long → long_bias → neutral ← short_bias ← short
+func determineRecoveryDirection(price float64, box *market.BoxData, currentDirection market.GridDirection) market.GridDirection {
+	// Check if price is back inside the short box
+	insideShortBox := price >= box.ShortLower && price <= box.ShortUpper
+
+	if !insideShortBox {
+		// Still outside short box, maintain current direction
+		return currentDirection
+	}
+
+	// Price is inside short box, start recovery toward neutral
+	switch currentDirection {
+	case market.GridDirectionLong:
+		// Full long → bias long
+		return market.GridDirectionLongBias
+	case market.GridDirectionLongBias:
+		// Bias long → neutral
+		return market.GridDirectionNeutral
+	case market.GridDirectionShort:
+		// Full short → bias short
+		return market.GridDirectionShortBias
+	case market.GridDirectionShortBias:
+		// Bias short → neutral
+		return market.GridDirectionNeutral
+	default:
+		return currentDirection
+	}
+}
+
+// getBreakoutActionWithDirection returns the appropriate action for a breakout level
+// when direction adjustment is enabled
+func getBreakoutActionWithDirection(level market.BreakoutLevel, enableDirectionAdjust bool) BreakoutAction {
+	if !enableDirectionAdjust {
+		// Fall back to original behavior
+		return getBreakoutAction(level)
+	}
+
+	switch level {
+	case market.BreakoutShort:
+		// Short box breakout with direction adjustment: adjust direction instead of reducing position
+		return BreakoutActionAdjustDirection
+	case market.BreakoutMid:
+		// Mid box breakout with direction adjustment: adjust to full direction
+		return BreakoutActionAdjustDirection
+	case market.BreakoutLong:
+		// Long box breakout: always trigger emergency handling
+		return BreakoutActionCloseAll
+	default:
+		return BreakoutActionNone
+	}
+}
+
+// shouldRecoverDirection checks if the current grid direction should start recovering toward neutral
+func shouldRecoverDirection(box *market.BoxData, currentDirection market.GridDirection) bool {
+	if box == nil || currentDirection == market.GridDirectionNeutral {
+		return false
+	}
+
+	price := box.CurrentPrice
+	// Check if price is back inside the short box
+	return price >= box.ShortLower && price <= box.ShortUpper
+}

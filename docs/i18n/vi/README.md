@@ -1,22 +1,30 @@
-# NOFX - Hệ Thống Giao Dịch AI
+<h1 align="center">NOFX — Hệ Điều Hành Giao Dịch AI Mã Nguồn Mở</h1>
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+<p align="center">
+  <strong>Lớp cơ sở hạ tầng cho giao dịch tài chính AI-powered</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=for-the-badge" alt="Stars"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=for-the-badge" alt="Release"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/Telegram-Community-blue?style=for-the-badge&logo=telegram" alt="Telegram"></a>
+</p>
+
+<p align="center">
+  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
+  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript" alt="TypeScript"></a>
+</p>
 
 **Ngôn ngữ:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Tiếng Việt](README.md)
 
 ---
 
-## Nền Tảng Giao Dịch Crypto Sử Dụng AI
-
-**NOFX** là hệ thống giao dịch AI mã nguồn mở cho phép bạn chạy nhiều mô hình AI để tự động giao dịch hợp đồng tương lai crypto. Cấu hình chiến lược qua giao diện web, theo dõi hiệu suất theo thời gian thực, và để các AI agent cạnh tranh tìm ra phương pháp giao dịch tốt nhất.
-
 ### Tính Năng Chính
 
 - **Hỗ trợ Đa AI**: Chạy DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi - chuyển đổi mô hình bất cứ lúc nào
-- **Đa Sàn Giao Dịch**: Giao dịch trên Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter từ một nền tảng
+- **Đa Sàn Giao Dịch**: Giao dịch trên Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster DEX, Lighter từ một nền tảng
 - **Strategy Studio**: Trình tạo chiến lược trực quan với nguồn coin, chỉ báo và kiểm soát rủi ro
 - **Chế Độ Thi Đấu AI**: Nhiều AI trader cạnh tranh theo thời gian thực, theo dõi hiệu suất song song
 - **Cấu Hình Web**: Không cần chỉnh sửa JSON - cấu hình mọi thứ qua giao diện web
@@ -55,6 +63,8 @@ Tham gia cộng đồng Telegram: **[NOFX Developer Community](https://t.me/nofx
 | **Bybit** | ✅ Hỗ trợ | [Đăng ký](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Hỗ trợ | [Đăng ký](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Hỗ trợ | [Đăng ký](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ Hỗ trợ | [Đăng ký](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ Hỗ trợ | [Đăng ký](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (Sàn Phi Tập Trung)
 

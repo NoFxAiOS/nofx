@@ -103,6 +103,43 @@ Binance互換の分散型無期限先物取引所！
 
 ---
 
+## 対応取引所
+
+### CEX（中央集権型取引所）
+
+| 取引所 | ステータス | 登録（手数料割引） |
+|:-------|:----------:|:-------------------|
+| <img src="web/public/exchange-icons/binance.jpg" width="20" height="20" style="vertical-align: middle;"/> **Binance** | ✅ | [登録](https://www.binance.com/join?ref=NOFXENG) |
+| <img src="web/public/exchange-icons/bybit.png" width="20" height="20" style="vertical-align: middle;"/> **Bybit** | ✅ | [登録](https://partner.bybit.com/b/83856) |
+| <img src="web/public/exchange-icons/okx.svg" width="20" height="20" style="vertical-align: middle;"/> **OKX** | ✅ | [登録](https://www.okx.com/join/1865360) |
+| <img src="web/public/exchange-icons/bitget.svg" width="20" height="20" style="vertical-align: middle;"/> **Bitget** | ✅ | [登録](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| <img src="web/public/exchange-icons/kucoin.svg" width="20" height="20" style="vertical-align: middle;"/> **KuCoin** | ✅ | [登録](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| <img src="web/public/exchange-icons/gate.svg" width="20" height="20" style="vertical-align: middle;"/> **Gate** | ✅ | [登録](https://www.gatenode.xyz/share/VQBGUAxY) |
+
+### Perp-DEX（分散型無期限取引所）
+
+| 取引所 | ステータス | 登録（手数料割引） |
+|:-------|:----------:|:-------------------|
+| <img src="web/public/exchange-icons/hyperliquid.png" width="20" height="20" style="vertical-align: middle;"/> **Hyperliquid** | ✅ | [登録](https://app.hyperliquid.xyz/join/AITRADING) |
+| <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster DEX** | ✅ | [登録](https://www.asterdex.com/en/referral/fdfc0e) |
+| <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [登録](https://app.lighter.xyz/?referral=68151432) |
+
+---
+
+## 対応AIモデル
+
+| AIモデル | ステータス | APIキー取得 |
+|:---------|:----------:|:------------|
+| <img src="web/public/icons/deepseek.svg" width="20" height="20" style="vertical-align: middle;"/> **DeepSeek** | ✅ | [APIキー取得](https://platform.deepseek.com) |
+| <img src="web/public/icons/qwen.svg" width="20" height="20" style="vertical-align: middle;"/> **Qwen** | ✅ | [APIキー取得](https://dashscope.console.aliyun.com) |
+| <img src="web/public/icons/openai.svg" width="20" height="20" style="vertical-align: middle;"/> **OpenAI (GPT)** | ✅ | [APIキー取得](https://platform.openai.com) |
+| <img src="web/public/icons/claude.svg" width="20" height="20" style="vertical-align: middle;"/> **Claude** | ✅ | [APIキー取得](https://console.anthropic.com) |
+| <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [APIキー取得](https://aistudio.google.com) |
+| <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [APIキー取得](https://console.x.ai) |
+| <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [APIキー取得](https://platform.moonshot.cn) |
+
+---
+
 ## 📸 スクリーンショット
 
 ### 🏆 競争モード - リアルタイムAIバトル

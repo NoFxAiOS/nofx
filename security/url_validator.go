@@ -41,8 +41,8 @@ func init() {
 
 // SSRFError represents a Server-Side Request Forgery attempt
 type SSRFError struct {
-	URL     string
-	Reason  string
+	URL    string
+	Reason string
 }
 
 func (e *SSRFError) Error() string {

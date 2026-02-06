@@ -1,22 +1,30 @@
-# NOFX - AI Торговая Система
+<h1 align="center">NOFX — Open Source AI Торговая ОС</h1>
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+<p align="center">
+  <strong>Инфраструктурный слой для AI-powered финансовой торговли</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=for-the-badge" alt="Stars"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=for-the-badge" alt="Release"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/Telegram-Community-blue?style=for-the-badge&logo=telegram" alt="Telegram"></a>
+</p>
+
+<p align="center">
+  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
+  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript" alt="TypeScript"></a>
+</p>
 
 **Языки:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [Русский](README.md)
 
 ---
 
-## Криптовалютная торговая платформа на базе ИИ
-
-**NOFX** — это open-source AI торговая система, позволяющая запускать несколько AI моделей для автоматической торговли криптовалютными фьючерсами. Настраивайте стратегии через веб-интерфейс, отслеживайте эффективность в реальном времени и позвольте AI агентам конкурировать за лучший торговый подход.
-
 ### Основные функции
 
 - **Мульти-AI поддержка**: Запускайте DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — переключайтесь между моделями в любое время
-- **Мульти-биржа**: Торгуйте на Binance, Bybit, OKX, Hyperliquid, Aster DEX, Lighter с единой платформы
+- **Мульти-биржа**: Торгуйте на Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster DEX, Lighter с единой платформы
 - **Студия стратегий**: Визуальный конструктор стратегий с источниками монет, индикаторами и контролем рисков
 - **Режим AI-соревнования**: Несколько AI трейдеров соревнуются в реальном времени, отслеживание эффективности бок о бок
 - **Веб-конфигурация**: Без редактирования JSON — настройка всего через веб-интерфейс
@@ -55,6 +63,8 @@
 | **Bybit** | ✅ Поддерживается | [Регистрация](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ Поддерживается | [Регистрация](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ Поддерживается | [Регистрация](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ Поддерживается | [Регистрация](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ Поддерживается | [Регистрация](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (Децентрализованные биржи)
 

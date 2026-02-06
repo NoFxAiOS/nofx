@@ -1,22 +1,30 @@
-# NOFX - AI トレーディングシステム
+<h1 align="center">NOFX — オープンソース AI トレーディング OS</h1>
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+<p align="center">
+  <strong>AI 駆動金融取引のインフラストラクチャレイヤー</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/NoFxAiOS/nofx/stargazers"><img src="https://img.shields.io/github/stars/NoFxAiOS/nofx?style=for-the-badge" alt="Stars"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/releases"><img src="https://img.shields.io/github/v/release/NoFxAiOS/nofx?style=for-the-badge" alt="Release"></a>
+  <a href="https://github.com/NoFxAiOS/nofx/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://t.me/nofx_dev_community"><img src="https://img.shields.io/badge/Telegram-Community-blue?style=for-the-badge&logo=telegram" alt="Telegram"></a>
+</p>
+
+<p align="center">
+  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go" alt="Go"></a>
+  <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript" alt="TypeScript"></a>
+</p>
 
 **言語:** [English](../../../README.md) | [中文](../zh-CN/README.md) | [日本語](README.md)
 
 ---
 
-## AI 駆動の暗号通貨取引プラットフォーム
-
-**NOFX** は、複数の AI モデルを使用して暗号通貨先物を自動取引できるオープンソースの AI 取引システムです。Web インターフェースで戦略を設定し、リアルタイムでパフォーマンスを監視し、AI エージェントを競わせて最適な取引アプローチを見つけます。
-
 ### コア機能
 
 - **マルチ AI サポート**: DeepSeek、Qwen、GPT、Claude、Gemini、Grok、Kimi を実行 - いつでもモデルを切り替え可能
-- **マルチ取引所**: Binance、Bybit、OKX、Hyperliquid、Aster DEX、Lighter で統一取引
+- **マルチ取引所**: Binance、Bybit、OKX、Bitget、KuCoin、Gate、Hyperliquid、Aster DEX、Lighter で統一取引
 - **ストラテジースタジオ**: コインソース、インジケーター、リスク管理を設定するビジュアル戦略ビルダー
 - **AI 競争モード**: 複数の AI トレーダーがリアルタイムで競争、パフォーマンスを並べて追跡
 - **Web ベース設定**: JSON 編集不要 - Web インターフェースですべて設定
@@ -55,6 +63,8 @@ NOFXを使用するには以下が必要です:
 | **Bybit** | ✅ サポート | [登録](https://partner.bybit.com/b/83856) |
 | **OKX** | ✅ サポート | [登録](https://www.okx.com/join/1865360) |
 | **Bitget** | ✅ サポート | [登録](https://www.bitget.com/referral/register?from=referral&clacCode=c8a43172) |
+| **KuCoin** | ✅ サポート | [登録](https://www.kucoin.com/r/broker/CXEV7XKK) |
+| **Gate** | ✅ サポート | [登録](https://www.gatenode.xyz/share/VQBGUAxY) |
 
 ### Perp-DEX (分散型永久先物取引所)
 

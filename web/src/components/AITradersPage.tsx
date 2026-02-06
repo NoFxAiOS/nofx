@@ -1384,6 +1384,99 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   )
 }
 
+// Step indicator component for Model Config
+function ModelStepIndicator({ currentStep, labels }: { currentStep: number; labels: string[] }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-6">
+      {labels.map((label, index) => (
+        <React.Fragment key={index}>
+          <div className="flex items-center gap-2">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all"
+              style={{
+                background: index < currentStep ? '#0ECB81' : index === currentStep ? '#8B5CF6' : '#2B3139',
+                color: index <= currentStep ? '#000' : '#848E9C',
+              }}
+            >
+              {index < currentStep ? <Check className="w-4 h-4" /> : index + 1}
+            </div>
+            <span
+              className="text-xs font-medium hidden sm:block"
+              style={{ color: index === currentStep ? '#EAECEF' : '#848E9C' }}
+            >
+              {label}
+            </span>
+          </div>
+          {index < labels.length - 1 && (
+            <div
+              className="w-8 h-0.5 mx-1"
+              style={{ background: index < currentStep ? '#0ECB81' : '#2B3139' }}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  )
+}
+
+// Model card component
+function ModelCard({
+  model,
+  selected,
+  onClick,
+  configured,
+}: {
+  model: AIModel
+  selected: boolean
+  onClick: () => void
+  configured?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all hover:scale-105"
+      style={{
+        background: selected ? 'rgba(139, 92, 246, 0.15)' : '#0B0E11',
+        border: selected ? '2px solid #8B5CF6' : '2px solid #2B3139',
+      }}
+    >
+      <div className="relative">
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-black border border-white/10">
+          {getModelIcon(model.provider || model.id, { width: 32, height: 32 }) || (
+            <span className="text-lg font-bold" style={{ color: '#A78BFA' }}>{model.name[0]}</span>
+          )}
+        </div>
+        {selected && (
+          <div
+            className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center"
+            style={{ background: '#0ECB81' }}
+          >
+            <Check className="w-3 h-3 text-black" />
+          </div>
+        )}
+        {configured && !selected && (
+          <div
+            className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center"
+            style={{ background: '#F0B90B' }}
+          >
+            <Check className="w-2.5 h-2.5 text-black" />
+          </div>
+        )}
+      </div>
+      <span className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+        {getShortName(model.name)}
+      </span>
+      <span
+        className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide"
+        style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#A78BFA' }}
+      >
+        {model.provider}
+      </span>
+    </button>
+  )
+}
+
 // Model Configuration Modal Component
 function ModelConfigModal({
   allModels,
@@ -1407,17 +1500,16 @@ function ModelConfigModal({
   onClose: () => void
   language: Language
 }) {
+  const [currentStep, setCurrentStep] = useState(editingModelId ? 1 : 0)
   const [selectedModelId, setSelectedModelId] = useState(editingModelId || '')
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')
 
-  // 获取当前编辑的模型信息 - 编辑时从已配置的模型中查找，新建时从所有支持的模型中查找
   const selectedModel = editingModelId
     ? configuredModels?.find((m) => m.id === selectedModelId)
     : allModels?.find((m) => m.id === selectedModelId)
 
-  // 如果是编辑现有模型，初始化API Key、Base URL和Model Name
   useEffect(() => {
     if (editingModelId && selectedModel) {
       setApiKey(selectedModel.apiKey || '')
@@ -1426,266 +1518,239 @@ function ModelConfigModal({
     }
   }, [editingModelId, selectedModel])
 
+  const handleSelectModel = (modelId: string) => {
+    setSelectedModelId(modelId)
+    setCurrentStep(1)
+  }
+
+  const handleBack = () => {
+    if (editingModelId) {
+      onClose()
+    } else {
+      setCurrentStep(0)
+      setSelectedModelId('')
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedModelId || !apiKey.trim()) return
-
-    onSave(
-      selectedModelId,
-      apiKey.trim(),
-      baseUrl.trim() || undefined,
-      modelName.trim() || undefined
-    )
+    onSave(selectedModelId, apiKey.trim(), baseUrl.trim() || undefined, modelName.trim() || undefined)
   }
 
-  // 可选择的模型列表（所有支持的模型）
   const availableModels = allModels || []
+  const configuredIds = new Set(configuredModels?.map(m => m.id) || [])
+  const stepLabels = language === 'zh' ? ['选择模型', '配置 API'] : ['Select Model', 'Configure API']
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
       <div
-        className="bg-gray-800 rounded-lg w-full max-w-lg relative my-8"
-        style={{
-          background: '#1E2329',
-          maxHeight: 'calc(100vh - 4rem)',
-        }}
+        className="rounded-2xl w-full max-w-2xl relative my-8 shadow-2xl"
+        style={{ background: 'linear-gradient(180deg, #1E2329 0%, #181A20 100%)', maxHeight: 'calc(100vh - 4rem)' }}
       >
-        <div
-          className="flex items-center justify-between p-6 pb-4 sticky top-0 z-10"
-          style={{ background: '#1E2329' }}
-        >
-          <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-            {editingModelId
-              ? t('editAIModel', language)
-              : t('addAIModel', language)}
-          </h3>
-          {editingModelId && (
-            <button
-              type="button"
-              onClick={() => onDelete(editingModelId)}
-              className="p-2 rounded hover:bg-red-100 transition-colors"
-              style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}
-              title={t('delete', language)}
-            >
-              <Trash2 className="w-4 h-4" />
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 pb-2">
+          <div className="flex items-center gap-3">
+            {currentStep > 0 && !editingModelId && (
+              <button type="button" onClick={handleBack} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                <svg className="w-5 h-5" style={{ color: '#848E9C' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+            <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
+              {editingModelId ? t('editAIModel', language) : t('addAIModel', language)}
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {editingModelId && (
+              <button
+                type="button"
+                onClick={() => onDelete(editingModelId)}
+                className="p-2 rounded-lg hover:bg-red-500/20 transition-colors"
+                style={{ color: '#F6465D' }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+            <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors" style={{ color: '#848E9C' }}>
+              ✕
             </button>
-          )}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-6 pb-6">
-          <div
-            className="space-y-4 overflow-y-auto"
-            style={{ maxHeight: 'calc(100vh - 16rem)' }}
-          >
-            {!editingModelId && (
-              <div>
-                <label
-                  className="block text-sm font-semibold mb-2"
-                  style={{ color: '#EAECEF' }}
-                >
-                  {t('selectModel', language)}
-                </label>
-                <select
-                  value={selectedModelId}
-                  onChange={(e) => setSelectedModelId(e.target.value)}
-                  className="w-full px-3 py-2 rounded"
-                  style={{
-                    background: '#0B0E11',
-                    border: '1px solid #2B3139',
-                    color: '#EAECEF',
-                  }}
-                  required
-                >
-                  <option value="">{t('pleaseSelectModel', language)}</option>
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {getShortName(model.name)} ({model.provider})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+        {/* Step Indicator */}
+        {!editingModelId && (
+          <div className="px-6">
+            <ModelStepIndicator currentStep={currentStep} labels={stepLabels} />
+          </div>
+        )}
 
-            {selectedModel && (
-              <div
-                className="p-4 rounded"
-                style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 flex items-center justify-center">
-                    {getModelIcon(selectedModel.provider || selectedModel.id, {
-                      width: 32,
-                      height: 32,
-                    }) || (
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                          style={{
-                            background:
-                              selectedModel.id === 'deepseek'
-                                ? '#60a5fa'
-                                : '#c084fc',
-                            color: '#fff',
-                          }}
-                        >
-                          {selectedModel.name[0]}
-                        </div>
-                      )}
+        {/* Content */}
+        <div className="px-6 pb-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 16rem)' }}>
+          {/* Step 0: Select Model */}
+          {currentStep === 0 && !editingModelId && (
+            <div className="space-y-4">
+              <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                {language === 'zh' ? '选择 AI 模型提供商' : 'Choose Your AI Provider'}
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {availableModels.map((model) => (
+                  <ModelCard
+                    key={model.id}
+                    model={model}
+                    selected={selectedModelId === model.id}
+                    onClick={() => handleSelectModel(model.id)}
+                    configured={configuredIds.has(model.id)}
+                  />
+                ))}
+              </div>
+              <div className="text-xs text-center pt-2" style={{ color: '#848E9C' }}>
+                {language === 'zh' ? '带金色标记的模型已配置' : 'Models with gold badge are already configured'}
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Configure */}
+          {(currentStep === 1 || editingModelId) && selectedModel && (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Selected Model Header */}
+              <div className="p-4 rounded-xl flex items-center gap-4" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-black border border-white/10">
+                  {getModelIcon(selectedModel.provider || selectedModel.id, { width: 32, height: 32 }) || (
+                    <span className="text-lg font-bold" style={{ color: '#A78BFA' }}>{selectedModel.name[0]}</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="font-semibold text-lg" style={{ color: '#EAECEF' }}>
+                    {getShortName(selectedModel.name)}
                   </div>
-                  <div className="flex-1">
-                    <div className="font-semibold" style={{ color: '#EAECEF' }}>
-                      {getShortName(selectedModel.name)}
-                    </div>
-                    <div className="text-xs" style={{ color: '#848E9C' }}>
-                      {selectedModel.provider} • {selectedModel.id}
-                    </div>
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {selectedModel.provider} • {AI_PROVIDER_CONFIG[selectedModel.provider]?.defaultModel || selectedModel.id}
                   </div>
                 </div>
-                {/* Default model info and API link */}
                 {AI_PROVIDER_CONFIG[selectedModel.provider] && (
-                  <div className="mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
-                    <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
-                      {t('defaultModel', language)}: <span style={{ color: '#F0B90B' }}>{AI_PROVIDER_CONFIG[selectedModel.provider].defaultModel}</span>
-                    </div>
-                    <a
-                      href={AI_PROVIDER_CONFIG[selectedModel.provider].apiUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs hover:underline"
-                      style={{ color: '#F0B90B' }}
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      {t('applyApiKey', language)} → {AI_PROVIDER_CONFIG[selectedModel.provider].apiName}
-                    </a>
-                    {selectedModel.provider === 'kimi' && (
-                      <div className="mt-2 text-xs p-2 rounded" style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D' }}>
-                        ⚠️ {t('kimiApiNote', language)}
-                      </div>
-                    )}
-                  </div>
+                  <a
+                    href={AI_PROVIDER_CONFIG[selectedModel.provider].apiUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all hover:scale-105"
+                    style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.3)' }}
+                  >
+                    <ExternalLink className="w-4 h-4" style={{ color: '#A78BFA' }} />
+                    <span className="text-sm font-medium" style={{ color: '#A78BFA' }}>
+                      {language === 'zh' ? '获取 API Key' : 'Get API Key'}
+                    </span>
+                  </a>
                 )}
               </div>
-            )}
 
-            {selectedModel && (
-              <>
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder={t('enterAPIKey', language)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('customBaseURL', language)}
-                  </label>
-                  <input
-                    type="url"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder={t('customBaseURLPlaceholder', language)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                  />
-                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                    {t('leaveBlankForDefault', language)}
+              {/* Kimi Warning */}
+              {selectedModel.provider === 'kimi' && (
+                <div className="p-4 rounded-xl" style={{ background: 'rgba(246, 70, 93, 0.1)', border: '1px solid rgba(246, 70, 93, 0.3)' }}>
+                  <div className="flex items-start gap-2">
+                    <span style={{ fontSize: '16px' }}>⚠️</span>
+                    <div className="text-sm" style={{ color: '#F6465D' }}>
+                      {t('kimiApiNote', language)}
+                    </div>
                   </div>
                 </div>
+              )}
 
-                <div>
-                  <label
-                    className="block text-sm font-semibold mb-2"
-                    style={{ color: '#EAECEF' }}
-                  >
-                    {t('customModelName', language)}
-                  </label>
-                  <input
-                    type="text"
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    placeholder={t('customModelNamePlaceholder', language)}
-                    className="w-full px-3 py-2 rounded"
-                    style={{
-                      background: '#0B0E11',
-                      border: '1px solid #2B3139',
-                      color: '#EAECEF',
-                    }}
-                  />
-                  <div className="text-xs mt-1" style={{ color: '#848E9C' }}>
-                    {t('leaveBlankForDefaultModel', language)}
-                  </div>
+              {/* API Key */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                  <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  API Key *
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={t('enterAPIKey', language)}
+                  className="w-full px-4 py-3 rounded-xl"
+                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  required
+                />
+              </div>
+
+              {/* Custom Base URL */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                  <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  {t('customBaseURL', language)}
+                </label>
+                <input
+                  type="url"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  placeholder={t('customBaseURLPlaceholder', language)}
+                  className="w-full px-4 py-3 rounded-xl"
+                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                />
+                <div className="text-xs" style={{ color: '#848E9C' }}>
+                  {t('leaveBlankForDefault', language)}
                 </div>
+              </div>
 
-                <div
-                  className="p-4 rounded"
-                  style={{
-                    background: 'rgba(240, 185, 11, 0.1)',
-                    border: '1px solid rgba(240, 185, 11, 0.2)',
-                  }}
+              {/* Custom Model Name */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                  <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  {t('customModelName', language)}
+                </label>
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder={t('customModelNamePlaceholder', language)}
+                  className="w-full px-4 py-3 rounded-xl"
+                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                />
+                <div className="text-xs" style={{ color: '#848E9C' }}>
+                  {t('leaveBlankForDefaultModel', language)}
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="p-4 rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>
+                <div className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: '#A78BFA' }}>
+                  <Brain className="w-4 h-4" />
+                  {t('information', language)}
+                </div>
+                <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                  <div>• {t('modelConfigInfo1', language)}</div>
+                  <div>• {t('modelConfigInfo2', language)}</div>
+                  <div>• {t('modelConfigInfo3', language)}</div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={handleBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
+                  {editingModelId ? t('cancel', language) : (language === 'zh' ? '返回' : 'Back')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedModel || !apiKey.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: '#8B5CF6', color: '#fff' }}
                 >
-                  <div
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: '#F0B90B' }}
-                  >
-                    ℹ️ {t('information', language)}
-                  </div>
-                  <div
-                    className="text-xs space-y-1"
-                    style={{ color: '#848E9C' }}
-                  >
-                    <div>{t('modelConfigInfo1', language)}</div>
-                    <div>{t('modelConfigInfo2', language)}</div>
-                    <div>{t('modelConfigInfo3', language)}</div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div
-            className="flex gap-3 mt-6 pt-4 sticky bottom-0"
-            style={{ background: '#1E2329' }}
-          >
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 rounded text-sm font-semibold"
-              style={{ background: '#2B3139', color: '#848E9C' }}
-            >
-              {t('cancel', language)}
-            </button>
-            <button
-              type="submit"
-              disabled={!selectedModel || !apiKey.trim()}
-              className="flex-1 px-4 py-2 rounded text-sm font-semibold disabled:opacity-50"
-              style={{ background: '#F0B90B', color: '#000' }}
-            >
-              {t('saveConfig', language)}
-            </button>
-          </div>
-        </form>
+                  {t('saveConfig', language)}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   )

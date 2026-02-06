@@ -938,35 +938,7 @@ tr:hover {
   animation: holo-shift 8s ease infinite, holo-flicker 4s infinite;
 }
 
-/* Mobile Breathing Animation */
-@keyframes holo-breath {
-
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  50% {
-    transform: scale(1.02);
-  }
-}
-
-.animate-breath-mobile {
-  animation: none;
-}
-
-@media (max-width: 768px) {
-  .animate-breath-mobile {
-    animation: holo-breath 4s ease-in-out infinite;
-  }
-
-  /* Optimize premium effects for mobile */
-  .char-premium-effects {
-    filter:
-      drop-shadow(0 0 1px rgba(240, 185, 11, 0.6)) drop-shadow(0 0 1px rgba(0, 240, 255, 0.5));
-  }
-}
-
+/* Holographic overlay effect */
 .holo-overlay {
   /* Complex gradient + noise for texture */
   background:
@@ -978,22 +950,4 @@ tr:hover {
       rgba(240, 185, 11, 0.1) 360deg);
   mix-blend-mode: overlay;
   background-blend-mode: overlay, normal;
-}
-
-/* Chromatic Aberration & Rim Light */
-.char-premium-effects {
-  filter:
-    /* Rim Light: Main Warm Gold + Sharp White Highlight (No Cyan to avoid green) */
-    drop-shadow(0 0 2px rgba(240, 185, 11, 0.6)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.4))
-    /* Chromatic Aberration: Red/Blue shift (Subtle) */
-    drop-shadow(-1px 0 0 rgba(255, 50, 50, 0.4)) drop-shadow(1px 0 0 rgba(50, 50, 255, 0.4));
-  transition: filter 0.3s ease;
-}
-
-.char-premium-effects:hover {
-  filter:
-    /* Intense Gold Glow on Hover */
-    drop-shadow(0 0 8px rgba(240, 185, 11, 0.8)) drop-shadow(0 0 2px rgba(255, 255, 255, 0.6))
-    /* Enhanced Aberration */
-    drop-shadow(-2px 0 0 rgba(255, 50, 50, 0.5)) drop-shadow(2px 0 0 rgba(50, 50, 255, 0.5));
 }

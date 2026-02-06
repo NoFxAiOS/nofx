@@ -81,6 +81,10 @@ type GridStrategyConfig struct {
 	DailyLossLimitPct float64 `json:"daily_loss_limit_pct"`
 	// Use maker-only orders for lower fees
 	UseMakerOnly bool `json:"use_maker_only"`
+	// Enable automatic grid direction adjustment based on box breakouts
+	EnableDirectionAdjust bool `json:"enable_direction_adjust"`
+	// Direction bias ratio for long_bias/short_bias modes (default 0.7 = 70%/30%)
+	DirectionBiasRatio float64 `json:"direction_bias_ratio"`
 }
 
 // PromptSectionsConfig editable sections of System Prompt

@@ -1,4 +1,4 @@
-import { Grid, DollarSign, TrendingUp, Shield } from 'lucide-react'
+import { Grid, DollarSign, TrendingUp, Shield, Compass } from 'lucide-react'
 import type { GridStrategyConfig } from '../../types'
 
 interface GridConfigEditorProps {
@@ -23,6 +23,8 @@ export const defaultGridConfig: GridStrategyConfig = {
   stop_loss_pct: 5,
   daily_loss_limit_pct: 10,
   use_maker_only: true,
+  enable_direction_adjust: false,
+  direction_bias_ratio: 0.7,
 }
 
 export function GridConfigEditor({
@@ -77,6 +79,14 @@ export function GridConfigEditor({
       dailyLossLimitDesc: { zh: '每日最大亏损百分比', en: 'Maximum daily loss percentage' },
       useMakerOnly: { zh: '仅使用 Maker 订单', en: 'Maker Only Orders' },
       useMakerOnlyDesc: { zh: '使用限价单以降低手续费', en: 'Use limit orders for lower fees' },
+
+      // Direction adjustment
+      directionAdjust: { zh: '方向自动调整', en: 'Direction Auto-Adjust' },
+      enableDirectionAdjust: { zh: '启用方向调整', en: 'Enable Direction Adjust' },
+      enableDirectionAdjustDesc: { zh: '根据箱体突破自动调整网格方向（做多/做空/偏多/偏空）', en: 'Auto-adjust grid direction based on box breakouts (long/short/long_bias/short_bias)' },
+      directionBiasRatio: { zh: '偏向比例', en: 'Bias Ratio' },
+      directionBiasRatioDesc: { zh: '偏多/偏空模式下的买卖比例（如 0.7 表示 70% 买 + 30% 卖）', en: 'Buy/sell ratio for bias modes (e.g., 0.7 = 70% buy + 30% sell)' },
+      directionExplain: { zh: '短期箱体突破 → 偏向，中期箱体突破 → 全仓，价格回归 → 逐步恢复中性', en: 'Short box breakout → bias, Mid box breakout → full, Price return → gradually recover to neutral' },
     }
     return translations[key]?.[language] || key
   }
@@ -418,6 +428,77 @@ export function GridConfigEditor({
             </label>
           </div>
         </div>
+      </div>
+
+      {/* Direction Auto-Adjust */}
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Compass className="w-5 h-5" style={{ color: '#F0B90B' }} />
+          <h3 className="font-medium" style={{ color: '#EAECEF' }}>
+            {t('directionAdjust')}
+          </h3>
+        </div>
+
+        {/* Enable Toggle */}
+        <div className="p-4 rounded-lg mb-4" style={sectionStyle}>
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-sm" style={{ color: '#EAECEF' }}>
+                {t('enableDirectionAdjust')}
+              </label>
+              <p className="text-xs" style={{ color: '#848E9C' }}>
+                {t('enableDirectionAdjustDesc')}
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={config.enable_direction_adjust ?? false}
+                onChange={(e) => updateField('enable_direction_adjust', e.target.checked)}
+                disabled={disabled}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#F0B90B]"></div>
+            </label>
+          </div>
+        </div>
+
+        {config.enable_direction_adjust && (
+          <>
+            {/* Direction Explanation */}
+            <div className="p-3 rounded-lg mb-4" style={{ background: '#1E2329', border: '1px solid #F0B90B33' }}>
+              <p className="text-xs" style={{ color: '#F0B90B' }}>
+                💡 {t('directionExplain')}
+              </p>
+            </div>
+
+            {/* Bias Ratio */}
+            <div className="p-4 rounded-lg" style={sectionStyle}>
+              <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+                {t('directionBiasRatio')}
+              </label>
+              <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                {t('directionBiasRatioDesc')}
+              </p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  value={(config.direction_bias_ratio ?? 0.7) * 100}
+                  onChange={(e) => updateField('direction_bias_ratio', parseInt(e.target.value) / 100)}
+                  disabled={disabled}
+                  min={55}
+                  max={90}
+                  step={5}
+                  className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
+                  style={{ background: '#2B3139' }}
+                />
+                <span className="text-sm font-mono w-16 text-right" style={{ color: '#F0B90B' }}>
+                  {Math.round((config.direction_bias_ratio ?? 0.7) * 100)}% / {Math.round((1 - (config.direction_bias_ratio ?? 0.7)) * 100)}%
+                </span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

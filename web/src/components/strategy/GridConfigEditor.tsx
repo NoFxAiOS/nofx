@@ -83,10 +83,17 @@ export function GridConfigEditor({
       // Direction adjustment
       directionAdjust: { zh: '方向自动调整', en: 'Direction Auto-Adjust' },
       enableDirectionAdjust: { zh: '启用方向调整', en: 'Enable Direction Adjust' },
-      enableDirectionAdjustDesc: { zh: '根据箱体突破自动调整网格方向（做多/做空/偏多/偏空）', en: 'Auto-adjust grid direction based on box breakouts (long/short/long_bias/short_bias)' },
-      directionBiasRatio: { zh: '偏向比例', en: 'Bias Ratio' },
-      directionBiasRatioDesc: { zh: '偏多/偏空模式下的买卖比例（如 0.7 表示 70% 买 + 30% 卖）', en: 'Buy/sell ratio for bias modes (e.g., 0.7 = 70% buy + 30% sell)' },
+      enableDirectionAdjustDesc: { zh: '根据箱体突破自动调整网格方向', en: 'Auto-adjust grid direction based on box breakouts' },
+      directionBiasRatio: { zh: '偏向强度', en: 'Bias Strength' },
+      directionBiasRatioDesc: { zh: '偏多/偏空模式的强度', en: 'Strength for long_bias/short_bias modes' },
+      directionBiasExplain: { zh: '偏多模式：X%买 + (100-X)%卖 | 偏空模式：(100-X)%买 + X%卖', en: 'Long bias: X% buy + (100-X)% sell | Short bias: (100-X)% buy + X% sell' },
       directionExplain: { zh: '短期箱体突破 → 偏向，中期箱体突破 → 全仓，价格回归 → 逐步恢复中性', en: 'Short box breakout → bias, Mid box breakout → full, Price return → gradually recover to neutral' },
+      directionModes: { zh: '方向模式说明', en: 'Direction Modes' },
+      modeNeutral: { zh: '中性：50%买 + 50%卖（默认）', en: 'Neutral: 50% buy + 50% sell (default)' },
+      modeLongBias: { zh: '偏多：X%买 + (100-X)%卖', en: 'Long Bias: X% buy + (100-X)% sell' },
+      modeLong: { zh: '全多：100%买 + 0%卖', en: 'Long: 100% buy + 0% sell' },
+      modeShortBias: { zh: '偏空：(100-X)%买 + X%卖', en: 'Short Bias: (100-X)% buy + X% sell' },
+      modeShort: { zh: '全空：0%买 + 100%卖', en: 'Short: 0% buy + 100% sell' },
     }
     return translations[key]?.[language] || key
   }
@@ -465,20 +472,33 @@ export function GridConfigEditor({
 
         {config.enable_direction_adjust && (
           <>
-            {/* Direction Explanation */}
-            <div className="p-3 rounded-lg mb-4" style={{ background: '#1E2329', border: '1px solid #F0B90B33' }}>
-              <p className="text-xs" style={{ color: '#F0B90B' }}>
+            {/* Direction Modes Explanation */}
+            <div className="p-4 rounded-lg mb-4" style={{ background: '#1E2329', border: '1px solid #F0B90B33' }}>
+              <p className="text-xs font-medium mb-2" style={{ color: '#F0B90B' }}>
+                📊 {t('directionModes')}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs" style={{ color: '#848E9C' }}>
+                <div>• {t('modeNeutral')}</div>
+                <div>• <span style={{ color: '#0ECB81' }}>{t('modeLongBias')}</span></div>
+                <div>• <span style={{ color: '#0ECB81' }}>{t('modeLong')}</span></div>
+                <div>• <span style={{ color: '#F6465D' }}>{t('modeShortBias')}</span></div>
+                <div>• <span style={{ color: '#F6465D' }}>{t('modeShort')}</span></div>
+              </div>
+              <p className="text-xs mt-3 pt-2 border-t border-zinc-700" style={{ color: '#848E9C' }}>
                 💡 {t('directionExplain')}
               </p>
             </div>
 
-            {/* Bias Ratio */}
+            {/* Bias Strength */}
             <div className="p-4 rounded-lg" style={sectionStyle}>
               <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
-                {t('directionBiasRatio')}
+                {t('directionBiasRatio')} (X)
               </label>
-              <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+              <p className="text-xs mb-1" style={{ color: '#848E9C' }}>
                 {t('directionBiasRatioDesc')}
+              </p>
+              <p className="text-xs mb-3" style={{ color: '#F0B90B' }}>
+                {t('directionBiasExplain')}
               </p>
               <div className="flex items-center gap-3">
                 <input
@@ -492,9 +512,19 @@ export function GridConfigEditor({
                   className="flex-1 h-2 rounded-lg appearance-none cursor-pointer"
                   style={{ background: '#2B3139' }}
                 />
-                <span className="text-sm font-mono w-16 text-right" style={{ color: '#F0B90B' }}>
-                  {Math.round((config.direction_bias_ratio ?? 0.7) * 100)}% / {Math.round((1 - (config.direction_bias_ratio ?? 0.7)) * 100)}%
+                <span className="text-sm font-mono w-20 text-right" style={{ color: '#F0B90B' }}>
+                  X = {Math.round((config.direction_bias_ratio ?? 0.7) * 100)}%
                 </span>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded" style={{ background: '#0ECB8115', border: '1px solid #0ECB8130' }}>
+                  <span style={{ color: '#0ECB81' }}>偏多/Long Bias: </span>
+                  <span style={{ color: '#EAECEF' }}>{Math.round((config.direction_bias_ratio ?? 0.7) * 100)}% 买 + {Math.round((1 - (config.direction_bias_ratio ?? 0.7)) * 100)}% 卖</span>
+                </div>
+                <div className="p-2 rounded" style={{ background: '#F6465D15', border: '1px solid #F6465D30' }}>
+                  <span style={{ color: '#F6465D' }}>偏空/Short Bias: </span>
+                  <span style={{ color: '#EAECEF' }}>{Math.round((1 - (config.direction_bias_ratio ?? 0.7)) * 100)}% 买 + {Math.round((config.direction_bias_ratio ?? 0.7) * 100)}% 卖</span>
+                </div>
               </div>
             </div>
           </>

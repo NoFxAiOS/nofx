@@ -506,24 +506,24 @@ func getSchemaPromptEN() string {
 		prompt += formatFieldDefEN(key, field)
 	}
 
-	// Position Metrics
-	prompt += "\n### Position Metrics\n"
-	for key, field := range DataDictionary["PositionMetrics"] {
-		prompt += formatFieldDefEN(key, field)
-	}
+	// // Position Metrics
+	// prompt += "\n### Position Metrics\n"
+	// for key, field := range DataDictionary["PositionMetrics"] {
+	// 	prompt += formatFieldDefEN(key, field)
+	// }
 
-	// Market Data
-	prompt += "\n### Market Data\n"
-	for key, field := range DataDictionary["MarketData"] {
-		prompt += formatFieldDefEN(key, field)
-	}
+	// // Market Data
+	// prompt += "\n### Market Data\n"
+	// for key, field := range DataDictionary["MarketData"] {
+	// 	prompt += formatFieldDefEN(key, field)
+	// }
 
-	// OI Interpretation
-	prompt += "\n## 💹 Open Interest (OI) Change Interpretation\n\n"
-	prompt += "- **OI Up + Price Up**: " + OIInterpretation.OIUp_PriceUp.EN + "\n"
-	prompt += "- **OI Up + Price Down**: " + OIInterpretation.OIUp_PriceDown.EN + "\n"
-	prompt += "- **OI Down + Price Up**: " + OIInterpretation.OIDown_PriceUp.EN + "\n"
-	prompt += "- **OI Down + Price Down**: " + OIInterpretation.OIDown_PriceDown.EN + "\n"
+	// // OI Interpretation
+	// prompt += "\n## 💹 Open Interest (OI) Change Interpretation\n\n"
+	// prompt += "- **OI Up + Price Up**: " + OIInterpretation.OIUp_PriceUp.EN + "\n"
+	// prompt += "- **OI Up + Price Down**: " + OIInterpretation.OIUp_PriceDown.EN + "\n"
+	// prompt += "- **OI Down + Price Up**: " + OIInterpretation.OIDown_PriceUp.EN + "\n"
+	// prompt += "- **OI Down + Price Down**: " + OIInterpretation.OIDown_PriceDown.EN + "\n"
 
 	return prompt
 }

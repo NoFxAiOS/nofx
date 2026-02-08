@@ -77,7 +77,7 @@ const AI_PROVIDER_CONFIG: Record<string, {
     apiName: 'OpenAI',
   },
   claude: {
-    defaultModel: 'claude-opus-4-5-20251101',
+    defaultModel: 'claude-opus-4-6',
     apiUrl: 'https://console.anthropic.com/settings/keys',
     apiName: 'Anthropic',
   },

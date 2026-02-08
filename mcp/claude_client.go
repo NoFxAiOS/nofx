@@ -9,7 +9,7 @@ import (
 const (
 	ProviderClaude       = "claude"
 	DefaultClaudeBaseURL = "https://api.anthropic.com/v1"
-	DefaultClaudeModel   = "claude-opus-4-5-20251101"
+	DefaultClaudeModel   = "claude-opus-4-6"
 )
 
 type ClaudeClient struct {

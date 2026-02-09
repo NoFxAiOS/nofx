@@ -204,6 +204,11 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		mcpClient.SetAPIKey(apiKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using Alibaba Cloud Qwen AI", config.Name)
 
+	case "opengradient":
+		mcpClient = mcp.NewOpenGradientClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
+		logger.Infof("🤖 [%s] Using OpenGradient AI", config.Name)
+
 	case "custom":
 		mcpClient = mcp.New()
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)

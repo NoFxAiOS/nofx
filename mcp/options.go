@@ -103,6 +103,17 @@ func WithAPIKey(apiKey string) ClientOption {
 	}
 }
 
+// WithOpenGradientPrivateKey sets EVM private key for x402 payments
+//
+// Usage example:
+//
+//	client := mcp.NewOpenGradientClientWithOptions(mcp.WithOpenGradientPrivateKey("0x..."))
+func WithOpenGradientPrivateKey(privateKey string) ClientOption {
+	return func(c *Config) {
+		c.OpenGradientPrivateKey = privateKey
+	}
+}
+
 // WithBaseURL sets base URL
 func WithBaseURL(baseURL string) ClientOption {
 	return func(c *Config) {

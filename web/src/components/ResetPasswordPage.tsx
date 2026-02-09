@@ -150,6 +150,12 @@ export function ResetPasswordPage() {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center btn-icon"
                       style={{ color: 'var(--text-secondary)' }}
+                      aria-label={
+                        showPassword
+                          ? t('hidePassword', language)
+                          : t('showPassword', language)
+                      }
+                      aria-pressed={showPassword}
                     >
                       {showPassword ? (
                         <EyeOff className="w-5 h-5" />
@@ -184,6 +190,12 @@ export function ResetPasswordPage() {
                       }
                       className="absolute inset-y-0 right-2 w-8 h-10 flex items-center justify-center btn-icon"
                       style={{ color: 'var(--text-secondary)' }}
+                      aria-label={
+                        showConfirmPassword
+                          ? t('hidePassword', language)
+                          : t('showPassword', language)
+                      }
+                      aria-pressed={showConfirmPassword}
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="w-5 h-5" />

@@ -449,11 +449,18 @@ func GetGridDecisions(ctx *GridContext, mcpClient mcp.AIClient, config *store.Gr
 
 	logger.Infof("🤖 [Grid] Calling AI for grid decisions...")
 
+	// Log prompts sent to AI (for debugging)
+	logger.Info("\n========== [Grid] AI REQUEST: System Prompt ==========\n" + systemPrompt)
+	logger.Info("\n========== [Grid] AI REQUEST: User Prompt ==========\n" + userPrompt)
+
 	// Call AI
 	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("AI call failed: %w", err)
 	}
+
+	// Log response received from AI (for debugging)
+	logger.Info("\n========== [Grid] AI RESPONSE ==========\n" + response)
 
 	// Parse decisions from response
 	decisions, err := parseGridDecisions(response, ctx.Symbol)

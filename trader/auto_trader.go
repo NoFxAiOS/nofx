@@ -108,6 +108,8 @@ type AutoTraderConfig struct {
 
 	// Strategy configuration (use complete strategy config)
 	StrategyConfig *store.StrategyConfig // Strategy configuration (includes coin sources, indicators, risk control, prompts, etc.)
+	// StrategyID is used to reload strategy config from DB each cycle so UI changes (e.g. static_coins) are picked up without restart
+	StrategyID string
 }
 
 // AutoTrader automatic trader
@@ -745,6 +747,30 @@ func (at *AutoTrader) runCycle() error {
 
 // buildTradingContext builds trading context
 func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
+	logName := at.name
+	if logName == "" {
+		logName = at.id
+	}
+	// 0. Reload strategy config from DB so UI changes (e.g. static_coins) are picked up without restart
+	if at.store == nil || at.config.StrategyID == "" {
+		cfg := at.strategyEngine.GetConfig()
+		logger.Infof("📋 [%s] trader_name=%s Strategy reload: skipped (store=%v, strategyID=%q) | in-memory: source_type=%q static_coins=%v", logName, logName, at.store != nil, at.config.StrategyID, cfg.CoinSource.SourceType, cfg.CoinSource.StaticCoins)
+	} else {
+		strategy, err := at.store.Strategy().Get(at.userID, at.config.StrategyID)
+		if err != nil {
+			logger.Warnf("⚠️ [%s] Failed to reload strategy config: %v (using in-memory config)", at.name, err)
+		} else {
+			newConfig, err := strategy.ParseConfig()
+			if err != nil {
+				logger.Warnf("⚠️ [%s] Failed to parse reloaded strategy config: %v (using in-memory config)", at.name, err)
+			} else {
+				at.strategyEngine = kernel.NewStrategyEngine(newConfig)
+				at.config.StrategyConfig = newConfig
+				logger.Infof("📋 [%s] Reloaded strategy from DB: source_type=%q static_coins=%v", at.name, newConfig.CoinSource.SourceType, newConfig.CoinSource.StaticCoins)
+			}
+		}
+	}
+
 	// 1. Get account information
 	balance, err := at.trader.GetBalance()
 	if err != nil {
@@ -885,6 +911,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			logger.Infof("📋 [%s] Strategy engine fetched candidate coins: %d", at.name, len(candidateCoins))
 		}
 	}
+	if len(candidateCoins) == 0 {
+		logger.Warnf("⚠️ [%s] GetCandidateCoins returned 0; using [BTC] as fallback so the cycle can run. Check strategy: coin_source.source_type and static_coins; if using ai500/oi_top, check NofxOS API key and network.", at.name)
+		candidateCoins = []kernel.CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"static"}}}
+	}
+	logger.Infof("📋 [%s] Strategy engine fetched candidate coins: %d", at.name, len(candidateCoins))
 
 	// 4. Calculate total P&L
 	totalPnL := totalEquity - at.initialBalance

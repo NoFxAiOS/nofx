@@ -106,25 +106,25 @@ type RecentOrder struct {
 
 // Context trading context (complete information passed to AI)
 type Context struct {
-	CurrentTime     string                             `json:"current_time"`
-	RuntimeMinutes  int                                `json:"runtime_minutes"`
-	CallCount       int                                `json:"call_count"`
-	Account         AccountInfo                        `json:"account"`
-	Positions       []PositionInfo                     `json:"positions"`
-	CandidateCoins  []CandidateCoin                    `json:"candidate_coins"`
-	PromptVariant   string                             `json:"prompt_variant,omitempty"`
-	TradingStats    *TradingStats                      `json:"trading_stats,omitempty"`
-	RecentOrders    []RecentOrder                      `json:"recent_orders,omitempty"`
-	MarketDataMap   map[string]*market.Data            `json:"-"`
-	MultiTFMarket   map[string]map[string]*market.Data `json:"-"`
-	OITopDataMap    map[string]*OITopData              `json:"-"`
-	QuantDataMap    map[string]*QuantData              `json:"-"`
-	OIRankingData      *nofxos.OIRankingData      `json:"-"` // Market-wide OI ranking data
-	NetFlowRankingData *nofxos.NetFlowRankingData `json:"-"` // Market-wide fund flow ranking data
-	PriceRankingData   *nofxos.PriceRankingData   `json:"-"` // Market-wide price gainers/losers
-	BTCETHLeverage     int                          `json:"-"`
-	AltcoinLeverage int                                `json:"-"`
-	Timeframes      []string                           `json:"-"`
+	CurrentTime        string                             `json:"current_time"`
+	RuntimeMinutes     int                                `json:"runtime_minutes"`
+	CallCount          int                                `json:"call_count"`
+	Account            AccountInfo                        `json:"account"`
+	Positions          []PositionInfo                     `json:"positions"`
+	CandidateCoins     []CandidateCoin                    `json:"candidate_coins"`
+	PromptVariant      string                             `json:"prompt_variant,omitempty"`
+	TradingStats       *TradingStats                      `json:"trading_stats,omitempty"`
+	RecentOrders       []RecentOrder                      `json:"recent_orders,omitempty"`
+	MarketDataMap      map[string]*market.Data            `json:"-"`
+	MultiTFMarket      map[string]map[string]*market.Data `json:"-"`
+	OITopDataMap       map[string]*OITopData              `json:"-"`
+	QuantDataMap       map[string]*QuantData              `json:"-"`
+	OIRankingData      *nofxos.OIRankingData              `json:"-"` // Market-wide OI ranking data
+	NetFlowRankingData *nofxos.NetFlowRankingData         `json:"-"` // Market-wide fund flow ranking data
+	PriceRankingData   *nofxos.PriceRankingData           `json:"-"` // Market-wide price gainers/losers
+	BTCETHLeverage     int                                `json:"-"`
+	AltcoinLeverage    int                                `json:"-"`
+	Timeframes         []string                           `json:"-"`
 }
 
 // Decision AI trading decision
@@ -262,6 +262,13 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		engine = NewStrategyEngine(&defaultConfig)
 	}
 
+	// Defensive: ensure CandidateCoins is never empty so "Candidate Coins (0 coins)" cannot appear.
+	// buildTradingContext and Test-Run already apply [BTC] when GetCandidateCoins returns 0; this catches any other path.
+	if len(ctx.CandidateCoins) == 0 {
+		logger.Warnf("⚠️ GetFullDecisionWithStrategy: ctx.CandidateCoins is empty; using [BTCUSDT] so the prompt and market fetch can run. Fix strategy coin_source (source_type, static_coins).")
+		ctx.CandidateCoins = []CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"fallback"}}}
+	}
+
 	// 1. Fetch market data using strategy config
 	if len(ctx.MarketDataMap) == 0 {
 		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {
@@ -292,6 +299,10 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	// 3. Build User Prompt using strategy engine
 	userPrompt := engine.BuildUserPrompt(ctx)
 
+	// Log prompts sent to AI (for debugging)
+	logger.Info("\n========== AI REQUEST: System Prompt ==========\n" + systemPrompt)
+	logger.Info("\n========== AI REQUEST: User Prompt ==========\n" + userPrompt)
+
 	// 4. Call AI API
 	aiCallStart := time.Now()
 	aiResponse, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
@@ -299,6 +310,9 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	if err != nil {
 		return nil, fmt.Errorf("AI API call failed: %w", err)
 	}
+
+	// Log response received from AI (for debugging)
+	logger.Info("\n========== AI RESPONSE ==========\n" + aiResponse)
 
 	// 5. Parse AI response
 	decision, err := parseFullDecisionResponse(
@@ -369,12 +383,12 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	}
 
 	// 2. Fetch data for all candidate coins
-	positionSymbols := make(map[string]bool)
-	for _, pos := range ctx.Positions {
-		positionSymbols[pos.Symbol] = true
-	}
-
-	const minOIThresholdMillions = 15.0 // 15M USD minimum open interest value
+	// OI threshold filter disabled below - all coins are included regardless of OI value. To re-enable, uncomment the block.
+	// positionSymbols := make(map[string]bool)
+	// for _, pos := range ctx.Positions {
+	// 	positionSymbols[pos.Symbol] = true
+	// }
+	// const minOIThresholdMillions = 15.0 // 15M USD minimum open interest value
 
 	for _, coin := range ctx.CandidateCoins {
 		if _, exists := ctx.MarketDataMap[coin.Symbol]; exists {
@@ -388,22 +402,29 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 		}
 
 		// Liquidity filter (skip for xyz dex assets - they don't have OI data from Binance)
-		isExistingPosition := positionSymbols[coin.Symbol]
-		isXyzAsset := market.IsXyzDexAsset(coin.Symbol)
-		if !isExistingPosition && !isXyzAsset && data.OpenInterest != nil && data.CurrentPrice > 0 {
-			oiValue := data.OpenInterest.Latest * data.CurrentPrice
-			oiValueInMillions := oiValue / 1_000_000
-			if oiValueInMillions < minOIThresholdMillions {
-				logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
-					coin.Symbol, oiValueInMillions, minOIThresholdMillions)
-				continue
-			}
-		}
+		// isExistingPosition := positionSymbols[coin.Symbol]
+		// isXyzAsset := market.IsXyzDexAsset(coin.Symbol)
+		// if !isExistingPosition && !isXyzAsset && data.OpenInterest != nil && data.CurrentPrice > 0 {
+		// 	oiValue := data.OpenInterest.Latest * data.CurrentPrice
+		// 	oiValueInMillions := oiValue / 1_000_000
+		// 	if oiValueInMillions < minOIThresholdMillions {
+		// 		logger.Infof("⚠️  %s OI value too low (%.2fM USD < %.1fM), skipping coin",
+		// 			coin.Symbol, oiValueInMillions, minOIThresholdMillions)
+		// 		continue
+		// 	}
+		// }
 
 		ctx.MarketDataMap[coin.Symbol] = data
 	}
 
-	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins", len(ctx.MarketDataMap))
+	candidatesWithData := 0
+	for _, c := range ctx.CandidateCoins {
+		if _, ok := ctx.MarketDataMap[c.Symbol]; ok {
+			candidatesWithData++
+		}
+	}
+	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins (candidate coins: %d, with data: %d)",
+		len(ctx.MarketDataMap), len(ctx.CandidateCoins), candidatesWithData)
 	return nil
 }
 
@@ -417,10 +438,18 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 	symbolSources := make(map[string][]string)
 
 	coinSource := e.config.CoinSource
+	logger.Infof("📋 GetCandidateCoins: source_type=%q static_coins_len=%d", coinSource.SourceType, len(coinSource.StaticCoins))
 
 	switch coinSource.SourceType {
 	case "static":
-		for _, symbol := range coinSource.StaticCoins {
+		staticCoins := coinSource.StaticCoins
+		if len(staticCoins) == 0 {
+			logger.Warnf("⚠️ coin_source.source_type is 'static' but static_coins is empty or missing in strategy config. " +
+				"Check that the strategy was saved with static coins (e.g. BTC) in the UI. " +
+				"Falling back to [BTC] so at least one candidate is available.")
+			staticCoins = []string{"BTC"}
+		}
+		for _, symbol := range staticCoins {
 			symbol = market.Normalize(symbol)
 			candidates = append(candidates, CandidateCoin{
 				Symbol:  symbol,
@@ -1139,9 +1168,9 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 
 	// BTC market
 	if btcData, hasBTC := ctx.MarketDataMap["BTCUSDT"]; hasBTC {
-		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | RSI: %.2f\n\n",
+		sb.WriteString(fmt.Sprintf("BTC: %.2f (1h: %+.2f%%, 4h: %+.2f%%) | MACD: %.4f | \n\n",
 			btcData.CurrentPrice, btcData.PriceChange1h, btcData.PriceChange4h,
-			btcData.CurrentMACD, btcData.CurrentRSI7))
+			btcData.CurrentMACD))
 	}
 
 	// Account information
@@ -1171,65 +1200,65 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 	}
 
 	// Historical trading statistics (helps AI understand past performance)
-	if ctx.TradingStats != nil && ctx.TradingStats.TotalTrades > 0 {
-		// Get language from strategy config
-		lang := e.GetLanguage()
+	// if ctx.TradingStats != nil && ctx.TradingStats.TotalTrades > 0 {
+	// 	// Get language from strategy config
+	// 	lang := e.GetLanguage()
 
-		// Win/Loss ratio
-		var winLossRatio float64
-		if ctx.TradingStats.AvgLoss > 0 {
-			winLossRatio = ctx.TradingStats.AvgWin / ctx.TradingStats.AvgLoss
-		}
+	// 	// Win/Loss ratio
+	// 	var winLossRatio float64
+	// 	if ctx.TradingStats.AvgLoss > 0 {
+	// 		winLossRatio = ctx.TradingStats.AvgWin / ctx.TradingStats.AvgLoss
+	// 	}
 
-		if lang == LangChinese {
-			sb.WriteString("## 历史交易统计\n")
-			sb.WriteString(fmt.Sprintf("总交易: %d 笔 | 盈利因子: %.2f | 夏普比率: %.2f | 盈亏比: %.2f\n",
-				ctx.TradingStats.TotalTrades,
-				ctx.TradingStats.ProfitFactor,
-				ctx.TradingStats.SharpeRatio,
-				winLossRatio))
-			sb.WriteString(fmt.Sprintf("总盈亏: %+.2f USDT | 平均盈利: +%.2f | 平均亏损: -%.2f | 最大回撤: %.1f%%\n",
-				ctx.TradingStats.TotalPnL,
-				ctx.TradingStats.AvgWin,
-				ctx.TradingStats.AvgLoss,
-				ctx.TradingStats.MaxDrawdownPct))
+	// 	if lang == LangChinese {
+	// 		sb.WriteString("## 历史交易统计\n")
+	// 		sb.WriteString(fmt.Sprintf("总交易: %d 笔 | 盈利因子: %.2f | 夏普比率: %.2f | 盈亏比: %.2f\n",
+	// 			ctx.TradingStats.TotalTrades,
+	// 			ctx.TradingStats.ProfitFactor,
+	// 			ctx.TradingStats.SharpeRatio,
+	// 			winLossRatio))
+	// 		sb.WriteString(fmt.Sprintf("总盈亏: %+.2f USDT | 平均盈利: +%.2f | 平均亏损: -%.2f | 最大回撤: %.1f%%\n",
+	// 			ctx.TradingStats.TotalPnL,
+	// 			ctx.TradingStats.AvgWin,
+	// 			ctx.TradingStats.AvgLoss,
+	// 			ctx.TradingStats.MaxDrawdownPct))
 
-			// Performance hints based on profit factor, sharpe, and drawdown
-			if ctx.TradingStats.ProfitFactor >= 1.5 && ctx.TradingStats.SharpeRatio >= 1 {
-				sb.WriteString("表现: 良好 - 保持当前策略\n")
-			} else if ctx.TradingStats.ProfitFactor < 1 {
-				sb.WriteString("表现: 需改进 - 提高盈亏比，优化止盈止损\n")
-			} else if ctx.TradingStats.MaxDrawdownPct > 30 {
-				sb.WriteString("表现: 风险偏高 - 减少仓位，控制回撤\n")
-			} else {
-				sb.WriteString("表现: 正常 - 有优化空间\n")
-			}
-		} else {
-			sb.WriteString("## Historical Trading Statistics\n")
-			sb.WriteString(fmt.Sprintf("Total Trades: %d | Profit Factor: %.2f | Sharpe: %.2f | Win/Loss Ratio: %.2f\n",
-				ctx.TradingStats.TotalTrades,
-				ctx.TradingStats.ProfitFactor,
-				ctx.TradingStats.SharpeRatio,
-				winLossRatio))
-			sb.WriteString(fmt.Sprintf("Total PnL: %+.2f USDT | Avg Win: +%.2f | Avg Loss: -%.2f | Max Drawdown: %.1f%%\n",
-				ctx.TradingStats.TotalPnL,
-				ctx.TradingStats.AvgWin,
-				ctx.TradingStats.AvgLoss,
-				ctx.TradingStats.MaxDrawdownPct))
+	// 		// Performance hints based on profit factor, sharpe, and drawdown
+	// 		if ctx.TradingStats.ProfitFactor >= 1.5 && ctx.TradingStats.SharpeRatio >= 1 {
+	// 			sb.WriteString("表现: 良好 - 保持当前策略\n")
+	// 		} else if ctx.TradingStats.ProfitFactor < 1 {
+	// 			sb.WriteString("表现: 需改进 - 提高盈亏比，优化止盈止损\n")
+	// 		} else if ctx.TradingStats.MaxDrawdownPct > 30 {
+	// 			sb.WriteString("表现: 风险偏高 - 减少仓位，控制回撤\n")
+	// 		} else {
+	// 			sb.WriteString("表现: 正常 - 有优化空间\n")
+	// 		}
+	// 	} else {
+	// 		sb.WriteString("## Historical Trading Statistics\n")
+	// 		sb.WriteString(fmt.Sprintf("Total Trades: %d | Profit Factor: %.2f | Sharpe: %.2f | Win/Loss Ratio: %.2f\n",
+	// 			ctx.TradingStats.TotalTrades,
+	// 			ctx.TradingStats.ProfitFactor,
+	// 			ctx.TradingStats.SharpeRatio,
+	// 			winLossRatio))
+	// 		sb.WriteString(fmt.Sprintf("Total PnL: %+.2f USDT | Avg Win: +%.2f | Avg Loss: -%.2f | Max Drawdown: %.1f%%\n",
+	// 			ctx.TradingStats.TotalPnL,
+	// 			ctx.TradingStats.AvgWin,
+	// 			ctx.TradingStats.AvgLoss,
+	// 			ctx.TradingStats.MaxDrawdownPct))
 
-			// Performance hints based on profit factor, sharpe, and drawdown
-			if ctx.TradingStats.ProfitFactor >= 1.5 && ctx.TradingStats.SharpeRatio >= 1 {
-				sb.WriteString("Performance: GOOD - maintain current strategy\n")
-			} else if ctx.TradingStats.ProfitFactor < 1 {
-				sb.WriteString("Performance: NEEDS IMPROVEMENT - improve win/loss ratio, optimize TP/SL\n")
-			} else if ctx.TradingStats.MaxDrawdownPct > 30 {
-				sb.WriteString("Performance: HIGH RISK - reduce position size, control drawdown\n")
-			} else {
-				sb.WriteString("Performance: NORMAL - room for optimization\n")
-			}
-		}
-		sb.WriteString("\n")
-	}
+	// 		// Performance hints based on profit factor, sharpe, and drawdown
+	// 		if ctx.TradingStats.ProfitFactor >= 1.5 && ctx.TradingStats.SharpeRatio >= 1 {
+	// 			sb.WriteString("Performance: GOOD - maintain current strategy\n")
+	// 		} else if ctx.TradingStats.ProfitFactor < 1 {
+	// 			sb.WriteString("Performance: NEEDS IMPROVEMENT - improve win/loss ratio, optimize TP/SL\n")
+	// 		} else if ctx.TradingStats.MaxDrawdownPct > 30 {
+	// 			sb.WriteString("Performance: HIGH RISK - reduce position size, control drawdown\n")
+	// 		} else {
+	// 			sb.WriteString("Performance: NORMAL - room for optimization\n")
+	// 		}
+	// 	}
+	// 	sb.WriteString("\n")
+	// }
 
 	// Position information
 	if len(ctx.Positions) > 0 {
@@ -1249,8 +1278,12 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		positionSymbols[normalizedSymbol] = true
 	}
 
-	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.MarketDataMap)))
+	sb.WriteString(fmt.Sprintf("## Candidate Coins (%d coins)\n\n", len(ctx.CandidateCoins)))
 	displayedCount := 0
+	unavailMsg := "market data temporarily unavailable"
+	if e.GetLanguage() == LangChinese {
+		unavailMsg = "行情数据暂时不可用"
+	}
 	for _, coin := range ctx.CandidateCoins {
 		// Skip if this coin is already a position (data already shown in positions section)
 		normalizedCoinSymbol := market.Normalize(coin.Symbol)
@@ -1259,13 +1292,13 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 		}
 
 		marketData, hasData := ctx.MarketDataMap[coin.Symbol]
-		if !hasData {
-			continue
-		}
 		displayedCount++
-
 		sourceTags := e.formatCoinSourceTag(coin.Sources)
 		sb.WriteString(fmt.Sprintf("### %d. %s%s\n\n", displayedCount, coin.Symbol, sourceTags))
+		if !hasData {
+			sb.WriteString("(" + unavailMsg + ")\n\n")
+			continue
+		}
 		sb.WriteString(e.formatMarketData(marketData))
 
 		if ctx.QuantDataMap != nil {

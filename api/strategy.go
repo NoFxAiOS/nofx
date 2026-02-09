@@ -426,7 +426,8 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	}
 
 	var req struct {
-		Config        store.StrategyConfig `json:"config" binding:"required"`
+		Config        *store.StrategyConfig `json:"config"`
+		StrategyID    string               `json:"strategy_id"`
 		PromptVariant string               `json:"prompt_variant"`
 		AIModelID     string               `json:"ai_model_id"`
 		RunRealAI     bool                 `json:"run_real_ai"`
@@ -437,12 +438,33 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 		return
 	}
 
+	// Prefer loading from DB when strategy_id is provided (avoids client serialization issues with coin_source.static_coins)
+	if req.StrategyID != "" {
+		strategy, err := s.store.Strategy().Get(userID, req.StrategyID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Strategy not found"})
+			return
+		}
+		loaded, err := strategy.ParseConfig()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Strategy config invalid: " + err.Error()})
+			return
+		}
+		req.Config = loaded
+	}
+	if req.Config == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "config or strategy_id is required"})
+		return
+	}
+
 	if req.PromptVariant == "" {
 		req.PromptVariant = "balanced"
 	}
 
+	logger.Infof("[Strategy Test-Run] coin_source: source_type=%q static_coins=%v", req.Config.CoinSource.SourceType, req.Config.CoinSource.StaticCoins)
+
 	// Create strategy engine to build prompt
-	engine := kernel.NewStrategyEngine(&req.Config)
+	engine := kernel.NewStrategyEngine(req.Config)
 
 	// Get candidate coins
 	candidates, err := engine.GetCandidateCoins()
@@ -453,6 +475,10 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 			"ai_response": "",
 		})
 		return
+	}
+	if len(candidates) == 0 {
+		logger.Warnf("[Strategy Test-Run] GetCandidateCoins returned 0; using [BTC] as fallback. Check strategy coin_source (source_type, static_coins).")
+		candidates = []kernel.CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"static"}}}
 	}
 
 	// Get timeframe configuration
@@ -536,6 +562,12 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 
 	// Build System Prompt
 	systemPrompt := engine.BuildSystemPrompt(1000.0, req.PromptVariant)
+
+	// Defensive: ensure testContext.CandidateCoins is never empty before BuildUserPrompt
+	if len(testContext.CandidateCoins) == 0 {
+		logger.Warnf("[Strategy Test-Run] testContext.CandidateCoins is empty before BuildUserPrompt; using [BTCUSDT]. Check strategy coin_source.")
+		testContext.CandidateCoins = []kernel.CandidateCoin{{Symbol: "BTCUSDT", Sources: []string{"fallback"}}}
+	}
 
 	// Build User Prompt (using real market data)
 	userPrompt := engine.BuildUserPrompt(testContext)
@@ -632,10 +664,20 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	}
 
 	// Call AI API
+	logger.Infof("[Strategy Test-Run] Params to AI server: provider=%s model=%s system_prompt=%d chars user_prompt=%d chars",
+		provider, model.Name, len(systemPrompt), len(userPrompt))
+	logger.Infof("[Strategy Test-Run] system_prompt: %s", systemPrompt)
+	logger.Infof("[Strategy Test-Run] user_prompt: %s", userPrompt)
+
 	response, err := aiClient.CallWithMessages(systemPrompt, userPrompt)
+
 	if err != nil {
+		logger.Errorf("[Strategy Test-Run] AI server error: %v", err)
 		return "", fmt.Errorf("AI API call failed: %w", err)
 	}
+
+	logger.Infof("[Strategy Test-Run] Response from AI server: %d chars", len(response))
+	logger.Infof("[Strategy Test-Run] response: %s", response)
 
 	return response, nil
 }

@@ -1,5 +1,7 @@
 [build]
-dockerfilePath = "Dockerfile.railway"
+# Use fromsource so your commits (OI filter disabled, 0-candidate fallbacks) are in the binary.
+# Dockerfile.railway copies ghcr.io/.../nofx-backend and ignores repo changes.
+dockerfilePath = "Dockerfile.railway.fromsource"
 
 [deploy]
 healthcheckPath = "/health"

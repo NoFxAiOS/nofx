@@ -457,18 +457,22 @@ export function StrategyStudioPage() {
     setIsRunningAiTest(true)
     setAiTestResult(null)
     try {
+      const body: Record<string, unknown> = {
+        config: editingConfig,
+        prompt_variant: selectedVariant,
+        ai_model_id: selectedModelId,
+        run_real_ai: true,
+      }
+      // Prefer strategy_id so backend loads config from DB (avoids client serialization issues with coin_source.static_coins)
+      if (selectedStrategy?.id) body.strategy_id = selectedStrategy.id
+
       const response = await fetch(`${API_BASE}/api/strategies/test-run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          config: editingConfig,
-          prompt_variant: selectedVariant,
-          ai_model_id: selectedModelId,
-          run_real_ai: true,
-        }),
+        body: JSON.stringify(body),
       })
       if (!response.ok) throw new Error('Failed to run AI test')
       const data = await response.json()

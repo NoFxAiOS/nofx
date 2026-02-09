@@ -333,7 +333,12 @@ func (s *PositionStore) GetOpenPositions(traderID string) ([]*TraderPosition, er
 // GetOpenPositionBySymbol gets open position for specified symbol and direction
 func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (*TraderPosition, error) {
 	var pos TraderPosition
-	err := s.db.Where("trader_id = ? AND symbol = ? AND side = ? AND status = ?", traderID, symbol, side, "OPEN").
+
+	// Build side condition: match exact side OR "BOTH" (one-way mode positions)
+	// "BOTH" is used in one-way position mode where positions don't have a specific side
+	sideCondition := "(side = ? OR side = 'BOTH')"
+
+	err := s.db.Where("trader_id = ? AND symbol = ? AND "+sideCondition+" AND status = ?", traderID, symbol, side, "OPEN").
 		Order("entry_time DESC").
 		First(&pos).Error
 
@@ -348,7 +353,7 @@ func (s *PositionStore) GetOpenPositionBySymbol(traderID, symbol, side string) (
 		// Try without USDT suffix for backward compatibility
 		if strings.HasSuffix(symbol, "USDT") {
 			baseSymbol := strings.TrimSuffix(symbol, "USDT")
-			err = s.db.Where("trader_id = ? AND symbol = ? AND side = ? AND status = ?", traderID, baseSymbol, side, "OPEN").
+			err = s.db.Where("trader_id = ? AND symbol = ? AND "+sideCondition+" AND status = ?", traderID, baseSymbol, side, "OPEN").
 				Order("entry_time DESC").
 				First(&pos).Error
 			if err == nil {

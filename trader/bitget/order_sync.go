@@ -103,18 +103,32 @@ func (t *BitgetTrader) GetTrades(startTime time.Time, limit int) ([]BitgetTrade,
 			feeAsset = fill.FeeDetail[0].FeeCoin
 		}
 
-		// Determine order action based on side and tradeSide
-		// Bitget one-way mode: buy_single (open long), sell_single (close long)
-		// Bitget hedge mode: open + buy = open_long, close + sell = close_long
+		// Determine order action based on side, tradeSide, and profit
+		// Key insight: profit != 0 means it's a closing trade (realized PnL)
+		// profit == 0 means it's an opening trade (no PnL yet)
+		//
+		// Bitget one-way mode: buy_single/sell_single
+		// Bitget hedge mode: open/close + buy/sell
 		orderAction := "open_long"
 		side := strings.ToLower(fill.Side)
 		tradeSide := strings.ToLower(fill.TradeSide)
+		hasProfit := profit != 0 // Non-zero profit indicates closing trade
 
 		// One-way position mode (buy_single/sell_single)
 		if tradeSide == "buy_single" {
-			orderAction = "open_long"
+			// buy_single: could be open_long (no profit) or close_short (has profit)
+			if hasProfit {
+				orderAction = "close_short"
+			} else {
+				orderAction = "open_long"
+			}
 		} else if tradeSide == "sell_single" {
-			orderAction = "close_long"
+			// sell_single: could be open_short (no profit) or close_long (has profit)
+			if hasProfit {
+				orderAction = "close_long"
+			} else {
+				orderAction = "open_short"
+			}
 		} else if tradeSide == "open" {
 			// Hedge mode: open
 			if side == "buy" {

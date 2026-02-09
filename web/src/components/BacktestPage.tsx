@@ -1379,7 +1379,15 @@ export function BacktestPage() {
                                   const updated = isSelected
                                     ? formState.timeframes.filter((t) => t !== tf)
                                     : [...formState.timeframes, tf]
-                                  if (updated.length > 0) handleFormChange('timeframes', updated)
+                                  if (updated.length > 0) {
+                                    setFormState((prev) => ({
+                                      ...prev,
+                                      timeframes: updated,
+                                      decisionTf: updated.includes(prev.decisionTf)
+                                        ? prev.decisionTf
+                                        : updated[0],
+                                    }))
+                                  }
                                 }}
                                 className="px-2 py-1 rounded text-xs transition-all"
                                 style={{

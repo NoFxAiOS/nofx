@@ -94,8 +94,18 @@ func (df *DataFeed) loadAll() error {
 	}
 
 	// Generate backtest progress timeline using the primary timeframe of the first symbol
+	if len(df.symbols) == 0 {
+		return fmt.Errorf("no symbols configured")
+	}
 	firstSymbol := df.symbols[0]
-	primarySeries := df.symbolSeries[firstSymbol].byTF[df.primaryTF]
+	firstSeries, ok := df.symbolSeries[firstSymbol]
+	if !ok || firstSeries == nil {
+		return fmt.Errorf("symbol %s data not loaded", firstSymbol)
+	}
+	primarySeries, ok := firstSeries.byTF[df.primaryTF]
+	if !ok || primarySeries == nil {
+		return fmt.Errorf("decision timeframe %s not loaded for %s", df.primaryTF, firstSymbol)
+	}
 	startMs := start.UnixMilli()
 	endMs := end.UnixMilli()
 	for _, ts := range primarySeries.closeTimes {

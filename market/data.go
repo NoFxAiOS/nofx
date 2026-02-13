@@ -3,13 +3,16 @@ package market
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"nofx/logger"
+	"nofx/provider/coinank"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/hyperliquid"
+	"nofx/provider/nofxos"
 	"strconv"
 	"strings"
 	"sync"
@@ -251,10 +254,14 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
-	if err != nil {
-		// OI failure doesn't affect overall result, use default values
-		oiData = &OIData{Latest: 0, Average: 0}
+	var oiData *OIData
+	if !isXyzAsset {
+		var oiErr error
+		oiData, oiErr = getOpenInterestData(symbol)
+		if oiErr != nil {
+			// OI failures should not block market data; keep OI as nil to avoid false liquidity filtering.
+			logger.Warnf("⚠️ OI data unavailable for %s: %v", symbol, oiErr)
+		}
 	}
 
 	// Get Funding Rate
@@ -370,13 +377,18 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)  // 1 hour
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
-	if err != nil {
-		oiData = &OIData{Latest: 0, Average: 0}
+	var oiData *OIData
+	if !isXyzAsset {
+		var oiErr error
+		oiData, oiErr = getOpenInterestData(symbol)
+		if oiErr != nil {
+			// OI failures should not block market data; keep OI as nil to avoid false liquidity filtering.
+			logger.Warnf("⚠️ OI data unavailable for %s: %v", symbol, oiErr)
+		}
 	}
 
 	// Get Funding Rate
@@ -790,36 +802,147 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 
 // getOpenInterestData retrieves OI data
 func getOpenInterestData(symbol string) (*OIData, error) {
+	symbol = Normalize(symbol)
+	if IsXyzDexAsset(symbol) {
+		// xyz DEX assets don't have Binance-style OI.
+		return nil, nil
+	}
+
+	type oiSource struct {
+		name string
+		fn   func(string) (float64, error)
+	}
+
+	sources := []oiSource{
+		{name: "binance", fn: getOpenInterestFromBinance},
+		{name: "nofxos", fn: getOpenInterestFromNofxos},
+		{name: "coinank", fn: getOpenInterestFromCoinank},
+	}
+
+	var errs []string
+	for _, source := range sources {
+		oi, err := source.fn(symbol)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", source.name, err))
+			continue
+		}
+		if oi <= 0 {
+			errs = append(errs, fmt.Sprintf("%s: non-positive OI %.8f", source.name, oi))
+			continue
+		}
+		return &OIData{
+			Latest:  oi,
+			Average: oi * 0.999, // Approximate average
+		}, nil
+	}
+
+	if len(errs) == 0 {
+		return nil, errors.New("no OI source available")
+	}
+	return nil, fmt.Errorf("all OI sources failed for %s: %s", symbol, strings.Join(errs, "; "))
+}
+
+func getOpenInterestFromBinance(symbol string) (float64, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
 	apiClient := NewAPIClient()
 	resp, err := apiClient.client.Get(url)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return 0, err
+	}
+
+	if resp.StatusCode != 200 {
+		return 0, fmt.Errorf("status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
 	}
 
 	var result struct {
 		OpenInterest string `json:"openInterest"`
 		Symbol       string `json:"symbol"`
 		Time         int64  `json:"time"`
+		Code         int    `json:"code"`
+		Msg          string `json:"msg"`
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	oi, _ := strconv.ParseFloat(result.OpenInterest, 64)
+	if result.OpenInterest == "" {
+		if result.Msg != "" {
+			return 0, fmt.Errorf("api error code=%d msg=%s", result.Code, result.Msg)
+		}
+		return 0, fmt.Errorf("openInterest missing in response: %s", strings.TrimSpace(string(body)))
+	}
 
-	return &OIData{
-		Latest:  oi,
-		Average: oi * 0.999, // Approximate average
-	}, nil
+	oi, err := strconv.ParseFloat(result.OpenInterest, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid openInterest %q: %w", result.OpenInterest, err)
+	}
+
+	return oi, nil
+}
+
+func getOpenInterestFromNofxos(symbol string) (float64, error) {
+	data, err := nofxos.DefaultClient().GetCoinData(symbol, "oi")
+	if err != nil {
+		return 0, err
+	}
+	if data == nil || len(data.OI) == 0 {
+		return 0, errors.New("empty OI data")
+	}
+
+	// Prioritize Binance OI if available, then fallback to other exchanges.
+	priority := []string{"binance", "bybit", "okx", "bitget", "gate", "hyperliquid"}
+	for _, exchange := range priority {
+		for key, oiData := range data.OI {
+			if strings.EqualFold(key, exchange) && oiData != nil && oiData.CurrentOI > 0 {
+				return oiData.CurrentOI, nil
+			}
+		}
+	}
+
+	for _, oiData := range data.OI {
+		if oiData != nil && oiData.CurrentOI > 0 {
+			return oiData.CurrentOI, nil
+		}
+	}
+
+	return 0, errors.New("no positive current_oi")
+}
+
+func getOpenInterestFromCoinank(symbol string) (float64, error) {
+	client := coinank.NewCoinankClient(coinank_enum.MainUrl, "")
+	ctx := context.Background()
+	endTime := time.Now().UnixMilli()
+
+	// Prefer direct OI kline close value first.
+	oiKlines, klineErr := client.OpenInterestKline(ctx, coinank_enum.Binance, symbol, coinank_enum.Hour1, endTime, 1)
+	if klineErr == nil && len(oiKlines) > 0 {
+		oi := oiKlines[len(oiKlines)-1].Close
+		if oi > 0 {
+			return oi, nil
+		}
+	}
+
+	// Fallback to symbol chart coin count.
+	symbolChart, chartErr := client.OpenInterestSymbolChart(ctx, coinank_enum.Binance, symbol, coinank_enum.Hour1, endTime, 1)
+	if chartErr == nil && len(symbolChart) > 0 {
+		oi := symbolChart[len(symbolChart)-1].CoinCount
+		if oi > 0 {
+			return oi, nil
+		}
+	}
+
+	if klineErr != nil && chartErr != nil {
+		return 0, fmt.Errorf("openInterestKline: %v; openInterestSymbolChart: %v", klineErr, chartErr)
+	}
+	return 0, errors.New("no positive OI from coinank")
 }
 
 // getFundingRate retrieves funding rate (optimized: uses 1-hour cache)

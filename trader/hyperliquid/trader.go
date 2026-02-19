@@ -21,12 +21,13 @@ import (
 
 // HyperliquidTrader Hyperliquid trader
 type HyperliquidTrader struct {
-	exchange      *hyperliquid.Exchange
-	ctx           context.Context
-	walletAddr    string
-	meta          *hyperliquid.Meta // Cache meta information (including precision)
-	metaMutex     sync.RWMutex      // Protect concurrent access to meta field
-	isCrossMargin bool              // Whether to use cross margin mode
+	exchange         *hyperliquid.Exchange
+	ctx              context.Context
+	walletAddr       string
+	meta             *hyperliquid.Meta // Cache meta information (including precision)
+	metaMutex        sync.RWMutex      // Protect concurrent access to meta field
+	isCrossMargin    bool              // Whether to use cross margin mode
+	isUnifiedAccount bool              // Whether to use Unified Account mode (Spot as collateral for Perps)
 	// xyz dex support (stocks, forex, commodities)
 	xyzMeta      *xyzDexMeta
 	xyzMetaMutex sync.RWMutex
@@ -80,7 +81,8 @@ func isXyzDexAsset(symbol string) bool {
 }
 
 // NewHyperliquidTrader creates a Hyperliquid trader
-func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool) (*HyperliquidTrader, error) {
+// unifiedAccount: when true, Spot USDC balance is used as collateral for Perp trading
+func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool, unifiedAccount bool) (*HyperliquidTrader, error) {
 	// Remove 0x prefix from private key (if present, case-insensitive)
 	privateKeyHex = strings.TrimPrefix(strings.ToLower(privateKeyHex), "0x")
 
@@ -175,14 +177,19 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool)
 		}
 	}
 
+	if unifiedAccount {
+		logger.Infof("✓ Unified Account mode enabled: Spot USDC will be used as collateral for Perp trading")
+	}
+
 	return &HyperliquidTrader{
-		exchange:      exchange,
-		ctx:           ctx,
-		walletAddr:    walletAddr,
-		meta:          meta,
-		isCrossMargin: true, // Use cross margin mode by default
-		privateKey:    privateKey,
-		isTestnet:     testnet,
+		exchange:         exchange,
+		ctx:              ctx,
+		walletAddr:       walletAddr,
+		meta:             meta,
+		isCrossMargin:    true,           // Use cross margin mode by default
+		isUnifiedAccount: unifiedAccount, // Unified Account: Spot as Perp collateral
+		privateKey:       privateKey,
+		isTestnet:        testnet,
 	}, nil
 }
 
@@ -304,9 +311,18 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	// Note: totalWalletBalance + totalUnrealizedPnlAll should equal this
 	totalEquityCalculated := accountValue + spotUSDCBalance + xyzAccountValue
 
+	// ✅ Step 7: Unified Account mode - Spot USDC is used as collateral for Perps
+	// In this mode, available balance includes Spot USDC since it can be used for Perp margin
+	if t.isUnifiedAccount && spotUSDCBalance > 0 {
+		// Add Spot balance to available balance for trading
+		availableBalance = availableBalance + spotUSDCBalance
+		logger.Infof("✓ Unified Account: Spot %.2f USDC added to available balance (total: %.2f)", 
+			spotUSDCBalance, availableBalance)
+	}
+
 	result["totalWalletBalance"] = totalWalletBalance       // Total assets (Perp + Spot + xyz) - unrealized
 	result["totalEquity"] = totalEquityCalculated           // Total equity = Perp AV + Spot + xyz AV
-	result["availableBalance"] = availableBalance           // Available balance (Perpetuals only)
+	result["availableBalance"] = availableBalance           // Available balance (Perp + Spot if unified)
 	result["totalUnrealizedProfit"] = totalUnrealizedPnlAll // Unrealized PnL (Perpetuals + xyz)
 	result["spotBalance"] = spotUSDCBalance                 // Spot balance
 	result["xyzDexBalance"] = xyzAccountValue               // xyz dex equity (stock perps, forex, commodities)

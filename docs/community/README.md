@@ -241,6 +241,7 @@ NOFX offers bounties for valuable contributions:
 - **Want to claim bounty?** → [Bounty Guide](bounty-guide.md)
 - **Found a security issue?** → [Security Policy](../../SECURITY.md)
 - **Have questions?** → [Telegram Community](https://t.me/nofx_dev_community)
+- **Verify official accounts?** → [Official Accounts & Anti-Impersonation](OFFICIAL_ACCOUNTS.md)
 
 ---
 

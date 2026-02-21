@@ -17,27 +17,30 @@ type ExchangeStore struct {
 
 // Exchange exchange configuration
 type Exchange struct {
-	ID                      string          `gorm:"primaryKey" json:"id"`
-	ExchangeType            string          `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
-	AccountName             string          `gorm:"column:account_name;not null;default:''" json:"account_name"`
-	UserID                  string          `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
-	Name                    string          `gorm:"not null" json:"name"`
-	Type                    string          `gorm:"not null" json:"type"` // "cex" or "dex"
-	Enabled                 bool            `gorm:"default:false" json:"enabled"`
+	ID                      string                 `gorm:"primaryKey" json:"id"`
+	ExchangeType            string                 `gorm:"column:exchange_type;not null;default:''" json:"exchange_type"`
+	AccountName             string                 `gorm:"column:account_name;not null;default:''" json:"account_name"`
+	UserID                  string                 `gorm:"column:user_id;not null;default:default;index" json:"user_id"`
+	Name                    string                 `gorm:"not null" json:"name"`
+	Type                    string                 `gorm:"not null" json:"type"` // "cex" or "dex"
+	Enabled                 bool                   `gorm:"default:false" json:"enabled"`
 	APIKey                  crypto.EncryptedString `gorm:"column:api_key;default:''" json:"apiKey"`
 	SecretKey               crypto.EncryptedString `gorm:"column:secret_key;default:''" json:"secretKey"`
 	Passphrase              crypto.EncryptedString `gorm:"column:passphrase;default:''" json:"passphrase"`
-	Testnet                 bool            `gorm:"default:false" json:"testnet"`
-	HyperliquidWalletAddr   string          `gorm:"column:hyperliquid_wallet_addr;default:''" json:"hyperliquidWalletAddr"`
-	AsterUser               string          `gorm:"column:aster_user;default:''" json:"asterUser"`
-	AsterSigner             string          `gorm:"column:aster_signer;default:''" json:"asterSigner"`
+	Testnet                 bool                   `gorm:"default:false" json:"testnet"`
+	HyperliquidWalletAddr   string                 `gorm:"column:hyperliquid_wallet_addr;default:''" json:"hyperliquidWalletAddr"`
+	AsterUser               string                 `gorm:"column:aster_user;default:''" json:"asterUser"`
+	AsterSigner             string                 `gorm:"column:aster_signer;default:''" json:"asterSigner"`
 	AsterPrivateKey         crypto.EncryptedString `gorm:"column:aster_private_key;default:''" json:"asterPrivateKey"`
-	LighterWalletAddr       string          `gorm:"column:lighter_wallet_addr;default:''" json:"lighterWalletAddr"`
+	LighterWalletAddr       string                 `gorm:"column:lighter_wallet_addr;default:''" json:"lighterWalletAddr"`
 	LighterPrivateKey       crypto.EncryptedString `gorm:"column:lighter_private_key;default:''" json:"lighterPrivateKey"`
 	LighterAPIKeyPrivateKey crypto.EncryptedString `gorm:"column:lighter_api_key_private_key;default:''" json:"lighterAPIKeyPrivateKey"`
-	LighterAPIKeyIndex      int             `gorm:"column:lighter_api_key_index;default:0" json:"lighterAPIKeyIndex"`
-	CreatedAt               time.Time       `json:"created_at"`
-	UpdatedAt               time.Time       `json:"updated_at"`
+	LighterAPIKeyIndex      int                    `gorm:"column:lighter_api_key_index;default:0" json:"lighterAPIKeyIndex"`
+	PaperMode               bool                   `gorm:"default:true" json:"paperMode"`
+	PaperAPIKey             crypto.EncryptedString `gorm:"column:paper_api_key;default:''" json:"paperAPIKey"`
+	PaperSecretKey          crypto.EncryptedString `gorm:"column:paper_secret_key;default:''" json:"paperSecretKey"`
+	CreatedAt               time.Time              `json:"created_at"`
+	UpdatedAt               time.Time              `json:"updated_at"`
 }
 
 func (Exchange) TableName() string { return "exchanges" }
@@ -182,7 +185,8 @@ func getExchangeNameAndType(exchangeType string) (name string, typ string) {
 func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled bool,
 	apiKey, secretKey, passphrase string, testnet bool,
 	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey,
-	lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int) (string, error) {
+	lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int,
+	paperMode bool, paperAPIKey, paperSecretKey string) (string, error) {
 
 	id := uuid.New().String()
 	name, typ := getExchangeNameAndType(exchangeType)
@@ -214,6 +218,9 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 		LighterPrivateKey:       crypto.EncryptedString(lighterPrivateKey),
 		LighterAPIKeyPrivateKey: crypto.EncryptedString(lighterApiKeyPrivateKey),
 		LighterAPIKeyIndex:      lighterApiKeyIndex,
+		PaperMode:               paperMode,
+		PaperAPIKey:             crypto.EncryptedString(paperAPIKey),
+		PaperSecretKey:          crypto.EncryptedString(paperSecretKey),
 	}
 
 	if err := s.db.Create(exchange).Error; err != nil {
@@ -224,7 +231,8 @@ func (s *ExchangeStore) Create(userID, exchangeType, accountName string, enabled
 
 // Update updates exchange configuration by UUID
 func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKey, passphrase string, testnet bool,
-	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int) error {
+	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, lighterWalletAddr, lighterPrivateKey, lighterApiKeyPrivateKey string, lighterApiKeyIndex int,
+	paperMode bool, paperAPIKey, paperSecretKey string) error {
 
 	logger.Debugf("🔧 ExchangeStore.Update: userID=%s, id=%s, enabled=%v", userID, id, enabled)
 
@@ -236,6 +244,7 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 		"aster_signer":            asterSigner,
 		"lighter_wallet_addr":     lighterWalletAddr,
 		"lighter_api_key_index":   lighterApiKeyIndex,
+		"paper_mode":              paperMode,
 		"updated_at":              time.Now().UTC(),
 	}
 
@@ -257,6 +266,12 @@ func (s *ExchangeStore) Update(userID, id string, enabled bool, apiKey, secretKe
 	}
 	if lighterApiKeyPrivateKey != "" {
 		updates["lighter_api_key_private_key"] = crypto.EncryptedString(lighterApiKeyPrivateKey)
+	}
+	if paperAPIKey != "" {
+		updates["paper_api_key"] = crypto.EncryptedString(paperAPIKey)
+	}
+	if paperSecretKey != "" {
+		updates["paper_secret_key"] = crypto.EncryptedString(paperSecretKey)
 	}
 
 	result := s.db.Model(&Exchange{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates)
@@ -302,12 +317,12 @@ func (s *ExchangeStore) Delete(userID, id string) error {
 // CreateLegacy creates exchange configuration (legacy API for backward compatibility)
 // This method is deprecated, use Create instead
 func (s *ExchangeStore) CreateLegacy(userID, id, name, typ string, enabled bool, apiKey, secretKey string, testnet bool,
-	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string) error {
+	hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey string, paperMode bool, paperAPIKey, paperSecretKey string) error {
 
 	// Check if this is an old-style ID (exchange type as ID)
-	if id == "binance" || id == "bybit" || id == "okx" || id == "bitget" || id == "hyperliquid" || id == "aster" || id == "lighter" {
+	if id == "binance" || id == "bybit" || id == "okx" || id == "bitget" || id == "hyperliquid" || id == "aster" || id == "lighter" || id == "alpaca" {
 		_, err := s.Create(userID, id, "Default", enabled, apiKey, secretKey, "", testnet,
-			hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, "", "", "", 0)
+			hyperliquidWalletAddr, asterUser, asterSigner, asterPrivateKey, "", "", "", 0, paperMode, paperAPIKey, paperSecretKey)
 		return err
 	}
 

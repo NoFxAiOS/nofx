@@ -13,13 +13,14 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/market"
-	"nofx/provider/alpaca"
+	alpacaProvider "nofx/provider/alpaca"
 	"nofx/provider/coinank/coinank_api"
 	"nofx/provider/coinank/coinank_enum"
 	"nofx/provider/hyperliquid"
 	"nofx/provider/twelvedata"
 	"nofx/store"
 	"nofx/trader"
+	"nofx/trader/alpaca"
 	"nofx/trader/aster"
 	"nofx/trader/binance"
 	"nofx/trader/bitget"
@@ -133,7 +134,6 @@ func (s *Server) setupRoutes() {
 		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
 
 		// Market data (no authentication required)
-		api.GET("/klines", s.handleKlines)
 		api.GET("/symbols", s.handleSymbols)
 
 		// Public strategy market (no authentication required)
@@ -153,6 +153,9 @@ func (s *Server) setupRoutes() {
 
 			// Server IP query (requires authentication, for whitelist configuration)
 			protected.GET("/server-ip", s.handleGetServerIP)
+
+			// Market data (requires authentication for user-specific exchange keys like Alpaca)
+			protected.GET("/klines", s.handleKlines)
 
 			// AI trader management
 			protected.GET("/my-traders", s.handleTraderList)
@@ -465,6 +468,7 @@ type SafeExchangeConfig struct {
 	AsterUser             string `json:"asterUser"`             // Aster username (not sensitive)
 	AsterSigner           string `json:"asterSigner"`           // Aster signer (not sensitive)
 	LighterWalletAddr     string `json:"lighterWalletAddr"`     // LIGHTER wallet address (not sensitive)
+	PaperMode             bool   `json:"paperMode"`             // Alpaca paper trading mode
 }
 
 type UpdateModelConfigRequest struct {
@@ -491,6 +495,9 @@ type UpdateExchangeConfigRequest struct {
 		LighterPrivateKey       string `json:"lighter_private_key"`
 		LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
 		LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
+		PaperMode               bool   `json:"paper_mode"`
+		PaperAPIKey             string `json:"paper_api_key"`
+		PaperSecretKey          string `json:"paper_secret_key"`
 	} `json:"exchanges"`
 }
 
@@ -646,6 +653,20 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 				)
 			} else {
 				createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
+			}
+		case "alpaca":
+			var alpacaAPIKey, alpacaSecretKey string
+			if exchangeCfg.PaperMode {
+				alpacaAPIKey = string(exchangeCfg.PaperAPIKey)
+				alpacaSecretKey = string(exchangeCfg.PaperSecretKey)
+			} else {
+				alpacaAPIKey = string(exchangeCfg.APIKey)
+				alpacaSecretKey = string(exchangeCfg.SecretKey)
+			}
+			if alpacaAPIKey == "" || alpacaSecretKey == "" {
+				createErr = fmt.Errorf("Alpaca requires API key and secret key")
+			} else {
+				tempTrader = alpaca.NewAlpacaTrader(alpacaAPIKey, alpacaSecretKey, exchangeCfg.PaperMode, userID)
 			}
 		default:
 			logger.Infof("⚠️ Unsupported exchange type: %s, using user input for initial balance", exchangeCfg.ExchangeType)
@@ -1831,6 +1852,7 @@ func (s *Server) handleGetExchangeConfigs(c *gin.Context) {
 			AsterUser:             exchange.AsterUser,
 			AsterSigner:           exchange.AsterSigner,
 			LighterWalletAddr:     exchange.LighterWalletAddr,
+			PaperMode:             exchange.PaperMode,
 		}
 	}
 
@@ -1906,7 +1928,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 			tradersToReload[t.ID] = true
 		}
 
-		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex)
+		err := s.store.Exchange().Update(userID, exchangeID, exchangeData.Enabled, exchangeData.APIKey, exchangeData.SecretKey, exchangeData.Passphrase, exchangeData.Testnet, exchangeData.HyperliquidWalletAddr, exchangeData.AsterUser, exchangeData.AsterSigner, exchangeData.AsterPrivateKey, exchangeData.LighterWalletAddr, exchangeData.LighterPrivateKey, exchangeData.LighterAPIKeyPrivateKey, exchangeData.LighterAPIKeyIndex, exchangeData.PaperMode, exchangeData.PaperAPIKey, exchangeData.PaperSecretKey)
 		if err != nil {
 			SafeInternalError(c, fmt.Sprintf("Update exchange %s", exchangeID), err)
 			return
@@ -1932,7 +1954,7 @@ func (s *Server) handleUpdateExchangeConfigs(c *gin.Context) {
 
 // CreateExchangeRequest request structure for creating a new exchange account
 type CreateExchangeRequest struct {
-	ExchangeType            string `json:"exchange_type" binding:"required"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+	ExchangeType            string `json:"exchange_type" binding:"required"` // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter", "alpaca"
 	AccountName             string `json:"account_name"`                     // User-defined account name
 	Enabled                 bool   `json:"enabled"`
 	APIKey                  string `json:"api_key"`
@@ -1947,6 +1969,9 @@ type CreateExchangeRequest struct {
 	LighterPrivateKey       string `json:"lighter_private_key"`
 	LighterAPIKeyPrivateKey string `json:"lighter_api_key_private_key"`
 	LighterAPIKeyIndex      int    `json:"lighter_api_key_index"`
+	PaperMode               bool   `json:"paper_mode"`
+	PaperAPIKey             string `json:"paper_api_key"`
+	PaperSecretKey          string `json:"paper_secret_key"`
 }
 
 // handleCreateExchange Create a new exchange account
@@ -2004,6 +2029,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 	validTypes := map[string]bool{
 		"binance": true, "bybit": true, "okx": true, "bitget": true,
 		"hyperliquid": true, "aster": true, "lighter": true, "gate": true, "kucoin": true,
+		"alpaca": true,
 	}
 	if !validTypes[req.ExchangeType] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid exchange type: %s", req.ExchangeType)})
@@ -2016,6 +2042,7 @@ func (s *Server) handleCreateExchange(c *gin.Context) {
 		req.APIKey, req.SecretKey, req.Passphrase, req.Testnet,
 		req.HyperliquidWalletAddr, req.AsterUser, req.AsterSigner, req.AsterPrivateKey,
 		req.LighterWalletAddr, req.LighterPrivateKey, req.LighterAPIKeyPrivateKey, req.LighterAPIKeyIndex,
+		req.PaperMode, req.PaperAPIKey, req.PaperSecretKey,
 	)
 	if err != nil {
 		logger.Infof("❌ Failed to create exchange account: %v", err)
@@ -2489,9 +2516,65 @@ func (s *Server) handleKlines(c *gin.Context) {
 	// Route to appropriate data source based on exchange type
 	switch exchangeLower {
 	case "alpaca":
-		// US Stocks via Alpaca
-		klines, err = s.getKlinesFromAlpaca(symbol, interval, limit)
+		// Alpaca: try to get keys from user's exchange config in DB, or from query params, or fallback to global config
+		alpacaAPIKey := c.Query("alpaca_api_key")
+		alpacaSecretKey := c.Query("alpaca_secret_key")
+
+		// Try to get user ID from context (if authenticated)
+		userID := c.GetString("user_id")
+		if userID != "" && (alpacaAPIKey == "" || alpacaSecretKey == "") {
+			// Fetch user's Alpaca exchange config from DB
+			exchanges, err := s.store.Exchange().List(userID)
+			if err == nil {
+				for _, ex := range exchanges {
+					if strings.ToLower(ex.ExchangeType) == "alpaca" {
+						if alpacaAPIKey == "" {
+							alpacaAPIKey = string(ex.PaperAPIKey)
+						}
+						if alpacaSecretKey == "" {
+							alpacaSecretKey = string(ex.PaperSecretKey)
+						}
+						// Also try live keys if paper keys are empty
+						if alpacaAPIKey == "" {
+							alpacaAPIKey = string(ex.APIKey)
+						}
+						if alpacaSecretKey == "" {
+							alpacaSecretKey = string(ex.SecretKey)
+						}
+						break
+					}
+				}
+
+			}
+		}
+
+		// Convert symbol to Alpaca format first
+		alpacaSymbol := alpacaProvider.ConvertSymbolToAlpacaFormat(symbol)
+
+		// Only check symbol support if API keys are provided (non-blocking)
+		if alpacaAPIKey != "" && alpacaSecretKey != "" {
+			alpacaClient := alpacaProvider.NewClientWithKeys(alpacaAPIKey, alpacaSecretKey)
+			supported, checkErr := alpacaClient.IsCryptoSymbolSupported(c.Request.Context(), alpacaSymbol)
+			if checkErr != nil {
+				logger.Warnf("Alpaca symbol validation failed: %v - continuing with actual API call", checkErr)
+			} else if !supported {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": fmt.Sprintf("Symbol %s is not available on Alpaca. Alpaca only supports major crypto pairs (BTC/USD, ETH/USD, SOL/USD, etc.).", symbol),
+				})
+				return
+			}
+		}
+
+		klines, err = s.getKlinesFromAlpaca(symbol, interval, limit, alpacaAPIKey, alpacaSecretKey)
 		if err != nil {
+			// Check if it's a "keys not configured" error - return 400 instead of 500
+			errStr := err.Error()
+			if strings.Contains(errStr, "API keys not configured") {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Alpaca API keys not configured. Please add your Alpaca paper trading keys in Exchange settings.",
+				})
+				return
+			}
 			SafeInternalError(c, "Get klines from Alpaca", err)
 			return
 		}
@@ -2647,19 +2730,50 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 	return klines, nil
 }
 
-// getKlinesFromAlpaca fetches kline data from Alpaca API for US stocks
-func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]market.Kline, error) {
-	// Create Alpaca client
-	client := alpaca.NewClient()
+// getKlinesFromAlpaca fetches kline data from Alpaca API for US stocks or crypto
+func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int, apiKey, secretKey string) ([]market.Kline, error) {
+	// Use provided keys or fall back to global config
+	var client *alpacaProvider.Client
+	if apiKey != "" && secretKey != "" {
+		client = alpacaProvider.NewClientWithKeys(apiKey, secretKey)
+	} else {
+		client = alpacaProvider.NewClient()
+	}
 
 	// Map interval to Alpaca timeframe format
-	timeframe := alpaca.MapTimeframe(interval)
+	timeframe := alpacaProvider.MapTimeframe(interval)
 
-	// Fetch bars from Alpaca
+	// Convert symbol to Alpaca format
+	alpacaSymbol := alpacaProvider.ConvertSymbolToAlpacaFormat(symbol)
+	isCrypto := strings.Contains(alpacaSymbol, "/")
+
+	var bars []alpacaProvider.Bar
+	var err error
 	ctx := context.Background()
-	bars, err := client.GetBars(ctx, symbol, timeframe, limit)
-	if err != nil {
-		return nil, fmt.Errorf("alpaca API error: %w", err)
+
+	if isCrypto {
+		// Crypto: use GetCryptoBars
+		bars, err = client.GetCryptoBars(ctx, alpacaSymbol, timeframe, limit)
+		if err != nil {
+			return nil, fmt.Errorf("alpaca crypto API error: %w", err)
+		}
+	} else {
+		// Stocks: use GetBars
+		stockBars, err := client.GetBars(ctx, alpacaSymbol, timeframe, limit)
+		if err != nil {
+			return nil, fmt.Errorf("alpaca stocks API error: %w", err)
+		}
+		// Convert stock bars to generic bars
+		for _, sb := range stockBars {
+			bars = append(bars, alpacaProvider.Bar{
+				Timestamp: sb.Timestamp,
+				Open:      sb.Open,
+				High:      sb.High,
+				Low:       sb.Low,
+				Close:     sb.Close,
+				Volume:    sb.Volume,
+			})
+		}
 	}
 
 	// Convert Alpaca bars to market.Kline format
@@ -2671,8 +2785,8 @@ func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]mark
 			High:        bar.High,
 			Low:         bar.Low,
 			Close:       bar.Close,
-			Volume:      float64(bar.Volume),             // 股数
-			QuoteVolume: float64(bar.Volume) * bar.Close, // 成交额 = 股数 * 收盘价 (USD)
+			Volume:      float64(bar.Volume),
+			QuoteVolume: float64(bar.Volume) * bar.Close,
 			CloseTime:   bar.Timestamp.UnixMilli(),
 		}
 	}

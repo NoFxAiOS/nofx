@@ -94,6 +94,13 @@ To use NOFX, you'll need:
 | <img src="web/public/exchange-icons/aster.svg" width="20" height="20" style="vertical-align: middle;"/> **Aster DEX** | ✅ | [Register](https://www.asterdex.com/en/referral/fdfc0e) |
 | <img src="web/public/exchange-icons/lighter.png" width="20" height="20" style="vertical-align: middle;"/> **Lighter** | ✅ | [Register](https://app.lighter.xyz/?referral=68151432) |
 
+### Crypto Exchanges (via Alpaca)
+
+| Exchange | Status | Register (Fee Discount) |
+|:---------|:------:|:------------------------|
+| <img src="web/public/exchange-icons/alpaca.svg" width="20" height="20" style="vertical-align: middle;"/> **Alpaca (Crypto)** | ✅ (Paper Trading) | [Register](https://app.alpaca.markets/paper/dashboard/overview) |
+| <img src="web/public/exchange-icons/alpaca.svg" width="20" height="20" style="vertical-align: middle;"/> **Alpaca (US Stocks)** | ✅ | [Register](https://app.alpaca.markets) |
+
 ---
 
 ## Supported AI Models
@@ -386,6 +393,25 @@ After starting the system, configure through the web interface:
 5. **Start Trading** - Launch your configured traders
 
 All configuration is done through the web interface - no JSON file editing required.
+
+### Alpaca Paper Trading Setup
+
+For backtesting and AI trading contests (like SecureFinAI), you can use Alpaca's paper trading mode:
+
+1. **Register for Alpaca Paper Account**
+   - Go to: https://app.alpaca.markets/paper/dashboard/overview
+   - No deposit required - you get $100k virtual capital
+
+2. **Get API Keys**
+   - In Alpaca paper dashboard, go to "API" section
+   - Create new API key (note: Paper keys are different from Live keys)
+
+3. **Configure in NOFX**
+   - Add new exchange: Select "Alpaca"
+   - Enable "Paper Mode" toggle
+   - Enter your Paper API Key and Paper Secret Key
+
+**Note:** Alpaca uses BTC/USD format (not BTCUSDT). NOFX handles the conversion automatically.
 
 ---
 

@@ -118,7 +118,7 @@ export interface AIModel {
 
 export interface Exchange {
   id: string                     // UUID (empty for supported exchange templates)
-  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter"
+  exchange_type: string          // "binance", "bybit", "okx", "hyperliquid", "aster", "lighter", "alpaca"
   account_name: string           // User-defined account name
   name: string                   // Display name
   type: 'cex' | 'dex'
@@ -138,6 +138,10 @@ export interface Exchange {
   lighterPrivateKey?: string
   lighterApiKeyPrivateKey?: string
   lighterApiKeyIndex?: number
+  // Alpaca specific
+  paperMode?: boolean
+  paperApiKey?: string
+  paperSecretKey?: string
 }
 
 export interface CreateExchangeRequest {

@@ -41,9 +41,12 @@ type Config struct {
 	ExperienceImprovement bool
 
 	// Market data provider API keys
-	AlpacaAPIKey    string // Alpaca API key for US stocks
-	AlpacaSecretKey string // Alpaca secret key
-	TwelveDataKey   string // TwelveData API key for forex & metals
+	AlpacaAPIKey         string // Alpaca API key for US stocks
+	AlpacaSecretKey      string // Alpaca secret key
+	AlpacaPaperMode      bool   // Alpaca paper trading mode (default true for safety)
+	AlpacaPaperAPIKey    string // Alpaca paper trading API key
+	AlpacaPaperSecretKey string // Alpaca paper trading secret key
+	TwelveDataKey        string // TwelveData API key for forex & metals
 }
 
 // Init initializes global configuration (from .env)
@@ -102,6 +105,9 @@ func Init() {
 	// Market data provider API keys
 	cfg.AlpacaAPIKey = os.Getenv("ALPACA_API_KEY")
 	cfg.AlpacaSecretKey = os.Getenv("ALPACA_SECRET_KEY")
+	cfg.AlpacaPaperMode = os.Getenv("ALPACA_PAPER_MODE") == "true" || os.Getenv("ALPACA_PAPER_MODE") == ""
+	cfg.AlpacaPaperAPIKey = os.Getenv("ALPACA_PAPER_API_KEY")
+	cfg.AlpacaPaperSecretKey = os.Getenv("ALPACA_PAPER_SECRET_KEY")
 	cfg.TwelveDataKey = os.Getenv("TWELVEDATA_API_KEY")
 
 	// Database configuration

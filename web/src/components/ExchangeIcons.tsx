@@ -8,15 +8,16 @@ interface IconProps {
 
 // 本地图标路径映射
 const ICON_PATHS: Record<string, string> = {
-  binance: '/exchange-icons/binance.jpg',
-  bybit: '/exchange-icons/bybit.png',
-  okx: '/exchange-icons/okx.svg',
-  bitget: '/exchange-icons/bitget.svg',
-  gate: '/exchange-icons/gate.svg',
-  kucoin: '/exchange-icons/kucoin.svg',
-  hyperliquid: '/exchange-icons/hyperliquid.png',
-  aster: '/exchange-icons/aster.svg',
-  lighter: '/exchange-icons/lighter.png',
+	binance: '/exchange-icons/binance.jpg',
+	bybit: '/exchange-icons/bybit.png',
+	okx: '/exchange-icons/okx.svg',
+	bitget: '/exchange-icons/bitget.svg',
+	gate: '/exchange-icons/gate.svg',
+	kucoin: '/exchange-icons/kucoin.svg',
+	hyperliquid: '/exchange-icons/hyperliquid.png',
+	aster: '/exchange-icons/aster.svg',
+	lighter: '/exchange-icons/lighter.png',
+	alpaca: '/exchange-icons/alpaca.svg',
 }
 
 // 通用图标组件
@@ -100,7 +101,9 @@ export const getExchangeIcon = (
                 : lowerType.includes('aster')
                   ? 'aster'
                   : lowerType.includes('lighter')
-                    ? 'lighter'
+                  ? 'lighter'
+                  : lowerType.includes('alpaca')
+                    ? 'alpaca'
                     : lowerType
 
   const iconProps = {

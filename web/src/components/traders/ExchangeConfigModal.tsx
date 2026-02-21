@@ -30,6 +30,7 @@ const SUPPORTED_EXCHANGE_TEMPLATES = [
   { exchange_type: 'hyperliquid', name: 'Hyperliquid', type: 'dex' as const },
   { exchange_type: 'aster', name: 'Aster DEX', type: 'dex' as const },
   { exchange_type: 'lighter', name: 'Lighter', type: 'dex' as const },
+  { exchange_type: 'alpaca', name: 'Alpaca (Crypto)', type: 'cex' as const },
 ]
 
 interface ExchangeConfigModalProps {
@@ -50,7 +51,10 @@ interface ExchangeConfigModalProps {
     lighterWalletAddr?: string,
     lighterPrivateKey?: string,
     lighterApiKeyPrivateKey?: string,
-    lighterApiKeyIndex?: number
+    lighterApiKeyIndex?: number,
+    paperMode?: boolean,
+    paperApiKey?: string,
+    paperSecretKey?: string
   ) => Promise<void>
   onDelete: (exchangeId: string) => void
   onClose: () => void
@@ -176,6 +180,9 @@ export function ExchangeConfigModal({
   const [lighterWalletAddr, setLighterWalletAddr] = useState('')
   const [lighterApiKeyPrivateKey, setLighterApiKeyPrivateKey] = useState('')
   const [lighterApiKeyIndex, setLighterApiKeyIndex] = useState(0)
+  const [paperMode, setPaperMode] = useState(true)
+  const [paperApiKey, setPaperApiKey] = useState('')
+  const [paperSecretKey, setPaperSecretKey] = useState('')
 
   // Other state
   const [secureInputTarget, setSecureInputTarget] = useState<null | 'hyperliquid' | 'aster' | 'lighter'>(null)
@@ -327,6 +334,9 @@ export function ExchangeConfigModal({
       } else if (currentExchangeType === 'lighter') {
         if (!lighterWalletAddr.trim() || !lighterApiKeyPrivateKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, undefined, undefined, undefined, lighterWalletAddr.trim(), '', lighterApiKeyPrivateKey.trim(), lighterApiKeyIndex)
+      } else if (currentExchangeType === 'alpaca') {
+        if (!paperApiKey.trim() || !paperSecretKey.trim()) return
+        await onSave(exchangeId, exchangeType, trimmedAccountName, '', '', '', testnet, undefined, undefined, undefined, undefined, '', '', '', 0, paperMode, paperApiKey.trim(), paperSecretKey.trim())
       } else {
         if (!apiKey.trim() || !secretKey.trim()) return
         await onSave(exchangeId, exchangeType, trimmedAccountName, apiKey.trim(), secretKey.trim(), '', testnet)
@@ -721,6 +731,43 @@ export function ExchangeConfigModal({
                       </Tooltip>
                     </label>
                     <input type="number" min={0} max={255} value={lighterApiKeyIndex} onChange={(e) => setLighterApiKeyIndex(parseInt(e.target.value) || 0)} className="w-full px-4 py-3 rounded-xl" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }} />
+                  </div>
+                </>
+              )}
+
+              {/* Alpaca Fields */}
+              {currentExchangeType === 'alpaca' && (
+                <>
+                  <div className="p-4 rounded-xl mb-4" style={{ background: '#1a2035', border: '1px solid #00D4AA' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id="paperMode"
+                        checked={paperMode}
+                        onChange={(e) => setPaperMode(e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      <label htmlFor="paperMode" className="text-sm font-semibold" style={{ color: '#00D4AA' }}>
+                        {language === 'zh' ? '使用 Paper Trading (模拟交易)' : 'Use Paper Trading (Simulated)'}
+                      </label>
+                    </div>
+                    <p className="text-xs" style={{ color: '#848E9C' }}>
+                      {language === 'zh' 
+                        ? 'Paper Trading 提供 $100,000 虚拟资金，适合测试和比赛'
+                        : 'Paper Trading provides $100k virtual capital for testing and contests'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                      {paperMode ? (language === 'zh' ? 'Paper API Key *' : 'Paper API Key *') : (language === 'zh' ? 'Live API Key *' : 'Live API Key *')}
+                    </label>
+                    <input type="text" value={paperApiKey} onChange={(e) => setPaperApiKey(e.target.value)} placeholder={paperMode ? 'PKXXXXXXXXXXXXXXXXXX' : 'Enter API Key'} className="w-full px-4 py-3 rounded-xl font-mono" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }} required />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                      {paperMode ? (language === 'zh' ? 'Paper Secret Key *' : 'Paper Secret Key *') : (language === 'zh' ? 'Live Secret Key *' : 'Live Secret Key *')}
+                    </label>
+                    <input type="password" value={paperSecretKey} onChange={(e) => setPaperSecretKey(e.target.value)} placeholder={paperMode ? 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' : 'Enter Secret Key'} className="w-full px-4 py-3 rounded-xl font-mono" style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }} required />
                   </div>
                 </>
               )}

@@ -8,6 +8,7 @@ import { RegisterPage } from './components/RegisterPage';
 import { CompetitionPage } from './components/CompetitionPage';
 import { LandingPage } from './pages/LandingPage';
 import AILearning from './components/AILearning';
+import { MarketDashboard } from './components/MarketDashboard';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { t, type Language } from './i18n/translations';
@@ -22,7 +23,7 @@ import type {
   TraderInfo,
 } from './types';
 
-type Page = 'competition' | 'traders' | 'trader';
+type Page = 'competition' | 'traders' | 'trader' | 'market';
 
 // 获取友好的AI模型名称
 function getModelDisplayName(modelId: string): string {
@@ -224,6 +225,16 @@ function App() {
                 {t('aiCompetition', language)}
               </button>
               <button
+                onClick={() => setCurrentPage('market')}
+                className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
+                style={currentPage === 'market'
+                  ? { background: '#F0B90B', color: '#000' }
+                  : { background: 'transparent', color: '#848E9C' }
+                }
+              >
+                {t('marketDashboard', language)}
+              </button>
+              <button
                 onClick={() => setCurrentPage('traders')}
                 className={`px-3 py-2 rounded text-sm font-semibold transition-all`}
                 style={currentPage === 'traders'
@@ -309,6 +320,8 @@ function App() {
       <main className="max-w-[1920px] mx-auto px-6 py-6">
         {currentPage === 'competition' ? (
           <CompetitionPage />
+        ) : currentPage === 'market' ? (
+          <MarketDashboard />
         ) : currentPage === 'traders' ? (
           <AITradersPage 
             onTraderSelect={(traderId) => {

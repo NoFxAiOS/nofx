@@ -11,6 +11,8 @@ import type {
   UpdateModelConfigRequest,
   UpdateExchangeConfigRequest,
   CompetitionData,
+  KlineData,
+  MarketSymbolsResponse,
 } from '../types';
 
 const API_BASE = '/api';
@@ -280,5 +282,20 @@ export const api = {
       }),
     });
     if (!res.ok) throw new Error('保存用户信号源配置失败');
+  },
+
+  // 行情数据接口
+  async getKlines(symbol: string, interval: string = '3m', limit: number = 100): Promise<KlineData[]> {
+    const res = await fetch(
+      `${API_BASE}/market/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
+    );
+    if (!res.ok) throw new Error('获取K线数据失败');
+    return res.json();
+  },
+
+  async getMarketSymbols(): Promise<MarketSymbolsResponse> {
+    const res = await fetch(`${API_BASE}/market/symbols`);
+    if (!res.ok) throw new Error('获取币种列表失败');
+    return res.json();
   },
 };

@@ -254,6 +254,11 @@ func (m *WSMonitor) GetCurrentKlines(symbol string, _time string) ([]Kline, erro
 	return value.([]Kline), nil
 }
 
+// GetSymbols 返回当前监控的币种列表
+func (m *WSMonitor) GetSymbols() []string {
+	return m.symbols
+}
+
 func (m *WSMonitor) Close() {
 	m.wsClient.Close()
 	close(m.alertsChan)

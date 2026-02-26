@@ -213,6 +213,26 @@ export const translations = {
     altcoinLeverageValidation: 'Altcoin leverage must be between 1-20x',
     invalidSymbolFormat: 'Invalid symbol format: {symbol}, must end with USDT',
 
+    // Market Dashboard
+    marketDashboard: 'Market',
+    klineChart: 'K-Line Chart',
+    interval3m: '3 Min',
+    interval4h: '4 Hour',
+    selectCoins: 'Select Coins',
+    price: 'Price',
+    change: 'Change',
+    vol: 'Vol',
+    high: 'High',
+    low: 'Low',
+    open: 'Open',
+    close: 'Close',
+    noMarketData: 'No Market Data',
+    marketDataWillAppear: 'Market data will appear after monitor starts',
+    expandChart: 'Expand',
+    collapseChart: 'Collapse',
+    addCoin: 'Add Coin',
+    removeCoin: 'Remove',
+
     // Loading & Error
     loading: 'Loading...',
     loadingError: '⚠️ Failed to load AI learning data',
@@ -529,6 +549,26 @@ export const translations = {
     btcEthLeverageValidation: 'BTC/ETH杠杆必须在1-50倍之间',
     altcoinLeverageValidation: '山寨币杠杆必须在1-20倍之间',
     invalidSymbolFormat: '无效的币种格式：{symbol}，必须以USDT结尾',
+
+    // Market Dashboard
+    marketDashboard: '行情看板',
+    klineChart: 'K线图',
+    interval3m: '3分钟',
+    interval4h: '4小时',
+    selectCoins: '选择币种',
+    price: '价格',
+    change: '涨跌幅',
+    vol: '成交量',
+    high: '最高',
+    low: '最低',
+    open: '开盘',
+    close: '收盘',
+    noMarketData: '暂无行情数据',
+    marketDataWillAppear: '行情监控启动后将显示数据',
+    expandChart: '展开',
+    collapseChart: '收起',
+    addCoin: '添加币种',
+    removeCoin: '移除',
 
     // Loading & Error
     loading: '加载中...',

@@ -9,6 +9,7 @@ import (
 	"nofx/config"
 	"nofx/decision"
 	"nofx/manager"
+	"nofx/market"
 	"strconv"
 	"strings"
 	"time"
@@ -88,6 +89,10 @@ func (s *Server) setupRoutes() {
 		// 系统提示词模板管理（无需认证）
 		api.GET("/prompt-templates", s.handleGetPromptTemplates)
 		api.GET("/prompt-templates/:name", s.handleGetPromptTemplate)
+
+		// 行情数据（无需认证）
+		api.GET("/market/klines", s.handleMarketKlines)
+		api.GET("/market/symbols", s.handleMarketSymbols)
 
 		// 需要认证的路由
 		protected := api.Group("/", s.authMiddleware())
@@ -1453,5 +1458,64 @@ func (s *Server) handleGetPromptTemplate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"name":    template.Name,
 		"content": template.Content,
+	})
+}
+
+// handleMarketKlines 获取K线数据
+func (s *Server) handleMarketKlines(c *gin.Context) {
+	symbol := strings.ToUpper(c.Query("symbol"))
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "symbol is required"})
+		return
+	}
+
+	interval := c.DefaultQuery("interval", "3m")
+	if interval != "3m" && interval != "4h" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "interval must be 3m or 4h"})
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "100")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 500 {
+		limit = 100
+	}
+
+	monitor := market.WSMonitorCli
+	if monitor == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "market monitor not initialized"})
+		return
+	}
+
+	klines, err := monitor.GetCurrentKlines(symbol, interval)
+	if err != nil {
+		// GetCurrentKlines returns error "symbol不存在" even when data is fetched via fallback
+		// so we still return data if klines is not nil
+		if klines == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": fmt.Sprintf("no kline data for %s", symbol)})
+			return
+		}
+	}
+
+	// Apply limit
+	if len(klines) > limit {
+		klines = klines[len(klines)-limit:]
+	}
+
+	c.JSON(http.StatusOK, klines)
+}
+
+// handleMarketSymbols 获取当前监控的币种列表
+func (s *Server) handleMarketSymbols(c *gin.Context) {
+	monitor := market.WSMonitorCli
+	if monitor == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "market monitor not initialized"})
+		return
+	}
+
+	symbols := monitor.GetSymbols()
+	c.JSON(http.StatusOK, gin.H{
+		"symbols": symbols,
+		"count":   len(symbols),
 	})
 }

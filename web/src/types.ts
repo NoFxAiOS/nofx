@@ -183,6 +183,27 @@ export interface CompetitionData {
   count: number;
 }
 
+// K线数据
+export interface KlineData {
+  openTime: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  closeTime: number;
+  quoteVolume: number;
+  trades: number;
+  takerBuyBaseVolume: number;
+  takerBuyQuoteVolume: number;
+}
+
+// 市场币种列表
+export interface MarketSymbolsResponse {
+  symbols: string[];
+  count: number;
+}
+
 // Trader Configuration Data for View Modal
 export interface TraderConfigData {
   trader_id?: string;

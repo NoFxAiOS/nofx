@@ -158,6 +158,32 @@ export function StrategyMarketPage() {
       shareYours: 'UPLOAD_STRATEGY',
       makePublic: 'PUBLISH',
       loading: 'INITIALIZING...'
+    },
+    id: {
+      title: 'PASAR STRATEGI',
+      subtitle: 'DATABASE STRATEGI GLOBAL',
+      description: 'Temukan, analisis, dan kloning algoritma trading berperforma tinggi',
+      search: 'CARI PARAMETER...',
+      all: 'SEMUA PROTOKOL',
+      popular: 'TREN',
+      recent: 'TERBARU',
+      myStrategies: 'PERPUSTAKAAN SAYA',
+      noStrategies: 'TIDAK ADA SINYAL',
+      noStrategiesDesc: 'Tidak ada sinyal strategis terdeteksi pada frekuensi ini',
+      author: 'OPERATOR',
+      createdAt: 'TIMESTAMP',
+      viewConfig: 'DEKRIPSI CONFIG',
+      hideConfig: 'ENKRIPSI',
+      copyConfig: 'KLON CONFIG',
+      copied: 'DISALIN',
+      configHidden: 'TERENKRIPSI',
+      configHiddenDesc: 'Parameter konfigurasi terenkripsi',
+      indicators: 'INDIKATOR',
+      maxPositions: 'BATAS_POS',
+      maxLeverage: 'LEV_MAKS',
+      shareYours: 'UNGGAH_STRATEGI',
+      makePublic: 'PUBLIKASI',
+      loading: 'MENGINISIALISASI...'
     }
   }
 

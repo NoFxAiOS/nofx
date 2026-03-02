@@ -40,6 +40,20 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
       login: 'EXECUTE LOGIN',
       register: 'REGISTER NEW ID',
       later: 'ABORT'
+    },
+    id: {
+      title: 'AKSES SISTEM DITOLAK',
+      subtitle: featureName ? `Modul "${featureName}" memerlukan hak akses lebih tinggi` : 'Otorisasi diperlukan untuk modul ini',
+      description: 'Inisialisasi protokol autentikasi untuk membuka kemampuan sistem penuh: konfigurasi Trader AI, aliran data Pasar Strategi, dan inti Simulasi Backtest.',
+      benefits: [
+        'Kontrol Trader AI',
+        'Pasar Strategi HFT',
+        'Mesin Backtest Historis',
+        'Visualisasi Sistem Penuh'
+      ],
+      login: 'JALANKAN LOGIN',
+      register: 'DAFTAR ID BARU',
+      later: 'BATALKAN'
     }
   }
 

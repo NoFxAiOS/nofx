@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { api } from '../lib/api'
 import { useLanguage } from '../contexts/LanguageContext'
-import { t } from '../i18n/translations'
+import { t, type Language } from '../i18n/translations'
 import { MetricTooltip } from './MetricTooltip'
 import { formatPrice, formatQuantity } from '../utils/format'
 import type {
@@ -152,7 +152,7 @@ function SymbolStatsRow({ stat }: { stat: SymbolStats }) {
 }
 
 // Direction Stats Card
-function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language: 'en' | 'zh' }) {
+function DirectionStatsCard({ stat, language }: { stat: DirectionStats; language: Language }) {
   const isLong = (stat.side || '').toLowerCase() === 'long'
   const iconColor = isLong ? '#0ECB81' : '#F6465D'
   const totalPnl = stat.total_pnl || 0

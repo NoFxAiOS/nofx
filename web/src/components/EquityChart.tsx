@@ -142,7 +142,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
     1000 // 默认值（与创建交易员时的默认配置一致）
 
   // 转换数据格式
-  const chartData = displayHistory.map((point) => {
+  const chartData = displayHistory.map((point, index) => {
     const pnl = point.total_equity - initialBalance
     const pnlPct = ((pnl / initialBalance) * 100).toFixed(2)
     return {
@@ -151,7 +151,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
         minute: '2-digit',
       }),
       value: displayMode === 'dollar' ? point.total_equity : parseFloat(pnlPct),
-      cycle: point.cycle_number,
+      cycle: point.cycle_number ?? index + 1,
       raw_equity: point.total_equity,
       raw_pnl: pnl,
       raw_pnl_pct: parseFloat(pnlPct),
@@ -192,7 +192,7 @@ export function EquityChart({ traderId, embedded = false }: EquityChartProps) {
           style={{ background: '#1E2329', border: '1px solid #2B3139' }}
         >
           <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
-            Cycle #{data.cycle}
+            Cycle #{data.cycle != null ? data.cycle : '—'}
           </div>
           <div className="font-bold mono" style={{ color: '#EAECEF' }}>
             {data.raw_equity.toFixed(2)} USDT

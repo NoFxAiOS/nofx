@@ -711,6 +711,8 @@ export const translations = {
     passwordRequired: 'Password is required',
     invalidEmail: 'Invalid email format',
     passwordTooShort: 'Password must be at least 6 characters',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
 
     // Landing Page
     features: 'Features',
@@ -1922,6 +1924,8 @@ export const translations = {
     passwordRequired: '请输入密码',
     invalidEmail: '邮箱格式不正确',
     passwordTooShort: '密码至少需要6个字符',
+    showPassword: '显示密码',
+    hidePassword: '隐藏密码',
 
     // Landing Page
     features: '功能',

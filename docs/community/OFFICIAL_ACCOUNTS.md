@@ -1,5 +1,15 @@
 # Official Accounts & Anti-Impersonation Notice
 
+## Legal Entity
+
+| Field | Details |
+|-------|---------|
+| Company Name | **Cryonic Holdings Limited** |
+| Company No. | 2193977 |
+| Jurisdiction | British Virgin Islands |
+| Address | Mandar House, 3rd Floor, P.O. Box 2196, Johnson's Ghut, Tortola, BVI |
+| Contact Email | 0xccfelix@gmail.com |
+
 ## Official Channels
 
 | Platform | Account | Link | Role |
@@ -17,15 +27,17 @@ The following accounts are **NOT affiliated** with the NOFX project:
 
 | Platform | Account | Status |
 |----------|---------|--------|
-| Twitter/X | @nofx_ai | **NOT OFFICIAL** — No affiliation with this project |
+| Twitter/X | @nofx_ai | **NOT OFFICIAL** — Not affiliated with this project |
 
-> **Warning:** Any account not listed in the table above that claims to represent NOFX is unauthorized. Always verify through this page before trusting any account.
+> **Warning:** Any account claiming to represent NOFX that is not listed above is unauthorized. Verify through this page before trusting any account.
 
 ## How to Verify Authenticity
 
 1. Check this page in our [official GitHub repository](https://github.com/NoFxAiOS/nofx)
 2. The GitHub repository sidebar links directly to our official Twitter
 3. The project [README](../../README.md) lists all official accounts under "Core Team" and "Official Links"
+4. The operating entity is Cryonic Holdings Limited (BVI No. 2193977)
+5. Official contact email: 0xccfelix@gmail.com
 
 ## Report Impersonation
 
@@ -37,6 +49,7 @@ If you encounter accounts impersonating NOFX:
 
 ---
 
-*Last updated: 2026-02-20*
+*Last updated: 2026-03-05*
+*This document is maintained in the official NoFx GitHub repository.*
 
 [Back to Community](README.md) | [Back to Documentation](../README.md)

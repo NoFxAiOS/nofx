@@ -16,12 +16,6 @@ interface AuthContextType {
   ) => Promise<{
     success: boolean
     message?: string
-    userID?: string
-    requiresOTP?: boolean
-    requiresOTPSetup?: boolean
-    qrCodeURL?: string
-    otpSecret?: string
-    email?: string
   }>
   loginAdmin: (password: string) => Promise<{
     success: boolean
@@ -34,22 +28,10 @@ interface AuthContextType {
   ) => Promise<{
     success: boolean
     message?: string
-    userID?: string
-    otpSecret?: string
-    qrCodeURL?: string
-  }>
-  verifyOTP: (
-    userID: string,
-    otpCode: string
-  ) => Promise<{ success: boolean; message?: string }>
-  completeRegistration: (
-    userID: string,
-    otpCode: string
   ) => Promise<{ success: boolean; message?: string }>
   resetPassword: (
     email: string,
-    newPassword: string,
-    otpCode: string
+    newPassword: string
   ) => Promise<{ success: boolean; message?: string }>
   logout: () => void
   isLoading: boolean
@@ -123,38 +105,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
-        // Check for OTP setup required (incomplete registration)
-        if (data.requires_otp_setup) {
-          return {
-            success: true,
-            userID: data.user_id,
-            requiresOTPSetup: true,
-            message: data.message,
-            qrCodeURL: data.qr_code_url,
-            otpSecret: data.otp_secret,
-            email: data.email
+        if (data.token) {
+          // Reset 401 flag on successful login
+          reset401Flag()
+
+          const userInfo = { id: data.user_id, email: data.email }
+          setToken(data.token)
+          setUser(userInfo)
+          localStorage.setItem('auth_token', data.token)
+          localStorage.setItem('auth_user', JSON.stringify(userInfo))
+
+          // Check and redirect to returnUrl if exists
+          const returnUrl = sessionStorage.getItem('returnUrl')
+          if (returnUrl) {
+            sessionStorage.removeItem('returnUrl')
+            window.history.pushState({}, '', returnUrl)
+            window.dispatchEvent(new PopStateEvent('popstate'))
+          } else {
+            // 跳转到配置页面
+            window.history.pushState({}, '', '/traders')
+            window.dispatchEvent(new PopStateEvent('popstate'))
           }
+
+          return { success: true, message: data.message }
         }
-        // Check for OTP verification required (normal login flow)
-        if (data.requires_otp) {
-          return {
-            success: true,
-            userID: data.user_id,
-            requiresOTP: true,
-            message: data.message,
-            qrCodeURL: data.qr_code_url,
-            otpSecret: data.otp_secret
-          }
-        }
+
         // Unexpected success response
-        return { success: false, message: '登录响应异常' }
+        return { success: false, message: data.message || '登录响应异常' }
       } else {
         return {
           success: false,
           message: data.error,
-          qrCodeURL: data.qr_code_url,
-          otpSecret: data.otp_secret,
-          userID: data.user_id
         }
       }
     } catch (error) {
@@ -219,18 +200,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const result = await httpClient.post<{
+        token: string
         user_id: string
-        otp_secret: string
-        qr_code_url: string
+        email: string
         message: string
       }>('/api/register', requestBody)
 
       if (result.success && result.data) {
+        // Reset 401 flag on successful login
+        reset401Flag()
+
+        const userInfo = { id: result.data.user_id, email: result.data.email }
+        setToken(result.data.token)
+        setUser(userInfo)
+        localStorage.setItem('auth_token', result.data.token)
+        localStorage.setItem('auth_user', JSON.stringify(userInfo))
+
+        // Check and redirect to returnUrl if exists
+        const returnUrl = sessionStorage.getItem('returnUrl')
+        if (returnUrl) {
+          sessionStorage.removeItem('returnUrl')
+          window.history.pushState({}, '', returnUrl)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        } else {
+          // 跳转到配置页面
+          window.history.pushState({}, '', '/traders')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
+
         return {
           success: true,
-          userID: result.data.user_id,
-          otpSecret: result.data.otp_secret,
-          qrCodeURL: result.data.qr_code_url,
           message: result.message || result.data.message,
         }
       }
@@ -252,99 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const verifyOTP = async (userID: string, otpCode: string) => {
-    try {
-      const response = await fetch('/api/verify-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ user_id: userID, otp_code: otpCode }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        // Reset 401 flag on successful login
-        reset401Flag()
-
-        // 登录成功，保存token和用户信息
-        const userInfo = { id: data.user_id, email: data.email }
-        setToken(data.token)
-        setUser(userInfo)
-        localStorage.setItem('auth_token', data.token)
-        localStorage.setItem('auth_user', JSON.stringify(userInfo))
-
-        // Check and redirect to returnUrl if exists
-        const returnUrl = sessionStorage.getItem('returnUrl')
-        if (returnUrl) {
-          sessionStorage.removeItem('returnUrl')
-          window.history.pushState({}, '', returnUrl)
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        } else {
-          // 跳转到配置页面
-          window.history.pushState({}, '', '/traders')
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        }
-
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.error }
-      }
-    } catch (error) {
-      return { success: false, message: 'OTP验证失败，请重试' }
-    }
-  }
-
-  const completeRegistration = async (userID: string, otpCode: string) => {
-    try {
-      const response = await fetch('/api/complete-registration', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ user_id: userID, otp_code: otpCode }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        // Reset 401 flag on successful login
-        reset401Flag()
-
-        // 注册完成，自动登录
-        const userInfo = { id: data.user_id, email: data.email }
-        setToken(data.token)
-        setUser(userInfo)
-        localStorage.setItem('auth_token', data.token)
-        localStorage.setItem('auth_user', JSON.stringify(userInfo))
-
-        // Check and redirect to returnUrl if exists
-        const returnUrl = sessionStorage.getItem('returnUrl')
-        if (returnUrl) {
-          sessionStorage.removeItem('returnUrl')
-          window.history.pushState({}, '', returnUrl)
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        } else {
-          // 跳转到配置页面
-          window.history.pushState({}, '', '/traders')
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        }
-
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.error }
-      }
-    } catch (error) {
-      return { success: false, message: '注册完成失败，请重试' }
-    }
-  }
-
-  const resetPassword = async (
-    email: string,
-    newPassword: string,
-    otpCode: string
-  ) => {
+  const resetPassword = async (email: string, newPassword: string) => {
     try {
       const response = await fetch('/api/reset-password', {
         method: 'POST',
@@ -354,7 +261,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           email,
           new_password: newPassword,
-          otp_code: otpCode,
         }),
       })
 
@@ -394,8 +300,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         loginAdmin,
         register,
-        verifyOTP,
-        completeRegistration,
         resetPassword,
         logout,
         isLoading,

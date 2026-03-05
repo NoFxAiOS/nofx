@@ -1,8 +1,6 @@
 package store
 
 import (
-	"crypto/rand"
-	"encoding/base32"
 	"time"
 
 	"gorm.io/gorm"
@@ -18,23 +16,11 @@ type User struct {
 	ID           string    `gorm:"primaryKey" json:"id"`
 	Email        string    `gorm:"uniqueIndex:idx_users_email;not null" json:"email"`
 	PasswordHash string    `gorm:"column:password_hash;not null" json:"-"`
-	OTPSecret    string    `gorm:"column:otp_secret" json:"-"`
-	OTPVerified  bool      `gorm:"column:otp_verified;default:false" json:"otp_verified"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 func (User) TableName() string { return "users" }
-
-// GenerateOTPSecret generates OTP secret
-func GenerateOTPSecret() (string, error) {
-	secret := make([]byte, 20)
-	_, err := rand.Read(secret)
-	if err != nil {
-		return "", err
-	}
-	return base32.StdEncoding.EncodeToString(secret), nil
-}
 
 // NewUserStore creates a new UserStore
 func NewUserStore(db *gorm.DB) *UserStore {
@@ -54,9 +40,6 @@ func (s *UserStore) initTables() error {
 			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT NOT NULL DEFAULT ''`)
 			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
 			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
-			// OTP columns (added later)
-			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_secret TEXT DEFAULT ''`)
-			s.db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_verified BOOLEAN DEFAULT FALSE`)
 
 			// Ensure unique index exists on email (don't care about the name)
 			var indexExists int64
@@ -114,11 +97,6 @@ func (s *UserStore) GetAllIDs() ([]string, error) {
 	return userIDs, err
 }
 
-// UpdateOTPVerified updates OTP verification status
-func (s *UserStore) UpdateOTPVerified(userID string, verified bool) error {
-	return s.db.Model(&User{}).Where("id = ?", userID).Update("otp_verified", verified).Error
-}
-
 // UpdatePassword updates password
 func (s *UserStore) UpdatePassword(userID, passwordHash string) error {
 	return s.db.Model(&User{}).Where("id = ?", userID).Updates(map[string]interface{}{
@@ -138,7 +116,5 @@ func (s *UserStore) EnsureAdmin() error {
 		ID:           "admin",
 		Email:        "admin@localhost",
 		PasswordHash: "",
-		OTPSecret:    "",
-		OTPVerified:  true,
 	})
 }

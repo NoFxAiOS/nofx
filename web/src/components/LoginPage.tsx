@@ -10,15 +10,10 @@ import { useSystemConfig } from '../hooks/useSystemConfig'
 
 export function LoginPage() {
   const { language } = useLanguage()
-  const { login, loginAdmin, verifyOTP, completeRegistration } = useAuth()
-  const [step, setStep] = useState<'login' | 'otp' | 'setup-otp'>('login')
+  const { login, loginAdmin } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [otpCode, setOtpCode] = useState('')
-  const [userID, setUserID] = useState('')
-  const [qrCodeURL, setQrCodeURL] = useState('') // New state for recovery
-  const [otpSecret, setOtpSecret] = useState('') // New state for recovery
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [adminPassword, setAdminPassword] = useState('')
@@ -64,81 +59,17 @@ export function LoginPage() {
     const result = await login(email, password)
 
     if (result.success) {
-      // Check for incomplete OTP setup (user registered but didn't complete 2FA)
-      if (result.requiresOTPSetup && result.userID) {
-        setUserID(result.userID)
-        setQrCodeURL(result.qrCodeURL || '')
-        setOtpSecret(result.otpSecret || '')
-        setStep('setup-otp')
-        toast.info("Pending 2FA setup detected. Please complete configuration.")
-      } else if (result.requiresOTP && result.userID) {
-        setUserID(result.userID)
-
-        // Check if backend provided recovery data (meaning 2FA is pending setup)
-        if (result.qrCodeURL) {
-          setQrCodeURL(result.qrCodeURL)
-          setOtpSecret(result.otpSecret || '')
-          setStep('setup-otp')
-          toast.info("Pending 2FA setup detected. Please complete configuration.")
-        } else {
-          setStep('otp')
-        }
-      } else {
-        // Dismiss the "login expired" toast on successful login (no OTP required)
-        if (expiredToastId) {
-          toast.dismiss(expiredToastId)
-        }
-      }
-    } else {
-      // Check if we have recovery data despite the error (e.g. "Account has not completed OTP setup")
-      if (result.qrCodeURL) {
-        setUserID(result.userID || '') // We might need to ensure userID is returned in error case too, or derived
-        setQrCodeURL(result.qrCodeURL)
-        setOtpSecret(result.otpSecret || '')
-        setStep('setup-otp')
-        toast.warning(t('completeGapSetup', language) || "Incomplete setup detected. Please configure 2FA.")
-      } else {
-        const msg = result.message || t('loginFailed', language)
-        setError(msg)
-        toast.error(msg)
-      }
-    }
-
-    setLoading(false)
-  }
-
-  const handleOTPVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    // If we have qrCodeURL, it means user needs to complete registration (first time OTP setup)
-    // Otherwise, it's a normal login OTP verification
-    const result = qrCodeURL
-      ? await completeRegistration(userID, otpCode)
-      : await verifyOTP(userID, otpCode)
-
-    if (!result.success) {
-      const msg = result.message || t('verificationFailed', language)
-      setError(msg)
-      toast.error(msg)
-    } else {
-      // Dismiss the "login expired" toast on successful OTP verification
+      // Dismiss the "login expired" toast on successful login.
       if (expiredToastId) {
         toast.dismiss(expiredToastId)
       }
-      // Clear qrCodeURL after successful completion
-      setQrCodeURL('')
-      setOtpSecret('')
+    } else {
+      const msg = result.message || t('loginFailed', language)
+      setError(msg)
+      toast.error(msg)
     }
-    // 成功的话AuthContext会自动处理登录状态
 
     setLoading(false)
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    toast.success('Copied to clipboard')
   }
 
   return (
@@ -172,7 +103,7 @@ export function LoginPage() {
             <span className="text-nofx-gold">SYSTEM</span> ACCESS
           </h1>
           <p className="text-zinc-500 text-xs tracking-[0.2em] uppercase">
-            {step === 'login' ? 'Authentication Protocol v3.0' : 'Multi-Factor Verification'}
+            Authentication Protocol v3.0
           </p>
         </div>
 
@@ -241,67 +172,7 @@ export function LoginPage() {
                   {loading ? '> VERIFYING...' : '> EXECUTE_LOGIN'}
                 </button>
               </form>
-            ) : step === 'setup-otp' ? (
-              <div className="space-y-6">
-                <div className="text-center bg-zinc-900/50 p-4 rounded border border-zinc-800">
-                  <div className="text-xs font-mono text-zinc-400 mb-2">COMPLETE 2FA CONFIGURATION</div>
-                  {qrCodeURL ? (
-                    <div className="bg-white p-2 rounded inline-block shadow-[0_0_30px_rgba(255,255,255,0.1)]">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`otpauth://totp/NoFX:${email}?secret=${otpSecret}&issuer=NoFX`)}`}
-                        alt="QR Code"
-                        className="w-32 h-32"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-32 h-32 bg-zinc-800 animate-pulse rounded inline-block"></div>
-                  )}
-                  <div className="mt-4">
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mb-1">Backup Secret Key</p>
-                    <div className="flex items-center gap-2 justify-center bg-black/50 p-2 rounded border border-zinc-700/50 max-w-[200px] mx-auto">
-                      <code className="text-xs font-mono text-nofx-gold">{otpSecret}</code>
-                      <button
-                        onClick={() => copyToClipboard(otpSecret)}
-                        className="text-zinc-500 hover:text-white transition-colors"
-                      >
-                        <span className="text-[10px] uppercase border border-zinc-700 px-1 rounded">Copy</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4 font-mono text-xs text-zinc-400 bg-black/20 p-4 rounded border border-zinc-800/50">
-                  <div className="flex gap-3 items-start">
-                    <span className="text-nofx-gold font-bold mt-0.5">01</span>
-                    <div>
-                      <p className="font-bold text-white mb-1">Install Authenticator App</p>
-                      <p className="mb-2">Recommended: <span className="text-nofx-gold">Google Authenticator</span>.</p>
-                      <div className="flex gap-2">
-                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">iOS</span>
-                        <span className="px-1.5 py-0.5 bg-zinc-800 rounded text-[10px] text-zinc-300 border border-zinc-700">Android</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-px bg-zinc-800/50"></div>
-
-                  <div className="flex gap-3 items-start">
-                    <span className="text-nofx-gold font-bold mt-0.5">02</span>
-                    <div>
-                      <p className="font-bold text-white mb-1">Scan & Verify</p>
-                      <p>Scan code above, then enter the 6-digit token below to activate your account.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setStep('otp')}
-                  className="w-full bg-nofx-gold text-black font-bold py-3 px-4 rounded text-sm tracking-wide uppercase hover:bg-yellow-400 transition-colors font-mono shadow-lg"
-                >
-                  I HAVE SCANNED THE CODE →
-                </button>
-              </div>
-            ) : step === 'login' ? (
+            ) : (
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-4">
                   <div>
@@ -370,59 +241,6 @@ export function LoginPage() {
                     </>
                   )}
                 </button>
-              </form>
-            ) : (
-              <form onSubmit={handleOTPVerify} className="space-y-6">
-                <div className="text-center py-2">
-                  <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-700 text-2xl">
-                    🔐
-                  </div>
-                  <p className="text-xs text-zinc-400 font-mono leading-relaxed">
-                    {t('scanQRCodeInstructions', language)}<br />
-                    {t('enterOTPCode', language)}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase tracking-wider text-nofx-gold mb-2 text-center font-bold">
-                    {t('otpCode', language)}
-                  </label>
-                  <input
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) =>
-                      setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    }
-                    className="w-full bg-black border border-zinc-700 rounded px-4 py-4 text-center text-2xl tracking-[0.5em] font-mono text-white focus:border-nofx-gold focus:ring-1 focus:ring-nofx-gold/50 outline-none transition-all placeholder-zinc-800"
-                    placeholder="000000"
-                    maxLength={6}
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                {error && (
-                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded font-mono text-center">
-                    [ACCESS DENIED]: {error}
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setStep('login')}
-                    className="flex-1 bg-zinc-900 border border-zinc-700 text-zinc-400 py-3 rounded text-xs font-mono uppercase hover:bg-zinc-800 transition-colors"
-                  >
-                    &lt; ABORT
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading || otpCode.length !== 6}
-                    className="flex-1 bg-nofx-gold text-black font-bold py-3 rounded text-xs font-mono uppercase hover:bg-yellow-400 transition-colors disabled:opacity-50"
-                  >
-                    {loading ? 'VERIFYING...' : 'CONFIRM IDENTITY'}
-                  </button>
-                </div>
               </form>
             )}
           </div>

@@ -1,15 +1,12 @@
 package auth
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
-	"github.com/pquerna/otp/totp"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -24,9 +21,6 @@ var tokenBlacklist = struct {
 
 // maxBlacklistEntries is the maximum capacity threshold for blacklist
 const maxBlacklistEntries = 100_000
-
-// OTPIssuer is the OTP issuer name
-const OTPIssuer = "nofxAI"
 
 // SetJWTSecret sets the JWT secret key
 func SetJWTSecret(secret string) {
@@ -87,30 +81,6 @@ func CheckPassword(password, hash string) bool {
 	return err == nil
 }
 
-// GenerateOTPSecret generates OTP secret
-func GenerateOTPSecret() (string, error) {
-	secret := make([]byte, 20)
-	_, err := rand.Read(secret)
-	if err != nil {
-		return "", err
-	}
-
-	key, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      OTPIssuer,
-		AccountName: uuid.New().String(),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return key.Secret(), nil
-}
-
-// VerifyOTP verifies OTP code
-func VerifyOTP(secret, code string) bool {
-	return totp.Validate(code, secret)
-}
-
 // GenerateJWT generates JWT token
 func GenerateJWT(userID, email string) (string, error) {
 	claims := Claims{
@@ -146,9 +116,4 @@ func ValidateJWT(tokenString string) (*Claims, error) {
 	}
 
 	return nil, fmt.Errorf("invalid token")
-}
-
-// GetOTPQRCodeURL gets OTP QR code URL
-func GetOTPQRCodeURL(secret, email string) string {
-	return fmt.Sprintf("otpauth://totp/%s:%s?secret=%s&issuer=%s", OTPIssuer, email, secret, OTPIssuer)
 }

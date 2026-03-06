@@ -7,7 +7,7 @@ import (
 const (
 	ProviderOpenAI       = "openai"
 	DefaultOpenAIBaseURL = "https://api.openai.com/v1"
-	DefaultOpenAIModel   = "gpt-5.2"
+	DefaultOpenAIModel   = "gpt-5.4"
 )
 
 type OpenAIClient struct {

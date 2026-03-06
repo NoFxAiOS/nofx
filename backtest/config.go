@@ -102,6 +102,17 @@ func (cfg *BacktestConfig) Validate() error {
 		return fmt.Errorf("invalid decision_timeframe: %w", err)
 	}
 	cfg.DecisionTimeframe = normalizedDecision
+	// Ensure decision timeframe is one we actually load (datafeed uses primaryTF from loaded timeframes)
+	hasDecisionTF := false
+	for _, tf := range cfg.Timeframes {
+		if tf == cfg.DecisionTimeframe {
+			hasDecisionTF = true
+			break
+		}
+	}
+	if !hasDecisionTF {
+		cfg.DecisionTimeframe = cfg.Timeframes[0]
+	}
 
 	if cfg.DecisionCadenceNBars <= 0 {
 		cfg.DecisionCadenceNBars = 20

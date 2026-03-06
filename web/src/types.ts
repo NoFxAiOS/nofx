@@ -66,6 +66,16 @@ export interface AccountSnapshot {
   margin_used_pct: number
 }
 
+/** One step of macro-micro multi-turn flow (macro, deep_dive, position_check) */
+export interface DecisionStepTrace {
+  step: string
+  label: string
+  symbol?: string
+  system_prompt: string
+  user_prompt: string
+  response: string
+}
+
 export interface DecisionRecord {
   timestamp: string
   cycle_number: number
@@ -80,6 +90,8 @@ export interface DecisionRecord {
   execution_log: string[]
   success: boolean
   error_message?: string
+  /** Multi-turn steps when strategy uses macro-micro flow */
+  steps?: DecisionStepTrace[]
 }
 
 export interface Statistics {
@@ -463,6 +475,15 @@ export interface PromptSectionsConfig {
   decision_process?: string;
 }
 
+export interface MacroPromptSectionsConfig {
+  role_context?: string;
+  output_guidance?: string;
+}
+
+export interface DeepDivePromptSectionsConfig {
+  symbol_rules?: string;
+}
+
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
   strategy_type?: 'ai_trading' | 'grid_trading';
@@ -474,6 +495,16 @@ export interface StrategyConfig {
   custom_prompt?: string;
   risk_control: RiskControlConfig;
   prompt_sections?: PromptSectionsConfig;
+  enable_macro_micro_flow?: boolean;
+  macro_deep_dive_limit?: number;
+  macro_custom_prompt?: string;
+  deep_dive_custom_prompt?: string;
+  macro_prompt_sections?: MacroPromptSectionsConfig;
+  deep_dive_prompt_sections?: DeepDivePromptSectionsConfig;
+  /** Extra prompt appended to position-check AI pass (strategy settings). */
+  position_check_extra_prompt?: string;
+  /** Extra prompt appended to sizing and margin adjustment AI pass (strategy settings). */
+  sizing_adjustment_extra_prompt?: string;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig;
 }

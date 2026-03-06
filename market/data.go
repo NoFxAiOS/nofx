@@ -292,9 +292,26 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 		return nil, fmt.Errorf("at least one timeframe is required")
 	}
 
+	// Normalize timeframes (case-insensitive) so API calls and map keys are consistent
+	// getKlinesFromCoinAnk/getKlinesFromHyperliquid expect lowercase (e.g. "5m" not "5M")
+	normalized := make([]string, 0, len(timeframes))
+	for _, tf := range timeframes {
+		if norm, err := NormalizeTimeframe(tf); err == nil {
+			normalized = append(normalized, norm)
+		} else {
+			logger.Infof("⚠️ Skipping unsupported timeframe %q: %v", tf, err)
+		}
+	}
+	if len(normalized) == 0 {
+		return nil, fmt.Errorf("no valid timeframes after normalization")
+	}
+	timeframes = normalized
+
 	// If primary timeframe is not specified, use the first one
 	if primaryTimeframe == "" {
 		primaryTimeframe = timeframes[0]
+	} else if norm, err := NormalizeTimeframe(primaryTimeframe); err == nil {
+		primaryTimeframe = norm
 	}
 
 	// Ensure primary timeframe is in the list
@@ -370,8 +387,9 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	currentRSI7 := calculateRSI(primaryKlines, 7)
 
 	// Calculate price changes
-	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60) // 1 hour
-	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
+	priceChange1h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 60)    // 1 hour
+	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240)   // 4 hours
+	priceChange24h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 1440) // 24 hours (when primary is 1h)
 
 	// Get OI data
 	oiData, err := getOpenInterestData(symbol)
@@ -383,16 +401,17 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	fundingRate, _ := getFundingRate(symbol)
 
 	return &Data{
-		Symbol:        symbol,
-		CurrentPrice:  currentPrice,
-		PriceChange1h: priceChange1h,
-		PriceChange4h: priceChange4h,
-		CurrentEMA20:  currentEMA20,
-		CurrentMACD:   currentMACD,
-		CurrentRSI7:   currentRSI7,
-		OpenInterest:  oiData,
-		FundingRate:   fundingRate,
-		TimeframeData: timeframeData,
+		Symbol:         symbol,
+		CurrentPrice:   currentPrice,
+		PriceChange1h:  priceChange1h,
+		PriceChange4h:  priceChange4h,
+		PriceChange24h: priceChange24h,
+		CurrentEMA20:   currentEMA20,
+		CurrentMACD:    currentMACD,
+		CurrentRSI7:    currentRSI7,
+		OpenInterest:   oiData,
+		FundingRate:    fundingRate,
+		TimeframeData:  timeframeData,
 	}, nil
 }
 

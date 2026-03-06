@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DecisionRecord, DecisionAction } from '../types'
+import type { DecisionRecord, DecisionAction, DecisionStepTrace } from '../types'
 import { t, type Language } from '../i18n/translations'
 
 interface DecisionCardProps {
@@ -40,6 +40,149 @@ function getConfidenceColor(confidence: number | undefined): string {
   if (confidence >= 80) return '#0ECB81'
   if (confidence >= 60) return '#F0B90B'
   return '#F6465D'
+}
+
+// Step badge color by type
+function stepBadgeStyle(step: string): { bg: string; color: string; border: string } {
+  switch (step) {
+    case 'macro':
+      return { bg: 'rgba(96, 165, 250, 0.15)', color: '#60a5fa', border: 'rgba(96, 165, 250, 0.4)' }
+    case 'deep_dive':
+      return { bg: 'rgba(14, 203, 129, 0.12)', color: '#0ECB81', border: 'rgba(14, 203, 129, 0.35)' }
+    case 'position_check':
+      return { bg: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B', border: 'rgba(240, 185, 11, 0.4)' }
+    case 'sizing_adjustment':
+      return { bg: 'rgba(167, 139, 250, 0.15)', color: '#a78bfa', border: 'rgba(167, 139, 250, 0.4)' }
+    default:
+      return { bg: 'rgba(132, 142, 156, 0.15)', color: '#848E9C', border: 'rgba(132, 142, 156, 0.3)' }
+  }
+}
+
+function stepOrderNumber(step: string): string {
+  switch (step) {
+    case 'macro': return '1'
+    case 'deep_dive': return '2'
+    case 'position_check': return '3'
+    case 'sizing_adjustment': return '4'
+    default: return ''
+  }
+}
+
+function MultiTurnStepBlock({
+  step,
+  language,
+  cycleNumber,
+}: {
+  step: DecisionStepTrace
+  language: Language
+  cycleNumber: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const style = stepBadgeStyle(step.step)
+  return (
+    <div
+      className="rounded-lg overflow-hidden"
+      style={{
+        border: `1px solid ${style.border}`,
+        background: 'linear-gradient(180deg, #1E2329 0%, #181C21 100%)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs font-semibold px-2 py-0.5 rounded"
+            style={{ background: style.bg, color: style.color, border: `1px solid ${style.border}` }}
+          >
+            {stepOrderNumber(step.step) || step.step}
+          </span>
+          <span className="font-medium text-sm" style={{ color: '#EAECEF' }}>
+            {step.label}
+          </span>
+          {step.symbol && (
+            <span className="text-xs font-mono" style={{ color: '#848E9C' }}>
+              {step.symbol.replace('USDT', '')}
+            </span>
+          )}
+        </div>
+        <span className="text-xs" style={{ color: '#848E9C' }}>
+          {expanded ? t('collapse', language) : t('expand', language)}
+        </span>
+      </button>
+      {expanded && (
+        <div
+          className="p-3 space-y-3 border-t"
+          style={{ borderColor: '#2B3139', background: '#0B0E11' }}
+        >
+          <div>
+            <div className="text-xs font-semibold mb-1" style={{ color: '#a78bfa' }}>
+              System Prompt
+            </div>
+            <pre
+              className="p-2 rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-48"
+              style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+            >
+              {step.system_prompt}
+            </pre>
+          </div>
+          <div>
+            <div className="text-xs font-semibold mb-1" style={{ color: '#60a5fa' }}>
+              User Prompt
+            </div>
+            <pre
+              className="p-2 rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-48"
+              style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+            >
+              {step.user_prompt}
+            </pre>
+          </div>
+          <div>
+            <div className="text-xs font-semibold mb-1" style={{ color: '#0ECB81' }}>
+              AI Response
+            </div>
+            <pre
+              className="p-2 rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-56"
+              style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
+            >
+              {step.response}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MultiTurnSection({
+  steps,
+  language,
+  cycleNumber,
+}: {
+  steps: DecisionStepTrace[]
+  language: Language
+  cycleNumber: number
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-base">🧠</span>
+        <span className="font-semibold" style={{ color: '#F0B90B' }}>
+          {t('aiThinking', language)} — Multi-turn
+        </span>
+        <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(240, 185, 11, 0.12)', color: '#F0B90B' }}>
+          Macro → Deep-dive(s) → Position check
+        </span>
+      </div>
+      <div className="space-y-2">
+        {steps.map((s, idx) => (
+          <MultiTurnStepBlock key={`${s.step}-${idx}-${s.symbol ?? ''}`} step={s} language={language} cycleNumber={cycleNumber} />
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // Single Action Card Component
@@ -413,38 +556,50 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           </div>
         )}
 
-        {/* AI Thinking */}
-        {decision.cot_trace && (
-          <div>
-            <button
-              onClick={() => setShowCoT(!showCoT)}
-              className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-base">🧠</span>
-                <span className="font-semibold" style={{ color: '#F0B90B' }}>
-                  {t('aiThinking', language)}
+        {/* Multi-turn (Macro → Deep-dive(s) → Position check) */}
+        {decision.steps && decision.steps.length > 0 ? (
+          <MultiTurnSection steps={decision.steps} language={language} cycleNumber={decision.cycle_number} />
+        ) : (
+          /* Single-turn: AI Chain of Thought */
+          decision.cot_trace && (
+            <div>
+              <button
+                onClick={() => setShowCoT(!showCoT)}
+                className="flex items-center gap-2 text-sm transition-colors w-full justify-between p-2 rounded hover:bg-white/5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🧠</span>
+                  <span className="font-semibold" style={{ color: '#F0B90B' }}>
+                    {t('aiThinking', language)}
+                  </span>
+                </div>
+                <span
+                  className="text-xs px-2 py-0.5 rounded"
+                  style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}
+                >
+                  {showCoT ? t('collapse', language) : t('expand', language)}
                 </span>
-              </div>
-              <span
-                className="text-xs px-2 py-0.5 rounded"
-                style={{ background: 'rgba(240, 185, 11, 0.15)', color: '#F0B90B' }}
-              >
-                {showCoT ? t('collapse', language) : t('expand', language)}
-              </span>
-            </button>
-            {showCoT && (
-              <div
-                className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
-                style={{
-                  background: '#0B0E11',
-                  border: '1px solid #2B3139',
-                  color: '#EAECEF',
-                }}
-              >
-                {decision.cot_trace}
-              </div>
-            )}
+              </button>
+              {showCoT && (
+                <div
+                  className="mt-2 rounded-lg p-4 text-sm font-mono whitespace-pre-wrap max-h-96 overflow-y-auto"
+                  style={{
+                    background: '#0B0E11',
+                    border: '1px solid #2B3139',
+                    color: '#EAECEF',
+                  }}
+                >
+                  {decision.cot_trace}
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+        {/* Summary CoT when multi-turn is shown (optional one-line) */}
+        {decision.steps && decision.steps.length > 0 && decision.cot_trace && (
+          <div className="text-xs font-mono mt-1" style={{ color: '#848E9C' }}>
+            {decision.cot_trace}
           </div>
         )}
       </div>

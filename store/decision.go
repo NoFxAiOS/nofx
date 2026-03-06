@@ -35,25 +35,36 @@ type DecisionRecordDB struct {
 
 func (DecisionRecordDB) TableName() string { return "decision_records" }
 
+// DecisionStepTrace holds one step of a macro-micro multi-turn flow (for UI display).
+type DecisionStepTrace struct {
+	Step         string `json:"step"`           // "macro", "deep_dive", "position_check"
+	Label        string `json:"label"`          // "Macro", "Deep-dive: BTCUSDT", "Position check"
+	Symbol       string `json:"symbol,omitempty"`
+	SystemPrompt string `json:"system_prompt"`
+	UserPrompt   string `json:"user_prompt"`
+	Response     string `json:"response"`
+}
+
 // DecisionRecord decision record (external API struct)
 type DecisionRecord struct {
-	ID                  int64              `json:"id"`
-	TraderID            string             `json:"trader_id"`
-	CycleNumber         int                `json:"cycle_number"`
-	Timestamp           time.Time          `json:"timestamp"`
-	SystemPrompt        string             `json:"system_prompt"`
-	InputPrompt         string             `json:"input_prompt"`
-	CoTTrace            string             `json:"cot_trace"`
-	DecisionJSON        string             `json:"decision_json"`
-	RawResponse         string             `json:"raw_response"` // Raw AI response for debugging
-	CandidateCoins      []string           `json:"candidate_coins"`
-	ExecutionLog        []string           `json:"execution_log"`
-	Success             bool               `json:"success"`
-	ErrorMessage        string             `json:"error_message"`
-	AIRequestDurationMs int64              `json:"ai_request_duration_ms"`
-	AccountState        AccountSnapshot    `json:"account_state"`
-	Positions           []PositionSnapshot `json:"positions"`
-	Decisions           []DecisionAction   `json:"decisions"`
+	ID                  int64                 `json:"id"`
+	TraderID            string                `json:"trader_id"`
+	CycleNumber         int                   `json:"cycle_number"`
+	Timestamp           time.Time             `json:"timestamp"`
+	SystemPrompt        string                `json:"system_prompt"`
+	InputPrompt         string                `json:"input_prompt"`
+	CoTTrace            string                `json:"cot_trace"`
+	DecisionJSON        string                `json:"decision_json"`
+	RawResponse         string                `json:"raw_response"` // Raw AI response for debugging
+	CandidateCoins      []string              `json:"candidate_coins"`
+	ExecutionLog        []string              `json:"execution_log"`
+	Success             bool                  `json:"success"`
+	ErrorMessage        string                `json:"error_message"`
+	AIRequestDurationMs int64                 `json:"ai_request_duration_ms"`
+	AccountState        AccountSnapshot       `json:"account_state"`
+	Positions           []PositionSnapshot    `json:"positions"`
+	Decisions           []DecisionAction      `json:"decisions"`
+	Steps               []DecisionStepTrace   `json:"steps,omitempty"` // Multi-turn macro → deep-dive(s) → position check
 }
 
 // AccountSnapshot account state snapshot

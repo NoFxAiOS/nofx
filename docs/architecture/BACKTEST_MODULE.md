@@ -259,6 +259,15 @@ func (r *Runner) invokeAIWithRetry() (*decision.FullDecision, error) {
 | OpenAI | `mcp/openai_client.go` |
 | Kimi | `mcp/kimi_client.go` |
 
+### 4.5 Multi-turn (macro-micro) strategy compatibility
+
+When the strategy loaded for the backtest has **EnableMacroMicroFlow** enabled, the backtest uses the same decision path as live trading: `GetFullDecisionWithStrategy` → `getFullDecisionMacroMicro` (macro → deep-dives → position-check → merge).
+
+- **Context**: The runner builds a full context in `buildDecisionContext()` (account, positions, candidates, `MarketDataMap`, OI/NetFlow/Price ranking, quant data) at each decision timestamp. The kernel receives this pre-filled context.
+- **Symbol restriction**: The kernel restricts `symbols_for_deep_dive` to only symbols already present in `ctx.MarketDataMap` when the context is pre-filled (`restrictDeepDiveSymbolsToContext`). So the backtest never triggers live market fetches for symbols outside the backtest symbol list; macro AI may return symbols not in the list, but only symbols with historical data in the context are deep-dived.
+- **Quant data**: When `ctx.QuantDataMap` is already populated (e.g. from the runner), the kernel fetches additional quant data only for symbols that are missing, so backtest avoids redundant or live quant API calls for symbols already in context.
+- **Macro brief**: The macro brief uses OI/NetFlow/Price ranking and (when present) BTC funding from the context. Indices (BTC/ETH, altcoin) used in the brief may still be computed from live data in the macro package; for strict historical fidelity, ensure the backtest symbol set and strategy are aligned so macro output stays within the backtest universe.
+
 ---
 
 ## 5. Performance Metrics

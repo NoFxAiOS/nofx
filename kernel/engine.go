@@ -14,6 +14,7 @@ import (
 	"nofx/security"
 	"nofx/store"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -164,6 +165,16 @@ type FullDecision struct {
 	AIRequestDurationMs int64      `json:"ai_request_duration_ms,omitempty"`
 }
 
+// DecisionStepTrace holds one step of a macro-micro flow (system prompt, user prompt, AI response) for preview or test UI.
+type DecisionStepTrace struct {
+	Step         string `json:"step"`           // "macro", "deep_dive", "position_check"
+	Label        string `json:"label"`          // "Macro", "Deep-dive: BTC", "Position check"
+	Symbol       string `json:"symbol,omitempty"`
+	SystemPrompt string `json:"system_prompt"`
+	UserPrompt   string `json:"user_prompt"`
+	Response     string `json:"response"`
+}
+
 // QuantData quantitative data structure (fund flow, position changes, price changes)
 type QuantData struct {
 	Symbol      string             `json:"symbol"`
@@ -264,6 +275,11 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		engine = NewStrategyEngine(&defaultConfig)
 	}
 
+	config := engine.GetConfig()
+	if config.EnableMacroMicroFlow {
+		return getFullDecisionMacroMicro(ctx, mcpClient, engine, variant)
+	}
+
 	// 1. Fetch market data using strategy config
 	if len(ctx.MarketDataMap) == 0 {
 		if err := fetchMarketDataWithStrategy(ctx, engine); err != nil {
@@ -325,6 +341,398 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 
 	return decision, nil
+}
+
+// getFullDecisionMacroMicro runs the macro -> deep-dives -> position-check flow and merges decisions.
+func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *StrategyEngine, variant string) (*FullDecision, error) {
+	config := engine.GetConfig()
+	riskConfig := engine.GetRiskControlConfig()
+	logger.Info("[macro-micro] Starting multi-turn flow: macro → deep-dives → position-check")
+
+	// Detect pre-filled context (e.g. backtest): caller already put full symbol set in MarketDataMap.
+	// Live trader starts with empty MarketDataMap; we only fetch position symbols in step 1.
+	// restrictDeepDiveSymbolsToContext must run only when pre-filled, else we'd discard macro's new opportunity symbols.
+	hadPreFilledContext := len(ctx.MarketDataMap) > 0
+
+	// 1. Fetch market data for position symbols only (for macro brief)
+	if !hadPreFilledContext {
+		positionSymbols := make([]string, 0, len(ctx.Positions))
+		for _, pos := range ctx.Positions {
+			positionSymbols = append(positionSymbols, pos.Symbol)
+		}
+		if len(positionSymbols) > 0 {
+			if err := fetchMarketDataForSymbols(ctx, engine, positionSymbols); err != nil {
+				return nil, fmt.Errorf("failed to fetch market data for positions: %w", err)
+			}
+		}
+	}
+
+	if ctx.OITopDataMap == nil {
+		ctx.OITopDataMap = make(map[string]*OITopData)
+		oiPositions, err := engine.nofxosClient.GetOITopPositions()
+		if err == nil {
+			for _, pos := range oiPositions {
+				ctx.OITopDataMap[pos.Symbol] = &OITopData{
+					Rank:              pos.Rank,
+					OIDeltaPercent:    pos.OIDeltaPercent,
+					OIDeltaValue:      pos.OIDeltaValue,
+					PriceDeltaPercent: pos.PriceDeltaPercent,
+				}
+			}
+		}
+	}
+
+	// 2. Build macro brief and get macro decision
+	macroBrief, err := BuildMacroBrief(ctx, engine)
+	if err != nil {
+		return nil, fmt.Errorf("build macro brief: %w", err)
+	}
+	logger.Info("[macro-micro] Macro brief built, calling macro AI")
+	macroOut, err := GetMacroDecision(ctx, macroBrief, engine, mcpClient)
+	if err != nil {
+		logger.Warnf("[macro-micro] Macro AI call failed: %v", err)
+		return nil, fmt.Errorf("macro decision: %w", err)
+	}
+	logger.Infof("[macro-micro] Macro output: trend=%s risk=%s symbols_for_deep_dive=%d", macroOut.Trend, macroOut.RiskLevel, len(macroOut.SymbolsForDeepDive))
+	limit := config.MacroDeepDiveLimit
+	if limit < 3 {
+		limit = 3
+	}
+	if limit > 10 {
+		limit = 10
+	}
+	if hadPreFilledContext {
+		restrictDeepDiveSymbolsToContext(ctx, macroOut, limit)
+	}
+
+	// 3. Fetch market (and quant) data for symbols_for_deep_dive
+	symbolsToFetch := make([]string, len(macroOut.SymbolsForDeepDive))
+	copy(symbolsToFetch, macroOut.SymbolsForDeepDive)
+	if err := fetchMarketDataForSymbols(ctx, engine, symbolsToFetch); err != nil {
+		return nil, fmt.Errorf("fetch market data for deep-dive symbols: %w", err)
+	}
+	if config.Indicators.EnableQuantData {
+		if ctx.QuantDataMap == nil {
+			ctx.QuantDataMap = engine.FetchQuantDataBatch(symbolsToFetch)
+		} else {
+			var needFetch []string
+			for _, sym := range symbolsToFetch {
+				n := market.Normalize(sym)
+				if _, ok := ctx.QuantDataMap[sym]; ok {
+					continue
+				}
+				if n != sym {
+					if _, ok := ctx.QuantDataMap[n]; ok {
+						continue
+					}
+				}
+				needFetch = append(needFetch, sym)
+			}
+			if len(needFetch) > 0 {
+				extra := engine.FetchQuantDataBatch(needFetch)
+				for k, v := range extra {
+					ctx.QuantDataMap[k] = v
+				}
+			}
+		}
+	}
+
+	// 4. Run deep-dives for each symbol
+	logger.Infof("[macro-micro] Running %d deep-dive(s)", len(macroOut.SymbolsForDeepDive))
+	var allDecisions []Decision
+	for _, sym := range macroOut.SymbolsForDeepDive {
+		d, err := GetSymbolDeepDive(ctx, engine, mcpClient, sym, macroBrief, macroOut.FocusReason, macroOut.Trend, macroOut.RiskLevel)
+		if err != nil {
+			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", sym, err)
+			allDecisions = append(allDecisions, Decision{Symbol: sym, Action: "wait", Reasoning: err.Error()})
+			continue
+		}
+		allDecisions = append(allDecisions, *d)
+	}
+
+	// 5. Position check: run if there are open positions
+	positionDecisionsBySymbol := make(map[string]Decision)
+	if len(ctx.Positions) > 0 {
+		logger.Infof("[macro-micro] Position check for %d open position(s)", len(ctx.Positions))
+		posDecs, err := GetPositionCheckDecision(ctx, engine, mcpClient, macroBrief)
+		if err != nil {
+			logger.Warnf("[macro-micro] position-check failed: %v", err)
+		} else {
+			for _, d := range posDecs {
+				positionDecisionsBySymbol[market.Normalize(d.Symbol)] = d
+			}
+		}
+	}
+
+	// 6. Merge: position-check overrides deep-dive for that symbol
+	merged := make([]Decision, 0, len(allDecisions))
+	for _, d := range allDecisions {
+		n := market.Normalize(d.Symbol)
+		if posD, ok := positionDecisionsBySymbol[n]; ok {
+			merged = append(merged, posD)
+			delete(positionDecisionsBySymbol, n)
+		} else {
+			merged = append(merged, d)
+		}
+	}
+	for _, posD := range positionDecisionsBySymbol {
+		merged = append(merged, posD)
+	}
+
+	// 7. Sizing adjustment: apply margin rules (main vs altcoin), adjust sizes/leverage; can change multiple positions at once
+	merged = runSizingAdjustmentStep(ctx, engine, mcpClient, merged, macroBrief, riskConfig)
+
+	// 8. Validate and build FullDecision
+	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio); err != nil {
+		logger.Warnf("[macro-micro] decision validation: %v", err)
+	}
+	logger.Infof("[macro-micro] Flow complete: %d merged decision(s)", len(merged))
+	cotTrace := fmt.Sprintf("Macro trend=%s risk=%s. Deep-dives: %d symbols. Position check: %d positions. Sizing adjustment applied.", macroOut.Trend, macroOut.RiskLevel, len(macroOut.SymbolsForDeepDive), len(ctx.Positions))
+	return &FullDecision{
+		SystemPrompt:        "[macro-micro] " + engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant),
+		UserPrompt:          macroBrief,
+		CoTTrace:            cotTrace,
+		Decisions:           merged,
+		RawResponse:         "",
+		Timestamp:           time.Now(),
+		AIRequestDurationMs: 0,
+	}, nil
+}
+
+// GetFullDecisionMacroMicroWithTrace runs the macro → deep-dives → position-check flow and returns the merged decision plus a trace of each step (system prompt, user prompt, response) for UI display.
+func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, engine *StrategyEngine, variant string) (*FullDecision, []DecisionStepTrace, error) {
+	config := engine.GetConfig()
+	riskConfig := engine.GetRiskControlConfig()
+	var steps []DecisionStepTrace
+	logger.Info("[macro-micro] Starting multi-turn flow with trace: macro → deep-dives → position-check")
+
+	hadPreFilledContext := len(ctx.MarketDataMap) > 0
+
+	// 1. Fetch market data for position symbols only (for macro brief)
+	if !hadPreFilledContext {
+		positionSymbols := make([]string, 0, len(ctx.Positions))
+		for _, pos := range ctx.Positions {
+			positionSymbols = append(positionSymbols, pos.Symbol)
+		}
+		if len(positionSymbols) > 0 {
+			if err := fetchMarketDataForSymbols(ctx, engine, positionSymbols); err != nil {
+				return nil, nil, fmt.Errorf("failed to fetch market data for positions: %w", err)
+			}
+		}
+	}
+
+	if ctx.OITopDataMap == nil {
+		ctx.OITopDataMap = make(map[string]*OITopData)
+		oiPositions, err := engine.nofxosClient.GetOITopPositions()
+		if err == nil {
+			for _, pos := range oiPositions {
+				ctx.OITopDataMap[pos.Symbol] = &OITopData{
+					Rank:              pos.Rank,
+					OIDeltaPercent:    pos.OIDeltaPercent,
+					OIDeltaValue:      pos.OIDeltaValue,
+					PriceDeltaPercent: pos.PriceDeltaPercent,
+				}
+			}
+		}
+	}
+
+	// 2. Build macro brief and run macro AI (record step)
+	macroBrief, err := BuildMacroBrief(ctx, engine)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build macro brief: %w", err)
+	}
+	logger.Info("[macro-micro] Macro brief built, calling macro AI")
+	macroSys := BuildMacroSystemPrompt()
+	macroUser := BuildMacroUserPrompt(macroBrief, config)
+	macroResponse, err := mcpClient.CallWithMessages(macroSys, macroUser)
+	if err != nil {
+		logger.Warnf("[macro-micro] Macro AI call failed: %v", err)
+		return nil, nil, fmt.Errorf("macro AI call failed: %w", err)
+	}
+	steps = append(steps, DecisionStepTrace{Step: "macro", Label: "Macro", SystemPrompt: macroSys, UserPrompt: macroUser, Response: macroResponse})
+
+	macroOut, err := ParseMacroResponse(macroResponse)
+	if err != nil {
+		logger.Warnf("[macro-micro] Failed to parse macro response, using fallback: %v", err)
+		macroOut = &MacroOutput{Trend: "neutral", RiskLevel: "medium", FocusReason: "", CheckPositions: len(ctx.Positions) > 0}
+		coins, _ := engine.nofxosClient.GetAI500List()
+		for i, c := range coins {
+			if i >= 3 {
+				break
+			}
+			sym := market.Normalize(c.Pair)
+			if sym != "BTCUSDT" && sym != "ETHUSDT" {
+				macroOut.SymbolsForDeepDive = append(macroOut.SymbolsForDeepDive, sym)
+			}
+		}
+		for _, pos := range ctx.Positions {
+			macroOut.SymbolsForDeepDive = append(macroOut.SymbolsForDeepDive, market.Normalize(pos.Symbol))
+		}
+	}
+	macroOut = ValidateAndMergeMacroOutput(macroOut, ctx, config)
+	logger.Infof("[macro-micro] Macro output: trend=%s risk=%s symbols_for_deep_dive=%d", macroOut.Trend, macroOut.RiskLevel, len(macroOut.SymbolsForDeepDive))
+	limitTrace := config.MacroDeepDiveLimit
+	if limitTrace < 3 {
+		limitTrace = 3
+	}
+	if limitTrace > 10 {
+		limitTrace = 10
+	}
+	if hadPreFilledContext {
+		restrictDeepDiveSymbolsToContext(ctx, macroOut, limitTrace)
+	}
+
+	// 3. Fetch market (and quant) data for symbols_for_deep_dive
+	symbolsToFetch := make([]string, len(macroOut.SymbolsForDeepDive))
+	copy(symbolsToFetch, macroOut.SymbolsForDeepDive)
+	if err := fetchMarketDataForSymbols(ctx, engine, symbolsToFetch); err != nil {
+		return nil, nil, fmt.Errorf("fetch market data for deep-dive symbols: %w", err)
+	}
+	if config.Indicators.EnableQuantData {
+		if ctx.QuantDataMap == nil {
+			ctx.QuantDataMap = engine.FetchQuantDataBatch(symbolsToFetch)
+		} else {
+			var needFetch []string
+			for _, sym := range symbolsToFetch {
+				n := market.Normalize(sym)
+				if _, ok := ctx.QuantDataMap[sym]; ok {
+					continue
+				}
+				if n != sym {
+					if _, ok := ctx.QuantDataMap[n]; ok {
+						continue
+					}
+				}
+				needFetch = append(needFetch, sym)
+			}
+			if len(needFetch) > 0 {
+				extra := engine.FetchQuantDataBatch(needFetch)
+				for k, v := range extra {
+					ctx.QuantDataMap[k] = v
+				}
+			}
+		}
+	}
+
+	// 4. Run deep-dives for each symbol (record each step)
+	logger.Infof("[macro-micro] Running %d deep-dive(s)", len(macroOut.SymbolsForDeepDive))
+	var allDecisions []Decision
+	for _, sym := range macroOut.SymbolsForDeepDive {
+		sysPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
+		userPrompt := engine.BuildDeepDiveUserPrompt(ctx, sym, macroBrief, macroOut.FocusReason, macroOut.Trend, macroOut.RiskLevel)
+		response, err := mcpClient.CallWithMessages(sysPrompt, userPrompt)
+		if err != nil {
+			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", sym, err)
+			steps = append(steps, DecisionStepTrace{Step: "deep_dive", Label: "Deep-dive: " + sym, Symbol: sym, SystemPrompt: sysPrompt, UserPrompt: userPrompt, Response: fmt.Sprintf("Error: %v", err)})
+			allDecisions = append(allDecisions, Decision{Symbol: sym, Action: "wait", Reasoning: err.Error()})
+			continue
+		}
+		steps = append(steps, DecisionStepTrace{Step: "deep_dive", Label: "Deep-dive: " + sym, Symbol: sym, SystemPrompt: sysPrompt, UserPrompt: userPrompt, Response: response})
+		decisions, err := extractDecisions(response)
+		if err != nil {
+			allDecisions = append(allDecisions, Decision{Symbol: sym, Action: "wait", Reasoning: "Deep-dive parse failed: " + err.Error()})
+			continue
+		}
+		reasoningFromResponse := extractCoTTrace(response)
+		normalized := market.Normalize(sym)
+		var chosen *Decision
+		for i := range decisions {
+			if market.Normalize(decisions[i].Symbol) == normalized {
+				decisions[i].Symbol = sym
+				chosen = &decisions[i]
+				break
+			}
+		}
+		if chosen == nil && len(decisions) > 0 {
+			chosen = &decisions[0]
+			chosen.Symbol = sym
+		}
+		if chosen != nil {
+			if chosen.Reasoning == "" && reasoningFromResponse != "" {
+				chosen.Reasoning = reasoningFromResponse
+			}
+			allDecisions = append(allDecisions, *chosen)
+		} else {
+			allDecisions = append(allDecisions, Decision{Symbol: sym, Action: "wait", Reasoning: "No decision in response"})
+		}
+	}
+
+	// 5. Position check: run if there are open positions (record step)
+	positionDecisionsBySymbol := make(map[string]Decision)
+	if len(ctx.Positions) > 0 {
+		logger.Infof("[macro-micro] Position check for %d open position(s)", len(ctx.Positions))
+		sysPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
+		userPrompt := engine.BuildPositionCheckUserPrompt(ctx, macroBrief)
+		response, err := mcpClient.CallWithMessages(sysPrompt, userPrompt)
+		if err != nil {
+			logger.Warnf("[macro-micro] position-check failed: %v", err)
+			steps = append(steps, DecisionStepTrace{Step: "position_check", Label: "Position check", SystemPrompt: sysPrompt, UserPrompt: userPrompt, Response: fmt.Sprintf("Error: %v", err)})
+		} else {
+			steps = append(steps, DecisionStepTrace{Step: "position_check", Label: "Position check", SystemPrompt: sysPrompt, UserPrompt: userPrompt, Response: response})
+			decisions, err := extractDecisions(response)
+			if err == nil {
+				positionSymbols := make(map[string]bool)
+				for _, pos := range ctx.Positions {
+					positionSymbols[market.Normalize(pos.Symbol)] = true
+				}
+				for _, d := range decisions {
+					if positionSymbols[market.Normalize(d.Symbol)] {
+						positionDecisionsBySymbol[market.Normalize(d.Symbol)] = d
+					}
+				}
+			}
+		}
+	}
+
+	// 6. Merge: position-check overrides deep-dive for that symbol
+	merged := make([]Decision, 0, len(allDecisions))
+	for _, d := range allDecisions {
+		n := market.Normalize(d.Symbol)
+		if posD, ok := positionDecisionsBySymbol[n]; ok {
+			merged = append(merged, posD)
+			delete(positionDecisionsBySymbol, n)
+		} else {
+			merged = append(merged, d)
+		}
+	}
+	for _, posD := range positionDecisionsBySymbol {
+		merged = append(merged, posD)
+	}
+
+	// 7. Sizing adjustment (with trace)
+	if len(merged) > 0 {
+		sysPromptSizing := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
+		userPromptSizing := engine.buildSizingAdjustmentUserPrompt(ctx, macroBrief, merged, riskConfig)
+		responseSizing, errSizing := mcpClient.CallWithMessages(sysPromptSizing, userPromptSizing)
+		if errSizing != nil {
+			responseSizing = fmt.Sprintf("Error: %v", errSizing)
+		}
+		steps = append(steps, DecisionStepTrace{Step: "sizing_adjustment", Label: "Sizing & margin adjustment", SystemPrompt: sysPromptSizing, UserPrompt: userPromptSizing, Response: responseSizing})
+		if errSizing == nil {
+			if adjusted, errParse := extractDecisions(responseSizing); errParse == nil && len(adjusted) > 0 {
+				mergeReasoningFrom(adjusted, merged)
+				merged = adjusted
+				logger.Infof("[macro-micro] Sizing adjustment (trace): %d decision(s)", len(merged))
+			}
+		}
+	}
+
+	// 8. Validate and build FullDecision
+	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio); err != nil {
+		logger.Warnf("[macro-micro] decision validation: %v", err)
+	}
+	logger.Infof("[macro-micro] Flow complete with trace: %d merged decision(s)", len(merged))
+	cotTrace := fmt.Sprintf("Macro trend=%s risk=%s. Deep-dives: %d symbols. Position check: %d positions. Sizing adjustment applied.", macroOut.Trend, macroOut.RiskLevel, len(macroOut.SymbolsForDeepDive), len(ctx.Positions))
+	fullDecision := &FullDecision{
+		SystemPrompt:        "[macro-micro] " + engine.BuildSystemPrompt(ctx.Account.TotalEquity, variant),
+		UserPrompt:          macroBrief,
+		CoTTrace:            cotTrace,
+		Decisions:           merged,
+		RawResponse:         "",
+		Timestamp:           time.Now(),
+		AIRequestDurationMs: 0,
+	}
+	return fullDecision, steps, nil
 }
 
 // ============================================================================
@@ -406,6 +814,114 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 	}
 
 	logger.Infof("📊 Successfully fetched multi-timeframe market data for %d coins", len(ctx.MarketDataMap))
+	return nil
+}
+
+// restrictDeepDiveSymbolsToContext ensures SymbolsForDeepDive only contains symbols we have market data for (e.g. backtest pre-fills MarketDataMap).
+// When maxDeepDives > 0 and context is pre-filled, ensures we deep-dive up to min(maxDeepDives, len(ctx.MarketDataMap)) symbols by filling from context so all available symbols get a deep-dive (e.g. backtest with 4 symbols runs 4 deep-dives).
+func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDeepDives int) {
+	if macroOut == nil || len(ctx.MarketDataMap) == 0 {
+		return
+	}
+	allowed := make(map[string]bool)
+	var contextSymbols []string
+	for sym := range ctx.MarketDataMap {
+		if sym == "" {
+			continue
+		}
+		n := market.Normalize(sym)
+		allowed[n] = true
+		contextSymbols = append(contextSymbols, n)
+	}
+	sort.Strings(contextSymbols)
+	seen := make(map[string]bool)
+	var filtered []string
+	for _, sym := range macroOut.SymbolsForDeepDive {
+		n := market.Normalize(sym)
+		if allowed[n] && !seen[n] {
+			filtered = append(filtered, n)
+			seen[n] = true
+		}
+	}
+	for _, pos := range ctx.Positions {
+		n := market.Normalize(pos.Symbol)
+		if allowed[n] && !seen[n] {
+			filtered = append(filtered, n)
+			seen[n] = true
+		}
+	}
+	if len(filtered) == 0 {
+		for _, n := range contextSymbols {
+			if !seen[n] {
+				filtered = append(filtered, n)
+				seen[n] = true
+				if len(filtered) >= 5 {
+					break
+				}
+			}
+		}
+	}
+	// When context is pre-filled (e.g. backtest), deep-dive all available symbols up to maxDeepDives so we get decisions for every symbol we have data for
+	if maxDeepDives > 0 && len(contextSymbols) > 0 {
+		targetCount := maxDeepDives
+		if targetCount > len(contextSymbols) {
+			targetCount = len(contextSymbols)
+		}
+		for _, n := range contextSymbols {
+			if len(filtered) >= targetCount {
+				break
+			}
+			if !seen[n] {
+				filtered = append(filtered, n)
+				seen[n] = true
+			}
+		}
+	}
+	if len(filtered) != len(macroOut.SymbolsForDeepDive) {
+		logger.Infof("[macro-micro] Symbols_for_deep_dive: %v (count %d, was %d)", filtered, len(filtered), len(macroOut.SymbolsForDeepDive))
+	}
+	macroOut.SymbolsForDeepDive = filtered
+}
+
+// fetchMarketDataForSymbols fetches market data only for the given symbols (used in macro-micro flow).
+func fetchMarketDataForSymbols(ctx *Context, engine *StrategyEngine, symbols []string) error {
+	config := engine.GetConfig()
+	if ctx.MarketDataMap == nil {
+		ctx.MarketDataMap = make(map[string]*market.Data)
+	}
+	timeframes := config.Indicators.Klines.SelectedTimeframes
+	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
+	klineCount := config.Indicators.Klines.PrimaryCount
+	if len(timeframes) == 0 {
+		if primaryTimeframe != "" {
+			timeframes = append(timeframes, primaryTimeframe)
+		} else {
+			timeframes = append(timeframes, "3m")
+		}
+	}
+	if primaryTimeframe == "" {
+		primaryTimeframe = timeframes[0]
+	}
+	if klineCount <= 0 {
+		klineCount = 30
+	}
+	seen := make(map[string]bool)
+	for _, sym := range symbols {
+		sym = market.Normalize(sym)
+		if seen[sym] {
+			continue
+		}
+		seen[sym] = true
+		if _, exists := ctx.MarketDataMap[sym]; exists {
+			continue
+		}
+		data, err := market.GetWithTimeframes(sym, timeframes, primaryTimeframe, klineCount)
+		if err != nil {
+			logger.Infof("⚠️  Failed to fetch market data for %s: %v", sym, err)
+			continue
+		}
+		ctx.MarketDataMap[sym] = data
+	}
 	return nil
 }
 
@@ -1410,6 +1926,329 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 	sb.WriteString("Now please analyze and output your decision (Chain of Thought + JSON)\n")
 
 	return sb.String()
+}
+
+// BuildDeepDiveUserPrompt builds the user prompt for a single-symbol deep-dive (macro context + full data for one symbol).
+// Uses the same klines, indicators, and quant data as the non-multi-turn path; fetches on demand if missing from context.
+func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, macroBrief string, focusReason string, trend string, riskLevel string) string {
+	var sb strings.Builder
+	sb.WriteString(macroBrief)
+	sb.WriteString("\n\n## Market context (from macro)\n")
+	sb.WriteString(fmt.Sprintf("Trend: %s | Risk: %s\n", trend, riskLevel))
+	if focusReason != "" {
+		sb.WriteString("Focus: " + focusReason + "\n")
+	}
+	sb.WriteString(fmt.Sprintf("\n## Symbol to analyze: %s\n\n", symbol))
+
+	normalized := market.Normalize(symbol)
+	marketData, hasMarket := ctx.MarketDataMap[symbol]
+	if !hasMarket {
+		for k, v := range ctx.MarketDataMap {
+			if market.Normalize(k) == normalized {
+				marketData = v
+				hasMarket = true
+				break
+			}
+		}
+	}
+	if !hasMarket || marketData == nil {
+		// Fallback: fetch market data so deep-dive has same klines/indicators as non-multi-turn
+		config := e.GetConfig()
+		if config != nil {
+			tf := config.Indicators.Klines.SelectedTimeframes
+			primary := config.Indicators.Klines.PrimaryTimeframe
+			count := config.Indicators.Klines.PrimaryCount
+			if len(tf) == 0 && primary != "" {
+				tf = []string{primary}
+			}
+			if len(tf) == 0 {
+				tf = []string{"3m"}
+			}
+			if primary == "" {
+				primary = tf[0]
+			}
+			if count <= 0 {
+				count = 30
+			}
+			if data, err := market.GetWithTimeframes(normalized, tf, primary, count); err == nil {
+				marketData = data
+				hasMarket = true
+				if ctx.MarketDataMap == nil {
+					ctx.MarketDataMap = make(map[string]*market.Data)
+				}
+				ctx.MarketDataMap[normalized] = data
+			}
+		}
+	}
+	if hasMarket && marketData != nil {
+		sb.WriteString(e.formatMarketData(marketData))
+		var quantData *QuantData
+		if ctx.QuantDataMap != nil {
+			if qd, ok := ctx.QuantDataMap[symbol]; ok && qd != nil {
+				quantData = qd
+			} else if qd, ok := ctx.QuantDataMap[normalized]; ok && qd != nil {
+				quantData = qd
+			} else {
+				for _, v := range ctx.QuantDataMap {
+					if v != nil && market.Normalize(v.Symbol) == normalized {
+						quantData = v
+						break
+					}
+				}
+			}
+		}
+		if quantData == nil && e.config != nil && e.config.Indicators.EnableQuantData {
+			// Fallback: fetch quant data so deep-dive has same flow/OI data as non-multi-turn
+			qm := e.FetchQuantDataBatch([]string{normalized})
+			if len(qm) > 0 {
+				for _, v := range qm {
+					if v != nil && market.Normalize(v.Symbol) == normalized {
+						quantData = v
+						if ctx.QuantDataMap == nil {
+							ctx.QuantDataMap = make(map[string]*QuantData)
+						}
+						ctx.QuantDataMap[normalized] = v
+						break
+					}
+				}
+			}
+		}
+		if quantData != nil {
+			sb.WriteString(e.formatQuantData(quantData))
+		}
+	} else {
+		sb.WriteString(fmt.Sprintf("(No market data for %s)\n", symbol))
+	}
+	sb.WriteString("\n---\n\nOutput your decision for this symbol only (Chain of Thought + JSON array with one decision).\n")
+	if s := e.effectiveDeepDiveCustomPrompt(); s != "" {
+		sb.WriteString("\n" + s + "\n")
+	}
+	return sb.String()
+}
+
+// BuildMacroMicroCombinedUserPrompt builds a single user prompt that contains macro brief + macro context + per-symbol data for all symbols in macroOut.SymbolsForDeepDive. Used by the Debate Arena when the strategy has EnableMacroMicroFlow so debate participants see the same macro-micro structure (one prompt, multiple symbols).
+func (e *StrategyEngine) BuildMacroMicroCombinedUserPrompt(ctx *Context, macroBrief string, macroOut *MacroOutput) string {
+	if macroOut == nil || len(macroOut.SymbolsForDeepDive) == 0 {
+		return macroBrief + "\n\n(No symbols selected for deep-dive.)\n"
+	}
+	var sb strings.Builder
+	sb.WriteString(macroBrief)
+	sb.WriteString("\n\n## Market context (from macro)\n")
+	sb.WriteString(fmt.Sprintf("Trend: %s | Risk: %s\n", macroOut.Trend, macroOut.RiskLevel))
+	if macroOut.FocusReason != "" {
+		sb.WriteString("Focus: " + macroOut.FocusReason + "\n")
+	}
+	sb.WriteString("\n## Symbols to analyze (output one decision per symbol you wish to act on)\n\n")
+	for _, symbol := range macroOut.SymbolsForDeepDive {
+		normalized := market.Normalize(symbol)
+		sb.WriteString(fmt.Sprintf("=== %s ===\n\n", symbol))
+		marketData, hasMarket := ctx.MarketDataMap[symbol]
+		if !hasMarket {
+			for k, v := range ctx.MarketDataMap {
+				if market.Normalize(k) == normalized {
+					marketData = v
+					hasMarket = true
+					break
+				}
+			}
+		}
+		if hasMarket && marketData != nil {
+			sb.WriteString(e.formatMarketData(marketData))
+			if ctx.QuantDataMap != nil {
+				if qd, ok := ctx.QuantDataMap[symbol]; ok && qd != nil {
+					sb.WriteString(e.formatQuantData(qd))
+				} else {
+					for k, v := range ctx.QuantDataMap {
+						if market.Normalize(k) == normalized && v != nil {
+							sb.WriteString(e.formatQuantData(v))
+							break
+						}
+					}
+				}
+			}
+		} else {
+			sb.WriteString(fmt.Sprintf("(No market data for %s)\n", symbol))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("---\n\nOutput your trading decisions as a JSON array: one entry per symbol you wish to act on. Each object: symbol, action (open_long, open_short, close_long, close_short, hold, wait), confidence, reasoning; for open_long/open_short also include leverage, position_size_usd, stop_loss, take_profit, risk_usd.\n")
+	if s := e.effectiveDeepDiveCustomPrompt(); s != "" {
+		sb.WriteString("\n" + s + "\n")
+	}
+	return sb.String()
+}
+
+// effectiveDeepDiveCustomPrompt returns deep-dive custom text from sections (if any) or the legacy single field.
+func (e *StrategyEngine) effectiveDeepDiveCustomPrompt() string {
+	if e.config == nil {
+		return ""
+	}
+	if e.config.DeepDivePromptSections != nil {
+		if s := strings.TrimSpace(e.config.DeepDivePromptSections.SymbolRules); s != "" {
+			return s
+		}
+	}
+	return e.config.DeepDiveCustomPrompt
+}
+
+// GetSymbolDeepDive runs one AI call for a single symbol and returns the decision for that symbol.
+func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, symbol string, macroBrief string, focusReason string, trend string, riskLevel string) (*Decision, error) {
+	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
+	userPrompt := engine.BuildDeepDiveUserPrompt(ctx, symbol, macroBrief, focusReason, trend, riskLevel)
+	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("deep-dive AI call for %s failed: %w", symbol, err)
+	}
+	decisions, err := extractDecisions(response)
+	if err != nil {
+		return &Decision{Symbol: symbol, Action: "wait", Reasoning: "Deep-dive parse failed: " + err.Error()}, nil
+	}
+	reasoningFromResponse := extractCoTTrace(response)
+	normalized := market.Normalize(symbol)
+	for _, d := range decisions {
+		if market.Normalize(d.Symbol) == normalized {
+			d.Symbol = symbol // preserve original casing if needed
+			if d.Reasoning == "" && reasoningFromResponse != "" {
+				d.Reasoning = reasoningFromResponse
+			}
+			return &d, nil
+		}
+	}
+	if len(decisions) > 0 {
+		d := decisions[0]
+		d.Symbol = symbol
+		if d.Reasoning == "" && reasoningFromResponse != "" {
+			d.Reasoning = reasoningFromResponse
+		}
+		return &d, nil
+	}
+	return &Decision{Symbol: symbol, Action: "wait", Reasoning: "No decision in response"}, nil
+}
+
+// BuildPositionCheckUserPrompt builds the user prompt for the position-check pass (macro brief + full position list).
+func (e *StrategyEngine) BuildPositionCheckUserPrompt(ctx *Context, macroBrief string) string {
+	var sb strings.Builder
+	sb.WriteString(macroBrief)
+	sb.WriteString("\n\n## Open positions to check\n\n")
+	for i, pos := range ctx.Positions {
+		sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
+	}
+	sb.WriteString("\n---\n\nFor each position above, output whether to take profit, stop-loss, or hold. Output a JSON array of decisions (one per position): same format as usual (symbol, action: close_long/close_short/hold, reasoning, optional stop_loss/take_profit).\n")
+	if e.config != nil && e.config.PositionCheckExtraPrompt != "" {
+		sb.WriteString("\n# Additional guidance (position check)\n\n")
+		sb.WriteString(strings.TrimSpace(e.config.PositionCheckExtraPrompt))
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+// GetPositionCheckDecision runs one AI call to get TP/SL/hold decisions for all open positions.
+func GetPositionCheckDecision(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, macroBrief string) ([]Decision, error) {
+	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
+	userPrompt := engine.BuildPositionCheckUserPrompt(ctx, macroBrief)
+	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
+	if err != nil {
+		return nil, fmt.Errorf("position-check AI call failed: %w", err)
+	}
+	decisions, err := extractDecisions(response)
+	if err != nil {
+		return nil, err
+	}
+	reasoningFromResponse := extractCoTTrace(response)
+	// Filter to only decisions that match an open position symbol
+	positionSymbols := make(map[string]bool)
+	for _, pos := range ctx.Positions {
+		positionSymbols[market.Normalize(pos.Symbol)] = true
+	}
+	var out []Decision
+	for _, d := range decisions {
+		if positionSymbols[market.Normalize(d.Symbol)] {
+			if d.Reasoning == "" && reasoningFromResponse != "" {
+				d.Reasoning = reasoningFromResponse
+			}
+			out = append(out, d)
+		}
+	}
+	return out, nil
+}
+
+// buildSizingAdjustmentUserPrompt builds the user prompt for the sizing/adjustment step (market overview, margin rules, draft decisions).
+func (e *StrategyEngine) buildSizingAdjustmentUserPrompt(ctx *Context, macroBrief string, merged []Decision, riskConfig store.RiskControlConfig) string {
+	var sb strings.Builder
+	sb.WriteString("## Market overview\n\n")
+	sb.WriteString(macroBrief)
+	sb.WriteString("\n\n## Margin and position rules (enforced)\n\n")
+	sb.WriteString("These values come from the configured risk control; all adjusted decisions must comply.\n\n")
+	sb.WriteString(fmt.Sprintf("- **Account equity:** %.2f USDT (this is the total capital; all positions together must fit within it).\n", ctx.Account.TotalEquity))
+	sb.WriteString("- **Aggregate constraint:** The **sum** of position_size_usd across all open/hold decisions must not exceed total equity. With 1000 USDT you cannot have three positions of 1000 each—you must split capital (e.g. ~333 each for three equal positions, or allocate by confidence).\n")
+	sb.WriteString(fmt.Sprintf("- **Max margin usage:** ≤%.0f%% (total margin used by all positions must not exceed this share of equity).\n", riskConfig.MaxMarginUsage*100))
+	sb.WriteString(fmt.Sprintf("- **Max positions:** %d\n", riskConfig.MaxPositions))
+	sb.WriteString(fmt.Sprintf("- **Main coins (BTC/ETH):** max leverage %dx, max single position value = equity × %.1f\n", riskConfig.BTCETHMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio))
+	sb.WriteString(fmt.Sprintf("- **Altcoins:** max leverage %dx, max single position value = equity × %.1f (per position cap; the sum of all position sizes still cannot exceed equity).\n", riskConfig.AltcoinMaxLeverage, riskConfig.AltcoinMaxPositionValueRatio))
+	if riskConfig.MinPositionSize > 0 {
+		sb.WriteString(fmt.Sprintf("- **Min position size:** ≥%.0f USDT\n", riskConfig.MinPositionSize))
+	}
+	sb.WriteString("\n## Draft decisions (from macro + deep-dives + position check)\n\n")
+	sb.WriteString("These are per-symbol decisions; they may have been produced without full context of each other (e.g. two altcoins each sized at ~1× equity). Your job is to consolidate them so they jointly comply with the rules and make sense when viewed together.\n\n")
+	jsonBytes, _ := json.MarshalIndent(merged, "", "  ")
+	sb.WriteString("```json\n")
+	sb.WriteString(string(jsonBytes))
+	sb.WriteString("\n```\n\n")
+	sb.WriteString("---\n\n**Your task**\n\n1. **All decisions together must respect the aggregate constraint.** Sum of position_size_usd over all open/hold decisions must be ≤ total equity. Example: equity 1000 and 3 altcoin opens → you cannot output three positions of 1000 each (sum would be 3000). Reduce each so the sum fits (e.g. 333 + 333 + 334, or allocate more to higher-confidence symbols). Check that sum(position_size_usd) ≤ equity before outputting.\n\n")
+	sb.WriteString("2. **Resolve other violations by sizing, not by closing.** If a single position would exceed the per-symbol cap (e.g. altcoin > equity × ")
+	sb.WriteString(fmt.Sprintf("%.1f", riskConfig.AltcoinMaxPositionValueRatio))
+	sb.WriteString("), or max positions would be exceeded, **adjust leverage and position_size_usd** so that every position is within limits. Do **not** use close/close_long solely to satisfy limits. Forced closes for \"violation\" are wrong here.\n\n")
+	sb.WriteString("3. **Consolidate and review.** Ensure max positions, per-position caps, and leverage limits are respected. Rebalance capital between positions so the combined picture is valid. Sanity-check confidence across symbols.\n\n")
+	sb.WriteString("4. **Output.** Emit a single JSON array (symbol, action, leverage, position_size_usd, stop_loss, take_profit, confidence, reasoning). Preserve or briefly summarize reasoning. Prefer adjusting sizes over changing actions when fixing rule breaches.\n")
+	if e.config != nil && e.config.SizingAdjustmentExtraPrompt != "" {
+		sb.WriteString("\n# Additional guidance (sizing & margin)\n\n")
+		sb.WriteString(strings.TrimSpace(e.config.SizingAdjustmentExtraPrompt))
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
+// mergeReasoningFrom copies reasoning from the pre-adjustment list into adjusted decisions when the adjusted decision has no reasoning (so position-check and deep-dive reasoning is preserved in the final output).
+func mergeReasoningFrom(adjusted []Decision, from []Decision) {
+	bySymbol := make(map[string]string)
+	for i := range from {
+		n := market.Normalize(from[i].Symbol)
+		if n != "" && from[i].Reasoning != "" {
+			bySymbol[n] = from[i].Reasoning
+		}
+	}
+	for i := range adjusted {
+		if adjusted[i].Reasoning != "" {
+			continue
+		}
+		n := market.Normalize(adjusted[i].Symbol)
+		if r, ok := bySymbol[n]; ok {
+			adjusted[i].Reasoning = r
+		}
+	}
+}
+
+// runSizingAdjustmentStep runs one AI call to adjust merged decisions per margin rules; returns adjusted list or original on failure.
+// Reasoning from position-check and deep-dives is preserved when the sizing response omits it.
+func runSizingAdjustmentStep(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, merged []Decision, macroBrief string, riskConfig store.RiskControlConfig) []Decision {
+	if len(merged) == 0 {
+		return merged
+	}
+	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
+	userPrompt := engine.buildSizingAdjustmentUserPrompt(ctx, macroBrief, merged, riskConfig)
+	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
+	if err != nil {
+		logger.Warnf("[macro-micro] Sizing adjustment step failed: %v", err)
+		return merged
+	}
+	adjusted, err := extractDecisions(response)
+	if err != nil || len(adjusted) == 0 {
+		logger.Warnf("[macro-micro] Sizing adjustment parse failed or empty: %v", err)
+		return merged
+	}
+	mergeReasoningFrom(adjusted, merged)
+	logger.Infof("[macro-micro] Sizing adjustment: %d decision(s)", len(adjusted))
+	return adjusted
 }
 
 func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Context) string {

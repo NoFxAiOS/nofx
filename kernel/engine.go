@@ -851,11 +851,15 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 		}
 	}
 	if len(filtered) == 0 {
+		fallbackCap := 5
+		if maxDeepDives > 0 && maxDeepDives < fallbackCap {
+			fallbackCap = maxDeepDives
+		}
 		for _, n := range contextSymbols {
 			if !seen[n] {
 				filtered = append(filtered, n)
 				seen[n] = true
-				if len(filtered) >= 5 {
+				if len(filtered) >= fallbackCap {
 					break
 				}
 			}
@@ -876,6 +880,9 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 				seen[n] = true
 			}
 		}
+	}
+	if maxDeepDives > 0 && len(filtered) > maxDeepDives {
+		filtered = filtered[:maxDeepDives]
 	}
 	if len(filtered) != len(macroOut.SymbolsForDeepDive) {
 		logger.Infof("[macro-micro] Symbols_for_deep_dive: %v (count %d, was %d)", filtered, len(filtered), len(macroOut.SymbolsForDeepDive))

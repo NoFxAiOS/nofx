@@ -121,6 +121,26 @@ func TestRestrictDeepDiveSymbolsToContext_WithPositions(t *testing.T) {
 	}
 }
 
+func TestRestrictDeepDiveSymbolsToContext_FallbackRespectsMaxDeepDives(t *testing.T) {
+	ctx := &Context{
+		MarketDataMap: map[string]*market.Data{
+			"BTCUSDT":  {Symbol: "BTCUSDT", CurrentPrice: 70000},
+			"ETHUSDT":  {Symbol: "ETHUSDT", CurrentPrice: 3500},
+			"SOLUSDT":  {Symbol: "SOLUSDT", CurrentPrice: 150},
+			"XRPUSDT":  {Symbol: "XRPUSDT", CurrentPrice: 2},
+			"DOGEUSDT": {Symbol: "DOGEUSDT", CurrentPrice: 0.3},
+		},
+		Positions: []PositionInfo{},
+	}
+	macroOut := &MacroOutput{
+		SymbolsForDeepDive: []string{},
+	}
+	restrictDeepDiveSymbolsToContext(ctx, macroOut, 3)
+	if len(macroOut.SymbolsForDeepDive) != 3 {
+		t.Errorf("fallback with maxDeepDives=3 and 5 context symbols should return 3, got %d", len(macroOut.SymbolsForDeepDive))
+	}
+}
+
 func TestBuildMacroMicroCombinedUserPrompt_ContainsMacroAndPerSymbol(t *testing.T) {
 	config := store.GetDefaultStrategyConfig("en")
 	config.EnableMacroMicroFlow = true

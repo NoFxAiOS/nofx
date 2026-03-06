@@ -71,7 +71,7 @@ function stepOrderNumber(step: string): string {
 function MultiTurnStepBlock({
   step,
   language,
-  cycleNumber,
+  cycleNumber: _cycleNumber,
 }: {
   step: DecisionStepTrace
   language: Language

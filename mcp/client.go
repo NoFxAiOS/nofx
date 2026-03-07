@@ -234,7 +234,8 @@ func (client *Client) marshalRequestBody(requestBody map[string]any) ([]byte, er
 func (client *Client) parseMCPResponse(body []byte) (string, error) {
 	var result struct {
 		Choices []struct {
-			Message struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
@@ -253,6 +254,13 @@ func (client *Client) parseMCPResponse(body []byte) (string, error) {
 		return "", fmt.Errorf("API returned empty response")
 	}
 
+	choice := &result.Choices[0]
+	// finish_reason "length" or "max_tokens" means response was truncated; warn so user can raise AI_MAX_TOKENS
+	if choice.FinishReason == "length" || choice.FinishReason == "max_tokens" {
+		client.logger.Warnf("⚠️ AI response was truncated (finish_reason=%q). Consider raising AI_MAX_TOKENS (current: %d).",
+			choice.FinishReason, client.MaxTokens)
+	}
+
 	// Report token usage if callback is set
 	if TokenUsageCallback != nil && result.Usage.TotalTokens > 0 {
 		TokenUsageCallback(TokenUsage{
@@ -264,7 +272,7 @@ func (client *Client) parseMCPResponse(body []byte) (string, error) {
 		})
 	}
 
-	return result.Choices[0].Message.Content, nil
+	return choice.Message.Content, nil
 }
 
 func (client *Client) buildUrl() string {

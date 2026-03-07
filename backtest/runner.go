@@ -605,6 +605,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 	}
 
 	record := &store.DecisionRecord{
+		CycleNumber: callCount, // cycle count (1-based), matches UI display
 		AccountState: store.AccountSnapshot{
 			TotalBalance:          accountInfo.TotalEquity,
 			AvailableBalance:      accountInfo.AvailableBalance,
@@ -983,7 +984,7 @@ func (r *Runner) convertPositions(priceMap map[string]float64) []kernel.Position
 			UnrealizedPnLPct: pnlPct,
 			LiquidationPrice: pos.LiquidationPrice,
 			MarginUsed:       pos.Margin,
-			UpdateTime:       time.Now().UnixMilli(),
+			UpdateTime:       pos.OpenTime, // entry time for holding duration
 		})
 	}
 	return list

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"nofx/logger"
 	"nofx/mcp"
@@ -224,7 +225,7 @@ func formatMacroPriceRankingSummary(data *nofxos.PriceRankingData, topN int) str
 	return sb.String()
 }
 
-// formatPositionForMacroBrief returns one line per position with full metadata, no klines. Includes TP/SL hints.
+// formatPositionForMacroBrief returns one line per position with full metadata, no klines. Includes TP/SL hints and holding duration.
 func formatPositionForMacroBrief(pos PositionInfo, currentPrice float64) string {
 	value := pos.Quantity * pos.MarkPrice
 	if value < 0 {
@@ -233,6 +234,9 @@ func formatPositionForMacroBrief(pos PositionInfo, currentPrice float64) string 
 	line := fmt.Sprintf("- %s %s | Entry %.4f Current %.4f | Qty %.4f | Value %.2f USDT | PnL %+.2f%% | PnL USDT %+.2f | Peak %.2f%% | Leverage %dx | Margin %.0f | Liq %.4f",
 		pos.Symbol, strings.ToUpper(pos.Side), pos.EntryPrice, pos.MarkPrice, pos.Quantity, value,
 		pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct, pos.Leverage, pos.MarginUsed, pos.LiquidationPrice)
+	if pos.UpdateTime > 0 {
+		line += fmt.Sprintf(" | Entry time: %s", time.UnixMilli(pos.UpdateTime).UTC().Format("2006-01-02 15:04:05 UTC"))
+	}
 	if currentPrice > 0 {
 		line += fmt.Sprintf(" | Price %.4f", currentPrice)
 	}

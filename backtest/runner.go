@@ -957,6 +957,7 @@ func (r *Runner) snapshotPositions(priceMap map[string]float64) []store.Position
 			UnrealizedProfit: unrealizedPnL(pos, price),
 			Leverage:         float64(pos.Leverage),
 			LiquidationPrice: pos.LiquidationPrice,
+			EntryTime:        pos.OpenTime,
 		})
 	}
 	return list

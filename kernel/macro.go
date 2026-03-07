@@ -225,8 +225,8 @@ func formatMacroPriceRankingSummary(data *nofxos.PriceRankingData, topN int) str
 	return sb.String()
 }
 
-// formatPositionForMacroBrief returns one line per position with full metadata, no klines. Includes TP/SL hints and holding duration.
-func formatPositionForMacroBrief(pos PositionInfo, currentPrice float64) string {
+// formatPositionForMacroBrief returns one line per position with full metadata, no klines. Includes Entry time, Holding duration (Time - Entry time), TP/SL hints.
+func formatPositionForMacroBrief(pos PositionInfo, currentPrice float64, refTimeUTC string) string {
 	value := pos.Quantity * pos.MarkPrice
 	if value < 0 {
 		value = -value
@@ -235,7 +235,19 @@ func formatPositionForMacroBrief(pos PositionInfo, currentPrice float64) string 
 		pos.Symbol, strings.ToUpper(pos.Side), pos.EntryPrice, pos.MarkPrice, pos.Quantity, value,
 		pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct, pos.Leverage, pos.MarginUsed, pos.LiquidationPrice)
 	if pos.UpdateTime > 0 {
-		line += fmt.Sprintf(" | Entry time: %s", time.UnixMilli(pos.UpdateTime).UTC().Format("2006-01-02 15:04:05 UTC"))
+		entryStr := time.UnixMilli(pos.UpdateTime).UTC().Format("2006-01-02 15:04:05 UTC")
+		line += fmt.Sprintf(" | Entry time: %s", entryStr)
+		// Compute holding duration from (ref time) - (entry time). refTimeUTC format: "2006-01-02 15:04:05 UTC"
+		if ref, err := time.Parse("2006-01-02 15:04:05 MST", refTimeUTC); err == nil {
+			entry := time.UnixMilli(pos.UpdateTime).UTC()
+			dur := ref.Sub(entry)
+			durMin := int(dur.Minutes())
+			if durMin < 60 {
+				line += fmt.Sprintf(" | Holding %d min", durMin)
+			} else {
+				line += fmt.Sprintf(" | Holding %dh %dm", durMin/60, durMin%60)
+			}
+		}
 	}
 	if currentPrice > 0 {
 		line += fmt.Sprintf(" | Price %.4f", currentPrice)
@@ -308,8 +320,9 @@ func BuildMacroBrief(ctx *Context, engine *StrategyEngine) (string, error) {
 		sb.WriteString(fmt.Sprintf("### Funding\nBTC funding: %.4f%%\n\n", btcData.FundingRate*100))
 	}
 
-	// Open positions (full metadata, no klines)
+	// Open positions (full metadata, no klines). Time = reference for holding duration (holding = Time - Entry time).
 	sb.WriteString("### Open Positions\n")
+	sb.WriteString("(Entry time = when position was opened; Holding = Time at top minus Entry time. Do not use Runtime.)\n")
 	if len(ctx.Positions) == 0 {
 		sb.WriteString("None\n\n")
 	} else {
@@ -320,7 +333,7 @@ func BuildMacroBrief(ctx *Context, engine *StrategyEngine) (string, error) {
 			} else {
 				curPrice = pos.MarkPrice
 			}
-			sb.WriteString(formatPositionForMacroBrief(pos, curPrice))
+			sb.WriteString(formatPositionForMacroBrief(pos, curPrice, ctx.CurrentTime))
 		}
 		sb.WriteString("\n")
 	}

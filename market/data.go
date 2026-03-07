@@ -307,11 +307,14 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	}
 	timeframes = normalized
 
-	// If primary timeframe is not specified, use the first one
+	// If primary timeframe is not specified or fails normalization, use the first valid one
 	if primaryTimeframe == "" {
 		primaryTimeframe = timeframes[0]
 	} else if norm, err := NormalizeTimeframe(primaryTimeframe); err == nil {
 		primaryTimeframe = norm
+	} else {
+		logger.Infof("⚠️ Primary timeframe %q invalid or unsupported: %v; falling back to %s", primaryTimeframe, err, timeframes[0])
+		primaryTimeframe = timeframes[0]
 	}
 
 	// Ensure primary timeframe is in the list

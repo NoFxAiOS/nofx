@@ -2255,7 +2255,26 @@ func (e *StrategyEngine) buildSizingAdjustmentUserPrompt(ctx *Context, macroBrie
 	if riskConfig.MinPositionSize > 0 {
 		sb.WriteString(fmt.Sprintf("- **Min position size:** ≥%.0f USDT\n", riskConfig.MinPositionSize))
 	}
-	sb.WriteString("\n## Draft decisions (from macro + deep-dives + position check)\n\n")
+	sb.WriteString("\n## Current open positions (with entry datetime)\n\n")
+	if len(ctx.Positions) == 0 {
+		sb.WriteString("None.\n\n")
+	} else {
+		for _, pos := range ctx.Positions {
+			value := pos.Quantity * pos.MarkPrice
+			if value < 0 {
+				value = -value
+			}
+			entryStr := "—"
+			if pos.UpdateTime > 0 {
+				entryStr = time.UnixMilli(pos.UpdateTime).UTC().Format("2006-01-02 15:04:05 UTC")
+			}
+			sb.WriteString(fmt.Sprintf("- %s %s | Entry %.4f | Qty %.4f | Value %.2f USDT | PnL %+.2f%% | Leverage %dx | **Entry time: %s**\n",
+				pos.Symbol, strings.ToUpper(pos.Side), pos.EntryPrice, pos.Quantity, value,
+				pos.UnrealizedPnLPct, pos.Leverage, entryStr))
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("## Draft decisions (from macro + deep-dives + position check)\n\n")
 	sb.WriteString("These are per-symbol decisions; they may have been produced without full context of each other (e.g. two altcoins each sized at ~1× equity). Your job is to consolidate them so they jointly comply with the rules and make sense when viewed together.\n\n")
 	jsonBytes, _ := json.MarshalIndent(merged, "", "  ")
 	sb.WriteString("```json\n")

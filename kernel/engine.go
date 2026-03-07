@@ -402,7 +402,7 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 		limit = 10
 	}
 	if hadPreFilledContext {
-		restrictDeepDiveSymbolsToContext(ctx, macroOut, limit)
+		restrictDeepDiveSymbolsToContext(ctx, macroOut, limit, engine)
 	}
 
 	// 3. Fetch market (and quant) data for symbols_for_deep_dive
@@ -579,7 +579,7 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 		limitTrace = 10
 	}
 	if hadPreFilledContext {
-		restrictDeepDiveSymbolsToContext(ctx, macroOut, limitTrace)
+		restrictDeepDiveSymbolsToContext(ctx, macroOut, limitTrace, engine)
 	}
 
 	// 3. Fetch market (and quant) data for symbols_for_deep_dive
@@ -819,7 +819,8 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 
 // restrictDeepDiveSymbolsToContext ensures SymbolsForDeepDive only contains symbols we have market data for (e.g. backtest pre-fills MarketDataMap).
 // When maxDeepDives > 0 and context is pre-filled, ensures we deep-dive up to min(maxDeepDives, len(ctx.MarketDataMap)) symbols by filling from context so all available symbols get a deep-dive (e.g. backtest with 4 symbols runs 4 deep-dives).
-func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDeepDives int) {
+// Excluded symbols are never added when filling from context.
+func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDeepDives int, engine *StrategyEngine) {
 	if macroOut == nil || len(ctx.MarketDataMap) == 0 {
 		return
 	}
@@ -834,6 +835,14 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 		contextSymbols = append(contextSymbols, n)
 	}
 	sort.Strings(contextSymbols)
+
+	excluded := make(map[string]bool)
+	if engine != nil && engine.config != nil && engine.config.CoinSource.ExcludedCoins != nil {
+		for _, c := range engine.config.CoinSource.ExcludedCoins {
+			excluded[market.Normalize(c)] = true
+		}
+	}
+
 	seen := make(map[string]bool)
 	var filtered []string
 	for _, sym := range macroOut.SymbolsForDeepDive {
@@ -856,6 +865,9 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 			fallbackCap = maxDeepDives
 		}
 		for _, n := range contextSymbols {
+			if excluded[n] {
+				continue
+			}
 			if !seen[n] {
 				filtered = append(filtered, n)
 				seen[n] = true
@@ -874,6 +886,9 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 		for _, n := range contextSymbols {
 			if len(filtered) >= targetCount {
 				break
+			}
+			if excluded[n] {
+				continue
 			}
 			if !seen[n] {
 				filtered = append(filtered, n)

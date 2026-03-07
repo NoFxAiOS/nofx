@@ -355,7 +355,15 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 	default:
 		out.RiskLevel = "medium"
 	}
-	// Ensure all position symbols are in the list, then add macro-selected symbols up to cap
+	// Build excluded set (strategy excludes these from trading)
+	excluded := make(map[string]bool)
+	if config != nil && config.CoinSource.ExcludedCoins != nil {
+		for _, c := range config.CoinSource.ExcludedCoins {
+			excluded[market.Normalize(c)] = true
+		}
+	}
+
+	// Ensure all position symbols are in the list (keep even if excluded - we need to manage hold/close), then add macro-selected symbols up to cap
 	seen := make(map[string]bool)
 	var merged []string
 	for _, pos := range ctx.Positions {
@@ -368,6 +376,10 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 	for _, sym := range out.SymbolsForDeepDive {
 		n := market.Normalize(sym)
 		if seen[n] {
+			continue
+		}
+		if excluded[n] {
+			logger.Infof("🚫 [macro-micro] Excluded symbol %s skipped from deep-dive", n)
 			continue
 		}
 		merged = append(merged, n)

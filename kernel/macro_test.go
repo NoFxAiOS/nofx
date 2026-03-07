@@ -129,3 +129,51 @@ func TestValidateAndMergeMacroOutput_CapsTotal(t *testing.T) {
 		t.Errorf("SymbolsForDeepDive len = %d, want <= %d", len(result.SymbolsForDeepDive), maxTotal)
 	}
 }
+
+func TestValidateAndMergeMacroOutput_ExcludedCoinsFiltered(t *testing.T) {
+	config := &store.StrategyConfig{
+		MacroDeepDiveLimit: 5,
+		CoinSource: store.CoinSourceConfig{
+			ExcludedCoins: []string{"SOLUSDT", "AVAXUSDT"},
+		},
+	}
+	ctx := &Context{
+		Positions: []PositionInfo{{Symbol: "SOLUSDT"}}, // position in excluded symbol
+	}
+	out := &MacroOutput{
+		Trend:              "neutral",
+		RiskLevel:          "medium",
+		SymbolsForDeepDive: []string{"BTCUSDT", "SOLUSDT", "ETHUSDT", "AVAXUSDT"}, // SOL, AVAX excluded
+		CheckPositions:     true,
+	}
+	result := ValidateAndMergeMacroOutput(out, ctx, config)
+	// SOLUSDT must be included (position - we need to manage it)
+	// BTCUSDT, ETHUSDT must be included (not excluded)
+	// AVAXUSDT must NOT be included (excluded, not a position)
+	hasSOL := false
+	hasAVAX := false
+	hasBTC := false
+	hasETH := false
+	for _, s := range result.SymbolsForDeepDive {
+		n := market.Normalize(s)
+		switch n {
+		case "SOLUSDT":
+			hasSOL = true
+		case "AVAXUSDT":
+			hasAVAX = true
+		case "BTCUSDT":
+			hasBTC = true
+		case "ETHUSDT":
+			hasETH = true
+		}
+	}
+	if !hasSOL {
+		t.Error("SymbolsForDeepDive must include SOLUSDT (position, even if excluded)")
+	}
+	if hasAVAX {
+		t.Error("SymbolsForDeepDive must not include AVAXUSDT (excluded)")
+	}
+	if !hasBTC || !hasETH {
+		t.Error("SymbolsForDeepDive must include BTCUSDT and ETHUSDT (not excluded)")
+	}
+}

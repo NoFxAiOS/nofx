@@ -47,7 +47,7 @@ func TestRestrictDeepDiveSymbolsToContext_PreFilled(t *testing.T) {
 	macroOut := &MacroOutput{
 		SymbolsForDeepDive: []string{"SOLUSDT", "BTCUSDT"},
 	}
-	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5)
+	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5, nil)
 	// SOLUSDT not in context → dropped; BTCUSDT in context → kept; then fills from context up to maxDeepDives
 	if len(macroOut.SymbolsForDeepDive) < 1 {
 		t.Fatalf("SymbolsForDeepDive should not be empty")
@@ -79,7 +79,7 @@ func TestRestrictDeepDiveSymbolsToContext_EmptyContext(t *testing.T) {
 	macroOut := &MacroOutput{
 		SymbolsForDeepDive: []string{"BTCUSDT", "ETHUSDT"},
 	}
-	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5)
+	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5, nil)
 	// Empty context: function returns early, macroOut unchanged
 	if len(macroOut.SymbolsForDeepDive) != 2 {
 		t.Errorf("empty context should leave SymbolsForDeepDive unchanged, got len %d", len(macroOut.SymbolsForDeepDive))
@@ -97,7 +97,7 @@ func TestRestrictDeepDiveSymbolsToContext_WithPositions(t *testing.T) {
 	macroOut := &MacroOutput{
 		SymbolsForDeepDive: []string{"SOLUSDT"},
 	}
-	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5)
+	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5, nil)
 	// SOLUSDT not in context → dropped; ETHUSDT is position in context → added; then may fill from context
 	if len(macroOut.SymbolsForDeepDive) < 1 {
 		t.Fatalf("SymbolsForDeepDive should not be empty")
@@ -135,7 +135,7 @@ func TestRestrictDeepDiveSymbolsToContext_FallbackRespectsMaxDeepDives(t *testin
 	macroOut := &MacroOutput{
 		SymbolsForDeepDive: []string{},
 	}
-	restrictDeepDiveSymbolsToContext(ctx, macroOut, 3)
+	restrictDeepDiveSymbolsToContext(ctx, macroOut, 3, nil)
 	if len(macroOut.SymbolsForDeepDive) != 3 {
 		t.Errorf("fallback with maxDeepDives=3 and 5 context symbols should return 3, got %d", len(macroOut.SymbolsForDeepDive))
 	}

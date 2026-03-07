@@ -276,7 +276,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 
 	config := engine.GetConfig()
-	if config.EnableMacroMicroFlow {
+	if config != nil && config.EnableMacroMicroFlow {
 		return getFullDecisionMacroMicro(ctx, mcpClient, engine, variant)
 	}
 
@@ -346,6 +346,9 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 // getFullDecisionMacroMicro runs the macro -> deep-dives -> position-check flow and merges decisions.
 func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *StrategyEngine, variant string) (*FullDecision, error) {
 	config := engine.GetConfig()
+	if config == nil {
+		return nil, fmt.Errorf("strategy config is nil")
+	}
 	riskConfig := engine.GetRiskControlConfig()
 	logger.Info("[macro-micro] Starting multi-turn flow: macro → deep-dives → position-check")
 
@@ -504,6 +507,9 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 // GetFullDecisionMacroMicroWithTrace runs the macro → deep-dives → position-check flow and returns the merged decision plus a trace of each step (system prompt, user prompt, response) for UI display.
 func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, engine *StrategyEngine, variant string) (*FullDecision, []DecisionStepTrace, error) {
 	config := engine.GetConfig()
+	if config == nil {
+		return nil, nil, fmt.Errorf("strategy config is nil")
+	}
 	riskConfig := engine.GetRiskControlConfig()
 	var steps []DecisionStepTrace
 	logger.Info("[macro-micro] Starting multi-turn flow with trace: macro → deep-dives → position-check")

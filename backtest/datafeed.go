@@ -125,7 +125,11 @@ func (df *DataFeed) loadAll() error {
 		df.decisionTimes = append(df.decisionTimes, ts)
 		// Align other symbols; report error early if data is missing
 		for _, symbol := range df.symbols[1:] {
-			if _, ok := df.symbolSeries[symbol].byTF[df.primaryTF]; !ok {
+			ss := df.symbolSeries[symbol]
+			if ss == nil {
+				return fmt.Errorf("symbol %s has no series data", symbol)
+			}
+			if _, ok := ss.byTF[df.primaryTF]; !ok {
 				return fmt.Errorf("symbol %s missing timeframe %s", symbol, df.primaryTF)
 			}
 		}

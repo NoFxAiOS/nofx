@@ -172,9 +172,6 @@ function MultiTurnSection({
         <span className="font-semibold" style={{ color: '#F0B90B' }}>
           {t('aiThinking', language)} — Multi-turn
         </span>
-        <span className="text-xs px-2 py-0.5 rounded" style={{ background: 'rgba(240, 185, 11, 0.12)', color: '#F0B90B' }}>
-          Macro → Deep-dive(s) → Position check
-        </span>
       </div>
       <div className="space-y-2">
         {steps.map((s, idx) => (

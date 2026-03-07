@@ -438,8 +438,8 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
 
       {/* Collapsible Sections */}
       <div className="space-y-2">
-        {/* System Prompt */}
-        {decision.system_prompt && (
+        {/* System Prompt - only for single-turn; multi-turn shows prompts per step */}
+        {decision.system_prompt && !(decision.steps && decision.steps.length > 0) && (
           <div>
             <button
               onClick={() => setShowSystemPrompt(!showSystemPrompt)}
@@ -497,8 +497,8 @@ export function DecisionCard({ decision, language, onSymbolClick }: DecisionCard
           </div>
         )}
 
-        {/* User/Input Prompt */}
-        {decision.input_prompt && (
+        {/* User/Input Prompt - only for single-turn; multi-turn shows prompts per step */}
+        {decision.input_prompt && !(decision.steps && decision.steps.length > 0) && (
           <div>
             <button
               onClick={() => setShowInputPrompt(!showInputPrompt)}

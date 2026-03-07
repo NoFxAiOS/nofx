@@ -146,17 +146,155 @@ cd web && npm run dev
 
 ---
 
-## Cảnh Báo Rủi Ro
+## Triển Khai Máy Chủ
 
-1. Thị trường crypto biến động cực kỳ mạnh — Quyết định AI không đảm bảo lợi nhuận
-2. Giao dịch hợp đồng tương lai sử dụng đòn bẩy — Thua lỗ có thể vượt quá vốn
-3. Điều kiện thị trường cực đoan có thể dẫn đến thanh lý
+### Triển Khai Nhanh (HTTP qua IP)
+
+Mặc định, mã hóa truyền tải bị **tắt**, cho phép bạn truy cập NOFX qua địa chỉ IP không cần HTTPS:
+
+```bash
+# Triển khai lên máy chủ
+curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bash
+```
+
+Truy cập qua `http://YOUR_SERVER_IP:3000` - hoạt động ngay lập tức.
+
+### Bảo Mật Nâng Cao (HTTPS)
+
+Để tăng cường bảo mật, bật mã hóa truyền tải trong `.env`:
+
+```bash
+TRANSPORT_ENCRYPTION=true
+```
+
+Khi được bật, trình duyệt sử dụng Web Crypto API để mã hóa API key trước khi truyền. Điều này yêu cầu:
+- `https://` - Bất kỳ domain nào có SSL
+- `http://localhost` - Phát triển local
+
+### Thiết Lập HTTPS Nhanh với Cloudflare
+
+1. **Thêm domain vào Cloudflare** (gói miễn phí hoạt động)
+   - Truy cập [dash.cloudflare.com](https://dash.cloudflare.com)
+   - Thêm domain và cập nhật nameserver
+
+2. **Tạo DNS record**
+   - Loại: `A`
+   - Tên: `nofx` (hoặc subdomain của bạn)
+   - Nội dung: IP máy chủ của bạn
+   - Trạng thái proxy: **Proxied** (đám mây màu cam)
+
+3. **Cấu hình SSL/TLS**
+   - Vào cài đặt SSL/TLS
+   - Đặt chế độ mã hóa thành **Flexible**
+
+   ```
+   User ──[HTTPS]──→ Cloudflare ──[HTTP]──→ Your Server:3000
+   ```
+
+4. **Bật mã hóa truyền tải**
+   ```bash
+   # Chỉnh sửa .env và đặt
+   TRANSPORT_ENCRYPTION=true
+   ```
+
+5. **Hoàn tất!** Truy cập qua `https://nofx.yourdomain.com`
 
 ---
 
+## Thiết Lập Ban Đầu (Giao Diện Web)
+
+Sau khi khởi động hệ thống, cấu hình qua giao diện web:
+
+1. **Cấu hình Mô hình AI** - Thêm API key AI của bạn (DeepSeek, OpenAI, v.v.)
+2. **Cấu hình Sàn giao dịch** - Thiết lập thông tin xác thực API sàn
+3. **Tạo Chiến lược** - Cấu hình chiến lược giao dịch trong Strategy Studio
+4. **Tạo Trader** - Kết hợp Mô hình AI + Sàn + Chiến lược
+5. **Bắt đầu Giao dịch** - Khởi động các trader đã cấu hình
+
+Tất cả cấu hình được thực hiện qua giao diện web - không cần chỉnh sửa file JSON.
+
+---
+
+## Tính Năng Giao Diện Web
+
+### Trang Thi Đấu
+- Bảng xếp hạng ROI theo thời gian thực
+- Biểu đồ so sánh hiệu suất đa AI
+- Theo dõi P/L trực tiếp và xếp hạng
+
+### Dashboard
+- Biểu đồ nến kiểu TradingView
+- Quản lý vị thế theo thời gian thực
+- Nhật ký quyết định AI với lý luận Chuỗi Suy Nghĩ
+- Theo dõi đường cong vốn
+
+### Strategy Studio
+- Cấu hình nguồn coin (Danh sách tĩnh, nhóm AI500, OI Top)
+- Chỉ báo kỹ thuật (EMA, MACD, RSI, ATR, Khối lượng, OI, Tỷ lệ Funding)
+- Cài đặt kiểm soát rủi ro (đòn bẩy, giới hạn vị thế, sử dụng ký quỹ)
+- Kiểm tra AI với xem trước prompt theo thời gian thực
+
+---
+
+## Vấn Đề Thường Gặp
+
+### Không tìm thấy TA-Lib
+```bash
+# macOS
+brew install ta-lib
+
+# Ubuntu
+sudo apt-get install libta-lib0-dev
+```
+
+### AI API timeout
+- Kiểm tra API key có đúng không
+- Kiểm tra kết nối mạng
+- Thời gian chờ hệ thống là 120 giây
+
+### Frontend không kết nối được backend
+- Đảm bảo backend đang chạy trên http://localhost:8080
+- Kiểm tra cổng có bị chiếm không
+
+---
+
+## Cảnh Báo Rủi Ro
+
+1. Thị trường crypto biến động cực kỳ mạnh - Quyết định AI không đảm bảo lợi nhuận
+2. Giao dịch hợp đồng tương lai sử dụng đòn bẩy - Thua lỗ có thể vượt quá vốn
+3. Điều kiện thị trường cực đoan có thể dẫn đến thanh lý
+
+
+
 ## Giấy Phép
 
-**GNU Affero General Public License v3.0 (AGPL-3.0)**
+Dự án này được cấp phép theo **GNU Affero General Public License v3.0 (AGPL-3.0)** - Xem file [LICENSE](LICENSE).
+
+---
+
+## Đóng Góp
+
+Chúng tôi hoan nghênh các đóng góp! Xem:
+- **[Hướng Dẫn Đóng Góp](CONTRIBUTING.md)** - Quy trình làm việc và PR
+- **[Quy Tắc Ứng Xử](CODE_OF_CONDUCT.md)** - Hướng dẫn cộng đồng  
+- **[Chính Sách Bảo Mật](SECURITY.md)** - Báo cáo lỗ hổng
+
+---
+
+## Chương Trình Airdrop Cho Người Đóng Góp
+
+Tất cả đóng góp được theo dõi trên GitHub. Khi NOFX tạo ra doanh thu, người đóng góp sẽ nhận được airdrop dựa trên mức đóng góp của họ.
+
+**PR giải quyết [Issue Được Ghim](https://github.com/NoFxAiOS/nofx/issues) nhận phần thưởng CAO NHẤT!**
+
+| Loại Đóng Góp | Trọng Số |
+|------------------|:------:|
+| **PR Issue Được Ghim** | ⭐⭐⭐⭐⭐⭐ |
+| **Commit Code** (PR đã merge) | ⭐⭐⭐⭐⭐ |
+| **Sửa Lỗi** | ⭐⭐⭐⭐ |
+| **Đề Xuất Tính Năng** | ⭐⭐⭐ |
+| **Báo Lỗi** | ⭐⭐ |
+| **Tài Liệu** | ⭐⭐ |
 
 ---
 
@@ -164,3 +302,9 @@ cd web && npm run dev
 
 - **GitHub Issues**: [Gửi Issue](https://github.com/NoFxAiOS/nofx/issues)
 - **Cộng đồng Nhà phát triển**: [Nhóm Telegram](https://t.me/nofx_dev_community)
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NoFxAiOS/nofx&type=Date)](https://star-history.com/#NoFxAiOS/nofx&Date)

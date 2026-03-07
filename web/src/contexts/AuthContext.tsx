@@ -26,9 +26,8 @@ interface AuthContextType {
     password: string,
     betaCode?: string
   ) => Promise<{
-    success: boolean
-    message?: string
-  ) => Promise<{ success: boolean; message?: string }>
+success: boolean
+	}>
   resetPassword: (
     email: string,
     newPassword: string

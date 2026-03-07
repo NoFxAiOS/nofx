@@ -132,13 +132,14 @@ type Context struct {
 // Decision AI trading decision
 type Decision struct {
 	Symbol string `json:"symbol"`
-	Action string `json:"action"` // Standard: "open_long", "open_short", "close_long", "close_short", "hold", "wait"
+	Action string `json:"action"` // Standard: "open_long", "open_short", "close_long", "close_short", "hold", "wait", "update_stop_loss"
 	// Grid actions: "place_buy_limit", "place_sell_limit", "cancel_order", "cancel_all_orders", "pause_grid", "resume_grid", "adjust_grid"
 
 	// Opening position parameters
 	Leverage        int     `json:"leverage,omitempty"`
 	PositionSizeUSD float64 `json:"position_size_usd,omitempty"`
 	StopLoss        float64 `json:"stop_loss,omitempty"`
+	UpdateStopLoss  float64 `json:"update_stop_loss,omitempty"` // Update existing stop loss price
 	TakeProfit      float64 `json:"take_profit,omitempty"`
 
 	// Grid trading parameters
@@ -1149,10 +1150,12 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("]\n```\n")
 	sb.WriteString("</decision>\n\n")
 	sb.WriteString("## Field Description\n\n")
-	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
+	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait | update_stop_loss\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- Required when updating stop loss: update_stop_loss (new stop loss price)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
+		sb.WriteString("- **DO NOT USE** `no_trade` or any variant - use `wait` when you want to skip trading\n")
 
 	// 8. Custom Prompt
 	if e.config.CustomPrompt != "" {
@@ -1988,7 +1991,8 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 		"close_long":  true,
 		"close_short": true,
 		"hold":        true,
-		"wait":        true,
+		"wait":             true,
+		"update_stop_loss": true,
 	}
 
 	if !validActions[d.Action] {

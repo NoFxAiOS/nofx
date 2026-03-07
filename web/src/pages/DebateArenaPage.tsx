@@ -26,6 +26,7 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
+	Target,
 } from 'lucide-react'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
 
@@ -83,6 +84,7 @@ const ACT: Record<string, { color: string; bg: string; icon: JSX.Element; label:
   wait: { color: 'text-gray-400', bg: 'bg-gray-500/20', icon: <Clock size={14} />, label: 'WAIT' },
   close_long: { color: 'text-yellow-400', bg: 'bg-yellow-500/20', icon: <X size={14} />, label: 'CLOSE' },
   close_short: { color: 'text-yellow-400', bg: 'bg-yellow-500/20', icon: <X size={14} />, label: 'CLOSE' },
+	update_stop_loss: { color: 'text-blue-400', bg: 'bg-blue-500/20', icon: <Target size={14} />, label: 'UPDATE SL' },
 }
 
 // Status colors

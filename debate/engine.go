@@ -416,6 +416,9 @@ Then output your decisions in STRICT JSON ARRAY format (can include multiple coi
 - "hold" (持仓观望)
 - "wait" (空仓等待)
 
+- **update_stop_loss**: Update existing stop loss price (use with existing position)
+
+- **DO NOT USE** no_trade or any variant - use wait when you want to skip trading
 ### Field Requirements for each coin:
 - symbol: REQUIRED, the trading pair
 - action: REQUIRED, exactly one of the above values
@@ -1233,7 +1236,8 @@ func isValidAction(action string) bool {
 		"close_long":  true,
 		"close_short": true,
 		"hold":        true,
-		"wait":        true,
+		"wait":             true,
+		"update_stop_loss": true,
 	}
 	return validActions[strings.ToLower(strings.TrimSpace(action))]
 }

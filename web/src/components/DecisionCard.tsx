@@ -16,6 +16,7 @@ const ACTION_CONFIG: Record<string, { color: string; bg: string; icon: string; l
   close_short: { color: '#F0B90B', bg: 'rgba(240, 185, 11, 0.15)', icon: '💰', label: 'CLOSE' },
   hold: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏸️', label: 'HOLD' },
   wait: { color: '#848E9C', bg: 'rgba(132, 142, 156, 0.15)', icon: '⏳', label: 'WAIT' },
+  update_stop_loss: { color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.15)', icon: '🔄', label: 'UPDATE SL' },
 }
 
 // Format price with proper decimals
@@ -47,6 +48,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
   const config = ACTION_CONFIG[action.action] || ACTION_CONFIG.wait
   const isLong = action.action.includes('long')
   const isOpen = action.action.includes('open')
+  const isUpdateSL = action.action === 'update_stop_loss'
 
   return (
     <div
@@ -98,7 +100,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
       </div>
 
       {/* Trading Details Grid */}
-      {isOpen && (
+	{(isOpen || isUpdateSL) && (
         <div className="grid grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
           {/* Entry Price */}
           <div className="text-center">

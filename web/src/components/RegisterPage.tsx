@@ -75,7 +75,7 @@ export function RegisterPage() {
       }
 
       if (!result.success) {
-        const msg = result.message || t('registrationFailed', language)
+        const msg = (result as any).message || t('registrationFailed', language)
         if (isWhitelistError(msg)) {
           setView('whitelist-full')
           return

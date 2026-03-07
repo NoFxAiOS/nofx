@@ -336,9 +336,9 @@ export function TraderConfigModal({
                   <option value="">{t('noStrategyManual', language)}</option>
                   {strategies.map((strategy) => (
                     <option key={strategy.id} value={strategy.id}>
-                      {selectedStrategy.name}
-                      {selectedStrategy.is_active ? t('active', language) : ''}
-                      {selectedStrategy.is_default ? t('default', language) : ''}
+                      {selectedStrategy?.name}
+                      {selectedStrategy?.is_active ? t('strategyActive', language) : ''}
+                      {selectedStrategy?.is_default ? t('default', language) : ''}
                     </option>
                   ))}
                 </select>
@@ -356,7 +356,7 @@ export function TraderConfigModal({
                     <span className="text-[#F0B90B] text-sm font-medium">
                       {t('strategyDetails', language)}
                     </span>
-                    {selectedStrategy.is_active && (
+                    {selectedStrategy?.is_active && (
                       <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
                         {t('activating', language)}
                       </span>

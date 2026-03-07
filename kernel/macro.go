@@ -13,13 +13,98 @@ import (
 	"nofx/store"
 )
 
+// MacroSymbolEntry holds per-symbol metadata from the macro pass (bias, risk, conviction).
+type MacroSymbolEntry struct {
+	Symbol     string  `json:"symbol"`     // e.g. BTCUSDT
+	Bias       string  `json:"bias"`       // bullish, bearish, neutral
+	Risk       string  `json:"risk"`       // low, medium, high
+	Conviction float64 `json:"conviction"` // 0-1, strength vs overall market
+}
+
+// macroSymbolsForDeepDive supports both new format ([]MacroSymbolEntry) and legacy ([]string) in JSON.
+type macroSymbolsForDeepDive []MacroSymbolEntry
+
+func (m *macroSymbolsForDeepDive) UnmarshalJSON(data []byte) error {
+	var raw []interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	result := make([]MacroSymbolEntry, 0, len(raw))
+	for _, item := range raw {
+		switch v := item.(type) {
+		case string:
+			result = append(result, MacroSymbolEntry{
+				Symbol:     market.Normalize(v),
+				Bias:       "neutral",
+				Risk:       "medium",
+				Conviction: 0.5,
+			})
+		case map[string]interface{}:
+			sym, _ := v["symbol"].(string)
+			bias, _ := v["bias"].(string)
+			risk, _ := v["risk"].(string)
+			conv := 0.5
+			if c, ok := v["conviction"].(float64); ok && c >= 0 && c <= 1 {
+				conv = c
+			}
+			if sym == "" {
+				continue
+			}
+			result = append(result, MacroSymbolEntry{
+				Symbol:     market.Normalize(sym),
+				Bias:       coalesceBias(bias),
+				Risk:       coalesceRisk(risk),
+				Conviction: conv,
+			})
+		}
+	}
+	*m = result
+	return nil
+}
+
+func coalesceBias(s string) string {
+	switch s {
+	case "bullish", "bearish", "neutral":
+		return s
+	default:
+		return "neutral"
+	}
+}
+
+func coalesceRisk(s string) string {
+	switch s {
+	case "low", "medium", "high":
+		return s
+	default:
+		return "medium"
+	}
+}
+
+// SymbolStrings returns the symbol strings from a macro symbols slice (for use with APIs that expect []string).
+func SymbolStrings(entries macroSymbolsForDeepDive) []string {
+	out := make([]string, len(entries))
+	for i, e := range entries {
+		out[i] = e.Symbol
+	}
+	return out
+}
+
+// NewMacroSymbolsFromStrings creates macro symbol entries with default bias/risk/conviction.
+func NewMacroSymbolsFromStrings(syms []string) macroSymbolsForDeepDive {
+	out := make(macroSymbolsForDeepDive, len(syms))
+	for i, s := range syms {
+		out[i] = MacroSymbolEntry{Symbol: market.Normalize(s), Bias: "neutral", Risk: "medium", Conviction: 0.5}
+	}
+	return out
+}
+
 // MacroOutput is the structured output from the macro AI pass.
 type MacroOutput struct {
-	Trend               string   `json:"trend"`                 // bullish, bearish, neutral
-	RiskLevel           string   `json:"risk_level"`             // high, medium, low
-	FocusReason         string   `json:"focus_reason"`           // 1-2 sentences
-	SymbolsForDeepDive  []string `json:"symbols_for_deep_dive"` // must include all open positions + up to N opportunities
-	CheckPositions      bool     `json:"check_positions"`
+	Trend              string                 `json:"trend"`                // market overview: bullish, bearish, neutral (fallback)
+	RiskLevel          string                 `json:"risk_level"`           // market-level risk (fallback)
+	FocusReason        string                 `json:"focus_reason"`         // 1-2 sentences
+	SymbolsForDeepDive macroSymbolsForDeepDive `json:"symbols_for_deep_dive"` // per-symbol: symbol, bias, risk, conviction
+	CheckPositions     bool                   `json:"check_positions"`
 }
 
 func formatMacroOISummary(data *nofxos.OIRankingData, topN int) string {
@@ -249,11 +334,18 @@ Output schema:
   "trend": "bullish" | "bearish" | "neutral",
   "risk_level": "high" | "medium" | "low",
   "focus_reason": "1-2 sentences summarizing market context and where to focus",
-  "symbols_for_deep_dive": ["SYM1", "SYM2", ...],
+  "symbols_for_deep_dive": [
+    {"symbol": "SYM1", "bias": "bullish"|"bearish"|"neutral", "risk": "low"|"medium"|"high", "conviction": 0.0-1.0},
+    ...
+  ],
   "check_positions": true | false
 }
 
-Rule: You MUST include every currently open position symbol in symbols_for_deep_dive (so they receive a deep-dive for TP/SL/hold). In addition, you may add up to N opportunity symbols for new trades, in priority order. No open position may be omitted.`
+Rules:
+- You MUST include every currently open position symbol in symbols_for_deep_dive (for TP/SL/hold). No open position may be omitted.
+- Each symbol can have its own bias (bullish/bearish/neutral), risk, and conviction (0-1: strength vs overall market).
+- The market can be mixed: some symbols bullish, some bearish. Both long and short setups can appear.
+- conviction: 0.5 = average vs market; higher = stronger opportunity; lower = weaker.`
 }
 
 // BuildMacroSystemPrompt returns the system prompt for the macro AI pass (for preview or trace).
@@ -292,7 +384,7 @@ func effectiveMacroCustomPrompt(config *store.StrategyConfig) string {
 }
 
 func getMacroUserPrompt(brief string, opportunityLimit int, customPrompt string) string {
-	instruction := fmt.Sprintf("Based on this market brief, output a JSON object with: (1) trend: one of bullish/bearish/neutral, (2) risk_level: high/medium/low, (3) focus_reason: 1-2 sentences, (4) symbols_for_deep_dive: array of symbols — must include every open position symbol, plus at most %d additional symbols for new opportunities, in priority order, (5) check_positions: true if there are open positions, else false.", opportunityLimit)
+	instruction := fmt.Sprintf("Based on this market brief, output a JSON object with: (1) trend: bullish/bearish/neutral (market overview), (2) risk_level: high/medium/low, (3) focus_reason: 1-2 sentences, (4) symbols_for_deep_dive: array of objects {symbol, bias, risk, conviction} — must include every open position symbol, plus at most %d additional symbols for new opportunities, in priority order. Each symbol gets its own bias (bullish/bearish/neutral), risk (low/medium/high), and conviction (0-1). (5) check_positions: true if open positions exist, else false.", opportunityLimit)
 	out := brief + "\n\n" + instruction
 	if customPrompt != "" {
 		out += "\n\n" + customPrompt
@@ -365,16 +457,16 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 
 	// Ensure all position symbols are in the list (keep even if excluded - we need to manage hold/close), then add macro-selected symbols up to cap
 	seen := make(map[string]bool)
-	var merged []string
+	var merged macroSymbolsForDeepDive
 	for _, pos := range ctx.Positions {
 		n := market.Normalize(pos.Symbol)
 		if !seen[n] {
-			merged = append(merged, n)
+			merged = append(merged, MacroSymbolEntry{Symbol: n, Bias: "neutral", Risk: out.RiskLevel, Conviction: 0.5})
 			seen[n] = true
 		}
 	}
-	for _, sym := range out.SymbolsForDeepDive {
-		n := market.Normalize(sym)
+	for _, entry := range out.SymbolsForDeepDive {
+		n := market.Normalize(entry.Symbol)
 		if seen[n] {
 			continue
 		}
@@ -382,7 +474,12 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 			logger.Infof("🚫 [macro-micro] Excluded symbol %s skipped from deep-dive", n)
 			continue
 		}
-		merged = append(merged, n)
+		merged = append(merged, MacroSymbolEntry{
+			Symbol:     n,
+			Bias:       coalesceBias(entry.Bias),
+			Risk:       coalesceRisk(entry.Risk),
+			Conviction: clampConviction(entry.Conviction),
+		})
 		seen[n] = true
 	}
 	limit := clampMacroDeepDiveLimit(config.MacroDeepDiveLimit)
@@ -396,6 +493,16 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 	out.SymbolsForDeepDive = merged
 	out.CheckPositions = out.CheckPositions || len(ctx.Positions) > 0
 	return out
+}
+
+func clampConviction(c float64) float64 {
+	if c < 0 {
+		return 0
+	}
+	if c > 1 {
+		return 1
+	}
+	return c
 }
 
 // GetMacroDecision calls the AI with the macro brief and returns structured output.
@@ -422,7 +529,7 @@ func GetMacroDecision(ctx *Context, macroBrief string, engine *StrategyEngine, m
 			Trend:          "neutral",
 			RiskLevel:      "medium",
 			FocusReason:    "",
-			CheckPositions:  len(ctx.Positions) > 0,
+			CheckPositions: len(ctx.Positions) > 0,
 		}
 		coins, _ := engine.nofxosClient.GetAI500List()
 		for i, c := range coins {
@@ -431,11 +538,11 @@ func GetMacroDecision(ctx *Context, macroBrief string, engine *StrategyEngine, m
 			}
 			sym := market.Normalize(c.Pair)
 			if sym != "BTCUSDT" && sym != "ETHUSDT" {
-				out.SymbolsForDeepDive = append(out.SymbolsForDeepDive, sym)
+				out.SymbolsForDeepDive = append(out.SymbolsForDeepDive, MacroSymbolEntry{Symbol: sym, Bias: "neutral", Risk: "medium", Conviction: 0.5})
 			}
 		}
 		for _, pos := range ctx.Positions {
-			out.SymbolsForDeepDive = append(out.SymbolsForDeepDive, market.Normalize(pos.Symbol))
+			out.SymbolsForDeepDive = append(out.SymbolsForDeepDive, MacroSymbolEntry{Symbol: market.Normalize(pos.Symbol), Bias: "neutral", Risk: "medium", Conviction: 0.5})
 		}
 	}
 

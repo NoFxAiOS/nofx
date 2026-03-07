@@ -45,7 +45,7 @@ func TestRestrictDeepDiveSymbolsToContext_PreFilled(t *testing.T) {
 		Positions: []PositionInfo{},
 	}
 	macroOut := &MacroOutput{
-		SymbolsForDeepDive: []string{"SOLUSDT", "BTCUSDT"},
+		SymbolsForDeepDive: macroSymbolsForDeepDive{{Symbol: "SOLUSDT"}, {Symbol: "BTCUSDT"}},
 	}
 	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5, nil)
 	// SOLUSDT not in context → dropped; BTCUSDT in context → kept; then fills from context up to maxDeepDives
@@ -54,8 +54,8 @@ func TestRestrictDeepDiveSymbolsToContext_PreFilled(t *testing.T) {
 	}
 	hasBTC := false
 	hasSOL := false
-	for _, s := range macroOut.SymbolsForDeepDive {
-		n := market.Normalize(s)
+	for _, e := range macroOut.SymbolsForDeepDive {
+		n := market.Normalize(e.Symbol)
 		if n == "BTCUSDT" {
 			hasBTC = true
 		}
@@ -77,7 +77,7 @@ func TestRestrictDeepDiveSymbolsToContext_EmptyContext(t *testing.T) {
 		Positions:     []PositionInfo{},
 	}
 	macroOut := &MacroOutput{
-		SymbolsForDeepDive: []string{"BTCUSDT", "ETHUSDT"},
+		SymbolsForDeepDive: macroSymbolsForDeepDive{{Symbol: "BTCUSDT"}, {Symbol: "ETHUSDT"}},
 	}
 	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5, nil)
 	// Empty context: function returns early, macroOut unchanged
@@ -95,7 +95,7 @@ func TestRestrictDeepDiveSymbolsToContext_WithPositions(t *testing.T) {
 		Positions: []PositionInfo{{Symbol: "ETHUSDT"}},
 	}
 	macroOut := &MacroOutput{
-		SymbolsForDeepDive: []string{"SOLUSDT"},
+		SymbolsForDeepDive: macroSymbolsForDeepDive{{Symbol: "SOLUSDT"}},
 	}
 	restrictDeepDiveSymbolsToContext(ctx, macroOut, 5, nil)
 	// SOLUSDT not in context → dropped; ETHUSDT is position in context → added; then may fill from context
@@ -104,8 +104,8 @@ func TestRestrictDeepDiveSymbolsToContext_WithPositions(t *testing.T) {
 	}
 	hasETH := false
 	hasSOL := false
-	for _, s := range macroOut.SymbolsForDeepDive {
-		n := market.Normalize(s)
+	for _, e := range macroOut.SymbolsForDeepDive {
+		n := market.Normalize(e.Symbol)
 		if n == "ETHUSDT" {
 			hasETH = true
 		}
@@ -133,7 +133,7 @@ func TestRestrictDeepDiveSymbolsToContext_FallbackRespectsMaxDeepDives(t *testin
 		Positions: []PositionInfo{},
 	}
 	macroOut := &MacroOutput{
-		SymbolsForDeepDive: []string{},
+		SymbolsForDeepDive: macroSymbolsForDeepDive{},
 	}
 	restrictDeepDiveSymbolsToContext(ctx, macroOut, 3, nil)
 	if len(macroOut.SymbolsForDeepDive) != 3 {
@@ -157,16 +157,16 @@ func TestBuildMacroMicroCombinedUserPrompt_ContainsMacroAndPerSymbol(t *testing.
 		Trend:              "bullish",
 		RiskLevel:          "medium",
 		FocusReason:        "test focus",
-		SymbolsForDeepDive: []string{"BTCUSDT"},
+		SymbolsForDeepDive: macroSymbolsForDeepDive{{Symbol: "BTCUSDT"}},
 	}
 	prompt := engine.BuildMacroMicroCombinedUserPrompt(ctx, "## Macro brief\nTest brief", macroOut)
 	if !strings.Contains(prompt, "## Macro brief") {
 		t.Error("prompt should contain macro brief")
 	}
-	if !strings.Contains(prompt, "Trend: bullish") {
+	if !strings.Contains(prompt, "bullish") {
 		t.Error("prompt should contain macro trend")
 	}
-	if !strings.Contains(prompt, "=== BTCUSDT ===") {
+	if !strings.Contains(prompt, "=== BTCUSDT ") {
 		t.Error("prompt should contain per-symbol data block for BTCUSDT")
 	}
 	if !strings.Contains(prompt, "Output your trading decisions") {

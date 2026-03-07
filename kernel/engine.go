@@ -407,7 +407,9 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 
 	// 3. Fetch market (and quant) data for symbols_for_deep_dive
 	symbolsToFetch := make([]string, len(macroOut.SymbolsForDeepDive))
-	copy(symbolsToFetch, macroOut.SymbolsForDeepDive)
+	for i, e := range macroOut.SymbolsForDeepDive {
+		symbolsToFetch[i] = e.Symbol
+	}
 	if err := fetchMarketDataForSymbols(ctx, engine, symbolsToFetch); err != nil {
 		return nil, fmt.Errorf("fetch market data for deep-dive symbols: %w", err)
 	}
@@ -440,11 +442,11 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 	// 4. Run deep-dives for each symbol
 	logger.Infof("[macro-micro] Running %d deep-dive(s)", len(macroOut.SymbolsForDeepDive))
 	var allDecisions []Decision
-	for _, sym := range macroOut.SymbolsForDeepDive {
-		d, err := GetSymbolDeepDive(ctx, engine, mcpClient, sym, macroBrief, macroOut.FocusReason, macroOut.Trend, macroOut.RiskLevel)
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		d, err := GetSymbolDeepDive(ctx, engine, mcpClient, entry.Symbol, macroBrief, macroOut.FocusReason, entry.Bias, entry.Risk, entry.Conviction)
 		if err != nil {
-			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", sym, err)
-			allDecisions = append(allDecisions, Decision{Symbol: sym, Action: "wait", Reasoning: err.Error()})
+			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", entry.Symbol, err)
+			allDecisions = append(allDecisions, Decision{Symbol: entry.Symbol, Action: "wait", Reasoning: err.Error()})
 			continue
 		}
 		allDecisions = append(allDecisions, *d)
@@ -562,11 +564,11 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 			}
 			sym := market.Normalize(c.Pair)
 			if sym != "BTCUSDT" && sym != "ETHUSDT" {
-				macroOut.SymbolsForDeepDive = append(macroOut.SymbolsForDeepDive, sym)
+				macroOut.SymbolsForDeepDive = append(macroOut.SymbolsForDeepDive, MacroSymbolEntry{Symbol: sym, Bias: "neutral", Risk: "medium", Conviction: 0.5})
 			}
 		}
 		for _, pos := range ctx.Positions {
-			macroOut.SymbolsForDeepDive = append(macroOut.SymbolsForDeepDive, market.Normalize(pos.Symbol))
+			macroOut.SymbolsForDeepDive = append(macroOut.SymbolsForDeepDive, MacroSymbolEntry{Symbol: market.Normalize(pos.Symbol), Bias: "neutral", Risk: "medium", Conviction: 0.5})
 		}
 	}
 	macroOut = ValidateAndMergeMacroOutput(macroOut, ctx, config)
@@ -584,7 +586,9 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 
 	// 3. Fetch market (and quant) data for symbols_for_deep_dive
 	symbolsToFetch := make([]string, len(macroOut.SymbolsForDeepDive))
-	copy(symbolsToFetch, macroOut.SymbolsForDeepDive)
+	for i, e := range macroOut.SymbolsForDeepDive {
+		symbolsToFetch[i] = e.Symbol
+	}
 	if err := fetchMarketDataForSymbols(ctx, engine, symbolsToFetch); err != nil {
 		return nil, nil, fmt.Errorf("fetch market data for deep-dive symbols: %w", err)
 	}
@@ -617,9 +621,10 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 	// 4. Run deep-dives for each symbol (record each step)
 	logger.Infof("[macro-micro] Running %d deep-dive(s)", len(macroOut.SymbolsForDeepDive))
 	var allDecisions []Decision
-	for _, sym := range macroOut.SymbolsForDeepDive {
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		sym := entry.Symbol
 		sysPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
-		userPrompt := engine.BuildDeepDiveUserPrompt(ctx, sym, macroBrief, macroOut.FocusReason, macroOut.Trend, macroOut.RiskLevel)
+		userPrompt := engine.BuildDeepDiveUserPrompt(ctx, sym, macroBrief, macroOut.FocusReason, entry.Bias, entry.Risk, entry.Conviction)
 		response, err := mcpClient.CallWithMessages(sysPrompt, userPrompt)
 		if err != nil {
 			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", sym, err)
@@ -844,18 +849,18 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 	}
 
 	seen := make(map[string]bool)
-	var filtered []string
-	for _, sym := range macroOut.SymbolsForDeepDive {
-		n := market.Normalize(sym)
+	var filtered []MacroSymbolEntry
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		n := market.Normalize(entry.Symbol)
 		if allowed[n] && !seen[n] {
-			filtered = append(filtered, n)
+			filtered = append(filtered, entry)
 			seen[n] = true
 		}
 	}
 	for _, pos := range ctx.Positions {
 		n := market.Normalize(pos.Symbol)
 		if allowed[n] && !seen[n] {
-			filtered = append(filtered, n)
+			filtered = append(filtered, MacroSymbolEntry{Symbol: n, Bias: "neutral", Risk: "medium", Conviction: 0.5})
 			seen[n] = true
 		}
 	}
@@ -869,7 +874,7 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 				continue
 			}
 			if !seen[n] {
-				filtered = append(filtered, n)
+				filtered = append(filtered, MacroSymbolEntry{Symbol: n, Bias: "neutral", Risk: "medium", Conviction: 0.5})
 				seen[n] = true
 				if len(filtered) >= fallbackCap {
 					break
@@ -891,7 +896,7 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 				continue
 			}
 			if !seen[n] {
-				filtered = append(filtered, n)
+				filtered = append(filtered, MacroSymbolEntry{Symbol: n, Bias: "neutral", Risk: "medium", Conviction: 0.5})
 				seen[n] = true
 			}
 		}
@@ -900,9 +905,13 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 		filtered = filtered[:maxDeepDives]
 	}
 	if len(filtered) != len(macroOut.SymbolsForDeepDive) {
-		logger.Infof("[macro-micro] Symbols_for_deep_dive: %v (count %d, was %d)", filtered, len(filtered), len(macroOut.SymbolsForDeepDive))
+		syms := make([]string, len(filtered))
+		for i, e := range filtered {
+			syms[i] = e.Symbol
+		}
+		logger.Infof("[macro-micro] Symbols_for_deep_dive: %v (count %d, was %d)", syms, len(filtered), len(macroOut.SymbolsForDeepDive))
 	}
-	macroOut.SymbolsForDeepDive = filtered
+	macroOut.SymbolsForDeepDive = macroSymbolsForDeepDive(filtered)
 }
 
 // fetchMarketDataForSymbols fetches market data only for the given symbols (used in macro-micro flow).
@@ -1952,11 +1961,12 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 
 // BuildDeepDiveUserPrompt builds the user prompt for a single-symbol deep-dive (macro context + full data for one symbol).
 // Uses the same klines, indicators, and quant data as the non-multi-turn path; fetches on demand if missing from context.
-func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, macroBrief string, focusReason string, trend string, riskLevel string) string {
+// symbolBias, symbolRisk, conviction: per-symbol macro view (bullish/bearish/neutral, risk, 0-1 strength vs market).
+func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, macroBrief string, focusReason string, symbolBias string, symbolRisk string, conviction float64) string {
 	var sb strings.Builder
 	sb.WriteString(macroBrief)
 	sb.WriteString("\n\n## Market context (from macro)\n")
-	sb.WriteString(fmt.Sprintf("Trend: %s | Risk: %s\n", trend, riskLevel))
+	sb.WriteString(fmt.Sprintf("Symbol bias: %s | Symbol risk: %s | Conviction: %.2f (vs market)\n", symbolBias, symbolRisk, conviction))
 	if focusReason != "" {
 		sb.WriteString("Focus: " + focusReason + "\n")
 	}
@@ -2056,14 +2066,15 @@ func (e *StrategyEngine) BuildMacroMicroCombinedUserPrompt(ctx *Context, macroBr
 	var sb strings.Builder
 	sb.WriteString(macroBrief)
 	sb.WriteString("\n\n## Market context (from macro)\n")
-	sb.WriteString(fmt.Sprintf("Trend: %s | Risk: %s\n", macroOut.Trend, macroOut.RiskLevel))
+	sb.WriteString(fmt.Sprintf("Market trend: %s | Risk: %s\n", macroOut.Trend, macroOut.RiskLevel))
 	if macroOut.FocusReason != "" {
 		sb.WriteString("Focus: " + macroOut.FocusReason + "\n")
 	}
 	sb.WriteString("\n## Symbols to analyze (output one decision per symbol you wish to act on)\n\n")
-	for _, symbol := range macroOut.SymbolsForDeepDive {
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		symbol := entry.Symbol
 		normalized := market.Normalize(symbol)
-		sb.WriteString(fmt.Sprintf("=== %s ===\n\n", symbol))
+		sb.WriteString(fmt.Sprintf("=== %s (bias: %s, risk: %s, conviction: %.2f) ===\n\n", symbol, entry.Bias, entry.Risk, entry.Conviction))
 		marketData, hasMarket := ctx.MarketDataMap[symbol]
 		if !hasMarket {
 			for k, v := range ctx.MarketDataMap {
@@ -2114,9 +2125,9 @@ func (e *StrategyEngine) effectiveDeepDiveCustomPrompt() string {
 }
 
 // GetSymbolDeepDive runs one AI call for a single symbol and returns the decision for that symbol.
-func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, symbol string, macroBrief string, focusReason string, trend string, riskLevel string) (*Decision, error) {
+func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, symbol string, macroBrief string, focusReason string, symbolBias string, symbolRisk string, conviction float64) (*Decision, error) {
 	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
-	userPrompt := engine.BuildDeepDiveUserPrompt(ctx, symbol, macroBrief, focusReason, trend, riskLevel)
+	userPrompt := engine.BuildDeepDiveUserPrompt(ctx, symbol, macroBrief, focusReason, symbolBias, symbolRisk, conviction)
 	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("deep-dive AI call for %s failed: %w", symbol, err)

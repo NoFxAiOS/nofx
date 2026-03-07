@@ -527,7 +527,7 @@ func (e *DebateEngine) buildMarketContextMacroMicroPerParticipant(session *store
 			return nil, fmt.Errorf("macro decision: %w", err)
 		}
 		macroOut = kernel.ValidateAndMergeMacroOutput(macroOut, ctx, config)
-		resolvedSymbols = e.mergeDebateSymbols(config, macroOut.SymbolsForDeepDive, session.Symbol)
+		resolvedSymbols = e.mergeDebateSymbols(config, kernel.SymbolStrings(macroOut.SymbolsForDeepDive), session.Symbol)
 		if len(resolvedSymbols) == 0 {
 			return nil, fmt.Errorf("macro returned no symbols for deep-dive")
 		}
@@ -579,7 +579,7 @@ func (e *DebateEngine) buildMarketContextMacroMicroPerParticipant(session *store
 			return nil, fmt.Errorf("macro for %s: %w", participant.AIModelName, err)
 		}
 		macroOut = kernel.ValidateAndMergeMacroOutput(macroOut, ctx, config)
-		macroOut.SymbolsForDeepDive = resolvedSymbols
+		macroOut.SymbolsForDeepDive = kernel.NewMacroSymbolsFromStrings(resolvedSymbols)
 		userPrompt := strategyEngine.BuildMacroMicroCombinedUserPrompt(ctx, macroBrief, macroOut)
 		participantPrompts[participant.ID] = userPrompt
 		logger.Infof("[Debate] Multi-turn: built market context for %s (%s)", participant.AIModelName, participant.Personality)
@@ -656,12 +656,13 @@ func (e *DebateEngine) buildMarketContextMacroMicro(session *store.DebateSession
 	}
 
 	// Merge strategy static list and/or session symbol into symbols_for_deep_dive so multi-turn respects user/strategy choice
-	macroOut.SymbolsForDeepDive = e.mergeDebateSymbols(config, macroOut.SymbolsForDeepDive, session.Symbol)
+	mergedSymbols := e.mergeDebateSymbols(config, kernel.SymbolStrings(macroOut.SymbolsForDeepDive), session.Symbol)
+	macroOut.SymbolsForDeepDive = kernel.NewMacroSymbolsFromStrings(mergedSymbols)
 
 	// Fetch market data only for symbols_for_deep_dive
 	seen := make(map[string]bool)
-	for _, sym := range macroOut.SymbolsForDeepDive {
-		sym = market.Normalize(sym)
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		sym := market.Normalize(entry.Symbol)
 		if seen[sym] {
 			continue
 		}
@@ -676,10 +677,10 @@ func (e *DebateEngine) buildMarketContextMacroMicro(session *store.DebateSession
 	if len(ctx.MarketDataMap) == 0 {
 		return nil, "", fmt.Errorf("failed to fetch market data for any macro symbol")
 	}
-	ctx.QuantDataMap = strategyEngine.FetchQuantDataBatch(macroOut.SymbolsForDeepDive)
+	ctx.QuantDataMap = strategyEngine.FetchQuantDataBatch(kernel.SymbolStrings(macroOut.SymbolsForDeepDive))
 	candidates := make([]kernel.CandidateCoin, 0, len(macroOut.SymbolsForDeepDive))
-	for _, s := range macroOut.SymbolsForDeepDive {
-		candidates = append(candidates, kernel.CandidateCoin{Symbol: market.Normalize(s), Sources: []string{"macro"}})
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		candidates = append(candidates, kernel.CandidateCoin{Symbol: market.Normalize(entry.Symbol), Sources: []string{"macro"}})
 	}
 	ctx.CandidateCoins = candidates
 

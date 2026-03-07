@@ -607,6 +607,11 @@ export interface RiskControlConfig {
   min_position_size: number;       // Min position size in USDT (CODE ENFORCED)
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
+
+  // Profit drawdown close: close when current profit > min and pullback from peak >= % (CODE ENFORCED)
+  enable_drawdown_close?: boolean;           // default true; false = disabled
+  drawdown_close_min_profit_pct?: number;    // min current profit % to consider (default 5)
+  drawdown_close_pct?: number;                // close when pullback from peak >= this % (default 40)
 }
 
 // Debate Arena Types

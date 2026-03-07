@@ -230,6 +230,11 @@ type RiskControlConfig struct {
 	MinRiskRewardRatio float64 `json:"min_risk_reward_ratio"`
 	// Min AI confidence to open position (AI guided)
 	MinConfidence int `json:"min_confidence"`
+
+	// Profit drawdown close: close position when current profit > MinProfitPct and pullback from peak >= DrawdownClosePct (CODE ENFORCED)
+	EnableDrawdownClose       bool    `json:"enable_drawdown_close"`         // default true; set false to disable
+	DrawdownCloseMinProfitPct float64 `json:"drawdown_close_min_profit_pct"` // min current profit % to consider (default 5)
+	DrawdownClosePct          float64 `json:"drawdown_close_pct"`            // close when pullback from peak >= this % (default 40)
 }
 
 // NewStrategyStore creates a new StrategyStore
@@ -315,8 +320,11 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
 			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
 			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                   75,  // Min 75% confidence (AI guided)
+			MinRiskRewardRatio:              3.0,  // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                   75,   // Min 75% confidence (AI guided)
+			EnableDrawdownClose:             true, // Close when profit pulls back from peak
+			DrawdownCloseMinProfitPct:       5.0,  // Only close if current profit > this %
+			DrawdownClosePct:                40.0, // Close when pullback from peak >= this %
 		},
 	}
 

@@ -49,6 +49,24 @@ type StrategyConfig struct {
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 
+	// Macro-micro flow: when true, use multi-turn macro brief -> symbol deep-dives -> position check
+	EnableMacroMicroFlow bool `json:"enable_macro_micro_flow,omitempty"`
+	// Max number of opportunity symbols (excluding open positions) for deep-dive per cycle (default 5, min 3, max 10)
+	MacroDeepDiveLimit int `json:"macro_deep_dive_limit,omitempty"`
+	// User-editable prompt appended to macro AI pass (market-brief call); used if MacroPromptSections empty
+	MacroCustomPrompt string `json:"macro_custom_prompt,omitempty"`
+	// User-editable prompt appended to each symbol deep-dive AI pass; used if DeepDivePromptSections empty
+	DeepDiveCustomPrompt string `json:"deep_dive_custom_prompt,omitempty"`
+	// Editable sections for macro pass (same UX as Prompt Sections)
+	MacroPromptSections *MacroPromptSectionsConfig `json:"macro_prompt_sections,omitempty"`
+	// Editable sections for deep-dive pass
+	DeepDivePromptSections *DeepDivePromptSectionsConfig `json:"deep_dive_prompt_sections,omitempty"`
+
+	// Extra prompt appended to position-check AI pass (optional; default provided)
+	PositionCheckExtraPrompt string `json:"position_check_extra_prompt,omitempty"`
+	// Extra prompt appended to sizing and margin adjustment AI pass (optional; default provided)
+	SizingAdjustmentExtraPrompt string `json:"sizing_adjustment_extra_prompt,omitempty"`
+
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
 }
@@ -97,6 +115,20 @@ type PromptSectionsConfig struct {
 	EntryStandards string `json:"entry_standards,omitempty"`
 	// decision process
 	DecisionProcess string `json:"decision_process,omitempty"`
+}
+
+// MacroPromptSectionsConfig editable sections for macro (market-brief) AI pass
+type MacroPromptSectionsConfig struct {
+	// role/context for the macro analyst
+	RoleContext string `json:"role_context,omitempty"`
+	// guidance on how to select symbols and shape output
+	OutputGuidance string `json:"output_guidance,omitempty"`
+}
+
+// DeepDivePromptSectionsConfig editable sections for symbol deep-dive AI pass
+type DeepDivePromptSectionsConfig struct {
+	// per-symbol rules (sizing, risk, style)
+	SymbolRules string `json:"symbol_rules,omitempty"`
 }
 
 // CoinSourceConfig coin source configuration
@@ -318,6 +350,10 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
 			MinConfidence:                   75,  // Min 75% confidence (AI guided)
 		},
+		EnableMacroMicroFlow: false,
+		MacroDeepDiveLimit:   5,
+		PositionCheckExtraPrompt: "Consider whether each position still aligns with the macro view and trend. Prefer holding when the thesis is intact; close or tighten only when the setup is broken or risk/reward has deteriorated.",
+		SizingAdjustmentExtraPrompt: "When splitting capital across positions, prefer higher-confidence symbols. Keep each position size above the minimum and ensure total margin usage stays within the configured limit.",
 	}
 
 	if lang == "zh" {

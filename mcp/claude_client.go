@@ -99,7 +99,8 @@ func (c *ClaudeClient) parseMCPResponse(body []byte) (string, error) {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
-		Usage struct {
+		StopReason string `json:"stop_reason"`
+		Usage      struct {
 			InputTokens  int `json:"input_tokens"`
 			OutputTokens int `json:"output_tokens"`
 		} `json:"usage"`
@@ -119,6 +120,10 @@ func (c *ClaudeClient) parseMCPResponse(body []byte) (string, error) {
 
 	if len(response.Content) == 0 {
 		return "", fmt.Errorf("Claude returned empty content, body: %s", string(body))
+	}
+
+	if response.StopReason == "max_tokens" {
+		c.logger.Warnf("⚠️ AI response was truncated (stop_reason=max_tokens). Consider raising AI_MAX_TOKENS (current: %d).", c.MaxTokens)
 	}
 
 	// Report token usage if callback is set

@@ -27,6 +27,7 @@ type DecisionRecordDB struct {
 	CandidateCoins      string    `gorm:"column:candidate_coins;default:''"`
 	ExecutionLog        string    `gorm:"column:execution_log;default:''"`
 	Decisions           string    `gorm:"column:decisions;default:'[]'"`
+	Steps               string    `gorm:"column:steps;default:'[]'"` // JSON array of DecisionStepTrace (multi-turn macro-micro)
 	Success             bool      `gorm:"default:false"`
 	ErrorMessage        string    `gorm:"column:error_message;default:''"`
 	AIRequestDurationMs int64     `gorm:"column:ai_request_duration_ms;default:0"`
@@ -35,25 +36,36 @@ type DecisionRecordDB struct {
 
 func (DecisionRecordDB) TableName() string { return "decision_records" }
 
+// DecisionStepTrace holds one step of a macro-micro multi-turn flow (for UI display).
+type DecisionStepTrace struct {
+	Step         string `json:"step"`           // "macro", "deep_dive", "position_check"
+	Label        string `json:"label"`          // "Macro", "Deep-dive: BTCUSDT", "Position check"
+	Symbol       string `json:"symbol,omitempty"`
+	SystemPrompt string `json:"system_prompt"`
+	UserPrompt   string `json:"user_prompt"`
+	Response     string `json:"response"`
+}
+
 // DecisionRecord decision record (external API struct)
 type DecisionRecord struct {
-	ID                  int64              `json:"id"`
-	TraderID            string             `json:"trader_id"`
-	CycleNumber         int                `json:"cycle_number"`
-	Timestamp           time.Time          `json:"timestamp"`
-	SystemPrompt        string             `json:"system_prompt"`
-	InputPrompt         string             `json:"input_prompt"`
-	CoTTrace            string             `json:"cot_trace"`
-	DecisionJSON        string             `json:"decision_json"`
-	RawResponse         string             `json:"raw_response"` // Raw AI response for debugging
-	CandidateCoins      []string           `json:"candidate_coins"`
-	ExecutionLog        []string           `json:"execution_log"`
-	Success             bool               `json:"success"`
-	ErrorMessage        string             `json:"error_message"`
-	AIRequestDurationMs int64              `json:"ai_request_duration_ms"`
-	AccountState        AccountSnapshot    `json:"account_state"`
-	Positions           []PositionSnapshot `json:"positions"`
-	Decisions           []DecisionAction   `json:"decisions"`
+	ID                  int64                 `json:"id"`
+	TraderID            string                `json:"trader_id"`
+	CycleNumber         int                   `json:"cycle_number"`
+	Timestamp           time.Time             `json:"timestamp"`
+	SystemPrompt        string                `json:"system_prompt"`
+	InputPrompt         string                `json:"input_prompt"`
+	CoTTrace            string                `json:"cot_trace"`
+	DecisionJSON        string                `json:"decision_json"`
+	RawResponse         string                `json:"raw_response"` // Raw AI response for debugging
+	CandidateCoins      []string              `json:"candidate_coins"`
+	ExecutionLog        []string              `json:"execution_log"`
+	Success             bool                  `json:"success"`
+	ErrorMessage        string                `json:"error_message"`
+	AIRequestDurationMs int64                 `json:"ai_request_duration_ms"`
+	AccountState        AccountSnapshot       `json:"account_state"`
+	Positions           []PositionSnapshot    `json:"positions"`
+	Decisions           []DecisionAction      `json:"decisions"`
+	Steps               []DecisionStepTrace   `json:"steps,omitempty"` // Multi-turn macro → deep-dive(s) → position check
 }
 
 // AccountSnapshot account state snapshot
@@ -76,6 +88,7 @@ type PositionSnapshot struct {
 	UnrealizedProfit float64 `json:"unrealized_profit"`
 	Leverage         float64 `json:"leverage"`
 	LiquidationPrice float64 `json:"liquidation_price"`
+	EntryTime        int64   `json:"entry_time,omitempty"` // Unix milliseconds UTC
 }
 
 // DecisionAction decision action
@@ -111,11 +124,12 @@ func NewDecisionStore(db *gorm.DB) *DecisionStore {
 
 // initTables initializes AI decision log tables
 func (s *DecisionStore) initTables() error {
-	// For PostgreSQL with existing table, skip AutoMigrate
+	// For PostgreSQL with existing table, run migration for new columns
 	if s.db.Dialector.Name() == "postgres" {
 		var tableExists int64
 		s.db.Raw(`SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'decision_records'`).Scan(&tableExists)
 		if tableExists > 0 {
+			s.db.Exec(`ALTER TABLE decision_records ADD COLUMN IF NOT EXISTS steps TEXT DEFAULT '[]'`)
 			return nil
 		}
 	}
@@ -141,6 +155,7 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 	json.Unmarshal([]byte(db.CandidateCoins), &record.CandidateCoins)
 	json.Unmarshal([]byte(db.ExecutionLog), &record.ExecutionLog)
 	json.Unmarshal([]byte(db.Decisions), &record.Decisions)
+	json.Unmarshal([]byte(db.Steps), &record.Steps)
 	return record
 }
 
@@ -156,6 +171,7 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 	candidateCoinsJSON, _ := json.Marshal(record.CandidateCoins)
 	executionLogJSON, _ := json.Marshal(record.ExecutionLog)
 	decisionsJSON, _ := json.Marshal(record.Decisions)
+	stepsJSON, _ := json.Marshal(record.Steps)
 
 	dbRecord := &DecisionRecordDB{
 		TraderID:            record.TraderID,
@@ -169,6 +185,7 @@ func (s *DecisionStore) LogDecision(record *DecisionRecord) error {
 		CandidateCoins:      string(candidateCoinsJSON),
 		ExecutionLog:        string(executionLogJSON),
 		Decisions:           string(decisionsJSON),
+		Steps:               string(stepsJSON),
 		Success:             record.Success,
 		ErrorMessage:        record.ErrorMessage,
 		AIRequestDurationMs: record.AIRequestDurationMs,

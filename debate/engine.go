@@ -167,25 +167,46 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 
 	// Create strategy engine for building context
 	strategyEngine := kernel.NewStrategyEngine(strategyConfig)
+	config := strategyEngine.GetConfig()
 
-	// Build market context using strategy config
-	ctx, err := e.buildMarketContext(session, strategyEngine)
-	if err != nil {
-		logger.Errorf("Failed to build market context: %v", err)
-		e.debateStore.UpdateSessionStatus(session.ID, store.DebateStatusCancelled)
-		if e.OnError != nil {
-			e.OnError(session.ID, err)
+	// Multi-turn: for each participant (bullish, bearish, risk, etc.) generate market overview, use session/static symbol(s), build combined prompt, then run debate rounds
+	var participantUserPrompts map[string]string
+	var singleUserPrompt string
+	var err error
+	if config.EnableMacroMicroFlow && len(session.Participants) >= 1 {
+		logger.Infof("[Debate] Multi-turn: building per-participant market context (macro per AI, then debate)")
+		participantUserPrompts, err = e.buildMarketContextMacroMicroPerParticipant(session, strategyEngine)
+		if err != nil {
+			logger.Errorf("Failed to build per-participant market context: %v", err)
+			e.debateStore.UpdateSessionStatus(session.ID, store.DebateStatusCancelled)
+			if e.OnError != nil {
+				e.OnError(session.ID, err)
+			}
+			return
 		}
-		return
+	} else {
+		// Single shared context (single-turn or multi-turn with no participants)
+		var mcpClient mcp.AIClient
+		if len(session.Participants) > 0 {
+			e.clientsMu.RLock()
+			mcpClient = e.clients[session.Participants[0].AIModelID]
+			e.clientsMu.RUnlock()
+		}
+		_, singleUserPrompt, err = e.buildMarketContext(session, strategyEngine, mcpClient)
+		if err != nil {
+			logger.Errorf("Failed to build market context: %v", err)
+			e.debateStore.UpdateSessionStatus(session.ID, store.DebateStatusCancelled)
+			if e.OnError != nil {
+				e.OnError(session.ID, err)
+			}
+			return
+		}
 	}
 
 	// Build system prompt based on strategy (same as AI Test)
 	baseSystemPrompt := strategyEngine.BuildSystemPrompt(1000.0, session.PromptVariant)
 
-	// Build user prompt with market data (OI ranking data is included via ctx.OIRankingData)
-	userPrompt := strategyEngine.BuildUserPrompt(ctx)
-
-	// Run debate rounds
+	// Run debate rounds (each participant uses their own base prompt in multi-turn)
 	var allMessages []*store.DebateMessage
 	for round := 1; round <= session.MaxRounds; round++ {
 		logger.Infof("Starting debate round %d/%d for session %s", round, session.MaxRounds, session.ID)
@@ -201,11 +222,19 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 			logger.Infof("[Debate] Round %d - Getting response from participant %d/%d: %s (%s)",
 				round, i+1, len(session.Participants), participant.AIModelName, participant.Provider)
 
+			// Base user prompt: per-participant in multi-turn, shared in single-turn
+			baseUserPrompt := singleUserPrompt
+			if participantUserPrompts != nil {
+				if p, ok := participantUserPrompts[participant.ID]; ok {
+					baseUserPrompt = p
+				}
+			}
+
 			// Build personality-enhanced system prompt
 			systemPrompt := e.buildDebateSystemPrompt(baseSystemPrompt, participant, round, session.MaxRounds)
 
 			// Build debate user prompt with previous messages
-			debateUserPrompt := e.buildDebateUserPrompt(userPrompt, allMessages, participant, round)
+			debateUserPrompt := e.buildDebateUserPrompt(baseUserPrompt, allMessages, participant, round)
 
 			// Get AI response
 			msg, err := e.getParticipantResponse(session, participant, systemPrompt, debateUserPrompt, round)
@@ -288,18 +317,26 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 		session.ID, len(allDecisions), primaryConsensus.Action, primaryConsensus.Symbol, primaryConsensus.Confidence)
 }
 
-// buildMarketContext builds the market context using strategy engine
-func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine) (*kernel.Context, error) {
+// buildMarketContext builds the market context and user prompt. When strategy has EnableMacroMicroFlow and mcpClient is non-nil, runs macro → symbols_for_deep_dive → fetches data only for those symbols and returns a combined macro-micro style user prompt. Otherwise uses all candidates and single-turn BuildUserPrompt.
+func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine, mcpClient mcp.AIClient) (*kernel.Context, string, error) {
 	config := strategyEngine.GetConfig()
 
-	// Get candidate coins
-	candidates, err := strategyEngine.GetCandidateCoins()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get candidates: %w", err)
+	if config.EnableMacroMicroFlow && mcpClient != nil {
+		logger.Infof("[Debate] Strategy has multi-turn (macro-micro) enabled: using macro → symbols_for_deep_dive → combined prompt")
+		return e.buildMarketContextMacroMicro(session, strategyEngine, mcpClient)
+	}
+	if config.EnableMacroMicroFlow && mcpClient == nil {
+		logger.Warnf("[Debate] Strategy has multi-turn enabled but no AI client available for macro call; falling back to single-turn")
 	}
 
+	// Single-turn: all candidates, full market data, single user prompt
+	logger.Infof("[Debate] Using single-turn market context (all candidates)")
+	candidates, err := strategyEngine.GetCandidateCoins()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get candidates: %w", err)
+	}
 	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no candidate coins found")
+		return nil, "", fmt.Errorf("no candidate coins found")
 	}
 
 	// Get timeframe settings
@@ -309,8 +346,6 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 	if klineCount <= 0 {
 		klineCount = 50
 	}
-
-	// Fetch market data for each candidate
 	marketDataMap := make(map[string]*market.Data)
 	for _, coin := range candidates {
 		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
@@ -322,7 +357,7 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 	}
 
 	if len(marketDataMap) == 0 {
-		return nil, fmt.Errorf("failed to fetch market data for any candidate")
+		return nil, "", fmt.Errorf("failed to fetch market data for any candidate")
 	}
 
 	// Fetch quantitative data (using strategy engine's built-in logic)
@@ -331,17 +366,229 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 		symbols = append(symbols, c.Symbol)
 	}
 	quantDataMap := strategyEngine.FetchQuantDataBatch(symbols)
+	ctx := &kernel.Context{
+		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
+		RuntimeMinutes: 0,
+		CallCount:      1,
+		Account: kernel.AccountInfo{
+			TotalEquity:      1000.0,
+			AvailableBalance: 1000.0,
+			UnrealizedPnL:    0,
+			TotalPnL:         0,
+			TotalPnLPct:      0,
+			MarginUsed:       0,
+			MarginUsedPct:    0,
+			PositionCount:    0,
+		},
+		Positions:          []kernel.PositionInfo{},
+		CandidateCoins:     candidates,
+		PromptVariant:       session.PromptVariant,
+		MarketDataMap:       marketDataMap,
+		QuantDataMap:        quantDataMap,
+		OIRankingData:       strategyEngine.FetchOIRankingData(),
+		NetFlowRankingData:  strategyEngine.FetchNetFlowRankingData(),
+		PriceRankingData:    strategyEngine.FetchPriceRankingData(),
+	}
+	userPrompt := strategyEngine.BuildUserPrompt(ctx)
+	return ctx, userPrompt, nil
+}
 
-	// Fetch OI ranking data (market-wide position changes)
-	oiRankingData := strategyEngine.FetchOIRankingData()
+// resolveDebateSymbolsForMultiTurn returns the symbol list for per-participant multi-turn: autoselected or user-selected (session) symbol first, then optional static list, capped. If no session symbol and no static list, returns nil and caller must run macro once to get symbols.
+func (e *DebateEngine) resolveDebateSymbolsForMultiTurn(config *store.StrategyConfig, sessionSymbol string) []string {
+	limit := config.MacroDeepDiveLimit
+	if limit <= 0 {
+		limit = 5
+	}
+	maxTotal := limit + 3
+	if maxTotal > 10 {
+		maxTotal = 10
+	}
+	seen := make(map[string]bool)
+	var out []string
+	if sessionSymbol != "" {
+		n := market.Normalize(sessionSymbol)
+		if n != "" {
+			seen[n] = true
+			out = append(out, n)
+			logger.Infof("[Debate] Multi-turn debate symbols: session symbol %s", n)
+		}
+	}
+	if config.CoinSource.SourceType == "static" && len(config.CoinSource.StaticCoins) > 0 {
+		for _, s := range config.CoinSource.StaticCoins {
+			n := market.Normalize(s)
+			if n == "" || seen[n] {
+				continue
+			}
+			seen[n] = true
+			out = append(out, n)
+		}
+		if len(out) > 1 {
+			logger.Infof("[Debate] Multi-turn debate symbols: session + %d static", len(out)-1)
+		}
+	}
+	if len(out) > maxTotal {
+		out = out[:maxTotal]
+	}
+	return out
+}
 
-	// Fetch NetFlow ranking data (market-wide fund flow)
-	netFlowRankingData := strategyEngine.FetchNetFlowRankingData()
+// mergeDebateSymbols merges strategy static list and session symbol into the macro symbols list so multi-turn respects user/strategy choice. When the strategy has a static coin list, those symbols are placed first; then macro picks; then session symbol if not already present. Cap is applied.
+func (e *DebateEngine) mergeDebateSymbols(config *store.StrategyConfig, macroSymbols []string, sessionSymbol string) []string {
+	limit := config.MacroDeepDiveLimit
+	if limit <= 0 {
+		limit = 5
+	}
+	maxTotal := limit + 5 // allow room for static + session
+	if maxTotal > 15 {
+		maxTotal = 15
+	}
+	seen := make(map[string]bool)
+	var merged []string
 
-	// Fetch Price ranking data (market-wide gainers/losers)
-	priceRankingData := strategyEngine.FetchPriceRankingData()
+	// 1. Strategy static list first (when defined), so debate uses the strategy's chosen symbols
+	if config.CoinSource.SourceType == "static" && len(config.CoinSource.StaticCoins) > 0 {
+		for _, s := range config.CoinSource.StaticCoins {
+			n := market.Normalize(s)
+			if n == "" || seen[n] {
+				continue
+			}
+			seen[n] = true
+			merged = append(merged, n)
+		}
+		logger.Infof("[Debate] Prepend %d static strategy symbol(s) to macro-micro list", len(merged))
+	}
 
-	// Build context
+	// 2. Macro-selected symbols (skip if already in merged)
+	for _, s := range macroSymbols {
+		n := market.Normalize(s)
+		if n == "" || seen[n] {
+			continue
+		}
+		seen[n] = true
+		merged = append(merged, n)
+	}
+
+	// 3. Session symbol (e.g. auto-selected or user-chosen) so the debate prompt and consensus can target it
+	if sessionSymbol != "" {
+		n := market.Normalize(sessionSymbol)
+		if n != "" && !seen[n] {
+			merged = append([]string{n}, merged...)
+			seen[n] = true
+			logger.Infof("[Debate] Prepend session symbol %s to macro-micro symbols list", n)
+		}
+	}
+
+	if len(merged) > maxTotal {
+		merged = merged[:maxTotal]
+	}
+	return merged
+}
+
+// buildMarketContextMacroMicroPerParticipant runs for each participant: (1) generate market overview (macro) with that participant's client, (2) use autoselected/user-selected symbol(s), (3) build combined macro+micro prompt for those symbols, (4) return map participantID -> userPrompt for debate rounds.
+func (e *DebateEngine) buildMarketContextMacroMicroPerParticipant(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine) (map[string]string, error) {
+	config := strategyEngine.GetConfig()
+	timeframes := config.Indicators.Klines.SelectedTimeframes
+	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
+	klineCount := config.Indicators.Klines.PrimaryCount
+	if klineCount <= 0 {
+		klineCount = 30
+	}
+	if len(timeframes) == 0 {
+		if primaryTimeframe != "" {
+			timeframes = append(timeframes, primaryTimeframe)
+		} else {
+			timeframes = append(timeframes, "3m")
+		}
+	}
+	if primaryTimeframe == "" {
+		primaryTimeframe = timeframes[0]
+	}
+
+	// Resolve symbols for debate: session symbol and/or static list
+	resolvedSymbols := e.resolveDebateSymbolsForMultiTurn(config, session.Symbol)
+	if len(resolvedSymbols) == 0 {
+		// No session symbol and no static list: run macro once with first participant to get symbols
+		e.clientsMu.RLock()
+		var firstClient mcp.AIClient
+		if len(session.Participants) > 0 {
+			firstClient = e.clients[session.Participants[0].AIModelID]
+		}
+		e.clientsMu.RUnlock()
+		if firstClient == nil {
+			return nil, fmt.Errorf("multi-turn debate needs session symbol, static list, or at least one AI client for macro")
+		}
+		ctx := e.minimalCtxForMacro(session, strategyEngine, timeframes, primaryTimeframe, klineCount)
+		macroBrief, err := kernel.BuildMacroBrief(ctx, strategyEngine)
+		if err != nil {
+			return nil, fmt.Errorf("build macro brief: %w", err)
+		}
+		macroOut, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, firstClient)
+		if err != nil {
+			return nil, fmt.Errorf("macro decision: %w", err)
+		}
+		macroOut = kernel.ValidateAndMergeMacroOutput(macroOut, ctx, config)
+		resolvedSymbols = e.mergeDebateSymbols(config, kernel.SymbolStrings(macroOut.SymbolsForDeepDive), session.Symbol)
+		if len(resolvedSymbols) == 0 {
+			return nil, fmt.Errorf("macro returned no symbols for deep-dive")
+		}
+		logger.Infof("[Debate] Multi-turn resolved symbols from macro: %v", resolvedSymbols)
+	}
+
+	// Minimal ctx for macro brief (same for all participants)
+	ctx := e.minimalCtxForMacro(session, strategyEngine, timeframes, primaryTimeframe, klineCount)
+	macroBrief, err := kernel.BuildMacroBrief(ctx, strategyEngine)
+	if err != nil {
+		return nil, fmt.Errorf("build macro brief: %w", err)
+	}
+
+	// Fetch market data for resolved symbols once (step 2: micro data for required symbol(s))
+	seen := make(map[string]bool)
+	for _, sym := range resolvedSymbols {
+		sym = market.Normalize(sym)
+		if seen[sym] {
+			continue
+		}
+		seen[sym] = true
+		data, err := market.GetWithTimeframes(sym, timeframes, primaryTimeframe, klineCount)
+		if err != nil {
+			logger.Warnf("[Debate] Failed to fetch market data for %s: %v", sym, err)
+			continue
+		}
+		ctx.MarketDataMap[sym] = data
+	}
+	if len(ctx.MarketDataMap) == 0 {
+		return nil, fmt.Errorf("failed to fetch market data for any debate symbol")
+	}
+	ctx.QuantDataMap = strategyEngine.FetchQuantDataBatch(resolvedSymbols)
+	ctx.CandidateCoins = make([]kernel.CandidateCoin, 0, len(resolvedSymbols))
+	for _, s := range resolvedSymbols {
+		ctx.CandidateCoins = append(ctx.CandidateCoins, kernel.CandidateCoin{Symbol: market.Normalize(s), Sources: []string{"debate"}})
+	}
+
+	// Per participant: (1) generate market overview with their client, (2) use resolved symbols, (3) build combined prompt
+	participantPrompts := make(map[string]string)
+	for _, participant := range session.Participants {
+		e.clientsMu.RLock()
+		client := e.clients[participant.AIModelID]
+		e.clientsMu.RUnlock()
+		if client == nil {
+			return nil, fmt.Errorf("no AI client for participant %s", participant.AIModelName)
+		}
+		macroOut, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, client)
+		if err != nil {
+			return nil, fmt.Errorf("macro for %s: %w", participant.AIModelName, err)
+		}
+		macroOut = kernel.ValidateAndMergeMacroOutput(macroOut, ctx, config)
+		macroOut.SymbolsForDeepDive = kernel.NewMacroSymbolsFromStrings(resolvedSymbols)
+		userPrompt := strategyEngine.BuildMacroMicroCombinedUserPrompt(ctx, macroBrief, macroOut)
+		participantPrompts[participant.ID] = userPrompt
+		logger.Infof("[Debate] Multi-turn: built market context for %s (%s)", participant.AIModelName, participant.Personality)
+	}
+	return participantPrompts, nil
+}
+
+// minimalCtxForMacro builds a minimal context for macro brief (time, account, OI, NetFlow, Price, BTC).
+func (e *DebateEngine) minimalCtxForMacro(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine, timeframes []string, primaryTimeframe string, klineCount int) *kernel.Context {
 	ctx := &kernel.Context{
 		CurrentTime:    time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes: 0,
@@ -357,16 +604,88 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 			PositionCount:    0,
 		},
 		Positions:          []kernel.PositionInfo{},
-		CandidateCoins:     candidates,
-		PromptVariant:      session.PromptVariant,
-		MarketDataMap:      marketDataMap,
-		QuantDataMap:       quantDataMap,
-		OIRankingData:      oiRankingData,
-		NetFlowRankingData: netFlowRankingData,
-		PriceRankingData:   priceRankingData,
+		CandidateCoins:     nil,
+		PromptVariant:       session.PromptVariant,
+		MarketDataMap:       make(map[string]*market.Data),
+		QuantDataMap:        nil,
+		OIRankingData:       strategyEngine.FetchOIRankingData(),
+		NetFlowRankingData:  strategyEngine.FetchNetFlowRankingData(),
+		PriceRankingData:    strategyEngine.FetchPriceRankingData(),
+	}
+	if btcData, err := market.GetWithTimeframes("BTCUSDT", timeframes, primaryTimeframe, klineCount); err == nil {
+		ctx.MarketDataMap["BTCUSDT"] = btcData
+	}
+	return ctx
+}
+
+// buildMarketContextMacroMicro runs macro pass, then fetches market/quant data only for symbols_for_deep_dive and builds the combined macro-micro user prompt for debate. Used when a single shared context is desired (e.g. single participant or legacy path).
+func (e *DebateEngine) buildMarketContextMacroMicro(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine, mcpClient mcp.AIClient) (*kernel.Context, string, error) {
+	logger.Infof("[Debate] Building market context with multi-turn flow: macro → selected symbols")
+	config := strategyEngine.GetConfig()
+	timeframes := config.Indicators.Klines.SelectedTimeframes
+	primaryTimeframe := config.Indicators.Klines.PrimaryTimeframe
+	klineCount := config.Indicators.Klines.PrimaryCount
+	if klineCount <= 0 {
+		klineCount = 30
+	}
+	if len(timeframes) == 0 {
+		if primaryTimeframe != "" {
+			timeframes = append(timeframes, primaryTimeframe)
+		} else {
+			timeframes = append(timeframes, "3m")
+		}
+	}
+	if primaryTimeframe == "" {
+		primaryTimeframe = timeframes[0]
 	}
 
-	return ctx, nil
+	// Minimal ctx for macro brief (no per-symbol klines yet)
+	ctx := e.minimalCtxForMacro(session, strategyEngine, timeframes, primaryTimeframe, klineCount)
+
+	macroBrief, err := kernel.BuildMacroBrief(ctx, strategyEngine)
+	if err != nil {
+		return nil, "", fmt.Errorf("build macro brief: %w", err)
+	}
+	macroOut, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, mcpClient)
+	if err != nil {
+		return nil, "", fmt.Errorf("macro decision: %w", err)
+	}
+	macroOut = kernel.ValidateAndMergeMacroOutput(macroOut, ctx, config)
+	if len(macroOut.SymbolsForDeepDive) == 0 {
+		return nil, "", fmt.Errorf("macro returned no symbols for deep-dive")
+	}
+
+	// Merge strategy static list and/or session symbol into symbols_for_deep_dive so multi-turn respects user/strategy choice
+	mergedSymbols := e.mergeDebateSymbols(config, kernel.SymbolStrings(macroOut.SymbolsForDeepDive), session.Symbol)
+	macroOut.SymbolsForDeepDive = kernel.NewMacroSymbolsFromStrings(mergedSymbols)
+
+	// Fetch market data only for symbols_for_deep_dive
+	seen := make(map[string]bool)
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		sym := market.Normalize(entry.Symbol)
+		if seen[sym] {
+			continue
+		}
+		seen[sym] = true
+		data, err := market.GetWithTimeframes(sym, timeframes, primaryTimeframe, klineCount)
+		if err != nil {
+			logger.Warnf("[Debate] Failed to fetch market data for %s: %v", sym, err)
+			continue
+		}
+		ctx.MarketDataMap[sym] = data
+	}
+	if len(ctx.MarketDataMap) == 0 {
+		return nil, "", fmt.Errorf("failed to fetch market data for any macro symbol")
+	}
+	ctx.QuantDataMap = strategyEngine.FetchQuantDataBatch(kernel.SymbolStrings(macroOut.SymbolsForDeepDive))
+	candidates := make([]kernel.CandidateCoin, 0, len(macroOut.SymbolsForDeepDive))
+	for _, entry := range macroOut.SymbolsForDeepDive {
+		candidates = append(candidates, kernel.CandidateCoin{Symbol: market.Normalize(entry.Symbol), Sources: []string{"macro"}})
+	}
+	ctx.CandidateCoins = candidates
+
+	userPrompt := strategyEngine.BuildMacroMicroCombinedUserPrompt(ctx, macroBrief, macroOut)
+	return ctx, userPrompt, nil
 }
 
 // buildDebateSystemPrompt enhances the base strategy prompt with debate-specific instructions

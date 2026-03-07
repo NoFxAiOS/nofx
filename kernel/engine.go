@@ -662,6 +662,11 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 			if chosen.Reasoning == "" && reasoningFromResponse != "" {
 				chosen.Reasoning = reasoningFromResponse
 			}
+			// Ensure hold/wait always have reasoning for final display
+			action := strings.ToLower(strings.TrimSpace(chosen.Action))
+			if chosen.Reasoning == "" && (action == "hold" || action == "wait") {
+				chosen.Reasoning = extractReasoningFallback(response, sym)
+			}
 			allDecisions = append(allDecisions, *chosen)
 		} else {
 			allDecisions = append(allDecisions, Decision{Symbol: sym, Action: "wait", Reasoning: "No decision in response"})
@@ -686,8 +691,16 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 				for _, pos := range ctx.Positions {
 					positionSymbols[market.Normalize(pos.Symbol)] = true
 				}
+				reasoningFromPosCheck := extractCoTTrace(response)
 				for _, d := range decisions {
 					if positionSymbols[market.Normalize(d.Symbol)] {
+						if d.Reasoning == "" && reasoningFromPosCheck != "" {
+							d.Reasoning = reasoningFromPosCheck
+						}
+						action := strings.ToLower(strings.TrimSpace(d.Action))
+						if d.Reasoning == "" && (action == "hold" || action == "wait") {
+							d.Reasoning = extractReasoningFallback(response, d.Symbol)
+						}
 						positionDecisionsBySymbol[market.Normalize(d.Symbol)] = d
 					}
 				}
@@ -720,11 +733,13 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 		}
 		steps = append(steps, DecisionStepTrace{Step: "sizing_adjustment", Label: "Sizing & margin adjustment", SystemPrompt: sysPromptSizing, UserPrompt: userPromptSizing, Response: responseSizing})
 		if errSizing == nil {
+			preAdjustment := make([]Decision, len(merged))
+			copy(preAdjustment, merged)
 			if adjusted, errParse := extractDecisions(responseSizing); errParse == nil && len(adjusted) > 0 {
-				mergeReasoningFrom(adjusted, merged)
-				merged = adjusted
-				logger.Infof("[macro-micro] Sizing adjustment (trace): %d decision(s)", len(merged))
+				mergeReasoningFrom(adjusted, preAdjustment)
+				merged = appendHoldWaitFrom(adjusted, preAdjustment)
 			}
+			logger.Infof("[macro-micro] Sizing adjustment (trace): %d decision(s)", len(merged))
 		}
 	}
 
@@ -2057,7 +2072,7 @@ func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, ma
 	} else {
 		sb.WriteString(fmt.Sprintf("(No market data for %s)\n", symbol))
 	}
-	sb.WriteString("\n---\n\nOutput your decision for this symbol only (Chain of Thought + JSON array with one decision).\n")
+	sb.WriteString("\n---\n\nOutput your decision for this symbol only (Chain of Thought + JSON array with one decision). For hold or wait actions you MUST provide reasoning explaining why you are not taking a position (e.g. no clear setup, risk too high, waiting for confirmation).\n")
 	if s := e.effectiveDeepDiveCustomPrompt(); s != "" {
 		sb.WriteString("\n" + s + "\n")
 	}
@@ -2144,22 +2159,31 @@ func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AICli
 	}
 	reasoningFromResponse := extractCoTTrace(response)
 	normalized := market.Normalize(symbol)
-	for _, d := range decisions {
+	for i := range decisions {
+		d := &decisions[i]
 		if market.Normalize(d.Symbol) == normalized {
 			d.Symbol = symbol // preserve original casing if needed
 			if d.Reasoning == "" && reasoningFromResponse != "" {
 				d.Reasoning = reasoningFromResponse
 			}
-			return &d, nil
+			action := strings.ToLower(strings.TrimSpace(d.Action))
+			if d.Reasoning == "" && (action == "hold" || action == "wait") {
+				d.Reasoning = extractReasoningFallback(response, symbol)
+			}
+			return d, nil
 		}
 	}
 	if len(decisions) > 0 {
-		d := decisions[0]
+		d := &decisions[0]
 		d.Symbol = symbol
 		if d.Reasoning == "" && reasoningFromResponse != "" {
 			d.Reasoning = reasoningFromResponse
 		}
-		return &d, nil
+		action := strings.ToLower(strings.TrimSpace(d.Action))
+		if d.Reasoning == "" && (action == "hold" || action == "wait") {
+			d.Reasoning = extractReasoningFallback(response, symbol)
+		}
+		return d, nil
 	}
 	return &Decision{Symbol: symbol, Action: "wait", Reasoning: "No decision in response"}, nil
 }
@@ -2172,7 +2196,7 @@ func (e *StrategyEngine) BuildPositionCheckUserPrompt(ctx *Context, macroBrief s
 	for i, pos := range ctx.Positions {
 		sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
 	}
-	sb.WriteString("\n---\n\nFor each position above, output whether to take profit, stop-loss, or hold. Output a JSON array of decisions (one per position): same format as usual (symbol, action: close_long/close_short/hold, reasoning, optional stop_loss/take_profit).\n")
+	sb.WriteString("\n---\n\nFor each position above, output whether to take profit, stop-loss, or hold. Output a JSON array of decisions (one per position): same format as usual (symbol, action: close_long/close_short/hold, reasoning, optional stop_loss/take_profit). For hold you MUST provide reasoning explaining why you are keeping the position (e.g. trend intact, no TP/SL trigger yet).\n")
 	if e.config != nil && e.config.PositionCheckExtraPrompt != "" {
 		sb.WriteString("\n# Additional guidance (position check)\n\n")
 		sb.WriteString(strings.TrimSpace(e.config.PositionCheckExtraPrompt))
@@ -2204,6 +2228,10 @@ func GetPositionCheckDecision(ctx *Context, engine *StrategyEngine, mcpClient mc
 		if positionSymbols[market.Normalize(d.Symbol)] {
 			if d.Reasoning == "" && reasoningFromResponse != "" {
 				d.Reasoning = reasoningFromResponse
+			}
+			action := strings.ToLower(strings.TrimSpace(d.Action))
+			if d.Reasoning == "" && (action == "hold" || action == "wait") {
+				d.Reasoning = extractReasoningFallback(response, d.Symbol)
 			}
 			out = append(out, d)
 		}
@@ -2247,6 +2275,33 @@ func (e *StrategyEngine) buildSizingAdjustmentUserPrompt(ctx *Context, macroBrie
 	return sb.String()
 }
 
+// appendHoldWaitFrom appends hold/wait decisions from `from` that are missing in `target` (by symbol).
+// Sizing adjustment may omit hold/wait or return them without reasoning; this preserves them with reasoning.
+func appendHoldWaitFrom(target []Decision, from []Decision) []Decision {
+	hasSymbol := make(map[string]bool)
+	for _, d := range target {
+		n := market.Normalize(d.Symbol)
+		if n != "" {
+			hasSymbol[n] = true
+		}
+	}
+	out := make([]Decision, len(target), len(target)+4)
+	copy(out, target)
+	for _, d := range from {
+		action := strings.ToLower(strings.TrimSpace(d.Action))
+		if action != "hold" && action != "wait" {
+			continue
+		}
+		n := market.Normalize(d.Symbol)
+		if n == "" || hasSymbol[n] {
+			continue
+		}
+		hasSymbol[n] = true
+		out = append(out, d)
+	}
+	return out
+}
+
 // mergeReasoningFrom copies reasoning from the pre-adjustment list into adjusted decisions when the adjusted decision has no reasoning (so position-check and deep-dive reasoning is preserved in the final output).
 func mergeReasoningFrom(adjusted []Decision, from []Decision) {
 	bySymbol := make(map[string]string)
@@ -2286,6 +2341,7 @@ func runSizingAdjustmentStep(ctx *Context, engine *StrategyEngine, mcpClient mcp
 		return merged
 	}
 	mergeReasoningFrom(adjusted, merged)
+	adjusted = appendHoldWaitFrom(adjusted, merged)
 	logger.Infof("[macro-micro] Sizing adjustment: %d decision(s)", len(adjusted))
 	return adjusted
 }
@@ -2695,6 +2751,42 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		CoTTrace:  cotTrace,
 		Decisions: decisions,
 	}, nil
+}
+
+// extractReasoningFallback returns a fallback reasoning for hold/wait when the model output has none.
+// Used so final decisions always show some reasoning for hold/wait.
+func extractReasoningFallback(response, symbol string) string {
+	s := removeInvisibleRunes(response)
+	s = strings.TrimSpace(s)
+	// Content before <decision> or [ is usually the model's reasoning
+	if i := strings.Index(s, "<decision>"); i > 10 {
+		pre := strings.TrimSpace(s[:i])
+		if len(pre) > 20 {
+			return truncateForReasoning(pre, 400)
+		}
+	}
+	if i := strings.Index(s, "["); i > 10 {
+		pre := strings.TrimSpace(s[:i])
+		if len(pre) > 20 {
+			return truncateForReasoning(pre, 400)
+		}
+	}
+	if len(s) > 30 {
+		return truncateForReasoning(s, 300)
+	}
+	return fmt.Sprintf("No explicit reasoning for %s hold/wait in model output.", symbol)
+}
+
+func truncateForReasoning(s string, maxLen int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= maxLen {
+		return s
+	}
+	trunc := s[:maxLen]
+	if idx := strings.LastIndex(trunc, " "); idx > maxLen/2 {
+		trunc = trunc[:idx]
+	}
+	return trunc + "..."
 }
 
 func extractCoTTrace(response string) string {

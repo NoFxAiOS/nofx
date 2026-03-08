@@ -90,7 +90,7 @@ func runBot(token string, cfg *config.Config, st *store.Store) bool {
 
 	// Wire the AI agent manager. API docs are auto-generated from registered routes.
 	agents := agent.NewManager(cfg.APIServerPort, botToken, botUserID,
-		func() mcp.AIClient { return newLLMClient(st) },
+		func() mcp.AIClient { return newLLMClient(st, botUserID) },
 		api.GetAPIDocs(),
 	)
 
@@ -209,12 +209,12 @@ func sendMsg(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	bot.Send(msg) //nolint:errcheck
 }
 
-// newLLMClient builds an LLM client for the agent.
-// Priority: DB-configured model (Web UI) > environment variables.
+// newLLMClient builds an LLM client for the agent using the bound user's enabled model.
+// Priority: bound user's DB model > environment variables.
 // Uses provider-specific constructors to ensure correct default base URLs and models.
-func newLLMClient(st *store.Store) mcp.AIClient {
-	// 1. Try any enabled model from DB (user configured via Web UI, any user_id)
-	if model, err := st.AIModel().GetAnyEnabled(); err == nil {
+func newLLMClient(st *store.Store, userID string) mcp.AIClient {
+	// 1. Try the bound user's enabled model from DB (configured via Web UI)
+	if model, err := st.AIModel().GetDefault(userID); err == nil {
 		apiKey := string(model.APIKey)
 		if apiKey != "" {
 			client := clientForProvider(model.Provider)
@@ -225,7 +225,7 @@ func newLLMClient(st *store.Store) mcp.AIClient {
 		}
 		logger.Warnf("Telegram: DB model found (provider=%s) but API key is empty after decryption", model.Provider)
 	} else {
-		logger.Warnf("Telegram: no enabled model in DB (%v), trying env vars", err)
+		logger.Warnf("Telegram: no enabled model for user %s (%v), trying env vars", userID, err)
 	}
 
 	// 2. Fall back to environment variables

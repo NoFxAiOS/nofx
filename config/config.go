@@ -55,8 +55,8 @@ type Config struct {
 func Init() {
 	cfg := &Config{
 		APIServerPort:         8080,
-		RegistrationEnabled:   true,
-		MaxUsers:              10,   // Default: 10 users allowed
+		RegistrationEnabled:   false, // Default: closed after first user registers (first-time setup always allowed)
+		MaxUsers:              1,     // Default: single-user deployment
 		ExperienceImprovement: true, // Default: enabled to help improve the product
 		// Database defaults
 		DBType:    "sqlite",

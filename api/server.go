@@ -3152,12 +3152,31 @@ func (s *Server) handleLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
 }
 
-// handleRegister Handle user registration request
+// handleRegister Handle user registration request.
+// Registration is only open when no users exist yet (first-time setup) OR when
+// explicitly enabled via REGISTRATION_ENABLED=true env var AND within MAX_USERS limit.
 func (s *Server) handleRegister(c *gin.Context) {
-	// Check if registration is allowed
-	if !config.Get().RegistrationEnabled {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
+	userCount, err := s.store.User().Count()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user count"})
 		return
+	}
+
+	// First-time setup: allow registration when DB is empty, regardless of config.
+	firstTimeSetup := userCount == 0
+
+	if !firstTimeSetup {
+		// After first user exists: require explicit opt-in via REGISTRATION_ENABLED=true.
+		if !config.Get().RegistrationEnabled {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
+			return
+		}
+		// Enforce max users limit.
+		maxUsers := config.Get().MaxUsers
+		if maxUsers > 0 && userCount >= maxUsers {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Maximum number of users reached"})
+			return
+		}
 	}
 
 	var req struct {
@@ -3171,24 +3190,10 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	// Check if email already exists
-	_, err := s.store.User().GetByEmail(req.Email)
+	_, err = s.store.User().GetByEmail(req.Email)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
 		return
-	}
-
-	// Check max users limit (only for new users)
-	maxUsers := config.Get().MaxUsers
-	if maxUsers > 0 {
-		userCount, err := s.store.User().Count()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user count"})
-			return
-		}
-		if userCount >= maxUsers {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Not on whitelist"})
-			return
-		}
 	}
 
 	// Generate password hash

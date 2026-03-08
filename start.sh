@@ -115,6 +115,10 @@ set_env_var() {
             sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" .env
         fi
     else
+        # Ensure .env ends with a newline before appending
+        if [ -s ".env" ] && [ "$(tail -c1 .env | wc -l)" -eq 0 ]; then
+            echo "" >> .env
+        fi
         echo "${var_name}=${var_value}" >> .env
     fi
 }

@@ -79,26 +79,49 @@ func runBot(token string, cfg *config.Config, st *store.Store) bool {
 		}
 	}
 
-	// Resolve the real user ID: use the first registered user so that bot-made
-	// changes (model/exchange configs) are visible in the frontend under that user.
-	// Falls back to "default" if no users exist yet (fresh install).
-	botUserID := "default"
-	if ids, err := st.User().GetAllIDs(); err == nil && len(ids) > 0 {
-		botUserID = ids[0]
-	}
-
-	// Generate a bot JWT for authenticated API calls. Re-generated on each bot start.
-	botToken, err := agent.GenerateBotToken(botUserID)
-	if err != nil {
-		logger.Errorf("Failed to generate bot JWT: %v", err)
-		return false
-	}
-
-	// Wire the AI agent manager. API docs are auto-generated from registered routes.
-	agents := agent.NewManager(cfg.APIServerPort, botToken, botUserID,
-		func() mcp.AIClient { return newLLMClient(st, botUserID) },
-		api.GetAPIDocs(),
+	// botUserID/botToken/agents are resolved lazily on the first message.
+	// They refresh automatically when the user registers on the web UI.
+	var (
+		botUserID string
+		botToken  string
+		agents    *agent.Manager
 	)
+
+	// resolveBotUser reads the first registered user from DB.
+	// Returns true and refreshes botUserID/botToken/agents when the user changes.
+	// Returns false if no user is registered yet (no "default" fallback).
+	resolveBotUser := func() bool {
+		ids, err := st.User().GetAllIDs()
+		if err != nil || len(ids) == 0 {
+			return false
+		}
+		newID := ids[0]
+		if newID == botUserID {
+			return true // already up-to-date
+		}
+		// User changed (or first resolve) — regenerate JWT and agent manager.
+		newToken, tokenErr := agent.GenerateBotToken(newID)
+		if tokenErr != nil {
+			logger.Errorf("Failed to generate bot JWT for user %s: %v", newID, tokenErr)
+			return false
+		}
+		prevID := botUserID
+		botUserID = newID
+		botToken = newToken
+		agents = agent.NewManager(cfg.APIServerPort, botToken, botUserID,
+			func() mcp.AIClient { return newLLMClient(st, botUserID) },
+			api.GetAPIDocs(),
+		)
+		if prevID == "" {
+			logger.Infof("Bot: resolved user %s", botUserID)
+		} else {
+			logger.Infof("Bot: user changed %s → %s, agent manager refreshed", prevID, botUserID)
+		}
+		return true
+	}
+
+	// Initial resolve — may fail if no user registered yet, which is fine.
+	resolveBotUser()
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -131,17 +154,23 @@ func runBot(token string, cfg *config.Config, st *store.Store) bool {
 
 		// Handle /start: auto-bind or language selection / welcome
 		if text == "/start" {
+			// Re-resolve user on every /start (handles: registered after bot launch).
+			resolveBotUser()
+			if botUserID == "" {
+				sendMsg(bot, chatID, "No account found. Please register on the web UI first, then send /start.")
+				continue
+			}
 			if allowedChatID == 0 {
 				username := update.Message.From.UserName
 				if err := st.TelegramConfig().BindUser(chatID, "@"+username); err != nil {
 					logger.Errorf("Failed to bind Telegram user: %v", err)
-					sendMsg(bot, chatID, "Binding failed. / 绑定失败。")
+					sendMsg(bot, chatID, "Binding failed. Please try again.")
 					continue
 				}
 				allowedChatID = chatID
 				logger.Infof("Telegram bound to @%s (chatID: %d)", username, chatID)
 			} else if chatID != allowedChatID {
-				sendMsg(bot, chatID, "This bot is already bound to another user. / 该机器人已被其他用户绑定。")
+				sendMsg(bot, chatID, "This bot is already bound to another user.")
 				continue
 			} else {
 				agents.Reset(chatID)
@@ -173,14 +202,21 @@ func runBot(token string, cfg *config.Config, st *store.Store) bool {
 
 		// Access control
 		if allowedChatID != 0 && chatID != allowedChatID {
-			sendMsg(bot, chatID, "Unauthorized. / 无权限访问。")
+			sendMsg(bot, chatID, "Unauthorized.")
 			continue
 		}
 		if allowedChatID == 0 {
-			sendMsg(bot, chatID, "Send /start first. / 请先发送 /start。")
+			sendMsg(bot, chatID, "Send /start first.")
 			continue
 		}
 		if text == "" {
+			continue
+		}
+
+		// Refresh user on every message (handles registration that happened mid-session).
+		resolveBotUser()
+		if botUserID == "" {
+			sendMsg(bot, chatID, "No account found. Please register on the web UI first.")
 			continue
 		}
 

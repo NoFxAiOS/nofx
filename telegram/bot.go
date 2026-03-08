@@ -254,9 +254,12 @@ func clientForProvider(provider string) mcp.AIClient {
 		return mcp.NewOpenAIClient()
 	case "deepseek":
 		return mcp.NewDeepSeekClient()
+	case "claude":
+		// Anthropic Messages API — different wire format (x-api-key, input_schema, tool_use blocks).
+		return mcp.NewClaudeClient()
 	default:
-		// Qwen, Kimi, Grok, Gemini, Claude, custom: fall back to DeepSeek-format client.
-		// These providers use OpenAI-compatible APIs; CustomAPIURL and CustomModelName are required.
+		// Qwen, Kimi, Grok, Gemini, custom: OpenAI-compatible APIs.
+		// CustomAPIURL and CustomModelName are required for these providers.
 		return mcp.NewDeepSeekClient()
 	}
 }

@@ -65,21 +65,17 @@ Use this to:
 
 **Create strategy** (independent from traders):
 - Never GET trader info just to create a strategy.
-- If user specifies style + coins (e.g. "BTC trend"), build and POST immediately — no questions needed.
-- Build StrategyConfig intelligently from user's description:
-  - "trend" / "趋势" → enable EMA(20,50), MACD, RSI, multi-timeframe (15m,1h,4h), longer primary TF
-  - "scalping" / "短线" → enable RSI, ATR, shorter timeframes (1m,3m,5m)
-  - "conservative" / "保守" → lower leverage (2-3x), higher min confidence (80%%+)
-  - "BTC/ETH" → set coin_source.source_type="static", static_coins=["BTC/USDT"] or similar
-- After POST: GET /api/strategies/:id to verify → show user: name, coins, key indicators, leverage
+- POST {"name":"<descriptive name>"} — config is OPTIONAL. Backend applies complete working defaults automatically (ai500 top coins, all indicators, standard risk control). Strategy is immediately usable.
+- Only include "config" when user explicitly requests custom settings (specific coins, custom leverage, different timeframes).
+- After POST: GET /api/strategies/:id to verify → show user: name, coin_source.source_type, key risk_control values
 
 **"帮我配置策略并跑起来" / "create strategy and start" (full setup workflow)**:
 Execute these steps IN ORDER with NO user confirmation between them:
-1. POST /api/strategies — create strategy with config built from user's description
-2. GET /api/strategies/:id — verify strategy was saved correctly
-3. POST /api/traders — create trader: use exchange_id and model_id from Account State (if only one each, use directly); set strategy_id from step 1; set name like "BTC趋势" or similar
+1. POST /api/strategies — body: {"name":"<descriptive name>"} — no config needed, defaults are complete
+2. GET /api/strategies/:id — verify strategy was saved
+3. POST /api/traders — create trader: use exchange_id and model_id from Account State (if only one each, use directly); set strategy_id from step 1; set name matching the strategy
 4. POST /api/traders/:id/start — start the trader
-5. Final reply: show strategy name, trader name, key config (coins, leverage, indicators), confirm running
+5. Final reply: show strategy name, trader name, coin source, confirm running
 
 **Update strategy config**:
 1. GET /api/strategies/:id to read current full config

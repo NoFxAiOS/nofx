@@ -157,8 +157,8 @@ func (s *Server) setupRoutes() {
 			s.route(protected, "GET", "/my-traders", "List user's traders with status", s.handleTraderList)
 			s.route(protected, "GET", "/traders/:id/config", "Get full trader configuration", s.handleGetTraderConfig)
 			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
-				`Body: {"name":"<string, required>","ai_model_id":"<string, required — use ID from GET /api/models, must be enabled>","exchange_id":"<string, required — use ID from GET /api/exchanges, must be enabled>","strategy_id":"<string, optional — use ID from GET /api/strategies>","scan_interval_minutes":<int, default 60>}
-Workflow: 1) GET /api/exchanges to find enabled exchange ID 2) GET /api/models to find enabled model ID 3) GET /api/strategies to find strategy ID 4) POST with all IDs`,
+				`Body: {"name":"<string, required>","ai_model_id":"<string, required — use ID from GET /api/models, must be enabled>","exchange_id":"<string, required — use ID from GET /api/exchanges, must be enabled>","strategy_id":"<string, optional — use ID from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
+Use exchange_id and ai_model_id from the Account State block injected at conversation start — no need to GET them again.`,
 				s.handleCreateTrader)
 			s.route(protected, "PUT", "/traders/:id", "Update trader configuration", s.handleUpdateTrader)
 			s.route(protected, "DELETE", "/traders/:id", "Delete trader", s.handleDeleteTrader)
@@ -211,7 +211,9 @@ Required fields by exchange:
 			s.route(protected, "POST", "/strategies/test-run", "Test-run strategy AI analysis", s.handleStrategyTestRun)
 			s.route(protected, "GET", "/strategies/:id", "Get strategy by ID", s.handleGetStrategy)
 			s.routeWithSchema(protected, "POST", "/strategies", "Create a new trading strategy",
-				`Body: {"name":"<string, required>","description":"<string, optional>","lang":"zh|en","config":<StrategyConfig object>}
+				`Body: {"name":"<string, required>","description":"<string, optional>","lang":"zh|en","config":<StrategyConfig object, OPTIONAL — if omitted the system applies complete working defaults automatically (ai500 top coins, all standard indicators, standard risk control)>}
+IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills everything in. Only include "config" when the user explicitly requests custom settings (specific coins, custom leverage, custom timeframes).
+
 StrategyConfig fields:
   coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short) | "mixed"
   coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — only when source_type="static"

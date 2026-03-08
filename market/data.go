@@ -251,14 +251,14 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	}
 
 	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	oiData, err := getOpenInterestData(symbol, "") // Default Binance
 	if err != nil {
 		// OI failure doesn't affect overall result, use default values
 		oiData = &OIData{Latest: 0, Average: 0}
 	}
 
 	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	fundingRate, _ := getFundingRate(symbol, "") // Default Binance
 
 	// Calculate intraday series data
 	intradayData := calculateIntradaySeries(klines3m)
@@ -285,8 +285,15 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 // timeframes: list of timeframes, e.g. ["5m", "15m", "1h", "4h"]
 // primaryTimeframe: primary timeframe (used for calculating current indicators), defaults to timeframes[0]
 // count: number of K-lines for each timeframe
-func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int) (*Data, error) {
+// exchange: exchange name (e.g., "binance", "bybit", "okx"), defaults to "binance" if empty
+func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe string, count int, exchange string) (*Data, error) {
 	symbol = Normalize(symbol)
+
+	// Default to binance if not specified
+	if exchange == "" {
+		exchange = "binance"
+	}
+	exchange = strings.ToLower(exchange)
 
 	if len(timeframes) == 0 {
 		return nil, fmt.Errorf("at least one timeframe is required")
@@ -329,8 +336,8 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 				continue
 			}
 		} else {
-			// Use CoinAnk for regular crypto assets (default to Binance)
-			klines, err = getKlinesFromCoinAnk(symbol, tf, "binance", 200)
+			// Use CoinAnk for regular crypto assets (use configured exchange)
+			klines, err = getKlinesFromCoinAnk(symbol, tf, exchange, 200)
 			if err != nil {
 				logger.Infof("⚠️ Failed to get %s %s K-line from CoinAnk: %v", symbol, tf, err)
 				continue
@@ -374,13 +381,13 @@ func GetWithTimeframes(symbol string, timeframes []string, primaryTimeframe stri
 	priceChange4h := calculatePriceChangeByBars(primaryKlines, primaryTimeframe, 240) // 4 hours
 
 	// Get OI data
-	oiData, err := getOpenInterestData(symbol)
+	oiData, err := getOpenInterestData(symbol, exchange)
 	if err != nil {
 		oiData = &OIData{Latest: 0, Average: 0}
 	}
 
 	// Get Funding Rate
-	fundingRate, _ := getFundingRate(symbol)
+	fundingRate, _ := getFundingRate(symbol, exchange)
 
 	return &Data{
 		Symbol:        symbol,
@@ -788,9 +795,25 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 	return data
 }
 
-// getOpenInterestData retrieves OI data
-func getOpenInterestData(symbol string) (*OIData, error) {
-	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
+// getOpenInterestData retrieves OI data for the specified exchange
+func getOpenInterestData(symbol string, exchange string) (*OIData, error) {
+	// Default to binance if not specified
+	if exchange == "" {
+		exchange = "binance"
+	}
+
+	var url string
+	switch exchange {
+	case "binance":
+		url = fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
+	case "bybit":
+		url = fmt.Sprintf("https://api.bybit.com/v5/market/tickers?category=linear&symbol=%s", symbol)
+	case "okx":
+		url = fmt.Sprintf("https://www.okx.com/api/v5/market/ticker?instId=%s", symbol)
+	default:
+		// Default to Binance for unknown exchanges
+		url = fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
+	}
 
 	apiClient := NewAPIClient()
 	resp, err := apiClient.client.Get(url)
@@ -822,8 +845,12 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 	}, nil
 }
 
-// getFundingRate retrieves funding rate (optimized: uses 1-hour cache)
-func getFundingRate(symbol string) (float64, error) {
+// getFundingRate retrieves funding rate for the specified exchange (optimized: uses 1-hour cache)
+func getFundingRate(symbol string, exchange string) (float64, error) {
+	// Default to binance if not specified
+	if exchange == "" {
+		exchange = "binance"
+	}
 	// Check cache (1-hour validity)
 	// Funding Rate only updates every 8 hours, 1-hour cache is very reasonable
 	if cached, ok := fundingRateMap.Load(symbol); ok {

@@ -313,7 +313,7 @@ func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetail
 	// Fetch market data for each candidate
 	marketDataMap := make(map[string]*market.Data)
 	for _, coin := range candidates {
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount, "")
 		if err != nil {
 			logger.Warnf("Failed to get market data for %s: %v", coin.Symbol, err)
 			continue
@@ -415,6 +415,7 @@ Then output your decisions in STRICT JSON ARRAY format (can include multiple coi
 - "close_short" (平空仓)
 - "hold" (持仓观望)
 - "wait" (空仓等待)
+	- **IMPORTANT**: Use "action" field (NOT "decision") for the action type
 
 - **update_stop_loss**: Update existing stop loss price (use with existing position)
 
@@ -697,6 +698,7 @@ You may vote differently from your earlier position if convinced by others' argu
 - "close_short" (平空仓)
 - "hold" (持仓观望)
 - "wait" (空仓等待)
+	- **IMPORTANT**: Use "action" field (NOT "decision") for the action type
 
 ---
 

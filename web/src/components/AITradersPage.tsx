@@ -828,35 +828,41 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             </div>
           </div>
 
-          <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
+          <div className="flex flex-wrap gap-2 w-full md:w-auto justify-center md:justify-end pt-2 md:pt-0">
             <button
               onClick={handleAddModel}
-              className="px-4 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all border border-zinc-700 bg-black/20 text-zinc-400 hover:text-white hover:border-zinc-500 whitespace-nowrap backdrop-blur-sm"
+              className="px-3 md:px-4 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all border border-zinc-700 bg-black/20 text-zinc-400 hover:text-white hover:border-zinc-500 whitespace-nowrap backdrop-blur-sm flex-shrink-0"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 md:gap-2">
                 <Plus className="w-3 h-3" />
-                <span>MODELS_CONFIG</span>
+                <span className="hidden sm:inline">MODELS_CONFIG</span>
+                <span className="sm:hidden">MODELS</span>
               </div>
             </button>
 
             <button
               onClick={handleAddExchange}
-              className="px-4 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all border border-zinc-700 bg-black/20 text-zinc-400 hover:text-white hover:border-zinc-500 whitespace-nowrap backdrop-blur-sm"
+              className="px-3 md:px-4 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all border border-zinc-700 bg-black/20 text-zinc-400 hover:text-white hover:border-zinc-500 whitespace-nowrap backdrop-blur-sm flex-shrink-0"
             >
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 md:gap-2">
                 <Plus className="w-3 h-3" />
-                <span>EXCHANGE_KEYS</span>
+                <span className="hidden sm:inline">EXCHANGE_KEYS</span>
+                <span className="sm:hidden">KEYS</span>
               </div>
             </button>
 
             <button
               onClick={() => setShowCreateModal(true)}
-              disabled={configuredModels.length === 0 || configuredExchanges.length === 0}
-              className="group relative px-6 py-2 rounded text-xs font-bold font-mono uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap overflow-hidden bg-nofx-gold text-black hover:bg-yellow-400 shadow-[0_0_20px_rgba(240,185,11,0.2)] hover:shadow-[0_0_30px_rgba(240,185,11,0.4)]"
+              disabled={
+                configuredModels.length === 0 ||
+                configuredExchanges.length === 0
+              }
+              className="group relative px-4 md:px-6 py-2 rounded text-xs font-bold font-mono uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap overflow-hidden bg-nofx-gold text-black hover:bg-yellow-400 shadow-[0_0_20px_rgba(240,185,11,0.2)] hover:shadow-[0_0_30px_rgba(240,185,11,0.4)] flex-shrink-0"
             >
-              <span className="relative z-10 flex items-center gap-2">
+              <span className="relative z-10 flex items-center gap-1.5 md:gap-2">
                 <Plus className="w-4 h-4" />
-                {t('createTrader', language)}
+                <span className="hidden sm:inline">{t('createTrader', language)}</span>
+                <span className="sm:hidden">{t('create', language)}</span>
               </span>
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
             </button>

@@ -187,13 +187,13 @@ export function CoinSourceEditor({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Source Type Selector */}
       <div>
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {t('sourceType')}
         </label>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
             <button
               key={value}
@@ -202,16 +202,16 @@ export function CoinSourceEditor({
                 onChange({ ...config, source_type: value as CoinSourceConfig['source_type'] })
               }
               disabled={disabled}
-              className={`p-4 rounded-lg border transition-all ${config.source_type === value
+              className={`p-3 sm:p-4 rounded-lg border transition-all ${config.source_type === value
                 ? 'ring-2 ring-nofx-gold bg-nofx-gold/10'
                 : 'hover:bg-white/5 bg-nofx-bg'
                 } border-nofx-gold/20`}
             >
-              <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
-              <div className="text-sm font-medium text-nofx-text">
+              <Icon className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1.5 sm:mb-2" style={{ color }} />
+              <div className="text-xs sm:text-sm font-medium text-nofx-text truncate">
                 {t(value)}
               </div>
-              <div className="text-xs mt-1 text-nofx-text-muted">
+              <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1 text-nofx-text-muted truncate">
                 {t(`${value}Desc`)}
               </div>
             </button>
@@ -225,26 +225,25 @@ export function CoinSourceEditor({
           <label className="block text-sm font-medium mb-3 text-nofx-text">
             {t('staticCoins')}
           </label>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
               <span
                 key={coin}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-nofx-bg-lighter text-nofx-text"
-              >
-                {coin}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-nofx-bg-lighter text-nofx-text">
+                <span className="truncate max-w-[120px] sm:max-w-none">{coin}</span>
                 {!disabled && (
                   <button
                     onClick={() => handleRemoveCoin(coin)}
-                    className="ml-1 hover:text-red-400 transition-colors"
+                    className="ml-0.5 sm:ml-1 hover:text-red-400 transition-colors flex-shrink-0"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </button>
                 )}
               </span>
             ))}
           </div>
           {!disabled && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={newCoin}
@@ -257,7 +256,7 @@ export function CoinSourceEditor({
                 onClick={handleAddCoin}
                 className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors bg-nofx-gold text-black hover:bg-yellow-500"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 {t('addCoin')}
               </button>
             </div>
@@ -276,7 +275,7 @@ export function CoinSourceEditor({
         <p className="text-xs mb-3 text-nofx-text-muted">
           {t('excludedCoinsDesc')}
         </p>
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3">
           {(config.excluded_coins || []).map((coin) => (
             <span
               key={coin}
@@ -286,9 +285,9 @@ export function CoinSourceEditor({
               {!disabled && (
                 <button
                   onClick={() => handleRemoveExcludedCoin(coin)}
-                  className="ml-1 hover:text-white transition-colors"
+                  className="ml-0.5 sm:ml-1 hover:text-white transition-colors flex-shrink-0"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                 </button>
               )}
             </span>
@@ -300,7 +299,7 @@ export function CoinSourceEditor({
           )}
         </div>
         {!disabled && (
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={newExcludedCoin}
@@ -527,7 +526,7 @@ export function CoinSourceEditor({
               </div>
               {config.use_ai500 && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
-                  <span className="text-xs text-nofx-text-muted">Limit:</span>
+                  <span className="text-[10px] text-nofx-text-muted px-1">Limit:</span>
                   <select
                     value={config.ai500_limit || 10}
                     onChange={(e) => {
@@ -574,7 +573,7 @@ export function CoinSourceEditor({
               </p>
               {config.use_oi_top && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
-                  <span className="text-xs text-nofx-text-muted">Limit:</span>
+                  <span className="text-[10px] text-nofx-text-muted px-1">Limit:</span>
                   <select
                     value={config.oi_top_limit || 10}
                     onChange={(e) => {
@@ -621,7 +620,7 @@ export function CoinSourceEditor({
               </p>
               {config.use_oi_low && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
-                  <span className="text-xs text-nofx-text-muted">Limit:</span>
+                  <span className="text-[10px] text-nofx-text-muted px-1">Limit:</span>
                   <select
                     value={config.oi_low_limit || 10}
                     onChange={(e) => {
@@ -660,12 +659,11 @@ export function CoinSourceEditor({
                 )}
               </div>
               <div className="flex flex-wrap gap-1 mt-2">
-                {(config.static_coins || []).slice(0, 3).map((coin) => (
+                {(config.static_coins || []).slice(0, 8).map((coin) => (
                   <span
                     key={coin}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-nofx-bg-lighter text-nofx-text"
-                  >
-                    {coin}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] bg-nofx-bg-lighter text-nofx-text">
+                    <span className="truncate max-w-[60px]">{coin}</span>
                     {!disabled && (
                       <button
                         onClick={(e) => {
@@ -679,14 +677,14 @@ export function CoinSourceEditor({
                     )}
                   </span>
                 ))}
-                {(config.static_coins || []).length > 3 && (
-                  <span className="text-xs text-nofx-text-muted">
-                    +{(config.static_coins?.length || 0) - 3}
+                {(config.static_coins || []).length > 8 && (
+                  <span className="text-[10px] text-nofx-text-muted px-1">
+                    +{(config.static_coins?.length || 0) - 8}
                   </span>
                 )}
               </div>
               {!disabled && (
-                <div className="flex gap-1 mt-2">
+                <div className="flex gap-1.5 mt-2 min-w-0">
                   <input
                     type="text"
                     value={newCoin}
@@ -696,15 +694,15 @@ export function CoinSourceEditor({
                       if (e.key === 'Enter') handleAddCoin()
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    placeholder="BTC, ETH..."
-                    className="flex-1 px-2 py-1 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                    placeholder="BTC..."
+                    className="flex-1 min-w-0 px-2 py-1.5 rounded text-xs bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                   />
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       handleAddCoin()
                     }}
-                    className="px-2 py-1 rounded text-xs bg-nofx-gold text-black hover:bg-yellow-500"
+                    className="flex-shrink-0 px-2 py-1.5 rounded text-xs bg-nofx-gold text-black hover:bg-yellow-500"
                   >
                     <Plus className="w-3 h-3" />
                   </button>

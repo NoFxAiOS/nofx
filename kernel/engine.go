@@ -203,10 +203,16 @@ type OIDeltaData struct {
 type StrategyEngine struct {
 	config       *store.StrategyConfig
 	nofxosClient *nofxos.Client
+	exchange     string // Trading exchange (e.g., "binance", "bybit", "okx")
 }
 
 // NewStrategyEngine creates strategy execution engine
 func NewStrategyEngine(config *store.StrategyConfig) *StrategyEngine {
+	return NewStrategyEngineWithExchange(config, "")
+}
+
+// NewStrategyEngineWithExchange creates strategy execution engine with exchange configuration
+func NewStrategyEngineWithExchange(config *store.StrategyConfig, exchange string) *StrategyEngine {
 	// Create NofxOS client with API key from config
 	apiKey := config.Indicators.NofxOSAPIKey
 	if apiKey == "" {
@@ -217,6 +223,7 @@ func NewStrategyEngine(config *store.StrategyConfig) *StrategyEngine {
 	return &StrategyEngine{
 		config:       config,
 		nofxosClient: client,
+		exchange:     exchange,
 	}
 }
 
@@ -363,7 +370,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 
 	// 1. First fetch data for position coins (must fetch)
 	for _, pos := range ctx.Positions {
-		data, err := market.GetWithTimeframes(pos.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframes(pos.Symbol, timeframes, primaryTimeframe, klineCount, engine.exchange)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch market data for position %s: %v", pos.Symbol, err)
 			continue
@@ -384,7 +391,7 @@ func fetchMarketDataWithStrategy(ctx *Context, engine *StrategyEngine) error {
 			continue
 		}
 
-		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount)
+		data, err := market.GetWithTimeframes(coin.Symbol, timeframes, primaryTimeframe, klineCount, engine.exchange)
 		if err != nil {
 			logger.Infof("⚠️  Failed to fetch market data for %s: %v", coin.Symbol, err)
 			continue
@@ -863,10 +870,14 @@ func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 		PriceChange: nofxosData.PriceChange,
 	}
 
-	// Convert OI data
+	// Convert OI data (filter by exchange if configured)
 	if nofxosData.OI != nil {
 		quantData.OI = make(map[string]*OIData)
-		for exchange, oiData := range nofxosData.OI {
+		for oiExchange, oiData := range nofxosData.OI {
+			// Skip if exchange filter is set and doesn't match
+			if e.exchange != "" && oiExchange != e.exchange {
+				continue
+			}
 			if oiData != nil {
 				kData := &OIData{
 					CurrentOI: oiData.CurrentOI,
@@ -882,8 +893,8 @@ func (e *StrategyEngine) FetchQuantData(symbol string) (*QuantData, error) {
 							}
 						}
 					}
-				}
-				quantData.OI[exchange] = kData
+			}
+				quantData.OI[oiExchange] = kData
 			}
 		}
 	}

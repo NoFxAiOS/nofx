@@ -344,8 +344,8 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	if config.StrategyConfig == nil {
 		return nil, fmt.Errorf("[%s] strategy not configured", config.Name)
 	}
-	strategyEngine := kernel.NewStrategyEngine(config.StrategyConfig)
-	logger.Infof("✓ [%s] Using strategy engine (strategy configuration loaded)", config.Name)
+	strategyEngine := kernel.NewStrategyEngineWithExchange(config.StrategyConfig, config.Exchange)
+	logger.Infof("✓ [%s] Using strategy engine (strategy configuration loaded, exchange: %s)", config.Name, config.Exchange)
 
 	return &AutoTrader{
 		id:                    config.ID,

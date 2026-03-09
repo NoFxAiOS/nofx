@@ -391,7 +391,7 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 		return nil, fmt.Errorf("build macro brief: %w", err)
 	}
 	logger.Info("[macro-micro] Macro brief built, calling macro AI")
-	macroOut, err := GetMacroDecision(ctx, macroBrief, engine, mcpClient)
+	macroOut, macroResponse, err := GetMacroDecision(ctx, macroBrief, engine, mcpClient)
 	if err != nil {
 		logger.Warnf("[macro-micro] Macro AI call failed: %v", err)
 		return nil, fmt.Errorf("macro decision: %w", err)
@@ -442,24 +442,34 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 		}
 	}
 
-	// 4. Run deep-dives for each symbol
+	positionSymbolSet := make(map[string]bool)
+	for _, pos := range ctx.Positions {
+		positionSymbolSet[market.Normalize(pos.Symbol)] = true
+	}
+
+	// 4. Run deep-dives for each symbol (pass macro AI response; collect raw responses for position symbols)
 	logger.Infof("[macro-micro] Running %d deep-dive(s)", len(macroOut.SymbolsForDeepDive))
 	var allDecisions []Decision
+	deepDiveResponsesBySymbol := make(map[string]string)
 	for _, entry := range macroOut.SymbolsForDeepDive {
-		d, err := GetSymbolDeepDive(ctx, engine, mcpClient, entry.Symbol, macroBrief, macroOut.FocusReason, entry.Bias, entry.Risk, entry.Conviction)
+		d, rawResp, err := GetSymbolDeepDive(ctx, engine, mcpClient, entry.Symbol, macroBrief, macroResponse, macroOut.FocusReason, entry.Bias, entry.Risk, entry.Conviction)
 		if err != nil {
 			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", entry.Symbol, err)
 			allDecisions = append(allDecisions, Decision{Symbol: entry.Symbol, Action: "wait", Reasoning: err.Error()})
 			continue
 		}
 		allDecisions = append(allDecisions, *d)
+		n := market.Normalize(entry.Symbol)
+		if positionSymbolSet[n] && rawResp != "" {
+			deepDiveResponsesBySymbol[n] = rawResp
+		}
 	}
 
-	// 5. Position check: run if there are open positions
+	// 5. Position check: run if there are open positions (pass deep-dive responses for those symbols)
 	positionDecisionsBySymbol := make(map[string]Decision)
 	if len(ctx.Positions) > 0 {
 		logger.Infof("[macro-micro] Position check for %d open position(s)", len(ctx.Positions))
-		posDecs, err := GetPositionCheckDecision(ctx, engine, mcpClient, macroBrief)
+		posDecs, err := GetPositionCheckDecision(ctx, engine, mcpClient, macroBrief, deepDiveResponsesBySymbol)
 		if err != nil {
 			logger.Warnf("[macro-micro] position-check failed: %v", err)
 		} else {
@@ -624,13 +634,17 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 		}
 	}
 
-	// 4. Run deep-dives for each symbol (record each step)
+	// 4. Run deep-dives for each symbol (record each step; pass macro AI response into each deep-dive prompt)
 	logger.Infof("[macro-micro] Running %d deep-dive(s)", len(macroOut.SymbolsForDeepDive))
 	var allDecisions []Decision
+	positionSymbolSetTrace := make(map[string]bool)
+	for _, pos := range ctx.Positions {
+		positionSymbolSetTrace[market.Normalize(pos.Symbol)] = true
+	}
 	for _, entry := range macroOut.SymbolsForDeepDive {
 		sym := entry.Symbol
 		sysPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
-		userPrompt := engine.BuildDeepDiveUserPrompt(ctx, sym, macroBrief, macroOut.FocusReason, entry.Bias, entry.Risk, entry.Conviction)
+		userPrompt := engine.BuildDeepDiveUserPrompt(ctx, sym, macroBrief, macroResponse, macroOut.FocusReason, entry.Bias, entry.Risk, entry.Conviction)
 		response, err := mcpClient.CallWithMessages(sysPrompt, userPrompt)
 		if err != nil {
 			logger.Warnf("[macro-micro] deep-dive for %s failed: %v", sym, err)
@@ -673,12 +687,18 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 		}
 	}
 
-	// 5. Position check: run if there are open positions (record step)
+	// 5. Position check: run if there are open positions (record step; pass deep-dive responses for position symbols)
+	deepDiveResponsesForPositionCheck := make(map[string]string)
+	for _, st := range steps {
+		if st.Step == "deep_dive" && st.Symbol != "" && positionSymbolSetTrace[market.Normalize(st.Symbol)] && st.Response != "" {
+			deepDiveResponsesForPositionCheck[market.Normalize(st.Symbol)] = st.Response
+		}
+	}
 	positionDecisionsBySymbol := make(map[string]Decision)
 	if len(ctx.Positions) > 0 {
 		logger.Infof("[macro-micro] Position check for %d open position(s)", len(ctx.Positions))
 		sysPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
-		userPrompt := engine.BuildPositionCheckUserPrompt(ctx, macroBrief)
+		userPrompt := engine.BuildPositionCheckUserPrompt(ctx, macroBrief, deepDiveResponsesForPositionCheck)
 		response, err := mcpClient.CallWithMessages(sysPrompt, userPrompt)
 		if err != nil {
 			logger.Warnf("[macro-micro] position-check failed: %v", err)
@@ -1981,9 +2001,9 @@ func (e *StrategyEngine) BuildUserPrompt(ctx *Context) string {
 }
 
 // BuildDeepDiveUserPrompt builds the user prompt for a single-symbol deep-dive (macro context + full data for one symbol).
-// Uses the same klines, indicators, and quant data as the non-multi-turn path; fetches on demand if missing from context.
+// macroAIResponse: raw AI response from the macro step; when non-empty it is included so the deep-dive has the macro assessment.
 // symbolBias, symbolRisk, conviction: per-symbol macro view (bullish/bearish/neutral, risk, 0-1 strength vs market).
-func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, macroBrief string, focusReason string, symbolBias string, symbolRisk string, conviction float64) string {
+func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, macroBrief string, macroAIResponse string, focusReason string, symbolBias string, symbolRisk string, conviction float64) string {
 	var sb strings.Builder
 	sb.WriteString(macroBrief)
 	sb.WriteString("\n\n## Market context (from macro)\n")
@@ -1991,7 +2011,12 @@ func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, ma
 	if focusReason != "" {
 		sb.WriteString("Focus: " + focusReason + "\n")
 	}
-	sb.WriteString(fmt.Sprintf("\n## Symbol to analyze: %s\n\n", symbol))
+	if macroAIResponse != "" {
+		sb.WriteString("\n## Macro AI assessment\n\n")
+		sb.WriteString(strings.TrimSpace(macroAIResponse))
+		sb.WriteString("\n\n")
+	}
+	sb.WriteString(fmt.Sprintf("## Symbol to analyze: %s\n\n", symbol))
 
 	normalized := market.Normalize(symbol)
 	marketData, hasMarket := ctx.MarketDataMap[symbol]
@@ -2145,17 +2170,17 @@ func (e *StrategyEngine) effectiveDeepDiveCustomPrompt() string {
 	return e.config.DeepDiveCustomPrompt
 }
 
-// GetSymbolDeepDive runs one AI call for a single symbol and returns the decision for that symbol.
-func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, symbol string, macroBrief string, focusReason string, symbolBias string, symbolRisk string, conviction float64) (*Decision, error) {
+// GetSymbolDeepDive runs one AI call for a single symbol and returns the decision plus the raw AI response (for passing to position-check).
+func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, symbol string, macroBrief string, macroAIResponse string, focusReason string, symbolBias string, symbolRisk string, conviction float64) (*Decision, string, error) {
 	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
-	userPrompt := engine.BuildDeepDiveUserPrompt(ctx, symbol, macroBrief, focusReason, symbolBias, symbolRisk, conviction)
+	userPrompt := engine.BuildDeepDiveUserPrompt(ctx, symbol, macroBrief, macroAIResponse, focusReason, symbolBias, symbolRisk, conviction)
 	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	if err != nil {
-		return nil, fmt.Errorf("deep-dive AI call for %s failed: %w", symbol, err)
+		return nil, "", fmt.Errorf("deep-dive AI call for %s failed: %w", symbol, err)
 	}
 	decisions, err := extractDecisions(response)
 	if err != nil {
-		return &Decision{Symbol: symbol, Action: "wait", Reasoning: "Deep-dive parse failed: " + err.Error()}, nil
+		return &Decision{Symbol: symbol, Action: "wait", Reasoning: "Deep-dive parse failed: " + err.Error()}, response, nil
 	}
 	reasoningFromResponse := extractCoTTrace(response)
 	normalized := market.Normalize(symbol)
@@ -2170,7 +2195,7 @@ func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AICli
 			if d.Reasoning == "" && (action == "hold" || action == "wait") {
 				d.Reasoning = extractReasoningFallback(response, symbol)
 			}
-			return d, nil
+			return d, response, nil
 		}
 	}
 	if len(decisions) > 0 {
@@ -2183,16 +2208,28 @@ func GetSymbolDeepDive(ctx *Context, engine *StrategyEngine, mcpClient mcp.AICli
 		if d.Reasoning == "" && (action == "hold" || action == "wait") {
 			d.Reasoning = extractReasoningFallback(response, symbol)
 		}
-		return d, nil
+		return d, response, nil
 	}
-	return &Decision{Symbol: symbol, Action: "wait", Reasoning: "No decision in response"}, nil
+	return &Decision{Symbol: symbol, Action: "wait", Reasoning: "No decision in response"}, response, nil
 }
 
 // BuildPositionCheckUserPrompt builds the user prompt for the position-check pass (macro brief + full position list).
-func (e *StrategyEngine) BuildPositionCheckUserPrompt(ctx *Context, macroBrief string) string {
+// deepDiveResponsesBySymbol: for each open-position symbol that had a deep-dive, the raw AI response from that deep-dive (so position-check can use the prior analysis).
+func (e *StrategyEngine) BuildPositionCheckUserPrompt(ctx *Context, macroBrief string, deepDiveResponsesBySymbol map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString(macroBrief)
-	sb.WriteString("\n\n## Open positions to check\n\n")
+	if len(deepDiveResponsesBySymbol) > 0 {
+		sb.WriteString("\n\n## Deep-dive analyses for these positions\n\n")
+		for _, pos := range ctx.Positions {
+			n := market.Normalize(pos.Symbol)
+			if resp, ok := deepDiveResponsesBySymbol[n]; ok && resp != "" {
+				sb.WriteString(fmt.Sprintf("### %s (deep-dive)\n\n", pos.Symbol))
+				sb.WriteString(strings.TrimSpace(resp))
+				sb.WriteString("\n\n")
+			}
+		}
+	}
+	sb.WriteString("\n## Open positions to check\n\n")
 	for i, pos := range ctx.Positions {
 		sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
 	}
@@ -2206,9 +2243,10 @@ func (e *StrategyEngine) BuildPositionCheckUserPrompt(ctx *Context, macroBrief s
 }
 
 // GetPositionCheckDecision runs one AI call to get TP/SL/hold decisions for all open positions.
-func GetPositionCheckDecision(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, macroBrief string) ([]Decision, error) {
+// deepDiveResponsesBySymbol: optional map of symbol -> raw deep-dive AI response for open-position symbols.
+func GetPositionCheckDecision(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, macroBrief string, deepDiveResponsesBySymbol map[string]string) ([]Decision, error) {
 	systemPrompt := engine.BuildSystemPrompt(ctx.Account.TotalEquity, "")
-	userPrompt := engine.BuildPositionCheckUserPrompt(ctx, macroBrief)
+	userPrompt := engine.BuildPositionCheckUserPrompt(ctx, macroBrief, deepDiveResponsesBySymbol)
 	response, err := mcpClient.CallWithMessages(systemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("position-check AI call failed: %w", err)

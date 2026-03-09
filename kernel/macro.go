@@ -522,8 +522,8 @@ func clampConviction(c float64) float64 {
 	return c
 }
 
-// GetMacroDecision calls the AI with the macro brief and returns structured output.
-func GetMacroDecision(ctx *Context, macroBrief string, engine *StrategyEngine, mcpClient mcp.AIClient) (*MacroOutput, error) {
+// GetMacroDecision calls the AI with the macro brief and returns structured output plus the raw AI response (for passing to deep-dive prompts).
+func GetMacroDecision(ctx *Context, macroBrief string, engine *StrategyEngine, mcpClient mcp.AIClient) (*MacroOutput, string, error) {
 	config := engine.GetConfig()
 	limit := clampMacroDeepDiveLimit(config.MacroDeepDiveLimit)
 	if limit <= 0 {
@@ -535,7 +535,7 @@ func GetMacroDecision(ctx *Context, macroBrief string, engine *StrategyEngine, m
 
 	response, err := mcpClient.CallWithMessages(sysPrompt, userPrompt)
 	if err != nil {
-		return nil, fmt.Errorf("macro AI call failed: %w", err)
+		return nil, "", fmt.Errorf("macro AI call failed: %w", err)
 	}
 
 	out, err := ParseMacroResponse(response)
@@ -563,5 +563,5 @@ func GetMacroDecision(ctx *Context, macroBrief string, engine *StrategyEngine, m
 		}
 	}
 
-	return ValidateAndMergeMacroOutput(out, ctx, config), nil
+	return ValidateAndMergeMacroOutput(out, ctx, config), response, nil
 }

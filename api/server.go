@@ -12,6 +12,7 @@ import (
 	"nofx/crypto"
 	"nofx/logger"
 	"nofx/manager"
+	"nofx/security"
 	"nofx/market"
 	"nofx/provider/alpaca"
 	"nofx/provider/coinank/coinank_api"
@@ -1851,6 +1852,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			{ID: "gemini", Name: "Gemini AI", Provider: "gemini", Enabled: false},
 			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false},
 			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false},
+			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -1937,6 +1939,15 @@ func (s *Server) handleUpdateModelConfigs(c *gin.Context) {
 	// Update each model's configuration and track traders that need reload
 	tradersToReload := make(map[string]bool)
 	for modelID, modelData := range req.Models {
+		// SSRF protection: validate custom_api_url before storing
+		if modelData.CustomAPIURL != "" {
+			cleanURL := strings.TrimSuffix(modelData.CustomAPIURL, "#")
+			if err := security.ValidateURL(cleanURL); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid custom_api_url for model %s: %s", modelID, err.Error())})
+				return
+			}
+		}
+
 		// Find traders using this AI model BEFORE updating
 		traders, _ := s.store.Trader().ListByAIModelID(userID, modelID)
 		for _, t := range traders {
@@ -3435,6 +3446,7 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "gemini", "name": "Google Gemini", "provider": "gemini", "defaultModel": "gemini-3-pro-preview"},
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
+		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.5"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)

@@ -104,6 +104,7 @@ function AIAvatar({ name, size = 24 }: { name: string; size?: number }) {
     kimi: { bg: 'bg-purple-500', text: 'text-white', letter: 'K' },
     qwen: { bg: 'bg-indigo-500', text: 'text-white', letter: 'Q' },
     openai: { bg: 'bg-emerald-600', text: 'text-white', letter: 'O' },
+    minimax: { bg: 'bg-red-500', text: 'text-white', letter: 'M' },
     gpt: { bg: 'bg-emerald-600', text: 'text-white', letter: 'O' },
   }
   const lower = name.toLowerCase()

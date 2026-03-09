@@ -22,7 +22,11 @@ func WithLogger(logger Logger) ClientOption {
 	}
 }
 
-// WithHTTPClient sets custom HTTP client
+// WithHTTPClient sets custom HTTP client.
+//
+// WARNING: The default client uses security.SafeHTTPClient() with SSRF protection
+// (blocks private IPs, cloud metadata, validates redirects). Overriding it bypasses
+// these protections. Only use in tests or with a client providing equivalent safeguards.
 //
 // Usage example:
 //   httpClient := &http.Client{Timeout: 60 * time.Second}
@@ -158,5 +162,19 @@ func WithQwenConfig(apiKey string) ClientOption {
 		c.APIKey = apiKey
 		c.BaseURL = DefaultQwenBaseURL
 		c.Model = DefaultQwenModel
+	}
+}
+
+// WithMiniMaxConfig sets MiniMax configuration
+//
+// Usage example:
+//
+//	client := mcp.NewClient(mcp.WithMiniMaxConfig("sk-xxx"))
+func WithMiniMaxConfig(apiKey string) ClientOption {
+	return func(c *Config) {
+		c.Provider = ProviderMiniMax
+		c.APIKey = apiKey
+		c.BaseURL = DefaultMiniMaxBaseURL
+		c.Model = DefaultMiniMaxModel
 	}
 }

@@ -22,7 +22,11 @@ func WithLogger(logger Logger) ClientOption {
 	}
 }
 
-// WithHTTPClient sets custom HTTP client
+// WithHTTPClient sets custom HTTP client.
+//
+// WARNING: The default client uses security.SafeHTTPClient() with SSRF protection
+// (blocks private IPs, cloud metadata, validates redirects). Overriding it bypasses
+// these protections. Only use in tests or with a client providing equivalent safeguards.
 //
 // Usage example:
 //   httpClient := &http.Client{Timeout: 60 * time.Second}

@@ -522,7 +522,7 @@ func (e *DebateEngine) buildMarketContextMacroMicroPerParticipant(session *store
 		if err != nil {
 			return nil, fmt.Errorf("build macro brief: %w", err)
 		}
-		macroOut, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, firstClient)
+		macroOut, _, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, firstClient)
 		if err != nil {
 			return nil, fmt.Errorf("macro decision: %w", err)
 		}
@@ -574,7 +574,7 @@ func (e *DebateEngine) buildMarketContextMacroMicroPerParticipant(session *store
 		if client == nil {
 			return nil, fmt.Errorf("no AI client for participant %s", participant.AIModelName)
 		}
-		macroOut, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, client)
+		macroOut, _, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, client)
 		if err != nil {
 			return nil, fmt.Errorf("macro for %s: %w", participant.AIModelName, err)
 		}
@@ -646,7 +646,7 @@ func (e *DebateEngine) buildMarketContextMacroMicro(session *store.DebateSession
 	if err != nil {
 		return nil, "", fmt.Errorf("build macro brief: %w", err)
 	}
-	macroOut, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, mcpClient)
+	macroOut, _, err := kernel.GetMacroDecision(ctx, macroBrief, strategyEngine, mcpClient)
 	if err != nil {
 		return nil, "", fmt.Errorf("macro decision: %w", err)
 	}

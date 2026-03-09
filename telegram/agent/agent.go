@@ -75,46 +75,107 @@ func GenerateBotToken(userID string) (string, error) {
 // and per-trader account summary + statistics) and returns it as a formatted string for
 // injection into the LLM context at the start of each conversation.
 func (a *Agent) buildAccountContext() string {
-	type q struct {
-		label string
-		path  string
-	}
-	queries := []q{
-		{"AI Models", "/api/models"},
-		{"Exchanges", "/api/exchanges"},
-		{"Strategies", "/api/strategies"},
-		{"Traders", "/api/my-traders"},
-	}
-
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("[Current Account State - Authenticated User ID: %s]\n\n", a.userID))
+	sb.WriteString(fmt.Sprintf("[Current Account State — User: %s]\n\n", a.userID))
 
-	var tradersJSON string
-	for _, query := range queries {
-		result := a.apiTool.execute(&apiRequest{Method: "GET", Path: query.path})
-		sb.WriteString(fmt.Sprintf("%s:\n%s\n\n", query.label, result))
-		if query.path == "/api/my-traders" {
-			tradersJSON = result
-		}
+	// ── AI Models ─────────────────────────────────────────────────────────────
+	modelsRaw := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/models"})
+	sb.WriteString("## AI Models\n")
+	sb.WriteString("⚠️  When creating a trader, use the EXACT \"id\" value below for \"ai_model_id\".\n")
+	sb.WriteString("    DO NOT use the \"provider\" field — it is NOT a valid ai_model_id.\n\n")
+
+	var models []struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Provider string `json:"provider"`
+		Enabled  bool   `json:"enabled"`
 	}
+	if err := json.Unmarshal([]byte(modelsRaw), &models); err == nil && len(models) > 0 {
+		for _, m := range models {
+			status := "disabled"
+			if m.Enabled {
+				status = "ENABLED"
+			}
+			sb.WriteString(fmt.Sprintf("  • ai_model_id=\"%s\"  provider=%s  name=%s  [%s]\n", m.ID, m.Provider, m.Name, status))
+		}
+	} else {
+		sb.WriteString(modelsRaw)
+	}
+	sb.WriteString("\n")
 
-	// For each running trader, fetch real-time account balance and trading statistics.
+	// ── Exchanges ─────────────────────────────────────────────────────────────
+	exchangesRaw := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/exchanges"})
+	sb.WriteString("## Exchanges\n")
+	sb.WriteString("⚠️  Use the EXACT \"id\" value below for \"exchange_id\" when creating a trader.\n\n")
+
+	var exchanges []struct {
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		ExchangeType string `json:"exchange_type"`
+		AccountName  string `json:"account_name"`
+		Enabled      bool   `json:"enabled"`
+	}
+	if err := json.Unmarshal([]byte(exchangesRaw), &exchanges); err == nil && len(exchanges) > 0 {
+		for _, e := range exchanges {
+			status := "disabled"
+			if e.Enabled {
+				status = "ENABLED"
+			}
+			sb.WriteString(fmt.Sprintf("  • exchange_id=\"%s\"  type=%s  account=%s  [%s]\n", e.ID, e.ExchangeType, e.AccountName, status))
+		}
+	} else {
+		sb.WriteString(exchangesRaw)
+	}
+	sb.WriteString("\n")
+
+	// ── Strategies ────────────────────────────────────────────────────────────
+	strategiesRaw := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/strategies"})
+	sb.WriteString("## Strategies\n")
+
+	var strategies []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal([]byte(strategiesRaw), &strategies); err == nil && len(strategies) > 0 {
+		for _, s := range strategies {
+			sb.WriteString(fmt.Sprintf("  • strategy_id=\"%s\"  name=%s\n", s.ID, s.Name))
+		}
+	} else {
+		sb.WriteString(strategiesRaw)
+	}
+	sb.WriteString("\n")
+
+	// ── Traders ───────────────────────────────────────────────────────────────
+	tradersRaw := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/my-traders"})
+	sb.WriteString("## Traders\n")
+
 	var traders []struct {
 		TraderID  string `json:"trader_id"`
 		Name      string `json:"trader_name"`
 		IsRunning bool   `json:"is_running"`
 	}
-	if err := json.Unmarshal([]byte(tradersJSON), &traders); err == nil {
+	if err := json.Unmarshal([]byte(tradersRaw), &traders); err == nil && len(traders) > 0 {
 		for _, t := range traders {
-			if !t.IsRunning {
-				continue
+			status := "stopped"
+			if t.IsRunning {
+				status = "RUNNING"
 			}
-			acct := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/account?trader_id=" + t.TraderID})
-			sb.WriteString(fmt.Sprintf("Account [%s] (trader_id=%s):\n%s\n\n", t.Name, t.TraderID, acct))
-
-			stats := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/statistics?trader_id=" + t.TraderID})
-			sb.WriteString(fmt.Sprintf("Statistics [%s] (trader_id=%s):\n%s\n\n", t.Name, t.TraderID, stats))
+			sb.WriteString(fmt.Sprintf("  • trader_id=\"%s\"  name=%s  [%s]\n", t.TraderID, t.Name, status))
 		}
+	} else {
+		sb.WriteString(tradersRaw)
+	}
+	sb.WriteString("\n")
+
+	// ── Per-trader live data (running traders only) ────────────────────────────
+	for _, t := range traders {
+		if !t.IsRunning {
+			continue
+		}
+		acct := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/account?trader_id=" + t.TraderID})
+		sb.WriteString(fmt.Sprintf("Account [%s]:\n%s\n\n", t.Name, acct))
+		stats := a.apiTool.execute(&apiRequest{Method: "GET", Path: "/api/statistics?trader_id=" + t.TraderID})
+		sb.WriteString(fmt.Sprintf("Statistics [%s]:\n%s\n\n", t.Name, stats))
 	}
 
 	return sb.String()

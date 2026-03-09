@@ -30,7 +30,7 @@ export function RegisterPage() {
     getSystemConfig()
       .then((config) => {
         setBetaMode(config.beta_mode || false)
-        setRegistrationEnabled(config.registration_enabled !== false)
+        setRegistrationEnabled(config.initialized === false)
       })
       .catch((err) => {
         console.error('Failed to fetch system config:', err)

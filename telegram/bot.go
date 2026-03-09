@@ -39,13 +39,13 @@ func Start(cfg *config.Config, st *store.Store, reloadCh <-chan struct{}) {
 	}
 }
 
-// resolveToken returns the bot token, preferring the DB-stored value over the env/config value.
+// resolveToken returns the bot token from DB (configured via Web UI).
 func resolveToken(cfg *config.Config, st *store.Store) string {
 	dbCfg, err := st.TelegramConfig().Get()
 	if err == nil && dbCfg.BotToken != "" {
 		return dbCfg.BotToken
 	}
-	return cfg.TelegramBotToken
+	return ""
 }
 
 // runBot runs the bot until the updates channel closes (clean stop → true) or a fatal error (false).
@@ -57,46 +57,46 @@ func runBot(token string, cfg *config.Config, st *store.Store) bool {
 	}
 	logger.Infof("Telegram bot @%s started", bot.Self.UserName)
 
-	// Allowed chat ID: env override → DB-stored binding → 0 (unbound, first /start will bind).
-	allowedChatID := cfg.TelegramAdminChatID
-	if allowedChatID == 0 {
-		if id, err := st.TelegramConfig().GetBoundChatID(); err == nil && id != 0 {
-			allowedChatID = id
-		}
+	// Allowed chat ID: read from DB binding (0 = unbound, first /start will bind).
+	allowedChatID := int64(0)
+	if id, err := st.TelegramConfig().GetBoundChatID(); err == nil && id != 0 {
+		allowedChatID = id
 	}
 
 	// botUserID / botToken / agents are resolved lazily and refresh when user registers.
 	var (
-		botUserID string
-		botToken  string
-		agents    *agent.Manager
+		botUserID    string
+		botUserEmail string
+		botToken     string
+		agents       *agent.Manager
 	)
 
 	resolveBotUser := func() bool {
-		ids, err := st.User().GetAllIDs()
-		if err != nil || len(ids) == 0 {
+		users, err := st.User().GetAll()
+		if err != nil || len(users) == 0 {
 			return false
 		}
-		newID := ids[0]
-		if newID == botUserID {
+		u := users[0]
+		if u.ID == botUserID {
 			return true
 		}
-		newToken, err := agent.GenerateBotToken(newID)
+		newToken, err := agent.GenerateBotToken(u.ID)
 		if err != nil {
-			logger.Errorf("Failed to generate bot JWT for user %s: %v", newID, err)
+			logger.Errorf("Failed to generate bot JWT for user %s: %v", u.ID, err)
 			return false
 		}
 		prev := botUserID
-		botUserID = newID
+		botUserID = u.ID
+		botUserEmail = u.Email
 		botToken = newToken
-		agents = agent.NewManager(cfg.APIServerPort, botToken, botUserID,
+		agents = agent.NewManager(cfg.APIServerPort, botToken, botUserEmail, botUserID,
 			func() mcp.AIClient { return newLLMClient(st, botUserID) },
 			api.GetAPIDocs(),
 		)
 		if prev == "" {
-			logger.Infof("Bot: resolved user %s", botUserID)
+			logger.Infof("Bot: resolved user %s (%s)", botUserID, botUserEmail)
 		} else {
-			logger.Infof("Bot: user changed %s → %s", prev, botUserID)
+			logger.Infof("Bot: user changed → %s (%s)", botUserID, botUserEmail)
 		}
 		return true
 	}

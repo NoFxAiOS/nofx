@@ -1499,7 +1499,7 @@ function ModelCard({
 }
 
 // Model Configuration Modal Component
-function ModelConfigModal({
+export function ModelConfigModal({
   allModels,
   configuredModels,
   editingModelId,

@@ -6,7 +6,8 @@ import { TraderDashboardPage } from './pages/TraderDashboardPage'
 
 import { AITradersPage } from './components/AITradersPage'
 import { LoginPage } from './components/LoginPage'
-import { RegisterPage } from './components/RegisterPage'
+import { SetupPage } from './components/SetupPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
@@ -53,7 +54,7 @@ type Page =
 function App() {
   const { language, setLanguage } = useLanguage()
   const { user, token, logout, isLoading } = useAuth()
-  const { loading: configLoading } = useSystemConfig()
+  const { config: systemConfig, loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
   // Debug log
@@ -341,12 +342,22 @@ function App() {
     )
   }
 
+  // First-time setup: redirect to /setup if system not initialized
+  if (systemConfig && !systemConfig.initialized && !user) {
+    return <SetupPage />
+  }
+
   // Handle specific routes regardless of authentication
   if (route === '/login') {
     return <LoginPage />
   }
-  if (route === '/register') {
-    return <RegisterPage />
+  if (route === '/setup') {
+    // If already initialized, redirect to login
+    if (systemConfig?.initialized) {
+      window.location.href = '/login'
+      return null
+    }
+    return <SetupPage />
   }
   if (route === '/faq') {
     return (
@@ -375,6 +386,26 @@ function App() {
   }
   if (route === '/reset-password') {
     return <ResetPasswordPage />
+  }
+  if (route === '/settings') {
+    if (!user || !token) {
+      window.location.href = '/login'
+      return null
+    }
+    return (
+      <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
+        <HeaderBar
+          isLoggedIn={!!user}
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <SettingsPage />
+      </div>
+    )
   }
   // Data page - publicly accessible with embedded dashboard
   if (route === '/data') {

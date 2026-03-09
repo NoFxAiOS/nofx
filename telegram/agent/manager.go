@@ -21,8 +21,9 @@ type Manager struct {
 }
 
 // NewManager creates a Manager. Call api.GetAPIDocs() before this and pass the result as apiDocs.
-// userID is the database user ID the bot authenticates as (used in system prompt context).
-func NewManager(apiPort int, botToken, userID string, getLLM func() mcp.AIClient, apiDocs string) *Manager {
+// userEmail is the registered email shown to the user when they ask "who am I".
+// userID is the internal DB UUID used for API authentication.
+func NewManager(apiPort int, botToken, userEmail, userID string, getLLM func() mcp.AIClient, apiDocs string) *Manager {
 	return &Manager{
 		agents:       make(map[int64]*Agent),
 		lanes:        make(map[int64]chan struct{}),
@@ -30,7 +31,7 @@ func NewManager(apiPort int, botToken, userID string, getLLM func() mcp.AIClient
 		botToken:     botToken,
 		userID:       userID,
 		getLLM:       getLLM,
-		systemPrompt: BuildAgentPrompt(apiDocs, userID),
+		systemPrompt: BuildAgentPrompt(apiDocs, userEmail, userID),
 	}
 }
 

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"nofx/experience"
 	"nofx/mcp"
 	"os"
@@ -16,10 +15,8 @@ var global *Config
 // Only contains truly global config, trading related config is at trader/strategy level
 type Config struct {
 	// Service configuration
-	APIServerPort       int
-	JWTSecret           string
-	RegistrationEnabled bool
-	MaxUsers            int // Maximum number of users allowed (0 = unlimited, default = 10)
+	APIServerPort int
+	JWTSecret     string
 
 	// Database configuration
 	DBType     string // sqlite or postgres
@@ -46,17 +43,12 @@ type Config struct {
 	AlpacaSecretKey string // Alpaca secret key
 	TwelveDataKey   string // TwelveData API key for forex & metals
 
-	// Telegram Bot configuration
-	TelegramBotToken    string // TELEGRAM_BOT_TOKEN (required to enable bot)
-	TelegramAdminChatID int64  // TELEGRAM_ADMIN_CHAT_ID (optional, 0 = auto-bind on first /start)
 }
 
 // Init initializes global configuration (from .env)
 func Init() {
 	cfg := &Config{
 		APIServerPort:         8080,
-		RegistrationEnabled:   false, // Default: closed after first user registers (first-time setup always allowed)
-		MaxUsers:              1,     // Default: single-user deployment
 		ExperienceImprovement: true, // Default: enabled to help improve the product
 		// Database defaults
 		DBType:    "sqlite",
@@ -74,16 +66,6 @@ func Init() {
 	}
 	if cfg.JWTSecret == "" {
 		cfg.JWTSecret = "default-jwt-secret-change-in-production"
-	}
-
-	if v := os.Getenv("REGISTRATION_ENABLED"); v != "" {
-		cfg.RegistrationEnabled = strings.ToLower(v) == "true"
-	}
-
-	if v := os.Getenv("MAX_USERS"); v != "" {
-		if maxUsers, err := strconv.Atoi(v); err == nil && maxUsers >= 0 {
-			cfg.MaxUsers = maxUsers
-		}
 	}
 
 	if v := os.Getenv("API_SERVER_PORT"); v != "" {
@@ -108,17 +90,6 @@ func Init() {
 	cfg.AlpacaAPIKey = os.Getenv("ALPACA_API_KEY")
 	cfg.AlpacaSecretKey = os.Getenv("ALPACA_SECRET_KEY")
 	cfg.TwelveDataKey = os.Getenv("TWELVEDATA_API_KEY")
-
-	// Telegram Bot configuration
-	cfg.TelegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-	if chatIDStr := os.Getenv("TELEGRAM_ADMIN_CHAT_ID"); chatIDStr != "" {
-		if id, err := strconv.ParseInt(chatIDStr, 10, 64); err == nil {
-			cfg.TelegramAdminChatID = id
-		} else {
-			// logger may not be init yet, use fmt
-			fmt.Printf("WARNING: TELEGRAM_ADMIN_CHAT_ID invalid value %q, ignoring: %v\n", chatIDStr, err)
-		}
-	}
 
 	// Database configuration
 	if v := os.Getenv("DB_TYPE"); v != "" {

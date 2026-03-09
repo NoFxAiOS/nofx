@@ -203,48 +203,6 @@ check_database() {
 }
 
 # ------------------------------------------------------------------------
-# First-time Setup: Telegram Bot Token
-# ------------------------------------------------------------------------
-setup_telegram() {
-    if is_env_configured "TELEGRAM_BOT_TOKEN"; then
-        local token=$(grep "^TELEGRAM_BOT_TOKEN=" .env | cut -d'=' -f2- | tr -d '"'"'")
-        print_success "Telegram Bot Token configured: ${token:0:10}..."
-        return
-    fi
-
-    echo ""
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${CYAN}  🤖 Telegram Bot Setup (required)${NC}"
-    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo ""
-    echo "  Don't have a Bot Token yet? Get one in 60 seconds:"
-    echo ""
-    echo "  1. Open Telegram, search for @BotFather"
-    echo "  2. Send /newbot"
-    echo "  3. Enter a bot name (e.g. MyTradingBot)"
-    echo "  4. Enter a username ending in 'bot' (e.g. my_trading_bot)"
-    echo "  5. BotFather gives you a token like:"
-    echo "     1234567890:AABBCCDDEEFFaabbccddeeff..."
-    echo ""
-    while true; do
-        read -p "  Paste your Bot Token: " bot_token
-        bot_token=$(echo "$bot_token" | tr -d ' ')
-        if [ -z "$bot_token" ]; then
-            print_warning "Token cannot be empty, please try again"
-            continue
-        fi
-        if [[ ! "$bot_token" =~ ^[0-9]+:.+ ]]; then
-            print_warning "Invalid token format (expected digits:letters, e.g. 123456:ABC...) — please retry"
-            continue
-        fi
-        break
-    done
-    set_env_var "TELEGRAM_BOT_TOKEN" "$bot_token"
-    print_success "Bot Token saved ✅"
-    echo ""
-}
-
-# ------------------------------------------------------------------------
 # Service Management: Start
 # ------------------------------------------------------------------------
 start() {
@@ -260,9 +218,6 @@ start() {
         install -m 700 -d data
     fi
 
-    # Interactive setup for first-time users
-    setup_telegram
-
     echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     print_info "Starting services..."
 
@@ -277,12 +232,11 @@ start() {
     echo -e "${GREEN}║  ✅ Started! Next steps:                             ║${NC}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
     echo ""
-    echo "  1. Open Telegram and find your bot"
-    echo "  2. Send /start to bind your account"
-    echo "  3. The bot will guide you through AI model and exchange setup"
-    echo "  4. Once configured, just chat to trade"
+    echo "  1. Open the web dashboard to register and configure"
+    echo "  2. Add an AI model and exchange in Settings"
+    echo "  3. (Optional) Add a Telegram bot token in Settings → Telegram"
     echo ""
-    echo -e "  Web dashboard: ${BLUE}http://localhost:${NOFX_FRONTEND_PORT}${NC} (optional)"
+    echo -e "  Web dashboard: ${BLUE}http://localhost:${NOFX_FRONTEND_PORT}${NC}"
     echo -e "  View logs:     ${YELLOW}./start.sh logs${NC}"
     echo -e "  Stop:          ${YELLOW}./start.sh stop${NC}"
     echo ""

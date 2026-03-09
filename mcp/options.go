@@ -160,3 +160,17 @@ func WithQwenConfig(apiKey string) ClientOption {
 		c.Model = DefaultQwenModel
 	}
 }
+
+// WithMiniMaxConfig sets MiniMax configuration
+//
+// Usage example:
+//
+//	client := mcp.NewClient(mcp.WithMiniMaxConfig("sk-xxx"))
+func WithMiniMaxConfig(apiKey string) ClientOption {
+	return func(c *Config) {
+		c.Provider = ProviderMiniMax
+		c.APIKey = apiKey
+		c.BaseURL = DefaultMiniMaxBaseURL
+		c.Model = DefaultMiniMaxModel
+	}
+}

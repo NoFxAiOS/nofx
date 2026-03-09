@@ -29,6 +29,14 @@ const (
 	aiDecisionMaxRetries = 3
 )
 
+// checkReplayOnlyMacroMicro returns an error when replay_only is used with macro-micro flow (incompatible).
+func checkReplayOnlyMacroMicro(replayOnly, useMacroMicro bool) error {
+	if replayOnly && useMacroMicro {
+		return fmt.Errorf("replay_only is incompatible with macro-micro flow (no AI cache for multi-turn)")
+	}
+	return nil
+}
+
 // Runner encapsulates the lifecycle of a single backtest run.
 type Runner struct {
 	cfg            BacktestConfig
@@ -315,7 +323,17 @@ func (r *Runner) stepOnce() error {
 			fromCache    bool
 			cacheKey     string
 		)
-		if r.aiCache != nil {
+		config := r.strategyEngine.GetConfig()
+		useMacroMicroTrace := config != nil && config.EnableMacroMicroFlow
+
+		if err := checkReplayOnlyMacroMicro(r.cfg.ReplayOnly, useMacroMicroTrace); err != nil {
+			record.Success = false
+			record.ErrorMessage = err.Error()
+			_ = r.logDecision(record)
+			return err
+		}
+
+		if !useMacroMicroTrace && r.aiCache != nil {
 			if key, err := computeCacheKey(ctx, r.cfg.PromptVariant, ts); err == nil {
 				cacheKey = key
 				if cached, ok := r.aiCache.Get(cacheKey); ok {
@@ -334,19 +352,34 @@ func (r *Runner) stepOnce() error {
 		}
 
 		if !fromCache {
-			fd, err := r.invokeAIWithRetry(ctx)
-			if err != nil {
-				decisionAttempted = true
-				hadError = true
-				record.Success = false
-				record.ErrorMessage = fmt.Sprintf("AI decision failed: %v", err)
-				execLog = append(execLog, fmt.Sprintf("⚠️ AI decision failed: %v", err))
-				r.setLastError(err)
+			if useMacroMicroTrace {
+				fd, steps, err := r.invokeAIWithTraceRetry(ctx)
+				if err != nil {
+					decisionAttempted = true
+					hadError = true
+					record.Success = false
+					record.ErrorMessage = fmt.Sprintf("AI decision failed: %v", err)
+					execLog = append(execLog, fmt.Sprintf("⚠️ AI decision failed: %v", err))
+					r.setLastError(err)
+				} else {
+					fullDecision = fd
+					record.Steps = convertKernelStepsToStore(steps)
+				}
 			} else {
-				fullDecision = fd
-				if r.cfg.CacheAI && r.aiCache != nil && cacheKey != "" {
-					if err := r.aiCache.Put(cacheKey, r.cfg.PromptVariant, ts, fullDecision); err != nil {
-						logger.Infof("failed to persist ai cache for %s: %v", r.cfg.RunID, err)
+				fd, err := r.invokeAIWithRetry(ctx)
+				if err != nil {
+					decisionAttempted = true
+					hadError = true
+					record.Success = false
+					record.ErrorMessage = fmt.Sprintf("AI decision failed: %v", err)
+					execLog = append(execLog, fmt.Sprintf("⚠️ AI decision failed: %v", err))
+					r.setLastError(err)
+				} else {
+					fullDecision = fd
+					if r.cfg.CacheAI && r.aiCache != nil && cacheKey != "" {
+						if err := r.aiCache.Put(cacheKey, r.cfg.PromptVariant, ts, fullDecision); err != nil {
+							logger.Infof("failed to persist ai cache for %s: %v", r.cfg.RunID, err)
+						}
 					}
 				}
 			}
@@ -572,6 +605,7 @@ func (r *Runner) buildDecisionContext(ts int64, marketData map[string]*market.Da
 	}
 
 	record := &store.DecisionRecord{
+		CycleNumber: callCount, // cycle count (1-based), matches UI display
 		AccountState: store.AccountSnapshot{
 			TotalBalance:          accountInfo.TotalEquity,
 			AvailableBalance:      accountInfo.AvailableBalance,
@@ -619,6 +653,44 @@ func (r *Runner) invokeAIWithRetry(ctx *kernel.Context) (*kernel.FullDecision, e
 		time.Sleep(delay)
 	}
 	return nil, lastErr
+}
+
+// invokeAIWithTraceRetry runs macro-micro flow with trace (for multi-turn UI). Not cached.
+func (r *Runner) invokeAIWithTraceRetry(ctx *kernel.Context) (*kernel.FullDecision, []kernel.DecisionStepTrace, error) {
+	var lastErr error
+	for attempt := 0; attempt < aiDecisionMaxRetries; attempt++ {
+		fd, steps, err := kernel.GetFullDecisionMacroMicroWithTrace(
+			ctx,
+			r.mcpClient,
+			r.strategyEngine,
+			r.cfg.PromptVariant,
+		)
+		if err == nil {
+			return fd, steps, nil
+		}
+		lastErr = err
+		delay := time.Duration(attempt+1) * 500 * time.Millisecond
+		time.Sleep(delay)
+	}
+	return nil, nil, lastErr
+}
+
+func convertKernelStepsToStore(steps []kernel.DecisionStepTrace) []store.DecisionStepTrace {
+	if len(steps) == 0 {
+		return nil
+	}
+	out := make([]store.DecisionStepTrace, len(steps))
+	for i, s := range steps {
+		out[i] = store.DecisionStepTrace{
+			Step:         s.Step,
+			Label:        s.Label,
+			Symbol:       s.Symbol,
+			SystemPrompt: s.SystemPrompt,
+			UserPrompt:   s.UserPrompt,
+			Response:     s.Response,
+		}
+	}
+	return out
 }
 
 func (r *Runner) executeDecision(dec kernel.Decision, priceMap map[string]float64, ts int64, cycle int) (store.DecisionAction, []TradeEvent, string, error) {
@@ -885,6 +957,7 @@ func (r *Runner) snapshotPositions(priceMap map[string]float64) []store.Position
 			UnrealizedProfit: unrealizedPnL(pos, price),
 			Leverage:         float64(pos.Leverage),
 			LiquidationPrice: pos.LiquidationPrice,
+			EntryTime:        pos.OpenTime,
 		})
 	}
 	return list
@@ -912,7 +985,7 @@ func (r *Runner) convertPositions(priceMap map[string]float64) []kernel.Position
 			UnrealizedPnLPct: pnlPct,
 			LiquidationPrice: pos.LiquidationPrice,
 			MarginUsed:       pos.Margin,
-			UpdateTime:       time.Now().UnixMilli(),
+			UpdateTime:       pos.OpenTime, // entry time for holding duration
 		})
 	}
 	return list

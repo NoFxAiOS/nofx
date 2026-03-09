@@ -8,6 +8,7 @@ type Data struct {
 	CurrentPrice      float64
 	PriceChange1h     float64 // 1-hour price change percentage
 	PriceChange4h     float64 // 4-hour price change percentage
+	PriceChange24h    float64 // 24-hour price change percentage (when primary is 1h and enough bars)
 	CurrentEMA20      float64
 	CurrentMACD       float64
 	CurrentRSI7       float64

@@ -36,6 +36,7 @@ import { CoinSourceEditor } from '../components/strategy/CoinSourceEditor'
 import { IndicatorEditor } from '../components/strategy/IndicatorEditor'
 import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
+import { MacroDeepDivePromptEditor } from '../components/strategy/MacroDeepDivePromptEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
 import { DeepVoidBackground } from '../components/DeepVoidBackground'
@@ -66,16 +67,18 @@ export function StrategyStudioPage() {
     riskControl: false,
     promptSections: false,
     customPrompt: false,
+    macroMicro: false,
     publishSettings: false,
   })
 
   // Right panel states
   const [activeRightTab, setActiveRightTab] = useState<'prompt' | 'test'>('prompt')
   const [promptPreview, setPromptPreview] = useState<{
-    system_prompt: string
+    system_prompt?: string
     user_prompt?: string
     prompt_variant: string
     config_summary: Record<string, unknown>
+    steps?: Array<{ step: string; label: string; system_prompt: string; user_prompt: string }>
   } | null>(null)
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false)
   const [selectedVariant, setSelectedVariant] = useState('balanced')
@@ -89,6 +92,7 @@ export function StrategyStudioPage() {
     decisions?: unknown[]
     error?: string
     duration_ms?: number
+    steps?: Array<{ step: string; label: string; symbol?: string; system_prompt: string; user_prompt: string; response: string }>
   } | null>(null)
   const [isRunningAiTest, setIsRunningAiTest] = useState(false)
 
@@ -524,6 +528,15 @@ export function StrategyStudioPage() {
       noModel: { zh: '请先配置 AI 模型', en: 'Please configure AI model first' },
       testNote: { zh: '使用真实 AI 模型测试，不执行交易', en: 'Test with real AI, no trading' },
       publishSettings: { zh: '发布设置', en: 'Publish' },
+      macroMicro: { zh: 'Macro / 深度分析', en: 'Macro & Deep-dive' },
+      enableMacroMicro: { zh: '启用 Macro-Micro 多轮分析', en: 'Enable macro-micro multi-turn analysis' },
+      macroDeepDiveLimit: { zh: '深度分析符号数量', en: 'Deep-dive symbol limit' },
+      macroCustomPrompt: { zh: 'Macro 附加提示', en: 'Additional macro prompts' },
+      deepDiveCustomPrompt: { zh: '深度分析附加提示', en: 'Additional deep-dive prompts' },
+      positionCheckExtraPrompt: { zh: '持仓检查附加提示', en: 'Position check extra prompt' },
+      positionCheckExtraPromptDesc: { zh: '追加到持仓检查 AI 提示末尾的额外说明（可选）', en: 'Optional text appended to the position-check AI prompt' },
+      sizingAdjustmentExtraPrompt: { zh: 'Sizing 与保证金调整附加提示', en: 'Sizing & margin adjustment extra prompt' },
+      sizingAdjustmentExtraPromptDesc: { zh: '追加到 sizing/保证金调整 AI 提示末尾的额外说明（可选）', en: 'Optional text appended to the sizing and margin adjustment AI prompt' },
     }
     return translations[key]?.[language] || key
   }
@@ -641,6 +654,74 @@ export function StrategyStudioPage() {
             className="w-full h-32 px-3 py-2 rounded-lg resize-none font-mono text-xs"
             style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
           />
+        </div>
+      ),
+    },
+    {
+      key: 'macroMicro' as const,
+      icon: Bot,
+      color: '#a855f7',
+      title: t('macroMicro'),
+      forStrategyType: 'ai_trading' as const,
+      content: editingConfig && (
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!editingConfig.enable_macro_micro_flow}
+              onChange={(e) => updateConfig('enable_macro_micro_flow', e.target.checked)}
+              disabled={!!selectedStrategy?.is_default}
+              className="rounded border-nofx-gold/50"
+            />
+            <span className="text-sm text-nofx-text">{t('enableMacroMicro')}</span>
+          </label>
+          <div>
+            <label className="block text-xs text-nofx-text-muted mb-1">{t('macroDeepDiveLimit')} (3–10)</label>
+            <input
+              type="number"
+              min={3}
+              max={10}
+              value={editingConfig.macro_deep_dive_limit ?? 5}
+              onChange={(e) => updateConfig('macro_deep_dive_limit', Math.min(10, Math.max(3, parseInt(e.target.value, 10) || 5)))}
+              disabled={!!selectedStrategy?.is_default}
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+            />
+          </div>
+          <MacroDeepDivePromptEditor
+            macroSections={editingConfig.macro_prompt_sections}
+            deepDiveSections={editingConfig.deep_dive_prompt_sections}
+            onMacroChange={(c) => updateConfig('macro_prompt_sections', c)}
+            onDeepDiveChange={(c) => updateConfig('deep_dive_prompt_sections', c)}
+            disabled={!!selectedStrategy?.is_default}
+            language={language}
+          />
+          <div>
+            <label className="block text-xs text-nofx-text-muted mb-1">{t('positionCheckExtraPrompt')}</label>
+            <textarea
+              value={editingConfig.position_check_extra_prompt ?? ''}
+              onChange={(e) => updateConfig('position_check_extra_prompt', e.target.value)}
+              disabled={!!selectedStrategy?.is_default}
+              placeholder={language === 'zh' ? '例如：考虑宏观趋势，仅在逻辑破坏时平仓。' : 'e.g. Consider macro trend; close only when thesis is broken.'}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg text-sm resize-y"
+              style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+            />
+            <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('positionCheckExtraPromptDesc')}</p>
+          </div>
+          <div>
+            <label className="block text-xs text-nofx-text-muted mb-1">{t('sizingAdjustmentExtraPrompt')}</label>
+            <textarea
+              value={editingConfig.sizing_adjustment_extra_prompt ?? ''}
+              onChange={(e) => updateConfig('sizing_adjustment_extra_prompt', e.target.value)}
+              disabled={!!selectedStrategy?.is_default}
+              placeholder={language === 'zh' ? '例如：分配资金时优先高置信度标的；总保证金不超过上限。' : 'e.g. Prefer higher-confidence symbols when allocating; keep total margin within limit.'}
+              rows={2}
+              className="w-full px-3 py-2 rounded-lg text-sm resize-y"
+              style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+            />
+            <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('sizingAdjustmentExtraPromptDesc')}</p>
+          </div>
         </div>
       ),
     },
@@ -1013,24 +1094,54 @@ export function StrategyStudioPage() {
                       </div>
                     </div>
 
-                    {/* System Prompt */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <FileText className="w-3 h-3 text-purple-500" />
-                          <span className="text-xs font-medium text-nofx-text">{t('systemPrompt')}</span>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-nofx-bg-lighter text-nofx-text-muted">
-                          {promptPreview.system_prompt.length.toLocaleString()} chars
-                        </span>
+                    {/* Multi-turn: one block per step (system + user) */}
+                    {promptPreview.steps && promptPreview.steps.length > 0 ? (
+                      <div className="space-y-4">
+                        {promptPreview.steps.map((s, idx) => (
+                          <div key={idx} className="rounded-lg border border-nofx-gold/20 overflow-hidden bg-nofx-bg">
+                            <div className="px-2 py-1.5 border-b border-nofx-gold/20 text-xs font-medium text-purple-500">
+                              {s.label}
+                            </div>
+                            <div className="p-2 space-y-2">
+                              <div>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-[10px] font-medium text-nofx-text-muted">{t('systemPrompt')}</span>
+                                  <span className="text-[10px] text-nofx-text-muted">{s.system_prompt.length} chars</span>
+                                </div>
+                                <pre className="p-2 rounded text-[11px] font-mono overflow-auto bg-nofx-bg-lighter border border-nofx-gold/10 text-nofx-text" style={{ maxHeight: '200px' }}>
+                                  {s.system_prompt}
+                                </pre>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-medium text-nofx-text-muted">{t('userPrompt')}</span>
+                                <pre className="mt-1 p-2 rounded text-[11px] font-mono overflow-auto bg-nofx-bg-lighter border border-nofx-gold/10 text-nofx-text" style={{ maxHeight: '160px' }}>
+                                  {s.user_prompt}
+                                </pre>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <pre
-                        className="p-2 rounded-lg text-[11px] font-mono overflow-auto bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
-                        style={{ maxHeight: '400px' }}
-                      >
-                        {promptPreview.system_prompt}
-                      </pre>
-                    </div>
+                    ) : (
+                      /* Single-turn: one system prompt block */
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <FileText className="w-3 h-3 text-purple-500" />
+                            <span className="text-xs font-medium text-nofx-text">{t('systemPrompt')}</span>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-nofx-bg-lighter text-nofx-text-muted">
+                            {(promptPreview.system_prompt ?? '').length.toLocaleString()} chars
+                          </span>
+                        </div>
+                        <pre
+                          className="p-2 rounded-lg text-[11px] font-mono overflow-auto bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
+                          style={{ maxHeight: '400px' }}
+                        >
+                          {promptPreview.system_prompt ?? ''}
+                        </pre>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12 text-nofx-text-muted">
@@ -1104,7 +1215,55 @@ export function StrategyStudioPage() {
                       <div className="p-3 rounded-lg bg-nofx-danger/10 border border-nofx-danger/30">
                         <p className="text-sm text-nofx-danger">{aiTestResult.error}</p>
                       </div>
+                    ) : aiTestResult.steps && aiTestResult.steps.length > 0 ? (
+                      /* Multi-turn: one block per step (system, user, response) then merged decisions */
+                      <>
+                        <div className="space-y-4">
+                          {aiTestResult.steps.map((s, idx) => (
+                            <div key={idx} className="rounded-lg border border-green-500/20 overflow-hidden bg-nofx-bg">
+                              <div className="px-2 py-1.5 border-b border-green-500/20 text-xs font-medium text-green-500">
+                                {s.label}
+                              </div>
+                              <div className="p-2 space-y-2">
+                                <div>
+                                  <span className="text-[10px] font-medium text-nofx-text-muted">{t('systemPrompt')}</span>
+                                  <pre className="mt-1 p-2 rounded text-[10px] font-mono overflow-auto bg-nofx-bg-lighter border border-nofx-gold/10 text-nofx-text" style={{ maxHeight: '120px' }}>
+                                    {s.system_prompt}
+                                  </pre>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-medium text-nofx-text-muted">{t('userPrompt')}</span>
+                                  <pre className="mt-1 p-2 rounded text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg-lighter border border-nofx-gold/10 text-nofx-text" style={{ maxHeight: '120px' }}>
+                                    {s.user_prompt}
+                                  </pre>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-medium text-nofx-text-muted">{t('aiOutput')}</span>
+                                  <pre className="mt-1 p-2 rounded text-[10px] font-mono overflow-auto whitespace-pre-wrap bg-nofx-bg-lighter border border-green-500/20 text-nofx-text" style={{ maxHeight: '180px' }}>
+                                    {s.response}
+                                  </pre>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {aiTestResult.decisions && aiTestResult.decisions.length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Activity className="w-3 h-3 text-green-500" />
+                              <span className="text-xs font-medium text-nofx-text">{t('decisions')} (merged)</span>
+                            </div>
+                            <pre
+                              className="p-2 rounded-lg text-[10px] font-mono overflow-auto bg-nofx-bg border border-green-500/30 text-nofx-text"
+                              style={{ maxHeight: '200px' }}
+                            >
+                              {JSON.stringify(aiTestResult.decisions, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </>
                     ) : (
+                      /* Single-turn: user prompt, reasoning, decisions, raw response */
                       <>
                         {aiTestResult.duration_ms && (
                           <div className="flex items-center gap-2">

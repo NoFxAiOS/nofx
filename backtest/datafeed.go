@@ -95,7 +95,24 @@ func (df *DataFeed) loadAll() error {
 
 	// Generate backtest progress timeline using the primary timeframe of the first symbol
 	firstSymbol := df.symbols[0]
-	primarySeries := df.symbolSeries[firstSymbol].byTF[df.primaryTF]
+	ss := df.symbolSeries[firstSymbol]
+	if ss == nil {
+		return fmt.Errorf("no data for first symbol %s", firstSymbol)
+	}
+	primarySeries := ss.byTF[df.primaryTF]
+	if primarySeries == nil {
+		// DecisionTimeframe may not be in loaded timeframes (e.g. strategy primary differs from backtest list); use first available
+		for _, tf := range df.timeframes {
+			if s := ss.byTF[tf]; s != nil {
+				primarySeries = s
+				df.primaryTF = tf
+				break
+			}
+		}
+	}
+	if primarySeries == nil || primarySeries.closeTimes == nil {
+		return fmt.Errorf("no series for primary timeframe %s (symbol %s)", df.primaryTF, firstSymbol)
+	}
 	startMs := start.UnixMilli()
 	endMs := end.UnixMilli()
 	for _, ts := range primarySeries.closeTimes {
@@ -108,7 +125,11 @@ func (df *DataFeed) loadAll() error {
 		df.decisionTimes = append(df.decisionTimes, ts)
 		// Align other symbols; report error early if data is missing
 		for _, symbol := range df.symbols[1:] {
-			if _, ok := df.symbolSeries[symbol].byTF[df.primaryTF]; !ok {
+			ss := df.symbolSeries[symbol]
+			if ss == nil {
+				return fmt.Errorf("symbol %s has no series data", symbol)
+			}
+			if _, ok := ss.byTF[df.primaryTF]; !ok {
 				return fmt.Errorf("symbol %s missing timeframe %s", symbol, df.primaryTF)
 			}
 		}

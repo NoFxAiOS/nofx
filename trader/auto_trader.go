@@ -613,7 +613,19 @@ func (at *AutoTrader) runCycle() error {
 
 	// 5. Use strategy engine to call AI for decision
 	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
-	aiDecision, err := kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	var aiDecision *kernel.FullDecision
+	config := at.strategyEngine.GetConfig()
+	if config != nil && config.EnableMacroMicroFlow {
+		fd, steps, errTrace := kernel.GetFullDecisionMacroMicroWithTrace(ctx, at.mcpClient, at.strategyEngine, "balanced")
+		if errTrace != nil {
+			err = errTrace
+		} else {
+			aiDecision = fd
+			record.Steps = convertKernelStepsToStore(steps)
+		}
+	} else {
+		aiDecision, err = kernel.GetFullDecisionWithStrategy(ctx, at.mcpClient, at.strategyEngine, "balanced")
+	}
 
 	if aiDecision != nil && aiDecision.AIRequestDurationMs > 0 {
 		record.AIRequestDurationMs = aiDecision.AIRequestDurationMs
@@ -913,11 +925,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	altcoinLeverage := strategyConfig.RiskControl.AltcoinMaxLeverage
 	logger.Infof("📋 [%s] Strategy leverage config: BTC/ETH=%dx, Altcoin=%dx", at.name, btcEthLeverage, altcoinLeverage)
 
-	// 6. Build context
+	// 6. Build context (use cycleNumber+1 so prompt shows same cycle as record)
 	ctx := &kernel.Context{
 		CurrentTime:     time.Now().UTC().Format("2006-01-02 15:04:05 UTC"),
 		RuntimeMinutes:  int(time.Since(at.startTime).Minutes()),
-		CallCount:       at.callCount,
+		CallCount:       at.cycleNumber + 1,
 		BTCETHLeverage:  btcEthLeverage,
 		AltcoinLeverage: altcoinLeverage,
 		Account: kernel.AccountInfo{
@@ -1530,6 +1542,24 @@ func (at *AutoTrader) saveEquitySnapshot(ctx *kernel.Context) {
 	if err := at.store.Equity().Save(snapshot); err != nil {
 		logger.Infof("⚠️ Failed to save equity snapshot: %v", err)
 	}
+}
+
+func convertKernelStepsToStore(steps []kernel.DecisionStepTrace) []store.DecisionStepTrace {
+	if len(steps) == 0 {
+		return nil
+	}
+	out := make([]store.DecisionStepTrace, len(steps))
+	for i, s := range steps {
+		out[i] = store.DecisionStepTrace{
+			Step:         s.Step,
+			Label:        s.Label,
+			Symbol:       s.Symbol,
+			SystemPrompt: s.SystemPrompt,
+			UserPrompt:   s.UserPrompt,
+			Response:     s.Response,
+		}
+	}
+	return out
 }
 
 // saveDecision saves AI decision log to database (only records AI input/output, for debugging)

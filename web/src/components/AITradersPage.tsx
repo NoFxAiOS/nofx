@@ -55,6 +55,16 @@ function getShortName(fullName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : fullName
 }
 
+// Top models available through BlockRun wallet providers
+const BLOCKRUN_MODELS = [
+  { id: 'gpt-5.4', name: 'GPT-5.4', desc: 'OpenAI · Flagship' },
+  { id: 'claude-opus-4.6', name: 'Claude Opus 4.6', desc: 'Anthropic · Flagship' },
+  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', desc: 'Google · Flagship' },
+  { id: 'grok-3', name: 'Grok 3', desc: 'xAI · Flagship' },
+  { id: 'deepseek-chat', name: 'DeepSeek Chat', desc: 'DeepSeek · Flagship' },
+  { id: 'minimax-m2.5', name: 'MiniMax M2.5', desc: 'MiniMax · Flagship' },
+]
+
 // AI Provider configuration - default models and API links
 const AI_PROVIDER_CONFIG: Record<string, {
   defaultModel: string
@@ -100,6 +110,16 @@ const AI_PROVIDER_CONFIG: Record<string, {
     defaultModel: 'MiniMax-M2.5',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
+  },
+  'blockrun-base': {
+    defaultModel: 'gpt-5.4',
+    apiUrl: 'https://blockrun.ai',
+    apiName: 'BlockRun',
+  },
+  'blockrun-sol': {
+    defaultModel: 'gpt-5.4',
+    apiUrl: 'https://sol.blockrun.ai',
+    apiName: 'BlockRun',
   },
 }
 
@@ -1600,7 +1620,7 @@ function ModelConfigModal({
                 {language === 'zh' ? '选择 AI 模型提供商' : 'Choose Your AI Provider'}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {availableModels.map((model) => (
+                {availableModels.filter(m => !m.provider?.startsWith('blockrun')).map((model) => (
                   <ModelCard
                     key={model.id}
                     model={model}
@@ -1610,6 +1630,28 @@ function ModelConfigModal({
                   />
                 ))}
               </div>
+              {availableModels.some(m => m.provider?.startsWith('blockrun')) && (
+                <>
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="flex-1 h-px" style={{ background: '#2B3139' }} />
+                    <span className="text-xs font-medium px-2" style={{ color: '#848E9C' }}>
+                      {language === 'zh' ? '通过钱包支付' : 'Via BlockRun Wallet'}
+                    </span>
+                    <div className="flex-1 h-px" style={{ background: '#2B3139' }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {availableModels.filter(m => m.provider?.startsWith('blockrun')).map((model) => (
+                      <ModelCard
+                        key={model.id}
+                        model={model}
+                        selected={selectedModelId === model.id}
+                        onClick={() => handleSelectModel(model.id)}
+                        configured={configuredIds.has(model.id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
               <div className="text-xs text-center pt-2" style={{ color: '#848E9C' }}>
                 {language === 'zh' ? '带金色标记的模型已配置' : 'Models with gold badge are already configured'}
               </div>
@@ -1644,7 +1686,9 @@ function ModelConfigModal({
                   >
                     <ExternalLink className="w-4 h-4" style={{ color: '#A78BFA' }} />
                     <span className="text-sm font-medium" style={{ color: '#A78BFA' }}>
-                      {language === 'zh' ? '获取 API Key' : 'Get API Key'}
+                      {selectedModel.provider?.startsWith('blockrun')
+                        ? (language === 'zh' ? '开始使用' : 'Get Started')
+                        : (language === 'zh' ? '获取 API Key' : 'Get API Key')}
                     </span>
                   </a>
                 )}
@@ -1662,66 +1706,112 @@ function ModelConfigModal({
                 </div>
               )}
 
-              {/* API Key */}
+              {/* API Key / Wallet Private Key */}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
                   <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                   </svg>
-                  API Key *
+                  {selectedModel.provider?.startsWith('blockrun')
+                    ? (language === 'zh' ? '钱包私钥 *' : 'Wallet Private Key *')
+                    : 'API Key *'}
                 </label>
                 <input
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={t('enterAPIKey', language)}
+                  placeholder={
+                    selectedModel.provider === 'blockrun-base'
+                      ? '0x... (EVM private key)'
+                      : selectedModel.provider === 'blockrun-sol'
+                      ? 'bs58 encoded key (Solana)'
+                      : t('enterAPIKey', language)
+                  }
                   className="w-full px-4 py-3 rounded-xl"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   required
                 />
               </div>
 
-              {/* Custom Base URL */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                  <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  {t('customBaseURL', language)}
-                </label>
-                <input
-                  type="url"
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder={t('customBaseURLPlaceholder', language)}
-                  className="w-full px-4 py-3 rounded-xl"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                />
-                <div className="text-xs" style={{ color: '#848E9C' }}>
-                  {t('leaveBlankForDefault', language)}
+              {/* Custom Base URL (hidden for BlockRun) */}
+              {!selectedModel.provider?.startsWith('blockrun') && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                    <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    {t('customBaseURL', language)}
+                  </label>
+                  <input
+                    type="url"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder={t('customBaseURLPlaceholder', language)}
+                    className="w-full px-4 py-3 rounded-xl"
+                    style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  />
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {t('leaveBlankForDefault', language)}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Custom Model Name */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                  <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                  {t('customModelName', language)}
-                </label>
-                <input
-                  type="text"
-                  value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
-                  placeholder={t('customModelNamePlaceholder', language)}
-                  className="w-full px-4 py-3 rounded-xl"
-                  style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
-                />
-                <div className="text-xs" style={{ color: '#848E9C' }}>
-                  {t('leaveBlankForDefaultModel', language)}
+              {/* Custom Model Name (hidden for BlockRun) */}
+              {!selectedModel.provider?.startsWith('blockrun') && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                    <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    {t('customModelName', language)}
+                  </label>
+                  <input
+                    type="text"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                    placeholder={t('customModelNamePlaceholder', language)}
+                    className="w-full px-4 py-3 rounded-xl"
+                    style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                  />
+                  <div className="text-xs" style={{ color: '#848E9C' }}>
+                    {t('leaveBlankForDefaultModel', language)}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* BlockRun Model Selector */}
+              {selectedModel.provider?.startsWith('blockrun') && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                    <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    {language === 'zh' ? '选择模型' : 'Select Model'}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {BLOCKRUN_MODELS.map((m) => {
+                      const isSelected = (modelName || BLOCKRUN_MODELS[0].id) === m.id
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setModelName(m.id)}
+                          className="flex flex-col items-start px-3 py-2 rounded-xl text-left transition-all"
+                          style={{
+                            background: isSelected ? 'rgba(37, 99, 235, 0.2)' : '#0B0E11',
+                            border: isSelected ? '1px solid #2563EB' : '1px solid #2B3139',
+                          }}
+                        >
+                          <span className="text-xs font-semibold" style={{ color: isSelected ? '#60A5FA' : '#EAECEF' }}>
+                            {m.name}
+                          </span>
+                          <span className="text-[10px]" style={{ color: '#848E9C' }}>{m.desc}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Info Box */}
               <div className="p-4 rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)' }}>

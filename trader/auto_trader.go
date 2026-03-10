@@ -206,6 +206,16 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		mcpClient.SetAPIKey(config.CustomAPIKey, config.CustomAPIURL, config.CustomModelName)
 		logger.Infof("🤖 [%s] Using MiniMax AI", config.Name)
 
+	case "blockrun-base":
+		mcpClient = mcp.NewBlockRunBaseClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, "", config.CustomModelName)
+		logger.Infof("🤖 [%s] Using BlockRun (Base Wallet) AI", config.Name)
+
+	case "blockrun-sol":
+		mcpClient = mcp.NewBlockRunSolClient()
+		mcpClient.SetAPIKey(config.CustomAPIKey, "", config.CustomModelName)
+		logger.Infof("🤖 [%s] Using BlockRun (Solana Wallet) AI", config.Name)
+
 	case "qwen":
 		mcpClient = mcp.NewQwenClient()
 		apiKey := config.QwenKey

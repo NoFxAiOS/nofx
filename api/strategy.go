@@ -704,6 +704,8 @@ func (s *Server) getAIClientForUserModel(userID, modelID string) (mcp.AIClient, 
 		aiClient = mcp.NewGrokClient()
 	case "openai":
 		aiClient = mcp.NewOpenAIClient()
+	case "minimax":
+		aiClient = mcp.NewMiniMaxClient()
 	default:
 		aiClient = mcp.NewClient()
 	}

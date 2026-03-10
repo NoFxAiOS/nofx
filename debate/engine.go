@@ -97,6 +97,8 @@ func (e *DebateEngine) InitializeClients(participants []*store.DebateParticipant
 			client = mcp.NewGrokClient()
 		case "kimi":
 			client = mcp.NewKimiClient()
+		case "minimax":
+			client = mcp.NewMiniMaxClient()
 		default:
 			client = mcp.New()
 		}

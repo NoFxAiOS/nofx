@@ -689,27 +689,36 @@ func (s *Server) getAIClientForUserModel(userID, modelID string) (mcp.AIClient, 
 	}
 	apiKey := string(model.APIKey)
 	var aiClient mcp.AIClient
-	switch model.Provider {
+	provider := model.Provider
+	switch provider {
 	case "qwen":
 		aiClient = mcp.NewQwenClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "deepseek":
 		aiClient = mcp.NewDeepSeekClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "claude":
 		aiClient = mcp.NewClaudeClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "kimi":
 		aiClient = mcp.NewKimiClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "gemini":
 		aiClient = mcp.NewGeminiClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "grok":
 		aiClient = mcp.NewGrokClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "openai":
 		aiClient = mcp.NewOpenAIClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	case "minimax":
 		aiClient = mcp.NewMiniMaxClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	default:
 		aiClient = mcp.NewClient()
+		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	}
-	aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	return aiClient, nil
 }
 

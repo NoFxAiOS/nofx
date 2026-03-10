@@ -143,6 +143,7 @@ func (s *Server) setupRoutes() {
 		// Authentication related routes (no authentication required)
 		api.POST("/register", s.handleRegister)
 		api.POST("/login", s.handleLogin)
+		api.POST("/reset-password", s.handleResetPassword)
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())
@@ -3264,6 +3265,8 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
 		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.5"},
+		{"id": "blockrun-base", "name": "BlockRun (Base Wallet)", "provider": "blockrun-base", "defaultModel": "auto"},
+		{"id": "blockrun-sol", "name": "BlockRun (Solana Wallet)", "provider": "blockrun-sol", "defaultModel": "auto"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)

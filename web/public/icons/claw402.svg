@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="claw402_bg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="24" fill="url(#claw402_bg)"/>
+  <!-- Diamond/gem shape -->
+  <path d="M60 22L88 50L60 98L32 50L60 22Z" fill="white" fill-opacity="0.95"/>
+  <path d="M60 22L88 50L60 50L32 50L60 22Z" fill="white" fill-opacity="0.7"/>
+  <path d="M60 50L88 50L60 98Z" fill="white" fill-opacity="0.85"/>
+  <path d="M60 50L32 50L60 98Z" fill="white" fill-opacity="0.6"/>
+  <!-- Subtle USDC circle hint -->
+  <circle cx="60" cy="58" r="12" fill="none" stroke="white" stroke-width="2" stroke-opacity="0.3"/>
+  <text x="60" y="63" text-anchor="middle" fill="white" fill-opacity="0.4" font-size="12" font-weight="700" font-family="system-ui">$</text>
+</svg>

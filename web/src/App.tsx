@@ -13,7 +13,6 @@ import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
-import { DebateArenaPage } from './pages/DebateArenaPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
 import { DataPage } from './pages/DataPage'
 import { LoginRequiredOverlay } from './components/LoginRequiredOverlay'
@@ -44,7 +43,6 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'data'
-  | 'debate'
   | 'faq'
   | 'login'
   | 'register'
@@ -72,7 +70,6 @@ function App() {
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
     if (path === '/data' || hash === 'data') return 'data'
-    if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -97,7 +94,6 @@ function App() {
       'trader': '/dashboard',
       'backtest': '/backtest',
       'strategy': '/strategy',
-      'debate': '/debate',
       'faq': '/faq',
       'login': '/login',
       'register': '/register',
@@ -159,8 +155,6 @@ function App() {
         setCurrentPage('strategy-market')
       } else if (path === '/data' || hash === 'data') {
         setCurrentPage('data')
-      } else if (path === '/debate' || hash === 'debate') {
-        setCurrentPage('debate')
       } else if (
         path === '/dashboard' ||
         hash === 'trader' ||
@@ -418,7 +412,6 @@ function App() {
         'trader': '/dashboard',
         'backtest': '/backtest',
         'strategy': '/strategy',
-        'debate': '/debate',
         'faq': '/faq',
       }
       const path = pathMap[page]
@@ -507,8 +500,6 @@ function App() {
               <BacktestPage />
             ) : currentPage === 'strategy' ? (
               <StrategyStudioPage />
-            ) : currentPage === 'debate' ? (
-              <DebateArenaPage />
             ) : (
               <TraderDashboardPage
                 selectedTrader={selectedTrader}
@@ -546,8 +537,7 @@ function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer - Hidden on debate page */}
-      {currentPage !== 'debate' && (
+      {/* Footer - Hidden on some pages */}
         <footer
           className="mt-16"
           style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
@@ -658,7 +648,6 @@ function App() {
             </div>
           </div>
         </footer>
-      )}
 
       {/* Login Required Overlay */}
       <LoginRequiredOverlay

@@ -24,12 +24,6 @@ import type {
   BacktestKlinesResponse,
   Strategy,
   StrategyConfig,
-  DebateSession,
-  DebateSessionWithDetails,
-  CreateDebateRequest,
-  DebateMessage,
-  DebateVote,
-  DebatePersonalityInfo,
   PositionHistoryResponse,
 } from '../types'
 import { CryptoService } from './crypto'
@@ -709,73 +703,6 @@ export const api = {
     const result = await httpClient.post<Strategy>(`${API_BASE}/strategies/${strategyId}/duplicate`)
     if (!result.success) throw new Error('复制策略失败')
     return result.data!
-  },
-
-  // Debate Arena APIs
-  async getDebates(): Promise<DebateSession[]> {
-    const result = await httpClient.get<DebateSession[]>(`${API_BASE}/debates`)
-    if (!result.success) throw new Error('获取辩论列表失败')
-    return Array.isArray(result.data) ? result.data : []
-  },
-
-  async getDebate(debateId: string): Promise<DebateSessionWithDetails> {
-    const result = await httpClient.get<DebateSessionWithDetails>(`${API_BASE}/debates/${debateId}`)
-    if (!result.success) throw new Error('获取辩论详情失败')
-    return result.data!
-  },
-
-  async createDebate(request: CreateDebateRequest): Promise<DebateSessionWithDetails> {
-    const result = await httpClient.post<DebateSessionWithDetails>(`${API_BASE}/debates`, request)
-    if (!result.success) throw new Error('创建辩论失败')
-    return result.data!
-  },
-
-  async startDebate(debateId: string): Promise<void> {
-    const result = await httpClient.post(`${API_BASE}/debates/${debateId}/start`)
-    if (!result.success) throw new Error('启动辩论失败')
-  },
-
-  async cancelDebate(debateId: string): Promise<void> {
-    const result = await httpClient.post(`${API_BASE}/debates/${debateId}/cancel`)
-    if (!result.success) throw new Error('取消辩论失败')
-  },
-
-  async executeDebate(debateId: string, traderId: string): Promise<DebateSessionWithDetails> {
-    const result = await httpClient.post<{ message: string; session: DebateSessionWithDetails }>(
-      `${API_BASE}/debates/${debateId}/execute`,
-      { trader_id: traderId }
-    )
-    if (!result.success) throw new Error('执行交易失败')
-    return result.data!.session
-  },
-
-  async deleteDebate(debateId: string): Promise<void> {
-    const result = await httpClient.delete(`${API_BASE}/debates/${debateId}`)
-    if (!result.success) throw new Error('删除辩论失败')
-  },
-
-  async getDebateMessages(debateId: string): Promise<DebateMessage[]> {
-    const result = await httpClient.get<DebateMessage[]>(`${API_BASE}/debates/${debateId}/messages`)
-    if (!result.success) throw new Error('获取辩论消息失败')
-    return result.data!
-  },
-
-  async getDebateVotes(debateId: string): Promise<DebateVote[]> {
-    const result = await httpClient.get<DebateVote[]>(`${API_BASE}/debates/${debateId}/votes`)
-    if (!result.success) throw new Error('获取辩论投票失败')
-    return result.data!
-  },
-
-  async getDebatePersonalities(): Promise<DebatePersonalityInfo[]> {
-    const result = await httpClient.get<DebatePersonalityInfo[]>(`${API_BASE}/debates/personalities`)
-    if (!result.success) throw new Error('获取AI性格列表失败')
-    return result.data!
-  },
-
-  // SSE stream for live debate updates
-  createDebateStream(debateId: string): EventSource {
-    const token = localStorage.getItem('auth_token')
-    return new EventSource(`${API_BASE}/debates/${debateId}/stream?token=${token}`)
   },
 
   // Position History API

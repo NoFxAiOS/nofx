@@ -1085,33 +1085,6 @@ func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actio
 	}
 }
 
-// ExecuteDecision executes a trading decision from external sources (e.g., debate consensus)
-// This is a public method that can be called by other modules
-func (at *AutoTrader) ExecuteDecision(d *kernel.Decision) error {
-	logger.Infof("[%s] Executing external decision: %s %s", at.name, d.Action, d.Symbol)
-
-	// Create a minimal action record for tracking
-	actionRecord := &store.DecisionAction{
-		Symbol:     d.Symbol,
-		Action:     d.Action,
-		Leverage:   d.Leverage,
-		StopLoss:   d.StopLoss,
-		TakeProfit: d.TakeProfit,
-		Confidence: d.Confidence,
-		Reasoning:  d.Reasoning,
-	}
-
-	// Execute the decision
-	err := at.executeDecisionWithRecord(d, actionRecord)
-	if err != nil {
-		logger.Errorf("[%s] External decision execution failed: %v", at.name, err)
-		return err
-	}
-
-	logger.Infof("[%s] External decision executed successfully: %s %s", at.name, d.Action, d.Symbol)
-	return nil
-}
-
 // executeOpenLongWithRecord executes open long position and records detailed information
 func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	logger.Infof("  📈 Open long: %s", decision.Symbol)

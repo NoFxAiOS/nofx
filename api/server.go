@@ -45,7 +45,6 @@ type Server struct {
 	store            *store.Store
 	cryptoHandler    *CryptoHandler
 	backtestManager  *backtest.Manager
-	debateHandler    *DebateHandler
 	httpServer       *http.Server
 	port             int
 	telegramReloadCh chan<- struct{} // signal Telegram bot to reload
@@ -64,21 +63,12 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	// Create crypto handler
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
-	// Create debate store and handler
-	debateStore := store.NewDebateStore(st.GormDB())
-	if err := debateStore.InitSchema(); err != nil {
-		logger.Errorf("Failed to initialize debate schema: %v", err)
-	}
-	debateHandler := NewDebateHandler(debateStore, st.Strategy(), st.AIModel())
-	debateHandler.SetTraderManager(traderManager)
-
 	s := &Server{
 		router:          router,
 		traderManager:   traderManager,
 		store:           st,
 		cryptoHandler:   cryptoHandler,
 		backtestManager: backtestManager,
-		debateHandler:   debateHandler,
 		port:            port,
 	}
 
@@ -330,19 +320,6 @@ After activating, create or update a trader with this strategy_id to apply it.`,
 			s.routeWithSchema(protected, "POST", "/strategies/:id/duplicate", "Duplicate an existing strategy",
 				`:id = EXACT id from GET /api/strategies. Creates a copy with " (copy)" appended to the name.`,
 				s.handleDuplicateStrategy)
-
-			// Debate Arena
-			s.route(protected, "GET", "/debates", "List debates", s.debateHandler.HandleListDebates)
-			s.route(protected, "GET", "/debates/personalities", "Available AI personalities", s.debateHandler.HandleGetPersonalities)
-			s.route(protected, "GET", "/debates/:id", "Get debate details", s.debateHandler.HandleGetDebate)
-			s.route(protected, "POST", "/debates", "Create debate", s.debateHandler.HandleCreateDebate)
-			s.route(protected, "POST", "/debates/:id/start", "Start debate", s.debateHandler.HandleStartDebate)
-			s.route(protected, "POST", "/debates/:id/cancel", "Cancel debate", s.debateHandler.HandleCancelDebate)
-			s.route(protected, "POST", "/debates/:id/execute", "Execute debate consensus decision", s.debateHandler.HandleExecuteDebate)
-			s.route(protected, "DELETE", "/debates/:id", "Delete debate", s.debateHandler.HandleDeleteDebate)
-			s.route(protected, "GET", "/debates/:id/messages", "Get debate messages", s.debateHandler.HandleGetMessages)
-			s.route(protected, "GET", "/debates/:id/votes", "Get debate votes", s.debateHandler.HandleGetVotes)
-			s.route(protected, "GET", "/debates/:id/stream", "SSE stream for live debate", s.debateHandler.HandleDebateStream)
 
 			// Data for specified trader (using query parameter ?trader_id=xxx)
 			// IMPORTANT: All ?trader_id= values must be the EXACT "trader_id" field from GET /api/my-traders

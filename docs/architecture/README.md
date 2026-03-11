@@ -25,11 +25,11 @@ NOFX is a full-stack AI trading platform for cryptocurrency and US stock markets
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐│
-│  │  Strategy   │  │  Backtest   │  │   Debate    │  │   Live Trading      ││
-│  │   Studio    │  │   Engine    │  │    Arena    │  │   (Auto Trader)     ││
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘│
-│         │                │                │                    │           │
-│         └────────────────┴────────────────┴────────────────────┘           │
+│  │  Strategy   │  │  Backtest   │  │   Live Trading      ││
+│  │   Studio    │  │   Engine    │  │   (Auto Trader)     ││
+│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘│
+│         │                │                    │           │
+│         └────────────────┴────────────────────┘           │
 │                                    │                                        │
 │                          ┌─────────▼─────────┐                              │
 │                          │   Core Services   │                              │
@@ -58,7 +58,6 @@ NOFX is a full-stack AI trading platform for cryptocurrency and US stock markets
 |--------|-------------|---------------|
 | **Strategy Studio** | Strategy configuration, coin selection, data assembly, AI prompts | [STRATEGY_MODULE.md](STRATEGY_MODULE.md) |
 | **Backtest Engine** | Historical simulation, performance metrics, AI decision replay | [BACKTEST_MODULE.md](BACKTEST_MODULE.md) |
-| **Debate Arena** | Multi-AI collaborative decision making with voting consensus | [DEBATE_MODULE.md](DEBATE_MODULE.md) |
 
 ### Module Overview
 
@@ -82,16 +81,6 @@ Historical trading simulation engine:
 
 **[Read Full Documentation →](BACKTEST_MODULE.md)**
 
-#### Debate Module
-Multi-AI collaborative decision system:
-- 5 AI personalities (Bull, Bear, Analyst, Contrarian, Risk Manager)
-- Multi-round debate with market context
-- Weighted voting and consensus algorithm
-- Auto-execution to live trading
-- Real-time SSE streaming
-
-**[Read Full Documentation →](DEBATE_MODULE.md)**
-
 ---
 
 ## Project Structure
@@ -103,7 +92,6 @@ nofx/
 ├── trader/                    # Trading execution layer
 ├── strategy/                  # Strategy engine
 ├── backtest/                  # Backtest simulation engine
-├── debate/                    # Debate arena engine
 ├── market/                    # Market data service
 ├── mcp/                       # AI model clients
 ├── store/                     # Database operations
@@ -144,7 +132,6 @@ nofx/
 
 - [Strategy Module](STRATEGY_MODULE.md) - How strategies work
 - [Backtest Module](BACKTEST_MODULE.md) - How backtesting works
-- [Debate Module](DEBATE_MODULE.md) - How AI debates work
 - [Getting Started](../getting-started/README.md) - Setup guide
 - [FAQ](../faq/README.md) - Frequently asked questions
 

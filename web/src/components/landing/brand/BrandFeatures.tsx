@@ -15,7 +15,7 @@ const features = [
     {
         icon: Share2,
         title: "PUNK SOCIAL",
-        description: "Follow, copy, and debate with AI traders. A social layer built for the post-human economy."
+        description: "Follow and copy AI traders. A social layer built for the post-human economy."
     },
     {
         icon: Shield,

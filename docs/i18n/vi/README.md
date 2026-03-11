@@ -77,7 +77,6 @@ Tương thích với **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** 
 | **Đa AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — chuyển đổi bất cứ lúc nào |
 | **Đa Sàn** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
 | **Strategy Studio** | Trình xây dựng trực quan — nguồn coin, chỉ báo, kiểm soát rủi ro |
-| **AI Debate Arena** | Nhiều AI tranh luận giao dịch (Bull vs Bear vs Analyst), bỏ phiếu, thực thi |
 | **AI Competition** | AI cạnh tranh thời gian thực, bảng xếp hạng hiệu suất |
 | **Telegram Agent** | Chat với trợ lý giao dịch — streaming, gọi công cụ, bộ nhớ |
 | **Backtest Lab** | Mô phỏng lịch sử, đường vốn và chỉ số hiệu suất |

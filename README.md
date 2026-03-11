@@ -77,7 +77,6 @@ Also compatible with **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** 
 | **Multi-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — switch anytime |
 | **Multi-Exchange** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
 | **Strategy Studio** | Visual builder — coin sources, indicators, risk controls |
-| **AI Debate Arena** | Multiple AIs debate trades (Bull vs Bear vs Analyst), vote, execute |
 | **AI Competition** | AIs compete in real-time, leaderboard ranks performance |
 | **Telegram Agent** | Chat with your trading assistant — streaming, tool calling, memory |
 | **Backtest Lab** | Historical simulation with equity curves and performance metrics |
@@ -164,14 +163,6 @@ Crypto · US Stocks · Forex · Metals
 | Competition Mode | Backtest Lab |
 |:---:|:---:|
 | <img src="screenshots/competition-page.png" width="400"/> | <img src="screenshots/backtest-lab.png" width="400"/> |
-</details>
-
-<details>
-<summary><b>Debate Arena</b></summary>
-
-| AI Debate Session | Create Debate |
-|:---:|:---:|
-| <img src="screenshots/debate-arena.png" width="400"/> | <img src="screenshots/debate-create.png" width="400"/> |
 </details>
 
 ---
@@ -262,8 +253,8 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────┬──────────┬──────────┬────────────────┤
-    │ Strategy │  Debate  │ Backtest │    Telegram     │
-    │  Engine  │  Arena   │   Lab    │     Agent       │
+    │ Strategy │ Backtest │    Telegram     │
+    │  Engine  │   Lab    │     Agent       │
     ├──────────┴──────────┴──────────┴────────────────┤
     │               MCP AI Client Layer                │
     │    ┌───────────┐  ┌───────────┐  ┌───────────┐  │
@@ -287,7 +278,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 | [Architecture](docs/architecture/README.md) | System design and module index |
 | [Strategy Module](docs/architecture/STRATEGY_MODULE.md) | Coin selection, AI prompts, execution |
 | [Backtest Module](docs/architecture/BACKTEST_MODULE.md) | Historical simulation, metrics |
-| [Debate Module](docs/architecture/DEBATE_MODULE.md) | Multi-AI debate, consensus voting |
 | [FAQ](docs/faq/README.md) | Common questions |
 | [Getting Started](docs/getting-started/README.md) | Deployment guide |
 

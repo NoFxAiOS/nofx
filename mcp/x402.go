@@ -8,8 +8,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+)
+
+const (
+	// x402MaxPaymentRetries is the number of retries for 5xx errors on the
+	// payment-signed request. The same payment signature is reused (no double-charge).
+	x402MaxPaymentRetries = 3
+
+	// x402RetryBaseWait is the base wait between payment retry attempts.
+	x402RetryBaseWait = 3 * time.Second
 )
 
 // ── Shared x402 types ────────────────────────────────────────────────────────
@@ -122,32 +132,63 @@ func doX402Request(
 			return nil, fmt.Errorf("failed to sign x402 payment: %w", err)
 		}
 
-		req2, err := buildReqFn()
-		if err != nil {
-			return nil, fmt.Errorf("failed to build retry request: %w", err)
-		}
-		req2.Header.Set("X-Payment", paymentSig)
-		req2.Header.Set("Payment-Signature", paymentSig)
+		// Retry loop for 5xx errors on the payment-signed request.
+		// Reuses the same payment signature — no double-charge.
+		var lastBody []byte
+		var lastStatus int
+		for attempt := 1; attempt <= x402MaxPaymentRetries; attempt++ {
+			req2, err := buildReqFn()
+			if err != nil {
+				return nil, fmt.Errorf("failed to build retry request: %w", err)
+			}
+			req2.Header.Set("X-Payment", paymentSig)
+			req2.Header.Set("Payment-Signature", paymentSig)
 
-		resp2, err := httpClient.Do(req2)
-		if err != nil {
-			return nil, fmt.Errorf("failed to send payment retry: %w", err)
-		}
-		defer resp2.Body.Close()
+			resp2, err := httpClient.Do(req2)
+			if err != nil {
+				if attempt < x402MaxPaymentRetries {
+					wait := x402RetryBaseWait * time.Duration(attempt)
+					logger.Warnf("⚠️  [%s] Payment request failed: %v, retrying in %v (%d/%d)...",
+						providerTag, err, wait, attempt+1, x402MaxPaymentRetries)
+					time.Sleep(wait)
+					continue
+				}
+				return nil, fmt.Errorf("failed to send payment retry: %w", err)
+			}
 
-		body2, err := io.ReadAll(resp2.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read payment retry response: %w", err)
-		}
-		if resp2.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("%s payment retry failed (status %d): %s", providerTag, resp2.StatusCode, string(body2))
+			body2, readErr := io.ReadAll(resp2.Body)
+			resp2.Body.Close()
+			if readErr != nil {
+				return nil, fmt.Errorf("failed to read payment retry response: %w", readErr)
+			}
+
+			if resp2.StatusCode == http.StatusOK {
+				if txHash := resp2.Header.Get("Payment-Response"); txHash != "" {
+					logger.Infof("💰 [%s] Payment tx: %s", providerTag, txHash)
+				}
+				if attempt > 1 {
+					logger.Infof("✅ [%s] Payment retry succeeded on attempt %d", providerTag, attempt)
+				}
+				return body2, nil
+			}
+
+			lastBody = body2
+			lastStatus = resp2.StatusCode
+
+			// Retry on 5xx server errors (502, 503, 520, etc.)
+			if resp2.StatusCode >= 500 && attempt < x402MaxPaymentRetries {
+				wait := x402RetryBaseWait * time.Duration(attempt)
+				logger.Warnf("⚠️  [%s] Server error (status %d), retrying in %v (%d/%d)...",
+					providerTag, resp2.StatusCode, wait, attempt+1, x402MaxPaymentRetries)
+				time.Sleep(wait)
+				continue
+			}
+
+			// Non-5xx error or final attempt — fail
+			break
 		}
 
-		if txHash := resp2.Header.Get("Payment-Response"); txHash != "" {
-			logger.Infof("💰 [%s] Payment tx: %s", providerTag, txHash)
-		}
-
-		return body2, nil
+		return nil, fmt.Errorf("%s payment retry failed (status %d): %s", providerTag, lastStatus, string(lastBody))
 	}
 
 	body, err := io.ReadAll(resp.Body)

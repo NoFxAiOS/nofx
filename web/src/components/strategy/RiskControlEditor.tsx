@@ -42,6 +42,13 @@ export function RiskControlEditor({
       minPositionSizeDesc: { zh: 'USDT 最小名义价值', en: 'Minimum notional value in USDT' },
       minConfidence: { zh: '最小信心度', en: 'Min Confidence' },
       minConfidenceDesc: { zh: 'AI 开仓信心度阈值', en: 'AI confidence threshold for entry' },
+      profitDrawdownClose: { zh: '盈利回撤平仓', en: 'Profit drawdown close' },
+      profitDrawdownCloseDesc: { zh: '当持仓盈利高于「最低盈利%」且从峰值回撤达到「回撤%」时自动平仓，锁定利润', en: 'Close position when profit is above min % and pullback from peak reaches threshold (lock in gains)' },
+      enableDrawdownClose: { zh: '启用盈利回撤平仓', en: 'Enable profit drawdown close' },
+      minProfitPct: { zh: '最低盈利 %', en: 'Min profit %' },
+      minProfitPctDesc: { zh: '仅当当前盈利高于此百分比时才考虑平仓', en: 'Only consider closing when current profit is above this %' },
+      pullbackFromPeakPct: { zh: '回撤 %（相对峰值）', en: 'Pullback from peak %' },
+      pullbackFromPeakPctDesc: { zh: '当盈利从峰值回撤达到此百分比时平仓', en: 'Close when profit has pulled back this much from peak' },
     }
     return translations[key]?.[language] || key
   }
@@ -382,6 +389,97 @@ export function RiskControlEditor({
               <span className="w-12 text-center font-mono" style={{ color: '#0ECB81' }}>
                 {config.min_confidence ?? 75}
               </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Profit drawdown close */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="w-5 h-5" style={{ color: '#F0B90B' }} />
+          <h3 className="font-medium" style={{ color: '#EAECEF' }}>
+            {t('profitDrawdownClose')}
+          </h3>
+        </div>
+        <p className="text-xs mb-4" style={{ color: '#848E9C' }}>
+          {t('profitDrawdownCloseDesc')}
+        </p>
+        <div className="grid grid-cols-1 gap-4 mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.enable_drawdown_close !== false}
+              onChange={(e) =>
+                updateField('enable_drawdown_close', e.target.checked)
+              }
+              disabled={disabled}
+              className="rounded accent-yellow-500"
+            />
+            <span style={{ color: '#EAECEF' }}>{t('enableDrawdownClose')}</span>
+          </label>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div
+            className="p-4 rounded-lg"
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          >
+            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+              {t('minProfitPct')}
+            </label>
+            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+              {t('minProfitPctDesc')}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={config.drawdown_close_min_profit_pct ?? 5}
+                onChange={(e) =>
+                  updateField('drawdown_close_min_profit_pct', parseFloat(e.target.value) || 0)
+                }
+                disabled={disabled}
+                min={0}
+                max={100}
+                step={0.5}
+                className="w-20 px-3 py-2 rounded"
+                style={{
+                  background: '#1E2329',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              <span style={{ color: '#848E9C' }}>%</span>
+            </div>
+          </div>
+          <div
+            className="p-4 rounded-lg"
+            style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
+          >
+            <label className="block text-sm mb-1" style={{ color: '#EAECEF' }}>
+              {t('pullbackFromPeakPct')}
+            </label>
+            <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
+              {t('pullbackFromPeakPctDesc')}
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={config.drawdown_close_pct ?? 40}
+                onChange={(e) =>
+                  updateField('drawdown_close_pct', parseFloat(e.target.value) || 0)
+                }
+                disabled={disabled}
+                min={0}
+                max={100}
+                step={5}
+                className="w-20 px-3 py-2 rounded"
+                style={{
+                  background: '#1E2329',
+                  border: '1px solid #2B3139',
+                  color: '#EAECEF',
+                }}
+              />
+              <span style={{ color: '#848E9C' }}>%</span>
             </div>
           </div>
         </div>

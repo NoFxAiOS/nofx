@@ -1689,6 +1689,7 @@ export function ModelConfigModal({
                       <div>
                         <div className="font-bold text-base" style={{ color: '#EAECEF' }}>
                           Claw402
+                          <a href="https://claw402.ai" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="ml-1.5 text-[10px] font-normal px-1.5 py-0.5 rounded" style={{ color: '#60A5FA', background: 'rgba(96, 165, 250, 0.1)' }}>↗ claw402.ai</a>
                         </div>
                         <div className="text-xs mt-0.5" style={{ color: '#A0AEC0' }}>
                           {language === 'zh'
@@ -1761,9 +1762,9 @@ export function ModelConfigModal({
                 <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3 overflow-hidden">
                   <img src="/icons/claw402.png" alt="Claw402" width={56} height={56} />
                 </div>
-                <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
-                  Claw402
-                </div>
+                <a href="https://claw402.ai" target="_blank" rel="noopener noreferrer" className="text-lg font-bold inline-flex items-center gap-1.5 hover:underline" style={{ color: '#EAECEF' }}>
+                  Claw402 <span className="text-xs font-normal" style={{ color: '#60A5FA' }}>↗</span>
+                </a>
                 <div className="text-sm mt-1" style={{ color: '#A0AEC0' }}>
                   {language === 'zh'
                     ? '用 USDC 按次付费，支持所有主流 AI 模型'

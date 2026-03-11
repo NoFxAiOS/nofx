@@ -40,14 +40,14 @@ import (
 
 // Server HTTP API server
 type Server struct {
-	router          *gin.Engine
-	traderManager   *manager.TraderManager
-	store           *store.Store
-	cryptoHandler   *CryptoHandler
-	backtestManager *backtest.Manager
-	debateHandler   *DebateHandler
-	httpServer      *http.Server
-	port            int
+	router           *gin.Engine
+	traderManager    *manager.TraderManager
+	store            *store.Store
+	cryptoHandler    *CryptoHandler
+	backtestManager  *backtest.Manager
+	httpServer       *http.Server
+	port             int
+	telegramReloadCh chan<- struct{} // signal Telegram bot to reload
 }
 
 // NewServer Creates API server
@@ -63,21 +63,12 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	// Create crypto handler
 	cryptoHandler := NewCryptoHandler(cryptoService)
 
-	// Create debate store and handler
-	debateStore := store.NewDebateStore(st.GormDB())
-	if err := debateStore.InitSchema(); err != nil {
-		logger.Errorf("Failed to initialize debate schema: %v", err)
-	}
-	debateHandler := NewDebateHandler(debateStore, st.Strategy(), st.AIModel())
-	debateHandler.SetTraderManager(traderManager)
-
 	s := &Server{
 		router:          router,
 		traderManager:   traderManager,
 		store:           st,
 		cryptoHandler:   cryptoHandler,
 		backtestManager: backtestManager,
-		debateHandler:   debateHandler,
 		port:            port,
 	}
 
@@ -114,108 +105,263 @@ func (s *Server) setupRoutes() {
 		// Admin login (used in admin mode, public)
 
 		// System supported models and exchanges (no authentication required)
-		api.GET("/supported-models", s.handleGetSupportedModels)
-		api.GET("/supported-exchanges", s.handleGetSupportedExchanges)
+		s.route(api, "GET", "/supported-models", "List supported AI model providers", s.handleGetSupportedModels)
+		s.route(api, "GET", "/supported-exchanges", "List supported exchange types", s.handleGetSupportedExchanges)
 
 		// System config (no authentication required, for frontend to determine admin mode/registration status)
-		api.GET("/config", s.handleGetSystemConfig)
+		s.route(api, "GET", "/config", "Get system configuration", s.handleGetSystemConfig)
 
-		// Crypto related endpoints (no authentication required)
+		// Crypto related endpoints (no authentication required, not exposed to bot)
 		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
 		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
 		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
 
 		// Public competition data (no authentication required)
-		api.GET("/traders", s.handlePublicTraderList)
-		api.GET("/competition", s.handlePublicCompetition)
-		api.GET("/top-traders", s.handleTopTraders)
-		api.GET("/equity-history", s.handleEquityHistory)
-		api.POST("/equity-history-batch", s.handleEquityHistoryBatch)
-		api.GET("/traders/:id/public-config", s.handleGetPublicTraderConfig)
+		s.route(api, "GET", "/traders", "Public trader list", s.handlePublicTraderList)
+		s.route(api, "GET", "/competition", "Public competition data", s.handlePublicCompetition)
+		s.route(api, "GET", "/top-traders", "Top traders leaderboard", s.handleTopTraders)
+		s.route(api, "GET", "/equity-history", "Equity history for a trader", s.handleEquityHistory)
+		s.route(api, "POST", "/equity-history-batch", "Batch equity history for multiple traders", s.handleEquityHistoryBatch)
+		s.route(api, "GET", "/traders/:id/public-config", "Public trader configuration", s.handleGetPublicTraderConfig)
 
 		// Market data (no authentication required)
-		api.GET("/klines", s.handleKlines)
-		api.GET("/symbols", s.handleSymbols)
+		s.route(api, "GET", "/klines", "Candlestick data (?symbol=&interval=&limit=)", s.handleKlines)
+		s.route(api, "GET", "/symbols", "Available trading symbols", s.handleSymbols)
 
 		// Public strategy market (no authentication required)
-		api.GET("/strategies/public", s.handlePublicStrategies)
+		s.route(api, "GET", "/strategies/public", "Public strategy market", s.handlePublicStrategies)
 
 		// Authentication related routes (no authentication required)
-		api.POST("/register", s.handleRegister)
-		api.POST("/login", s.handleLogin)
-		api.POST("/reset-password", s.handleResetPassword)
+		s.route(api, "POST", "/register", "Register new user", s.handleRegister)
+		s.route(api, "POST", "/login", "User login, returns JWT token", s.handleLogin)
+		s.route(api, "POST", "/reset-password", "Reset password", s.handleResetPassword)
 
 		// Routes requiring authentication
 		protected := api.Group("/", s.authMiddleware())
 		{
 			// Logout (add to blacklist)
-			protected.POST("/logout", s.handleLogout)
+			s.route(protected, "POST", "/logout", "Logout (blacklist token)", s.handleLogout)
+
+			// User account management
+			s.routeWithSchema(protected, "PUT", "/user/password", "Change current user password",
+				`Body: {"new_password":"<string, min 8 chars>"}`,
+				s.handleChangePassword)
 
 			// Server IP query (requires authentication, for whitelist configuration)
-			protected.GET("/server-ip", s.handleGetServerIP)
+			s.route(protected, "GET", "/server-ip", "Get server public IP (for exchange whitelist)", s.handleGetServerIP)
 
 			// AI trader management
-			protected.GET("/my-traders", s.handleTraderList)
-			protected.GET("/traders/:id/config", s.handleGetTraderConfig)
-			protected.POST("/traders", s.handleCreateTrader)
-			protected.PUT("/traders/:id", s.handleUpdateTrader)
-			protected.DELETE("/traders/:id", s.handleDeleteTrader)
-			protected.POST("/traders/:id/start", s.handleStartTrader)
-			protected.POST("/traders/:id/stop", s.handleStopTrader)
-			protected.PUT("/traders/:id/prompt", s.handleUpdateTraderPrompt)
-			protected.POST("/traders/:id/sync-balance", s.handleSyncBalance)
-			protected.POST("/traders/:id/close-position", s.handleClosePosition)
-			protected.PUT("/traders/:id/competition", s.handleToggleCompetition)
-			protected.GET("/traders/:id/grid-risk", s.handleGetGridRiskInfo)
+			s.routeWithSchema(protected, "GET", "/my-traders", "List user's traders with status",
+				`Returns: [{"trader_id":"<EXACT id — use this as trader_id in all ?trader_id= queries and POST /traders/:id/start|stop>","trader_name":"<string>","is_running":<bool>}]
+NOTE: The id field is "trader_id" (NOT "id"). Always read trader_id from this endpoint before querying data.`,
+				s.handleTraderList)
+			s.routeWithSchema(protected, "GET", "/traders/:id/config", "Get full trader configuration",
+				`:id = trader_id from GET /api/my-traders`,
+				s.handleGetTraderConfig)
+			s.routeWithSchema(protected, "POST", "/traders", "Create a new AI trader",
+				`Body: {"name":"<string, required>","ai_model_id":"<EXACT id field from GET /api/models — e.g. 'abc123_deepseek', NOT the provider name 'deepseek'>","exchange_id":"<EXACT id field from GET /api/exchanges — e.g. '05785d3b-841e-...', NOT the type name>","strategy_id":"<EXACT id field from GET /api/strategies>","scan_interval_minutes":<int, default 3, minimum 3>}
+IMPORTANT: ai_model_id and exchange_id must be the full "id" value from the Account State, not the provider/type name.`,
+				s.handleCreateTrader)
+			s.routeWithSchema(protected, "PUT", "/traders/:id", "Update trader configuration",
+				`:id = trader_id from GET /api/my-traders
+Body: {"name":"<string>","ai_model_id":"<EXACT id from GET /api/models>","exchange_id":"<EXACT id from GET /api/exchanges>","strategy_id":"<EXACT id from GET /api/strategies>","scan_interval_minutes":<int, min 3>,"is_cross_margin":<bool>}
+Only include fields you want to change.`,
+				s.handleUpdateTrader)
+			s.routeWithSchema(protected, "DELETE", "/traders/:id", "Delete trader",
+				`:id = trader_id from GET /api/my-traders. Stops and permanently removes the trader and all its data.`,
+				s.handleDeleteTrader)
+			s.routeWithSchema(protected, "POST", "/traders/:id/start", "Start trader — begins live trading",
+				`:id = trader_id from GET /api/my-traders. No request body needed. The trader must have a valid exchange and AI model configured.`,
+				s.handleStartTrader)
+			s.routeWithSchema(protected, "POST", "/traders/:id/stop", "Stop trader — halts live trading",
+				`:id = trader_id from GET /api/my-traders. No request body needed. Gracefully stops the trading loop.`,
+				s.handleStopTrader)
+			s.routeWithSchema(protected, "PUT", "/traders/:id/prompt", "Override the trader's AI system prompt",
+				`Body: {"prompt":"<string — the full custom prompt text>"}`,
+				s.handleUpdateTraderPrompt)
+			s.routeWithSchema(protected, "POST", "/traders/:id/sync-balance", "Sync account balance from exchange",
+				`:id = trader_id from GET /api/my-traders. No request body needed. Refreshes initial_balance from the exchange.`,
+				s.handleSyncBalance)
+			s.routeWithSchema(protected, "POST", "/traders/:id/close-position", "Force-close an open position",
+				`:id = trader_id from GET /api/my-traders.
+Body: {"symbol":"<string, e.g. BTCUSDT — must match an open position symbol from GET /api/positions>"}`,
+				s.handleClosePosition)
+			s.routeWithSchema(protected, "PUT", "/traders/:id/competition", "Toggle competition leaderboard visibility",
+				`:id = trader_id from GET /api/my-traders.
+Body: {"show_in_competition":<bool>}`,
+				s.handleToggleCompetition)
+			s.routeWithSchema(protected, "GET", "/traders/:id/grid-risk", "Get grid trading risk info",
+				`:id = trader_id from GET /api/my-traders.`,
+				s.handleGetGridRiskInfo)
 
 			// AI model configuration
-			protected.GET("/models", s.handleGetModelConfigs)
-			protected.PUT("/models", s.handleUpdateModelConfigs)
+			s.routeWithSchema(protected, "GET", "/models", "List AI model configs",
+				`Returns: [{"id":"<EXACT id — use this as ai_model_id when creating/updating a trader>","name":"<display name>","provider":"<short provider name — NOT a valid id>","enabled":<bool>}]
+CRITICAL: The "id" field (e.g. "abc123_deepseek") is what you must use for ai_model_id. The "provider" field ("deepseek") is NOT valid as an id.`,
+				s.handleGetModelConfigs)
+			s.routeWithSchema(protected, "PUT", "/models", "Configure an AI model provider",
+				`Body: {"models":{"<model_id>":{"enabled":<bool>,"api_key":"<string>","custom_api_url":"<string, leave empty to use provider default>","custom_model_name":"<string, leave empty to use provider default>"}}}
+model_id values: "openai","deepseek","qwen","kimi","grok","gemini","claude"
+Defaults when custom fields empty: openai→api.openai.com/v1, deepseek→api.deepseek.com, qwen→dashscope.aliyuncs.com/compatible-mode/v1, kimi→api.moonshot.ai/v1, grok→api.x.ai/v1, gemini→generativelanguage.googleapis.com/v1beta/openai, claude→api.anthropic.com/v1`,
+				s.handleUpdateModelConfigs)
 
 			// Exchange configuration
-			protected.GET("/exchanges", s.handleGetExchangeConfigs)
-			protected.POST("/exchanges", s.handleCreateExchange)
-			protected.PUT("/exchanges", s.handleUpdateExchangeConfigs)
-			protected.DELETE("/exchanges/:id", s.handleDeleteExchange)
+			s.routeWithSchema(protected, "GET", "/exchanges", "List exchange accounts",
+				`Returns: [{"id":"<EXACT id — use this as exchange_id when creating/updating a trader>","exchange_type":"<e.g. okx, binance>","account_name":"<user label>","enabled":<bool>}]
+CRITICAL: Always use the "id" field for exchange_id. Do not use "exchange_type" as an id.`,
+				s.handleGetExchangeConfigs)
+			s.routeWithSchema(protected, "POST", "/exchanges", "Create a new exchange account",
+				`Body: {"exchange_type":"<string>","account_name":"<string, user label>","enabled":true,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, required for okx/gate/kucoin>"}
+exchange_type values: "binance","bybit","okx","bitget","gate","kucoin","indodax" (CEX) | "hyperliquid","aster","lighter" (DEX)
+Required fields by exchange:
+  binance/bybit/bitget/indodax: api_key + secret_key
+  okx/gate/kucoin: api_key + secret_key + passphrase
+  hyperliquid: hyperliquid_wallet_addr
+  aster: aster_user + aster_signer + aster_private_key
+  lighter: lighter_wallet_addr + lighter_private_key + lighter_api_key_private_key + lighter_api_key_index`,
+				s.handleCreateExchange)
+			s.routeWithSchema(protected, "PUT", "/exchanges", "Update an existing exchange account configuration",
+				`Body: {"id":"<EXACT id from GET /api/exchanges>","exchange_type":"<string>","account_name":"<string>","enabled":<bool>,"api_key":"<string>","secret_key":"<string>","passphrase":"<string, for okx/gate/kucoin>"}
+Use this to enable/disable an exchange or update API credentials. The "id" field is required to identify which exchange to update.`,
+				s.handleUpdateExchangeConfigs)
+			s.routeWithSchema(protected, "DELETE", "/exchanges/:id", "Delete exchange account",
+				`:id = EXACT id from GET /api/exchanges. Permanently removes the exchange account and disconnects any traders using it.`,
+				s.handleDeleteExchange)
+
+			// Telegram bot configuration
+			s.routeWithSchema(protected, "GET", "/telegram", "Get Telegram bot configuration",
+				`Returns: {"bot_token":"<string>","model_id":"<EXACT id of configured AI model>","chat_id":"<bound Telegram chat id, empty if not bound>"}`,
+				s.handleGetTelegramConfig)
+			s.routeWithSchema(protected, "POST", "/telegram", "Set Telegram bot token and AI model",
+				`Body: {"bot_token":"<string — Telegram BotFather token>","model_id":"<EXACT id from GET /api/models>"}
+Both fields are required. After saving, the user must send /start in Telegram to bind their account.`,
+				s.handleUpdateTelegramConfig)
+			s.routeWithSchema(protected, "POST", "/telegram/model", "Update Telegram bot AI model only",
+				`Body: {"model_id":"<EXACT id from GET /api/models>"}`,
+				s.handleUpdateTelegramModel)
+			s.routeWithSchema(protected, "DELETE", "/telegram/binding", "Unbind Telegram account",
+				`No body needed. Clears the Telegram chat_id binding so the user can re-bind with /start.`,
+				s.handleUnbindTelegram)
 
 			// Strategy management
-			protected.GET("/strategies", s.handleGetStrategies)
-			protected.GET("/strategies/active", s.handleGetActiveStrategy)
-			protected.GET("/strategies/default-config", s.handleGetDefaultStrategyConfig)
-			protected.POST("/strategies/preview-prompt", s.handlePreviewPrompt)
-			protected.POST("/strategies/test-run", s.handleStrategyTestRun)
-			protected.GET("/strategies/:id", s.handleGetStrategy)
-			protected.POST("/strategies", s.handleCreateStrategy)
-			protected.PUT("/strategies/:id", s.handleUpdateStrategy)
-			protected.DELETE("/strategies/:id", s.handleDeleteStrategy)
-			protected.POST("/strategies/:id/activate", s.handleActivateStrategy)
-			protected.POST("/strategies/:id/duplicate", s.handleDuplicateStrategy)
+			s.routeWithSchema(protected, "GET", "/strategies", "List user's strategies",
+				`Returns: [{"id":"<EXACT id — use as strategy_id when creating/updating a trader>","name":"<string>","is_active":<bool>,"is_default":<bool>}]
+CRITICAL: Always use the "id" field for strategy_id.`,
+				s.handleGetStrategies)
+			s.routeWithSchema(protected, "GET", "/strategies/active", "Get the currently active strategy",
+				`Returns the strategy marked is_active=true for this user, or the system default. Use this to find which strategy is currently in use.`,
+				s.handleGetActiveStrategy)
+			s.routeWithSchema(protected, "GET", "/strategies/default-config", "Get default strategy config with all fields and sensible values — use as reference for building configs",
+				`No parameters needed. Returns a complete StrategyConfig object with all fields populated with recommended defaults. Read this before building a custom config.`,
+				s.handleGetDefaultStrategyConfig)
+			s.route(protected, "POST", "/strategies/preview-prompt", "Preview the AI prompt that will be generated from a config", s.handlePreviewPrompt)
+			s.route(protected, "POST", "/strategies/test-run", "Test-run strategy AI analysis", s.handleStrategyTestRun)
+			s.route(protected, "GET", "/strategies/:id", "Get strategy by ID", s.handleGetStrategy)
+			s.routeWithSchema(protected, "POST", "/strategies", "Create a new trading strategy",
+				`Body: {"name":"<string, required>","description":"<string, optional>","lang":"zh|en","config":<StrategyConfig object, OPTIONAL — if omitted the system applies complete working defaults automatically (ai500 top coins, all standard indicators, standard risk control)>}
+IMPORTANT: For most use cases just POST {"name":"<name>"} — the backend fills everything in. Only include "config" when the user explicitly requests custom settings (specific coins, custom leverage, custom timeframes).
 
-			// Debate Arena
-			protected.GET("/debates", s.debateHandler.HandleListDebates)
-			protected.GET("/debates/personalities", s.debateHandler.HandleGetPersonalities)
-			protected.GET("/debates/:id", s.debateHandler.HandleGetDebate)
-			protected.POST("/debates", s.debateHandler.HandleCreateDebate)
-			protected.POST("/debates/:id/start", s.debateHandler.HandleStartDebate)
-			protected.POST("/debates/:id/cancel", s.debateHandler.HandleCancelDebate)
-			protected.POST("/debates/:id/execute", s.debateHandler.HandleExecuteDebate)
-			protected.DELETE("/debates/:id", s.debateHandler.HandleDeleteDebate)
-			protected.GET("/debates/:id/messages", s.debateHandler.HandleGetMessages)
-			protected.GET("/debates/:id/votes", s.debateHandler.HandleGetVotes)
-			protected.GET("/debates/:id/stream", s.debateHandler.HandleDebateStream)
+StrategyConfig fields:
+  coin_source.source_type: "static"(fixed coin list) | "ai500"(AI top500 ranking) | "oi_top"(OI increasing, suited for long) | "oi_low"(OI decreasing, suited for short) | "mixed"
+  coin_source.static_coins: ["BTCUSDT","ETHUSDT"] — only when source_type="static"
+  coin_source.use_ai500, ai500_limit: number of coins from AI500 pool (default 10)
+  coin_source.use_oi_top/use_oi_low, oi_top_limit/oi_low_limit: OI-based coin selection
+  indicators.klines.primary_timeframe: "1m"|"3m"|"5m"|"15m"|"1h"|"4h" — scalping→"5m", trend/swing→"1h"/"4h"
+  indicators.klines.primary_count: number of candles (20-100)
+  indicators.klines.enable_multi_timeframe: true for trend/swing analysis
+  indicators.klines.selected_timeframes: e.g. ["5m","15m","1h","4h"]
+  indicators.enable_raw_klines: ALWAYS true (raw OHLCV required)
+  indicators.enable_ema: true for trend-following (EMA crossover signals)
+  indicators.enable_macd: true for trend + momentum confirmation
+  indicators.enable_rsi: true for overbought/oversold, divergence detection
+  indicators.enable_boll: true for volatility, range trading, breakout strategies
+  indicators.enable_atr: true for volatility measurement and stop-loss sizing
+  indicators.enable_volume: ALWAYS true
+  indicators.enable_oi: ALWAYS true (open interest data)
+  indicators.enable_funding_rate: ALWAYS true
+  indicators.ema_periods: [20,50] default, [9,21] for faster signals
+  indicators.rsi_periods: [7,14] default
+  indicators.atr_periods: [14] default
+  indicators.boll_periods: [20] default
+  indicators.nofxos_api_key: ALWAYS "cm_568c67eae410d912c54c"
+  indicators.enable_quant_data: ALWAYS true
+  indicators.enable_quant_oi: ALWAYS true
+  indicators.enable_quant_netflow: ALWAYS true
+  indicators.enable_oi_ranking: ALWAYS true, oi_ranking_duration:"1h", oi_ranking_limit:10
+  indicators.enable_netflow_ranking: ALWAYS true, netflow_ranking_duration:"1h", netflow_ranking_limit:10
+  indicators.enable_price_ranking: ALWAYS true, price_ranking_duration:"1h,4h,24h", price_ranking_limit:10
+  risk_control.max_positions: max simultaneous positions (1=single coin, 3=diversified, 5=wide)
+  risk_control.btc_eth_max_leverage: BTC/ETH leverage (conservative:3-5, moderate:5-10, aggressive:10-20)
+  risk_control.altcoin_max_leverage: altcoin leverage (usually lower than BTC leverage)
+  risk_control.btc_eth_max_position_value_ratio: max position size as multiple of equity (default 5)
+  risk_control.altcoin_max_position_value_ratio: default 1
+  risk_control.max_margin_usage: 0.5-0.95 (default 0.9 = use up to 90% margin)
+  risk_control.min_position_size: minimum USDT per trade (default 12)
+  risk_control.min_risk_reward_ratio: minimum profit/loss ratio required (default 3 = 3:1)
+  risk_control.min_confidence: minimum AI confidence to open position (default 75, range 60-90)
+  prompt_sections.role_definition: describe the AI's trading persona and goal
+  prompt_sections.trading_frequency: guidelines on how often to trade
+  prompt_sections.entry_standards: conditions that must align before entering a position
+  prompt_sections.decision_process: step-by-step decision-making framework`,
+				s.handleCreateStrategy)
+			s.routeWithSchema(protected, "PUT", "/strategies/:id", "Update an existing strategy — WORKFLOW: 1) GET /api/strategies/:id first to read current config 2) Merge your changes into the full config 3) PUT with complete merged config 4) GET again to verify saved values",
+				`Body: {"name":"<string>","description":"<string>","config":<complete StrategyConfig — same structure as POST /api/strategies>}
+IMPORTANT: config is merged with existing values server-side, but always send the complete section you are modifying.
+After updating, always GET /api/strategies/:id to verify and show the user actual saved values.`,
+				s.handleUpdateStrategy)
+			s.routeWithSchema(protected, "DELETE", "/strategies/:id", "Delete strategy",
+				`:id = EXACT id from GET /api/strategies. Cannot delete a strategy that is currently assigned to a running trader.`,
+				s.handleDeleteStrategy)
+			s.routeWithSchema(protected, "POST", "/strategies/:id/activate", "Mark a strategy as the active strategy for this user",
+				`:id = EXACT id from GET /api/strategies.
+No request body needed. Sets this strategy as is_active=true (and deactivates the previous active strategy).
+After activating, create or update a trader with this strategy_id to apply it.`,
+				s.handleActivateStrategy)
+			s.routeWithSchema(protected, "POST", "/strategies/:id/duplicate", "Duplicate an existing strategy",
+				`:id = EXACT id from GET /api/strategies. Creates a copy with " (copy)" appended to the name.`,
+				s.handleDuplicateStrategy)
 
 			// Data for specified trader (using query parameter ?trader_id=xxx)
-			protected.GET("/status", s.handleStatus)
-			protected.GET("/account", s.handleAccount)
-			protected.GET("/positions", s.handlePositions)
-			protected.GET("/positions/history", s.handlePositionHistory)
-			protected.GET("/trades", s.handleTrades)
-			protected.GET("/orders", s.handleOrders)               // Order list (all orders)
-			protected.GET("/orders/:id/fills", s.handleOrderFills) // Order fill details
-			protected.GET("/open-orders", s.handleOpenOrders)      // Open orders from exchange (pending SL/TP)
-			protected.GET("/decisions", s.handleDecisions)
-			protected.GET("/decisions/latest", s.handleLatestDecisions)
-			protected.GET("/statistics", s.handleStatistics)
+			// IMPORTANT: All ?trader_id= values must be the EXACT "trader_id" field from GET /api/my-traders
+			s.routeWithSchema(protected, "GET", "/status", "Trader running status",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns: {"is_running":<bool>,"trader_id":"<string>"}`,
+				s.handleStatus)
+			s.routeWithSchema(protected, "GET", "/account", "Account balance and equity",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns: {"balance":<float>,"equity":<float>,"unrealized_pnl":<float>,"initial_balance":<float>,"total_return_pct":<float>}`,
+				s.handleAccount)
+			s.routeWithSchema(protected, "GET", "/positions", "Current open positions",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns: [{"symbol":"<string>","side":"long|short","size":<float>,"entry_price":<float>,"mark_price":<float>,"unrealized_pnl":<float>,"leverage":<int>}]`,
+				s.handlePositions)
+			s.routeWithSchema(protected, "GET", "/positions/history", "Closed position history",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>&limit=<int, default 20>`,
+				s.handlePositionHistory)
+			s.routeWithSchema(protected, "GET", "/trades", "Trade records",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>&limit=<int, default 20>`,
+				s.handleTrades)
+			s.routeWithSchema(protected, "GET", "/orders", "All order records",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>&limit=<int, default 20>`,
+				s.handleOrders)
+			s.routeWithSchema(protected, "GET", "/orders/:id/fills", "Order fill details",
+				`:id = order id from GET /api/orders`,
+				s.handleOrderFills)
+			s.routeWithSchema(protected, "GET", "/open-orders", "Open orders currently on exchange",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>`,
+				s.handleOpenOrders)
+			s.routeWithSchema(protected, "GET", "/decisions", "AI trading decisions (decision records)",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>&limit=<int, default 20>
+Returns: [{"id":"<string>","symbol":"<string>","action":"open_long|open_short|close_long|close_short|hold","confidence":<int>,"reasoning":"<string>","created_at":"<timestamp>"}]`,
+				s.handleDecisions)
+			s.routeWithSchema(protected, "GET", "/decisions/latest", "Latest AI decisions (most recent scan results)",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns the most recent AI decision for each symbol analyzed in the last scan cycle.`,
+				s.handleLatestDecisions)
+			s.routeWithSchema(protected, "GET", "/statistics", "Trading performance statistics",
+				`Query: ?trader_id=<EXACT trader_id from GET /api/my-traders>
+Returns: {"total_trades":<int>,"winning_trades":<int>,"win_rate":<float>,"total_pnl":<float>,"sharpe_ratio":<float>,"max_drawdown":<float>}`,
+				s.handleStatistics)
 
 			// Backtest routes
 			backtest := protected.Group("/backtest")
@@ -234,12 +380,11 @@ func (s *Server) handleHealth(c *gin.Context) {
 
 // handleGetSystemConfig Get system configuration (configuration that client needs to know)
 func (s *Server) handleGetSystemConfig(c *gin.Context) {
-	cfg := config.Get()
-
+	userCount, _ := s.store.User().Count()
 	c.JSON(http.StatusOK, gin.H{
-		"registration_enabled": cfg.RegistrationEnabled,
-		"btc_eth_leverage":     10, // Default value
-		"altcoin_leverage":     5,  // Default value
+		"initialized":      userCount > 0,
+		"btc_eth_leverage": 10,
+		"altcoin_leverage": 5,
 	})
 }
 
@@ -3087,11 +3232,18 @@ func (s *Server) handleLogout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out"})
 }
 
-// handleRegister Handle user registration request
+// handleRegister Handle user registration request.
+// handleRegister allows registration only when no users exist yet (first-time setup).
+// This is a single-user system; subsequent registrations are permanently closed.
 func (s *Server) handleRegister(c *gin.Context) {
-	// Check if registration is allowed
-	if !config.Get().RegistrationEnabled {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
+	userCount, err := s.store.User().Count()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user count"})
+		return
+	}
+
+	if userCount > 0 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "System already initialized"})
 		return
 	}
 
@@ -3106,24 +3258,10 @@ func (s *Server) handleRegister(c *gin.Context) {
 	}
 
 	// Check if email already exists
-	_, err := s.store.User().GetByEmail(req.Email)
+	_, err = s.store.User().GetByEmail(req.Email)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Email already registered"})
 		return
-	}
-
-	// Check max users limit (only for new users)
-	maxUsers := config.Get().MaxUsers
-	if maxUsers > 0 {
-		userCount, err := s.store.User().Count()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check user count"})
-			return
-		}
-		if userCount >= maxUsers {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Not on whitelist"})
-			return
-		}
 	}
 
 	// Generate password hash
@@ -3208,6 +3346,28 @@ func (s *Server) handleLogin(c *gin.Context) {
 	})
 }
 
+// handleChangePassword changes the password for the currently authenticated user.
+func (s *Server) handleChangePassword(c *gin.Context) {
+	userID := c.GetString("user_id")
+	var req struct {
+		NewPassword string `json:"new_password" binding:"required,min=8"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		SafeBadRequest(c, "new_password is required (min 8 chars)")
+		return
+	}
+	hash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		SafeInternalError(c, "Password processing failed", err)
+		return
+	}
+	if err := s.store.User().UpdatePassword(userID, hash); err != nil {
+		SafeInternalError(c, "Failed to update password", err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Password updated"})
+}
+
 // handleResetPassword Reset password via email and new password
 func (s *Server) handleResetPassword(c *gin.Context) {
 	var req struct {
@@ -3267,6 +3427,7 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.5"},
 		{"id": "blockrun-base", "name": "BlockRun (Base Wallet)", "provider": "blockrun-base", "defaultModel": "auto"},
 		{"id": "blockrun-sol", "name": "BlockRun (Solana Wallet)", "provider": "blockrun-sol", "defaultModel": "auto"},
+		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "deepseek"},
 	}
 
 	c.JSON(http.StatusOK, supportedModels)
@@ -3625,4 +3786,107 @@ func (s *Server) handleGetPublicTraderConfig(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// SetTelegramReloadCh sets the channel used to signal the Telegram bot to reload
+func (s *Server) SetTelegramReloadCh(ch chan<- struct{}) {
+	s.telegramReloadCh = ch
+}
+
+// handleGetTelegramConfig returns current Telegram bot configuration and binding status
+func (s *Server) handleGetTelegramConfig(c *gin.Context) {
+	cfg, err := s.store.TelegramConfig().Get()
+	if err != nil {
+		// Not configured yet - return empty state
+		c.JSON(http.StatusOK, gin.H{
+			"configured":   false,
+			"is_bound":     false,
+			"token_masked": "",
+			"username":     "",
+		})
+		return
+	}
+
+	// Mask bot token for security (show only last 6 chars)
+	tokenMasked := ""
+	if cfg.BotToken != "" {
+		if len(cfg.BotToken) > 6 {
+			tokenMasked = "***" + cfg.BotToken[len(cfg.BotToken)-6:]
+		} else {
+			tokenMasked = "***"
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"configured":   cfg.BotToken != "",
+		"is_bound":     cfg.ChatID != 0,
+		"username":     cfg.Username,
+		"bound_at":     cfg.BoundAt,
+		"token_masked": tokenMasked,
+		"model_id":     cfg.ModelID,
+	})
+}
+
+// handleUpdateTelegramConfig saves bot token (+ optional model ID) and triggers bot hot-reload
+func (s *Server) handleUpdateTelegramConfig(c *gin.Context) {
+	var req struct {
+		BotToken string `json:"bot_token"`
+		ModelID  string `json:"model_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if req.BotToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "bot_token is required"})
+		return
+	}
+
+	if err := s.store.TelegramConfig().Save(req.BotToken, req.ModelID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save config"})
+		return
+	}
+
+	// Signal bot hot-reload if channel is available
+	if s.telegramReloadCh != nil {
+		select {
+		case s.telegramReloadCh <- struct{}{}:
+		default: // non-blocking
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Bot token saved. Bot will reload automatically."})
+}
+
+// handleUnbindTelegram removes Telegram user binding
+func (s *Server) handleUnbindTelegram(c *gin.Context) {
+	if err := s.store.TelegramConfig().Unbind(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unbind"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Telegram binding removed"})
+}
+
+// handleUpdateTelegramModel updates only the AI model used for Telegram replies (no token re-entry needed)
+func (s *Server) handleUpdateTelegramModel(c *gin.Context) {
+	var req struct {
+		ModelID string `json:"model_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	cfg, err := s.store.TelegramConfig().Get()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "no Telegram config found, save a bot token first"})
+		return
+	}
+
+	if err := s.store.TelegramConfig().Save(cfg.BotToken, req.ModelID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save model config"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "model_id": req.ModelID})
 }

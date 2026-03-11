@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, ChevronDown } from 'lucide-react'
+import { Menu, X, ChevronDown, Settings } from 'lucide-react'
 import { t, type Language } from '../i18n/translations'
-import { useSystemConfig } from '../hooks/useSystemConfig'
 import { OFFICIAL_LINKS } from '../constants/branding'
 
 type Page =
@@ -14,7 +13,6 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'data'
-  | 'debate'
   | 'faq'
   | 'login'
   | 'register'
@@ -49,9 +47,6 @@ export default function HeaderBar({
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const userDropdownRef = useRef<HTMLDivElement>(null)
-  const { config: systemConfig } = useSystemConfig()
-  const registrationEnabled = systemConfig?.registration_enabled !== false
-
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -105,7 +100,6 @@ export default function HeaderBar({
                 { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
                 { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
                 { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
-                { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
                 { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
                 { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
               ]
@@ -214,6 +208,16 @@ export default function HeaderBar({
                           {user.email}
                         </div>
                       </div>
+                      <button
+                        onClick={() => {
+                          window.location.href = '/settings'
+                          setUserDropdownOpen(false)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-white/5 text-nofx-text-muted hover:text-white"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        Settings
+                      </button>
                       {onLogout && (
                         <button
                           onClick={() => {
@@ -240,14 +244,6 @@ export default function HeaderBar({
                   >
                     {t('signIn', language)}
                   </a>
-                  {registrationEnabled && (
-                    <a
-                      href="/register"
-                      className="px-4 py-2 rounded font-semibold text-sm transition-colors hover:opacity-90 bg-nofx-gold text-black"
-                    >
-                      {t('signUp', language)}
-                    </a>
-                  )}
                 </div>
               )
             )}
@@ -346,7 +342,6 @@ export default function HeaderBar({
                     { page: 'trader', path: '/dashboard', label: t('dashboardNav', language), requiresAuth: true },
                     { page: 'strategy', path: '/strategy', label: t('strategyNav', language), requiresAuth: true },
                     { page: 'competition', path: '/competition', label: t('realtimeNav', language), requiresAuth: true },
-                    { page: 'debate', path: '/debate', label: t('debateNav', language), requiresAuth: true },
                     { page: 'backtest', path: '/backtest', label: 'Backtest', requiresAuth: true },
                     { page: 'faq', path: '/faq', label: t('faqNav', language), requiresAuth: false },
                   ]

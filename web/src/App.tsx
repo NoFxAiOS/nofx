@@ -6,13 +6,13 @@ import { TraderDashboardPage } from './pages/TraderDashboardPage'
 
 import { AITradersPage } from './components/AITradersPage'
 import { LoginPage } from './components/LoginPage'
-import { RegisterPage } from './components/RegisterPage'
+import { SetupPage } from './components/SetupPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { ResetPasswordPage } from './components/ResetPasswordPage'
 import { CompetitionPage } from './components/CompetitionPage'
 import { LandingPage } from './pages/LandingPage'
 import { FAQPage } from './pages/FAQPage'
 import { StrategyStudioPage } from './pages/StrategyStudioPage'
-import { DebateArenaPage } from './pages/DebateArenaPage'
 import { StrategyMarketPage } from './pages/StrategyMarketPage'
 import { DataPage } from './pages/DataPage'
 import { LoginRequiredOverlay } from './components/LoginRequiredOverlay'
@@ -43,7 +43,6 @@ type Page =
   | 'strategy'
   | 'strategy-market'
   | 'data'
-  | 'debate'
   | 'faq'
   | 'login'
   | 'register'
@@ -53,7 +52,7 @@ type Page =
 function App() {
   const { language, setLanguage } = useLanguage()
   const { user, token, logout, isLoading } = useAuth()
-  const { loading: configLoading } = useSystemConfig()
+  const { config: systemConfig, loading: configLoading } = useSystemConfig()
   const [route, setRoute] = useState(window.location.pathname)
 
   // Debug log
@@ -71,7 +70,6 @@ function App() {
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
     if (path === '/data' || hash === 'data') return 'data'
-    if (path === '/debate' || hash === 'debate') return 'debate'
     if (path === '/dashboard' || hash === 'trader' || hash === 'details')
       return 'trader'
     return 'competition' // 默认为竞赛页面
@@ -96,7 +94,6 @@ function App() {
       'trader': '/dashboard',
       'backtest': '/backtest',
       'strategy': '/strategy',
-      'debate': '/debate',
       'faq': '/faq',
       'login': '/login',
       'register': '/register',
@@ -158,8 +155,6 @@ function App() {
         setCurrentPage('strategy-market')
       } else if (path === '/data' || hash === 'data') {
         setCurrentPage('data')
-      } else if (path === '/debate' || hash === 'debate') {
-        setCurrentPage('debate')
       } else if (
         path === '/dashboard' ||
         hash === 'trader' ||
@@ -341,12 +336,22 @@ function App() {
     )
   }
 
+  // First-time setup: redirect to /setup if system not initialized
+  if (systemConfig && !systemConfig.initialized && !user) {
+    return <SetupPage />
+  }
+
   // Handle specific routes regardless of authentication
   if (route === '/login') {
     return <LoginPage />
   }
-  if (route === '/register') {
-    return <RegisterPage />
+  if (route === '/setup') {
+    // If already initialized, redirect to login
+    if (systemConfig?.initialized) {
+      window.location.href = '/login'
+      return null
+    }
+    return <SetupPage />
   }
   if (route === '/faq') {
     return (
@@ -376,6 +381,26 @@ function App() {
   if (route === '/reset-password') {
     return <ResetPasswordPage />
   }
+  if (route === '/settings') {
+    if (!user || !token) {
+      window.location.href = '/login'
+      return null
+    }
+    return (
+      <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
+        <HeaderBar
+          isLoggedIn={!!user}
+          language={language}
+          onLanguageChange={setLanguage}
+          user={user}
+          onLogout={logout}
+          onLoginRequired={handleLoginRequired}
+          onPageChange={navigateToPage}
+        />
+        <SettingsPage />
+      </div>
+    )
+  }
   // Data page - publicly accessible with embedded dashboard
   if (route === '/data') {
     const dataPageNavigate = (page: Page) => {
@@ -387,7 +412,6 @@ function App() {
         'trader': '/dashboard',
         'backtest': '/backtest',
         'strategy': '/strategy',
-        'debate': '/debate',
         'faq': '/faq',
       }
       const path = pathMap[page]
@@ -476,8 +500,6 @@ function App() {
               <BacktestPage />
             ) : currentPage === 'strategy' ? (
               <StrategyStudioPage />
-            ) : currentPage === 'debate' ? (
-              <DebateArenaPage />
             ) : (
               <TraderDashboardPage
                 selectedTrader={selectedTrader}
@@ -515,9 +537,8 @@ function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer - Hidden on debate page */}
-      {currentPage !== 'debate' && (
-        <footer
+      {/* Footer */}
+      <footer
           className="mt-16"
           style={{ borderTop: '1px solid #2B3139', background: '#181A20' }}
         >
@@ -627,7 +648,6 @@ function App() {
             </div>
           </div>
         </footer>
-      )}
 
       {/* Login Required Overlay */}
       <LoginRequiredOverlay

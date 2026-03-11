@@ -94,7 +94,7 @@ func (s *AIModelStore) Get(userID, modelID string) (*AIModel, error) {
 	return nil, gorm.ErrRecordNotFound
 }
 
-// GetByID retrieves an AI model by ID only (for debate engine)
+// GetByID retrieves an AI model by ID only
 func (s *AIModelStore) GetByID(modelID string) (*AIModel, error) {
 	if modelID == "" {
 		return nil, fmt.Errorf("model ID cannot be empty")
@@ -129,6 +129,19 @@ func (s *AIModelStore) GetDefault(userID string) (*AIModel, error) {
 func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
 	var model AIModel
 	err := s.db.Where("user_id = ? AND enabled = ?", userID, true).
+		Order("updated_at DESC, id ASC").
+		First(&model).Error
+	if err != nil {
+		return nil, err
+	}
+	return &model, nil
+}
+
+// GetAnyEnabled returns the first enabled AI model across all users.
+// Used by single-user features (e.g. Telegram bot) that need any working LLM client.
+func (s *AIModelStore) GetAnyEnabled() (*AIModel, error) {
+	var model AIModel
+	err := s.db.Where("enabled = ? AND api_key != ''", true).
 		Order("updated_at DESC, id ASC").
 		First(&model).Error
 	if err != nil {

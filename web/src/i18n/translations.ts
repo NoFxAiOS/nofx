@@ -22,7 +22,6 @@ export const translations = {
     configNav: 'Config',
     dashboardNav: 'Dashboard',
     strategyNav: 'Strategy',
-    debateNav: 'Arena',
     faqNav: 'FAQ',
 
     // Footer
@@ -339,8 +338,8 @@ export const translations = {
     selectTradingStrategy: 'Select Trading Strategy',
     useStrategy: 'Use Strategy',
     noStrategyManual: '-- No Strategy (Manual Configuration) --',
-    activeTag: ' (Active)',
-    default: ' [Default]',
+    strategyActive: ' (Active)',
+    strategyDefault: ' [Default]',
     noStrategyHint: 'No strategies yet, please create in Strategy Studio first',
     strategyDetails: 'Strategy Details',
     activating: 'Activating',
@@ -839,7 +838,7 @@ export const translations = {
     // ===== GETTING STARTED =====
     faqWhatIsNOFX: 'What is NOFX?',
     faqWhatIsNOFXAnswer:
-      'NOFX is an open-source AI-powered trading operating system for cryptocurrency and US stock markets. It uses large language models (LLMs) like DeepSeek, GPT, Claude, Gemini to analyze market data and make autonomous trading decisions. Key features include: multi-AI model support, multi-exchange trading, visual strategy builder, backtesting, and AI debate arena for consensus decisions.',
+      'NOFX is an open-source AI-powered trading operating system for cryptocurrency and US stock markets. It uses large language models (LLMs) like DeepSeek, GPT, Claude, Gemini to analyze market data and make autonomous trading decisions. Key features include: multi-AI model support, multi-exchange trading, visual strategy builder, and backtesting.',
 
     faqHowDoesItWork: 'How does NOFX work?',
     faqHowDoesItWorkAnswer:
@@ -1003,10 +1002,6 @@ export const translations = {
     faqBacktestLabAnswer:
       'Backtest Lab tests your strategy against historical data without risking real funds. Features: 1) Configure AI model, date range, initial balance; 2) Watch real-time progress with equity curve; 3) View metrics: Return %, Max Drawdown, Sharpe Ratio, Win Rate; 4) Analyze individual trades and AI reasoning. Essential for validating strategies before live trading.',
 
-    faqDebateArena: 'What is Debate Arena?',
-    faqDebateArenaAnswer:
-      'Debate Arena lets multiple AI models debate trading decisions before execution. Setup: 1) Choose 2-5 AI models; 2) Assign personalities (Bull, Bear, Analyst, Contrarian, Risk Manager); 3) Watch them debate in rounds; 4) Final decision based on consensus voting. Useful for high-conviction trades where you want multiple perspectives.',
-
     faqCompetitionMode: 'What is Competition Mode?',
     faqCompetitionModeAnswer:
       'Competition page shows a real-time leaderboard of all your traders. Compare: ROI, P&L, Sharpe ratio, win rate, number of trades. Use this to A/B test different AI models, strategies, or configurations. Traders can be marked as "Show in Competition" to appear on the leaderboard.',
@@ -1030,7 +1025,7 @@ export const translations = {
 
     faqCompareAIModels: 'How do I compare different AI models?',
     faqCompareAIModelsAnswer:
-      'Create multiple traders with different AI models but same strategy/exchange. Run them simultaneously and compare on Competition page. Metrics to watch: ROI, win rate, Sharpe ratio, max drawdown. Alternatively, use Backtest Lab to test models against same historical data. The Debate Arena also shows how different models reason about the same situation.',
+      'Create multiple traders with different AI models but same strategy/exchange. Run them simultaneously and compare on Competition page. Metrics to watch: ROI, win rate, Sharpe ratio, max drawdown. Alternatively, use Backtest Lab to test models against same historical data.',
 
     // ===== CONTRIBUTING =====
     faqHowToContribute: 'How can I contribute to NOFX?',
@@ -1161,74 +1156,6 @@ export const translations = {
       closedAt: 'Closed At',
     },
 
-    // Debate Arena Page
-    debatePage: {
-      title: 'Market Debate Arena',
-      subtitle: 'Watch AI models debate market conditions and reach consensus',
-      newDebate: 'New Debate',
-      noDebates: 'No debates yet',
-      createFirst: 'Create your first debate to get started',
-      selectDebate: 'Select a debate to view details',
-      createDebate: 'Create Debate',
-      creating: 'Creating...',
-      debateName: 'Debate Name',
-      debateNamePlaceholder: 'e.g., BTC Bull or Bear?',
-      tradingPair: 'Trading Pair',
-      strategy: 'Strategy',
-      selectStrategy: 'Select a strategy',
-      maxRounds: 'Max Rounds',
-      autoExecute: 'Auto Execute',
-      autoExecuteHint: 'Automatically execute the consensus trade',
-      participants: 'Participants',
-      addParticipant: 'Add AI Participant',
-      noModels: 'No AI models available',
-      atLeast2: 'Add at least 2 participants',
-      personalities: {
-        bull: 'Aggressive Bull',
-        bear: 'Cautious Bear',
-        analyst: 'Data Analyst',
-        contrarian: 'Contrarian',
-        risk_manager: 'Risk Manager',
-      },
-      status: {
-        pending: 'Pending',
-        running: 'Running',
-        voting: 'Voting',
-        completed: 'Completed',
-        cancelled: 'Cancelled',
-      },
-      actions: {
-        start: 'Start Debate',
-        starting: 'Starting...',
-        cancel: 'Cancel',
-        delete: 'Delete',
-        execute: 'Execute Trade',
-      },
-      round: 'Round',
-      roundOf: 'Round {current} of {max}',
-      messages: 'Messages',
-      noMessages: 'No messages yet',
-      waitingStart: 'Waiting for debate to start...',
-      votes: 'Votes',
-      consensus: 'Consensus',
-      finalDecision: 'Final Decision',
-      confidence: 'Confidence',
-      votesCount: '{count} votes',
-      decision: {
-        open_long: 'Open Long',
-        open_short: 'Open Short',
-        close_long: 'Close Long',
-        close_short: 'Close Short',
-        hold: 'Hold',
-        wait: 'Wait',
-      },
-      messageTypes: {
-        analysis: 'Analysis',
-        rebuttal: 'Rebuttal',
-        vote: 'Vote',
-        summary: 'Summary',
-      },
-    },
   },
   zh: {
     // Header
@@ -1251,7 +1178,6 @@ export const translations = {
     configNav: '配置',
     dashboardNav: '看板',
     strategyNav: '策略',
-    debateNav: '竞技场',
     faqNav: '常见问题',
 
     // Footer
@@ -1563,8 +1489,8 @@ export const translations = {
     selectTradingStrategy: '选择交易策略',
     useStrategy: '使用策略',
     noStrategyManual: '-- 不使用策略（手动配置） --',
-    activeTag: ' (当前激活)',
-    default: ' [默认]',
+    strategyActive: ' (当前激活)',
+    strategyDefault: ' [默认]',
     noStrategyHint: '暂无策略，请先在策略工作室创建策略',
     strategyDetails: '策略详情',
     activating: '激活中',
@@ -2017,7 +1943,7 @@ export const translations = {
     // ===== 入门指南 =====
     faqWhatIsNOFX: 'NOFX 是什么？',
     faqWhatIsNOFXAnswer:
-      'NOFX 是一个开源的 AI 驱动交易操作系统，支持加密货币和美股市场。它使用大语言模型（LLM）如 DeepSeek、GPT、Claude、Gemini 来分析市场数据，进行自主交易决策。核心功能包括：多 AI 模型支持、多交易所交易、可视化策略构建器、回测系统、以及用于共识决策的 AI 辩论竞技场。',
+      'NOFX 是一个开源的 AI 驱动交易操作系统，支持加密货币和美股市场。它使用大语言模型（LLM）如 DeepSeek、GPT、Claude、Gemini 来分析市场数据，进行自主交易决策。核心功能包括：多 AI 模型支持、多交易所交易、可视化策略构建器、回测系统。',
 
     faqHowDoesItWork: 'NOFX 是如何工作的？',
     faqHowDoesItWorkAnswer:
@@ -2181,10 +2107,6 @@ export const translations = {
     faqBacktestLabAnswer:
       '回测实验室用历史数据测试您的策略，无需冒真金风险。功能：1）配置 AI 模型、日期范围、初始余额；2）实时观看进度和权益曲线；3）查看指标：收益率、最大回撤、夏普比率、胜率；4）分析单笔交易和 AI 推理。实盘交易前验证策略的必备工具。',
 
-    faqDebateArena: '什么是辩论竞技场？',
-    faqDebateArenaAnswer:
-      '辩论竞技场让多个 AI 模型在执行前辩论交易决策。设置：1）选择 2-5 个 AI 模型；2）分配角色（多头、空头、分析师、逆向者、风险经理）；3）观看他们多轮辩论；4）基于共识投票做最终决策。适用于需要多角度考虑的高确信度交易。',
-
     faqCompetitionMode: '什么是竞赛模式？',
     faqCompetitionModeAnswer:
       '竞赛页面显示所有交易员的实时排行榜。比较：ROI、盈亏、夏普比率、胜率、交易次数。用于 A/B 测试不同 AI 模型、策略或配置。交易员可标记为"在竞赛中显示"以出现在排行榜上。',
@@ -2208,7 +2130,7 @@ export const translations = {
 
     faqCompareAIModels: '如何比较不同 AI 模型？',
     faqCompareAIModelsAnswer:
-      '创建多个交易员，使用不同 AI 模型但相同策略/交易所。同时运行并在竞赛页面比较。关注指标：ROI、胜率、夏普比率、最大回撤。或者使用回测实验室用相同历史数据测试模型。辩论竞技场也展示不同模型对同一情况的推理方式。',
+      '创建多个交易员，使用不同 AI 模型但相同策略/交易所。同时运行并在竞赛页面比较。关注指标：ROI、胜率、夏普比率、最大回撤。或者使用回测实验室用相同历史数据测试模型。',
 
     // ===== 参与贡献 =====
     faqHowToContribute: '如何为 NOFX 做贡献？',
@@ -2332,74 +2254,6 @@ export const translations = {
       closedAt: '平仓时间',
     },
 
-    // Debate Arena Page
-    debatePage: {
-      title: '行情辩论大赛',
-      subtitle: '观看AI模型辩论市场行情并达成共识',
-      newDebate: '新建辩论',
-      noDebates: '暂无辩论',
-      createFirst: '创建您的第一场辩论开始',
-      selectDebate: '选择辩论查看详情',
-      createDebate: '创建辩论',
-      creating: '创建中...',
-      debateName: '辩论名称',
-      debateNamePlaceholder: '例如：BTC是牛还是熊？',
-      tradingPair: '交易对',
-      strategy: '策略',
-      selectStrategy: '选择策略',
-      maxRounds: '最大回合',
-      autoExecute: '自动执行',
-      autoExecuteHint: '自动执行共识交易',
-      participants: '参与者',
-      addParticipant: '添加AI参与者',
-      noModels: '暂无可用AI模型',
-      atLeast2: '至少添加2名参与者',
-      personalities: {
-        bull: '激进多头',
-        bear: '谨慎空头',
-        analyst: '数据分析师',
-        contrarian: '逆势者',
-        risk_manager: '风控经理',
-      },
-      status: {
-        pending: '待开始',
-        running: '进行中',
-        voting: '投票中',
-        completed: '已完成',
-        cancelled: '已取消',
-      },
-      actions: {
-        start: '开始辩论',
-        starting: '启动中...',
-        cancel: '取消',
-        delete: '删除',
-        execute: '执行交易',
-      },
-      round: '回合',
-      roundOf: '第 {current} / {max} 回合',
-      messages: '消息',
-      noMessages: '暂无消息',
-      waitingStart: '等待辩论开始...',
-      votes: '投票',
-      consensus: '共识',
-      finalDecision: '最终决定',
-      confidence: '信心度',
-      votesCount: '{count} 票',
-      decision: {
-        open_long: '开多',
-        open_short: '开空',
-        close_long: '平多',
-        close_short: '平空',
-        hold: '持有',
-        wait: '观望',
-      },
-      messageTypes: {
-        analysis: '分析',
-        rebuttal: '反驳',
-        vote: '投票',
-        summary: '总结',
-      },
-    },
   },
   id: {
     // Header
@@ -2422,7 +2276,6 @@ export const translations = {
     configNav: 'Konfigurasi',
     dashboardNav: 'Dasbor',
     strategyNav: 'Strategi',
-    debateNav: 'Arena',
     faqNav: 'FAQ',
 
     // Footer
@@ -2734,8 +2587,8 @@ export const translations = {
     selectTradingStrategy: 'Pilih Strategi Trading',
     useStrategy: 'Gunakan Strategi',
     noStrategyManual: '-- Tanpa Strategi (Konfigurasi Manual) --',
-    activeTag: ' (Aktif)',
-    default: ' [Default]',
+    strategyActive: ' (Aktif)',
+    strategyDefault: ' [Default]',
     noStrategyHint: 'Belum ada strategi, buat di Strategy Studio terlebih dahulu',
     strategyDetails: 'Detail Strategi',
     activating: 'Mengaktifkan',
@@ -3117,7 +2970,7 @@ export const translations = {
     faqCategoryAIModels: 'Model AI',
     faqCategoryContributing: 'Kontribusi',
     faqWhatIsNOFX: 'Apa itu NOFX?',
-    faqWhatIsNOFXAnswer: 'NOFX adalah sistem operasi trading bertenaga AI open-source untuk pasar kripto dan saham AS. Ia menggunakan model bahasa besar (LLM) seperti DeepSeek, GPT, Claude, Gemini untuk menganalisis data pasar dan membuat keputusan trading secara otonom. Fitur utama: dukungan multi-model AI, trading multi-bursa, pembangun strategi visual, backtesting, dan arena debat AI untuk keputusan konsensus.',
+    faqWhatIsNOFXAnswer: 'NOFX adalah sistem operasi trading bertenaga AI open-source untuk pasar kripto dan saham AS. Ia menggunakan model bahasa besar (LLM) seperti DeepSeek, GPT, Claude, Gemini untuk menganalisis data pasar dan membuat keputusan trading secara otonom. Fitur utama: dukungan multi-model AI, trading multi-bursa, pembangun strategi visual, dan backtesting.',
     faqHowDoesItWork: 'Bagaimana cara kerja NOFX?',
     faqHowDoesItWorkAnswer: 'NOFX bekerja dalam 5 langkah: 1) Konfigurasi model AI dan kredensial API bursa; 2) Buat strategi trading (pemilihan koin, indikator, kontrol risiko); 3) Buat "Trader" menggabungkan Model AI + Bursa + Strategi; 4) Mulai trader - dia akan menganalisis data pasar secara berkala dan membuat keputusan beli/jual/tahan; 5) Pantau performa di dasbor.',
     faqIsProfitable: 'Apakah NOFX menguntungkan?',
@@ -3196,8 +3049,6 @@ export const translations = {
     faqStrategyStudioAnswer: 'Strategy Studio adalah pembangun strategi visual untuk konfigurasi: Sumber Koin, Indikator Teknikal, Kontrol Risiko, dan Prompt Kustom. Tanpa coding.',
     faqBacktestLab: 'Apa itu Lab Backtest?',
     faqBacktestLabAnswer: 'Lab Backtest menguji strategi Anda terhadap data historis tanpa risiko dana nyata.',
-    faqDebateArena: 'Apa itu Arena Debat?',
-    faqDebateArenaAnswer: 'Arena Debat membiarkan beberapa model AI berdebat tentang keputusan trading sebelum eksekusi. Berguna untuk trading dengan keyakinan tinggi.',
     faqCompetitionMode: 'Apa itu Mode Kompetisi?',
     faqCompetitionModeAnswer: 'Halaman kompetisi menampilkan papan peringkat realtime semua trader Anda. Bandingkan ROI, L/R, rasio Sharpe, win rate.',
     faqChainOfThought: 'Apa itu Chain of Thought (CoT)?',
@@ -3305,73 +3156,6 @@ export const translations = {
       pnl: 'L/R',
       duration: 'Durasi',
       closedAt: 'Ditutup Pada',
-    },
-    debatePage: {
-      title: 'Arena Debat Pasar',
-      subtitle: 'Saksikan model AI berdebat tentang kondisi pasar dan mencapai konsensus',
-      newDebate: 'Debat Baru',
-      noDebates: 'Belum ada debat',
-      createFirst: 'Buat debat pertama Anda untuk memulai',
-      selectDebate: 'Pilih debat untuk melihat detail',
-      createDebate: 'Buat Debat',
-      creating: 'Membuat...',
-      debateName: 'Nama Debat',
-      debateNamePlaceholder: 'misal, BTC Bull atau Bear?',
-      tradingPair: 'Pasangan Trading',
-      strategy: 'Strategi',
-      selectStrategy: 'Pilih strategi',
-      maxRounds: 'Ronde Maksimum',
-      autoExecute: 'Eksekusi Otomatis',
-      autoExecuteHint: 'Otomatis mengeksekusi trading konsensus',
-      participants: 'Peserta',
-      addParticipant: 'Tambah Peserta AI',
-      noModels: 'Tidak ada model AI tersedia',
-      atLeast2: 'Tambahkan minimal 2 peserta',
-      personalities: {
-        bull: 'Bull Agresif',
-        bear: 'Bear Hati-hati',
-        analyst: 'Analis Data',
-        contrarian: 'Kontrarian',
-        risk_manager: 'Manajer Risiko',
-      },
-      status: {
-        pending: 'Menunggu',
-        running: 'Berjalan',
-        voting: 'Pemungutan Suara',
-        completed: 'Selesai',
-        cancelled: 'Dibatalkan',
-      },
-      actions: {
-        start: 'Mulai Debat',
-        starting: 'Memulai...',
-        cancel: 'Batal',
-        delete: 'Hapus',
-        execute: 'Eksekusi Trading',
-      },
-      round: 'Ronde',
-      roundOf: 'Ronde {current} dari {max}',
-      messages: 'Pesan',
-      noMessages: 'Belum ada pesan',
-      waitingStart: 'Menunggu debat dimulai...',
-      votes: 'Suara',
-      consensus: 'Konsensus',
-      finalDecision: 'Keputusan Akhir',
-      confidence: 'Keyakinan',
-      votesCount: '{count} suara',
-      decision: {
-        open_long: 'Buka Long',
-        open_short: 'Buka Short',
-        close_long: 'Tutup Long',
-        close_short: 'Tutup Short',
-        hold: 'Tahan',
-        wait: 'Tunggu',
-      },
-      messageTypes: {
-        analysis: 'Analisis',
-        rebuttal: 'Bantahan',
-        vote: 'Suara',
-        summary: 'Ringkasan',
-      },
     },
   },
 }

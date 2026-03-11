@@ -43,7 +43,6 @@ export function LandingPage() {
             'trader': '/dashboard',
             'backtest': '/backtest',
             'strategy': '/strategy',
-            'debate': '/debate',
             'faq': '/faq',
           }
           const path = pathMap[page]

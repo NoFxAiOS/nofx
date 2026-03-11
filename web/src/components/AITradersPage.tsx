@@ -16,6 +16,7 @@ import { getModelIcon } from './ModelIcons'
 import { TraderConfigModal } from './TraderConfigModal'
 import { DeepVoidBackground } from './DeepVoidBackground'
 import { ExchangeConfigModal } from './traders/ExchangeConfigModal'
+import { TelegramConfigModal } from './traders/TelegramConfigModal'
 import { PunkAvatar, getTraderAvatar } from './PunkAvatar'
 import {
   Bot,
@@ -31,6 +32,7 @@ import {
   ExternalLink,
   Copy,
   Check,
+  MessageCircle,
 } from 'lucide-react'
 import { confirmToast } from '../lib/notify'
 import { toast } from 'sonner'
@@ -63,6 +65,22 @@ const BLOCKRUN_MODELS = [
   { id: 'grok-3', name: 'Grok 3', desc: 'xAI · Flagship' },
   { id: 'deepseek-chat', name: 'DeepSeek Chat', desc: 'DeepSeek · Flagship' },
   { id: 'minimax-m2.5', name: 'MiniMax M2.5', desc: 'MiniMax · Flagship' },
+]
+
+// Models available through Claw402 (x402 USDC payment protocol)
+const CLAW402_MODELS = [
+  { id: 'gpt-5.4', name: 'GPT-5.4', provider: 'OpenAI', desc: 'Flagship · Fast', icon: '⚡' },
+  { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', provider: 'OpenAI', desc: 'Reasoning · Pro', icon: '🧠' },
+  { id: 'gpt-5.3', name: 'GPT-5.3', provider: 'OpenAI', desc: 'Balanced', icon: '💡' },
+  { id: 'gpt-5-mini', name: 'GPT-5 Mini', provider: 'OpenAI', desc: 'Fast · Cheap', icon: '🚀' },
+  { id: 'claude-opus', name: 'Claude Opus', provider: 'Anthropic', desc: 'Flagship · Deep', icon: '🎯' },
+  { id: 'deepseek', name: 'DeepSeek V3', provider: 'DeepSeek', desc: 'Best Value', icon: '🔥' },
+  { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'DeepSeek', desc: 'Reasoning', icon: '🤔' },
+  { id: 'qwen-max', name: 'Qwen Max', provider: 'Alibaba', desc: 'Flagship', icon: '🌟' },
+  { id: 'qwen-plus', name: 'Qwen Plus', provider: 'Alibaba', desc: 'Balanced', icon: '✨' },
+  { id: 'grok-4.1', name: 'Grok 4.1', provider: 'xAI', desc: 'Flagship', icon: '⚡' },
+  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', provider: 'Google', desc: 'Flagship', icon: '💎' },
+  { id: 'kimi-k2.5', name: 'Kimi K2.5', provider: 'Moonshot', desc: 'Balanced', icon: '🌙' },
 ]
 
 // AI Provider configuration - default models and API links
@@ -110,6 +128,11 @@ const AI_PROVIDER_CONFIG: Record<string, {
     defaultModel: 'MiniMax-M2.5',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
+  },
+  claw402: {
+    defaultModel: 'deepseek',
+    apiUrl: 'https://claw402.ai',
+    apiName: 'Claw402',
   },
   'blockrun-base': {
     defaultModel: 'gpt-5.4',
@@ -173,6 +196,7 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showModelModal, setShowModelModal] = useState(false)
   const [showExchangeModal, setShowExchangeModal] = useState(false)
+  const [showTelegramModal, setShowTelegramModal] = useState(false)
   const [editingModel, setEditingModel] = useState<string | null>(null)
   const [editingExchange, setEditingExchange] = useState<string | null>(null)
   const [editingTrader, setEditingTrader] = useState<any>(null)
@@ -875,6 +899,16 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             </button>
 
             <button
+              onClick={() => setShowTelegramModal(true)}
+              className="px-4 py-2 rounded text-xs font-mono uppercase tracking-wider transition-all border border-sky-900/50 bg-black/20 text-sky-500 hover:text-sky-300 hover:border-sky-700 whitespace-nowrap backdrop-blur-sm"
+            >
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-3 h-3" />
+                <span>TELEGRAM_BOT</span>
+              </div>
+            </button>
+
+            <button
               onClick={() => setShowCreateModal(true)}
               disabled={configuredModels.length === 0 || configuredExchanges.length === 0}
               className="group relative px-6 py-2 rounded text-xs font-bold font-mono uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap overflow-hidden bg-nofx-gold text-black hover:bg-yellow-400 shadow-[0_0_20px_rgba(240,185,11,0.2)] hover:shadow-[0_0_30px_rgba(240,185,11,0.4)]"
@@ -1404,6 +1438,14 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
             language={language}
           />
         )}
+
+        {/* Telegram Bot Modal */}
+        {showTelegramModal && (
+          <TelegramConfigModal
+            onClose={() => setShowTelegramModal(false)}
+            language={language}
+          />
+        )}
       </div>
     </DeepVoidBackground>
   )
@@ -1503,7 +1545,7 @@ function ModelCard({
 }
 
 // Model Configuration Modal Component
-function ModelConfigModal({
+export function ModelConfigModal({
   allModels,
   configuredModels,
   editingModelId,
@@ -1531,9 +1573,11 @@ function ModelConfigModal({
   const [baseUrl, setBaseUrl] = useState('')
   const [modelName, setModelName] = useState('')
 
-  const selectedModel = editingModelId
-    ? configuredModels?.find((m) => m.id === selectedModelId)
-    : allModels?.find((m) => m.id === selectedModelId)
+  // Always prefer allModels (supportedModels) for provider/id lookup;
+  // fall back to configuredModels for edit mode details (apiKey etc.)
+  const selectedModel =
+    allModels?.find((m) => m.id === selectedModelId) ||
+    configuredModels?.find((m) => m.id === selectedModelId)
 
   useEffect(() => {
     if (editingModelId && selectedModel) {
@@ -1619,8 +1663,54 @@ function ModelConfigModal({
               <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
                 {language === 'zh' ? '选择 AI 模型提供商' : 'Choose Your AI Provider'}
               </div>
+
+              {/* Claw402 Featured Card — always first, always prominent */}
+              {availableModels.some(m => m.provider === 'claw402') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const claw = availableModels.find(m => m.provider === 'claw402')
+                    if (claw) handleSelectModel(claw.id)
+                  }}
+                  className="w-full p-5 rounded-xl text-left transition-all hover:scale-[1.01]"
+                  style={{ background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%)', border: '1.5px solid rgba(37, 99, 235, 0.4)' }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+                        <img src="/icons/claw402.png" alt="Claw402" width={40} height={40} />
+                      </div>
+                      <div>
+                        <div className="font-bold text-base" style={{ color: '#EAECEF' }}>
+                          Claw402
+                          <a href="https://claw402.ai" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="ml-1.5 text-[10px] font-normal px-1.5 py-0.5 rounded" style={{ color: '#60A5FA', background: 'rgba(96, 165, 250, 0.1)' }}>↗ claw402.ai</a>
+                        </div>
+                        <div className="text-xs mt-0.5" style={{ color: '#A0AEC0' }}>
+                          {language === 'zh'
+                            ? 'USDC 按次付费 · 支持全部 AI 模型 · 无需 API Key'
+                            : 'Pay-per-call USDC · All AI Models · No API Key'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {configuredIds.has(availableModels.find(m => m.provider === 'claw402')?.id || '') && (
+                        <div className="w-2 h-2 rounded-full" style={{ background: '#00E096' }} />
+                      )}
+                      <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: 'linear-gradient(135deg, #2563EB, #7C3AED)', color: '#fff' }}>
+                        {language === 'zh' ? '🔥 推荐' : '🔥 Best'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 mt-3 ml-[52px]">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0, 224, 150, 0.1)', color: '#00E096', border: '1px solid rgba(0, 224, 150, 0.2)' }}>
+                      GPT · Claude · DeepSeek · Gemini · Grok · Qwen · Kimi
+                    </span>
+                  </div>
+                </button>
+              )}
+
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {availableModels.filter(m => !m.provider?.startsWith('blockrun')).map((model) => (
+                {availableModels.filter(m => !m.provider?.startsWith('blockrun') && m.provider !== 'claw402').map((model) => (
                   <ModelCard
                     key={model.id}
                     model={model}
@@ -1658,8 +1748,169 @@ function ModelConfigModal({
             </div>
           )}
 
-          {/* Step 1: Configure */}
-          {(currentStep === 1 || editingModelId) && selectedModel && (
+          {/* Step 1: Configure — Claw402 Dedicated UI */}
+          {(currentStep === 1 || editingModelId) && selectedModel && (selectedModel.provider === 'claw402' || selectedModel.id === 'claw402') && (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Claw402 Hero Header */}
+              <div className="p-5 rounded-xl text-center" style={{ background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)', border: '1px solid rgba(37, 99, 235, 0.3)' }}>
+                <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-3 overflow-hidden">
+                  <img src="/icons/claw402.png" alt="Claw402" width={56} height={56} />
+                </div>
+                <a href="https://claw402.ai" target="_blank" rel="noopener noreferrer" className="text-lg font-bold inline-flex items-center gap-1.5 hover:underline" style={{ color: '#EAECEF' }}>
+                  Claw402 <span className="text-xs font-normal" style={{ color: '#60A5FA' }}>↗</span>
+                </a>
+                <div className="text-sm mt-1" style={{ color: '#A0AEC0' }}>
+                  {language === 'zh'
+                    ? '用 USDC 按次付费，支持所有主流 AI 模型'
+                    : 'Pay-per-call with USDC — supports all major AI models'}
+                </div>
+                <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
+                  {['GPT', 'Claude', 'DeepSeek', 'Gemini', 'Grok', 'Qwen', 'Kimi'].map(name => (
+                    <span key={name} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#A0AEC0' }}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step 1: Select AI Model */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                  <Brain className="w-4 h-4" style={{ color: '#2563EB' }} />
+                  {language === 'zh' ? '① 选择 AI 模型' : '① Choose AI Model'}
+                </label>
+                <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
+                  {language === 'zh'
+                    ? '所有模型通过 Claw402 统一调用，创建后可随时切换'
+                    : 'All models unified via Claw402. Switch anytime after setup.'}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {CLAW402_MODELS.map((m) => {
+                    const isSelected = (modelName || 'deepseek') === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setModelName(m.id)}
+                        className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-left transition-all hover:scale-[1.02]"
+                        style={{
+                          background: isSelected ? 'rgba(37, 99, 235, 0.2)' : '#0B0E11',
+                          border: isSelected ? '1.5px solid #2563EB' : '1px solid #2B3139',
+                        }}
+                      >
+                        <span className="text-base mt-0.5">{m.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold truncate" style={{ color: isSelected ? '#60A5FA' : '#EAECEF' }}>
+                            {m.name}
+                          </div>
+                          <div className="text-[10px] truncate" style={{ color: '#848E9C' }}>
+                            {m.provider} · {m.desc}
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[10px] mt-1" style={{ color: '#60A5FA' }}>✓</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Step 2: Wallet Setup */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
+                  <svg className="w-4 h-4" style={{ color: '#2563EB' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  {language === 'zh' ? '② 设置钱包' : '② Setup Wallet'}
+                </label>
+
+                <div className="p-3 rounded-xl" style={{ background: 'rgba(37, 99, 235, 0.06)', border: '1px solid rgba(37, 99, 235, 0.15)' }}>
+                  <div className="text-xs mb-2" style={{ color: '#A0AEC0' }}>
+                    {language === 'zh'
+                      ? '💡 Claw402 使用 Base 链上的 USDC 付费，你需要一个 EVM 钱包'
+                      : '💡 Claw402 uses USDC on Base chain. You need an EVM wallet.'}
+                  </div>
+                  <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: '#00E096' }}>•</span>
+                      {language === 'zh'
+                        ? '可以用 MetaMask、Rabby 等钱包导出私钥'
+                        : 'Export private key from MetaMask, Rabby, etc.'}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: '#00E096' }}>•</span>
+                      {language === 'zh'
+                        ? '建议新建一个专用钱包，充入少量 USDC 即可'
+                        : 'Recommended: create a dedicated wallet with a small USDC balance'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-xs font-medium" style={{ color: '#A0AEC0' }}>
+                    {language === 'zh' ? '钱包私钥（Base 链 EVM）' : 'Wallet Private Key (Base Chain EVM)'}
+                  </div>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="0x..."
+                    className="w-full px-4 py-3 rounded-xl font-mono text-sm"
+                    style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
+                    required
+                  />
+                  <div className="flex items-start gap-1.5 text-[11px]" style={{ color: '#848E9C' }}>
+                    <span className="mt-px">🔒</span>
+                    <span>
+                      {language === 'zh'
+                        ? '私钥仅在本地签名使用，不会上传或发送交易。无需 ETH，无 Gas 费用。'
+                        : 'Private key is only used locally for signing. Never uploaded. No ETH or gas needed.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* USDC Recharge Guide */}
+              <div className="p-4 rounded-xl" style={{ background: 'rgba(0, 224, 150, 0.05)', border: '1px solid rgba(0, 224, 150, 0.15)' }}>
+                <div className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: '#00E096' }}>
+                  💰 {language === 'zh' ? '如何充值 USDC' : 'How to Fund USDC'}
+                </div>
+                <div className="text-xs space-y-1.5" style={{ color: '#848E9C' }}>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold" style={{ color: '#A0AEC0' }}>1.</span>
+                    <span>{language === 'zh' ? '从交易所（Binance / OKX / Coinbase）提 USDC 到你的钱包地址' : 'Withdraw USDC from exchange (Binance/OKX/Coinbase) to your wallet'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold" style={{ color: '#A0AEC0' }}>2.</span>
+                    <span>{language === 'zh' ? '选择 Base 网络（手续费极低）' : 'Select Base network (very low fees)'}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold" style={{ color: '#A0AEC0' }}>3.</span>
+                    <span>{language === 'zh' ? '充入 $5-10 USDC 即可使用很长时间（约 $0.003/次调用）' : '$5-10 USDC lasts a long time (~$0.003/call)'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={handleBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
+                  {editingModelId ? t('cancel', language) : (language === 'zh' ? '返回' : 'Back')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!apiKey.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: apiKey.trim() ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
+                >
+                  {language === 'zh' ? '🚀 开始交易' : '🚀 Start Trading'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Step 1: Configure — Standard Providers (non-claw402) */}
+          {(currentStep === 1 || editingModelId) && selectedModel && selectedModel.provider !== 'claw402' && selectedModel.id !== 'claw402' && (
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Selected Model Header */}
               <div className="p-4 rounded-xl flex items-center gap-4" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>

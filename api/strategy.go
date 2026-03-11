@@ -136,7 +136,8 @@ func (s *Server) handleGetStrategy(c *gin.Context) {
 	})
 }
 
-// handleCreateStrategy Create strategy
+// handleCreateStrategy Create strategy.
+// If "config" is omitted from the request body, the system default config is used automatically.
 func (s *Server) handleCreateStrategy(c *gin.Context) {
 	userID := c.GetString("user_id")
 	if userID == "" {
@@ -145,14 +146,25 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	}
 
 	var req struct {
-		Name        string               `json:"name" binding:"required"`
-		Description string               `json:"description"`
-		Config      store.StrategyConfig `json:"config" binding:"required"`
+		Name        string                `json:"name" binding:"required"`
+		Description string                `json:"description"`
+		Lang        string                `json:"lang"`          // "zh" or "en", used when config is omitted
+		Config      *store.StrategyConfig `json:"config"`        // optional — uses default if omitted
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		SafeBadRequest(c, "Invalid request parameters")
 		return
+	}
+
+	// Use default config when none provided
+	if req.Config == nil {
+		lang := req.Lang
+		if lang == "" {
+			lang = "zh"
+		}
+		defaultCfg := store.GetDefaultStrategyConfig(lang)
+		req.Config = &defaultCfg
 	}
 
 	// Serialize configuration
@@ -178,7 +190,7 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	}
 
 	// Validate configuration and collect warnings
-	warnings := validateStrategyConfig(&req.Config)
+	warnings := validateStrategyConfig(req.Config)
 
 	response := gin.H{
 		"id":      strategy.ID,
@@ -191,7 +203,10 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// handleUpdateStrategy Update strategy
+// handleUpdateStrategy Update strategy.
+// The incoming config is merged with the existing one: top-level sections present in the
+// request overwrite the corresponding existing sections; absent sections are preserved.
+// This prevents partial updates from zeroing out unmentioned fields.
 func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	userID := c.GetString("user_id")
 	strategyID := c.Param("id")
@@ -213,11 +228,11 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	}
 
 	var req struct {
-		Name          string               `json:"name"`
-		Description   string               `json:"description"`
-		Config        store.StrategyConfig `json:"config"`
-		IsPublic      bool                 `json:"is_public"`
-		ConfigVisible bool                 `json:"config_visible"`
+		Name          string          `json:"name"`
+		Description   string          `json:"description"`
+		Config        json.RawMessage `json:"config"` // raw JSON so we can merge
+		IsPublic      bool            `json:"is_public"`
+		ConfigVisible bool            `json:"config_visible"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -225,8 +240,33 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		return
 	}
 
-	// Serialize configuration
-	configJSON, err := json.Marshal(req.Config)
+	// Start with the existing config as base — preserves all unmentioned fields.
+	var mergedConfig store.StrategyConfig
+	if err := json.Unmarshal([]byte(existing.Config), &mergedConfig); err != nil {
+		// If existing config is corrupt, start from zero
+		mergedConfig = store.StrategyConfig{}
+	}
+
+	// Apply incoming config on top: top-level sections present in the request overwrite
+	// their corresponding existing section; absent sections remain unchanged.
+	if len(req.Config) > 0 && string(req.Config) != "null" {
+		if err := json.Unmarshal(req.Config, &mergedConfig); err != nil {
+			SafeBadRequest(c, "Invalid config JSON")
+			return
+		}
+	}
+
+	// Preserve existing name/description when not supplied
+	name := req.Name
+	if name == "" {
+		name = existing.Name
+	}
+	description := req.Description
+	if description == "" {
+		description = existing.Description
+	}
+
+	configJSON, err := json.Marshal(mergedConfig)
 	if err != nil {
 		SafeInternalError(c, "Serialize configuration", err)
 		return
@@ -235,8 +275,8 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 	strategy := &store.Strategy{
 		ID:            strategyID,
 		UserID:        userID,
-		Name:          req.Name,
-		Description:   req.Description,
+		Name:          name,
+		Description:   description,
 		Config:        string(configJSON),
 		IsPublic:      req.IsPublic,
 		ConfigVisible: req.ConfigVisible,
@@ -247,8 +287,8 @@ func (s *Server) handleUpdateStrategy(c *gin.Context) {
 		return
 	}
 
-	// Validate configuration and collect warnings
-	warnings := validateStrategyConfig(&req.Config)
+	// Validate merged configuration and collect warnings
+	warnings := validateStrategyConfig(&mergedConfig)
 
 	response := gin.H{"message": "Strategy updated successfully"}
 	if len(warnings) > 0 {
@@ -628,6 +668,15 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 	case "minimax":
 		aiClient = mcp.NewMiniMaxClient()
 		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
+	case "blockrun-base":
+		aiClient = mcp.NewBlockRunBaseClient()
+		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
+	case "blockrun-sol":
+		aiClient = mcp.NewBlockRunSolClient()
+		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
+	case "claw402":
+		aiClient = mcp.NewClaw402Client()
+		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
 	default:
 		// Use generic client
 		aiClient = mcp.NewClient()

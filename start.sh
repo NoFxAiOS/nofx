@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ═══════════════════════════════════════════════════════════════
-# NOFX AI Trading System - Docker Quick Start Script
+# NOFX AI Trading System - Docker Management Script
 # Usage: ./start.sh [command]
 # ═══════════════════════════════════════════════════════════════
 
@@ -45,10 +45,10 @@ detect_compose_cmd() {
     elif command -v docker-compose &> /dev/null; then
         COMPOSE_CMD="docker-compose"
     else
-        print_error "Docker Compose 未安装！请先安装 Docker Compose"
+        print_error "Docker Compose not found. Please install Docker Compose first."
         exit 1
     fi
-    print_info "使用 Docker Compose 命令: $COMPOSE_CMD"
+    print_info "Using Docker Compose: $COMPOSE_CMD"
 }
 
 # ------------------------------------------------------------------------
@@ -56,12 +56,12 @@ detect_compose_cmd() {
 # ------------------------------------------------------------------------
 check_docker() {
     if ! command -v docker &> /dev/null; then
-        print_error "Docker 未安装！请先安装 Docker: https://docs.docker.com/get-docker/"
+        print_error "Docker not found. Please install Docker: https://docs.docker.com/get-docker/"
         exit 1
     fi
 
     detect_compose_cmd
-    print_success "Docker 和 Docker Compose 已安装"
+    print_success "Docker and Docker Compose are installed"
 }
 
 # ------------------------------------------------------------------------
@@ -69,11 +69,11 @@ check_docker() {
 # ------------------------------------------------------------------------
 check_env() {
     if [ ! -f ".env" ]; then
-        print_warning ".env 不存在，从模板复制..."
+        print_warning ".env not found, copying from template..."
         cp .env.example .env
-        print_info "已创建 .env 文件"
+        print_info ".env file created"
     fi
-    print_success "环境变量文件存在"
+    print_success "Environment file exists"
 }
 
 # ------------------------------------------------------------------------
@@ -83,15 +83,15 @@ is_env_configured() {
     local var_name="$1"
     local value=$(grep "^${var_name}=" .env 2>/dev/null | cut -d'=' -f2-)
 
-    # 去除引号
+    # Strip quotes
     value=$(echo "$value" | tr -d '"'"'")
 
-    # 检查是否为空或占位符
+    # Check empty
     if [ -z "$value" ]; then
         return 1
     fi
 
-    # 检查是否是示例值
+    # Check placeholder values
     case "$value" in
         *your-*|*YOUR_*|*change-this*|*CHANGE_THIS*|*example*|*EXAMPLE*)
             return 1
@@ -102,22 +102,23 @@ is_env_configured() {
 }
 
 # ------------------------------------------------------------------------
-# Helper: Generate and set env var in .env file
+# Helper: Set env var in .env file
 # ------------------------------------------------------------------------
 set_env_var() {
     local var_name="$1"
     local var_value="$2"
 
-    # 如果变量已存在（即使是占位符），替换它
     if grep -q "^${var_name}=" .env 2>/dev/null; then
-        # macOS 和 Linux 兼容的 sed
         if [[ "$OSTYPE" == "darwin"* ]]; then
             sed -i '' "s|^${var_name}=.*|${var_name}=${var_value}|" .env
         else
             sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" .env
         fi
     else
-        # 变量不存在，追加
+        # Ensure .env ends with a newline before appending
+        if [ -s ".env" ] && [ "$(tail -c1 .env | wc -l)" -eq 0 ]; then
+            echo "" >> .env
+        fi
         echo "${var_name}=${var_value}" >> .env
     fi
 }
@@ -126,51 +127,46 @@ set_env_var() {
 # Validation: Encryption Keys in .env
 # ------------------------------------------------------------------------
 check_encryption() {
-    print_info "检查加密密钥配置..."
+    print_info "Checking encryption keys..."
 
     local generated=false
 
-    # 检查并生成 JWT_SECRET
     if ! is_env_configured "JWT_SECRET"; then
-        print_warning "JWT_SECRET 未配置，正在生成..."
+        print_warning "JWT_SECRET not set, generating..."
         local jwt_secret=$(openssl rand -base64 32)
         set_env_var "JWT_SECRET" "$jwt_secret"
-        print_success "JWT_SECRET 已生成"
+        print_success "JWT_SECRET generated"
         generated=true
     fi
 
-    # 检查并生成 DATA_ENCRYPTION_KEY
     if ! is_env_configured "DATA_ENCRYPTION_KEY"; then
-        print_warning "DATA_ENCRYPTION_KEY 未配置，正在生成..."
+        print_warning "DATA_ENCRYPTION_KEY not set, generating..."
         local data_key=$(openssl rand -base64 32)
         set_env_var "DATA_ENCRYPTION_KEY" "$data_key"
-        print_success "DATA_ENCRYPTION_KEY 已生成"
+        print_success "DATA_ENCRYPTION_KEY generated"
         generated=true
     fi
 
-    # 检查并生成 RSA_PRIVATE_KEY
     if ! is_env_configured "RSA_PRIVATE_KEY"; then
-        print_warning "RSA_PRIVATE_KEY 未配置，正在生成..."
-        # 生成 RSA 密钥并转换为单行格式（\n 替换为 \\n）
+        print_warning "RSA_PRIVATE_KEY not set, generating..."
         local rsa_key=$(openssl genrsa 2048 2>/dev/null | awk '{printf "%s\\n", $0}')
         set_env_var "RSA_PRIVATE_KEY" "\"$rsa_key\""
-        print_success "RSA_PRIVATE_KEY 已生成"
+        print_success "RSA_PRIVATE_KEY generated"
         generated=true
     fi
 
     if [ "$generated" = true ]; then
         echo ""
-        print_success "所有缺失的密钥已自动生成并保存到 .env"
-        print_warning "请妥善保管 .env 文件，不要提交到版本控制系统"
+        print_success "Missing keys generated and saved to .env"
+        print_warning "Keep .env safe — do not commit it to version control"
         echo ""
     fi
 
-    print_success "加密密钥检查完成"
+    print_success "Encryption keys OK"
     print_info "  • JWT_SECRET: OK"
     print_info "  • DATA_ENCRYPTION_KEY: OK"
     print_info "  • RSA_PRIVATE_KEY: OK"
 
-    # 修复 .env 文件权限
     chmod 600 .env 2>/dev/null || true
 }
 
@@ -197,13 +193,12 @@ read_env_vars() {
 # Validation: Database Directory (data/)
 # ------------------------------------------------------------------------
 check_database() {
-    # Ensure data directory exists
     if [ ! -d "data" ]; then
-        print_warning "数据目录不存在，创建 data/ 目录..."
+        print_warning "Data directory missing, creating data/..."
         install -m 700 -d data
-        print_success "已创建 data/ 目录"
+        print_success "data/ directory created"
     else
-        print_success "数据目录存在"
+        print_success "Data directory exists"
     fi
 }
 
@@ -211,47 +206,58 @@ check_database() {
 # Service Management: Start
 # ------------------------------------------------------------------------
 start() {
-    print_info "正在启动 NOFX AI Trading System..."
+    echo ""
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║         🚀 NOFX AI Trading Bot — Startup             ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════╝${NC}"
+    echo ""
 
     read_env_vars
 
     if [ ! -d "data" ]; then
-        print_info "创建数据目录..."
         install -m 700 -d data
     fi
 
+    echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    print_info "Starting services..."
+
     if [ "$1" == "--build" ]; then
-        print_info "重新构建镜像..."
         $COMPOSE_CMD up -d --build
     else
-        print_info "启动容器..."
         $COMPOSE_CMD up -d
     fi
 
-    print_success "服务已启动！"
-    print_info "Web 界面: http://localhost:${NOFX_FRONTEND_PORT}"
-    print_info "API 端点: http://localhost:${NOFX_BACKEND_PORT}"
-    print_info ""
-    print_info "查看日志: ./start.sh logs"
-    print_info "停止服务: ./start.sh stop"
+    echo ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  ✅ Started! Next steps:                             ║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "  1. Open the web dashboard to register and configure"
+    echo "  2. Add an AI model and exchange in Settings"
+    echo "  3. (Optional) Add a Telegram bot token in Settings → Telegram"
+    echo ""
+    echo -e "  Web dashboard: ${BLUE}http://localhost:${NOFX_FRONTEND_PORT}${NC}"
+    echo -e "  View logs:     ${YELLOW}./start.sh logs${NC}"
+    echo -e "  Stop:          ${YELLOW}./start.sh stop${NC}"
+    echo ""
 }
 
 # ------------------------------------------------------------------------
 # Service Management: Stop
 # ------------------------------------------------------------------------
 stop() {
-    print_info "正在停止服务..."
+    print_info "Stopping services..."
     $COMPOSE_CMD stop
-    print_success "服务已停止"
+    print_success "Services stopped"
 }
 
 # ------------------------------------------------------------------------
 # Service Management: Restart
 # ------------------------------------------------------------------------
 restart() {
-    print_info "正在重启服务..."
+    print_info "Restarting services..."
     $COMPOSE_CMD restart
-    print_success "服务已重启"
+    print_success "Services restarted"
 }
 
 # ------------------------------------------------------------------------
@@ -271,25 +277,25 @@ logs() {
 status() {
     read_env_vars
 
-    print_info "服务状态:"
+    print_info "Service status:"
     $COMPOSE_CMD ps
     echo ""
-    print_info "健康检查:"
-    curl -s "http://localhost:${NOFX_BACKEND_PORT}/api/health" | jq '.' || echo "后端未响应"
+    print_info "Health check:"
+    curl -s "http://localhost:${NOFX_BACKEND_PORT}/api/health" | jq '.' || echo "Backend not responding"
 }
 
 # ------------------------------------------------------------------------
 # Maintenance: Clean (Destructive)
 # ------------------------------------------------------------------------
 clean() {
-    print_warning "这将删除所有容器和数据！"
-    read -p "确认删除？(yes/no): " confirm
+    print_warning "This will delete all containers and data!"
+    read -p "Confirm? (yes/no): " confirm
     if [ "$confirm" == "yes" ]; then
-        print_info "正在清理..."
+        print_info "Cleaning up..."
         $COMPOSE_CMD down -v
-        print_success "清理完成"
+        print_success "Cleanup complete"
     else
-        print_info "已取消"
+        print_info "Cancelled"
     fi
 }
 
@@ -297,77 +303,74 @@ clean() {
 # Maintenance: Update
 # ------------------------------------------------------------------------
 update() {
-    print_info "正在更新..."
+    print_info "Updating..."
     git pull
     $COMPOSE_CMD up -d --build
-    print_success "更新完成"
+    print_success "Update complete"
 }
 
 # ------------------------------------------------------------------------
 # Command: Regenerate all keys (force)
 # ------------------------------------------------------------------------
 regenerate_keys() {
-    print_warning "这将重新生成所有加密密钥！"
-    print_warning "如果已有加密数据，重新生成后将无法解密！"
+    print_warning "This will regenerate ALL encryption keys!"
+    print_warning "Any existing encrypted data will become unreadable!"
     echo ""
-    read -p "确认重新生成？(yes/no): " confirm
+    read -p "Confirm? (yes/no): " confirm
     if [ "$confirm" != "yes" ]; then
-        print_info "已取消"
+        print_info "Cancelled"
         return
     fi
 
     check_env
 
-    print_info "正在生成新的密钥..."
+    print_info "Generating new keys..."
 
-    # 生成 JWT_SECRET
     local jwt_secret=$(openssl rand -base64 32)
     set_env_var "JWT_SECRET" "$jwt_secret"
-    print_success "JWT_SECRET 已生成"
+    print_success "JWT_SECRET generated"
 
-    # 生成 DATA_ENCRYPTION_KEY
     local data_key=$(openssl rand -base64 32)
     set_env_var "DATA_ENCRYPTION_KEY" "$data_key"
-    print_success "DATA_ENCRYPTION_KEY 已生成"
+    print_success "DATA_ENCRYPTION_KEY generated"
 
-    # 生成 RSA_PRIVATE_KEY
     local rsa_key=$(openssl genrsa 2048 2>/dev/null | awk '{printf "%s\\n", $0}')
     set_env_var "RSA_PRIVATE_KEY" "\"$rsa_key\""
-    print_success "RSA_PRIVATE_KEY 已生成"
+    print_success "RSA_PRIVATE_KEY generated"
 
     chmod 600 .env 2>/dev/null || true
 
     echo ""
-    print_success "所有密钥已重新生成并保存到 .env"
-    print_warning "请妥善保管 .env 文件"
+    print_success "All keys regenerated and saved to .env"
+    print_warning "Keep .env safe"
 }
 
 # ------------------------------------------------------------------------
 # Help: Usage Information
 # ------------------------------------------------------------------------
 show_help() {
-    echo "NOFX AI Trading System - Docker 管理脚本"
+    echo "NOFX AI Trading System - Docker Management Script"
     echo ""
-    echo "用法: ./start.sh [command] [options]"
+    echo "Usage: ./start.sh [command] [options]"
     echo ""
-    echo "命令:"
-    echo "  start [--build]    启动服务（可选：重新构建）"
-    echo "  stop               停止服务"
-    echo "  restart            重启服务"
-    echo "  logs [service]     查看日志（可选：指定服务名 backend/frontend）"
-    echo "  status             查看服务状态"
-    echo "  clean              清理所有容器和数据"
-    echo "  update             更新代码并重启"
-    echo "  regenerate-keys    重新生成所有加密密钥（慎用）"
-    echo "  help               显示此帮助信息"
+    echo "Commands:"
+    echo "  start [--build]    Start services (optional: rebuild images)"
+    echo "  stop               Stop services"
+    echo "  restart            Restart services"
+    echo "  logs [service]     View logs (optional: backend / frontend)"
+    echo "  status             Show service status"
+    echo "  clean              Remove all containers and data"
+    echo "  update             Pull latest code and rebuild"
+    echo "  regenerate-keys    Regenerate all encryption keys (destructive)"
+    echo "  help               Show this help"
     echo ""
-    echo "示例:"
-    echo "  ./start.sh start --build    # 构建并启动"
-    echo "  ./start.sh logs backend     # 查看后端日志"
-    echo "  ./start.sh status           # 查看状态"
+    echo "Examples:"
+    echo "  ./start.sh start --build    # Build and start"
+    echo "  ./start.sh logs backend     # View backend logs"
+    echo "  ./start.sh status           # Check status"
     echo ""
-    echo "首次使用:"
-    echo "  直接运行 ./start.sh 即可，缺失的密钥会自动生成"
+    echo "First time:"
+    echo "  Just run ./start.sh — missing keys are generated automatically"
 }
 
 # ------------------------------------------------------------------------
@@ -408,7 +411,7 @@ main() {
             show_help
             ;;
         *)
-            print_error "未知命令: $1"
+            print_error "Unknown command: $1"
             show_help
             exit 1
             ;;

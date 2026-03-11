@@ -1,7 +1,9 @@
 package mcp
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -232,10 +234,21 @@ func (client *Client) marshalRequestBody(requestBody map[string]any) ([]byte, er
 }
 
 func (client *Client) parseMCPResponse(body []byte) (string, error) {
+	r, err := client.parseMCPResponseFull(body)
+	if err != nil {
+		return "", err
+	}
+	return r.Content, nil
+}
+
+// parseMCPResponseFull parses the OpenAI-format response body and returns both
+// the text content and any tool calls.
+func (client *Client) parseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content   string     `json:"content"`
+				ToolCalls []ToolCall `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
 		Usage struct {
@@ -246,11 +259,11 @@ func (client *Client) parseMCPResponse(body []byte) (string, error) {
 	}
 
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("API returned empty response")
+		return nil, fmt.Errorf("API returned empty response")
 	}
 
 	// Report token usage if callback is set
@@ -264,7 +277,11 @@ func (client *Client) parseMCPResponse(body []byte) (string, error) {
 		})
 	}
 
-	return result.Choices[0].Message.Content, nil
+	msg := result.Choices[0].Message
+	return &LLMResponse{
+		Content:   msg.Content,
+		ToolCalls: msg.ToolCalls,
+	}, nil
 }
 
 func (client *Client) buildUrl() string {
@@ -425,50 +442,106 @@ func (client *Client) CallWithRequest(req *Request) (string, error) {
 	return "", fmt.Errorf("still failed after %d retries: %w", maxRetries, lastErr)
 }
 
+// CallWithRequestFull calls the AI API and returns both text content and tool calls.
+func (client *Client) CallWithRequestFull(req *Request) (*LLMResponse, error) {
+	if client.APIKey == "" {
+		return nil, fmt.Errorf("AI API key not set, please call SetAPIKey first")
+	}
+	if req.Model == "" {
+		req.Model = client.Model
+	}
+
+	var lastErr error
+	maxRetries := client.config.MaxRetries
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			client.logger.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
+		}
+		result, err := client.callWithRequestFull(req)
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+		if !client.hooks.isRetryableError(err) {
+			return nil, err
+		}
+		if attempt < maxRetries {
+			waitTime := client.config.RetryWaitBase * time.Duration(attempt)
+			time.Sleep(waitTime)
+		}
+	}
+	return nil, fmt.Errorf("still failed after %d retries: %w", maxRetries, lastErr)
+}
+
+// callWithRequestFull single call that returns LLMResponse (content + tool calls).
+func (client *Client) callWithRequestFull(req *Request) (*LLMResponse, error) {
+	client.logger.Infof("📡 [%s] Request AI Server (full): BaseURL: %s", client.String(), client.BaseURL)
+
+	requestBody := client.hooks.buildRequestBodyFromRequest(req)
+	jsonData, err := client.hooks.marshalRequestBody(requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	url := client.hooks.buildUrl()
+	httpReq, err := client.hooks.buildRequest(url, jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	return client.hooks.parseMCPResponseFull(body)
+}
+
 // callWithRequest single AI API call (using Request object)
 func (client *Client) callWithRequest(req *Request) (string, error) {
 	// Print current AI configuration
 	client.logger.Infof("📡 [%s] Request AI Server with Builder: BaseURL: %s", client.String(), client.BaseURL)
 	client.logger.Debugf("[%s] Messages count: %d", client.String(), len(req.Messages))
 
-	// Build request body (from Request object)
-	requestBody := client.buildRequestBodyFromRequest(req)
+	requestBody := client.hooks.buildRequestBodyFromRequest(req)
 
-	// Serialize request body
 	jsonData, err := client.hooks.marshalRequestBody(requestBody)
 	if err != nil {
 		return "", err
 	}
 
-	// Build URL
 	url := client.hooks.buildUrl()
 	client.logger.Infof("📡 [MCP %s] Request URL: %s", client.String(), url)
 
-	// Create HTTP request
 	httpReq, err := client.hooks.buildRequest(url, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Send HTTP request
 	resp, err := client.httpClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Check HTTP status code
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	result, err := client.hooks.parseMCPResponse(body)
 	if err != nil {
 		return "", fmt.Errorf("fail to parse AI server response: %w", err)
@@ -479,13 +552,23 @@ func (client *Client) callWithRequest(req *Request) (string, error) {
 
 // buildRequestBodyFromRequest builds request body from Request object
 func (client *Client) buildRequestBodyFromRequest(req *Request) map[string]any {
-	// Convert Message to API format
-	messages := make([]map[string]string, 0, len(req.Messages))
+	// Convert Message to API format — must use map[string]any to support
+	// tool-call messages (tool_calls, tool_call_id fields).
+	messages := make([]map[string]any, 0, len(req.Messages))
 	for _, msg := range req.Messages {
-		messages = append(messages, map[string]string{
-			"role":    msg.Role,
-			"content": msg.Content,
-		})
+		m := map[string]any{"role": msg.Role}
+		if len(msg.ToolCalls) > 0 {
+			// Assistant message that contains tool invocations.
+			// content must be null/omitted for OpenAI compatibility.
+			m["tool_calls"] = msg.ToolCalls
+		} else if msg.ToolCallID != "" {
+			// Tool result message (role="tool").
+			m["tool_call_id"] = msg.ToolCallID
+			m["content"] = msg.Content
+		} else {
+			m["content"] = msg.Content
+		}
+		messages = append(messages, m)
 	}
 
 	// Build basic request body
@@ -543,4 +626,125 @@ func (client *Client) buildRequestBodyFromRequest(req *Request) map[string]any {
 	}
 
 	return requestBody
+}
+
+// CallWithRequestStream streams the LLM response via SSE (Server-Sent Events).
+// onChunk is called with the full accumulated text so far after each received chunk.
+// Returns the complete final text when the stream ends.
+//
+// Idle timeout: if no chunk arrives for 30 seconds the stream is cancelled automatically.
+// This prevents the scanner from blocking indefinitely on a hung or stalled connection.
+func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) (string, error) {
+	if client.APIKey == "" {
+		return "", fmt.Errorf("AI API key not set")
+	}
+	if req.Model == "" {
+		req.Model = client.Model
+	}
+	req.Stream = true
+
+	requestBody := client.hooks.buildRequestBodyFromRequest(req)
+	jsonData, err := client.hooks.marshalRequestBody(requestBody)
+	if err != nil {
+		return "", err
+	}
+
+	url := client.hooks.buildUrl()
+	httpReq, err := client.hooks.buildRequest(url, jsonData)
+	if err != nil {
+		return "", err
+	}
+
+	// Idle-timeout watchdog: cancel the request if no SSE line arrives for 30 seconds.
+	// This breaks the scanner out of an indefinitely blocking Read on a hung connection.
+	const idleTimeout = 60 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	resetCh := make(chan struct{}, 1)
+	go func() {
+		t := time.NewTimer(idleTimeout)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				cancel() // idle timeout: kill the connection
+				return
+			case <-resetCh:
+				// received a line — reset the idle timer
+				if !t.Stop() {
+					select {
+					case <-t.C:
+					default:
+					}
+				}
+				t.Reset(idleTimeout)
+			}
+		}
+	}()
+
+	httpReq = httpReq.WithContext(ctx)
+	resp, err := client.httpClient.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("streaming request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var accumulated strings.Builder
+	scanner := bufio.NewScanner(resp.Body)
+
+	for scanner.Scan() {
+		// Ping the watchdog: we received a line, reset the idle timer.
+		select {
+		case resetCh <- struct{}{}:
+		default:
+		}
+
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+
+		// Parse the SSE JSON chunk
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+				FinishReason *string `json:"finish_reason"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue // skip malformed chunks
+		}
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+
+		delta := chunk.Choices[0].Delta.Content
+		if delta == "" {
+			continue
+		}
+
+		accumulated.WriteString(delta)
+		if onChunk != nil {
+			onChunk(accumulated.String())
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return accumulated.String(), fmt.Errorf("stream interrupted: %w", err)
+	}
+
+	return accumulated.String(), nil
 }

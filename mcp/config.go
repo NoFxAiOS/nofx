@@ -40,7 +40,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		// Default values
-		MaxTokens:      getEnvInt("AI_MAX_TOKENS", 2000),
+		MaxTokens:      getEnvInt("AI_MAX_TOKENS", 131072),
 		Temperature:    MCPClientTemperature,
 		MaxRetries:     MaxRetryTimes,
 		RetryWaitBase:  2 * time.Second,

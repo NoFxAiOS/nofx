@@ -60,11 +60,11 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
       }}
     >
       {/* Header Row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xl">{config.icon}</span>
+      <div className="flex items-center justify-between mb-3 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
+          <span className="text-xl flex-shrink-0">{config.icon}</span>
           <span
-            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110"
+            className="font-mono font-bold text-lg cursor-pointer transition-all duration-200 hover:scale-110 whitespace-nowrap"
             style={{ color: '#EAECEF' }}
             onClick={() => onSymbolClick?.(action.symbol)}
             title="Click to view chart"
@@ -72,7 +72,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
             {action.symbol.replace('USDT', '')}
           </span>
           <span
-            className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+            className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex-shrink-0"
             style={{ background: config.bg, color: config.color, border: `1px solid ${config.color}55` }}
           >
             {config.label}
@@ -80,7 +80,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
         </div>
 
         {/* Status Badge */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {action.confidence !== undefined && action.confidence > 0 && (
             <div
               className="px-2 py-1 rounded text-xs font-semibold"
@@ -100,7 +100,7 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
       </div>
 
       {/* Trading Details Grid */}
-	{(isOpen || isUpdateSL) && (
+      {(isOpen || isUpdateSL) && (
         <div className="grid grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
           {/* Entry Price */}
           <div className="text-center">

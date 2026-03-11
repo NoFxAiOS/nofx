@@ -137,6 +137,19 @@ func (s *AIModelStore) firstEnabled(userID string) (*AIModel, error) {
 	return &model, nil
 }
 
+// GetAnyEnabled returns the first enabled AI model across all users.
+// Used by single-user features (e.g. Telegram bot) that need any working LLM client.
+func (s *AIModelStore) GetAnyEnabled() (*AIModel, error) {
+	var model AIModel
+	err := s.db.Where("enabled = ? AND api_key != ''", true).
+		Order("updated_at DESC, id ASC").
+		First(&model).Error
+	if err != nil {
+		return nil, err
+	}
+	return &model, nil
+}
+
 // Update updates AI model, creates if not exists
 // IMPORTANT: If apiKey is empty string, the existing API key will be preserved (not overwritten)
 func (s *AIModelStore) Update(userID, id string, enabled bool, apiKey, customAPIURL, customModelName string) error {

@@ -1,22 +1,18 @@
-name: PR Template Suggester
+name: PR Labeler
 
 on:
   pull_request:
-    types: [opened, edited, synchronize]
+    types: [opened, synchronize, reopened]
 
 permissions:
   pull-requests: write
-  issues: write
   contents: read
 
 jobs:
-  suggest-template:
+  label-pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Analyze PR files and auto-apply template
+      - name: Analyze PR and apply labels
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -25,166 +21,72 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
+              per_page: 100,
             });
 
             let goFiles = 0, jsFiles = 0, tsFiles = 0, mdFiles = 0, otherFiles = 0;
+            let additions = 0, deletions = 0;
 
             for (const file of files) {
-              const filename = file.filename.toLowerCase();
-              if (filename.endsWith('.go')) goFiles++;
-              else if (filename.endsWith('.js') || filename.endsWith('.jsx')) jsFiles++;
-              else if (filename.endsWith('.ts') || filename.endsWith('.tsx') || filename.endsWith('.vue')) tsFiles++;
-              else if (filename.endsWith('.md')) mdFiles++;
+              const name = file.filename.toLowerCase();
+              additions += file.additions || 0;
+              deletions += file.deletions || 0;
+              if (name.endsWith('.go')) goFiles++;
+              else if (name.endsWith('.js') || name.endsWith('.jsx')) jsFiles++;
+              else if (name.endsWith('.ts') || name.endsWith('.tsx') || name.endsWith('.vue')) tsFiles++;
+              else if (name.endsWith('.md')) mdFiles++;
               else otherFiles++;
             }
 
             const totalFiles = goFiles + jsFiles + tsFiles + mdFiles + otherFiles;
-            if (totalFiles === 0) { console.log('No files changed'); return; }
+            if (totalFiles === 0) return;
 
-            let suggestedTemplate = null, templateEmoji = '', templateLabel = '';
+            // --- Scope label ---
+            const labels = [];
+            if (goFiles / totalFiles > 0.5) labels.push('backend');
+            else if ((jsFiles + tsFiles) / totalFiles > 0.5) labels.push('frontend');
+            else if (mdFiles / totalFiles > 0.7) labels.push('documentation');
+            else labels.push('fullstack');
 
-            if (goFiles / totalFiles > 0.5) {
-              suggestedTemplate = 'backend'; templateEmoji = '🔧'; templateLabel = 'backend';
-            } else if ((jsFiles + tsFiles) / totalFiles > 0.5) {
-              suggestedTemplate = 'frontend'; templateEmoji = '🎨'; templateLabel = 'frontend';
-            } else if (mdFiles / totalFiles > 0.7) {
-              suggestedTemplate = 'docs'; templateEmoji = '📝'; templateLabel = 'documentation';
+            // --- Size label (like OpenClaw) ---
+            const totalChanged = additions + deletions;
+            const sizeLabels = ['size: XS', 'size: S', 'size: M', 'size: L', 'size: XL'];
+            let sizeLabel = 'size: XL';
+            if (totalChanged < 50) sizeLabel = 'size: XS';
+            else if (totalChanged < 200) sizeLabel = 'size: S';
+            else if (totalChanged < 500) sizeLabel = 'size: M';
+            else if (totalChanged < 1000) sizeLabel = 'size: L';
+            labels.push(sizeLabel);
+
+            // Ensure size labels exist
+            for (const sl of sizeLabels) {
+              try {
+                await github.rest.issues.getLabel({ owner: context.repo.owner, repo: context.repo.repo, name: sl });
+              } catch (e) {
+                if (e.status === 404) {
+                  await github.rest.issues.createLabel({ owner: context.repo.owner, repo: context.repo.repo, name: sl, color: 'b76e79' });
+                }
+              }
             }
 
-            const { data: pr } = await github.rest.pulls.get({
+            // Remove stale size labels
+            const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            for (const cl of currentLabels) {
+              if (sizeLabels.includes(cl.name) && cl.name !== sizeLabel) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, name: cl.name,
+                }).catch(() => {});
+              }
+            }
+
+            // Apply labels
+            await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number,
+              issue_number: context.issue.number,
+              labels: labels,
             });
 
-            const prBody = pr.body || '';
-            const usesBackendTemplate = prBody.includes('Pull Request - Backend');
-            const usesFrontendTemplate = prBody.includes('Pull Request - Frontend');
-            const usesDocsTemplate = prBody.includes('Pull Request - Documentation');
-            const usesGeneralTemplate = prBody.includes('Pull Request - General');
-            const usingDefaultTemplate = !usesBackendTemplate && !usesFrontendTemplate && !usesDocsTemplate && !usesGeneralTemplate;
-
-            if (templateLabel) {
-              try {
-                await github.rest.issues.addLabels({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.issue.number,
-                  labels: [templateLabel]
-                });
-                console.log('Added label: ' + templateLabel);
-              } catch (error) {
-                console.log('Label might not exist, skipping...');
-              }
-            }
-
-            function isPRBodyEmpty(body) {
-              if (!body || body.trim().length < 100) return true;
-              const hasEmptyDescription = body.includes('**English:**') && body.match(/\*\*English:\*\*\s*\n\s*\n\s*\n/);
-              const hasEmptyChanges = body.includes('具体变更') && body.match(/\*\*中文：\*\*\s*\n\s*-\s*\n\s*-\s*\n/);
-              if (hasEmptyDescription || hasEmptyChanges) return true;
-              const descMatch = body.match(/\*\*English:\*\*[｜|]\s*\*\*中文：\*\*\s*\n\s*(.+)/);
-              if (!descMatch || descMatch[1].trim().length < 10) return true;
-              return false;
-            }
-
-            if (suggestedTemplate && usingDefaultTemplate) {
-              const shouldAutoApply = isPRBodyEmpty(prBody);
-              const templatePath = '.github/PULL_REQUEST_TEMPLATE/' + suggestedTemplate + '.md';
-
-              if (shouldAutoApply) {
-                try {
-                  const { data: templateFile } = await github.rest.repos.getContent({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    path: templatePath,
-                    ref: context.payload.pull_request.head.ref
-                  });
-
-                  const templateContent = Buffer.from(templateFile.content, 'base64').toString('utf-8');
-
-                  await github.rest.pulls.update({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    pull_number: context.issue.number,
-                    body: templateContent
-                  });
-
-                  console.log('Auto-applied ' + suggestedTemplate + ' template');
-
-                  let fileStats = [];
-                  if (goFiles > 0) fileStats.push('- 🔧 Go files: ' + goFiles);
-                  if (jsFiles > 0) fileStats.push('- 🎨 JavaScript files: ' + jsFiles);
-                  if (tsFiles > 0) fileStats.push('- 🎨 TypeScript files: ' + tsFiles);
-                  if (mdFiles > 0) fileStats.push('- 📝 Markdown files: ' + mdFiles);
-                  if (otherFiles > 0) fileStats.push('- 📦 Other files: ' + otherFiles);
-                  const fileStatsText = fileStats.join('\n');
-
-                  const notifyComment = '## ' + templateEmoji + ' 已自动应用专用模板 | Auto-Applied Template\n\n' +
-                    '检测到您的PR主要包含 **' + suggestedTemplate + '** 相关的变更，系统已自动为您应用相应的模板。\n\n' +
-                    'Detected that your PR primarily contains **' + suggestedTemplate + '** changes. The appropriate template has been automatically applied.\n\n' +
-                    '**文件统计 | File Statistics**\n' + fileStatsText + '\n\n' +
-                    '**已应用模板 | Applied Template**\n`' + templatePath + '`\n\n' +
-                    '✨ 您现在可以直接在PR描述中填写相关信息了！\n\n' +
-                    '✨ You can now fill in the relevant information in the PR description!';
-
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: context.issue.number,
-                    body: notifyComment
-                  });
-
-                } catch (error) {
-                  console.log('Failed to fetch or apply template: ' + error.message);
-                  const templateUrl = 'https://raw.githubusercontent.com/' + context.repo.owner + '/' + context.repo.repo + '/dev/.github/PULL_REQUEST_TEMPLATE/' + suggestedTemplate + '.md';
-                  const fallbackComment = '## ' + templateEmoji + ' 建议使用专用模板 | Suggested Template\n\n' +
-                    '您的PR主要包含 **' + suggestedTemplate + '** 相关的变更。\n\n' +
-                    '**推荐模板 | Recommended Template:** `.github/PULL_REQUEST_TEMPLATE/' + suggestedTemplate + '.md`\n\n' +
-                    '**如何使用 | How to use:** [点击查看模板内容](' + templateUrl + ')';
-
-                  await github.rest.issues.createComment({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: context.issue.number,
-                    body: fallbackComment
-                  });
-                }
-              } else {
-                console.log('PR body has content, sending suggestion only');
-
-                let fileStats = [];
-                if (goFiles > 0) fileStats.push('- 🔧 Go files: ' + goFiles);
-                if (jsFiles > 0) fileStats.push('- 🎨 JavaScript files: ' + jsFiles);
-                if (tsFiles > 0) fileStats.push('- 🎨 TypeScript files: ' + tsFiles);
-                if (mdFiles > 0) fileStats.push('- 📝 Markdown files: ' + mdFiles);
-                if (otherFiles > 0) fileStats.push('- 📦 Other files: ' + otherFiles);
-                const fileStatsText = fileStats.join('\n');
-
-                const templateUrl = 'https://raw.githubusercontent.com/' + context.repo.owner + '/' + context.repo.repo + '/dev/.github/PULL_REQUEST_TEMPLATE/' + suggestedTemplate + '.md';
-
-                const comment = '## ' + templateEmoji + ' 建议使用专用模板 | Suggested Template\n\n' +
-                  '您的PR主要包含 **' + suggestedTemplate + '** 相关的变更。我们建议使用更适合的模板以简化填写。\n\n' +
-                  'Your PR primarily contains **' + suggestedTemplate + '** changes. We suggest using a more suitable template to simplify filling.\n\n' +
-                  '**文件统计 | File Statistics**\n' + fileStatsText + '\n\n' +
-                  '**推荐模板 | Recommended Template**\n```\n.github/PULL_REQUEST_TEMPLATE/' + suggestedTemplate + '.md\n```\n\n' +
-                  '**如何使用 | How to use**\n' +
-                  '1. 编辑PR描述 | Edit PR description\n' +
-                  '2. 复制 [' + suggestedTemplate + ' 模板内容](' + templateUrl + ') | Copy [' + suggestedTemplate + ' template content](' + templateUrl + ')\n' +
-                  '3. 或在创建PR时使用URL参数 | Or use URL parameter when creating PR\n' +
-                  '   `?template=' + suggestedTemplate + '.md`\n\n' +
-                  '_这是一个自动建议，您可以继续使用当前模板。_\n\n' +
-                  '_This is an automated suggestion. You may continue using the current template._';
-
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.issue.number,
-                  body: comment
-                });
-              }
-            } else if (suggestedTemplate && !usingDefaultTemplate) {
-              console.log('PR already uses a specific template');
-            } else {
-              console.log('No specific template suggestion needed - mixed changes');
-            }
+            console.log(`Applied labels: ${labels.join(', ')} (${totalChanged} lines changed)`);

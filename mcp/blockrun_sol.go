@@ -1,12 +1,10 @@
 package mcp
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 
@@ -76,120 +74,34 @@ func (c *BlockRunSolClient) SetAPIKey(apiKey string, customURL string, customMod
 	}
 }
 
-func (c *BlockRunSolClient) setAuthHeader(reqHeaders http.Header) {
-	// No Bearer token — payment is via x402 signing
-}
+func (c *BlockRunSolClient) setAuthHeader(h http.Header) { x402SetAuthHeader(h) }
 
-// call overrides the base call to handle HTTP 402 x402 v2 Solana payment flow.
 func (c *BlockRunSolClient) call(systemPrompt, userPrompt string) (string, error) {
-	c.logger.Infof("📡 [BlockRun Sol] Request AI Server: %s", c.BaseURL)
-
-	requestBody := c.hooks.buildMCPRequestBody(systemPrompt, userPrompt)
-	jsonData, err := c.hooks.marshalRequestBody(requestBody)
-	if err != nil {
-		return "", err
-	}
-
-	url := c.hooks.buildUrl()
-	req, err := c.hooks.buildRequest(url, jsonData)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Handle x402 v2 Payment Required
-	if resp.StatusCode == http.StatusPaymentRequired {
-		paymentHeader := resp.Header.Get("X-Payment-Required")
-		if paymentHeader == "" {
-			return "", fmt.Errorf("received 402 but no X-Payment-Required header")
-		}
-
-		paymentSig, err := c.signSolanaPayment(paymentHeader)
-		if err != nil {
-			return "", fmt.Errorf("failed to sign Solana x402 payment: %w", err)
-		}
-
-		req2, err := c.hooks.buildRequest(url, jsonData)
-		if err != nil {
-			return "", fmt.Errorf("failed to build retry request: %w", err)
-		}
-		req2.Header.Set("X-Payment", paymentSig)
-
-		resp2, err := c.httpClient.Do(req2)
-		if err != nil {
-			return "", fmt.Errorf("failed to send payment retry: %w", err)
-		}
-		defer resp2.Body.Close()
-
-		body2, err := io.ReadAll(resp2.Body)
-		if err != nil {
-			return "", fmt.Errorf("failed to read payment retry response: %w", err)
-		}
-		if resp2.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("BlockRun Sol payment retry failed (status %d): %s", resp2.StatusCode, string(body2))
-		}
-		return c.hooks.parseMCPResponse(body2)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("BlockRun Sol API error (status %d): %s", resp.StatusCode, string(body))
-	}
-	return c.hooks.parseMCPResponse(body)
+	return x402Call(c.Client, c.signSolanaPayment, "BlockRun Sol", systemPrompt, userPrompt)
 }
 
-// solanaPaymentOption is an entry in the accepts[] array of the x402 v2 response.
-type solanaPaymentOption struct {
-	Scheme            string            `json:"scheme"`
-	Network           string            `json:"network"`
-	Amount            string            `json:"amount"`
-	Asset             string            `json:"asset"`
-	PayTo             string            `json:"payTo"`
-	MaxTimeoutSeconds int               `json:"maxTimeoutSeconds"`
-	Extra             map[string]string `json:"extra"`
+func (c *BlockRunSolClient) CallWithRequestFull(req *Request) (*LLMResponse, error) {
+	return x402CallFull(c.Client, c.signSolanaPayment, "BlockRun Sol", req)
 }
 
-// x402v2SolanaRequired is the parsed X-Payment-Required header for Solana.
-type x402v2SolanaRequired struct {
-	X402Version int                   `json:"x402Version"`
-	Accepts     []solanaPaymentOption `json:"accepts"`
-	Resource    *struct {
-		URL         string `json:"url"`
-		Description string `json:"description"`
-		MimeType    string `json:"mimeType"`
-	} `json:"resource"`
-}
-
-// signSolanaPayment parses the X-Payment-Required header and builds a signed x402 v2 Solana payload.
+// signSolanaPayment parses the Payment-Required header and builds a signed x402 v2 Solana payload.
 func (c *BlockRunSolClient) signSolanaPayment(paymentHeaderB64 string) (string, error) {
 	if c.keypair == nil {
 		return "", fmt.Errorf("no private key set for BlockRun Sol wallet")
 	}
 
-	// Decode base64 → JSON
-	decoded, err := base64.RawStdEncoding.DecodeString(paymentHeaderB64)
+	decoded, err := x402DecodeHeader(paymentHeaderB64)
 	if err != nil {
-		decoded, err = base64.StdEncoding.DecodeString(paymentHeaderB64)
-		if err != nil {
-			return "", fmt.Errorf("failed to base64-decode payment header: %w", err)
-		}
+		return "", err
 	}
 
-	var req x402v2SolanaRequired
+	var req x402v2PaymentRequired
 	if err := json.Unmarshal(decoded, &req); err != nil {
 		return "", fmt.Errorf("failed to parse x402 v2 Solana header: %w", err)
 	}
 
 	// Find the Solana option
-	var opt *solanaPaymentOption
+	var opt *x402AcceptOption
 	for i := range req.Accepts {
 		if strings.HasPrefix(req.Accepts[i].Network, "solana:") {
 			opt = &req.Accepts[i]
@@ -360,12 +272,6 @@ func (c *BlockRunSolClient) buildUrl() string {
 	return DefaultBlockRunSolURL + BlockRunChatEndpoint
 }
 
-// buildRequest creates the HTTP request without an Authorization header.
 func (c *BlockRunSolClient) buildRequest(url string, jsonData []byte) (*http.Request, error) {
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("fail to build request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	return req, nil
+	return x402BuildRequest(url, jsonData)
 }

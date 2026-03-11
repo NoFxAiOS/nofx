@@ -216,6 +216,11 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		mcpClient.SetAPIKey(config.CustomAPIKey, "", config.CustomModelName)
 		logger.Infof("🤖 [%s] Using BlockRun (Solana Wallet) AI", config.Name)
 
+	case "claw402":
+		mcpClient = mcp.NewClaw402Client()
+		mcpClient.SetAPIKey(config.CustomAPIKey, "", config.CustomModelName)
+		logger.Infof("🤖 [%s] Using Claw402 (Base USDC) AI", config.Name)
+
 	case "qwen":
 		mcpClient = mcp.NewQwenClient()
 		apiKey := config.QwenKey

@@ -1,9 +1,34 @@
 package mcp
 
-// Message represents a conversation message
+// Message represents a conversation message.
+// Supports plain messages (Role+Content), assistant tool-call messages (ToolCalls),
+// and tool result messages (Role="tool", ToolCallID, Content).
 type Message struct {
-	Role    string `json:"role"`    // "system", "user", "assistant"
-	Content string `json:"content"` // Message content
+	Role       string     `json:"role"`                  // "system", "user", "assistant", "tool"
+	Content    string     `json:"content,omitempty"`     // Text content (omitted when ToolCalls present)
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`  // Set by assistant when calling tools
+	ToolCallID string     `json:"tool_call_id,omitempty"` // Set on role="tool" result messages
+}
+
+// ToolCall is a single function call requested by the LLM.
+type ToolCall struct {
+	ID       string           `json:"id"`       // Unique call ID (e.g. "call_abc123")
+	Type     string           `json:"type"`     // Always "function"
+	Function ToolCallFunction `json:"function"` // Function name and JSON-serialised arguments
+}
+
+// ToolCallFunction holds the function name and raw JSON arguments string.
+type ToolCallFunction struct {
+	Name      string `json:"name"`      // Function name
+	Arguments string `json:"arguments"` // JSON-encoded argument object
+}
+
+// LLMResponse is returned by CallWithRequestFull and carries both the assistant
+// text reply (Content) and any structured tool calls (ToolCalls).
+// Exactly one of the two fields will be non-empty for a well-formed response.
+type LLMResponse struct {
+	Content   string     // Plain-text reply (final answer)
+	ToolCalls []ToolCall // Structured tool invocations
 }
 
 // Tool represents a tool/function that AI can call

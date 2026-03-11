@@ -15,10 +15,8 @@ var global *Config
 // Only contains truly global config, trading related config is at trader/strategy level
 type Config struct {
 	// Service configuration
-	APIServerPort       int
-	JWTSecret           string
-	RegistrationEnabled bool
-	MaxUsers            int // Maximum number of users allowed (0 = unlimited, default = 10)
+	APIServerPort int
+	JWTSecret     string
 
 	// Database configuration
 	DBType     string // sqlite or postgres
@@ -44,14 +42,13 @@ type Config struct {
 	AlpacaAPIKey    string // Alpaca API key for US stocks
 	AlpacaSecretKey string // Alpaca secret key
 	TwelveDataKey   string // TwelveData API key for forex & metals
+
 }
 
 // Init initializes global configuration (from .env)
 func Init() {
 	cfg := &Config{
 		APIServerPort:         8080,
-		RegistrationEnabled:   true,
-		MaxUsers:              10,   // Default: 10 users allowed
 		ExperienceImprovement: true, // Default: enabled to help improve the product
 		// Database defaults
 		DBType:    "sqlite",
@@ -69,16 +66,6 @@ func Init() {
 	}
 	if cfg.JWTSecret == "" {
 		cfg.JWTSecret = "default-jwt-secret-change-in-production"
-	}
-
-	if v := os.Getenv("REGISTRATION_ENABLED"); v != "" {
-		cfg.RegistrationEnabled = strings.ToLower(v) == "true"
-	}
-
-	if v := os.Getenv("MAX_USERS"); v != "" {
-		if maxUsers, err := strconv.Atoi(v); err == nil && maxUsers >= 0 {
-			cfg.MaxUsers = maxUsers
-		}
 	}
 
 	if v := os.Getenv("API_SERVER_PORT"); v != "" {

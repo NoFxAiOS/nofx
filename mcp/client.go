@@ -32,6 +32,10 @@ var (
 		"no such host",
 		"stream error",   // HTTP/2 stream error
 		"INTERNAL_ERROR", // Server internal error
+		"status 502",     // Bad Gateway
+		"status 503",     // Service Unavailable
+		"status 520",     // Cloudflare origin error
+		"status 524",     // Cloudflare timeout
 	}
 
 	// TokenUsageCallback is called after each AI request with token usage info

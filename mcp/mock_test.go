@@ -247,7 +247,7 @@ func NewMockClientHooks() *MockClientHooks {
 	return &MockClientHooks{}
 }
 
-func (m *MockClientHooks) buildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
+func (m *MockClientHooks) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	m.BuildRequestBodyCalled++
 	if m.BuildRequestBodyFunc != nil {
 		return m.BuildRequestBodyFunc(systemPrompt, userPrompt)
@@ -261,7 +261,7 @@ func (m *MockClientHooks) buildMCPRequestBody(systemPrompt, userPrompt string) m
 	}
 }
 
-func (m *MockClientHooks) buildUrl() string {
+func (m *MockClientHooks) BuildUrl() string {
 	m.BuildUrlCalled++
 	if m.BuildUrlFunc != nil {
 		return m.BuildUrlFunc()
@@ -269,12 +269,12 @@ func (m *MockClientHooks) buildUrl() string {
 	return "https://api.test.com/chat/completions"
 }
 
-func (m *MockClientHooks) setAuthHeader(headers http.Header) {
+func (m *MockClientHooks) SetAuthHeader(headers http.Header) {
 	m.SetAuthHeaderCalled++
 	headers.Set("Authorization", "Bearer test-key")
 }
 
-func (m *MockClientHooks) marshalRequestBody(body map[string]any) ([]byte, error) {
+func (m *MockClientHooks) MarshalRequestBody(body map[string]any) ([]byte, error) {
 	m.MarshalRequestCalled++
 	if m.MarshalRequestBodyFunc != nil {
 		return m.MarshalRequestBodyFunc(body)
@@ -282,7 +282,7 @@ func (m *MockClientHooks) marshalRequestBody(body map[string]any) ([]byte, error
 	return json.Marshal(body)
 }
 
-func (m *MockClientHooks) parseMCPResponse(body []byte) (string, error) {
+func (m *MockClientHooks) ParseMCPResponse(body []byte) (string, error) {
 	m.ParseResponseCalled++
 	if m.ParseResponseFunc != nil {
 		return m.ParseResponseFunc(body)
@@ -290,7 +290,15 @@ func (m *MockClientHooks) parseMCPResponse(body []byte) (string, error) {
 	return "mocked response", nil
 }
 
-func (m *MockClientHooks) isRetryableError(err error) bool {
+func (m *MockClientHooks) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
+	r, err := m.ParseMCPResponse(body)
+	if err != nil {
+		return nil, err
+	}
+	return &LLMResponse{Content: r}, nil
+}
+
+func (m *MockClientHooks) IsRetryableError(err error) bool {
 	m.IsRetryableErrorCalled++
 	if m.IsRetryableErrorFunc != nil {
 		return m.IsRetryableErrorFunc(err)
@@ -298,13 +306,17 @@ func (m *MockClientHooks) isRetryableError(err error) bool {
 	return false
 }
 
-func (m *MockClientHooks) buildRequest(url string, jsonData []byte) (*http.Request, error) {
+func (m *MockClientHooks) BuildRequest(url string, jsonData []byte) (*http.Request, error) {
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	req.Header.Set("Content-Type", "application/json")
-	m.setAuthHeader(req.Header)
+	m.SetAuthHeader(req.Header)
 	return req, nil
 }
 
-func (m *MockClientHooks) call(systemPrompt, userPrompt string) (string, error) {
+func (m *MockClientHooks) Call(systemPrompt, userPrompt string) (string, error) {
 	return "mocked call result", nil
+}
+
+func (m *MockClientHooks) BuildRequestBodyFromRequest(req *Request) map[string]any {
+	return map[string]any{"model": "test-model"}
 }

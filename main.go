@@ -10,6 +10,8 @@ import (
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/mcp"
+	_ "nofx/mcp/payment"
+	_ "nofx/mcp/provider"
 	"nofx/store"
 	"nofx/telegram"
 	"os"
@@ -168,7 +170,7 @@ func newSharedMCPClient() mcp.AIClient {
 		logger.Warn("⚠️ DEEPSEEK_API_KEY not set, AI features will be unavailable")
 		return nil
 	}
-	return mcp.NewDeepSeekClient()
+	return mcp.NewAIClientByProvider("deepseek")
 }
 
 // initInstallationID initializes the anonymous installation ID for experience improvement

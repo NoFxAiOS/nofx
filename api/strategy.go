@@ -8,6 +8,8 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/mcp"
+	_ "nofx/mcp/payment"
+	_ "nofx/mcp/provider"
 	"nofx/store"
 	"time"
 
@@ -637,49 +639,20 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 		return "", fmt.Errorf("AI model %s is missing API Key", model.Name)
 	}
 
-	// Create AI client
-	var aiClient mcp.AIClient
+	// Create AI client via registry
 	provider := model.Provider
-
-	// Convert EncryptedString to string for API key
 	apiKey := string(model.APIKey)
+
+	aiClient := mcp.NewAIClientByProvider(provider)
+	if aiClient == nil {
+		aiClient = mcp.NewClient()
+	}
+
+	// Payment providers ignore custom URL
 	switch provider {
-	case "qwen":
-		aiClient = mcp.NewQwenClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "deepseek":
-		aiClient = mcp.NewDeepSeekClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "claude":
-		aiClient = mcp.NewClaudeClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "kimi":
-		aiClient = mcp.NewKimiClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "gemini":
-		aiClient = mcp.NewGeminiClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "grok":
-		aiClient = mcp.NewGrokClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "openai":
-		aiClient = mcp.NewOpenAIClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "minimax":
-		aiClient = mcp.NewMiniMaxClient()
-		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
-	case "blockrun-base":
-		aiClient = mcp.NewBlockRunBaseClient()
-		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
-	case "blockrun-sol":
-		aiClient = mcp.NewBlockRunSolClient()
-		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
-	case "claw402":
-		aiClient = mcp.NewClaw402Client()
+	case "blockrun-base", "blockrun-sol", "claw402":
 		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
 	default:
-		// Use generic client
-		aiClient = mcp.NewClient()
 		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)
 	}
 

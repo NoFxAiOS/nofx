@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"nofx/mcp"
+	"nofx/mcp/provider"
 )
 
 // ============================================================
@@ -24,7 +25,7 @@ func Example_backward_compatible() {
 
 func Example_deepseek_backward_compatible() {
 	// DeepSeek old code continues to work
-	client := mcp.NewDeepSeekClient()
+	client := provider.NewDeepSeekClient()
 	client.SetAPIKey("sk-xxx", "", "")
 
 	result, _ := client.CallWithMessages("system", "user")
@@ -141,12 +142,12 @@ func Example_custom_http_client() {
 
 func Example_deepseek_new_api() {
 	// Basic usage
-	client := mcp.NewDeepSeekClientWithOptions(
+	client := provider.NewDeepSeekClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 	)
 
 	// Advanced usage
-	client = mcp.NewDeepSeekClientWithOptions(
+	client = provider.NewDeepSeekClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 		mcp.WithLogger(&CustomLogger{}),
 		mcp.WithTimeout(90*time.Second),
@@ -163,12 +164,12 @@ func Example_deepseek_new_api() {
 
 func Example_qwen_new_api() {
 	// Basic usage
-	client := mcp.NewQwenClientWithOptions(
+	client := provider.NewQwenClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 	)
 
 	// Advanced usage
-	client = mcp.NewQwenClientWithOptions(
+	client = provider.NewQwenClientWithOptions(
 		mcp.WithAPIKey("sk-xxx"),
 		mcp.WithLogger(&CustomLogger{}),
 		mcp.WithTimeout(90*time.Second),
@@ -185,7 +186,7 @@ func Example_qwen_new_api() {
 func Example_trader_migration() {
 	// Old code (continues to work)
 	oldStyleClient := func(apiKey, customURL, customModel string) mcp.AIClient {
-		client := mcp.NewDeepSeekClient()
+		client := provider.NewDeepSeekClient()
 		client.SetAPIKey(apiKey, customURL, customModel)
 		return client
 	}
@@ -204,7 +205,7 @@ func Example_trader_migration() {
 			opts = append(opts, mcp.WithModel(customModel))
 		}
 
-		return mcp.NewDeepSeekClientWithOptions(opts...)
+		return provider.NewDeepSeekClientWithOptions(opts...)
 	}
 
 	// Both approaches work
@@ -230,13 +231,7 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 func Example_testing_with_mock() {
-	// Use Mock during testing
-	// mockHTTP := &MockHTTPClient{
-	// 	Response: `{"choices":[{"message":{"content":"test response"}}]}`,
-	// }
-
 	client := mcp.NewClient(
-		// mcp.WithHTTPClient(mockHTTP), // Use mockHTTP in actual tests
 		mcp.WithLogger(mcp.NewNoopLogger()), // Disable logging
 	)
 
@@ -258,7 +253,6 @@ func Example_environment_specific() {
 	// Production environment: structured logging + timeout protection
 	prodClient := mcp.NewClient(
 		mcp.WithDeepSeekConfig("sk-xxx"),
-		// mcp.WithLogger(&ZapLogger{}), // Production-grade logging
 		mcp.WithTimeout(30*time.Second),
 		mcp.WithMaxRetries(3),
 	)
@@ -273,7 +267,7 @@ func Example_environment_specific() {
 
 func Example_real_world_usage() {
 	// Create client with complete configuration
-	client := mcp.NewDeepSeekClientWithOptions(
+	client := provider.NewDeepSeekClientWithOptions(
 		mcp.WithAPIKey("sk-xxxxxxxxxx"),
 		mcp.WithTimeout(60*time.Second),
 		mcp.WithMaxRetries(5),

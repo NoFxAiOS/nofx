@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { HelpCircle } from 'lucide-react'
-import { DeepVoidBackground } from '../DeepVoidBackground'
+import { DeepVoidBackground } from '../common/DeepVoidBackground'
 import { t, type Language } from '../../i18n/translations'
 import { FAQSearchBar } from './FAQSearchBar'
 import { FAQSidebar } from './FAQSidebar'

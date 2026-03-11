@@ -38,7 +38,7 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
-import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 

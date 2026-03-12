@@ -326,6 +326,8 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 		riskConfig.AltcoinMaxLeverage,
 		riskConfig.BTCETHMaxPositionValueRatio,
 		riskConfig.AltcoinMaxPositionValueRatio,
+		riskConfig.MinRiskRewardRatio,
+		riskConfig.MinPositionSize,
 	)
 
 	if decision != nil {
@@ -498,7 +500,7 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 	merged = runSizingAdjustmentStep(ctx, engine, mcpClient, merged, macroBrief, riskConfig)
 
 	// 8. Validate and build FullDecision
-	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio); err != nil {
+	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio, riskConfig.MinRiskRewardRatio, riskConfig.MinPositionSize); err != nil {
 		logger.Warnf("[macro-micro] decision validation: %v", err)
 	}
 	logger.Infof("[macro-micro] Flow complete: %d merged decision(s)", len(merged))
@@ -764,7 +766,7 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 	}
 
 	// 8. Validate and build FullDecision
-	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio); err != nil {
+	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio, riskConfig.MinRiskRewardRatio, riskConfig.MinPositionSize); err != nil {
 		logger.Warnf("[macro-micro] decision validation: %v", err)
 	}
 	logger.Infof("[macro-micro] Flow complete with trace: %d merged decision(s)", len(merged))
@@ -1669,7 +1671,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("## AI GUIDED (Recommended, you should follow):\n")
 	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
 		riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
-	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
+	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f — when opening a position, the potential reward (distance from entry to take_profit) must be at least %.1f× the risk (distance from entry to stop_loss). For longs: (take_profit - entry) ≥ %.1f × (entry - stop_loss). For shorts: (entry - take_profit) ≥ %.1f × (stop_loss - entry). Set stop_loss and take_profit so this ratio is satisfied.\n", riskControl.MinRiskRewardRatio, riskControl.MinRiskRewardRatio, riskControl.MinRiskRewardRatio, riskControl.MinRiskRewardRatio))
 	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
 
 	// Position sizing guidance
@@ -2285,7 +2287,7 @@ func (e *StrategyEngine) buildSizingAdjustmentUserPrompt(ctx *Context, macroBrie
 	sb.WriteString("\n\n## Margin and position rules (enforced)\n\n")
 	sb.WriteString("These values come from the configured risk control; all adjusted decisions must comply.\n\n")
 	sb.WriteString(fmt.Sprintf("- **Account equity:** %.2f USDT (this is the total capital; all positions together must fit within it).\n", ctx.Account.TotalEquity))
-	sb.WriteString("- **Aggregate constraint:** The **sum** of position_size_usd across all open/hold decisions must not exceed total equity. With 1000 USDT you cannot have three positions of 1000 each—you must split capital (e.g. ~333 each for three equal positions, or allocate by confidence).\n")
+	sb.WriteString(fmt.Sprintf("- **Aggregate constraint (margin):** Total margin used by all open positions must not exceed %.0f%% of equity. Margin per position = position_size_usd / leverage. So sum(position_size_usd / leverage) over all open decisions must be ≤ %.2f × equity. With 1000 USDT and 90%% max margin you have at most 900 USDT margin; at 5x leverage that allows up to 4500 USDT total notional across positions—split by confidence and per-position caps.\n", riskConfig.MaxMarginUsage*100, riskConfig.MaxMarginUsage))
 	sb.WriteString(fmt.Sprintf("- **Max margin usage:** ≤%.0f%% (total margin used by all positions must not exceed this share of equity).\n", riskConfig.MaxMarginUsage*100))
 	sb.WriteString(fmt.Sprintf("- **Max positions:** %d\n", riskConfig.MaxPositions))
 	sb.WriteString(fmt.Sprintf("- **Main coins (BTC/ETH):** max leverage %dx, max single position value = equity × %.1f\n", riskConfig.BTCETHMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio))
@@ -2318,7 +2320,7 @@ func (e *StrategyEngine) buildSizingAdjustmentUserPrompt(ctx *Context, macroBrie
 	sb.WriteString("```json\n")
 	sb.WriteString(string(jsonBytes))
 	sb.WriteString("\n```\n\n")
-	sb.WriteString("---\n\n**Your task**\n\n1. **All decisions together must respect the aggregate constraint.** Sum of position_size_usd over all open/hold decisions must be ≤ total equity. Example: equity 1000 and 3 altcoin opens → you cannot output three positions of 1000 each (sum would be 3000). Reduce each so the sum fits (e.g. 333 + 333 + 334, or allocate more to higher-confidence symbols). Check that sum(position_size_usd) ≤ equity before outputting.\n\n")
+	sb.WriteString(fmt.Sprintf("---\n\n**Your task**\n\n1. **All decisions together must respect the margin constraint.** Sum of (position_size_usd / leverage) over all open/hold decisions must be ≤ %.0f%% of equity (max margin usage). Example: equity 1000, 90%% max margin → at most 900 USDT total margin; two 5x positions of 500 USDT notional each use 100+100=200 margin (OK). Do not exceed per-position value caps (equity × %.1f per position) or max margin.\n\n", riskConfig.MaxMarginUsage*100, riskConfig.AltcoinMaxPositionValueRatio))
 	sb.WriteString("2. **Resolve other violations by sizing, not by closing.** If a single position would exceed the per-symbol cap (e.g. altcoin > equity × ")
 	sb.WriteString(fmt.Sprintf("%.1f", riskConfig.AltcoinMaxPositionValueRatio))
 	sb.WriteString("), or max positions would be exceeded, **adjust leverage and position_size_usd** so that every position is within limits. Do **not** use close/close_long solely to satisfy limits. Forced closes for \"violation\" are wrong here.\n\n")
@@ -2786,7 +2788,7 @@ func formatFloatSlice(values []float64) string {
 // AI Response Parsing
 // ============================================================================
 
-func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) (*FullDecision, error) {
+func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize float64) (*FullDecision, error) {
 	cotTrace := extractCoTTrace(aiResponse)
 
 	decisions, err := extractDecisions(aiResponse)
@@ -2797,7 +2799,7 @@ func parseFullDecisionResponse(aiResponse string, accountEquity float64, btcEthL
 		}, fmt.Errorf("failed to extract decisions: %w", err)
 	}
 
-	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
+	if err := validateDecisions(decisions, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize); err != nil {
 		return &FullDecision{
 			CoTTrace:  cotTrace,
 			Decisions: decisions,
@@ -2999,16 +3001,16 @@ func compactArrayOpen(s string) string {
 // Decision Validation
 // ============================================================================
 
-func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
+func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize float64) error {
 	for i := range decisions {
-		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {
+		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize); err != nil {
 			return fmt.Errorf("decision #%d validation failed: %w", i+1, err)
 		}
 	}
 	return nil
 }
 
-func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
+func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize float64) error {
 	validActions := map[string]bool{
 		"open_long":   true,
 		"open_short":  true,
@@ -3044,17 +3046,12 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			return fmt.Errorf("position size must be greater than 0: %.2f", d.PositionSizeUSD)
 		}
 
-		const minPositionSizeGeneral = 12.0
-		const minPositionSizeBTCETH = 60.0
-
-		if d.Symbol == "BTCUSDT" || d.Symbol == "ETHUSDT" {
-			if d.PositionSizeUSD < minPositionSizeBTCETH {
-				return fmt.Errorf("%s opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.Symbol, d.PositionSizeUSD, minPositionSizeBTCETH)
-			}
-		} else {
-			if d.PositionSizeUSD < minPositionSizeGeneral {
-				return fmt.Errorf("opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.PositionSizeUSD, minPositionSizeGeneral)
-			}
+		minSize := minPositionSize
+		if minSize <= 0 {
+			minSize = 12.0
+		}
+		if d.PositionSizeUSD < minSize {
+			return fmt.Errorf("opening amount too small (%.2f USDT), must be ≥%.2f USDT", d.PositionSizeUSD, minSize)
 		}
 
 		tolerance := maxPositionValue * 0.01
@@ -3101,9 +3098,9 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			}
 		}
 
-		if riskRewardRatio < 3.0 {
-			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥3.0:1 [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
-				riskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
+		if riskRewardRatio < minRiskRewardRatio {
+			return fmt.Errorf("risk/reward ratio too low (%.2f:1), must be ≥1:%.1f [risk: %.2f%% reward: %.2f%%] [stop loss: %.2f take profit: %.2f]",
+				riskRewardRatio, minRiskRewardRatio, riskPercent, rewardPercent, d.StopLoss, d.TakeProfit)
 		}
 	}
 

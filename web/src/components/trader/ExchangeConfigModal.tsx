@@ -258,7 +258,7 @@ export function ExchangeConfigModal({
         toast.success(t('ipCopied', language))
       }
     } catch {
-      toast.error(t('copyIPFailed', language) || `复制失败: ${ip}`)
+      toast.error(t('copyIPFailed', language))
     }
   }
 
@@ -305,7 +305,7 @@ export function ExchangeConfigModal({
 
     const trimmedAccountName = accountName.trim()
     if (!trimmedAccountName) {
-      toast.error(language === 'zh' ? '请输入账户名称' : 'Please enter account name')
+      toast.error(t('exchangeConfig.pleaseEnterAccountName', language))
       return
     }
 
@@ -338,7 +338,7 @@ export function ExchangeConfigModal({
     }
   }
 
-  const stepLabels = language === 'zh' ? ['选择交易所', '配置账户'] : ['Select Exchange', 'Configure']
+  const stepLabels = [t('exchangeConfig.selectExchange', language), t('exchangeConfig.configure', language)]
   const cexExchanges = SUPPORTED_EXCHANGE_TEMPLATES.filter(t => t.type === 'cex')
   const dexExchanges = SUPPORTED_EXCHANGE_TEMPLATES.filter(t => t.type === 'dex')
 
@@ -412,13 +412,13 @@ export function ExchangeConfigModal({
               {/* Exchange Grid */}
               <div className="space-y-4">
                 <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                  {language === 'zh' ? '选择您的交易所' : 'Choose Your Exchange'}
+                  {t('exchangeConfig.chooseExchange', language)}
                 </div>
 
                 {/* CEX */}
                 <div className="space-y-3">
                   <div className="text-xs font-medium uppercase tracking-wide" style={{ color: '#F0B90B' }}>
-                    {language === 'zh' ? '中心化交易所 (CEX)' : 'Centralized Exchanges'}
+                    {t('exchangeConfig.centralizedExchanges', language)}
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                     {cexExchanges.map((template) => (
@@ -436,7 +436,7 @@ export function ExchangeConfigModal({
                 {/* DEX */}
                 <div className="space-y-3">
                   <div className="text-xs font-medium uppercase tracking-wide" style={{ color: '#A78BFA' }}>
-                    {language === 'zh' ? '去中心化交易所 (DEX)' : 'Decentralized Exchanges'}
+                    {t('exchangeConfig.decentralizedExchanges', language)}
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                     {dexExchanges.map((template) => (
@@ -477,11 +477,11 @@ export function ExchangeConfigModal({
                 >
                   <UserPlus className="w-4 h-4" style={{ color: '#F0B90B' }} />
                   <span className="text-sm font-medium" style={{ color: '#F0B90B' }}>
-                    {language === 'zh' ? '注册' : 'Register'}
+                    {t('exchangeConfig.register', language)}
                   </span>
                   {exchangeRegistrationLinks[currentExchangeType || '']?.hasReferral && (
                     <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(14, 203, 129, 0.2)', color: '#0ECB81' }}>
-                      {language === 'zh' ? '优惠' : 'Bonus'}
+                      {t('exchangeConfig.bonus', language)}
                     </span>
                   )}
                 </a>
@@ -491,13 +491,13 @@ export function ExchangeConfigModal({
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
                   <Key className="w-4 h-4" style={{ color: '#F0B90B' }} />
-                  {language === 'zh' ? '账户名称' : 'Account Name'} *
+                  {t('exchangeConfig.accountName', language)} *
                 </label>
                 <input
                   type="text"
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
-                  placeholder={language === 'zh' ? '例如：主账户、套利账户' : 'e.g., Main Account'}
+                  placeholder={t('exchangeConfig.accountNamePlaceholder', language)}
                   className="w-full px-4 py-3 rounded-xl text-base"
                   style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                   required
@@ -517,7 +517,7 @@ export function ExchangeConfigModal({
                         <div className="flex items-center gap-2">
                           <span style={{ color: '#58a6ff' }}>ℹ️</span>
                           <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-                            {language === 'zh' ? '币安用户必读：使用「现货与合约交易」API' : 'Use "Spot & Futures Trading" API'}
+                            {t('exchangeConfig.useBinanceFuturesApi', language)}
                           </span>
                         </div>
                         <span style={{ color: '#8b949e' }}>{showBinanceGuide ? '▲' : '▼'}</span>
@@ -532,7 +532,7 @@ export function ExchangeConfigModal({
                             style={{ color: '#58a6ff' }}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {language === 'zh' ? '查看官方教程' : 'View Tutorial'} <ExternalLink className="w-3 h-3" />
+                            {t('exchangeConfig.viewTutorial', language)} <ExternalLink className="w-3 h-3" />
                           </a>
                         </div>
                       )}
@@ -696,10 +696,10 @@ export function ExchangeConfigModal({
                       <span style={{ fontSize: '16px' }}>🔐</span>
                       <div>
                         <div className="text-sm font-semibold mb-1" style={{ color: '#3B82F6' }}>
-                          {language === 'zh' ? 'Lighter API Key 配置' : 'Lighter API Key Setup'}
+                          {t('exchangeConfig.lighterApiKeySetup', language)}
                         </div>
                         <div className="text-xs" style={{ color: '#848E9C' }}>
-                          {language === 'zh' ? '请在 Lighter 网站生成 API Key' : 'Generate an API Key on Lighter website'}
+                          {t('exchangeConfig.lighterApiKeyDesc', language)}
                         </div>
                       </div>
                     </div>
@@ -717,8 +717,8 @@ export function ExchangeConfigModal({
                   </div>
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                      {language === 'zh' ? 'API Key 索引' : 'API Key Index'}
-                      <Tooltip content={language === 'zh' ? 'API Key 索引从0开始' : 'API Key index starts from 0'}>
+                      {t('exchangeConfig.apiKeyIndex', language)}
+                      <Tooltip content={t('exchangeConfig.apiKeyIndexTooltip', language)}>
                         <HelpCircle className="w-4 h-4 cursor-help" style={{ color: '#3B82F6' }} />
                       </Tooltip>
                     </label>
@@ -730,7 +730,7 @@ export function ExchangeConfigModal({
               {/* Buttons */}
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={handleBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
-                  {editingExchangeId ? t('cancel', language) : (language === 'zh' ? '返回' : 'Back')}
+                  {editingExchangeId ? t('cancel', language) : t('exchangeConfig.back', language)}
                 </button>
                 <button
                   type="submit"
@@ -738,7 +738,7 @@ export function ExchangeConfigModal({
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: '#F0B90B', color: '#000' }}
                 >
-                  {isSaving ? (t('saving', language) || '保存中...') : (
+                  {isSaving ? t('saving', language) : (
                     <>{t('saveConfig', language)} <ArrowRight className="w-4 h-4" /></>
                   )}
                 </button>

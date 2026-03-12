@@ -63,10 +63,10 @@ func (at *AutoTrader) runCycle() error {
 	// NOTE: Must be called BEFORE candidate coins check to ensure equity is always recorded
 	at.saveEquitySnapshot(ctx)
 
-	// 如果没有候选币种，记录但不报错
+	// If no candidate coins available, log but do not error
 	if len(ctx.CandidateCoins) == 0 {
 		logger.Infof("ℹ️  No candidate coins available, skipping this cycle")
-		record.Success = true // 不是错误，只是没有候选币
+		record.Success = true // Not an error, just no candidate coins
 		record.ExecutionLog = append(record.ExecutionLog, "No candidate coins available, cycle skipped")
 		record.AccountState = store.AccountSnapshot{
 			TotalBalance:          ctx.Account.TotalEquity,

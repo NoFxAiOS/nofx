@@ -45,7 +45,7 @@ func (m *Manager) Run(chatID int64, userMessage string, onChunk func(string)) st
 	case lane <- struct{}{}:
 	case <-time.After(60 * time.Second):
 		logger.Warnf("Agent: lane wait timeout for chat %d — previous message still processing", chatID)
-		return "上一条消息仍在处理中，请稍等片刻后再试。"
+		return "Previous message is still being processed. Please wait a moment and try again. / 上一条消息仍在处理中，请稍等片刻后再试。"
 	}
 	defer func() { <-lane }()
 	return a.Run(userMessage, onChunk)

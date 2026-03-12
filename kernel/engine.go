@@ -247,7 +247,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		return e.filterExcludedCoins(candidates), nil
 
 	case "ai500":
-		// 检查 use_ai500 标志，如果为 false 则回退到静态币种
+		// Check use_ai500 flag; if false, fall back to static coins
 		if !coinSource.UseAI500 {
 			logger.Infof("⚠️  source_type is 'ai500' but use_ai500 is false, falling back to static coins")
 			for _, symbol := range coinSource.StaticCoins {
@@ -263,11 +263,11 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if err != nil {
 			return nil, err
 		}
-		// 空列表是正常情况，直接返回
+		// Empty list is a normal condition, return directly
 		return e.filterExcludedCoins(coins), nil
 
 	case "oi_top":
-		// 检查 use_oi_top 标志，如果为 false 则回退到静态币种
+		// Check use_oi_top flag; if false, fall back to static coins
 		if !coinSource.UseOITop {
 			logger.Infof("⚠️  source_type is 'oi_top' but use_oi_top is false, falling back to static coins")
 			for _, symbol := range coinSource.StaticCoins {
@@ -283,11 +283,11 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if err != nil {
 			return nil, err
 		}
-		// 空列表是正常情况，直接返回
+		// Empty list is a normal condition, return directly
 		return e.filterExcludedCoins(coins), nil
 
 	case "oi_low":
-		// 持仓减少榜，适合做空
+		// OI decrease ranking, suitable for short positions
 		if !coinSource.UseOILow {
 			logger.Infof("⚠️  source_type is 'oi_low' but use_oi_low is false, falling back to static coins")
 			for _, symbol := range coinSource.StaticCoins {
@@ -303,7 +303,7 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 		if err != nil {
 			return nil, err
 		}
-		// 空列表是正常情况，直接返回
+		// Empty list is a normal condition, return directly
 		return e.filterExcludedCoins(coins), nil
 
 	case "hyper_all":

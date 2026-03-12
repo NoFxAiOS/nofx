@@ -1,37 +1,37 @@
-# Railway All-in-One: 复用现有 GHCR 镜像
-# 从现有镜像提取内容，合并到一个容器
+# Railway All-in-One: Reuse existing GHCR images
+# Extract content from existing images and merge into a single container
 
-# 从后端镜像提取二进制
+# Extract binary from backend image
 FROM ghcr.io/nofxaios/nofx/nofx-backend:latest AS backend
 
-# 从前端镜像提取静态文件
+# Extract static files from frontend image
 FROM ghcr.io/nofxaios/nofx/nofx-frontend:latest AS frontend
 
-# 最终镜像
+# Final image
 FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates tzdata sqlite nginx openssl gettext
 
-# 复制后端二进制
+# Copy backend binary
 COPY --from=backend /app/nofx /app/nofx
 
-# 复制 TA-Lib 库
+# Copy TA-Lib libraries
 COPY --from=backend /usr/local/lib/libta_lib* /usr/local/lib/
 RUN ldconfig /usr/local/lib 2>/dev/null || true
 
-# 复制前端静态文件
+# Copy frontend static files
 COPY --from=frontend /usr/share/nginx/html /usr/share/nginx/html
 
 WORKDIR /app
 RUN mkdir -p /app/data
 
-# 启动脚本（包含 nginx 配置生成）
+# Startup script (includes nginx config generation)
 COPY railway/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 ENV DB_PATH=/app/data/data.db
 
-# Railway 会自动设置 PORT 环境变量
+# Railway automatically sets the PORT environment variable
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

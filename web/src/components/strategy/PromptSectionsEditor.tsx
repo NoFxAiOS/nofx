@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, RotateCcw, FileText } from 'lucide-react'
 import type { PromptSectionsConfig } from '../../types'
+import { promptSections as promptSectionsI18n, ts } from '../../i18n/strategy-translations'
 
 interface PromptSectionsEditorProps {
   config: PromptSectionsConfig | undefined
@@ -54,29 +55,11 @@ export function PromptSectionsEditor({
     decision_process: false,
   })
 
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      promptSections: { zh: 'System Prompt 自定义', en: 'System Prompt Customization' },
-      promptSectionsDesc: { zh: '自定义 AI 行为和决策逻辑（输出格式和风控规则不可修改）', en: 'Customize AI behavior and decision logic (output format and risk rules are fixed)' },
-      roleDefinition: { zh: '角色定义', en: 'Role Definition' },
-      roleDefinitionDesc: { zh: '定义 AI 的身份和核心目标', en: 'Define AI identity and core objectives' },
-      tradingFrequency: { zh: '交易频率', en: 'Trading Frequency' },
-      tradingFrequencyDesc: { zh: '设定交易频率预期和过度交易警告', en: 'Set trading frequency expectations and overtrading warnings' },
-      entryStandards: { zh: '开仓标准', en: 'Entry Standards' },
-      entryStandardsDesc: { zh: '定义开仓信号条件和避免事项', en: 'Define entry signal conditions and avoidances' },
-      decisionProcess: { zh: '决策流程', en: 'Decision Process' },
-      decisionProcessDesc: { zh: '设定决策步骤和思考流程', en: 'Set decision steps and thinking process' },
-      resetToDefault: { zh: '重置为默认', en: 'Reset to Default' },
-      chars: { zh: '字符', en: 'chars' },
-    }
-    return translations[key]?.[language] || key
-  }
-
   const sections = [
-    { key: 'role_definition', label: t('roleDefinition'), desc: t('roleDefinitionDesc') },
-    { key: 'trading_frequency', label: t('tradingFrequency'), desc: t('tradingFrequencyDesc') },
-    { key: 'entry_standards', label: t('entryStandards'), desc: t('entryStandardsDesc') },
-    { key: 'decision_process', label: t('decisionProcess'), desc: t('decisionProcessDesc') },
+    { key: 'role_definition', label: ts(promptSectionsI18n.roleDefinition, language), desc: ts(promptSectionsI18n.roleDefinitionDesc, language) },
+    { key: 'trading_frequency', label: ts(promptSectionsI18n.tradingFrequency, language), desc: ts(promptSectionsI18n.tradingFrequencyDesc, language) },
+    { key: 'entry_standards', label: ts(promptSectionsI18n.entryStandards, language), desc: ts(promptSectionsI18n.entryStandardsDesc, language) },
+    { key: 'decision_process', label: ts(promptSectionsI18n.decisionProcess, language), desc: ts(promptSectionsI18n.decisionProcessDesc, language) },
   ]
 
   const currentConfig = config || {}
@@ -107,10 +90,10 @@ export function PromptSectionsEditor({
         <FileText className="w-5 h-5 mt-0.5" style={{ color: '#a855f7' }} />
         <div>
           <h3 className="font-medium" style={{ color: '#EAECEF' }}>
-            {t('promptSections')}
+            {ts(promptSectionsI18n.promptSections, language)}
           </h3>
           <p className="text-xs mt-1" style={{ color: '#848E9C' }}>
-            {t('promptSectionsDesc')}
+            {ts(promptSectionsI18n.promptSectionsDesc, language)}
           </p>
         </div>
       </div>
@@ -146,12 +129,12 @@ export function PromptSectionsEditor({
                       className="px-1.5 py-0.5 text-[10px] rounded"
                       style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}
                     >
-                      {language === 'zh' ? '已修改' : 'Modified'}
+                      {ts(promptSectionsI18n.modified, language)}
                     </span>
                   )}
                 </div>
                 <span className="text-[10px]" style={{ color: '#848E9C' }}>
-                  {value.length} {t('chars')}
+                  {value.length} {ts(promptSectionsI18n.chars, language)}
                 </span>
               </button>
 
@@ -181,7 +164,7 @@ export function PromptSectionsEditor({
                       style={{ color: '#848E9C' }}
                     >
                       <RotateCcw className="w-3 h-3" />
-                      {t('resetToDefault')}
+                      {ts(promptSectionsI18n.resetToDefault, language)}
                     </button>
                   </div>
                 </div>

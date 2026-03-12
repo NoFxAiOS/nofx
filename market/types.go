@@ -210,11 +210,11 @@ type BoxData struct {
 type RegimeLevel string
 
 const (
-	RegimeLevelNarrow   RegimeLevel = "narrow"   // 窄幅震荡
-	RegimeLevelStandard RegimeLevel = "standard" // 标准震荡
-	RegimeLevelWide     RegimeLevel = "wide"     // 宽幅震荡
-	RegimeLevelVolatile RegimeLevel = "volatile" // 剧烈震荡
-	RegimeLevelTrending RegimeLevel = "trending" // 趋势
+	RegimeLevelNarrow   RegimeLevel = "narrow"   // narrow range oscillation
+	RegimeLevelStandard RegimeLevel = "standard" // standard oscillation
+	RegimeLevelWide     RegimeLevel = "wide"     // wide range oscillation
+	RegimeLevelVolatile RegimeLevel = "volatile" // extreme volatility
+	RegimeLevelTrending RegimeLevel = "trending" // trending
 )
 
 // BreakoutLevel represents which box level has been broken

@@ -16,12 +16,17 @@ import (
 )
 
 const (
-	// X402MaxPaymentRetries is the number of retries for 5xx errors on the
-	// payment-signed request. The same payment signature is reused (no double-charge).
-	X402MaxPaymentRetries = 3
+	// X402MaxPaymentRetries is the number of retries for 5xx/expired-402 errors
+	// on the payment-signed request. Payment is re-signed on 402 (no double-charge).
+	X402MaxPaymentRetries = 5
 
 	// X402RetryBaseWait is the base wait between payment retry attempts.
 	X402RetryBaseWait = 3 * time.Second
+
+	// X402Timeout is the HTTP timeout for x402 payment providers.
+	// AI inference (especially DeepSeek) can take several minutes; the default
+	// 120s causes premature timeouts that trigger duplicate payments.
+	X402Timeout = 5 * time.Minute
 )
 
 // ── Shared x402 types ────────────────────────────────────────────────────────
@@ -131,7 +136,7 @@ func DoX402Request(
 			return nil, fmt.Errorf("failed to sign x402 payment: %w", err)
 		}
 
-		// Retry loop for 5xx errors on the payment-signed request.
+		// Retry loop for 5xx / expired-402 errors on the payment-signed request.
 		var lastBody []byte
 		var lastStatus int
 		for attempt := 1; attempt <= X402MaxPaymentRetries; attempt++ {
@@ -173,16 +178,41 @@ func DoX402Request(
 			lastBody = body2
 			lastStatus = resp2.StatusCode
 
-			// Retry on 5xx server errors
-			if resp2.StatusCode >= 500 && attempt < X402MaxPaymentRetries {
+			retryable := resp2.StatusCode >= 500 || resp2.StatusCode == http.StatusPaymentRequired
+
+			if retryable && attempt < X402MaxPaymentRetries {
 				wait := X402RetryBaseWait * time.Duration(attempt)
-				logger.Warnf("⚠️  [%s] Server error (status %d), retrying in %v (%d/%d)...",
-					providerTag, resp2.StatusCode, wait, attempt+1, X402MaxPaymentRetries)
+
+				// If we got 402 again, the payment signature expired — re-sign.
+				if resp2.StatusCode == http.StatusPaymentRequired {
+					newHeader := resp2.Header.Get("Payment-Required")
+					if newHeader == "" {
+						newHeader = resp2.Header.Get("X-Payment-Required")
+					}
+					if newHeader != "" {
+						newSig, signErr := signFn(newHeader)
+						if signErr == nil {
+							paymentSig = newSig
+							logger.Warnf("⚠️  [%s] Payment expired (402), re-signed and retrying in %v (%d/%d)...",
+								providerTag, wait, attempt+1, X402MaxPaymentRetries)
+						} else {
+							logger.Warnf("⚠️  [%s] Payment expired (402), re-sign failed: %v, retrying in %v (%d/%d)...",
+								providerTag, signErr, wait, attempt+1, X402MaxPaymentRetries)
+						}
+					} else {
+						logger.Warnf("⚠️  [%s] Got 402 but no new Payment-Required header, retrying in %v (%d/%d)...",
+							providerTag, wait, attempt+1, X402MaxPaymentRetries)
+					}
+				} else {
+					logger.Warnf("⚠️  [%s] Server error (status %d), retrying in %v (%d/%d)...",
+						providerTag, resp2.StatusCode, wait, attempt+1, X402MaxPaymentRetries)
+				}
+
 				time.Sleep(wait)
 				continue
 			}
 
-			// Non-5xx error or final attempt — fail
+			// Non-retryable error or final attempt — fail
 			break
 		}
 

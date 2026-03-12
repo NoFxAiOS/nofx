@@ -1,5 +1,6 @@
 import { Clock, Activity, TrendingUp, BarChart2, Info, Lock, ExternalLink, Zap, Check, AlertCircle, Key } from 'lucide-react'
 import type { IndicatorConfig } from '../../types'
+import { indicator, ts } from '../../i18n/strategy-translations'
 
 // Default NofxOS API Key
 const DEFAULT_NOFXOS_API_KEY = 'cm_568c67eae410d912c54c'
@@ -11,7 +12,7 @@ interface IndicatorEditorProps {
   language: string
 }
 
-// 所有可用时间周期
+// All available timeframes
 const allTimeframes = [
   { value: '1m', label: '1m', category: 'scalp' },
   { value: '3m', label: '3m', category: 'scalp' },
@@ -35,92 +36,10 @@ export function IndicatorEditor({
   disabled,
   language,
 }: IndicatorEditorProps) {
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      // Section titles
-      marketData: { zh: '市场数据', en: 'Market Data' },
-      marketDataDesc: { zh: 'AI 分析所需的核心价格数据', en: 'Core price data for AI analysis' },
-      technicalIndicators: { zh: '技术指标', en: 'Technical Indicators' },
-      technicalIndicatorsDesc: { zh: '可选的技术分析指标，AI 可自行计算', en: 'Optional indicators, AI can calculate them' },
-      marketSentiment: { zh: '市场情绪', en: 'Market Sentiment' },
-      marketSentimentDesc: { zh: '持仓量、资金费率等市场情绪数据', en: 'OI, funding rate and market sentiment data' },
-      quantData: { zh: '量化数据', en: 'Quant Data' },
-      quantDataDesc: { zh: '资金流向、大户动向', en: 'Netflow, whale movements' },
-
-      // Timeframes
-      timeframes: { zh: '时间周期', en: 'Timeframes' },
-      timeframesDesc: { zh: '选择 K 线分析周期，★ 为主周期（双击设置）', en: 'Select K-line timeframes, ★ = primary (double-click)' },
-      klineCount: { zh: 'K 线数量', en: 'K-line Count' },
-      scalp: { zh: '超短', en: 'Scalp' },
-      intraday: { zh: '日内', en: 'Intraday' },
-      swing: { zh: '波段', en: 'Swing' },
-      position: { zh: '趋势', en: 'Position' },
-
-      // Data types
-      rawKlines: { zh: 'OHLCV 原始 K 线', en: 'Raw OHLCV K-lines' },
-      rawKlinesDesc: { zh: '必须 - 开高低收量原始数据，AI 核心分析依据', en: 'Required - Open/High/Low/Close/Volume data for AI' },
-      required: { zh: '必须', en: 'Required' },
-
-      // Indicators
-      ema: { zh: 'EMA 均线', en: 'EMA' },
-      emaDesc: { zh: '指数移动平均线', en: 'Exponential Moving Average' },
-      macd: { zh: 'MACD', en: 'MACD' },
-      macdDesc: { zh: '异同移动平均线', en: 'Moving Average Convergence Divergence' },
-      rsi: { zh: 'RSI', en: 'RSI' },
-      rsiDesc: { zh: '相对强弱指标', en: 'Relative Strength Index' },
-      atr: { zh: 'ATR', en: 'ATR' },
-      atrDesc: { zh: '真实波幅均值', en: 'Average True Range' },
-      boll: { zh: 'BOLL 布林带', en: 'Bollinger Bands' },
-      bollDesc: { zh: '布林带指标（上中下轨）', en: 'Upper/Middle/Lower Bands' },
-      volume: { zh: '成交量', en: 'Volume' },
-      volumeDesc: { zh: '交易量分析', en: 'Trading volume analysis' },
-      oi: { zh: '持仓量', en: 'Open Interest' },
-      oiDesc: { zh: '合约未平仓量', en: 'Futures open interest' },
-      fundingRate: { zh: '资金费率', en: 'Funding Rate' },
-      fundingRateDesc: { zh: '永续合约资金费率', en: 'Perpetual funding rate' },
-
-      // OI Ranking
-      oiRanking: { zh: 'OI 排行', en: 'OI Ranking' },
-      oiRankingDesc: { zh: '持仓量增减排行', en: 'OI change ranking' },
-      oiRankingNote: { zh: '显示持仓量增加/减少的币种排行，帮助发现资金流向', en: 'Shows coins with OI increase/decrease, helps identify capital flow' },
-
-      // NetFlow Ranking
-      netflowRanking: { zh: '资金流向', en: 'NetFlow' },
-      netflowRankingDesc: { zh: '机构/散户资金流向', en: 'Institution/retail fund flow' },
-      netflowRankingNote: { zh: '显示机构资金流入/流出排行，散户动向对比，发现聪明钱信号', en: 'Shows institution inflow/outflow ranking, retail flow comparison, Smart Money signals' },
-
-      // Price Ranking
-      priceRanking: { zh: '涨跌幅排行', en: 'Price Ranking' },
-      priceRankingDesc: { zh: '涨跌幅排行榜', en: 'Gainers/losers ranking' },
-      priceRankingNote: { zh: '显示涨幅/跌幅排行，结合资金流和持仓变化分析趋势强度', en: 'Shows top gainers/losers, combined with fund flow and OI for trend analysis' },
-      priceRankingMulti: { zh: '多周期', en: 'Multi-period' },
-
-      // Common settings
-      duration: { zh: '周期', en: 'Duration' },
-      limit: { zh: '数量', en: 'Limit' },
-
-      // Tips
-      aiCanCalculate: { zh: '💡 提示：AI 可自行计算这些指标，开启可减少 AI 计算量', en: '💡 Tip: AI can calculate these, enabling reduces AI workload' },
-
-      // NofxOS Data Provider
-      nofxosTitle: { zh: 'NofxOS 量化数据源', en: 'NofxOS Data Provider' },
-      nofxosDesc: { zh: '专业加密货币量化数据服务', en: 'Professional crypto quant data service' },
-      nofxosFeatures: { zh: 'AI500 · OI排行 · 资金流向 · 涨跌榜', en: 'AI500 · OI Ranking · Fund Flow · Price Ranking' },
-      viewApiDocs: { zh: 'API 文档', en: 'API Docs' },
-      apiKey: { zh: 'API Key', en: 'API Key' },
-      apiKeyPlaceholder: { zh: '输入 NofxOS API Key', en: 'Enter NofxOS API Key' },
-      fillDefault: { zh: '填入默认', en: 'Fill Default' },
-      connected: { zh: '已配置', en: 'Configured' },
-      notConfigured: { zh: '未配置', en: 'Not Configured' },
-      nofxosDataSources: { zh: 'NofxOS 数据源', en: 'NofxOS Data Sources' },
-    }
-    return translations[key]?.[language] || key
-  }
-
-  // 获取当前选中的时间周期
+  // Get currently selected timeframes
   const selectedTimeframes = config.klines.selected_timeframes || [config.klines.primary_timeframe]
 
-  // 切换时间周期选择
+  // Toggle timeframe selection
   const toggleTimeframe = (tf: string) => {
     if (disabled) return
     const current = [...selectedTimeframes]
@@ -153,7 +72,7 @@ export function IndicatorEditor({
     }
   }
 
-  // 设置主时间周期
+  // Set primary timeframe
   const setPrimaryTimeframe = (tf: string) => {
     if (disabled) return
     onChange({
@@ -218,10 +137,10 @@ export function IndicatorEditor({
               </div>
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                  {t('nofxosTitle')}
+                  {ts(indicator.nofxosTitle, language)}
                 </h3>
                 <span className="text-[10px]" style={{ color: '#848E9C' }}>
-                  {t('nofxosFeatures')}
+                  {ts(indicator.nofxosFeatures, language)}
                 </span>
               </div>
             </div>
@@ -231,12 +150,12 @@ export function IndicatorEditor({
               {hasApiKey ? (
                 <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full" style={{ background: 'rgba(14, 203, 129, 0.15)', color: '#0ECB81' }}>
                   <Check className="w-3 h-3" />
-                  {t('connected')}
+                  {ts(indicator.connected, language)}
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full" style={{ background: 'rgba(246, 70, 93, 0.15)', color: '#F6465D' }}>
                   <AlertCircle className="w-3 h-3" />
-                  {t('notConfigured')}
+                  {ts(indicator.notConfigured, language)}
                 </span>
               )}
               <a
@@ -250,7 +169,7 @@ export function IndicatorEditor({
                 }}
               >
                 <ExternalLink className="w-3 h-3" />
-                {t('viewApiDocs')}
+                {ts(indicator.viewApiDocs, language)}
               </a>
             </div>
           </div>
@@ -264,7 +183,7 @@ export function IndicatorEditor({
                 value={config.nofxos_api_key || ''}
                 onChange={(e) => !disabled && onChange({ ...config, nofxos_api_key: e.target.value })}
                 disabled={disabled}
-                placeholder={t('apiKeyPlaceholder')}
+                placeholder={ts(indicator.apiKeyPlaceholder, language)}
                 className="w-full pl-9 pr-3 py-2 rounded-lg text-sm font-mono"
                 style={{
                   background: 'rgba(30, 35, 41, 0.8)',
@@ -283,7 +202,7 @@ export function IndicatorEditor({
                   color: '#fff',
                 }}
               >
-                {t('fillDefault')}
+                {ts(indicator.fillDefault, language)}
               </button>
             )}
           </div>
@@ -291,7 +210,7 @@ export function IndicatorEditor({
           {/* NofxOS Data Sources Grid */}
           <div className="mt-4">
             <div className="text-[10px] font-medium mb-2" style={{ color: '#848E9C' }}>
-              {t('nofxosDataSources')}
+              {ts(indicator.nofxosDataSources, language)}
             </div>
             <div className="grid grid-cols-2 gap-2">
               {/* Quant Data */}
@@ -307,7 +226,7 @@ export function IndicatorEditor({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: '#60a5fa' }} />
-                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('quantData')}</span>
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.quantData, language)}</span>
                   </div>
                   <input
                     type="checkbox"
@@ -317,7 +236,7 @@ export function IndicatorEditor({
                     className="w-3.5 h-3.5 rounded accent-blue-500"
                   />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('quantDataDesc')}</p>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.quantDataDesc, language)}</p>
                 {config.enable_quant_data && (
                   <div className="flex gap-3 mt-2">
                     <label className="flex items-center gap-1.5 cursor-pointer">
@@ -362,7 +281,7 @@ export function IndicatorEditor({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }} />
-                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('oiRanking')}</span>
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.oiRanking, language)}</span>
                   </div>
                   <input
                     type="checkbox"
@@ -377,7 +296,7 @@ export function IndicatorEditor({
                     className="w-3.5 h-3.5 rounded accent-green-500"
                   />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('oiRankingDesc')}</p>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.oiRankingDesc, language)}</p>
                 {config.enable_oi_ranking && (
                   <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
                     <select
@@ -422,7 +341,7 @@ export function IndicatorEditor({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: '#f59e0b' }} />
-                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('netflowRanking')}</span>
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.netflowRanking, language)}</span>
                   </div>
                   <input
                     type="checkbox"
@@ -437,7 +356,7 @@ export function IndicatorEditor({
                     className="w-3.5 h-3.5 rounded accent-amber-500"
                   />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('netflowRankingDesc')}</p>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.netflowRankingDesc, language)}</p>
                 {config.enable_netflow_ranking && (
                   <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
                     <select
@@ -482,7 +401,7 @@ export function IndicatorEditor({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: '#ec4899' }} />
-                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('priceRanking')}</span>
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.priceRanking, language)}</span>
                   </div>
                   <input
                     type="checkbox"
@@ -497,7 +416,7 @@ export function IndicatorEditor({
                     className="w-3.5 h-3.5 rounded accent-pink-500"
                   />
                 </div>
-                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{t('priceRankingDesc')}</p>
+                <p className="text-[10px] mt-1" style={{ color: '#5E6673' }}>{ts(indicator.priceRankingDesc, language)}</p>
                 {config.enable_price_ranking && (
                   <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
                     <select
@@ -510,7 +429,7 @@ export function IndicatorEditor({
                       <option value="1h">1h</option>
                       <option value="4h">4h</option>
                       <option value="24h">24h</option>
-                      <option value="1h,4h,24h">{t('priceRankingMulti')}</option>
+                      <option value="1h,4h,24h">{ts(indicator.priceRankingMulti, language)}</option>
                     </select>
                     <select
                       value={config.price_ranking_limit || 10}
@@ -531,7 +450,7 @@ export function IndicatorEditor({
               <div className="flex items-center gap-2 mt-3 p-2 rounded-lg" style={{ background: 'rgba(246, 70, 93, 0.1)', border: '1px solid rgba(246, 70, 93, 0.2)' }}>
                 <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#F6465D' }} />
                 <span className="text-[10px]" style={{ color: '#F6465D' }}>
-                  {language === 'zh' ? '请配置 API Key 以启用 NofxOS 数据源' : 'Please configure API Key to enable NofxOS data sources'}
+                  {ts(indicator.configureApiKey, language)}
                 </span>
               </div>
             )}
@@ -545,8 +464,8 @@ export function IndicatorEditor({
       <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
           <BarChart2 className="w-4 h-4" style={{ color: '#F0B90B' }} />
-          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('marketData')}</span>
-          <span className="text-xs" style={{ color: '#848E9C' }}>- {t('marketDataDesc')}</span>
+          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.marketData, language)}</span>
+          <span className="text-xs" style={{ color: '#848E9C' }}>- {ts(indicator.marketDataDesc, language)}</span>
         </div>
 
         <div className="p-3 space-y-4">
@@ -558,13 +477,13 @@ export function IndicatorEditor({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('rawKlines')}</span>
+                  <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.rawKlines, language)}</span>
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1" style={{ background: 'rgba(240, 185, 11, 0.2)', color: '#F0B90B' }}>
                     <Lock className="w-2.5 h-2.5" />
-                    {t('required')}
+                    {ts(indicator.required, language)}
                   </span>
                 </div>
-                <p className="text-xs mt-0.5" style={{ color: '#848E9C' }}>{t('rawKlinesDesc')}</p>
+                <p className="text-xs mt-0.5" style={{ color: '#848E9C' }}>{ts(indicator.rawKlinesDesc, language)}</p>
               </div>
             </div>
             <input
@@ -580,10 +499,10 @@ export function IndicatorEditor({
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Clock className="w-3.5 h-3.5" style={{ color: '#848E9C' }} />
-                <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t('timeframes')}</span>
+                <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.timeframes, language)}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px]" style={{ color: '#848E9C' }}>{t('klineCount')}:</span>
+                <span className="text-[10px]" style={{ color: '#848E9C' }}>{ts(indicator.klineCount, language)}:</span>
                 <input
                   type="number"
                   value={config.klines.primary_count}
@@ -602,7 +521,7 @@ export function IndicatorEditor({
                 />
               </div>
             </div>
-            <p className="text-[10px] mb-2" style={{ color: '#5E6673' }}>{t('timeframesDesc')}</p>
+            <p className="text-[10px] mb-2" style={{ color: '#5E6673' }}>{ts(indicator.timeframesDesc, language)}</p>
 
             {/* Timeframe Grid */}
             <div className="space-y-1.5">
@@ -611,7 +530,7 @@ export function IndicatorEditor({
                 return (
                   <div key={category} className="flex items-center gap-2">
                     <span className="text-[10px] w-10 flex-shrink-0" style={{ color: categoryColors[category] }}>
-                      {t(category)}
+                      {ts(indicator[category], language)}
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {categoryTfs.map((tf) => {
@@ -654,15 +573,15 @@ export function IndicatorEditor({
       <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
           <Activity className="w-4 h-4" style={{ color: '#0ECB81' }} />
-          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('technicalIndicators')}</span>
-          <span className="text-xs" style={{ color: '#848E9C' }}>- {t('technicalIndicatorsDesc')}</span>
+          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.technicalIndicators, language)}</span>
+          <span className="text-xs" style={{ color: '#848E9C' }}>- {ts(indicator.technicalIndicatorsDesc, language)}</span>
         </div>
 
         <div className="p-3">
           {/* Tip */}
           <div className="flex items-start gap-2 mb-3 p-2 rounded" style={{ background: 'rgba(14, 203, 129, 0.05)' }}>
             <Info className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: '#0ECB81' }} />
-            <p className="text-[10px]" style={{ color: '#848E9C' }}>{t('aiCanCalculate')}</p>
+            <p className="text-[10px]" style={{ color: '#848E9C' }}>{ts(indicator.aiCanCalculate, language)}</p>
           </div>
 
           {/* Indicator Grid */}
@@ -685,7 +604,7 @@ export function IndicatorEditor({
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t(label)}</span>
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator[label as keyof typeof indicator], language)}</span>
                   </div>
                   <input
                     type="checkbox"
@@ -695,7 +614,7 @@ export function IndicatorEditor({
                     className="w-4 h-4 rounded accent-yellow-500"
                   />
                 </div>
-                <p className="text-[10px] mb-1.5" style={{ color: '#5E6673' }}>{t(desc)}</p>
+                <p className="text-[10px] mb-1.5" style={{ color: '#5E6673' }}>{ts(indicator[desc as keyof typeof indicator], language)}</p>
                 {periodKey && config[key as keyof IndicatorConfig] && (
                   <input
                     type="text"
@@ -726,8 +645,8 @@ export function IndicatorEditor({
       <div className="rounded-lg overflow-hidden" style={{ background: '#0B0E11', border: '1px solid #2B3139' }}>
         <div className="px-3 py-2 flex items-center gap-2" style={{ background: '#1E2329', borderBottom: '1px solid #2B3139' }}>
           <TrendingUp className="w-4 h-4" style={{ color: '#22c55e' }} />
-          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{t('marketSentiment')}</span>
-          <span className="text-xs" style={{ color: '#848E9C' }}>- {t('marketSentimentDesc')}</span>
+          <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>{ts(indicator.marketSentiment, language)}</span>
+          <span className="text-xs" style={{ color: '#848E9C' }}>- {ts(indicator.marketSentimentDesc, language)}</span>
         </div>
 
         <div className="p-3">
@@ -748,7 +667,7 @@ export function IndicatorEditor({
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{t(label)}</span>
+                    <span className="text-xs font-medium" style={{ color: '#EAECEF' }}>{ts(indicator[label as keyof typeof indicator], language)}</span>
                   </div>
                   <input
                     type="checkbox"
@@ -758,7 +677,7 @@ export function IndicatorEditor({
                     className="w-4 h-4 rounded accent-yellow-500"
                   />
                 </div>
-                <p className="text-[10px]" style={{ color: '#5E6673' }}>{t(desc)}</p>
+                <p className="text-[10px]" style={{ color: '#5E6673' }}>{ts(indicator[desc as keyof typeof indicator], language)}</p>
               </div>
             ))}
           </div>

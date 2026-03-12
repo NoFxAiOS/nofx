@@ -1,17 +1,17 @@
 package kernel
 
 // ============================================================================
-// Trading Data Schema - 交易数据字典
+// Trading Data Schema
 // ============================================================================
-// 双语数据字典，支持中文和英文
-// 确保AI能够100%理解数据格式，无论使用哪种语言
+// Bilingual data dictionary supporting Chinese and English.
+// Ensures AI can fully understand data formats regardless of language.
 // ============================================================================
 
 const (
 	SchemaVersion = "1.0.0"
 )
 
-// Language 语言类型
+// Language represents the language type
 type Language string
 
 const (
@@ -19,20 +19,20 @@ const (
 	LangEnglish Language = "en-US"
 )
 
-// ========== 双语字段定义 ==========
+// ========== Bilingual Field Definitions ==========
 
-// BilingualFieldDef 双语字段定义
+// BilingualFieldDef defines a field with bilingual name, formula, and description
 type BilingualFieldDef struct {
-	NameZH    string // 中文名称
+	NameZH    string // Chinese name
 	NameEN    string // English name
-	Unit      string // 单位
-	FormulaZH string // 中文公式
+	Unit      string // unit of measurement
+	FormulaZH string // Chinese formula
 	FormulaEN string // English formula
-	DescZH    string // 中文描述
+	DescZH    string // Chinese description
 	DescEN    string // English description
 }
 
-// GetName 获取字段名称（根据语言）
+// GetName returns the field name based on language
 func (d BilingualFieldDef) GetName(lang Language) string {
 	if lang == LangChinese {
 		return d.NameZH
@@ -40,7 +40,7 @@ func (d BilingualFieldDef) GetName(lang Language) string {
 	return d.NameEN
 }
 
-// GetFormula 获取公式（根据语言）
+// GetFormula returns the formula based on language
 func (d BilingualFieldDef) GetFormula(lang Language) string {
 	if lang == LangChinese {
 		return d.FormulaZH
@@ -48,7 +48,7 @@ func (d BilingualFieldDef) GetFormula(lang Language) string {
 	return d.FormulaEN
 }
 
-// GetDesc 获取描述（根据语言）
+// GetDesc returns the description based on language
 func (d BilingualFieldDef) GetDesc(lang Language) string {
 	if lang == LangChinese {
 		return d.DescZH
@@ -56,9 +56,9 @@ func (d BilingualFieldDef) GetDesc(lang Language) string {
 	return d.DescEN
 }
 
-// ========== 数据字典 ==========
+// ========== Data Dictionary ==========
 
-// DataDictionary 数据字典：定义所有字段的含义
+// DataDictionary defines the meaning of all fields
 var DataDictionary = map[string]map[string]BilingualFieldDef{
 	"AccountMetrics": {
 		"Equity": {
@@ -217,18 +217,18 @@ var DataDictionary = map[string]map[string]BilingualFieldDef{
 	},
 }
 
-// ========== 双语规则定义 ==========
+// ========== Bilingual Rule Definitions ==========
 
-// BilingualRuleDef 双语规则定义
+// BilingualRuleDef defines a trading rule with bilingual description and reason
 type BilingualRuleDef struct {
-	Value    interface{} // 规则值
-	DescZH   string      // 中文描述
+	Value    interface{} // rule value
+	DescZH   string      // Chinese description
 	DescEN   string      // English description
-	ReasonZH string      // 中文原因
+	ReasonZH string      // Chinese reason
 	ReasonEN string      // English reason
 }
 
-// GetDesc 获取描述（根据语言）
+// GetDesc returns the description based on language
 func (d BilingualRuleDef) GetDesc(lang Language) string {
 	if lang == LangChinese {
 		return d.DescZH
@@ -236,7 +236,7 @@ func (d BilingualRuleDef) GetDesc(lang Language) string {
 	return d.DescEN
 }
 
-// GetReason 获取原因（根据语言）
+// GetReason returns the reason based on language
 func (d BilingualRuleDef) GetReason(lang Language) string {
 	if lang == LangChinese {
 		return d.ReasonZH
@@ -244,9 +244,9 @@ func (d BilingualRuleDef) GetReason(lang Language) string {
 	return d.ReasonEN
 }
 
-// ========== 交易规则 ==========
+// ========== Trading Rules ==========
 
-// TradingRules 交易规则定义
+// TradingRules defines the trading rules
 var TradingRules = struct {
 	RiskManagement  map[string]BilingualRuleDef
 	EntrySignals    map[string]BilingualRuleDef
@@ -340,9 +340,9 @@ var TradingRules = struct {
 	},
 }
 
-// ========== OI解读 ==========
+// ========== OI Interpretation ==========
 
-// OIInterpretation OI变化的市场解读（双语）
+// OIInterpretation defines bilingual market interpretations for OI changes
 type OIInterpretationType struct {
 	OIUp_PriceUp struct {
 		ZH string
@@ -393,9 +393,9 @@ var OIInterpretation = OIInterpretationType{
 	},
 }
 
-// ========== 常见错误 ==========
+// ========== Common Mistakes ==========
 
-// CommonMistake 常见错误定义
+// CommonMistake defines a common mistake with bilingual fields
 type CommonMistake struct {
 	ErrorZH   string
 	ErrorEN   string
@@ -440,9 +440,9 @@ var CommonMistakes = []CommonMistake{
 	},
 }
 
-// ========== Prompt生成函数 ==========
+// ========== Prompt Generation Functions ==========
 
-// GetSchemaPrompt 生成Schema说明文本，用于AI Prompt
+// GetSchemaPrompt generates schema description text for AI prompts
 func GetSchemaPrompt(lang Language) string {
 	if lang == LangChinese {
 		return getSchemaPromptZH()
@@ -450,36 +450,36 @@ func GetSchemaPrompt(lang Language) string {
 	return getSchemaPromptEN()
 }
 
-// getSchemaPromptZH 生成中文Prompt
+// getSchemaPromptZH generates the Chinese prompt
 func getSchemaPromptZH() string {
 	prompt := "# 📖 数据字典与交易规则\n\n"
 	prompt += "## 📊 字段含义说明\n\n"
 
-	// 账户指标
+	// Account metrics
 	prompt += "### 账户指标\n"
 	for key, field := range DataDictionary["AccountMetrics"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
-	// 交易指标
+	// Trade metrics
 	prompt += "\n### 交易指标\n"
 	for key, field := range DataDictionary["TradeMetrics"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
-	// 持仓指标
+	// Position metrics
 	prompt += "\n### 持仓指标\n"
 	for key, field := range DataDictionary["PositionMetrics"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
-	// 市场数据
+	// Market data
 	prompt += "\n### 市场数据\n"
 	for key, field := range DataDictionary["MarketData"] {
 		prompt += formatFieldDefZH(key, field)
 	}
 
-	// OI解读
+	// OI interpretation
 	prompt += "\n## 💹 持仓量(OI)变化解读\n\n"
 	prompt += "- **OI增加 + 价格上涨**: " + OIInterpretation.OIUp_PriceUp.ZH + "\n"
 	prompt += "- **OI增加 + 价格下跌**: " + OIInterpretation.OIUp_PriceDown.ZH + "\n"
@@ -489,7 +489,7 @@ func getSchemaPromptZH() string {
 	return prompt
 }
 
-// getSchemaPromptEN 生成英文Prompt
+// getSchemaPromptEN generates the English prompt
 func getSchemaPromptEN() string {
 	prompt := "# 📖 Data Dictionary & Trading Rules\n\n"
 	prompt += "## 📊 Field Definitions\n\n"
@@ -528,7 +528,7 @@ func getSchemaPromptEN() string {
 	return prompt
 }
 
-// formatFieldDefZH 格式化中文字段定义
+// formatFieldDefZH formats a field definition in Chinese
 func formatFieldDefZH(key string, field BilingualFieldDef) string {
 	result := "- **" + key + "**（" + field.NameZH + "）: " + field.DescZH
 	if field.FormulaZH != "" {
@@ -541,7 +541,7 @@ func formatFieldDefZH(key string, field BilingualFieldDef) string {
 	return result
 }
 
-// formatFieldDefEN 格式化英文字段定义
+// formatFieldDefEN formats a field definition in English
 func formatFieldDefEN(key string, field BilingualFieldDef) string {
 	result := "- **" + key + "** (" + field.NameEN + "): " + field.DescEN
 	if field.FormulaEN != "" {

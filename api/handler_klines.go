@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"nofx/auth"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/provider/alpaca"
@@ -18,6 +19,62 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// isExchangeEnabledForUser checks if an exchange is enabled for the given user
+// Returns true if the user has configured and enabled this exchange type
+// If no user is authenticated, returns true (allow access for backward compatibility)
+func (s *Server) isExchangeEnabledForUser(c *gin.Context, exchangeType string) bool {
+	// Try to get user ID from JWT token
+	userID := s.getUserIDFromContext(c)
+	if userID == "" {
+		// No authenticated user, allow access for backward compatibility
+		return true
+	}
+
+	// Get user's exchanges
+	exchanges, err := s.store.Exchange().List(userID)
+	if err != nil {
+		logger.Warnf("Failed to get exchanges for user %s: %v", userID, err)
+		return true // Allow on error for backward compatibility
+	}
+
+	// Normalize exchange type
+	exchangeTypeLower := strings.ToLower(exchangeType)
+
+	// Check if user has this exchange type enabled
+	for _, ex := range exchanges {
+		if strings.ToLower(ex.ExchangeType) == exchangeTypeLower && ex.Enabled {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getUserIDFromContext extracts user ID from JWT token in Authorization header
+// Returns empty string if no valid token is provided
+func (s *Server) getUserIDFromContext(c *gin.Context) string {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return ""
+	}
+
+	// Check Bearer token format
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return ""
+	}
+
+	tokenString := tokenParts[1]
+
+	// Validate JWT token
+	claims, err := auth.ValidateJWT(tokenString)
+	if err != nil {
+		return ""
+	}
+
+	return claims.UserID
+}
 
 // handleKlines K-line data (supports multiple exchanges via coinank)
 func (s *Server) handleKlines(c *gin.Context) {
@@ -30,6 +87,13 @@ func (s *Server) handleKlines(c *gin.Context) {
 
 	interval := c.DefaultQuery("interval", "5m")
 	exchange := c.DefaultQuery("exchange", "binance") // Default to binance for backward compatibility
+
+	// Check if the exchange is enabled for this user
+	if !s.isExchangeEnabledForUser(c, exchange) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Exchange " + exchange + " is not enabled for this user"})
+		return
+	}
+
 	limitStr := c.DefaultQuery("limit", "1000")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
@@ -323,6 +387,12 @@ func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([
 // handleSymbols returns available symbols for a given exchange
 func (s *Server) handleSymbols(c *gin.Context) {
 	exchange := c.DefaultQuery("exchange", "hyperliquid")
+
+	// Check if the exchange is enabled for this user
+	if !s.isExchangeEnabledForUser(c, exchange) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Exchange " + exchange + " is not enabled for this user"})
+		return
+	}
 
 	type SymbolInfo struct {
 		Symbol      string `json:"symbol"`

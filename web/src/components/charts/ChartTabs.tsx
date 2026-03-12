@@ -3,14 +3,15 @@ import { EquityChart } from './EquityChart'
 import { AdvancedChart } from './AdvancedChart'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
+import { chartTabs, ts } from '../../i18n/strategy-translations'
 import { BarChart3, CandlestickChart, ChevronDown, Search } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface ChartTabsProps {
   traderId: string
-  selectedSymbol?: string // 从外部选择的币种
-  updateKey?: number // 强制更新的 key
-  exchangeId?: string // 交易所ID
+  selectedSymbol?: string // Externally selected symbol
+  updateKey?: number // Force update key
+  exchangeId?: string // Exchange ID
 }
 
 type ChartTab = 'equity' | 'kline'
@@ -23,13 +24,13 @@ interface SymbolInfo {
   category: string
 }
 
-// 市场类型配置
+// Market type configuration
 const MARKET_CONFIG = {
-  hyperliquid: { exchange: 'hyperliquid', defaultSymbol: 'BTC', icon: '🔷', label: { zh: 'HL', en: 'HL' }, color: 'cyan', hasDropdown: true },
-  crypto: { exchange: 'binance', defaultSymbol: 'BTCUSDT', icon: '₿', label: { zh: '加密', en: 'Crypto' }, color: 'yellow', hasDropdown: false },
-  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', label: { zh: '美股', en: 'Stocks' }, color: 'green', hasDropdown: false },
-  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', label: { zh: '外汇', en: 'Forex' }, color: 'blue', hasDropdown: false },
-  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', label: { zh: '金属', en: 'Metals' }, color: 'amber', hasDropdown: false },
+  hyperliquid: { exchange: 'hyperliquid', defaultSymbol: 'BTC', icon: '🔷', labelKey: 'hyperliquid' as const, color: 'cyan', hasDropdown: true },
+  crypto: { exchange: 'binance', defaultSymbol: 'BTCUSDT', icon: '₿', labelKey: 'crypto' as const, color: 'yellow', hasDropdown: false },
+  stocks: { exchange: 'alpaca', defaultSymbol: 'AAPL', icon: '📈', labelKey: 'stocks' as const, color: 'green', hasDropdown: false },
+  forex: { exchange: 'forex', defaultSymbol: 'EUR/USD', icon: '💱', labelKey: 'forex' as const, color: 'blue', hasDropdown: false },
+  metals: { exchange: 'metals', defaultSymbol: 'XAU/USD', icon: '🥇', labelKey: 'metals' as const, color: 'amber', hasDropdown: false },
 }
 
 const INTERVALS: { value: Interval; label: string }[] = [
@@ -42,12 +43,12 @@ const INTERVALS: { value: Interval; label: string }[] = [
   { value: '1d', label: '1d' },
 ]
 
-// 根据交易所ID推断市场类型
+// Infer market type from exchange ID
 function getMarketTypeFromExchange(exchangeId: string | undefined): MarketType {
   if (!exchangeId) return 'hyperliquid'
   const lower = exchangeId.toLowerCase()
   if (lower.includes('hyperliquid')) return 'hyperliquid'
-  // 其他交易所默认使用 crypto 类型
+  // Other exchanges default to crypto type
   return 'crypto'
 }
 
@@ -63,25 +64,25 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
   const [searchFilter, setSearchFilter] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // 当交易所ID变化时，自动切换市场类型
+  // Auto-switch market type when exchange ID changes
   useEffect(() => {
     const newMarketType = getMarketTypeFromExchange(exchangeId)
     setMarketType(newMarketType)
   }, [exchangeId])
 
-  // 根据市场类型确定交易所
+  // Determine exchange from market type
   const marketConfig = MARKET_CONFIG[marketType]
-  // 优先使用传入的 exchangeId（非 hyperliquid 时）
+  // Prefer passed-in exchangeId (when not hyperliquid)
   const currentExchange = marketType === 'hyperliquid' ? 'hyperliquid' : (exchangeId || marketConfig.exchange)
 
-  // 获取可用币种列表
+  // Fetch available symbol list
   useEffect(() => {
     if (marketConfig.hasDropdown) {
       fetch(`/api/symbols?exchange=${marketConfig.exchange}`)
         .then(res => res.json())
         .then(data => {
           if (data.symbols) {
-            // 按类别排序: crypto > stock > forex > commodity > index
+            // Sort by category: crypto > stock > forex > commodity > index
             const categoryOrder: Record<string, number> = { crypto: 0, stock: 1, forex: 2, commodity: 3, index: 4 }
             const sorted = [...data.symbols].sort((a: SymbolInfo, b: SymbolInfo) => {
               const orderA = categoryOrder[a.category] ?? 5
@@ -96,7 +97,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
     }
   }, [marketType, marketConfig.exchange, marketConfig.hasDropdown])
 
-  // 点击外部关闭下拉
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -107,33 +108,33 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // 切换市场类型时更新默认符号
+  // Update default symbol when switching market type
   const handleMarketTypeChange = (type: MarketType) => {
     setMarketType(type)
     setChartSymbol(MARKET_CONFIG[type].defaultSymbol)
     setShowDropdown(false)
   }
 
-  // 过滤后的币种列表
+  // Filtered symbol list
   const filteredSymbols = availableSymbols.filter(s =>
     s.symbol.toLowerCase().includes(searchFilter.toLowerCase())
   )
 
-  // 当从外部选择币种时，自动切换到K线图
+  // Auto-switch to kline chart when symbol selected externally
   useEffect(() => {
     if (selectedSymbol) {
-      console.log('[ChartTabs] 收到币种选择:', selectedSymbol, 'updateKey:', updateKey)
+      console.log('[ChartTabs] Symbol selected:', selectedSymbol, 'updateKey:', updateKey)
       setChartSymbol(selectedSymbol)
       setActiveTab('kline')
     }
   }, [selectedSymbol, updateKey])
 
-  // 处理手动输入符号
+  // Handle manual symbol input
   const handleSymbolSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (symbolInput.trim()) {
       let symbol = symbolInput.trim().toUpperCase()
-      // 加密货币自动加 USDT 后缀
+      // Auto-append USDT suffix for crypto
       if (marketType === 'crypto' && !symbol.endsWith('USDT')) {
         symbol = symbol + 'USDT'
       }
@@ -198,7 +199,7 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
                       }`}
                   >
                     <span className="mr-1 opacity-70">{config.icon}</span>
-                    {language === 'zh' ? config.label.zh : config.label.en}
+                    {ts(chartTabs[config.labelKey], language)}
                   </button>
                 )
               })}

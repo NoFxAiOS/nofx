@@ -20,6 +20,7 @@ import {
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from 'sonner'
+import { t } from '../i18n/translations'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 
 interface PublicStrategy {
@@ -106,88 +107,7 @@ export function StrategyMarketPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  const texts = {
-    zh: {
-      title: '策略市场',
-      subtitle: 'STRATEGY MARKETPLACE',
-      description: '发现、学习并复用社区精英交易员的策略配置',
-      search: '搜索参数...',
-      all: '全部协议',
-      popular: '热门配置',
-      recent: '最新提交',
-      myStrategies: '我的库',
-      noStrategies: '无信号',
-      noStrategiesDesc: '当前频段未检测到策略信号',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DECRYPT CONFIG',
-      hideConfig: 'ENCRYPT',
-      copyConfig: 'CLONE CONFIG',
-      copied: 'COPIED',
-      configHidden: 'ENCRYPTED',
-      configHiddenDesc: '配置参数已加密',
-      indicators: 'INDICATORS',
-      maxPositions: 'POS_LIMIT',
-      maxLeverage: 'LEV_MAX',
-      shareYours: 'UPLOAD_STRATEGY',
-      makePublic: 'PUBLISH',
-      loading: 'INITIALIZING...'
-    },
-    en: {
-      title: 'STRATEGY MARKET',
-      subtitle: 'GLOBAL STRATEGY DATABASE',
-      description: 'Discover, analyze, and clone high-performance trading algorithms',
-      search: 'SEARCH PARAMETERS...',
-      all: 'ALL PROTOCOLS',
-      popular: 'TRENDING',
-      recent: 'LATEST',
-      myStrategies: 'MY LIBRARY',
-      noStrategies: 'NO SIGNAL',
-      noStrategiesDesc: 'No strategic signals detected in this frequency',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DECRYPT CONFIG',
-      hideConfig: 'ENCRYPT',
-      copyConfig: 'CLONE CONFIG',
-      copied: 'COPIED',
-      configHidden: 'ENCRYPTED',
-      configHiddenDesc: 'Configuration parameters encrypted',
-      indicators: 'INDICATORS',
-      maxPositions: 'POS_LIMIT',
-      maxLeverage: 'LEV_MAX',
-      shareYours: 'UPLOAD_STRATEGY',
-      makePublic: 'PUBLISH',
-      loading: 'INITIALIZING...'
-    },
-    id: {
-      title: 'PASAR STRATEGI',
-      subtitle: 'DATABASE STRATEGI GLOBAL',
-      description: 'Temukan, analisis, dan kloning algoritma trading berperforma tinggi',
-      search: 'CARI PARAMETER...',
-      all: 'SEMUA PROTOKOL',
-      popular: 'TREN',
-      recent: 'TERBARU',
-      myStrategies: 'PERPUSTAKAAN SAYA',
-      noStrategies: 'TIDAK ADA SINYAL',
-      noStrategiesDesc: 'Tidak ada sinyal strategis terdeteksi pada frekuensi ini',
-      author: 'OPERATOR',
-      createdAt: 'TIMESTAMP',
-      viewConfig: 'DEKRIPSI CONFIG',
-      hideConfig: 'ENKRIPSI',
-      copyConfig: 'KLON CONFIG',
-      copied: 'DISALIN',
-      configHidden: 'TERENKRIPSI',
-      configHiddenDesc: 'Parameter konfigurasi terenkripsi',
-      indicators: 'INDIKATOR',
-      maxPositions: 'BATAS_POS',
-      maxLeverage: 'LEV_MAKS',
-      shareYours: 'UNGGAH_STRATEGI',
-      makePublic: 'PUBLIKASI',
-      loading: 'MENGINISIALISASI...'
-    }
-  }
-
-  const t = texts[language]
+  const tr = (key: string) => t(`strategyMarket.${key}`, language)
 
   // Fetch public strategies
   const { data: strategies, isLoading } = useSWR<PublicStrategy[]>(
@@ -218,7 +138,7 @@ export function StrategyMarketPage() {
     try {
       await navigator.clipboard.writeText(JSON.stringify(strategy.config, null, 2))
       setCopiedId(strategy.id)
-      toast.success(t.copied)
+      toast.success(tr('copied'))
       setTimeout(() => setCopiedId(null), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
@@ -271,16 +191,16 @@ export function StrategyMarketPage() {
                 <Database className="w-8 h-8 text-nofx-gold relative z-10" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold tracking-tighter text-white uppercase glitch-text" data-text={t.title}>
-                  {t.title}
+                <h1 className="text-4xl font-bold tracking-tighter text-white uppercase glitch-text" data-text={tr('title')}>
+                  {tr('title')}
                 </h1>
                 <p className="text-xs text-nofx-gold tracking-[0.3em] font-bold mt-1">
-                // {t.subtitle}
+                // {tr('subtitle')}
                 </p>
               </div>
             </div>
             <p className="text-sm text-zinc-500 max-w-2xl border-l-2 border-zinc-800 pl-4">
-              {t.description}
+              {tr('description')}
             </p>
           </div>
 
@@ -295,7 +215,7 @@ export function StrategyMarketPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder={t.search}
+                  placeholder={tr('search')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full bg-transparent py-3 text-sm focus:outline-none placeholder-zinc-700 text-nofx-gold font-mono"
@@ -324,7 +244,7 @@ export function StrategyMarketPage() {
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
                   )}
-                  <span className="relative z-10">{t[cat as keyof typeof t]}</span>
+                  <span className="relative z-10">{tr(cat)}</span>
                 </button>
               ))}
             </div>
@@ -340,7 +260,7 @@ export function StrategyMarketPage() {
                   <Cpu size={24} className="text-nofx-gold/50" />
                 </div>
               </div>
-              <p className="text-nofx-gold text-xs tracking-widest animate-pulse">{t.loading}</p>
+              <p className="text-nofx-gold text-xs tracking-widest animate-pulse">{tr('loading')}</p>
               <div className="flex gap-1">
                 <div className="w-1 h-1 bg-nofx-gold rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
                 <div className="w-1 h-1 bg-nofx-gold rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
@@ -357,9 +277,9 @@ export function StrategyMarketPage() {
                 <Activity className="w-16 h-16 text-zinc-700 relative z-10" />
               </div>
               <h3 className="text-xl font-bold text-zinc-300 font-mono tracking-tight mb-2">
-                [{t.noStrategies}]
+                [{tr('noStrategies')}]
               </h3>
-              <p className="text-zinc-600 text-xs tracking-wide uppercase">{t.noStrategiesDesc}</p>
+              <p className="text-zinc-600 text-xs tracking-wide uppercase">{tr('noStrategiesDesc')}</p>
             </div>
           )}
 
@@ -423,11 +343,11 @@ export function StrategyMarketPage() {
                         {/* Meta Data */}
                         <div className="grid grid-cols-2 gap-y-2 mb-6 text-[10px] font-mono text-zinc-600">
                           <div className="flex flex-col">
-                            <span className="text-zinc-700 uppercase">{t.author}</span>
+                            <span className="text-zinc-700 uppercase">{tr('author')}</span>
                             <span className="text-zinc-400 group-hover:text-white transition-colors">@{strategy.author_email?.split('@')[0] || 'UNKNOWN'}</span>
                           </div>
                           <div className="flex flex-col text-right">
-                            <span className="text-zinc-700 uppercase">{t.createdAt}</span>
+                            <span className="text-zinc-700 uppercase">{tr('createdAt')}</span>
                             <span className="text-zinc-400">{formatDate(strategy.created_at)}</span>
                           </div>
                         </div>
@@ -468,7 +388,7 @@ export function StrategyMarketPage() {
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full text-zinc-600">
                               <EyeOff size={16} className="mb-1 opacity-50" />
-                              <span className="text-[9px] uppercase tracking-widest">{t.configHiddenDesc}</span>
+                              <span className="text-[9px] uppercase tracking-widest">{tr('configHiddenDesc')}</span>
                             </div>
                           )}
                         </div>
@@ -483,19 +403,19 @@ export function StrategyMarketPage() {
                               {copiedId === strategy.id ? (
                                 <>
                                   <Check className="w-3 h-3 text-emerald-500" />
-                                  <span className="text-emerald-500">{t.copied}</span>
+                                  <span className="text-emerald-500">{tr('copied')}</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-3 h-3 group-hover/btn:scale-110 transition-transform" />
-                                  {t.copyConfig}
+                                  {tr('copyConfig')}
                                 </>
                               )}
                             </button>
                           ) : (
                             <button disabled className="w-full py-2.5 text-[10px] font-bold font-mono uppercase tracking-widest border border-zinc-800 bg-black text-zinc-700 cursor-not-allowed flex items-center justify-center gap-2">
                               <Shield size={12} />
-                              {t.hideConfig}
+                              {tr('hideConfig')}
                             </button>
                           )}
                         </div>
@@ -521,7 +441,7 @@ export function StrategyMarketPage() {
                 <div className="relative px-8 py-4 bg-black border border-zinc-800 hover:border-nofx-gold/50 flex items-center gap-4 transition-all">
                   <Hexagon className="text-nofx-gold animate-spin-slow" size={24} />
                   <div className="text-left">
-                    <div className="text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{t.shareYours}</div>
+                    <div className="text-sm font-bold text-white uppercase tracking-wider group-hover:text-nofx-gold transition-colors">{tr('shareYours')}</div>
                     <div className="text-[10px] text-zinc-500 font-mono">CONTRIBUTE TO THE GLOBAL DATABASE</div>
                   </div>
                   <div className="w-[1px] h-8 bg-zinc-800 mx-2"></div>

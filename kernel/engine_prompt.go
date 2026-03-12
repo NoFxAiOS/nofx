@@ -461,7 +461,7 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 
 func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 	if len(sources) > 1 {
-		// 多信号源组合
+		// Multiple signal source combination
 		hasAI500 := false
 		hasOITop := false
 		hasOILow := false
@@ -502,9 +502,9 @@ func (e *StrategyEngine) formatCoinSourceTag(sources []string) string {
 		case "ai500":
 			return " (AI500)"
 		case "oi_top":
-			return " (OI_Top 持仓增加)"
+			return " (OI_Top OI increase)"
 		case "oi_low":
-			return " (OI_Low 持仓减少)"
+			return " (OI_Low OI decrease)"
 		case "static":
 			return " (Manual selection)"
 		case "hyper_all":
@@ -524,7 +524,7 @@ func (e *StrategyEngine) formatMarketData(data *market.Data) string {
 	var sb strings.Builder
 	indicators := e.config.Indicators
 
-	// 明确标注币种
+	// Clearly label the coin symbol
 	sb.WriteString(fmt.Sprintf("=== %s Market Data ===\n\n", data.Symbol))
 	sb.WriteString(fmt.Sprintf("current_price = %.4f", data.CurrentPrice))
 

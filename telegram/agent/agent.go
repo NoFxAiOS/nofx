@@ -273,7 +273,7 @@ func (a *Agent) Run(userMessage string, onChunk func(string)) string {
 
 	// Safety: max iterations reached.
 	logger.Warnf("Agent: max iterations (%d) reached for message: %q", maxIterations, userMessage)
-	reply := "操作已完成，请检查您的账户查看最新状态。"
+	reply := "Operation completed. Please check your account for the latest status. / 操作已完成，请检查您的账户查看最新状态。"
 	a.memory.Add("user", userMessage)
 	a.memory.Add("assistant", reply)
 	return reply

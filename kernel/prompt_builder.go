@@ -6,22 +6,22 @@ import (
 )
 
 // ============================================================================
-// AI Prompt Builder - AI提示词构建器
+// AI Prompt Builder
 // ============================================================================
-// 构建完整的AI提示词，包括系统提示词和用户提示词
+// Builds complete AI prompts including system prompts and user prompts.
 // ============================================================================
 
-// PromptBuilder 提示词构建器
+// PromptBuilder builds AI prompts in the configured language
 type PromptBuilder struct {
 	lang Language
 }
 
-// NewPromptBuilder 创建提示词构建器
+// NewPromptBuilder creates a new prompt builder for the given language
 func NewPromptBuilder(lang Language) *PromptBuilder {
 	return &PromptBuilder{lang: lang}
 }
 
-// BuildSystemPrompt 构建系统提示词
+// BuildSystemPrompt builds the system prompt
 func (pb *PromptBuilder) BuildSystemPrompt() string {
 	if pb.lang == LangChinese {
 		return pb.buildSystemPromptZH()
@@ -29,19 +29,19 @@ func (pb *PromptBuilder) BuildSystemPrompt() string {
 	return pb.buildSystemPromptEN()
 }
 
-// BuildUserPrompt 构建用户提示词（包含完整的交易上下文）
+// BuildUserPrompt builds the user prompt with full trading context
 func (pb *PromptBuilder) BuildUserPrompt(ctx *Context) string {
-	// 使用Formatter格式化交易上下文
+	// Use Formatter to format the trading context
 	formattedData := FormatContextForAI(ctx, pb.lang)
 
-	// 添加决策要求
+	// Append decision requirements
 	if pb.lang == LangChinese {
 		return formattedData + pb.getDecisionRequirementsZH()
 	}
 	return formattedData + pb.getDecisionRequirementsEN()
 }
 
-// ========== 中文提示词 ==========
+// ========== Chinese Prompts ==========
 
 func (pb *PromptBuilder) buildSystemPromptZH() string {
 	return `你是一个专业的量化交易AI助手，负责分析市场数据并做出交易决策。
@@ -176,7 +176,7 @@ func (pb *PromptBuilder) getDecisionRequirementsZH() string {
 **请立即输出你的决策（JSON格式）**:`
 }
 
-// ========== 英文提示词 ==========
+// ========== English Prompts ==========
 
 func (pb *PromptBuilder) buildSystemPromptEN() string {
 	return `You are a professional quantitative trading AI assistant responsible for analyzing market data and making trading decisions.
@@ -329,9 +329,9 @@ func (pb *PromptBuilder) getDecisionRequirementsEN() string {
 **Please output your decision (JSON format) immediately**:`
 }
 
-// ========== 辅助函数 ==========
+// ========== Helper Functions ==========
 
-// FormatDecisionExample 格式化决策示例（用于文档）
+// FormatDecisionExample formats a decision example (for documentation)
 func FormatDecisionExample(lang Language) string {
 	example := Decision{
 		Symbol:          "BTCUSDT",
@@ -341,32 +341,32 @@ func FormatDecisionExample(lang Language) string {
 		StopLoss:        42000,
 		TakeProfit:      48000,
 		Confidence:      85,
-		Reasoning:       "详细的推理过程...",
+		Reasoning:       "Detailed reasoning process...",
 	}
 
 	data, _ := json.MarshalIndent([]Decision{example}, "", "  ")
 	return string(data)
 }
 
-// ValidateDecisionFormat 验证决策格式是否正确
+// ValidateDecisionFormat validates that the decision format is correct
 func ValidateDecisionFormat(decisions []Decision) error {
 	if len(decisions) == 0 {
-		return fmt.Errorf("决策列表不能为空")
+		return fmt.Errorf("decision list cannot be empty")
 	}
 
 	for i, d := range decisions {
-		// 必需字段检查
+		// Required field checks
 		if d.Symbol == "" {
-			return fmt.Errorf("决策#%d: symbol不能为空", i+1)
+			return fmt.Errorf("decision #%d: symbol cannot be empty", i+1)
 		}
 		if d.Action == "" {
-			return fmt.Errorf("决策#%d: action不能为空", i+1)
+			return fmt.Errorf("decision #%d: action cannot be empty", i+1)
 		}
 		if d.Reasoning == "" {
-			return fmt.Errorf("决策#%d: reasoning不能为空", i+1)
+			return fmt.Errorf("decision #%d: reasoning cannot be empty", i+1)
 		}
 
-		// 动作类型检查
+		// Action type validation
 		validActions := map[string]bool{
 			"HOLD":          true,
 			"PARTIAL_CLOSE": true,
@@ -376,16 +376,16 @@ func ValidateDecisionFormat(decisions []Decision) error {
 			"WAIT":          true,
 		}
 		if !validActions[d.Action] {
-			return fmt.Errorf("决策#%d: 无效的action类型: %s", i+1, d.Action)
+			return fmt.Errorf("decision #%d: invalid action type: %s", i+1, d.Action)
 		}
 
-		// 开新仓位的必需参数检查
+		// Required parameters for opening new positions
 		if d.Action == "OPEN_NEW" {
 			if d.Leverage == 0 {
-				return fmt.Errorf("决策#%d: OPEN_NEW动作需要提供leverage", i+1)
+				return fmt.Errorf("decision #%d: OPEN_NEW action requires leverage", i+1)
 			}
 			if d.PositionSizeUSD == 0 {
-				return fmt.Errorf("决策#%d: OPEN_NEW动作需要提供position_size_usd", i+1)
+				return fmt.Errorf("decision #%d: OPEN_NEW action requires position_size_usd", i+1)
 			}
 		}
 	}

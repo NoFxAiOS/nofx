@@ -23,7 +23,7 @@ import type {
 
 // --- Helper Functions ---
 
-// 获取友好的AI模型名称
+// Get friendly AI model display name
 function getModelDisplayName(modelId: string): string {
     switch (modelId.toLowerCase()) {
         case 'deepseek':
@@ -189,19 +189,17 @@ export function TraderDashboardPage({
         }, 100)
     }
 
-    // 平仓操作
+    // Close position handler
     const handleClosePosition = async (symbol: string, side: string) => {
         if (!selectedTraderId) return
 
-        const confirmMsg =
-            language === 'zh'
-                ? `确定要平仓 ${symbol} ${side === 'LONG' ? '多仓' : '空仓'} 吗？`
-                : `Are you sure you want to close ${symbol} ${side === 'LONG' ? 'LONG' : 'SHORT'} position?`
+        const sideLabel = side === 'LONG' ? 'LONG' : 'SHORT'
+        const confirmMsg = t('traderDashboard.confirmClosePosition', language, { symbol, side: sideLabel })
 
         const confirmed = await confirmToast(confirmMsg, {
-            title: language === 'zh' ? '确认平仓' : 'Confirm Close',
-            okText: language === 'zh' ? '确认' : 'Confirm',
-            cancelText: language === 'zh' ? '取消' : 'Cancel',
+            title: t('traderDashboard.confirmClose', language),
+            okText: t('traderDashboard.confirm', language),
+            cancelText: t('traderDashboard.cancel', language),
         })
 
         if (!confirmed) return
@@ -209,10 +207,8 @@ export function TraderDashboardPage({
         setClosingPosition(symbol)
         try {
             await api.closePosition(selectedTraderId, symbol, side)
-            notify.success(
-                language === 'zh' ? '平仓成功' : 'Position closed successfully'
-            )
-            // 使用 SWR mutate 刷新数据而非重新加载页面
+            notify.success(t('traderDashboard.positionClosed', language))
+            // Use SWR mutate to refresh data instead of reloading page
             await Promise.all([
                 mutate(`positions-${selectedTraderId}`),
                 mutate(`account-${selectedTraderId}`),
@@ -221,9 +217,7 @@ export function TraderDashboardPage({
             const errorMsg =
                 err instanceof Error
                     ? err.message
-                    : language === 'zh'
-                        ? '平仓失败'
-                        : 'Failed to close position'
+                    : t('traderDashboard.closeFailed', language)
             notify.error(errorMsg)
         } finally {
             setClosingPosition(null)
@@ -257,18 +251,16 @@ export function TraderDashboardPage({
                         </svg>
                     </div>
                     <h2 className="text-2xl font-bold mb-3 text-nofx-text-main">
-                        {language === 'zh' ? '无法连接到服务器' : 'Connection Failed'}
+                        {t('traderDashboard.connectionFailed', language)}
                     </h2>
                     <p className="text-base mb-6 text-nofx-text-muted">
-                        {language === 'zh'
-                            ? '请确认后端服务已启动。'
-                            : 'Please check if the backend service is running.'}
+                        {t('traderDashboard.connectionFailedDesc', language)}
                     </p>
                     <button
                         onClick={() => window.location.reload()}
                         className="px-6 py-3 rounded-lg font-semibold transition-all hover:scale-105 active:scale-95 nofx-glass border border-nofx-gold/30 text-nofx-gold hover:bg-nofx-gold/10"
                     >
-                        {language === 'zh' ? '重试' : 'Retry'}
+                        {t('traderDashboard.retry', language)}
                     </button>
                 </div>
             </div>
@@ -414,12 +406,8 @@ export function TraderDashboardPage({
                                                 className="p-1 rounded hover:bg-white/10 transition-colors"
                                                 title={
                                                     showWalletAddress
-                                                        ? language === 'zh'
-                                                            ? '隐藏地址'
-                                                            : 'Hide address'
-                                                        : language === 'zh'
-                                                            ? '显示完整地址'
-                                                            : 'Show full address'
+                                                        ? t('traderDashboard.hideAddress', language)
+                                                        : t('traderDashboard.showFullAddress', language)
                                                 }
                                             >
                                                 {showWalletAddress ? (
@@ -432,7 +420,7 @@ export function TraderDashboardPage({
                                                 type="button"
                                                 onClick={handleCopyAddress}
                                                 className="p-1 rounded hover:bg-white/10 transition-colors"
-                                                title={language === 'zh' ? '复制地址' : 'Copy address'}
+                                                title={t('traderDashboard.copyAddress', language)}
                                             >
                                                 {copiedAddress ? (
                                                     <Check className="w-3.5 h-3.5 text-nofx-green" />
@@ -443,7 +431,7 @@ export function TraderDashboardPage({
                                         </>
                                     ) : (
                                         <span className="text-xs text-nofx-text-muted">
-                                            {language === 'zh' ? '未配置地址' : 'No address configured'}
+                                            {t('traderDashboard.noAddressConfigured', language)}
                                         </span>
                                     )}
                                 </div>
@@ -599,14 +587,14 @@ export function TraderDashboardPage({
                                                 <tr>
                                                     <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-left">{t('symbol', language)}</th>
                                                     <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-center">{t('side', language)}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-center">{language === 'zh' ? '操作' : 'Action'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('entryPrice', language)}>{language === 'zh' ? '入场价' : 'Entry'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('markPrice', language)}>{language === 'zh' ? '标记价' : 'Mark'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right" title={t('quantity', language)}>{language === 'zh' ? '数量' : 'Qty'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('positionValue', language)}>{language === 'zh' ? '价值' : 'Value'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-center hidden md:table-cell" title={t('leverage', language)}>{language === 'zh' ? '杠杆' : 'Lev.'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right" title={t('unrealizedPnL', language)}>{language === 'zh' ? '未实现盈亏' : 'uPnL'}</th>
-                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('liqPrice', language)}>{language === 'zh' ? '强平价' : 'Liq.'}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-center">{t('traderDashboard.action', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('entryPrice', language)}>{t('traderDashboard.entry', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('markPrice', language)}>{t('traderDashboard.mark', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right" title={t('quantity', language)}>{t('traderDashboard.qty', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('positionValue', language)}>{t('traderDashboard.value', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-center hidden md:table-cell" title={t('leverage', language)}>{t('traderDashboard.lev', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right" title={t('unrealizedPnL', language)}>{t('traderDashboard.uPnL', language)}</th>
+                                                    <th className="px-1 pb-3 font-semibold text-nofx-text-muted whitespace-nowrap text-right hidden md:table-cell" title={t('liqPrice', language)}>{t('traderDashboard.liq', language)}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -644,14 +632,14 @@ export function TraderDashboardPage({
                                                                 }}
                                                                 disabled={closingPosition === pos.symbol}
                                                                 className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed mx-auto bg-nofx-red/10 text-nofx-red border border-nofx-red/30 hover:bg-nofx-red/20"
-                                                                title={language === 'zh' ? '平仓' : 'Close Position'}
+                                                                title={t('traderDashboard.closePosition', language)}
                                                             >
                                                                 {closingPosition === pos.symbol ? (
                                                                     <Loader2 className="w-3 h-3 animate-spin" />
                                                                 ) : (
                                                                     <LogOut className="w-3 h-3" />
                                                                 )}
-                                                                {language === 'zh' ? '平仓' : 'Close'}
+                                                                {t('traderDashboard.close', language)}
                                                             </button>
                                                         </td>
                                                         <td className="px-1 py-3 font-mono whitespace-nowrap text-right text-nofx-text-main hidden md:table-cell">{formatPrice(pos.entry_price)}</td>
@@ -678,13 +666,11 @@ export function TraderDashboardPage({
                                     {totalPositions > 10 && (
                                         <div className="flex flex-wrap items-center justify-between gap-3 pt-4 mt-4 text-xs border-t border-white/5 text-nofx-text-muted">
                                             <span>
-                                                {language === 'zh'
-                                                    ? `显示 ${paginatedPositions.length} / ${totalPositions} 个持仓`
-                                                    : `Showing ${paginatedPositions.length} of ${totalPositions} positions`}
+                                                {t('traderDashboard.showingPositions', language, { shown: paginatedPositions.length, total: totalPositions })}
                                             </span>
                                             <div className="flex items-center gap-3">
                                                 <div className="flex items-center gap-2">
-                                                    <span>{language === 'zh' ? '每页' : 'Per page'}:</span>
+                                                    <span>{t('traderDashboard.perPage', language)}:</span>
                                                     <select
                                                         value={positionsPageSize}
                                                         onChange={(e) => setPositionsPageSize(Number(e.target.value))}

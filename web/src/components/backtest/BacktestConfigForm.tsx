@@ -7,6 +7,8 @@ import {
   Zap,
 } from 'lucide-react'
 import type { AIModel, Strategy } from '../../types'
+import { t as globalT } from '../../i18n/translations'
+import type { Language } from '../../i18n/translations'
 
 // ============ Types ============
 
@@ -104,12 +106,12 @@ export function BacktestConfigForm({
     }
   }, [selectedStrategy])
 
-  const zh = language === 'zh'
+  const lang = language as Language
   const quickRanges = [
-    { label: zh ? '24小时' : '24h', hours: 24 },
-    { label: zh ? '3天' : '3d', hours: 72 },
-    { label: zh ? '7天' : '7d', hours: 168 },
-    { label: zh ? '30天' : '30d', hours: 720 },
+    { label: globalT('backtestConfigForm.quickRange24h', lang), hours: 24 },
+    { label: globalT('backtestConfigForm.quickRange3d', lang), hours: 72 },
+    { label: globalT('backtestConfigForm.quickRange7d', lang), hours: 168 },
+    { label: globalT('backtestConfigForm.quickRange30d', lang), hours: 720 },
   ]
 
   const applyQuickRange = (hours: number) => {
@@ -144,9 +146,9 @@ export function BacktestConfigForm({
           </div>
         ))}
         <span className="ml-2 text-xs" style={{ color: '#848E9C' }}>
-          {wizardStep === 1 ? (zh ? '选择模型' : 'Select Model')
-            : wizardStep === 2 ? (zh ? '配置参数' : 'Configure')
-            : (zh ? '确认启动' : 'Confirm')}
+          {wizardStep === 1 ? globalT('backtestConfigForm.selectModel', lang)
+            : wizardStep === 2 ? globalT('backtestConfigForm.configure', lang)
+            : globalT('backtestConfigForm.confirmStart', lang)}
         </span>
       </div>
 
@@ -196,7 +198,7 @@ export function BacktestConfigForm({
               {/* Strategy Selection (Optional) */}
               <div>
                 <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
-                  {zh ? '策略配置（可选）' : 'Strategy (Optional)'}
+                  {globalT('backtestConfigForm.strategyOptional', lang)}
                 </label>
                 <select
                   className="w-full p-3 rounded-lg text-sm"
@@ -204,7 +206,7 @@ export function BacktestConfigForm({
                   value={formState.strategyId}
                   onChange={(e) => onFormChange('strategyId', e.target.value)}
                 >
-                  <option value="">{zh ? '不使用保存的策略' : 'No saved strategy'}</option>
+                  <option value="">{globalT('backtestConfigForm.noSavedStrategy', lang)}</option>
                   {strategies?.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} {s.is_active && '✓'} {s.is_default && '⭐'}
@@ -215,7 +217,7 @@ export function BacktestConfigForm({
                   <div className="mt-2 p-2 rounded" style={{ background: 'rgba(240,185,11,0.1)', border: '1px solid rgba(240,185,11,0.2)' }}>
                     <div className="flex items-center gap-2 text-xs">
                       <span style={{ color: '#F0B90B' }}>
-                        {zh ? '币种来源:' : 'Coin Source:'}
+                        {globalT('backtestConfigForm.coinSource', lang)}
                       </span>
                       <span className="font-medium" style={{ color: '#EAECEF' }}>
                         {coinSourceDescription.type}
@@ -225,9 +227,7 @@ export function BacktestConfigForm({
                     </div>
                     {strategyHasDynamicCoins && (
                       <div className="text-xs mt-1" style={{ color: '#F0B90B' }}>
-                        {zh
-                          ? '⚡ 清空下方币种输入框即可使用策略的动态币种'
-                          : '⚡ Clear the symbols field below to use strategy\'s dynamic coins'}
+                        {globalT('backtestConfigForm.clearDynamicCoins', lang)}
                       </div>
                     )}
                   </div>
@@ -239,7 +239,7 @@ export function BacktestConfigForm({
                   {tr('form.symbolsLabel')}
                   {strategyHasDynamicCoins && (
                     <span className="ml-2" style={{ color: '#5E6673' }}>
-                      ({zh ? '可选 - 策略已配置币种来源' : 'Optional - strategy has coin source'})
+                      ({globalT('backtestConfigForm.optionalCoinSource', lang)})
                     </span>
                   )}
                 </label>
@@ -283,7 +283,7 @@ export function BacktestConfigForm({
                     onChange={(e) => onFormChange('symbols', e.target.value)}
                     rows={2}
                     placeholder={strategyHasDynamicCoins
-                      ? (zh ? '留空将使用策略配置的币种来源' : 'Leave empty to use strategy coin source')
+                      ? globalT('backtestConfigForm.leavEmptyForStrategy', lang)
                       : ''
                     }
                   />
@@ -294,7 +294,7 @@ export function BacktestConfigForm({
                       className="absolute top-2 right-2 px-2 py-1 rounded text-xs"
                       style={{ background: '#F0B90B', color: '#0B0E11' }}
                     >
-                      {zh ? '清空使用策略币种' : 'Clear to use strategy'}
+                      {globalT('backtestConfigForm.clearToUseStrategy', lang)}
                     </button>
                   )}
                 </div>
@@ -307,7 +307,7 @@ export function BacktestConfigForm({
                 className="w-full py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                 style={{ background: '#F0B90B', color: '#0B0E11' }}
               >
-                {zh ? '下一步' : 'Next'}
+                {globalT('backtestConfigForm.next', lang)}
                 <ChevronRight className="w-4 h-4" />
               </button>
             </motion.div>
@@ -359,7 +359,7 @@ export function BacktestConfigForm({
 
               <div>
                 <label className="block text-xs mb-2" style={{ color: '#848E9C' }}>
-                  {zh ? '时间周期' : 'Timeframes'}
+                  {globalT('backtestConfigForm.timeframes', lang)}
                 </label>
                 <div className="flex flex-wrap gap-1">
                   {TIMEFRAME_OPTIONS.map((tf) => {
@@ -428,7 +428,7 @@ export function BacktestConfigForm({
                   style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  {zh ? '上一步' : 'Back'}
+                  {globalT('backtestConfigForm.back', lang)}
                 </button>
                 <button
                   type="button"
@@ -436,7 +436,7 @@ export function BacktestConfigForm({
                   className="flex-1 py-2 rounded-lg font-medium flex items-center justify-center gap-2"
                   style={{ background: '#F0B90B', color: '#0B0E11' }}
                 >
-                  {zh ? '下一步' : 'Next'}
+                  {globalT('backtestConfigForm.next', lang)}
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -520,7 +520,7 @@ export function BacktestConfigForm({
 
               <div>
                 <label className="block text-xs mb-1" style={{ color: '#848E9C' }}>
-                  {zh ? '策略风格' : 'Strategy Style'}
+                  {globalT('backtestConfigForm.strategyStyle', lang)}
                 </label>
                 <div className="flex flex-wrap gap-1">
                   {['baseline', 'aggressive', 'conservative', 'scalping'].map((p) => (
@@ -570,7 +570,7 @@ export function BacktestConfigForm({
                   style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  {zh ? '上一步' : 'Back'}
+                  {globalT('backtestConfigForm.back', lang)}
                 </button>
                 <button
                   type="submit"

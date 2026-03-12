@@ -212,9 +212,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await toast.promise(api.createTrader(data), {
-        loading: '正在创建…',
-        success: '创建成功',
-        error: '创建失败',
+        loading: t('aiTradersToast.creating', language),
+        success: t('aiTradersToast.created', language),
+        error: t('aiTradersToast.createFailed', language),
       })
       setShowCreateModal(false)
       await mutateTraders()
@@ -269,9 +269,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       console.log('🔥 handleSaveEditTrader - request:', request)
 
       await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
-        loading: '正在保存…',
-        success: '保存成功',
-        error: '保存失败',
+        loading: t('aiTradersToast.saving', language),
+        success: t('aiTradersToast.saved', language),
+        error: t('aiTradersToast.saveFailed', language),
       })
       setShowEditModal(false)
       setEditingTrader(null)
@@ -290,9 +290,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
     try {
       await toast.promise(api.deleteTrader(traderId), {
-        loading: '正在删除…',
-        success: '删除成功',
-        error: '删除失败',
+        loading: t('aiTradersToast.deleting', language),
+        success: t('aiTradersToast.deleted', language),
+        error: t('aiTradersToast.deleteFailed', language),
       })
 
       await mutateTraders()
@@ -306,15 +306,15 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       if (running) {
         await toast.promise(api.stopTrader(traderId), {
-          loading: '正在停止…',
-          success: '已停止',
-          error: '停止失败',
+          loading: t('aiTradersToast.stopping', language),
+          success: t('aiTradersToast.stopped', language),
+          error: t('aiTradersToast.stopFailed', language),
         })
       } else {
         await toast.promise(api.startTrader(traderId), {
-          loading: '正在启动…',
-          success: '已启动',
-          error: '启动失败',
+          loading: t('aiTradersToast.starting', language),
+          success: t('aiTradersToast.started', language),
+          error: t('aiTradersToast.startFailed', language),
         })
       }
 
@@ -329,9 +329,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     try {
       const newValue = !currentShowInCompetition
       await toast.promise(api.toggleCompetition(traderId, newValue), {
-        loading: '正在更新…',
-        success: newValue ? '已在竞技场显示' : '已在竞技场隐藏',
-        error: '更新失败',
+        loading: t('aiTradersToast.updating', language),
+        success: newValue ? t('aiTradersToast.showInCompetition', language) : t('aiTradersToast.hideInCompetition', language),
+        error: t('aiTradersToast.updateFailed', language),
       })
 
       await mutateTraders()
@@ -393,9 +393,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
       const request = config.buildRequest(updatedItems)
       await toast.promise(config.updateApi(request), {
-        loading: '正在更新配置…',
-        success: '配置已更新',
-        error: '更新配置失败',
+        loading: t('aiTradersToast.updatingConfig', language),
+        success: t('aiTradersToast.configUpdated', language),
+        error: t('aiTradersToast.configUpdateFailed', language),
       })
 
       const refreshedItems = await config.refreshApi()
@@ -506,9 +506,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       }
 
       await toast.promise(api.updateModelConfigs(request), {
-        loading: '正在更新模型配置…',
-        success: '模型配置已更新',
-        error: '更新模型配置失败',
+        loading: t('aiTradersToast.updatingModelConfig', language),
+        success: t('aiTradersToast.modelConfigUpdated', language),
+        error: t('aiTradersToast.modelConfigUpdateFailed', language),
       })
 
       const refreshedModels = await api.getModelConfigs()
@@ -536,9 +536,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
 
     try {
       await toast.promise(api.deleteExchange(exchangeId), {
-        loading: language === 'zh' ? '正在删除交易所账户…' : 'Deleting exchange account...',
-        success: language === 'zh' ? '交易所账户已删除' : 'Exchange account deleted',
-        error: language === 'zh' ? '删除交易所账户失败' : 'Failed to delete exchange account',
+        loading: t('aiTradersToast.deletingExchange', language),
+        success: t('aiTradersToast.exchangeDeleted', language),
+        error: t('aiTradersToast.exchangeDeleteFailed', language),
       })
 
       const refreshedExchanges = await api.getExchangeConfigs()
@@ -598,9 +598,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         }
 
         await toast.promise(api.updateExchangeConfigsEncrypted(request), {
-          loading: language === 'zh' ? '正在更新交易所配置…' : 'Updating exchange config...',
-          success: language === 'zh' ? '交易所配置已更新' : 'Exchange config updated',
-          error: language === 'zh' ? '更新交易所配置失败' : 'Failed to update exchange config',
+          loading: t('aiTradersToast.updatingExchangeConfig', language),
+          success: t('aiTradersToast.exchangeConfigUpdated', language),
+          error: t('aiTradersToast.exchangeConfigUpdateFailed', language),
         })
       } else {
         const createRequest = {
@@ -622,9 +622,9 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         }
 
         await toast.promise(api.createExchangeEncrypted(createRequest), {
-          loading: language === 'zh' ? '正在创建交易所账户…' : 'Creating exchange account...',
-          success: language === 'zh' ? '交易所账户已创建' : 'Exchange account created',
-          error: language === 'zh' ? '创建交易所账户失败' : 'Failed to create exchange account',
+          loading: t('aiTradersToast.creatingExchange', language),
+          success: t('aiTradersToast.exchangeCreated', language),
+          error: t('aiTradersToast.exchangeCreateFailed', language),
         })
       }
 

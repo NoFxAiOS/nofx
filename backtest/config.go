@@ -195,7 +195,7 @@ func (cfg *BacktestConfig) ToStrategyConfig() *store.StrategyConfig {
 	if cfg.loadedStrategy != nil {
 		result := *cfg.loadedStrategy // Make a copy
 
-		// Override coin source with backtest symbols (回测指定的币对优先)
+		// Override coin source with backtest symbols (backtest-specified pairs take priority)
 		if len(cfg.Symbols) > 0 {
 			result.CoinSource.SourceType = "static"
 			result.CoinSource.StaticCoins = cfg.Symbols

@@ -1,6 +1,6 @@
 name: PR Docker Compose Healthcheck
 
-# 驗證 docker-compose.yml 的 healthcheck 配置在 Alpine 容器中正常工作
+# Verify docker-compose.yml healthcheck config works correctly in Alpine containers
 on:
   pull_request:
     branches:

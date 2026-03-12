@@ -7,6 +7,7 @@ import {
   ArrowDownRight,
 } from 'lucide-react'
 import { MetricTooltip } from '../common/MetricTooltip'
+import { t, type Language } from '../../i18n/translations'
 import { EquityChart } from './BacktestChartTab'
 import type {
   BacktestEquityPoint,
@@ -131,7 +132,7 @@ export function ProgressRing({ progress, size = 120 }: ProgressRingProps) {
 
 interface PositionsDisplayProps {
   positions: BacktestPositionStatus[]
-  language: string
+  language: Language
 }
 
 export function PositionsDisplay({ positions, language }: PositionsDisplayProps) {
@@ -151,7 +152,7 @@ export function PositionsDisplay({ positions, language }: PositionsDisplayProps)
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4" style={{ color: '#F0B90B' }} />
           <span className="text-sm font-medium" style={{ color: '#EAECEF' }}>
-            {language === 'zh' ? '当前持仓' : 'Active Positions'}
+            {t('backtestOverview.activePositions', language)}
           </span>
           <span
             className="px-1.5 py-0.5 rounded text-xs"
@@ -162,13 +163,13 @@ export function PositionsDisplay({ positions, language }: PositionsDisplayProps)
         </div>
         <div className="flex items-center gap-3 text-xs">
           <span style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '保证金' : 'Margin'}: ${totalMargin.toFixed(2)}
+            {t('backtestOverview.margin', language)}: ${totalMargin.toFixed(2)}
           </span>
           <span
             className="font-medium"
             style={{ color: totalUnrealizedPnL >= 0 ? '#0ECB81' : '#F6465D' }}
           >
-            {language === 'zh' ? '浮盈' : 'Unrealized'}: {totalUnrealizedPnL >= 0 ? '+' : ''}
+            {t('backtestOverview.unrealized', language)}: {totalUnrealizedPnL >= 0 ? '+' : ''}
             ${totalUnrealizedPnL.toFixed(2)}
           </span>
         </div>
@@ -214,8 +215,8 @@ export function PositionsDisplay({ positions, language }: PositionsDisplayProps)
                     </span>
                   </div>
                   <div className="text-[10px]" style={{ color: '#5E6673' }}>
-                    {language === 'zh' ? '数量' : 'Qty'}: {pos.quantity.toFixed(4)} ·{' '}
-                    {language === 'zh' ? '保证金' : 'Margin'}: ${pos.margin_used.toFixed(2)}
+                    {t('backtestOverview.qty', language)}: {pos.quantity.toFixed(4)} ·{' '}
+                    {t('backtestOverview.margin', language)}: ${pos.margin_used.toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -223,10 +224,10 @@ export function PositionsDisplay({ positions, language }: PositionsDisplayProps)
               <div className="text-right">
                 <div className="flex items-center gap-2 text-xs">
                   <span style={{ color: '#848E9C' }}>
-                    {language === 'zh' ? '开仓' : 'Entry'}: ${pos.entry_price.toFixed(2)}
+                    {t('backtestOverview.entry', language)}: ${pos.entry_price.toFixed(2)}
                   </span>
                   <span style={{ color: '#EAECEF' }}>
-                    {language === 'zh' ? '现价' : 'Mark'}: ${pos.mark_price.toFixed(2)}
+                    {t('backtestOverview.mark', language)}: ${pos.mark_price.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex items-center justify-end gap-1.5 mt-0.5">
@@ -255,7 +256,7 @@ interface BacktestOverviewTabProps {
   equity: BacktestEquityPoint[] | undefined
   trades: BacktestTradeEvent[] | undefined
   metrics: BacktestMetrics | undefined
-  language: string
+  language: Language
   tr: (key: string) => string
 }
 
@@ -285,7 +286,7 @@ export function BacktestOverviewTab({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
             <div className="flex items-center gap-1 text-xs" style={{ color: '#848E9C' }}>
-              {language === 'zh' ? '胜率' : 'Win Rate'}
+              {t('backtestOverview.winRate', language)}
               <MetricTooltip metricKey="win_rate" language={language} size={11} />
             </div>
             <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
@@ -294,7 +295,7 @@ export function BacktestOverviewTab({
           </div>
           <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
             <div className="flex items-center gap-1 text-xs" style={{ color: '#848E9C' }}>
-              {language === 'zh' ? '盈亏因子' : 'Profit Factor'}
+              {t('backtestOverview.profitFactor', language)}
               <MetricTooltip metricKey="profit_factor" language={language} size={11} />
             </div>
             <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
@@ -303,7 +304,7 @@ export function BacktestOverviewTab({
           </div>
           <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
             <div className="text-xs" style={{ color: '#848E9C' }}>
-              {language === 'zh' ? '总交易数' : 'Total Trades'}
+              {t('backtestOverview.totalTrades', language)}
             </div>
             <div className="text-lg font-bold" style={{ color: '#EAECEF' }}>
               {metrics.trades ?? 0}
@@ -311,7 +312,7 @@ export function BacktestOverviewTab({
           </div>
           <div className="p-3 rounded-lg" style={{ background: '#1E2329' }}>
             <div className="text-xs" style={{ color: '#848E9C' }}>
-              {language === 'zh' ? '最佳币种' : 'Best Symbol'}
+              {t('backtestOverview.bestSymbol', language)}
             </div>
             <div className="text-lg font-bold" style={{ color: '#0ECB81' }}>
               {metrics.best_symbol?.replace('USDT', '') || '-'}

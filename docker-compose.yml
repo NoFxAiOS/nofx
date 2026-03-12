@@ -6,7 +6,7 @@ services:
       dockerfile: ./docker/Dockerfile.backend
     container_name: nofx-trading
     restart: unless-stopped
-    stop_grace_period: 30s  # 允许应用有 30 秒时间优雅关闭
+    stop_grace_period: 30s  # Allow the app 30 seconds for graceful shutdown
     ports:
       - "${NOFX_BACKEND_PORT:-8080}:8080"
       - "6060:6060"  # pprof profiling

@@ -58,8 +58,8 @@ export function ConfirmDialogProvider({
   const [state, setState] = useState<ConfirmState>({
     isOpen: false,
     message: '',
-    okText: '确认',
-    cancelText: '取消',
+    okText: 'Confirm',
+    cancelText: 'Cancel',
   })
 
   const confirm = useCallback((options: ConfirmOptions): Promise<boolean> => {
@@ -68,14 +68,14 @@ export function ConfirmDialogProvider({
         isOpen: true,
         title: options.title,
         message: options.message,
-        okText: options.okText || '确认',
-        cancelText: options.cancelText || '取消',
+        okText: options.okText || 'Confirm',
+        cancelText: options.cancelText || 'Cancel',
         resolve,
       })
     })
   }, [])
 
-  // 注册全局 confirm 函数
+  // Register global confirm function
   useEffect(() => {
     setGlobalConfirm(confirm)
   }, [confirm])

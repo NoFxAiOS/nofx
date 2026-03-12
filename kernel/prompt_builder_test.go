@@ -170,8 +170,8 @@ func TestValidateDecisionFormat(t *testing.T) {
 			t.Error("Empty decisions should return error")
 		}
 
-		if !strings.Contains(err.Error(), "不能为空") {
-			t.Errorf("Error message should mention '不能为空', got: %v", err)
+		if !strings.Contains(err.Error(), "cannot be empty") {
+			t.Errorf("Error message should mention 'cannot be empty', got: %v", err)
 		}
 	})
 
@@ -238,8 +238,8 @@ func TestValidateDecisionFormat(t *testing.T) {
 			t.Error("Invalid action should return error")
 		}
 
-		if !strings.Contains(err.Error(), "无效的action") {
-			t.Errorf("Error should mention '无效的action', got: %v", err)
+		if !strings.Contains(err.Error(), "invalid action") {
+			t.Errorf("Error should mention 'invalid action', got: %v", err)
 		}
 	})
 

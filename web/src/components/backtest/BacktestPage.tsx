@@ -244,9 +244,9 @@ export function BacktestPage() {
   const handleDelete = async () => {
     if (!selectedRunId) return
     const confirmed = await confirmToast(tr('toasts.confirmDelete', { id: selectedRunId }), {
-      title: language === 'zh' ? '确认删除' : 'Confirm Delete',
-      okText: language === 'zh' ? '删除' : 'Delete',
-      cancelText: language === 'zh' ? '取消' : 'Cancel',
+      title: t('backtestPageExtra.confirmDelete', language),
+      okText: t('backtestPageExtra.delete', language),
+      cancelText: t('backtestPageExtra.cancel', language),
     })
     if (!confirmed) return
     try {
@@ -328,7 +328,7 @@ export function BacktestPage() {
             style={{ background: '#F0B90B', color: '#0B0E11' }}
           >
             <Play className="w-4 h-4" />
-            {language === 'zh' ? '新建回测' : 'New Backtest'}
+            {t('backtestPageExtra.newBacktest', language)}
           </button>
         </div>
 
@@ -474,14 +474,14 @@ export function BacktestPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <StatCard
                     icon={Target}
-                    label={language === 'zh' ? '当前净值' : 'Equity'}
+                    label={t('backtestPageExtra.equity', language)}
                     value={(status?.equity ?? 0).toFixed(2)}
                     suffix="USDT"
                     language={language}
                   />
                   <StatCard
                     icon={TrendingUp}
-                    label={language === 'zh' ? '总收益率' : 'Return'}
+                    label={t('backtestPageExtra.totalReturn', language)}
                     value={`${(metrics?.total_return_pct ?? 0).toFixed(2)}%`}
                     trend={(metrics?.total_return_pct ?? 0) >= 0 ? 'up' : 'down'}
                     color={(metrics?.total_return_pct ?? 0) >= 0 ? '#0ECB81' : '#F6465D'}
@@ -490,7 +490,7 @@ export function BacktestPage() {
                   />
                   <StatCard
                     icon={AlertTriangle}
-                    label={language === 'zh' ? '最大回撤' : 'Max DD'}
+                    label={t('backtestPageExtra.maxDD', language)}
                     value={`${(metrics?.max_drawdown_pct ?? 0).toFixed(2)}%`}
                     color="#F6465D"
                     metricKey="max_drawdown"
@@ -498,7 +498,7 @@ export function BacktestPage() {
                   />
                   <StatCard
                     icon={BarChart3}
-                    label={language === 'zh' ? '夏普比率' : 'Sharpe'}
+                    label={t('backtestPageExtra.sharpe', language)}
                     value={(metrics?.sharpe_ratio ?? 0).toFixed(2)}
                     metricKey="sharpe_ratio"
                     language={language}
@@ -516,20 +516,12 @@ export function BacktestPage() {
                         style={{ color: viewTab === tab ? '#F0B90B' : '#848E9C' }}
                       >
                         {tab === 'overview'
-                          ? language === 'zh'
-                            ? '概览'
-                            : 'Overview'
+                          ? t('backtestPageExtra.tabOverview', language)
                           : tab === 'chart'
-                            ? language === 'zh'
-                              ? '图表'
-                              : 'Chart'
+                            ? t('backtestPageExtra.tabChart', language)
                             : tab === 'trades'
-                              ? language === 'zh'
-                                ? '交易'
-                                : 'Trades'
-                              : language === 'zh'
-                                ? 'AI决策'
-                                : 'Decisions'}
+                              ? t('backtestPageExtra.tabTrades', language)
+                              : t('backtestPageExtra.tabDecisions', language)}
                         {viewTab === tab && (
                           <motion.div
                             layoutId="tab-indicator"

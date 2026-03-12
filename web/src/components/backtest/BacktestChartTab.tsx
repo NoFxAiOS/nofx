@@ -29,6 +29,7 @@ import {
   CandlestickChart as CandlestickIcon,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { t, type Language } from '../../i18n/translations'
 import type {
   BacktestEquityPoint,
   BacktestTradeEvent,
@@ -136,7 +137,7 @@ export function EquityChart({ equity, trades }: EquityChartProps) {
 interface CandlestickChartProps {
   runId: string
   trades: BacktestTradeEvent[]
-  language: string
+  language: Language
 }
 
 export function CandlestickChartComponent({ runId, trades, language }: CandlestickChartProps) {
@@ -289,7 +290,7 @@ export function CandlestickChartComponent({ runId, trades, language }: Candlesti
   if (symbols.length === 0) {
     return (
       <div className="py-12 text-center" style={{ color: '#5E6673' }}>
-        {language === 'zh' ? '没有交易记录' : 'No trades to display'}
+        {t('backtestChart.noTrades', language)}
       </div>
     )
   }
@@ -300,7 +301,7 @@ export function CandlestickChartComponent({ runId, trades, language }: Candlesti
         <div className="flex items-center gap-2">
           <CandlestickIcon size={16} style={{ color: '#F0B90B' }} />
           <span className="text-sm" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '币种' : 'Symbol'}
+            {t('backtestChart.symbol', language)}
           </span>
           <select
             value={selectedSymbol}
@@ -319,7 +320,7 @@ export function CandlestickChartComponent({ runId, trades, language }: Candlesti
         <div className="flex items-center gap-2">
           <Clock size={14} style={{ color: '#848E9C' }} />
           <span className="text-sm" style={{ color: '#848E9C' }}>
-            {language === 'zh' ? '周期' : 'Interval'}
+            {t('backtestChart.interval', language)}
           </span>
           <div className="flex rounded overflow-hidden" style={{ border: '1px solid #2B3139' }}>
             {CHART_TIMEFRAMES.map((tf) => (
@@ -339,7 +340,7 @@ export function CandlestickChartComponent({ runId, trades, language }: Candlesti
         </div>
 
         <span className="text-xs" style={{ color: '#5E6673' }}>
-          ({symbolTrades.length} {language === 'zh' ? '笔交易' : 'trades'})
+          ({symbolTrades.length} {t('backtestChart.trades', language)})
         </span>
       </div>
 
@@ -351,7 +352,7 @@ export function CandlestickChartComponent({ runId, trades, language }: Candlesti
         {isLoading && (
           <div className="flex items-center justify-center h-[400px]" style={{ color: '#848E9C' }}>
             <RefreshCw className="animate-spin mr-2" size={16} />
-            {language === 'zh' ? '加载K线数据...' : 'Loading kline data...'}
+            {t('backtestChart.loadingKline', language)}
           </div>
         )}
         {error && (
@@ -365,14 +366,14 @@ export function CandlestickChartComponent({ runId, trades, language }: Candlesti
       <div className="flex items-center gap-4 text-xs" style={{ color: '#848E9C' }}>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#0ECB81' }} />
-          <span>{language === 'zh' ? '开仓/盈利' : 'Open/Profit'}</span>
+          <span>{t('backtestChart.openProfit', language)}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#F6465D' }} />
-          <span>{language === 'zh' ? '亏损平仓' : 'Loss Close'}</span>
+          <span>{t('backtestChart.lossClose', language)}</span>
         </div>
         <span style={{ color: '#5E6673' }}>|</span>
-        <span>▲ Long · ▼ Short · ✕ {language === 'zh' ? '平仓' : 'Close'}</span>
+        <span>▲ Long · ▼ Short · ✕ {t('backtestChart.close', language)}</span>
       </div>
     </div>
   )
@@ -384,7 +385,7 @@ interface BacktestChartTabProps {
   equity: BacktestEquityPoint[] | undefined
   trades: BacktestTradeEvent[] | undefined
   selectedRunId: string
-  language: string
+  language: Language
   tr: (key: string) => string
 }
 
@@ -405,7 +406,7 @@ export function BacktestChartTab({
     >
       <div>
         <h4 className="text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
-          {language === 'zh' ? '资金曲线' : 'Equity Curve'}
+          {t('backtestChart.equityCurve', language)}
         </h4>
         {equity && equity.length > 0 ? (
           <EquityChart equity={equity} trades={trades ?? []} />
@@ -419,7 +420,7 @@ export function BacktestChartTab({
       {selectedRunId && trades && trades.length > 0 && (
         <div>
           <h4 className="text-sm font-medium mb-3" style={{ color: '#EAECEF' }}>
-            {language === 'zh' ? 'K线图 & 交易标记' : 'Candlestick & Trade Markers'}
+            {t('backtestChart.candlestickTradeMarkers', language)}
           </h4>
           <CandlestickChartComponent
             runId={selectedRunId}

@@ -23,7 +23,7 @@ type NetFlowResponse struct {
 		Netflows  []NetFlowPosition `json:"netflows"`
 		Count     int               `json:"count"`
 		Type      string            `json:"type"`      // institution or personal
-		Trade     string            `json:"trade"`     // 合约 or 现货
+		Trade     string            `json:"trade"`     // futures or spot
 		TimeRange string            `json:"time_range"`
 		RankType  string            `json:"rank_type"` // top or low
 		Limit     int               `json:"limit"`

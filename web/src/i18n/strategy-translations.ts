@@ -31,6 +31,20 @@ export const coinSource = {
   excludedCoinsDesc: { zh: '这些币种将从所有数据源中排除，不会被交易', en: 'These coins will be excluded from all sources and will not be traded', es: 'Estas monedas serán excluidas de todas las fuentes' },
   addExcludedCoin: { zh: '添加排除', en: 'Add Excluded', es: 'Agregar Excluida' },
   nofxosNote: { zh: '使用 NofxOS API Key（在指标配置中设置）', en: 'Uses NofxOS API Key (set in Indicators config)', es: 'Usa API Key de NofxOS' },
+  ai500Desc: { zh: '使用 AI500 智能筛选的热门币种', en: 'Use AI500 smart-filtered popular coins', es: 'Monedas filtradas por AI500' },
+  oiTopDesc: { zh: '持仓增加榜，适合做多', en: 'OI increase ranking, for long', es: 'Ranking OI creciente, para largo' },
+  oi_lowDesc: { zh: '持仓减少榜，适合做空', en: 'OI decrease ranking, for short', es: 'Ranking OI decreciente, para corto' },
+  mixedDesc: { zh: '组合多种数据源', en: 'Combine multiple sources', es: 'Combinar fuentes múltiples' },
+  oiIncreaseShort: { zh: 'OI增', en: 'OI↑', es: 'OI↑' },
+  oiDecreaseShort: { zh: 'OI减', en: 'OI↓', es: 'OI↓' },
+  custom: { zh: '自定义', en: 'Custom', es: 'Personalizado' },
+  excludedNone: { zh: '无', en: 'None', es: 'Ninguno' },
+  oiIncreaseTitle: { zh: 'OI 持仓增加榜', en: 'OI Increase', es: 'OI Aumento' },
+  oiDecreaseTitle: { zh: 'OI 持仓减少榜', en: 'OI Decrease', es: 'OI Disminución' },
+  oiIncreaseLabel: { zh: 'OI 增加', en: 'OI Increase', es: 'OI Aumento' },
+  forLong: { zh: '适合做多', en: 'For long', es: 'Para largo' },
+  oiDecreaseLabel: { zh: 'OI 减少', en: 'OI Decrease', es: 'OI Disminución' },
+  forShort: { zh: '适合做空', en: 'For short', es: 'Para corto' },
 };
 
 // ============================================================================
@@ -83,6 +97,8 @@ export const gridConfig = {
   modeLong: { zh: '全多：100%买 + 0%卖', en: 'Long: 100% buy + 0% sell', es: 'Largo: 100% compra' },
   modeShortBias: { zh: '偏空：(100-X)%买 + X%卖', en: 'Short Bias: (100-X)% buy + X% sell', es: 'Sesgo Corto: X% venta' },
   modeShort: { zh: '全空：0%买 + 100%卖', en: 'Short: 0% buy + 100% sell', es: 'Corto: 100% venta' },
+  buy: { zh: '买', en: 'buy', es: 'compra' },
+  sell: { zh: '卖', en: 'sell', es: 'venta' },
 };
 
 // ============================================================================
@@ -172,6 +188,7 @@ export const promptSections = {
   decisionProcessDesc: { zh: '设定决策步骤和思考流程', en: 'Set decision steps and thinking process', es: 'Establecer proceso' },
   resetToDefault: { zh: '重置为默认', en: 'Reset to Default', es: 'Restablecer' },
   chars: { zh: '字符', en: 'chars', es: 'caracteres' },
+  modified: { zh: '已修改', en: 'Modified', es: 'Modificado' },
 };
 
 // ============================================================================
@@ -235,6 +252,7 @@ export const indicator = {
   connected: { zh: '已配置', en: 'Configured', es: 'Configurado' },
   notConfigured: { zh: '未配置', en: 'Not Configured', es: 'No Configurado' },
   nofxosDataSources: { zh: 'NofxOS 数据源', en: 'NofxOS Data Sources', es: 'Fuentes NofxOS' },
+  configureApiKey: { zh: '请配置 API Key 以启用 NofxOS 数据源', en: 'Please configure API Key to enable NofxOS data sources', es: 'Configure API Key para habilitar NofxOS' },
 };
 
 // ============================================================================
@@ -261,6 +279,14 @@ export const chartTabs = {
   metals: { zh: '金属', en: 'Metals', es: 'Metales' },
   hyperliquid: { zh: 'HL', en: 'HL', es: 'HL' },
 };
+
+// ============================================================================
+// HELPER FUNCTION
+// ============================================================================
+
+export function ts(entry: { zh: string; en: string; [k: string]: string }, lang: string): string {
+  return entry[lang] ?? entry.en ?? ''
+}
 
 // ============================================================================
 // AGGREGATED EXPORTS FOR TRANSLATIONS.TS

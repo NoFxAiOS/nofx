@@ -69,6 +69,8 @@ func NewClaw402ClientWithOptions(opts ...mcp.ClientOption) mcp.AIClient {
 		mcp.WithProvider(mcp.ProviderClaw402),
 		mcp.WithModel(DefaultClaw402Model),
 		mcp.WithBaseURL(DefaultClaw402URL),
+		mcp.WithTimeout(X402Timeout),
+		mcp.WithMaxRetries(1), // disable outer retry — inner x402 loop handles retries; outer retry causes duplicate payments
 	}
 	allOpts := append(baseOpts, opts...)
 	baseClient := mcp.NewClient(allOpts...).(*mcp.Client)

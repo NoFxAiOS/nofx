@@ -1,11 +1,11 @@
 #!/bin/sh
 set -e
 
-# Railway 会设置 PORT 环境变量
+# Railway sets the PORT environment variable
 export PORT=${PORT:-8080}
 echo "🚀 Starting NOFX on port $PORT..."
 
-# 生成加密密钥（如果没有设置）
+# Generate encryption keys (if not already set)
 if [ -z "$RSA_PRIVATE_KEY" ]; then
     export RSA_PRIVATE_KEY=$(openssl genrsa 2048 2>/dev/null)
 fi
@@ -13,7 +13,7 @@ if [ -z "$DATA_ENCRYPTION_KEY" ]; then
     export DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
 fi
 
-# 生成 nginx 配置
+# Generate nginx config
 cat > /etc/nginx/http.d/default.conf << NGINX_EOF
 server {
     listen $PORT;
@@ -44,14 +44,14 @@ server {
 }
 NGINX_EOF
 
-# 启动后端（端口 8081）
+# Start backend (port 8081)
 API_SERVER_PORT=8081 /app/nofx &
 sleep 2
 
-# 启动 nginx（后台）
+# Start nginx (background)
 nginx
 
 echo "✅ NOFX started successfully"
 
-# 保持容器运行
+# Keep the container running
 tail -f /dev/null

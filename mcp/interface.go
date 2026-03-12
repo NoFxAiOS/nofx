@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"net/http"
 	"time"
 )
 
@@ -25,4 +26,28 @@ type AIClient interface {
 	// either a plain text reply (LLMResponse.Content) or tool invocations
 	// (LLMResponse.ToolCalls), but not both.
 	CallWithRequestFull(req *Request) (*LLMResponse, error)
+}
+
+// ClientHooks is an alias for clientHooks to maintain compatibility
+type ClientHooks clientHooks
+
+// clientHooks is the internal dispatch interface used to implement per-provider
+// polymorphism without Go's lack of virtual methods.
+type clientHooks interface {
+	// ── Simple CallWithMessages path ────────────────────────────────────────
+	Call(systemPrompt, userPrompt string) (string, error)
+	BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any
+
+	// ── Shared request plumbing ─────────────────────────────────────────────
+	BuildUrl() string
+	BuildRequest(url string, jsonData []byte) (*http.Request, error)
+	SetAuthHeader(reqHeaders http.Header)
+	MarshalRequestBody(requestBody map[string]any) ([]byte, error)
+
+	// ── Advanced (Request-object) path ──────────────────────────────────────
+	BuildRequestBodyFromRequest(req *Request) map[string]any
+	ParseMCPResponse(body []byte) (string, error)
+	ParseMCPResponseFull(body []byte) (*LLMResponse, error)
+
+	IsRetryableError(err error) bool
 }

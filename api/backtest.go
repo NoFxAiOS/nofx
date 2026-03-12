@@ -832,6 +832,8 @@ func (s *Server) hydrateBacktestAIConfig(cfg *backtest.BacktestConfig) error {
 			provider = "google"
 		} else if strings.Contains(modelNameLower, "deepseek") {
 			provider = "deepseek"
+		} else if strings.Contains(modelNameLower, "minimax") {
+			provider = "minimax"
 		} else if model.CustomAPIURL != "" {
 			provider = "custom"
 		} else {

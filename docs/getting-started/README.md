@@ -44,6 +44,19 @@ Use custom AI models or third-party OpenAI-compatible APIs:
 
 ---
 
+### 💳 BlockRun Wallet (Pay-per-Request, No API Key)
+
+Access all top AI models by paying with USDC — no API key signup required.
+
+| Provider | Guide | Payment Network |
+|----------|-------|-----------------|
+| BlockRun (Base Wallet) | [blockrun-base-wallet.md](blockrun-base-wallet.md) | Base (EVM) · USDC |
+| BlockRun (Solana Wallet) | [blockrun-sol-wallet.md](blockrun-sol-wallet.md) | Solana · USDC |
+
+**How it works:** Each AI request automatically pays a micro-USDC fee via the [x402 payment protocol](https://blockrun.ai). Your private key signs the payment authorization — no funds leave your wallet until the AI response is delivered.
+
+---
+
 ## 🔑 Prerequisites
 
 Before starting, ensure you have:

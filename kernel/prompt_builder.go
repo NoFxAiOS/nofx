@@ -83,7 +83,7 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT|UPDATE_STOP_LOSS",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,
@@ -192,6 +192,14 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 
 ### Risk First
 - Margin usage must not exceed 30%
+- Must stop-loss when single position loss reaches -5% (hard_stop_loss_pct)
+- When UnrealizedPnL reaches +3% (breakeven_threshold), move stop-loss to entry price to protect principal
+- Use update_stop_loss action to adjust stop-loss during position (only move in profitable direction)
+- Capital protection first, profit second
+
+### Trailing Take-Profit
+- Consider partial/full profit-taking when PnL pulls back 30% from peak (trailing_stop_pct)
+- Margin usage must not exceed 30%
 - Must stop-loss when single position loss reaches -5%
 - Capital protection first, profit second
 
@@ -218,7 +226,7 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 [
   {
     "symbol": "BTCUSDT",
-    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT",
+    "action": "HOLD|PARTIAL_CLOSE|FULL_CLOSE|ADD_POSITION|OPEN_NEW|WAIT|UPDATE_STOP_LOSS",
     "leverage": 3,
     "position_size_usd": 1000,
     "stop_loss": 42000,

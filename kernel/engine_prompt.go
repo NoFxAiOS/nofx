@@ -69,7 +69,27 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString(fmt.Sprintf("- Trading Leverage: Altcoins max %dx | BTC/ETH max %dx\n",
 		riskControl.AltcoinMaxLeverage, riskControl.BTCETHMaxLeverage))
 	sb.WriteString(fmt.Sprintf("- Risk-Reward Ratio: ≥1:%.1f (take_profit / stop_loss)\n", riskControl.MinRiskRewardRatio))
-	sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
+	 sb.WriteString(fmt.Sprintf("- Min Confidence: ≥%d to open position\n\n", riskControl.MinConfidence))
+
+	// Add breakeven and trailing stop parameters if set
+	if riskControl.BreakevenThreshold > 0 {
+		sb.WriteString(fmt.Sprintf("- Breakeven: When UnrealizedPnL reaches +%.1f%%, move stop-loss to entry price (protect principal)\n", riskControl.BreakevenThreshold))
+	}
+	if riskControl.UpdateStopLossEnabled {
+		sb.WriteString("- Dynamic Stop-Loss: Use update_stop_loss action to adjust stop-loss during position (only move in profitable direction)\n")
+	}
+	if riskControl.HardStopLossPct != 0 {
+		sb.WriteString(fmt.Sprintf("- Hard Stop-Loss: -%.1f%% triggers stop-loss\n", -riskControl.HardStopLossPct))
+	}
+	if riskControl.TrailingStopPct > 0 {
+		sb.WriteString(fmt.Sprintf("- Trailing Stop: When PnL pulls back %.1f%% from peak, consider partial/full close\n", riskControl.TrailingStopPct))
+	}
+	if riskControl.TrailingStopMinProfit > 0 {
+		sb.WriteString(fmt.Sprintf("- Trailing Min Profit: +%.1f%% required before trailing activates\n", riskControl.TrailingStopMinProfit))
+	}
+	if riskControl.TrailingStopDrawdown > 0 {
+		sb.WriteString(fmt.Sprintf("- Trailing Drawdown: Auto-close when drawdown reaches %.1f%% from peak\n", riskControl.TrailingStopDrawdown))
+	}
 
 	// Position sizing guidance
 	sb.WriteString("## Position Sizing Guidance\n")

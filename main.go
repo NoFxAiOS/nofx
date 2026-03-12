@@ -6,7 +6,7 @@ import (
 	"nofx/backtest"
 	"nofx/config"
 	"nofx/crypto"
-	"nofx/experience"
+	"nofx/telemetry"
 	"nofx/logger"
 	"nofx/manager"
 	"nofx/mcp"
@@ -194,5 +194,5 @@ func initInstallationID(st *store.Store) {
 	}
 
 	// Set installation ID in experience module
-	experience.SetInstallationID(installationID)
+	telemetry.SetInstallationID(installationID)
 }

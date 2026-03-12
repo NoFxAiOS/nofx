@@ -3,7 +3,7 @@ package trader
 import (
 	"fmt"
 	"math"
-	"nofx/experience"
+	"nofx/telemetry"
 	"nofx/kernel"
 	"nofx/logger"
 	"nofx/market"
@@ -345,7 +345,7 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 
 	// Send anonymous trade statistics for experience improvement (async, non-blocking)
 	// This helps us understand overall product usage across all deployments
-	experience.TrackTrade(experience.TradeEvent{
+	telemetry.TrackTrade(telemetry.TradeEvent{
 		Exchange:  at.exchange,
 		TradeType: action,
 		Symbol:    symbol,

@@ -76,7 +76,7 @@ x402 流程：
 
 | 功能 | 描述 |
 |:--------|:------------|
-| **多 AI** | DeepSeek、Qwen、GPT、Claude、Gemini、Grok、Kimi — 随时切换 |
+| **多 AI** | DeepSeek、Qwen、GPT、Claude、Gemini、Grok、Kimi、MiniMax — 随时切换 |
 | **多交易所** | Binance、Bybit、OKX、Bitget、KuCoin、Gate、Hyperliquid、Aster、Lighter |
 | **策略工作室** | 可视化构建器 — 币种来源、指标、风控 |
 | **AI 竞赛** | AI 实时竞争，排行榜排名 |
@@ -118,6 +118,7 @@ x402 流程：
 | <img src="../../../web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [获取 API Key](https://aistudio.google.com) |
 | <img src="../../../web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [获取 API Key](https://console.x.ai) |
 | <img src="../../../web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [获取 API Key](https://platform.moonshot.cn) |
+| <img src="../../../web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [获取 API Key](https://platform.minimax.io) |
 
 ### AI 模型 (x402 模式 — 无需 API Key)
 

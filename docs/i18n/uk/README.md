@@ -74,7 +74,7 @@ x402 процес:
 
 | Функція | Опис |
 |:--------|:------------|
-| **Мульти-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — перемикання будь-коли |
+| **Мульти-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — перемикання будь-коли |
 | **Мульти-біржа** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
 | **Студія стратегій** | Візуальний конструктор — джерела монет, індикатори, контроль ризиків |
 | **AI Арена дебатів** | Кілька AI обговорюють угоди, голосують, виконують |
@@ -117,6 +117,7 @@ x402 процес:
 | <img src="../../../web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [Отримати](https://aistudio.google.com) |
 | <img src="../../../web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [Отримати](https://console.x.ai) |
 | <img src="../../../web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [Отримати](https://platform.moonshot.cn) |
+| <img src="../../../web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [Отримати](https://platform.minimax.io) |
 
 ### AI Моделі (Режим x402 — без API ключів)
 

@@ -74,7 +74,7 @@ Also compatible with **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** 
 
 | Feature | Description |
 |:--------|:------------|
-| **Multi-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi — switch anytime |
+| **Multi-AI** | DeepSeek, Qwen, GPT, Claude, Gemini, Grok, Kimi, MiniMax — switch anytime |
 | **Multi-Exchange** | Binance, Bybit, OKX, Bitget, KuCoin, Gate, Hyperliquid, Aster, Lighter |
 | **Strategy Studio** | Visual builder — coin sources, indicators, risk controls |
 | **AI Competition** | AIs compete in real-time, leaderboard ranks performance |
@@ -116,6 +116,7 @@ Crypto · US Stocks · Forex · Metals
 | <img src="web/public/icons/gemini.svg" width="20" height="20" style="vertical-align: middle;"/> **Gemini** | ✅ | [Get API Key](https://aistudio.google.com) |
 | <img src="web/public/icons/grok.svg" width="20" height="20" style="vertical-align: middle;"/> **Grok** | ✅ | [Get API Key](https://console.x.ai) |
 | <img src="web/public/icons/kimi.svg" width="20" height="20" style="vertical-align: middle;"/> **Kimi** | ✅ | [Get API Key](https://platform.moonshot.cn) |
+| <img src="web/public/icons/minimax.svg" width="20" height="20" style="vertical-align: middle;"/> **MiniMax** | ✅ | [Get API Key](https://platform.minimax.io) |
 
 ### AI Models (x402 Mode — No API Key)
 

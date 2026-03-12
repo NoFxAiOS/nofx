@@ -1,7 +1,7 @@
 package config
 
 import (
-	"nofx/experience"
+	"nofx/telemetry"
 	"nofx/mcp"
 	"os"
 	"strconv"
@@ -122,11 +122,11 @@ func Init() {
 	global = cfg
 
 	// Initialize experience improvement (installation ID will be set after database init)
-	experience.Init(cfg.ExperienceImprovement, "")
+	telemetry.Init(cfg.ExperienceImprovement, "")
 
 	// Set up AI token usage tracking callback
 	mcp.TokenUsageCallback = func(usage mcp.TokenUsage) {
-		experience.TrackAIUsage(experience.AIUsageEvent{
+		telemetry.TrackAIUsage(telemetry.AIUsageEvent{
 			ModelProvider: usage.Provider,
 			ModelName:     usage.Model,
 			InputTokens:   usage.PromptTokens,

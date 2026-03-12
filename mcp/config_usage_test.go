@@ -84,7 +84,7 @@ func TestConfig_Temperature_IsUsed(t *testing.T) {
 	c := client.(*Client)
 
 	// Build request body
-	requestBody := c.buildMCPRequestBody("system", "user")
+	requestBody := c.BuildMCPRequestBody("system", "user")
 
 	// Verify temperature field
 	temp, ok := requestBody["temperature"].(float64)
@@ -201,7 +201,7 @@ func TestConfig_RetryableErrors_IsUsed(t *testing.T) {
 	c := client.(*Client)
 
 	// Modify config's RetryableErrors (no WithRetryableErrors option yet)
-	c.config.RetryableErrors = customRetryableErrors
+	c.Cfg.RetryableErrors = customRetryableErrors
 
 	tests := []struct {
 		name      string
@@ -227,7 +227,7 @@ func TestConfig_RetryableErrors_IsUsed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := c.isRetryableError(tt.err)
+			result := c.IsRetryableError(tt.err)
 			if result != tt.retryable {
 				t.Errorf("expected isRetryableError(%v) = %v, got %v", tt.err, tt.retryable, result)
 			}
@@ -244,19 +244,19 @@ func TestConfig_DefaultValues(t *testing.T) {
 	c := client.(*Client)
 
 	// Verify default values
-	if c.config.MaxRetries != 3 {
-		t.Errorf("default MaxRetries should be 3, got %d", c.config.MaxRetries)
+	if c.Cfg.MaxRetries != 3 {
+		t.Errorf("default MaxRetries should be 3, got %d", c.Cfg.MaxRetries)
 	}
 
-	if c.config.Temperature != 0.5 {
-		t.Errorf("default Temperature should be 0.5, got %f", c.config.Temperature)
+	if c.Cfg.Temperature != 0.5 {
+		t.Errorf("default Temperature should be 0.5, got %f", c.Cfg.Temperature)
 	}
 
-	if c.config.RetryWaitBase != 2*time.Second {
-		t.Errorf("default RetryWaitBase should be 2s, got %v", c.config.RetryWaitBase)
+	if c.Cfg.RetryWaitBase != 2*time.Second {
+		t.Errorf("default RetryWaitBase should be 2s, got %v", c.Cfg.RetryWaitBase)
 	}
 
-	if len(c.config.RetryableErrors) == 0 {
+	if len(c.Cfg.RetryableErrors) == 0 {
 		t.Error("default RetryableErrors should not be empty")
 	}
 }

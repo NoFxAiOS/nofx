@@ -20,7 +20,7 @@ import {
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { toast } from 'sonner'
-import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 
 interface PublicStrategy {
   id: string

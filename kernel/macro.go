@@ -296,14 +296,14 @@ func BuildMacroBrief(ctx *Context, engine *StrategyEngine) (string, error) {
 
 	// OI
 	if ctx.OIRankingData != nil {
-		sb.WriteString(formatMacroOISummary(ctx.OIRankingData, priceTopN))
+		sb.WriteString(formatMacroOISummary(ctx.OIRankingData, oiLimit))
 	} else {
 		sb.WriteString("### OI Flow\n(unavailable)\n")
 	}
 
 	// NetFlow
 	if ctx.NetFlowRankingData != nil {
-		sb.WriteString(formatMacroNetFlowSummary(ctx.NetFlowRankingData, priceTopN))
+		sb.WriteString(formatMacroNetFlowSummary(ctx.NetFlowRankingData, oiLimit))
 	} else {
 		sb.WriteString("### NetFlow\n(unavailable)\n")
 	}

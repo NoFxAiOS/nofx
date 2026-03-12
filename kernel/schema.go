@@ -155,7 +155,7 @@ var DataDictionary = map[string]map[string]BilingualFieldDef{
 			NameZH: "峰值盈亏百分比",
 			NameEN: "Peak PnL Percentage",
 			Unit:   "%",
-			DescZH: "该持仓曾经达到的最高未实现盈亏。用于判断是否需要止盈",
+			DescZH: "该持仓曾经达到的峰值未实现盈亏。用于判断是否需要止盈",
 			DescEN: "Historical max unrealized PnL for this position. Used for take-profit decisions",
 		},
 		"Drawdown": {
@@ -306,7 +306,7 @@ var TradingRules = struct {
 			Value:    0.30,
 			DescZH:   "当盈亏从峰值回撤30%时平仓止盈",
 			DescEN:   "Close position when PnL pulls back 30% from peak",
-			ReasonZH: "锁定大部分利润，避免盈利回吐。例如：峰值+5%，回撤到+3.5%时平仓",
+			ReasonZH: "止盈：锁定大部分利润，避免盈利回吐。例如：峰值+5%，回撤到+3.5%时平仓",
 			ReasonEN: "Lock in most profits, avoid profit giveback. E.g., Peak +5%, close at +3.5%",
 		},
 		"StopLoss": {

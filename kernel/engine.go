@@ -499,10 +499,8 @@ func getFullDecisionMacroMicro(ctx *Context, mcpClient mcp.AIClient, engine *Str
 	// 7. Sizing adjustment: apply margin rules (main vs altcoin), adjust sizes/leverage; can change multiple positions at once
 	merged = runSizingAdjustmentStep(ctx, engine, mcpClient, merged, macroBrief, riskConfig)
 
-	// 8. Validate and build FullDecision
-	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio, riskConfig.MinRiskRewardRatio, riskConfig.MinPositionSize); err != nil {
-		logger.Warnf("[macro-micro] decision validation: %v", err)
-	}
+	// 8. Validate: downgrade any open_long/open_short that fails RR/size/SL-TP so they are not executed
+	filterInvalidOpenDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio, riskConfig.MinRiskRewardRatio, riskConfig.MinPositionSize)
 	logger.Infof("[macro-micro] Flow complete: %d merged decision(s)", len(merged))
 	cotTrace := fmt.Sprintf("Macro trend=%s risk=%s. Deep-dives: %d symbols. Position check: %d positions. Sizing adjustment applied.", macroOut.Trend, macroOut.RiskLevel, len(macroOut.SymbolsForDeepDive), len(ctx.Positions))
 	return &FullDecision{
@@ -759,16 +757,15 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 			copy(preAdjustment, merged)
 			if adjusted, errParse := extractDecisions(responseSizing); errParse == nil && len(adjusted) > 0 {
 				mergeReasoningFrom(adjusted, preAdjustment)
+				mergeSLTPFrom(adjusted, preAdjustment)
 				merged = appendHoldWaitFrom(adjusted, preAdjustment)
 			}
 			logger.Infof("[macro-micro] Sizing adjustment (trace): %d decision(s)", len(merged))
 		}
 	}
 
-	// 8. Validate and build FullDecision
-	if err := validateDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio, riskConfig.MinRiskRewardRatio, riskConfig.MinPositionSize); err != nil {
-		logger.Warnf("[macro-micro] decision validation: %v", err)
-	}
+	// 8. Validate: downgrade any open_long/open_short that fails RR/size/SL-TP so they are not executed
+	filterInvalidOpenDecisions(merged, ctx.Account.TotalEquity, riskConfig.BTCETHMaxLeverage, riskConfig.AltcoinMaxLeverage, riskConfig.BTCETHMaxPositionValueRatio, riskConfig.AltcoinMaxPositionValueRatio, riskConfig.MinRiskRewardRatio, riskConfig.MinPositionSize)
 	logger.Infof("[macro-micro] Flow complete with trace: %d merged decision(s)", len(merged))
 	cotTrace := fmt.Sprintf("Macro trend=%s risk=%s. Deep-dives: %d symbols. Position check: %d positions. Sizing adjustment applied.", macroOut.Trend, macroOut.RiskLevel, len(macroOut.SymbolsForDeepDive), len(ctx.Positions))
 	fullDecision := &FullDecision{
@@ -2381,6 +2378,35 @@ func mergeReasoningFrom(adjusted []Decision, from []Decision) {
 	}
 }
 
+// mergeSLTPFrom copies stop_loss and take_profit from the pre-adjustment list into adjusted open_long/open_short decisions when the adjusted decision has zero SL or TP (sizing step may omit them).
+func mergeSLTPFrom(adjusted []Decision, from []Decision) {
+	bySymbol := make(map[string]Decision)
+	for i := range from {
+		n := market.Normalize(from[i].Symbol)
+		if n != "" && (from[i].StopLoss > 0 || from[i].TakeProfit > 0) {
+			bySymbol[n] = from[i]
+		}
+	}
+	for i := range adjusted {
+		action := strings.ToLower(strings.TrimSpace(adjusted[i].Action))
+		if action != "open_long" && action != "open_short" {
+			continue
+		}
+		if adjusted[i].StopLoss > 0 && adjusted[i].TakeProfit > 0 {
+			continue
+		}
+		n := market.Normalize(adjusted[i].Symbol)
+		if src, ok := bySymbol[n]; ok {
+			if adjusted[i].StopLoss <= 0 && src.StopLoss > 0 {
+				adjusted[i].StopLoss = src.StopLoss
+			}
+			if adjusted[i].TakeProfit <= 0 && src.TakeProfit > 0 {
+				adjusted[i].TakeProfit = src.TakeProfit
+			}
+		}
+	}
+}
+
 // runSizingAdjustmentStep runs one AI call to adjust merged decisions per margin rules; returns adjusted list or original on failure.
 // Reasoning from position-check and deep-dives is preserved when the sizing response omits it.
 func runSizingAdjustmentStep(ctx *Context, engine *StrategyEngine, mcpClient mcp.AIClient, merged []Decision, macroBrief string, riskConfig store.RiskControlConfig) []Decision {
@@ -2400,6 +2426,7 @@ func runSizingAdjustmentStep(ctx *Context, engine *StrategyEngine, mcpClient mcp
 		return merged
 	}
 	mergeReasoningFrom(adjusted, merged)
+	mergeSLTPFrom(adjusted, merged)
 	adjusted = appendHoldWaitFrom(adjusted, merged)
 	logger.Infof("[macro-micro] Sizing adjustment: %d decision(s)", len(adjusted))
 	return adjusted
@@ -3001,6 +3028,7 @@ func compactArrayOpen(s string) string {
 // Decision Validation
 // ============================================================================
 
+// validateDecisions validates each decision; on failure returns the first error.
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize float64) error {
 	for i := range decisions {
 		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize); err != nil {
@@ -3008,6 +3036,31 @@ func validateDecisions(decisions []Decision, accountEquity float64, btcEthLevera
 		}
 	}
 	return nil
+}
+
+// filterInvalidOpenDecisions runs validation per decision; any open_long/open_short that fails is downgraded to "wait" so it is not executed. Logs each downgrade.
+func filterInvalidOpenDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize float64) {
+	for i := range decisions {
+		d := &decisions[i]
+		action := strings.ToLower(strings.TrimSpace(d.Action))
+		if action != "open_long" && action != "open_short" {
+			continue
+		}
+		if err := validateDecision(d, accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize); err != nil {
+			logger.Warnf("[macro-micro] decision validation failed for %s %s: %v — downgrading to wait (position will not be opened)", d.Symbol, d.Action, err)
+			d.Action = "wait"
+			d.Leverage = 0
+			d.PositionSizeUSD = 0
+			d.StopLoss = 0
+			d.TakeProfit = 0
+			d.RiskUSD = 0
+			if d.Reasoning != "" {
+				d.Reasoning = fmt.Sprintf("[Validation failed: %v] %s", err, d.Reasoning)
+			} else {
+				d.Reasoning = fmt.Sprintf("Validation failed: %v", err)
+			}
+		}
+	}
 }
 
 func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio, minRiskRewardRatio, minPositionSize float64) error {

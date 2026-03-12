@@ -85,17 +85,16 @@ type DecisionAction struct {
 	Quantity   float64   `json:"quantity"`
 	Leverage   int       `json:"leverage"`
 	Price      float64   `json:"price"`
-	StopLoss   float64   `json:"stop_loss,omitempty"`   // Stop loss price
-	TakeProfit float64   `json:"take_profit,omitempty"` // Take profit price
-	Confidence int       `json:"confidence,omitempty"`  // AI confidence (0-100)
-	Reasoning  string    `json:"reasoning,omitempty"`   // Brief reasoning
-	OrderID    int64     `json:"order_id"`
-	Timestamp  time.Time `json:"timestamp"`
-	Success    bool      `json:"success"`
-	Error      string    `json:"error"`
+	StopLoss   float64   `json:"stop_loss,omitempty"`        // Initial stop loss price
+	UpdatedStopLoss float64 `json:"updated_stop_loss,omitempty"` // Updated stop loss price (via update_stop_loss action)
+	TakeProfit   float64   `json:"take_profit,omitempty"` // Take profit price
+	Confidence   int       `json:"confidence,omitempty"`  // AI confidence (0-100)
+	Reasoning    string    `json:"reasoning,omitempty"`   // Brief reasoning
+	OrderID      int64     `json:"order_id"`
+	Timestamp    time.Time `json:"timestamp"`
+	Success      bool      `json:"success"`
+	Error        string    `json:"error"`
 }
-
-// Statistics statistics information
 type Statistics struct {
 	TotalCycles         int `json:"total_cycles"`
 	SuccessfulCycles    int `json:"successful_cycles"`

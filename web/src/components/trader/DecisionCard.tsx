@@ -99,6 +99,76 @@ function ActionCard({ action, language, onSymbolClick }: { action: DecisionActio
 
       {/* Trading Details Grid */}
       {isOpen && (
+        <div className="grid grid-cols-5 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
+          {/* Entry Price */}
+          <div className="text-center">
+            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+              {t('entryPrice', language)}
+            </div>
+            <div className="font-mono font-semibold" style={{ color: '#EAECEF' }}>
+              {formatPrice(action.price)}
+            </div>
+          </div>
+
+          {/* Stop Loss */}
+          <div className="text-center">
+            <div className="text-xs mb-1" style={{ color: '#F6465D' }}>
+              {t('stopLoss', language)}
+            </div>
+            <div className="font-mono font-semibold" style={{ color: '#F6465D' }}>
+              {formatPrice(action.stop_loss)}
+            </div>
+            {action.stop_loss && action.price && (
+              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+                {calcPctChange(action.price, action.stop_loss, isLong)}
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic Stop Loss */}
+          {action.updated_stop_loss !== undefined && action.updated_stop_loss > 0 && (
+            <div className="text-center">
+              <div className="text-xs mb-1" style={{ color: '#F0B90B' }}>
+                {t('dynamicStopLoss', language) || 'Dynamic SL'}
+              </div>
+              <div className="font-mono font-semibold" style={{ color: '#F0B90B' }}>
+                {formatPrice(action.updated_stop_loss)}
+              </div>
+              {action.updated_stop_loss && action.price && (
+                <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+                  {calcPctChange(action.price, action.updated_stop_loss, isLong)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Take Profit */}
+          <div className="text-center">
+            <div className="text-xs mb-1" style={{ color: '#0ECB81' }}>
+              {t('takeProfit', language)}
+            </div>
+            <div className="font-mono font-semibold" style={{ color: '#0ECB81' }}>
+              {formatPrice(action.take_profit)}
+            </div>
+            {action.take_profit && action.price && (
+              <div className="text-xs mt-0.5" style={{ color: '#848E9C' }}>
+                {calcPctChange(action.price, action.take_profit, isLong)}
+              </div>
+            )}
+          </div>
+
+          {/* Leverage */}
+          <div className="text-center">
+            <div className="text-xs mb-1" style={{ color: '#848E9C' }}>
+              {t('leverage', language)}
+            </div>
+            <div className="font-mono font-semibold" style={{ color: '#F0B90B' }}>
+              {action.leverage}x
+            </div>
+          </div>
+        </div>
+      )}
+      {isOpen && (
         <div className="grid grid-cols-4 gap-3 mt-3 pt-3" style={{ borderTop: '1px solid #2B3139' }}>
           {/* Entry Price */}
           <div className="text-center">

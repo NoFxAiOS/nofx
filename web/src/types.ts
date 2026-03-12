@@ -48,7 +48,11 @@ export interface DecisionAction {
   quantity: number
   leverage: number
   price: number
-  stop_loss?: number      // Stop loss price
+  stop_loss?: number       // Initial stop loss price
+  updated_stop_loss?: number // Updated stop loss price (via update_stop_loss action)
+  take_profit?: number    // Take profit price
+  dynamic_stop_loss?: number // Updated stop loss price (dynamic stop loss)
+  take_profit?: number
   take_profit?: number    // Take profit price
   confidence?: number     // AI confidence (0-100)
   reasoning?: string      // Brief reasoning

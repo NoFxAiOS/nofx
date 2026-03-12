@@ -79,7 +79,6 @@ x402 流程：
 | **多 AI** | DeepSeek、Qwen、GPT、Claude、Gemini、Grok、Kimi — 随时切换 |
 | **多交易所** | Binance、Bybit、OKX、Bitget、KuCoin、Gate、Hyperliquid、Aster、Lighter |
 | **策略工作室** | 可视化构建器 — 币种来源、指标、风控 |
-| **AI 辩论竞技场** | 多个 AI 辩论交易（多空对决），投票执行 |
 | **AI 竞赛** | AI 实时竞争，排行榜排名 |
 | **Telegram Agent** | 与交易助手对话 — 流式输出、工具调用、记忆 |
 | **回测实验室** | 历史模拟，权益曲线和性能指标 |
@@ -193,7 +192,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 | [架构概览](../../architecture/README.md) | 系统设计和模块索引 |
 | [策略模块](../../architecture/STRATEGY_MODULE.md) | 币种选择、AI 提示词、执行 |
 | [回测模块](../../architecture/BACKTEST_MODULE.md) | 历史模拟、指标计算 |
-| [辩论模块](../../architecture/DEBATE_MODULE.md) | 多 AI 辩论、投票共识 |
 | [常见问题](../../faq/README.md) | FAQ |
 | [快速开始](../../getting-started/README.md) | 部署指南 |
 

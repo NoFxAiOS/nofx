@@ -5,6 +5,8 @@ import (
 	"nofx/config"
 	"nofx/logger"
 	"nofx/mcp"
+	_ "nofx/mcp/payment"
+	_ "nofx/mcp/provider"
 	"nofx/store"
 	"nofx/telegram/agent"
 	"os"
@@ -319,32 +321,11 @@ func isUSDCProvider(provider string) bool {
 }
 
 func clientForProvider(provider string) mcp.AIClient {
-	switch provider {
-	case "openai":
-		return mcp.NewOpenAIClient()
-	case "deepseek":
-		return mcp.NewDeepSeekClient()
-	case "claude":
-		return mcp.NewClaudeClient()
-	case "qwen":
-		return mcp.NewQwenClient()
-	case "kimi":
-		return mcp.NewKimiClient()
-	case "grok":
-		return mcp.NewGrokClient()
-	case "gemini":
-		return mcp.NewGeminiClient()
-	case "minimax":
-		return mcp.NewMiniMaxClient()
-	case "blockrun-base":
-		return mcp.NewBlockRunBaseClient()
-	case "blockrun-sol":
-		return mcp.NewBlockRunSolClient()
-	case "claw402":
-		return mcp.NewClaw402Client()
-	default:
-		return mcp.NewDeepSeekClient()
+	client := mcp.NewAIClientByProvider(provider)
+	if client == nil {
+		client = mcp.NewAIClientByProvider("deepseek")
 	}
+	return client
 }
 
 // ── Status message ────────────────────────────────────────────────────────────

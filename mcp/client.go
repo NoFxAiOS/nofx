@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	DefaultTimeout = 180 * time.Second
+	DefaultTimeout = 120 * time.Second
 
 	MaxRetryTimes = 3
 
@@ -60,14 +60,14 @@ type Client struct {
 	UseFullURL bool // Whether to use full URL (without appending /chat/completions)
 	MaxTokens  int  // Maximum tokens for AI response
 
-	httpClient *http.Client
-	logger     Logger // Logger (replaceable)
-	config     *Config // Config object (stores all configurations)
+	HTTPClient *http.Client // Exported for sub-packages
+	Log        Logger       // Exported for sub-packages
+	Cfg        *Config      // Exported for sub-packages
 
-	// hooks are used to implement dynamic dispatch (polymorphism)
-	// When DeepSeekClient embeds Client, hooks point to DeepSeekClient
-	// This way methods called in call() are automatically dispatched to the overridden version in subclass
-	hooks clientHooks
+	// Hooks are used to implement dynamic dispatch (polymorphism)
+	// When provider.DeepSeekClient embeds Client, Hooks point to DeepSeekClient
+	// This way methods called in Call() are automatically dispatched to the overridden version
+	Hooks ClientHooks
 }
 
 // New creates default client (backward compatible)
@@ -80,21 +80,22 @@ func New() AIClient {
 // NewClient creates client (supports options pattern)
 //
 // Usage examples:
-//   // Basic usage (backward compatible)
-//   client := mcp.NewClient()
 //
-//   // Custom logger
-//   client := mcp.NewClient(mcp.WithLogger(customLogger))
+//	// Basic usage (backward compatible)
+//	client := mcp.NewClient()
 //
-//   // Custom timeout
-//   client := mcp.NewClient(mcp.WithTimeout(60*time.Second))
+//	// Custom logger
+//	client := mcp.NewClient(mcp.WithLogger(customLogger))
 //
-//   // Combine multiple options
-//   client := mcp.NewClient(
-//       mcp.WithDeepSeekConfig("sk-xxx"),
-//       mcp.WithLogger(customLogger),
-//       mcp.WithTimeout(60*time.Second),
-//   )
+//	// Custom timeout
+//	client := mcp.NewClient(mcp.WithTimeout(60*time.Second))
+//
+//	// Combine multiple options
+//	client := mcp.NewClient(
+//	    mcp.WithDeepSeekConfig("sk-xxx"),
+//	    mcp.WithLogger(customLogger),
+//	    mcp.WithTimeout(60*time.Second),
+//	)
 func NewClient(opts ...ClientOption) AIClient {
 	// 1. Create default config
 	cfg := DefaultConfig()
@@ -112,9 +113,9 @@ func NewClient(opts ...ClientOption) AIClient {
 		Model:      cfg.Model,
 		MaxTokens:  cfg.MaxTokens,
 		UseFullURL: cfg.UseFullURL,
-		httpClient: cfg.HTTPClient,
-		logger:     cfg.Logger,
-		config:     cfg,
+		HTTPClient: cfg.HTTPClient,
+		Log:        cfg.Logger,
+		Cfg:        cfg,
 	}
 
 	// 4. Set default Provider (if not set)
@@ -125,7 +126,7 @@ func NewClient(opts ...ClientOption) AIClient {
 	}
 
 	// 5. Set hooks to point to self
-	client.hooks = client
+	client.Hooks = client
 
 	return client
 }
@@ -148,7 +149,7 @@ func (client *Client) SetAPIKey(apiKey, apiURL, customModel string) {
 }
 
 func (client *Client) SetTimeout(timeout time.Duration) {
-	client.httpClient.Timeout = timeout
+	client.HTTPClient.Timeout = timeout
 }
 
 // CallWithMessages template method - fixed retry flow (cannot be overridden)
@@ -159,32 +160,32 @@ func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string,
 
 	// Fixed retry flow
 	var lastErr error
-	maxRetries := client.config.MaxRetries
+	maxRetries := client.Cfg.MaxRetries
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
-			client.logger.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
+			client.Log.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
 		}
 
 		// Call the fixed single-call flow
-		result, err := client.hooks.call(systemPrompt, userPrompt)
+		result, err := client.Hooks.Call(systemPrompt, userPrompt)
 		if err == nil {
 			if attempt > 1 {
-				client.logger.Infof("✓ AI API retry succeeded")
+				client.Log.Infof("✓ AI API retry succeeded")
 			}
 			return result, nil
 		}
 
 		lastErr = err
-		// Check if error is retryable via hooks (supports custom retry strategy in subclass)
-		if !client.hooks.isRetryableError(err) {
+		// Check if error is retryable via hooks (supports custom retry strategy)
+		if !client.Hooks.IsRetryableError(err) {
 			return "", err
 		}
 
 		// Wait before retry
 		if attempt < maxRetries {
-			waitTime := client.config.RetryWaitBase * time.Duration(attempt)
-			client.logger.Infof("⏳ Waiting %v before retry...", waitTime)
+			waitTime := client.Cfg.RetryWaitBase * time.Duration(attempt)
+			client.Log.Infof("⏳ Waiting %v before retry...", waitTime)
 			time.Sleep(waitTime)
 		}
 	}
@@ -192,11 +193,11 @@ func (client *Client) CallWithMessages(systemPrompt, userPrompt string) (string,
 	return "", fmt.Errorf("still failed after %d retries: %w", maxRetries, lastErr)
 }
 
-func (client *Client) setAuthHeader(reqHeader http.Header) {
+func (client *Client) SetAuthHeader(reqHeader http.Header) {
 	reqHeader.Set("Authorization", fmt.Sprintf("Bearer %s", client.APIKey))
 }
 
-func (client *Client) buildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
+func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[string]any {
 	// Build messages array
 	messages := []map[string]string{}
 
@@ -217,7 +218,7 @@ func (client *Client) buildMCPRequestBody(systemPrompt, userPrompt string) map[s
 	requestBody := map[string]interface{}{
 		"model":       client.Model,
 		"messages":    messages,
-		"temperature": client.config.Temperature, // Use configured temperature
+		"temperature": client.Cfg.Temperature, // Use configured temperature
 	}
 	// OpenAI newer models use max_completion_tokens instead of max_tokens
 	if client.Provider == ProviderOpenAI {
@@ -228,8 +229,8 @@ func (client *Client) buildMCPRequestBody(systemPrompt, userPrompt string) map[s
 	return requestBody
 }
 
-// can be used to marshal the request body and can be overridden
-func (client *Client) marshalRequestBody(requestBody map[string]any) ([]byte, error) {
+// MarshalRequestBody can be used to marshal the request body and can be overridden
+func (client *Client) MarshalRequestBody(requestBody map[string]any) ([]byte, error) {
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize request: %w", err)
@@ -237,17 +238,17 @@ func (client *Client) marshalRequestBody(requestBody map[string]any) ([]byte, er
 	return jsonData, nil
 }
 
-func (client *Client) parseMCPResponse(body []byte) (string, error) {
-	r, err := client.parseMCPResponseFull(body)
+func (client *Client) ParseMCPResponse(body []byte) (string, error) {
+	r, err := client.ParseMCPResponseFull(body)
 	if err != nil {
 		return "", err
 	}
 	return r.Content, nil
 }
 
-// parseMCPResponseFull parses the OpenAI-format response body and returns both
+// ParseMCPResponseFull parses the OpenAI-format response body and returns both
 // the text content and any tool calls.
-func (client *Client) parseMCPResponseFull(body []byte) (*LLMResponse, error) {
+func (client *Client) ParseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	var result struct {
 		Choices []struct {
 			Message struct {
@@ -288,14 +289,14 @@ func (client *Client) parseMCPResponseFull(body []byte) (*LLMResponse, error) {
 	}, nil
 }
 
-func (client *Client) buildUrl() string {
+func (client *Client) BuildUrl() string {
 	if client.UseFullURL {
 		return client.BaseURL
 	}
 	return fmt.Sprintf("%s/chat/completions", client.BaseURL)
 }
 
-func (client *Client) buildRequest(url string, jsonData []byte) (*http.Request, error) {
+func (client *Client) BuildRequest(url string, jsonData []byte) (*http.Request, error) {
 	// Create HTTP request
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -304,42 +305,42 @@ func (client *Client) buildRequest(url string, jsonData []byte) (*http.Request, 
 
 	req.Header.Set("Content-Type", "application/json")
 
-	// Set auth header via hooks (supports overriding in subclass)
-	client.hooks.setAuthHeader(req.Header)
+	// Set auth header via hooks (supports overriding)
+	client.Hooks.SetAuthHeader(req.Header)
 
 	return req, nil
 }
 
-// call single AI API call (fixed flow, cannot be overridden)
-func (client *Client) call(systemPrompt, userPrompt string) (string, error) {
+// Call single AI API call (fixed flow, cannot be overridden)
+func (client *Client) Call(systemPrompt, userPrompt string) (string, error) {
 	// Print current AI configuration
-	client.logger.Infof("📡 [%s] Request AI Server: BaseURL: %s", client.String(), client.BaseURL)
-	client.logger.Debugf("[%s] UseFullURL: %v", client.String(), client.UseFullURL)
+	client.Log.Infof("📡 [%s] Request AI Server: BaseURL: %s", client.String(), client.BaseURL)
+	client.Log.Debugf("[%s] UseFullURL: %v", client.String(), client.UseFullURL)
 	if len(client.APIKey) > 8 {
-		client.logger.Debugf("[%s]   API Key: %s...%s", client.String(), client.APIKey[:4], client.APIKey[len(client.APIKey)-4:])
+		client.Log.Debugf("[%s]   API Key: %s...%s", client.String(), client.APIKey[:4], client.APIKey[len(client.APIKey)-4:])
 	}
 
 	// Step 1: Build request body (via hooks for dynamic dispatch)
-	requestBody := client.hooks.buildMCPRequestBody(systemPrompt, userPrompt)
+	requestBody := client.Hooks.BuildMCPRequestBody(systemPrompt, userPrompt)
 
 	// Step 2: Serialize request body (via hooks for dynamic dispatch)
-	jsonData, err := client.hooks.marshalRequestBody(requestBody)
+	jsonData, err := client.Hooks.MarshalRequestBody(requestBody)
 	if err != nil {
 		return "", err
 	}
 
 	// Step 3: Build URL (via hooks for dynamic dispatch)
-	url := client.hooks.buildUrl()
-	client.logger.Infof("📡 [MCP %s] Request URL: %s", client.String(), url)
+	url := client.Hooks.BuildUrl()
+	client.Log.Infof("📡 [MCP %s] Request URL: %s", client.String(), url)
 
 	// Step 4: Create HTTP request (fixed logic)
-	req, err := client.hooks.buildRequest(url, jsonData)
+	req, err := client.Hooks.BuildRequest(url, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Step 5: Send HTTP request (fixed logic)
-	resp, err := client.httpClient.Do(req)
+	resp, err := client.HTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
@@ -357,7 +358,7 @@ func (client *Client) call(systemPrompt, userPrompt string) (string, error) {
 	}
 
 	// Step 8: Parse response (via hooks for dynamic dispatch)
-	result, err := client.hooks.parseMCPResponse(body)
+	result, err := client.Hooks.ParseMCPResponse(body)
 	if err != nil {
 		return "", fmt.Errorf("fail to parse AI server response: %w", err)
 	}
@@ -370,11 +371,11 @@ func (client *Client) String() string {
 		client.Provider, client.Model)
 }
 
-// isRetryableError determines if error is retryable (network errors, timeouts, etc.)
-func (client *Client) isRetryableError(err error) bool {
+// IsRetryableError determines if error is retryable (network errors, timeouts, etc.)
+func (client *Client) IsRetryableError(err error) bool {
 	errStr := err.Error()
 	// Network errors, timeouts, EOF, etc. can be retried
-	for _, retryable := range client.config.RetryableErrors {
+	for _, retryable := range client.Cfg.RetryableErrors {
 		if strings.Contains(errStr, retryable) {
 			return true
 		}
@@ -387,20 +388,6 @@ func (client *Client) isRetryableError(err error) bool {
 // ============================================================
 
 // CallWithRequest calls AI API using Request object (supports advanced features)
-//
-// This method supports:
-// - Multi-turn conversation history
-// - Fine-grained parameter control (temperature, top_p, penalties, etc.)
-// - Function Calling / Tools
-// - Streaming response (future support)
-//
-// Usage example:
-//   request := NewRequestBuilder().
-//       WithSystemPrompt("You are helpful").
-//       WithUserPrompt("Hello").
-//       WithTemperature(0.8).
-//       Build()
-//   result, err := client.CallWithRequest(request)
 func (client *Client) CallWithRequest(req *Request) (string, error) {
 	if client.APIKey == "" {
 		return "", fmt.Errorf("AI API key not set, please call SetAPIKey first")
@@ -413,32 +400,32 @@ func (client *Client) CallWithRequest(req *Request) (string, error) {
 
 	// Fixed retry flow
 	var lastErr error
-	maxRetries := client.config.MaxRetries
+	maxRetries := client.Cfg.MaxRetries
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
-			client.logger.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
+			client.Log.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
 		}
 
 		// Call single request
 		result, err := client.callWithRequest(req)
 		if err == nil {
 			if attempt > 1 {
-				client.logger.Infof("✓ AI API retry succeeded")
+				client.Log.Infof("✓ AI API retry succeeded")
 			}
 			return result, nil
 		}
 
 		lastErr = err
 		// Check if error is retryable
-		if !client.hooks.isRetryableError(err) {
+		if !client.Hooks.IsRetryableError(err) {
 			return "", err
 		}
 
 		// Wait before retry
 		if attempt < maxRetries {
-			waitTime := client.config.RetryWaitBase * time.Duration(attempt)
-			client.logger.Infof("⏳ Waiting %v before retry...", waitTime)
+			waitTime := client.Cfg.RetryWaitBase * time.Duration(attempt)
+			client.Log.Infof("⏳ Waiting %v before retry...", waitTime)
 			time.Sleep(waitTime)
 		}
 	}
@@ -456,21 +443,21 @@ func (client *Client) CallWithRequestFull(req *Request) (*LLMResponse, error) {
 	}
 
 	var lastErr error
-	maxRetries := client.config.MaxRetries
+	maxRetries := client.Cfg.MaxRetries
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
-			client.logger.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
+			client.Log.Warnf("⚠️  AI API call failed, retrying (%d/%d)...", attempt, maxRetries)
 		}
 		result, err := client.callWithRequestFull(req)
 		if err == nil {
 			return result, nil
 		}
 		lastErr = err
-		if !client.hooks.isRetryableError(err) {
+		if !client.Hooks.IsRetryableError(err) {
 			return nil, err
 		}
 		if attempt < maxRetries {
-			waitTime := client.config.RetryWaitBase * time.Duration(attempt)
+			waitTime := client.Cfg.RetryWaitBase * time.Duration(attempt)
 			time.Sleep(waitTime)
 		}
 	}
@@ -479,21 +466,21 @@ func (client *Client) CallWithRequestFull(req *Request) (*LLMResponse, error) {
 
 // callWithRequestFull single call that returns LLMResponse (content + tool calls).
 func (client *Client) callWithRequestFull(req *Request) (*LLMResponse, error) {
-	client.logger.Infof("📡 [%s] Request AI Server (full): BaseURL: %s", client.String(), client.BaseURL)
+	client.Log.Infof("📡 [%s] Request AI Server (full): BaseURL: %s", client.String(), client.BaseURL)
 
-	requestBody := client.hooks.buildRequestBodyFromRequest(req)
-	jsonData, err := client.hooks.marshalRequestBody(requestBody)
+	requestBody := client.Hooks.BuildRequestBodyFromRequest(req)
+	jsonData, err := client.Hooks.MarshalRequestBody(requestBody)
 	if err != nil {
 		return nil, err
 	}
 
-	url := client.hooks.buildUrl()
-	httpReq, err := client.hooks.buildRequest(url, jsonData)
+	url := client.Hooks.BuildUrl()
+	httpReq, err := client.Hooks.BuildRequest(url, jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := client.httpClient.Do(httpReq)
+	resp, err := client.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -507,31 +494,31 @@ func (client *Client) callWithRequestFull(req *Request) (*LLMResponse, error) {
 		return nil, fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	return client.hooks.parseMCPResponseFull(body)
+	return client.Hooks.ParseMCPResponseFull(body)
 }
 
 // callWithRequest single AI API call (using Request object)
 func (client *Client) callWithRequest(req *Request) (string, error) {
 	// Print current AI configuration
-	client.logger.Infof("📡 [%s] Request AI Server with Builder: BaseURL: %s", client.String(), client.BaseURL)
-	client.logger.Debugf("[%s] Messages count: %d", client.String(), len(req.Messages))
+	client.Log.Infof("📡 [%s] Request AI Server with Builder: BaseURL: %s", client.String(), client.BaseURL)
+	client.Log.Debugf("[%s] Messages count: %d", client.String(), len(req.Messages))
 
-	requestBody := client.hooks.buildRequestBodyFromRequest(req)
+	requestBody := client.Hooks.BuildRequestBodyFromRequest(req)
 
-	jsonData, err := client.hooks.marshalRequestBody(requestBody)
+	jsonData, err := client.Hooks.MarshalRequestBody(requestBody)
 	if err != nil {
 		return "", err
 	}
 
-	url := client.hooks.buildUrl()
-	client.logger.Infof("📡 [MCP %s] Request URL: %s", client.String(), url)
+	url := client.Hooks.BuildUrl()
+	client.Log.Infof("📡 [MCP %s] Request URL: %s", client.String(), url)
 
-	httpReq, err := client.hooks.buildRequest(url, jsonData)
+	httpReq, err := client.Hooks.BuildRequest(url, jsonData)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := client.httpClient.Do(httpReq)
+	resp, err := client.HTTPClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("failed to send request: %w", err)
 	}
@@ -546,7 +533,7 @@ func (client *Client) callWithRequest(req *Request) (string, error) {
 		return "", fmt.Errorf("API returned error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	result, err := client.hooks.parseMCPResponse(body)
+	result, err := client.Hooks.ParseMCPResponse(body)
 	if err != nil {
 		return "", fmt.Errorf("fail to parse AI server response: %w", err)
 	}
@@ -554,8 +541,8 @@ func (client *Client) callWithRequest(req *Request) (string, error) {
 	return result, nil
 }
 
-// buildRequestBodyFromRequest builds request body from Request object
-func (client *Client) buildRequestBodyFromRequest(req *Request) map[string]any {
+// BuildRequestBodyFromRequest builds request body from Request object
+func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 	// Convert Message to API format — must use map[string]any to support
 	// tool-call messages (tool_calls, tool_call_id fields).
 	messages := make([]map[string]any, 0, len(req.Messages))
@@ -586,7 +573,7 @@ func (client *Client) buildRequestBodyFromRequest(req *Request) map[string]any {
 		requestBody["temperature"] = *req.Temperature
 	} else {
 		// If not set in Request, use Client's configuration
-		requestBody["temperature"] = client.config.Temperature
+		requestBody["temperature"] = client.Cfg.Temperature
 	}
 
 	// OpenAI newer models use max_completion_tokens instead of max_tokens
@@ -647,19 +634,19 @@ func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) 
 	}
 	req.Stream = true
 
-	requestBody := client.hooks.buildRequestBodyFromRequest(req)
-	jsonData, err := client.hooks.marshalRequestBody(requestBody)
+	requestBody := client.Hooks.BuildRequestBodyFromRequest(req)
+	jsonData, err := client.Hooks.MarshalRequestBody(requestBody)
 	if err != nil {
 		return "", err
 	}
 
-	url := client.hooks.buildUrl()
-	httpReq, err := client.hooks.buildRequest(url, jsonData)
+	url := client.Hooks.BuildUrl()
+	httpReq, err := client.Hooks.BuildRequest(url, jsonData)
 	if err != nil {
 		return "", err
 	}
 
-	// Idle-timeout watchdog: cancel the request if no SSE line arrives for 30 seconds.
+	// Idle-timeout watchdog: cancel the request if no SSE line arrives for 60 seconds.
 	// This breaks the scanner out of an indefinitely blocking Read on a hung connection.
 	const idleTimeout = 60 * time.Second
 	ctx, cancel := context.WithCancel(context.Background())
@@ -689,7 +676,7 @@ func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) 
 	}()
 
 	httpReq = httpReq.WithContext(ctx)
-	resp, err := client.httpClient.Do(httpReq)
+	resp, err := client.HTTPClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("streaming request failed: %w", err)
 	}

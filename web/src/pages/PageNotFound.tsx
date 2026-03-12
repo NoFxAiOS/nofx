@@ -1,4 +1,4 @@
-import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { AlertCircle, Home } from 'lucide-react'
 
 export function PageNotFound() {

@@ -450,10 +450,10 @@ func TestClient_CallWithRequest_UsesClientModel(t *testing.T) {
 	mockHTTP.SetSuccessResponse("Response")
 	mockLogger := NewMockLogger()
 
-	client := NewDeepSeekClientWithOptions(
+	client := NewClient(
+		WithDeepSeekConfig("sk-test-key"),
 		WithHTTPClient(mockHTTP.ToHTTPClient()),
 		WithLogger(mockLogger),
-		WithAPIKey("sk-test-key"),
 	)
 
 	// Request does not set model, should use Client's model

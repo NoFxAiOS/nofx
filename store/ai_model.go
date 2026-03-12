@@ -94,7 +94,7 @@ func (s *AIModelStore) Get(userID, modelID string) (*AIModel, error) {
 	return nil, gorm.ErrRecordNotFound
 }
 
-// GetByID retrieves an AI model by ID only (for debate engine)
+// GetByID retrieves an AI model by ID only
 func (s *AIModelStore) GetByID(modelID string) (*AIModel, error) {
 	if modelID == "" {
 		return nil, fmt.Errorf("model ID cannot be empty")

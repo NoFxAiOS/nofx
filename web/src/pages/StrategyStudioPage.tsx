@@ -38,7 +38,7 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
-import { DeepVoidBackground } from '../components/DeepVoidBackground'
+import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -672,7 +672,7 @@ export function StrategyStudioPage() {
   )
 
   return (
-    <DeepVoidBackground className="min-h-[calc(100vh-64px)] md:h-[calc(100vh-64px)] flex flex-col bg-nofx-bg relative md:overflow-hidden">
+    <DeepVoidBackground className="h-[calc(100vh-64px)] flex flex-col bg-nofx-bg relative overflow-hidden">
 
       {/* Header */}
       {/* Header */}
@@ -697,9 +697,9 @@ export function StrategyStudioPage() {
       </div>
 
       {/* Main Content - Three Columns */}
-      <div className="flex-1 flex flex-col md:flex-row md:overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
         {/* Left Column - Strategy List */}
-        <div className="w-full md:w-48 h-48 md:h-auto flex-shrink-0 border-b md:border-b-0 md:border-r border-nofx-gold/20 overflow-y-auto bg-nofx-bg/30 backdrop-blur-sm z-10 flex flex-col md:flex-none">
+        <div className="w-48 flex-shrink-0 border-r border-nofx-gold/20 overflow-y-auto bg-nofx-bg/30 backdrop-blur-sm z-10">
           <div className="p-2">
             <div className="flex items-center justify-between mb-2 px-2">
               <span className="text-xs font-medium text-nofx-text-muted">{t('strategies')}</span>
@@ -794,7 +794,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Middle Column - Config Editor */}
-        <div className="flex-1 min-w-0 border-b md:border-b-0 md:border-r border-nofx-gold/20 md:overflow-y-auto">
+        <div className="flex-1 min-w-0 overflow-y-auto border-r border-nofx-gold/20">
           {selectedStrategy && editingConfig ? (
             <div className="p-4">
               {/* Strategy Name & Actions */}
@@ -948,7 +948,7 @@ export function StrategyStudioPage() {
         </div>
 
         {/* Right Column - Prompt Preview & AI Test */}
-        <div className="w-full md:w-[340px] md:flex-shrink-0 flex flex-col md:overflow-hidden min-h-0">
+        <div className="w-[420px] flex-shrink-0 flex flex-col overflow-hidden">
           {/* Tabs */}
           <div className="flex-shrink-0 flex border-b border-nofx-gold/20">
             <button

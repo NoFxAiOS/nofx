@@ -279,8 +279,8 @@ func TestOptionsWithNewClient(t *testing.T) {
 		t.Error("Model should be set from options")
 	}
 
-	if c.logger != mockLogger {
-		t.Error("logger should be set from options")
+	if c.Log != mockLogger {
+		t.Error("Log should be set from options")
 	}
 
 	if c.MaxTokens != 4000 {
@@ -288,78 +288,4 @@ func TestOptionsWithNewClient(t *testing.T) {
 	}
 }
 
-func TestOptionsWithDeepSeekClient(t *testing.T) {
-	mockLogger := NewMockLogger()
-
-	client := NewDeepSeekClientWithOptions(
-		WithAPIKey("sk-deepseek-key"),
-		WithLogger(mockLogger),
-		WithMaxTokens(5000),
-	)
-
-	dsClient := client.(*DeepSeekClient)
-
-	// Verify DeepSeek default values
-	if dsClient.Provider != ProviderDeepSeek {
-		t.Error("Provider should be DeepSeek")
-	}
-
-	if dsClient.BaseURL != DefaultDeepSeekBaseURL {
-		t.Error("BaseURL should be DeepSeek default")
-	}
-
-	if dsClient.Model != DefaultDeepSeekModel {
-		t.Error("Model should be DeepSeek default")
-	}
-
-	// Verify custom options
-	if dsClient.APIKey != "sk-deepseek-key" {
-		t.Error("APIKey should be set from options")
-	}
-
-	if dsClient.logger != mockLogger {
-		t.Error("logger should be set from options")
-	}
-
-	if dsClient.MaxTokens != 5000 {
-		t.Error("MaxTokens should be 5000")
-	}
-}
-
-func TestOptionsWithQwenClient(t *testing.T) {
-	mockLogger := NewMockLogger()
-
-	client := NewQwenClientWithOptions(
-		WithAPIKey("sk-qwen-key"),
-		WithLogger(mockLogger),
-		WithMaxTokens(6000),
-	)
-
-	qwenClient := client.(*QwenClient)
-
-	// Verify Qwen default values
-	if qwenClient.Provider != ProviderQwen {
-		t.Error("Provider should be Qwen")
-	}
-
-	if qwenClient.BaseURL != DefaultQwenBaseURL {
-		t.Error("BaseURL should be Qwen default")
-	}
-
-	if qwenClient.Model != DefaultQwenModel {
-		t.Error("Model should be Qwen default")
-	}
-
-	// Verify custom options
-	if qwenClient.APIKey != "sk-qwen-key" {
-		t.Error("APIKey should be set from options")
-	}
-
-	if qwenClient.logger != mockLogger {
-		t.Error("logger should be set from options")
-	}
-
-	if qwenClient.MaxTokens != 6000 {
-		t.Error("MaxTokens should be 6000")
-	}
-}
+// Provider-specific option tests are in mcp/provider/options_test.go

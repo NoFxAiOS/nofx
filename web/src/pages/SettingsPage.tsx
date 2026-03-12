@@ -4,9 +4,9 @@ import { User, Cpu, Building2, MessageCircle, Eye, EyeOff, ChevronRight, Plus, P
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { api } from '../lib/api'
-import { ExchangeConfigModal } from '../components/traders/ExchangeConfigModal'
-import { TelegramConfigModal } from '../components/traders/TelegramConfigModal'
-import { ModelConfigModal } from '../components/AITradersPage'
+import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
+import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
+import { ModelConfigModal } from '../components/trader/ModelConfigModal'
 import type { Exchange, AIModel } from '../types'
 
 type Tab = 'account' | 'models' | 'exchanges' | 'telegram'

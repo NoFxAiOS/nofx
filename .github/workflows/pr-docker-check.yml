@@ -1,7 +1,7 @@
 name: PR Docker Build Check
 
-# PR 时只做轻量级构建检查,不推送镜像
-# 策略: 快速验证 amd64 + 抽样检查 arm64 (backend only)
+# Lightweight build check on PR only, no image push
+# Strategy: Quick verify amd64 + spot check arm64 (backend only)
 on:
   pull_request:
     branches:
@@ -18,7 +18,7 @@ on:
       - '.github/workflows/pr-docker-check.yml'
 
 jobs:
-  # 快速检查: 所有镜像的 amd64 版本
+  # Quick check: amd64 builds for all images
   docker-build-amd64:
     name: Build Check (amd64)
     runs-on: ubuntu-22.04
@@ -31,7 +31,7 @@ jobs:
         include:
           - name: backend
             dockerfile: ./docker/Dockerfile.backend
-            test_run: true  # 需要测试运行
+            test_run: true  # Needs test run
           - name: frontend
             dockerfile: ./docker/Dockerfile.frontend
             test_run: true
@@ -51,7 +51,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: false
-          load: true  # 加载到本地 Docker,用于测试运行
+          load: true  # Load into local Docker for test run
           tags: nofx-${{ matrix.name }}:pr-test
           cache-from: type=gha,scope=${{ matrix.name }}-amd64
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}-amd64
@@ -66,12 +66,12 @@ jobs:
         run: |
           echo "🧪 Testing container startup..."
 
-          # 启动容器
+          # Start container
           docker run -d --name test-${{ matrix.name }} \
             --health-cmd="exit 0" \
             nofx-${{ matrix.name }}:pr-test
 
-          # 等待容器启动 (最多 30 秒)
+          # Wait for container to start (up to 30 seconds)
           for i in {1..30}; do
             if docker ps | grep -q test-${{ matrix.name }}; then
               echo "✅ Container started successfully"
@@ -93,7 +93,7 @@ jobs:
 
           echo "📦 Image size: ${SIZE_MB} MB"
 
-          # 警告阈值
+          # Warning thresholds
           if [ "${{ matrix.name }}" = "backend" ] && [ $SIZE_MB -gt 500 ]; then
             echo "⚠️  Warning: Backend image is larger than 500MB"
           elif [ "${{ matrix.name }}" = "frontend" ] && [ $SIZE_MB -gt 200 ]; then
@@ -102,10 +102,10 @@ jobs:
             echo "✅ Image size is reasonable"
           fi
 
-  # ARM64 原生构建检查: 使用 GitHub 原生 ARM64 runner (快速!)
+  # ARM64 native build check: Uses GitHub native ARM64 runner (fast!)
   docker-build-arm64-native:
     name: Build Check (arm64 native - backend)
-    runs-on: ubuntu-22.04-arm  # 原生 ARM64 runner
+    runs-on: ubuntu-22.04-arm  # Native ARM64 runner
     permissions:
       contents: read
 
@@ -113,19 +113,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 原生 ARM64 不需要 QEMU,直接构建
+      # Native ARM64 does not need QEMU, builds directly
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build backend image (arm64 native)
         uses: docker/build-push-action@v5
-        timeout-minutes: 15  # 原生构建更快!
+        timeout-minutes: 15  # Native builds are faster!
         with:
           context: .
           file: ./docker/Dockerfile.backend
           platforms: linux/arm64
           push: false
-          load: true  # 加载到本地,用于测试
+          load: true  # Load locally for testing
           tags: nofx-backend:pr-test-arm64
           cache-from: type=gha,scope=backend-arm64
           cache-to: type=gha,mode=max,scope=backend-arm64
@@ -139,12 +139,12 @@ jobs:
         run: |
           echo "🧪 Testing ARM64 container startup..."
 
-          # 启动容器
+          # Start container
           docker run -d --name test-backend-arm64 \
             --health-cmd="exit 0" \
             nofx-backend:pr-test-arm64
 
-          # 等待启动
+          # Wait for startup
           for i in {1..30}; do
             if docker ps | grep -q test-backend-arm64; then
               echo "✅ ARM64 container started successfully"
@@ -165,14 +165,14 @@ jobs:
           echo "Using GitHub native ARM64 runner - no QEMU needed!"
           echo "Build time is ~3x faster than emulation"
 
-  # 汇总检查结果
+  # Aggregate check results
   check-summary:
     name: Docker Build Summary
     needs: [docker-build-amd64, docker-build-arm64-native]
     runs-on: ubuntu-22.04
     if: always()
     permissions:
-      pull-requests: write  # 用于发布评论
+      pull-requests: write  # For posting comments
     steps:
       - name: Check build results
         id: check
@@ -180,7 +180,7 @@ jobs:
           echo "## 🐳 Docker Build Check Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # 检查 amd64 构建
+          # Check amd64 build
           if [[ "${{ needs.docker-build-amd64.result }}" == "success" ]]; then
             echo "✅ **AMD64 builds**: All passed" >> $GITHUB_STEP_SUMMARY
             AMD64_OK=true
@@ -189,7 +189,7 @@ jobs:
             AMD64_OK=false
           fi
 
-          # 检查 arm64 构建
+          # Check arm64 build
           if [[ "${{ needs.docker-build-arm64-native.result }}" == "success" ]]; then
             echo "✅ **ARM64 build** (native): Backend passed (frontend will be verified after merge)" >> $GITHUB_STEP_SUMMARY
             ARM64_OK=true

@@ -21,12 +21,12 @@ import { BarChart3, TrendingUp, TrendingDown, Zap } from 'lucide-react'
 
 // Time period options: 1D, 3D, 7D, 30D, All
 const TIME_PERIODS = [
-  { key: '1d', hours: 24, label: { en: '1D', zh: '1天' } },
-  { key: '3d', hours: 72, label: { en: '3D', zh: '3天' } },
-  { key: '7d', hours: 168, label: { en: '7D', zh: '7天' } },
-  { key: '30d', hours: 720, label: { en: '30D', zh: '30天' } },
-  { key: 'all', hours: 0, label: { en: 'All', zh: '全部' } },
-]
+  { key: '1d', hours: 24 },
+  { key: '3d', hours: 72 },
+  { key: '7d', hours: 168 },
+  { key: '30d', hours: 720 },
+  { key: 'all', hours: 0 },
+] as const
 
 interface ComparisonChartProps {
   traders: CompetitionTraderData[]
@@ -352,7 +352,7 @@ export function ComparisonChart({ traders }: ComparisonChartProps) {
                 border: `1px solid ${selectedPeriod === period.key ? 'rgba(240, 185, 11, 0.4)' : '#2B3139'}`,
               }}
             >
-              {language === 'zh' ? period.label.zh : period.label.en}
+              {t(`comparisonChart.${period.key}`, language)}
             </button>
           ))}
         </div>

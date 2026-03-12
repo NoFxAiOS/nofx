@@ -79,7 +79,7 @@ export function ModelConfigModal({
 
   const availableModels = allModels || []
   const configuredIds = new Set(configuredModels?.map(m => m.id) || [])
-  const stepLabels = language === 'zh' ? ['选择模型', '配置 API'] : ['Select Model', 'Configure API']
+  const stepLabels = [t('modelConfig.selectModel', language), t('modelConfig.configureApi', language)]
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto backdrop-blur-sm">
@@ -192,7 +192,7 @@ function ModelSelectionStep({
   return (
     <div className="space-y-4">
       <div className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-        {language === 'zh' ? '选择 AI 模型提供商' : 'Choose Your AI Provider'}
+        {t('modelConfig.chooseProvider', language)}
       </div>
 
       {/* Claw402 Featured Card */}
@@ -217,9 +217,7 @@ function ModelSelectionStep({
                   <a href="https://claw402.ai" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="ml-1.5 text-[10px] font-normal px-1.5 py-0.5 rounded" style={{ color: '#60A5FA', background: 'rgba(96, 165, 250, 0.1)' }}>↗ claw402.ai</a>
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: '#A0AEC0' }}>
-                  {language === 'zh'
-                    ? 'USDC 按次付费 · 支持全部 AI 模型 · 无需 API Key'
-                    : 'Pay-per-call USDC · All AI Models · No API Key'}
+                  {t('modelConfig.payPerCall', language)}
                 </div>
               </div>
             </div>
@@ -228,7 +226,7 @@ function ModelSelectionStep({
                 <div className="w-2 h-2 rounded-full" style={{ background: '#00E096' }} />
               )}
               <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: 'linear-gradient(135deg, #2563EB, #7C3AED)', color: '#fff' }}>
-                {language === 'zh' ? '🔥 推荐' : '🔥 Best'}
+                {'🔥 ' + t('modelConfig.recommended', language)}
               </div>
             </div>
           </div>
@@ -256,7 +254,7 @@ function ModelSelectionStep({
           <div className="flex items-center gap-3 pt-2">
             <div className="flex-1 h-px" style={{ background: '#2B3139' }} />
             <span className="text-xs font-medium px-2" style={{ color: '#848E9C' }}>
-              {language === 'zh' ? '通过钱包支付' : 'Via BlockRun Wallet'}
+              {t('modelConfig.viaBlockrunWallet', language)}
             </span>
             <div className="flex-1 h-px" style={{ background: '#2B3139' }} />
           </div>
@@ -274,7 +272,7 @@ function ModelSelectionStep({
         </>
       )}
       <div className="text-xs text-center pt-2" style={{ color: '#848E9C' }}>
-        {language === 'zh' ? '带金色标记的模型已配置' : 'Models with gold badge are already configured'}
+        {t('modelConfig.modelsConfigured', language)}
       </div>
     </div>
   )
@@ -310,9 +308,7 @@ function Claw402ConfigForm({
           Claw402 <span className="text-xs font-normal" style={{ color: '#60A5FA' }}>↗</span>
         </a>
         <div className="text-sm mt-1" style={{ color: '#A0AEC0' }}>
-          {language === 'zh'
-            ? '用 USDC 按次付费，支持所有主流 AI 模型'
-            : 'Pay-per-call with USDC — supports all major AI models'}
+          {t('modelConfig.allModelsClaw', language)}
         </div>
         <div className="flex items-center justify-center gap-3 mt-3 flex-wrap">
           {['GPT', 'Claude', 'DeepSeek', 'Gemini', 'Grok', 'Qwen', 'Kimi'].map(name => (
@@ -327,12 +323,10 @@ function Claw402ConfigForm({
       <div className="space-y-3">
         <label className="flex items-center gap-2 text-sm font-semibold" style={{ color: '#EAECEF' }}>
           <Brain className="w-4 h-4" style={{ color: '#2563EB' }} />
-          {language === 'zh' ? '① 选择 AI 模型' : '① Choose AI Model'}
+          {t('modelConfig.selectAiModel', language)}
         </label>
         <div className="text-xs mb-2" style={{ color: '#848E9C' }}>
-          {language === 'zh'
-            ? '所有模型通过 Claw402 统一调用，创建后可随时切换'
-            : 'All models unified via Claw402. Switch anytime after setup.'}
+          {t('modelConfig.allModelsUnified', language)}
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {CLAW402_MODELS.map((m) => {
@@ -372,34 +366,28 @@ function Claw402ConfigForm({
           <svg className="w-4 h-4" style={{ color: '#2563EB' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
           </svg>
-          {language === 'zh' ? '② 设置钱包' : '② Setup Wallet'}
+          {t('modelConfig.setupWallet', language)}
         </label>
 
         <div className="p-3 rounded-xl" style={{ background: 'rgba(37, 99, 235, 0.06)', border: '1px solid rgba(37, 99, 235, 0.15)' }}>
           <div className="text-xs mb-2" style={{ color: '#A0AEC0' }}>
-            {language === 'zh'
-              ? '💡 Claw402 使用 Base 链上的 USDC 付费，你需要一个 EVM 钱包'
-              : '💡 Claw402 uses USDC on Base chain. You need an EVM wallet.'}
+            {t('modelConfig.walletInfo', language)}
           </div>
           <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
             <div className="flex items-center gap-1.5">
               <span style={{ color: '#00E096' }}>•</span>
-              {language === 'zh'
-                ? '可以用 MetaMask、Rabby 等钱包导出私钥'
-                : 'Export private key from MetaMask, Rabby, etc.'}
+              {t('modelConfig.exportKey', language)}
             </div>
             <div className="flex items-center gap-1.5">
               <span style={{ color: '#00E096' }}>•</span>
-              {language === 'zh'
-                ? '建议新建一个专用钱包，充入少量 USDC 即可'
-                : 'Recommended: create a dedicated wallet with a small USDC balance'}
+              {t('modelConfig.dedicatedWallet', language)}
             </div>
           </div>
         </div>
 
         <div className="space-y-1.5">
           <div className="text-xs font-medium" style={{ color: '#A0AEC0' }}>
-            {language === 'zh' ? '钱包私钥（Base 链 EVM）' : 'Wallet Private Key (Base Chain EVM)'}
+            {t('modelConfig.walletPrivateKey', language)}
           </div>
           <input
             type="password"
@@ -413,9 +401,7 @@ function Claw402ConfigForm({
           <div className="flex items-start gap-1.5 text-[11px]" style={{ color: '#848E9C' }}>
             <span className="mt-px">🔒</span>
             <span>
-              {language === 'zh'
-                ? '私钥仅在本地签名使用，不会上传或发送交易。无需 ETH，无 Gas 费用。'
-                : 'Private key is only used locally for signing. Never uploaded. No ETH or gas needed.'}
+              {t('modelConfig.privateKeyNote', language)}
             </span>
           </div>
         </div>
@@ -424,20 +410,20 @@ function Claw402ConfigForm({
       {/* USDC Recharge Guide */}
       <div className="p-4 rounded-xl" style={{ background: 'rgba(0, 224, 150, 0.05)', border: '1px solid rgba(0, 224, 150, 0.15)' }}>
         <div className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: '#00E096' }}>
-          💰 {language === 'zh' ? '如何充值 USDC' : 'How to Fund USDC'}
+          {'💰 ' + t('modelConfig.howToFundUsdc', language)}
         </div>
         <div className="text-xs space-y-1.5" style={{ color: '#848E9C' }}>
           <div className="flex items-start gap-2">
             <span className="font-bold" style={{ color: '#A0AEC0' }}>1.</span>
-            <span>{language === 'zh' ? '从交易所（Binance / OKX / Coinbase）提 USDC 到你的钱包地址' : 'Withdraw USDC from exchange (Binance/OKX/Coinbase) to your wallet'}</span>
+            <span>{t('modelConfig.fundStep1', language)}</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="font-bold" style={{ color: '#A0AEC0' }}>2.</span>
-            <span>{language === 'zh' ? '选择 Base 网络（手续费极低）' : 'Select Base network (very low fees)'}</span>
+            <span>{t('modelConfig.fundStep2', language)}</span>
           </div>
           <div className="flex items-start gap-2">
             <span className="font-bold" style={{ color: '#A0AEC0' }}>3.</span>
-            <span>{language === 'zh' ? '充入 $5-10 USDC 即可使用很长时间（约 $0.003/次调用）' : '$5-10 USDC lasts a long time (~$0.003/call)'}</span>
+            <span>{t('modelConfig.fundStep3', language)}</span>
           </div>
         </div>
       </div>
@@ -445,7 +431,7 @@ function Claw402ConfigForm({
       {/* Buttons */}
       <div className="flex gap-3 pt-2">
         <button type="button" onClick={onBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
-          {editingModelId ? t('cancel', language) : (language === 'zh' ? '返回' : 'Back')}
+          {editingModelId ? t('cancel', language) : t('modelConfig.back', language)}
         </button>
         <button
           type="submit"
@@ -453,7 +439,7 @@ function Claw402ConfigForm({
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ background: apiKey.trim() ? 'linear-gradient(135deg, #2563EB, #7C3AED)' : '#2B3139', color: '#fff' }}
         >
-          {language === 'zh' ? '🚀 开始交易' : '🚀 Start Trading'}
+          {'🚀 ' + t('modelConfig.startTrading', language)}
         </button>
       </div>
     </form>
@@ -513,8 +499,8 @@ function StandardProviderConfigForm({
             <ExternalLink className="w-4 h-4" style={{ color: '#A78BFA' }} />
             <span className="text-sm font-medium" style={{ color: '#A78BFA' }}>
               {selectedModel.provider?.startsWith('blockrun')
-                ? (language === 'zh' ? '开始使用' : 'Get Started')
-                : (language === 'zh' ? '获取 API Key' : 'Get API Key')}
+                ? t('modelConfig.getStarted', language)
+                : t('modelConfig.getApiKey', language)}
             </span>
           </a>
         )}
@@ -539,7 +525,7 @@ function StandardProviderConfigForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
           </svg>
           {selectedModel.provider?.startsWith('blockrun')
-            ? (language === 'zh' ? '钱包私钥 *' : 'Wallet Private Key *')
+            ? t('modelConfig.walletPrivateKeyLabel', language)
             : 'API Key *'}
         </label>
         <input
@@ -612,7 +598,7 @@ function StandardProviderConfigForm({
             <svg className="w-4 h-4" style={{ color: '#A78BFA' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
-            {language === 'zh' ? '选择模型' : 'Select Model'}
+            {t('modelConfig.selectModelLabel', language)}
           </label>
           <div className="grid grid-cols-2 gap-2">
             {BLOCKRUN_MODELS.map((m) => {
@@ -655,7 +641,7 @@ function StandardProviderConfigForm({
       {/* Buttons */}
       <div className="flex gap-3 pt-4">
         <button type="button" onClick={onBack} className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5" style={{ background: '#2B3139', color: '#848E9C' }}>
-          {editingModelId ? t('cancel', language) : (language === 'zh' ? '返回' : 'Back')}
+          {editingModelId ? t('cancel', language) : t('modelConfig.back', language)}
         </button>
         <button
           type="submit"

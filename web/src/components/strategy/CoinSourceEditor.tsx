@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, X, Database, TrendingUp, TrendingDown, List, Ban, Zap, Shuffle } from 'lucide-react'
 import type { CoinSourceConfig } from '../../types'
+import { coinSource, ts } from '../../i18n/strategy-translations'
 
 interface CoinSourceEditorProps {
   config: CoinSourceConfig
@@ -17,52 +18,6 @@ export function CoinSourceEditor({
 }: CoinSourceEditorProps) {
   const [newCoin, setNewCoin] = useState('')
   const [newExcludedCoin, setNewExcludedCoin] = useState('')
-
-  const t = (key: string) => {
-    const translations: Record<string, Record<string, string>> = {
-      sourceType: { zh: '数据来源类型', en: 'Source Type' },
-      static: { zh: '静态列表', en: 'Static List' },
-      ai500: { zh: 'AI500 数据源', en: 'AI500 Data Provider' },
-      oi_top: { zh: 'OI 持仓增加', en: 'OI Increase' },
-      oi_low: { zh: 'OI 持仓减少', en: 'OI Decrease' },
-      mixed: { zh: '混合模式', en: 'Mixed Mode' },
-      staticCoins: { zh: '自定义币种', en: 'Custom Coins' },
-      addCoin: { zh: '添加币种', en: 'Add Coin' },
-      useAI500: { zh: '启用 AI500 数据源', en: 'Enable AI500 Data Provider' },
-      ai500Limit: { zh: '数量上限', en: 'Limit' },
-      useOITop: { zh: '启用 OI 持仓增加榜', en: 'Enable OI Increase' },
-      oiTopLimit: { zh: '数量上限', en: 'Limit' },
-      useOILow: { zh: '启用 OI 持仓减少榜', en: 'Enable OI Decrease' },
-      oiLowLimit: { zh: '数量上限', en: 'Limit' },
-      staticDesc: { zh: '手动指定交易币种列表', en: 'Manually specify trading coins' },
-      ai500Desc: {
-        zh: '使用 AI500 智能筛选的热门币种',
-        en: 'Use AI500 smart-filtered popular coins',
-      },
-      oiTopDesc: {
-        zh: '持仓增加榜，适合做多',
-        en: 'OI increase ranking, for long',
-      },
-      oi_lowDesc: {
-        zh: '持仓减少榜，适合做空',
-        en: 'OI decrease ranking, for short',
-      },
-      mixedDesc: {
-        zh: '组合多种数据源',
-        en: 'Combine multiple sources',
-      },
-      mixedConfig: { zh: '组合数据源配置', en: 'Combined Sources Configuration' },
-      mixedSummary: { zh: '已选组合', en: 'Selected Sources' },
-      maxCoins: { zh: '最多', en: 'Up to' },
-      coins: { zh: '个币种', en: 'coins' },
-      dataSourceConfig: { zh: '数据源配置', en: 'Data Source Configuration' },
-      excludedCoins: { zh: '排除币种', en: 'Excluded Coins' },
-      excludedCoinsDesc: { zh: '这些币种将从所有数据源中排除，不会被交易', en: 'These coins will be excluded from all sources and will not be traded' },
-      addExcludedCoin: { zh: '添加排除', en: 'Add Excluded' },
-      nofxosNote: { zh: '使用 NofxOS API Key（在指标配置中设置）', en: 'Uses NofxOS API Key (set in Indicators config)' },
-    }
-    return translations[key]?.[language] || key
-  }
 
   const sourceTypes = [
     { value: 'static', icon: List, color: '#848E9C' },
@@ -82,15 +37,15 @@ export function CoinSourceEditor({
       totalLimit += config.ai500_limit || 10
     }
     if (config.use_oi_top) {
-      sources.push(`${language === 'zh' ? 'OI增' : 'OI↑'}(${config.oi_top_limit || 10})`)
+      sources.push(`${ts(coinSource.oiIncreaseShort, language)}(${config.oi_top_limit || 10})`)
       totalLimit += config.oi_top_limit || 10
     }
     if (config.use_oi_low) {
-      sources.push(`${language === 'zh' ? 'OI减' : 'OI↓'}(${config.oi_low_limit || 10})`)
+      sources.push(`${ts(coinSource.oiDecreaseShort, language)}(${config.oi_low_limit || 10})`)
       totalLimit += config.oi_low_limit || 10
     }
     if ((config.static_coins || []).length > 0) {
-      sources.push(`${language === 'zh' ? '自定义' : 'Custom'}(${config.static_coins?.length || 0})`)
+      sources.push(`${ts(coinSource.custom, language)}(${config.static_coins?.length || 0})`)
       totalLimit += config.static_coins?.length || 0
     }
 
@@ -191,7 +146,7 @@ export function CoinSourceEditor({
       {/* Source Type Selector */}
       <div>
         <label className="block text-sm font-medium mb-3 text-nofx-text">
-          {t('sourceType')}
+          {ts(coinSource.sourceType, language)}
         </label>
         <div className="grid grid-cols-5 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
@@ -209,10 +164,10 @@ export function CoinSourceEditor({
             >
               <Icon className="w-6 h-6 mx-auto mb-2" style={{ color }} />
               <div className="text-sm font-medium text-nofx-text">
-                {t(value)}
+                {ts(coinSource[value as keyof typeof coinSource], language)}
               </div>
               <div className="text-xs mt-1 text-nofx-text-muted">
-                {t(`${value}Desc`)}
+                {ts(coinSource[`${value}Desc` as keyof typeof coinSource], language)}
               </div>
             </button>
           ))}
@@ -223,7 +178,7 @@ export function CoinSourceEditor({
       {config.source_type === 'static' && (
         <div>
           <label className="block text-sm font-medium mb-3 text-nofx-text">
-            {t('staticCoins')}
+            {ts(coinSource.staticCoins, language)}
           </label>
           <div className="flex flex-wrap gap-2 mb-3">
             {(config.static_coins || []).map((coin) => (
@@ -258,7 +213,7 @@ export function CoinSourceEditor({
                 className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors bg-nofx-gold text-black hover:bg-yellow-500"
               >
                 <Plus className="w-4 h-4" />
-                {t('addCoin')}
+                {ts(coinSource.addCoin, language)}
               </button>
             </div>
           )}
@@ -270,11 +225,11 @@ export function CoinSourceEditor({
         <div className="flex items-center gap-2 mb-3">
           <Ban className="w-4 h-4 text-nofx-danger" />
           <label className="text-sm font-medium text-nofx-text">
-            {t('excludedCoins')}
+            {ts(coinSource.excludedCoins, language)}
           </label>
         </div>
         <p className="text-xs mb-3 text-nofx-text-muted">
-          {t('excludedCoinsDesc')}
+          {ts(coinSource.excludedCoinsDesc, language)}
         </p>
         <div className="flex flex-wrap gap-2 mb-3">
           {(config.excluded_coins || []).map((coin) => (
@@ -295,7 +250,7 @@ export function CoinSourceEditor({
           ))}
           {(config.excluded_coins || []).length === 0 && (
             <span className="text-xs italic text-nofx-text-muted">
-              {language === 'zh' ? '无' : 'None'}
+              {ts(coinSource.excludedNone, language)}
             </span>
           )}
         </div>
@@ -314,7 +269,7 @@ export function CoinSourceEditor({
               className="px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm bg-nofx-danger text-white hover:bg-red-600"
             >
               <Ban className="w-4 h-4" />
-              {t('addExcludedCoin')}
+              {ts(coinSource.addExcludedCoin, language)}
             </button>
           </div>
         )}
@@ -329,7 +284,7 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-nofx-gold" />
               <span className="text-sm font-medium text-nofx-text">
-                AI500 {t('dataSourceConfig')}
+                AI500 {ts(coinSource.dataSourceConfig, language)}
               </span>
               <NofxOSBadge />
             </div>
@@ -346,13 +301,13 @@ export function CoinSourceEditor({
                 disabled={disabled}
                 className="w-5 h-5 rounded accent-nofx-gold"
               />
-              <span className="text-nofx-text">{t('useAI500')}</span>
+              <span className="text-nofx-text">{ts(coinSource.useAI500, language)}</span>
             </label>
 
             {config.use_ai500 && (
               <div className="flex items-center gap-3 pl-8">
                 <span className="text-sm text-nofx-text-muted">
-                  {t('ai500Limit')}:
+                  {ts(coinSource.ai500Limit, language)}:
                 </span>
                 <select
                   value={config.ai500_limit || 10}
@@ -371,7 +326,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {t('nofxosNote')}
+              {ts(coinSource.nofxosNote, language)}
             </p>
           </div>
         </div>
@@ -386,7 +341,7 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-nofx-success" />
               <span className="text-sm font-medium text-nofx-text">
-                OI {language === 'zh' ? '持仓增加榜' : 'Increase'} {t('dataSourceConfig')}
+                {ts(coinSource.oiIncreaseTitle, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
               <NofxOSBadge />
             </div>
@@ -403,13 +358,13 @@ export function CoinSourceEditor({
                 disabled={disabled}
                 className="w-5 h-5 rounded accent-nofx-success"
               />
-              <span className="text-nofx-text">{t('useOITop')}</span>
+              <span className="text-nofx-text">{ts(coinSource.useOITop, language)}</span>
             </label>
 
             {config.use_oi_top && (
               <div className="flex items-center gap-3 pl-8">
                 <span className="text-sm text-nofx-text-muted">
-                  {t('oiTopLimit')}:
+                  {ts(coinSource.oiTopLimit, language)}:
                 </span>
                 <select
                   value={config.oi_top_limit || 10}
@@ -428,7 +383,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {t('nofxosNote')}
+              {ts(coinSource.nofxosNote, language)}
             </p>
           </div>
         </div>
@@ -443,7 +398,7 @@ export function CoinSourceEditor({
             <div className="flex items-center gap-2">
               <TrendingDown className="w-4 h-4 text-nofx-danger" />
               <span className="text-sm font-medium text-nofx-text">
-                OI {language === 'zh' ? '持仓减少榜' : 'Decrease'} {t('dataSourceConfig')}
+                {ts(coinSource.oiDecreaseTitle, language)} {ts(coinSource.dataSourceConfig, language)}
               </span>
               <NofxOSBadge />
             </div>
@@ -460,13 +415,13 @@ export function CoinSourceEditor({
                 disabled={disabled}
                 className="w-5 h-5 rounded accent-red-500"
               />
-              <span className="text-nofx-text">{t('useOILow')}</span>
+              <span className="text-nofx-text">{ts(coinSource.useOILow, language)}</span>
             </label>
 
             {config.use_oi_low && (
               <div className="flex items-center gap-3 pl-8">
                 <span className="text-sm text-nofx-text-muted">
-                  {t('oiLowLimit')}:
+                  {ts(coinSource.oiLowLimit, language)}:
                 </span>
                 <select
                   value={config.oi_low_limit || 10}
@@ -485,7 +440,7 @@ export function CoinSourceEditor({
             )}
 
             <p className="text-xs pl-8 text-nofx-text-muted">
-              {t('nofxosNote')}
+              {ts(coinSource.nofxosNote, language)}
             </p>
           </div>
         </div>
@@ -497,7 +452,7 @@ export function CoinSourceEditor({
           <div className="flex items-center gap-2 mb-4">
             <Shuffle className="w-4 h-4 text-blue-400" />
             <span className="text-sm font-medium text-nofx-text">
-              {t('mixedConfig')}
+              {ts(coinSource.mixedConfig, language)}
             </span>
           </div>
 
@@ -566,11 +521,11 @@ export function CoinSourceEditor({
                 />
                 <TrendingUp className="w-4 h-4 text-nofx-success" />
                 <span className="text-sm font-medium text-nofx-text">
-                  {language === 'zh' ? 'OI 增加' : 'OI Increase'}
+                  {ts(coinSource.oiIncreaseLabel, language)}
                 </span>
               </div>
               <p className="text-xs text-nofx-text-muted pl-6 mb-1">
-                {language === 'zh' ? '适合做多' : 'For long'}
+                {ts(coinSource.forLong, language)}
               </p>
               {config.use_oi_top && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
@@ -613,11 +568,11 @@ export function CoinSourceEditor({
                 />
                 <TrendingDown className="w-4 h-4 text-nofx-danger" />
                 <span className="text-sm font-medium text-nofx-text">
-                  {language === 'zh' ? 'OI 减少' : 'OI Decrease'}
+                  {ts(coinSource.oiDecreaseLabel, language)}
                 </span>
               </div>
               <p className="text-xs text-nofx-text-muted pl-6 mb-1">
-                {language === 'zh' ? '适合做空' : 'For short'}
+                {ts(coinSource.forShort, language)}
               </p>
               {config.use_oi_low && (
                 <div className="flex items-center gap-2 mt-2 pl-6">
@@ -651,7 +606,7 @@ export function CoinSourceEditor({
               <div className="flex items-center gap-2 mb-2">
                 <List className="w-4 h-4 text-gray-400" />
                 <span className="text-sm font-medium text-nofx-text">
-                  {language === 'zh' ? '自定义' : 'Custom'}
+                  {ts(coinSource.custom, language)}
                 </span>
                 {(config.static_coins || []).length > 0 && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400">
@@ -720,13 +675,13 @@ export function CoinSourceEditor({
             return (
               <div className="p-2 rounded bg-nofx-bg border border-nofx-border">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-nofx-text-muted">{t('mixedSummary')}:</span>
+                  <span className="text-nofx-text-muted">{ts(coinSource.mixedSummary, language)}:</span>
                   <span className="text-nofx-text font-medium">
                     {sources.join(' + ')}
                   </span>
                 </div>
                 <div className="text-xs text-nofx-text-muted mt-1">
-                  {t('maxCoins')} {totalLimit} {t('coins')}
+                  {ts(coinSource.maxCoins, language)} {totalLimit} {ts(coinSource.coins, language)}
                 </div>
               </div>
             )

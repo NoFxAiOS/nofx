@@ -183,13 +183,13 @@ export const backtestApi = {
       try {
         const data = text ? JSON.parse(text) : null
         throw new Error(
-          data?.error || data?.message || text || '导出失败，请稍后再试'
+          data?.error || data?.message || text || 'Export failed, please try again later'
         )
       } catch (err) {
         if (err instanceof Error && err.message) {
           throw err
         }
-        throw new Error(text || '导出失败，请稍后再试')
+        throw new Error(text || 'Export failed, please try again later')
       }
     }
     return res.blob()

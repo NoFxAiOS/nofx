@@ -187,7 +187,7 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 	}
 
 	// Convert coinank kline format to market.Kline format
-	// Coinank: Volume = BTC 数量, Quantity = USDT 成交额
+	// Coinank: Volume = BTC quantity, Quantity = USDT turnover
 	klines := make([]market.Kline, len(coinankKlines))
 	for i, ck := range coinankKlines {
 		klines[i] = market.Kline{
@@ -196,8 +196,8 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 			High:        ck.High,
 			Low:         ck.Low,
 			Close:       ck.Close,
-			Volume:      ck.Volume,   // BTC 数量
-			QuoteVolume: ck.Quantity, // USDT 成交额
+			Volume:      ck.Volume,   // BTC quantity
+			QuoteVolume: ck.Quantity, // USDT turnover
 			CloseTime:   ck.EndTime,
 		}
 	}
@@ -229,8 +229,8 @@ func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]mark
 			High:        bar.High,
 			Low:         bar.Low,
 			Close:       bar.Close,
-			Volume:      float64(bar.Volume),             // 股数
-			QuoteVolume: float64(bar.Volume) * bar.Close, // 成交额 = 股数 * 收盘价 (USD)
+			Volume:      float64(bar.Volume),             // share count
+			QuoteVolume: float64(bar.Volume) * bar.Close, // turnover = shares * close price (USD)
 			CloseTime:   bar.Timestamp.UnixMilli(),
 		}
 	}
@@ -311,8 +311,8 @@ func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([
 			High:        high,
 			Low:         low,
 			Close:       close,
-			Volume:      volume,         // 合约数量
-			QuoteVolume: volume * close, // 成交额 (USD)
+			Volume:      volume,         // contract quantity
+			QuoteVolume: volume * close, // turnover (USD)
 			CloseTime:   candle.CloseTime,
 		}
 	}

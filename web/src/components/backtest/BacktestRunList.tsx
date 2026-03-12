@@ -7,6 +7,7 @@ import {
   Layers,
   Eye,
 } from 'lucide-react'
+import { t, type Language } from '../../i18n/translations'
 
 // ============ Types ============
 
@@ -61,7 +62,7 @@ interface BacktestRunListProps {
   runs: BacktestRunItem[]
   selectedRunId: string | undefined
   compareRunIds: string[]
-  language: string
+  language: Language
   tr: (key: string, params?: Record<string, string | number>) => string
   onSelectRun: (runId: string) => void
   onToggleCompare: (runId: string) => void
@@ -84,7 +85,7 @@ export function BacktestRunList({
           {tr('runList.title')}
         </h3>
         <span className="text-xs" style={{ color: '#848E9C' }}>
-          {runs.length} {language === 'zh' ? '条' : 'runs'}
+          {runs.length} {t('backtestPageExtra.runs', language)}
         </span>
       </div>
 
@@ -131,7 +132,7 @@ export function BacktestRunList({
                       ? 'rgba(240,185,11,0.2)'
                       : 'transparent',
                   }}
-                  title={language === 'zh' ? '添加到对比' : 'Add to compare'}
+                  title={t('backtestPageExtra.addToCompare', language)}
                 >
                   <Eye
                     className="w-3 h-3"

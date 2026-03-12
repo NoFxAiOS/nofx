@@ -31,7 +31,7 @@ export async function handleJSONResponse<T>(res: Response): Promise<T> {
     } catch {
       /* ignore JSON parse errors */
     }
-    throw new Error(message || '请求失败')
+    throw new Error(message || 'Request failed')
   }
   if (!text) {
     return {} as T

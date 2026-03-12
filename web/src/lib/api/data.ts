@@ -15,7 +15,7 @@ export const dataApi = {
       ? `${API_BASE}/status?trader_id=${traderId}`
       : `${API_BASE}/status`
     const result = await httpClient.get<SystemStatus>(url)
-    if (!result.success) throw new Error('获取系统状态失败')
+    if (!result.success) throw new Error('Failed to fetch system status')
     return result.data!
   },
 
@@ -24,8 +24,7 @@ export const dataApi = {
       ? `${API_BASE}/account?trader_id=${traderId}`
       : `${API_BASE}/account`
     const result = await httpClient.get<AccountInfo>(url)
-    if (!result.success) throw new Error('获取账户信息失败')
-    console.log('Account data fetched:', result.data)
+    if (!result.success) throw new Error('Failed to fetch account info')
     return result.data!
   },
 
@@ -34,7 +33,7 @@ export const dataApi = {
       ? `${API_BASE}/positions?trader_id=${traderId}`
       : `${API_BASE}/positions`
     const result = await httpClient.get<Position[]>(url)
-    if (!result.success) throw new Error('获取持仓列表失败')
+    if (!result.success) throw new Error('Failed to fetch positions')
     return result.data!
   },
 
@@ -43,7 +42,7 @@ export const dataApi = {
       ? `${API_BASE}/decisions?trader_id=${traderId}`
       : `${API_BASE}/decisions`
     const result = await httpClient.get<DecisionRecord[]>(url)
-    if (!result.success) throw new Error('获取决策日志失败')
+    if (!result.success) throw new Error('Failed to fetch decision logs')
     return result.data!
   },
 
@@ -60,7 +59,7 @@ export const dataApi = {
     const result = await httpClient.get<DecisionRecord[]>(
       `${API_BASE}/decisions/latest?${params}`
     )
-    if (!result.success) throw new Error('获取最新决策失败')
+    if (!result.success) throw new Error('Failed to fetch latest decisions')
     return result.data!
   },
 
@@ -69,7 +68,7 @@ export const dataApi = {
       ? `${API_BASE}/statistics?trader_id=${traderId}`
       : `${API_BASE}/statistics`
     const result = await httpClient.get<Statistics>(url)
-    if (!result.success) throw new Error('获取统计信息失败')
+    if (!result.success) throw new Error('Failed to fetch statistics')
     return result.data!
   },
 
@@ -78,7 +77,7 @@ export const dataApi = {
       ? `${API_BASE}/equity-history?trader_id=${traderId}`
       : `${API_BASE}/equity-history`
     const result = await httpClient.get<any[]>(url)
-    if (!result.success) throw new Error('获取历史数据失败')
+    if (!result.success) throw new Error('Failed to fetch equity history')
     return result.data!
   },
 
@@ -87,13 +86,13 @@ export const dataApi = {
       `${API_BASE}/equity-history-batch`,
       { trader_ids: traderIds, hours: hours || 0 }
     )
-    if (!result.success) throw new Error('获取批量历史数据失败')
+    if (!result.success) throw new Error('Failed to fetch batch equity history')
     return result.data!
   },
 
   async getTopTraders(): Promise<any[]> {
     const result = await httpClient.get<any[]>(`${API_BASE}/top-traders`)
-    if (!result.success) throw new Error('获取前5名交易员失败')
+    if (!result.success) throw new Error('Failed to fetch top traders')
     return result.data!
   },
 
@@ -101,7 +100,7 @@ export const dataApi = {
     const result = await httpClient.get<any>(
       `${API_BASE}/trader/${traderId}/config`
     )
-    if (!result.success) throw new Error('获取公开交易员配置失败')
+    if (!result.success) throw new Error('Failed to fetch public trader config')
     return result.data!
   },
 
@@ -109,7 +108,7 @@ export const dataApi = {
     const result = await httpClient.get<CompetitionData>(
       `${API_BASE}/competition`
     )
-    if (!result.success) throw new Error('获取竞赛数据失败')
+    if (!result.success) throw new Error('Failed to fetch competition data')
     return result.data!
   },
 
@@ -117,7 +116,7 @@ export const dataApi = {
     const result = await httpClient.get<PositionHistoryResponse>(
       `${API_BASE}/positions/history?trader_id=${traderId}&limit=${limit}`
     )
-    if (!result.success) throw new Error('获取历史仓位失败')
+    if (!result.success) throw new Error('Failed to fetch position history')
     return result.data!
   },
 }

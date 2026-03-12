@@ -115,7 +115,7 @@ func (t *LighterTraderV2) GetOrderStatus(symbol string, orderID string) (map[str
 
 	resp, err := t.client.Do(req)
 	if err != nil {
-		// ✅ 正确做法：查询失败返回错误，而不是假设成交
+		// Correct approach: return error on query failure, do not assume order is filled
 		return nil, fmt.Errorf("failed to query order status: %w", err)
 	}
 	defer resp.Body.Close()

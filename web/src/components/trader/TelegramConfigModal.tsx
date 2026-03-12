@@ -3,7 +3,7 @@ import { Check, ChevronLeft, ExternalLink, MessageCircle, Unlink, ArrowRight } f
 import { toast } from 'sonner'
 import { api } from '../../lib/api'
 import type { TelegramConfig, AIModel } from '../../types'
-import type { Language } from '../../i18n/translations'
+import { t, type Language } from '../../i18n/translations'
 
 // Step indicator (reused pattern from ExchangeConfigModal)
 function StepIndicator({ currentStep, labels }: { currentStep: number; labels: string[] }) {
@@ -55,8 +55,6 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
   const [isLoading, setIsLoading] = useState(true)
   const [isUnbinding, setIsUnbinding] = useState(false)
 
-  const zh = language === 'zh'
-
   // Load current config and available models
   useEffect(() => {
     Promise.all([
@@ -84,20 +82,20 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
 
     // Basic format validation: looks like "123456789:ABCdef..."
     if (!/^\d+:[A-Za-z0-9_-]{35,}$/.test(token.trim())) {
-      toast.error(zh ? 'Bot Token 格式不正确，应为 "数字:字母数字串"' : 'Invalid Bot Token format. Expected "numbers:alphanumeric"')
+      toast.error(t('telegram.invalidTokenFormat', language))
       return
     }
 
     setIsSaving(true)
     try {
       await api.updateTelegramConfig(token.trim(), selectedModelId || undefined)
-      toast.success(zh ? 'Bot Token 已保存，等待绑定' : 'Bot Token saved, waiting for binding')
+      toast.success(t('telegram.tokenSaved', language))
       const updated = await api.getTelegramConfig()
       setConfig(updated)
       setToken('')
       setStep(1)
     } catch (err) {
-      toast.error(zh ? '保存失败，请检查 Token 是否正确' : 'Save failed, please verify the token')
+      toast.error(t('telegram.saveFailed', language))
     } finally {
       setIsSaving(false)
     }
@@ -108,33 +106,31 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
     setIsUnbinding(true)
     try {
       await api.unbindTelegram()
-      toast.success(zh ? '已解绑 Telegram 账号' : 'Telegram account unbound')
+      toast.success(t('telegram.unbound', language))
       const updated = await api.getTelegramConfig()
       setConfig(updated)
       setStep(updated.token_masked ? 1 : 0)
     } catch {
-      toast.error(zh ? '解绑失败' : 'Unbind failed')
+      toast.error(t('telegram.unbindFailed', language))
     } finally {
       setIsUnbinding(false)
     }
   }
 
-  const stepLabels = zh
-    ? ['创建 Bot', '绑定账号', '完成']
-    : ['Create Bot', 'Bind Account', 'Done']
+  const stepLabels = [t('telegram.createBot', language), t('telegram.bindAccount', language), t('telegram.done', language)]
 
   // Model selector shared between steps
   const ModelSelector = () => (
     <div className="space-y-2">
       <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-        {zh ? '选择 AI 模型（可选）' : 'Select AI Model (optional)'}
+        {t('telegram.selectAiModel', language)}
       </label>
       {models.length === 0 ? (
         <div
           className="px-4 py-3 rounded-xl text-xs"
           style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#848E9C' }}
         >
-          {zh ? '暂无启用的模型，请先在「AI 模型」中配置' : 'No enabled models. Configure one in AI Models first.'}
+          {t('telegram.noEnabledModels', language)}
         </div>
       ) : (
         <select
@@ -147,7 +143,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
             color: selectedModelId ? '#EAECEF' : '#848E9C',
           }}
         >
-          <option value="">{zh ? '— 自动选择（推荐）' : '— Auto-select (recommended)'}</option>
+          <option value="">{t('telegram.autoSelect', language)}</option>
           {models.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name} ({m.provider}{m.customModelName ? ` · ${m.customModelName}` : ''})
@@ -156,9 +152,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
         </select>
       )}
       <div className="text-xs" style={{ color: '#848E9C' }}>
-        {zh
-          ? '不选则自动使用已启用的模型'
-          : 'Leave blank to auto-use any enabled model'}
+        {t('telegram.autoUseEnabled', language)}
       </div>
     </div>
   )
@@ -184,7 +178,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
             <div className="flex items-center gap-2">
               <MessageCircle className="w-6 h-6" style={{ color: '#2AABEE' }} />
               <h3 className="text-xl font-bold" style={{ color: '#EAECEF' }}>
-                {zh ? 'Telegram Bot 配置' : 'Telegram Bot Setup'}
+                {t('telegram.botSetup', language)}
               </h3>
             </div>
           </div>
@@ -207,7 +201,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
         <div className="px-6 pb-6 space-y-5">
           {isLoading ? (
             <div className="text-center py-8 text-zinc-500 text-sm font-mono">
-              {zh ? '加载中...' : 'Loading...'}
+              {t('telegram.loading', language)}
             </div>
           ) : (
             <>
@@ -222,13 +216,13 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       <span className="text-2xl">🤖</span>
                       <div>
                         <div className="font-semibold mb-1" style={{ color: '#2AABEE' }}>
-                          {zh ? '第一步：在 Telegram 创建你的 Bot' : 'Step 1: Create your Bot in Telegram'}
+                          {t('telegram.step1Title', language)}
                         </div>
                         <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                          <div>1. {zh ? '打开 Telegram，搜索' : 'Open Telegram, search for'} <code className="text-blue-400">@BotFather</code></div>
-                          <div>2. {zh ? '发送' : 'Send'} <code className="text-blue-400">/newbot</code> {zh ? '命令' : 'command'}</div>
-                          <div>3. {zh ? '按提示输入 Bot 名称和用户名' : 'Follow prompts to set bot name and username'}</div>
-                          <div>4. {zh ? 'BotFather 会返回一个 Token，复制它' : 'BotFather will return a Token, copy it'}</div>
+                          <div>1. {t('telegram.step1Desc1', language)} <code className="text-blue-400">@BotFather</code></div>
+                          <div>2. {t('telegram.step1Desc2', language)} <code className="text-blue-400">/newbot</code> {t('telegram.step1Desc2Suffix', language)}</div>
+                          <div>3. {t('telegram.step1Desc3', language)}</div>
+                          <div>4. {t('telegram.step1Desc4', language)}</div>
                         </div>
                       </div>
                     </div>
@@ -242,12 +236,12 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     style={{ background: '#2AABEE', color: '#000' }}
                   >
                     <ExternalLink className="w-4 h-4" />
-                    {zh ? '打开 @BotFather' : 'Open @BotFather'}
+                    {t('telegram.openBotFather', language)}
                   </a>
 
                   <div className="space-y-2">
                     <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-                      {zh ? '粘贴 Bot Token' : 'Paste Bot Token'}
+                      {t('telegram.pasteToken', language)}
                     </label>
                     <input
                       type="password"
@@ -258,7 +252,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       style={{ background: '#0B0E11', border: '1px solid #2B3139', color: '#EAECEF' }}
                     />
                     <div className="text-xs" style={{ color: '#848E9C' }}>
-                      {zh ? 'Token 格式：数字:字母数字串，如 123456789:ABCdef...' : 'Format: numbers:alphanumeric, e.g. 123456789:ABCdef...'}
+                      {t('telegram.tokenFormat', language)}
                     </div>
                   </div>
 
@@ -271,8 +265,8 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     style={{ background: '#2AABEE', color: '#000' }}
                   >
                     {isSaving
-                      ? (zh ? '保存中...' : 'Saving...')
-                      : (<>{zh ? '保存并继续' : 'Save & Continue'} <ArrowRight className="w-4 h-4" /></>)
+                      ? t('telegram.savingToken', language)
+                      : (<>{t('telegram.saveAndContinue', language)} <ArrowRight className="w-4 h-4" /></>)
                     }
                   </button>
                 </div>
@@ -289,12 +283,12 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       <span className="text-2xl">📱</span>
                       <div>
                         <div className="font-semibold mb-1" style={{ color: '#0ECB81' }}>
-                          {zh ? '第二步：向你的 Bot 发送 /start' : 'Step 2: Send /start to your Bot'}
+                          {t('telegram.step2Title', language)}
                         </div>
                         <div className="text-xs space-y-1" style={{ color: '#848E9C' }}>
-                          <div>1. {zh ? '在 Telegram 中搜索你刚创建的 Bot' : 'Search for your newly created Bot in Telegram'}</div>
-                          <div>2. {zh ? '点击 Start 或发送' : 'Click Start or send'} <code className="text-green-400">/start</code></div>
-                          <div>3. {zh ? 'Bot 会自动绑定到你的账号' : 'Bot will automatically bind to your account'}</div>
+                          <div>1. {t('telegram.step2Desc1', language)}</div>
+                          <div>2. {t('telegram.step2Desc2', language)} <code className="text-green-400">/start</code></div>
+                          <div>3. {t('telegram.step2Desc3', language)}</div>
                         </div>
                       </div>
                     </div>
@@ -308,7 +302,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse flex-shrink-0" />
                       <div>
                         <div className="text-xs font-mono" style={{ color: '#848E9C' }}>
-                          {zh ? '当前 Token' : 'Current Token'}
+                          {t('telegram.currentToken', language)}
                         </div>
                         <div className="text-sm font-mono" style={{ color: '#EAECEF' }}>
                           {config.token_masked}
@@ -322,9 +316,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     style={{ background: 'rgba(240, 185, 11, 0.08)', border: '1px solid rgba(240, 185, 11, 0.2)' }}
                   >
                     <div className="text-xs" style={{ color: '#F0B90B' }}>
-                      {zh
-                        ? '⏳ 等待你发送 /start... 发送后刷新页面查看状态'
-                        : '⏳ Waiting for you to send /start... Refresh page after sending'}
+                      {t('telegram.waitingForStart', language)}
                     </div>
                   </div>
 
@@ -334,7 +326,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       className="flex-1 px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:bg-white/5"
                       style={{ background: '#2B3139', color: '#848E9C' }}
                     >
-                      {zh ? '重新配置 Token' : 'Reconfigure Token'}
+                      {t('telegram.reconfigureToken', language)}
                     </button>
                     <button
                       onClick={async () => {
@@ -343,19 +335,19 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                           setConfig(updated)
                           if (updated.is_bound) {
                             setStep(2)
-                            toast.success(zh ? '绑定成功！' : 'Bound successfully!')
+                            toast.success(t('telegram.bindSuccess', language))
                           } else {
-                            toast.info(zh ? '尚未收到 /start，请先向 Bot 发送 /start' : 'No /start received yet. Please send /start to your Bot first')
+                            toast.info(t('telegram.noStartReceived', language))
                           }
                         } catch {
-                          toast.error(zh ? '检查失败' : 'Check failed')
+                          toast.error(t('telegram.checkFailed', language))
                         }
                       }}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
                       style={{ background: '#0ECB81', color: '#000' }}
                     >
                       <Check className="w-4 h-4" />
-                      {zh ? '检查绑定状态' : 'Check Status'}
+                      {t('telegram.checkStatus', language)}
                     </button>
                   </div>
                 </div>
@@ -370,12 +362,10 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                   >
                     <div className="text-4xl">🎉</div>
                     <div className="font-bold text-lg" style={{ color: '#0ECB81' }}>
-                      {zh ? 'Telegram Bot 已绑定！' : 'Telegram Bot is Active!'}
+                      {t('telegram.botActive', language)}
                     </div>
                     <div className="text-xs" style={{ color: '#848E9C' }}>
-                      {zh
-                        ? '你现在可以通过 Telegram 用自然语言控制交易系统'
-                        : 'You can now control the trading system via natural language in Telegram'}
+                      {t('telegram.botActiveDesc', language)}
                     </div>
                   </div>
 
@@ -387,7 +377,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                       <div className="min-w-0">
                         <div className="text-xs font-mono" style={{ color: '#848E9C' }}>
-                          {zh ? 'Bot Token' : 'Bot Token'}
+                          Bot Token
                         </div>
                         <div className="text-sm font-mono truncate" style={{ color: '#EAECEF' }}>
                           {config.token_masked}
@@ -398,7 +388,7 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
 
                   {/* AI Model selector — works on active bot */}
                   <BoundModelSelector
-                    zh={zh}
+                    language={language}
                     models={models}
                     currentModelId={config?.model_id ?? ''}
                     onSaved={(modelId) => {
@@ -412,14 +402,14 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                     style={{ background: '#0B0E11', border: '1px solid #2B3139' }}
                   >
                     <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#848E9C' }}>
-                      {zh ? '支持的命令' : 'Supported Commands'}
+                      {t('telegram.supportedCommands', language)}
                     </div>
                     {[
-                      { cmd: '/help', desc: zh ? '查看所有命令' : 'Show all commands' },
-                      { cmd: zh ? '查看交易员状态' : 'Show trader status', desc: zh ? '自然语言查询' : 'Natural language' },
-                      { cmd: zh ? '启动/停止交易员' : 'Start/stop trader', desc: zh ? '自然语言控制' : 'Natural language control' },
-                      { cmd: zh ? '查看持仓' : 'View positions', desc: zh ? '实时持仓查询' : 'Real-time position query' },
-                      { cmd: zh ? '配置策略' : 'Configure strategy', desc: zh ? '修改交易策略' : 'Modify trading strategy' },
+                      { cmd: '/help', desc: t('telegram.cmdHelp', language) },
+                      { cmd: t('telegram.cmdStatus', language), desc: t('telegram.cmdNaturalLang', language) },
+                      { cmd: t('telegram.cmdStartStop', language), desc: t('telegram.cmdControl', language) },
+                      { cmd: t('telegram.cmdPositions', language), desc: t('telegram.cmdPositionsDesc', language) },
+                      { cmd: t('telegram.cmdStrategy', language), desc: t('telegram.cmdStrategyDesc', language) },
                     ].map((item, i) => (
                       <div key={i} className="flex items-start gap-2 text-xs">
                         <code className="font-mono px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: '#1E2329', color: '#2AABEE' }}>
@@ -438,14 +428,14 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
                       style={{ background: 'rgba(246, 70, 93, 0.1)', color: '#F6465D', border: '1px solid rgba(246, 70, 93, 0.2)' }}
                     >
                       <Unlink className="w-4 h-4" />
-                      {isUnbinding ? (zh ? '解绑中...' : 'Unbinding...') : (zh ? '解绑账号' : 'Unbind Account')}
+                      {isUnbinding ? t('telegram.unbinding', language) : t('telegram.unbindAccount', language)}
                     </button>
                     <button
                       onClick={onClose}
                       className="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
                       style={{ background: '#2AABEE', color: '#000' }}
                     >
-                      {zh ? '完成' : 'Done'}
+                      {t('telegram.done', language)}
                     </button>
                   </div>
                 </div>
@@ -461,12 +451,12 @@ export function TelegramConfigModal({ onClose, language }: TelegramConfigModalPr
 // BoundModelSelector — lets the user change the AI model when the bot is already active.
 // It updates the model_id without requiring re-entry of the bot token.
 function BoundModelSelector({
-  zh,
+  language,
   models,
   currentModelId,
   onSaved,
 }: {
-  zh: boolean
+  language: Language
   models: AIModel[]
   currentModelId: string
   onSaved: (modelId: string) => void
@@ -483,9 +473,9 @@ function BoundModelSelector({
       // POST /api/telegram/model — lightweight endpoint for model-only update
       await api.updateTelegramModel(modelId)
       onSaved(modelId)
-      toast.success(zh ? 'AI 模型已更新' : 'AI model updated')
+      toast.success(t('telegram.modelUpdated', language))
     } catch {
-      toast.error(zh ? '更新失败' : 'Update failed')
+      toast.error(t('telegram.modelUpdateFailed', language))
     } finally {
       setIsSaving(false)
     }
@@ -496,7 +486,7 @@ function BoundModelSelector({
   return (
     <div className="space-y-2">
       <label className="text-sm font-semibold" style={{ color: '#EAECEF' }}>
-        {zh ? 'AI 模型（用于自然语言解析）' : 'AI Model (for natural language)'}
+        {t('telegram.aiModelLabel', language)}
       </label>
       <div className="flex gap-2">
         <select
@@ -509,7 +499,7 @@ function BoundModelSelector({
             color: modelId ? '#EAECEF' : '#848E9C',
           }}
         >
-          <option value="">{zh ? '— 自动选择' : '— Auto-select'}</option>
+          <option value="">{t('telegram.aiModelAutoSelect', language)}</option>
           {models.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}{m.customModelName ? ` · ${m.customModelName}` : ''}
@@ -522,7 +512,7 @@ function BoundModelSelector({
           className="px-4 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ background: '#F0B90B', color: '#000', whiteSpace: 'nowrap' }}
         >
-          {isSaving ? '...' : (zh ? '保存' : 'Save')}
+          {isSaving ? '...' : t('telegram.save', language)}
         </button>
       </div>
     </div>

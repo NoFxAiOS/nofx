@@ -10,7 +10,7 @@ import { API_BASE, httpClient, CryptoService } from './helpers'
 export const configApi = {
   async getModelConfigs(): Promise<AIModel[]> {
     const result = await httpClient.get<AIModel[]>(`${API_BASE}/models`)
-    if (!result.success) throw new Error('获取模型配置失败')
+    if (!result.success) throw new Error('Failed to fetch model configs')
     return Array.isArray(result.data) ? result.data : []
   },
 
@@ -18,13 +18,13 @@ export const configApi = {
     const result = await httpClient.get<AIModel[]>(
       `${API_BASE}/supported-models`
     )
-    if (!result.success) throw new Error('获取支持的模型失败')
+    if (!result.success) throw new Error('Failed to fetch supported models')
     return result.data!
   },
 
   async getPromptTemplates(): Promise<string[]> {
     const res = await fetch(`${API_BASE}/prompt-templates`)
-    if (!res.ok) throw new Error('获取提示词模板失败')
+    if (!res.ok) throw new Error('Failed to fetch prompt templates')
     const data = await res.json()
     if (Array.isArray(data.templates)) {
       return data.templates.map((item: { name: string }) => item.name)
@@ -33,41 +33,41 @@ export const configApi = {
   },
 
   async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
-    // 检查是否启用了传输加密
+    // Check if transport encryption is enabled
     const config = await CryptoService.fetchCryptoConfig()
 
     if (!config.transport_encryption) {
-      // 传输加密禁用时，直接发送明文
+      // Transport encryption disabled, send plaintext
       const result = await httpClient.put(`${API_BASE}/models`, request)
-      if (!result.success) throw new Error('更新模型配置失败')
+      if (!result.success) throw new Error('Failed to update model configs')
       return
     }
 
-    // 获取RSA公钥
+    // Fetch RSA public key
     const publicKey = await CryptoService.fetchPublicKey()
 
-    // 初始化加密服务
+    // Initialize crypto service
     await CryptoService.initialize(publicKey)
 
-    // 获取用户信息（从localStorage或其他地方）
+    // Get user info from localStorage
     const userId = localStorage.getItem('user_id') || ''
     const sessionId = sessionStorage.getItem('session_id') || ''
 
-    // 加密敏感数据
+    // Encrypt sensitive data
     const encryptedPayload = await CryptoService.encryptSensitiveData(
       JSON.stringify(request),
       userId,
       sessionId
     )
 
-    // 发送加密数据
+    // Send encrypted data
     const result = await httpClient.put(`${API_BASE}/models`, encryptedPayload)
-    if (!result.success) throw new Error('更新模型配置失败')
+    if (!result.success) throw new Error('Failed to update model configs')
   },
 
   async getExchangeConfigs(): Promise<Exchange[]> {
     const result = await httpClient.get<Exchange[]>(`${API_BASE}/exchanges`)
-    if (!result.success) throw new Error('获取交易所配置失败')
+    if (!result.success) throw new Error('Failed to fetch exchange configs')
     return result.data!
   },
 
@@ -75,7 +75,7 @@ export const configApi = {
     const result = await httpClient.get<Exchange[]>(
       `${API_BASE}/supported-exchanges`
     )
-    if (!result.success) throw new Error('获取支持的交易所失败')
+    if (!result.success) throw new Error('Failed to fetch supported exchanges')
     return result.data!
   },
 
@@ -83,93 +83,93 @@ export const configApi = {
     request: UpdateExchangeConfigRequest
   ): Promise<void> {
     const result = await httpClient.put(`${API_BASE}/exchanges`, request)
-    if (!result.success) throw new Error('更新交易所配置失败')
+    if (!result.success) throw new Error('Failed to update exchange configs')
   },
 
   async createExchange(request: CreateExchangeRequest): Promise<{ id: string }> {
     const result = await httpClient.post<{ id: string }>(`${API_BASE}/exchanges`, request)
-    if (!result.success) throw new Error('创建交易所账户失败')
+    if (!result.success) throw new Error('Failed to create exchange account')
     return result.data!
   },
 
   async createExchangeEncrypted(request: CreateExchangeRequest): Promise<{ id: string }> {
-    // 检查是否启用了传输加密
+    // Check if transport encryption is enabled
     const config = await CryptoService.fetchCryptoConfig()
 
     if (!config.transport_encryption) {
-      // 传输加密禁用时，直接发送明文
+      // Transport encryption disabled, send plaintext
       const result = await httpClient.post<{ id: string }>(`${API_BASE}/exchanges`, request)
-      if (!result.success) throw new Error('创建交易所账户失败')
+      if (!result.success) throw new Error('Failed to create exchange account')
       return result.data!
     }
 
-    // 获取RSA公钥
+    // Fetch RSA public key
     const publicKey = await CryptoService.fetchPublicKey()
 
-    // 初始化加密服务
+    // Initialize crypto service
     await CryptoService.initialize(publicKey)
 
-    // 获取用户信息
+    // Get user info
     const userId = localStorage.getItem('user_id') || ''
     const sessionId = sessionStorage.getItem('session_id') || ''
 
-    // 加密敏感数据
+    // Encrypt sensitive data
     const encryptedPayload = await CryptoService.encryptSensitiveData(
       JSON.stringify(request),
       userId,
       sessionId
     )
 
-    // 发送加密数据
+    // Send encrypted data
     const result = await httpClient.post<{ id: string }>(
       `${API_BASE}/exchanges`,
       encryptedPayload
     )
-    if (!result.success) throw new Error('创建交易所账户失败')
+    if (!result.success) throw new Error('Failed to create exchange account')
     return result.data!
   },
 
   async deleteExchange(exchangeId: string): Promise<void> {
     const result = await httpClient.delete(`${API_BASE}/exchanges/${exchangeId}`)
-    if (!result.success) throw new Error('删除交易所账户失败')
+    if (!result.success) throw new Error('Failed to delete exchange account')
   },
 
   async updateExchangeConfigsEncrypted(
     request: UpdateExchangeConfigRequest
   ): Promise<void> {
-    // 检查是否启用了传输加密
+    // Check if transport encryption is enabled
     const config = await CryptoService.fetchCryptoConfig()
 
     if (!config.transport_encryption) {
-      // 传输加密禁用时，直接发送明文
+      // Transport encryption disabled, send plaintext
       const result = await httpClient.put(`${API_BASE}/exchanges`, request)
-      if (!result.success) throw new Error('更新交易所配置失败')
+      if (!result.success) throw new Error('Failed to update exchange configs')
       return
     }
 
-    // 获取RSA公钥
+    // Fetch RSA public key
     const publicKey = await CryptoService.fetchPublicKey()
 
-    // 初始化加密服务
+    // Initialize crypto service
     await CryptoService.initialize(publicKey)
 
-    // 获取用户信息（从localStorage或其他地方）
+    // Get user info from localStorage
     const userId = localStorage.getItem('user_id') || ''
     const sessionId = sessionStorage.getItem('session_id') || ''
 
-    // 加密敏感数据
+    // Encrypt sensitive data
     const encryptedPayload = await CryptoService.encryptSensitiveData(
       JSON.stringify(request),
       userId,
       sessionId
     )
 
-    // 发送加密数据
+    // Send encrypted data
     const result = await httpClient.put(
       `${API_BASE}/exchanges`,
       encryptedPayload
     )
-    if (!result.success) throw new Error('更新交易所配置失败')
+    if (!result.success) throw new Error('Failed to update exchange configs')
   },
 
   async getServerIP(): Promise<{
@@ -180,7 +180,7 @@ export const configApi = {
       public_ip: string
       message: string
     }>(`${API_BASE}/server-ip`)
-    if (!result.success) throw new Error('获取服务器IP失败')
+    if (!result.success) throw new Error('Failed to fetch server IP')
     return result.data!
   },
 }

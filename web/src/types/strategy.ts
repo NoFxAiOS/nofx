@@ -182,4 +182,14 @@ export interface RiskControlConfig {
   min_position_size: number;       // Min position size in USDT (CODE ENFORCED)
   min_risk_reward_ratio: number;   // Min take_profit / stop_loss ratio (AI guided)
   min_confidence: number;          // Min AI confidence to open position (AI guided)
+
+  // Position Management (AI guided)
+  breakeven_threshold?: number;
+  update_stop_loss_enabled?: boolean;
+
+  // Exit Signals (AI guided)
+  hard_stop_loss_pct?: number;
+  trailing_stop_pct?: number;
+  trailing_stop_min_profit?: number;
+  trailing_stop_drawdown?: number;
 }

@@ -887,7 +887,10 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 	excluded := make(map[string]bool)
 	if engine != nil && engine.config != nil && engine.config.CoinSource.ExcludedCoins != nil {
 		for _, c := range engine.config.CoinSource.ExcludedCoins {
-			excluded[market.Normalize(c)] = true
+			n := market.Normalize(c)
+			if n != "" {
+				excluded[n] = true
+			}
 		}
 	}
 
@@ -1198,23 +1201,27 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 	}
 }
 
-// filterExcludedCoins removes excluded coins from the candidates list
+// filterExcludedCoins removes excluded coins from the candidates list.
+// Uses the complete excluded list and normalizes both excluded symbols and candidate symbols for consistent matching.
 func (e *StrategyEngine) filterExcludedCoins(candidates []CandidateCoin) []CandidateCoin {
-	if len(e.config.CoinSource.ExcludedCoins) == 0 {
+	if e.config == nil || e.config.CoinSource.ExcludedCoins == nil || len(e.config.CoinSource.ExcludedCoins) == 0 {
 		return candidates
 	}
 
-	// Build excluded set for O(1) lookup
+	// Build excluded set from complete list (all entries, normalized)
 	excluded := make(map[string]bool)
 	for _, coin := range e.config.CoinSource.ExcludedCoins {
-		normalized := market.Normalize(coin)
-		excluded[normalized] = true
+		n := market.Normalize(coin)
+		if n != "" {
+			excluded[n] = true
+		}
 	}
 
-	// Filter out excluded coins
+	// Filter out excluded coins (normalize candidate symbol for lookup)
 	filtered := make([]CandidateCoin, 0, len(candidates))
 	for _, c := range candidates {
-		if !excluded[c.Symbol] {
+		cn := market.Normalize(c.Symbol)
+		if !excluded[cn] {
 			filtered = append(filtered, c)
 		} else {
 			logger.Infof("🚫 Excluded coin: %s", c.Symbol)

@@ -464,11 +464,14 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 	default:
 		out.RiskLevel = "medium"
 	}
-	// Build excluded set (strategy excludes these from trading)
+	// Build excluded set from complete list (strategy excludes these from trading)
 	excluded := make(map[string]bool)
 	if config != nil && config.CoinSource.ExcludedCoins != nil {
 		for _, c := range config.CoinSource.ExcludedCoins {
-			excluded[market.Normalize(c)] = true
+			n := market.Normalize(c)
+			if n != "" {
+				excluded[n] = true
+			}
 		}
 	}
 

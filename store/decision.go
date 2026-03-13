@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -261,6 +262,44 @@ func (s *DecisionStore) GetRecordsByDate(traderID string, date time.Time) ([]*De
 	}
 
 	return records, nil
+}
+
+// GetEntryThesisForPosition returns the AI reasoning that led to opening the position, from decision records.
+// Used when position has no entry_thesis (legacy, or created by OrderSync). Looks up decision at/before entryTime
+// with an open_long/open_short for the symbol.
+func (s *DecisionStore) GetEntryThesisForPosition(traderID, symbol, side string, entryTimeMs int64) string {
+	entryTime := time.UnixMilli(entryTimeMs).UTC()
+	var dbRecords []*DecisionRecordDB
+	err := s.db.Where("trader_id = ? AND timestamp <= ?", traderID, entryTime).
+		Order("timestamp DESC").
+		Limit(30).
+		Find(&dbRecords).Error
+	if err != nil {
+		return ""
+	}
+	symbolNorm := strings.ToUpper(strings.TrimSpace(symbol))
+	openAction := "open_long"
+	if side == "SHORT" {
+		openAction = "open_short"
+	}
+	for _, db := range dbRecords {
+		var decisions []DecisionAction
+		if err := json.Unmarshal([]byte(db.Decisions), &decisions); err != nil {
+			continue
+		}
+		for _, d := range decisions {
+			if strings.ToUpper(strings.TrimSpace(d.Symbol)) != symbolNorm {
+				continue
+			}
+			a := strings.ToLower(strings.TrimSpace(d.Action))
+			if (a == "open_long" && openAction == "open_long") || (a == "open_short" && openAction == "open_short") {
+				if d.Reasoning != "" {
+					return d.Reasoning
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // CleanOldRecords cleans old records from N days ago

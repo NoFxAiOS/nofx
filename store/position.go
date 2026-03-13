@@ -99,8 +99,9 @@ type TraderPosition struct {
 	Status             string  `gorm:"column:status;default:OPEN;index:idx_positions_status" json:"status"`
 	CloseReason        string  `gorm:"column:close_reason;default:''" json:"close_reason"`
 	Source             string  `gorm:"column:source;default:system" json:"source"`
-	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"`   // Unix milliseconds UTC
-	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"`   // Unix milliseconds UTC
+	EntryThesis        string  `gorm:"column:entry_thesis;default:''" json:"entry_thesis,omitempty"` // AI thesis/reasoning when position was opened (for position-check comparison)
+	CreatedAt          int64   `gorm:"column:created_at" json:"created_at"`                          // Unix milliseconds UTC
+	UpdatedAt          int64   `gorm:"column:updated_at" json:"updated_at"`                          // Unix milliseconds UTC
 }
 
 // TableName returns the table name
@@ -144,6 +145,8 @@ func (s *PositionStore) InitTables() error {
 
 			// Just ensure index exists
 			s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_positions_exchange_pos_unique ON trader_positions(exchange_id, exchange_position_id) WHERE exchange_position_id != ''`)
+			// Add entry_thesis column if missing (for position-check thesis comparison)
+			s.db.Exec(`ALTER TABLE trader_positions ADD COLUMN IF NOT EXISTS entry_thesis TEXT DEFAULT ''`)
 			return nil
 		}
 	}

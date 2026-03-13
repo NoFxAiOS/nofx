@@ -54,6 +54,7 @@ type PositionInfo struct {
 	LiquidationPrice float64 `json:"liquidation_price"`
 	MarginUsed       float64 `json:"margin_used"`
 	UpdateTime       int64   `json:"update_time"` // Position update timestamp (milliseconds)
+	EntryThesis      string  `json:"entry_thesis,omitempty"` // AI thesis when position was opened; compare current market vs this, not vs fresh analysis
 }
 
 // AccountInfo account information
@@ -2234,7 +2235,7 @@ func (e *StrategyEngine) BuildPositionCheckUserPrompt(ctx *Context, macroBrief s
 	for i, pos := range ctx.Positions {
 		sb.WriteString(e.formatPositionInfo(i+1, pos, ctx))
 	}
-	sb.WriteString("\n---\n\nFor each position above, output whether to take profit, stop-loss, or hold. Output a JSON array of decisions (one per position): same format as usual (symbol, action: close_long/close_short/hold, reasoning, optional stop_loss/take_profit). For hold you MUST provide reasoning explaining why you are keeping the position (e.g. trend intact, no TP/SL trigger yet).\n")
+	sb.WriteString("\n---\n\n**Your task:** For each position that has an **original thesis** (above), compare the **current market** against that thesis. Do NOT re-analyze from scratch—evaluate whether the original thesis is still valid or has been invalidated. If invalidated (setup broken, key level breached, thesis no longer holds), consider closing. If the thesis still holds, hold. When no original thesis is provided, use available context. Output a JSON array of decisions (one per position): symbol, action (close_long/close_short/hold), reasoning. For hold you MUST explain why the thesis still holds (or your reasoning when no thesis).\n")
 	if e.config != nil && e.config.PositionCheckExtraPrompt != "" {
 		sb.WriteString("\n# Additional guidance (position check)\n\n")
 		sb.WriteString(strings.TrimSpace(e.config.PositionCheckExtraPrompt))
@@ -2476,11 +2477,14 @@ func (e *StrategyEngine) formatPositionInfo(index int, pos PositionInfo, ctx *Co
 		positionValue = -positionValue
 	}
 
-	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n\n",
+	sb.WriteString(fmt.Sprintf("%d. %s %s | Entry %.4f Current %.4f | Qty %.4f | Position Value %.2f USDT | PnL%+.2f%% | PnL Amount%+.2f USDT | Peak PnL%.2f%% | Leverage %dx | Margin %.0f | Liq Price %.4f%s\n",
 		index, pos.Symbol, strings.ToUpper(pos.Side),
 		pos.EntryPrice, pos.MarkPrice, pos.Quantity, positionValue, pos.UnrealizedPnLPct, pos.UnrealizedPnL, pos.PeakPnLPct,
 		pos.Leverage, pos.MarginUsed, pos.LiquidationPrice, holdingDuration))
-
+	if pos.EntryThesis != "" {
+		sb.WriteString(fmt.Sprintf("   **Original thesis (when opened):** %s\n", strings.TrimSpace(pos.EntryThesis)))
+	}
+	sb.WriteString("\n")
 	if marketData, ok := ctx.MarketDataMap[pos.Symbol]; ok {
 		sb.WriteString(e.formatMarketData(marketData))
 

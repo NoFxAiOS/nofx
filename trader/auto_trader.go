@@ -852,16 +852,20 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		// Calculate P&L percentage (based on margin, considering leverage)
 		pnlPct := calculatePnLPercentage(unrealizedPnl, marginUsed)
 
-		// Get position open time from exchange (preferred) or fallback to local tracking
+		// Get position open time and entry thesis from database (trader_positions table)
 		posKey := symbol + "_" + side
 		currentPositionKeys[posKey] = true
 
 		var updateTime int64
-		// Priority 1: Get from database (trader_positions table) - most accurate
+		var entryThesis string
 		if at.store != nil {
 			if dbPos, err := at.store.Position().GetOpenPositionBySymbol(at.id, symbol, side); err == nil && dbPos != nil {
 				if dbPos.EntryTime > 0 {
 					updateTime = dbPos.EntryTime
+				}
+				entryThesis = dbPos.EntryThesis
+				if entryThesis == "" {
+					entryThesis = at.store.Decision().GetEntryThesisForPosition(at.id, symbol, side, updateTime)
 				}
 			}
 		}
@@ -897,6 +901,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			LiquidationPrice: liquidationPrice,
 			MarginUsed:       marginUsed,
 			UpdateTime:       updateTime,
+			EntryThesis:      entryThesis,
 		})
 	}
 
@@ -1219,7 +1224,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	logger.Infof("  ✓ Position opened successfully, order ID: %v, quantity: %.4f", order["orderId"], quantity)
 
 	// Record order to database and poll for confirmation
-	at.recordAndConfirmOrder(order, decision.Symbol, "open_long", quantity, marketData.CurrentPrice, decision.Leverage, 0)
+	at.recordAndConfirmOrder(order, decision.Symbol, "open_long", quantity, marketData.CurrentPrice, decision.Leverage, 0, decision.Reasoning)
 
 	// Record position opening time
 	posKey := decision.Symbol + "_long"
@@ -1336,7 +1341,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	logger.Infof("  ✓ Position opened successfully, order ID: %v, quantity: %.4f", order["orderId"], quantity)
 
 	// Record order to database and poll for confirmation
-	at.recordAndConfirmOrder(order, decision.Symbol, "open_short", quantity, marketData.CurrentPrice, decision.Leverage, 0)
+	at.recordAndConfirmOrder(order, decision.Symbol, "open_short", quantity, marketData.CurrentPrice, decision.Leverage, 0, decision.Reasoning)
 
 	// Record position opening time
 	posKey := decision.Symbol + "_short"
@@ -1411,7 +1416,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 	}
 
 	// Record order to database and poll for confirmation
-	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, marketData.CurrentPrice, 0, entryPrice)
+	at.recordAndConfirmOrder(order, decision.Symbol, "close_long", quantity, marketData.CurrentPrice, 0, entryPrice, "")
 
 	logger.Infof("  ✓ Position closed successfully")
 	return nil
@@ -1475,7 +1480,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	}
 
 	// Record order to database and poll for confirmation
-	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, marketData.CurrentPrice, 0, entryPrice)
+	at.recordAndConfirmOrder(order, decision.Symbol, "close_short", quantity, marketData.CurrentPrice, 0, entryPrice, "")
 
 	logger.Infof("  ✓ Position closed successfully")
 	return nil
@@ -1997,7 +2002,8 @@ func (at *AutoTrader) ClearPeakPnLCache(symbol, side string) {
 // recordAndConfirmOrder polls order status for actual fill data and records position
 // action: open_long, open_short, close_long, close_short
 // entryPrice: entry price when closing (0 when opening)
-func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, symbol, action string, quantity float64, price float64, leverage int, entryPrice float64) {
+// entryThesis: AI reasoning when opening (only for open_long/open_short); empty for closes
+func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, symbol, action string, quantity float64, price float64, leverage int, entryPrice float64, entryThesis string) {
 	if at.store == nil {
 		return
 	}
@@ -2098,7 +2104,7 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 		orderID, action, actualPrice, actualQty, fee)
 
 	// Record position change with actual fill data (use normalized symbol)
-	at.recordPositionChange(orderID, normalizedSymbolForPosition, positionSide, action, actualQty, actualPrice, leverage, entryPrice, fee)
+	at.recordPositionChange(orderID, normalizedSymbolForPosition, positionSide, action, actualQty, actualPrice, leverage, entryPrice, fee, entryThesis)
 
 	// Send anonymous trade statistics for experience improvement (async, non-blocking)
 	// This helps us understand overall product usage across all deployments
@@ -2114,14 +2120,14 @@ func (at *AutoTrader) recordAndConfirmOrder(orderResult map[string]interface{}, 
 }
 
 // recordPositionChange records position change (create record on open, update record on close)
-func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string, quantity, price float64, leverage int, entryPrice float64, fee float64) {
+func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string, quantity, price float64, leverage int, entryPrice float64, fee float64, entryThesis string) {
 	if at.store == nil {
 		return
 	}
 
 	switch action {
 	case "open_long", "open_short":
-		// Open position: create new position record
+		// Open position: create new position record (store entry thesis for position-check comparison)
 		nowMs := time.Now().UTC().UnixMilli()
 		pos := &store.TraderPosition{
 			TraderID:     at.id,
@@ -2135,6 +2141,7 @@ func (at *AutoTrader) recordPositionChange(orderID, symbol, side, action string,
 			EntryTime:    nowMs,
 			Leverage:     leverage,
 			Status:       "OPEN",
+			EntryThesis:  entryThesis, // AI thesis when opened; used by position-check to compare market vs original thesis
 			CreatedAt:    nowMs,
 			UpdatedAt:    nowMs,
 		}

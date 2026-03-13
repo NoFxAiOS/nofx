@@ -149,9 +149,10 @@ type Decision struct {
 	OrderID    string  `json:"order_id,omitempty"`    // Order ID (for cancel)
 
 	// Common parameters
-	Confidence int     `json:"confidence,omitempty"` // Confidence level (0-100)
-	RiskUSD    float64 `json:"risk_usd,omitempty"`   // Maximum USD risk
-	Reasoning  string  `json:"reasoning"`
+	Confidence  int     `json:"confidence,omitempty"`  // Confidence level (0-100)
+	RiskUSD     float64 `json:"risk_usd,omitempty"`    // Maximum USD risk
+	RiskReward  float64 `json:"risk_reward,omitempty"` // Reward:risk ratio (e.g. 2.0 = 2:1 RR)
+	Reasoning   string  `json:"reasoning"`
 }
 
 // FullDecision AI's complete decision (including chain of thought)
@@ -757,6 +758,7 @@ func GetFullDecisionMacroMicroWithTrace(ctx *Context, mcpClient mcp.AIClient, en
 			copy(preAdjustment, merged)
 			if adjusted, errParse := extractDecisions(responseSizing); errParse == nil && len(adjusted) > 0 {
 				mergeReasoningFrom(adjusted, preAdjustment)
+				mergeConfidenceFrom(adjusted, preAdjustment)
 				mergeSLTPFrom(adjusted, preAdjustment)
 				merged = appendHoldWaitFrom(adjusted, preAdjustment)
 			}
@@ -1730,7 +1732,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("```json\n[\n")
 	// Use the actual configured position value ratio for BTC/ETH in the example
 	examplePositionSize := accountEquity * btcEthPosValueRatio
-	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300},\n",
+	sb.WriteString(fmt.Sprintf("  {\"symbol\": \"BTCUSDT\", \"action\": \"open_short\", \"leverage\": %d, \"position_size_usd\": %.0f, \"stop_loss\": 97000, \"take_profit\": 91000, \"confidence\": 85, \"risk_usd\": 300, \"risk_reward\": 2.0},\n",
 		riskControl.BTCETHMaxLeverage, examplePositionSize))
 	sb.WriteString("  {\"symbol\": \"ETHUSDT\", \"action\": \"close_long\"}\n")
 	sb.WriteString("]\n```\n")
@@ -1738,7 +1740,7 @@ func (e *StrategyEngine) BuildSystemPrompt(accountEquity float64, variant string
 	sb.WriteString("## Field Description\n\n")
 	sb.WriteString("- `action`: open_long | open_short | close_long | close_short | hold | wait\n")
 	sb.WriteString(fmt.Sprintf("- `confidence`: 0-100 (opening recommended ≥ %d)\n", riskControl.MinConfidence))
-	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd\n")
+	sb.WriteString("- Required when opening: leverage, position_size_usd, stop_loss, take_profit, confidence, risk_usd, risk_reward (reward:risk ratio, e.g. 2.0 = 2:1 RR)\n")
 	sb.WriteString("- **IMPORTANT**: All numeric values must be calculated numbers, NOT formulas/expressions (e.g., use `27.76` not `3000 * 0.01`)\n\n")
 
 	// 8. Custom Prompt
@@ -2149,7 +2151,7 @@ func (e *StrategyEngine) BuildMacroMicroCombinedUserPrompt(ctx *Context, macroBr
 		}
 		sb.WriteString("\n")
 	}
-	sb.WriteString("---\n\nOutput your trading decisions as a JSON array: one entry per symbol you wish to act on. Each object: symbol, action (open_long, open_short, close_long, close_short, hold, wait), confidence, reasoning; for open_long/open_short also include leverage, position_size_usd, stop_loss, take_profit, risk_usd.\n")
+	sb.WriteString("---\n\nOutput your trading decisions as a JSON array: one entry per symbol you wish to act on. Each object: symbol, action (open_long, open_short, close_long, close_short, hold, wait), confidence, reasoning; for open_long/open_short also include leverage, position_size_usd, stop_loss, take_profit, risk_usd, risk_reward.\n")
 	if s := e.effectiveDeepDiveCustomPrompt(); s != "" {
 		sb.WriteString("\n" + s + "\n")
 	}
@@ -2321,8 +2323,8 @@ func (e *StrategyEngine) buildSizingAdjustmentUserPrompt(ctx *Context, macroBrie
 	sb.WriteString("2. **Resolve other violations by sizing, not by closing.** If a single position would exceed the per-symbol cap (e.g. altcoin > equity × ")
 	sb.WriteString(fmt.Sprintf("%.1f", riskConfig.AltcoinMaxPositionValueRatio))
 	sb.WriteString("), or max positions would be exceeded, **adjust leverage and position_size_usd** so that every position is within limits. Do **not** use close/close_long solely to satisfy limits. Forced closes for \"violation\" are wrong here.\n\n")
-	sb.WriteString("3. **Consolidate and review.** Ensure max positions, per-position caps, and leverage limits are respected. Rebalance capital between positions so the combined picture is valid. Sanity-check confidence across symbols.\n\n")
-	sb.WriteString("4. **Output.** Emit a single JSON array (symbol, action, leverage, position_size_usd, stop_loss, take_profit, confidence, reasoning). Preserve or briefly summarize reasoning. Prefer adjusting sizes over changing actions when fixing rule breaches.\n")
+	sb.WriteString("3. **Consolidate and review.** Ensure max positions, per-position caps, and leverage limits are respected. Rebalance capital between positions so the combined picture is valid. Use **confidence** from the draft decisions: allocate more to higher-confidence symbols when splitting capital. Sanity-check confidence across symbols.\n\n")
+	sb.WriteString("4. **Output.** Emit a single JSON array (symbol, action, leverage, position_size_usd, stop_loss, take_profit, confidence, reasoning, risk_reward). Preserve **confidence** from the draft decisions for each symbol; preserve or briefly summarize reasoning. Prefer adjusting sizes over changing actions when fixing rule breaches.\n")
 	if e.config != nil && e.config.SizingAdjustmentExtraPrompt != "" {
 		sb.WriteString("\n# Additional guidance (sizing & margin)\n\n")
 		sb.WriteString(strings.TrimSpace(e.config.SizingAdjustmentExtraPrompt))
@@ -2378,6 +2380,26 @@ func mergeReasoningFrom(adjusted []Decision, from []Decision) {
 	}
 }
 
+// mergeConfidenceFrom copies confidence from the pre-adjustment list into adjusted decisions when the adjusted decision has zero confidence (sizing step may omit it).
+func mergeConfidenceFrom(adjusted []Decision, from []Decision) {
+	bySymbol := make(map[string]Decision)
+	for i := range from {
+		n := market.Normalize(from[i].Symbol)
+		if n != "" && from[i].Confidence > 0 {
+			bySymbol[n] = from[i]
+		}
+	}
+	for i := range adjusted {
+		if adjusted[i].Confidence > 0 {
+			continue
+		}
+		n := market.Normalize(adjusted[i].Symbol)
+		if src, ok := bySymbol[n]; ok {
+			adjusted[i].Confidence = src.Confidence
+		}
+	}
+}
+
 // mergeSLTPFrom copies stop_loss and take_profit from the pre-adjustment list into adjusted open_long/open_short decisions when the adjusted decision has zero SL or TP (sizing step may omit them).
 func mergeSLTPFrom(adjusted []Decision, from []Decision) {
 	bySymbol := make(map[string]Decision)
@@ -2426,6 +2448,7 @@ func runSizingAdjustmentStep(ctx *Context, engine *StrategyEngine, mcpClient mcp
 		return merged
 	}
 	mergeReasoningFrom(adjusted, merged)
+	mergeConfidenceFrom(adjusted, merged)
 	mergeSLTPFrom(adjusted, merged)
 	adjusted = appendHoldWaitFrom(adjusted, merged)
 	logger.Infof("[macro-micro] Sizing adjustment: %d decision(s)", len(adjusted))
@@ -3054,6 +3077,7 @@ func filterInvalidOpenDecisions(decisions []Decision, accountEquity float64, btc
 			d.StopLoss = 0
 			d.TakeProfit = 0
 			d.RiskUSD = 0
+			d.RiskReward = 0
 			if d.Reasoning != "" {
 				d.Reasoning = fmt.Sprintf("[Validation failed: %v] %s", err, d.Reasoning)
 			} else {
@@ -3149,6 +3173,9 @@ func validateDecision(d *Decision, accountEquity float64, btcEthLeverage, altcoi
 			if riskPercent > 0 {
 				riskRewardRatio = rewardPercent / riskPercent
 			}
+		}
+		if riskRewardRatio > 0 && d.RiskReward <= 0 {
+			d.RiskReward = riskRewardRatio
 		}
 
 		if riskRewardRatio < minRiskRewardRatio {

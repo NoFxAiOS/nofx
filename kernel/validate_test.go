@@ -100,6 +100,26 @@ func TestLeverageFallback(t *testing.T) {
 	}
 }
 
+func TestValidateDecision_PopulatesRiskReward(t *testing.T) {
+	d := Decision{
+		Symbol:          "BTCUSDT",
+		Action:          "open_long",
+		Leverage:        5,
+		PositionSizeUSD: 1000,
+		StopLoss:        90000,
+		TakeProfit:      110000,
+		Confidence:      80,
+		RiskUSD:         50,
+	}
+	err := validateDecision(&d, 10000, 10, 5, 10.0, 1.5, 1.5, 12.0)
+	if err != nil {
+		t.Fatalf("validateDecision() error = %v", err)
+	}
+	if d.RiskReward <= 0 {
+		t.Errorf("expected RiskReward to be populated for open_long; got %f", d.RiskReward)
+	}
+}
+
 
 // contains checks if string contains substring (helper function)
 func contains(s, substr string) bool {

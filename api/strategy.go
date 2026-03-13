@@ -405,7 +405,7 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 		"max_positions":    req.Config.RiskControl.MaxPositions,
 	}
 
-	if req.Config.EnableMacroMicroFlow {
+	if store.UsesMultiTurnFlow(&req.Config) {
 		// Multi-turn preview: one step per phase (no AI response, prompts only).
 		macroUserPlaceholder := "[Generated at runtime: market brief with indices, OI, NetFlow, price ranking, and open positions.]"
 		baseSystem := engine.BuildSystemPrompt(req.AccountEquity, req.PromptVariant)
@@ -565,7 +565,7 @@ func (s *Server) handleStrategyTestRun(c *gin.Context) {
 	}
 
 	// Macro-micro: run full flow with trace and return steps (system / user / response per step).
-	if req.Config.EnableMacroMicroFlow && req.RunRealAI && req.AIModelID != "" {
+	if store.UsesMultiTurnFlow(&req.Config) && req.RunRealAI && req.AIModelID != "" {
 		aiClient, clientErr := s.getAIClientForUserModel(userID, req.AIModelID)
 		if clientErr != nil {
 			c.JSON(http.StatusOK, gin.H{

@@ -143,7 +143,7 @@ func TestRestrictDeepDiveSymbolsToContext_FallbackRespectsMaxDeepDives(t *testin
 
 func TestBuildMacroMicroCombinedUserPrompt_ContainsMacroAndPerSymbol(t *testing.T) {
 	config := store.GetDefaultStrategyConfig("en")
-	config.EnableMacroMicroFlow = true
+	config.StrategyType = "multi_turn_ai_trading"
 	engine := NewStrategyEngine(&config)
 	ctx := &Context{
 		MarketDataMap: map[string]*market.Data{

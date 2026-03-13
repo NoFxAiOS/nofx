@@ -278,7 +278,7 @@ func GetFullDecisionWithStrategy(ctx *Context, mcpClient mcp.AIClient, engine *S
 	}
 
 	config := engine.GetConfig()
-	if config != nil && config.EnableMacroMicroFlow {
+	if store.UsesMultiTurnFlow(config) {
 		return getFullDecisionMacroMicro(ctx, mcpClient, engine, variant)
 	}
 
@@ -2117,7 +2117,7 @@ func (e *StrategyEngine) BuildDeepDiveUserPrompt(ctx *Context, symbol string, ma
 	return sb.String()
 }
 
-// BuildMacroMicroCombinedUserPrompt builds a single user prompt that contains macro brief + macro context + per-symbol data for all symbols in macroOut.SymbolsForDeepDive. Used by the Debate Arena when the strategy has EnableMacroMicroFlow so debate participants see the same macro-micro structure (one prompt, multiple symbols).
+// BuildMacroMicroCombinedUserPrompt builds a single user prompt that contains macro brief + macro context + per-symbol data for all symbols in macroOut.SymbolsForDeepDive. Used by the Debate Arena when the strategy uses multi-turn flow so debate participants see the same macro-micro structure (one prompt, multiple symbols).
 func (e *StrategyEngine) BuildMacroMicroCombinedUserPrompt(ctx *Context, macroBrief string, macroOut *MacroOutput) string {
 	if macroOut == nil || len(macroOut.SymbolsForDeepDive) == 0 {
 		return macroBrief + "\n\n(No symbols selected for deep-dive.)\n"

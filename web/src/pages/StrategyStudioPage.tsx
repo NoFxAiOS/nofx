@@ -495,6 +495,8 @@ export function StrategyStudioPage() {
       strategyType: { zh: '策略类型', en: 'Strategy Type' },
       aiTrading: { zh: 'AI 智能交易', en: 'AI Trading' },
       aiTradingDesc: { zh: 'AI 分析市场并自主决策买卖', en: 'AI analyzes market and makes trading decisions' },
+      multiTurnAITrading: { zh: '多轮 AI 智能交易', en: 'Multi-Turn AI Trading' },
+      multiTurnAITradingDesc: { zh: '宏观概览 → 深度分析 → 持仓检查', en: 'Macro brief, deep-dives, position check' },
       gridTrading: { zh: 'AI 网格交易', en: 'AI Grid Trading' },
       gridTradingDesc: { zh: 'AI 控制网格策略，在震荡市场获利', en: 'AI-controlled grid strategy for ranging markets' },
       gridConfig: { zh: '网格配置', en: 'Grid Configuration' },
@@ -529,7 +531,6 @@ export function StrategyStudioPage() {
       testNote: { zh: '使用真实 AI 模型测试，不执行交易', en: 'Test with real AI, no trading' },
       publishSettings: { zh: '发布设置', en: 'Publish' },
       macroMicro: { zh: 'Macro / 深度分析', en: 'Macro & Deep-dive' },
-      enableMacroMicro: { zh: '启用 Macro-Micro 多轮分析', en: 'Enable macro-micro multi-turn analysis' },
       macroDeepDiveLimit: { zh: '深度分析符号数量', en: 'Deep-dive symbol limit' },
       macroCustomPrompt: { zh: 'Macro 附加提示', en: 'Additional macro prompts' },
       deepDiveCustomPrompt: { zh: '深度分析附加提示', en: 'Additional deep-dive prompts' },
@@ -574,13 +575,13 @@ export function StrategyStudioPage() {
         />
       ),
     },
-    // AI Trading sections
+    // AI Trading sections (shared by ai_trading and multi_turn_ai_trading)
     {
       key: 'coinSource' as const,
       icon: Target,
       color: '#F0B90B',
       title: t('coinSource'),
-      forStrategyType: 'ai_trading' as const,
+      forStrategyType: 'ai_trading_and_multi_turn' as const,
       content: editingConfig && (
         <CoinSourceEditor
           config={editingConfig.coin_source}
@@ -595,7 +596,7 @@ export function StrategyStudioPage() {
       icon: BarChart3,
       color: '#0ECB81',
       title: t('indicators'),
-      forStrategyType: 'ai_trading' as const,
+      forStrategyType: 'ai_trading_and_multi_turn' as const,
       content: editingConfig && (
         <IndicatorEditor
           config={editingConfig.indicators}
@@ -610,7 +611,7 @@ export function StrategyStudioPage() {
       icon: Shield,
       color: '#F6465D',
       title: t('riskControl'),
-      forStrategyType: 'ai_trading' as const,
+      forStrategyType: 'ai_trading_and_multi_turn' as const,
       content: editingConfig && (
         <RiskControlEditor
           config={editingConfig.risk_control}
@@ -625,7 +626,7 @@ export function StrategyStudioPage() {
       icon: FileText,
       color: '#a855f7',
       title: t('promptSections'),
-      forStrategyType: 'ai_trading' as const,
+      forStrategyType: 'ai_trading_and_multi_turn' as const,
       content: editingConfig && (
         <PromptSectionsEditor
           config={editingConfig.prompt_sections}
@@ -640,7 +641,7 @@ export function StrategyStudioPage() {
       icon: Settings,
       color: '#60a5fa',
       title: t('customPrompt'),
-      forStrategyType: 'ai_trading' as const,
+      forStrategyType: 'ai_trading_and_multi_turn' as const,
       content: editingConfig && (
         <div>
           <p className="text-xs mb-2" style={{ color: '#848E9C' }}>
@@ -657,24 +658,15 @@ export function StrategyStudioPage() {
         </div>
       ),
     },
+    // Macro-micro config (only for multi_turn_ai_trading)
     {
       key: 'macroMicro' as const,
       icon: Bot,
       color: '#a855f7',
       title: t('macroMicro'),
-      forStrategyType: 'ai_trading' as const,
+      forStrategyType: 'multi_turn_ai_trading' as const,
       content: editingConfig && (
         <div className="space-y-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={!!editingConfig.enable_macro_micro_flow}
-              onChange={(e) => updateConfig('enable_macro_micro_flow', e.target.checked)}
-              disabled={!!selectedStrategy?.is_default}
-              className="rounded border-nofx-gold/50"
-            />
-            <span className="text-sm text-nofx-text">{t('enableMacroMicro')}</span>
-          </label>
           <div>
             <label className="block text-xs text-nofx-text-muted mb-1">{t('macroDeepDiveLimit')} (3–10)</label>
             <input
@@ -748,9 +740,12 @@ export function StrategyStudioPage() {
         />
       ),
     },
-  ].filter(section =>
-    section.forStrategyType === 'both' || section.forStrategyType === currentStrategyType
-  )
+  ].filter(section => {
+    if (section.forStrategyType === 'both') return true
+    if (section.forStrategyType === currentStrategyType) return true
+    if (section.forStrategyType === 'ai_trading_and_multi_turn' && (currentStrategyType === 'ai_trading' || currentStrategyType === 'multi_turn_ai_trading')) return true
+    return false
+  })
 
   return (
     <DeepVoidBackground className="h-[calc(100vh-64px)] flex flex-col bg-nofx-bg relative overflow-hidden">
@@ -937,12 +932,11 @@ export function StrategyStudioPage() {
                     <Zap className="w-4 h-4" style={{ color: '#F0B90B' }} />
                     <span className="text-sm font-medium text-nofx-text">{t('strategyType')}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                       onClick={() => {
                         if (!selectedStrategy?.is_default) {
                           updateConfig('strategy_type', 'ai_trading')
-                          // Clear grid config when switching to AI trading
                           updateConfig('grid_config', undefined)
                         }
                       }}
@@ -958,6 +952,26 @@ export function StrategyStudioPage() {
                         <span className="text-sm font-medium text-nofx-text">{t('aiTrading')}</span>
                       </div>
                       <p className="text-xs text-nofx-text-muted text-left">{t('aiTradingDesc')}</p>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!selectedStrategy?.is_default) {
+                          updateConfig('strategy_type', 'multi_turn_ai_trading')
+                          updateConfig('grid_config', undefined)
+                        }
+                      }}
+                      disabled={selectedStrategy?.is_default}
+                      className={`p-3 rounded-lg border transition-all ${
+                        editingConfig.strategy_type === 'multi_turn_ai_trading'
+                          ? 'border-nofx-gold bg-nofx-gold/10'
+                          : 'border-nofx-border hover:border-nofx-gold/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Bot className="w-4 h-4" style={{ color: '#a855f7' }} />
+                        <span className="text-sm font-medium text-nofx-text">{t('multiTurnAITrading')}</span>
+                      </div>
+                      <p className="text-xs text-nofx-text-muted text-left">{t('multiTurnAITradingDesc')}</p>
                     </button>
                     <button
                       onClick={() => {

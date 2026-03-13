@@ -324,7 +324,7 @@ func (r *Runner) stepOnce() error {
 			cacheKey     string
 		)
 		config := r.strategyEngine.GetConfig()
-		useMacroMicroTrace := config != nil && config.EnableMacroMicroFlow
+		useMacroMicroTrace := store.UsesMultiTurnFlow(config)
 
 		if err := checkReplayOnlyMacroMicro(r.cfg.ReplayOnly, useMacroMicroTrace); err != nil {
 			record.Success = false

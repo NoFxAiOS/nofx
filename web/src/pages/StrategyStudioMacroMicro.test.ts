@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 /**
  * Macro-micro feature tests for Strategy Studio UI.
  *
- * When EnableMacroMicroFlow is true:
+ * When strategy uses multi-turn flow (strategy_type multi_turn_ai_trading):
  * - preview-prompt API returns `steps` array (no top-level system_prompt for multi-turn)
  * - test-run API returns `steps`, `decisions`, and merged AI output
  *

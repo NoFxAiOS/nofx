@@ -32,7 +32,7 @@ func (Strategy) TableName() string { return "strategies" }
 
 // StrategyConfig strategy configuration details (JSON structure)
 type StrategyConfig struct {
-	// Strategy type: "ai_trading" (default) or "grid_trading"
+	// Strategy type: "ai_trading" (default), "grid_trading", or "multi_turn_ai_trading"
 	StrategyType string `json:"strategy_type,omitempty"`
 
 	// language setting: "zh" for Chinese, "en" for English
@@ -69,6 +69,15 @@ type StrategyConfig struct {
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+}
+
+// UsesMultiTurnFlow returns true when the strategy uses the multi-turn macro-micro flow
+// (strategy type "multi_turn_ai_trading" or legacy enable_macro_micro_flow).
+func UsesMultiTurnFlow(config *StrategyConfig) bool {
+	if config == nil {
+		return false
+	}
+	return config.StrategyType == "multi_turn_ai_trading" || config.EnableMacroMicroFlow
 }
 
 // GridStrategyConfig grid trading specific configuration

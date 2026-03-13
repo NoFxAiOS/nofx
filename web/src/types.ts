@@ -11,7 +11,7 @@ export interface SystemStatus {
   stop_until: string
   last_reset_time: string
   ai_provider: string
-  strategy_type?: 'ai_trading' | 'grid_trading'
+  strategy_type?: 'ai_trading' | 'grid_trading' | 'multi_turn_ai_trading'
   grid_symbol?: string
 }
 
@@ -486,7 +486,7 @@ export interface DeepDivePromptSectionsConfig {
 
 export interface StrategyConfig {
   // Strategy type: "ai_trading" (default) or "grid_trading"
-  strategy_type?: 'ai_trading' | 'grid_trading';
+  strategy_type?: 'ai_trading' | 'grid_trading' | 'multi_turn_ai_trading';
   // Language setting: "zh" for Chinese, "en" for English
   // Determines the language used for data formatting and prompt generation
   language?: 'zh' | 'en';

@@ -630,7 +630,7 @@ func (at *AutoTrader) runCycle() error {
 	logger.Infof("🤖 Requesting AI analysis and decision... [Strategy Engine]")
 	var aiDecision *kernel.FullDecision
 	config := at.strategyEngine.GetConfig()
-	if config != nil && config.EnableMacroMicroFlow {
+	if store.UsesMultiTurnFlow(config) {
 		fd, steps, errTrace := kernel.GetFullDecisionMacroMicroWithTrace(ctx, at.mcpClient, at.strategyEngine, "balanced")
 		if errTrace != nil {
 			err = errTrace

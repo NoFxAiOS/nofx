@@ -261,7 +261,7 @@ func (r *Runner) invokeAIWithRetry() (*decision.FullDecision, error) {
 
 ### 4.5 Multi-turn (macro-micro) strategy compatibility
 
-When the strategy loaded for the backtest has **EnableMacroMicroFlow** enabled, the backtest uses the same decision path as live trading: `GetFullDecisionWithStrategy` → `getFullDecisionMacroMicro` (macro → deep-dives → position-check → merge).
+When the strategy loaded for the backtest uses multi-turn flow (`strategy_type == "multi_turn_ai_trading"` or legacy `enable_macro_micro_flow`), the backtest uses the same decision path as live trading: `GetFullDecisionWithStrategy` → `getFullDecisionMacroMicro` (macro → deep-dives → position-check → merge).
 
 - **Context**: The runner builds a full context in `buildDecisionContext()` (account, positions, candidates, `MarketDataMap`, OI/NetFlow/Price ranking, quant data) at each decision timestamp. The kernel receives this pre-filled context.
 - **Symbol restriction**: The kernel restricts `symbols_for_deep_dive` to only symbols already present in `ctx.MarketDataMap` when the context is pre-filled (`restrictDeepDiveSymbolsToContext`). So the backtest never triggers live market fetches for symbols outside the backtest symbol list; macro AI may return symbols not in the list, but only symbols with historical data in the context are deep-dived.

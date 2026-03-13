@@ -16,7 +16,7 @@ func TestHandlePreviewPrompt_MacroMicro_ReturnsSteps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	config := store.GetDefaultStrategyConfig("en")
-	config.EnableMacroMicroFlow = true
+	config.StrategyType = "multi_turn_ai_trading"
 
 	body := map[string]interface{}{
 		"config":          config,
@@ -86,7 +86,7 @@ func TestHandlePreviewPrompt_SingleTurn_ReturnsSystemPrompt(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	config := store.GetDefaultStrategyConfig("en")
-	config.EnableMacroMicroFlow = false
+	config.StrategyType = "ai_trading"
 
 	body := map[string]interface{}{
 		"config":          config,

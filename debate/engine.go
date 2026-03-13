@@ -175,7 +175,7 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 	var participantUserPrompts map[string]string
 	var singleUserPrompt string
 	var err error
-	if config.EnableMacroMicroFlow && len(session.Participants) >= 1 {
+	if store.UsesMultiTurnFlow(config) && len(session.Participants) >= 1 {
 		logger.Infof("[Debate] Multi-turn: building per-participant market context (macro per AI, then debate)")
 		participantUserPrompts, err = e.buildMarketContextMacroMicroPerParticipant(session, strategyEngine)
 		if err != nil {
@@ -319,15 +319,15 @@ func (e *DebateEngine) runDebate(session *store.DebateSessionWithDetails, strate
 		session.ID, len(allDecisions), primaryConsensus.Action, primaryConsensus.Symbol, primaryConsensus.Confidence)
 }
 
-// buildMarketContext builds the market context and user prompt. When strategy has EnableMacroMicroFlow and mcpClient is non-nil, runs macro → symbols_for_deep_dive → fetches data only for those symbols and returns a combined macro-micro style user prompt. Otherwise uses all candidates and single-turn BuildUserPrompt.
+// buildMarketContext builds the market context and user prompt. When strategy uses multi-turn flow and mcpClient is non-nil, runs macro → symbols_for_deep_dive → fetches data only for those symbols and returns a combined macro-micro style user prompt. Otherwise uses all candidates and single-turn BuildUserPrompt.
 func (e *DebateEngine) buildMarketContext(session *store.DebateSessionWithDetails, strategyEngine *kernel.StrategyEngine, mcpClient mcp.AIClient) (*kernel.Context, string, error) {
 	config := strategyEngine.GetConfig()
 
-	if config.EnableMacroMicroFlow && mcpClient != nil {
+	if store.UsesMultiTurnFlow(config) && mcpClient != nil {
 		logger.Infof("[Debate] Strategy has multi-turn (macro-micro) enabled: using macro → symbols_for_deep_dive → combined prompt")
 		return e.buildMarketContextMacroMicro(session, strategyEngine, mcpClient)
 	}
-	if config.EnableMacroMicroFlow && mcpClient == nil {
+	if store.UsesMultiTurnFlow(config) && mcpClient == nil {
 		logger.Warnf("[Debate] Strategy has multi-turn enabled but no AI client available for macro call; falling back to single-turn")
 	}
 

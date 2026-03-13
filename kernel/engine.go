@@ -885,12 +885,9 @@ func restrictDeepDiveSymbolsToContext(ctx *Context, macroOut *MacroOutput, maxDe
 	sort.Strings(contextSymbols)
 
 	excluded := make(map[string]bool)
-	if engine != nil && engine.config != nil && engine.config.CoinSource.ExcludedCoins != nil {
-		for _, c := range engine.config.CoinSource.ExcludedCoins {
-			n := market.Normalize(c)
-			if n != "" {
-				excluded[n] = true
-			}
+	if engine != nil {
+		for k, v := range buildExcludedSet(engine.config) {
+			excluded[k] = v
 		}
 	}
 
@@ -1201,23 +1198,30 @@ func (e *StrategyEngine) GetCandidateCoins() ([]CandidateCoin, error) {
 	}
 }
 
-// filterExcludedCoins removes excluded coins from the candidates list.
-// Uses the complete excluded list and normalizes both excluded symbols and candidate symbols for consistent matching.
-func (e *StrategyEngine) filterExcludedCoins(candidates []CandidateCoin) []CandidateCoin {
-	if e.config == nil || e.config.CoinSource.ExcludedCoins == nil || len(e.config.CoinSource.ExcludedCoins) == 0 {
-		return candidates
-	}
-
-	// Build excluded set from complete list (all entries, normalized)
+// buildExcludedSet returns the complete set of excluded symbols (normalized) from config.
+// Use this everywhere to ensure consistent filtering against the full list.
+func buildExcludedSet(config *store.StrategyConfig) map[string]bool {
 	excluded := make(map[string]bool)
-	for _, coin := range e.config.CoinSource.ExcludedCoins {
+	if config == nil || config.CoinSource.ExcludedCoins == nil {
+		return excluded
+	}
+	for _, coin := range config.CoinSource.ExcludedCoins {
 		n := market.Normalize(coin)
 		if n != "" {
 			excluded[n] = true
 		}
 	}
+	return excluded
+}
 
-	// Filter out excluded coins (normalize candidate symbol for lookup)
+// filterExcludedCoins removes excluded coins from the candidates list.
+// Uses the complete excluded list and normalizes both excluded symbols and candidate symbols for consistent matching.
+func (e *StrategyEngine) filterExcludedCoins(candidates []CandidateCoin) []CandidateCoin {
+	excluded := buildExcludedSet(e.config)
+	if len(excluded) == 0 {
+		return candidates
+	}
+
 	filtered := make([]CandidateCoin, 0, len(candidates))
 	for _, c := range candidates {
 		cn := market.Normalize(c.Symbol)

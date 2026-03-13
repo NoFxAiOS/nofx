@@ -320,6 +320,23 @@ func BuildMacroBrief(ctx *Context, engine *StrategyEngine) (string, error) {
 		sb.WriteString(fmt.Sprintf("### Funding\nBTC funding: %.4f%%\n\n", btcData.FundingRate*100))
 	}
 
+	// Excluded symbols (must NOT be included in symbols_for_deep_dive except open positions)
+	if config != nil && config.CoinSource.ExcludedCoins != nil && len(config.CoinSource.ExcludedCoins) > 0 {
+		sb.WriteString("### Excluded Symbols (do NOT include in symbols_for_deep_dive)\n")
+		sb.WriteString("These symbols are excluded from trading. Do not add them to symbols_for_deep_dive: ")
+		for i, c := range config.CoinSource.ExcludedCoins {
+			n := market.Normalize(c)
+			if n == "" {
+				continue
+			}
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(n)
+		}
+		sb.WriteString(".\n\n")
+	}
+
 	// Open positions (full metadata, no klines). Time = reference for holding duration (holding = Time - Entry time).
 	sb.WriteString("### Open Positions\n")
 	sb.WriteString("(Entry time = when position was opened; Holding = Time at top minus Entry time. Do not use Runtime.)\n")
@@ -401,7 +418,7 @@ func effectiveMacroCustomPrompt(config *store.StrategyConfig) string {
 }
 
 func getMacroUserPrompt(brief string, opportunityLimit int, customPrompt string) string {
-	instruction := fmt.Sprintf("Based on this market brief, output a JSON object with: (1) trend: bullish/bearish/neutral (market overview), (2) risk_level: high/medium/low, (3) focus_reason: 1-2 sentences, (4) symbols_for_deep_dive: array of objects {symbol, bias, risk, conviction} — must include every open position symbol, plus at most %d additional symbols for new opportunities, in priority order. Each symbol gets its own bias (bullish/bearish/neutral), risk (low/medium/high), and conviction (0-1). (5) check_positions: true if open positions exist, else false.", opportunityLimit)
+	instruction := fmt.Sprintf("Based on this market brief, output a JSON object with: (1) trend: bullish/bearish/neutral (market overview), (2) risk_level: high/medium/low, (3) focus_reason: 1-2 sentences, (4) symbols_for_deep_dive: array of objects {symbol, bias, risk, conviction} — must include every open position symbol, plus at most %d additional symbols for new opportunities (exclude any symbols listed under 'Excluded Symbols' — never add those). Priority order. Each symbol gets bias, risk, conviction. (5) check_positions: true if open positions exist, else false.", opportunityLimit)
 	out := brief + "\n\n" + instruction
 	if customPrompt != "" {
 		out += "\n\n" + customPrompt
@@ -464,16 +481,7 @@ func ValidateAndMergeMacroOutput(out *MacroOutput, ctx *Context, config *store.S
 	default:
 		out.RiskLevel = "medium"
 	}
-	// Build excluded set from complete list (strategy excludes these from trading)
-	excluded := make(map[string]bool)
-	if config != nil && config.CoinSource.ExcludedCoins != nil {
-		for _, c := range config.CoinSource.ExcludedCoins {
-			n := market.Normalize(c)
-			if n != "" {
-				excluded[n] = true
-			}
-		}
-	}
+	excluded := buildExcludedSet(config)
 
 	// Ensure all position symbols are in the list (keep even if excluded - we need to manage hold/close), then add macro-selected symbols up to cap
 	seen := make(map[string]bool)

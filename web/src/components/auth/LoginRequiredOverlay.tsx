@@ -23,7 +23,6 @@ export function LoginRequiredOverlay({ isOpen, onClose, featureName }: LoginRequ
   const benefits = [
     tr('benefit1'),
     tr('benefit2'),
-    tr('benefit3'),
     tr('benefit4'),
   ]
 

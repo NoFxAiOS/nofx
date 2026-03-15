@@ -236,6 +236,7 @@ func X402BuildRequest(url string, jsonData []byte) (*http.Request, error) {
 		return nil, fmt.Errorf("fail to build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Client-ID", "nofx")
 	return req, nil
 }
 

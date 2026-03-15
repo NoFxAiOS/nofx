@@ -993,7 +993,7 @@ func Start(cfg *config.Config, st *store.Store, tm *manager.TraderManager) {
 
 	logger.Infof("🤖 Telegram bot started: @%s", bot.Self.UserName)
 
-	// Build the LLM client for intent parsing (use DeepSeek by default, same as backtest)
+	// Build the LLM client for intent parsing (use DeepSeek by default)
 	llmClient := mcp.New()
 	// Configure with whatever key is available in env (intent parsing is lightweight)
 	// The service layer will use store to get user-configured models for actual trading

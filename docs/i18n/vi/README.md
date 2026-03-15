@@ -79,7 +79,6 @@ Tương thích với **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** 
 | **Strategy Studio** | Trình xây dựng trực quan — nguồn coin, chỉ báo, kiểm soát rủi ro |
 | **AI Competition** | AI cạnh tranh thời gian thực, bảng xếp hạng hiệu suất |
 | **Telegram Agent** | Chat với trợ lý giao dịch — streaming, gọi công cụ, bộ nhớ |
-| **Backtest Lab** | Mô phỏng lịch sử, đường vốn và chỉ số hiệu suất |
 | **Dashboard** | Vị thế trực tiếp, P/L, nhật ký quyết định AI với Chain of Thought |
 
 ### Thị trường

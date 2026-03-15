@@ -602,7 +602,7 @@ func parseFloat(v interface{}) (float64, error) {
 	}
 }
 
-// BuildDataFromKlines constructs market data snapshot from preloaded K-line series (for backtesting/simulation).
+// BuildDataFromKlines constructs market data snapshot from preloaded K-line series.
 func BuildDataFromKlines(symbol string, primary []Kline, longer []Kline) (*Data, error) {
 	if len(primary) == 0 {
 		return nil, fmt.Errorf("primary series is empty")

@@ -2488,7 +2488,6 @@ KNOWN_ISSUES = [
 
 3. **金融量化**
    - Lo, Andrew W. "The Adaptive Markets Hypothesis." Journal of Portfolio Management, 2004.
-   - Bailey et al. "The Probability of Backtest Overfitting." Journal of Computational Finance, 2014.
 
 ### 13.3 代码示例索引
 

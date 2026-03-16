@@ -243,7 +243,6 @@ s.route(protected, "GET", "/statistics",         "Trading statistics (?trader_id
 Note: keep the existing special-case handlers that don't use `s.route` unchanged:
 - `api.Any("/health", ...)` — health check, no need to document
 - `api.GET("/crypto/...")` — crypto/encryption routes, bot doesn't need these
-- `backtest.*` routes (registered separately) — add descriptions to the backtest group similarly
 
 **Step 3: Build**
 

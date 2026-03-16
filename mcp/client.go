@@ -687,14 +687,26 @@ func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) 
 		return "", fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var accumulated strings.Builder
-	scanner := bufio.NewScanner(resp.Body)
-
-	for scanner.Scan() {
-		// Ping the watchdog: we received a line, reset the idle timer.
+	return ParseSSEStream(resp.Body, onChunk, func() {
 		select {
 		case resetCh <- struct{}{}:
 		default:
+		}
+	})
+}
+
+// ParseSSEStream reads an SSE response body, accumulates text deltas,
+// and calls onChunk with the full accumulated text after each chunk.
+// If onLine is non-nil, it is called after each raw SSE line is scanned
+// (useful for resetting idle-timeout watchdogs).
+// Returns the complete accumulated text.
+func ParseSSEStream(body io.Reader, onChunk func(string), onLine func()) (string, error) {
+	var accumulated strings.Builder
+	scanner := bufio.NewScanner(body)
+
+	for scanner.Scan() {
+		if onLine != nil {
+			onLine()
 		}
 
 		line := scanner.Text()
@@ -706,7 +718,6 @@ func (client *Client) CallWithRequestStream(req *Request, onChunk func(string)) 
 			break
 		}
 
-		// Parse the SSE JSON chunk
 		var chunk struct {
 			Choices []struct {
 				Delta struct {

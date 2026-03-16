@@ -42,6 +42,7 @@ type AIUsageEvent struct {
 	TraderID      string
 	ModelProvider string // openai, deepseek, anthropic, etc.
 	ModelName     string // gpt-4o, deepseek-chat, claude-3, etc.
+	Channel       string // payment channel: "claw402", "blockrun", or "native"
 	InputTokens   int
 	OutputTokens  int
 }
@@ -214,6 +215,7 @@ func TrackAIUsage(event AIUsageEvent) {
 					Params: map[string]interface{}{
 						"model_provider":       event.ModelProvider,
 						"model_name":           event.ModelName,
+						"channel":              event.Channel,
 						"input_tokens":         event.InputTokens,
 						"output_tokens":        event.OutputTokens,
 						"total_tokens":         event.InputTokens + event.OutputTokens,

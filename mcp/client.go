@@ -44,11 +44,24 @@ var (
 
 // TokenUsage represents token usage from AI API response
 type TokenUsage struct {
-	Provider         string
+	Provider         string // payment channel: "claw402", "blockrun-base", "blockrun-sol", or native provider name
 	Model            string
 	PromptTokens     int
 	CompletionTokens int
 	TotalTokens      int
+}
+
+// Channel returns the payment channel category for telemetry.
+// Returns "claw402", "blockrun", or "native" based on the provider.
+func (u TokenUsage) Channel() string {
+	switch u.Provider {
+	case ProviderClaw402:
+		return "claw402"
+	case ProviderBlockRunBase, ProviderBlockRunSol:
+		return "blockrun"
+	default:
+		return "native"
+	}
 }
 
 // Client AI API configuration

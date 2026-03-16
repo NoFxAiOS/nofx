@@ -41,7 +41,6 @@ export function LandingPage() {
             'strategy-market': '/strategy-market',
             'traders': '/traders',
             'trader': '/dashboard',
-            'backtest': '/backtest',
             'strategy': '/strategy',
             'faq': '/faq',
           }

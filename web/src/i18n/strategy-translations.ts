@@ -32,7 +32,7 @@ export const coinSource = {
   addExcludedCoin: { zh: '添加排除', en: 'Add Excluded', es: 'Agregar Excluida' },
   nofxosNote: { zh: '使用 NofxOS API Key（在指标配置中设置）', en: 'Uses NofxOS API Key (set in Indicators config)', es: 'Usa API Key de NofxOS' },
   ai500Desc: { zh: '使用 AI500 智能筛选的热门币种', en: 'Use AI500 smart-filtered popular coins', es: 'Monedas filtradas por AI500' },
-  oiTopDesc: { zh: '持仓增加榜，适合做多', en: 'OI increase ranking, for long', es: 'Ranking OI creciente, para largo' },
+  oi_topDesc: { zh: '持仓增加榜，适合做多', en: 'OI increase ranking, for long', es: 'Ranking OI creciente, para largo' },
   oi_lowDesc: { zh: '持仓减少榜，适合做空', en: 'OI decrease ranking, for short', es: 'Ranking OI decreciente, para corto' },
   mixedDesc: { zh: '组合多种数据源', en: 'Combine multiple sources', es: 'Combinar fuentes múltiples' },
   oiIncreaseShort: { zh: 'OI增', en: 'OI↑', es: 'OI↑' },

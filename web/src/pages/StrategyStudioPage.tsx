@@ -201,6 +201,7 @@ export function StrategyStudioPage() {
         `${API_BASE}/api/strategies/default-config?lang=${language}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
+      if (!configResponse.ok) throw new Error('Failed to fetch default config')
       const defaultConfig = await configResponse.json()
 
       const response = await fetch(`${API_BASE}/api/strategies`, {

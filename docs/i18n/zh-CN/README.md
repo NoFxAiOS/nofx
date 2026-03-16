@@ -191,7 +191,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 |:--|:--|
 | [架构概览](../../architecture/README.md) | 系统设计和模块索引 |
 | [策略模块](../../architecture/STRATEGY_MODULE.md) | 币种选择、AI 提示词、执行 |
-| [回测模块](../../architecture/BACKTEST_MODULE.md) | 历史模拟、指标计算 |
 | [常见问题](../../faq/README.md) | FAQ |
 | [快速开始](../../getting-started/README.md) | 部署指南 |
 

@@ -170,6 +170,20 @@ export const riskControl = {
   minPositionSizeDesc: { zh: 'USDT 最小名义价值', en: 'Minimum notional value in USDT', es: 'Valor mínimo en USDT' },
   minConfidence: { zh: '最小信心度', en: 'Min Confidence', es: 'Confianza Mínima' },
   minConfidenceDesc: { zh: 'AI 开仓信心度阈值', en: 'AI confidence threshold for entry', es: 'Umbral de confianza AI' },
+  positionManagement: { zh: '仓位管理', en: 'Position Management', es: 'Gestión de Posición' },
+  breakevenThreshold: { zh: '保本阈值', en: 'Breakeven Threshold', es: 'Umbral de Break-Even' },
+  breakevenThresholdDesc: { zh: '将止损移动到盈亏平衡的盈利百分比', en: 'Move stop loss to breakeven after profit percentage', es: 'Mover stop loss a BE después de beneficio' },
+  updateStopLossEnabled: { zh: '启用止损更新', en: 'Enable Stop Loss Update', es: 'Habilitar Actualización Stop Loss' },
+  updateStopLossEnabledDesc: { zh: '根据市场动态自动更新止损价格', en: 'Auto-update stop loss based on market dynamics', es: 'Actualizar stop loss automáticamente' },
+  exitSignals: { zh: '出场信号', en: 'Exit Signals', es: 'Señales de Salida' },
+  hardStopLoss: { zh: '硬止损', en: 'Hard Stop Loss', es: 'Stop Loss Duro' },
+  hardStopLossDesc: { zh: '强制止损百分比', en: 'Forced stop loss percentage', es: 'Porcentaje de stop loss forzado' },
+  trailingStopPct: { zh: '追踪止损百分比', en: 'Trailing Stop %', es: 'Trailing Stop %' },
+  trailingStopPctDesc: { zh: '追踪止损触发百分比', en: 'Trailing stop trigger percentage', es: 'Porcentaje de activación trailing stop' },
+  trailingStopMinProfit: { zh: '追踪止损最小盈利', en: 'Trailing Stop Min Profit', es: 'Trailing Stop Mínimo' },
+  trailingStopMinProfitDesc: { zh: '启用追踪止损的最小盈利百分比', en: 'Min profit % to enable trailing stop', es: 'Beneficio mínimo para trailing stop' },
+  trailingStopDrawdown: { zh: '追踪止损回撤', en: 'Trailing Stop Drawdown', es: 'Drawdown Trailing Stop' },
+  trailingStopDrawdownDesc: { zh: '从最高点回撤百分比触发止损', en: 'Drawdown from peak to trigger stop', es: 'Drawdown desde máximo para activar' },
 };
 
 // ============================================================================

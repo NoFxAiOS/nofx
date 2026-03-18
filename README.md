@@ -79,7 +79,6 @@ Also compatible with **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** 
 | **Strategy Studio** | Visual builder — coin sources, indicators, risk controls |
 | **AI Competition** | AIs compete in real-time, leaderboard ranks performance |
 | **Telegram Agent** | Chat with your trading assistant — streaming, tool calling, memory |
-| **Backtest Lab** | Historical simulation with equity curves and performance metrics |
 | **Dashboard** | Live positions, P/L, AI decision logs with Chain of Thought |
 
 ### Markets
@@ -158,11 +157,11 @@ Crypto · US Stocks · Forex · Metals
 </details>
 
 <details>
-<summary><b>Competition & Backtest</b></summary>
+<summary><b>Competition</b></summary>
 
-| Competition Mode | Backtest Lab |
-|:---:|:---:|
-| <img src="screenshots/competition-page.png" width="400"/> | <img src="screenshots/backtest-lab.png" width="400"/> |
+| Competition Mode |
+|:---:|
+| <img src="screenshots/competition-page.png" width="400"/> |
 </details>
 
 ---
@@ -253,8 +252,8 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ├─────────────────────────────────────────────────┤
     │                  API Server (Go)                  │
     ├──────────┬──────────┬──────────┬────────────────┤
-    │ Strategy │ Backtest │    Telegram     │
-    │  Engine  │   Lab    │     Agent       │
+    │  Strategy  │      Telegram       │
+    │   Engine   │       Agent         │
     ├──────────┴──────────┴──────────┴────────────────┤
     │               MCP AI Client Layer                │
     │    ┌───────────┐  ┌───────────┐  ┌───────────┐  │
@@ -277,7 +276,6 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
 |:--|:--|
 | [Architecture](docs/architecture/README.md) | System design and module index |
 | [Strategy Module](docs/architecture/STRATEGY_MODULE.md) | Coin selection, AI prompts, execution |
-| [Backtest Module](docs/architecture/BACKTEST_MODULE.md) | Historical simulation, metrics |
 | [FAQ](docs/faq/README.md) | Common questions |
 | [Getting Started](docs/getting-started/README.md) | Deployment guide |
 

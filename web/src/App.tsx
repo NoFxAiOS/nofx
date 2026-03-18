@@ -24,7 +24,6 @@ import { t } from './i18n/translations'
 import { useSystemConfig } from './hooks/useSystemConfig'
 
 import { OFFICIAL_LINKS } from './constants/branding'
-import { BacktestPage } from './components/backtest/BacktestPage'
 import type {
   SystemStatus,
   AccountInfo,
@@ -39,7 +38,6 @@ type Page =
   | 'competition'
   | 'traders'
   | 'trader'
-  | 'backtest'
   | 'strategy'
   | 'strategy-market'
   | 'data'
@@ -66,7 +64,6 @@ function App() {
     const hash = window.location.hash.slice(1) // 去掉 #
 
     if (path === '/traders' || hash === 'traders') return 'traders'
-    if (path === '/backtest' || hash === 'backtest') return 'backtest'
     if (path === '/strategy' || hash === 'strategy') return 'strategy'
     if (path === '/strategy-market' || hash === 'strategy-market') return 'strategy-market'
     if (path === '/data' || hash === 'data') return 'data'
@@ -92,7 +89,6 @@ function App() {
       'data': '/data',
       'traders': '/traders',
       'trader': '/dashboard',
-      'backtest': '/backtest',
       'strategy': '/strategy',
       'faq': '/faq',
       'login': '/login',
@@ -147,8 +143,6 @@ function App() {
 
       if (path === '/traders' || hash === 'traders') {
         setCurrentPage('traders')
-      } else if (path === '/backtest' || hash === 'backtest') {
-        setCurrentPage('backtest')
       } else if (path === '/strategy' || hash === 'strategy') {
         setCurrentPage('strategy')
       } else if (path === '/strategy-market' || hash === 'strategy-market') {
@@ -410,7 +404,6 @@ function App() {
         'strategy-market': '/strategy-market',
         'traders': '/traders',
         'trader': '/dashboard',
-        'backtest': '/backtest',
         'strategy': '/strategy',
         'faq': '/faq',
       }
@@ -496,8 +489,6 @@ function App() {
                   setCurrentPage('trader')
                 }}
               />
-            ) : currentPage === 'backtest' ? (
-              <BacktestPage />
             ) : currentPage === 'strategy' ? (
               <StrategyStudioPage />
             ) : (

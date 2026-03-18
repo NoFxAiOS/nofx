@@ -86,6 +86,19 @@ func WithMaxTokens(maxTokens int) ClientOption {
 	}
 }
 
+// WithMaxContext sets the model's max context window in tokens.
+// When set (> 0), the client will automatically truncate oldest non-system
+// messages if the estimated token count exceeds this limit.
+//
+// Usage example:
+//
+//	client := mcp.NewClient(mcp.WithMaxContext(131072)) // DeepSeek 128K
+func WithMaxContext(maxContext int) ClientOption {
+	return func(c *Config) {
+		c.MaxContext = maxContext
+	}
+}
+
 // WithTemperature sets temperature parameter
 //
 // Usage example:

@@ -227,6 +227,16 @@ func (client *Client) BuildMCPRequestBody(systemPrompt, userPrompt string) map[s
 		"content": userPrompt,
 	})
 
+	// Guard: truncate messages if they would exceed the model's context window
+	if client.Cfg.MaxContext > 0 {
+		truncated, removed := truncateMessages(messages, client.Cfg.MaxContext, client.MaxTokens)
+		if removed > 0 {
+			client.Log.Warnf("⚠️  [%s] Context guard: truncated %d oldest messages to fit within %d token limit",
+				client.String(), removed, client.Cfg.MaxContext)
+			messages = truncated
+		}
+	}
+
 	// Build request body
 	requestBody := map[string]interface{}{
 		"model":       client.Model,
@@ -573,6 +583,20 @@ func (client *Client) BuildRequestBodyFromRequest(req *Request) map[string]any {
 			m["content"] = msg.Content
 		}
 		messages = append(messages, m)
+	}
+
+	// Guard: truncate messages if they would exceed the model's context window
+	maxOut := client.MaxTokens
+	if req.MaxTokens != nil {
+		maxOut = *req.MaxTokens
+	}
+	if client.Cfg.MaxContext > 0 {
+		truncated, removed := truncateMessagesAny(messages, client.Cfg.MaxContext, maxOut)
+		if removed > 0 {
+			client.Log.Warnf("⚠️  [%s] Context guard: truncated %d oldest messages to fit within %d token limit",
+				client.String(), removed, client.Cfg.MaxContext)
+			messages = truncated
+		}
 	}
 
 	// Build basic request body

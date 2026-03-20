@@ -45,6 +45,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 		entryPrice := pos["entryPrice"].(float64)
 		markPrice := pos["markPrice"].(float64)
 		quantity := pos["positionAmt"].(float64)
+
+		// ISO-2026 Protection: Guard against division by zero from exchange API errors
+		if entryPrice <= 0 {
+			logger.Infof("⚠️ Skipping drawdown check for %s: entryPrice is zero", symbol)
+			continue
+		}
+
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}

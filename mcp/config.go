@@ -20,6 +20,7 @@ type Config struct {
 
 	// Behavior configuration
 	MaxTokens   int
+	MaxContext  int     // Model's max context window in tokens (0 = no limit)
 	Temperature float64
 	UseFullURL  bool
 

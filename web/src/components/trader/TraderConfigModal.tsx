@@ -174,11 +174,8 @@ export function TraderConfigModal({
         saveData.initial_balance = formData.initial_balance
       }
 
-      await toast.promise(onSave(saveData), {
-        loading: t('saving', language),
-        success: t('saveSuccess', language),
-        error: t('saveFailed', language),
-      })
+      await onSave(saveData)
+      toast.success(t('saveSuccess', language))
       onClose()
     } catch (error) {
        console.error(t('saveFailed', language) + ':', error)

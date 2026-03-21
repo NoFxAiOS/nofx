@@ -28,6 +28,7 @@ type Store struct {
 	equity         *EquityStore
 	order          *OrderStore
 	grid           *GridStore
+	aiCharge       *AIChargeStore
 	telegramConfig TelegramConfigStore
 
 	mu sync.RWMutex
@@ -160,6 +161,9 @@ func (s *Store) initTables() error {
 	if err := s.TelegramConfig().(*telegramConfigStore).initTables(); err != nil {
 		return fmt.Errorf("failed to initialize telegram config tables: %w", err)
 	}
+	if err := s.AICharge().initTables(); err != nil {
+		return fmt.Errorf("failed to initialize AI charge tables: %w", err)
+	}
 	return nil
 }
 
@@ -281,6 +285,16 @@ func (s *Store) Grid() *GridStore {
 		s.grid = NewGridStore(s.gdb)
 	}
 	return s.grid
+}
+
+// AICharge gets AI charge storage
+func (s *Store) AICharge() *AIChargeStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.aiCharge == nil {
+		s.aiCharge = NewAIChargeStore(s.gdb)
+	}
+	return s.aiCharge
 }
 
 // TelegramConfig gets Telegram bot configuration storage

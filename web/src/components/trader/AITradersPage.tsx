@@ -211,11 +211,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         return
       }
 
-      await toast.promise(api.createTrader(data), {
-        loading: t('aiTradersToast.creating', language),
-        success: t('aiTradersToast.created', language),
-        error: t('aiTradersToast.createFailed', language),
-      })
+      await api.createTrader(data)
+      toast.success(t('aiTradersToast.created', language))
       setShowCreateModal(false)
       await mutateTraders()
     } catch (error) {
@@ -268,11 +265,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
       console.log('🔥 handleSaveEditTrader - data.strategy_id:', data.strategy_id)
       console.log('🔥 handleSaveEditTrader - request:', request)
 
-      await toast.promise(api.updateTrader(editingTrader.trader_id, request), {
-        loading: t('aiTradersToast.saving', language),
-        success: t('aiTradersToast.saved', language),
-        error: t('aiTradersToast.saveFailed', language),
-      })
+      await api.updateTrader(editingTrader.trader_id, request)
+      toast.success(t('aiTradersToast.saved', language))
       setShowEditModal(false)
       setEditingTrader(null)
       await mutateTraders()
@@ -289,11 +283,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     }
 
     try {
-      await toast.promise(api.deleteTrader(traderId), {
-        loading: t('aiTradersToast.deleting', language),
-        success: t('aiTradersToast.deleted', language),
-        error: t('aiTradersToast.deleteFailed', language),
-      })
+      await api.deleteTrader(traderId)
+      toast.success(t('aiTradersToast.deleted', language))
 
       await mutateTraders()
     } catch (error) {
@@ -305,17 +296,11 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const handleToggleTrader = async (traderId: string, running: boolean) => {
     try {
       if (running) {
-        await toast.promise(api.stopTrader(traderId), {
-          loading: t('aiTradersToast.stopping', language),
-          success: t('aiTradersToast.stopped', language),
-          error: t('aiTradersToast.stopFailed', language),
-        })
+        await api.stopTrader(traderId)
+      toast.success(t('aiTradersToast.stopped', language))
       } else {
-        await toast.promise(api.startTrader(traderId), {
-          loading: t('aiTradersToast.starting', language),
-          success: t('aiTradersToast.started', language),
-          error: t('aiTradersToast.startFailed', language),
-        })
+        await api.startTrader(traderId)
+      toast.success(t('aiTradersToast.started', language))
       }
 
       await mutateTraders()
@@ -328,11 +313,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
   const handleToggleCompetition = async (traderId: string, currentShowInCompetition: boolean) => {
     try {
       const newValue = !currentShowInCompetition
-      await toast.promise(api.toggleCompetition(traderId, newValue), {
-        loading: t('aiTradersToast.updating', language),
-        success: newValue ? t('aiTradersToast.showInCompetition', language) : t('aiTradersToast.hideInCompetition', language),
-        error: t('aiTradersToast.updateFailed', language),
-      })
+      await api.toggleCompetition(traderId, newValue)
+      toast.success(newValue ? t('aiTradersToast.showInCompetition', language) : t('aiTradersToast.hideInCompetition', language))
 
       await mutateTraders()
     } catch (error) {
@@ -392,11 +374,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ) || []
 
       const request = config.buildRequest(updatedItems)
-      await toast.promise(config.updateApi(request), {
-        loading: t('aiTradersToast.updatingConfig', language),
-        success: t('aiTradersToast.configUpdated', language),
-        error: t('aiTradersToast.configUpdateFailed', language),
-      })
+      await config.updateApi(request)
+      toast.success(t('aiTradersToast.configUpdated', language))
 
       const refreshedItems = await config.refreshApi()
       config.setItems(refreshedItems)
@@ -505,11 +484,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
         ),
       }
 
-      await toast.promise(api.updateModelConfigs(request), {
-        loading: t('aiTradersToast.updatingModelConfig', language),
-        success: t('aiTradersToast.modelConfigUpdated', language),
-        error: t('aiTradersToast.modelConfigUpdateFailed', language),
-      })
+      await api.updateModelConfigs(request)
+      toast.success(t('aiTradersToast.modelConfigUpdated', language))
 
       const refreshedModels = await api.getModelConfigs()
       setAllModels(refreshedModels)
@@ -535,11 +511,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
     if (!ok) return
 
     try {
-      await toast.promise(api.deleteExchange(exchangeId), {
-        loading: t('aiTradersToast.deletingExchange', language),
-        success: t('aiTradersToast.exchangeDeleted', language),
-        error: t('aiTradersToast.exchangeDeleteFailed', language),
-      })
+      await api.deleteExchange(exchangeId)
+      toast.success(t('aiTradersToast.exchangeDeleted', language))
 
       const refreshedExchanges = await api.getExchangeConfigs()
       setAllExchanges(refreshedExchanges)
@@ -597,11 +570,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           },
         }
 
-        await toast.promise(api.updateExchangeConfigsEncrypted(request), {
-          loading: t('aiTradersToast.updatingExchangeConfig', language),
-          success: t('aiTradersToast.exchangeConfigUpdated', language),
-          error: t('aiTradersToast.exchangeConfigUpdateFailed', language),
-        })
+        await api.updateExchangeConfigsEncrypted(request)
+      toast.success(t('aiTradersToast.exchangeConfigUpdated', language))
       } else {
         const createRequest = {
           exchange_type: exchangeType,
@@ -621,11 +591,8 @@ export function AITradersPage({ onTraderSelect }: AITradersPageProps) {
           lighter_api_key_index: lighterApiKeyIndex || 0,
         }
 
-        await toast.promise(api.createExchangeEncrypted(createRequest), {
-          loading: t('aiTradersToast.creatingExchange', language),
-          success: t('aiTradersToast.exchangeCreated', language),
-          error: t('aiTradersToast.exchangeCreateFailed', language),
-        })
+        await api.createExchangeEncrypted(createRequest)
+      toast.success(t('aiTradersToast.exchangeCreated', language))
       }
 
       const refreshedExchanges = await api.getExchangeConfigs()

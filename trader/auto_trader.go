@@ -8,6 +8,8 @@ import (
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
+	"nofx/wallet"
+	"github.com/ethereum/go-ethereum/crypto"
 	"nofx/trader/aster"
 	"nofx/trader/binance"
 	"nofx/trader/bitget"
@@ -145,6 +147,7 @@ type AutoTrader struct {
 	lastBalanceSyncTime   time.Time          // Last balance sync time
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
+	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
 }
 
 // NewAutoTrader creates an automatic trader
@@ -371,6 +374,9 @@ func (at *AutoTrader) Run() error {
 	logger.Infof("💰 Initial balance: %.2f USDT", at.initialBalance)
 	logger.Infof("⚙️  Scan interval: %v", at.config.ScanInterval)
 	logger.Info("🤖 AI will make full decisions on leverage, position size, stop loss/take profit, etc.")
+
+	// Pre-launch checks for claw402 users
+	at.runPreLaunchChecks()
 	at.monitorWg.Add(1)
 	defer at.monitorWg.Done()
 
@@ -586,4 +592,64 @@ func calculatePnLPercentage(unrealizedPnl, marginUsed float64) float64 {
 		return (unrealizedPnl / marginUsed) * 100
 	}
 	return 0.0
+}
+
+// runPreLaunchChecks performs pre-launch checks for claw402 users (wallet balance, runway estimate)
+func (at *AutoTrader) runPreLaunchChecks() {
+	if !store.IsClaw402Config(at.config.AIModel) {
+		return
+	}
+
+	logger.Info("🔍 Running pre-launch checks (claw402)...")
+
+	// Derive wallet address from CustomAPIKey (which is the private key for claw402)
+	if at.config.CustomAPIKey != "" {
+		// Try to derive address using go-ethereum
+		addr := deriveWalletAddress(at.config.CustomAPIKey)
+		if addr != "" {
+			at.claw402WalletAddr = addr
+			logger.Infof("💳 [%s] Claw402 wallet: %s", at.name, addr)
+
+			// Query USDC balance
+			balance, err := wallet.QueryUSDCBalance(addr)
+			if err != nil {
+				logger.Warnf("⚠️ [%s] Could not query USDC balance: %v", at.name, err)
+			} else {
+				// Estimate runway
+				scanMinutes := int(at.config.ScanInterval.Minutes())
+				modelName := at.config.CustomModelName
+				if modelName == "" {
+					modelName = "deepseek"
+				}
+				dailyCost, runway := store.EstimateRunway(balance, modelName, scanMinutes)
+				logger.Infof("💰 [%s] USDC Balance: $%.2f | Daily AI cost: ~$%.2f | Runway: ~%.1f days",
+					at.name, balance, dailyCost, runway)
+
+				if balance < 1.0 {
+					logger.Warnf("⚠️ [%s] Low USDC balance! Consider topping up.", at.name)
+				}
+				if balance <= 0 {
+					logger.Errorf("🚨 [%s] USDC balance is ZERO — AI calls will fail!", at.name)
+				}
+			}
+		}
+	}
+
+	logger.Info("✅ Pre-launch checks complete")
+}
+
+// deriveWalletAddress derives an Ethereum address from a hex private key
+func deriveWalletAddress(privateKeyHex string) string {
+	// Remove 0x prefix if present
+	if len(privateKeyHex) > 2 && privateKeyHex[:2] == "0x" {
+		privateKeyHex = privateKeyHex[2:]
+	}
+
+	privateKey, err := crypto.HexToECDSA(privateKeyHex)
+	if err != nil {
+		return ""
+	}
+
+	address := crypto.PubkeyToAddress(privateKey.PublicKey)
+	return address.Hex()
 }

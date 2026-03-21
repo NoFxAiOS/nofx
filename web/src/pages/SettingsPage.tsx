@@ -120,11 +120,8 @@ export function SettingsPage() {
           }])
         ),
       }
-      await toast.promise(api.updateModelConfigs(request), {
-        loading: 'Saving model config...',
-        success: 'Model config saved',
-        error: 'Failed to save model config',
-      })
+      await api.updateModelConfigs(request)
+      toast.success('Model config saved')
       const refreshed = await api.getModelConfigs()
       setConfiguredModels(refreshed)
       setShowModelModal(false)
@@ -198,11 +195,8 @@ export function SettingsPage() {
             },
           },
         }
-        await toast.promise(api.updateExchangeConfigsEncrypted(request), {
-          loading: 'Updating exchange config...',
-          success: 'Exchange config updated',
-          error: 'Failed to update exchange config',
-        })
+        await api.updateExchangeConfigsEncrypted(request)
+      toast.success('Exchange config updated')
       } else {
         const createRequest = {
           exchange_type: exchangeType,
@@ -221,11 +215,8 @@ export function SettingsPage() {
           lighter_api_key_private_key: lighterApiKeyPrivateKey || '',
           lighter_api_key_index: lighterApiKeyIndex || 0,
         }
-        await toast.promise(api.createExchangeEncrypted(createRequest), {
-          loading: 'Creating exchange account...',
-          success: 'Exchange account created',
-          error: 'Failed to create exchange account',
-        })
+        await api.createExchangeEncrypted(createRequest)
+      toast.success('Exchange account created')
       }
       const refreshed = await api.getExchangeConfigs()
       setExchanges(refreshed)
@@ -238,11 +229,8 @@ export function SettingsPage() {
 
   const handleDeleteExchange = async (exchangeId: string) => {
     try {
-      await toast.promise(api.deleteExchange(exchangeId), {
-        loading: 'Deleting exchange account...',
-        success: 'Exchange account deleted',
-        error: 'Failed to delete exchange account',
-      })
+      await api.deleteExchange(exchangeId)
+      toast.success('Exchange account deleted')
       const refreshed = await api.getExchangeConfigs()
       setExchanges(refreshed)
       setShowExchangeModal(false)

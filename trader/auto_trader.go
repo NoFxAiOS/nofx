@@ -148,6 +148,9 @@ type AutoTrader struct {
 	userID                string             // User ID
 	gridState             *GridState         // Grid trading state (only used when StrategyType == "grid_trading")
 	claw402WalletAddr     string             // Claw402 wallet address (derived from private key at start)
+	consecutiveAIFailures int               // Consecutive AI call failures
+	safeMode              bool              // Safe mode: no new positions, protect existing ones
+	safeModeReason        string            // Why safe mode was activated
 }
 
 // NewAutoTrader creates an automatic trader

@@ -124,8 +124,19 @@ func (at *AutoTrader) runCycle() error {
 	}
 
 	if err != nil {
+		at.consecutiveAIFailures++
 		record.Success = false
 		record.ErrorMessage = fmt.Sprintf("Failed to get AI decision: %v", err)
+
+		// Activate safe mode after 3 consecutive failures
+		if at.consecutiveAIFailures >= 3 && !at.safeMode {
+			at.safeMode = true
+			at.safeModeReason = fmt.Sprintf("AI failed %d consecutive times: %v", at.consecutiveAIFailures, err)
+			logger.Errorf("🛡️ [%s] SAFE MODE ACTIVATED — AI failed %d times in a row. No new positions will be opened. Existing positions are protected with current stop-loss settings.",
+				at.name, at.consecutiveAIFailures)
+			logger.Errorf("🛡️ [%s] Reason: %v", at.name, err)
+			logger.Errorf("🛡️ [%s] Action: Will keep trying AI each cycle. Safe mode auto-deactivates when AI recovers.", at.name)
+		}
 
 		// Print system prompt and AI chain of thought (output even with errors for debugging)
 		if aiDecision != nil {
@@ -145,7 +156,25 @@ func (at *AutoTrader) runCycle() error {
 		}
 
 		at.saveDecision(record)
+
+		// In safe mode, don't return error — keep the loop running to retry next cycle
+		if at.safeMode {
+			logger.Warnf("🛡️ [%s] Safe mode: skipping this cycle, will retry in %v", at.name, at.config.ScanInterval)
+			return nil
+		}
+
 		return fmt.Errorf("failed to get AI decision: %w", err)
+	}
+
+	// AI succeeded — reset failure counter and deactivate safe mode
+	if at.consecutiveAIFailures > 0 {
+		logger.Infof("✅ [%s] AI recovered after %d consecutive failures", at.name, at.consecutiveAIFailures)
+	}
+	at.consecutiveAIFailures = 0
+	if at.safeMode {
+		logger.Infof("🛡️ [%s] SAFE MODE DEACTIVATED — AI is working again. Resuming normal trading.", at.name)
+		at.safeMode = false
+		at.safeModeReason = ""
 	}
 
 	// // 5. Print system prompt
@@ -192,6 +221,22 @@ func (at *AutoTrader) runCycle() error {
 	if !running {
 		logger.Infof("⏹ Trader stopped before decision execution, aborting cycle #%d", at.callCount)
 		return nil
+	}
+
+	// Safe mode: filter out open positions, only allow close/hold
+	if at.safeMode {
+		filtered := make([]kernel.Decision, 0)
+		for _, d := range sortedDecisions {
+			if d.Action == "open_long" || d.Action == "open_short" {
+				logger.Warnf("🛡️ [%s] Safe mode: BLOCKED %s %s (no new positions allowed)", at.name, d.Action, d.Symbol)
+				continue
+			}
+			filtered = append(filtered, d)
+		}
+		sortedDecisions = filtered
+		if len(sortedDecisions) == 0 {
+			logger.Infof("🛡️ [%s] Safe mode: all decisions were open positions, nothing to execute", at.name)
+		}
 	}
 
 	// Execute decisions and record results

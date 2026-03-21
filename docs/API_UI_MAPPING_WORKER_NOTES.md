@@ -29,16 +29,24 @@
 ## 2. App.tsx 中已观察到的主要 API 调用
 
 ### 登录后公共基础数据
-- `api.getTraders` ← 对应后端 `GET /api/my-traders`
-- `api.getExchangeConfigs` ← 对应后端 `GET /api/exchanges`
+- `api.getTraders` ← `GET /api/my-traders` (`web/src/lib/api/traders.ts`)
+- `api.getExchangeConfigs` ← `GET /api/exchanges` (`web/src/lib/api/config.ts`)
 
 ### Trader Dashboard 相关
 在 `web/src/App.tsx` 中直接看到以下 SWR 请求：
-- `api.getStatus(selectedTraderId)` ← 预期对应 trader 状态接口
-- `api.getAccount(selectedTraderId)` ← 预期对应账户信息接口
-- `api.getPositions(selectedTraderId)` ← 预期对应持仓接口
+- `api.getStatus(selectedTraderId)` ← `GET /api/status?trader_id=...` (`web/src/lib/api/data.ts`)
+- `api.getAccount(selectedTraderId)` ← `GET /api/account?trader_id=...`
+- `api.getPositions(selectedTraderId)` ← `GET /api/positions?trader_id=...`
 
-> 说明：这些具体 endpoint 名称还需要继续顺着 `web/src/lib/*` 与 handler 文件精确核对。
+附加数据 API（由 dataApi 暴露）：
+- `GET /api/decisions`
+- `GET /api/decisions/latest`
+- `GET /api/statistics`
+- `GET /api/equity-history`
+- `POST /api/equity-history-batch`
+- `GET /api/positions/history`
+- `GET /api/competition`
+- `GET /api/top-traders`
 
 ## 3. 后端 API 结构（按 `api/server.go`）
 
@@ -86,8 +94,19 @@
 - `/api/exchanges`
 - `/api/telegram`
 - `/api/strategies*`
+- `/api/status`
+- `/api/account`
+- `/api/positions`
+- `/api/positions/history`
+- `/api/trades`
+- `/api/orders`
+- `/api/orders/:id/fills`
+- `/api/open-orders`
+- `/api/decisions`
+- `/api/decisions/latest`
+- `/api/statistics`
 
-## 4. 初步映射关系
+## 4. 精确映射关系（首轮）
 
 ### Competition 页面
 前端：`components/trader/CompetitionPage`
@@ -109,49 +128,86 @@
 - `POST /api/traders/:id/stop`
 - `GET /api/models`
 - `GET /api/exchanges`
+- `GET /api/supported-models`
 - `GET /api/strategies`
+- `GET /api/traders/:id/config`
 
 ### Trader Dashboard 页面
-前端：`pages/TraderDashboardPage`
-后端预期依赖：
-- trader status/account/positions/decisions/statistics/equity 相关接口
-- 这部分还需顺着 `web/src/lib/api` 精确补全
+前端：`pages/TraderDashboardPage` + charts 相关组件
+后端主要依赖：
+- `GET /api/status`
+- `GET /api/account`
+- `GET /api/positions`
+- `GET /api/decisions`
+- `GET /api/decisions/latest`
+- `GET /api/statistics`
+- `GET /api/equity-history`
+- `GET /api/positions/history`
+- `GET /api/orders`
+- `GET /api/open-orders`
+- `GET /api/trades`
+- `GET /api/klines`
+- `GET /api/symbols`
 
 ### Strategy Studio 页面
 前端：`pages/StrategyStudioPage`
 后端主要依赖：
+- `GET /api/models`
 - `GET /api/strategies`
-- `GET /api/strategies/active`
 - `GET /api/strategies/default-config`
 - `GET /api/strategies/:id`
 - `POST /api/strategies`
+- `PUT /api/strategies/:id`
+- `POST /api/strategies/:id/duplicate`
+- `POST /api/strategies/:id/activate`
 - `POST /api/strategies/preview-prompt`
 - `POST /api/strategies/test-run`
 
 ### Settings 页面
 前端：`pages/SettingsPage`
 后端主要依赖：
-- `GET /api/models`
-- `PUT /api/models`
-- `GET /api/exchanges`
-- `POST /api/exchanges`
-- `PUT /api/exchanges`
-- `DELETE /api/exchanges/:id`
-- `GET /api/telegram`
-- `POST /api/telegram`
-- `POST /api/telegram/model`
-- `DELETE /api/telegram/binding`
 - `PUT /api/user/password`
+- 以及配置型接口（模型/交易所/Telegram）
 
-## 5. 当前边界不清晰点
+### 配置弹窗族
+前端：
+- `components/trader/ModelConfigModal.tsx`
+- `components/trader/ExchangeConfigModal.tsx`
+- `components/trader/TelegramConfigModal.tsx`
+- `components/trader/TraderConfigModal.tsx`
 
-1. `App.tsx` 承担了较多页面状态与数据请求职责，后续要评估是否过重
-2. Trader Dashboard 真实使用的 endpoint 还需从 `web/src/lib/api*` 精确反查
-3. 页面路由既看 pathname 也看 hash，存在历史兼容痕迹，后续要评估是否统一
-4. 认证前后页面混用同一个 App 状态机，后续可能影响可维护性
+后端主要依赖：
+- `/api/models`
+- `/api/exchanges`
+- `/api/telegram`
+- `/api/wallet/validate`
+- `/api/wallet/generate`
+- `/api/server-ip`
+- `/api/traders/:id/grid-risk`
+
+## 5. 已发现的不一致/疑点
+
+### 5.1 文档/实现路径不一致
+- `dataApi.getPublicTraderConfig()` 使用的是 `${API_BASE}/trader/${traderId}/config`
+- 但后端公开接口注册的是 `GET /api/traders/:id/public-config` (`api/server.go`)
+- 这看起来像真实不一致，值得后续核验是否存在兼容旧路由
+
+### 5.2 前端存在 `/api/admin-login` 调用痕迹
+- 文件：`web/src/contexts/AuthContext.tsx`
+- 但目前在 `api/server.go` 可见路由中未看到对应注册
+- 需要进一步确认：
+  - 是否路由已废弃但前端残留
+  - 或是否在别处动态注册
+
+### 5.3 路由风格不完全统一
+- 一部分统一走 `web/src/lib/api/*`
+- 一部分组件直接 `fetch('/api/...')`
+- 一部分页面使用 `API_BASE = import.meta.env.VITE_API_BASE || ''`
+- 这会增加后续维护成本和接口迁移成本
 
 ## 6. 下一步建议
 
-1. 精确读取 `web/src/lib/api*`，补全 API 函数 → endpoint 对照表
-2. 为 Dashboard / Strategy / Settings 三大页分别画请求矩阵
-3. 标出“页面依赖哪些字段”，便于后端改接口时做影响分析
+1. 核验 `public-config` 与 `admin-login` 的真实有效性
+2. 统一前端 API 访问层，减少散落 `fetch`
+3. 为 Dashboard / Strategy / Settings 三大页面分别建立字段依赖矩阵
+4. 把 API 路径不一致项整理为首批低风险修复目标

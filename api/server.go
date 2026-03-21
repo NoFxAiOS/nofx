@@ -89,6 +89,7 @@ func (s *Server) setupRoutes() {
 
 		// Wallet validation (no authentication required — used by frontend config form)
 		api.POST("/wallet/validate", s.handleWalletValidate)
+		api.POST("/wallet/generate", s.handleWalletGenerate)
 
 		// Crypto related endpoints (no authentication required, not exposed to bot)
 		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
@@ -172,6 +173,10 @@ Body: {"show_in_competition":<bool>}`,
 			s.routeWithSchema(protected, "GET", "/traders/:id/grid-risk", "Get grid trading risk info",
 				`:id = trader_id from GET /api/my-traders.`,
 				s.handleGetGridRiskInfo)
+
+			// AI cost tracking
+			s.route(protected, "GET", "/ai-costs", "Get AI call costs for a trader (?trader_id=xxx&period=today)", s.handleGetAICosts)
+			s.route(protected, "GET", "/ai-costs/summary", "Get AI cost summary (?period=today)", s.handleGetAICostsSummary)
 
 			// AI model configuration
 			s.routeWithSchema(protected, "GET", "/models", "List AI model configs",

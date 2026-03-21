@@ -1,13 +1,10 @@
 package api
 
 import (
-	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"io"
-	"math/big"
 	"net/http"
+	"nofx/wallet"
 	"strings"
 	"time"
 
@@ -27,11 +24,7 @@ type walletValidateResponse struct {
 	Error        string `json:"error,omitempty"`
 }
 
-const (
-	baseRPCURL      = "https://mainnet.base.org"
-	usdcContractBase = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-	usdcDecimals     = 6
-)
+
 
 func (s *Server) handleWalletValidate(c *gin.Context) {
 	var req walletValidateRequest
@@ -85,7 +78,7 @@ func (s *Server) handleWalletValidate(c *gin.Context) {
 	addrHex := address.Hex()
 
 	// Query USDC balance (async-ish, but sequential for simplicity)
-	balanceStr := queryUSDCBalance(addrHex)
+	balanceStr := wallet.QueryUSDCBalanceStr(addrHex)
 
 	// Check claw402 health
 	claw402Status := checkClaw402Health()
@@ -98,65 +91,28 @@ func (s *Server) handleWalletValidate(c *gin.Context) {
 	})
 }
 
-func queryUSDCBalance(address string) string {
-	// Build balanceOf(address) call data
-	// Function selector: 0x70a08231
-	// Pad address to 32 bytes
-	addrNoPre := strings.TrimPrefix(strings.ToLower(address), "0x")
-	data := "0x70a08231" + fmt.Sprintf("%064s", addrNoPre)
 
-	payload := map[string]interface{}{
-		"jsonrpc": "2.0",
-		"method":  "eth_call",
-		"params": []interface{}{
-			map[string]string{
-				"to":   usdcContractBase,
-				"data": data,
-			},
-			"latest",
-		},
-		"id": 1,
-	}
 
-	body, err := json.Marshal(payload)
+type walletGenerateResponse struct {
+	Address    string `json:"address"`
+	PrivateKey string `json:"private_key"`
+}
+
+func (s *Server) handleWalletGenerate(c *gin.Context) {
+	// Generate new EVM wallet
+	privateKey, err := crypto.GenerateKey()
 	if err != nil {
-		return "0.00"
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate wallet"})
+		return
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Post(baseRPCURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		return "0.00"
-	}
-	defer resp.Body.Close()
+	address := crypto.PubkeyToAddress(privateKey.PublicKey)
+	privKeyHex := "0x" + hex.EncodeToString(crypto.FromECDSA(privateKey))
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "0.00"
-	}
-
-	var rpcResp struct {
-		Result string `json:"result"`
-	}
-	if err := json.Unmarshal(respBody, &rpcResp); err != nil {
-		return "0.00"
-	}
-
-	// Parse hex result
-	hexStr := strings.TrimPrefix(rpcResp.Result, "0x")
-	if hexStr == "" || hexStr == "0" {
-		return "0.00"
-	}
-
-	balance := new(big.Int)
-	balance.SetString(hexStr, 16)
-
-	// Convert to float with 6 decimals
-	divisor := new(big.Int).Exp(big.NewInt(10), big.NewInt(usdcDecimals), nil)
-	whole := new(big.Int).Div(balance, divisor)
-	remainder := new(big.Int).Mod(balance, divisor)
-
-	return fmt.Sprintf("%d.%06d", whole, remainder)
+	c.JSON(http.StatusOK, walletGenerateResponse{
+		Address:    address.Hex(),
+		PrivateKey: privKeyHex,
+	})
 }
 
 func checkClaw402Health() string {

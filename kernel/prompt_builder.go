@@ -89,7 +89,7 @@ func (pb *PromptBuilder) buildSystemPromptZH() string {
     "stop_loss": 42000,
     "take_profit": 48000,
     "confidence": 85,
-    "reasoning": "详细的推理过程，说明为什么做出这个决策"
+    "reasoning": "Detailed reasoning explaining why this decision was made"
   }
 ]
 ` + "```" + `
@@ -201,14 +201,6 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 - Consider partial/full profit-taking when PnL pulls back {risk_control.trailing_stop_pct}% from peak (trailing_stop_pct)
 - Minimum profit required: {risk_control.trailing_stop_min_profit}%
 - Auto-close when drawdown reaches {risk_control.trailing_stop_drawdown}%
-- Margin usage must not exceed 30%
-- Must stop-loss when single position loss reaches -5% (hard_stop_loss_pct)
-- When UnrealizedPnL reaches +3% (breakeven_threshold), move stop-loss to entry price to protect principal
-- Use update_stop_loss action to adjust stop-loss during position (only move in profitable direction)
-- Capital protection first, profit second
-
-### Trailing Take-Profit
-- Consider partial/full profit-taking when PnL pulls back 30% from peak (trailing_stop_pct)
 - Margin usage must not exceed 30%
 - Must stop-loss when single position loss reaches -5%
 - Capital protection first, profit second

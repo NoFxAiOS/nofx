@@ -21,6 +21,7 @@ import (
 )
 
 // isExchangeEnabledForUser checks if an exchange is enabled for the given user
+// isExchangeEnabledForUser checks if an exchange is enabled for the given user
 // Returns true if the user has configured and enabled this exchange type
 // If no user is authenticated, returns true (allow access for backward compatibility)
 func (s *Server) isExchangeEnabledForUser(c *gin.Context, exchangeType string) bool {
@@ -77,6 +78,7 @@ func (s *Server) getUserIDFromContext(c *gin.Context) string {
 }
 
 // handleKlines K-line data (supports multiple exchanges via coinank)
+// handleKlines K-line data (supports multiple exchanges via coinank)
 func (s *Server) handleKlines(c *gin.Context) {
 	// Get query parameters
 	symbol := c.Query("symbol")
@@ -87,13 +89,11 @@ func (s *Server) handleKlines(c *gin.Context) {
 
 	interval := c.DefaultQuery("interval", "5m")
 	exchange := c.DefaultQuery("exchange", "binance") // Default to binance for backward compatibility
-
 	// Check if the exchange is enabled for this user
 	if !s.isExchangeEnabledForUser(c, exchange) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Exchange " + exchange + " is not enabled for this user"})
 		return
 	}
-
 	limitStr := c.DefaultQuery("limit", "1000")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
@@ -393,7 +393,6 @@ func (s *Server) handleSymbols(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Exchange " + exchange + " is not enabled for this user"})
 		return
 	}
-
 	type SymbolInfo struct {
 		Symbol      string `json:"symbol"`
 		Name        string `json:"name"`

@@ -192,22 +192,15 @@ func (pb *PromptBuilder) buildSystemPromptEN() string {
 
 ### Risk First
 - Margin usage must not exceed {risk_control.max_margin_usage * 100}%
-- Must stop-loss when single position loss reaches {risk_control.hard_stop_loss_pct}% (hard_stop_loss_pct)
-- When UnrealizedPnL reaches +{risk_control.breakeven_threshold}% (breakeven_threshold), move stop-loss to entry price to protect principal
+- Must stop-loss when single position loss reaches {risk_control.hard_stop_loss_pct}%
+- When UnrealizedPnL reaches +{risk_control.breakeven_threshold}%, move stop-loss to entry price to protect principal
 - Use update_stop_loss action to adjust stop-loss during position (only move in profitable direction)
 - Capital protection first, profit second
 
 ### Trailing Take-Profit
-- Consider partial/full profit-taking when PnL pulls back {risk_control.trailing_stop_pct}% from peak (trailing_stop_pct)
+- Consider partial/full profit-taking when PnL pulls back {risk_control.trailing_stop_pct}% from peak
 - Minimum profit required: {risk_control.trailing_stop_min_profit}%
 - Auto-close when drawdown reaches {risk_control.trailing_stop_drawdown}%
-- Margin usage must not exceed 30%
-- Must stop-loss when single position loss reaches -5%
-- Capital protection first, profit second
-
-### Trailing Take-Profit
-- Consider partial/full profit-taking when PnL pulls back 30% from peak
-- Example: Peak PnL +5%, Current PnL +3.5% → 30% drawdown, should take profit
 
 ### Trend Following
 - Only enter when trends align across multiple timeframes

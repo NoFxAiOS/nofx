@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOFXi — AI Trading Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --bg:#09090b;--bg2:#0c0c12;--surface:#13131b;--surface2:#1a1a24;
+      --border:#1f1f2c;--border2:#2a2a38;
+      --text:#eaeaf0;--text2:#9898ab;--text3:#5c5c72;
+      --accent:#00e5a0;--accent-dim:rgba(0,229,160,.08);
+      --purple:#8b5cf6;--purple-dim:rgba(139,92,246,.08);
+      --blue:#3b82f6;--red:#ef4444;--green:#22c55e;--orange:#f59e0b;
+      --radius:10px;--radius-sm:6px;
+    }
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    button{font-family:inherit;cursor:pointer}
+    select{font-family:inherit}
+
+    /* Header */
+    .hd{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:48px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+    .hd-left{display:flex;align-items:center;gap:14px}
+    .logo{font-size:17px;font-weight:800;display:flex;align-items:center;gap:6px}
+    .logo-mark{width:26px;height:26px;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:6px;display:grid;place-items:center;font-size:13px;color:#000;font-weight:800}
+    .logo-text{background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .tabs{display:flex;gap:1px;background:var(--surface);border-radius:var(--radius-sm);padding:2px;height:30px}
+    .tab{padding:0 14px;border:none;background:none;color:var(--text3);font-size:12px;font-weight:500;border-radius:calc(var(--radius-sm) - 1px);transition:all .15s;white-space:nowrap}
+    .tab:hover{color:var(--text2)}
+    .tab.on{background:var(--surface2);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.3)}
+    .hd-right{display:flex;align-items:center;gap:8px}
+    .badge{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:500}
+    .badge.ok{color:var(--green);background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.15)}
+    .badge.err{color:var(--red);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15)}
+    .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+    .lang-btn{padding:3px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text2);font-size:11px;font-weight:500;transition:all .15s}
+    .lang-btn:hover{border-color:var(--border2);color:var(--text)}
+
+    /* Layout */
+    .main{flex:1;display:flex;overflow:hidden}
+
+    /* Sidebar */
+    .sb{width:240px;background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+    .sb::-webkit-scrollbar{width:3px}
+    .sb::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .sb-sec{padding:12px}
+    .sb-sec+.sb-sec{border-top:1px solid var(--border)}
+    .sb-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:8px}
+    .sb-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+    .sb-card{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:10px;font-weight:500;transition:all .12s}
+    .sb-card:hover{background:var(--surface2);border-color:var(--border2);color:var(--text);transform:translateY(-1px)}
+    .sb-card .e{font-size:18px}
+    .sb-list{display:flex;flex-direction:column;gap:1px}
+    .sb-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--radius-sm);color:var(--text2);font-size:12px;border:none;background:none;width:100%;text-align:left;transition:all .12s}
+    .sb-item:hover{background:var(--surface);color:var(--text)}
+    .sb-ico{width:24px;height:24px;border-radius:5px;display:grid;place-items:center;font-size:12px;flex-shrink:0}
+    .sb-ico.g{background:rgba(34,197,94,.08)}.sb-ico.b{background:rgba(59,130,246,.08)}.sb-ico.p{background:rgba(139,92,246,.08)}.sb-ico.o{background:rgba(245,158,11,.08)}
+
+    /* Chat */
+    .chat{flex:1;display:flex;flex-direction:column;background:var(--bg)}
+    .chat.hide{display:none}
+    .msgs{flex:1;overflow-y:auto;padding:20px 16px;scroll-behavior:smooth}
+    .msgs::-webkit-scrollbar{width:3px}
+    .msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+    .m{display:flex;gap:10px;margin-bottom:16px;animation:fi .25s ease}
+    .m.u{flex-direction:row-reverse}
+    @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    .m-av{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:15px;flex-shrink:0}
+    .m.b .m-av{background:linear-gradient(135deg,var(--accent-dim),var(--purple-dim));border:1px solid var(--border)}
+    .m.u .m-av{background:var(--purple-dim);border:1px solid rgba(139,92,246,.15)}
+    .m-body{max-width:640px}
+    .m-name{font-size:11px;font-weight:600;color:var(--text3);margin-bottom:2px}
+    .m.u .m-name{text-align:right}
+    .m-bub{padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+    .m.b .m-bub{background:var(--surface);border:1px solid var(--border);border-top-left-radius:3px}
+    .m.u .m-bub{background:linear-gradient(135deg,var(--purple),#6d28d9);color:#fff;border-top-right-radius:3px}
+    .m-t{font-size:10px;color:var(--text3);margin-top:2px}
+    .m.u .m-t{text-align:right}
+    .typing{display:none;padding:0 20px 8px;color:var(--text3);font-size:12px;align-items:center;gap:6px}
+    .typing.on{display:flex}
+    .dots{display:flex;gap:2px}
+    .dots span{width:4px;height:4px;background:var(--accent);border-radius:50%;animation:bou 1.4s infinite}
+    .dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+    @keyframes bou{0%,60%,100%{transform:translateY(0);opacity:.3}30%{transform:translateY(-5px);opacity:1}}
+    .ibar{padding:12px 16px 16px;background:var(--bg2);border-top:1px solid var(--border)}
+    .iwrap{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:3px 3px 3px 14px;transition:all .2s;max-width:800px;margin:0 auto}
+    .iwrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim)}
+    .iwrap input{flex:1;background:none;border:none;color:var(--text);font-size:13px;outline:none;padding:8px 0}
+    .iwrap input::placeholder{color:var(--text3)}
+    .sbtn{width:36px;height:36px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#00c896);color:#000;font-size:16px;display:grid;place-items:center;transition:all .12s;flex-shrink:0}
+    .sbtn:hover{transform:scale(1.05);box-shadow:0 2px 10px rgba(0,229,160,.25)}
+    .sbtn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+    .ihint{font-size:10px;color:var(--text3);text-align:center;margin-top:6px}
+    .ihint kbd{background:var(--surface);padding:0 4px;border-radius:3px;border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:9px}
+
+    /* Chart */
+    .chart-p{flex:1;display:none;flex-direction:column;background:var(--bg)}
+    .chart-p.on{display:flex}
+    .ch-hd{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--bg2);flex-wrap:wrap;gap:8px}
+    .ch-left{display:flex;align-items:center;gap:12px}
+    .ch-sym select{padding:4px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px;font-family:'JetBrains Mono',monospace;outline:none}
+    .ch-price{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .ch-price.up{color:var(--green)}.ch-price.dn{color:var(--red)}
+    .ch-chg{font-size:12px;font-weight:500;padding:2px 6px;border-radius:4px}
+    .ch-chg.up{color:var(--green);background:rgba(34,197,94,.08)}.ch-chg.dn{color:var(--red);background:rgba(239,68,68,.08)}
+    .ch-tfs{display:flex;gap:2px}
+    .tf{padding:4px 10px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);font-size:11px;font-weight:500;font-family:'JetBrains Mono',monospace;transition:all .12s}
+    .tf:hover{color:var(--text);border-color:var(--border2)}
+    .tf.on{background:var(--accent);color:#000;border-color:var(--accent)}
+    .ch-box{flex:1;position:relative}
+
+    /* Info bar */
+    .info-bar{display:flex;gap:16px;padding:6px 16px;border-bottom:1px solid var(--border);background:var(--bg2);font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;overflow-x:auto;flex-shrink:0}
+    .info-item{display:flex;gap:4px;white-space:nowrap}
+    .info-item .val{color:var(--text2)}
+    .info-item .val.up{color:var(--green)}.info-item .val.dn{color:var(--red)}
+
+    @media(max-width:768px){
+      .sb{display:none}.tabs{display:none}.hd{padding:0 12px}
+      .msgs{padding:12px 8px}.ibar{padding:8px 8px 12px}
+      .m-body{max-width:85%}
+      .ch-hd{padding:6px 10px}.info-bar{padding:4px 10px}
+    }
+  </style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="hd-left">
+    <div class="logo"><div class="logo-mark">N</div><span class="logo-text">NOFXi</span></div>
+    <div class="tabs">
+      <button class="tab on" onclick="go('chat')" data-i18n="tab_chat">Chat</button>
+      <button class="tab" onclick="go('chart')" data-i18n="tab_chart">Chart</button>
+      <button class="tab" onclick="send('/positions');go('chat')" data-i18n="tab_positions">Positions</button>
+    </div>
+  </div>
+  <div class="hd-right">
+    <div class="badge ok" id="stBadge"><div class="badge-dot"></div><span id="stText">--</span></div>
+    <button class="lang-btn" id="langBtn" onclick="toggleLang()">EN</button>
+  </div>
+</div>
+
+<!-- Info ticker bar -->
+<div class="info-bar" id="infoBar"></div>
+
+<div class="main">
+  <div class="sb">
+    <div class="sb-sec">
+      <div class="sb-title" data-i18n="sb_analysis">Analysis</div>
+      <div class="sb-grid">
+        <button class="sb-card" onclick="send('/analyze BTC')"><span class="e">₿</span><span data-i18n="sb_btc_analysis">BTC</span></button>
+        <button class="sb-card" onclick="send('/analyze ETH')"><span class="e">Ξ</span><span data-i18n="sb_eth_analysis">ETH</span></button>
+        <button class="sb-card" onclick="send('/analyze SOL')"><span class="e">◎</span><span>SOL</span></button>
+        <button class="sb-card" onclick="send('/price BTCUSDT')"><span class="e">💲</span><span data-i18n="sb_price">Price</span></button>
+      </div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-title" data-i18n="sb_portfolio">Portfolio</div>
+      <div class="sb-list">
+        <button class="sb-item" onclick="send('/positions')"><div class="sb-ico g">💼</div><span data-i18n="sb_positions">Positions</span></button>
+        <button class="sb-item" onclick="send('/balance')"><div class="sb-ico b">💰</div><span data-i18n="sb_balance">Balance</span></button>
+        <button class="sb-item" onclick="send('/pnl')"><div class="sb-ico p">📊</div><span data-i18n="sb_pnl">P/L</span></button>
+      </div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-title" data-i18n="sb_monitor">Monitor</div>
+      <div class="sb-list">
+        <button class="sb-item" onclick="send('/watch BTCUSDT')"><div class="sb-ico o">👁</div><span data-i18n="sb_watch_btc">Watch BTC</span></button>
+        <button class="sb-item" onclick="send('/watch')"><div class="sb-ico b">📋</div><span data-i18n="sb_watchlist">Watchlist</span></button>
+      </div>
+    </div>
+    <div class="sb-sec">
+      <div class="sb-title" data-i18n="sb_strategy">Strategy</div>
+      <div class="sb-list">
+        <button class="sb-item" onclick="send('/strategy list')"><div class="sb-ico p">🤖</div><span data-i18n="sb_active_strategies">Strategies</span></button>
+        <button class="sb-item" onclick="send('/strategy start BTC 1h')"><div class="sb-ico g">🚀</div><span data-i18n="sb_start_btc">Start BTC AI</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Panel -->
+  <div class="chat" id="chatP">
+    <div class="msgs" id="msgs"></div>
+    <div class="typing" id="typ"><div class="dots"><span></span><span></span><span></span></div><span data-i18n="thinking">Thinking...</span></div>
+    <div class="ibar">
+      <div class="iwrap">
+        <input id="inp" data-i18n-placeholder="input_placeholder" placeholder="Ask NOFXi anything..." autocomplete="off">
+        <button class="sbtn" id="sBtn" onclick="send()">➤</button>
+      </div>
+      <div class="ihint"><kbd>Enter</kbd> <span data-i18n="input_hint">to send</span> · /help, /analyze BTC, /buy ETH 0.1</div>
+    </div>
+  </div>
+
+  <!-- Chart Panel -->
+  <div class="chart-p" id="chartP">
+    <div class="ch-hd">
+      <div class="ch-left">
+        <div class="ch-sym">
+          <select id="symSel" onchange="loadChart()">
+            <option value="BTCUSDT">BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+            <option value="SOLUSDT">SOL/USDT</option>
+            <option value="BNBUSDT">BNB/USDT</option>
+            <option value="XRPUSDT">XRP/USDT</option>
+            <option value="DOGEUSDT">DOGE/USDT</option>
+          </select>
+        </div>
+        <span class="ch-price" id="cPr">--</span>
+        <span class="ch-chg" id="cChg">--</span>
+      </div>
+      <div class="ch-tfs">
+        <button class="tf" onclick="setTF('5m')">5m</button>
+        <button class="tf" onclick="setTF('15m')">15m</button>
+        <button class="tf on" onclick="setTF('1h')">1H</button>
+        <button class="tf" onclick="setTF('4h')">4H</button>
+        <button class="tf" onclick="setTF('1d')">1D</button>
+        <button class="tf" onclick="setTF('1w')">1W</button>
+      </div>
+    </div>
+    <div class="ch-box" id="chBox"></div>
+  </div>
+</div>
+
+<script>
+// === i18n ===
+const I18N = {
+  en: {
+    tab_chat:'Chat', tab_chart:'Chart', tab_positions:'Positions',
+    sb_analysis:'Analysis', sb_btc_analysis:'BTC', sb_eth_analysis:'ETH', sb_price:'Price',
+    sb_portfolio:'Portfolio', sb_positions:'Positions', sb_balance:'Balance', sb_pnl:'P/L',
+    sb_monitor:'Monitor', sb_watch_btc:'Watch BTC', sb_watchlist:'Watchlist',
+    sb_strategy:'Strategy', sb_active_strategies:'Strategies', sb_start_btc:'Start BTC AI',
+    thinking:'Thinking...', input_placeholder:'Ask NOFXi anything...', input_hint:'to send',
+    welcome:"Hey! 👋 I'm NOFXi, your AI trading agent.\n\nI can analyze markets, track prices, manage trades, and run automated strategies.\n\nTry: /help or click the sidebar.",
+    online:'Online', offline:'Offline', connecting:'...',
+    info_24h_vol:'24h Vol', info_24h_high:'High', info_24h_low:'Low', info_trades:'Trades', info_funding:'Funding',
+  },
+  zh: {
+    tab_chat:'对话', tab_chart:'行情', tab_positions:'持仓',
+    sb_analysis:'快速分析', sb_btc_analysis:'BTC', sb_eth_analysis:'ETH', sb_price:'价格',
+    sb_portfolio:'投资组合', sb_positions:'持仓', sb_balance:'余额', sb_pnl:'盈亏',
+    sb_monitor:'行情监控', sb_watch_btc:'关注 BTC', sb_watchlist:'关注列表',
+    sb_strategy:'策略', sb_active_strategies:'运行中策略', sb_start_btc:'启动 BTC AI',
+    thinking:'思考中...', input_placeholder:'跟 NOFXi 聊点什么...', input_hint:'发送',
+    welcome:"你好！👋 我是 NOFXi，你的 AI 交易 Agent。\n\n我可以分析市场、监控行情、管理交易、运行自动策略。\n\n试试: /help 或点击左侧按钮。",
+    online:'在线', offline:'离线', connecting:'...',
+    info_24h_vol:'24h 成交量', info_24h_high:'最高', info_24h_low:'最低', info_trades:'成交笔数', info_funding:'资金费率',
+  }
+};
+let lang = localStorage.getItem('nofxi_lang') || 'zh';
+
+function t(key){ return I18N[lang][key] || I18N.en[key] || key; }
+
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if(I18N[lang][k]) el.textContent = I18N[lang][k];
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const k = el.getAttribute('data-i18n-placeholder');
+    if(I18N[lang][k]) el.placeholder = I18N[lang][k];
+  });
+  document.getElementById('langBtn').textContent = lang === 'zh' ? 'EN' : '中文';
+  localStorage.setItem('nofxi_lang', lang);
+}
+
+function toggleLang(){
+  lang = lang === 'zh' ? 'en' : 'zh';
+  applyLang();
+}
+
+// === Status ===
+const API = location.origin;
+async function checkSt(){
+  try{
+    const r=await fetch(API+'/health');
+    await r.json();
+    document.getElementById('stBadge').className='badge ok';
+    document.getElementById('stText').textContent=t('online');
+  }catch{
+    document.getElementById('stBadge').className='badge err';
+    document.getElementById('stText').textContent=t('offline');
+  }
+}
+checkSt(); setInterval(checkSt,30000);
+
+// === Ticker Info Bar ===
+async function loadInfoBar(){
+  try{
+    const r=await fetch(API+'/api/ticker?symbol=BTCUSDT');
+    const d=await r.json();
+    if(!d.lastPrice) return;
+    const bar=document.getElementById('infoBar');
+    const vol=parseFloat(d.quoteVolume||0);
+    const hi=parseFloat(d.highPrice||0);
+    const lo=parseFloat(d.lowPrice||0);
+    const cnt=parseInt(d.count||0);
+    const chg=parseFloat(d.priceChangePercent||0);
+    bar.innerHTML=`
+      <div class="info-item">BTC/USDT <span class="val ${chg>=0?'up':'dn'}">$${parseFloat(d.lastPrice).toLocaleString('en',{minimumFractionDigits:2})}</span></div>
+      <div class="info-item">${t('info_24h_vol')} <span class="val">$${(vol/1e9).toFixed(2)}B</span></div>
+      <div class="info-item">${t('info_24h_high')} <span class="val">$${hi.toLocaleString('en',{minimumFractionDigits:2})}</span></div>
+      <div class="info-item">${t('info_24h_low')} <span class="val">$${lo.toLocaleString('en',{minimumFractionDigits:2})}</span></div>
+      <div class="info-item">${t('info_trades')} <span class="val">${(cnt/1e6).toFixed(1)}M</span></div>
+    `;
+  }catch{}
+}
+loadInfoBar(); setInterval(loadInfoBar,15000);
+
+// === Chat ===
+const msgsEl=document.getElementById('msgs');
+const inpEl=document.getElementById('inp');
+const typEl=document.getElementById('typ');
+const sBtnEl=document.getElementById('sBtn');
+
+function now(){return new Date().toLocaleTimeString(lang==='zh'?'zh-CN':'en-US',{hour:'2-digit',minute:'2-digit'})}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+function addM(role,text){
+  const isU=role==='user';
+  const d=document.createElement('div');
+  d.className='m '+(isU?'u':'b');
+  d.innerHTML=`<div class="m-av">${isU?'👤':'⚡'}</div><div class="m-body"><div class="m-name">${isU?'You':'NOFXi'}</div><div class="m-bub">${esc(text)}</div><div class="m-t">${now()}</div></div>`;
+  msgsEl.appendChild(d);
+  msgsEl.scrollTop=msgsEl.scrollHeight;
+}
+
+// Welcome message
+addM('bot', t('welcome'));
+
+async function send(text){
+  if(!text){text=inpEl.value.trim();if(!text)return;inpEl.value=''}
+  addM('user',text);
+  typEl.classList.add('on');sBtnEl.disabled=true;inpEl.focus();
+  try{
+    const r=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,user_id:1,lang:lang})});
+    const d=await r.json();
+    addM('bot',d.response||d.error||'No response');
+  }catch(e){addM('bot','⚠️ Error: '+e.message)}
+  typEl.classList.remove('on');sBtnEl.disabled=false;inpEl.focus();
+}
+
+// === Tabs ===
+function go(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',(tab==='chat'&&i===0)||(tab==='chart'&&i===1)));
+  const cp=document.getElementById('chatP'), chp=document.getElementById('chartP');
+  if(tab==='chart'){cp.classList.add('hide');chp.classList.add('on');if(!chart)initChart();loadChart()}
+  else{cp.classList.remove('hide');chp.classList.remove('on');if(chTimer)clearInterval(chTimer)}
+}
+
+// === Chart ===
+let chart=null,cSeries=null,vSeries=null,curTF='1h',chTimer=null;
+
+function initChart(){
+  const box=document.getElementById('chBox');
+  chart=LightweightCharts.createChart(box,{
+    width:box.clientWidth,height:box.clientHeight,
+    layout:{background:{color:'#09090b'},textColor:'#5c5c72',fontFamily:"'JetBrains Mono',monospace",fontSize:10},
+    grid:{vertLines:{color:'#15151f'},horzLines:{color:'#15151f'}},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal,vertLine:{color:'#2a2a3a',labelBackgroundColor:'#1a1a24'},horzLine:{color:'#2a2a3a',labelBackgroundColor:'#1a1a24'}},
+    rightPriceScale:{borderColor:'#1f1f2c',scaleMargins:{top:.08,bottom:.22}},
+    timeScale:{borderColor:'#1f1f2c',timeVisible:true,secondsVisible:false},
+  });
+  cSeries=chart.addCandlestickSeries({upColor:'#22c55e',downColor:'#ef4444',borderUpColor:'#22c55e',borderDownColor:'#ef4444',wickUpColor:'#22c55e',wickDownColor:'#ef4444'});
+  vSeries=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'vol'});
+  chart.priceScale('vol').applyOptions({scaleMargins:{top:.82,bottom:0}});
+  new ResizeObserver(()=>chart.applyOptions({width:box.clientWidth,height:box.clientHeight})).observe(box);
+}
+
+function setTF(tf){
+  curTF=tf;
+  document.querySelectorAll('.tf').forEach(b=>b.classList.toggle('on',b.textContent.toLowerCase()===tf||b.textContent===tf.toUpperCase()));
+  loadChart();
+}
+
+async function loadChart(){
+  const sym=document.getElementById('symSel').value;
+  try{
+    const[kr,tr]=await Promise.all([fetch(`${API}/api/klines?symbol=${sym}&interval=${curTF}&limit=300`),fetch(`${API}/api/ticker?symbol=${sym}`)]);
+    const klines=await kr.json(), ticker=await tr.json();
+    if(klines?.length){
+      cSeries.setData(klines.map(k=>({time:k.time,open:k.open,high:k.high,low:k.low,close:k.close})));
+      vSeries.setData(klines.map(k=>({time:k.time,value:k.volume,color:k.close>=k.open?'rgba(34,197,94,.25)':'rgba(239,68,68,.25)'})));
+    }
+    if(ticker?.lastPrice){
+      const p=parseFloat(ticker.lastPrice),c=parseFloat(ticker.priceChangePercent);
+      const pe=document.getElementById('cPr'),ce=document.getElementById('cChg');
+      pe.textContent='$'+p.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:p>100?2:4});
+      pe.className='ch-price '+(c>=0?'up':'dn');
+      ce.textContent=(c>=0?'+':'')+c.toFixed(2)+'%';
+      ce.className='ch-chg '+(c>=0?'up':'dn');
+    }
+  }catch(e){console.error(e)}
+  if(chTimer)clearInterval(chTimer);
+  chTimer=setInterval(loadChart,30000);
+}
+
+// IME composition guard
+let composing = false;
+inpEl.addEventListener('compositionstart', () => { composing = true; });
+inpEl.addEventListener('compositionend', () => { composing = false; });
+inpEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !composing) {
+    e.preventDefault();
+    send();
+  }
+});
+
+// Init
+applyLang();
+inpEl.focus();
+</script>
+</body>
+</html>

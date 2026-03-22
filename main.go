@@ -1,7 +1,9 @@
 package main
 
 import (
+	"log/slog"
 	"nofx/api"
+	nofxiagent "nofx/agent"
 	"nofx/auth"
 	"nofx/config"
 	"nofx/crypto"
@@ -29,7 +31,8 @@ func main() {
 	logger.Init(nil)
 
 	logger.Info("╔════════════════════════════════════════════════════════════╗")
-	logger.Info("║           🚀 NOFX - AI-Powered Trading System              ║")
+	logger.Info("║          🚀 NOFXi - AI Trading Agent                        ║")
+	logger.Info("║          Powered by NOFX Engine                             ║")
 	logger.Info("╚════════════════════════════════════════════════════════════╝")
 
 	// Initialize global configuration (loaded from .env)
@@ -139,6 +142,17 @@ func main() {
 
 	// Start Telegram bot (if TELEGRAM_BOT_TOKEN is configured)
 	go telegram.Start(cfg, st, telegramReloadCh)
+
+	// Start NOFXi Agent (proactive intelligence layer)
+	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
+	nofxiAgent.Start()
+	defer nofxiAgent.Stop()
+
+	// Start NOFXi Agent Web API (port 8900)
+	agentWeb := nofxiagent.NewWebHandler(nofxiAgent, slog.Default())
+	agentWeb.StartStandalone(8900)
+
+	logger.Info("🧠 NOFXi Agent started (sentinel + brain + scheduler + web:8900)")
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)

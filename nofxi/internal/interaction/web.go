@@ -140,6 +140,9 @@ func (w *WebServer) Start(ctx context.Context) error {
 		})
 	})
 
+	// Register kline/market data API
+	RegisterKlineRoutes(mux)
+
 	// Serve web UI static files
 	if w.webDir != "" {
 		if _, err := os.Stat(filepath.Join(w.webDir, "index.html")); err == nil {

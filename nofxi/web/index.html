@@ -4,332 +4,616 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NOFXi — AI Trading Agent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
-      --bg: #0a0a0f;
-      --surface: #12121a;
-      --border: #1e1e2e;
-      --text: #e0e0e0;
-      --text-dim: #888;
-      --accent: #00d4aa;
-      --accent2: #7c3aed;
+      --bg: #09090b;
+      --bg2: #0f0f14;
+      --surface: #16161d;
+      --surface2: #1c1c27;
+      --border: #252530;
+      --border2: #2e2e3a;
+      --text: #f0f0f5;
+      --text2: #a0a0b0;
+      --text3: #666680;
+      --accent: #00e5a0;
+      --accent-dim: rgba(0,229,160,0.1);
+      --purple: #8b5cf6;
+      --purple-dim: rgba(139,92,246,0.1);
+      --blue: #3b82f6;
       --red: #ef4444;
       --green: #22c55e;
-      --yellow: #eab308;
+      --orange: #f59e0b;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg);
       color: var(--text);
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
-    /* Header */
+    /* === Header === */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 24px;
+      padding: 12px 24px;
+      background: var(--bg2);
       border-bottom: 1px solid var(--border);
-      background: var(--surface);
+      backdrop-filter: blur(12px);
+      z-index: 10;
     }
-    .header h1 {
-      font-size: 20px;
-      font-weight: 700;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
     }
-    .status {
+    .logo {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+    }
+    .logo span {
+      background: linear-gradient(135deg, var(--accent), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-pills {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 3px;
+    }
+    .nav-pill {
+      padding: 6px 16px;
+      border-radius: var(--radius-sm);
       font-size: 13px;
-      color: var(--text-dim);
+      font-weight: 500;
+      color: var(--text3);
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      background: none;
+    }
+    .nav-pill:hover { color: var(--text2); }
+    .nav-pill.active {
+      background: var(--surface2);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.2);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--green);
+    }
+    .status-badge.offline {
+      background: rgba(239,68,68,0.1);
+      border-color: rgba(239,68,68,0.2);
+      color: var(--red);
     }
     .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 6px; height: 6px;
       border-radius: 50%;
-      background: var(--green);
-      animation: pulse 2s infinite;
-    }
-    .status-dot.offline { background: var(--red); animation: none; }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+      background: currentColor;
     }
 
-    /* Main area */
+    /* === Main Layout === */
     .main {
       flex: 1;
       display: flex;
       overflow: hidden;
     }
 
-    /* Sidebar */
+    /* === Sidebar === */
     .sidebar {
-      width: 260px;
+      width: 280px;
+      background: var(--bg2);
       border-right: 1px solid var(--border);
-      background: var(--surface);
-      padding: 16px;
+      display: flex;
+      flex-direction: column;
       overflow-y: auto;
     }
-    .sidebar h3 {
-      font-size: 12px;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      margin-bottom: 12px;
-      letter-spacing: 1px;
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
     }
-    .quick-btn {
-      display: block;
-      width: 100%;
-      padding: 10px 12px;
-      margin-bottom: 6px;
-      background: var(--bg);
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text3);
+      margin-bottom: 10px;
+    }
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .action-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 8px;
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
+      color: var(--text2);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .action-btn:hover {
+      background: var(--surface2);
+      border-color: var(--border2);
       color: var(--text);
+      transform: translateY(-1px);
+    }
+    .action-btn .emoji { font-size: 20px; }
+    .action-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .action-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--text2);
       font-size: 13px;
       cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
       text-align: left;
-      transition: all 0.2s;
     }
-    .quick-btn:hover {
-      border-color: var(--accent);
-      background: rgba(0, 212, 170, 0.05);
+    .action-item:hover {
+      background: var(--surface);
+      color: var(--text);
     }
-    .quick-btn .icon { margin-right: 8px; }
+    .action-item .icon {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .action-item .icon.green { background: rgba(34,197,94,0.1); }
+    .action-item .icon.blue { background: rgba(59,130,246,0.1); }
+    .action-item .icon.purple { background: rgba(139,92,246,0.1); }
+    .action-item .icon.orange { background: rgba(245,158,11,0.1); }
 
-    /* Chat area */
-    .chat-container {
+    /* === Chat === */
+    .chat-area {
       flex: 1;
       display: flex;
       flex-direction: column;
+      background: var(--bg);
     }
     .messages {
       flex: 1;
       overflow-y: auto;
-      padding: 24px;
+      padding: 24px 20px;
+      scroll-behavior: smooth;
     }
-    .message {
-      margin-bottom: 16px;
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .msg {
       display: flex;
       gap: 12px;
+      margin-bottom: 20px;
+      animation: fadeIn 0.3s ease;
     }
-    .message.user { justify-content: flex-end; }
-    .message .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
+    .msg.user { flex-direction: row-reverse; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .msg-avatar {
+      width: 36px; height: 36px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
+      font-size: 18px;
       flex-shrink: 0;
     }
-    .message.assistant .avatar { background: var(--accent); color: #000; }
-    .message.user .avatar { background: var(--accent2); color: #fff; }
-    .message .bubble {
-      max-width: 70%;
-      padding: 12px 16px;
+    .msg.bot .msg-avatar {
+      background: linear-gradient(135deg, var(--accent-dim), var(--purple-dim));
+      border: 1px solid var(--border);
+    }
+    .msg.user .msg-avatar {
+      background: var(--purple-dim);
+      border: 1px solid rgba(139,92,246,0.2);
+    }
+    .msg-body { max-width: 680px; }
+    .msg-name {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text3);
+    }
+    .msg.user .msg-name { text-align: right; }
+    .msg-bubble {
+      padding: 14px 18px;
       border-radius: 16px;
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.7;
       white-space: pre-wrap;
+      word-break: break-word;
     }
-    .message.assistant .bubble {
+    .msg.bot .msg-bubble {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-bottom-left-radius: 4px;
+      border-top-left-radius: 4px;
+      color: var(--text);
     }
-    .message.user .bubble {
-      background: var(--accent2);
+    .msg.user .msg-bubble {
+      background: linear-gradient(135deg, var(--purple), #6d28d9);
+      border-top-right-radius: 4px;
       color: #fff;
-      border-bottom-right-radius: 4px;
     }
-    .typing {
-      color: var(--text-dim);
+    .msg-time {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 4px;
+    }
+    .msg.user .msg-time { text-align: right; }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: none;
+      padding: 0 24px 12px;
+      color: var(--text3);
       font-size: 13px;
-      padding: 8px 24px;
+      align-items: center;
+      gap: 8px;
     }
-    .typing::after {
-      content: '...';
-      animation: dots 1.5s infinite;
+    .typing-indicator.active { display: flex; }
+    .typing-dots {
+      display: flex;
+      gap: 3px;
     }
-    @keyframes dots {
-      0%, 20% { content: '.'; }
-      40% { content: '..'; }
-      60%, 100% { content: '...'; }
+    .typing-dots span {
+      width: 5px; height: 5px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: bounce 1.4s infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-6px); opacity: 1; }
     }
 
-    /* Input */
-    .input-area {
-      padding: 16px 24px;
+    /* === Input === */
+    .input-bar {
+      padding: 16px 20px 20px;
+      background: var(--bg2);
       border-top: 1px solid var(--border);
-      background: var(--surface);
     }
-    .input-wrap {
+    .input-container {
       display: flex;
-      gap: 12px;
-      max-width: 800px;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 4px 4px 4px 18px;
+      transition: border-color 0.2s;
+      max-width: 900px;
       margin: 0 auto;
     }
-    .input-wrap input {
+    .input-container:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+    .input-container input {
       flex: 1;
-      padding: 12px 16px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: none;
+      border: none;
       color: var(--text);
       font-size: 14px;
+      font-family: inherit;
       outline: none;
-      transition: border-color 0.2s;
+      padding: 10px 0;
     }
-    .input-wrap input:focus { border-color: var(--accent); }
-    .input-wrap input::placeholder { color: var(--text-dim); }
-    .input-wrap button {
-      padding: 12px 24px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border: none;
+    .input-container input::placeholder { color: var(--text3); }
+    .send-btn {
+      width: 40px; height: 40px;
       border-radius: 12px;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
+      border: none;
+      background: linear-gradient(135deg, var(--accent), #00c896);
+      color: #000;
+      font-size: 18px;
       cursor: pointer;
-      transition: opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      flex-shrink: 0;
     }
-    .input-wrap button:hover { opacity: 0.9; }
-    .input-wrap button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .send-btn:hover { transform: scale(1.05); box-shadow: 0 2px 12px rgba(0,229,160,0.3); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .input-hint {
+      font-size: 11px;
+      color: var(--text3);
+      text-align: center;
+      margin-top: 8px;
+    }
+    .input-hint kbd {
+      background: var(--surface);
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+    }
 
-    /* Mobile */
+    /* === Mobile === */
     @media (max-width: 768px) {
       .sidebar { display: none; }
-      .message .bubble { max-width: 85%; }
+      .nav-pills { display: none; }
+      .header { padding: 10px 16px; }
+      .messages { padding: 16px 12px; }
+      .input-bar { padding: 10px 12px 14px; }
+      .msg-body { max-width: 90%; }
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🤖 NOFXi</h1>
-    <div class="status">
-      <div class="status-dot" id="statusDot"></div>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <span>NOFXi</span>
+    </div>
+    <div class="nav-pills">
+      <button class="nav-pill active">Chat</button>
+      <button class="nav-pill" onclick="send('/positions')">Positions</button>
+      <button class="nav-pill" onclick="send('/status')">Status</button>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-badge" id="statusBadge">
+      <div class="status-dot"></div>
       <span id="statusText">Connecting...</span>
     </div>
   </div>
+</div>
 
-  <div class="main">
-    <div class="sidebar">
-      <h3>Quick Actions</h3>
-      <button class="quick-btn" onclick="send('/help')"><span class="icon">📋</span>Help</button>
-      <button class="quick-btn" onclick="send('/status')"><span class="icon">📊</span>Status</button>
-      <button class="quick-btn" onclick="send('/positions')"><span class="icon">💼</span>Positions</button>
-      <button class="quick-btn" onclick="send('/balance')"><span class="icon">💰</span>Balance</button>
-
-      <h3 style="margin-top:20px">Analysis</h3>
-      <button class="quick-btn" onclick="send('/analyze BTC')"><span class="icon">🔍</span>Analyze BTC</button>
-      <button class="quick-btn" onclick="send('/analyze ETH')"><span class="icon">🔍</span>Analyze ETH</button>
-      <button class="quick-btn" onclick="send('/analyze SOL')"><span class="icon">🔍</span>Analyze SOL</button>
-
-      <h3 style="margin-top:20px">Monitor</h3>
-      <button class="quick-btn" onclick="send('/watch BTCUSDT')"><span class="icon">👁️</span>Watch BTC</button>
-      <button class="quick-btn" onclick="send('/watch ETHUSDT')"><span class="icon">👁️</span>Watch ETH</button>
-      <button class="quick-btn" onclick="send('/price BTCUSDT')"><span class="icon">💲</span>BTC Price</button>
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">Quick Trade</div>
+      <div class="action-grid">
+        <button class="action-btn" onclick="send('/analyze BTC')">
+          <span class="emoji">₿</span>BTC Analysis
+        </button>
+        <button class="action-btn" onclick="send('/analyze ETH')">
+          <span class="emoji">Ξ</span>ETH Analysis
+        </button>
+        <button class="action-btn" onclick="send('/analyze SOL')">
+          <span class="emoji">◎</span>SOL Analysis
+        </button>
+        <button class="action-btn" onclick="send('/price BTCUSDT')">
+          <span class="emoji">💲</span>BTC Price
+        </button>
+      </div>
     </div>
 
-    <div class="chat-container">
-      <div class="messages" id="messages">
-        <div class="message assistant">
-          <div class="avatar">🤖</div>
-          <div class="bubble">Hey! I'm NOFXi, your AI trading agent. 🚀
-
-Ask me anything about markets, or use quick actions on the left.
-
-Type /help to see all commands.</div>
-        </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">Portfolio</div>
+      <div class="action-list">
+        <button class="action-item" onclick="send('/positions')">
+          <div class="icon green">💼</div>
+          <span>Open Positions</span>
+        </button>
+        <button class="action-item" onclick="send('/balance')">
+          <div class="icon blue">💰</div>
+          <span>Account Balance</span>
+        </button>
+        <button class="action-item" onclick="send('/pnl')">
+          <div class="icon purple">📊</div>
+          <span>P/L History</span>
+        </button>
       </div>
-      <div class="typing" id="typing" style="display:none">NOFXi is thinking</div>
-      <div class="input-area">
-        <div class="input-wrap">
-          <input type="text" id="input" placeholder="Ask NOFXi anything... (e.g. 分析BTC, /buy ETH 0.1)" 
-                 onkeydown="if(event.key==='Enter')send()">
-          <button id="sendBtn" onclick="send()">Send</button>
-        </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Monitor</div>
+      <div class="action-list">
+        <button class="action-item" onclick="send('/watch BTCUSDT')">
+          <div class="icon orange">👁️</div>
+          <span>Watch BTC</span>
+        </button>
+        <button class="action-item" onclick="send('/watch ETHUSDT')">
+          <div class="icon orange">👁️</div>
+          <span>Watch ETH</span>
+        </button>
+        <button class="action-item" onclick="send('/watch')">
+          <div class="icon blue">📋</div>
+          <span>Watchlist</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Strategy</div>
+      <div class="action-list">
+        <button class="action-item" onclick="send('/strategy list')">
+          <div class="icon purple">🤖</div>
+          <span>Active Strategies</span>
+        </button>
+        <button class="action-item" onclick="send('/strategy start BTC 1h')">
+          <div class="icon green">🚀</div>
+          <span>Start BTC Strategy</span>
+        </button>
       </div>
     </div>
   </div>
 
-  <script>
-    const API = window.location.origin;
-    const messagesEl = document.getElementById('messages');
-    const inputEl = document.getElementById('input');
-    const typingEl = document.getElementById('typing');
-    const sendBtn = document.getElementById('sendBtn');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
+  <div class="chat-area">
+    <div class="messages" id="messages">
+      <div class="msg bot">
+        <div class="msg-avatar">⚡</div>
+        <div class="msg-body">
+          <div class="msg-name">NOFXi</div>
+          <div class="msg-bubble">Hey! 👋 I'm NOFXi, your AI trading agent.
 
-    // Check health
-    async function checkHealth() {
-      try {
-        const r = await fetch(API + '/health');
-        const d = await r.json();
-        statusDot.classList.remove('offline');
-        statusText.textContent = 'Online · ' + d.agent;
-      } catch {
-        statusDot.classList.add('offline');
-        statusText.textContent = 'Offline';
-      }
-    }
-    checkHealth();
-    setInterval(checkHealth, 30000);
+I can analyze markets, monitor prices, manage trades, and run automated strategies. Just ask me anything — in English or 中文.
 
-    function addMessage(role, text) {
-      const div = document.createElement('div');
-      div.className = 'message ' + role;
-      const avatar = role === 'user' ? '👤' : '🤖';
-      div.innerHTML = `<div class="avatar">${avatar}</div><div class="bubble">${escapeHtml(text)}</div>`;
-      if (role === 'user') {
-        div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div><div class="avatar">${avatar}</div>`;
-      }
-      messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
+Try: "分析一下BTC" or use the quick actions on the left.</div>
+          <div class="msg-time">Just now</div>
+        </div>
+      </div>
+    </div>
 
-    function escapeHtml(t) {
-      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
+    <div class="typing-indicator" id="typing">
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+      NOFXi is thinking...
+    </div>
 
-    async function send(text) {
-      if (!text) {
-        text = inputEl.value.trim();
-        if (!text) return;
-        inputEl.value = '';
-      }
+    <div class="input-bar">
+      <div class="input-container">
+        <input type="text" id="input" placeholder="Ask NOFXi anything..."
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+               autocomplete="off">
+        <button class="send-btn" id="sendBtn" onclick="send()">➤</button>
+      </div>
+      <div class="input-hint">
+        <kbd>Enter</kbd> to send · Try: /help, /analyze BTC, /buy ETH 0.1 2x
+      </div>
+    </div>
+  </div>
+</div>
 
-      addMessage('user', text);
-      typingEl.style.display = 'block';
-      sendBtn.disabled = true;
+<script>
+const API = window.location.origin;
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+const typingEl = document.getElementById('typing');
+const sendBtn = document.getElementById('sendBtn');
+const statusBadge = document.getElementById('statusBadge');
+const statusTextEl = document.getElementById('statusText');
 
-      try {
-        const r = await fetch(API + '/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, user_id: 1 })
-        });
-        const d = await r.json();
-        addMessage('assistant', d.response || d.error || 'No response');
-      } catch (e) {
-        addMessage('assistant', '⚠️ Connection error: ' + e.message);
-      }
+async function checkHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+    statusBadge.classList.remove('offline');
+    statusTextEl.textContent = 'Online';
+  } catch {
+    statusBadge.classList.add('offline');
+    statusTextEl.textContent = 'Offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 30000);
 
-      typingEl.style.display = 'none';
-      sendBtn.disabled = false;
-      inputEl.focus();
-    }
-  </script>
+function timeNow() {
+  return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  const isUser = role === 'user';
+  div.className = 'msg ' + (isUser ? 'user' : 'bot');
+
+  const avatar = isUser ? '👤' : '⚡';
+  const name = isUser ? 'You' : 'NOFXi';
+
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div class="msg-body">
+      <div class="msg-name">${name}</div>
+      <div class="msg-bubble">${escHtml(text)}</div>
+      <div class="msg-time">${timeNow()}</div>
+    </div>`;
+
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function escHtml(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+async function send(text) {
+  if (!text) {
+    text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = '';
+  }
+
+  addMsg('user', text);
+  typingEl.classList.add('active');
+  sendBtn.disabled = true;
+  inputEl.focus();
+
+  try {
+    const r = await fetch(API + '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, user_id: 1 })
+    });
+    const d = await r.json();
+    addMsg('bot', d.response || d.error || 'No response');
+  } catch (e) {
+    addMsg('bot', '⚠️ Connection error: ' + e.message);
+  }
+
+  typingEl.classList.remove('active');
+  sendBtn.disabled = false;
+  inputEl.focus();
+}
+
+inputEl.focus();
+</script>
 </body>
 </html>

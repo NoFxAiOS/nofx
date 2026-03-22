@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react'
+// icons reserved for future use
 
 interface TickerData {
   symbol: string
@@ -12,9 +12,16 @@ interface TickerData {
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
 
+const SYMBOL_ICONS: Record<string, string> = {
+  BTC: '₿',
+  ETH: 'Ξ',
+  SOL: '◎',
+}
+
 export function MarketTicker() {
   const [tickers, setTickers] = useState<Record<string, TickerData>>({})
   const [loading, setLoading] = useState(true)
+  const [, setRefreshing] = useState(false)
 
   const fetchTickers = async () => {
     try {
@@ -34,6 +41,7 @@ export function MarketTicker() {
       // ignore
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -60,9 +68,33 @@ export function MarketTicker() {
 
   if (loading) {
     return (
-      <div style={{ padding: '12px 14px', color: '#5c5c72', fontSize: 12 }}>
-        <RefreshCw size={14} className="animate-spin inline mr-2" />
-        Loading market data...
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {SYMBOLS.map((sym) => (
+          <div
+            key={sym}
+            style={{
+              padding: '12px',
+              background: 'rgba(255,255,255,0.02)',
+              borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.04)',
+              height: 56,
+            }}
+          >
+            <div style={{
+              width: '60%',
+              height: 10,
+              background: 'rgba(255,255,255,0.04)',
+              borderRadius: 4,
+              animation: 'pulse 1.5s infinite',
+            }} />
+          </div>
+        ))}
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+          }
+        `}</style>
       </div>
     )
   }
@@ -73,9 +105,12 @@ export function MarketTicker() {
         const t = tickers[sym]
         if (!t) return null
         const pct = parseFloat(t.priceChangePercent)
-        const isUp = pct >= 0
-        const color = isUp ? '#00e5a0' : '#F6465D'
+        const isUp = pct > 0
+        const isDown = pct < 0
+        const color = isUp ? '#00e5a0' : isDown ? '#F6465D' : '#6c6c82'
+        const bgColor = isUp ? 'rgba(0,229,160,0.06)' : isDown ? 'rgba(246,70,93,0.06)' : 'rgba(108,108,130,0.06)'
         const label = sym.replace('USDT', '')
+        const icon = SYMBOL_ICONS[label] || label[0]
 
         return (
           <div
@@ -84,10 +119,20 @@ export function MarketTicker() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '10px 12px',
-              background: '#0d0d15',
+              padding: '10px 11px',
+              background: 'rgba(255,255,255,0.02)',
               borderRadius: 10,
-              border: '1px solid #1a1a28',
+              border: '1px solid rgba(255,255,255,0.04)',
+              transition: 'all 0.15s ease',
+              cursor: 'default',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.02)'
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -95,32 +140,37 @@ export function MarketTicker() {
                 style={{
                   width: 28,
                   height: 28,
-                  borderRadius: 7,
-                  background: isUp ? 'rgba(0,229,160,0.08)' : 'rgba(246,70,93,0.08)',
+                  borderRadius: 8,
+                  background: bgColor,
                   display: 'grid',
                   placeItems: 'center',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: color,
+                  fontFamily: 'system-ui',
                 }}
               >
-                {isUp ? (
-                  <TrendingUp size={14} color={color} />
-                ) : (
-                  <TrendingDown size={14} color={color} />
-                )}
+                {icon}
               </div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#eaeaf0' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#e0e0ec', letterSpacing: '-0.01em' }}>
                   {label}
                 </div>
-                <div style={{ fontSize: 10, color: '#5c5c72' }}>
+                <div style={{ fontSize: 10, color: '#4c4c62' }}>
                   Vol {formatVolume(t.volume)}
                 </div>
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#eaeaf0' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: '#e0e0ec', fontFamily: '"IBM Plex Mono", monospace', letterSpacing: '-0.02em' }}>
                 ${formatPrice(t.lastPrice)}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 500, color }}>
+              <div style={{
+                fontSize: 10.5,
+                fontWeight: 600,
+                color,
+                fontFamily: '"IBM Plex Mono", monospace',
+              }}>
                 {isUp ? '+' : ''}{pct.toFixed(2)}%
               </div>
             </div>

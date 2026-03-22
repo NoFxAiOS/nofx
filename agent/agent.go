@@ -152,6 +152,11 @@ func (a *Agent) HandleMessage(ctx context.Context, userID int64, text string) (s
 
 	a.logger.Info("agent message", "user_id", userID, "text", text)
 
+	// Setup flow — if no traders configured, guide user through setup
+	if resp, handled := a.handleSetupFlow(userID, text, lang); handled {
+		return resp, nil
+	}
+
 	intent := a.router.Route(text)
 
 	switch intent.Type {

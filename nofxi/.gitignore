@@ -1,0 +1,39 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+nofxi
+
+# Build
+/build/
+/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Data
+*.db
+*.sqlite
+/data/
+/logs/
+
+# Dependencies
+/vendor/
+
+# Node (web frontend)
+node_modules/
+web/dist/

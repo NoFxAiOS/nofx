@@ -1,0 +1,35 @@
+# NOFXi Configuration
+# Copy to config.yaml and fill in your values
+
+agent:
+  name: "NOFXi"
+  language: "zh"        # "en" or "zh"
+  log_level: "info"     # "debug", "info", "warn", "error"
+  web_port: 8900        # REST API port (0 = disabled)
+
+telegram:
+  token: "YOUR_TELEGRAM_BOT_TOKEN"
+  allowed_ids:           # Leave empty to allow all users
+    # - 123456789
+
+llm:
+  provider: "claw402"    # "openai", "claw402", "deepseek"
+  base_url: "https://claw402.ai/v1"
+  api_key: "YOUR_API_KEY"
+  model: "deepseek-chat"
+
+database:
+  path: "nofxi.db"
+
+exchanges:
+  - name: "binance"
+    api_key: ""
+    api_secret: ""
+    testnet: true
+  # - name: "okx"
+  #   api_key: ""
+  #   api_secret: ""
+  #   passphrase: ""
+  # - name: "bybit"
+  #   api_key: ""
+  #   api_secret: ""

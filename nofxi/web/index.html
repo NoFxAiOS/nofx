@@ -188,7 +188,7 @@
     <div class="typing" id="typ"><div class="dots"><span></span><span></span><span></span></div><span data-i18n="thinking">Thinking...</span></div>
     <div class="ibar">
       <div class="iwrap">
-        <input id="inp" data-i18n-placeholder="input_placeholder" placeholder="Ask NOFXi anything..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}" autocomplete="off">
+        <input id="inp" data-i18n-placeholder="input_placeholder" placeholder="Ask NOFXi anything..." autocomplete="off">
         <button class="sbtn" id="sBtn" onclick="send()">➤</button>
       </div>
       <div class="ihint"><kbd>Enter</kbd> <span data-i18n="input_hint">to send</span> · /help, /analyze BTC, /buy ETH 0.1</div>
@@ -398,6 +398,17 @@ async function loadChart(){
   if(chTimer)clearInterval(chTimer);
   chTimer=setInterval(loadChart,30000);
 }
+
+// IME composition guard
+let composing = false;
+inpEl.addEventListener('compositionstart', () => { composing = true; });
+inpEl.addEventListener('compositionend', () => { composing = false; });
+inpEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !composing) {
+    e.preventDefault();
+    send();
+  }
+});
 
 // Init
 applyLang();

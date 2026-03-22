@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"nofx/api"
 	"nofx/config"
 	"nofx/logger"
@@ -16,6 +17,30 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+// NOFXiAgent is the interface that the new agent.Agent satisfies.
+// When set, Telegram messages are routed through it instead of the legacy telegram/agent package.
+type NOFXiAgent interface {
+	HandleMessage(ctx context.Context, userID int64, text string) (string, error)
+}
+
+var (
+	nofxiAgentMu sync.RWMutex
+	nofxiAgent   NOFXiAgent
+)
+
+// SetNOFXiAgent registers the new NOFXi agent for Telegram message routing.
+func SetNOFXiAgent(a NOFXiAgent) {
+	nofxiAgentMu.Lock()
+	defer nofxiAgentMu.Unlock()
+	nofxiAgent = a
+}
+
+func getNOFXiAgent() NOFXiAgent {
+	nofxiAgentMu.RLock()
+	defer nofxiAgentMu.RUnlock()
+	return nofxiAgent
+}
 
 // Start initializes and runs the Telegram bot in a blocking supervisor loop.
 // Supports hot-reload: when a signal is sent on reloadCh, the bot restarts
@@ -208,25 +233,46 @@ func runBot(token string, cfg *config.Config, st *store.Store) bool {
 				placeholderID = sent.MessageID
 			}
 
-			var (
-				mu       sync.Mutex
-				lastEdit time.Time
-			)
-			onChunk := func(accumulated string) {
-				if placeholderID == 0 {
-					return
-				}
-				mu.Lock()
-				defer mu.Unlock()
-				if accumulated != "⏳" && time.Since(lastEdit) < time.Second {
-					return
-				}
-				lastEdit = time.Now()
-				edit := tgbotapi.NewEditMessageText(chatID, placeholderID, accumulated)
-				bot.Send(edit) //nolint:errcheck
-			}
+			var reply string
 
-			reply := agents.Run(chatID, text, onChunk)
+			// Route through NOFXi Agent if available (new unified architecture),
+			// otherwise fall back to legacy telegram/agent manager.
+			if na := getNOFXiAgent(); na != nil {
+				lang := st.TelegramConfig().GetLanguage()
+				msg := text
+				if lang != "" {
+					msg = "[lang:" + lang + "] " + text
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
+				resp, err := na.HandleMessage(ctx, chatID, msg)
+				cancel()
+				if err != nil {
+					logger.Errorf("NOFXi agent error: %v", err)
+					reply = "AI assistant temporarily unavailable. Please try again."
+				} else {
+					reply = resp
+				}
+			} else {
+				// Legacy path: stream via telegram/agent
+				var (
+					mu       sync.Mutex
+					lastEdit time.Time
+				)
+				onChunk := func(accumulated string) {
+					if placeholderID == 0 {
+						return
+					}
+					mu.Lock()
+					defer mu.Unlock()
+					if accumulated != "⏳" && time.Since(lastEdit) < time.Second {
+						return
+					}
+					lastEdit = time.Now()
+					edit := tgbotapi.NewEditMessageText(chatID, placeholderID, accumulated)
+					bot.Send(edit) //nolint:errcheck
+				}
+				reply = agents.Run(chatID, text, onChunk)
+			}
 
 			if placeholderID != 0 {
 				edit := tgbotapi.NewEditMessageText(chatID, placeholderID, reply)

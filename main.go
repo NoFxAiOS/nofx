@@ -142,10 +142,7 @@ func main() {
 		}
 	}()
 
-	// Start Telegram bot (if TELEGRAM_BOT_TOKEN is configured)
-	go telegram.Start(cfg, st, telegramReloadCh)
-
-	// Start NOFXi Agent (proactive intelligence layer)
+	// Start NOFXi Agent (proactive intelligence layer) — must be created BEFORE Telegram bot
 	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
 
 	// Try to get an AI client from existing trader configs
@@ -163,6 +160,13 @@ func main() {
 	// Register NOFXi Agent API on the main server's router
 	agentWeb := nofxiagent.NewWebHandler(nofxiAgent, slog.Default())
 	server.RegisterAgentHandler(agentWeb)
+
+	// Wire NOFXi Agent into Telegram bot — messages route through the unified agent
+	telegram.SetNOFXiAgent(nofxiAgent)
+	logger.Info("🔗 NOFXi Agent connected to Telegram bot")
+
+	// Start Telegram bot (if token is configured)
+	go telegram.Start(cfg, st, telegramReloadCh)
 
 	logger.Info("🧠 NOFXi Agent started (sentinel + brain + scheduler + web:8900)")
 

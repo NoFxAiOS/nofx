@@ -34,6 +34,7 @@ func NewKimiClientWithOptions(opts ...mcp.ClientOption) mcp.AIClient {
 		mcp.WithProvider(mcp.ProviderKimi),
 		mcp.WithModel(DefaultKimiModel),
 		mcp.WithBaseURL(DefaultKimiBaseURL),
+		mcp.WithTemperature(1.0), // Kimi K2.5 only allows temperature=1
 	}
 
 	allOpts := append(kimiOpts, opts...)

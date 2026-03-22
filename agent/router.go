@@ -42,10 +42,13 @@ func NewRouter() *Router {
 			regexp.MustCompile(`(?i)(多少钱|赚了|亏了|收益|回报)`),
 		},
 		analyzePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)(analyze|analysis|分析|看看|研究)\s+(.+)`),
-			regexp.MustCompile(`(?i)(what.*think|怎么看|你觉得|走势|趋势|行情)\s*(.+)?`),
+			regexp.MustCompile(`(?i)(analyze|analysis|分析|看看|研究)\s*(.+)`),
+			regexp.MustCompile(`(?i)(what.*think|怎么看|你觉得)\s*(.+)?`),
+			regexp.MustCompile(`(?i)(走势|趋势|行情|前景|预测)\s*(.+)?`),
+			regexp.MustCompile(`(?i)(.+)(走势|趋势|行情|前景|怎么样|如何)`),
 			regexp.MustCompile(`(?i)(该不该|适合|能不能|要不要).*(买|卖|做多|做空|入场|开仓).*`),
 			regexp.MustCompile(`(?i)(should\s+i|is\s+it\s+good).*(buy|sell|long|short).*`),
+			regexp.MustCompile(`(?i)你.*(?:分析|看看|研究|了解)\s*(.+?)(?:吗|呢|嘛|啊|这只|这个)?$`),
 		},
 	}
 }

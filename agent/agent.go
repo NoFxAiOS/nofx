@@ -152,7 +152,7 @@ func (a *Agent) HandleMessage(ctx context.Context, userID int64, text string) (s
 
 	a.logger.Info("agent message", "user_id", userID, "text", text)
 
-	// Setup flow — if no traders configured, guide user through setup
+	// Setup flow — only if user is explicitly configuring
 	if resp, handled := a.handleSetupFlow(userID, text, lang); handled {
 		return resp, nil
 	}
@@ -332,9 +332,17 @@ func toFloat(v interface{}) float64 {
 func (a *Agent) handleAnalyze(ctx context.Context, L string, intent Intent) (string, error) {
 	symbol := "BTCUSDT"
 	if d, ok := intent.Params["detail"]; ok && d != "" {
-		symbol = strings.ToUpper(strings.TrimSpace(d))
-		if !strings.HasSuffix(symbol, "USDT") {
-			symbol += "USDT"
+		d = strings.TrimSpace(d)
+		// Clean up Chinese suffixes
+		for _, suffix := range []string{"吗", "呢", "嘛", "啊", "这只股票", "这只", "这个", "股票"} {
+			d = strings.TrimSuffix(d, suffix)
+		}
+		d = strings.TrimSpace(d)
+		if d != "" {
+			symbol = strings.ToUpper(d)
+			if !strings.HasSuffix(symbol, "USDT") && len(symbol) <= 10 {
+				symbol += "USDT"
+			}
 		}
 	}
 
@@ -342,10 +350,18 @@ func (a *Agent) handleAnalyze(ctx context.Context, L string, intent Intent) (str
 	md, err := market.Get(symbol)
 	if err != nil {
 		a.logger.Error("get market data", "symbol", symbol, "error", err)
-		if L == "zh" {
-			return fmt.Sprintf("🔍 *%s 分析*\n\n⚠️ 市场数据暂不可用，请稍后再试。", strings.TrimSuffix(symbol, "USDT")), nil
+		// Not a crypto pair? Try to answer with AI or guidance
+		if a.aiClient != nil {
+			resp, err := a.aiClient.CallWithMessages(a.msg(L, "system_prompt"),
+				fmt.Sprintf("User asked to analyze: %s. Provide what you know.", strings.TrimSuffix(symbol, "USDT")))
+			if err == nil {
+				return fmt.Sprintf(a.msg(L, "analysis_header"), strings.TrimSuffix(symbol, "USDT")) + "\n\n" + resp, nil
+			}
 		}
-		return fmt.Sprintf("🔍 *%s Analysis*\n\n⚠️ Market data unavailable. Try again later.", strings.TrimSuffix(symbol, "USDT")), nil
+		if L == "zh" {
+			return fmt.Sprintf("🔍 *%s*\n\n⚠️ 这个标的暂不支持实时数据。我目前支持加密货币（BTC, ETH, SOL 等）的实时分析。\n\nA股分析功能正在开发中 🚧", strings.TrimSuffix(symbol, "USDT")), nil
+		}
+		return fmt.Sprintf("🔍 *%s*\n\n⚠️ Real-time data not available for this asset. Currently supporting crypto (BTC, ETH, SOL etc).\n\nStock analysis coming soon 🚧", strings.TrimSuffix(symbol, "USDT")), nil
 	}
 
 	// Build rich analysis prompt with real data
@@ -499,18 +515,9 @@ func (a *Agent) handleStrategyCmd(L string, intent Intent) string {
 }
 
 func (a *Agent) handleChat(ctx context.Context, L string, userID int64, text string) (string, error) {
-	if a.aiClient == nil {
-		if L == "zh" {
-			return "🤖 AI 模型未配置。请在 Web UI (:8080) 中创建 Trader 并配置 AI 模型。\n\n命令仍然可用:\n• `/analyze BTC` — 市场分析\n• `/positions` — 查看持仓\n• `/status` — 系统状态", nil
-		}
-		return "🤖 AI model not configured. Create a Trader in Web UI (:8080) first.\n\nCommands still work:\n• `/analyze BTC`\n• `/positions`\n• `/status`", nil
-	}
-
-	systemPrompt := a.msg(L, "system_prompt")
-
-	// If user seems to be asking about a specific coin, enrich with real data
+	// Try to enrich with real market data if user mentions a tradable asset
 	enrichment := ""
-	for _, sym := range []string{"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"} {
+	for _, sym := range []string{"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK"} {
 		if strings.Contains(strings.ToUpper(text), sym) {
 			md, err := market.Get(sym + "USDT")
 			if err == nil {
@@ -526,11 +533,42 @@ func (a *Agent) handleChat(ctx context.Context, L string, userID int64, text str
 		userPrompt = text + enrichment
 	}
 
-	resp, err := a.aiClient.CallWithMessages(systemPrompt, userPrompt)
-	if err != nil {
-		return "", fmt.Errorf("AI: %w", err)
+	// Use AI if available
+	if a.aiClient != nil {
+		systemPrompt := a.msg(L, "system_prompt")
+		resp, err := a.aiClient.CallWithMessages(systemPrompt, userPrompt)
+		if err != nil {
+			a.logger.Error("AI call failed", "error", err)
+			// Fall through to no-AI response
+		} else {
+			return resp, nil
+		}
 	}
-	return resp, nil
+
+	// No AI available — still be helpful
+	if enrichment != "" {
+		// We have market data, format it nicely
+		if L == "zh" {
+			return "📊 我目前还没有配置 AI 模型，但我可以给你实时数据：\n" + enrichment + "\n\n💡 发送 *开始配置* 来配置 AI 模型，我就能给你更详细的分析了。", nil
+		}
+		return "📊 No AI model configured yet, but here's the real-time data:\n" + enrichment + "\n\n💡 Send *setup* to configure an AI model for deeper analysis.", nil
+	}
+
+	// No data, no AI — give guidance
+	if L == "zh" {
+		return "🤖 我是 NOFXi，你的 AI 交易 Agent。\n\n" +
+			"我现在可以帮你：\n" +
+			"• `/analyze BTC` — 查看实时行情和技术指标\n" +
+			"• `/watch BTC` — 监控价格变动\n" +
+			"• `/status` — 系统状态\n\n" +
+			"发送 *开始配置* 来配置 AI 模型和交易所，我就能做更多了！", nil
+	}
+	return "🤖 I'm NOFXi, your AI trading agent.\n\n" +
+		"I can help you with:\n" +
+		"• `/analyze BTC` — real-time indicators\n" +
+		"• `/watch BTC` — price monitoring\n" +
+		"• `/status` — system status\n\n" +
+		"Send *setup* to configure AI model & exchange for full capabilities!", nil
 }
 
 func (a *Agent) handleSignal(sig Signal) {

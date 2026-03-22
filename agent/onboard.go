@@ -142,24 +142,14 @@ func (a *Agent) handleSetupFlow(userID int64, text string, L string) (string, bo
 		return a.finishSetup(userID, state, L)
 	}
 
-	// Not in setup flow — check if setup is needed and user seems to want to start
-	if a.needsSetup() {
-		// Any message triggers setup prompt when no trader exists
-		if lower == "/help" || lower == "/status" || lower == "help" {
-			return a.setupMsg(L, "welcome"), true
-		}
-		// Check if user is trying to set up
-		if containsAny(lower, []string{"connect", "setup", "配置", "连接", "设置", "开始", "start", "初始化"}) {
-			state.Step = "await_exchange"
-			a.saveSetupState(userID, state)
-			return a.setupMsg(L, "ask_exchange"), true
-		}
-		// First time — show welcome
-		if state.Step == "" {
-			return a.setupMsg(L, "welcome"), true
-		}
+	// Not in setup flow — only enter setup when user EXPLICITLY asks
+	if containsAny(lower, []string{"connect", "setup", "配置", "连接", "设置", "初始化", "绑定交易所", "添加交易所"}) {
+		state.Step = "await_exchange"
+		a.saveSetupState(userID, state)
+		return a.setupMsg(L, "ask_exchange"), true
 	}
 
+	// Everything else — let normal routing handle it
 	return "", false
 }
 

@@ -29,6 +29,7 @@ type Agent struct {
 	brain         *Brain
 	scheduler     *Scheduler
 	logger        *slog.Logger
+	history       *chatHistory
 	NotifyFunc    func(userID int64, text string) error
 }
 
@@ -50,7 +51,7 @@ func DefaultConfig() *Config {
 
 func New(tm *manager.TraderManager, st *store.Store, cfg *Config, logger *slog.Logger) *Agent {
 	if cfg == nil { cfg = DefaultConfig() }
-	return &Agent{traderManager: tm, store: st, config: cfg, logger: logger}
+	return &Agent{traderManager: tm, store: st, config: cfg, logger: logger, history: newChatHistory(20)}
 }
 
 func (a *Agent) SetAIClient(c mcp.AIClient) { a.aiClient = c }
@@ -124,6 +125,13 @@ func (a *Agent) HandleMessage(ctx context.Context, userID int64, text string) (s
 	if text == "/status" {
 		return a.handleStatus(lang), nil
 	}
+	if text == "/clear" {
+		a.history.Clear(userID)
+		if lang == "zh" {
+			return "🧹 对话记忆已清除。", nil
+		}
+		return "🧹 Conversation history cleared.", nil
+	}
 
 	// EVERYTHING else → LLM with tools
 	return a.thinkAndAct(ctx, userID, lang, text)
@@ -147,12 +155,31 @@ func (a *Agent) thinkAndAct(ctx context.Context, userID int64, lang, text string
 		userPrompt = text + "\n\n---\n[NOFXi System Context - real-time data for reference]\n" + enrichment
 	}
 
-	// Call LLM
-	resp, err := a.aiClient.CallWithMessages(systemPrompt, userPrompt)
+	// Build messages with conversation history
+	messages := []mcp.Message{mcp.NewSystemMessage(systemPrompt)}
+
+	// Add conversation history (up to last N messages)
+	history := a.history.Get(userID)
+	for _, msg := range history {
+		messages = append(messages, mcp.NewMessage(msg.Role, msg.Content))
+	}
+
+	// Add current user message
+	messages = append(messages, mcp.NewUserMessage(userPrompt))
+
+	// Record user message in history
+	a.history.Add(userID, "user", text)
+
+	// Call LLM with full conversation context
+	req := &mcp.Request{Messages: messages}
+	resp, err := a.aiClient.CallWithRequest(req)
 	if err != nil {
 		a.logger.Error("LLM call failed", "error", err)
 		return a.noAIFallback(lang, text)
 	}
+
+	// Record assistant response in history
+	a.history.Add(userID, "assistant", resp)
 
 	return resp, nil
 }

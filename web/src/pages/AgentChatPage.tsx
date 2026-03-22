@@ -238,6 +238,7 @@ export function AgentChatPage() {
           { label: '💼 持仓', cmd: '/positions' },
           { label: '💰 余额', cmd: '/balance' },
           { label: '📋 Traders', cmd: '/traders' },
+          { label: '🧹 清除记忆', cmd: '/clear' },
           { label: '❓ 帮助', cmd: '/help' },
         ]
       : [
@@ -246,6 +247,7 @@ export function AgentChatPage() {
           { label: '💼 Positions', cmd: '/positions' },
           { label: '💰 Balance', cmd: '/balance' },
           { label: '📋 Traders', cmd: '/traders' },
+          { label: '🧹 Clear', cmd: '/clear' },
           { label: '❓ Help', cmd: '/help' },
         ]
 

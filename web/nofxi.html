@@ -291,7 +291,7 @@ checkSt(); setInterval(checkSt,30000);
 // === Ticker Info Bar ===
 async function loadInfoBar(){
   try{
-    const r=await fetch(API+'/api/ticker?symbol=BTCUSDT');
+    const r=await fetch(API+'/api/agent/ticker?symbol=BTCUSDT');
     const d=await r.json();
     if(!d.lastPrice) return;
     const bar=document.getElementById('infoBar');
@@ -337,7 +337,7 @@ async function send(text){
   addM('user',text);
   typEl.classList.add('on');sBtnEl.disabled=true;inpEl.focus();
   try{
-    const r=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,user_id:1,lang:lang})});
+    const r=await fetch(API+'/api/agent/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,user_id:1,lang:lang})});
     const d=await r.json();
     addM('bot',d.response||d.error||'No response');
   }catch(e){addM('bot','⚠️ Error: '+e.message)}
@@ -380,7 +380,7 @@ function setTF(tf){
 async function loadChart(){
   const sym=document.getElementById('symSel').value;
   try{
-    const[kr,tr]=await Promise.all([fetch(`${API}/api/klines?symbol=${sym}&interval=${curTF}&limit=300`),fetch(`${API}/api/ticker?symbol=${sym}`)]);
+    const[kr,tr]=await Promise.all([fetch(`${API}/api/agent/klines?symbol=${sym}&interval=${curTF}&limit=300`),fetch(`${API}/api/agent/ticker?symbol=${sym}`)]);
     const klines=await kr.json(), ticker=await tr.json();
     if(klines?.length){
       cSeries.setData(klines.map(k=>({time:k.time,open:k.open,high:k.high,low:k.low,close:k.close})));

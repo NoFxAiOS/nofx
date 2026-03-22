@@ -145,6 +145,16 @@ func main() {
 
 	// Start NOFXi Agent (proactive intelligence layer)
 	nofxiAgent := nofxiagent.New(traderManager, st, nil, slog.Default())
+
+	// Try to get an AI client from existing trader configs
+	for _, t := range traderManager.GetAllTraders() {
+		if mcpClient := t.GetMCPClient(); mcpClient != nil {
+			nofxiAgent.SetAIClient(mcpClient)
+			logger.Info("🧠 NOFXi Agent using AI model from trader", "trader", t.GetName())
+			break
+		}
+	}
+
 	nofxiAgent.Start()
 	defer nofxiAgent.Stop()
 

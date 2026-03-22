@@ -21,6 +21,7 @@ import (
 
 	"nofx/manager"
 	"nofx/market"
+	"nofx/mcp"
 	"nofx/store"
 )
 
@@ -29,6 +30,7 @@ type Agent struct {
 	// NOFX core (injected)
 	traderManager *manager.TraderManager
 	store         *store.Store
+	aiClient      mcp.AIClient
 
 	// Agent components
 	config    *Config
@@ -86,6 +88,11 @@ func New(
 	a.scheduler = NewScheduler(a, logger)
 
 	return a
+}
+
+// SetAIClient sets the MCP AI client for LLM calls.
+func (a *Agent) SetAIClient(c mcp.AIClient) {
+	a.aiClient = c
 }
 
 
@@ -339,8 +346,18 @@ func (a *Agent) handleAnalyze(ctx context.Context, L string, intent Intent) (str
 	// Build rich analysis prompt with real data
 	prompt := buildAnalysisPrompt(symbol, md, L)
 
-	// For now, format the raw market data as analysis
-	return fmt.Sprintf(a.msg(L, "analysis_header"), strings.TrimSuffix(symbol, "USDT")) + "\n\n" + prompt, nil
+	// Use AI to analyze the real market data
+	if a.aiClient != nil {
+		resp, err := a.aiClient.CallWithMessages(a.msg(L, "system_prompt"), prompt)
+		if err == nil && resp != "" {
+			return fmt.Sprintf(a.msg(L, "analysis_header"), strings.TrimSuffix(symbol, "USDT")) + "\n\n" + resp, nil
+		}
+		a.logger.Error("AI analysis failed", "error", err)
+	}
+
+	// Fallback: format raw data directly
+	header := fmt.Sprintf(a.msg(L, "analysis_header"), strings.TrimSuffix(symbol, "USDT"))
+	return header + "\n\n" + market.Format(md), nil
 }
 
 func buildAnalysisPrompt(symbol string, md *market.Data, L string) string {
@@ -477,12 +494,38 @@ func (a *Agent) handleStrategyCmd(L string, intent Intent) string {
 }
 
 func (a *Agent) handleChat(ctx context.Context, L string, userID int64, text string) (string, error) {
-	// TODO: integrate with NOFX's MCP client for AI chat
-	// For now, route to the existing Telegram agent or return guidance
-	if L == "zh" {
-		return "🤖 收到。AI 对话功能正在接入 NOFX 的 AI 引擎。\n\n你可以试试:\n• `/analyze BTC` — 市场分析\n• `/positions` — 查看持仓\n• `/status` — 系统状态", nil
+	if a.aiClient == nil {
+		if L == "zh" {
+			return "🤖 AI 模型未配置。请在 Web UI (:8080) 中创建 Trader 并配置 AI 模型。\n\n命令仍然可用:\n• `/analyze BTC` — 市场分析\n• `/positions` — 查看持仓\n• `/status` — 系统状态", nil
+		}
+		return "🤖 AI model not configured. Create a Trader in Web UI (:8080) first.\n\nCommands still work:\n• `/analyze BTC`\n• `/positions`\n• `/status`", nil
 	}
-	return "🤖 Got it. AI chat is being integrated with NOFX's AI engine.\n\nTry:\n• `/analyze BTC` — market analysis\n• `/positions` — view positions\n• `/status` — system status", nil
+
+	systemPrompt := a.msg(L, "system_prompt")
+
+	// If user seems to be asking about a specific coin, enrich with real data
+	enrichment := ""
+	for _, sym := range []string{"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"} {
+		if strings.Contains(strings.ToUpper(text), sym) {
+			md, err := market.Get(sym + "USDT")
+			if err == nil {
+				enrichment += fmt.Sprintf("\n\n[Real-time %s data]\nPrice: $%.4f | 1h: %.2f%% | 4h: %.2f%% | RSI7: %.1f | EMA20: %.4f | MACD: %.6f | Funding: %.4f%%",
+					sym, md.CurrentPrice, md.PriceChange1h, md.PriceChange4h, md.CurrentRSI7, md.CurrentEMA20, md.CurrentMACD, md.FundingRate*100)
+			}
+			break
+		}
+	}
+
+	userPrompt := text
+	if enrichment != "" {
+		userPrompt = text + enrichment
+	}
+
+	resp, err := a.aiClient.CallWithMessages(systemPrompt, userPrompt)
+	if err != nil {
+		return "", fmt.Errorf("AI: %w", err)
+	}
+	return resp, nil
 }
 
 func (a *Agent) handleSignal(sig Signal) {

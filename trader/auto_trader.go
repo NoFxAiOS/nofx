@@ -588,6 +588,11 @@ func (at *AutoTrader) GetStore() *store.Store {
 	return at.store
 }
 
+// GetMCPClient returns the AI client for NOFXi agent integration.
+func (at *AutoTrader) GetMCPClient() mcp.AIClient {
+	return at.mcpClient
+}
+
 // calculatePnLPercentage calculates P&L percentage (based on margin, automatically considers leverage)
 // Return rate = Unrealized P&L / Margin x 100%
 func calculatePnLPercentage(unrealizedPnl, marginUsed float64) float64 {

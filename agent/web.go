@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -76,9 +77,27 @@ func (w *WebHandler) StartStandalone(port int) {
 	// Ticker
 	mux.HandleFunc("/api/agent/ticker", handleTicker)
 
+	// Serve nofxi.html as the root page
+	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(rw, r)
+			return
+		}
+		// Try web/nofxi.html relative to executable, then working dir
+		paths := []string{"web/nofxi.html", "../web/nofxi.html"}
+		for _, p := range paths {
+			if _, err := os.Stat(p); err == nil {
+				http.ServeFile(rw, r, p)
+				return
+			}
+		}
+		rw.Header().Set("Content-Type", "text/html")
+		rw.Write([]byte("<h1>NOFXi Agent</h1><p>API is running. Web UI not found.</p>"))
+	})
+
 	go func() {
 		addr := fmt.Sprintf(":%d", port)
-		w.logger.Info("NOFXi agent web API starting", "port", port)
+		w.logger.Info("NOFXi agent web starting", "port", port, "url", fmt.Sprintf("http://localhost:%d", port))
 		if err := http.ListenAndServe(addr, mux); err != nil {
 			w.logger.Error("agent web server error", "error", err)
 		}

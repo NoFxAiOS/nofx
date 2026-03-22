@@ -38,11 +38,14 @@ func NewRouter() *Router {
 			regexp.MustCompile(`(?i)(做多|做空|买入|卖出|开仓|平仓)\s*(.+)`),
 		},
 		queryPatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)(position|balance|pnl|profit|loss|持仓|余额|盈亏|trader|交易员)`),
+			regexp.MustCompile(`(?i)(position|balance|pnl|profit|loss|持仓|余额|盈亏|trader|交易员|账户|仓位|资金)`),
+			regexp.MustCompile(`(?i)(多少钱|赚了|亏了|收益|回报)`),
 		},
 		analyzePatterns: []*regexp.Regexp{
-			regexp.MustCompile(`(?i)(analyze|analysis|分析|看看)\s+(.+)`),
-			regexp.MustCompile(`(?i)(what.*think|怎么看|你觉得)\s*(.+)?`),
+			regexp.MustCompile(`(?i)(analyze|analysis|分析|看看|研究)\s+(.+)`),
+			regexp.MustCompile(`(?i)(what.*think|怎么看|你觉得|走势|趋势|行情)\s*(.+)?`),
+			regexp.MustCompile(`(?i)(该不该|适合|能不能|要不要).*(买|卖|做多|做空|入场|开仓).*`),
+			regexp.MustCompile(`(?i)(should\s+i|is\s+it\s+good).*(buy|sell|long|short).*`),
 		},
 	}
 }

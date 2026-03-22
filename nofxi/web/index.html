@@ -6,6 +6,7 @@
   <title>NOFXi — AI Trading Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -392,6 +393,91 @@
       font-size: 10px;
     }
 
+    /* === Chart Panel === */
+    .chart-panel {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .chart-panel.active { display: flex; }
+    .chat-area.hidden { display: none; }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+    }
+    .chart-symbol-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .chart-symbol {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .chart-price {
+      font-size: 24px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .chart-price.up { color: var(--green); }
+    .chart-price.down { color: var(--red); }
+    .chart-change {
+      font-size: 13px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .chart-change.up { color: var(--green); background: rgba(34,197,94,0.1); }
+    .chart-change.down { color: var(--red); background: rgba(239,68,68,0.1); }
+    .chart-controls {
+      display: flex;
+      gap: 4px;
+    }
+    .tf-btn {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: none;
+      color: var(--text3);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .tf-btn:hover { color: var(--text); border-color: var(--border2); }
+    .tf-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .symbol-select {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      outline: none;
+    }
+    .chart-container {
+      flex: 1;
+      position: relative;
+    }
+    .chart-volume-label {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      font-size: 11px;
+      color: var(--text3);
+      z-index: 5;
+      pointer-events: none;
+    }
+
     /* === Mobile === */
     @media (max-width: 768px) {
       .sidebar { display: none; }
@@ -412,9 +498,9 @@
       <span>NOFXi</span>
     </div>
     <div class="nav-pills">
-      <button class="nav-pill active">Chat</button>
-      <button class="nav-pill" onclick="send('/positions')">Positions</button>
-      <button class="nav-pill" onclick="send('/status')">Status</button>
+      <button class="nav-pill active" onclick="switchTab('chat')">Chat</button>
+      <button class="nav-pill" onclick="switchTab('chart')">Chart</button>
+      <button class="nav-pill" onclick="send('/positions');switchTab('chat')">Positions</button>
     </div>
   </div>
   <div class="header-right">
@@ -496,7 +582,34 @@
     </div>
   </div>
 
-  <div class="chat-area">
+  <div class="chart-panel" id="chartPanel">
+    <div class="chart-header">
+      <div class="chart-symbol-group">
+        <select class="symbol-select" id="symbolSelect" onchange="loadChart()">
+          <option value="BTCUSDT">BTC/USDT</option>
+          <option value="ETHUSDT">ETH/USDT</option>
+          <option value="SOLUSDT">SOL/USDT</option>
+          <option value="BNBUSDT">BNB/USDT</option>
+          <option value="XRPUSDT">XRP/USDT</option>
+          <option value="DOGEUSDT">DOGE/USDT</option>
+          <option value="ADAUSDT">ADA/USDT</option>
+          <option value="AVAXUSDT">AVAX/USDT</option>
+        </select>
+        <span class="chart-price" id="chartPrice">--</span>
+        <span class="chart-change" id="chartChange">--</span>
+      </div>
+      <div class="chart-controls">
+        <button class="tf-btn" onclick="setTF('15m')">15m</button>
+        <button class="tf-btn active" onclick="setTF('1h')">1H</button>
+        <button class="tf-btn" onclick="setTF('4h')">4H</button>
+        <button class="tf-btn" onclick="setTF('1d')">1D</button>
+        <button class="tf-btn" onclick="setTF('1w')">1W</button>
+      </div>
+    </div>
+    <div class="chart-container" id="chartContainer"></div>
+  </div>
+
+  <div class="chat-area" id="chatPanel">
     <div class="messages" id="messages">
       <div class="msg bot">
         <div class="msg-avatar">⚡</div>
@@ -614,6 +727,139 @@ async function send(text) {
 }
 
 inputEl.focus();
+
+// === Chart ===
+let chart = null;
+let candleSeries = null;
+let volumeSeries = null;
+let currentTF = '1h';
+let chartRefreshTimer = null;
+
+function switchTab(tab) {
+  document.querySelectorAll('.nav-pill').forEach((p,i) => {
+    p.classList.toggle('active', (tab==='chat'&&i===0)||(tab==='chart'&&i===1));
+  });
+  const chatPanel = document.getElementById('chatPanel');
+  const chartPanel = document.getElementById('chartPanel');
+  if (tab === 'chart') {
+    chatPanel.classList.add('hidden');
+    chartPanel.classList.add('active');
+    if (!chart) initChart();
+    loadChart();
+  } else {
+    chatPanel.classList.remove('hidden');
+    chartPanel.classList.remove('active');
+    if (chartRefreshTimer) clearInterval(chartRefreshTimer);
+  }
+}
+
+function initChart() {
+  const container = document.getElementById('chartContainer');
+  chart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: container.clientHeight,
+    layout: {
+      background: { color: '#09090b' },
+      textColor: '#666680',
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: 11,
+    },
+    grid: {
+      vertLines: { color: '#1a1a24' },
+      horzLines: { color: '#1a1a24' },
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: '#333345', labelBackgroundColor: '#252530' },
+      horzLine: { color: '#333345', labelBackgroundColor: '#252530' },
+    },
+    rightPriceScale: {
+      borderColor: '#252530',
+      scaleMargins: { top: 0.1, bottom: 0.25 },
+    },
+    timeScale: {
+      borderColor: '#252530',
+      timeVisible: true,
+      secondsVisible: false,
+    },
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#22c55e',
+    downColor: '#ef4444',
+    borderUpColor: '#22c55e',
+    borderDownColor: '#ef4444',
+    wickUpColor: '#22c55e',
+    wickDownColor: '#ef4444',
+  });
+
+  volumeSeries = chart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'volume',
+  });
+  chart.priceScale('volume').applyOptions({
+    scaleMargins: { top: 0.8, bottom: 0 },
+  });
+
+  new ResizeObserver(() => {
+    chart.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+  }).observe(container);
+}
+
+function setTF(tf) {
+  currentTF = tf;
+  document.querySelectorAll('.tf-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase() === tf.toLowerCase() || b.textContent === tf.toUpperCase());
+  });
+  loadChart();
+}
+
+async function loadChart() {
+  const symbol = document.getElementById('symbolSelect').value;
+  try {
+    const [klineRes, tickerRes] = await Promise.all([
+      fetch(`${API}/api/klines?symbol=${symbol}&interval=${currentTF}&limit=300`),
+      fetch(`${API}/api/ticker?symbol=${symbol}`)
+    ]);
+    const klines = await klineRes.json();
+    const ticker = await tickerRes.json();
+
+    if (klines && klines.length > 0) {
+      candleSeries.setData(klines.map(k => ({
+        time: k.time,
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+      })));
+      volumeSeries.setData(klines.map(k => ({
+        time: k.time,
+        value: k.volume,
+        color: k.close >= k.open ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)',
+      })));
+    }
+
+    // Update price display
+    if (ticker && ticker.lastPrice) {
+      const price = parseFloat(ticker.lastPrice);
+      const change = parseFloat(ticker.priceChangePercent);
+      const priceEl = document.getElementById('chartPrice');
+      const changeEl = document.getElementById('chartChange');
+
+      priceEl.textContent = '$' + price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: price > 100 ? 2 : 4});
+      priceEl.className = 'chart-price ' + (change >= 0 ? 'up' : 'down');
+
+      changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+      changeEl.className = 'chart-change ' + (change >= 0 ? 'up' : 'down');
+    }
+  } catch (e) {
+    console.error('Load chart error:', e);
+  }
+
+  // Auto refresh every 30s
+  if (chartRefreshTimer) clearInterval(chartRefreshTimer);
+  chartRefreshTimer = setInterval(loadChart, 30000);
+}
 </script>
 </body>
 </html>

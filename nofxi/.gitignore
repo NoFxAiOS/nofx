@@ -1,39 +1,13 @@
-# Binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Binary
 nofxi
 
-# Build
-/build/
-/dist/
+# Config (contains secrets)
+config.yaml
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Environment
-.env
-.env.local
-
-# Data
+# Database
 *.db
-*.sqlite
-/data/
-/logs/
+*.db-shm
+*.db-wal
 
-# Dependencies
-/vendor/
-
-# Node (web frontend)
-node_modules/
-web/dist/
+# Logs
+*.log

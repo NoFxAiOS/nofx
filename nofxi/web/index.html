@@ -337,7 +337,7 @@ async function send(text){
   addM('user',text);
   typEl.classList.add('on');sBtnEl.disabled=true;inpEl.focus();
   try{
-    const r=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,user_id:1})});
+    const r=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,user_id:1,lang:lang})});
     const d=await r.json();
     addM('bot',d.response||d.error||'No response');
   }catch(e){addM('bot','⚠️ Error: '+e.message)}

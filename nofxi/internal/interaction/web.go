@@ -36,6 +36,7 @@ func NewWebServer(port int, handler MessageHandler, webDir string, logger *slog.
 type chatRequest struct {
 	UserID  int64  `json:"user_id"`
 	Message string `json:"message"`
+	Lang    string `json:"lang"` // "zh" or "en"
 }
 
 // chatResponse is the API response body.
@@ -78,7 +79,12 @@ func (w *WebServer) Start(ctx context.Context) error {
 			req.UserID = 1 // Default user for API access
 		}
 
-		resp, err := w.handler(r.Context(), req.UserID, req.Message)
+		// Pass language preference via message prefix (agent will extract it)
+		message := req.Message
+		if req.Lang != "" {
+			message = "[lang:" + req.Lang + "] " + message
+		}
+		resp, err := w.handler(r.Context(), req.UserID, message)
 		if err != nil {
 			writeJSON(rw, http.StatusInternalServerError, chatAPIResponse{Error: err.Error()})
 			return

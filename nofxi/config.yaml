@@ -1,0 +1,20 @@
+agent:
+  name: "NOFXi"
+  language: "zh"
+  log_level: "info"
+  web_port: 8900
+
+telegram:
+  token: "8486603557:AAEqw9whg6uG63ROGCRJbz8D_J0lsXeQKps"
+  allowed_ids: []
+
+llm:
+  provider: "dashscope"
+  base_url: "https://coding.dashscope.aliyuncs.com/v1"
+  api_key: "sk-sp-0511a0b965af4866831a0345e8109ea0"
+  model: "qwen3-coder-plus"
+
+database:
+  path: "nofxi.db"
+
+exchanges: []

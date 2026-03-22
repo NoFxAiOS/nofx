@@ -24,6 +24,7 @@ const (
 	IntentHelp                          // Help / command list
 	IntentStatus                        // Check agent/system status
 	IntentWatch                         // Watch symbols, price alerts
+	IntentStrategy                      // Start/stop/list strategies
 )
 
 var (
@@ -134,6 +135,8 @@ func routeCommand(text string) Intent {
 		return Intent{Type: IntentQuery, Raw: text}
 	case "/watch", "/unwatch", "/alert", "/price":
 		return Intent{Type: IntentWatch, Raw: text}
+	case "/strategy":
+		return Intent{Type: IntentStrategy, Raw: text}
 	case "/analyze":
 		parts := strings.SplitN(text, " ", 2)
 		detail := ""

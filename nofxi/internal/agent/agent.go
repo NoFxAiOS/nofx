@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NoFxAiOS/nofx/nofxi/internal/execution"
-	"github.com/NoFxAiOS/nofx/nofxi/internal/memory"
-	"github.com/NoFxAiOS/nofx/nofxi/internal/perception"
-	"github.com/NoFxAiOS/nofx/nofxi/internal/thinking"
+	"nofx/nofxi/internal/execution"
+	"nofx/nofxi/internal/memory"
+	"nofx/nofxi/internal/perception"
+	"nofx/nofxi/internal/thinking"
 )
 
 // Agent is the NOFXi agent core.
@@ -34,6 +34,9 @@ type Agent struct {
 
 	// NotifyFunc sends proactive notifications to users (set by interaction layer)
 	NotifyFunc func(userID int64, text string) error
+
+	// Strategy runner
+	strategyRunner *StrategyRunner
 }
 
 // New creates a new Agent with the given config.
@@ -44,6 +47,7 @@ func New(cfg *Config, mem *memory.Store, thinker thinking.Engine, logger *slog.L
 		thinker: thinker,
 		logger:  logger,
 	}
+	a.strategyRunner = NewStrategyRunner(a, logger)
 	return a
 }
 
@@ -86,6 +90,8 @@ func (a *Agent) HandleMessage(ctx context.Context, userID int64, text string) (s
 		response, err = a.handleTrade(ctx, userID, intent)
 	case IntentWatch:
 		response = a.HandleWatchCommand(intent.Raw)
+	case IntentStrategy:
+		response = a.handleStrategyCommand(intent.Raw)
 	case IntentSettings:
 		response = a.handleSettings(intent)
 	default:
@@ -369,6 +375,9 @@ func (a *Agent) handleTrade(ctx context.Context, userID int64, intent Intent) (s
 	}
 
 	// Use first configured exchange
+	if len(a.config.Exchanges) == 0 {
+		return "⚠️ 还没有配置交易所。请在 config.yaml 的 exchanges 中添加交易所 API Key。", nil
+	}
 	exchange := a.config.Exchanges[0].Name
 
 	// Confirm with user before executing
@@ -435,6 +444,64 @@ func (a *Agent) ExecutePendingTrade(ctx context.Context, userID int64) (string, 
 		"• Exchange: %s\n"+
 		"• Result: %v",
 		side, symbol, quantity, leverage, exchange, result), nil
+}
+
+func (a *Agent) handleStrategyCommand(text string) string {
+	parts := strings.Fields(text)
+	if len(parts) < 2 {
+		return a.strategyRunner.FormatStrategyList()
+	}
+
+	subcmd := strings.ToLower(parts[1])
+	switch subcmd {
+	case "list":
+		return a.strategyRunner.FormatStrategyList()
+	case "start":
+		if len(parts) < 3 {
+			return "Usage: `/strategy start BTC 1h` or `/strategy start ETH 4h binance`"
+		}
+		symbol := strings.ToUpper(parts[2])
+		if !strings.HasSuffix(symbol, "USDT") {
+			symbol += "USDT"
+		}
+		interval := 1 * time.Hour
+		if len(parts) >= 4 {
+			switch parts[3] {
+			case "15m":
+				interval = 15 * time.Minute
+			case "30m":
+				interval = 30 * time.Minute
+			case "1h":
+				interval = 1 * time.Hour
+			case "4h":
+				interval = 4 * time.Hour
+			}
+		}
+		exchange := "binance"
+		if len(parts) >= 5 {
+			exchange = parts[4]
+		}
+		name := fmt.Sprintf("AI-%s", symbol)
+		id, err := a.strategyRunner.StartStrategy(name, symbol, exchange, interval)
+		if err != nil {
+			return fmt.Sprintf("⚠️ %v", err)
+		}
+		return fmt.Sprintf("🚀 Strategy started!\n\n• ID: `%s`\n• Symbol: %s\n• Interval: %s\n• Exchange: %s\n\nStop with: `/strategy stop %s`",
+			id, symbol, interval, exchange, id)
+	case "stop":
+		if len(parts) < 3 {
+			return "Usage: `/strategy stop <id>`"
+		}
+		if err := a.strategyRunner.StopStrategy(parts[2]); err != nil {
+			return fmt.Sprintf("⚠️ %v", err)
+		}
+		return "✅ Strategy stopped."
+	case "stopall":
+		a.strategyRunner.StopAll()
+		return "✅ All strategies stopped."
+	default:
+		return "Unknown subcommand. Use: `/strategy list|start|stop|stopall`"
+	}
 }
 
 func (a *Agent) handleSettings(intent Intent) string {

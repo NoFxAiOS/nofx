@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOFXi — AI Trading Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --text: #e0e0e0;
+      --text-dim: #888;
+      --accent: #00d4aa;
+      --accent2: #7c3aed;
+      --red: #ef4444;
+      --green: #22c55e;
+      --yellow: #eab308;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    .status-dot.offline { background: var(--red); animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Main area */
+    .main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      padding: 16px;
+      overflow-y: auto;
+    }
+    .sidebar h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+    }
+    .quick-btn {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+    .quick-btn:hover {
+      border-color: var(--accent);
+      background: rgba(0, 212, 170, 0.05);
+    }
+    .quick-btn .icon { margin-right: 8px; }
+
+    /* Chat area */
+    .chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .message {
+      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+    }
+    .message.user { justify-content: flex-end; }
+    .message .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .message.assistant .avatar { background: var(--accent); color: #000; }
+    .message.user .avatar { background: var(--accent2); color: #fff; }
+    .message .bubble {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .message.assistant .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+    .message.user .bubble {
+      background: var(--accent2);
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .typing {
+      color: var(--text-dim);
+      font-size: 13px;
+      padding: 8px 24px;
+    }
+    .typing::after {
+      content: '...';
+      animation: dots 1.5s infinite;
+    }
+    @keyframes dots {
+      0%, 20% { content: '.'; }
+      40% { content: '..'; }
+      60%, 100% { content: '...'; }
+    }
+
+    /* Input */
+    .input-area {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .input-wrap {
+      display: flex;
+      gap: 12px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .input-wrap input {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-wrap input:focus { border-color: var(--accent); }
+    .input-wrap input::placeholder { color: var(--text-dim); }
+    .input-wrap button {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .input-wrap button:hover { opacity: 0.9; }
+    .input-wrap button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .message .bubble { max-width: 85%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🤖 NOFXi</h1>
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Connecting...</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="sidebar">
+      <h3>Quick Actions</h3>
+      <button class="quick-btn" onclick="send('/help')"><span class="icon">📋</span>Help</button>
+      <button class="quick-btn" onclick="send('/status')"><span class="icon">📊</span>Status</button>
+      <button class="quick-btn" onclick="send('/positions')"><span class="icon">💼</span>Positions</button>
+      <button class="quick-btn" onclick="send('/balance')"><span class="icon">💰</span>Balance</button>
+
+      <h3 style="margin-top:20px">Analysis</h3>
+      <button class="quick-btn" onclick="send('/analyze BTC')"><span class="icon">🔍</span>Analyze BTC</button>
+      <button class="quick-btn" onclick="send('/analyze ETH')"><span class="icon">🔍</span>Analyze ETH</button>
+      <button class="quick-btn" onclick="send('/analyze SOL')"><span class="icon">🔍</span>Analyze SOL</button>
+
+      <h3 style="margin-top:20px">Monitor</h3>
+      <button class="quick-btn" onclick="send('/watch BTCUSDT')"><span class="icon">👁️</span>Watch BTC</button>
+      <button class="quick-btn" onclick="send('/watch ETHUSDT')"><span class="icon">👁️</span>Watch ETH</button>
+      <button class="quick-btn" onclick="send('/price BTCUSDT')"><span class="icon">💲</span>BTC Price</button>
+    </div>
+
+    <div class="chat-container">
+      <div class="messages" id="messages">
+        <div class="message assistant">
+          <div class="avatar">🤖</div>
+          <div class="bubble">Hey! I'm NOFXi, your AI trading agent. 🚀
+
+Ask me anything about markets, or use quick actions on the left.
+
+Type /help to see all commands.</div>
+        </div>
+      </div>
+      <div class="typing" id="typing" style="display:none">NOFXi is thinking</div>
+      <div class="input-area">
+        <div class="input-wrap">
+          <input type="text" id="input" placeholder="Ask NOFXi anything... (e.g. 分析BTC, /buy ETH 0.1)" 
+                 onkeydown="if(event.key==='Enter')send()">
+          <button id="sendBtn" onclick="send()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const typingEl = document.getElementById('typing');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+
+    // Check health
+    async function checkHealth() {
+      try {
+        const r = await fetch(API + '/health');
+        const d = await r.json();
+        statusDot.classList.remove('offline');
+        statusText.textContent = 'Online · ' + d.agent;
+      } catch {
+        statusDot.classList.add('offline');
+        statusText.textContent = 'Offline';
+      }
+    }
+    checkHealth();
+    setInterval(checkHealth, 30000);
+
+    function addMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = 'message ' + role;
+      const avatar = role === 'user' ? '👤' : '🤖';
+      div.innerHTML = `<div class="avatar">${avatar}</div><div class="bubble">${escapeHtml(text)}</div>`;
+      if (role === 'user') {
+        div.innerHTML = `<div class="bubble">${escapeHtml(text)}</div><div class="avatar">${avatar}</div>`;
+      }
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function escapeHtml(t) {
+      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    async function send(text) {
+      if (!text) {
+        text = inputEl.value.trim();
+        if (!text) return;
+        inputEl.value = '';
+      }
+
+      addMessage('user', text);
+      typingEl.style.display = 'block';
+      sendBtn.disabled = true;
+
+      try {
+        const r = await fetch(API + '/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, user_id: 1 })
+        });
+        const d = await r.json();
+        addMessage('assistant', d.response || d.error || 'No response');
+      } catch (e) {
+        addMessage('assistant', '⚠️ Connection error: ' + e.message);
+      }
+
+      typingEl.style.display = 'none';
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+  </script>
+</body>
+</html>

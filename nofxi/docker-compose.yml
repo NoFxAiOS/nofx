@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  nofxi:
+    build:
+      context: ..
+      dockerfile: nofxi/Dockerfile
+    container_name: nofxi
+    restart: unless-stopped
+    ports:
+      - "8900:8900"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - nofxi-data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+      # Override config via env vars:
+      # - NOFXI_TELEGRAM_TOKEN=xxx
+      # - NOFXI_LLM_API_KEY=xxx
+      # - NOFXI_LLM_BASE_URL=xxx
+
+volumes:
+  nofxi-data:

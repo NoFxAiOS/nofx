@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -65,7 +66,7 @@ func (t *TelegramBot) Start(ctx context.Context) error {
 	}
 }
 
-func (t *TelegramBot) handleUpdate(ctx context.Context, update tgbotapi.Update) {
+func (t *TelegramBot) handleUpdate(parentCtx context.Context, update tgbotapi.Update) {
 	msg := update.Message
 	userID := msg.From.ID
 
@@ -91,13 +92,21 @@ func (t *TelegramBot) handleUpdate(ctx context.Context, update tgbotapi.Update) 
 	typing := tgbotapi.NewChatAction(msg.Chat.ID, tgbotapi.ChatTyping)
 	t.bot.Send(typing)
 
-	// Process message
+	// Process message with timeout
+	ctx, cancel := context.WithTimeout(parentCtx, 55*time.Second)
+	defer cancel()
+
 	response, err := t.handler(ctx, userID, text)
 	if err != nil {
 		t.logger.Error("handle message", "error", err)
-		response = fmt.Sprintf("⚠️ Error: %v", err)
+		if ctx.Err() != nil {
+			response = "⏱️ AI 响应超时，请稍后再试。"
+		} else {
+			response = fmt.Sprintf("⚠️ Error: %v", err)
+		}
 	}
 
+	t.logger.Info("sending response", "user_id", userID, "len", len(response))
 	t.sendMarkdown(msg.Chat.ID, response)
 }
 

@@ -6,23 +6,28 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
 
-// WebServer provides a REST API for NOFXi.
+// WebServer provides a REST API and Web UI for NOFXi.
 type WebServer struct {
 	handler  MessageHandler
 	port     int
+	webDir   string // Path to web/ directory for static files
 	logger   *slog.Logger
 	server   *http.Server
 }
 
 // NewWebServer creates a new web API server.
-func NewWebServer(port int, handler MessageHandler, logger *slog.Logger) *WebServer {
+// webDir is the path to the web/ directory containing index.html.
+func NewWebServer(port int, handler MessageHandler, webDir string, logger *slog.Logger) *WebServer {
 	return &WebServer{
 		handler: handler,
 		port:    port,
+		webDir:  webDir,
 		logger:  logger,
 	}
 }
@@ -134,6 +139,14 @@ func (w *WebServer) Start(ctx context.Context) error {
 			},
 		})
 	})
+
+	// Serve web UI static files
+	if w.webDir != "" {
+		if _, err := os.Stat(filepath.Join(w.webDir, "index.html")); err == nil {
+			mux.Handle("/", http.FileServer(http.Dir(w.webDir)))
+			w.logger.Info("serving web UI", "dir", w.webDir)
+		}
+	}
 
 	addr := fmt.Sprintf(":%d", w.port)
 	w.server = &http.Server{

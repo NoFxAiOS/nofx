@@ -11,7 +11,7 @@ import (
 )
 
 // LLMEngine implements Engine using an OpenAI-compatible API.
-// Works with OpenAI, claw402 (x402), DeepSeek, Qwen, etc.
+// Works with OpenAI, claw402 (x402), DeepSeek, Dashscope (Qwen), etc.
 type LLMEngine struct {
 	baseURL    string
 	apiKey     string
@@ -29,7 +29,7 @@ func NewLLMEngine(baseURL, apiKey, model string) *LLMEngine {
 		apiKey:  apiKey,
 		model:   model,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: 60 * time.Second,
 		},
 	}
 }
@@ -40,11 +40,12 @@ type chatRequest struct {
 	Messages []Message `json:"messages"`
 }
 
-// chatResponse is the OpenAI chat completions response body.
+// chatResponse handles both standard and thinking-mode responses.
 type chatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content          *string `json:"content"`           // Can be null in thinking mode
+			ReasoningContent string  `json:"reasoning_content"` // Qwen3 thinking mode
 		} `json:"message"`
 	} `json:"choices"`
 	Error *struct {
@@ -102,7 +103,23 @@ func (e *LLMEngine) Chat(ctx context.Context, messages []Message) (string, error
 		return "", fmt.Errorf("LLM returned no choices")
 	}
 
-	return chatResp.Choices[0].Message.Content, nil
+	// Extract content — handle thinking mode where content can be null
+	choice := chatResp.Choices[0]
+	content := ""
+	if choice.Message.Content != nil {
+		content = *choice.Message.Content
+	}
+
+	// If content is empty but reasoning_content exists, use that
+	if content == "" && choice.Message.ReasoningContent != "" {
+		content = choice.Message.ReasoningContent
+	}
+
+	if content == "" {
+		return "🤔 (AI returned empty response)", nil
+	}
+
+	return content, nil
 }
 
 // Analyze sends an analysis prompt and parses the AI response.

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NoFxAiOS/nofx/nofxi/internal/memory"
+	"nofx/nofxi/internal/memory"
 )
 
 // Scheduler handles periodic tasks: daily reports, portfolio checks, etc.

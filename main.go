@@ -30,10 +30,10 @@ func main() {
 	// Initialize logger
 	logger.Init(nil)
 
-	logger.Info("╔════════════════════════════════════════════════════════════╗")
-	logger.Info("║          🚀 NOFXi - AI Trading Agent                        ║")
-	logger.Info("║          Powered by NOFX Engine                             ║")
-	logger.Info("╚════════════════════════════════════════════════════════════╝")
+	logger.Info("╔══════════════════════════════════════════════════╗")
+	logger.Info("║     🚀 NOFXi - AI Trading Agent                ║")
+	logger.Info("║     Powered by NOFX Engine                     ║")
+	logger.Info("╚══════════════════════════════════════════════════╝")
 
 	// Initialize global configuration (loaded from .env)
 	config.Init()

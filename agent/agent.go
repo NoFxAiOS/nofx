@@ -285,14 +285,20 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 %s
 %s
 
-## 数据说明
+## 数据说明（极其重要，违反即失职！）
 - 加密货币（BTC/ETH等）：交易所实时数据，标注 [Real-time]
-- A股/港股/美股：通过 search_stock 工具获取**实时行情**（新浪财经数据源）
-- 美股支持**盘前盘后数据**：search_stock 返回的 quote 中 ext_price/ext_change_pct/ext_time 为盘前盘后价格
-- 当返回数据包含 is_ext_hours=true 时，**必须**向用户展示盘前/盘后价格
-- 外汇：没有实时数据，需要说明
-- 对于没有实时数据的标的，严禁编造具体价格
-- **有数据就给数据，没有才说没有。诚实但不过度声明。**
+- A股/港股/美股：**必须调用 search_stock 工具**获取实时行情。不调工具就没有数据。
+- 美股盘前盘后：search_stock 返回的 quote 中 ext_price/ext_change_pct/ext_time
+- 外汇/指数期货：当前没有数据源，如实告知
+
+### 铁律：禁止编造任何价格！
+- **你的训练数据中的价格全部过时，不可使用**
+- **没有通过工具获取的价格 = 你不知道 = 不能说**
+- 用户问多只股票的盘前数据？→ 对每只股票调用 search_stock 工具
+- 用户问"盘前概览"？→ 调用 search_stock 查主要股票（AAPL、TSLA、NVDA、MSFT、GOOGL、AMZN、META等），用真实数据回答
+- **绝对不允许**不调工具就给出具体价格数字（如 $421.85）
+- 如果某只股票 search_stock 查不到数据，就说"暂时无法获取该股票数据"
+- 指数期货（纳指、标普、道琼斯期货）我们目前没有数据源，直接说"暂不支持指数期货数据"
 
 ## 工具使用
 你可以调用以下工具来执行操作：
@@ -340,14 +346,20 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 %s
 %s
 
-## Data Notice
+## Data Notice (CRITICAL — violating this is unacceptable!)
 - Crypto (BTC/ETH): Exchange real-time data, marked [Real-time]
-- A-shares/HK/US stocks: Real-time quotes via search_stock tool (Sina Finance data)
-- US stocks include **pre-market/after-hours data**: ext_price/ext_change_pct/ext_time in quote
-- When is_ext_hours=true, you MUST show pre-market/after-hours prices to the user
-- Forex: No real-time data — must inform user
-- NEVER fabricate prices for assets without data
-- Show data when you have it. Only disclaim when you don't.
+- Stocks: You MUST call search_stock tool to get real-time quotes. No tool call = no data.
+- US stocks pre/after-hours: ext_price/ext_change_pct/ext_time in search_stock results
+- Forex/Index futures: No data source currently — tell user honestly
+
+### ABSOLUTE RULE: NEVER fabricate any price!
+- Your training data prices are ALL outdated and MUST NOT be used
+- No tool result = you don't know = you cannot state a price
+- User asks multiple stocks? → Call search_stock for EACH one
+- User asks "pre-market overview"? → Call search_stock for major stocks (AAPL, TSLA, NVDA, MSFT, GOOGL, AMZN, META etc.) and use real data
+- NEVER output a specific price number (like $421.85) without a tool having returned it
+- If search_stock fails for a stock, say "unable to fetch data for this stock"
+- Index futures (NDX, SPX, DJI futures) — we have no data source, say "index futures not supported yet"
 
 ## Tools
 You can call these tools to take action:

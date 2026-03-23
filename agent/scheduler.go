@@ -24,6 +24,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 		defer ticker.Stop()
 		lastReport := time.Time{}
 		lastCheck := time.Time{}
+		lastCleanup := time.Time{}
 
 		for {
 			select {
@@ -39,6 +40,13 @@ func (s *Scheduler) Start(ctx context.Context) {
 				if now.Sub(lastCheck) > 4*time.Hour {
 					s.riskCheck()
 					lastCheck = now
+				}
+				// Clean stale chat history every hour (sessions idle > 24h)
+				if now.Sub(lastCleanup) > 1*time.Hour {
+					if s.agent.history != nil {
+						s.agent.history.CleanOld(24 * time.Hour)
+					}
+					lastCleanup = now
 				}
 			}
 		}

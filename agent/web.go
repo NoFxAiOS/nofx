@@ -7,8 +7,15 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 )
+
+// validSymbolRe matches only alphanumeric trading symbols (e.g. BTCUSDT, ETH-USD).
+var validSymbolRe = regexp.MustCompile(`^[A-Za-z0-9\-_]{1,20}$`)
+
+// validIntervalRe matches only valid kline intervals (e.g. 1m, 5m, 1h, 4h, 1d, 1w).
+var validIntervalRe = regexp.MustCompile(`^[0-9]{1,2}[mhHdDwWM]$`)
 
 // WebHandler provides HTTP endpoints for the NOFXi agent.
 type WebHandler struct {
@@ -36,7 +43,8 @@ func (w *WebHandler) HandleChat(rw http.ResponseWriter, r *http.Request) {
 		UserID  int64  `json:"user_id"`
 		Lang    string `json:"lang"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	// Limit request body to 64KB to prevent abuse
+	if err := json.NewDecoder(io.LimitReader(r.Body, 64*1024)).Decode(&req); err != nil {
 		writeJSON(rw, 400, map[string]string{"error": "invalid request"})
 		return
 	}
@@ -70,6 +78,15 @@ func (w *WebHandler) HandleKlines(rw http.ResponseWriter, r *http.Request) {
 	interval := r.URL.Query().Get("interval")
 	if interval == "" { interval = "1h" }
 
+	if !validSymbolRe.MatchString(symbol) {
+		writeJSON(rw, 400, map[string]string{"error": "invalid symbol"})
+		return
+	}
+	if !validIntervalRe.MatchString(interval) {
+		writeJSON(rw, 400, map[string]string{"error": "invalid interval"})
+		return
+	}
+
 	proxyBinance(rw, fmt.Sprintf("https://fapi.binance.com/fapi/v1/klines?symbol=%s&interval=%s&limit=300", symbol, interval))
 }
 
@@ -77,6 +94,11 @@ func (w *WebHandler) HandleKlines(rw http.ResponseWriter, r *http.Request) {
 func (w *WebHandler) HandleTicker(rw http.ResponseWriter, r *http.Request) {
 	symbol := r.URL.Query().Get("symbol")
 	if symbol == "" { symbol = "BTCUSDT" }
+
+	if !validSymbolRe.MatchString(symbol) {
+		writeJSON(rw, 400, map[string]string{"error": "invalid symbol"})
+		return
+	}
 
 	proxyBinance(rw, fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", symbol))
 }

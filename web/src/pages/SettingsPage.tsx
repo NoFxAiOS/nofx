@@ -4,6 +4,7 @@ import { User, Cpu, Building2, MessageCircle, Eye, EyeOff, ChevronRight, Plus, P
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { api } from '../lib/api'
+import { httpClient } from '../lib/httpClient'
 import { ExchangeConfigModal } from '../components/trader/ExchangeConfigModal'
 import { TelegramConfigModal } from '../components/trader/TelegramConfigModal'
 import { ModelConfigModal } from '../components/trader/ModelConfigModal'
@@ -60,17 +61,11 @@ export function SettingsPage() {
     }
     setChangingPassword(true)
     try {
-      const res = await fetch('/api/user/password', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-        },
-        body: JSON.stringify({ new_password: newPassword }),
+      const result = await httpClient.put('/api/user/password', {
+        new_password: newPassword,
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || 'Failed to update password')
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to update password')
       }
       toast.success('Password updated successfully')
       setNewPassword('')

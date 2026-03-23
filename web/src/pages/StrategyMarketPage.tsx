@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
+import { api } from '../lib/api'
 import { toast } from 'sonner'
 import { t } from '../i18n/translations'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
@@ -26,17 +27,17 @@ import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 interface PublicStrategy {
   id: string
   name: string
-  description: string
+  description?: string
   author_email?: string
-  is_public: boolean
-  config_visible: boolean
+  is_public?: boolean
+  config_visible?: boolean
   config?: any
   stats?: {
     used_by: number
     rating: number
   }
   created_at: string
-  updated_at: string
+  updated_at?: string
 }
 
 const strategyStyles: Record<string, { color: string; border: string; glow: string; shadow: string; icon: any; bg: string }> = {
@@ -112,12 +113,7 @@ export function StrategyMarketPage() {
   // Fetch public strategies
   const { data: strategies, isLoading } = useSWR<PublicStrategy[]>(
     'public-strategies',
-    async () => {
-      const response = await fetch('/api/strategies/public')
-      if (!response.ok) throw new Error('Failed to fetch strategies')
-      const data = await response.json()
-      return data.strategies || []
-    },
+    () => api.getPublicStrategies(),
     {
       refreshInterval: 60000,
       revalidateOnFocus: false

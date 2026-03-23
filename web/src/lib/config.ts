@@ -1,3 +1,5 @@
+import { httpClient, type ApiResponse } from './httpClient'
+
 export interface SystemConfig {
   initialized: boolean
   beta_mode?: boolean
@@ -13,12 +15,17 @@ export function getSystemConfig(): Promise<SystemConfig> {
   if (configPromise) {
     return configPromise
   }
-  configPromise = fetch('/api/config')
-    .then((res) => res.json())
-    .then((data: SystemConfig) => {
-      cachedConfig = data
-      return data
+
+  configPromise = httpClient
+    .get<SystemConfig>('/api/config')
+    .then((result: ApiResponse<SystemConfig>) => {
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Failed to fetch system config')
+      }
+      cachedConfig = result.data
+      return result.data
     })
+
   return configPromise
 }
 

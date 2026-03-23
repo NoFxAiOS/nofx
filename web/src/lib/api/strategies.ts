@@ -4,6 +4,27 @@ import type {
 } from '../../types'
 import { API_BASE, httpClient } from './helpers'
 
+export interface PublicStrategy {
+  id: string
+  name: string
+  description?: string
+  author_email?: string
+  author_name?: string
+  created_at: string
+  updated_at?: string
+  is_public?: boolean
+  usage_count?: number
+  is_popular?: boolean
+  indicators?: string[]
+  risk_level?: string
+  config_visible?: boolean
+  config?: unknown
+  stats?: {
+    used_by: number
+    rating: number
+  }
+}
+
 export const strategyApi = {
   async getStrategies(): Promise<Strategy[]> {
     const result = await httpClient.get<{ strategies: Strategy[] }>(`${API_BASE}/strategies`)
@@ -68,5 +89,12 @@ export const strategyApi = {
     const result = await httpClient.post<Strategy>(`${API_BASE}/strategies/${strategyId}/duplicate`)
     if (!result.success) throw new Error('Failed to duplicate strategy')
     return result.data!
+  },
+
+  async getPublicStrategies(): Promise<PublicStrategy[]> {
+    const result = await httpClient.get<{ strategies: PublicStrategy[] }>(`${API_BASE}/strategies/public`)
+    if (!result.success) throw new Error('Failed to fetch strategies')
+    const strategies = result.data?.strategies
+    return Array.isArray(strategies) ? strategies : []
   },
 }

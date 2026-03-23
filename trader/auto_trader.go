@@ -205,9 +205,9 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 		mcpClient = mcp.New()
 	}
 
-	// Payment providers (blockrun-*, claw402) ignore customURL
+	// Payment providers (claw402) ignore customURL
 	switch aiModel {
-	case "blockrun-base", "blockrun-sol", "claw402":
+	case "claw402":
 		mcpClient.SetAPIKey(apiKey, "", config.CustomModelName)
 	default:
 		mcpClient.SetAPIKey(apiKey, customURL, config.CustomModelName)

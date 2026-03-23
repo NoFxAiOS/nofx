@@ -317,7 +317,7 @@ func newLLMClient(st *store.Store, userID string) mcp.AIClient {
 
 // isUSDCProvider returns true for providers that pay per call with USDC (x402 protocol).
 func isUSDCProvider(provider string) bool {
-	return provider == "blockrun-base" || provider == "blockrun-sol" || provider == "claw402"
+	return provider == "claw402"
 }
 
 func clientForProvider(provider string) mcp.AIClient {

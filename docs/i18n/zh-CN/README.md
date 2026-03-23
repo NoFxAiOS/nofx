@@ -17,7 +17,6 @@
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
   <a href="https://x402.org"><img src="https://img.shields.io/badge/x402-USDC%20Payments-2775CA?style=flat" alt="x402"></a>
   <a href="https://claw402.ai"><img src="https://img.shields.io/badge/Claw402-AI%20Gateway-FF6B35?style=flat" alt="Claw402"></a>
-  <a href="https://blockrun.ai"><img src="https://img.shields.io/badge/BlockRun-x402%20Provider-8B5CF6?style=flat" alt="BlockRun"></a>
 </p>
 
 <p align="center">
@@ -65,10 +64,6 @@ x402 流程：
 | 提供商 | 链 | 模型 |
 |:---------|:------|:-------|
 | <img src="../../../web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4、Claude Opus、DeepSeek、Qwen、Grok、Gemini、Kimi — 15+ 模型 |
-| **[BlockRun](https://blockrun.ai)** | Base | 可配置 |
-| **[BlockRun Sol](https://sol.blockrun.ai)** | Solana | 可配置 |
-
-同时兼容 **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** —— 智能 LLM 路由，自动选择每次请求最便宜的模型（41+ 模型，节省 74-100%，<1ms 路由）。
 
 ---
 
@@ -121,7 +116,7 @@ x402 流程：
 
 ### AI 模型 (x402 模式 — 无需 API Key)
 
-15+ 模型通过 [Claw402](https://claw402.ai) 或 [BlockRun](https://blockrun.ai) 接入 — 只需一个 USDC 钱包
+15+ 模型通过 [Claw402](https://claw402.ai) 接入 — 只需一个 USDC 钱包
 
 ---
 

@@ -13,9 +13,7 @@ const (
 	ProviderKimi     = "kimi"
 	ProviderMiniMax  = "minimax"
 
-	ProviderBlockRunBase = "blockrun-base"
-	ProviderBlockRunSol  = "blockrun-sol"
-	ProviderClaw402      = "claw402"
+	ProviderClaw402 = "claw402"
 
 	// Default DeepSeek configuration (used as fallback in NewClient)
 	DefaultDeepSeekBaseURL = "https://api.deepseek.com"

@@ -91,6 +91,16 @@ func getKlinesFromCoinAnk(symbol, interval, exchange string, limit int) ([]Kline
 		}
 	}
 
+	// Some exchange/symbol combinations return empty data without an explicit error.
+	// Treat that as unsupported exchange-specific data and fall back to Binance.
+	if len(coinankKlines) == 0 && coinankExchange != coinank_enum.Binance {
+		logger.Warnf("⚠️ CoinAnk %s returned empty klines for %s, falling back to Binance", exchange, symbol)
+		coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
+		if err != nil {
+			return nil, fmt.Errorf("CoinAnk API empty-data fallback error: %w", err)
+		}
+	}
+
 	// Convert coinank kline format to market.Kline format
 	klines := make([]Kline, len(coinankKlines))
 	for i, ck := range coinankKlines {

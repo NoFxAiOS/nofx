@@ -186,6 +186,16 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 		}
 	}
 
+	// Some exchange/symbol combinations return HTTP 200 with an empty list.
+	// For chart rendering, treat empty non-Binance data as unsupported and fall back to Binance reference data.
+	if len(coinankKlines) == 0 && coinankExchange != coinank_enum.Binance {
+		logger.Warnf("⚠️ CoinAnk returned empty klines for %s on %s, falling back to Binance data", symbol, coinankExchange)
+		coinankKlines, err = coinank_api.Kline(ctx, symbol, coinank_enum.Binance, ts, coinank_enum.To, limit, coinankInterval)
+		if err != nil {
+			return nil, fmt.Errorf("coinank API empty-data fallback error: %w", err)
+		}
+	}
+
 	// Convert coinank kline format to market.Kline format
 	// Coinank: Volume = BTC quantity, Quantity = USDT turnover
 	klines := make([]market.Kline, len(coinankKlines))

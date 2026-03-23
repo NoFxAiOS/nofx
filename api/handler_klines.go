@@ -41,6 +41,9 @@ func (s *Server) handleKlines(c *gin.Context) {
 		limit = 1500
 	}
 
+	// Use request context so external API calls are cancelled when client disconnects
+	ctx := c.Request.Context()
+
 	var klines []market.Kline
 	exchangeLower := strings.ToLower(exchange)
 
@@ -48,21 +51,21 @@ func (s *Server) handleKlines(c *gin.Context) {
 	switch exchangeLower {
 	case "alpaca":
 		// US Stocks via Alpaca
-		klines, err = s.getKlinesFromAlpaca(symbol, interval, limit)
+		klines, err = s.getKlinesFromAlpaca(ctx, symbol, interval, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from Alpaca", err)
 			return
 		}
 	case "forex", "metals":
 		// Forex and Metals via Twelve Data
-		klines, err = s.getKlinesFromTwelveData(symbol, interval, limit)
+		klines, err = s.getKlinesFromTwelveData(ctx, symbol, interval, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from TwelveData", err)
 			return
 		}
 	case "hyperliquid", "hyperliquid-xyz", "xyz":
 		// Hyperliquid native API - supports both crypto perps and stock perps (xyz dex)
-		klines, err = s.getKlinesFromHyperliquid(symbol, interval, limit)
+		klines, err = s.getKlinesFromHyperliquid(ctx, symbol, interval, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from Hyperliquid", err)
 			return
@@ -70,7 +73,7 @@ func (s *Server) handleKlines(c *gin.Context) {
 	default:
 		// Crypto exchanges via CoinAnk
 		symbol = market.Normalize(symbol)
-		klines, err = s.getKlinesFromCoinank(symbol, interval, exchange, limit)
+		klines, err = s.getKlinesFromCoinank(ctx, symbol, interval, exchange, limit)
 		if err != nil {
 			SafeInternalError(c, "Get klines from CoinAnk", err)
 			return
@@ -81,7 +84,7 @@ func (s *Server) handleKlines(c *gin.Context) {
 }
 
 // getKlinesFromCoinank fetches kline data from coinank free/open API for multiple exchanges
-func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit int) ([]market.Kline, error) {
+func (s *Server) getKlinesFromCoinank(ctx context.Context, symbol, interval, exchange string, limit int) ([]market.Kline, error) {
 	// Map exchange string to coinank enum
 	var coinankExchange coinank_enum.Exchange
 	switch strings.ToLower(exchange) {
@@ -168,7 +171,6 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 	}
 
 	// Call coinank free/open API (no authentication required)
-	ctx := context.Background()
 	ts := time.Now().UnixMilli()
 	// Use "To" side to search backward from current time (get historical klines)
 	coinankKlines, err := coinank_api.Kline(ctx, apiSymbol, coinankExchange, ts, coinank_enum.To, limit, coinankInterval)
@@ -206,7 +208,7 @@ func (s *Server) getKlinesFromCoinank(symbol, interval, exchange string, limit i
 }
 
 // getKlinesFromAlpaca fetches kline data from Alpaca API for US stocks
-func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]market.Kline, error) {
+func (s *Server) getKlinesFromAlpaca(ctx context.Context, symbol, interval string, limit int) ([]market.Kline, error) {
 	// Create Alpaca client
 	client := alpaca.NewClient()
 
@@ -214,7 +216,6 @@ func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]mark
 	timeframe := alpaca.MapTimeframe(interval)
 
 	// Fetch bars from Alpaca
-	ctx := context.Background()
 	bars, err := client.GetBars(ctx, symbol, timeframe, limit)
 	if err != nil {
 		return nil, fmt.Errorf("alpaca API error: %w", err)
@@ -239,7 +240,7 @@ func (s *Server) getKlinesFromAlpaca(symbol, interval string, limit int) ([]mark
 }
 
 // getKlinesFromTwelveData fetches kline data from Twelve Data API for forex and metals
-func (s *Server) getKlinesFromTwelveData(symbol, interval string, limit int) ([]market.Kline, error) {
+func (s *Server) getKlinesFromTwelveData(ctx context.Context, symbol, interval string, limit int) ([]market.Kline, error) {
 	// Create Twelve Data client
 	client := twelvedata.NewClient()
 
@@ -247,7 +248,6 @@ func (s *Server) getKlinesFromTwelveData(symbol, interval string, limit int) ([]
 	timeframe := twelvedata.MapTimeframe(interval)
 
 	// Fetch time series from Twelve Data
-	ctx := context.Background()
 	result, err := client.GetTimeSeries(ctx, symbol, timeframe, limit)
 	if err != nil {
 		return nil, fmt.Errorf("twelvedata API error: %w", err)
@@ -281,7 +281,7 @@ func (s *Server) getKlinesFromTwelveData(symbol, interval string, limit int) ([]
 
 // getKlinesFromHyperliquid fetches kline data from Hyperliquid API
 // Supports both crypto perps (default dex) and stock perps/forex/commodities (xyz dex)
-func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([]market.Kline, error) {
+func (s *Server) getKlinesFromHyperliquid(ctx context.Context, symbol, interval string, limit int) ([]market.Kline, error) {
 	// Create Hyperliquid client
 	client := hyperliquid.NewClient()
 
@@ -290,7 +290,6 @@ func (s *Server) getKlinesFromHyperliquid(symbol, interval string, limit int) ([
 
 	// Fetch candles from Hyperliquid
 	// FormatCoinForAPI will automatically add xyz: prefix for stock perps
-	ctx := context.Background()
 	candles, err := client.GetCandles(ctx, symbol, timeframe, limit)
 	if err != nil {
 		return nil, fmt.Errorf("hyperliquid API error: %w", err)
@@ -333,11 +332,13 @@ func (s *Server) handleSymbols(c *gin.Context) {
 
 	var symbols []SymbolInfo
 
+	// Use request context for cancellation propagation
+	ctx := c.Request.Context()
+
 	switch strings.ToLower(exchange) {
 	case "hyperliquid", "hyperliquid-xyz", "xyz":
 		// Fetch symbols from Hyperliquid
 		client := hyperliquid.NewClient()
-		ctx := context.Background()
 
 		// Get crypto perps from default dex
 		if exchange == "hyperliquid" || exchange == "hyperliquid-xyz" {

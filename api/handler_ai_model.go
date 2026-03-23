@@ -65,6 +65,7 @@ func (s *Server) handleGetModelConfigs(c *gin.Context) {
 			{ID: "grok", Name: "Grok AI", Provider: "grok", Enabled: false},
 			{ID: "kimi", Name: "Kimi AI", Provider: "kimi", Enabled: false},
 			{ID: "minimax", Name: "MiniMax AI", Provider: "minimax", Enabled: false},
+			{ID: "novita", Name: "Novita AI", Provider: "novita", Enabled: false},
 		}
 		c.JSON(http.StatusOK, defaultModels)
 		return
@@ -202,6 +203,7 @@ func (s *Server) handleGetSupportedModels(c *gin.Context) {
 		{"id": "grok", "name": "Grok (xAI)", "provider": "grok", "defaultModel": "grok-3-latest"},
 		{"id": "kimi", "name": "Kimi (Moonshot)", "provider": "kimi", "defaultModel": "moonshot-v1-auto"},
 		{"id": "minimax", "name": "MiniMax", "provider": "minimax", "defaultModel": "MiniMax-M2.5"},
+		{"id": "novita", "name": "Novita AI", "provider": "novita", "defaultModel": "moonshotai/kimi-k2.5"},
 		{"id": "blockrun-base", "name": "BlockRun (Base Wallet)", "provider": "blockrun-base", "defaultModel": "auto"},
 		{"id": "blockrun-sol", "name": "BlockRun (Solana Wallet)", "provider": "blockrun-sol", "defaultModel": "auto"},
 		{"id": "claw402", "name": "Claw402 (Base USDC)", "provider": "claw402", "defaultModel": "deepseek"},

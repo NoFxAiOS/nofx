@@ -30,6 +30,8 @@ export function getModelDisplayName(modelId: string): string {
       return 'Qwen'
     case 'claude':
       return 'Claude'
+    case 'novita':
+      return 'Novita AI'
     default:
       return modelId.toUpperCase()
   }
@@ -110,6 +112,11 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     defaultModel: 'MiniMax-M2.5',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
+  },
+  novita: {
+    defaultModel: 'moonshotai/kimi-k2.5',
+    apiUrl: 'https://novita.ai',
+    apiName: 'Novita AI',
   },
   claw402: {
     defaultModel: 'deepseek',

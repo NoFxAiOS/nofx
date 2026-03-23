@@ -56,8 +56,11 @@ func (s *Server) handlePublicStrategies(c *gin.Context) {
 		// Only include config if config_visible is true
 		if st.ConfigVisible {
 			var config store.StrategyConfig
-			json.Unmarshal([]byte(st.Config), &config)
-			item["config"] = config
+			if err := json.Unmarshal([]byte(st.Config), &config); err != nil {
+				item["config_error"] = "invalid config format"
+			} else {
+				item["config"] = config
+			}
 		}
 
 		result = append(result, item)
@@ -86,9 +89,9 @@ func (s *Server) handleGetStrategies(c *gin.Context) {
 	result := make([]gin.H, 0, len(strategies))
 	for _, st := range strategies {
 		var config store.StrategyConfig
-		json.Unmarshal([]byte(st.Config), &config)
+		configErr := json.Unmarshal([]byte(st.Config), &config)
 
-		result = append(result, gin.H{
+		item := gin.H{
 			"id":             st.ID,
 			"name":           st.Name,
 			"description":    st.Description,
@@ -96,10 +99,15 @@ func (s *Server) handleGetStrategies(c *gin.Context) {
 			"is_default":     st.IsDefault,
 			"is_public":      st.IsPublic,
 			"config_visible": st.ConfigVisible,
-			"config":         config,
 			"created_at":     st.CreatedAt,
 			"updated_at":     st.UpdatedAt,
-		})
+		}
+		if configErr != nil {
+			item["config_error"] = "invalid config format"
+		} else {
+			item["config"] = config
+		}
+		result = append(result, item)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -124,18 +132,23 @@ func (s *Server) handleGetStrategy(c *gin.Context) {
 	}
 
 	var config store.StrategyConfig
-	json.Unmarshal([]byte(strategy.Config), &config)
+	configErr := json.Unmarshal([]byte(strategy.Config), &config)
 
-	c.JSON(http.StatusOK, gin.H{
+	result := gin.H{
 		"id":          strategy.ID,
 		"name":        strategy.Name,
 		"description": strategy.Description,
 		"is_active":   strategy.IsActive,
 		"is_default":  strategy.IsDefault,
-		"config":      config,
 		"created_at":  strategy.CreatedAt,
 		"updated_at":  strategy.UpdatedAt,
-	})
+	}
+	if configErr != nil {
+		result["config_error"] = "invalid config format"
+	} else {
+		result["config"] = config
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // handleCreateStrategy Create strategy.
@@ -383,18 +396,23 @@ func (s *Server) handleGetActiveStrategy(c *gin.Context) {
 	}
 
 	var config store.StrategyConfig
-	json.Unmarshal([]byte(strategy.Config), &config)
+	configErr := json.Unmarshal([]byte(strategy.Config), &config)
 
-	c.JSON(http.StatusOK, gin.H{
+	result := gin.H{
 		"id":          strategy.ID,
 		"name":        strategy.Name,
 		"description": strategy.Description,
 		"is_active":   strategy.IsActive,
 		"is_default":  strategy.IsDefault,
-		"config":      config,
 		"created_at":  strategy.CreatedAt,
 		"updated_at":  strategy.UpdatedAt,
-	})
+	}
+	if configErr != nil {
+		result["config_error"] = "invalid config format"
+	} else {
+		result["config"] = config
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 // handleGetDefaultStrategyConfig Get default strategy configuration template

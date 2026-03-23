@@ -138,9 +138,10 @@ func (db *DecisionRecordDB) toRecord() *DecisionRecord {
 		ErrorMessage:        db.ErrorMessage,
 		AIRequestDurationMs: db.AIRequestDurationMs,
 	}
-	json.Unmarshal([]byte(db.CandidateCoins), &record.CandidateCoins)
-	json.Unmarshal([]byte(db.ExecutionLog), &record.ExecutionLog)
-	json.Unmarshal([]byte(db.Decisions), &record.Decisions)
+	// Best-effort unmarshal — empty/malformed JSON fields are left as zero values.
+	_ = json.Unmarshal([]byte(db.CandidateCoins), &record.CandidateCoins)
+	_ = json.Unmarshal([]byte(db.ExecutionLog), &record.ExecutionLog)
+	_ = json.Unmarshal([]byte(db.Decisions), &record.Decisions)
 	return record
 }
 

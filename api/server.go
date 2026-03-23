@@ -98,7 +98,14 @@ func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 		if allowAll {
-			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			if origin != "" {
+				// When credentials are needed, we must echo the specific origin
+				// instead of "*" (browsers reject Allow-Credentials with wildcard).
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				c.Writer.Header().Set("Vary", "Origin")
+			} else {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			}
 		} else if origin != "" && allowed[origin] {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 			c.Writer.Header().Set("Vary", "Origin")

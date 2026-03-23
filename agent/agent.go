@@ -7,6 +7,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -548,7 +549,9 @@ func toFloat(v interface{}) float64 {
 	case float32: return float64(x)
 	case int: return float64(x)
 	case int64: return float64(x)
+	case int32: return float64(x)
 	case string: f, _ := strconv.ParseFloat(x, 64); return f
+	case json.Number: f, _ := x.Float64(); return f
 	}
 	return 0
 }

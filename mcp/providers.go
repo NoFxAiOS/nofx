@@ -12,6 +12,7 @@ const (
 	ProviderGrok     = "grok"
 	ProviderKimi     = "kimi"
 	ProviderMiniMax  = "minimax"
+	ProviderNovita   = "novita"
 
 	ProviderBlockRunBase = "blockrun-base"
 	ProviderBlockRunSol  = "blockrun-sol"
@@ -28,4 +29,8 @@ const (
 	// Default MiniMax configuration (used by WithMiniMaxConfig convenience option)
 	DefaultMiniMaxBaseURL = "https://api.minimax.io/v1"
 	DefaultMiniMaxModel   = "MiniMax-M2.5"
+
+	// Default Novita configuration (OpenAI-compatible endpoint)
+	DefaultNovitaBaseURL = "https://api.novita.ai/openai"
+	DefaultNovitaModel   = "moonshotai/kimi-k2.5"
 )

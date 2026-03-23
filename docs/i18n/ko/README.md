@@ -17,7 +17,6 @@
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
   <a href="https://x402.org"><img src="https://img.shields.io/badge/x402-USDC%20Payments-2775CA?style=flat" alt="x402"></a>
   <a href="https://claw402.ai"><img src="https://img.shields.io/badge/Claw402-AI%20Gateway-FF6B35?style=flat" alt="Claw402"></a>
-  <a href="https://blockrun.ai"><img src="https://img.shields.io/badge/BlockRun-x402%20Provider-8B5CF6?style=flat" alt="BlockRun"></a>
 </p>
 
 <p align="center">
@@ -63,10 +62,6 @@ x402 플로우:
 | 프로바이더 | 체인 | 모델 |
 |:---------|:------|:-------|
 | <img src="../../../web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ 모델 |
-| **[BlockRun](https://blockrun.ai)** | Base | 설정 가능 |
-| **[BlockRun Sol](https://sol.blockrun.ai)** | Solana | 설정 가능 |
-
-**[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** 호환 — 요청마다 최저가 모델을 자동 선택하는 지능형 LLM 라우터 (41+ 모델, 74-100% 절감, <1ms 라우팅).
 
 ---
 
@@ -120,7 +115,7 @@ x402 플로우:
 
 ### AI 모델 (x402 모드 — API 키 불필요)
 
-15+ 모델을 [Claw402](https://claw402.ai) 또는 [BlockRun](https://blockrun.ai)으로 이용 — USDC 지갑만 있으면 됩니다
+15+ 모델을 [Claw402](https://claw402.ai)로 이용 — USDC 지갑만 있으면 됩니다
 
 ---
 

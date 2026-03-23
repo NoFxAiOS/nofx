@@ -650,7 +650,7 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 
 	// Payment providers ignore custom URL
 	switch provider {
-	case "blockrun-base", "blockrun-sol", "claw402":
+	case "claw402":
 		aiClient.SetAPIKey(apiKey, "", model.CustomModelName)
 	default:
 		aiClient.SetAPIKey(apiKey, model.CustomAPIURL, model.CustomModelName)

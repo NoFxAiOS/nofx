@@ -1,11 +1,5 @@
 // Constants for AI model and provider configuration
 
-export interface BlockrunModel {
-  id: string
-  name: string
-  desc: string
-}
-
 export interface Claw402Model {
   id: string
   name: string
@@ -39,16 +33,6 @@ export function getShortName(fullName: string): string {
   const parts = fullName.split('_')
   return parts.length > 1 ? parts[parts.length - 1] : fullName
 }
-
-// Top models available through BlockRun wallet providers
-export const BLOCKRUN_MODELS: BlockrunModel[] = [
-  { id: 'gpt-5.4', name: 'GPT-5.4', desc: 'OpenAI · Flagship' },
-  { id: 'claude-opus-4.6', name: 'Claude Opus 4.6', desc: 'Anthropic · Flagship' },
-  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', desc: 'Google · Flagship' },
-  { id: 'grok-3', name: 'Grok 3', desc: 'xAI · Flagship' },
-  { id: 'deepseek-chat', name: 'DeepSeek Chat', desc: 'DeepSeek · Flagship' },
-  { id: 'minimax-m2.5', name: 'MiniMax M2.5', desc: 'MiniMax · Flagship' },
-]
 
 // Models available through Claw402 (x402 USDC payment protocol)
 export const CLAW402_MODELS: Claw402Model[] = [
@@ -112,16 +96,6 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     defaultModel: 'deepseek',
     apiUrl: 'https://claw402.ai',
     apiName: 'Claw402',
-  },
-  'blockrun-base': {
-    defaultModel: 'gpt-5.4',
-    apiUrl: 'https://blockrun.ai',
-    apiName: 'BlockRun',
-  },
-  'blockrun-sol': {
-    defaultModel: 'gpt-5.4',
-    apiUrl: 'https://sol.blockrun.ai',
-    apiName: 'BlockRun',
   },
 }
 

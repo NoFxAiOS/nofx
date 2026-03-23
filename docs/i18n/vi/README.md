@@ -17,7 +17,6 @@
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
   <a href="https://x402.org"><img src="https://img.shields.io/badge/x402-USDC%20Payments-2775CA?style=flat" alt="x402"></a>
   <a href="https://claw402.ai"><img src="https://img.shields.io/badge/Claw402-AI%20Gateway-FF6B35?style=flat" alt="Claw402"></a>
-  <a href="https://blockrun.ai"><img src="https://img.shields.io/badge/BlockRun-x402%20Provider-8B5CF6?style=flat" alt="BlockRun"></a>
 </p>
 
 <p align="center">
@@ -63,10 +62,6 @@ Không tài khoản. Không API key. Không trả trước. Một ví, tất c�
 | Nhà cung cấp | Chain | Mô hình |
 |:---------|:------|:-------|
 | <img src="../../../web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ mô hình |
-| **[BlockRun](https://blockrun.ai)** | Base | Có thể cấu hình |
-| **[BlockRun Sol](https://sol.blockrun.ai)** | Solana | Có thể cấu hình |
-
-Tương thích với **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** — bộ định tuyến LLM thông minh tự động chọn mô hình rẻ nhất (41+ mô hình, tiết kiệm 74-100%, <1ms định tuyến).
 
 ---
 
@@ -118,7 +113,7 @@ Crypto · Cổ phiếu Mỹ · Forex · Kim loại
 
 ### Mô hình AI (Chế độ x402 — Không cần API Key)
 
-15+ mô hình qua [Claw402](https://claw402.ai) hoặc [BlockRun](https://blockrun.ai) — chỉ cần ví USDC
+15+ mô hình qua [Claw402](https://claw402.ai) — chỉ cần ví USDC
 
 ---
 

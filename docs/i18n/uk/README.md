@@ -17,7 +17,6 @@
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
   <a href="https://x402.org"><img src="https://img.shields.io/badge/x402-USDC%20Payments-2775CA?style=flat" alt="x402"></a>
   <a href="https://claw402.ai"><img src="https://img.shields.io/badge/Claw402-AI%20Gateway-FF6B35?style=flat" alt="Claw402"></a>
-  <a href="https://blockrun.ai"><img src="https://img.shields.io/badge/BlockRun-x402%20Provider-8B5CF6?style=flat" alt="BlockRun"></a>
 </p>
 
 <p align="center">
@@ -63,10 +62,6 @@ x402 процес:
 | Провайдер | Мережа | Моделі |
 |:---------|:------|:-------|
 | <img src="../../../web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ моделей |
-| **[BlockRun](https://blockrun.ai)** | Base | Налаштовуваний |
-| **[BlockRun Sol](https://sol.blockrun.ai)** | Solana | Налаштовуваний |
-
-Сумісний з **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** — інтелектуальний LLM маршрутизатор (41+ моделей, економія 74-100%, <1ms маршрутизація).
 
 ---
 
@@ -120,7 +115,7 @@ x402 процес:
 
 ### AI Моделі (Режим x402 — без API ключів)
 
-15+ моделей через [Claw402](https://claw402.ai) або [BlockRun](https://blockrun.ai) — лише USDC гаманець
+15+ моделей через [Claw402](https://claw402.ai) — лише USDC гаманець
 
 ---
 

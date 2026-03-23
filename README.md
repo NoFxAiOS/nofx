@@ -17,7 +17,6 @@
   <a href="https://reactjs.org/"><img src="https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react" alt="React"></a>
   <a href="https://x402.org"><img src="https://img.shields.io/badge/x402-USDC%20Payments-2775CA?style=flat" alt="x402"></a>
   <a href="https://claw402.ai"><img src="https://img.shields.io/badge/Claw402-AI%20Gateway-FF6B35?style=flat" alt="Claw402"></a>
-  <a href="https://blockrun.ai"><img src="https://img.shields.io/badge/BlockRun-x402%20Provider-8B5CF6?style=flat" alt="BlockRun"></a>
 </p>
 
 <p align="center">
@@ -63,10 +62,6 @@ No accounts. No API keys. No prepaid credits. One wallet, every model.
 | Provider | Chain | Models |
 |:---------|:------|:-------|
 | <img src="web/public/icons/claw402.png" width="20" height="20" style="vertical-align: middle;"/> **[Claw402](https://claw402.ai)** | Base | GPT-5.4, Claude Opus, DeepSeek, Qwen, Grok, Gemini, Kimi — 15+ models |
-| **[BlockRun](https://blockrun.ai)** | Base | Configurable |
-| **[BlockRun Sol](https://sol.blockrun.ai)** | Solana | Configurable |
-
-Also compatible with **[ClawRouter](https://github.com/BlockRunAI/ClawRouter)** — an intelligent LLM router that picks the cheapest capable model per request (41+ models, 74-100% savings, <1ms routing).
 
 ---
 
@@ -118,7 +113,7 @@ Crypto · US Stocks · Forex · Metals
 
 ### AI Models (x402 Mode — No API Key)
 
-15+ models via [Claw402](https://claw402.ai) or [BlockRun](https://blockrun.ai) — just a USDC wallet
+15+ models via [Claw402](https://claw402.ai) — just a USDC wallet
 
 ---
 
@@ -257,9 +252,9 @@ curl -fsSL https://raw.githubusercontent.com/NoFxAiOS/nofx/main/install.sh | bas
     ├──────────┴──────────┴──────────┴────────────────┤
     │               MCP AI Client Layer                │
     │    ┌───────────┐  ┌───────────┐  ┌───────────┐  │
-    │    │  API Key   │  │   x402    │  │ ClawRouter│  │
-    │    │ DeepSeek   │  │ Claw402   │  │ 41+ models│  │
-    │    │ GPT,Claude │  │ BlockRun  │  │ auto-route│  │
+    │    │  API Key   │  │   x402    │  │           │  │
+    │    │ DeepSeek   │  │ Claw402   │  │           │  │
+    │    │ GPT,Claude │  │           │  │           │  │
     │    └───────────┘  └───────────┘  └───────────┘  │
     ├─────────────────────────────────────────────────┤
     │             Exchange Connectors                   │

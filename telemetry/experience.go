@@ -42,7 +42,7 @@ type AIUsageEvent struct {
 	TraderID      string
 	ModelProvider string // openai, deepseek, anthropic, etc.
 	ModelName     string // gpt-4o, deepseek-chat, claude-3, etc.
-	Channel       string // payment channel: "claw402", "blockrun", or "native"
+	Channel       string // payment channel: "claw402" or "native"
 	InputTokens   int
 	OutputTokens  int
 }

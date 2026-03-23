@@ -205,24 +205,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string, newPassword: string) => {
     try {
-      const response = await fetch('/api/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          new_password: newPassword,
-        }),
+      const result = await httpClient.post<{ message: string }>('/api/reset-password', {
+        email,
+        new_password: newPassword,
       })
 
-      const data = await response.json()
-
-      if (response.ok) {
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.error }
+      if (result.success) {
+        return { success: true, message: result.message || result.data?.message }
       }
+
+      return { success: false, message: result.message || 'Password reset failed' }
     } catch (error) {
       return { success: false, message: 'Password reset failed, please try again' }
     }

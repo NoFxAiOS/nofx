@@ -46,25 +46,19 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 	var accountValue, totalMarginUsed float64
 	var summaryType string
 	var summary interface{}
+	_, _ = summaryType, summary
 
 	if t.isCrossMargin {
 		// Cross margin mode: use CrossMarginSummary
 		accountValue, _ = strconv.ParseFloat(accountState.CrossMarginSummary.AccountValue, 64)
 		totalMarginUsed, _ = strconv.ParseFloat(accountState.CrossMarginSummary.TotalMarginUsed, 64)
 		summaryType = "CrossMarginSummary (cross margin)"
-		summary = accountState.CrossMarginSummary
 	} else {
 		// Isolated margin mode: use MarginSummary
 		accountValue, _ = strconv.ParseFloat(accountState.MarginSummary.AccountValue, 64)
 		totalMarginUsed, _ = strconv.ParseFloat(accountState.MarginSummary.TotalMarginUsed, 64)
 		summaryType = "MarginSummary (isolated margin)"
-		summary = accountState.MarginSummary
 	}
-
-	// Debug: Print complete summary structure returned by API
-	summaryJSON, _ := json.MarshalIndent(summary, "  ", "  ")
-	logger.Infof("🔍 [DEBUG] Hyperliquid API %s complete data:", summaryType)
-	logger.Infof("%s", string(summaryJSON))
 
 	// Critical fix: Accumulate actual unrealized PnL from all positions
 	totalUnrealizedPnl := 0.0
@@ -159,7 +153,7 @@ func (t *HyperliquidTrader) GetBalance() (map[string]interface{}, error) {
 		walletBalanceWithoutUnrealized,
 		totalUnrealizedPnl)
 	logger.Infof("  • Perpetuals available balance: %.2f USDC", availableBalance)
-	logger.Infof("  • Margin used: %.2f USDC", totalMarginUsed)
+	logger.Infof("  • Margin used: %.2f USDC (source: %s)", totalMarginUsed, summaryType)
 	logger.Infof("  • xyz dex equity: %.2f USDC (wallet %.2f + unrealized %.2f)",
 		xyzAccountValue,
 		xyzWalletBalance,

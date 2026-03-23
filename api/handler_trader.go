@@ -247,7 +247,6 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// Create trader configuration (database entity)
-	logger.Infof("🔧 DEBUG: Starting to create trader config, ID=%s, Name=%s, AIModel=%s, Exchange=%s, StrategyID=%s", traderID, req.Name, req.AIModelID, req.ExchangeID, req.StrategyID)
 	traderRecord := &store.Trader{
 		ID:                   traderID,
 		UserID:               userID,
@@ -271,24 +270,18 @@ func (s *Server) handleCreateTrader(c *gin.Context) {
 	}
 
 	// Save to database
-	logger.Infof("🔧 DEBUG: Preparing to call CreateTrader")
 	err = s.store.Trader().Create(traderRecord)
 	if err != nil {
 		logger.Infof("❌ Failed to create trader: %v", err)
 		SafeInternalError(c, "Failed to create trader", err)
 		return
 	}
-	logger.Infof("🔧 DEBUG: CreateTrader succeeded")
-
 	// Immediately load new trader into TraderManager
-	logger.Infof("🔧 DEBUG: Preparing to call LoadUserTraders")
 	err = s.traderManager.LoadUserTradersFromStore(s.store, userID)
 	if err != nil {
 		logger.Infof("⚠️ Failed to load user traders into memory: %v", err)
 		// Don't return error here since trader was successfully created in database
 	}
-	logger.Infof("🔧 DEBUG: LoadUserTraders completed")
-
 	logger.Infof("✓ Trader created successfully: %s (model: %s, exchange: %s)", req.Name, req.AIModelID, req.ExchangeID)
 
 	c.JSON(http.StatusCreated, gin.H{

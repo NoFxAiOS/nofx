@@ -15,12 +15,18 @@ import (
 type Brain struct {
 	agent         *Agent
 	logger        *slog.Logger
+	http          *http.Client
 	stopCh        chan struct{}
 	recentSignals sync.Map // debounce
 }
 
 func NewBrain(agent *Agent, logger *slog.Logger) *Brain {
-	return &Brain{agent: agent, logger: logger, stopCh: make(chan struct{})}
+	return &Brain{
+		agent:  agent,
+		logger: logger,
+		http:   &http.Client{Timeout: 15 * time.Second},
+		stopCh: make(chan struct{}),
+	}
 }
 
 func (b *Brain) Stop() { close(b.stopCh) }
@@ -57,10 +63,11 @@ func (b *Brain) StartNewsScan(interval time.Duration) {
 }
 
 func (b *Brain) scanNews(seen map[string]bool) {
-	resp, err := http.Get("https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest")
+	resp, err := b.http.Get("https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest")
 	if err != nil { return }
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil { return }
 
 	var result struct {
 		Data []struct {
@@ -72,7 +79,7 @@ func (b *Brain) scanNews(seen map[string]bool) {
 			PublishedOn int64  `json:"published_on"`
 		} `json:"Data"`
 	}
-	json.Unmarshal(body, &result)
+	if err := json.Unmarshal(body, &result); err != nil { return }
 
 	bullish := []string{"surge", "rally", "bullish", "breakout", "ath", "pump", "adoption"}
 	bearish := []string{"crash", "dump", "bearish", "sell-off", "plunge", "hack", "ban", "fraud"}
@@ -129,12 +136,13 @@ func (b *Brain) sendBrief(hour int) {
 	// Fetch BTC/ETH prices for the brief
 	var btcPrice, ethPrice, btcChg, ethChg string
 	for _, sym := range []string{"BTCUSDT", "ETHUSDT"} {
-		resp, err := http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", sym))
+		resp, err := b.http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", sym))
 		if err != nil { continue }
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		if readErr != nil { continue }
 		var t map[string]string
-		json.Unmarshal(body, &t)
+		if err := json.Unmarshal(body, &t); err != nil { continue }
 		if sym == "BTCUSDT" { btcPrice = t["lastPrice"]; btcChg = t["priceChangePercent"] }
 		if sym == "ETHUSDT" { ethPrice = t["lastPrice"]; ethChg = t["priceChangePercent"] }
 	}

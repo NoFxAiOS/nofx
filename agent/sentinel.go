@@ -115,9 +115,10 @@ func (s *Sentinel) check(symbol string) {
 	resp, err := s.http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", symbol))
 	if err != nil { return }
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil { return }
 	var t map[string]interface{}
-	json.Unmarshal(body, &t)
+	if err := json.Unmarshal(body, &t); err != nil { return }
 
 	price, _ := strconv.ParseFloat(fmt.Sprint(t["lastPrice"]), 64)
 	vol, _ := strconv.ParseFloat(fmt.Sprint(t["quoteVolume"]), 64)

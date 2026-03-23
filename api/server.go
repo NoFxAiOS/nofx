@@ -82,7 +82,7 @@ func (s *Server) setupRoutes() {
 		s.route(api, "GET", "/supported-models", "List supported AI model providers", s.handleGetSupportedModels)
 		s.route(api, "GET", "/supported-exchanges", "List supported exchange types", s.handleGetSupportedExchanges)
 
-		// System config (no authentication required, for frontend to determine admin mode/registration status)
+		// System config (no authentication required, for frontend to determine registration status)
 		s.route(api, "GET", "/config", "Get system configuration", s.handleGetSystemConfig)
 
 		// Wallet validation (no authentication required — used by frontend config form)

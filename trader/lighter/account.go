@@ -351,9 +351,14 @@ func (t *LighterTraderV2) GetMarketPrice(symbol string) (float64, error) {
 
 // FormatQuantity Format quantity to correct precision (implements Trader interface)
 func (t *LighterTraderV2) FormatQuantity(symbol string, quantity float64) (string, error) {
-	// TODO: Get symbol precision from API
-	// Using default precision for now
-	return fmt.Sprintf("%.4f", quantity), nil
+	marketInfo, err := t.getMarketInfo(symbol)
+	if err != nil {
+		// Fallback to 4 decimal places if market info unavailable
+		logger.Infof("⚠️  FormatQuantity: failed to get market info for %s, using default precision: %v", symbol, err)
+		return fmt.Sprintf("%.4f", quantity), nil
+	}
+	format := fmt.Sprintf("%%.%df", marketInfo.SizeDecimals)
+	return fmt.Sprintf(format, quantity), nil
 }
 
 // GetOrderBook Get order book (implements GridTrader interface)

@@ -9,6 +9,7 @@ import (
 	"nofx/logger"
 	"nofx/store"
 	"nofx/trader"
+	"nofx/trader/alpaca"
 	"nofx/trader/aster"
 	"nofx/trader/binance"
 	"nofx/trader/bitget"
@@ -120,6 +121,12 @@ func (s *Server) handleSyncBalance(c *gin.Context) {
 		} else {
 			createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
 		}
+	case "alpaca":
+		tempTrader = alpaca.NewAlpacaTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			exchangeCfg.Testnet,
+		)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
 		return
@@ -284,6 +291,12 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 		} else {
 			createErr = fmt.Errorf("Lighter requires wallet address and API Key private key")
 		}
+	case "alpaca":
+		tempTrader = alpaca.NewAlpacaTrader(
+			string(exchangeCfg.APIKey),
+			string(exchangeCfg.SecretKey),
+			exchangeCfg.Testnet,
+		)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unsupported exchange type"})
 		return
@@ -316,6 +329,14 @@ func (s *Server) handleClosePosition(c *gin.Context) {
 			}
 			break
 		}
+	}
+
+	// Cancel existing stop-loss and take-profit orders BEFORE closing position
+	// Critical: orphaned SL/TP orders could trigger after position is closed and create unintended positions
+	if err := tempTrader.CancelStopOrders(req.Symbol); err != nil {
+		logger.Warnf("  ⚠️ Failed to cancel stop orders for %s: %v (proceeding with close)", req.Symbol, err)
+	} else {
+		logger.Infof("  🗑️ Cancelled stop/TP orders for %s before manual close", req.Symbol)
 	}
 
 	// Execute close position operation

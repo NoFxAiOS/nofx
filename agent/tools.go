@@ -471,11 +471,37 @@ func (a *Agent) toolGetTradeHistory(argsJSON string) string {
 	return string(result)
 }
 
+// knownCryptoSymbols is a set of well-known cryptocurrency base symbols.
+// Without this, isStockSymbol("BTC") would incorrectly return true because
+// "BTC" is 3 uppercase letters and the suffix check only catches "BTCUSDT"-style pairs.
+var knownCryptoSymbols = map[string]bool{
+	"BTC": true, "ETH": true, "SOL": true, "BNB": true, "XRP": true,
+	"DOGE": true, "ADA": true, "AVAX": true, "DOT": true, "LINK": true,
+	"PEPE": true, "SHIB": true, "ARB": true, "OP": true, "SUI": true,
+	"APT": true, "SEI": true, "TIA": true, "JUP": true, "WIF": true,
+	"NEAR": true, "ATOM": true, "FTM": true, "MATIC": true, "INJ": true,
+	"RENDER": true, "FET": true, "TAO": true, "WLD": true, "USDT": true,
+	"USDC": true, "BUSD": true, "DAI": true, "UNI": true, "AAVE": true,
+	"LDO": true, "MKR": true, "CRV": true, "PENDLE": true, "ENA": true,
+	"ONDO": true, "TRUMP": true, "TON": true, "TRX": true, "LTC": true,
+	"BCH": true, "ETC": true, "FIL": true, "ICP": true, "HBAR": true,
+	"VET": true, "ALGO": true, "SAND": true, "MANA": true, "AXS": true,
+	"GMT": true, "APE": true, "GALA": true, "IMX": true, "BLUR": true,
+	"STRK": true, "ZK": true, "W": true, "IO": true, "ZRO": true,
+	"BONK": true, "FLOKI": true, "ORDI": true, "STX": true, "RUNE": true,
+}
+
 // isStockSymbol heuristically determines if a symbol is a stock ticker (not crypto).
 // Stock tickers are 1-5 uppercase letters without numeric suffixes like "USDT".
-// Known crypto suffixes: USDT, BTC, ETH, BNB, USDC, BUSD.
+// Known crypto base symbols (BTC, ETH, SOL etc.) are excluded.
 func isStockSymbol(sym string) bool {
 	sym = strings.ToUpper(sym)
+
+	// Check known crypto base symbols first (critical: "BTC", "ETH" etc. are NOT stocks)
+	if knownCryptoSymbols[sym] {
+		return false
+	}
+
 	// If it already has a crypto quote suffix, it's crypto
 	cryptoSuffixes := []string{"USDT", "BUSD", "USDC", "BTC", "ETH", "BNB"}
 	for _, suffix := range cryptoSuffixes {

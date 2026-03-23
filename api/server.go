@@ -126,10 +126,11 @@ func (s *Server) setupRoutes() {
 		api.POST("/wallet/validate", s.handleWalletValidate)
 		api.POST("/wallet/generate", s.handleWalletGenerate)
 
-		// Crypto related endpoints (no authentication required, not exposed to bot)
+		// Crypto public key & config (needed by frontend before login for transport encryption)
 		api.GET("/crypto/config", s.cryptoHandler.HandleGetCryptoConfig)
 		api.GET("/crypto/public-key", s.cryptoHandler.HandleGetPublicKey)
-		api.POST("/crypto/decrypt", s.cryptoHandler.HandleDecryptSensitiveData)
+		// NOTE: /crypto/decrypt moved behind auth — the public endpoint was a security risk
+		// (allowed anyone to decrypt captured ciphertext without authentication)
 
 		// Public competition data (no authentication required)
 		s.route(api, "GET", "/traders", "Public trader list", s.handlePublicTraderList)

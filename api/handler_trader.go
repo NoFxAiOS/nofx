@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"nofx/logger"
+	"nofx/safe"
 	"nofx/store"
 	"nofx/trader"
 	"nofx/trader/aster"
@@ -418,12 +419,12 @@ func (s *Server) handleUpdateTrader(c *gin.Context) {
 	// If trader was running before, restart it with new config
 	if wasRunning {
 		if reloadedTrader, getErr := s.traderManager.GetTrader(traderID); getErr == nil {
-			go func() {
+			safe.GoNamed("trader-restart-"+traderID, func() {
 				logger.Infof("▶️ Restarting trader %s with new config...", traderID)
 				if runErr := reloadedTrader.Run(); runErr != nil {
 					logger.Infof("❌ Trader %s runtime error: %v", traderID, runErr)
 				}
-			}()
+			})
 		}
 	}
 
@@ -537,12 +538,12 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	}
 
 	// Start trader
-	go func() {
+	safe.GoNamed("trader-start-"+traderID, func() {
 		logger.Infof("▶️  Starting trader %s (%s)", traderID, trader.GetName())
 		if err := trader.Run(); err != nil {
 			logger.Infof("❌ Trader %s runtime error: %v", trader.GetName(), err)
 		}
-	}()
+	})
 
 	// Update running status in database
 	err = s.store.Trader().UpdateStatus(userID, traderID, true)

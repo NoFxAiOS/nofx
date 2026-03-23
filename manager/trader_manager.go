@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"nofx/logger"
+	"nofx/safe"
 	"nofx/store"
 	"nofx/trader"
 	"sort"
@@ -87,12 +88,14 @@ func (tm *TraderManager) StartAll() {
 
 	logger.Info("🚀 Starting all traders...")
 	for id, t := range tm.traders {
-		go func(traderID string, at *trader.AutoTrader) {
+		traderID, at := id, t
+		safe.GoNamed("trader-"+at.GetName(), func() {
 			logger.Infof("▶️  Starting %s...", at.GetName())
 			if err := at.Run(); err != nil {
 				logger.Infof("❌ %s runtime error: %v", at.GetName(), err)
 			}
-		}(id, t)
+		})
+		_ = traderID
 	}
 }
 
@@ -135,12 +138,13 @@ func (tm *TraderManager) AutoStartRunningTraders(st *store.Store) {
 	startedCount := 0
 	for id, t := range tm.traders {
 		if runningTraderIDs[id] {
-			go func(traderID string, at *trader.AutoTrader) {
+			at := t
+			safe.GoNamed("trader-restore-"+at.GetName(), func() {
 				logger.Infof("▶️  Auto-restoring %s...", at.GetName())
 				if err := at.Run(); err != nil {
 					logger.Infof("❌ %s runtime error: %v", at.GetName(), err)
 				}
-			}(id, t)
+			})
 			startedCount++
 		}
 	}
@@ -726,15 +730,16 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 	// Auto-start if trader was running before shutdown
 	if traderCfg.IsRunning {
 		logger.Infof("🔄 Auto-starting trader '%s' (was running before shutdown)...", traderCfg.Name)
-		go func(trader *trader.AutoTrader, traderName, traderID, userID string) {
-			if err := trader.Run(); err != nil {
-				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", traderName, err)
+		autoStartTrader, autoStartName, autoStartID, autoStartUserID := at, traderCfg.Name, traderCfg.ID, traderCfg.UserID
+		safe.GoNamed("trader-autostart-"+autoStartName, func() {
+			if err := autoStartTrader.Run(); err != nil {
+				logger.Warnf("⚠️ Trader '%s' stopped with error: %v", autoStartName, err)
 				// Update database to reflect stopped state
 				if st != nil {
-					_ = st.Trader().UpdateStatus(userID, traderID, false)
+					_ = st.Trader().UpdateStatus(autoStartUserID, autoStartID, false)
 				}
 			}
-		}(at, traderCfg.Name, traderCfg.ID, traderCfg.UserID)
+		})
 		logger.Infof("✅ Trader '%s' auto-started successfully", traderCfg.Name)
 	}
 

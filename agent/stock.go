@@ -30,6 +30,12 @@ type StockQuote struct {
 	Time      string
 	Change    float64
 	ChangePct float64
+	// 盘前盘后 (美股)
+	ExtPrice     float64 // 盘前/盘后价格
+	ExtChangePct float64 // 盘前/盘后涨跌幅%
+	ExtChange    float64 // 盘前/盘后涨跌额
+	ExtTime      string  // 盘前/盘后时间
+	IsExtHours   bool    // 是否在盘前盘后时段
 }
 
 // knownStocks maps Chinese names to stock codes.
@@ -358,6 +364,21 @@ func parseUSShare(code, data string) (*StockQuote, error) {
 	if len(f) > 25 { q.Date = f[25]; q.Time = f[26] }
 	q.PrevClose = q.Price - q.Change
 	_ = high52; _ = low52
+
+	// 盘前盘后数据 (字段21=价格, 22=涨跌幅%, 23=涨跌额, 24=时间)
+	if len(f) > 24 {
+		extPrice, _ := strconv.ParseFloat(f[21], 64)
+		extPct, _ := strconv.ParseFloat(f[22], 64)
+		extChg, _ := strconv.ParseFloat(f[23], 64)
+		if extPrice > 0 {
+			q.ExtPrice = extPrice
+			q.ExtChangePct = extPct
+			q.ExtChange = extChg
+			q.ExtTime = strings.TrimSpace(f[24])
+			q.IsExtHours = true
+		}
+	}
+
 	return q, nil
 }
 
@@ -376,7 +397,7 @@ func formatStockQuote(q *StockQuote) string {
 	turnStr := fmt.Sprintf("%.0f", q.Turnover)
 	if q.Turnover > 100000000 { turnStr = fmt.Sprintf("%.2f亿", q.Turnover/100000000) }
 
-	return fmt.Sprintf(`%s *%s* (%s · %s)
+	result := fmt.Sprintf(`%s *%s* (%s · %s)
 💰 现价: %s%.2f (%+.2f%%)
 📊 开盘: %s%.2f | 昨收: %s%.2f
 📈 最高: %s%.2f | 最低: %s%.2f
@@ -388,4 +409,18 @@ func formatStockQuote(q *StockQuote) string {
 		sym, q.High, sym, q.Low,
 		volStr, turnStr,
 		q.Date)
+
+	// 盘前盘后数据
+	if q.IsExtHours && q.ExtPrice > 0 {
+		extEmoji := "🟢"
+		if q.ExtChangePct < 0 { extEmoji = "🔴" }
+		extLabel := "🌙 盘后"
+		if strings.Contains(strings.ToLower(q.ExtTime), "am") {
+			extLabel = "🌅 盘前"
+		}
+		result += fmt.Sprintf("\n%s %s: %s%.2f (%+.2f%%) %s",
+			extLabel, extEmoji, sym, q.ExtPrice, q.ExtChangePct, q.ExtTime)
+	}
+
+	return result
 }

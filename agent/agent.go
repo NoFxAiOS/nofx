@@ -286,11 +286,13 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 %s
 
 ## 数据说明
-- 加密货币（BTC/ETH等）：我有实时数据，会在上下文中标注 [Real-time]
-- A股/港股/美股/外汇：我**没有**实时价格数据
-- 对于没有实时数据的标的，**严禁编造具体价格**
-- 必须明确告诉用户"以下分析基于历史知识，不含实时数据，请以实际行情为准"
-- 可以分析趋势、逻辑、策略框架，但具体价位必须让用户自己查看
+- 加密货币（BTC/ETH等）：交易所实时数据，标注 [Real-time]
+- A股/港股/美股：通过 search_stock 工具获取**实时行情**（新浪财经数据源）
+- 美股支持**盘前盘后数据**：search_stock 返回的 quote 中 ext_price/ext_change_pct/ext_time 为盘前盘后价格
+- 当返回数据包含 is_ext_hours=true 时，**必须**向用户展示盘前/盘后价格
+- 外汇：没有实时数据，需要说明
+- 对于没有实时数据的标的，严禁编造具体价格
+- **有数据就给数据，没有才说没有。诚实但不过度声明。**
 
 ## 工具使用
 你可以调用以下工具来执行操作：
@@ -331,11 +333,13 @@ func (a *Agent) buildSystemPrompt(lang string) string {
 %s
 
 ## Data Notice
-- Crypto (BTC/ETH): I have real-time data, marked [Real-time] in context
-- Stocks/Forex: I do NOT have real-time prices
-- For assets without real-time data, NEVER fabricate specific prices
-- Must tell user: "Analysis based on historical knowledge, not live data. Verify with actual quotes."
-- Can analyze trends, logic, strategy frameworks — but specific prices must be verified by user
+- Crypto (BTC/ETH): Exchange real-time data, marked [Real-time]
+- A-shares/HK/US stocks: Real-time quotes via search_stock tool (Sina Finance data)
+- US stocks include **pre-market/after-hours data**: ext_price/ext_change_pct/ext_time in quote
+- When is_ext_hours=true, you MUST show pre-market/after-hours prices to the user
+- Forex: No real-time data — must inform user
+- NEVER fabricate prices for assets without data
+- Show data when you have it. Only disclaim when you don't.
 
 ## Tools
 You can call these tools to take action:

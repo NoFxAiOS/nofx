@@ -66,3 +66,14 @@
 - `cd web && npm test`：通过（108 tests）
 - `cd web && npm run build`：通过
 - 当前分支处于阶段性可交付状态，但接管工程整体仍未完全结项
+
+## 2026-03-24
+
+### 交易保护与盈利控制方案设计启动
+- 基于对 `trader/auto_trader*`、`kernel/*`、交易所适配器、`store/strategy.go` 的风控规则审计
+- 输出统一设计文档：`docs/TRADING_PROTECTION_UNIFIED_PLAN_CN.md`
+- 明确后续实施遵循“配置 → AI/手动模式 → Planner → 交易所执行 → 保护单校验 → 失败补救 → 测试验证”的全链路思路
+- 方案内已确定分阶段实施路线：
+  - Phase 1：能力矩阵 + protection 配置结构 + 手动 Full TP/SL + 开仓后保护单闭环
+  - Phase 2：Ladder TP/SL + Drawdown Take Profit + Break-even Stop
+  - Phase 3：AI protection mode + Regime Filter

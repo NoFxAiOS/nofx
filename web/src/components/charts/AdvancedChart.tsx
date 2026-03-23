@@ -198,23 +198,17 @@ export function AdvancedChart({
     if (typeof time === 'number') {
       // Determine ms vs seconds: if > 10^12, treat as milliseconds
       if (time > 1000000000000) {
-        const seconds = Math.floor(time / 1000)
-        console.log('[AdvancedChart] ✅ Unix timestamp (ms→s):', time, '→', seconds, '(', new Date(time).toISOString(), ')')
-        return seconds
+        return Math.floor(time / 1000)
       }
-      console.log('[AdvancedChart] ✅ Unix timestamp (s):', time, '(', new Date(time * 1000).toISOString(), ')')
       return time
     }
 
     const timeStr = String(time)
-    console.log('[AdvancedChart] Parsing time string:', timeStr)
 
     // Try standard ISO format
     const isoTime = new Date(timeStr).getTime()
     if (!isNaN(isoTime) && isoTime > 0) {
-      const timestamp = Math.floor(isoTime / 1000)
-      console.log('[AdvancedChart] ✅ Parsed as ISO:', timeStr, '→', timestamp, '(', new Date(timestamp * 1000).toISOString(), ')')
-      return timestamp
+      return Math.floor(isoTime / 1000)
     }
 
     // Parse custom format "MM-DD HH:mm UTC" (for legacy data)
@@ -229,35 +223,27 @@ export function AdvancedChart({
         parseInt(hour),
         parseInt(minute)
       ))
-      const timestamp = Math.floor(date.getTime() / 1000)
-      console.log('[AdvancedChart] ✅ Parsed as custom format:', timeStr, '→', timestamp, '(', new Date(timestamp * 1000).toISOString(), ')')
-      return timestamp
+      return Math.floor(date.getTime() / 1000)
     }
 
-    console.error('[AdvancedChart] ❌ Failed to parse time:', timeStr)
+    console.warn('[AdvancedChart] Failed to parse time:', timeStr)
     return 0
   }
 
   // Fetch order data
   const fetchOrders = async (traderID: string, symbol: string): Promise<OrderMarker[]> => {
     try {
-      console.log('[AdvancedChart] Fetching orders for trader:', traderID, 'symbol:', symbol)
       // Fetch filled orders, up to 200 for more history
       const result = await httpClient.get(`/api/orders?trader_id=${traderID}&symbol=${symbol}&status=FILLED&limit=200`)
 
-      console.log('[AdvancedChart] Orders API response:', result)
-
       if (!result.success || !result.data) {
-        console.warn('[AdvancedChart] No orders found, result:', result)
         return []
       }
 
       const orders = result.data
-      console.log('[AdvancedChart] Raw orders data:', orders)
       const markers: OrderMarker[] = []
 
       orders.forEach((order: any) => {
-        console.log('[AdvancedChart] Processing order:', order)
 
         // Handle field names: support PascalCase and snake_case
         const filledAt = order.filled_at || order.FilledAt || order.created_at || order.CreatedAt
@@ -295,15 +281,6 @@ export function AdvancedChart({
           positionSide = side === 'buy' ? 'long' : 'short'
         }
 
-        console.log('[AdvancedChart] Order marker:', {
-          time: timeSeconds,
-          price: avgPrice,
-          side: positionSide,
-          rawSide: side,
-          action,
-          orderAction
-        })
-
         markers.push({
           time: timeSeconds,
           price: avgPrice,
@@ -314,7 +291,6 @@ export function AdvancedChart({
         })
       })
 
-      console.log('[AdvancedChart] Final markers:', markers)
       return markers
     } catch (err) {
       console.error('[AdvancedChart] Error fetching orders:', err)
@@ -325,10 +301,7 @@ export function AdvancedChart({
   // Fetch exchange open orders (TP/SL)
   const fetchOpenOrders = async (traderID: string, symbol: string): Promise<OpenOrder[]> => {
     try {
-      console.log('[AdvancedChart] Fetching open orders for trader:', traderID, 'symbol:', symbol)
       const result = await httpClient.get(`/api/open-orders?trader_id=${traderID}&symbol=${symbol}`)
-
-      console.log('[AdvancedChart] Open orders API response:', result)
 
       if (!result.success || !result.data) {
         console.warn('[AdvancedChart] No open orders found')
@@ -516,7 +489,6 @@ export function AdvancedChart({
     const loadData = async (isRefresh = false) => {
       if (!candlestickSeriesRef.current) return
 
-      console.log('[AdvancedChart] Loading data for', symbol, interval, isRefresh ? '(refresh)' : '')
       // Only show loading on first load, avoid flicker on refresh
       if (!isRefresh) {
         setLoading(true)
@@ -526,7 +498,6 @@ export function AdvancedChart({
       try {
         // 1. Fetch kline data
         const klineData = await fetchKlineData(symbol, interval)
-        console.log('[AdvancedChart] Loaded', klineData.length, 'klines')
         candlestickSeriesRef.current.setData(klineData)
 
         // Store volume/quoteVolume data for tooltip
@@ -587,18 +558,14 @@ export function AdvancedChart({
 
         // 4. Fetch and display order markers
         if (traderID && candlestickSeriesRef.current) {
-          console.log('[AdvancedChart] Starting to fetch orders...')
           const orders = await fetchOrders(traderID, symbol)
-          console.log('[AdvancedChart] Received orders:', orders)
 
           if (orders.length > 0) {
-            console.log('[AdvancedChart] Creating markers from', orders.length, 'orders')
 
             // Extract sorted kline time array
             const klineTimes = klineData.map((k: any) => k.time as number)
             const klineMinTime = klineTimes[0] || 0
             const klineMaxTime = klineTimes[klineTimes.length - 1] || 0
-            console.log('[AdvancedChart] Kline time range:', klineMinTime, '-', klineMaxTime, '(', klineTimes.length, 'candles)')
 
             // Binary search: find the kline candle for the order time
             // Return the largest kline time <= orderTime
@@ -682,10 +649,7 @@ export function AdvancedChart({
             // Sort by time (lightweight-charts requires chronological order)
             markers.sort((a, b) => (a.time as number) - (b.time as number))
 
-            console.log('[AdvancedChart] Valid markers:', markers.length, 'out of', orders.length)
 
-            console.log('[AdvancedChart] Setting', markers.length, 'markers on candlestick series')
-            console.log('[AdvancedChart] Markers data:', JSON.stringify(markers, null, 2))
 
             try {
               // Store marker data for later toggle use
@@ -701,12 +665,10 @@ export function AdvancedChart({
                 // First time creating markers
                 seriesMarkersRef.current = createSeriesMarkers(candlestickSeriesRef.current, markersToShow)
               }
-              console.log('[AdvancedChart] ✅ Markers updated! Count:', markersToShow.length, 'Visible:', showOrderMarkers)
             } catch (err) {
               console.error('[AdvancedChart] ❌ Failed to set markers:', err)
             }
           } else {
-            console.log('[AdvancedChart] No orders found, clearing markers')
             try {
               if (seriesMarkersRef.current) {
                 seriesMarkersRef.current.setMarkers([])
@@ -715,11 +677,6 @@ export function AdvancedChart({
               console.error('[AdvancedChart] Failed to clear markers:', err)
             }
           }
-        } else {
-          console.log('[AdvancedChart] Skipping markers:', {
-            hasTraderID: !!traderID,
-            hasSeries: !!candlestickSeriesRef.current
-          })
         }
 
         // Auto-fit view only on initial load, avoid jitter on refresh
@@ -760,7 +717,6 @@ export function AdvancedChart({
         priceLinesRef.current = []
 
         const openOrders = await fetchOpenOrders(traderID, symbol)
-        console.log('[AdvancedChart] Open orders for price lines:', openOrders)
 
         if (openOrders.length > 0 && candlestickSeriesRef.current) {
           openOrders.forEach(order => {
@@ -804,7 +760,6 @@ export function AdvancedChart({
               priceLinesRef.current.push(priceLine)
             }
           })
-          console.log('[AdvancedChart] ✅ Created', priceLinesRef.current.length, 'price lines for pending orders')
         }
       } catch (err) {
         console.error('[AdvancedChart] Error loading open orders:', err)
@@ -830,7 +785,6 @@ export function AdvancedChart({
     try {
       const markersToShow = showOrderMarkers ? currentMarkersDataRef.current : []
       seriesMarkersRef.current.setMarkers(markersToShow)
-      console.log('[AdvancedChart] 🔄 Toggled markers visibility:', showOrderMarkers, 'Count:', markersToShow.length)
     } catch (err) {
       console.error('[AdvancedChart] ❌ Failed to toggle markers:', err)
     }

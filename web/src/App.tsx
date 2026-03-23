@@ -57,7 +57,6 @@ function App() {
 
   // Debug log
   useEffect(() => {
-    console.log('[App] Mounted. Route:', window.location.pathname);
   }, []);
 
   // 从URL路径读取初始页面状态（支持刷新保持页面）

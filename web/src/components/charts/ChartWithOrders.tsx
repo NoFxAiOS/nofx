@@ -69,21 +69,17 @@ export function ChartWithOrders({
       // Determine ms vs seconds: if > 10^12, treat as milliseconds
       if (time > 1000000000000) {
         const seconds = Math.floor(time / 1000)
-        console.log('[ChartWithOrders] ✅ Unix timestamp (ms→s):', time, '→', seconds, '(', new Date(time).toISOString(), ')')
         return seconds
       }
-      console.log('[ChartWithOrders] ✅ Unix timestamp (s):', time, '(', new Date(time * 1000).toISOString(), ')')
       return time
     }
 
     const timeStr = String(time)
-    console.log('[ChartWithOrders] Parsing time string:', timeStr)
 
     // Try standard ISO format
     const isoTime = new Date(timeStr).getTime()
     if (!isNaN(isoTime) && isoTime > 0) {
       const timestamp = Math.floor(isoTime / 1000)
-      console.log('[ChartWithOrders] ✅ Parsed as ISO:', timeStr, '→', timestamp, '(', new Date(timestamp * 1000).toISOString(), ')')
       return timestamp
     }
 
@@ -100,7 +96,6 @@ export function ChartWithOrders({
         parseInt(minute)
       ))
       const timestamp = Math.floor(date.getTime() / 1000)
-      console.log('[ChartWithOrders] ✅ Parsed as custom format:', timeStr, '→', timestamp, '(', new Date(timestamp * 1000).toISOString(), ')')
       return timestamp
     }
 
@@ -184,7 +179,6 @@ export function ChartWithOrders({
         })
       })
 
-      console.log(`[ChartWithOrders] Loaded ${markers.length} order markers for ${symbol}`)
       return markers
     } catch (err) {
       console.error('Error fetching orders:', err)
@@ -199,7 +193,6 @@ export function ChartWithOrders({
       return
     }
 
-    console.log('[ChartWithOrders] Initializing chart for', symbol, interval)
 
     try {
       // Create chart
@@ -303,26 +296,19 @@ export function ChartWithOrders({
   useEffect(() => {
     const loadData = async () => {
       if (!candlestickSeriesRef.current) {
-        console.log('[ChartWithOrders] Candlestick series not ready yet')
         return
       }
 
-      console.log('[ChartWithOrders] Loading data for', symbol, interval, 'trader:', traderID)
       setLoading(true)
       setError(null)
 
       try {
         // 1. Fetch kline data
-        console.log('[ChartWithOrders] Fetching kline data...')
         const klineData = await fetchKlineData(symbol, interval)
-        console.log('[ChartWithOrders] Kline data received:', klineData.length, 'candles')
         candlestickSeriesRef.current.setData(klineData)
 
         // Build kline time set for quick lookup
         const klineTimeSet = new Set(klineData.map(k => k.time as number))
-        const klineMinTime = klineData.length > 0 ? klineData[0].time : 0
-        const klineMaxTime = klineData.length > 0 ? klineData[klineData.length - 1].time : 0
-        console.log('[ChartWithOrders] Kline time range:', klineMinTime, '-', klineMaxTime, 'candles:', klineData.length)
 
         // Calculate interval in seconds
         const getIntervalSeconds = (interval: string): number => {
@@ -339,16 +325,12 @@ export function ChartWithOrders({
           }
         }
         const intervalSeconds = getIntervalSeconds(interval)
-        console.log('[ChartWithOrders] Interval:', interval, '=', intervalSeconds, 'seconds')
 
         // 2. Fetch order data and add markers
         if (traderID) {
-          console.log('[ChartWithOrders] Fetching orders for trader:', traderID, 'symbol:', symbol)
           const orders = await fetchOrders(traderID, symbol)
-          console.log('[ChartWithOrders] Received orders:', orders.length, 'orders')
 
           if (orders.length === 0) {
-            console.log('[ChartWithOrders] No orders to display')
           }
 
           // Convert orders to chart markers, aligned to kline time
@@ -385,9 +367,7 @@ export function ChartWithOrders({
             })
           })
 
-          console.log('[ChartWithOrders] Valid markers (with matching klines):', markers.length, 'out of', orders.length)
 
-          console.log('[ChartWithOrders] Setting', markers.length, 'markers on chart')
 
           try {
             // Using v5 API: createSeriesMarkers
@@ -398,7 +378,6 @@ export function ChartWithOrders({
               // First time creating markers
               seriesMarkersRef.current = createSeriesMarkers(candlestickSeriesRef.current, markers)
             }
-            console.log('[ChartWithOrders] ✅ Markers set successfully!')
           } catch (err) {
             console.error('[ChartWithOrders] ❌ Failed to set markers:', err)
           }

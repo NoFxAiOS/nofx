@@ -21,7 +21,6 @@ export function ChartWithOrdersSimple({
 
   useEffect(() => {
     const loadData = async () => {
-      console.log('[ChartSimple] Loading data for', symbol, interval, 'trader:', traderID)
       setLoading(true)
       setError(null)
 
@@ -30,24 +29,20 @@ export function ChartWithOrdersSimple({
         const limit = 100
         const klineUrl = `/api/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`
 
-        console.log('[ChartSimple] Fetching klines from our service:', klineUrl)
         const klineResult = await httpClient.get(klineUrl)
 
         if (!klineResult.success || !klineResult.data) {
           throw new Error('Failed to fetch klines from our service')
         }
 
-        console.log('[ChartSimple] Received klines:', klineResult.data.length)
         setKlineCount(klineResult.data.length)
 
         // 测试获取订单数据
         if (traderID) {
           const tradesUrl = `/api/trades?trader_id=${traderID}&symbol=${symbol}&limit=100`
-          console.log('[ChartSimple] Fetching trades from:', tradesUrl)
           const tradesResult = await httpClient.get(tradesUrl)
 
           if (tradesResult.success && tradesResult.data) {
-            console.log('[ChartSimple] Received trades:', tradesResult.data.length)
             setOrderCount(tradesResult.data.length)
           } else {
             console.warn('[ChartSimple] Failed to fetch trades:', tradesResult.message || 'Unknown error', tradesResult)

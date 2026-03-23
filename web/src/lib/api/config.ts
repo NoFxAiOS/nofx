@@ -22,16 +22,6 @@ export const configApi = {
     return result.data!
   },
 
-  async getPromptTemplates(): Promise<string[]> {
-    const res = await fetch(`${API_BASE}/prompt-templates`)
-    if (!res.ok) throw new Error('Failed to fetch prompt templates')
-    const data = await res.json()
-    if (Array.isArray(data.templates)) {
-      return data.templates.map((item: { name: string }) => item.name)
-    }
-    return []
-  },
-
   async updateModelConfigs(request: UpdateModelConfigRequest): Promise<void> {
     // Check if transport encryption is enabled
     const config = await CryptoService.fetchCryptoConfig()

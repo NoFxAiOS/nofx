@@ -78,8 +78,6 @@ func (s *Server) setupRoutes() {
 		// Health check
 		api.Any("/health", s.handleHealth)
 
-		// Admin login (used in admin mode, public)
-
 		// System supported models and exchanges (no authentication required)
 		s.route(api, "GET", "/supported-models", "List supported AI model providers", s.handleGetSupportedModels)
 		s.route(api, "GET", "/supported-exchanges", "List supported exchange types", s.handleGetSupportedExchanges)

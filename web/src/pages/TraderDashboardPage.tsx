@@ -1,16 +1,22 @@
-import { useEffect, useState, useRef } from 'react'
+import { lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { mutate } from 'swr'
 import { api } from '../lib/api'
-import { ChartTabs } from '../components/charts/ChartTabs'
+const ChartTabs = lazy(() =>
+  import('../components/charts/ChartTabs').then((m) => ({ default: m.ChartTabs }))
+)
 import { DecisionCard } from '../components/trader/DecisionCard'
-import { PositionHistory } from '../components/trader/PositionHistory'
+const PositionHistory = lazy(() =>
+  import('../components/trader/PositionHistory').then((m) => ({ default: m.PositionHistory }))
+)
 import { PunkAvatar, getTraderAvatar } from '../components/common/PunkAvatar'
 import { confirmToast, notify } from '../lib/notify'
 import { formatPrice, formatQuantity } from '../utils/format'
 import { t, type Language } from '../i18n/translations'
 import { LogOut, Loader2, Eye, EyeOff, Copy, Check } from 'lucide-react'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
-import { GridRiskPanel } from '../components/strategy/GridRiskPanel'
+const GridRiskPanel = lazy(() =>
+  import('../components/strategy/GridRiskPanel').then((m) => ({ default: m.GridRiskPanel }))
+)
 import type {
     SystemStatus,
     AccountInfo,
@@ -110,6 +116,10 @@ interface TraderDashboardPageProps {
     lastUpdate: string
     language: Language
     exchanges?: Exchange[]
+}
+
+function SectionLoader({ heightClass = 'min-h-[240px]' }: { heightClass?: string }) {
+    return <div className={`w-full ${heightClass} rounded-lg border border-white/5 bg-black/20 animate-pulse`} />
 }
 
 export function TraderDashboardPage({
@@ -550,15 +560,17 @@ export function TraderDashboardPage({
                             className="chart-container animate-slide-in scroll-mt-32 backdrop-blur-sm"
                             style={{ animationDelay: '0.1s' }}
                         >
-                            <ChartTabs
-                                traderId={selectedTrader.trader_id}
-                                selectedSymbol={selectedChartSymbol}
-                                updateKey={chartUpdateKey}
-                                exchangeId={getExchangeTypeFromList(
-                                    selectedTrader.exchange_id,
-                                    exchanges
-                                )}
-                            />
+                            <Suspense fallback={<SectionLoader heightClass="h-[500px] md:h-[600px]" />}>
+                                <ChartTabs
+                                    traderId={selectedTrader.trader_id}
+                                    selectedSymbol={selectedChartSymbol}
+                                    updateKey={chartUpdateKey}
+                                    exchangeId={getExchangeTypeFromList(
+                                        selectedTrader.exchange_id,
+                                        exchanges
+                                    )}
+                                />
+                            </Suspense>
                         </div>
 
                         {/* Current Positions */}
@@ -801,7 +813,9 @@ export function TraderDashboardPage({
                                 {t('positionHistory.title', language)}
                             </h2>
                         </div>
-                        <PositionHistory traderId={selectedTraderId} />
+                        <Suspense fallback={<SectionLoader heightClass="min-h-[420px]" />}>
+                            <PositionHistory traderId={selectedTraderId} />
+                        </Suspense>
                     </div>
                 )}
             </div>

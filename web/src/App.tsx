@@ -1,22 +1,74 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useSWR from 'swr'
 import { api } from './lib/api'
-import { TraderDashboardPage } from './pages/TraderDashboardPage'
 
-import { AITradersPage } from './components/trader/AITradersPage'
-import { LoginPage } from './components/auth/LoginPage'
-import { SetupPage } from './components/modals/SetupPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { ResetPasswordPage } from './components/auth/ResetPasswordPage'
-import { CompetitionPage } from './components/trader/CompetitionPage'
-import { LandingPage } from './pages/LandingPage'
-import { FAQPage } from './pages/FAQPage'
-import { StrategyStudioPage } from './pages/StrategyStudioPage'
-import { StrategyMarketPage } from './pages/StrategyMarketPage'
-import { DataPage } from './pages/DataPage'
-import { LoginRequiredOverlay } from './components/auth/LoginRequiredOverlay'
-import HeaderBar from './components/common/HeaderBar'
+const TraderDashboardPage = lazy(() =>
+  import('./pages/TraderDashboardPage').then((m) => ({
+    default: m.TraderDashboardPage,
+  }))
+)
+const AITradersPage = lazy(() =>
+  import('./components/trader/AITradersPage').then((m) => ({
+    default: m.AITradersPage,
+  }))
+)
+const LoginPage = lazy(() =>
+  import('./components/auth/LoginPage').then((m) => ({
+    default: m.LoginPage,
+  }))
+)
+const SetupPage = lazy(() =>
+  import('./components/modals/SetupPage').then((m) => ({
+    default: m.SetupPage,
+  }))
+)
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({
+    default: m.SettingsPage,
+  }))
+)
+const ResetPasswordPage = lazy(() =>
+  import('./components/auth/ResetPasswordPage').then((m) => ({
+    default: m.ResetPasswordPage,
+  }))
+)
+const CompetitionPage = lazy(() =>
+  import('./components/trader/CompetitionPage').then((m) => ({
+    default: m.CompetitionPage,
+  }))
+)
+const LandingPage = lazy(() =>
+  import('./pages/LandingPage').then((m) => ({
+    default: m.LandingPage,
+  }))
+)
+const FAQPage = lazy(() =>
+  import('./pages/FAQPage').then((m) => ({
+    default: m.FAQPage,
+  }))
+)
+const StrategyStudioPage = lazy(() =>
+  import('./pages/StrategyStudioPage').then((m) => ({
+    default: m.StrategyStudioPage,
+  }))
+)
+const StrategyMarketPage = lazy(() =>
+  import('./pages/StrategyMarketPage').then((m) => ({
+    default: m.StrategyMarketPage,
+  }))
+)
+const DataPage = lazy(() =>
+  import('./pages/DataPage').then((m) => ({
+    default: m.DataPage,
+  }))
+)
+const LoginRequiredOverlay = lazy(() =>
+  import('./components/auth/LoginRequiredOverlay').then((m) => ({
+    default: m.LoginRequiredOverlay,
+  }))
+)
+const HeaderBar = lazy(() => import('./components/common/HeaderBar'))
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ConfirmDialogProvider } from './components/common/ConfirmDialog'
@@ -45,6 +97,22 @@ type Page =
   | 'login'
   | 'register'
 
+function PageLoader() {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: '#0B0E11' }}
+    >
+      <div className="text-center">
+        <img
+          src="/icons/nofx.svg"
+          alt="NoFx Logo"
+          className="w-16 h-16 mx-auto mb-4 animate-pulse"
+        />
+      </div>
+    </div>
+  )
+}
 
 
 function App() {
@@ -332,12 +400,20 @@ function App() {
 
   // First-time setup: redirect to /setup if system not initialized
   if (systemConfig && !systemConfig.initialized && !user) {
-    return <SetupPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <SetupPage />
+      </Suspense>
+    )
   }
 
   // Handle specific routes regardless of authentication
   if (route === '/login') {
-    return <LoginPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LoginPage />
+      </Suspense>
+    )
   }
   if (route === '/setup') {
     // If already initialized, redirect to login
@@ -345,35 +421,45 @@ function App() {
       window.location.href = '/login'
       return null
     }
-    return <SetupPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <SetupPage />
+      </Suspense>
+    )
   }
   if (route === '/faq') {
     return (
-      <div
-        className="min-h-screen"
-        style={{ background: '#0B0E11', color: '#EAECEF' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="faq"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <FAQPage />
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
+      <Suspense fallback={<PageLoader />}>
+        <div
+          className="min-h-screen"
+          style={{ background: '#0B0E11', color: '#EAECEF' }}
+        >
+          <HeaderBar
+            isLoggedIn={!!user}
+            currentPage="faq"
+            language={language}
+            onLanguageChange={setLanguage}
+            user={user}
+            onLogout={logout}
+            onLoginRequired={handleLoginRequired}
+            onPageChange={navigateToPage}
+          />
+          <FAQPage />
+          <LoginRequiredOverlay
+            isOpen={loginOverlayOpen}
+            onClose={() => setLoginOverlayOpen(false)}
+            featureName={loginOverlayFeature}
+          />
+        </div>
+      </Suspense>
     )
   }
   if (route === '/reset-password') {
-    return <ResetPasswordPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <ResetPasswordPage />
+      </Suspense>
+    )
   }
   if (route === '/settings') {
     if (!user || !token) {
@@ -381,18 +467,20 @@ function App() {
       return null
     }
     return (
-      <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
-        <HeaderBar
-          isLoggedIn={!!user}
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={navigateToPage}
-        />
-        <SettingsPage />
-      </div>
+      <Suspense fallback={<PageLoader />}>
+        <div className="min-h-screen" style={{ background: '#0B0E11', color: '#EAECEF' }}>
+          <HeaderBar
+            isLoggedIn={!!user}
+            language={language}
+            onLanguageChange={setLanguage}
+            user={user}
+            onLogout={logout}
+            onLoginRequired={handleLoginRequired}
+            onPageChange={navigateToPage}
+          />
+          <SettingsPage />
+        </div>
+      </Suspense>
     )
   }
   // Data page - publicly accessible with embedded dashboard
@@ -413,46 +501,57 @@ function App() {
       }
     }
     return (
-      <div
-        className="min-h-screen"
-        style={{ background: '#0B0E11', color: '#EAECEF' }}
-      >
-        <HeaderBar
-          isLoggedIn={!!user}
-          currentPage="data"
-          language={language}
-          onLanguageChange={setLanguage}
-          user={user}
-          onLogout={logout}
-          onLoginRequired={handleLoginRequired}
-          onPageChange={dataPageNavigate}
-        />
-        <main className="pt-16">
-          <DataPage />
-        </main>
-        <LoginRequiredOverlay
-          isOpen={loginOverlayOpen}
-          onClose={() => setLoginOverlayOpen(false)}
-          featureName={loginOverlayFeature}
-        />
-      </div>
+      <Suspense fallback={<PageLoader />}>
+        <div
+          className="min-h-screen"
+          style={{ background: '#0B0E11', color: '#EAECEF' }}
+        >
+          <HeaderBar
+            isLoggedIn={!!user}
+            currentPage="data"
+            language={language}
+            onLanguageChange={setLanguage}
+            user={user}
+            onLogout={logout}
+            onLoginRequired={handleLoginRequired}
+            onPageChange={dataPageNavigate}
+          />
+          <main className="pt-16">
+            <DataPage />
+          </main>
+          <LoginRequiredOverlay
+            isOpen={loginOverlayOpen}
+            onClose={() => setLoginOverlayOpen(false)}
+            featureName={loginOverlayFeature}
+          />
+        </div>
+      </Suspense>
     )
   }
   // Show landing page for root route
   if (route === '/' || route === '') {
-    return <LandingPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LandingPage />
+      </Suspense>
+    )
   }
 
   // Redirect unauthenticated users to landing page
   if (!user || !token) {
-    return <LandingPage />
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <LandingPage />
+      </Suspense>
+    )
   }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ background: '#0B0E11', color: '#EAECEF' }}
-    >
+    <Suspense fallback={<PageLoader />}>
+      <div
+        className="min-h-screen"
+        style={{ background: '#0B0E11', color: '#EAECEF' }}
+      >
       <HeaderBar
         isLoggedIn={!!user}
         currentPage={currentPage}
@@ -647,6 +746,7 @@ function App() {
         featureName={loginOverlayFeature}
       />
     </div>
+    </Suspense>
   )
 }
 

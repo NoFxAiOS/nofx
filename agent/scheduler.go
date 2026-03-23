@@ -43,9 +43,13 @@ func (s *Scheduler) Start(ctx context.Context) {
 					lastCheck = now
 				}
 				// Clean stale chat history every hour (sessions idle > 24h)
+				// and expired pending trades
 				if now.Sub(lastCleanup) > 1*time.Hour {
 					if s.agent.history != nil {
 						s.agent.history.CleanOld(24 * time.Hour)
+					}
+					if s.agent.pending != nil {
+						s.agent.pending.CleanExpired()
 					}
 					lastCleanup = now
 				}

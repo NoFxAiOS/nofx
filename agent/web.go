@@ -17,6 +17,17 @@ var validSymbolRe = regexp.MustCompile(`^[A-Za-z0-9\-_]{1,20}$`)
 // validIntervalRe matches only valid kline intervals (e.g. 1m, 5m, 1h, 4h, 1d, 1w).
 var validIntervalRe = regexp.MustCompile(`^[0-9]{1,2}[mhHdDwWM]$`)
 
+// binanceClient is a shared HTTP client for proxying Binance API requests.
+// Reused across requests to benefit from connection pooling.
+var binanceClient = &http.Client{
+	Timeout: 10 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        20,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
 // WebHandler provides HTTP endpoints for the NOFXi agent.
 type WebHandler struct {
 	agent  *Agent
@@ -105,8 +116,7 @@ func (w *WebHandler) HandleTicker(rw http.ResponseWriter, r *http.Request) {
 }
 
 func proxyBinance(rw http.ResponseWriter, url string) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := binanceClient.Get(url)
 	if err != nil {
 		writeJSON(rw, 502, map[string]string{"error": "upstream request failed"})
 		return

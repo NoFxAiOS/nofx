@@ -39,6 +39,7 @@ export function AgentChatPage() {
   const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputHandle>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Sidebar section collapse state
   const [sections, setSections] = useState({
@@ -98,6 +99,11 @@ export function AgentChatPage() {
     setLoading(true)
 
     try {
+      // Abort any in-flight request
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+
       const res = await fetch('/api/agent/chat', {
         method: 'POST',
         headers: {
@@ -105,15 +111,22 @@ export function AgentChatPage() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: text, lang: language }),
+        signal: controller.signal,
       })
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Server error (${res.status})`)
+      }
       const data = await res.json()
       const responseText = data.response || data.error || 'No response'
 
-      // Simulate streaming by revealing text progressively
+      // Simulate streaming by revealing text in chunks (batched to reduce renders)
       const words = responseText.split(/(\s+)/)
+      const chunkSize = Math.max(3, Math.ceil(words.length / 40)) // ~40 frames max
       let displayed = ''
-      for (let i = 0; i < words.length; i++) {
-        displayed += words[i]
+      for (let i = 0; i < words.length; i += chunkSize) {
+        const chunk = words.slice(i, i + chunkSize).join('')
+        displayed += chunk
         const current = displayed
         setMessages((prev) =>
           prev.map((m) =>
@@ -129,8 +142,8 @@ export function AgentChatPage() {
               : m
           )
         )
-        if (i < words.length - 1) {
-          await new Promise((r) => setTimeout(r, 10))
+        if (i + chunkSize < words.length) {
+          await new Promise((r) => setTimeout(r, 20))
         }
       }
       // Mark streaming done
@@ -138,21 +151,26 @@ export function AgentChatPage() {
         prev.map((m) => (m.id === botId ? { ...m, streaming: false } : m))
       )
     } catch (e: any) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === botId
-            ? {
-                ...m,
-                text: '⚠️ Error: ' + e.message,
-                time: new Date().toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-                streaming: false,
-              }
-            : m
+      if (e.name === 'AbortError') {
+        // Request was cancelled (e.g. user sent a new message), clean up silently
+        setMessages((prev) => prev.filter((m) => m.id !== botId))
+      } else {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botId
+              ? {
+                  ...m,
+                  text: '⚠️ Error: ' + e.message,
+                  time: new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                  streaming: false,
+                }
+              : m
+          )
         )
-      )
+      }
     }
     setLoading(false)
     chatInputRef.current?.focus()

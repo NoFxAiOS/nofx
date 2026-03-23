@@ -32,6 +32,17 @@ func NewBrain(agent *Agent, logger *slog.Logger) *Brain {
 
 func (b *Brain) Stop() { close(b.stopCh) }
 
+// cleanStaleSignals removes debounce entries older than 30 minutes.
+func (b *Brain) cleanStaleSignals() {
+	cutoff := time.Now().Add(-30 * time.Minute)
+	b.recentSignals.Range(func(key, value any) bool {
+		if t, ok := value.(time.Time); ok && t.Before(cutoff) {
+			b.recentSignals.Delete(key)
+		}
+		return true
+	})
+}
+
 func (b *Brain) HandleSignal(sig Signal) {
 	key := fmt.Sprintf("%s:%s", sig.Type, sig.Symbol)
 	if v, ok := b.recentSignals.Load(key); ok {
@@ -53,11 +64,16 @@ func (b *Brain) StartNewsScan(interval time.Duration) {
 	safe.GoNamed("brain-news-scan", func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		cleanTick := 0
 		for {
 			select {
 			case <-b.stopCh: return
 			case <-ticker.C:
 				b.scanNews(seen)
+				cleanTick++
+				if cleanTick%6 == 0 { // every ~30 min
+					b.cleanStaleSignals()
+				}
 			}
 		}
 	})
@@ -67,6 +83,10 @@ func (b *Brain) scanNews(seen map[string]bool) {
 	resp, err := b.http.Get("https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest")
 	if err != nil { return }
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b.logger.Debug("news API non-200", "status", resp.StatusCode)
+		return
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
 	if err != nil { return }
 
@@ -148,8 +168,9 @@ func (b *Brain) sendBrief(hour int) {
 		resp, err := b.http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", sym))
 		if err != nil { continue }
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 64*1024)) // 64KB limit
+		statusOK := resp.StatusCode == http.StatusOK
 		resp.Body.Close()
-		if readErr != nil { continue }
+		if readErr != nil || !statusOK { continue }
 		var t map[string]string
 		if err := json.Unmarshal(body, &t); err != nil { continue }
 		if sym == "BTCUSDT" { btcPrice = t["lastPrice"]; btcChg = t["priceChangePercent"] }

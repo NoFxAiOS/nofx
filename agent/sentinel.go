@@ -116,6 +116,10 @@ func (s *Sentinel) check(symbol string) {
 	resp, err := s.http.Get(fmt.Sprintf("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=%s", symbol))
 	if err != nil { return }
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Debug("sentinel ticker non-200", "symbol", symbol, "status", resp.StatusCode)
+		return
+	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 256*1024)) // 256KB limit
 	if err != nil { return }
 	var t map[string]interface{}

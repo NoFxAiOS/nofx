@@ -68,7 +68,15 @@
 
 ### Performance
 - [DONE] Reuse shared HTTP client in Hyperliquid trader (was creating new client per API call, preventing TCP/TLS connection reuse)
+- [DONE] Reuse shared HTTP client in Bybit trader — replaced `http.Get` (no timeout!) and `http.DefaultClient` with `bybitHTTPClient` (30s timeout, connection pooling)
 - [PENDING] `gatherContext` in agent.go iterates all traders and positions on every message — consider caching (low priority: only triggered per user message)
+
+### Frontend Auth Bugs (2026-03-23 11:22)
+- [DONE] Fix `resetPassword` in AuthContext.tsx — was calling `/api/reset-password` without auth token (endpoint moved behind auth middleware, so it always returned 401)
+- [DONE] Fix SettingsPage.tsx password change — was using `localStorage.getItem('token')` but auth system stores as `auth_token` (always sent empty Bearer token)
+
+### Code Consistency
+- [DONE] Migrate remaining `io.ReadAll(io.LimitReader())` in agent/brain.go and agent/sentinel.go to `safe.ReadAllLimited` — consistent usage across codebase, removed unused `io` imports
 
 ### Features
 - [PENDING] Agent chat has fake streaming (word-by-word setTimeout) — implement real SSE streaming

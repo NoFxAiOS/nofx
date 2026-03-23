@@ -91,7 +91,7 @@ export const AI_PROVIDER_CONFIG: Record<string, AIProviderConfig> = {
     apiName: 'Moonshot',
   },
   minimax: {
-    defaultModel: 'MiniMax-M2.5',
+    defaultModel: 'MiniMax-M2.7',
     apiUrl: 'https://platform.minimax.io',
     apiName: 'MiniMax',
   },

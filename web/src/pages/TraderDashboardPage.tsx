@@ -191,8 +191,9 @@ export function TraderDashboardPage({
 
     // Handle symbol click from Decision Card
     const handleSymbolClick = (symbol: string) => {
-        // Set the selected symbol
+        // Set the selected symbol and force chart tabs to react even if the symbol is the same
         setSelectedChartSymbol(symbol)
+        setChartUpdateKey(Date.now())
         // Scroll to chart section
         setTimeout(() => {
             chartSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })

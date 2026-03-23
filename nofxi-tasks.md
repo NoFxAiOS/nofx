@@ -112,6 +112,13 @@
   — OKX, Hyperliquid, Aster, Bybit, KuCoin, Gate, Bitget, Lighter, Binance
   — Each stopped trader was leaking a goroutine + ticker forever
 
+### 2026-03-23 12:52 — Resilience, UX & Graceful Shutdown
+- [DONE] Add graceful HTTP server shutdown on SIGTERM/SIGINT — drains in-flight requests before stopping traders
+- [DONE] Add React ErrorBoundary component — catches render crashes with retry UI instead of white screen
+- [DONE] Wrap main content area + settings page with ErrorBoundary
+- [DONE] Fix ChartTabs.tsx responsive height — was using non-reactive `window.innerWidth` at render time, replaced with Tailwind `h-[500px] md:h-[600px]`
+- [DONE] Restart backend with latest build — all fixes since 9:27AM now live (health endpoint, safe helpers, ticker leaks, etc.)
+
 ### Features
 - [PENDING] Agent chat has fake streaming (word-by-word setTimeout) — implement real SSE streaming
 - [PENDING] Add WebSocket support for real-time position/balance updates instead of polling

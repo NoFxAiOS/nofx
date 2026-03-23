@@ -217,7 +217,7 @@ func (t *HyperliquidTrader) getXYZDexBalance() (accountValue float64, unrealized
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := t.httpClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("failed to execute request: %w", err)
@@ -308,7 +308,7 @@ func (t *HyperliquidTrader) getXyzMarketPrice(coin string) (float64, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := t.httpClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to execute request: %w", err)

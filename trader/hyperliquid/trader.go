@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"nofx/logger"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/sonirico/go-hyperliquid"
@@ -17,6 +19,7 @@ import (
 type HyperliquidTrader struct {
 	exchange         *hyperliquid.Exchange
 	ctx              context.Context
+	httpClient       *http.Client // Shared HTTP client for direct API calls (connection reuse)
 	walletAddr       string
 	meta             *hyperliquid.Meta // Cache meta information (including precision)
 	metaMutex        sync.RWMutex      // Protect concurrent access to meta field
@@ -220,6 +223,7 @@ func NewHyperliquidTrader(privateKeyHex string, walletAddr string, testnet bool,
 	return &HyperliquidTrader{
 		exchange:         exchange,
 		ctx:              ctx,
+		httpClient:       &http.Client{Timeout: 30 * time.Second},
 		walletAddr:       walletAddr,
 		meta:             meta,
 		isCrossMargin:    true,           // Use cross margin mode by default

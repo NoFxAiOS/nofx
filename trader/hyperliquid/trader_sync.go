@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"nofx/logger"
 	"strings"
-	"time"
 )
 
 // refreshMetaIfNeeded refreshes meta information when invalid (triggered when Asset ID is 0)
@@ -67,7 +66,7 @@ func (t *HyperliquidTrader) fetchXyzMeta() error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := t.httpClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to execute request: %w", err)

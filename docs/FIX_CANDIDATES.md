@@ -48,3 +48,18 @@
 1. 继续收束前端 API 调用到统一 API 层
 2. 扫描并清理其它未使用/失配的前后端接口封装
 3. 补一个轻量检查，防止前端再引入不存在的 `/api/*` 路径
+
+
+## 已完成的推进（性能与交付）
+- 顶层页面已改为懒加载，减少首屏主入口负担
+- Trader Dashboard 已拆分为更细粒度 chunk（ChartTabs / PositionHistory / GridRiskPanel）
+- Vite 已配置 manualChunks，主入口共享包已从约 640k 降到约 203k
+- MetricTooltip 已改为按需动态加载 KaTeX，减少非必要静态依赖
+- Recharts 入口组件已改为懒加载（EquityChart / ComparisonChart）
+
+## 当前状态判断
+- 前后端接口失配：当前未发现
+- 前端测试：通过
+- 后端测试：通过
+- 前端构建：通过
+- 剩余工作重心：继续做低风险性能优化与交付收尾，而不是高风险重构

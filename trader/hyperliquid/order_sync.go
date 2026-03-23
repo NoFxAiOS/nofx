@@ -139,6 +139,7 @@ func (t *HyperliquidTrader) SyncOrdersFromHyperliquid(traderID string, exchangeI
 // StartOrderSync starts background order sync task
 func (t *HyperliquidTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("hyperliquid-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromHyperliquid(traderID, exchangeID, exchangeType, st); err != nil {

@@ -148,6 +148,7 @@ func (t *LighterTraderV2) SyncOrdersFromLighter(traderID string, exchangeID stri
 // StartOrderSync starts background order sync task
 func (t *LighterTraderV2) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("lighter-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromLighter(traderID, exchangeID, exchangeType, st); err != nil {

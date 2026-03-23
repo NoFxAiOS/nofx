@@ -361,6 +361,7 @@ func (t *FuturesTrader) StartOrderSync(traderID string, exchangeID string, excha
 
 	// Then run periodically
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("binance-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromBinance(traderID, exchangeID, exchangeType, st); err != nil {

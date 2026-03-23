@@ -402,6 +402,7 @@ func (t *KuCoinTrader) SyncOrdersFromKuCoin(traderID string, exchangeID string, 
 // StartOrderSync starts background order sync task for KuCoin
 func (t *KuCoinTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("kucoin-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromKuCoin(traderID, exchangeID, exchangeType, st); err != nil {

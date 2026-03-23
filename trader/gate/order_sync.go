@@ -294,6 +294,7 @@ func (t *GateTrader) SyncOrdersFromGate(traderID string, exchangeID string, exch
 // StartOrderSync starts background order sync task for Gate
 func (t *GateTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("gate-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromGate(traderID, exchangeID, exchangeType, st); err != nil {

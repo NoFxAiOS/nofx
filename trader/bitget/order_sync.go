@@ -282,6 +282,7 @@ func (t *BitgetTrader) SyncOrdersFromBitget(traderID string, exchangeID string, 
 // StartOrderSync starts background order sync task for Bitget
 func (t *BitgetTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("bitget-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromBitget(traderID, exchangeID, exchangeType, st); err != nil {

@@ -93,6 +93,22 @@ func agentTools() []mcp.Tool {
 				},
 			},
 		},
+		{
+			Type: "function",
+			Function: mcp.FunctionDef{
+				Name:        "get_trade_history",
+				Description: "Get recent closed trade history with PnL. Use when user asks about past trades, performance, or trade results. Returns the most recent closed positions.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"limit": map[string]any{
+							"type":        "number",
+							"description": "Number of recent trades to return (default 10, max 50)",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -109,6 +125,8 @@ func (a *Agent) handleToolCall(ctx context.Context, userID int64, lang string, t
 		return a.toolGetBalance()
 	case "get_market_price":
 		return a.toolGetMarketPrice(tc.Function.Arguments)
+	case "get_trade_history":
+		return a.toolGetTradeHistory(tc.Function.Arguments)
 	default:
 		return fmt.Sprintf(`{"error": "unknown tool: %s"}`, tc.Function.Name)
 	}
@@ -330,4 +348,101 @@ func (a *Agent) toolGetMarketPrice(argsJSON string) string {
 	}
 
 	return fmt.Sprintf(`{"error": "could not get price for %s"}`, sym)
+}
+
+func (a *Agent) toolGetTradeHistory(argsJSON string) string {
+	if a.store == nil {
+		return `{"error": "store not available"}`
+	}
+
+	var args struct {
+		Limit int `json:"limit"`
+	}
+	if argsJSON != "" {
+		_ = json.Unmarshal([]byte(argsJSON), &args)
+	}
+	if args.Limit <= 0 {
+		args.Limit = 10
+	}
+	if args.Limit > 50 {
+		args.Limit = 50
+	}
+
+	if a.traderManager == nil {
+		return `{"error": "no trader manager configured"}`
+	}
+
+	var trades []map[string]any
+	var totalPnL float64
+	var wins, losses int
+
+	for id, t := range a.traderManager.GetAllTraders() {
+		positions, err := a.store.Position().GetClosedPositions(id, args.Limit)
+		if err != nil {
+			continue
+		}
+		tid := id
+		if len(tid) > 8 {
+			tid = tid[:8]
+		}
+		for _, pos := range positions {
+			pnl := pos.RealizedPnL
+			totalPnL += pnl
+			if pnl >= 0 {
+				wins++
+			} else {
+				losses++
+			}
+
+			entryTime := ""
+			if pos.EntryTime > 0 {
+				entryTime = time.Unix(pos.EntryTime/1000, 0).Format("2006-01-02 15:04")
+			}
+			exitTime := ""
+			if pos.ExitTime > 0 {
+				exitTime = time.Unix(pos.ExitTime/1000, 0).Format("2006-01-02 15:04")
+			}
+
+			trades = append(trades, map[string]any{
+				"trader":      t.GetName(),
+				"trader_id":   tid,
+				"symbol":      pos.Symbol,
+				"side":        pos.Side,
+				"entry_price": pos.EntryPrice,
+				"exit_price":  pos.ExitPrice,
+				"quantity":    pos.Quantity,
+				"leverage":    pos.Leverage,
+				"pnl":         pnl,
+				"entry_time":  entryTime,
+				"exit_time":   exitTime,
+			})
+		}
+	}
+
+	if len(trades) == 0 {
+		return `{"trades": [], "message": "no closed trades found"}`
+	}
+
+	// Only return up to the limit
+	if len(trades) > args.Limit {
+		trades = trades[:args.Limit]
+	}
+
+	winRate := 0.0
+	total := wins + losses
+	if total > 0 {
+		winRate = float64(wins) / float64(total) * 100
+	}
+
+	result, _ := json.Marshal(map[string]any{
+		"trades":    trades,
+		"summary": map[string]any{
+			"total_trades": total,
+			"wins":         wins,
+			"losses":       losses,
+			"win_rate":     fmt.Sprintf("%.1f%%", winRate),
+			"total_pnl":    totalPnL,
+		},
+	})
+	return string(result)
 }

@@ -299,6 +299,7 @@ func (t *BybitTrader) SyncOrdersFromBybit(traderID string, exchangeID string, ex
 // StartOrderSync starts background order sync task for Bybit
 func (t *BybitTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("bybit-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromBybit(traderID, exchangeID, exchangeType, st); err != nil {

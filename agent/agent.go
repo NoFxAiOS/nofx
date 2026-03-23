@@ -399,15 +399,40 @@ func (a *Agent) gatherContext(text string) string {
 	var parts []string
 	upper := strings.ToUpper(text)
 
-	// Crypto — try to get real-time data
-	cryptoSymbols := []string{"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK"}
-	for _, sym := range cryptoSymbols {
+	// Crypto — detect symbols dynamically
+	// 1. Check known popular symbols (fast path)
+	// 2. Extract any "XXXUSDT" pattern from text (catches arbitrary pairs)
+	knownSymbols := []string{
+		"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
+		"PEPE", "SHIB", "ARB", "OP", "SUI", "APT", "SEI", "TIA", "JUP", "WIF",
+		"NEAR", "ATOM", "FTM", "MATIC", "INJ", "RENDER", "FET", "TAO", "WLD",
+		"AAVE", "UNI", "LDO", "MKR", "CRV", "PENDLE", "ENA", "ONDO", "TRUMP",
+	}
+	matched := make(map[string]bool)
+	for _, sym := range knownSymbols {
 		if strings.Contains(upper, sym) {
-			md, err := market.Get(sym + "USDT")
-			if err == nil {
-				parts = append(parts, fmt.Sprintf("[%s/USDT Real-time]\nPrice: $%.4f | 1h: %+.2f%% | 4h: %+.2f%% | RSI7: %.1f | EMA20: %.4f | MACD: %.6f | Funding: %.4f%%",
-					sym, md.CurrentPrice, md.PriceChange1h, md.PriceChange4h, md.CurrentRSI7, md.CurrentEMA20, md.CurrentMACD, md.FundingRate*100))
+			matched[sym] = true
+		}
+	}
+	// Also extract "XXXUSDT" patterns for coins not in the known list
+	for _, word := range strings.Fields(upper) {
+		word = strings.Trim(word, ".,!?;:()[]{}\"'")
+		if strings.HasSuffix(word, "USDT") && len(word) > 4 && len(word) <= 15 {
+			sym := strings.TrimSuffix(word, "USDT")
+			if len(sym) >= 2 && len(sym) <= 10 {
+				matched[sym] = true
 			}
+		}
+	}
+	// Cap at 5 symbols to avoid slow context gathering
+	count := 0
+	for sym := range matched {
+		if count >= 5 { break }
+		md, err := market.Get(sym + "USDT")
+		if err == nil && md.CurrentPrice > 0 {
+			parts = append(parts, fmt.Sprintf("[%s/USDT Real-time]\nPrice: $%.4f | 1h: %+.2f%% | 4h: %+.2f%% | RSI7: %.1f | EMA20: %.4f | MACD: %.6f | Funding: %.4f%%",
+				sym, md.CurrentPrice, md.PriceChange1h, md.PriceChange4h, md.CurrentRSI7, md.CurrentEMA20, md.CurrentMACD, md.FundingRate*100))
+			count++
 		}
 	}
 

@@ -275,6 +275,7 @@ func (t *OKXTrader) SyncOrdersFromOKX(traderID string, exchangeID string, exchan
 // StartOrderSync starts background order sync task for OKX
 func (t *OKXTrader) StartOrderSync(traderID string, exchangeID string, exchangeType string, st *store.Store, interval time.Duration) {
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	safe.GoNamed("okx-order-sync", func() {
 		for range ticker.C {
 			if err := t.SyncOrdersFromOKX(traderID, exchangeID, exchangeType, st); err != nil {

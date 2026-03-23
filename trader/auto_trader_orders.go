@@ -9,6 +9,41 @@ import (
 	"time"
 )
 
+func (at *AutoTrader) getExecutionMarketData(symbol string) (*market.Data, error) {
+	// Prefer strategy-configured timeframes so execution aligns with AI analysis.
+	if at.strategyEngine != nil {
+		cfg := at.strategyEngine.GetConfig()
+		timeframes := append([]string{}, cfg.Indicators.Klines.SelectedTimeframes...)
+		primaryTimeframe := cfg.Indicators.Klines.PrimaryTimeframe
+		klineCount := cfg.Indicators.Klines.PrimaryCount
+
+		// Backward-compatible fallback for older configs.
+		if len(timeframes) == 0 {
+			if primaryTimeframe != "" {
+				timeframes = append(timeframes, primaryTimeframe)
+			} else {
+				timeframes = append(timeframes, "3m")
+			}
+			if cfg.Indicators.Klines.LongerTimeframe != "" {
+				timeframes = append(timeframes, cfg.Indicators.Klines.LongerTimeframe)
+			}
+		}
+		if primaryTimeframe == "" && len(timeframes) > 0 {
+			primaryTimeframe = timeframes[0]
+		}
+		if klineCount <= 0 {
+			klineCount = 30
+		}
+
+		logger.Infof("  📊 Execution market data uses strategy timeframes: %v (primary=%s, count=%d)", timeframes, primaryTimeframe, klineCount)
+		return market.GetWithTimeframes(symbol, timeframes, primaryTimeframe, klineCount)
+	}
+
+	// Legacy fallback when no strategy engine is available.
+	logger.Infof("  ⚠️ Strategy engine unavailable, falling back to legacy execution market data path")
+	return market.GetWithExchange(symbol, at.exchange)
+}
+
 // executeDecisionWithRecord executes AI decision and records detailed information
 func (at *AutoTrader) executeDecisionWithRecord(decision *kernel.Decision, actionRecord *store.DecisionAction) error {
 	switch decision.Action {
@@ -51,7 +86,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	}
 
 	// Get current price
-	marketData, err := market.GetWithExchange(decision.Symbol, at.exchange)
+	marketData, err := at.getExecutionMarketData(decision.Symbol)
 	if err != nil {
 		return err
 	}
@@ -168,7 +203,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	}
 
 	// Get current price
-	marketData, err := market.GetWithExchange(decision.Symbol, at.exchange)
+	marketData, err := at.getExecutionMarketData(decision.Symbol)
 	if err != nil {
 		return err
 	}
@@ -267,7 +302,7 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 	logger.Infof("  🔄 Close long: %s", decision.Symbol)
 
 	// Get current price
-	marketData, err := market.GetWithExchange(decision.Symbol, at.exchange)
+	marketData, err := at.getExecutionMarketData(decision.Symbol)
 	if err != nil {
 		return err
 	}
@@ -331,7 +366,7 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 	logger.Infof("  🔄 Close short: %s", decision.Symbol)
 
 	// Get current price
-	marketData, err := market.GetWithExchange(decision.Symbol, at.exchange)
+	marketData, err := at.getExecutionMarketData(decision.Symbol)
 	if err != nil {
 		return err
 	}

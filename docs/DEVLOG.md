@@ -26,8 +26,43 @@
 - 用户优先级为：收益、稳定性
 - 前端生产包较大（主 bundle 超 2MB），后续需要评估代码分割与性能优化
 
-### 下一步
-1. 继续梳理核心交易链与决策链
-2. 建立 API ↔ 页面映射
-3. 产出首轮架构与风险评估
-4. 选择第一个可控优化目标
+## 2026-03-23
+
+### 接管阶段代码与文档推进
+- 清理前端残留 `/api/admin-login` 死代码
+- 清理前端残留 `/api/prompt-templates` 死代码
+- 修复 public trader config 路径不一致
+- 清理 admin mode / admin login 误导注释
+- 完成首轮前后端接口对账，当前未发现新增明显失配
+
+### 前端性能与交付优化
+- 顶层页面改为懒加载
+- 拆分 Trader Dashboard 重模块：
+  - `ChartTabs`
+  - `PositionHistory`
+  - `GridRiskPanel`
+- Vite 配置 `manualChunks`
+- KaTeX 改为按需加载
+- Recharts 入口组件改为按需加载
+- 主入口共享包已从早期超大体积下降到约 `203k` 级别
+
+### API 层收束推进
+- 收束 `web/src/lib/config.ts`
+- 收束 `web/src/lib/api/strategies.ts`
+- 收束 `web/src/pages/StrategyMarketPage.tsx`
+- 收束 `web/src/pages/SettingsPage.tsx`
+- 收束 `web/src/lib/crypto.ts`
+- 收束 `web/src/contexts/AuthContext.tsx` 中的 `resetPassword`
+
+### 接管结项资产落仓
+- 新增：`docs/FUXI_WORKFLOW_CN.md`
+- 新增：`docs/PROJECT_HANDOVER_CLOSURE_CN.md`
+- 新增：`docs/PROJECT_MEMORY_ARCHIVE_CN.md`
+- 更新：`docs/ACCEPTANCE.md`
+- 持续维护：`docs/FIX_CANDIDATES.md`
+
+### 当前基线确认
+- `go test ./...`：通过
+- `cd web && npm test`：通过（108 tests）
+- `cd web && npm run build`：通过
+- 当前分支处于阶段性可交付状态，但接管工程整体仍未完全结项

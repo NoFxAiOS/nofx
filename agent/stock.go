@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"nofx/safe"
 	"fmt"
 	"io"
 	"net/http"
@@ -134,7 +135,7 @@ func searchStock(keyword string) ([]SearchResult, error) {
 	defer resp.Body.Close()
 
 	reader := transform.NewReader(io.LimitReader(resp.Body, 256*1024), simplifiedchinese.GBK.NewDecoder())
-	body, err := io.ReadAll(reader)
+	body, err := safe.ReadAllLimited(reader)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +289,7 @@ func fetchStockQuote(code string) (*StockQuote, error) {
 	defer resp.Body.Close()
 
 	reader := transform.NewReader(io.LimitReader(resp.Body, 256*1024), simplifiedchinese.GBK.NewDecoder())
-	body, err := io.ReadAll(reader)
+	body, err := safe.ReadAllLimited(reader)
 	if err != nil { return nil, err }
 
 	line := string(body)

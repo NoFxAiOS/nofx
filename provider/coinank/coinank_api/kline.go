@@ -1,10 +1,10 @@
 package coinank_api
 
 import (
+	"nofx/safe"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"nofx/provider/coinank"
@@ -67,7 +67,7 @@ func get(ctx context.Context, path string, paramsMap map[string]string) (string,
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return "", err
 	}

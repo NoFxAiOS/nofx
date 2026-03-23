@@ -1,11 +1,11 @@
 package hyperliquid
 
 import (
+	"nofx/safe"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -117,7 +117,7 @@ func (c *Client) GetCandles(ctx context.Context, coin string, interval string, l
 	defer resp.Body.Close()
 
 	// Read response
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -169,7 +169,7 @@ func (c *Client) GetAllMidsWithDex(ctx context.Context, dex string) (map[string]
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -206,7 +206,7 @@ func (c *Client) GetMeta(ctx context.Context) (*Meta, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

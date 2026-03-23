@@ -1,9 +1,9 @@
 package market
 
 import (
+	"nofx/safe"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 )
@@ -51,7 +51,7 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 			return nil, err
 		}
 
-		body, err := io.ReadAll(resp.Body)
+		body, err := safe.ReadAllLimited(resp.Body)
 		resp.Body.Close()
 		if err != nil {
 			return nil, err

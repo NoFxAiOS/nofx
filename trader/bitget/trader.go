@@ -1,13 +1,13 @@
 package bitget
 
 import (
+	"nofx/safe"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"strconv"
@@ -193,7 +193,7 @@ func (t *BitgetTrader) doRequest(method, path string, body interface{}) ([]byte,
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

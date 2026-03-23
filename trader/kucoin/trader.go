@@ -1,13 +1,13 @@
 package kucoin
 
 import (
+	"nofx/safe"
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"nofx/logger"
@@ -127,7 +127,7 @@ func (t *KuCoinTrader) syncServerTime() error {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
 	}
@@ -232,7 +232,7 @@ func (t *KuCoinTrader) doRequest(method, path string, body interface{}) ([]byte,
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

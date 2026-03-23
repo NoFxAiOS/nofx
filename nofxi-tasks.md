@@ -52,6 +52,7 @@
 
 ### Code Quality
 - [DONE] Extract WelcomeScreen, ChatMessages, ChatInput from AgentChatPage (825→480 lines)
+- [DONE] Sanitize 3 more error message leaks in API responses (handler_trader.go ×2, handler_ai_cost.go ×1)
 - [PENDING] `context.Background()` used in ~69 exchange/trader calls — should propagate request context for proper cancellation (partially done: kline handlers fixed, trader/exchange calls remain)
 
 ### Performance

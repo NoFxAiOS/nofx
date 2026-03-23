@@ -1,9 +1,9 @@
 package lighter
 
 import (
+	"nofx/safe"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"strconv"
@@ -26,7 +26,7 @@ func (t *LighterTraderV2) getFullAccountInfo() (*AccountInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (t *LighterTraderV2) GetMarketPrice(symbol string) (float64, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return 0, err
 	}
@@ -379,7 +379,7 @@ func (t *LighterTraderV2) GetOrderBook(symbol string, depth int) (bids, asks [][
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, nil, err
 	}

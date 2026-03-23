@@ -1,12 +1,12 @@
 package aster
 
 import (
+	"nofx/safe"
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"math/big"
 	"net/http"
@@ -100,7 +100,7 @@ func (t *AsterTrader) getPrecision(symbol string) (SymbolPrecision, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := safe.ReadAllLimited(resp.Body)
 	var info struct {
 		Symbols []struct {
 			Symbol            string                   `json:"symbol"`
@@ -392,7 +392,7 @@ func (t *AsterTrader) doRequest(method, endpoint string, params map[string]inter
 		}
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := safe.ReadAllLimited(resp.Body)
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 		}
@@ -418,7 +418,7 @@ func (t *AsterTrader) doRequest(method, endpoint string, params map[string]inter
 		}
 		defer resp.Body.Close()
 
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := safe.ReadAllLimited(resp.Body)
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 		}

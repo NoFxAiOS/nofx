@@ -1,10 +1,10 @@
 package hyperliquid
 
 import (
+	"nofx/safe"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"strings"
@@ -74,7 +74,7 @@ func (t *HyperliquidTrader) fetchXyzMeta() error {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
 	}

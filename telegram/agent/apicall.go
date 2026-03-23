@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"nofx/safe"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -65,7 +66,7 @@ func (t *apiCallTool) execute(req *apiRequest) string {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return fmt.Sprintf("error reading response: %v", err)
 	}

@@ -1,9 +1,9 @@
 package bybit
 
 import (
+	"nofx/safe"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"nofx/logger"
@@ -101,7 +101,7 @@ func (t *BybitTrader) getQtyStep(symbol string) float64 {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return 1
 	}

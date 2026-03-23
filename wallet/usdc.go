@@ -2,10 +2,10 @@
 package wallet
 
 import (
+	"nofx/safe"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"strings"
@@ -61,7 +61,7 @@ func QueryUSDCBalanceStr(address string) string {
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return "0.00"
 	}

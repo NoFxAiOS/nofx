@@ -1,10 +1,10 @@
 package lighter
 
 import (
+	"nofx/safe"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"nofx/logger"
@@ -389,7 +389,7 @@ func (t *LighterTraderV2) submitOrder(txType int, txInfo string) (map[string]int
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -546,7 +546,7 @@ func (t *LighterTraderV2) fetchMarketList() ([]MarketInfo, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

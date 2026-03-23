@@ -1,10 +1,10 @@
 package kernel
 
 import (
+	"nofx/safe"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"nofx/market"
@@ -616,7 +616,7 @@ func (e *StrategyEngine) fetchSingleExternalSource(source store.ExternalDataSour
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, err
 	}

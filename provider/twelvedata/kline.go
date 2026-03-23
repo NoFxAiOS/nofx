@@ -1,10 +1,10 @@
 package twelvedata
 
 import (
+	"nofx/safe"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"nofx/config"
@@ -125,7 +125,7 @@ func (c *Client) GetTimeSeries(ctx context.Context, symbol string, interval stri
 	defer resp.Body.Close()
 
 	// Read response
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -172,7 +172,7 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*QuoteResponse, e
 	defer resp.Body.Close()
 
 	// Read response
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

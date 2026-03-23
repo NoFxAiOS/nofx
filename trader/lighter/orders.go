@@ -1,9 +1,9 @@
 package lighter
 
 import (
+	"nofx/safe"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"nofx/logger"
@@ -120,7 +120,7 @@ func (t *LighterTraderV2) GetOrderStatus(symbol string, orderID string) (map[str
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -236,7 +236,7 @@ func (t *LighterTraderV2) GetActiveOrders(symbol string) ([]OrderResponse, error
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

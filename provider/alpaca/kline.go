@@ -1,10 +1,10 @@
 package alpaca
 
 import (
+	"nofx/safe"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"nofx/config"
@@ -111,7 +111,7 @@ func (c *Client) GetBars(ctx context.Context, symbol string, timeframe string, l
 	defer resp.Body.Close()
 
 	// Read response
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

@@ -1,10 +1,10 @@
 package hyperliquid
 
 import (
+	"nofx/safe"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"nofx/trader/types"
@@ -224,7 +224,7 @@ func (t *HyperliquidTrader) getXYZDexBalance() (accountValue float64, unrealized
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -315,7 +315,7 @@ func (t *HyperliquidTrader) getXyzMarketPrice(coin string) (float64, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return 0, fmt.Errorf("failed to read response: %w", err)
 	}

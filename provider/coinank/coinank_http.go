@@ -1,12 +1,12 @@
 package coinank
 
 import (
+	"nofx/safe"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -59,7 +59,7 @@ func (c *CoinankClient) Get(ctx context.Context, path string, paramsMap map[stri
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +84,7 @@ func (c *CoinankClient) Post(ctx context.Context, path string, data any) (string
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return "", err
 	}

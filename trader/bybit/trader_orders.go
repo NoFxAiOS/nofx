@@ -1,10 +1,10 @@
 package bybit
 
 import (
+	"nofx/safe"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"nofx/trader/types"
@@ -696,7 +696,7 @@ func (t *BybitTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]flo
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := safe.ReadAllLimited(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}

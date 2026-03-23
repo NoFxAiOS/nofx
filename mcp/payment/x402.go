@@ -131,7 +131,7 @@ func DoX402Request(
 			paymentHeader = resp.Header.Get("X-Payment-Required")
 		}
 		if paymentHeader == "" {
-			body, _ := io.ReadAll(resp.Body)
+			body, _ := safe.ReadAllLimited(resp.Body)
 			return nil, fmt.Errorf("received 402 but no Payment-Required header found. Body: %s", string(body))
 		}
 
@@ -166,7 +166,7 @@ func DoX402Request(
 				return nil, fmt.Errorf("failed to send payment retry: %w", err)
 			}
 
-			body2, readErr := io.ReadAll(resp2.Body)
+			body2, readErr := safe.ReadAllLimited(resp2.Body)
 			resp2.Body.Close()
 			if readErr != nil {
 				return nil, fmt.Errorf("failed to read payment retry response: %w", readErr)
@@ -226,7 +226,7 @@ func DoX402Request(
 		return nil, fmt.Errorf("%s payment retry failed (status %d): %s", providerTag, lastStatus, string(lastBody))
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -266,7 +266,7 @@ func DoX402RequestStream(
 		if resp.StatusCode == http.StatusOK {
 			return resp, nil
 		}
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := safe.ReadAllLimited(resp.Body)
 		resp.Body.Close()
 		return nil, fmt.Errorf("%s API error (status %d): %s", providerTag, resp.StatusCode, string(body))
 	}
@@ -277,7 +277,7 @@ func DoX402RequestStream(
 		paymentHeader = resp.Header.Get("X-Payment-Required")
 	}
 	if paymentHeader == "" {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := safe.ReadAllLimited(resp.Body)
 		resp.Body.Close()
 		return nil, fmt.Errorf("received 402 but no Payment-Required header found. Body: %s", string(body))
 	}
@@ -325,7 +325,7 @@ func DoX402RequestStream(
 		}
 
 		// Non-200: read body for error handling / re-sign
-		body2, readErr := io.ReadAll(resp2.Body)
+		body2, readErr := safe.ReadAllLimited(resp2.Body)
 		resp2.Body.Close()
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read payment retry response: %w", readErr)

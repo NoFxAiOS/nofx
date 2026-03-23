@@ -1,10 +1,10 @@
 package aster
 
 import (
+	"nofx/safe"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"nofx/trader/types"
@@ -109,7 +109,7 @@ func (t *AsterTrader) GetMarketPrice(symbol string) (float64, error) {
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := safe.ReadAllLimited(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}
@@ -263,7 +263,7 @@ func (t *AsterTrader) GetOrderBook(symbol string, depth int) (bids, asks [][]flo
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, _ := safe.ReadAllLimited(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		return nil, nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
 	}

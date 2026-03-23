@@ -1,6 +1,7 @@
 package okx
 
 import (
+	"nofx/safe"
 	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
@@ -9,7 +10,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/logger"
 	"strings"
@@ -228,7 +228,7 @@ func (t *OKXTrader) doRequest(method, path string, body interface{}) ([]byte, er
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

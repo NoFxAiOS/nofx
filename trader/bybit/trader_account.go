@@ -1,13 +1,13 @@
 package bybit
 
 import (
+	"nofx/safe"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"nofx/trader/types"
 	"strconv"
@@ -134,7 +134,7 @@ func (t *BybitTrader) getClosedPnLViaHTTP(startTime time.Time, limit int) ([]typ
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := safe.ReadAllLimited(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}

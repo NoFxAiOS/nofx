@@ -129,7 +129,7 @@ func (t *BitgetTrader) CloseLong(symbol string, quantity float64) (map[string]in
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				quantity, _ = pos["positionAmt"].(float64)
 				break
 			}
 		}
@@ -192,7 +192,7 @@ func (t *BitgetTrader) CloseShort(symbol string, quantity float64) (map[string]i
 		}
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
-				quantity = pos["positionAmt"].(float64)
+				quantity, _ = pos["positionAmt"].(float64)
 				break
 			}
 		}

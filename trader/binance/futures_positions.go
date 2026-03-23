@@ -227,7 +227,7 @@ func (t *FuturesTrader) GetSymbolPrecision(symbol string) (int, error) {
 			// Get precision from LOT_SIZE filter
 			for _, filter := range s.Filters {
 				if filter["filterType"] == "LOT_SIZE" {
-					stepSize := filter["stepSize"].(string)
+					stepSize, _ := filter["stepSize"].(string)
 					precision := calculatePrecision(stepSize)
 					logger.Infof("  %s quantity precision: %d (stepSize: %s)", symbol, precision, stepSize)
 					return precision, nil
@@ -264,7 +264,7 @@ func (t *FuturesTrader) GetSymbolPricePrecision(symbol string) (int, error) {
 			// Get precision from PRICE_FILTER filter
 			for _, filter := range s.Filters {
 				if filter["filterType"] == "PRICE_FILTER" {
-					tickSize := filter["tickSize"].(string)
+					tickSize, _ := filter["tickSize"].(string)
 					precision := calculatePrecision(tickSize)
 					return precision, nil
 				}

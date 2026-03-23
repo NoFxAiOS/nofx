@@ -5,6 +5,19 @@ import (
 	"strconv"
 )
 
+// posFloat64 extracts a float64 from a position map, returning 0 on failure.
+// Use in loops where a malformed position should be skipped, not crash.
+func posFloat64(pos map[string]interface{}, key string) float64 {
+	v, _ := SafeFloat64(pos, key)
+	return v
+}
+
+// posString extracts a string from a position map, returning "" on failure.
+func posString(pos map[string]interface{}, key string) string {
+	v, _ := SafeString(pos, key)
+	return v
+}
+
 // SafeFloat64 Safely extract float64 value from map
 func SafeFloat64(data map[string]interface{}, key string) (float64, error) {
 	value, ok := data[key]

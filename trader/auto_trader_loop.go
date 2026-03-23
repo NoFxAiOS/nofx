@@ -331,11 +331,11 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 	currentPositionKeys := make(map[string]bool)
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		symbol := posString(pos, "symbol")
+		side := posString(pos, "side")
+		entryPrice := posFloat64(pos, "entryPrice")
+		markPrice := posFloat64(pos, "markPrice")
+		quantity := posFloat64(pos, "positionAmt")
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}
@@ -345,8 +345,8 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 			continue
 		}
 
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl := posFloat64(pos, "unRealizedProfit")
+		liquidationPrice := posFloat64(pos, "liquidationPrice")
 
 		// Calculate margin used (estimated)
 		leverage := 10 // Default value, should actually be fetched from position info

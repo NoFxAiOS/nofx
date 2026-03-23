@@ -131,7 +131,7 @@ func (t *FuturesTrader) CloseLong(symbol string, quantity float64) (map[string]i
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				quantity, _ = pos["positionAmt"].(float64)
 				break
 			}
 		}

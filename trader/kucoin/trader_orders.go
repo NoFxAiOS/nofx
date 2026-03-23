@@ -161,7 +161,7 @@ func (t *KuCoinTrader) CloseLong(symbol string, quantity float64) (map[string]in
 	var marginMode string = "CROSS" // Default to CROSS
 	for _, pos := range positions {
 		if pos["symbol"] == symbol && pos["side"] == "long" {
-			actualQty = pos["positionAmt"].(float64)
+			actualQty, _ = pos["positionAmt"].(float64)
 			posFound = true
 			// Get margin mode from position
 			if mgnMode, ok := pos["mgnMode"].(string); ok {
@@ -242,7 +242,7 @@ func (t *KuCoinTrader) CloseShort(symbol string, quantity float64) (map[string]i
 	var marginMode string = "CROSS" // Default to CROSS
 	for _, pos := range positions {
 		if pos["symbol"] == symbol && pos["side"] == "short" {
-			actualQty = pos["positionAmt"].(float64)
+			actualQty, _ = pos["positionAmt"].(float64)
 			posFound = true
 			// Get margin mode from position
 			if mgnMode, ok := pos["mgnMode"].(string); ok {

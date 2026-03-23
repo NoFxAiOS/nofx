@@ -41,11 +41,14 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	}
 
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		symbol, _ := pos["symbol"].(string)
+		side, _ := pos["side"].(string)
+		entryPrice, _ := pos["entryPrice"].(float64)
+		markPrice, _ := pos["markPrice"].(float64)
+		quantity, _ := pos["positionAmt"].(float64)
+		if symbol == "" || side == "" || entryPrice == 0 {
+			continue // skip malformed position data
+		}
 		if quantity < 0 {
 			quantity = -quantity // Short position quantity is negative, convert to positive
 		}

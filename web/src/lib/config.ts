@@ -19,6 +19,11 @@ export function getSystemConfig(): Promise<SystemConfig> {
       cachedConfig = data
       return data
     })
+    .catch((err) => {
+      // Reset so next call retries instead of returning the rejected promise forever
+      configPromise = null
+      throw err
+    })
   return configPromise
 }
 

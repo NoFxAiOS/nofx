@@ -109,7 +109,7 @@ func (t *BybitTrader) CloseLong(symbol string, quantity float64) (map[string]int
 		for _, pos := range positions {
 			side, _ := pos["side"].(string)
 			if pos["symbol"] == symbol && strings.ToLower(side) == "long" {
-				quantity = pos["positionAmt"].(float64)
+				quantity, _ = pos["positionAmt"].(float64)
 				break
 			}
 		}

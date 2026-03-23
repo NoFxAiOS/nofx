@@ -133,12 +133,12 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	totalUnrealizedPnLCalculated := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		markPrice := posFloat64(pos, "markPrice")
+		quantity := posFloat64(pos, "positionAmt")
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
+		unrealizedPnl := posFloat64(pos, "unRealizedProfit")
 		totalUnrealizedPnLCalculated += unrealizedPnl
 
 		leverage := 10
@@ -199,16 +199,16 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 
 	var result []map[string]interface{}
 	for _, pos := range positions {
-		symbol := pos["symbol"].(string)
-		side := pos["side"].(string)
-		entryPrice := pos["entryPrice"].(float64)
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		symbol := posString(pos, "symbol")
+		side := posString(pos, "side")
+		entryPrice := posFloat64(pos, "entryPrice")
+		markPrice := posFloat64(pos, "markPrice")
+		quantity := posFloat64(pos, "positionAmt")
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
-		liquidationPrice := pos["liquidationPrice"].(float64)
+		unrealizedPnl := posFloat64(pos, "unRealizedProfit")
+		liquidationPrice := posFloat64(pos, "liquidationPrice")
 
 		leverage := 10
 		if lev, ok := pos["leverage"].(float64); ok {

@@ -70,12 +70,12 @@ func (t *AsterTrader) GetBalance() (map[string]interface{}, error) {
 	totalMarginUsed := 0.0
 	realUnrealizedPnl := 0.0
 	for _, pos := range positions {
-		markPrice := pos["markPrice"].(float64)
-		quantity := pos["positionAmt"].(float64)
+		markPrice, _ := pos["markPrice"].(float64)
+		quantity, _ := pos["positionAmt"].(float64)
 		if quantity < 0 {
 			quantity = -quantity
 		}
-		unrealizedPnl := pos["unRealizedProfit"].(float64)
+		unrealizedPnl, _ := pos["unRealizedProfit"].(float64)
 		realUnrealizedPnl += unrealizedPnl
 
 		leverage := 10

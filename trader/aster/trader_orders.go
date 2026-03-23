@@ -166,7 +166,7 @@ func (t *AsterTrader) CloseLong(symbol string, quantity float64) (map[string]int
 
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "long" {
-				quantity = pos["positionAmt"].(float64)
+				quantity, _ = pos["positionAmt"].(float64)
 				break
 			}
 		}
@@ -249,7 +249,7 @@ func (t *AsterTrader) CloseShort(symbol string, quantity float64) (map[string]in
 		for _, pos := range positions {
 			if pos["symbol"] == symbol && pos["side"] == "short" {
 				// Aster's GetPositions has already converted short position quantity to positive, use directly
-				quantity = pos["positionAmt"].(float64)
+				quantity, _ = pos["positionAmt"].(float64)
 				break
 			}
 		}

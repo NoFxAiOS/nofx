@@ -36,6 +36,9 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 
 	router := gin.Default()
 
+	// Limit request body size to prevent OOM from oversized payloads (1MB default)
+	router.Use(requestBodyLimitMiddleware(1 << 20))
+
 	// Enable CORS
 	router.Use(corsMiddleware())
 
@@ -55,6 +58,17 @@ func NewServer(traderManager *manager.TraderManager, st *store.Store, cryptoServ
 	s.setupRoutes()
 
 	return s
+}
+
+// requestBodyLimitMiddleware limits the size of incoming request bodies.
+// Returns 413 Payload Too Large if the body exceeds maxBytes.
+func requestBodyLimitMiddleware(maxBytes int64) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+		}
+		c.Next()
+	}
 }
 
 // corsMiddleware CORS middleware with configurable allowed origins.
@@ -445,25 +459,33 @@ func getPublicIPFromAPI() string {
 	}
 
 	for _, service := range services {
-		resp, err := client.Get(service)
-		if err != nil {
-			continue
-		}
-		defer resp.Body.Close()
+		ip := func() string {
+			resp, err := client.Get(service)
+			if err != nil {
+				return ""
+			}
+			defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode != http.StatusOK {
+				return ""
+			}
+
 			body := make([]byte, 128)
 			n, err := resp.Body.Read(body)
 			if err != nil && err.Error() != "EOF" {
-				continue
+				return ""
 			}
 
-			ip := strings.TrimSpace(string(body[:n]))
-			parsedIP := net.ParseIP(ip)
+			candidate := strings.TrimSpace(string(body[:n]))
+			parsedIP := net.ParseIP(candidate)
 			// Verify if it's a valid IPv4 address (not containing ":")
 			if parsedIP != nil && parsedIP.To4() != nil {
-				return ip
+				return candidate
 			}
+			return ""
+		}()
+		if ip != "" {
+			return ip
 		}
 	}
 

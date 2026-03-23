@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { EquityChart } from './EquityChart'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
+const EquityChart = lazy(() =>
+  import('./EquityChart').then((m) => ({ default: m.EquityChart }))
+)
 import { AdvancedChart } from './AdvancedChart'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
@@ -311,7 +313,9 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
               transition={{ duration: 0.2 }}
               className="h-full w-full absolute inset-0"
             >
-              <EquityChart traderId={traderId} embedded />
+              <Suspense fallback={<div className="h-full w-full animate-pulse rounded-lg bg-black/20" />}>
+                <EquityChart traderId={traderId} embedded />
+              </Suspense>
             </motion.div>
           ) : (
             <motion.div

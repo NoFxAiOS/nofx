@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { CompetitionData } from '../../types'
-import { ComparisonChart } from '../charts/ComparisonChart'
+const ComparisonChart = lazy(() =>
+  import('../charts/ComparisonChart').then((m) => ({ default: m.ComparisonChart }))
+)
 import { TraderConfigViewModal } from './TraderConfigViewModal'
 import { getTraderColor } from '../../utils/traderColors'
 import { useLanguage } from '../../contexts/LanguageContext'
@@ -195,7 +197,9 @@ export function CompetitionPage() {
                 {t('realTimePnL', language)}
               </div>
             </div>
-            <ComparisonChart traders={sortedTraders.slice(0, 10)} />
+            <Suspense fallback={<div className="h-[420px] w-full animate-pulse rounded-lg bg-black/20" />}>
+              <ComparisonChart traders={sortedTraders.slice(0, 10)} />
+            </Suspense>
           </div>
 
           {/* Right: Leaderboard */}

@@ -495,7 +495,7 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 	logger.Infof("🔄 Loading trader %s from database...", traderID)
 	if loadErr := s.traderManager.LoadUserTradersFromStore(s.store, userID); loadErr != nil {
 		logger.Infof("❌ Failed to load user traders: %v", loadErr)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader: " + loadErr.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader configuration"})
 		return
 	}
 
@@ -530,7 +530,8 @@ func (s *Server) handleStartTrader(c *gin.Context) {
 		}
 		// Check if there's a specific load error
 		if loadErr := s.traderManager.GetLoadError(traderID); loadErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader: " + loadErr.Error()})
+			logger.Infof("❌ Trader %s load error: %v", traderID, loadErr)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load trader, please check configuration"})
 			return
 		}
 		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to load trader, please check AI model, exchange and strategy configuration"})

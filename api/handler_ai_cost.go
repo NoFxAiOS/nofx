@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"nofx/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +19,8 @@ func (s *Server) handleGetAICosts(c *gin.Context) {
 
 	charges, total, err := s.store.AICharge().GetCharges(traderID, period)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		logger.Infof("❌ Failed to get AI charges for trader %s: %v", traderID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve AI cost data"})
 		return
 	}
 

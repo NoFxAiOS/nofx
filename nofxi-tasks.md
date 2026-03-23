@@ -44,11 +44,15 @@
 ## Pending
 
 ### Security
-- [PENDING] Investigate GitHub Dependabot's 21 reported vulnerabilities (13 high, 7 moderate, 1 low)
+- [DONE] Upgrade go-ethereum v1.16.7→v1.16.8 (fixes 3 vulns: GO-2026-4508, GO-2026-4314, GO-2026-4315)
+- [DONE] Upgrade golang-jwt/jwt v5.2.0→v5.2.2 (fixes GO-2025-3553 memory alloc DoS)
+- [DONE] Upgrade quic-go v0.54.0→v0.57.0 (fixes GO-2025-4233 HTTP/3 QPACK DoS)
+- [PENDING] 3 stdlib vulns remain (GO-2026-4599/4600/4601) — need Go 1.26.1 upgrade (currently on 1.26.0)
+- [PENDING] GitHub Dependabot still reports 21 vulns — some may be transitive/test-only, needs further triage
 
 ### Code Quality
+- [DONE] Extract WelcomeScreen, ChatMessages, ChatInput from AgentChatPage (825→480 lines)
 - [PENDING] `context.Background()` used in ~69 exchange/trader calls — should propagate request context for proper cancellation (partially done: kline handlers fixed, trader/exchange calls remain)
-- [PENDING] `AgentChatPage.tsx` is 825 lines — could still extract WelcomeScreen and ChatMessages components
 
 ### Performance
 - [PENDING] `gatherContext` in agent.go iterates all traders and positions on every message — consider caching (low priority: only triggered per user message)

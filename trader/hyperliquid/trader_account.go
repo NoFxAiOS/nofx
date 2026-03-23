@@ -276,7 +276,7 @@ func (t *HyperliquidTrader) GetMarketPrice(symbol string) (float64, error) {
 		if err == nil {
 			return priceFloat, nil
 		}
-		return 0, fmt.Errorf("price format error: %v", err)
+		return 0, fmt.Errorf("price format error: %w", err)
 	}
 
 	return 0, fmt.Errorf("price not found for %s", symbol)
@@ -335,7 +335,7 @@ func (t *HyperliquidTrader) getXyzMarketPrice(coin string) (float64, error) {
 		if err == nil {
 			return priceFloat, nil
 		}
-		return 0, fmt.Errorf("price format error: %v", err)
+		return 0, fmt.Errorf("price format error: %w", err)
 	}
 
 	return 0, fmt.Errorf("xyz dex price not found for %s (lookup key: %s)", coin, lookupKey)

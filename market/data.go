@@ -48,13 +48,13 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 		// Use Hyperliquid API for xyz dex assets (use 5m since 3m may not be available)
 		klines3m, err = getKlinesFromHyperliquid(symbol, "5m", 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 5-minute K-line from Hyperliquid: %v", err)
+			return nil, fmt.Errorf("failed to get 5-minute K-line from Hyperliquid: %w", err)
 		}
 	} else {
 		// Use CoinAnk for regular crypto assets with exchange-specific data
 		klines3m, err = getKlinesFromCoinAnk(symbol, "3m", exchange, 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 3-minute K-line from CoinAnk (%s): %v", exchange, err)
+			return nil, fmt.Errorf("failed to get 3-minute K-line from CoinAnk (%s): %w", exchange, err)
 		}
 	}
 
@@ -68,12 +68,12 @@ func GetWithExchange(symbol, exchange string) (*Data, error) {
 	if useHyperliquidAPI {
 		klines4h, err = getKlinesFromHyperliquid(symbol, "4h", 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 4-hour K-line from Hyperliquid: %v", err)
+			return nil, fmt.Errorf("failed to get 4-hour K-line from Hyperliquid: %w", err)
 		}
 	} else {
 		klines4h, err = getKlinesFromCoinAnk(symbol, "4h", exchange, 100)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to get 4-hour K-line from CoinAnk (%s): %v", exchange, err)
+			return nil, fmt.Errorf("failed to get 4-hour K-line from CoinAnk (%s): %w", exchange, err)
 		}
 	}
 

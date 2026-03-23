@@ -224,6 +224,29 @@ func (a *Agent) toolExecuteTrade(_ context.Context, userID int64, lang, argsJSON
 		return `{"error": "quantity must be > 0 for opening positions"}`
 	}
 
+	// For stock symbols, check market hours and warn if closed
+	var marketWarning string
+	if isStockSymbol(sym) && a.traderManager != nil {
+		for _, t := range a.traderManager.GetAllTraders() {
+			if t.GetExchange() == "alpaca" {
+				ut := t.GetUnderlyingTrader()
+				if ut == nil {
+					continue
+				}
+				type marketChecker interface {
+					IsMarketOpen() (bool, string, error)
+				}
+				if mc, ok := ut.(marketChecker); ok {
+					isOpen, status, err := mc.IsMarketOpen()
+					if err == nil && !isOpen {
+						marketWarning = fmt.Sprintf("⚠️ US market is currently %s. Order will be queued for next market open.", status)
+					}
+				}
+				break
+			}
+		}
+	}
+
 	// Create pending trade — requires user confirmation
 	trade := &TradeAction{
 		ID:        fmt.Sprintf("trade_%d", time.Now().UnixNano()),
@@ -239,7 +262,7 @@ func (a *Agent) toolExecuteTrade(_ context.Context, userID int64, lang, argsJSON
 	a.pending.CleanExpired()
 
 	// Return confirmation info to LLM so it can present it to the user
-	result, _ := json.Marshal(map[string]any{
+	resultMap := map[string]any{
 		"status":   "pending_confirmation",
 		"trade_id": trade.ID,
 		"action":   trade.Action,
@@ -248,7 +271,11 @@ func (a *Agent) toolExecuteTrade(_ context.Context, userID int64, lang, argsJSON
 		"leverage": trade.Leverage,
 		"message":  fmt.Sprintf("Trade created. User must confirm with: 确认 %s (or: confirm %s)", trade.ID, trade.ID),
 		"expires":  "5 minutes",
-	})
+	}
+	if marketWarning != "" {
+		resultMap["market_warning"] = marketWarning
+	}
+	result, _ := json.Marshal(resultMap)
 	return string(result)
 }
 
@@ -356,10 +383,24 @@ func (a *Agent) toolGetMarketPrice(argsJSON string) string {
 		}
 		price, err := underlying.GetMarketPrice(sym)
 		if err == nil && price > 0 {
-			result, _ := json.Marshal(map[string]any{
+			priceResult := map[string]any{
 				"symbol": sym,
 				"price":  price,
-			})
+			}
+			// For stocks, include market status
+			if wantStock && isAlpaca {
+				type marketChecker interface {
+					IsMarketOpen() (bool, string, error)
+				}
+				if mc, ok := underlying.(marketChecker); ok {
+					isOpen, status, mErr := mc.IsMarketOpen()
+					if mErr == nil {
+						priceResult["market_open"] = isOpen
+						priceResult["market_status"] = status
+					}
+				}
+			}
+			result, _ := json.Marshal(priceResult)
 			return string(result)
 		}
 	}

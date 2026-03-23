@@ -322,6 +322,9 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 		logger.Infof("  🗑️ Cancelled stop/TP orders for %s", decision.Symbol)
 	}
 
+	// Record quantity in action record (was missing — close decisions showed 0 quantity in history)
+	actionRecord.Quantity = quantity
+
 	// Close position
 	order, err := at.trader.CloseLong(decision.Symbol, 0) // 0 = close all
 	if err != nil {
@@ -386,6 +389,9 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 		}
 		logger.Infof("  📊 Using exchange position data: qty=%.8f, entry=%.2f", quantity, entryPrice)
 	}
+
+	// Record quantity in action record (was missing — close decisions showed 0 quantity in history)
+	actionRecord.Quantity = quantity
 
 	// Cancel existing stop-loss and take-profit orders BEFORE closing position
 	// Critical: orphaned SL/TP orders could trigger after position is closed and create unintended positions

@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { HelpCircle } from 'lucide-react'
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
 import { t } from '../../i18n/translations'
 
 export interface MetricDefinition {
@@ -147,17 +145,33 @@ function FormulaRenderer({ formula, displayMode = true }: FormulaRendererProps) 
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (containerRef.current) {
+    let cancelled = false
+
+    const renderFormula = async () => {
+      if (!containerRef.current) return
+
       try {
-        katex.render(formula, containerRef.current, {
+        await import('katex/dist/katex.min.css')
+        const katex = await import('katex')
+        if (cancelled || !containerRef.current) return
+
+        katex.default.render(formula, containerRef.current, {
           throwOnError: false,
           displayMode,
           output: 'html',
         })
       } catch (e) {
         console.error('KaTeX render error:', e)
-        containerRef.current.textContent = formula
+        if (containerRef.current) {
+          containerRef.current.textContent = formula
+        }
       }
+    }
+
+    renderFormula()
+
+    return () => {
+      cancelled = true
     }
   }, [formula, displayMode])
 

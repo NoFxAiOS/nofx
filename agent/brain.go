@@ -105,7 +105,15 @@ func (b *Brain) scanNews(seen map[string]bool) {
 			emoji, d.Title, d.Source, sentiment))
 	}
 
-	if len(seen) > 1000 { for k := range seen { delete(seen, k) } }
+	// Evict ~half when seen map gets large (keep recent half to avoid re-notifying)
+	if len(seen) > 1000 {
+		i, half := 0, len(seen)/2
+		for k := range seen {
+			if i >= half { break }
+			delete(seen, k)
+			i++
+		}
+	}
 }
 
 func (b *Brain) StartMarketBriefs(hours []int) {

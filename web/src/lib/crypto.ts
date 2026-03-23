@@ -1,10 +1,12 @@
+import { httpClient } from './httpClient'
+
 export interface EncryptedPayload {
-  wrappedKey: string // RSA-OAEP(K)
-  iv: string // 12 bytes
-  ciphertext: string // AES-GCM 输出(含 tag)
-  aad?: string // 可选：额外认证数据
-  kid?: string // 可选：服务端公钥标识
-  ts?: number // 可选：unix 秒，用于重放保护
+  wrappedKey: string
+  iv: string
+  ciphertext: string
+  aad?: string
+  kid?: string
+  ts?: number
 }
 
 export interface CryptoConfig {
@@ -39,13 +41,12 @@ export class CryptoService {
   }
 
   static async fetchCryptoConfig(): Promise<CryptoConfig> {
-    const response = await fetch('/api/crypto/config')
-    if (!response.ok) {
-      throw new Error(`Failed to fetch crypto config: ${response.statusText}`)
+    const result = await httpClient.get<CryptoConfig>('/api/crypto/config')
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to fetch crypto config')
     }
-    const data = await response.json()
-    this._transportEncryption = data.transport_encryption
-    return data
+    this._transportEncryption = result.data.transport_encryption
+    return result.data
   }
 
   private static async importPublicKey(pem: string): Promise<CryptoKey> {
@@ -64,7 +65,7 @@ export class CryptoService {
 
     const pemContents = pem
       .substring(headerIndex + pemHeader.length, footerIndex)
-      .replace(/\s+/g, '') // 移除所有空白字符（包括换行符、空格等）
+      .replace(/\s+/g, '')
 
     const binaryDerString = atob(pemContents)
     const binaryDer = new Uint8Array(binaryDerString.length)
@@ -95,7 +96,6 @@ export class CryptoService {
       )
     }
 
-    // 1. 生成 256-bit AES 密钥
     const aesKey = await crypto.subtle.generateKey(
       {
         name: 'AES-GCM',
@@ -105,37 +105,32 @@ export class CryptoService {
       ['encrypt']
     )
 
-    // 2. 生成 12 字节随机 IV
     const iv = crypto.getRandomValues(new Uint8Array(12))
 
-    // 3. 准备 AAD (额外认证数据)
     const ts = Math.floor(Date.now() / 1000)
     const aadObject = {
       userId: userId || '',
       sessionId: sessionId || '',
-      ts: ts,
+      ts,
       purpose: 'sensitive_data_encryption',
     }
     const aadString = JSON.stringify(aadObject)
     const aadBytes = new TextEncoder().encode(aadString)
 
-    // 4. 使用 AES-GCM 加密数据
     const plaintextBytes = new TextEncoder().encode(plaintext)
     const ciphertext = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv: iv,
+        iv,
         additionalData: aadBytes,
-        tagLength: 128, // 16 bytes tag
+        tagLength: 128,
       },
       aesKey,
       plaintextBytes
     )
 
-    // 5. 导出 AES 密钥
     const rawAesKey = await crypto.subtle.exportKey('raw', aesKey)
 
-    // 6. 使用 RSA-OAEP 加密 AES 密钥
     const wrappedKey = await crypto.subtle.encrypt(
       {
         name: 'RSA-OAEP',
@@ -144,13 +139,12 @@ export class CryptoService {
       rawAesKey
     )
 
-    // 7. 编码为 base64url
     return {
       wrappedKey: this.arrayBufferToBase64Url(wrappedKey),
       iv: this.arrayBufferToBase64Url(iv.buffer),
       ciphertext: this.arrayBufferToBase64Url(ciphertext),
       aad: this.arrayBufferToBase64Url(aadBytes.buffer),
-      ts: ts,
+      ts,
     }
   }
 
@@ -167,39 +161,35 @@ export class CryptoService {
   }
 
   static async fetchPublicKey(): Promise<string> {
-    const response = await fetch('/api/crypto/public-key')
-    if (!response.ok) {
-      throw new Error(`Failed to fetch public key: ${response.statusText}`)
+    const result = await httpClient.get<{
+      public_key?: string
+      transport_encryption?: boolean
+    }>('/api/crypto/public-key')
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Failed to fetch public key')
     }
-    const data = await response.json()
-    // Update transport encryption flag from server response
-    if (typeof data.transport_encryption === 'boolean') {
-      this._transportEncryption = data.transport_encryption
+    if (typeof result.data.transport_encryption === 'boolean') {
+      this._transportEncryption = result.data.transport_encryption
     }
-    return data.public_key || ''
+    return result.data.public_key || ''
   }
 
   static async decryptSensitiveData(
     payload: EncryptedPayload
   ): Promise<string> {
-    const response = await fetch('/api/crypto/decrypt', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
+    const result = await httpClient.post<{ plaintext: string }>(
+      '/api/crypto/decrypt',
+      payload
+    )
 
-    if (!response.ok) {
-      throw new Error(`Decryption failed: ${response.statusText}`)
+    if (!result.success || !result.data) {
+      throw new Error(result.message || 'Decryption failed')
     }
 
-    const result = await response.json()
-    return result.plaintext
+    return result.data.plaintext
   }
 }
 
-// 生成混淆字符串（用于剪贴板混淆）
 export function generateObfuscation(): string {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
@@ -208,7 +198,6 @@ export function generateObfuscation(): string {
   )
 }
 
-// 验证私钥格式
 export function validatePrivateKeyFormat(
   value: string,
   expectedLength: number = 64

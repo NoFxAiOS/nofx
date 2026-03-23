@@ -34,6 +34,7 @@ type Agent struct {
 	logger        *slog.Logger
 	history       *chatHistory
 	pending       *pendingTrades
+	stopCh        chan struct{} // signals background goroutines to stop
 	NotifyFunc    func(userID int64, text string) error
 }
 
@@ -55,7 +56,7 @@ func DefaultConfig() *Config {
 
 func New(tm *manager.TraderManager, st *store.Store, cfg *Config, logger *slog.Logger) *Agent {
 	if cfg == nil { cfg = DefaultConfig() }
-	return &Agent{traderManager: tm, store: st, config: cfg, logger: logger, history: newChatHistory(20), pending: newPendingTrades()}
+	return &Agent{traderManager: tm, store: st, config: cfg, logger: logger, history: newChatHistory(20), pending: newPendingTrades(), stopCh: make(chan struct{})}
 }
 
 func (a *Agent) SetAIClient(c mcp.AIClient) { a.aiClient = c }
@@ -102,8 +103,13 @@ func (a *Agent) Start() {
 	safe.GoNamed("chat-history-cleanup", func() {
 		ticker := time.NewTicker(30 * time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			a.history.CleanOld(4 * time.Hour)
+		for {
+			select {
+			case <-ticker.C:
+				a.history.CleanOld(4 * time.Hour)
+			case <-a.stopCh:
+				return
+			}
 		}
 	})
 
@@ -111,6 +117,13 @@ func (a *Agent) Start() {
 }
 
 func (a *Agent) Stop() {
+	// Signal all background goroutines (e.g. chat-history-cleanup) to exit.
+	select {
+	case <-a.stopCh:
+		// Already closed
+	default:
+		close(a.stopCh)
+	}
 	if a.sentinel != nil { a.sentinel.Stop() }
 	if a.brain != nil { a.brain.Stop() }
 	if a.scheduler != nil { a.scheduler.Stop() }
@@ -614,14 +627,17 @@ func (a *Agent) gatherContext(text string) string {
 		}
 	}
 
-	// A-share / stocks — try Sina Finance (dynamic search as fallback)
-	stockCode, stockName := resolveStockCodeDynamic(text)
-	if stockCode != "" {
-		quote, err := fetchStockQuote(stockCode)
-		if err == nil && quote.Price > 0 {
-			parts = append(parts, fmt.Sprintf("[%s(%s) Real-time A-share Data]\n%s", quote.Name, quote.Code, formatStockQuote(quote)))
-		} else if err != nil {
-			a.logger.Error("fetch stock quote", "code", stockCode, "name", stockName, "error", err)
+	// A-share / stocks — only call Sina API when text likely references stocks.
+	// Skip for purely crypto conversations to avoid unnecessary external API calls.
+	if looksLikeStockQuery(text) {
+		stockCode, stockName := resolveStockCodeDynamic(text)
+		if stockCode != "" {
+			quote, err := fetchStockQuote(stockCode)
+			if err == nil && quote.Price > 0 {
+				parts = append(parts, fmt.Sprintf("[%s(%s) Real-time A-share Data]\n%s", quote.Name, quote.Code, formatStockQuote(quote)))
+			} else if err != nil {
+				a.logger.Error("fetch stock quote", "code", stockCode, "name", stockName, "error", err)
+			}
 		}
 	}
 
@@ -744,6 +760,56 @@ func (a *Agent) handleSignal(sig Signal) {
 
 func (a *Agent) notifyAll(text string) {
 	if a.NotifyFunc != nil { a.NotifyFunc(0, text) }
+}
+
+// looksLikeStockQuery returns true if the text likely references stocks rather
+// than being a pure crypto/general query. This avoids hitting the Sina search
+// API on every single message (saves ~200ms latency + external API call).
+func looksLikeStockQuery(text string) bool {
+	upper := strings.ToUpper(text)
+
+	// Check for known stock-related Chinese keywords
+	stockKeywords := []string{
+		"股", "A股", "港股", "美股", "股票", "涨停", "跌停", "大盘",
+		"沪指", "深指", "恒指", "纳指", "标普", "道琼斯",
+		"茅台", "比亚迪", "宁德", "腾讯", "阿里", "美团", "小米",
+		"京东", "百度", "苹果", "特斯拉", "英伟达", "微软", "谷歌",
+		"盘前", "盘后", "开盘", "收盘", "涨幅", "跌幅",
+	}
+	for _, kw := range stockKeywords {
+		if strings.Contains(text, kw) {
+			return true
+		}
+	}
+
+	// Check for US stock ticker patterns (1-5 uppercase letters not matching crypto)
+	for _, word := range strings.Fields(upper) {
+		word = strings.Trim(word, ".,!?;:()[]{}\"'")
+		if len(word) >= 1 && len(word) <= 5 {
+			allLetter := true
+			for _, c := range word {
+				if c < 'A' || c > 'Z' { allLetter = false; break }
+			}
+			if allLetter {
+				// Check if it's in the known US ticker map
+				if _, ok := usTickerMap[word]; ok {
+					return true
+				}
+			}
+		}
+	}
+
+	// Check for 6-digit A-share codes or 5-digit HK codes
+	for _, w := range strings.Fields(text) {
+		w = strings.TrimSpace(w)
+		if (len(w) == 5 || len(w) == 6) {
+			if _, err := strconv.Atoi(w); err == nil {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func toFloat(v interface{}) float64 {

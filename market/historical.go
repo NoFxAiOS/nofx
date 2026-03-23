@@ -30,7 +30,14 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 	var all []Kline
 	cursor := startMs
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        5,
+			MaxIdleConnsPerHost: 5,
+			IdleConnTimeout:     90 * time.Second,
+		},
+	}
 
 	for cursor < endMs {
 		req, err := http.NewRequest("GET", binanceFuturesKlinesURL, nil)
@@ -68,25 +75,37 @@ func GetKlinesRange(symbol string, timeframe string, start, end time.Time) ([]Kl
 			break
 		}
 
-		batch := make([]Kline, len(raw))
-		for i, item := range raw {
-			openTime := int64(item[0].(float64))
+		batch := make([]Kline, 0, len(raw))
+		for _, item := range raw {
+			if len(item) < 7 {
+				continue // skip malformed entries
+			}
+			openTimeF, ok := item[0].(float64)
+			if !ok {
+				continue
+			}
+			closeTimeF, ok := item[6].(float64)
+			if !ok {
+				continue
+			}
 			open, _ := parseFloat(item[1])
 			high, _ := parseFloat(item[2])
 			low, _ := parseFloat(item[3])
-			close, _ := parseFloat(item[4])
+			cls, _ := parseFloat(item[4])
 			volume, _ := parseFloat(item[5])
-			closeTime := int64(item[6].(float64))
 
-			batch[i] = Kline{
-				OpenTime:  openTime,
+			batch = append(batch, Kline{
+				OpenTime:  int64(openTimeF),
 				Open:      open,
 				High:      high,
 				Low:       low,
-				Close:     close,
+				Close:     cls,
 				Volume:    volume,
-				CloseTime: closeTime,
-			}
+				CloseTime: int64(closeTimeF),
+			})
+		}
+		if len(batch) == 0 {
+			break
 		}
 
 		all = append(all, batch...)

@@ -121,18 +121,40 @@ func parseKline(kr KlineResponse) (Kline, error) {
 		return kline, fmt.Errorf("invalid kline data")
 	}
 
-	// Parse each field
-	kline.OpenTime = int64(kr[0].(float64))
-	kline.Open, _ = strconv.ParseFloat(kr[1].(string), 64)
-	kline.High, _ = strconv.ParseFloat(kr[2].(string), 64)
-	kline.Low, _ = strconv.ParseFloat(kr[3].(string), 64)
-	kline.Close, _ = strconv.ParseFloat(kr[4].(string), 64)
-	kline.Volume, _ = strconv.ParseFloat(kr[5].(string), 64)
-	kline.CloseTime = int64(kr[6].(float64))
-	kline.QuoteVolume, _ = strconv.ParseFloat(kr[7].(string), 64)
-	kline.Trades = int(kr[8].(float64))
-	kline.TakerBuyBaseVolume, _ = strconv.ParseFloat(kr[9].(string), 64)
-	kline.TakerBuyQuoteVolume, _ = strconv.ParseFloat(kr[10].(string), 64)
+	// Parse each field with safe type assertions to prevent panics on unexpected API responses
+	if v, ok := kr[0].(float64); ok {
+		kline.OpenTime = int64(v)
+	}
+	if v, ok := kr[1].(string); ok {
+		kline.Open, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[2].(string); ok {
+		kline.High, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[3].(string); ok {
+		kline.Low, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[4].(string); ok {
+		kline.Close, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[5].(string); ok {
+		kline.Volume, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[6].(float64); ok {
+		kline.CloseTime = int64(v)
+	}
+	if v, ok := kr[7].(string); ok {
+		kline.QuoteVolume, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[8].(float64); ok {
+		kline.Trades = int(v)
+	}
+	if v, ok := kr[9].(string); ok {
+		kline.TakerBuyBaseVolume, _ = strconv.ParseFloat(v, 64)
+	}
+	if v, ok := kr[10].(string); ok {
+		kline.TakerBuyQuoteVolume, _ = strconv.ParseFloat(v, 64)
+	}
 
 	return kline, nil
 }

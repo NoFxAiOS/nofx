@@ -245,9 +245,9 @@ func (at *AutoTrader) GetGridRiskInfo() *GridRiskInfo {
 	var currentPositionValue float64
 	var currentPositionSize float64
 	for _, pos := range positions {
-		if sym, _ := pos["symbol"].(string); sym == gridConfig.Symbol {
-			size, _ := pos["positionAmt"].(float64)
-			entry, _ := pos["entryPrice"].(float64)
+		if posString(pos, "symbol") == gridConfig.Symbol {
+			size := posFloat64(pos, "positionAmt")
+			entry := posFloat64(pos, "entryPrice")
 			currentPositionValue = math.Abs(size * entry)
 			currentPositionSize = size
 			break

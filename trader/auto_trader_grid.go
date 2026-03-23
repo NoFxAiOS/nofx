@@ -231,16 +231,26 @@ func (at *AutoTrader) emergencyExit(reason string) error {
 	positions, err := at.trader.GetPositions()
 	if err == nil {
 		for _, pos := range positions {
-			if sym, ok := pos["symbol"].(string); ok && sym == gridConfig.Symbol {
-				if size, ok := pos["positionAmt"].(float64); ok && size != 0 {
-					if size > 0 {
-						at.trader.CloseLong(gridConfig.Symbol, size)
-					} else {
-						at.trader.CloseShort(gridConfig.Symbol, -size)
-					}
-				}
+			sym := posString(pos, "symbol")
+			if sym != gridConfig.Symbol {
+				continue
+			}
+			size := posFloat64(pos, "positionAmt")
+			if size == 0 {
+				continue
+			}
+			var closeErr error
+			if size > 0 {
+				_, closeErr = at.trader.CloseLong(gridConfig.Symbol, size)
+			} else {
+				_, closeErr = at.trader.CloseShort(gridConfig.Symbol, -size)
+			}
+			if closeErr != nil {
+				logger.Errorf("[Grid] EMERGENCY: failed to close position (size=%.6f): %v", size, closeErr)
 			}
 		}
+	} else {
+		logger.Errorf("[Grid] EMERGENCY: failed to get positions: %v", err)
 	}
 
 	// Pause grid
@@ -504,10 +514,9 @@ func (at *AutoTrader) buildGridContext() (*kernel.GridContext, error) {
 	positions, err := at.trader.GetPositions()
 	if err == nil {
 		for _, pos := range positions {
-			if sym, ok := pos["symbol"].(string); ok && sym == gridConfig.Symbol {
-				if size, ok := pos["positionAmt"].(float64); ok {
-					ctx.CurrentPosition = size
-				}
+			if posString(pos, "symbol") == gridConfig.Symbol {
+				ctx.CurrentPosition = posFloat64(pos, "positionAmt")
+				break
 			}
 		}
 	}

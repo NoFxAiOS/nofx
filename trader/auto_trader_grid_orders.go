@@ -26,13 +26,12 @@ func (at *AutoTrader) checkTotalPositionLimit(symbol string, additionalValue flo
 	positions, err := at.trader.GetPositions()
 	if err == nil {
 		for _, pos := range positions {
-			if sym, ok := pos["symbol"].(string); ok && sym == symbol {
-				if size, ok := pos["positionAmt"].(float64); ok {
-					if price, ok := pos["markPrice"].(float64); ok {
-						currentPositionValue = math.Abs(size) * price
-					} else if entryPrice, ok := pos["entryPrice"].(float64); ok {
-						currentPositionValue = math.Abs(size) * entryPrice
-					}
+			if posString(pos, "symbol") == symbol {
+				size := posFloat64(pos, "positionAmt")
+				if price := posFloat64(pos, "markPrice"); price > 0 {
+					currentPositionValue = math.Abs(size) * price
+				} else if entryPrice := posFloat64(pos, "entryPrice"); entryPrice > 0 {
+					currentPositionValue = math.Abs(size) * entryPrice
 				}
 			}
 		}
@@ -267,10 +266,9 @@ func (at *AutoTrader) syncGridState() {
 		logger.Warnf("[Grid] Failed to get positions for state sync: %v", err)
 	} else {
 		for _, pos := range positions {
-			if sym, ok := pos["symbol"].(string); ok && sym == gridConfig.Symbol {
-				if size, ok := pos["positionAmt"].(float64); ok {
-					currentPositionSize = size
-				}
+			if posString(pos, "symbol") == gridConfig.Symbol {
+				currentPositionSize = posFloat64(pos, "positionAmt")
+				break
 			}
 		}
 	}
@@ -333,12 +331,12 @@ func (at *AutoTrader) closeAllPositions() error {
 	}
 
 	for _, pos := range positions {
-		symbol, _ := pos["symbol"].(string)
+		symbol := posString(pos, "symbol")
 		if symbol != gridConfig.Symbol {
 			continue
 		}
 
-		size, _ := pos["positionAmt"].(float64)
+		size := posFloat64(pos, "positionAmt")
 		if size == 0 {
 			continue
 		}
@@ -349,7 +347,7 @@ func (at *AutoTrader) closeAllPositions() error {
 			_, err = at.trader.CloseShort(symbol, -size)
 		}
 		if err != nil {
-			logger.Infof("Failed to close position: %v", err)
+			logger.Warnf("[Grid] Failed to close position (size=%.6f): %v", size, err)
 		}
 	}
 

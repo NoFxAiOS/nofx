@@ -41,11 +41,11 @@ func (at *AutoTrader) checkPositionDrawdown() {
 	}
 
 	for _, pos := range positions {
-		symbol, _ := pos["symbol"].(string)
-		side, _ := pos["side"].(string)
-		entryPrice, _ := pos["entryPrice"].(float64)
-		markPrice, _ := pos["markPrice"].(float64)
-		quantity, _ := pos["positionAmt"].(float64)
+		symbol := posString(pos, "symbol")
+		side := posString(pos, "side")
+		entryPrice := posFloat64(pos, "entryPrice")
+		markPrice := posFloat64(pos, "markPrice")
+		quantity := posFloat64(pos, "positionAmt")
 		if symbol == "" || side == "" || entryPrice == 0 {
 			continue // skip malformed position data
 		}
@@ -55,7 +55,7 @@ func (at *AutoTrader) checkPositionDrawdown() {
 
 		// Calculate current P&L percentage
 		leverage := 10 // Default value
-		if lev, ok := pos["leverage"].(float64); ok {
+		if lev := posFloat64(pos, "leverage"); lev > 0 {
 			leverage = int(lev)
 		}
 

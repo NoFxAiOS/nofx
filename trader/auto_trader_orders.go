@@ -45,7 +45,7 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 
 	// Check if there's already a position in the same symbol and direction
 	for _, pos := range positions {
-		if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
+		if posString(pos, "symbol") == decision.Symbol && posString(pos, "side") == "long" {
 			return fmt.Errorf("❌ %s already has long position, close it first", decision.Symbol)
 		}
 	}
@@ -162,7 +162,7 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 
 	// Check if there's already a position in the same symbol and direction
 	for _, pos := range positions {
-		if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
+		if posString(pos, "symbol") == decision.Symbol && posString(pos, "side") == "short" {
 			return fmt.Errorf("❌ %s already has short position, close it first", decision.Symbol)
 		}
 	}
@@ -294,11 +294,9 @@ func (at *AutoTrader) executeCloseLongWithRecord(decision *kernel.Decision, acti
 		positions, err := at.trader.GetPositions()
 		if err == nil {
 			for _, pos := range positions {
-				if pos["symbol"] == decision.Symbol && pos["side"] == "long" {
-					if ep, ok := pos["entryPrice"].(float64); ok {
-						entryPrice = ep
-					}
-					if amt, ok := pos["positionAmt"].(float64); ok && amt > 0 {
+				if posString(pos, "symbol") == decision.Symbol && posString(pos, "side") == "long" {
+					entryPrice = posFloat64(pos, "entryPrice")
+					if amt := posFloat64(pos, "positionAmt"); amt > 0 {
 						quantity = amt
 					}
 					break
@@ -358,11 +356,9 @@ func (at *AutoTrader) executeCloseShortWithRecord(decision *kernel.Decision, act
 		positions, err := at.trader.GetPositions()
 		if err == nil {
 			for _, pos := range positions {
-				if pos["symbol"] == decision.Symbol && pos["side"] == "short" {
-					if ep, ok := pos["entryPrice"].(float64); ok {
-						entryPrice = ep
-					}
-					if amt, ok := pos["positionAmt"].(float64); ok {
+				if posString(pos, "symbol") == decision.Symbol && posString(pos, "side") == "short" {
+					entryPrice = posFloat64(pos, "entryPrice")
+					if amt := posFloat64(pos, "positionAmt"); amt != 0 {
 						quantity = -amt // positionAmt is negative for short
 					}
 					break

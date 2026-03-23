@@ -18,6 +18,30 @@ func posString(pos map[string]interface{}, key string) string {
 	return v
 }
 
+// posInt64 extracts an int64 from a position map, returning 0 on failure.
+func posInt64(pos map[string]interface{}, key string) int64 {
+	value, ok := pos[key]
+	if !ok {
+		return 0
+	}
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case string:
+		parsed, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
+}
+
 // SafeFloat64 Safely extract float64 value from map
 func SafeFloat64(data map[string]interface{}, key string) (float64, error) {
 	value, ok := data[key]

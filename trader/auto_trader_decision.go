@@ -142,7 +142,7 @@ func (at *AutoTrader) GetAccountInfo() (map[string]interface{}, error) {
 		totalUnrealizedPnLCalculated += unrealizedPnl
 
 		leverage := 10
-		if lev, ok := pos["leverage"].(float64); ok {
+		if lev := posFloat64(pos, "leverage"); lev > 0 {
 			leverage = int(lev)
 		}
 		marginUsed := (quantity * markPrice) / float64(leverage)
@@ -211,7 +211,7 @@ func (at *AutoTrader) GetPositions() ([]map[string]interface{}, error) {
 		liquidationPrice := posFloat64(pos, "liquidationPrice")
 
 		leverage := 10
-		if lev, ok := pos["leverage"].(float64); ok {
+		if lev := posFloat64(pos, "leverage"); lev > 0 {
 			leverage = int(lev)
 		}
 

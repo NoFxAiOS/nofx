@@ -350,7 +350,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 
 		// Calculate margin used (estimated)
 		leverage := 10 // Default value, should actually be fetched from position info
-		if lev, ok := pos["leverage"].(float64); ok {
+		if lev := posFloat64(pos, "leverage"); lev > 0 {
 			leverage = int(lev)
 		}
 		marginUsed := (quantity * markPrice) / float64(leverage)
@@ -374,7 +374,7 @@ func (at *AutoTrader) buildTradingContext() (*kernel.Context, error) {
 		}
 		// Priority 2: Get from exchange API (Bybit: createdTime, OKX: createdTime)
 		if updateTime == 0 {
-			if createdTime, ok := pos["createdTime"].(int64); ok && createdTime > 0 {
+			if createdTime := posInt64(pos, "createdTime"); createdTime > 0 {
 				updateTime = createdTime
 			}
 		}

@@ -31,9 +31,20 @@
 
 ## Pending
 
+### 2026-03-23 10:22 — Complete Panic Recovery Coverage
+- [DONE] Apply `safe.GoNamed` to all 27 remaining bare goroutines across 21 files:
+  — 9 exchange order_sync (OKX, Hyperliquid, Aster, Bybit, KuCoin, Gate, Bitget, Lighter, Binance×2)
+  — Drawdown monitor, Brain news+briefs, Sentinel, Scheduler
+  — x402 + MCP stream idle watchdogs, Rate limiter cleanup
+  — 3 telemetry sends, CoinAnk WS handler, API server goroutine
+  — Manual defer/recover for Telegram bot (sends error to user) and trader data fetch (prevents deadlock)
+- [DONE] Zero bare `go func()` remaining outside safe.go itself
+- Build verified ✅, pushed to feat/nofxi
+
+## Pending
+
 ### Security
 - [PENDING] Investigate GitHub Dependabot's 21 reported vulnerabilities (13 high, 7 moderate, 1 low)
-- [PENDING] Apply `safe.Go` to remaining 25+ goroutines (order_sync, telegram bot, agent brain, etc.)
 
 ### Code Quality
 - [PENDING] `context.Background()` used in ~69 exchange/trader calls — should propagate request context for proper cancellation (partially done: kline handlers fixed, trader/exchange calls remain)

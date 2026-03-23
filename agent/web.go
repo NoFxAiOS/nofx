@@ -122,15 +122,22 @@ func proxyBinance(rw http.ResponseWriter, url string) {
 		return
 	}
 	defer resp.Body.Close()
+
+	// Forward upstream error status codes instead of silently proxying bad data
+	if resp.StatusCode != http.StatusOK {
+		writeJSON(rw, 502, map[string]string{"error": fmt.Sprintf("upstream returned status %d", resp.StatusCode)})
+		return
+	}
+
 	rw.Header().Set("Content-Type", "application/json")
-	rw.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS is handled by the gin middleware — no need to set it here
 	// Limit response body to 2MB to prevent memory exhaustion
 	io.Copy(rw, io.LimitReader(resp.Body, 2*1024*1024))
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// CORS is handled by the gin middleware — no need to set it here
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
 }

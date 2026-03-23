@@ -186,17 +186,22 @@ func (t *LighterTraderV2) CancelStopOrders(symbol string) error {
 	}
 
 	canceledCount := 0
+	skippedCount := 0
 	for _, order := range orders {
-		// TODO: Check order type, only cancel stop orders
-		// For now, cancel all orders
+		// Only cancel orders with a trigger price (stop-loss / take-profit)
+		// Regular limit orders have empty or "0" trigger price
+		if order.TriggerPrice == "" || order.TriggerPrice == "0" || order.TriggerPrice == "0.0" {
+			skippedCount++
+			continue
+		}
 		if err := t.CancelOrder(symbol, order.OrderID); err != nil {
-			logger.Infof("⚠️  Failed to cancel order (ID: %s): %v", order.OrderID, err)
+			logger.Infof("⚠️  Failed to cancel stop order (ID: %s): %v", order.OrderID, err)
 		} else {
 			canceledCount++
 		}
 	}
 
-	logger.Infof("✓ LIGHTER - Canceled %d stop orders", canceledCount)
+	logger.Infof("✓ LIGHTER - Canceled %d stop orders (skipped %d regular orders)", canceledCount, skippedCount)
 	return nil
 }
 

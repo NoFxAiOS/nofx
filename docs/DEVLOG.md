@@ -89,3 +89,14 @@
   - 若未启用手动 protection，则回退使用 AI decision 自带的 SL/TP
   - 若保护单校验失败或交易所能力不满足要求，则触发立即平仓，避免裸仓保留
 - 基线验证：`go test ./...` 通过
+
+### Phase 1 前端接续：strategy protection 配置入口
+- `web/src/types/strategy.ts` 补齐 `ProtectionConfig` 相关前端类型
+- 新增 `web/src/components/strategy/ProtectionEditor.tsx`
+- `web/src/pages/StrategyStudioPage.tsx` 已接入 protection 配置分区：
+  - 在策略加载、创建、语言切换时补齐默认 protection 配置
+  - 在 Strategy Studio 中新增 Protection / Profit Control 折叠区
+  - 开放 Full TP/SL 手动配置入口
+  - Ladder / Drawdown / Break-even 先以前端配置骨架形式暴露，为后续执行链预留
+- 前端验证：`cd web && npm test`、`cd web && npm run build` 通过
+

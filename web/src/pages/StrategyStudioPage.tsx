@@ -38,6 +38,7 @@ import { RiskControlEditor } from '../components/strategy/RiskControlEditor'
 import { PromptSectionsEditor } from '../components/strategy/PromptSectionsEditor'
 import { PublishSettingsEditor } from '../components/strategy/PublishSettingsEditor'
 import { GridConfigEditor, defaultGridConfig } from '../components/strategy/GridConfigEditor'
+import { ProtectionEditor, defaultProtectionConfig } from '../components/strategy/ProtectionEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
 
@@ -65,6 +66,7 @@ export function StrategyStudioPage() {
     coinSource: true,
     indicators: false,
     riskControl: false,
+    protection: false,
     promptSections: false,
     customPrompt: false,
     publishSettings: false,
@@ -131,16 +133,23 @@ export function StrategyStudioPage() {
       })
       if (!response.ok) throw new Error('Failed to fetch strategies')
       const data = await response.json()
-      setStrategies(data.strategies || [])
+      const normalizedStrategies = (data.strategies || []).map((strategy: Strategy) => ({
+        ...strategy,
+        config: {
+          ...strategy.config,
+          protection: strategy.config?.protection || defaultProtectionConfig,
+        },
+      }))
+      setStrategies(normalizedStrategies)
 
       // Select active or first strategy
-      const active = data.strategies?.find((s: Strategy) => s.is_active)
+      const active = normalizedStrategies.find((s: Strategy) => s.is_active)
       if (active) {
         setSelectedStrategy(active)
         setEditingConfig(active.config)
-      } else if (data.strategies?.length > 0) {
-        setSelectedStrategy(data.strategies[0])
-        setEditingConfig(data.strategies[0].config)
+      } else if (normalizedStrategies.length > 0) {
+        setSelectedStrategy(normalizedStrategies[0])
+        setEditingConfig(normalizedStrategies[0].config)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -182,6 +191,7 @@ export function StrategyStudioPage() {
             ...prev,
             language: language as 'zh' | 'en',
             prompt_sections: defaultConfig.prompt_sections,
+            protection: prev.protection || defaultProtectionConfig,
           }
         })
         setHasChanges(true)
@@ -203,6 +213,9 @@ export function StrategyStudioPage() {
       )
       if (!configResponse.ok) throw new Error('Failed to fetch default config')
       const defaultConfig = await configResponse.json()
+      if (!defaultConfig.protection) {
+        defaultConfig.protection = defaultProtectionConfig
+      }
 
       const response = await fetch(`${API_BASE}/api/strategies`, {
         method: 'POST',
@@ -560,6 +573,21 @@ export function StrategyStudioPage() {
         <RiskControlEditor
           config={editingConfig.risk_control}
           onChange={(riskControl) => updateConfig('risk_control', riskControl)}
+          disabled={selectedStrategy?.is_default}
+          language={language}
+        />
+      ),
+    },
+    {
+      key: 'protection' as const,
+      icon: Shield,
+      color: '#F0B90B',
+      title: language === 'zh' ? 'Protection / 盈利控制' : 'Protection / Profit Control',
+      forStrategyType: 'ai_trading' as const,
+      content: editingConfig && (
+        <ProtectionEditor
+          config={editingConfig.protection || defaultProtectionConfig}
+          onChange={(protection) => updateConfig('protection', protection)}
           disabled={selectedStrategy?.is_default}
           language={language}
         />

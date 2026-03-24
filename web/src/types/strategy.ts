@@ -48,9 +48,66 @@ export interface StrategyConfig {
   indicators: IndicatorConfig;
   custom_prompt?: string;
   risk_control: RiskControlConfig;
+  protection: ProtectionConfig;
   prompt_sections?: PromptSectionsConfig;
   // Grid trading configuration (only used when strategy_type is 'grid_trading')
   grid_config?: GridStrategyConfig;
+}
+
+export type ProtectionMode = 'manual' | 'ai';
+export type BreakEvenTriggerMode = 'profit_pct' | 'r_multiple';
+
+export interface ProtectionThresholdRule {
+  enabled: boolean;
+  price_move_pct: number;
+}
+
+export interface FullTPSLConfig {
+  enabled: boolean;
+  mode: ProtectionMode;
+  take_profit: ProtectionThresholdRule;
+  stop_loss: ProtectionThresholdRule;
+}
+
+export interface LadderTPSLRule {
+  take_profit_pct?: number;
+  take_profit_close_ratio_pct?: number;
+  stop_loss_pct?: number;
+  stop_loss_close_ratio_pct?: number;
+}
+
+export interface LadderTPSLConfig {
+  enabled: boolean;
+  mode: ProtectionMode;
+  take_profit_enabled: boolean;
+  stop_loss_enabled: boolean;
+  rules: LadderTPSLRule[];
+}
+
+export interface DrawdownTakeProfitRule {
+  min_profit_pct: number;
+  max_drawdown_pct: number;
+  close_ratio_pct: number;
+  poll_interval_seconds: number;
+}
+
+export interface DrawdownTakeProfitConfig {
+  enabled: boolean;
+  rules: DrawdownTakeProfitRule[];
+}
+
+export interface BreakEvenStopConfig {
+  enabled: boolean;
+  trigger_mode: BreakEvenTriggerMode;
+  trigger_value: number;
+  offset_pct: number;
+}
+
+export interface ProtectionConfig {
+  full_tp_sl: FullTPSLConfig;
+  ladder_tp_sl: LadderTPSLConfig;
+  drawdown_take_profit: DrawdownTakeProfitConfig;
+  break_even_stop: BreakEvenStopConfig;
 }
 
 // Grid trading specific configuration

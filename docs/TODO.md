@@ -45,9 +45,9 @@
 - [ ] 确认稳定性指标（错误率、恢复时间、状态一致性）
 - [ ] 确认是否存在测试网 / mock / replay 数据支持
 - [ ] 识别首个低风险高价值二次开发任务
-- [ ] Phase 1: 交易所能力矩阵抽象
-- [ ] Phase 1: protection 配置结构落库
-- [ ] Phase 1: 手动 Full TP/SL UI + 执行闭环
-- [ ] Phase 1: 开仓后保护单闭环确认与失败平仓
+- [x] Phase 1: 交易所能力矩阵抽象（首轮骨架）
+- [x] Phase 1: protection 配置结构落库（代码结构与默认值已落地）
+- [ ] Phase 1: 手动 Full TP/SL UI + 执行闭环（后端执行闭环首轮已接入，UI 未做）
+- [x] Phase 1: 开仓后保护单闭环确认与失败平仓（首轮最小闭环已接入）
 - [ ] Phase 2: Ladder TP/SL + Drawdown Take Profit + Break-even Stop
 - [ ] Phase 3: AI protection mode + Regime Filter

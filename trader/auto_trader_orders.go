@@ -6,6 +6,7 @@ import (
 	"nofx/logger"
 	"nofx/market"
 	"nofx/store"
+	"strings"
 	"time"
 )
 
@@ -169,12 +170,24 @@ func (at *AutoTrader) executeOpenLongWithRecord(decision *kernel.Decision, actio
 	posKey := decision.Symbol + "_long"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "LONG", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
-	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "LONG", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+	if err := at.applyPostOpenProtection(&protectionExecutionRequest{
+		Symbol:       decision.Symbol,
+		Action:       decision.Action,
+		PositionSide: "LONG",
+		Quantity:     quantity,
+		EntryPrice:   marketData.CurrentPrice,
+		Decision:     decision,
+	}); err != nil {
+		logger.Warnf("  ❌ Protection setup failed for %s LONG: %v", decision.Symbol, err)
+		if strings.Contains(strings.ToLower(err.Error()), "verify") || strings.Contains(strings.ToLower(err.Error()), "cannot safely support") {
+			logger.Warnf("  🚨 Protection verification failed, closing position immediately: %s", decision.Symbol)
+			if _, closeErr := at.trader.CloseLong(decision.Symbol, 0); closeErr != nil {
+				logger.Errorf("  ❌ Failed to emergency close unprotected long %s: %v", decision.Symbol, closeErr)
+				return fmt.Errorf("protection setup failed: %w; emergency close failed: %v", err, closeErr)
+			}
+			return fmt.Errorf("protection setup failed and position was closed: %w", err)
+		}
+		return err
 	}
 
 	return nil
@@ -286,12 +299,24 @@ func (at *AutoTrader) executeOpenShortWithRecord(decision *kernel.Decision, acti
 	posKey := decision.Symbol + "_short"
 	at.positionFirstSeenTime[posKey] = time.Now().UnixMilli()
 
-	// Set stop loss and take profit
-	if err := at.trader.SetStopLoss(decision.Symbol, "SHORT", quantity, decision.StopLoss); err != nil {
-		logger.Infof("  ⚠ Failed to set stop loss: %v", err)
-	}
-	if err := at.trader.SetTakeProfit(decision.Symbol, "SHORT", quantity, decision.TakeProfit); err != nil {
-		logger.Infof("  ⚠ Failed to set take profit: %v", err)
+	if err := at.applyPostOpenProtection(&protectionExecutionRequest{
+		Symbol:       decision.Symbol,
+		Action:       decision.Action,
+		PositionSide: "SHORT",
+		Quantity:     quantity,
+		EntryPrice:   marketData.CurrentPrice,
+		Decision:     decision,
+	}); err != nil {
+		logger.Warnf("  ❌ Protection setup failed for %s SHORT: %v", decision.Symbol, err)
+		if strings.Contains(strings.ToLower(err.Error()), "verify") || strings.Contains(strings.ToLower(err.Error()), "cannot safely support") {
+			logger.Warnf("  🚨 Protection verification failed, closing position immediately: %s", decision.Symbol)
+			if _, closeErr := at.trader.CloseShort(decision.Symbol, 0); closeErr != nil {
+				logger.Errorf("  ❌ Failed to emergency close unprotected short %s: %v", decision.Symbol, closeErr)
+				return fmt.Errorf("protection setup failed: %w; emergency close failed: %v", err, closeErr)
+			}
+			return fmt.Errorf("protection setup failed and position was closed: %w", err)
+		}
+		return err
 	}
 
 	return nil

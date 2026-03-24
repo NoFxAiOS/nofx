@@ -77,3 +77,15 @@
   - Phase 1：能力矩阵 + protection 配置结构 + 手动 Full TP/SL + 开仓后保护单闭环
   - Phase 2：Ladder TP/SL + Drawdown Take Profit + Break-even Stop
   - Phase 3：AI protection mode + Regime Filter
+
+### Phase 1 首轮落地：protection 配置与开仓后闭环骨架
+- `store/strategy.go` 新增统一 `ProtectionConfig` 及 Full TP/SL、Ladder TP/SL、Drawdown Take Profit、Break-even Stop 配置结构
+- `api/strategy.go` 新增 protection 配置校验，避免非法阈值直接进入策略执行
+- 新增 `trader/protection_capabilities.go`，建立交易所保护能力矩阵骨架
+- 新增 `trader/protection_plan.go`，实现手动 Full TP/SL 保护计划生成
+- 新增 `trader/protection_execution.go`，实现开仓后保护单挂单与最小校验逻辑
+- 将 `trader/auto_trader_orders.go` 接入统一 protection 执行路径：
+  - 开多 / 开空后优先按手动 protection plan 执行
+  - 若未启用手动 protection，则回退使用 AI decision 自带的 SL/TP
+  - 若保护单校验失败或交易所能力不满足要求，则触发立即平仓，避免裸仓保留
+- 基线验证：`go test ./...` 通过

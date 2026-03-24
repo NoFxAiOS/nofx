@@ -28,6 +28,64 @@ func validateStrategyConfig(config *store.StrategyConfig) []string {
 		warnings = append(warnings, "NofxOS API key is not configured. NofxOS data sources may not work properly.")
 	}
 
+	full := config.Protection.FullTPSL
+	if full.Enabled {
+		if full.Mode != store.ProtectionModeManual && full.Mode != store.ProtectionModeAI {
+			warnings = append(warnings, "protection.full_tp_sl.mode should be 'manual' or 'ai'.")
+		}
+		if full.TakeProfit.Enabled && full.TakeProfit.PriceMovePct <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.take_profit.price_move_pct must be > 0 when enabled.")
+		}
+		if full.StopLoss.Enabled && full.StopLoss.PriceMovePct <= 0 {
+			warnings = append(warnings, "protection.full_tp_sl.stop_loss.price_move_pct must be > 0 when enabled.")
+		}
+	}
+
+	ladder := config.Protection.LadderTPSL
+	if ladder.Enabled {
+		if ladder.Mode != store.ProtectionModeManual && ladder.Mode != store.ProtectionModeAI {
+			warnings = append(warnings, "protection.ladder_tp_sl.mode should be 'manual' or 'ai'.")
+		}
+		for i, rule := range ladder.Rules {
+			if ladder.TakeProfitEnabled {
+				if rule.TakeProfitPct <= 0 || rule.TakeProfitCloseRatioPct <= 0 || rule.TakeProfitCloseRatioPct > 100 {
+					warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] take-profit fields are invalid.", i))
+				}
+			}
+			if ladder.StopLossEnabled {
+				if rule.StopLossPct <= 0 || rule.StopLossCloseRatioPct <= 0 || rule.StopLossCloseRatioPct > 100 {
+					warnings = append(warnings, fmt.Sprintf("protection.ladder_tp_sl.rules[%d] stop-loss fields are invalid.", i))
+				}
+			}
+		}
+	}
+
+	drawdown := config.Protection.DrawdownTakeProfit
+	if drawdown.Enabled {
+		for i, rule := range drawdown.Rules {
+			if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.MaxDrawdownPct > 100 ||
+				rule.CloseRatioPct <= 0 || rule.CloseRatioPct > 100 {
+				warnings = append(warnings, fmt.Sprintf("protection.drawdown_take_profit.rules[%d] contains invalid thresholds.", i))
+			}
+			if rule.PollIntervalSeconds > 0 && rule.PollIntervalSeconds < 5 {
+				warnings = append(warnings, fmt.Sprintf("protection.drawdown_take_profit.rules[%d].poll_interval_seconds is too small; recommended >= 5.", i))
+			}
+		}
+	}
+
+	be := config.Protection.BreakEvenStop
+	if be.Enabled {
+		if be.TriggerMode != store.BreakEvenTriggerProfitPct && be.TriggerMode != store.BreakEvenTriggerRMultiple {
+			warnings = append(warnings, "protection.break_even_stop.trigger_mode should be 'profit_pct' or 'r_multiple'.")
+		}
+		if be.TriggerValue <= 0 {
+			warnings = append(warnings, "protection.break_even_stop.trigger_value must be > 0 when enabled.")
+		}
+		if be.OffsetPct < 0 {
+			warnings = append(warnings, "protection.break_even_stop.offset_pct must be >= 0.")
+		}
+	}
+
 	return warnings
 }
 
@@ -150,8 +208,8 @@ func (s *Server) handleCreateStrategy(c *gin.Context) {
 	var req struct {
 		Name        string                `json:"name" binding:"required"`
 		Description string                `json:"description"`
-		Lang        string                `json:"lang"`          // "zh" or "en", used when config is omitted
-		Config      *store.StrategyConfig `json:"config"`        // optional — uses default if omitted
+		Lang        string                `json:"lang"`   // "zh" or "en", used when config is omitted
+		Config      *store.StrategyConfig `json:"config"` // optional — uses default if omitted
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -419,9 +477,9 @@ func (s *Server) handlePreviewPrompt(c *gin.Context) {
 	}
 
 	var req struct {
-		Config          store.StrategyConfig `json:"config" binding:"required"`
-		AccountEquity   float64              `json:"account_equity"`
-		PromptVariant   string               `json:"prompt_variant"`
+		Config        store.StrategyConfig `json:"config" binding:"required"`
+		AccountEquity float64              `json:"account_equity"`
+		PromptVariant string               `json:"prompt_variant"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -664,4 +722,3 @@ func (s *Server) runRealAITest(userID, modelID, systemPrompt, userPrompt string)
 
 	return response, nil
 }
-

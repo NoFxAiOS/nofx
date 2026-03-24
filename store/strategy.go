@@ -21,8 +21,8 @@ type Strategy struct {
 	Description   string    `gorm:"default:''" json:"description"`
 	IsActive      bool      `gorm:"column:is_active;default:false;index" json:"is_active"`
 	IsDefault     bool      `gorm:"column:is_default;default:false" json:"is_default"`
-	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`       // whether visible in strategy market
-	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"`    // whether config details are visible
+	IsPublic      bool      `gorm:"column:is_public;default:false;index" json:"is_public"`    // whether visible in strategy market
+	ConfigVisible bool      `gorm:"column:config_visible;default:true" json:"config_visible"` // whether config details are visible
 	Config        string    `gorm:"not null;default:'{}'" json:"config"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -46,11 +46,82 @@ type StrategyConfig struct {
 	CustomPrompt string `json:"custom_prompt,omitempty"`
 	// risk control configuration
 	RiskControl RiskControlConfig `json:"risk_control"`
+	// unified protection / profit-control configuration
+	Protection ProtectionConfig `json:"protection,omitempty"`
 	// editable sections of System Prompt
 	PromptSections PromptSectionsConfig `json:"prompt_sections,omitempty"`
 
 	// Grid trading configuration (only used when StrategyType == "grid_trading")
 	GridConfig *GridStrategyConfig `json:"grid_config,omitempty"`
+}
+
+// ProtectionConfig unified trade protection / profit-control configuration.
+// Phase 1 focuses on manual full TP/SL and execution-side closure verification.
+type ProtectionConfig struct {
+	FullTPSL           FullTPSLConfig           `json:"full_tp_sl,omitempty"`
+	LadderTPSL         LadderTPSLConfig         `json:"ladder_tp_sl,omitempty"`
+	DrawdownTakeProfit DrawdownTakeProfitConfig `json:"drawdown_take_profit,omitempty"`
+	BreakEvenStop      BreakEvenStopConfig      `json:"break_even_stop,omitempty"`
+}
+
+type ProtectionMode string
+
+const (
+	ProtectionModeManual ProtectionMode = "manual"
+	ProtectionModeAI     ProtectionMode = "ai"
+)
+
+type FullTPSLConfig struct {
+	Enabled    bool                    `json:"enabled"`
+	Mode       ProtectionMode          `json:"mode,omitempty"`
+	TakeProfit ProtectionThresholdRule `json:"take_profit,omitempty"`
+	StopLoss   ProtectionThresholdRule `json:"stop_loss,omitempty"`
+}
+
+type ProtectionThresholdRule struct {
+	Enabled      bool    `json:"enabled"`
+	PriceMovePct float64 `json:"price_move_pct,omitempty"`
+}
+
+type LadderTPSLConfig struct {
+	Enabled           bool             `json:"enabled"`
+	Mode              ProtectionMode   `json:"mode,omitempty"`
+	TakeProfitEnabled bool             `json:"take_profit_enabled"`
+	StopLossEnabled   bool             `json:"stop_loss_enabled"`
+	Rules             []LadderTPSLRule `json:"rules,omitempty"`
+}
+
+type LadderTPSLRule struct {
+	TakeProfitPct           float64 `json:"take_profit_pct,omitempty"`
+	TakeProfitCloseRatioPct float64 `json:"take_profit_close_ratio_pct,omitempty"`
+	StopLossPct             float64 `json:"stop_loss_pct,omitempty"`
+	StopLossCloseRatioPct   float64 `json:"stop_loss_close_ratio_pct,omitempty"`
+}
+
+type DrawdownTakeProfitConfig struct {
+	Enabled bool                     `json:"enabled"`
+	Rules   []DrawdownTakeProfitRule `json:"rules,omitempty"`
+}
+
+type DrawdownTakeProfitRule struct {
+	MinProfitPct        float64 `json:"min_profit_pct,omitempty"`
+	MaxDrawdownPct      float64 `json:"max_drawdown_pct,omitempty"`
+	CloseRatioPct       float64 `json:"close_ratio_pct,omitempty"`
+	PollIntervalSeconds int     `json:"poll_interval_seconds,omitempty"`
+}
+
+type BreakEvenTriggerMode string
+
+const (
+	BreakEvenTriggerProfitPct BreakEvenTriggerMode = "profit_pct"
+	BreakEvenTriggerRMultiple BreakEvenTriggerMode = "r_multiple"
+)
+
+type BreakEvenStopConfig struct {
+	Enabled      bool                 `json:"enabled"`
+	TriggerMode  BreakEvenTriggerMode `json:"trigger_mode,omitempty"`
+	TriggerValue float64              `json:"trigger_value,omitempty"`
+	OffsetPct    float64              `json:"offset_pct,omitempty"`
 }
 
 // GridStrategyConfig grid trading specific configuration
@@ -139,7 +210,7 @@ type IndicatorConfig struct {
 	EnableMACD        bool `json:"enable_macd"`
 	EnableRSI         bool `json:"enable_rsi"`
 	EnableATR         bool `json:"enable_atr"`
-	EnableBOLL        bool `json:"enable_boll"`         // Bollinger Bands
+	EnableBOLL        bool `json:"enable_boll"` // Bollinger Bands
 	EnableVolume      bool `json:"enable_volume"`
 	EnableOI          bool `json:"enable_oi"`           // open interest
 	EnableFundingRate bool `json:"enable_funding_rate"` // funding rate
@@ -197,10 +268,10 @@ type KlineConfig struct {
 
 // ExternalDataSource external data source configuration
 type ExternalDataSource struct {
-	Name        string            `json:"name"`         // data source name
-	Type        string            `json:"type"`         // type: "api" | "webhook"
-	URL         string            `json:"url"`          // API URL
-	Method      string            `json:"method"`       // HTTP method
+	Name        string            `json:"name"`   // data source name
+	Type        string            `json:"type"`   // type: "api" | "webhook"
+	URL         string            `json:"url"`    // API URL
+	Method      string            `json:"method"` // HTTP method
 	Headers     map[string]string `json:"headers,omitempty"`
 	DataPath    string            `json:"data_path,omitempty"`    // JSON data path
 	RefreshSecs int               `json:"refresh_secs,omitempty"` // refresh interval (seconds)
@@ -308,15 +379,42 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
-			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)
-			BTCETHMaxLeverage:               5,   // BTC/ETH exchange leverage (AI guided)
-			AltcoinMaxLeverage:              5,   // Altcoin exchange leverage (AI guided)
-			BTCETHMaxPositionValueRatio:     5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
-			AltcoinMaxPositionValueRatio:    1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
-			MaxMarginUsage:                  0.9, // Max 90% margin usage (CODE ENFORCED)
-			MinPositionSize:                 12,  // Min 12 USDT per position (CODE ENFORCED)
-			MinRiskRewardRatio:              3.0, // Min 3:1 profit/loss ratio (AI guided)
-			MinConfidence:                   75,  // Min 75% confidence (AI guided)
+			MaxPositions:                 3,   // Max 3 coins simultaneously (CODE ENFORCED)
+			BTCETHMaxLeverage:            5,   // BTC/ETH exchange leverage (AI guided)
+			AltcoinMaxLeverage:           5,   // Altcoin exchange leverage (AI guided)
+			BTCETHMaxPositionValueRatio:  5.0, // BTC/ETH: max position = 5x equity (CODE ENFORCED)
+			AltcoinMaxPositionValueRatio: 1.0, // Altcoin: max position = 1x equity (CODE ENFORCED)
+			MaxMarginUsage:               0.9, // Max 90% margin usage (CODE ENFORCED)
+			MinPositionSize:              12,  // Min 12 USDT per position (CODE ENFORCED)
+			MinRiskRewardRatio:           3.0, // Min 3:1 profit/loss ratio (AI guided)
+			MinConfidence:                75,  // Min 75% confidence (AI guided)
+		},
+		Protection: ProtectionConfig{
+			FullTPSL: FullTPSLConfig{
+				Enabled:    false,
+				Mode:       ProtectionModeManual,
+				TakeProfit: ProtectionThresholdRule{Enabled: false, PriceMovePct: 0},
+				StopLoss:   ProtectionThresholdRule{Enabled: false, PriceMovePct: 0},
+			},
+			LadderTPSL: LadderTPSLConfig{
+				Enabled:           false,
+				Mode:              ProtectionModeManual,
+				TakeProfitEnabled: false,
+				StopLossEnabled:   false,
+				Rules:             []LadderTPSLRule{},
+			},
+			DrawdownTakeProfit: DrawdownTakeProfitConfig{
+				Enabled: false,
+				Rules: []DrawdownTakeProfitRule{
+					{MinProfitPct: 5, MaxDrawdownPct: 40, CloseRatioPct: 100, PollIntervalSeconds: 60},
+				},
+			},
+			BreakEvenStop: BreakEvenStopConfig{
+				Enabled:      false,
+				TriggerMode:  BreakEvenTriggerProfitPct,
+				TriggerValue: 3,
+				OffsetPct:    0.1,
+			},
 		},
 	}
 

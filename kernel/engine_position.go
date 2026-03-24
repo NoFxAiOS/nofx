@@ -9,6 +9,9 @@ import (
 // Decision Validation
 // ============================================================================
 
+// validateDecisions / validateDecision 是 AI 输出进入执行链前的最后一道内核校验。
+// 这层的职责不是替代交易所校验，而是在进入 trader 执行前，先把明显越界、结构错误、
+// 风险回报失衡的决策挡在 kernel 层，避免把不合格动作直接下沉到执行链。
 func validateDecisions(decisions []Decision, accountEquity float64, btcEthLeverage, altcoinLeverage int, btcEthPosRatio, altcoinPosRatio float64) error {
 	for i := range decisions {
 		if err := validateDecision(&decisions[i], accountEquity, btcEthLeverage, altcoinLeverage, btcEthPosRatio, altcoinPosRatio); err != nil {

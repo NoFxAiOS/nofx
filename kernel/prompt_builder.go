@@ -11,7 +11,8 @@ import (
 // Builds complete AI prompts including system prompts and user prompts.
 // ============================================================================
 
-// PromptBuilder builds AI prompts in the configured language
+// PromptBuilder 负责把 system prompt、用户上下文、输出约束拼装成最终给 AI 的输入。
+// 它不直接决定交易动作，但强烈影响 AI 的分析边界、输出格式和可控性。
 type PromptBuilder struct {
 	lang Language
 }

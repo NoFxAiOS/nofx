@@ -111,3 +111,8 @@
   - `trader/auto_trader_risk.go`
 - 基线验证：`go test ./...` 通过
 
+### 接管收口推进：kernel 主入口注释与架构增强
+- 补充 `kernel/engine.go`、`kernel/engine_position.go`、`kernel/prompt_builder.go` 首轮中文注释
+- `docs/ARCHITECTURE_CN.md` 增补风控链视角，明确 risk_control / protection / kernel 校验 / trader 运行态保护之间的关系
+- 基线验证：`go test ./...` 通过
+

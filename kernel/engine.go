@@ -179,7 +179,9 @@ type OIDeltaData struct {
 // StrategyEngine - Core Strategy Execution Engine
 // ============================================================================
 
-// StrategyEngine strategy execution engine
+// StrategyEngine 是策略配置在运行态的核心执行入口。
+// 它把 strategy config、NofxOS 数据源、语言选择、候选币筛选、上下文构建等能力收敛到一起，
+// 相当于连接“配置层”和“AI 决策层”的桥梁。
 type StrategyEngine struct {
 	config       *store.StrategyConfig
 	nofxosClient *nofxos.Client

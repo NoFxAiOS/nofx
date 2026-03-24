@@ -70,6 +70,16 @@ Store（SQLite/Postgres）
 ### 4.3 交易链
 决策结果 → 交易所适配器下单/平仓/同步 → 持仓、订单、权益、历史写入 store → API 返回给前端展示
 
+### 4.4 风控链
+当前风控不是单点模块，而是分布式叠加：
+- strategy config 中的 risk_control / protection
+- kernel 层对 AI 决策的前置校验
+- auto trader 执行前的代码强制边界
+- safe mode / drawdown monitor 等运行态保护
+- 开仓后的 protection plan / protection verify / 失败即平仓
+
+因此后续开发不能把“风控”只理解成一个表单或一个函数，而要当成跨 kernel / trader / adapter / store 的系统链路。
+
 ## 5. 当前初步判断的重点模块
 
 ### 高优先级

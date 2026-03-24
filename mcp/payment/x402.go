@@ -82,6 +82,13 @@ func X402DecodeHeader(b64 string) ([]byte, error) {
 	return decoded, nil
 }
 
+// MakeClaw402SignFunc creates an X402SignFunc from a private key for claw402 payments.
+func MakeClaw402SignFunc(privateKey *ecdsa.PrivateKey) X402SignFunc {
+	return func(paymentHeaderB64 string) (string, error) {
+		return SignBasePaymentHeader(privateKey, paymentHeaderB64, "Claw402")
+	}
+}
+
 // SignBasePaymentHeader decodes a base64 x402 header, parses it, and signs with
 // EIP-712 (USDC TransferWithAuthorization).
 func SignBasePaymentHeader(privateKey *ecdsa.PrivateKey, paymentHeaderB64 string, providerName string) (string, error) {

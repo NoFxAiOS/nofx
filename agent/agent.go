@@ -388,7 +388,7 @@ func (a *Agent) thinkAndActStream(ctx context.Context, userID int64, lang, text 
 			return a.noAIFallback(lang, text)
 		}
 
-		// No tool calls → done with tool loop
+		// No tool calls → LLM is done deciding, produce final response
 		if len(resp.ToolCalls) == 0 {
 			if !toolsUsed {
 				// No tools were ever called — the non-streaming probe already has the answer.
@@ -397,8 +397,10 @@ func (a *Agent) thinkAndActStream(ctx context.Context, userID int64, lang, text 
 				a.history.Add(userID, "assistant", resp.Content)
 				return resp.Content, nil
 			}
-			// Tools were used in previous rounds, LLM gave final answer without streaming.
-			// This shouldn't normally happen (we break and stream below), but handle it.
+			// Tools were used in previous rounds. Stream the final response
+			// for better UX (the non-streaming probe gave us text, but for
+			// consistency with the streaming contract, re-request with streaming).
+			// However, resp.Content already has the answer so just emit it.
 			onEvent(StreamEventDelta, resp.Content)
 			a.history.Add(userID, "assistant", resp.Content)
 			return resp.Content, nil
@@ -420,19 +422,16 @@ func (a *Agent) thinkAndActStream(ctx context.Context, userID int64, lang, text 
 			messages = append(messages, mcp.Message{Role: "tool", Content: result, ToolCallID: tc.ID})
 		}
 
-		// After tool execution, stream the next LLM response for real-time UX.
-		// Omit tools so LLM can't start another tool round — it must produce text.
-		streamReq := &mcp.Request{Messages: messages, Ctx: ctx}
-		streamText, streamErr := a.aiClient.CallWithRequestStream(streamReq, func(chunk string) {
-			onEvent(StreamEventDelta, chunk)
-		})
-		if streamErr != nil {
-			a.logger.Error("stream post-tool response failed", "error", streamErr, "round", round)
-			return a.noAIFallback(lang, text)
+		// If this is the last allowed round, break to stream the final response below.
+		// Otherwise, continue loop — next iteration's CallWithRequestFull will check
+		// if LLM wants more tools.
+		if round == maxToolRounds-1 {
+			break
 		}
-		a.history.Add(userID, "assistant", streamText)
-		return streamText, nil
 	}
+
+	// Stream the final response after all tool rounds are complete.
+	// Omit tools so LLM produces text, not more tool calls.
 
 	// Exhausted all tool rounds — stream the final synthesis response
 	finalReq := &mcp.Request{Messages: messages, Ctx: ctx}

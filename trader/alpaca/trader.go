@@ -390,39 +390,45 @@ func (t *AlpacaTrader) GetMarketPrice(symbol string) (float64, error) {
 }
 
 // SetStopLoss places a stop order
+// SetStopLoss places a stop order. Uses "nofxi-sl-" client_order_id prefix
+// so CancelStopLossOrders can distinguish SL orders from user-placed stop orders.
 func (t *AlpacaTrader) SetStopLoss(symbol string, positionSide string, quantity, stopPrice float64) error {
 	side := "sell" // stop loss for long = sell when price drops
 	if positionSide == "SHORT" {
 		side = "buy"
 	}
 
-	order := AlpacaOrderRequest{
-		Symbol:      symbol,
-		Qty:         fmt.Sprintf("%.4f", quantity),
-		Side:        side,
-		Type:        "stop",
-		TimeInForce: "gtc",
-		StopPrice:   fmt.Sprintf("%.2f", stopPrice),
+	order := map[string]string{
+		"symbol":          symbol,
+		"qty":             fmt.Sprintf("%.4f", quantity),
+		"side":            side,
+		"type":            "stop",
+		"time_in_force":   "gtc",
+		"stop_price":      fmt.Sprintf("%.2f", stopPrice),
+		"client_order_id": fmt.Sprintf("nofxi-sl-%s-%d", symbol, time.Now().UnixNano()),
 	}
 
 	_, err := t.doPost("/v2/orders", order)
 	return err
 }
 
-// SetTakeProfit places a limit order as take-profit
+// SetTakeProfit places a limit order as take-profit.
+// Uses a "nofxi-tp-" client_order_id prefix so CancelTakeProfitOrders can
+// distinguish TP orders from user-placed limit orders.
 func (t *AlpacaTrader) SetTakeProfit(symbol string, positionSide string, quantity, takeProfitPrice float64) error {
 	side := "sell" // take profit for long = sell when price rises
 	if positionSide == "SHORT" {
 		side = "buy"
 	}
 
-	order := AlpacaOrderRequest{
-		Symbol:      symbol,
-		Qty:         fmt.Sprintf("%.4f", quantity),
-		Side:        side,
-		Type:        "limit",
-		TimeInForce: "gtc",
-		LimitPrice:  fmt.Sprintf("%.2f", takeProfitPrice),
+	order := map[string]string{
+		"symbol":          symbol,
+		"qty":             fmt.Sprintf("%.4f", quantity),
+		"side":            side,
+		"type":            "limit",
+		"time_in_force":   "gtc",
+		"limit_price":     fmt.Sprintf("%.2f", takeProfitPrice),
+		"client_order_id": fmt.Sprintf("nofxi-tp-%s-%d", symbol, time.Now().UnixNano()),
 	}
 
 	_, err := t.doPost("/v2/orders", order)
@@ -430,13 +436,39 @@ func (t *AlpacaTrader) SetTakeProfit(symbol string, positionSide string, quantit
 }
 
 // CancelStopLossOrders cancels stop orders for a symbol
+// CancelStopLossOrders cancels only NOFXi-created stop-loss orders
+// (identified by "nofxi-sl-" client_order_id prefix).
 func (t *AlpacaTrader) CancelStopLossOrders(symbol string) error {
-	return t.cancelOrdersByType(symbol, "stop")
+	orders, err := t.getOpenOrdersRaw(symbol)
+	if err != nil {
+		return err
+	}
+	for _, o := range orders {
+		if strings.EqualFold(o.Type, "stop") && strings.HasPrefix(o.ClientOrderID, "nofxi-sl-") {
+			if _, err := t.doDelete("/v2/orders/" + o.ID); err != nil {
+				logger.Warnf("[Alpaca] cancel SL order %s: %v", o.ID, err)
+			}
+		}
+	}
+	return nil
 }
 
-// CancelTakeProfitOrders cancels limit orders (used as take-profit) for a symbol
+// CancelTakeProfitOrders cancels only NOFXi-created take-profit limit orders
+// for a symbol (identified by "nofxi-tp-" client_order_id prefix).
+// This avoids accidentally canceling user-placed limit buy/sell orders.
 func (t *AlpacaTrader) CancelTakeProfitOrders(symbol string) error {
-	return t.cancelOrdersByType(symbol, "limit")
+	orders, err := t.getOpenOrdersRaw(symbol)
+	if err != nil {
+		return err
+	}
+	for _, o := range orders {
+		if strings.EqualFold(o.Type, "limit") && strings.HasPrefix(o.ClientOrderID, "nofxi-tp-") {
+			if _, err := t.doDelete("/v2/orders/" + o.ID); err != nil {
+				logger.Warnf("[Alpaca] cancel TP order %s: %v", o.ID, err)
+			}
+		}
+	}
+	return nil
 }
 
 // CancelAllOrders cancels all pending orders for a symbol.
@@ -603,6 +635,23 @@ func (t *AlpacaTrader) IsMarketOpen() (bool, string, error) {
 }
 
 // --- Helper: cancel orders by type ---
+
+// getOpenOrdersRaw returns raw AlpacaOrder structs (with ClientOrderID) for filtering.
+func (t *AlpacaTrader) getOpenOrdersRaw(symbol string) ([]AlpacaOrder, error) {
+	path := "/v2/orders?status=open"
+	if symbol != "" {
+		path += "&symbols=" + symbol
+	}
+	data, err := t.doGet(path)
+	if err != nil {
+		return nil, fmt.Errorf("get open orders: %w", err)
+	}
+	var orders []AlpacaOrder
+	if err := json.Unmarshal(data, &orders); err != nil {
+		return nil, fmt.Errorf("parse orders: %w", err)
+	}
+	return orders, nil
+}
 
 func (t *AlpacaTrader) cancelOrdersByType(symbol, orderType string) error {
 	orders, err := t.GetOpenOrders(symbol)

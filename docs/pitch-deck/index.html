@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOFXi — Investor Deck</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #07070d;
+  --bg2: #0e0e1a;
+  --card: #12121e;
+  --card2: #1a1a2e;
+  --accent: #6c5cff;
+  --accent2: #00d4aa;
+  --gold: #ffd700;
+  --red: #ff4466;
+  --green: #00cc88;
+  --white: #ffffff;
+  --gray: #8888aa;
+  --gray2: #555566;
+}
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--white);
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ============ SLIDE SYSTEM ============ */
+.deck {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+.slide {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 60px 100px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.slide.active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+.slide::before {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(ellipse at 30% 20%, rgba(108,92,255,0.06) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 80%, rgba(0,212,170,0.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* ============ NAVIGATION ============ */
+.nav {
+  position: fixed;
+  bottom: 30px;
+  right: 40px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+  align-items: center;
+}
+
+.nav button {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--white);
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+  backdrop-filter: blur(20px);
+}
+
+.nav button:hover { background: rgba(108,92,255,0.3); }
+
+.nav .counter {
+  color: var(--gray);
+  font-size: 13px;
+  padding: 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width 0.4s ease;
+  z-index: 100;
+}
+
+/* ============ TYPOGRAPHY ============ */
+h1 { font-size: 64px; font-weight: 800; line-height: 1.1; letter-spacing: -2px; }
+h2 { font-size: 42px; font-weight: 700; line-height: 1.2; letter-spacing: -1px; }
+h3 { font-size: 28px; font-weight: 600; line-height: 1.3; }
+p { font-size: 20px; line-height: 1.7; color: var(--gray); }
+.subtitle { font-size: 24px; color: var(--accent); font-weight: 500; margin-top: 12px; }
+.big-number { font-size: 56px; font-weight: 800; }
+.label { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: var(--gray); font-weight: 600; }
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ============ CARDS ============ */
+.cards { display: grid; gap: 24px; margin-top: 40px; }
+.cards-3 { grid-template-columns: repeat(3, 1fr); }
+.cards-4 { grid-template-columns: repeat(4, 1fr); }
+.cards-2 { grid-template-columns: repeat(2, 1fr); }
+
+.card {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s, border-color 0.3s;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(108,92,255,0.3);
+}
+
+.card .icon {
+  font-size: 36px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.card h3 { margin-bottom: 12px; font-size: 22px; }
+.card p { font-size: 16px; line-height: 1.6; }
+
+.card-accent {
+  background: linear-gradient(135deg, rgba(108,92,255,0.15), rgba(0,212,170,0.08));
+  border-color: rgba(108,92,255,0.2);
+}
+
+.card-gold {
+  background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,215,0,0.02));
+  border-color: rgba(255,215,0,0.15);
+}
+
+/* ============ FLOW ============ */
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.flow-item {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 24px;
+  flex: 1;
+  text-align: center;
+}
+
+.flow-arrow {
+  color: var(--accent);
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+/* ============ QUOTE ============ */
+.quote {
+  background: linear-gradient(135deg, rgba(108,92,255,0.1), rgba(0,212,170,0.05));
+  border-left: 4px solid var(--accent);
+  border-radius: 0 16px 16px 0;
+  padding: 28px 36px;
+  margin: 32px 0;
+  font-size: 22px;
+  color: var(--accent2);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+/* ============ MOAT BOX ============ */
+.moat {
+  background: linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,215,0,0.02));
+  border: 1px solid rgba(255,215,0,0.15);
+  border-radius: 16px;
+  padding: 24px 32px;
+  margin-top: 32px;
+}
+
+.moat .moat-label {
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.moat p { color: #cccc99; font-size: 17px; }
+
+/* ============ FLYWHEEL ============ */
+.flywheel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin: 40px 0;
+}
+
+.flywheel-item {
+  background: var(--card2);
+  border-radius: 50%;
+  width: 140px; height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 16px;
+  border: 2px solid rgba(108,92,255,0.2);
+  line-height: 1.3;
+}
+
+.flywheel-arrow { font-size: 24px; color: var(--accent); }
+
+/* ============ TAG ============ */
+.tag {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.tag-green { background: rgba(0,204,136,0.15); color: var(--green); }
+.tag-gold { background: rgba(255,215,0,0.15); color: var(--gold); }
+.tag-accent { background: rgba(108,92,255,0.15); color: var(--accent); }
+
+/* ============ SPLIT LAYOUT ============ */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+.split-wide { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 60px; align-items: start; }
+
+/* ============ COVER SPECIFIC ============ */
+.cover { text-align: center; justify-content: center; align-items: center; }
+.cover h1 { font-size: 84px; margin-bottom: 16px; }
+.cover .tagline { font-size: 32px; color: rgba(255,255,255,0.7); margin-bottom: 24px; }
+
+/* Logo animation */
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 40px rgba(108,92,255,0.3); }
+  50% { text-shadow: 0 0 80px rgba(108,92,255,0.6), 0 0 120px rgba(0,212,170,0.2); }
+}
+.cover h1 { animation: glow 4s ease-in-out infinite; }
+
+/* ============ BARS ============ */
+.bar-chart { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+.bar-row { display: flex; align-items: center; gap: 16px; }
+.bar-label { width: 160px; font-size: 14px; color: var(--gray); text-align: right; }
+.bar { height: 36px; border-radius: 8px; display: flex; align-items: center; padding: 0 16px; font-size: 13px; font-weight: 600; }
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .slide { padding: 40px 60px; }
+  h1 { font-size: 48px; }
+  h2 { font-size: 32px; }
+  .cards-3, .cards-4 { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+<!-- ========== SLIDE 1: COVER ========== -->
+<div class="slide cover active">
+  <div class="label" style="margin-bottom:20px">CONFIDENTIAL · 2026</div>
+  <h1 class="gradient-text">NOFXi</h1>
+  <div class="tagline">The AI That Trades For You</div>
+  <p style="max-width:700px;text-align:center">全球首个跨市场 AI 交易 Agent<br>越用越懂你 · 多 AI 博弈决策 · 交易智慧网络</p>
+</div>
+
+<!-- ========== SLIDE 2: PROBLEM ========== -->
+<div class="slide">
+  <div class="label">THE PROBLEM</div>
+  <h1>万亿美元市场的痛</h1>
+  <p>1.5 亿散户交易者，$70T+ 资产。三个致命问题：</p>
+  <div class="cards cards-3">
+    <div class="card">
+      <span class="icon">😩</span>
+      <h3 style="color:var(--red)">信息过载</h3>
+      <p>加密 24/7，美股港股 A 股时区不同。一条推文引发暴跌。<br><br><strong style="color:var(--white)">散户不可能全天候盯盘</strong></p>
+    </div>
+    <div class="card">
+      <span class="icon">🔧</span>
+      <h3 style="color:var(--red)">工具割裂</h3>
+      <p>加密用 TradingView，美股用 Robinhood，港股用富途。<br><br><strong style="color:var(--white)">四个市场，四套逻辑</strong></p>
+    </div>
+    <div class="card">
+      <span class="icon">🏦</span>
+      <h3 style="color:var(--red)">量化垄断</h3>
+      <p>顶级量化年化 30-100%。门槛：Python + 百万资金 + 半年学习。<br><br><strong style="color:var(--white)">信息不对称 = 财富不对等</strong></p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 3: SOLUTION ========== -->
+<div class="slide">
+  <div class="label">THE SOLUTION</div>
+  <h1>NOFXi 不是交易工具</h1>
+  <h2 class="gradient-text" style="margin-top:8px">它是你的 AI 交易团队</h2>
+  <div style="margin-top:40px;display:grid;grid-template-columns:repeat(5,1fr);gap:20px">
+    <div style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🕐</div>
+      <h3 style="font-size:18px">24/7 在线</h3>
+      <p style="font-size:14px">永远不休息</p>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🌍</div>
+      <h3 style="font-size:18px">全市场</h3>
+      <p style="font-size:14px">Crypto + 美股 + 港股</p>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🧠</div>
+      <h3 style="font-size:18px">有记忆</h3>
+      <p style="font-size:14px">从你的交易中学习</p>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">💬</div>
+      <h3 style="font-size:18px">自然语言</h3>
+      <p style="font-size:14px">「帮我抄底 NVDA」</p>
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">⚔️</div>
+      <h3 style="font-size:18px">多 AI 博弈</h3>
+      <p style="font-size:14px">辩论后才下单</p>
+    </div>
+  </div>
+  <div class="quote" style="margin-top:48px">
+    「美股跌太多了，帮我用 30% 仓位抄底 NVDA，同时做空等量 BTC 对冲风险」<br>
+    <span style="font-size:16px;color:var(--gray);font-style:normal">— 一句话，NOFXi 自动完成跨市场操作</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 4: MEMORY NETWORK ========== -->
+<div class="slide">
+  <div class="label">CORE CAPABILITY #1</div>
+  <div class="split-wide">
+    <div>
+      <h1>🧠 交易记忆网络</h1>
+      <div class="subtitle">你的 AI 越用越值钱</div>
+      <p style="margin-top:24px">用了三年的 TradingView 依然不知道你是谁。<br>NOFXi 从第一笔交易就在构建你的专属记忆图谱。</p>
+      <div style="margin-top:32px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:16px;align-items:start">
+          <span style="font-size:28px">📊</span>
+          <div><h3 style="font-size:18px;margin-bottom:4px">行为画像</h3><p style="font-size:15px">知道你恐慌时卖出、FOMO 时追高，主动干预情绪化决策</p></div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:start">
+          <span style="font-size:28px">🔗</span>
+          <div><h3 style="font-size:18px;margin-bottom:4px">环境关联</h3><p style="font-size:15px">记住「加息 + 非农超预期 = 你亏 12%」，下次提前预警</p></div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:start">
+          <span style="font-size:28px">📈</span>
+          <div><h3 style="font-size:18px;margin-bottom:4px">进化学习</h3><p style="font-size:15px">每笔盈亏修正判断权重。三个月后，你的 Agent 独一无二</p></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="moat">
+        <div class="moat-label">💰 投资价值</div>
+        <p>用户迁移成本极高 — 换软件 = 从零训练，没人愿意</p>
+        <p style="margin-top:12px">SaaS 梦寐以求的留存率 — 用户越久，Agent 越强，粘性越高</p>
+        <p style="margin-top:16px;font-style:italic;color:var(--gray)">Spotify 用几年懂你的音乐<br>NOFXi 用几个月懂你的交易</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 5: MULTI AI ========== -->
+<div class="slide">
+  <div class="label">CORE CAPABILITY #2</div>
+  <h1>⚔️ 多 AI 博弈决策</h1>
+  <div class="subtitle">华尔街投研团队，人人可用</div>
+  <p style="margin-top:12px">桥水有 1500 人投研团队。散户只有自己。NOFXi 用 AI 复刻机构决策流水线：</p>
+  <div class="flow" style="margin-top:40px">
+    <div class="flow-item" style="border-color:rgba(0,204,136,0.3)">
+      <div style="font-size:28px;margin-bottom:8px">🟢</div>
+      <h3 style="font-size:16px;color:var(--green)">Bull AI</h3>
+      <p style="font-size:13px">穷尽做多理由<br>挖掘被低估机会</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-item" style="border-color:rgba(255,68,102,0.3)">
+      <div style="font-size:28px;margin-bottom:8px">🔴</div>
+      <h3 style="font-size:16px;color:var(--red)">Bear AI</h3>
+      <p style="font-size:13px">魔鬼代言人<br>专找风险和空头逻辑</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-item" style="border-color:rgba(108,92,255,0.3)">
+      <div style="font-size:28px;margin-bottom:8px">🧩</div>
+      <h3 style="font-size:16px;color:var(--accent)">Strategist</h3>
+      <p style="font-size:13px">综合多空博弈<br>输出交易方案</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-item" style="border-color:rgba(255,215,0,0.3)">
+      <div style="font-size:28px;margin-bottom:8px">🛡️</div>
+      <h3 style="font-size:16px;color:var(--gold)">Risk AI</h3>
+      <p style="font-size:13px">最后一道关<br>不过审 = 不执行</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div style="background:var(--accent);border-radius:16px;padding:24px;text-align:center">
+      <div style="font-size:28px;margin-bottom:8px">✅</div>
+      <h3 style="font-size:16px">Execute</h3>
+    </div>
+  </div>
+  <div class="moat" style="margin-top:32px">
+    <div class="moat-label">💰 投资价值</div>
+    <p>多 AI 对抗的 prompt 框架 + 辩论收敛算法 + 实战权重调优 — 需要上万笔真实交易迭代。时间壁垒 + 数据壁垒，不是开源能复制的。</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 6: CROSS MARKET ========== -->
+<div class="slide">
+  <div class="label">CORE CAPABILITY #3</div>
+  <h1>🌍 全市场统一 Agent</h1>
+  <div class="subtitle">一个大脑管所有资产 — 全球唯一</div>
+  <div class="quote" style="margin-top:32px">
+    「BTC 大跌，帮我把 30% 仓位转到黄金 ETF 避险，同时买入港股腾讯 1000 股」
+  </div>
+  <div class="cards cards-3" style="margin-top:24px">
+    <div class="card" style="border-color:rgba(0,204,136,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:18px;color:var(--green)">✅ 加密货币</h3>
+        <span class="tag tag-green">已上线</span>
+      </div>
+      <p style="font-size:15px">Binance · Bybit · OKX · Bitget<br>KuCoin · Gate · Hyperliquid<br>Aster · Lighter</p>
+    </div>
+    <div class="card" style="border-color:rgba(255,215,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:18px;color:var(--gold)">🔨 美股</h3>
+        <span class="tag tag-gold">开发中</span>
+      </div>
+      <p style="font-size:15px">Alpaca<br>Paper Trading + Live<br>盘前盘后支持</p>
+    </div>
+    <div class="card" style="border-color:rgba(108,92,255,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="font-size:18px;color:var(--accent)">📋 港股 / A股</h3>
+        <span class="tag tag-accent">规划中</span>
+      </div>
+      <p style="font-size:15px">LongPort 长桥<br>沪港通<br>300+ 只大盘股</p>
+    </div>
+  </div>
+  <div class="moat" style="margin-top:24px">
+    <div class="moat-label">💰 投资价值</div>
+    <p>12+ 交易所/券商的管道工程极其复杂。先发者 = 标准制定者，后来者从零追赶。</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 7: MEMORY MARKET ========== -->
+<div class="slide">
+  <div class="label">CORE CAPABILITY #4</div>
+  <h1>🏪 记忆市场</h1>
+  <div class="subtitle">交易智慧的 App Store</div>
+  <div class="split" style="margin-top:32px">
+    <div>
+      <p style="font-size:22px;color:var(--white);line-height:1.6">eToro 让你复制<strong>操作</strong>。<br>NOFXi 让你复制<strong style="color:var(--accent2)">大脑</strong>。</p>
+      <div style="margin-top:28px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:14px;align-items:start">
+          <span style="font-size:24px">1️⃣</span>
+          <p style="font-size:16px">顶级交易员打包 Agent 记忆出售<br><span style="color:var(--gray2)">判断框架 + 风险偏好 + 踩坑经验</span></p>
+        </div>
+        <div style="display:flex;gap:14px;align-items:start">
+          <span style="font-size:24px">2️⃣</span>
+          <p style="font-size:16px">买家在他人记忆上继续训练<br><span style="color:var(--gray2)">你的习惯 + 他的经验 = 超级 Agent</span></p>
+        </div>
+        <div style="display:flex;gap:14px;align-items:start">
+          <span style="font-size:24px">3️⃣</span>
+          <p style="font-size:16px">实盘评分系统<br><span style="color:var(--gray2)">胜率 / 夏普比率 / 最大回撤</span></p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div style="text-align:center">
+        <div class="flywheel">
+          <div class="flywheel-item" style="border-color:var(--accent)">用户<br>越多</div>
+          <div class="flywheel-arrow">→</div>
+          <div class="flywheel-item" style="border-color:var(--accent2)">记忆<br>越丰富</div>
+        </div>
+        <div style="font-size:24px;color:var(--accent);margin:8px 0">🔄</div>
+        <div class="flywheel">
+          <div class="flywheel-item" style="border-color:var(--gold)">新用户<br>越想来</div>
+          <div class="flywheel-arrow">←</div>
+          <div class="flywheel-item" style="border-color:var(--green)">平台<br>越值钱</div>
+        </div>
+        <p style="margin-top:20px;font-size:14px">网络效应飞轮</p>
+      </div>
+    </div>
+  </div>
+  <div class="moat" style="margin-top:20px">
+    <div class="moat-label">💰 投资价值</div>
+    <p>GitHub 是代码的网络，NOFXi 是交易智慧的网络。平台抽成 20-30%。双边网络效应 = 越滚越大。</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 8: NL STRATEGY ========== -->
+<div class="slide">
+  <div class="label">CORE CAPABILITY #5</div>
+  <h1>💬 自然语言策略引擎</h1>
+  <div class="subtitle">量化民主化 — 说人话，做量化</div>
+  <div class="quote" style="margin-top:32px;font-size:20px">
+    「当 BTC RSI &lt; 30 且美股期货是绿的，用 10% 仓位做多，止损 3%，止盈 8%，每周五收盘前平仓」
+  </div>
+  <div class="flow" style="margin-top:32px">
+    <div class="flow-item">
+      <div style="font-size:24px;margin-bottom:8px">🔍</div>
+      <h3 style="font-size:15px;color:var(--accent)">解析语义</h3>
+      <p style="font-size:12px">理解策略意图<br>处理模糊表述</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-item">
+      <div style="font-size:24px;margin-bottom:8px">⚙️</div>
+      <h3 style="font-size:15px;color:var(--accent)">绑定指标</h3>
+      <p style="font-size:12px">RSI / EMA / MACD<br>自动绑定数据源</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-item">
+      <div style="font-size:24px;margin-bottom:8px">👁️</div>
+      <h3 style="font-size:15px;color:var(--accent)">7×24 监控</h3>
+      <p style="font-size:12px">条件触发执行<br>不用盯盘</p>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-item">
+      <div style="font-size:24px;margin-bottom:8px">📊</div>
+      <h3 style="font-size:15px;color:var(--accent)">持续复盘</h3>
+      <p style="font-size:12px">自动评估表现<br>建议优化</p>
+    </div>
+  </div>
+  <div class="split" style="margin-top:32px">
+    <div class="card" style="text-align:center">
+      <p style="font-size:14px;color:var(--red)">传统量化</p>
+      <p style="font-size:28px;font-weight:700;color:var(--red);margin:8px 0">6 个月 + $1M</p>
+      <p style="font-size:13px">Python + 回测框架 + 数据工程</p>
+    </div>
+    <div class="card card-accent" style="text-align:center">
+      <p style="font-size:14px;color:var(--accent2)">NOFXi</p>
+      <p style="font-size:28px;font-weight:700;color:var(--accent2);margin:8px 0">一句话</p>
+      <p style="font-size:13px">知识是门槛，不是编程</p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 9: TECH ========== -->
+<div class="slide">
+  <div class="label">TECHNOLOGY</div>
+  <h1>🔒 技术壁垒</h1>
+  <div class="subtitle">为什么别人做不了？</div>
+  <div style="display:flex;flex-direction:column;gap:16px;margin-top:36px">
+    <div class="card" style="display:flex;gap:24px;align-items:center;padding:20px 28px">
+      <span style="font-size:28px">🔌</span>
+      <div style="flex:0 0 200px"><h3 style="font-size:16px;color:var(--accent2)">统一交易协议层</h3></div>
+      <p style="font-size:15px;flex:1">12+ 交易所/券商，每个 API 完全不同。Stripe 统一支付，NOFXi 统一交易。</p>
+    </div>
+    <div class="card" style="display:flex;gap:24px;align-items:center;padding:20px 28px">
+      <span style="font-size:28px">🤖</span>
+      <div style="flex:0 0 200px"><h3 style="font-size:16px;color:var(--accent2)">Agent 决策引擎</h3></div>
+      <p style="font-size:15px;flex:1">多轮 Tool Calling，5 轮决策循环。新增能力 = 注册工具，LLM 自动学会使用。</p>
+    </div>
+    <div class="card" style="display:flex;gap:24px;align-items:center;padding:20px 28px">
+      <span style="font-size:28px">🔒</span>
+      <div style="flex:0 0 200px"><h3 style="font-size:16px;color:var(--accent2)">安全执行沙箱</h3></div>
+      <p style="font-size:15px;flex:1">确认机制 + Panic Recovery + 数据真实性约束。交易 ≠ 聊天，一个错误 = 真金白银。</p>
+    </div>
+    <div class="card" style="display:flex;gap:24px;align-items:center;padding:20px 28px">
+      <span style="font-size:28px">🔄</span>
+      <div style="flex:0 0 200px"><h3 style="font-size:16px;color:var(--accent2)">自驱进化架构</h3></div>
+      <p style="font-size:15px;flex:1">Sentinel(异动) + Brain(主动) + Learner(学习) — 不需用户干预的自我进化闭环。</p>
+    </div>
+    <div class="card" style="display:flex;gap:24px;align-items:center;padding:20px 28px">
+      <span style="font-size:28px">🌀</span>
+      <div style="flex:0 0 200px"><h3 style="font-size:16px;color:var(--accent2)">实战数据飞轮</h3></div>
+      <p style="font-size:15px;flex:1">每笔真实交易训练系统。竞品从零开始，我们已在积累。时间 = 不可逾越的壁垒。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 10: ECOSYSTEM ========== -->
+<div class="slide">
+  <div class="label">ECOSYSTEM</div>
+  <h1>📱 开放生态</h1>
+  <div class="subtitle">NOFXi = 交易世界的 iPhone + App Store</div>
+  <p style="margin-top:12px">Agent 是操作系统，Plugin 是 App。每接入一个伙伴，能力增强一分。</p>
+  <div class="cards cards-4" style="margin-top:32px">
+    <div class="card">
+      <span class="icon">🔌</span>
+      <h3 style="font-size:17px">交易执行</h3>
+      <p style="font-size:14px">Vergex 等量化平台<br>策略/信号一键接入</p>
+    </div>
+    <div class="card">
+      <span class="icon">📊</span>
+      <h3 style="font-size:17px">数据源</h3>
+      <p style="font-size:14px">Nansen · Bloomberg<br>Santiment 情绪数据</p>
+    </div>
+    <div class="card">
+      <span class="icon">🧮</span>
+      <h3 style="font-size:17px">策略市场</h3>
+      <p style="font-size:14px">第三方策略发布<br>用户订阅 · 平台抽成</p>
+    </div>
+    <div class="card">
+      <span class="icon">🛡️</span>
+      <h3 style="font-size:17px">风控服务</h3>
+      <p style="font-size:14px">专业风控团队<br>执行前自动审核</p>
+    </div>
+  </div>
+  <div class="card card-accent" style="margin-top:24px;padding:24px 32px">
+    <h3 style="font-size:18px;margin-bottom:8px">🤝 Vergex 深度集成</h3>
+    <p style="font-size:15px">策略提供商 + 执行通道 + 数据源 + 品牌联合 —「NOFXi × Vergex 联合策略」</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 11: MARKET ========== -->
+<div class="slide">
+  <div class="label">MARKET OPPORTUNITY</div>
+  <h1>📈 市场机会</h1>
+  <div class="cards cards-4" style="margin-top:36px">
+    <div class="card" style="text-align:center">
+      <div class="big-number gradient-text">$70T+</div>
+      <p style="font-size:14px;margin-top:8px">全球散户交易资产</p>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="big-number gradient-text">$12B</div>
+      <p style="font-size:14px;margin-top:8px">加密交易工具 · 2030</p>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="big-number gradient-text">$16T</div>
+      <p style="font-size:14px;margin-top:8px">智能投顾 AUM · 2030</p>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="big-number gradient-text">$4B</div>
+      <p style="font-size:14px;margin-top:8px">Copy Trading · 2028</p>
+    </div>
+  </div>
+  <h3 style="margin-top:40px;margin-bottom:20px">切入路径</h3>
+  <div class="cards cards-3">
+    <div class="card" style="border-top:3px solid var(--green)">
+      <span class="tag tag-green" style="margin-bottom:12px">Phase 1 · 现在</span>
+      <h3 style="font-size:20px">加密交易者</h3>
+      <p style="font-size:14px;margin-top:8px">7×24 市场 · AI 接受度最高<br>9 交易所已上线<br><strong style="color:var(--white)">目标：1,000 用户</strong></p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--gold)">
+      <span class="tag tag-gold" style="margin-bottom:12px">Phase 2 · Q3 2026</span>
+      <h3 style="font-size:20px">跨市场交易者</h3>
+      <p style="font-size:14px;margin-top:8px">美股 + 港股 · 记忆市场上线<br>月交易量 $100M+<br><strong style="color:var(--white)">目标：10,000 用户</strong></p>
+    </div>
+    <div class="card" style="border-top:3px solid var(--accent)">
+      <span class="tag tag-accent" style="margin-bottom:12px">Phase 3 · 2027</span>
+      <h3 style="font-size:20px">资产管理 Agent</h3>
+      <p style="font-size:14px;margin-top:8px">DeFi + CeFi + TradFi<br>AUM $1B+<br><strong style="color:var(--white)">目标：100,000 用户</strong></p>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 12: BUSINESS MODEL ========== -->
+<div class="slide">
+  <div class="label">BUSINESS MODEL</div>
+  <h1>💵 商业模式</h1>
+  <div class="cards cards-4" style="margin-top:40px">
+    <div class="card" style="text-align:center;border-top:3px solid var(--accent)">
+      <span class="icon">💎</span>
+      <h3>Pro 订阅</h3>
+      <div style="font-size:28px;font-weight:700;color:var(--accent2);margin:12px 0">$29-99/月</div>
+      <p style="font-size:14px">高级 AI 模型<br>更多交易对 · 更长记忆</p>
+      <div class="tag tag-accent" style="margin-top:16px">主要收入</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:3px solid var(--gold)">
+      <span class="icon">🏪</span>
+      <h3>记忆市场</h3>
+      <div style="font-size:28px;font-weight:700;color:var(--accent2);margin:12px 0">抽成 20-30%</div>
+      <p style="font-size:14px">交易员出售记忆<br>平台抽佣</p>
+      <div class="tag tag-gold" style="margin-top:16px">平台收入</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:3px solid var(--green)">
+      <span class="icon">🔄</span>
+      <h3>交易量返佣</h3>
+      <div style="font-size:28px;font-weight:700;color:var(--accent2);margin:12px 0">按量分成</div>
+      <p style="font-size:14px">与交易所合作<br>交易量返佣</p>
+      <div class="tag tag-green" style="margin-top:16px">被动收入</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:3px solid var(--accent2)">
+      <span class="icon">🏢</span>
+      <h3>企业版</h3>
+      <div style="font-size:28px;font-weight:700;color:var(--accent2);margin:12px 0">高客单价</div>
+      <p style="font-size:14px">为基金/机构<br>定制 Agent</p>
+      <div class="tag tag-accent" style="margin-top:16px">高端收入</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 13: OPEN SOURCE BIZ MODEL ========== -->
+<div class="slide">
+  <div class="label">OPEN SOURCE STRATEGY</div>
+  <h1>🔓 开源商业模式</h1>
+  <div class="subtitle">开源引擎获客，云端服务赚钱</div>
+  <p style="margin-top:8px">Red Hat ($34B) · GitLab ($8B) · Databricks ($43B) — 都是开源公司。</p>
+  <div class="split" style="margin-top:28px">
+    <div>
+      <h3 style="color:var(--accent2);margin-bottom:16px">🆓 开源（免费）→ 获取</h3>
+      <div class="card" style="margin-bottom:12px;padding:20px">
+        <p style="font-size:15px">
+          <strong style="color:var(--white)">交易引擎</strong> — Trader interface + 交易所对接<br>
+          <strong style="color:var(--white)">Agent 框架</strong> — 基础对话 + 工具调用<br>
+          <strong style="color:var(--white)">单用户版</strong> — 自己部署，完全免费
+        </p>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+        <span class="tag tag-green">开发者社区</span>
+        <span class="tag tag-green">代码可审计=信任</span>
+        <span class="tag tag-green">获客成本趋零</span>
+        <span class="tag tag-green">你的接口=行业标准</span>
+      </div>
+    </div>
+    <div>
+      <h3 style="color:var(--gold);margin-bottom:16px">💰 不开源（收费）→ 变现</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="card" style="padding:14px 20px;border-left:3px solid var(--gold)">
+          <p style="font-size:14px"><strong style="color:var(--white)">记忆网络</strong> — 云端同步，数据不是代码能复制的</p>
+        </div>
+        <div class="card" style="padding:14px 20px;border-left:3px solid var(--gold)">
+          <p style="font-size:14px"><strong style="color:var(--white)">记忆市场</strong> — 双边平台，自建 GitHub 上面没用户</p>
+        </div>
+        <div class="card" style="padding:14px 20px;border-left:3px solid var(--gold)">
+          <p style="font-size:14px"><strong style="color:var(--white)">多 AI 集群</strong> — 自跑 4 个 LLM $200+/月，我们卖 $29 双赢</p>
+        </div>
+        <div class="card" style="padding:14px 20px;border-left:3px solid var(--gold)">
+          <p style="font-size:14px"><strong style="color:var(--white)">数据飞轮</strong> — 开源版永远比云端版慢一代</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="moat" style="margin-top:24px">
+    <div class="moat-label">一句话</div>
+    <p>代码可以复制，但记忆网络、调优过的 AI 团队、和双边市场不能复制。这是 Red Hat 模式 + App Store 模式。</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 14: CLOSING ========== -->
+<div class="slide cover">
+  <h1 class="gradient-text" style="font-size:72px">NOFXi</h1>
+  <p style="font-size:26px;color:var(--white);max-width:700px;text-align:center;margin-top:20px;line-height:1.6">
+    正在构建交易智慧的网络。<br>
+    每个用户训练自己的 AI 交易团队，<br>
+    每个交易员的经验都能被分享和增值。
+  </p>
+  <div style="margin-top:32px;font-size:24px;font-weight:600" class="gradient-text">
+    这不是又一个交易工具 — 这是交易的未来。
+  </div>
+  <p style="margin-top:40px;font-size:20px;color:var(--gray)">Trade Smarter, Together.</p>
+</div>
+
+</div>
+
+<!-- NAVIGATION -->
+<div class="nav">
+  <button onclick="prev()">←</button>
+  <span class="counter" id="counter">1 / 13</span>
+  <button onclick="next()">→</button>
+</div>
+
+<script>
+let current = 0;
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+const counter = document.getElementById('counter');
+const progress = document.getElementById('progress');
+
+function show(n) {
+  slides.forEach(s => s.classList.remove('active'));
+  slides[n].classList.add('active');
+  counter.textContent = `${n + 1} / ${total}`;
+  document.title = `NOFXi Pitch Deck — ${n + 1}/${total}`;
+  progress.style.width = `${((n + 1) / total) * 100}%`;
+}
+
+function next() { if (current < total - 1) { current++; show(current); } }
+function prev() { if (current > 0) { current--; show(current); } }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  if (e.key === 'f') { document.documentElement.requestFullscreen?.(); }
+});
+
+// Touch support
+let touchStartX = 0;
+document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+document.addEventListener('touchend', e => {
+  const diff = touchStartX - e.changedTouches[0].clientX;
+  if (Math.abs(diff) > 50) { diff > 0 ? next() : prev(); }
+});
+
+show(0);
+</script>
+
+</body>
+</html>

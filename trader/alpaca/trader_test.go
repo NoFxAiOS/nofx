@@ -116,26 +116,33 @@ func newMockAlpacaServer() *mockAlpacaServer {
 			}
 			json.NewEncoder(w).Encode(result)
 		case "POST":
-			var req AlpacaOrderRequest
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			// Parse as generic map to capture all fields including client_order_id
+			var raw map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 				http.Error(w, `{"message":"invalid body"}`, 400)
 				return
 			}
+			reqType := raw["type"]
+			reqSide := raw["side"]
+			reqSymbol := raw["symbol"]
+			reqQty := raw["qty"]
 			// Simulate order fill for market orders
 			fillStatus := "accepted"
-			if req.Type == "market" {
+			if reqType == "market" {
 				fillStatus = "filled"
-				// If buy, add position
-				if req.Side == "buy" {
-					m.addPosition(req.Symbol, req.Qty, "150.00")
+				if reqSide == "buy" {
+					m.addPosition(reqSymbol, reqQty, "150.00")
 				}
 			}
-			order := m.createOrder(req.Symbol, req.Side, req.Qty, req.Type, fillStatus)
-			if req.StopPrice != "" {
-				order.StopPrice = req.StopPrice
+			order := m.createOrder(reqSymbol, reqSide, reqQty, reqType, fillStatus)
+			if v := raw["stop_price"]; v != "" {
+				order.StopPrice = v
 			}
-			if req.LimitPrice != "" {
-				order.LimitPrice = req.LimitPrice
+			if v := raw["limit_price"]; v != "" {
+				order.LimitPrice = v
+			}
+			if v := raw["client_order_id"]; v != "" {
+				order.ClientOrderID = v
 			}
 			if fillStatus != "filled" {
 				order.Status = "new" // stop/limit orders stay open

@@ -16,7 +16,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Server HTTP API server
+// Server 是系统对前端、集成调用、公开查询暴露的统一 HTTP API 入口。
+// 它负责路由装配、鉴权边界与 handler 分发；
+// 真正的交易运行与执行仍下沉到 manager / trader 层。
 type Server struct {
 	router           *gin.Engine
 	traderManager    *manager.TraderManager

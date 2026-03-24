@@ -100,3 +100,14 @@
   - Ladder / Drawdown / Break-even 先以前端配置骨架形式暴露，为后续执行链预留
 - 前端验证：`cd web && npm test`、`cd web && npm run build` 通过
 
+### 接管收口推进：可信边界与四条核心链路
+- 新增 `docs/SYSTEM_TRUST_BOUNDARY_CN.md`，明确当前系统的可信边界、风险边界与不可误判为已完成的事项
+- 新增 `docs/SYSTEM_CHAINS_CLOSURE_CN.md`，收口启动链 / 决策链 / 交易链 / 风控链的当前结构与边界
+- 补充首轮中文注释到关键入口与核心链路：
+  - `main.go`
+  - `api/server.go`
+  - `manager/trader_manager.go`
+  - `trader/auto_trader_loop.go`
+  - `trader/auto_trader_risk.go`
+- 基线验证：`go test ./...` 通过
+

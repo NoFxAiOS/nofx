@@ -18,7 +18,9 @@ type CompetitionCache struct {
 	mu        sync.RWMutex
 }
 
-// TraderManager manages multiple trader instances
+// TraderManager 是运行态 trader 的总调度器。
+// 它解决的是加载、持有、启动、停止、查询、比赛缓存等生命周期问题，
+// 相当于连接 store / runtime trader / API 的中枢层。
 type TraderManager struct {
 	traders          map[string]*trader.AutoTrader // key: trader ID
 	loadErrors       map[string]error              // key: trader ID, stores last load error
@@ -740,4 +742,3 @@ func (tm *TraderManager) addTraderFromStore(traderCfg *store.Trader, aiModelCfg 
 
 	return nil
 }
-

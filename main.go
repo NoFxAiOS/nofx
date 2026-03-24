@@ -5,13 +5,13 @@ import (
 	"nofx/auth"
 	"nofx/config"
 	"nofx/crypto"
-	"nofx/telemetry"
 	"nofx/logger"
 	"nofx/manager"
 	_ "nofx/mcp/payment"
 	_ "nofx/mcp/provider"
 	"nofx/store"
 	"nofx/telegram"
+	"nofx/telemetry"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -22,6 +22,9 @@ import (
 )
 
 func main() {
+	// 系统启动主入口：负责把配置、加密、存储、管理器、API、Telegram 按依赖顺序装配起来。
+	// 这里处理的是系统级生命周期，不负责单次交易决策细节。
+
 	// Load .env environment variables
 	_ = godotenv.Load()
 

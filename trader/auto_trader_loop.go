@@ -11,7 +11,9 @@ import (
 	"time"
 )
 
-// runCycle runs one trading cycle (using AI full decision-making)
+// runCycle 是自动交易主循环里最关键的一步：
+// 它把账户、持仓、行情、策略配置收敛成一个完整决策周期，
+// 再把 AI 输出转成排序后的动作并交给执行链处理。
 func (at *AutoTrader) runCycle() error {
 	at.callCount++
 

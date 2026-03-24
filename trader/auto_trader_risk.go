@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
-// startDrawdownMonitor starts drawdown monitoring
+// startDrawdownMonitor 启动运行态回撤监控协程。
+// 这条链路属于持仓后的风险保护，和开仓前的 AI 决策风控不同，
+// 它的职责是在仓位已存在时继续兜底处理利润回撤与异常退出。
 func (at *AutoTrader) startDrawdownMonitor() {
 	at.monitorWg.Add(1)
 	go func() {

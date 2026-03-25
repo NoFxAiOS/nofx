@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"nofx/logger"
 	"nofx/market"
 	"nofx/provider/hyperliquid"
@@ -185,14 +186,37 @@ type StrategyEngine struct {
 	nofxosClient *nofxos.Client
 }
 
-// NewStrategyEngine creates strategy execution engine
-func NewStrategyEngine(config *store.StrategyConfig) *StrategyEngine {
+// NewStrategyEngine creates strategy execution engine.
+// claw402WalletKey is optional — if provided, nofxos data requests are routed through claw402.
+func NewStrategyEngine(config *store.StrategyConfig, claw402WalletKey ...string) *StrategyEngine {
 	// Create NofxOS client with API key from config
 	apiKey := config.Indicators.NofxOSAPIKey
 	if apiKey == "" {
 		apiKey = nofxos.DefaultAuthKey
 	}
 	client := nofxos.NewClient(nofxos.DefaultBaseURL, apiKey)
+
+	// If claw402 wallet key is provided (from trader's AI config), route through claw402
+	walletKey := ""
+	if len(claw402WalletKey) > 0 {
+		walletKey = claw402WalletKey[0]
+	}
+	if walletKey == "" {
+		walletKey = os.Getenv("CLAW402_WALLET_KEY")
+	}
+	if walletKey != "" {
+		claw402URL := os.Getenv("CLAW402_URL")
+		if claw402URL == "" {
+			claw402URL = "https://claw402.ai"
+		}
+		claw402Client, err := nofxos.NewClaw402DataClient(claw402URL, walletKey, nil)
+		if err == nil {
+			client.SetClaw402(claw402Client)
+			logger.Infof("🔗 NofxOS data routed through claw402 (%s)", claw402URL)
+		} else {
+			logger.Warnf("⚠️ Failed to init claw402 data client: %v (using direct nofxos.ai)", err)
+		}
+	}
 
 	return &StrategyEngine{
 		config:       config,

@@ -70,8 +70,26 @@ export function CoinSourceEditor({
     return xyzDexAssets.has(base)
   }
 
+  const MAX_STATIC_COINS = 3
+
+  const showToast = (msg: string) => {
+    const toast = document.createElement('div')
+    toast.textContent = msg
+    toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm z-50 shadow-lg'
+    toast.style.cssText = 'background:#F6465D;color:#fff;'
+    document.body.appendChild(toast)
+    setTimeout(() => toast.remove(), 2000)
+  }
+
   const handleAddCoin = () => {
     if (!newCoin.trim()) return
+
+    const currentCoins = config.static_coins || []
+    if (currentCoins.length >= MAX_STATIC_COINS) {
+      showToast(language === 'zh' ? `最多添加 ${MAX_STATIC_COINS} 个币种` : `Maximum ${MAX_STATIC_COINS} coins allowed`)
+      return
+    }
+
     const symbol = newCoin.toUpperCase().trim()
 
     // For xyz dex assets (stocks, forex, commodities), use xyz: prefix without USDT
@@ -84,7 +102,6 @@ export function CoinSourceEditor({
       formattedSymbol = symbol.endsWith('USDT') ? symbol : `${symbol}USDT`
     }
 
-    const currentCoins = config.static_coins || []
     if (!currentCoins.includes(formattedSymbol)) {
       onChange({
         ...config,

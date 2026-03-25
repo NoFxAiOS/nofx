@@ -60,7 +60,16 @@ export function IndicatorEditor({
         })
       }
     } else {
-      if (current.length >= 3) return // Max 3 timeframes
+      if (current.length >= 4) {
+        // Show toast notification
+        const toast = document.createElement('div')
+        toast.textContent = language === 'zh' ? '最多选择 4 个时间维度' : 'Maximum 4 timeframes allowed'
+        toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg text-sm z-50 shadow-lg'
+        toast.style.cssText = 'background:#F6465D;color:#fff;'
+        document.body.appendChild(toast)
+        setTimeout(() => toast.remove(), 2000)
+        return
+      }
       current.push(tf)
       onChange({
         ...config,
@@ -318,7 +327,7 @@ export function IndicatorEditor({
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                     >
-                      {[3, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 )}
@@ -378,7 +387,7 @@ export function IndicatorEditor({
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                     >
-                      {[3, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 )}
@@ -439,7 +448,7 @@ export function IndicatorEditor({
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                     >
-                      {[3, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 )}
@@ -516,7 +525,7 @@ export function IndicatorEditor({
                   }
                   disabled={disabled}
                   min={10}
-                  max={20}
+                  max={30}
                   className="w-16 px-2 py-1 rounded text-xs text-center"
                   style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                 />

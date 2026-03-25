@@ -12,9 +12,9 @@ import (
 const (
 	MaxCandidateCoins = 3
 	MaxPositions      = 3
-	MaxTimeframes     = 3
+	MaxTimeframes     = 4
 	MinKlineCount     = 10
-	MaxKlineCount     = 20
+	MaxKlineCount     = 30
 )
 
 // ClampLimits enforces product-level limits on strategy config to prevent token overflow.
@@ -28,6 +28,11 @@ func (c *StrategyConfig) ClampLimits() {
 	}
 	if c.CoinSource.OILowLimit > MaxCandidateCoins {
 		c.CoinSource.OILowLimit = MaxCandidateCoins
+	}
+
+	// Clamp static coins
+	if len(c.CoinSource.StaticCoins) > MaxCandidateCoins {
+		c.CoinSource.StaticCoins = c.CoinSource.StaticCoins[:MaxCandidateCoins]
 	}
 
 	// Clamp kline count
@@ -51,16 +56,6 @@ func (c *StrategyConfig) ClampLimits() {
 		c.RiskControl.MaxPositions = MaxPositions
 	}
 
-	// Clamp ranking limits
-	if c.Indicators.OIRankingLimit > 5 {
-		c.Indicators.OIRankingLimit = 5
-	}
-	if c.Indicators.NetFlowRankingLimit > 5 {
-		c.Indicators.NetFlowRankingLimit = 5
-	}
-	if c.Indicators.PriceRankingLimit > 5 {
-		c.Indicators.PriceRankingLimit = 5
-	}
 }
 
 // StrategyStore strategy storage
@@ -352,15 +347,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			// OI ranking data
 			EnableOIRanking:   true,
 			OIRankingDuration: "1h",
-			OIRankingLimit:    5,
+			OIRankingLimit:    10,
 			// NetFlow ranking data
 			EnableNetFlowRanking:   true,
 			NetFlowRankingDuration: "1h",
-			NetFlowRankingLimit:    5,
+			NetFlowRankingLimit:    10,
 			// Price ranking data
 			EnablePriceRanking:   true,
 			PriceRankingDuration: "1h,4h,24h",
-			PriceRankingLimit:    5,
+			PriceRankingLimit:    10,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)

@@ -116,11 +116,27 @@
 - `docs/ARCHITECTURE_CN.md` 增补风控链视角，明确 risk_control / protection / kernel 校验 / trader 运行态保护之间的关系
 - 基线验证：`go test ./...` 通过
 
-### 主线盘点推进：测试网 / Mock / Replay 支撑现状审计
-- 新增 `docs/TESTNET_MOCK_REPLAY_AUDIT_CN.md`
-- 对当前仓库的 testnet / mock / replay 支撑进行代码级盘点，结论为：
-  - testnet：部分支持（Hyperliquid / Lighter / exchange store 已存在 testnet 开关与路径）
-  - mock：已有较多模块级 mock / httptest 基础
-  - replay：研究文档层面有概念，但工程交付层面基本未形成
-- 结论：当前具备开发级测试支撑基础，但还不具备完整主线交付所需的 replay / paper-trading / 仿真验证体系
+### Protection Phase 2 收口：Break-even Stop / Ladder TP-SL 执行链完成
+- `trader/auto_trader_risk.go` 已接入 Break-even Stop 运行态执行链：
+  - 从 `strategy.protection.break_even_stop` 读取配置
+  - 在达到浮盈阈值后自动撤换旧止损并设置保本止损
+  - 已补专项测试覆盖取消旧止损 / 触发阈值 / 错误路径
+- `trader/protection_plan.go` 已扩展支持手动 Ladder TP/SL protection plan：
+  - 支持多阶 take-profit / stop-loss 价格换算
+  - 支持分批 close ratio 累计裁剪到 100%
+  - ladder manual 模式优先于 full TP/SL 回退路径
+- `trader/protection_execution.go` 已接入 ladder protection 执行与校验：
+  - 根据阶梯 close ratio 拆分保护单数量
+  - 下发多阶 `SetStopLoss` / `SetTakeProfit`
+  - 拉取 open orders 做逐阶验证
+  - 若交易所能力矩阵不支持 partial close，则直接 fail-safe 阻断
+- 新增测试：
+  - `trader/protection_plan_test.go`
+  - `trader/protection_execution_test.go`
+  - `trader/auto_trader_risk_test.go`（break-even 补强）
+- 当前结论：Protection Phase 2 的手动 ladder / drawdown / break-even 三条主线执行链均已落地
+- 验证：
+  - `go test ./...` 通过
+  - `cd web && npm test` 通过（108 tests）
+  - `cd web && npm run build` 通过
 

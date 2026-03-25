@@ -141,18 +141,27 @@
 - 不能分批
 - 粒度过粗
 
-> 2026-03-25 更新：该缺口已完成首轮修复。
+> 2026-03-26 更新：该缺口已完成主线修复并进入当前交付基线。
 >
-> 当前运行态 Drawdown Take Profit 已支持：
-> - 从 `strategy.protection.drawdown_take_profit.rules` 读取规则
-> - 按 `poll_interval_seconds` 调整轮询周期
-> - 多规则匹配
-> - 按 `close_ratio_pct` 执行部分平仓 / 全平
+> 当前 Protection Phase 2 已落地能力：
+> - Drawdown Take Profit：
+>   - 从 `strategy.protection.drawdown_take_profit.rules` 读取规则
+>   - 按 `poll_interval_seconds` 调整轮询周期
+>   - 多规则匹配
+>   - 按 `close_ratio_pct` 执行部分平仓 / 全平
+> - Break-even Stop：
+>   - 从 `strategy.protection.break_even_stop` 读取运行态配置
+>   - 达到利润阈值后撤换旧止损并设置保本止损
+> - Ladder TP/SL：
+>   - 支持手动多阶 TP / SL protection plan 生成
+>   - 支持按 close ratio 拆单执行
+>   - 支持开仓后逐阶 open-order 校验
 >
-> 仍未完成部分：
+> 当前仍未包含部分：
+> - AI protection mode
+> - Regime Filter
 > - 前端更强的多规则编辑体验
-> - 更细粒度的执行去重/状态持久化
-> - 与 Break-even / Ladder 的联动仲裁
+> - 更细粒度的执行去重 / 状态持久化 / 联动仲裁
 
 #### 缺口 C：AI 与手动风控配置尚未统一
 当前没有统一规则定义：

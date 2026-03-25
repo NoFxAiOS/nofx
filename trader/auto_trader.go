@@ -333,7 +333,13 @@ func NewAutoTrader(config AutoTraderConfig, st *store.Store, userID string) (*Au
 	if config.StrategyConfig == nil {
 		return nil, fmt.Errorf("[%s] strategy not configured", config.Name)
 	}
-	strategyEngine := kernel.NewStrategyEngine(config.StrategyConfig)
+	// Pass claw402 wallet key to strategy engine so nofxos data requests
+	// are routed through claw402 (reuses the same wallet as AI calls)
+	var claw402Key string
+	if config.AIModel == "claw402" && config.CustomAPIKey != "" {
+		claw402Key = config.CustomAPIKey
+	}
+	strategyEngine := kernel.NewStrategyEngine(config.StrategyConfig, claw402Key)
 	logger.Infof("✓ [%s] Using strategy engine (strategy configuration loaded)", config.Name)
 
 	return &AutoTrader{

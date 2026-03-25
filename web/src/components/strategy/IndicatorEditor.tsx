@@ -60,6 +60,7 @@ export function IndicatorEditor({
         })
       }
     } else {
+      if (current.length >= 3) return // Max 3 timeframes
       current.push(tf)
       onChange({
         ...config,
@@ -317,7 +318,7 @@ export function IndicatorEditor({
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                     >
-                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                      {[3, 5].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 )}
@@ -377,7 +378,7 @@ export function IndicatorEditor({
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                     >
-                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                      {[3, 5].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 )}
@@ -438,7 +439,7 @@ export function IndicatorEditor({
                       className="w-14 px-2 py-1 rounded text-[10px]"
                       style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                     >
-                      {[5, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                      {[3, 5].map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   </div>
                 )}
@@ -515,7 +516,7 @@ export function IndicatorEditor({
                   }
                   disabled={disabled}
                   min={10}
-                  max={200}
+                  max={20}
                   className="w-16 px-2 py-1 rounded text-xs text-center"
                   style={{ background: '#1E2329', border: '1px solid #2B3139', color: '#EAECEF' }}
                 />

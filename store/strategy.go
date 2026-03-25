@@ -8,6 +8,61 @@ import (
 	"gorm.io/gorm"
 )
 
+// Hard limits to prevent token explosion in AI requests
+const (
+	MaxCandidateCoins = 3
+	MaxPositions      = 3
+	MaxTimeframes     = 3
+	MinKlineCount     = 10
+	MaxKlineCount     = 20
+)
+
+// ClampLimits enforces product-level limits on strategy config to prevent token overflow.
+func (c *StrategyConfig) ClampLimits() {
+	// Clamp coin source limits
+	if c.CoinSource.AI500Limit > MaxCandidateCoins {
+		c.CoinSource.AI500Limit = MaxCandidateCoins
+	}
+	if c.CoinSource.OITopLimit > MaxCandidateCoins {
+		c.CoinSource.OITopLimit = MaxCandidateCoins
+	}
+	if c.CoinSource.OILowLimit > MaxCandidateCoins {
+		c.CoinSource.OILowLimit = MaxCandidateCoins
+	}
+
+	// Clamp kline count
+	if c.Indicators.Klines.PrimaryCount < MinKlineCount {
+		c.Indicators.Klines.PrimaryCount = MinKlineCount
+	}
+	if c.Indicators.Klines.PrimaryCount > MaxKlineCount {
+		c.Indicators.Klines.PrimaryCount = MaxKlineCount
+	}
+	if c.Indicators.Klines.LongerCount > MaxKlineCount {
+		c.Indicators.Klines.LongerCount = MaxKlineCount
+	}
+
+	// Clamp timeframes
+	if len(c.Indicators.Klines.SelectedTimeframes) > MaxTimeframes {
+		c.Indicators.Klines.SelectedTimeframes = c.Indicators.Klines.SelectedTimeframes[:MaxTimeframes]
+	}
+
+	// Clamp max positions
+	if c.RiskControl.MaxPositions > MaxPositions {
+		c.RiskControl.MaxPositions = MaxPositions
+	}
+
+	// Clamp ranking limits
+	if c.Indicators.OIRankingLimit > 5 {
+		c.Indicators.OIRankingLimit = 5
+	}
+	if c.Indicators.NetFlowRankingLimit > 5 {
+		c.Indicators.NetFlowRankingLimit = 5
+	}
+	if c.Indicators.PriceRankingLimit > 5 {
+		c.Indicators.PriceRankingLimit = 5
+	}
+}
+
 // StrategyStore strategy storage
 type StrategyStore struct {
 	db *gorm.DB
@@ -260,20 +315,20 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 		CoinSource: CoinSourceConfig{
 			SourceType: "ai500",
 			UseAI500:   true,
-			AI500Limit: 10,
+			AI500Limit: 3,
 			UseOITop:   false,
-			OITopLimit: 10,
+			OITopLimit: 3,
 			UseOILow:   false,
-			OILowLimit: 10,
+			OILowLimit: 3,
 		},
 		Indicators: IndicatorConfig{
 			Klines: KlineConfig{
 				PrimaryTimeframe:     "5m",
-				PrimaryCount:         30,
+				PrimaryCount:         20,
 				LongerTimeframe:      "4h",
 				LongerCount:          10,
 				EnableMultiTimeframe: true,
-				SelectedTimeframes:   []string{"5m", "15m", "1h", "4h"},
+				SelectedTimeframes:   []string{"5m", "15m", "1h"},
 			},
 			EnableRawKlines:   true, // Required - raw OHLCV data for AI analysis
 			EnableEMA:         false,
@@ -297,15 +352,15 @@ func GetDefaultStrategyConfig(lang string) StrategyConfig {
 			// OI ranking data
 			EnableOIRanking:   true,
 			OIRankingDuration: "1h",
-			OIRankingLimit:    10,
+			OIRankingLimit:    5,
 			// NetFlow ranking data
 			EnableNetFlowRanking:   true,
 			NetFlowRankingDuration: "1h",
-			NetFlowRankingLimit:    10,
+			NetFlowRankingLimit:    5,
 			// Price ranking data
 			EnablePriceRanking:   true,
 			PriceRankingDuration: "1h,4h,24h",
-			PriceRankingLimit:    10,
+			PriceRankingLimit:    5,
 		},
 		RiskControl: RiskControlConfig{
 			MaxPositions:                    3,   // Max 3 coins simultaneously (CODE ENFORCED)

@@ -24,7 +24,6 @@ export function CoinSourceEditor({
     { value: 'ai500', icon: Database, color: '#F0B90B' },
     { value: 'oi_top', icon: TrendingUp, color: '#0ECB81' },
     { value: 'oi_low', icon: TrendingDown, color: '#F6465D' },
-    { value: 'mixed', icon: Shuffle, color: '#60a5fa' },
   ] as const
 
   // Calculate mixed mode summary
@@ -148,7 +147,7 @@ export function CoinSourceEditor({
         <label className="block text-sm font-medium mb-3 text-nofx-text">
           {ts(coinSource.sourceType, language)}
         </label>
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {sourceTypes.map(({ value, icon: Icon, color }) => (
             <button
               key={value}
@@ -318,7 +317,7 @@ export function CoinSourceEditor({
                   disabled={disabled}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 >
-                  {[5, 10, 15, 20, 30, 50].map(n => (
+                  {[1, 2, 3].map(n => (
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>
@@ -375,7 +374,7 @@ export function CoinSourceEditor({
                   disabled={disabled}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 >
-                  {[5, 10, 15, 20, 30, 50].map(n => (
+                  {[1, 2, 3].map(n => (
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>
@@ -432,7 +431,7 @@ export function CoinSourceEditor({
                   disabled={disabled}
                   className="px-3 py-1.5 rounded bg-nofx-bg border border-nofx-gold/20 text-nofx-text"
                 >
-                  {[5, 10, 15, 20, 30, 50].map(n => (
+                  {[1, 2, 3].map(n => (
                     <option key={n} value={n}>{n}</option>
                   ))}
                 </select>

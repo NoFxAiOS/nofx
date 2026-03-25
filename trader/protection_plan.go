@@ -5,6 +5,12 @@ import (
 	"nofx/store"
 )
 
+// ProtectionOrder represents one protection leg in a full or ladder protection plan.
+type ProtectionOrder struct {
+	Price         float64
+	CloseRatioPct float64
+}
+
 // ProtectionPlan is the normalized execution representation produced from strategy config
 // (and later AI protection plans) before hitting exchange adapters.
 type ProtectionPlan struct {
@@ -13,18 +19,28 @@ type ProtectionPlan struct {
 	NeedsTakeProfit      bool
 	StopLossPrice        float64
 	TakeProfitPrice      float64
+	StopLossOrders       []ProtectionOrder
+	TakeProfitOrders     []ProtectionOrder
 	RequiresNativeOrders bool
+	RequiresPartialClose bool
 }
 
-// BuildManualProtectionPlan creates a minimal full-position protection plan based on manual strategy config.
-// This is the Phase-1 foundation; ladder TP/SL and break-even will be added in later phases.
+// BuildManualProtectionPlan creates a normalized manual protection plan.
+// Phase 2 prefers ladder TP/SL when enabled; otherwise it falls back to full-position TP/SL.
 func (at *AutoTrader) BuildManualProtectionPlan(entryPrice float64, decisionSymbol string, action string) (*ProtectionPlan, error) {
 	if at.config.StrategyConfig == nil {
 		return nil, nil
 	}
 
 	protection := at.config.StrategyConfig.Protection
-	full := protection.FullTPSL
+	if plan, err := buildManualLadderProtectionPlan(entryPrice, action, protection.LadderTPSL); err != nil || plan != nil {
+		return plan, err
+	}
+
+	return buildManualFullProtectionPlan(entryPrice, action, protection.FullTPSL)
+}
+
+func buildManualFullProtectionPlan(entryPrice float64, action string, full store.FullTPSLConfig) (*ProtectionPlan, error) {
 	if !full.Enabled || full.Mode != store.ProtectionModeManual {
 		return nil, nil
 	}
@@ -66,4 +82,88 @@ func (at *AutoTrader) BuildManualProtectionPlan(entryPrice float64, decisionSymb
 	}
 
 	return plan, nil
+}
+
+func buildManualLadderProtectionPlan(entryPrice float64, action string, ladder store.LadderTPSLConfig) (*ProtectionPlan, error) {
+	if !ladder.Enabled || ladder.Mode != store.ProtectionModeManual {
+		return nil, nil
+	}
+	if entryPrice <= 0 {
+		return nil, fmt.Errorf("invalid entry price %.8f for ladder protection plan", entryPrice)
+	}
+
+	isLong := action == "open_long"
+	isShort := action == "open_short"
+	if !isLong && !isShort {
+		return nil, nil
+	}
+
+	plan := &ProtectionPlan{
+		Mode:                 string(ladder.Mode),
+		RequiresNativeOrders: true,
+		RequiresPartialClose: true,
+	}
+
+	remainingTakeProfitRatio := 100.0
+	remainingStopLossRatio := 100.0
+	for _, rule := range ladder.Rules {
+		if ladder.TakeProfitEnabled && rule.TakeProfitPct > 0 && rule.TakeProfitCloseRatioPct > 0 && remainingTakeProfitRatio > 0 {
+			closeRatio := minPositive(rule.TakeProfitCloseRatioPct, remainingTakeProfitRatio)
+			move := rule.TakeProfitPct / 100.0
+			price := entryPrice
+			if isLong {
+				price = entryPrice * (1 + move)
+			} else {
+				price = entryPrice * (1 - move)
+			}
+			plan.TakeProfitOrders = append(plan.TakeProfitOrders, ProtectionOrder{
+				Price:         price,
+				CloseRatioPct: closeRatio,
+			})
+			remainingTakeProfitRatio -= closeRatio
+		}
+
+		if ladder.StopLossEnabled && rule.StopLossPct > 0 && rule.StopLossCloseRatioPct > 0 && remainingStopLossRatio > 0 {
+			closeRatio := minPositive(rule.StopLossCloseRatioPct, remainingStopLossRatio)
+			move := rule.StopLossPct / 100.0
+			price := entryPrice
+			if isLong {
+				price = entryPrice * (1 - move)
+			} else {
+				price = entryPrice * (1 + move)
+			}
+			plan.StopLossOrders = append(plan.StopLossOrders, ProtectionOrder{
+				Price:         price,
+				CloseRatioPct: closeRatio,
+			})
+			remainingStopLossRatio -= closeRatio
+		}
+	}
+
+	plan.NeedsStopLoss = len(plan.StopLossOrders) > 0
+	plan.NeedsTakeProfit = len(plan.TakeProfitOrders) > 0
+	if !plan.NeedsStopLoss && !plan.NeedsTakeProfit {
+		return nil, nil
+	}
+
+	if len(plan.StopLossOrders) == 1 {
+		plan.StopLossPrice = plan.StopLossOrders[0].Price
+	}
+	if len(plan.TakeProfitOrders) == 1 {
+		plan.TakeProfitPrice = plan.TakeProfitOrders[0].Price
+	}
+	return plan, nil
+}
+
+func minPositive(a, b float64) float64 {
+	switch {
+	case a <= 0:
+		return 0
+	case b <= 0:
+		return 0
+	case a < b:
+		return a
+	default:
+		return b
+	}
 }

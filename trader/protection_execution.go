@@ -36,9 +36,13 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 		if plan.RequiresNativeOrders && (!caps.NativeStopLoss && plan.NeedsStopLoss || !caps.NativeTakeProfit && plan.NeedsTakeProfit) {
 			return fmt.Errorf("exchange %s cannot safely support required native protection orders", at.exchange)
 		}
-		logger.Infof("  🛡 Applying manual protection plan: stop=%v@%.6f tp=%v@%.6f",
-			plan.NeedsStopLoss, plan.StopLossPrice, plan.NeedsTakeProfit, plan.TakeProfitPrice)
-		if err := at.placeAndVerifyProtection(req.Symbol, req.PositionSide, req.Quantity, plan.NeedsStopLoss, plan.StopLossPrice, plan.NeedsTakeProfit, plan.TakeProfitPrice); err != nil {
+		if plan.RequiresPartialClose && !caps.NativePartialClose {
+			return fmt.Errorf("exchange %s cannot safely support ladder partial-close protection", at.exchange)
+		}
+
+		logger.Infof("  🛡 Applying manual protection plan: stop=%v tp=%v ladderSL=%d ladderTP=%d",
+			plan.NeedsStopLoss, plan.NeedsTakeProfit, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
+		if err := at.placeAndVerifyProtectionPlan(req.Symbol, req.PositionSide, req.Quantity, plan); err != nil {
 			return err
 		}
 		return nil
@@ -53,6 +57,72 @@ func (at *AutoTrader) applyPostOpenProtection(req *protectionExecutionRequest) e
 	logger.Infof("  🛡 Applying AI decision protection fallback: stop=%v@%.6f tp=%v@%.6f",
 		needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
 	return at.placeAndVerifyProtection(req.Symbol, req.PositionSide, req.Quantity, needsStopLoss, req.Decision.StopLoss, needsTakeProfit, req.Decision.TakeProfit)
+}
+
+func (at *AutoTrader) placeAndVerifyProtectionPlan(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {
+	if plan == nil {
+		return nil
+	}
+
+	if len(plan.StopLossOrders) > 1 || len(plan.TakeProfitOrders) > 1 {
+		return at.placeAndVerifyLadderProtection(symbol, positionSide, quantity, plan)
+	}
+
+	return at.placeAndVerifyProtection(symbol, positionSide, quantity, plan.NeedsStopLoss, plan.StopLossPrice, plan.NeedsTakeProfit, plan.TakeProfitPrice)
+}
+
+func (at *AutoTrader) placeAndVerifyLadderProtection(symbol, positionSide string, quantity float64, plan *ProtectionPlan) error {
+	if plan == nil {
+		return nil
+	}
+
+	for _, order := range plan.StopLossOrders {
+		orderQty := quantity * order.CloseRatioPct / 100.0
+		if orderQty <= 0 {
+			continue
+		}
+		if err := at.trader.SetStopLoss(symbol, positionSide, orderQty, order.Price); err != nil {
+			return fmt.Errorf("failed to set ladder stop loss %.6f (ratio %.2f%%): %w", order.Price, order.CloseRatioPct, err)
+		}
+	}
+	for _, order := range plan.TakeProfitOrders {
+		orderQty := quantity * order.CloseRatioPct / 100.0
+		if orderQty <= 0 {
+			continue
+		}
+		if err := at.trader.SetTakeProfit(symbol, positionSide, orderQty, order.Price); err != nil {
+			return fmt.Errorf("failed to set ladder take profit %.6f (ratio %.2f%%): %w", order.Price, order.CloseRatioPct, err)
+		}
+	}
+
+	openOrders, err := at.trader.GetOpenOrders(symbol)
+	if err != nil {
+		return fmt.Errorf("failed to verify ladder protection orders: %w", err)
+	}
+
+	if err := verifyProtectionOrders(openOrders, positionSide, plan.StopLossOrders, false); err != nil {
+		return err
+	}
+	if err := verifyProtectionOrders(openOrders, positionSide, plan.TakeProfitOrders, true); err != nil {
+		return err
+	}
+
+	logger.Infof("  ✅ Ladder protection orders verified: symbol=%s side=%s ladderSL=%d ladderTP=%d",
+		symbol, positionSide, len(plan.StopLossOrders), len(plan.TakeProfitOrders))
+	return nil
+}
+
+func verifyProtectionOrders(orders []tradertypes.OpenOrder, positionSide string, targets []ProtectionOrder, wantTakeProfit bool) error {
+	for _, target := range targets {
+		if !hasMatchingProtectionOrder(orders, positionSide, wantTakeProfit, target.Price) {
+			kind := "stop loss"
+			if wantTakeProfit {
+				kind = "take profit"
+			}
+			return fmt.Errorf("%s ladder verification failed for %s at %.6f", kind, positionSide, target.Price)
+		}
+	}
+	return nil
 }
 
 func (at *AutoTrader) placeAndVerifyProtection(symbol, positionSide string, quantity float64, needsStopLoss bool, stopLossPrice float64, needsTakeProfit bool, takeProfitPrice float64) error {

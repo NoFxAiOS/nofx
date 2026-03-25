@@ -3,6 +3,7 @@ package trader
 import (
 	"fmt"
 	"nofx/logger"
+	"nofx/store"
 	"strings"
 	"time"
 )
@@ -15,10 +16,11 @@ func (at *AutoTrader) startDrawdownMonitor() {
 	go func() {
 		defer at.monitorWg.Done()
 
-		ticker := time.NewTicker(1 * time.Minute) // Check every minute
+		interval := at.getDrawdownMonitorInterval()
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
-		logger.Info("📊 Started position drawdown monitoring (check every minute)")
+		logger.Infof("📊 Started position drawdown monitoring (check every %s)", interval)
 
 		for {
 			select {
@@ -32,12 +34,39 @@ func (at *AutoTrader) startDrawdownMonitor() {
 	}()
 }
 
+func (at *AutoTrader) getDrawdownMonitorInterval() time.Duration {
+	if at.config.StrategyConfig == nil {
+		return time.Minute
+	}
+
+	drawdown := at.config.StrategyConfig.Protection.DrawdownTakeProfit
+	if !drawdown.Enabled || len(drawdown.Rules) == 0 {
+		return time.Minute
+	}
+
+	minSeconds := 60
+	for _, rule := range drawdown.Rules {
+		if rule.PollIntervalSeconds > 0 && rule.PollIntervalSeconds < minSeconds {
+			minSeconds = rule.PollIntervalSeconds
+		}
+	}
+	if minSeconds < 5 {
+		minSeconds = 5
+	}
+	return time.Duration(minSeconds) * time.Second
+}
+
 // checkPositionDrawdown checks position drawdown situation
 func (at *AutoTrader) checkPositionDrawdown() {
 	// Get current positions
 	positions, err := at.trader.GetPositions()
 	if err != nil {
 		logger.Infof("❌ Drawdown monitoring: failed to get positions: %v", err)
+		return
+	}
+
+	rules := at.getActiveDrawdownRules()
+	if len(rules) == 0 {
 		return
 	}
 
@@ -87,47 +116,99 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
-		// Check close position condition: profit > 5% and drawdown >= 40%
-		if currentPnLPct > 5.0 && drawdownPct >= 40.0 {
-			logger.Infof("🚨 Drawdown close position condition triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
-
-			// Execute close position
-			if err := at.emergencyClosePosition(symbol, side); err != nil {
-				logger.Infof("❌ Drawdown close position failed (%s %s): %v", symbol, side, err)
-			} else {
-				logger.Infof("✅ Drawdown close position succeeded: %s %s", symbol, side)
-				// Clear cache for this position after closing
-				at.ClearPeakPnLCache(symbol, side)
+		matchedRule := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules)
+		if matchedRule == nil {
+			if currentPnLPct > 0 {
+				logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
+					symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
 			}
-		} else if currentPnLPct > 5.0 {
-			// Record situations close to close position condition (for debugging)
-			logger.Infof("📊 Drawdown monitoring: %s %s | Profit: %.2f%% | Peak: %.2f%% | Drawdown: %.2f%%",
-				symbol, side, currentPnLPct, peakPnLPct, drawdownPct)
+			continue
+		}
+
+		closeQty := quantity * matchedRule.CloseRatioPct / 100.0
+		if closeQty <= 0 || matchedRule.CloseRatioPct >= 99.999 {
+			closeQty = 0 // exchange adapters use 0 to mean close all
+		}
+
+		logger.Infof("🚨 Drawdown take-profit triggered: %s %s | Current profit: %.2f%% | Peak profit: %.2f%% | Drawdown: %.2f%% | CloseRatio: %.2f%%",
+			symbol, side, currentPnLPct, peakPnLPct, drawdownPct, matchedRule.CloseRatioPct)
+
+		if err := at.closePositionBySide(symbol, side, closeQty); err != nil {
+			logger.Infof("❌ Drawdown take-profit failed (%s %s): %v", symbol, side, err)
+			continue
+		}
+
+		logger.Infof("✅ Drawdown take-profit succeeded: %s %s", symbol, side)
+		if closeQty == 0 {
+			at.ClearPeakPnLCache(symbol, side)
+		} else {
+			at.UpdatePeakPnL(symbol, side, currentPnLPct)
 		}
 	}
 }
 
-// emergencyClosePosition emergency close position function
-func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
-	switch side {
+func (at *AutoTrader) getActiveDrawdownRules() []store.DrawdownTakeProfitRule {
+	if at.config.StrategyConfig == nil {
+		return nil
+	}
+
+	cfg := at.config.StrategyConfig.Protection.DrawdownTakeProfit
+	if !cfg.Enabled || len(cfg.Rules) == 0 {
+		return nil
+	}
+
+	rules := make([]store.DrawdownTakeProfitRule, 0, len(cfg.Rules))
+	for _, rule := range cfg.Rules {
+		if rule.MinProfitPct <= 0 || rule.MaxDrawdownPct <= 0 || rule.CloseRatioPct <= 0 {
+			continue
+		}
+		if rule.CloseRatioPct > 100 {
+			rule.CloseRatioPct = 100
+		}
+		rules = append(rules, rule)
+	}
+	return rules
+}
+
+func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rules []store.DrawdownTakeProfitRule) *store.DrawdownTakeProfitRule {
+	var matched *store.DrawdownTakeProfitRule
+	for i := range rules {
+		rule := rules[i]
+		if currentPnLPct < rule.MinProfitPct || drawdownPct < rule.MaxDrawdownPct {
+			continue
+		}
+		if matched == nil || rule.MinProfitPct > matched.MinProfitPct ||
+			(rule.MinProfitPct == matched.MinProfitPct && rule.MaxDrawdownPct > matched.MaxDrawdownPct) {
+			matched = &rule
+		}
+	}
+	return matched
+}
+
+func (at *AutoTrader) closePositionBySide(symbol, side string, quantity float64) error {
+	switch strings.ToLower(side) {
 	case "long":
-		order, err := at.trader.CloseLong(symbol, 0) // 0 = close all
+		order, err := at.trader.CloseLong(symbol, quantity)
 		if err != nil {
 			return err
 		}
-		logger.Infof("✅ Emergency close long position succeeded, order ID: %v", order["orderId"])
+		logger.Infof("✅ Close long position succeeded, order ID: %v", order["orderId"])
 	case "short":
-		order, err := at.trader.CloseShort(symbol, 0) // 0 = close all
+		order, err := at.trader.CloseShort(symbol, quantity)
 		if err != nil {
 			return err
 		}
-		logger.Infof("✅ Emergency close short position succeeded, order ID: %v", order["orderId"])
+		logger.Infof("✅ Close short position succeeded, order ID: %v", order["orderId"])
 	default:
 		return fmt.Errorf("unknown position direction: %s", side)
 	}
 
 	return nil
+}
+
+// emergencyClosePosition emergency close position function
+func (at *AutoTrader) emergencyClosePosition(symbol, side string) error {
+	return at.closePositionBySide(symbol, side, 0)
 }
 
 // GetPeakPnLCache gets peak profit cache

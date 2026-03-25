@@ -116,6 +116,13 @@ func (at *AutoTrader) checkPositionDrawdown() {
 			drawdownPct = ((peakPnLPct - currentPnLPct) / peakPnLPct) * 100
 		}
 
+		matchedBreakEven := at.getActiveBreakEvenConfig()
+		if matchedBreakEven != nil {
+			if err := at.applyBreakEvenStop(symbol, side, quantity, entryPrice, currentPnLPct, *matchedBreakEven); err != nil {
+				logger.Infof("❌ Break-even stop apply failed (%s %s): %v", symbol, side, err)
+			}
+		}
+
 		matchedRule := at.matchDrawdownRule(currentPnLPct, drawdownPct, rules)
 		if matchedRule == nil {
 			if currentPnLPct > 0 {
@@ -183,6 +190,73 @@ func (at *AutoTrader) matchDrawdownRule(currentPnLPct, drawdownPct float64, rule
 		}
 	}
 	return matched
+}
+
+func (at *AutoTrader) getActiveBreakEvenConfig() *store.BreakEvenStopConfig {
+	if at.config.StrategyConfig == nil {
+		return nil
+	}
+
+	cfg := at.config.StrategyConfig.Protection.BreakEvenStop
+	if !cfg.Enabled {
+		return nil
+	}
+	if cfg.TriggerMode != store.BreakEvenTriggerProfitPct {
+		return nil
+	}
+	if cfg.TriggerValue <= 0 {
+		return nil
+	}
+	if cfg.OffsetPct < 0 {
+		cfg.OffsetPct = 0
+	}
+	return &cfg
+}
+
+func (at *AutoTrader) applyBreakEvenStop(symbol, side string, quantity, entryPrice, currentPnLPct float64, cfg store.BreakEvenStopConfig) error {
+	if currentPnLPct < cfg.TriggerValue || entryPrice <= 0 || quantity <= 0 {
+		return nil
+	}
+
+	caps := at.GetProtectionCapabilities()
+	if !caps.NativeStopLoss {
+		return fmt.Errorf("exchange %s does not support native stop loss for break-even", at.exchange)
+	}
+
+	breakEvenPrice := calculateBreakEvenStopPrice(side, entryPrice, cfg.OffsetPct)
+	if breakEvenPrice <= 0 {
+		return fmt.Errorf("invalid break-even stop price calculated for %s %s", symbol, side)
+	}
+
+	if caps.CanAmendProtection {
+		if err := at.trader.CancelStopLossOrders(symbol); err != nil {
+			return fmt.Errorf("failed to cancel previous stop loss before break-even: %w", err)
+		}
+	}
+
+	positionSide := strings.ToUpper(side)
+	if err := at.trader.SetStopLoss(symbol, positionSide, quantity, breakEvenPrice); err != nil {
+		return fmt.Errorf("failed to set break-even stop loss: %w", err)
+	}
+
+	logger.Infof("🟠 Break-even stop applied: %s %s | trigger=%.2f%% current=%.2f%% stop=%.6f",
+		symbol, side, cfg.TriggerValue, currentPnLPct, breakEvenPrice)
+	return nil
+}
+
+func calculateBreakEvenStopPrice(side string, entryPrice, offsetPct float64) float64 {
+	if entryPrice <= 0 {
+		return 0
+	}
+	move := offsetPct / 100.0
+	switch strings.ToLower(side) {
+	case "long":
+		return entryPrice * (1 + move)
+	case "short":
+		return entryPrice * (1 - move)
+	default:
+		return 0
+	}
 }
 
 func (at *AutoTrader) closePositionBySide(symbol, side string, quantity float64) error {

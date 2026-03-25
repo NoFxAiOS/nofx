@@ -67,3 +67,38 @@ func TestGetActiveDrawdownRulesFiltersInvalidRules(t *testing.T) {
 		t.Fatalf("expected close ratio clamped to 100, got %.2f", rules[0].CloseRatioPct)
 	}
 }
+
+func TestGetActiveBreakEvenConfig(t *testing.T) {
+	at := &AutoTrader{}
+	if cfg := at.getActiveBreakEvenConfig(); cfg != nil {
+		t.Fatal("expected nil config when strategy config is missing")
+	}
+
+	at.config.StrategyConfig = &store.StrategyConfig{}
+	at.config.StrategyConfig.Protection.BreakEvenStop = store.BreakEvenStopConfig{
+		Enabled:      true,
+		TriggerMode:  store.BreakEvenTriggerProfitPct,
+		TriggerValue: 3,
+		OffsetPct:    0.1,
+	}
+
+	cfg := at.getActiveBreakEvenConfig()
+	if cfg == nil {
+		t.Fatal("expected active break-even config")
+	}
+	if cfg.TriggerValue != 3 {
+		t.Fatalf("unexpected trigger value: %.2f", cfg.TriggerValue)
+	}
+}
+
+func TestCalculateBreakEvenStopPrice(t *testing.T) {
+	if got := calculateBreakEvenStopPrice("long", 100, 0.1); got != 100.1 {
+		t.Fatalf("expected long break-even stop 100.1, got %.4f", got)
+	}
+	if got := calculateBreakEvenStopPrice("short", 100, 0.1); got != 99.9 {
+		t.Fatalf("expected short break-even stop 99.9, got %.4f", got)
+	}
+	if got := calculateBreakEvenStopPrice("flat", 100, 0.1); got != 0 {
+		t.Fatalf("expected invalid side to return 0, got %.4f", got)
+	}
+}

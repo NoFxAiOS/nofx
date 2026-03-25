@@ -116,3 +116,11 @@
 - `docs/ARCHITECTURE_CN.md` 增补风控链视角，明确 risk_control / protection / kernel 校验 / trader 运行态保护之间的关系
 - 基线验证：`go test ./...` 通过
 
+### 主线盘点推进：测试网 / Mock / Replay 支撑现状审计
+- 新增 `docs/TESTNET_MOCK_REPLAY_AUDIT_CN.md`
+- 对当前仓库的 testnet / mock / replay 支撑进行代码级盘点，结论为：
+  - testnet：部分支持（Hyperliquid / Lighter / exchange store 已存在 testnet 开关与路径）
+  - mock：已有较多模块级 mock / httptest 基础
+  - replay：研究文档层面有概念，但工程交付层面基本未形成
+- 结论：当前具备开发级测试支撑基础，但还不具备完整主线交付所需的 replay / paper-trading / 仿真验证体系
+

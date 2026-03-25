@@ -129,7 +129,7 @@
 - 风险无法接受
 
 #### 缺口 B：回撤止盈是硬编码单规则
-当前逻辑：
+当前逻辑（历史基线）：
 
 - `profit > 5%`
 - `drawdown >= 40%`
@@ -140,6 +140,19 @@
 - 无法配置
 - 不能分批
 - 粒度过粗
+
+> 2026-03-25 更新：该缺口已完成首轮修复。
+>
+> 当前运行态 Drawdown Take Profit 已支持：
+> - 从 `strategy.protection.drawdown_take_profit.rules` 读取规则
+> - 按 `poll_interval_seconds` 调整轮询周期
+> - 多规则匹配
+> - 按 `close_ratio_pct` 执行部分平仓 / 全平
+>
+> 仍未完成部分：
+> - 前端更强的多规则编辑体验
+> - 更细粒度的执行去重/状态持久化
+> - 与 Break-even / Ladder 的联动仲裁
 
 #### 缺口 C：AI 与手动风控配置尚未统一
 当前没有统一规则定义：

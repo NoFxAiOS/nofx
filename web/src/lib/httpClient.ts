@@ -262,5 +262,39 @@ export class HttpClient {
 // Export singleton instance
 export const httpClient = new HttpClient()
 
+export async function getJson<T = any>(
+  url: string,
+  options: {
+    params?: Record<string, string | number | boolean | null | undefined>
+    headers?: Record<string, string>
+  } = {}
+): Promise<T> {
+  const result = await httpClient.get<T>(url, options.params, options.headers)
+  if (!result.success || result.data === undefined) {
+    throw new Error(result.message || `GET ${url} failed`)
+  }
+  return result.data
+}
+
+export async function sendJson<T = any>(
+  url: string,
+  options: {
+    method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+    data?: any
+    headers?: Record<string, string>
+  } = {}
+): Promise<T> {
+  const method = options.method || 'POST'
+  const result = await httpClient.request<T>(url, {
+    method,
+    data: options.data,
+    headers: options.headers,
+  })
+  if (!result.success || result.data === undefined) {
+    throw new Error(result.message || `${method} ${url} failed`)
+  }
+  return result.data
+}
+
 // Export helper function to reset 401 flag
 export const reset401Flag = () => httpClient.reset401Flag()

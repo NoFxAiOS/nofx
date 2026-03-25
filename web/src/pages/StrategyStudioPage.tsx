@@ -41,6 +41,7 @@ import { GridConfigEditor, defaultGridConfig } from '../components/strategy/Grid
 import { ProtectionEditor, defaultProtectionConfig } from '../components/strategy/ProtectionEditor'
 import { DeepVoidBackground } from '../components/common/DeepVoidBackground'
 import { t } from '../i18n/translations'
+import { getJson, sendJson } from '../lib/httpClient'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
@@ -106,33 +107,24 @@ export function StrategyStudioPage() {
   const fetchAiModels = useCallback(async () => {
     if (!token) return
     try {
-      const response = await fetch(`${API_BASE}/api/models`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        // Backend returns an array, not { models: [] }
-        const allModels = Array.isArray(data) ? data : (data.models || [])
-        const enabledModels = allModels.filter((m: AIModel) => m.enabled)
-        setAiModels(enabledModels)
-        if (enabledModels.length > 0 && !selectedModelId) {
-          setSelectedModelId(enabledModels[0].id)
-        }
+      const data = await getJson<AIModel[] | { models?: AIModel[] }>(`${API_BASE}/api/models`)
+      // Backend returns an array, not { models: [] }
+      const allModels = Array.isArray(data) ? data : (data.models || [])
+      const enabledModels = allModels.filter((m: AIModel) => m.enabled)
+      setAiModels(enabledModels)
+      if (enabledModels.length > 0 && !selectedModelId) {
+        setSelectedModelId(enabledModels[0].id)
       }
     } catch (err) {
       console.error('Failed to fetch AI models:', err)
     }
-  }, [token, selectedModelId])
+  }, [selectedModelId])
 
   // Fetch strategies
   const fetchStrategies = useCallback(async () => {
     if (!token) return
     try {
-      const response = await fetch(`${API_BASE}/api/strategies`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (!response.ok) throw new Error('Failed to fetch strategies')
-      const data = await response.json()
+      const data = await getJson<{ strategies?: Strategy[] }>(`${API_BASE}/api/strategies`)
       const normalizedStrategies = (data.strategies || []).map((strategy: Strategy) => ({
         ...strategy,
         config: {
@@ -177,12 +169,9 @@ export function StrategyStudioPage() {
 
       try {
         // Fetch default config for the new language
-        const response = await fetch(
-          `${API_BASE}/api/strategies/default-config?lang=${language}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const defaultConfig = await getJson<StrategyConfig>(
+          `${API_BASE}/api/strategies/default-config?lang=${language}`
         )
-        if (!response.ok) return
-        const defaultConfig = await response.json()
 
         // Update only the prompt sections and language field
         setEditingConfig(prev => {
@@ -207,30 +196,21 @@ export function StrategyStudioPage() {
   const handleCreateStrategy = async () => {
     if (!token) return
     try {
-      const configResponse = await fetch(
-        `${API_BASE}/api/strategies/default-config?lang=${language}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      const defaultConfig = await getJson<StrategyConfig>(
+        `${API_BASE}/api/strategies/default-config?lang=${language}`
       )
-      if (!configResponse.ok) throw new Error('Failed to fetch default config')
-      const defaultConfig = await configResponse.json()
       if (!defaultConfig.protection) {
         defaultConfig.protection = defaultProtectionConfig
       }
 
-      const response = await fetch(`${API_BASE}/api/strategies`, {
+      const result = await sendJson<{ id?: string }>(`${API_BASE}/api/strategies`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        data: {
           name: tr('newStrategyName'),
           description: '',
           config: defaultConfig,
-        }),
+        },
       })
-      if (!response.ok) throw new Error('Failed to create strategy')
-      const result = await response.json()
       await fetchStrategies()
       // Auto-select the newly created strategy
       if (result.id) {
@@ -271,11 +251,9 @@ export function StrategyStudioPage() {
     if (!confirmed) return
 
     try {
-      const response = await fetch(`${API_BASE}/api/strategies/${id}`, {
+      await sendJson<void>(`${API_BASE}/api/strategies/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       })
-      if (!response.ok) throw new Error('Failed to delete strategy')
       notify.success(tr('strategyDeleted'))
       // Clear selection if deleted strategy was selected
       if (selectedStrategy?.id === id) {
@@ -295,17 +273,12 @@ export function StrategyStudioPage() {
   const handleDuplicateStrategy = async (id: string) => {
     if (!token) return
     try {
-      const response = await fetch(`${API_BASE}/api/strategies/${id}/duplicate`, {
+      await sendJson(`${API_BASE}/api/strategies/${id}/duplicate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        data: {
           name: tr('strategyCopy'),
-        }),
+        },
       })
-      if (!response.ok) throw new Error('Failed to duplicate strategy')
       await fetchStrategies()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -316,11 +289,9 @@ export function StrategyStudioPage() {
   const handleActivateStrategy = async (id: string) => {
     if (!token) return
     try {
-      const response = await fetch(`${API_BASE}/api/strategies/${id}/activate`, {
+      await sendJson(`${API_BASE}/api/strategies/${id}/activate`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
       })
-      if (!response.ok) throw new Error('Failed to activate strategy')
       await fetchStrategies()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -362,20 +333,14 @@ export function StrategyStudioPage() {
         throw new Error(tr('invalidStrategyFile'))
       }
 
-      // Create new strategy with imported config
-      const response = await fetch(`${API_BASE}/api/strategies`, {
+      await sendJson(`${API_BASE}/api/strategies`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        data: {
           name: `${importData.name} (${tr('imported')})`,
           description: importData.description || '',
           config: importData.config,
-        }),
+        },
       })
-      if (!response.ok) throw new Error('Failed to import strategy')
 
       notify.success(tr('strategyImported'))
       await fetchStrategies()
@@ -398,24 +363,16 @@ export function StrategyStudioPage() {
         ...editingConfig,
         language: language as 'zh' | 'en',
       }
-      const response = await fetch(
-        `${API_BASE}/api/strategies/${selectedStrategy.id}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: selectedStrategy.name,
-            description: selectedStrategy.description,
-            config: configWithLanguage,
-            is_public: selectedStrategy.is_public,
-            config_visible: selectedStrategy.config_visible,
-          }),
-        }
-      )
-      if (!response.ok) throw new Error('Failed to save strategy')
+      await sendJson(`${API_BASE}/api/strategies/${selectedStrategy.id}`, {
+        method: 'PUT',
+        data: {
+          name: selectedStrategy.name,
+          description: selectedStrategy.description,
+          config: configWithLanguage,
+          is_public: selectedStrategy.is_public,
+          config_visible: selectedStrategy.config_visible,
+        },
+      })
       setHasChanges(false)
       notify.success(tr('strategySaved'))
       await fetchStrategies()
@@ -444,20 +401,19 @@ export function StrategyStudioPage() {
     if (!token || !editingConfig) return
     setIsLoadingPrompt(true)
     try {
-      const response = await fetch(`${API_BASE}/api/strategies/preview-prompt`, {
+      const data = await sendJson<{
+        system_prompt: string
+        user_prompt?: string
+        prompt_variant: string
+        config_summary: Record<string, unknown>
+      }>(`${API_BASE}/api/strategies/preview-prompt`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        data: {
           config: editingConfig,
           account_equity: 1000,
           prompt_variant: selectedVariant,
-        }),
+        },
       })
-      if (!response.ok) throw new Error('Failed to fetch prompt preview')
-      const data = await response.json()
       setPromptPreview(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
@@ -472,21 +428,23 @@ export function StrategyStudioPage() {
     setIsRunningAiTest(true)
     setAiTestResult(null)
     try {
-      const response = await fetch(`${API_BASE}/api/strategies/test-run`, {
+      const data = await sendJson<{
+        system_prompt?: string
+        user_prompt?: string
+        ai_response?: string
+        reasoning?: string
+        decisions?: unknown[]
+        error?: string
+        duration_ms?: number
+      }>(`${API_BASE}/api/strategies/test-run`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        data: {
           config: editingConfig,
           prompt_variant: selectedVariant,
           ai_model_id: selectedModelId,
           run_real_ai: true,
-        }),
+        },
       })
-      if (!response.ok) throw new Error('Failed to run AI test')
-      const data = await response.json()
       setAiTestResult(data)
     } catch (err) {
       setAiTestResult({

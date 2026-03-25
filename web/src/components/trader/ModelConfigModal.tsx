@@ -13,6 +13,7 @@ import {
   AI_PROVIDER_CONFIG,
   getShortName,
 } from './model-constants'
+import { sendJson } from '../../lib/httpClient'
 
 interface ModelConfigModalProps {
   allModels: AIModel[]
@@ -342,12 +343,16 @@ function Claw402ConfigForm({
     setValidating(true)
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('/api/wallet/validate', {
+        const data = await sendJson<{
+          valid?: boolean
+          address?: string
+          balance_usdc?: string
+          claw402_status?: string
+          error?: string
+        }>('/api/wallet/validate', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ private_key: apiKey }),
+          data: { private_key: apiKey },
         })
-        const data = await res.json()
         if (data.valid) {
           setWalletAddress(data.address || '')
           setUsdcBalance(data.balance_usdc || '0.00')
@@ -370,12 +375,16 @@ function Claw402ConfigForm({
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await fetch('/api/wallet/validate', {
+      const data = await sendJson<{
+        valid?: boolean
+        address?: string
+        balance_usdc?: string
+        claw402_status?: string
+        error?: string
+      }>('/api/wallet/validate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ private_key: apiKey }),
+        data: { private_key: apiKey },
       })
-      const data = await res.json()
       if (data.valid) {
         setWalletAddress(data.address || '')
         setUsdcBalance(data.balance_usdc || '0.00')
@@ -513,8 +522,9 @@ function Claw402ConfigForm({
                 type="button"
                 onClick={async () => {
                   try {
-                    const res = await fetch('/api/wallet/generate', { method: 'POST' })
-                    const data = await res.json()
+                    const data = await sendJson<{ private_key?: string }>('/api/wallet/generate', {
+                      method: 'POST',
+                    })
                     if (data.private_key) {
                       onApiKeyChange(data.private_key)
                       setShowNewWalletBackup(true)

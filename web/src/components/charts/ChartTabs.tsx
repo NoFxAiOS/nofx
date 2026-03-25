@@ -3,6 +3,7 @@ const EquityChart = lazy(() =>
   import('./EquityChart').then((m) => ({ default: m.EquityChart }))
 )
 import { AdvancedChart } from './AdvancedChart'
+import { httpClient } from '../../lib/httpClient'
 import { useLanguage } from '../../contexts/LanguageContext'
 import { t } from '../../i18n/translations'
 import { chartTabs, ts } from '../../i18n/strategy-translations'
@@ -79,24 +80,34 @@ export function ChartTabs({ traderId, selectedSymbol, updateKey, exchangeId }: C
 
   // Fetch available symbol list
   useEffect(() => {
-    if (marketConfig.hasDropdown) {
-      fetch(`/api/symbols?exchange=${marketConfig.exchange}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.symbols) {
-            // Sort by category: crypto > stock > forex > commodity > index
-            const categoryOrder: Record<string, number> = { crypto: 0, stock: 1, forex: 2, commodity: 3, index: 4 }
-            const sorted = [...data.symbols].sort((a: SymbolInfo, b: SymbolInfo) => {
-              const orderA = categoryOrder[a.category] ?? 5
-              const orderB = categoryOrder[b.category] ?? 5
-              if (orderA !== orderB) return orderA - orderB
-              return a.symbol.localeCompare(b.symbol)
-            })
-            setAvailableSymbols(sorted)
-          }
-        })
-        .catch(err => console.error('Failed to fetch symbols:', err))
+    if (!marketConfig.hasDropdown) {
+      setAvailableSymbols([])
+      return
     }
+
+    const loadSymbols = async () => {
+      const result = await httpClient.get<{ symbols?: SymbolInfo[] }>('/api/symbols', {
+        exchange: marketConfig.exchange,
+      })
+
+      if (!result.success || !result.data?.symbols) {
+        console.error('Failed to fetch symbols:', result.message || 'Unknown error')
+        setAvailableSymbols([])
+        return
+      }
+
+      // Sort by category: crypto > stock > forex > commodity > index
+      const categoryOrder: Record<string, number> = { crypto: 0, stock: 1, forex: 2, commodity: 3, index: 4 }
+      const sorted = [...result.data.symbols].sort((a: SymbolInfo, b: SymbolInfo) => {
+        const orderA = categoryOrder[a.category] ?? 5
+        const orderB = categoryOrder[b.category] ?? 5
+        if (orderA !== orderB) return orderA - orderB
+        return a.symbol.localeCompare(b.symbol)
+      })
+      setAvailableSymbols(sorted)
+    }
+
+    loadSymbols()
   }, [marketType, marketConfig.exchange, marketConfig.hasDropdown])
 
   // Close dropdown on outside click
